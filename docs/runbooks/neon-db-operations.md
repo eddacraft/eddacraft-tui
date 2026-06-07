@@ -1,5 +1,13 @@
 # Neon DB Operations Runbook
 
+| Type    | Authority     | Owner                         | Status | Freshness                                                                                     |
+| ------- | ------------- | ----------------------------- | ------ | --------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | @aneki (`aneki@eddacraft.ai`) | Live   | Last reviewed 2026-05-24 against production Neon API and `apps/anvil-api/scripts/migrate.mjs` |
+
+| Upstream                             | Downstream                                                        |
+| ------------------------------------ | ----------------------------------------------------------------- |
+| `apps/anvil-api/scripts/migrate.mjs` | on-call operators, post-deploy smoke check, db-migrations runbook |
+
 ## Purpose
 
 Triage and recover Neon-related production issues for Anvil services quickly and

@@ -1,5 +1,13 @@
 # Rollback Bad Published Release
 
+| Type    | Authority     | Owner   | Status | Freshness                                                                                |
+| ------- | ------------- | ------- | ------ | ---------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | RELORCH | Live   | Last reviewed 2026-05-24 against release-record schema and `scripts/release/closeout.sh` |
+
+| Upstream                                                                                          | Downstream                                                      |
+| ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `scripts/release/closeout.sh`, `scripts/release/tag.sh`, `.github/workflows/release.yml`, ADR-049 | release council, on-call operators, installer surface operators |
+
 > **Owner:** Release council **Scope:** Released versions — the tag is pushed,
 > GitHub Releases are published on `eddacraft/anvil-001` (private) and/or
 > `eddacraft/anvil` (public), and at least one downstream surface (Homebrew,

@@ -1,5 +1,13 @@
 # Tutorial Subsystem — As-Built
 
+| Type     | Authority | Owner  | Status | Freshness                                                             |
+| -------- | --------- | ------ | ------ | --------------------------------------------------------------------- |
+| As-built | Derived   | LAUNCH | Live   | Last reviewed 2026-05-07 against `v0.6.0-beta` and `crates/anvil-tui` |
+
+| Upstream                               | Downstream                                                                              |
+| -------------------------------------- | --------------------------------------------------------------------------------------- |
+| `crates/anvil-tui`, `crates/anvil-cli` | anvil tutorial CLI command, welcome surface "Explore the tutorial" entry point (LAUNCH) |
+
 > **Status:** Live (beta) **Last reviewed:** 2026-05-07 against `v0.6.0-beta`
 > slate (HEAD `cf7ca040`) **Module / location:**
 > `crates/anvil-tui/src/surfaces/tutorial/` **Module owner (APS):** LAUNCH-014

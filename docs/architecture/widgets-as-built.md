@@ -1,5 +1,13 @@
 # Widget Catalogue — As-Built
 
+| Type     | Authority | Owner | Status | Freshness                                                                                     |
+| -------- | --------- | ----- | ------ | --------------------------------------------------------------------------------------------- |
+| As-built | Derived   | RATS  | Live   | Last reviewed 2026-05-07 against `v0.6.0-beta` and `crates/anvil-tui`, `crates/eddacraft-tui` |
+
+| Upstream                                   | Downstream                                                                                                                           |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `crates/anvil-tui`, `crates/eddacraft-tui` | all surfaces in anvil-tui (audit, browser, doctor, gate, init, onboarding, status, tutorial, watch, welcome, wizard), CLI TUI runner |
+
 > **Status:** Live (beta) **Last reviewed:** 2026-05-07 against `v0.6.0-beta`
 > slate (HEAD `cf7ca040`) **Crates / locations:**
 > `crates/anvil-tui/src/widgets/` (anvil-specific) + `eddacraft-tui v0.1.0`

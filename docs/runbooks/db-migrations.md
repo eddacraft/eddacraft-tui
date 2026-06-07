@@ -1,5 +1,13 @@
 # Database Migrations Runbook
 
+| Type    | Authority     | Owner                         | Status | Freshness                                                                                           |
+| ------- | ------------- | ----------------------------- | ------ | --------------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | @aneki (`aneki@eddacraft.ai`) | Live   | Last reviewed 2026-05-24 against v0.4.0-beta prod backfill and `apps/anvil-api/scripts/migrate.mjs` |
+
+| Upstream                                                            | Downstream                                                  |
+| ------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `apps/anvil-api/scripts/migrate.mjs`, `.github/workflows/infra.yml` | on-call operators, release council, post-deploy smoke check |
+
 ## Purpose
 
 Apply pending SQL migrations to the Anvil API database (Neon Postgres), verify

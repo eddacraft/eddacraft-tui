@@ -1,5 +1,13 @@
 # anvil-kernel — As-Built
 
+| Type     | Authority | Owner | Status | Freshness                                                                                             |
+| -------- | --------- | ----- | ------ | ----------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | KERN  | Live   | Last reviewed 2026-05-07 against `v0.6.0-beta` and `crates/anvil-kernel`, `crates/anvil-kernel-types` |
+
+| Upstream                                                    | Downstream                                                                               |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `crates/anvil-kernel`, `crates/anvil-kernel-types`, ADR-030 | engine ports (RENG), TUI / RATS surfaces, watch CLI (LAUNCH), MCP shim embedded fallback |
+
 > **Status:** Live (beta) **Last reviewed:** 2026-05-07 against `v0.6.0-beta`
 > slate (HEAD `97b61fd0`) **Crate / location:** `crates/anvil-kernel` (+
 > `crates/anvil-kernel-types`) **Module owner (APS):** KERN (kernel substrate,

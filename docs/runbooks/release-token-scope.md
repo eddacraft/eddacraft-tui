@@ -1,5 +1,13 @@
 # Release Token Scope Runbook
 
+| Type    | Authority     | Owner   | Status | Freshness                                                                                    |
+| ------- | ------------- | ------- | ------ | -------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | RELORCH | Live   | Last reviewed 2026-05-24 against v0.4.0-beta 403 failure and `.github/workflows/release.yml` |
+
+| Upstream                                                                                                   | Downstream                         |
+| ---------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| `.github/workflows/release.yml`, `.github/workflows/homebrew-bump.yml`, `scripts/release/bump-homebrew.sh` | release council, on-call operators |
+
 ## Purpose
 
 `ANVIL_RELEASES_TOKEN` is the GitHub PAT the release workflow uses to publish to

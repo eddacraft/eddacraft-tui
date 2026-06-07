@@ -1,5 +1,13 @@
 # anvil-intercept — As-Built
 
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                   |
+| -------- | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | INTD  | Live   | Last reviewed 2026-05-07 against `v0.6.0-beta` and `crates/anvil-intercept`, `crates/anvil-intercept-proto`, `crates/anvil-intercept-win32` |
+
+| Upstream                                                                                                                          | Downstream                                                                                                        |
+| --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `crates/anvil-intercept`, `crates/anvil-intercept-proto`, `crates/anvil-intercept-rules`, `crates/anvil-intercept-win32`, ADR-015 | MCP shim validation client (RMCP), driver framework clients (DRVR), CLI intercept surface, embedded fallback path |
+
 > **Status:** Live (beta) **Last reviewed:** 2026-05-07 against `v0.6.0-beta`
 > slate (HEAD `8bbe65b9`) **Crate:** `crates/anvil-intercept` (+
 > `anvil-intercept-proto`, `anvil-intercept-rules`, `anvil-intercept-win32`)

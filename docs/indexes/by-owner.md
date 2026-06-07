@@ -27,11 +27,25 @@
 | [anvil-run(1)](../../docs/runbooks/anvil-run.md)                                                                 | `docs/runbooks/anvil-run.md`                 | Runbook  | Authoritative | @aneki | Live   |
 | [eddacraft-tui Crate Release — Operator Runbook](../../docs/runbooks/eddacraft-tui-release.md)                   | `docs/runbooks/eddacraft-tui-release.md`     | Runbook  | Authoritative | @aneki | Live   |
 
+## @aneki (aneki@eddacraft.ai)
+
+| Document                                                                          | Path                                       | Type    | Authority     | Owner                       | Status |
+| --------------------------------------------------------------------------------- | ------------------------------------------ | ------- | ------------- | --------------------------- | ------ |
+| [Database Migrations Runbook](../../docs/runbooks/db-migrations.md)               | `docs/runbooks/db-migrations.md`           | Runbook | Authoritative | @aneki (aneki@eddacraft.ai) | Live   |
+| [Neon DB Operations Runbook](../../docs/runbooks/neon-db-operations.md)           | `docs/runbooks/neon-db-operations.md`      | Runbook | Authoritative | @aneki (aneki@eddacraft.ai) | Live   |
+| [Post-Deploy Smoke Check Runbook](../../docs/runbooks/post-deploy-smoke-check.md) | `docs/runbooks/post-deploy-smoke-check.md` | Runbook | Authoritative | @aneki (aneki@eddacraft.ai) | Live   |
+
 ## ADOPT (plans/archive/modules/adoption-friction.aps.md)
 
 | Document                                                                | Path                                  | Type  | Authority     | Owner                                                  | Status |
 | ----------------------------------------------------------------------- | ------------------------------------- | ----- | ------------- | ------------------------------------------------------ | ------ |
 | [Editor Surface Coexistence](../../docs/policies/editor-coexistence.md) | `docs/policies/editor-coexistence.md` | Guide | Authoritative | ADOPT (plans/archive/modules/adoption-friction.aps.md) | Live   |
+
+## APGOV
+
+| Document                                                                | Path                                | Type     | Authority | Owner | Status |
+| ----------------------------------------------------------------------- | ----------------------------------- | -------- | --------- | ----- | ------ |
+| [anvil-api Service — As-Built](../../docs/architecture/api-as-built.md) | `docs/architecture/api-as-built.md` | As-built | Derived   | APGOV | Live   |
 
 ## API
 
@@ -39,11 +53,23 @@
 | ------------------------------------------------------------------------------------- | -------------------------------------------- | ------- | ------------- | ----- | ------ |
 | [Waitlist Email Operations (Admin)](../../docs/runbooks/waitlist-email-operations.md) | `docs/runbooks/waitlist-email-operations.md` | Runbook | Authoritative | API   | Live   |
 
+## APSMD
+
+| Document                                                                            | Path                                             | Type     | Authority | Owner | Status |
+| ----------------------------------------------------------------------------------- | ------------------------------------------------ | -------- | --------- | ----- | ------ |
+| [Adapter Packages — As-Built](../../docs/architecture/adapter-packages-as-built.md) | `docs/architecture/adapter-packages-as-built.md` | As-built | Derived   | APSMD | Live   |
+
 ## ARCHCFG
 
 | Document                                                                                | Path                                          | Type  | Authority | Owner   | Status |
 | --------------------------------------------------------------------------------------- | --------------------------------------------- | ----- | --------- | ------- | ------ |
 | [Custom Architecture Policies Guide](../../docs/guides/custom-architecture-policies.md) | `docs/guides/custom-architecture-policies.md` | Guide | Advisory  | ARCHCFG | Live   |
+
+## BAUTH
+
+| Document                                                           | Path                                 | Type     | Authority | Owner | Status |
+| ------------------------------------------------------------------ | ------------------------------------ | -------- | --------- | ----- | ------ |
+| [Auth System — As-Built](../../docs/architecture/auth-as-built.md) | `docs/architecture/auth-as-built.md` | As-built | Derived   | BAUTH | Live   |
 
 ## BETA
 
@@ -104,6 +130,12 @@
 | [Release Documentation Checklist](../../docs/guides/release-doc-checklist.md)                                   | `docs/guides/release-doc-checklist.md`         | Guide  | Advisory      | DOCGOV | Live   |
 | [eddacraft OSS Surface](../../docs/architecture/oss-surface.md)                                                 | `docs/architecture/oss-surface.md`             | Guide  | Derived       | DOCGOV | Live   |
 
+## DRVR
+
+| Document                                                                                              | Path                                             | Type     | Authority | Owner | Status |
+| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------ | -------- | --------- | ----- | ------ |
+| [Driver Framework + intercept-proto — As-Built](../../docs/architecture/driver-framework-as-built.md) | `docs/architecture/driver-framework-as-built.md` | As-built | Derived   | DRVR  | Live   |
+
 ## EDDA
 
 | Document                                                         | Path                               | Type | Authority | Owner | Status |
@@ -149,16 +181,24 @@
 | ------------------------------------------------------ | -------------------------------------- | ----------- | ------------- | ---------------------------------------------- | ------ |
 | [Insights](../../docs/public/anvil/guides/insights.md) | `docs/public/anvil/guides/insights.md` | Public docs | Authoritative | INSIGHTS (plans/modules/usage-insights.aps.md) | Live   |
 
+## INTD
+
+| Document                                                                                   | Path                                         | Type     | Authority     | Owner | Status |
+| ------------------------------------------------------------------------------------------ | -------------------------------------------- | -------- | ------------- | ----- | ------ |
+| [INTD-012 — Windows Confidence Evidence](../../docs/runbooks/intd-012-windows-evidence.md) | `docs/runbooks/intd-012-windows-evidence.md` | Runbook  | Authoritative | INTD  | Live   |
+| [anvil-intercept — As-Built](../../docs/architecture/intercept-as-built.md)                | `docs/architecture/intercept-as-built.md`    | As-built | Derived       | INTD  | Live   |
+
 ## KERN
 
-| Document                                                                                                   | Path                                                | Type  | Authority     | Owner | Status   |
-| ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------- | ----- | ------------- | ----- | -------- |
-| [Anvil Architecture Evolution](../../docs/architecture/anvil-architecture-evolution.md)                    | `docs/architecture/anvil-architecture-evolution.md` | Spec  | Derived       | KERN  | Live     |
-| [Anvil Rust Architecture — End State Specification](../../docs/architecture/rust-architecture-endstate.md) | `docs/architecture/rust-architecture-endstate.md`   | Spec  | Derived       | KERN  | Live     |
-| [Kernel Benchmarking Specification](../../docs/architecture/kernel-benchmarking-spec.md)                   | `docs/architecture/kernel-benchmarking-spec.md`     | Spec  | Derived       | KERN  | Proposed |
-| [Quality Model](../../docs/architecture/quality-model.md)                                                  | `docs/architecture/quality-model.md`                | Guide | Authoritative | KERN  | Live     |
-| [Rust Architecture — Full Overview](../../docs/architecture/rust-architecture-overview.md)                 | `docs/architecture/rust-architecture-overview.md`   | Guide | Derived       | KERN  | Live     |
-| [Rust Kernel Specification (H1)](../../docs/architecture/rust-kernel-spec.md)                              | `docs/architecture/rust-kernel-spec.md`             | Spec  | Derived       | KERN  | Proposed |
+| Document                                                                                                   | Path                                                | Type     | Authority     | Owner | Status   |
+| ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------- | -------- | ------------- | ----- | -------- |
+| [Anvil Architecture Evolution](../../docs/architecture/anvil-architecture-evolution.md)                    | `docs/architecture/anvil-architecture-evolution.md` | Spec     | Derived       | KERN  | Live     |
+| [Anvil Rust Architecture — End State Specification](../../docs/architecture/rust-architecture-endstate.md) | `docs/architecture/rust-architecture-endstate.md`   | Spec     | Derived       | KERN  | Live     |
+| [Kernel Benchmarking Specification](../../docs/architecture/kernel-benchmarking-spec.md)                   | `docs/architecture/kernel-benchmarking-spec.md`     | Spec     | Derived       | KERN  | Proposed |
+| [Quality Model](../../docs/architecture/quality-model.md)                                                  | `docs/architecture/quality-model.md`                | Guide    | Authoritative | KERN  | Live     |
+| [Rust Architecture — Full Overview](../../docs/architecture/rust-architecture-overview.md)                 | `docs/architecture/rust-architecture-overview.md`   | Guide    | Derived       | KERN  | Live     |
+| [Rust Kernel Specification (H1)](../../docs/architecture/rust-kernel-spec.md)                              | `docs/architecture/rust-kernel-spec.md`             | Spec     | Derived       | KERN  | Proposed |
+| [anvil-kernel — As-Built](../../docs/architecture/kernel-as-built.md)                                      | `docs/architecture/kernel-as-built.md`              | As-built | Derived       | KERN  | Live     |
 
 ## KIND
 
@@ -172,6 +212,13 @@
 | Document                                                                   | Path                                      | Type  | Authority     | Owner   | Status |
 | -------------------------------------------------------------------------- | ----------------------------------------- | ----- | ------------- | ------- | ------ |
 | [Anchor Re-Scoring Process](../../docs/guides/anchor-rescoring-process.md) | `docs/guides/anchor-rescoring-process.md` | Guide | Authoritative | LANGCOV | Live   |
+
+## LAUNCH
+
+| Document                                                                             | Path                                       | Type     | Authority | Owner  | Status |
+| ------------------------------------------------------------------------------------ | ------------------------------------------ | -------- | --------- | ------ | ------ |
+| [Activation Orchestrator — As-Built](../../docs/architecture/activation-as-built.md) | `docs/architecture/activation-as-built.md` | As-built | Derived   | LAUNCH | Live   |
+| [Tutorial Subsystem — As-Built](../../docs/architecture/tutorial-as-built.md)        | `docs/architecture/tutorial-as-built.md`   | As-built | Derived   | LAUNCH | Live   |
 
 ## MODULE-CODE
 
@@ -205,10 +252,12 @@
 
 ## OPMODEL
 
-| Document                                                      | Path                                | Type  | Authority     | Owner   | Status |
-| ------------------------------------------------------------- | ----------------------------------- | ----- | ------------- | ------- | ------ |
-| [Branching Strategy](../../docs/guides/branching-strategy.md) | `docs/guides/branching-strategy.md` | Guide | Authoritative | OPMODEL | Live   |
-| [Worktree Policy](../../docs/guides/worktree-policy.md)       | `docs/guides/worktree-policy.md`    | Guide | Authoritative | OPMODEL | Live   |
+| Document                                                                      | Path                                     | Type    | Authority     | Owner   | Status |
+| ----------------------------------------------------------------------------- | ---------------------------------------- | ------- | ------------- | ------- | ------ |
+| [Branch Reconciliation Runbook](../../docs/runbooks/branch-reconciliation.md) | `docs/runbooks/branch-reconciliation.md` | Runbook | Authoritative | OPMODEL | Live   |
+| [Branching Strategy](../../docs/guides/branching-strategy.md)                 | `docs/guides/branching-strategy.md`      | Guide   | Authoritative | OPMODEL | Live   |
+| [Main-First Cutover](../../docs/runbooks/main-first-cutover.md)               | `docs/runbooks/main-first-cutover.md`    | Runbook | Authoritative | OPMODEL | Live   |
+| [Worktree Policy](../../docs/guides/worktree-policy.md)                       | `docs/guides/worktree-policy.md`         | Guide   | Authoritative | OPMODEL | Live   |
 
 ## OPS
 
@@ -221,6 +270,14 @@
 | Document                                                                      | Path                            | Type | Authority     | Owner                                               | Status |
 | ----------------------------------------------------------------------------- | ------------------------------- | ---- | ------------- | --------------------------------------------------- | ------ |
 | [Policy Input Contract — PolicyInput v1](../../docs/specs/policy-input-v1.md) | `docs/specs/policy-input-v1.md` | Spec | Authoritative | POLENG (plans/archive/modules/policy-engine.aps.md) | Draft  |
+
+## RATS
+
+| Document                                                                        | Path                                           | Type     | Authority | Owner | Status |
+| ------------------------------------------------------------------------------- | ---------------------------------------------- | -------- | --------- | ----- | ------ |
+| [CLI TUI Runner — As-Built](../../docs/architecture/cli-tui-runner-as-built.md) | `docs/architecture/cli-tui-runner-as-built.md` | As-built | Derived   | RATS  | Live   |
+| [Widget Catalogue — As-Built](../../docs/architecture/widgets-as-built.md)      | `docs/architecture/widgets-as-built.md`        | As-built | Derived   | RATS  | Live   |
+| [anvil-tui — As-Built](../../docs/architecture/tui-as-built.md)                 | `docs/architecture/tui-as-built.md`            | As-built | Derived   | RATS  | Live   |
 
 ## RCLI3
 
@@ -237,9 +294,14 @@
 
 ## RELORCH
 
-| Document                                                        | Path                               | Type    | Authority     | Owner   | Status |
-| --------------------------------------------------------------- | ---------------------------------- | ------- | ------------- | ------- | ------ |
-| [Anvil Release Runbook](../../docs/runbooks/release-runbook.md) | `docs/runbooks/release-runbook.md` | Runbook | Authoritative | RELORCH | Live   |
+| Document                                                                                  | Path                                               | Type    | Authority     | Owner   | Status |
+| ----------------------------------------------------------------------------------------- | -------------------------------------------------- | ------- | ------------- | ------- | ------ |
+| [Anvil Release Runbook](../../docs/runbooks/release-runbook.md)                           | `docs/runbooks/release-runbook.md`                 | Runbook | Authoritative | RELORCH | Live   |
+| [Emergency Hotfix](../../docs/runbooks/emergency-hotfix.md)                               | `docs/runbooks/emergency-hotfix.md`                | Runbook | Authoritative | RELORCH | Live   |
+| [Release Token Scope Runbook](../../docs/runbooks/release-token-scope.md)                 | `docs/runbooks/release-token-scope.md`             | Runbook | Authoritative | RELORCH | Live   |
+| [Rollback Bad Candidate Artefact](../../docs/runbooks/rollback-bad-candidate-artefact.md) | `docs/runbooks/rollback-bad-candidate-artefact.md` | Runbook | Authoritative | RELORCH | Live   |
+| [Rollback Bad Published Release](../../docs/runbooks/rollback-bad-published-release.md)   | `docs/runbooks/rollback-bad-published-release.md`  | Runbook | Authoritative | RELORCH | Live   |
+| [Rollback Bad main](../../docs/runbooks/rollback-bad-main.md)                             | `docs/runbooks/rollback-bad-main.md`               | Runbook | Authoritative | RELORCH | Live   |
 
 ## RLB (plans/modules/resource-load-benchmarking.aps.md)
 
@@ -247,6 +309,12 @@
 | ----------------------------------------------------------------------------------------- | ----------------------------------- | ----- | ------------- | ----------------------------------------------------- | ------ |
 | [Benchmark Results](../../docs/testing/benchmark-results.md)                              | `docs/testing/benchmark-results.md` | Guide | Advisory      | RLB (plans/modules/resource-load-benchmarking.aps.md) | Live   |
 | [Resource Budgets — long-running Anvil processes](../../docs/policies/resource-budget.md) | `docs/policies/resource-budget.md`  | Guide | Authoritative | RLB (plans/modules/resource-load-benchmarking.aps.md) | Live   |
+
+## RMCP
+
+| Document                                                                  | Path                                     | Type     | Authority | Owner | Status |
+| ------------------------------------------------------------------------- | ---------------------------------------- | -------- | --------- | ----- | ------ |
+| [anvil MCP Shim — As-Built](../../docs/architecture/mcp-shim-as-built.md) | `docs/architecture/mcp-shim-as-built.md` | As-built | Derived   | RMCP  | Live   |
 
 ## RMCPF-002
 
@@ -269,9 +337,10 @@
 
 ## SCAN
 
-| Document                                                            | Path                                  | Type  | Authority     | Owner | Status |
-| ------------------------------------------------------------------- | ------------------------------------- | ----- | ------------- | ----- | ------ |
-| [Authoring .anvil Rules](../../docs/guides/anvil-rule-authoring.md) | `docs/guides/anvil-rule-authoring.md` | Guide | Authoritative | SCAN  | Live   |
+| Document                                                                       | Path                                   | Type     | Authority     | Owner | Status |
+| ------------------------------------------------------------------------------ | -------------------------------------- | -------- | ------------- | ----- | ------ |
+| [Authoring .anvil Rules](../../docs/guides/anvil-rule-authoring.md)            | `docs/guides/anvil-rule-authoring.md`  | Guide    | Authoritative | SCAN  | Live   |
+| [anvil-checks Pipeline — As-Built](../../docs/architecture/checks-as-built.md) | `docs/architecture/checks-as-built.md` | As-built | Derived       | SCAN  | Live   |
 
 ## STRATEGY
 

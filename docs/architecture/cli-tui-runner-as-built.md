@@ -1,5 +1,13 @@
 # CLI TUI Runner — As-Built
 
+| Type     | Authority | Owner | Status | Freshness                                                                                 |
+| -------- | --------- | ----- | ------ | ----------------------------------------------------------------------------------------- |
+| As-built | Derived   | RATS  | Live   | Last reviewed 2026-05-07 against `v0.6.0-beta` and `crates/anvil-cli`, `crates/anvil-tui` |
+
+| Upstream                                                      | Downstream                                                                                          |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `crates/anvil-cli`, `crates/anvil-tui`, `crates/anvil-kernel` | all interactive anvil commands (watch, tutorial, welcome, status, doctor, audit, init, new, wizard) |
+
 > **Status:** Live (beta) **Last reviewed:** 2026-05-07 against `v0.6.0-beta`
 > slate (HEAD `cf7ca040`) **File / location:** `crates/anvil-cli/src/tui.rs`
 > (495 lines) **Module owner (APS):** RATS (Ratatui surfaces — Complete 7/7,

@@ -1,5 +1,13 @@
 # Post-Deploy Smoke Check Runbook
 
+| Type    | Authority     | Owner                         | Status | Freshness                                                                                                  |
+| ------- | ------------- | ----------------------------- | ------ | ---------------------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | @aneki (`aneki@eddacraft.ai`) | Live   | Last reviewed 2026-05-24 against post-deploy verification of the Anvil API and `scripts/release/verify.sh` |
+
+| Upstream                                                     | Downstream                                            |
+| ------------------------------------------------------------ | ----------------------------------------------------- |
+| `scripts/release/verify.sh`, `.github/workflows/release.yml` | release council, on-call operators, rollback runbooks |
+
 ## Purpose
 
 Validate critical Anvil user flows immediately after deployment.

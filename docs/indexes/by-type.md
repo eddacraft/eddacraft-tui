@@ -12,11 +12,24 @@
 
 ## As-built
 
-| Document                                                                                        | Path                                          | Type     | Authority | Owner                                   | Status |
-| ----------------------------------------------------------------------------------------------- | --------------------------------------------- | -------- | --------- | --------------------------------------- | ------ |
-| [JS/TS Release Surfaces — As-Built Inventory](../../docs/architecture/jsts-release-surfaces.md) | `docs/architecture/jsts-release-surfaces.md`  | As-built | Derived   | @aneki                                  | Live   |
-| [anvil-observability — As-Built](../../docs/architecture/observability-as-built.md)             | `docs/architecture/observability-as-built.md` | As-built | Derived   | TRACE                                   | Live   |
-| [{Component Name} — As-Built](../../docs/architecture/_as-built-template.md)                    | `docs/architecture/_as-built-template.md`     | As-built | Derived   | MODULE-CODE (link to plans/modules/...) | Draft  |
+| Document                                                                                              | Path                                             | Type     | Authority | Owner                                   | Status |
+| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------ | -------- | --------- | --------------------------------------- | ------ |
+| [Activation Orchestrator — As-Built](../../docs/architecture/activation-as-built.md)                  | `docs/architecture/activation-as-built.md`       | As-built | Derived   | LAUNCH                                  | Live   |
+| [Adapter Packages — As-Built](../../docs/architecture/adapter-packages-as-built.md)                   | `docs/architecture/adapter-packages-as-built.md` | As-built | Derived   | APSMD                                   | Live   |
+| [Auth System — As-Built](../../docs/architecture/auth-as-built.md)                                    | `docs/architecture/auth-as-built.md`             | As-built | Derived   | BAUTH                                   | Live   |
+| [CLI TUI Runner — As-Built](../../docs/architecture/cli-tui-runner-as-built.md)                       | `docs/architecture/cli-tui-runner-as-built.md`   | As-built | Derived   | RATS                                    | Live   |
+| [Driver Framework + intercept-proto — As-Built](../../docs/architecture/driver-framework-as-built.md) | `docs/architecture/driver-framework-as-built.md` | As-built | Derived   | DRVR                                    | Live   |
+| [JS/TS Release Surfaces — As-Built Inventory](../../docs/architecture/jsts-release-surfaces.md)       | `docs/architecture/jsts-release-surfaces.md`     | As-built | Derived   | @aneki                                  | Live   |
+| [Tutorial Subsystem — As-Built](../../docs/architecture/tutorial-as-built.md)                         | `docs/architecture/tutorial-as-built.md`         | As-built | Derived   | LAUNCH                                  | Live   |
+| [Widget Catalogue — As-Built](../../docs/architecture/widgets-as-built.md)                            | `docs/architecture/widgets-as-built.md`          | As-built | Derived   | RATS                                    | Live   |
+| [anvil MCP Shim — As-Built](../../docs/architecture/mcp-shim-as-built.md)                             | `docs/architecture/mcp-shim-as-built.md`         | As-built | Derived   | RMCP                                    | Live   |
+| [anvil-api Service — As-Built](../../docs/architecture/api-as-built.md)                               | `docs/architecture/api-as-built.md`              | As-built | Derived   | APGOV                                   | Live   |
+| [anvil-checks Pipeline — As-Built](../../docs/architecture/checks-as-built.md)                        | `docs/architecture/checks-as-built.md`           | As-built | Derived   | SCAN                                    | Live   |
+| [anvil-intercept — As-Built](../../docs/architecture/intercept-as-built.md)                           | `docs/architecture/intercept-as-built.md`        | As-built | Derived   | INTD                                    | Live   |
+| [anvil-kernel — As-Built](../../docs/architecture/kernel-as-built.md)                                 | `docs/architecture/kernel-as-built.md`           | As-built | Derived   | KERN                                    | Live   |
+| [anvil-observability — As-Built](../../docs/architecture/observability-as-built.md)                   | `docs/architecture/observability-as-built.md`    | As-built | Derived   | TRACE                                   | Live   |
+| [anvil-tui — As-Built](../../docs/architecture/tui-as-built.md)                                       | `docs/architecture/tui-as-built.md`              | As-built | Derived   | RATS                                    | Live   |
+| [{Component Name} — As-Built](../../docs/architecture/_as-built-template.md)                          | `docs/architecture/_as-built-template.md`        | As-built | Derived   | MODULE-CODE (link to plans/modules/...) | Draft  |
 
 ## Guide
 
@@ -87,28 +100,39 @@
 
 ## Runbook
 
-| Document                                                                                                         | Path                                           | Type    | Authority     | Owner           | Status |
-| ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | ------- | ------------- | --------------- | ------ |
-| [Admin CLI Operator Runbook](../../docs/runbooks/admin-cli.md)                                                   | `docs/runbooks/admin-cli.md`                   | Runbook | Authoritative | CIB             | Live   |
-| [Adoption — Operator Runbook](../../docs/runbooks/anvil-adoption.md)                                             | `docs/runbooks/anvil-adoption.md`              | Runbook | Authoritative | @aneki          | Live   |
-| [Air-Gapped Operation Guarantee](../../docs/runbooks/anvil-air-gapped.md)                                        | `docs/runbooks/anvil-air-gapped.md`            | Runbook | Authoritative | @aneki          | Live   |
-| [Anvil Release Runbook](../../docs/runbooks/release-runbook.md)                                                  | `docs/runbooks/release-runbook.md`             | Runbook | Authoritative | RELORCH         | Live   |
-| [CLI Surface Reference](../../docs/runbooks/cli-surface.md)                                                      | `docs/runbooks/cli-surface.md`                 | Runbook | Authoritative | CLIC            | Live   |
-| [Cargo Target Eviction Runbook](../../docs/runbooks/cargo-target-eviction.md)                                    | `docs/runbooks/cargo-target-eviction.md`       | Runbook | Advisory      | DEVENV          | Live   |
-| [Homebrew Formula Publish — Operator Runbook](../../docs/runbooks/homebrew-publish.md)                           | `docs/runbooks/homebrew-publish.md`            | Runbook | Authoritative | @aneki          | Live   |
-| [Hook Coexistence — Operator Runbook](../../docs/runbooks/anvil-hook-coexistence.md)                             | `docs/runbooks/anvil-hook-coexistence.md`      | Runbook | Authoritative | @aneki          | Live   |
-| [Observability Triage Runbook](../../docs/runbooks/observability-triage.md)                                      | `docs/runbooks/observability-triage.md`        | Runbook | Authoritative | OBS             | Live   |
-| [Release Signing — Operator Runbook](../../docs/runbooks/release-signing.md)                                     | `docs/runbooks/release-signing.md`             | Runbook | Authoritative | @aneki          | Live   |
-| [Runbook Template](../../docs/guides/runbook-template.md)                                                        | `docs/guides/runbook-template.md`              | Runbook | Authoritative | MODULE-CODE     | Draft  |
-| [SARIF → GitHub Code Scanning Upload Runbook](../../docs/runbooks/sarif-code-scanning-upload.md)                 | `docs/runbooks/sarif-code-scanning-upload.md`  | Runbook | Advisory      | SARIFOUT        | Live   |
-| [Side-by-Side Candidate Install (ANVIL_HOME) — Operator Runbook](../../docs/runbooks/anvil-home-side-by-side.md) | `docs/runbooks/anvil-home-side-by-side.md`     | Runbook | Authoritative | @aneki          | Live   |
-| [Waitlist Email Operations (Admin)](../../docs/runbooks/waitlist-email-operations.md)                            | `docs/runbooks/waitlist-email-operations.md`   | Runbook | Authoritative | API             | Live   |
-| [Witness Chain — Operator Runbook](../../docs/runbooks/anvil-witness-chain.md)                                   | `docs/runbooks/anvil-witness-chain.md`         | Runbook | Authoritative | @aneki          | Live   |
-| [anvil-migrate(1)](../../docs/runbooks/anvil-migrate.md)                                                         | `docs/runbooks/anvil-migrate.md`               | Runbook | Authoritative | @aneki          | Live   |
-| [anvil-run(1)](../../docs/runbooks/anvil-run.md)                                                                 | `docs/runbooks/anvil-run.md`                   | Runbook | Authoritative | @aneki          | Live   |
-| [eddacraft-tui Crate Release — Operator Runbook](../../docs/runbooks/eddacraft-tui-release.md)                   | `docs/runbooks/eddacraft-tui-release.md`       | Runbook | Authoritative | @aneki          | Live   |
-| [v0.7.0-beta — operator runbook](../../docs/runbooks/v0.7.0-beta-release-runbook.md)                             | `docs/runbooks/v0.7.0-beta-release-runbook.md` | Runbook | Authoritative | Release council | Live   |
-| [v0.7.0-beta — release security note](../../docs/runbooks/v0.7.0-beta-security-note.md)                          | `docs/runbooks/v0.7.0-beta-security-note.md`   | Runbook | Authoritative | Release council | Live   |
+| Document                                                                                                         | Path                                               | Type    | Authority     | Owner                       | Status |
+| ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- | ------- | ------------- | --------------------------- | ------ |
+| [Admin CLI Operator Runbook](../../docs/runbooks/admin-cli.md)                                                   | `docs/runbooks/admin-cli.md`                       | Runbook | Authoritative | CIB                         | Live   |
+| [Adoption — Operator Runbook](../../docs/runbooks/anvil-adoption.md)                                             | `docs/runbooks/anvil-adoption.md`                  | Runbook | Authoritative | @aneki                      | Live   |
+| [Air-Gapped Operation Guarantee](../../docs/runbooks/anvil-air-gapped.md)                                        | `docs/runbooks/anvil-air-gapped.md`                | Runbook | Authoritative | @aneki                      | Live   |
+| [Anvil Release Runbook](../../docs/runbooks/release-runbook.md)                                                  | `docs/runbooks/release-runbook.md`                 | Runbook | Authoritative | RELORCH                     | Live   |
+| [Branch Reconciliation Runbook](../../docs/runbooks/branch-reconciliation.md)                                    | `docs/runbooks/branch-reconciliation.md`           | Runbook | Authoritative | OPMODEL                     | Live   |
+| [CLI Surface Reference](../../docs/runbooks/cli-surface.md)                                                      | `docs/runbooks/cli-surface.md`                     | Runbook | Authoritative | CLIC                        | Live   |
+| [Cargo Target Eviction Runbook](../../docs/runbooks/cargo-target-eviction.md)                                    | `docs/runbooks/cargo-target-eviction.md`           | Runbook | Advisory      | DEVENV                      | Live   |
+| [Database Migrations Runbook](../../docs/runbooks/db-migrations.md)                                              | `docs/runbooks/db-migrations.md`                   | Runbook | Authoritative | @aneki (aneki@eddacraft.ai) | Live   |
+| [Emergency Hotfix](../../docs/runbooks/emergency-hotfix.md)                                                      | `docs/runbooks/emergency-hotfix.md`                | Runbook | Authoritative | RELORCH                     | Live   |
+| [Homebrew Formula Publish — Operator Runbook](../../docs/runbooks/homebrew-publish.md)                           | `docs/runbooks/homebrew-publish.md`                | Runbook | Authoritative | @aneki                      | Live   |
+| [Hook Coexistence — Operator Runbook](../../docs/runbooks/anvil-hook-coexistence.md)                             | `docs/runbooks/anvil-hook-coexistence.md`          | Runbook | Authoritative | @aneki                      | Live   |
+| [INTD-012 — Windows Confidence Evidence](../../docs/runbooks/intd-012-windows-evidence.md)                       | `docs/runbooks/intd-012-windows-evidence.md`       | Runbook | Authoritative | INTD                        | Live   |
+| [Main-First Cutover](../../docs/runbooks/main-first-cutover.md)                                                  | `docs/runbooks/main-first-cutover.md`              | Runbook | Authoritative | OPMODEL                     | Live   |
+| [Neon DB Operations Runbook](../../docs/runbooks/neon-db-operations.md)                                          | `docs/runbooks/neon-db-operations.md`              | Runbook | Authoritative | @aneki (aneki@eddacraft.ai) | Live   |
+| [Observability Triage Runbook](../../docs/runbooks/observability-triage.md)                                      | `docs/runbooks/observability-triage.md`            | Runbook | Authoritative | OBS                         | Live   |
+| [Post-Deploy Smoke Check Runbook](../../docs/runbooks/post-deploy-smoke-check.md)                                | `docs/runbooks/post-deploy-smoke-check.md`         | Runbook | Authoritative | @aneki (aneki@eddacraft.ai) | Live   |
+| [Release Signing — Operator Runbook](../../docs/runbooks/release-signing.md)                                     | `docs/runbooks/release-signing.md`                 | Runbook | Authoritative | @aneki                      | Live   |
+| [Release Token Scope Runbook](../../docs/runbooks/release-token-scope.md)                                        | `docs/runbooks/release-token-scope.md`             | Runbook | Authoritative | RELORCH                     | Live   |
+| [Rollback Bad Candidate Artefact](../../docs/runbooks/rollback-bad-candidate-artefact.md)                        | `docs/runbooks/rollback-bad-candidate-artefact.md` | Runbook | Authoritative | RELORCH                     | Live   |
+| [Rollback Bad Published Release](../../docs/runbooks/rollback-bad-published-release.md)                          | `docs/runbooks/rollback-bad-published-release.md`  | Runbook | Authoritative | RELORCH                     | Live   |
+| [Rollback Bad main](../../docs/runbooks/rollback-bad-main.md)                                                    | `docs/runbooks/rollback-bad-main.md`               | Runbook | Authoritative | RELORCH                     | Live   |
+| [Runbook Template](../../docs/guides/runbook-template.md)                                                        | `docs/guides/runbook-template.md`                  | Runbook | Authoritative | MODULE-CODE                 | Draft  |
+| [SARIF → GitHub Code Scanning Upload Runbook](../../docs/runbooks/sarif-code-scanning-upload.md)                 | `docs/runbooks/sarif-code-scanning-upload.md`      | Runbook | Advisory      | SARIFOUT                    | Live   |
+| [Side-by-Side Candidate Install (ANVIL_HOME) — Operator Runbook](../../docs/runbooks/anvil-home-side-by-side.md) | `docs/runbooks/anvil-home-side-by-side.md`         | Runbook | Authoritative | @aneki                      | Live   |
+| [Waitlist Email Operations (Admin)](../../docs/runbooks/waitlist-email-operations.md)                            | `docs/runbooks/waitlist-email-operations.md`       | Runbook | Authoritative | API                         | Live   |
+| [Witness Chain — Operator Runbook](../../docs/runbooks/anvil-witness-chain.md)                                   | `docs/runbooks/anvil-witness-chain.md`             | Runbook | Authoritative | @aneki                      | Live   |
+| [anvil-migrate(1)](../../docs/runbooks/anvil-migrate.md)                                                         | `docs/runbooks/anvil-migrate.md`                   | Runbook | Authoritative | @aneki                      | Live   |
+| [anvil-run(1)](../../docs/runbooks/anvil-run.md)                                                                 | `docs/runbooks/anvil-run.md`                       | Runbook | Authoritative | @aneki                      | Live   |
+| [eddacraft-tui Crate Release — Operator Runbook](../../docs/runbooks/eddacraft-tui-release.md)                   | `docs/runbooks/eddacraft-tui-release.md`           | Runbook | Authoritative | @aneki                      | Live   |
+| [v0.7.0-beta — operator runbook](../../docs/runbooks/v0.7.0-beta-release-runbook.md)                             | `docs/runbooks/v0.7.0-beta-release-runbook.md`     | Runbook | Authoritative | Release council             | Live   |
+| [v0.7.0-beta — release security note](../../docs/runbooks/v0.7.0-beta-security-note.md)                          | `docs/runbooks/v0.7.0-beta-security-note.md`       | Runbook | Authoritative | Release council             | Live   |
 
 ## Spec
 

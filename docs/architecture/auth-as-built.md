@@ -1,5 +1,13 @@
 # Auth System — As-Built
 
+| Type     | Authority | Owner | Status | Freshness                                                           |
+| -------- | --------- | ----- | ------ | ------------------------------------------------------------------- |
+| As-built | Derived   | BAUTH | Live   | Last reviewed 2026-04-23 against `v0.6.0-beta` and `apps/anvil-api` |
+
+| Upstream                  | Downstream                                                                                       |
+| ------------------------- | ------------------------------------------------------------------------------------------------ |
+| `apps/anvil-api`, ADR-018 | anvil CLI (token verify, license refresh, device-code, OTP, GitHub OAuth), browser activate flow |
+
 > **Status:** Live (beta) **Last reviewed:** 2026-04-23 **Service:**
 > `apps/anvil-api` (Hono on Vercel) **Database:** Neon Postgres (`beta_users`,
 > `access_tokens`, `audit_log`)

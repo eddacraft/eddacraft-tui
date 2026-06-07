@@ -1,5 +1,13 @@
 # Adapter Packages — As-Built
 
+| Type     | Authority | Owner | Status | Freshness                                                                                                                  |
+| -------- | --------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | APSMD | Live   | Last reviewed 2026-05-07 against `v0.6.0-beta` and `packages/adapters/`, `packages/aps/`, `packages/kindling-integration/` |
+
+| Upstream                                                                                    | Downstream                                                                                                 |
+| ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `packages/adapters/`, `packages/aps/`, `packages/kindling-integration/`, `crates/anvil-cli` | anvil validate / gate / export CLI, APS document tooling, Kindling capture bridge, edda-stack memory layer |
+
 > **Status:** Live (beta) for all three packages. Specific adapters within
 > `packages/adapters/` have varying readiness (SpecKit, BMAD, APS Markdown, and
 > Generic are complete; Open-Spec and BMAD v4 backward-compat are still in

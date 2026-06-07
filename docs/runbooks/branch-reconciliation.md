@@ -1,5 +1,13 @@
 # Branch Reconciliation Runbook
 
+| Type    | Authority     | Owner   | Status | Freshness                                                                              |
+| ------- | ------------- | ------- | ------ | -------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | OPMODEL | Live   | Last reviewed 2026-05-24 against the main-first cutover and `.github/workflows/ci.yml` |
+
+| Upstream                            | Downstream                         |
+| ----------------------------------- | ---------------------------------- |
+| `.github/workflows/ci.yml`, ADR-001 | release council, on-call operators |
+
 ## Purpose
 
 Recover from a long-lived `main`/`dev` divergence in a single reviewed

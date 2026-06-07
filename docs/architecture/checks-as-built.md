@@ -1,5 +1,13 @@
 # anvil-checks Pipeline — As-Built
 
+| Type     | Authority | Owner | Status | Freshness                                                                                            |
+| -------- | --------- | ----- | ------ | ---------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | SCAN  | Live   | Last reviewed 2026-05-07 against `v0.6.0-beta` and `crates/anvil-checks`, `crates/anvil-checks-napi` |
+
+| Upstream                                                                          | Downstream                                                                                                                                        |
+| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `crates/anvil-checks`, `crates/anvil-checks-napi`, `crates/anvil-intercept-rules` | anvil check / gate / audit / watch CLI, intercept daemon scan_buffer, MCP shim anvil_validate_write, activation baseline, welcome screen analyser |
+
 > **Status:** Live (beta) **Last reviewed:** 2026-05-07 against `v0.6.0-beta`
 > slate (HEAD `97b61fd0`) **Crate / location:** `crates/anvil-checks` (+
 > `crates/anvil-checks-napi`, callers in

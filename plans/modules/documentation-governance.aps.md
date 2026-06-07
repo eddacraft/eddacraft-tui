@@ -9,7 +9,7 @@ closeout behaviour. See: plans/aps-rules.md
 
 | ID     | Owner | Status      | Progress |
 | ------ | ----- | ----------- | -------- |
-| DOCGOV | —     | In Progress | 9/12     |
+| DOCGOV | —     | In Progress | 11/12    |
 
 ## Purpose
 
@@ -439,7 +439,7 @@ Current validation commands include `pnpm docs:check`, `pnpm docs:index`, and
 
 ### DOCGOV-011: Continue metadata backfill across remaining live docs
 
-- **Status:** In Progress
+- **Status:** Merged
 - **Authorisation:** Continuation of DOCGOV-009 under the same operator-approved
   rubric (`plans/execution/DOCGOV-009.rubric.md`, signed off 2026-05-25).
   DOCGOV-009 Merged via #1927 landed the first high-authority batch; this item
@@ -451,17 +451,43 @@ Current validation commands include `pnpm docs:check`, `pnpm docs:index`, and
   carry it; the `docs/governance/docs-check.baseline.json` `metadata` bucket
   shrinks by each backfilled wave with no new findings introduced. Docs not yet
   reached stay tracked in the baseline for later waves until the bucket is empty.
+- **Scope decision (public docs):** `docs/public/**` is the published Docusaurus
+  docs-site source (`apps/docs-site` → docs.eddacraft.ai). Rendering the internal
+  governance table after each public page's H1 would surface it (and internal
+  repo paths) to end users, and the governance guide already states public docs
+  "own their own discovery layer" and are "published separately". Per operator
+  decision 2026-06-08, public docs are excluded from the internal metadata
+  surface (`!docs/public/**` in `scripts/docs/check-metadata.mjs`); their
+  freshness stays governed by DOCSYNC release/version sync. This empties the
+  `metadata` baseline bucket at the 24 internal docs (13 as-built, 11 runbooks)
+  that remained after DOCGOV-009.
 - **Validation:** `pnpm docs:check && pnpm docs:index:check && pnpm format:check`
 - **Dependencies:** DOCGOV-002, DOCGOV-005, DOCGOV-009
-- **Files:** `docs/**`, `docs/governance/docs-check.baseline.json`,
+- **Files:** `docs/architecture/*-as-built.md`, `docs/runbooks/*.md`,
+  `scripts/docs/check-metadata.mjs`, `docs/governance/docs-check.baseline.json`,
+  `docs/indexes/*.md`,
   `plans/modules/documentation-governance.aps.md`, `plans/index.aps.md`
 - **Coordinates with:** DOCGOV-009 (same rubric and metadata contract),
   DOCGOV-010 (metadata authority/type tags drive reorganisation placement)
+- **Closeout:** Merged 2026-06-08 via PR
+  [#2367](https://github.com/eddacraft/anvil-001/pull/2367). Excluded `docs/public/**`
+  from the metadata surface (operator-approved scope decision above) and
+  backfilled the 24 remaining internal docs (13 `docs/architecture/*-as-built.md`,
+  11 `docs/runbooks/*.md`) with the DOCGOV-002 metadata + Upstream/Downstream
+  tables, emptying the `metadata` baseline bucket (93 → 0). Generated indexes
+  under `docs/indexes/` regenerated to include the newly-governed docs.
+  Validation passed with `pnpm docs:check` (8/8 surfaces), `pnpm docs:index:check`
+  (0/0), and `pnpm format:check`. **Known debt:** turning on as-built/runbook
+  body validation surfaced 266 pre-existing unresolved inline-code source-path
+  references (renamed source files plus basename doc/workflow mentions in prose);
+  these were absorbed into the `asbuilt-paths` baseline per ADR-003
+  new-edges-only and warrant a follow-up burn-down (not part of metadata
+  coverage).
 - **Confidence:** high
 
 ### DOCGOV-012: Harden the docs-check gating tooling against malformed input and flag misrouting
 
-- **Status:** In Progress
+- **Status:** Merged
 - **Tracking:** [#2075](https://github.com/eddacraft/anvil-001/issues/2075)
 - **Authorisation:** Authorised as Ready 2026-05-30 via operator Draft-readiness
   review — three confirmed/contract defects, fixture-test validation, and
@@ -504,4 +530,14 @@ Current validation commands include `pnpm docs:check`, `pnpm docs:index`, and
   `docs/governance/docs-check.baseline.json` (only if regeneration semantics
   change require it), plus fixture tests under the docs-check test surface.
 - **Coordinates with:** DOCGOV-006/-007 (same surface family).
+- **Closeout:** Merged 2026-05-30 via PR
+  [#2147](https://github.com/eddacraft/anvil-001/pull/2147) at `fde8c256a`. All
+  three confirmed defects shipped with fixture coverage: `--update-baseline`
+  preserves the baseline and exits non-zero when a baselineable surface fails to
+  produce valid JSON (test Case 11); baseline flags are only forwarded to
+  `baselineable` surfaces so `--no-baseline` no longer crashes index-freshness
+  (Case 10); and `check-links` `resolveLink` wraps percent-decoding to emit a
+  labelled ERROR instead of an uncaught `URIError` (Case 12). Status reconciled
+  here after the fact — the merge commit landed the code but did not flip this
+  item's status.
 - **Confidence:** high

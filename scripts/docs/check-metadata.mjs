@@ -35,11 +35,19 @@ const baselinePath = resolve(root, values.baseline ?? 'docs/governance/docs-chec
 // templates and any archive subdirectory under docs/ are intentionally
 // excluded. `!docs/**/archive/**` covers both the top-level docs/archive/ and
 // any nested archive directory (e.g. docs/plans/archive/) for future use.
+//
+// `docs/public/**` is the published Docusaurus docs-site source (apps/docs-site
+// → docs.eddacraft.ai). Those pages own their own discovery layer and carry
+// Docusaurus frontmatter, not the internal DOCGOV governance table — rendering
+// that table after the H1 would surface it (and internal repo paths) on the
+// public site. Public-docs freshness is governed by DOCSYNC release/version
+// sync, so they are excluded from the internal metadata surface (DOCGOV-011).
 const patterns = [
   'docs/**/*.md',
   '!docs/**/archive/**',
   '!docs/**/*.template.md',
   '!docs/**/README.md',
+  '!docs/public/**',
 ];
 
 const files = await globby(patterns, { cwd: root, gitignore: true });

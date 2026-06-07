@@ -1,5 +1,13 @@
 # Driver Framework + intercept-proto — As-Built
 
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                         |
+| -------- | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | DRVR  | Live   | Last reviewed 2026-05-07 against `v0.6.0-beta` and `crates/anvil-intercept-proto`, `crates/anvil-intercept-rules`, `packages/anvil-driver-client` |
+
+| Upstream                                                                                                                                         | Downstream                                                                                              |
+| ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| `crates/anvil-intercept-proto`, `crates/anvil-intercept-rules`, `crates/anvil-intercept-win32`, `packages/anvil-driver-client`, ADR-030, ADR-033 | intercept daemon (INTD), MCP shim (RMCP), CLI intercept surface, future editor / CI driver integrations |
+
 > **Status:** Live (beta) for the proto + driver-client TypeScript glue;
 > framework spec is partially shipped (DRVR Waves 1-3 active; Wave 4 deferred
 > per ADR-033). **Last reviewed:** 2026-05-07 against `v0.6.0-beta` slate (HEAD

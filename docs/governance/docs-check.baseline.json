@@ -1,285 +1,5 @@
 {
-  "metadata": {
-    "docs/architecture/activation-as-built.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 4"
-    ],
-    "docs/architecture/adapter-packages-as-built.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
-    ],
-    "docs/architecture/api-as-built.md": [
-      "Metadata table column 1 must be \"type\"; got \"method\""
-    ],
-    "docs/architecture/auth-as-built.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
-    ],
-    "docs/architecture/checks-as-built.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
-    ],
-    "docs/architecture/cli-tui-runner-as-built.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
-    ],
-    "docs/architecture/driver-framework-as-built.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 4"
-    ],
-    "docs/architecture/intercept-as-built.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 2"
-    ],
-    "docs/architecture/kernel-as-built.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 2"
-    ],
-    "docs/architecture/mcp-shim-as-built.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 4"
-    ],
-    "docs/architecture/tui-as-built.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 4"
-    ],
-    "docs/architecture/tutorial-as-built.md": [
-      "Metadata table column 1 must be \"type\"; got \"path\""
-    ],
-    "docs/architecture/widgets-as-built.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 2"
-    ],
-    "docs/public/anvil/beta-testing-guide.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/public/anvil/concepts/audit-trail.md": [
-      "Missing Upstream/Downstream relationships table after the metadata table"
-    ],
-    "docs/public/anvil/concepts/gates.md": [
-      "Missing Upstream/Downstream relationships table after the metadata table"
-    ],
-    "docs/public/anvil/concepts/plans.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/public/anvil/concepts/sessions.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
-    ],
-    "docs/public/anvil/first-gate.md": [
-      "Missing Upstream/Downstream relationships table after the metadata table"
-    ],
-    "docs/public/anvil/first-project.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/public/anvil/guides/agent-harness.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/public/anvil/guides/ai-guardrail-demo.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/public/anvil/guides/ai-guardrail-profile.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 2"
-    ],
-    "docs/public/anvil/guides/solo-dev-flow.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/public/anvil/guides/team-flow.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
-    ],
-    "docs/public/anvil/guides/wow-start-demo.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
-    ],
-    "docs/public/anvil/integrations/github.md": [
-      "Missing Upstream/Downstream relationships table after the metadata table"
-    ],
-    "docs/public/anvil/integrations/mcp.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
-    ],
-    "docs/public/anvil/integrations/vscode.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
-    ],
-    "docs/public/anvil/operations/config.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 2"
-    ],
-    "docs/public/anvil/operations/git-hooks.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
-    ],
-    "docs/public/anvil/operations/security.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 2"
-    ],
-    "docs/public/anvil/operations/troubleshooting.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/public/anvil/operations/uninstall.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 2"
-    ],
-    "docs/public/anvil/overview.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 2"
-    ],
-    "docs/public/anvil/quickstart.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/public/anvil/releases/changelog.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/public/anvil/releases/rust-rewrite.md": [
-      "Missing Upstream/Downstream relationships table after the metadata table"
-    ],
-    "docs/public/anvil/releases/upgrade-notes.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/public/anvil/tutorials/architecture.md": [
-      "Missing Upstream/Downstream relationships table after the metadata table"
-    ],
-    "docs/public/anvil/tutorials/ci.md": [
-      "Missing Upstream/Downstream relationships table after the metadata table"
-    ],
-    "docs/public/anvil/tutorials/drift.md": [
-      "Missing Upstream/Downstream relationships table after the metadata table"
-    ],
-    "docs/public/anvil/tutorials/index.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 2"
-    ],
-    "docs/public/anvil/tutorials/policies.md": [
-      "Missing Upstream/Downstream relationships table after the metadata table"
-    ],
-    "docs/public/anvil/tutorials/suppressions.md": [
-      "Missing Upstream/Downstream relationships table after the metadata table"
-    ],
-    "docs/public/anvil/when-to-use.md": [
-      "Missing Upstream/Downstream relationships table after the metadata table"
-    ],
-    "docs/public/aps/examples/minimal-plan.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/public/aps/examples/multi-module.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/public/aps/overview.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/public/aps/schemas/examples.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/public/aps/schemas/json-schema.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/public/aps/spec/determinism.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/public/aps/spec/file-layout.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/public/aps/spec/taxonomy.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
-    ],
-    "docs/public/aps/tooling/validation.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/public/beta/quickstart.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 2"
-    ],
-    "docs/public/edda-stack/components/edda.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/public/edda-stack/components/ember.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/public/edda-stack/components/kindling.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/public/edda-stack/design-principles.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/public/edda-stack/enterprise-questions.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/public/edda-stack/overview.md": [
-      "Missing Upstream/Downstream relationships table after the metadata table"
-    ],
-    "docs/public/edda-stack/roadmap.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/public/kindling/adapters/custom.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/public/kindling/adapters/opencode.md": [
-      "Missing Upstream/Downstream relationships table after the metadata table"
-    ],
-    "docs/public/kindling/adapters/pocketflow.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
-    ],
-    "docs/public/kindling/commands/memory.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/public/kindling/concepts/capsules.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/public/kindling/concepts/observations.md": [
-      "Missing Upstream/Downstream relationships table after the metadata table"
-    ],
-    "docs/public/kindling/concepts/retrieval.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/public/kindling/concepts/storage.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/public/kindling/overview.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/public/kindling/quickstart/create-capsule.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/public/kindling/quickstart/install.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/public/kindling/quickstart/search-export.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/public/kindling/quickstart/write-observations.md": [
-      "Missing Upstream/Downstream relationships table after the metadata table"
-    ],
-    "docs/public/kindling/reference/cli.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 3"
-    ],
-    "docs/public/kindling/reference/config.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 4"
-    ],
-    "docs/public/kindling/reference/formats.md": [
-      "Missing Upstream/Downstream relationships table after the metadata table"
-    ],
-    "docs/public/start-here/choose-your-path.md": [
-      "Metadata table must have 5 columns (type, authority, owner, status, freshness); got 2"
-    ],
-    "docs/public/start-here/glossary.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/public/start-here/what-is-eddacraft.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/runbooks/branch-reconciliation.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/runbooks/db-migrations.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/runbooks/emergency-hotfix.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/runbooks/intd-012-windows-evidence.md": [
-      "Metadata table column 1 must be \"type\"; got \"run\""
-    ],
-    "docs/runbooks/main-first-cutover.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/runbooks/neon-db-operations.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/runbooks/post-deploy-smoke-check.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/runbooks/release-token-scope.md": [
-      "Missing Upstream/Downstream relationships table after the metadata table"
-    ],
-    "docs/runbooks/rollback-bad-candidate-artefact.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/runbooks/rollback-bad-main.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ],
-    "docs/runbooks/rollback-bad-published-release.md": [
-      "Missing governance metadata table (Type | Authority | Owner | Status | Freshness) after H1"
-    ]
-  },
+  "metadata": {},
   "tags": {
     "plans/archive/modules/ink-to-ratatui-port.aps.md": [
       "malformed tag \"overlaps with RATS-002 (watch dashboard) — this task ports the Ink\" (expected lowercase kebab-case, e.g. \"agent\" or \"cross-platform\")",
@@ -810,17 +530,9 @@
     "plans/index.aps.md": [
       "broken anchor \"#auth--access\" — heading \"#auth--access\" not found in current file",
       "broken anchor \"#hardening--maintenance\" — heading \"#hardening--maintenance\" not found in current file",
-      "broken anchor \"#language--coverage\" — heading \"#language--coverage\" not found in current file",
-      "broken anchor \"../RELEASE-PLAN.md#next-release-window-proposed--post-v060-beta-daemon-working-slate\" — file exists but heading \"#next-release-window-proposed--post-v060-beta-daemon-working-slate\" not found",
-      "broken link \"./decisions/011-opa-agent-orchestration.md\" — target file does not exist",
-      "broken link \"./decisions/012-eval-harness-adoption.md\" — target file does not exist"
-    ],
-    "plans/modules/observability-foundation.aps.md": [
-      "broken link \"../execution/OBS.steps.md\" — target file does not exist"
+      "broken anchor \"#language--coverage\" — heading \"#language--coverage\" not found in current file"
     ],
     "plans/modules/opa-enhancements.aps.md": [
-      "broken link \"../../docs/planning/opa-enhancement-vision.md\" — target file does not exist",
-      "broken link \"../../docs/planning/opa-policy-engine.md\" — target file does not exist",
       "broken link \"./opa-architecture-integration.aps.md\" — target file does not exist"
     ],
     "plans/modules/realtime-ai-validation.aps.md": [
@@ -839,7 +551,6 @@
       "broken anchor \"#feedback-to-rtai--intd--rmcp--drvr\" — heading \"#feedback-to-rtai--intd--rmcp--drvr\" not found in current file",
       "broken anchor \"#latency-exceeds-budget\" — heading \"#latency-exceeds-budget\" not found in current file",
       "broken anchor \"#owner--cadence\" — heading \"#owner--cadence\" not found in current file",
-      "broken anchor \"../../RELEASE-PLAN.md#required-prerequisites-cross-cutting-glue\" — file exists but heading \"#required-prerequisites-cross-cutting-glue\" not found",
       "broken link \"../modules/launch-flow-readiness.aps.md\" — target file does not exist",
       "broken link \"../modules/rust-mcp-launch-shim.aps.md\" — target file does not exist",
       "broken link \"../modules/surface-drivers.aps.md\" — target file does not exist"
@@ -852,11 +563,132 @@
     ]
   },
   "asbuilt-paths": {
+    "docs/architecture/activation-as-built.md": [
+      "source path does not exist: \".claude.json\" (body reference \".claude.json\")",
+      "source path does not exist: \"launch-flow-readiness.aps.md\" (body reference \"launch-flow-readiness.aps.md\")",
+      "source path does not exist: \"plans/modules/launch-flow-readiness.aps.md\" (body reference \"plans/modules/launch-flow-readiness.aps.md\")"
+    ],
+    "docs/architecture/adapter-packages-as-built.md": [
+      "source path does not exist: \".aps.md\" (body reference \".aps.md\")",
+      "source path does not exist: \"CONTRACTS.md\" (body reference \"CONTRACTS.md\")",
+      "source path does not exist: \"anvil-file-format.aps.md\" (body reference \"anvil-file-format.aps.md\")",
+      "source path does not exist: \"anvil.config.json\" (body reference \"anvil.config.json\")",
+      "source path does not exist: \"aps-markdown-adapter.aps.md\" (body reference \"aps-markdown-adapter.aps.md\")",
+      "source path does not exist: \"determinism.md\" (body reference \"determinism.md\")",
+      "source path does not exist: \"docs/public/aps/examples.md\" (body reference \"docs/public/aps/examples.md\")",
+      "source path does not exist: \"feature-auth.aps.md\" (body reference \"feature-auth.aps.md\")",
+      "source path does not exist: \"file-layout.md\" (body reference \"file-layout.md\")",
+      "source path does not exist: \"index-full.md\" (body reference \"index-full.md\")",
+      "source path does not exist: \"index-minimal.md\" (body reference \"index-minimal.md\")",
+      "source path does not exist: \"index-template.md\" (body reference \"index-template.md\")",
+      "source path does not exist: \"leaf-full.md\" (body reference \"leaf-full.md\")",
+      "source path does not exist: \"leaf-minimal.md\" (body reference \"leaf-minimal.md\")",
+      "source path does not exist: \"leaf-template.md\" (body reference \"leaf-template.md\")",
+      "source path does not exist: \"leaf-with-heading.aps.md\" (body reference \"leaf-with-heading.aps.md\")",
+      "source path does not exist: \"openapi.json\" (body reference \"openapi.json\")",
+      "source path does not exist: \"overview.md\" (body reference \"overview.md\")",
+      "source path does not exist: \"packages/adapters/aps-markdown/\" (body reference \"packages/adapters/aps-markdown/\")",
+      "source path does not exist: \"packages/adapters/common/\" (body reference \"packages/adapters/common/\")",
+      "source path does not exist: \"plans/modules/launch-flow-readiness.aps.md\" (body reference \"plans/modules/launch-flow-readiness.aps.md\")",
+      "source path does not exist: \"refactor-error-handling.aps.md\" (body reference \"refactor-error-handling.aps.md\")",
+      "source path does not exist: \"scripts/generate-openapi.ts\" (body reference \"scripts/generate-openapi.ts\")",
+      "source path does not exist: \"scripts/generate-templates.js\" (body reference \"scripts/generate-templates.js\")",
+      "source path does not exist: \"simple-full.md\" (body reference \"simple-full.md\")",
+      "source path does not exist: \"simple-minimal.md\" (body reference \"simple-minimal.md\")",
+      "source path does not exist: \"simple-template.md\" (body reference \"simple-template.md\")",
+      "source path does not exist: \"taxonomy.md\" (body reference \"taxonomy.md\")",
+      "source path does not exist: \"tsconfig.lib.json\" (body reference \"tsconfig.lib.json\")",
+      "source path does not exist: \"valid-v6-agent-with-actions.yaml\" (body reference \"valid-v6-agent-with-actions.yaml\")",
+      "source path does not exist: \"valid-v6-prd.md\" (body reference \"valid-v6-prd.md\")",
+      "source path does not exist: \"valid-v6-team.yaml\" (body reference \"valid-v6-team.yaml\")"
+    ],
+    "docs/architecture/api-as-built.md": [
+      "source path does not exist: \"archive/admin-cli-node/\" (body reference \"archive/admin-cli-node/\")",
+      "source path does not exist: \"auth-as-built.md\" (body reference \"auth-as-built.md\")",
+      "source path does not exist: \"intercept-as-built.md\" (body reference \"intercept-as-built.md\")",
+      "source path does not exist: \"scripts/check-runtime-cjs.cjs\" (body reference \"scripts/check-runtime-cjs.cjs\")",
+      "source path does not exist: \"scripts/migrate.mjs\" (body reference \"scripts/migrate.mjs\")",
+      "source path does not exist: \"vercel.json\" (body reference \"vercel.json\")"
+    ],
+    "docs/architecture/checks-as-built.md": [
+      "source path does not exist: \".aps.md\" (body reference \".aps.md\")",
+      "source path does not exist: \"activation-as-built.md\" (body reference \"activation-as-built.md\")",
+      "source path does not exist: \"ai-guardrail-profile.aps.md\" (body reference \"ai-guardrail-profile.aps.md\")",
+      "source path does not exist: \"anvil-rust-scanner.aps.md\" (body reference \"anvil-rust-scanner.aps.md\")",
+      "source path does not exist: \"anvil-scanner-parity-gaps.aps.md\" (body reference \"anvil-scanner-parity-gaps.aps.md\")",
+      "source path does not exist: \"anvil-ts-scanner-retirement.aps.md\" (body reference \"anvil-ts-scanner-retirement.aps.md\")",
+      "source path does not exist: \"command-safety-surfaces.aps.md\" (body reference \"command-safety-surfaces.aps.md\")",
+      "source path does not exist: \"crates/anvil-cli/src/commands/check.rs|gate.rs|audit.rs\" (body reference \"crates/anvil-cli/src/commands/check.rs|gate.rs|audit.rs\")",
+      "source path does not exist: \"intercept-as-built.md\" (body reference \"intercept-as-built.md\")",
+      "source path does not exist: \"kernel-benchmarking-spec.md\" (body reference \"kernel-benchmarking-spec.md\")",
+      "source path does not exist: \"plans/modules/launch-flow-readiness.aps.md\" (body reference \"plans/modules/launch-flow-readiness.aps.md\")",
+      "source path does not exist: \"plans/modules/surface-env-files.aps.md\" (body reference \"plans/modules/surface-env-files.aps.md\")",
+      "source path does not exist: \"realtime-ai-validation.aps.md\" (body reference \"realtime-ai-validation.aps.md\")",
+      "source path does not exist: \"registry.json\" (body reference \"registry.json\")",
+      "source path does not exist: \"surface-env-files.aps.md\" (body reference \"surface-env-files.aps.md\")"
+    ],
+    "docs/architecture/cli-tui-runner-as-built.md": [
+      "source path does not exist: \"activation-as-built.md\" (body reference \"activation-as-built.md\")",
+      "source path does not exist: \"kernel-as-built.md\" (body reference \"kernel-as-built.md\")",
+      "source path does not exist: \"tui-as-built.md\" (body reference \"tui-as-built.md\")"
+    ],
+    "docs/architecture/driver-framework-as-built.md": [
+      "source path does not exist: \".anvil.yaml\" (body reference \".anvil.yaml\")",
+      "source path does not exist: \"anvil-driver-framework-adr.md\" (body reference \"anvil-driver-framework-adr.md\")",
+      "source path does not exist: \"anvil-driver-framework-design-spec.md\" (body reference \"anvil-driver-framework-design-spec.md\")",
+      "source path does not exist: \"crates/anvil-driver-client-rs\" (body reference \"crates/anvil-driver-client-rs\")",
+      "source path does not exist: \"editor-and-mcp-driver-design.md\" (body reference \"editor-and-mcp-driver-design.md\")",
+      "source path does not exist: \"intercept-as-built.md\" (body reference \"intercept-as-built.md\")",
+      "source path does not exist: \"mcp-shim-as-built.md\" (body reference \"mcp-shim-as-built.md\")",
+      "source path does not exist: \"plans/modules/surface-drivers.aps.md\" (body reference \"plans/modules/surface-drivers.aps.md\")",
+      "source path does not exist: \"surface-drivers.aps.md\" (body reference \"surface-drivers.aps.md\")",
+      "source path does not exist: \"tsconfig.lib.json\" (body reference \"tsconfig.lib.json\")"
+    ],
+    "docs/architecture/intercept-as-built.md": [
+      "source path does not exist: \".anvil.yaml\" (body reference \".anvil.yaml\")"
+    ],
     "docs/architecture/jsts-release-surfaces.md": [
       "source path does not exist: \"ci.yml\" (body reference \"ci.yml\")",
       "source path does not exist: \"release-readiness.yml\" (body reference \"release-readiness.yml\")",
       "source path does not exist: \"release-sign-artefacts.yml\" (body reference \"release-sign-artefacts.yml\")",
       "source path does not exist: \"release.yml\" (body reference \"release.yml\")"
+    ],
+    "docs/architecture/kernel-as-built.md": [
+      "source path does not exist: \"crates/anvil-kernel/src/graph/dependency.rs\" (body reference \"crates/anvil-kernel/src/graph/dependency.rs\")",
+      "source path does not exist: \"crates/anvil-kernel/src/graph/incremental.rs\" (body reference \"crates/anvil-kernel/src/graph/incremental.rs\")",
+      "source path does not exist: \"crates/anvil-kernel/src/graph/mod.rs\" (body reference \"crates/anvil-kernel/src/graph/mod.rs\")",
+      "source path does not exist: \"crates/anvil-kernel/src/graph/symbol_graph.rs\" (body reference \"crates/anvil-kernel/src/graph/symbol_graph.rs\")",
+      "source path does not exist: \"crates/anvil-kernel/src/graph/trust.rs\" (body reference \"crates/anvil-kernel/src/graph/trust.rs\")",
+      "source path does not exist: \"crates/anvil-kernel/src/parser/extract.rs\" (body reference \"crates/anvil-kernel/src/parser/extract.rs\")",
+      "source path does not exist: \"opa-enhancements.aps.md\" (body reference \"opa-enhancements.aps.md\")",
+      "source path does not exist: \"overview.md\" (body reference \"overview.md\")",
+      "source path does not exist: \"rust-architecture-endstate.md\" (body reference \"rust-architecture-endstate.md\")",
+      "source path does not exist: \"rust-kernel-spec.md\" (body reference \"rust-kernel-spec.md\")"
+    ],
+    "docs/architecture/mcp-shim-as-built.md": [
+      "source path does not exist: \".anvil.yaml\" (body reference \".anvil.yaml\")",
+      "source path does not exist: \"plans/modules/rust-mcp-launch-shim.aps.md\" (body reference \"plans/modules/rust-mcp-launch-shim.aps.md\")",
+      "source path does not exist: \"tools/call\" (body reference \"tools/call\")",
+      "source path does not exist: \"tools/list\" (body reference \"tools/list\")",
+      "source path does not exist: \"tools/mod.rs\" (body reference \"tools/mod.rs\")",
+      "source path does not exist: \"tools/validate_write.rs\" (body reference \"tools/validate_write.rs\")"
+    ],
+    "docs/architecture/tui-as-built.md": [
+      "source path does not exist: \"activation-as-built.md\" (body reference \"activation-as-built.md\")",
+      "source path does not exist: \"checks-as-built.md\" (body reference \"checks-as-built.md\")",
+      "source path does not exist: \"intercept-as-built.md\" (body reference \"intercept-as-built.md\")",
+      "source path does not exist: \"kernel-as-built.md\" (body reference \"kernel-as-built.md\")"
+    ],
+    "docs/architecture/tutorial-as-built.md": [
+      "source path does not exist: \"activation-as-built.md\" (body reference \"activation-as-built.md\")",
+      "source path does not exist: \"checks-as-built.md\" (body reference \"checks-as-built.md\")",
+      "source path does not exist: \"plans/modules/launch-flow-readiness.aps.md\" (body reference \"plans/modules/launch-flow-readiness.aps.md\")",
+      "source path does not exist: \"tui-as-built.md\" (body reference \"tui-as-built.md\")"
+    ],
+    "docs/architecture/widgets-as-built.md": [
+      "source path does not exist: \"activation-as-built.md\" (body reference \"activation-as-built.md\")",
+      "source path does not exist: \"tui-as-built.md\" (body reference \"tui-as-built.md\")",
+      "source path does not exist: \"tutorial-as-built.md\" (body reference \"tutorial-as-built.md\")"
     ],
     "docs/runbooks/anvil-air-gapped.md": [
       "source path does not exist: \"multilayer-protection.aps.md\" (body reference \"multilayer-protection.aps.md\")",
@@ -881,6 +713,29 @@
       "source path does not exist: \"multilayer-protection-v2.aps.md\" (body reference \"multilayer-protection-v2.aps.md\")",
       "source path does not exist: \"multilayer-protection-v2.aps.md\" (upstream reference \"multilayer-protection-v2.aps.md\")"
     ],
+    "docs/runbooks/branch-reconciliation.md": [
+      "source path does not exist: \"CLAUDE-README.md\" (body reference \"CLAUDE-README.md\")",
+      "source path does not exist: \"WARP.md\" (body reference \"WARP.md\")",
+      "source path does not exist: \"apps/anvil-cli/\" (body reference \"apps/anvil-cli/\")",
+      "source path does not exist: \"claude-address-pr-reviews.yml\" (body reference \"claude-address-pr-reviews.yml\")",
+      "source path does not exist: \"claude.yml\" (body reference \"claude.yml\")",
+      "source path does not exist: \"import-state.yml\" (body reference \"import-state.yml\")",
+      "source path does not exist: \"packages/platform/\" (body reference \"packages/platform/\")",
+      "source path does not exist: \"publish.yml\" (body reference \"publish.yml\")",
+      "source path does not exist: \"temper.yml\" (body reference \"temper.yml\")"
+    ],
+    "docs/runbooks/db-migrations.md": [
+      "source path does not exist: \"apps/anvil-api/dist/\" (body reference \"apps/anvil-api/dist/\")"
+    ],
+    "docs/runbooks/emergency-hotfix.md": [
+      "source path does not exist: \"SKILL.md\" (body reference \"SKILL.md\")",
+      "source path does not exist: \"aps-rules.md\" (body reference \"aps-rules.md\")",
+      "source path does not exist: \"feature-flag-governance.md\" (body reference \"feature-flag-governance.md\")",
+      "source path does not exist: \"post-deploy-smoke-check.md\" (body reference \"post-deploy-smoke-check.md\")",
+      "source path does not exist: \"rollback-bad-candidate-artefact.md\" (body reference \"rollback-bad-candidate-artefact.md\")",
+      "source path does not exist: \"rollback-bad-main.md\" (body reference \"rollback-bad-main.md\")",
+      "source path does not exist: \"rollback-bad-published-release.md\" (body reference \"rollback-bad-published-release.md\")"
+    ],
     "docs/runbooks/homebrew-publish.md": [
       "source path does not exist: \"distribution-and-update.aps.md\" (body reference \"distribution-and-update.aps.md\")",
       "source path does not exist: \"distribution-and-update.aps.md\" (upstream reference \"distribution-and-update.aps.md\")",
@@ -888,6 +743,19 @@
       "source path does not exist: \"release-token-scope.md\" (body reference \"release-token-scope.md\")",
       "source path does not exist: \"release-token-scope.md\" (upstream reference \"release-token-scope.md\")",
       "source path does not exist: \"release.yml\" (body reference \"release.yml\")"
+    ],
+    "docs/runbooks/intd-012-windows-evidence.md": [
+      "source path does not exist: \"rust.yml\" (body reference \"rust.yml\")"
+    ],
+    "docs/runbooks/main-first-cutover.md": [
+      "source path does not exist: \"branch-reconciliation.md\" (body reference \"branch-reconciliation.md\")",
+      "source path does not exist: \"opmodel-012.steps.md\" (body reference \"opmodel-012.steps.md\")",
+      "source path does not exist: \"plans/modules/operating-model-migration.aps.md\" (body reference \"plans/modules/operating-model-migration.aps.md\")",
+      "source path does not exist: \"pr-base-guard.yml\" (body reference \"pr-base-guard.yml\")",
+      "source path does not exist: \"rollback-bad-main.md\" (body reference \"rollback-bad-main.md\")"
+    ],
+    "docs/runbooks/post-deploy-smoke-check.md": [
+      "source path does not exist: \"waitlist-email-operations.md\" (body reference \"waitlist-email-operations.md\")"
     ],
     "docs/runbooks/release-runbook.md": [
       "source path does not exist: \"about.toml.accepted\" (body reference \"about.toml.accepted\")",
@@ -902,9 +770,32 @@
       "source path does not exist: \"release-sign-artefacts.yml\" (body reference \"release-sign-artefacts.yml\")",
       "source path does not exist: \"release.yml\" (body reference \"release.yml\")"
     ],
+    "docs/runbooks/release-token-scope.md": [
+      "source path does not exist: \"homebrew-bump.yml\" (body reference \"homebrew-bump.yml\")",
+      "source path does not exist: \"release.yml\" (body reference \"release.yml\")"
+    ],
+    "docs/runbooks/rollback-bad-candidate-artefact.md": [
+      "source path does not exist: \"2026-05-10-release-readiness-workflow.md\" (body reference \"2026-05-10-release-readiness-workflow.md\")",
+      "source path does not exist: \"2026-05-10-release-record-schema.md\" (body reference \"2026-05-10-release-record-schema.md\")",
+      "source path does not exist: \"emergency-hotfix.md\" (body reference \"emergency-hotfix.md\")",
+      "source path does not exist: \"rollback-bad-main.md\" (body reference \"rollback-bad-main.md\")",
+      "source path does not exist: \"rollback-bad-published-release.md\" (body reference \"rollback-bad-published-release.md\")"
+    ],
+    "docs/runbooks/rollback-bad-main.md": [
+      "source path does not exist: \"emergency-hotfix.md\" (body reference \"emergency-hotfix.md\")",
+      "source path does not exist: \"post-deploy-smoke-check.md\" (body reference \"post-deploy-smoke-check.md\")",
+      "source path does not exist: \"rollback-bad-candidate-artefact.md\" (body reference \"rollback-bad-candidate-artefact.md\")",
+      "source path does not exist: \"rollback-bad-published-release.md\" (body reference \"rollback-bad-published-release.md\")"
+    ],
+    "docs/runbooks/rollback-bad-published-release.md": [
+      "source path does not exist: \"SKILL.md\" (body reference \"SKILL.md\")",
+      "source path does not exist: \"emergency-hotfix.md\" (body reference \"emergency-hotfix.md\")",
+      "source path does not exist: \"post-deploy-smoke-check.md\" (body reference \"post-deploy-smoke-check.md\")",
+      "source path does not exist: \"rollback-bad-candidate-artefact.md\" (body reference \"rollback-bad-candidate-artefact.md\")",
+      "source path does not exist: \"rollback-bad-main.md\" (body reference \"rollback-bad-main.md\")"
+    ],
     "docs/runbooks/v0.7.0-beta-release-runbook.md": [
-      "source path does not exist: \"intd-012-windows-evidence.md\" (body reference \"intd-012-windows-evidence.md\")",
-      "source path does not exist: \"plans/reviews/cleanup-log.md\" (body reference \"plans/reviews/cleanup-log.md\")"
+      "source path does not exist: \"intd-012-windows-evidence.md\" (body reference \"intd-012-windows-evidence.md\")"
     ]
   }
 }

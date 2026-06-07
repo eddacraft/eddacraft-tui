@@ -1,5 +1,13 @@
 # Main-First Cutover
 
+| Type    | Authority     | Owner   | Status | Freshness                                                                                   |
+| ------- | ------------- | ------- | ------ | ------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | OPMODEL | Live   | Last reviewed 2026-05-11 against OPMODEL-012 Phase 2 cutover and `.github/workflows/ci.yml` |
+
+| Upstream                            | Downstream                                         |
+| ----------------------------------- | -------------------------------------------------- |
+| `.github/workflows/ci.yml`, ADR-049 | release council, on-call operators, OPMODEL module |
+
 > **Owner:** Operator (Josh) + Release council **Scope:** One-shot cutover from
 > the current `dev -> main` promotion model to the target main-first model.
 > Implements OPMODEL-012. **Inputs:**

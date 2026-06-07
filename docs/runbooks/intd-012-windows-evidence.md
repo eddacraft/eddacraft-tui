@@ -1,5 +1,13 @@
 # INTD-012 — Windows Confidence Evidence
 
+| Type    | Authority     | Owner | Status | Freshness                                                                                  |
+| ------- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------ |
+| Runbook | Authoritative | INTD  | Live   | Last reviewed 2026-05-08 against INTD-012 wave-1 evidence and `.github/workflows/rust.yml` |
+
+| Upstream                     | Downstream                                 |
+| ---------------------------- | ------------------------------------------ |
+| `.github/workflows/rust.yml` | INTD module, release council, CI operators |
+
 **Date:** 2026-05-06 **Branch:** `a2/wave1-windows-confidence` **Owner:** A2
 Wave 1 **Status:** Honest-scope artefact for INTD-012 (Windows CI Matrix)
 

@@ -1,5 +1,13 @@
 # anvil-api Service — As-Built
 
+| Type     | Authority | Owner | Status | Freshness                                                           |
+| -------- | --------- | ----- | ------ | ------------------------------------------------------------------- |
+| As-built | Derived   | APGOV | Live   | Last reviewed 2026-05-07 against `v0.6.0-beta` and `apps/anvil-api` |
+
+| Upstream                                    | Downstream                                                                                                                                 |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `apps/anvil-api`, `apps/admin-cli`, ADR-018 | anvil CLI (auth flows, license refresh, update-check), operator admin CLI, anvil admin Rust command (RCLI2-009), eddacraft.ai install site |
+
 > **Status:** Live (beta) **Last reviewed:** 2026-05-07 against `v0.6.0-beta`
 > slate (HEAD `d223b8d9`) **Service / location:** `apps/anvil-api` (Hono on
 > Vercel; Neon Postgres backing) **Module owner (APS):** APGOV

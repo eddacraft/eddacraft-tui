@@ -1,5 +1,13 @@
 # Activation Orchestrator — As-Built
 
+| Type     | Authority | Owner  | Status | Freshness                                                             |
+| -------- | --------- | ------ | ------ | --------------------------------------------------------------------- |
+| As-built | Derived   | LAUNCH | Live   | Last reviewed 2026-05-07 against `v0.6.0-beta` and `crates/anvil-cli` |
+
+| Upstream                                                                  | Downstream                                                                                   |
+| ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `crates/anvil-cli`, `crates/anvil-kernel`, `crates/anvil-checks`, ADR-001 | anvil start / status / doctor / tutorial CLI surfaces, MCP install step, activation TUI path |
+
 > **Status:** Live (beta) **Last reviewed:** 2026-05-07 against `v0.6.0-beta`
 > slate (HEAD `8bbe65b9`) **Module:** `crates/anvil-cli/src/activation/`
 > **Module owner (APS):** LAUNCH (`launch-flow-readiness.aps.md`, 18/18

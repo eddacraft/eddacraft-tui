@@ -1,5 +1,13 @@
 # Rollback Bad `main`
 
+| Type    | Authority     | Owner   | Status | Freshness                                                                                     |
+| ------- | ------------- | ------- | ------ | --------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | RELORCH | Live   | Last reviewed 2026-05-24 against v0.7.1-beta release dry-run and `scripts/release/prepare.sh` |
+
+| Upstream                              | Downstream                         |
+| ------------------------------------- | ---------------------------------- |
+| `scripts/release/prepare.sh`, ADR-049 | release council, on-call operators |
+
 > **Owner:** Release council **Scope:** `main`-first model — `main` is the
 > single integration target. **Companion playbooks:**
 > [`rollback-bad-candidate-artefact.md`](./rollback-bad-candidate-artefact.md),

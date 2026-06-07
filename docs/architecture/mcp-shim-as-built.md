@@ -1,5 +1,13 @@
 # anvil MCP Shim — As-Built
 
+| Type     | Authority | Owner | Status | Freshness                                                             |
+| -------- | --------- | ----- | ------ | --------------------------------------------------------------------- |
+| As-built | Derived   | RMCP  | Live   | Last reviewed 2026-05-07 against `v0.6.0-beta` and `crates/anvil-cli` |
+
+| Upstream                                                                              | Downstream                                                                  |
+| ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `crates/anvil-cli`, `crates/anvil-intercept`, `crates/anvil-intercept-proto`, ADR-033 | Cursor MCP client, Claude Code MCP client, activation orchestrator (LAUNCH) |
+
 > **Status:** Live (beta) **Last reviewed:** 2026-05-07 against `v0.6.0-beta`
 > slate (HEAD `97b61fd0`) **Crate / location:** `crates/anvil-cli/src/mcp/` (+
 > `commands/mcp*.rs`) **Module owner (APS):** RMCP

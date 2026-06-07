@@ -1,5 +1,13 @@
 # Emergency Hotfix
 
+| Type    | Authority     | Owner   | Status | Freshness                                                                                       |
+| ------- | ------------- | ------- | ------ | ----------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | RELORCH | Live   | Last reviewed 2026-05-24 against v0.7.1-beta release dry-run and `scripts/release/preflight.sh` |
+
+| Upstream                                                          | Downstream                                                  |
+| ----------------------------------------------------------------- | ----------------------------------------------------------- |
+| `scripts/release/preflight.sh`, `scripts/release/tag.sh`, ADR-049 | release council, on-call operators, post-deploy smoke check |
+
 > **Owner:** Release council **Scope:** Out-of-band patch releases that cannot
 > wait for the normal trunk-`main` release cadence. **Companion playbooks:**
 > [`rollback-bad-main.md`](./rollback-bad-main.md),

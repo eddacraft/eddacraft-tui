@@ -1,5 +1,13 @@
 # anvil-tui — As-Built
 
+| Type     | Authority | Owner | Status | Freshness                                                                                     |
+| -------- | --------- | ----- | ------ | --------------------------------------------------------------------------------------------- |
+| As-built | Derived   | RATS  | Live   | Last reviewed 2026-05-07 against `v0.6.0-beta` and `crates/anvil-tui`, `crates/eddacraft-tui` |
+
+| Upstream                                   | Downstream                                                                                                       |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| `crates/anvil-tui`, `crates/eddacraft-tui` | CLI commands (watch, status, audit, doctor, tutorial, welcome, init, gate), widget catalogue (RATS / TUIEXTRACT) |
+
 > **Status:** Live (beta) **Last reviewed:** 2026-05-07 against `v0.6.0-beta`
 > slate (HEAD `d223b8d9`) **Crate / location:** `crates/anvil-tui` **Module
 > owner (APS):** RATS (Ratatui surfaces — complete, archived to

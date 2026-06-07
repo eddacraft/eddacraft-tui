@@ -1,5 +1,13 @@
 # Rollback Bad Candidate Artefact
 
+| Type    | Authority     | Owner   | Status | Freshness                                                                                                          |
+| ------- | ------------- | ------- | ------ | ------------------------------------------------------------------------------------------------------------------ |
+| Runbook | Authoritative | RELORCH | Live   | Last reviewed 2026-05-24 against the release-readiness workflow spec and `.github/workflows/release-readiness.yml` |
+
+| Upstream                                           | Downstream                                                    |
+| -------------------------------------------------- | ------------------------------------------------------------- |
+| `.github/workflows/release-readiness.yml`, ADR-049 | release council, on-call operators, rollback-bad-main runbook |
+
 > **Owner:** Release council **Scope:** Candidate-stage release artefacts
 > produced by the release-readiness workflow defined in
 > [`2026-05-10-release-readiness-workflow.md`](../../plans/specs/2026-05-10-release-readiness-workflow.md).
