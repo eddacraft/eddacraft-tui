@@ -392,10 +392,17 @@ gh api repos/eddacraft/eddacraft-tui/releases/tags/eddacraft-tui-vX.Y.Z --jq .ta
 diff -u crates/eddacraft-tui/CHANGELOG.md \
   <(gh api -H 'Accept: application/vnd.github.raw' \
       repos/eddacraft/eddacraft-tui/contents/CHANGELOG.md)
+# README: mirror README is `MIRROR-README.md` (banner) + canonical
+# `README.md` (body), concatenated by `mirror-eddacraft-tui.yml` step
+# "Swap MIRROR-README onto README". The banner's line count is
+# derived dynamically so the offset stays correct if the banner ever
+# grows (e.g. a new "How to depend" paragraph is added to
+# MIRROR-README.md between releases).
+MIRROR_README_BANNER_LINES=$(wc -l < crates/eddacraft-tui/MIRROR-README.md)
 diff -u crates/eddacraft-tui/README.md \
   <(gh api -H 'Accept: application/vnd.github.raw' \
       repos/eddacraft/eddacraft-tui/contents/README.md \
-    | tail -n +45)   # mirror README = MIRROR-README.md banner + local README.md body
+    | tail -n +$((MIRROR_README_BANNER_LINES + 1)))
 
 # Downstream Anvil consumers still build green (sanity).
 cargo check -p eddacraft-anvil-tui
