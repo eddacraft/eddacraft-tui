@@ -2,6 +2,10 @@
 
 These conventions apply to all agents working in this project.
 
+> For repo orientation — vocabulary, where things live, and where to go next —
+> see [`CONTEXT.md`](CONTEXT.md). This file is the _how to behave_ source;
+> `CONTEXT.md` is the _where to find things_ map.
+
 ## Planning — Anvil Plan Spec (APS)
 
 All multi-step work MUST use APS format. Read `plans/aps-rules.md` for portable

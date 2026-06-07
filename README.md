@@ -24,6 +24,9 @@ violations **before they ever leave the developer's machine.**
 [GTM strategy](https://github.com/eddacraft/eddacraft-gtm) ·
 [Brand & design](https://github.com/eddacraft/brand-and-design)
 
+> **New here?** [`CONTEXT.md`](CONTEXT.md) is the repo map for contributors and
+> agents — what we call things, where they live, and where to go next.
+
 ## Hero stats
 
 ```
