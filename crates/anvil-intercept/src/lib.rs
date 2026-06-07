@@ -1122,20 +1122,10 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
                 antipattern_config::load_or_fail_safe(),
                 confinement::load_or_fail_closed(),
             );
-            // DSV-010b: on Windows the trusted-config read (`read_trusted`) has no
-            // owner/symlink verification yet (the `O_NOFOLLOW` + owner-mode check
-            // is `cfg(unix)`), so the confinement / antipattern config is loaded
-            // without the ownership floor Unix enforces. Warn so the weaker
-            // config-trust posture is observable, never silent — the Windows-hardened
-            // ACL check (`GetSecurityInfo`) is a tracked GA-hardening follow-up.
-            #[cfg(windows)]
-            tracing::warn!(
-                target: "anvil_intercept::save_time",
-                "Windows: operator config (confinement / antipattern) is read without \
-                 owner/symlink verification (the trusted-config ownership check is \
-                 Unix-only) — a Windows-GA hardening follow-up; ensure the Anvil config \
-                 directory is ACL-restricted to this user",
-            );
+            // DSV-010b hardening: the operator config is now read through the
+            // per-platform owner-only `confinement::read_trusted` on Windows too
+            // (reparse refusal + `GetSecurityInfo` owner-SID match), so the
+            // earlier "unverified on Windows" warn no longer applies.
             // DSV-005: inject the dependency-inverted kernel parser if anvil-cli
             // wired one.
             if let Some(parser) = opts.symbol_parser.clone() {

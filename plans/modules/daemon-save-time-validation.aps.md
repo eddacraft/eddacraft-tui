@@ -542,21 +542,24 @@ read-safety design risk that likely needs an ADR before it goes Ready.
     also uses without a parser; the antipattern diagnostics + DSV-009 parity hold
     regardless). Lifting the injection (→ `Certified` on Windows) is a small
     follow-up. Then DSV-011 clients (already in fallback mode) light up.
-- **Windows-GA hardening follow-ups (Council 2026-06-05, deferred — consistent
-  with ADR-070's "Windows GA hardening stays out of scope"):**
-  - **Peer-SID check off the accept-loop thread.** `named_pipe_client_is_owner`
-    runs synchronously in the named-pipe accept loop (`OpenProcess` +
-    `GetTokenInformation` ×2); normally microseconds, but a pathologically slow
-    same-uid peer could stall the single-threaded accept loop. Move it to
-    `spawn_blocking`. (Same-uid is already the trust boundary, so the practical
-    risk is low; deferred over adding async restructuring to the
-    not-locally-compilable Windows arm.)
-  - **Windows trusted-config ownership check.** `confinement::read_trusted` /
-    `antipattern_config` verify owner + mode bits via `O_NOFOLLOW` on Unix; the
-    `cfg(not(unix))` arm reads without that check. DSV-010b promotes this
-    pre-existing stub to production on Windows — mitigated for now by a startup
-    `warn` (no silent degradation). The real fix is a `GetSecurityInfo` ACL
-    verification + owner-only config-dir creation on Windows.
+- **Windows-GA hardening follow-ups (Council 2026-06-05 → done 2026-06-07 via
+  PR #2340):**
+  - **Peer-SID check off the accept-loop thread — done.**
+    `named_pipe_client_is_owner` (`OpenProcess` + `GetTokenInformation` ×2) now
+    runs via `tokio::task::spawn_blocking` in the named-pipe accept loop (handle
+    passed as `usize` — a Win32 `HANDLE` is not `Send`; `connected_server` held
+    alive across the await), so a pathologically slow same-uid peer no longer
+    stalls the reactor thread. Fail-closed on non-owner / error / join failure.
+  - **Windows trusted-config ownership check — done.** `confinement::read_trusted`
+    has a real Windows impl (`anvil_intercept_win32::read_trusted_config`):
+    refuses a reparse point (symlink/junction → `SymlinkedConfig`) and a
+    foreign-owned file (`GetSecurityInfo` owner-SID mismatch → new
+    `NotOwnerSid`), reading the verified handle otherwise — the analogue of the
+    Unix `O_NOFOLLOW` + owner-uid check. `create_owner_only_dir` creates the
+    config dir with an owner-only DACL (`CreateDirectoryW` + SDDL), the analogue
+    of the Unix 0700 dir. The interim "unverified on Windows" startup `warn` is
+    removed. Unsafe FFI quarantined in `anvil-intercept-win32` (cross-checked on
+    `x86_64-pc-windows-gnu`; runtime-verified on the `windows-msvc` matrix).
 - **Intent:** Serve the frozen save-time verbs on Windows so a Windows project gets
   the same daemon-mediated save-time validation as Unix. ADR-015 mandates Windows
   support, and the IPC transport already speaks named pipes (MLP2-075 wired the MCP

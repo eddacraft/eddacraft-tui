@@ -1067,11 +1067,14 @@ impl<D: SessionDispatcher> IpcListener<D> {
                             // (`OpenProcess` + `GetTokenInformation`), and doing
                             // them inline would block the accept loop's reactor
                             // thread on a pathologically slow same-uid peer.
-                            // `connected_server` is held alive across the await
-                            // so its handle stays valid; the raw handle is passed
-                            // as `usize` because a Win32 `HANDLE` is not `Send`.
-                            // Fail closed on a non-owner, a validation error, or
-                            // a join failure.
+                            // `connected_server` is held alive across the await so
+                            // its handle stays valid; the raw handle is passed as
+                            // `usize` (not the `RawHandle` pointer) only to satisfy
+                            // `spawn_blocking`'s `Send + 'static` capture bound
+                            // without reaching for `unsafe` in this
+                            // `forbid(unsafe_code)` crate — it is cast straight
+                            // back to a handle inside the closure. Fail closed on a
+                            // non-owner, a validation error, or a join failure.
                             use std::os::windows::io::{AsRawHandle, RawHandle};
                             let raw_handle = connected_server.as_raw_handle() as usize;
                             let owner = tokio::task::spawn_blocking(move || {

@@ -40,13 +40,13 @@
 //! The config/file/path layer is platform-neutral, and since DSV-010b
 //! [`Confinement::to_admitted_roots`] is served on both Unix and Windows (the
 //! `validate_paths` enforcement point now answers over the Windows named pipe
-//! too — ADR-070 Stage 2). The **owner-only trusted read** of the config file
-//! (`read_trusted`) is still `cfg(unix)`: it verifies owner + mode bits via an
-//! `O_NOFOLLOW` open, which has no implemented Windows analogue yet. On Windows
-//! the config is read without that ownership/symlink check (a Windows-GA
-//! hardening follow-up — `GetSecurityInfo` ACL verification), so a malformed or
-//! attacker-planted config is not flagged the way it is on Unix; `run_foreground`
-//! emits a `warn` on Windows so the weaker config-trust posture is observable.
+//! too — ADR-070 Stage 2). The **owner-only trusted read** (`read_trusted`) has
+//! a per-platform impl: on Unix an `O_NOFOLLOW` open + owner-uid + no-foreign-
+//! write (mode) check; on Windows (DSV-010b hardening) a reparse-point refusal +
+//! `GetSecurityInfo` owner-SID match (via `anvil-intercept-win32`), with the
+//! no-foreign-write property coming from the owner-only config dir
+//! ([`create_owner_only_dir`]) plus the per-user profile ACLs. Both fail closed
+//! on an untrusted (symlinked / foreign-owned) config.
 
 use std::path::{Path, PathBuf};
 
@@ -95,6 +95,19 @@ pub enum ConfinementError {
     /// [`ConfinementError::NotOwnerOnly`] — there is no owner/mode to report).
     #[error("confinement config {0} is a symlink — refusing (it could redirect the read)")]
     SymlinkedConfig(PathBuf),
+    /// (Windows, DSV-010b) the config file's owner SID is not the current user's
+    /// — refused, since another principal could rewrite the trust boundary. The
+    /// Windows analogue of [`ConfinementError::NotOwnerOnly`] (which reports a
+    /// Unix mode + uids that have no Windows meaning).
+    #[cfg(windows)]
+    #[error(
+        "confinement config {path} is owned by another principal (owner SID {owner_sid}, current {current_sid}) — refusing"
+    )]
+    NotOwnerSid {
+        path: PathBuf,
+        owner_sid: String,
+        current_sid: String,
+    },
     /// The config file exists but does not parse.
     #[error("confinement config {path} is malformed: {source}")]
     Parse {
@@ -414,11 +427,11 @@ pub fn config_path() -> Result<PathBuf, ConfinementError> {
 /// ([`crate::antipattern_config`]) — so every operator surface resolves its
 /// directory through one daemon-owned resolver, never an `anvil-cli` path.
 ///
-/// DSV-010b: now served on both Unix and Windows (the save-time daemon answers
-/// over the Windows named pipe and loads its operator antipattern config there
-/// too). The body is the same `config_dir_from` resolver `config_path` uses, so
-/// it is platform-neutral; only the Unix `read_trusted` ownership floor over the
-/// resolved file is still Unix-only (a Windows-GA hardening follow-up).
+/// DSV-010b: served on both Unix and Windows (the save-time daemon answers over
+/// the Windows named pipe and loads its operator antipattern config there too).
+/// The body is the same `config_dir_from` resolver `config_path` uses, so it is
+/// platform-neutral; the resolved file is read through the per-platform
+/// owner-only [`read_trusted`] on both targets.
 #[cfg(any(unix, windows))]
 pub(crate) fn anvil_config_dir() -> Result<PathBuf, ConfinementError> {
     config_dir_from(
@@ -519,7 +532,38 @@ pub(crate) fn read_trusted(path: &Path) -> Result<Option<String>, ConfinementErr
     Ok(Some(raw))
 }
 
-#[cfg(not(unix))]
+/// Windows (DSV-010b): the owner-only trusted read, the analogue of the Unix
+/// `O_NOFOLLOW` + owner-uid check. Refuses a reparse point (symlink/junction →
+/// [`ConfinementError::SymlinkedConfig`]) and a file owned by another principal
+/// ([`ConfinementError::NotOwnerSid`]); reads the verified handle otherwise. The
+/// unsafe `GetSecurityInfo` / reparse-detection FFI is quarantined in
+/// `anvil-intercept-win32` so this crate keeps `forbid(unsafe_code)`.
+#[cfg(windows)]
+pub(crate) fn read_trusted(path: &Path) -> Result<Option<String>, ConfinementError> {
+    use anvil_intercept_win32::TrustedConfigRead;
+    match anvil_intercept_win32::read_trusted_config(path) {
+        Ok(TrustedConfigRead::NotFound) => Ok(None),
+        Ok(TrustedConfigRead::Reparse) => {
+            Err(ConfinementError::SymlinkedConfig(path.to_path_buf()))
+        }
+        Ok(TrustedConfigRead::NotOwner {
+            owner_sid,
+            current_sid,
+        }) => Err(ConfinementError::NotOwnerSid {
+            path: path.to_path_buf(),
+            owner_sid,
+            current_sid,
+        }),
+        Ok(TrustedConfigRead::Trusted(raw)) => Ok(Some(raw)),
+        Err(source) => Err(ConfinementError::Io {
+            path: path.to_path_buf(),
+            source,
+        }),
+    }
+}
+
+/// Exotic non-Unix/-Windows targets have no trusted-read primitive; plain read.
+#[cfg(not(any(unix, windows)))]
 pub(crate) fn read_trusted(path: &Path) -> Result<Option<String>, ConfinementError> {
     match std::fs::read_to_string(path) {
         Ok(raw) => Ok(Some(raw)),
@@ -711,7 +755,18 @@ fn create_owner_only_dir(dir: &Path) -> Result<(), ConfinementError> {
     })
 }
 
-#[cfg(not(unix))]
+/// Windows (DSV-010b): create the config dir with an owner-only DACL — the
+/// analogue of the Unix 0700 dir. The unsafe `CreateDirectoryW` + SDDL FFI is
+/// quarantined in `anvil-intercept-win32`.
+#[cfg(windows)]
+fn create_owner_only_dir(dir: &Path) -> Result<(), ConfinementError> {
+    anvil_intercept_win32::create_owner_only_dir(dir).map_err(|source| ConfinementError::Io {
+        path: dir.to_path_buf(),
+        source,
+    })
+}
+
+#[cfg(not(any(unix, windows)))]
 fn create_owner_only_dir(dir: &Path) -> Result<(), ConfinementError> {
     std::fs::create_dir_all(dir).map_err(|source| ConfinementError::Io {
         path: dir.to_path_buf(),

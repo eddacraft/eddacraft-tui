@@ -17,6 +17,7 @@ use std::io;
 use std::mem::size_of;
 use std::os::windows::ffi::OsStrExt;
 use std::os::windows::io::RawHandle;
+use std::path::Path;
 use std::ptr::{null_mut, slice_from_raw_parts};
 
 use tokio::net::windows::named_pipe::{NamedPipeServer, ServerOptions};
@@ -25,14 +26,17 @@ use windows_sys::Win32::Foundation::{
     ERROR_PIPE_NOT_CONNECTED, FILETIME, HANDLE, INVALID_HANDLE_VALUE, LocalFree,
 };
 use windows_sys::Win32::Security::Authorization::{
-    ConvertSidToStringSidW, ConvertStringSecurityDescriptorToSecurityDescriptorW, SDDL_REVISION_1,
+    ConvertSidToStringSidW, ConvertStringSecurityDescriptorToSecurityDescriptorW, GetSecurityInfo,
+    SDDL_REVISION_1, SE_FILE_OBJECT,
 };
 use windows_sys::Win32::Security::{
-    GetTokenInformation, SECURITY_ATTRIBUTES, TOKEN_QUERY, TOKEN_USER, TokenUser,
+    GetTokenInformation, SECURITY_ATTRIBUTES, TOKEN_OWNER, TOKEN_QUERY, TOKEN_USER, TokenOwner,
+    TokenUser,
 };
 use windows_sys::Win32::Storage::FileSystem::{
-    CreateFileW, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING, ReadFile,
-    SECURITY_IDENTIFICATION, SECURITY_SQOS_PRESENT, WriteFile,
+    BY_HANDLE_FILE_INFORMATION, CreateDirectoryW, CreateFileW, FILE_FLAG_OPEN_REPARSE_POINT,
+    FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE, GetFileInformationByHandle,
+    OPEN_EXISTING, ReadFile, SECURITY_IDENTIFICATION, SECURITY_SQOS_PRESENT, WriteFile,
 };
 use windows_sys::Win32::System::JobObjects::{
     AssignProcessToJobObject, CreateJobObjectW, TerminateJobObject,
@@ -59,6 +63,20 @@ const STILL_ACTIVE: u32 = 259;
 // flow. This deliberately avoids GENERIC_ALL; v1 treats same-user processes as
 // inside the trust boundary, matching the Unix owner-only socket model.
 const OWNER_PIPE_RIGHTS: &str = "0x12019f";
+
+// DSV-010b config-trust (the Windows analogue of the Unix `read_trusted`
+// owner-only check). Pinned inline — not re-exported from a `windows-sys` 0.61
+// module the daemon already depends on. `OWNER_SECURITY_INFORMATION` selects the
+// owner SID for `GetSecurityInfo`; `FILE_ATTRIBUTE_REPARSE_POINT` flags a
+// symlink/junction (refused, like the Unix `O_NOFOLLOW` ELOOP).
+const OWNER_SECURITY_INFORMATION: u32 = 0x0000_0001;
+const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0000_0400;
+const ERROR_FILE_NOT_FOUND_CT: i32 = 2;
+const ERROR_PATH_NOT_FOUND_CT: i32 = 3;
+const ERROR_ALREADY_EXISTS_CT: i32 = 183;
+// Generous ceiling for an operator config file (confinement / antipattern YAML);
+// refuse rather than buffer an unbounded file behind a same-user trust boundary.
+const MAX_TRUSTED_CONFIG_BYTES: u64 = 8 * 1024 * 1024;
 
 /// Create a local-only named-pipe server with an explicit owner-only DACL.
 pub fn create_owner_only_pipe_server(
@@ -640,6 +658,49 @@ fn current_user_sid_string() -> io::Result<String> {
     sid_string_from_token(token.0)
 }
 
+/// The current process token's **owner** SID — the default owner Windows stamps
+/// on objects the token creates. Equals the user SID for a normal user, and the
+/// Administrators group SID for an elevated token. Used by [`read_trusted_config`]
+/// so an admin-created (Administrators-owned) config still validates as trusted.
+fn current_token_owner_sid() -> io::Result<String> {
+    let token = Token::current_process()?;
+    let mut len = 0;
+    // SAFETY: first call passes a null buffer to obtain the required byte count.
+    unsafe {
+        GetTokenInformation(token.0, TokenOwner, null_mut(), 0, &mut len);
+    }
+    if len == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    let mut buffer = vec![0_u8; len as usize];
+    // SAFETY: `buffer` is valid for `len` bytes and receives a TOKEN_OWNER.
+    let ok = unsafe {
+        GetTokenInformation(
+            token.0,
+            TokenOwner,
+            buffer.as_mut_ptr().cast(),
+            len,
+            &mut len,
+        )
+    };
+    if ok == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    let token_owner = buffer.as_ptr().cast::<TOKEN_OWNER>();
+    // SAFETY: a successful GetTokenInformation(TokenOwner) populated a TOKEN_OWNER
+    // at the start of `buffer`; the contained SID pointer is valid while it lives.
+    let sid = unsafe { (*token_owner).Owner };
+    let mut sid_string = null_mut();
+    // SAFETY: `sid` is a valid token-owner SID; `sid_string` receives a
+    // LocalAlloc-owned wide string released by `LocalMem`.
+    let ok = unsafe { ConvertSidToStringSidW(sid, &mut sid_string) };
+    if ok == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    let sid_string = LocalMem(sid_string.cast());
+    wide_ptr_to_string(sid_string.as_ptr().cast())
+}
+
 /// Extract the `TOKEN_USER` SID from an open access token and render it as a
 /// string. Shared by the current-process SID lookup and the peer-SID check
 /// (DSV-010b) so both go through one audited `GetTokenInformation(TokenUser)`
@@ -701,6 +762,249 @@ fn security_descriptor_from_sddl(sddl: &str) -> io::Result<LocalMem> {
 
 fn owner_only_pipe_sddl(sid: &str) -> String {
     format!("O:{sid}D:P(A;;{OWNER_PIPE_RIGHTS};;;{sid})")
+}
+
+// --------------------------------------------------------------------
+// DSV-010b config-trust: the Windows analogue of the Unix
+// `confinement::read_trusted` owner-only check + 0700 config dir.
+// --------------------------------------------------------------------
+
+/// Outcome of [`read_trusted_config`] — the Windows analogue of the Unix
+/// `confinement::read_trusted` owner-only check.
+#[derive(Debug)]
+pub enum TrustedConfigRead {
+    /// No file exists at the path (the caller folds this to its default config,
+    /// like the Unix missing-file path).
+    NotFound,
+    /// The path is a reparse point (symlink/junction): refused, since it could
+    /// redirect the read to a file another principal controls — the Windows
+    /// analogue of the Unix `O_NOFOLLOW` → `ELOOP` refusal.
+    Reparse,
+    /// The file's owner SID is not the current user's: refused (another
+    /// principal could rewrite the trust boundary).
+    NotOwner {
+        owner_sid: String,
+        current_sid: String,
+    },
+    /// Owner-verified and not a reparse point — the file contents.
+    Trusted(String),
+}
+
+/// Read an operator config file only if it is trusted: not a reparse point
+/// (symlink/junction) **and** owned by the current user. The Windows analogue of
+/// the Unix `read_trusted` (`O_NOFOLLOW` + owner-uid + no-foreign-write). The
+/// "no foreign write" property comes from the owner-only config directory
+/// ([`create_owner_only_dir`]) plus the per-user profile ACLs Windows applies
+/// under `%APPDATA%`/`%USERPROFILE%`; this function verifies owner + no-redirect
+/// at read time, reading the **verified handle** (never re-opening the path).
+///
+/// # Errors
+/// Propagates a genuine OS error (open / file-info / security-query / read
+/// failure). A missing file, a reparse point, or a foreign owner are reported via
+/// [`TrustedConfigRead`] — not as errors — so the caller can fail-open (missing)
+/// or fail-closed (untrusted) per its own policy.
+pub fn read_trusted_config(path: &Path) -> io::Result<TrustedConfigRead> {
+    let wide: Vec<u16> = path.as_os_str().encode_wide().chain([0]).collect();
+    // `FILE_FLAG_OPEN_REPARSE_POINT` opens a symlink/junction AS the link object
+    // (not followed), so a reparse point is detected + refused below rather than
+    // silently reading its target. The full share mask
+    // (`READ | WRITE | DELETE`, as elsewhere in this crate) avoids a spurious
+    // sharing-violation IO error — and thus a fail-closed daemon — when an editor
+    // or another process has the config file open; it does not weaken the
+    // owner-SID / reparse checks.
+    // SAFETY: `wide` is a NUL-terminated path; the returned handle is owned by
+    // `OwnedFileHandle` and closed exactly once on drop. Other args are scalars.
+    let handle = unsafe {
+        CreateFileW(
+            wide.as_ptr(),
+            GENERIC_READ,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            null_mut(),
+            OPEN_EXISTING,
+            FILE_FLAG_OPEN_REPARSE_POINT,
+            null_mut(),
+        )
+    };
+    if handle == INVALID_HANDLE_VALUE {
+        let err = io::Error::last_os_error();
+        return match err.raw_os_error() {
+            Some(c) if c == ERROR_FILE_NOT_FOUND_CT || c == ERROR_PATH_NOT_FOUND_CT => {
+                Ok(TrustedConfigRead::NotFound)
+            }
+            _ => Err(err),
+        };
+    }
+    let handle = OwnedFileHandle(handle);
+
+    // Refuse a reparse point (symlink / junction).
+    // SAFETY: `info` is a valid out struct; `handle.0` is a live file handle.
+    let mut info: BY_HANDLE_FILE_INFORMATION = unsafe { std::mem::zeroed() };
+    let ok = unsafe { GetFileInformationByHandle(handle.0, &mut info) };
+    if ok == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    if info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
+        return Ok(TrustedConfigRead::Reparse);
+    }
+
+    // Verify the file owner SID is one this process "owns": its token user SID,
+    // or its token OWNER SID — the default owner Windows stamps on objects the
+    // token creates. For a normal user these are equal (the user SID); for an
+    // elevated/admin token the OWNER is the Administrators group (S-1-5-32-544),
+    // so admin-created files are owned by Administrators, not the user. Accepting
+    // both is the faithful Windows analogue of the Unix `owner-uid == current-uid`
+    // check (which has no such split); a file owned by a genuinely different
+    // principal is still refused.
+    let user_sid = current_user_sid_string()?;
+    let token_owner_sid = current_token_owner_sid()?;
+    let owner_sid = owner_sid_of_handle(handle.0)?;
+    if !owner_sid.eq_ignore_ascii_case(&user_sid)
+        && !owner_sid.eq_ignore_ascii_case(&token_owner_sid)
+    {
+        return Ok(TrustedConfigRead::NotOwner {
+            owner_sid,
+            current_sid: user_sid,
+        });
+    }
+
+    // Trusted: read the verified handle.
+    Ok(TrustedConfigRead::Trusted(read_handle_to_string(handle.0)?))
+}
+
+/// The owner SID (as a string) of an open file handle, via
+/// `GetSecurityInfo(OWNER_SECURITY_INFORMATION)`.
+fn owner_sid_of_handle(handle: HANDLE) -> io::Result<String> {
+    let mut owner_sid: *mut c_void = null_mut();
+    let mut descriptor: *mut c_void = null_mut();
+    // SAFETY: `handle` is a live file handle. `owner_sid` receives a pointer INTO
+    // the returned security `descriptor` (LocalAlloc-owned, freed by `LocalMem`);
+    // the group/DACL/SACL out-params are null because only the owner is queried.
+    let status = unsafe {
+        GetSecurityInfo(
+            handle,
+            SE_FILE_OBJECT,
+            OWNER_SECURITY_INFORMATION,
+            &mut owner_sid,
+            null_mut(),
+            null_mut(),
+            null_mut(),
+            &mut descriptor,
+        )
+    };
+    if status != 0 {
+        return Err(io::Error::from_raw_os_error(status as i32));
+    }
+    let descriptor = LocalMem(descriptor.cast());
+    if owner_sid.is_null() {
+        return Err(io::Error::other(
+            "GetSecurityInfo returned a null owner SID",
+        ));
+    }
+    let mut sid_string = null_mut();
+    // SAFETY: `owner_sid` is a valid SID inside the live `descriptor`;
+    // `sid_string` receives a LocalAlloc-owned wide string freed by `LocalMem`.
+    let ok = unsafe { ConvertSidToStringSidW(owner_sid, &mut sid_string) };
+    if ok == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    let sid_string = LocalMem(sid_string.cast());
+    let owner = wide_ptr_to_string(sid_string.as_ptr().cast());
+    // The owner SID has been copied into `owner`; the descriptor + string can go.
+    drop(descriptor);
+    owner
+}
+
+/// Read an open file handle to a `String`, refusing more than
+/// [`MAX_TRUSTED_CONFIG_BYTES`] (a same-user peer must not make the daemon buffer
+/// an unbounded config).
+fn read_handle_to_string(handle: HANDLE) -> io::Result<String> {
+    let mut buf: Vec<u8> = Vec::new();
+    let mut chunk = [0u8; 64 * 1024];
+    loop {
+        let mut read: u32 = 0;
+        // SAFETY: `handle` is a live read handle; `chunk` is a valid mutable
+        // buffer; `&mut read` is a valid out param; null OVERLAPPED = sync IO.
+        let ok = unsafe {
+            ReadFile(
+                handle,
+                chunk.as_mut_ptr(),
+                chunk.len() as u32,
+                &mut read,
+                null_mut(),
+            )
+        };
+        if ok == 0 {
+            return Err(io::Error::last_os_error());
+        }
+        if read == 0 {
+            break;
+        }
+        if buf.len() as u64 + u64::from(read) > MAX_TRUSTED_CONFIG_BYTES {
+            return Err(io::Error::new(
+                io::ErrorKind::FileTooLarge,
+                format!("config exceeds the {MAX_TRUSTED_CONFIG_BYTES}-byte trusted-read ceiling"),
+            ));
+        }
+        buf.extend_from_slice(&chunk[..read as usize]);
+    }
+    String::from_utf8(buf).map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))
+}
+
+/// Create `dir` (and any missing parents) with an owner-only DACL — the Windows
+/// analogue of the Unix 0700 config dir, so a **newly-created** config dir
+/// restricts modify access to the current user (admins / SYSTEM excepted, as
+/// always on Windows). Idempotent: an already-existing directory is accepted
+/// **without** re-applying or validating its DACL (it may have been created by
+/// another tool, or be an operator-pointed `ANVIL_HOME`), so this is not by
+/// itself a guarantee for pre-existing dirs — the read-time owner + reparse check
+/// in [`read_trusted_config`] is the authoritative trust gate regardless.
+///
+/// # Errors
+/// Propagates a directory-creation failure other than "already exists".
+pub fn create_owner_only_dir(dir: &Path) -> io::Result<()> {
+    // Parents only need to exist; the leaf carries the owner-only DACL.
+    if let Some(parent) = dir.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let sid = current_user_sid_string()?;
+    let descriptor = security_descriptor_from_sddl(&owner_only_dir_sddl(&sid))?;
+    let attrs = SECURITY_ATTRIBUTES {
+        nLength: size_of::<SECURITY_ATTRIBUTES>() as u32,
+        lpSecurityDescriptor: descriptor.as_ptr(),
+        bInheritHandle: 0,
+    };
+    let wide: Vec<u16> = dir.as_os_str().encode_wide().chain([0]).collect();
+    // SAFETY: `wide` is a NUL-terminated path; `attrs` holds a valid descriptor
+    // alive for the call. CreateDirectoryW copies the ACLs into the new object.
+    let ok = unsafe { CreateDirectoryW(wide.as_ptr(), &attrs) };
+    drop(descriptor);
+    if ok == 0 {
+        let err = io::Error::last_os_error();
+        if err.raw_os_error() == Some(ERROR_ALREADY_EXISTS_CT) {
+            return Ok(());
+        }
+        return Err(err);
+    }
+    Ok(())
+}
+
+fn owner_only_dir_sddl(sid: &str) -> String {
+    // Owner = current user; protected DACL (no inheritance from the parent)
+    // granting full access to the owner only, inherited by children (OICI). No
+    // world / authenticated-user ACE.
+    format!("O:{sid}D:P(A;OICI;FA;;;{sid})")
+}
+
+/// Owned file `HANDLE` from `CreateFileW`; closes via `CloseHandle` on drop.
+struct OwnedFileHandle(HANDLE);
+
+impl Drop for OwnedFileHandle {
+    fn drop(&mut self) {
+        if self.0 != INVALID_HANDLE_VALUE && !self.0.is_null() {
+            // SAFETY: owned handle from `CreateFileW`, closed exactly once.
+            unsafe { CloseHandle(self.0) };
+        }
+    }
 }
 
 fn wide_null(value: &str) -> Vec<u16> {
@@ -963,5 +1267,73 @@ mod tests {
             Ok(true),
             "a same-process (same-user) client must validate as owner",
         );
+    }
+
+    // ---- DSV-010b config-trust (real filesystem; Windows-only) ----
+
+    /// A file the test process owns (it just created it) reads as `Trusted` with
+    /// the exact contents — the owner-SID match + verified-handle read path.
+    #[test]
+    fn read_trusted_config_reads_an_owned_file() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let path = tmp.path().join("confinement.yaml");
+        std::fs::write(&path, b"admission: open\n").expect("write config");
+
+        match read_trusted_config(&path).expect("trusted read") {
+            TrustedConfigRead::Trusted(raw) => assert_eq!(raw, "admission: open\n"),
+            other => panic!("a same-process-owned file must be Trusted, got {other:?}"),
+        }
+    }
+
+    /// A missing file is `NotFound` (the caller folds it to the default config),
+    /// not an error.
+    #[test]
+    fn read_trusted_config_missing_is_not_found() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let path = tmp.path().join("does-not-exist.yaml");
+        assert!(matches!(
+            read_trusted_config(&path).expect("trusted read"),
+            TrustedConfigRead::NotFound
+        ));
+    }
+
+    /// A file **symlink** is a reparse point and is refused (`Reparse`) — it
+    /// could redirect the read to another principal's file. Symlink creation
+    /// needs Developer Mode / admin, so skip cleanly where unprivileged.
+    #[test]
+    fn read_trusted_config_refuses_a_symlinked_file() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        std::fs::write(tmp.path().join("real.yaml"), b"admission: open\n").expect("write");
+        let link = tmp.path().join("link.yaml");
+        if std::os::windows::fs::symlink_file("real.yaml", &link).is_err() {
+            eprintln!("skipping: symlink creation requires privilege on this runner");
+            return;
+        }
+        assert!(
+            matches!(
+                read_trusted_config(&link).expect("trusted read"),
+                TrustedConfigRead::Reparse
+            ),
+            "a symlinked config must be refused as a reparse point",
+        );
+    }
+
+    /// `create_owner_only_dir` creates the directory and is idempotent (a second
+    /// call on the existing directory succeeds).
+    #[test]
+    fn create_owner_only_dir_creates_and_is_idempotent() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let dir = tmp.path().join("anvil").join("config");
+        create_owner_only_dir(&dir).expect("create owner-only dir");
+        assert!(dir.is_dir(), "the owner-only config dir must exist");
+        // Idempotent: a second call on the existing dir is Ok.
+        create_owner_only_dir(&dir).expect("second create is idempotent");
+        // And a trusted read of a file placed in it round-trips.
+        let cfg = dir.join("antipattern.yaml");
+        std::fs::write(&cfg, b"patterns: []\n").expect("write config");
+        match read_trusted_config(&cfg).expect("trusted read") {
+            TrustedConfigRead::Trusted(raw) => assert_eq!(raw, "patterns: []\n"),
+            other => panic!("config in the owner-only dir must be Trusted, got {other:?}"),
+        }
     }
 }
