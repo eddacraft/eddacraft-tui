@@ -139,9 +139,10 @@ can tap the same deterministic model Anvil already trusts.
 
 Change status to **Ready** when:
 
-- [ ] Graph taxonomy ratified by a formal architecture-review council — the
-      spine spec is authored and merged (PR #2350) but carries **Draft**
-      doc-status pending ratification
+- [x] Graph taxonomy ratified by a formal architecture-review council —
+      **ratified 2026-06-08** (council `plan-ec495f8b`, RATIFY-WITH-FIXES;
+      conditions C-1..C-6 folded into the spine spec, now `Live`). Verdict:
+      [2026-06-08-gv2-taxonomy-ratification-verdict](../reviews/2026-06-08-gv2-taxonomy-ratification-verdict.md)
 - [x] Hot-path/non-hot-path boundary agreed with INTD and DRVR owners —
       ratified in [ADR-063](../decisions/063-gv2-hot-path-boundary.md) (Accepted
       2026-06-01)
@@ -168,9 +169,9 @@ Change status to **Ready** when:
 
 #### GV2-001: Graph v2 architecture spine spec and taxonomy
 
-- **Status:** In Progress — spec authored + Merged 2026-06-07 via PR #2350;
-  council ratification of the taxonomy outstanding (the Ready-checklist gate
-  above).
+- **Status:** Merged — spec shipped 2026-06-07 via PR #2350; **taxonomy ratified
+  2026-06-08** (council `plan-ec495f8b`, RATIFY-WITH-FIXES; conditions C-1..C-6
+  folded, spec now `Live`).
 - **Intent:** State the joined-graph model once: the five graphs, cross-graph
   identity, the join model, the query/registry API shape, and the subsystem
   seams — synthesising the ratified ADRs rather than re-deciding them.
@@ -316,7 +317,10 @@ Change status to **Ready** when:
   (`SessionRecord`, `SessionId`, `Attribution::Owned`,
   [`intercept-as-built.md`](../../docs/architecture/intercept-as-built.md) §10)
   rather than inventing one, and identifies which fields are hot-path,
-  telemetry-only, or persisted-for-provenance.
+  telemetry-only, or persisted-for-provenance. **Per ratification condition C-1
+  (spec G-05):** defines the shared worktree-root→file relativisation type in
+  `anvil-kernel-types` so the control/session→semantic join is followable
+  without depending on `anvil-intercept` (which would invert ADR-064).
 - **Validation:** Design review against INTD and DRVR specs; contract covers
   shell, editor, and MCP driver cases.
 - **Files:** `docs/architecture/graph-v2-foundation-spec.md`,
@@ -623,8 +627,8 @@ Change status to **Ready** when:
 
 | Phase | Items | Completion | Status |
 | ----- | ----- | ---------- | ------ |
-| 0 — Architecture and Contracts | 3 | 0/3 done | In Progress |
+| 0 — Architecture and Contracts | 3 | 1/3 done | In Progress |
 | 1 — Graph Schemas | 5 | 0/5 done | Draft |
 | 2 — Runtime Substrate | 4 | 1/4 done | Draft |
 | 3 — Enforcement, Wiring, and the A′ Swap | 7 | 0/7 done | Draft |
-| **Total** | **19** | **1/19 done** | **In Progress** |
+| **Total** | **19** | **2/19 done** | **In Progress** |

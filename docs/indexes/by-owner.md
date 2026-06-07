@@ -162,7 +162,7 @@
 
 | Document                                                                                       | Path                                            | Type | Authority | Owner                                          | Status |
 | ---------------------------------------------------------------------------------------------- | ----------------------------------------------- | ---- | --------- | ---------------------------------------------- | ------ |
-| [Graph v2 Foundation — Architecture Spec](../../docs/architecture/graph-v2-foundation-spec.md) | `docs/architecture/graph-v2-foundation-spec.md` | Spec | Derived   | GV2 (plans/modules/graph-v2-foundation.aps.md) | Draft  |
+| [Graph v2 Foundation — Architecture Spec](../../docs/architecture/graph-v2-foundation-spec.md) | `docs/architecture/graph-v2-foundation-spec.md` | Spec | Derived   | GV2 (plans/modules/graph-v2-foundation.aps.md) | Live   |
 
 ## HARNESS
 
