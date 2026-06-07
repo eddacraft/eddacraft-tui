@@ -78,7 +78,7 @@ symbol identity — ADR-069 persists the `u64` ids in the DTO + reconciles by
 content hash. GV2-002 blocks precise export-diffing and the trust/provenance
 joins, **not** snapshot comparability — so GV2-002 need not land before sub-phase
 B persistence, only before GV2-014. _(kernel-maintainer D2)_
-**Fix:** add the Boundary gap (G-0n); correct the snapshot claim + the GV2-002
+**Fix:** add the Boundary gap (G-06); correct the snapshot claim + the GV2-002
 sequencing implication.
 
 ### C-5 — Seam accuracy: control/session overclaimed; INTD as-built stale wrt ADR-067
