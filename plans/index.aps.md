@@ -105,7 +105,17 @@ Selection rules:
 
 | Rank | NBI | Mode | Source | Why now | Next action |
 | ---- | --- | ---- | ------ | ------- | ----------- |
-| 1 | RSTLAN re-eval — Rust anchor scoping | Done (2026-06-03) | [`lang-ts-audit`](./archive/modules/lang-ts-audit.aps.md) + [`lang-rust`](./modules/lang-rust.aps.md) | NBI completed: re-scoring snapshot `anchor-rescore-2026-06-03.md` recorded (Rust demand/strategic elevated for dogfood); ADR-065 Accepted (Rust-native enforcement); RSTLAN module promoted Ready 0/8 with executable items; owner @aneki named. Sequence unchanged (TS → Rust → Python). | NBI item closed. Next NBI selection deferred to subsequent review (see current Ready modules: USAGE, EDGE, DASH*, OPAG, etc.). |
+| 1 | DSV-011 — Windows `watch`/`status` save-time clients | In Progress | [`daemon-save-time-validation`](./modules/daemon-save-time-validation.aps.md) | Only non-blocked open item in the active delivery module; DSV-010 already serves the verbs on Windows (PR #2328), so finishing the clients closes Sub-phase A-W and completes the cross-platform save-time surface riding `v0.8.0-beta`. A′/B stay Blocked on GV2. | Finish the in-flight implementation; verify via the rust.yml dispatch-gated Windows matrix before claiming parity. |
+| 2 | GITGOV-003 — capsule manifest schema | Schedule | [`git-native-governance`](./modules/git-native-governance.aps.md) | ADR-072/-073/-074 Accepted 2026-06-08 (full council) — the governance-substrate design gate just cleared, and GITGOV-003 is the first implementation item of the capsule arc (manifest schema precedes create/collectors/verification). | Promote Proposed → Ready and start; schema decisions feed every downstream GITGOV item. |
+| 3 | EXCEPT-003 — enriched `anvil.exception.v1` schema | Schedule | [`git-native-exceptions`](./modules/git-native-exceptions.aps.md) | EXCEPT-001/-002 (tracked store + legacy fallback) shipped; ADR-073 Accepted 2026-06-08. The enriched schema unblocks the grant/revoke CLI (-004) and scope/expiry verification (-005), and coordinates with GITGOV-009 capsule inclusion (-009). | Promote Proposed → Ready; pin the schema alongside GITGOV-003 so capsule + exception shapes land coherently. |
+
+NBI review note (2026-06-08): list refreshed after the v0.7.3/v0.7.4-beta
+release-tag reconciliation closed DISTRIB / POLENG / LANGTS and the prior
+RSTLAN re-eval NBI (Done 2026-06-03 — re-scoring snapshot
+`anchor-rescore-2026-06-03.md`; RSTLAN since fully Merged awaiting
+`v0.8.0-beta`). The broad Ready pool (USAGE, EDGE, DASH*, OPAG, EVAL, CPOL,
+IORISK, GATE, ATC, PATT, TRUST, ILGOV, LAC) remains available but none of it
+outranks the save-time arc or the just-unblocked governance-substrate work.
 
 ## Release Plan
 
