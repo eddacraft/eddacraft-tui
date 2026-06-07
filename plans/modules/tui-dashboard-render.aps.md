@@ -188,7 +188,8 @@ rendering `.anvil/dashboards/*.json`) to the existing surface.
 **Phase 1 — Spec Parser & Registry**
 
 ### TUIDASH-001: JSON spec parser crate
-- **Status:** Merged 2026-05-29 via PR #2068
+- **Status:** Released/Shipped via v0.7.3-beta (2026-05-31; merge commit
+  `01fb83f9` confirmed in tag). Merged 2026-05-29 via PR #2068
 - **Intent:** Deserialise json-render's flat element format into typed Rust
   structures using serde
 - **Expected Outcome:** `RenderSpec`, `Element`, `PropValue` types that
@@ -212,7 +213,8 @@ rendering `.anvil/dashboards/*.json`) to the existing surface.
 
 ### TUIDASH-002: Component registry trait and infrastructure
 
-- **Status:** Merged 2026-05-29 via PR #2097
+- **Status:** Released/Shipped via v0.7.3-beta (2026-05-31; merge commit
+  `0d985dc9` confirmed in tag). Merged 2026-05-29 via PR #2097
 - **Intent:** Define the `TuiComponent` trait and `TuiRegistry` that maps
   component type names to Ratatui widget implementations
 - **Expected Outcome:** Trait with `render()` and `layout_children()` methods.

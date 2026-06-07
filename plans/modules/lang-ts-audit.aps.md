@@ -5,13 +5,17 @@
 
 | ID     | Owner | Status | Done |
 | ------ | ----- | ------ | ---- |
-| LANGTS | —     | In Progress | 6/6  |
+| LANGTS | —     | Complete | 6/6  |
 
-**Last reviewed:** 2026-05-30 — LANGTS-004 (Zod-creep rules) Merged via PR
-#2125 as AP-015 (`z.any()` + Zod `.passthrough()`, on by default) + AP-016
-(`z.unknown()`, opt-in), advancing the done count to **6/6** (all items
-merged; module stays In Progress pending release-tag evidence, per the
-DISTRIB 5/5 precedent). The Council renumbered off the retired
+**Last reviewed:** 2026-06-08 — release-tag reconciliation sweep: LANGTS-002
+(#2106 `a34b6231`), -004 (#2125 `79863927`), -005 (#2096 `2fc6b41f`), and
+-006 (#1820 `bcb96175`) merge commits all confirmed in the `v0.7.3-beta` tag
+(2026-05-31), advancing each to **Released/Shipped via v0.7.3-beta**;
+LANGTS-001/-003 are terminal Done audit/checklist artefacts. Module advances
+**In Progress → Complete**. Prior review 2026-05-30 — LANGTS-004 (Zod-creep
+rules) Merged via PR #2125 as AP-015 (`z.any()` + Zod `.passthrough()`, on by
+default) + AP-016 (`z.unknown()`, opt-in), advancing the done count to
+**6/6**. The Council renumbered off the retired
 `AP-010..AP-013` range and split `z.unknown()` to opt-in (idiomatic + the
 recommended `any` alternative) — see the LANGTS-004 spec reconciliation.
 2026-05-29 — LANGTS-002 (TS extraction gaps TS-G1/TS-G2:
@@ -163,7 +167,7 @@ K1 ADR) were resolved inline above.
 
 ### LANGTS-002: Close identified TS extraction gaps (TS-G1, TS-G2) — Merged
 
-- **Status:** Merged 2026-05-29 via PR #2106
+- **Status:** Released/Shipped via v0.7.3-beta (2026-05-31). Merged 2026-05-29 via PR #2106
 - **Intent:** Close the two extraction gaps the audit marked Medium so the TS
   symbol graph carries the shapes Track 4 packs will reason about, and record
   the deferral decision for the rest.
@@ -202,11 +206,11 @@ K1 ADR) were resolved inline above.
 
 ### LANGTS-004: Add Zod-creep rules to the TS T2 anti-pattern catalogue — Merged
 
-- **Status:** Merged 2026-05-30 via PR
+- **Status:** Released/Shipped via v0.7.3-beta (2026-05-31; merge commit
+  `79863927` confirmed in tag). Merged 2026-05-30 via PR
   [#2125](https://github.com/eddacraft/anvil-001/pull/2125) — AP-015
   (`z.any()` + Zod `.passthrough()`, on by default) and AP-016
   (`z.unknown()`, opt-in) ship in the `type-system-evasion` family.
-  Awaiting release-tag evidence to advance to Released/Shipped.
 - **Intent:** Close audit gap TS-G5 by adding the cross-cutting Zod-creep
   rules so escape hatches in schema definitions trip the gate the same way
   the existing `any` / `as any` / `@ts-ignore` rules do.
@@ -253,7 +257,7 @@ K1 ADR) were resolved inline above.
 
 ### LANGTS-005: Kernel-prerequisite refactor (K1–K4) — Merged
 
-- **Status:** Merged 2026-05-29 via PR #2096
+- **Status:** Released/Shipped via v0.7.3-beta (2026-05-31). Merged 2026-05-29 via PR #2096
 - **Intent:** Land the load-bearing kernel-prereq work (council §16.5 #3) so
   the parser layer can host three anchor languages plus a tail wave without an
   `if lang == …` cascade, without latent cache corruption, without a parse-path
@@ -302,7 +306,8 @@ K1 ADR) were resolved inline above.
 
 ### LANGTS-006: TS dynamic-eval antipattern rule — Merged
 
-- **Status:** Merged 2026-05-21 via PR
+- **Status:** Released/Shipped via v0.7.3-beta (2026-05-31; commit
+  `bcb96175` confirmed in tag). Merged 2026-05-21 via PR
   [#1820](https://github.com/eddacraft/anvil-001/pull/1820) (`bcb96175`).
 - **Intent:** Ship a TS antipattern rule for dynamic-eval shapes
   (`eval(<dynamic>)`, `new Function(...)`, `Function.prototype.constructor`

@@ -4,19 +4,23 @@
 
 | ID      | Owner  | Status      | Progress |
 | ------- | ------ | ----------- | -------- |
-| DISTRIB | @aneki | In Progress | 6/6 |
+| DISTRIB | @aneki | Complete | 6/6 |
 
-**Last reviewed:** 2026-05-31 (DISTRIB-006 filed — promoted from GitHub issue
+**Last reviewed:** 2026-06-08 (release-tag reconciliation sweep — DISTRIB-005
+advanced to Released/Shipped via v0.7.3-beta (merge `8ae65b10` confirmed in
+tag) and DISTRIB-006 to Released/Shipped via v0.7.4-beta (merge `c5ee305b`
+confirmed in tag); module advanced **In Progress → Complete** per the
+v0.7.4-beta release-record post-tag note. Prior review 2026-05-31: DISTRIB-006
+filed — promoted from GitHub issue
 [#1726](https://github.com/eddacraft/anvil-001/issues/1726): `ANVIL_HOME` /
 `--anvil-home` install-root override for side-by-side candidate installs, so a
 pre-release Anvil can be tested without releasing it. Filed **Proposed**;
 **Merged 2026-05-31 via PR #2185** once its ADR-060 project-state design gate was
 **satisfied** (ADR-060 **Accepted** 2026-05-31) — implemented on
-`feat/distrib-006-anvil-home-override`; done-count advances 5 → 6. The module
-**stays In Progress** at 6/6: every item is Merged, but DISTRIB-006 merged
-**after** the v0.7.3-beta tag commit (`8bfd48c4d`), so it rides `v0.7.4-beta` as
-freight — the module advances to **Complete** only when that tag ships DISTRIB-006
-as Released/Shipped. Prior: 2026-05-17 — DISTRIB-003 **Merged** via PR #1652 — Homebrew
+`feat/distrib-006-anvil-home-override`; done-count advances 5 → 6. DISTRIB-006
+merged **after** the v0.7.3-beta tag commit (`8bfd48c4d`) and rode
+`v0.7.4-beta` as freight; that tag shipped 2026-06-01, closing the module.
+Prior: 2026-05-17 — DISTRIB-003 **Merged** via PR #1652 — Homebrew
 formula auto-bump extracted from the inline `release.yml` step into a tested
 `scripts/release/bump-homebrew.sh`, plus a `workflow_dispatch` recovery
 workflow, smoke install on macOS arm64/x64, and publish runbook; operator
@@ -32,16 +36,13 @@ DISTRIB-001 **Merged** via PR #1562; operator follow-up tracked in
 [`plans/reviews/post-merge/feat-distrib-001-signature-verification.md`](../reviews/post-merge/feat-distrib-001-signature-verification.md).
 Promoted **Proposed → Ready** alongside acceptance of
 [`plans/specs/2026-05-14-release-plan-v0.7.0-sit-on.md`](../specs/2026-05-14-release-plan-v0.7.0-sit-on.md).
-Current active state: DISTRIB-001, DISTRIB-002, and DISTRIB-003 are Merged;
-DISTRIB-004 is Done; DISTRIB-005 **Merged 2026-05-26 via PR #1984**
-(`anvil migrate schema` cross-version config reconciliation, subcommand-split
-design). DISTRIB-001..-005 are all Merged-or-beyond; DISTRIB-006 is **Merged
-2026-05-31 via PR #2185** (GitHub #1726; ADR-060 design gate **satisfied**,
-Accepted 2026-05-31), but it merged after the v0.7.3-beta tag commit, so the
-module no longer advances to Complete on the DISTRIB-005 release tag alone — it
-now also needs the `v0.7.4-beta` tag to ship DISTRIB-006 as Released/Shipped. ADR-044 §9 makes DISTRIB-001 and DISTRIB-002
-load-bearing for the `v0.7.0-beta` MCP-backend swap to actually reach existing
-users.)
+Current state: every item is Released/Shipped — DISTRIB-001..-004 via
+`v0.7.0-beta`, DISTRIB-005 **Released/Shipped via v0.7.3-beta** (PR #1984,
+`anvil migrate schema` cross-version config reconciliation, subcommand-split
+design), and DISTRIB-006 **Released/Shipped via v0.7.4-beta** (PR #2185;
+GitHub #1726; ADR-060 design gate **satisfied**, Accepted 2026-05-31).
+ADR-044 §9 makes DISTRIB-001 and DISTRIB-002 load-bearing for the
+`v0.7.0-beta` MCP-backend swap to actually reach existing users.)
 
 ## Purpose
 
@@ -285,12 +286,12 @@ ecosystem so the update path is **trustworthy, signed, and visible**.
   - `cargo test -p eddacraft-anvil commands::migrate::tests`
   - Subcommand back-compat: the existing MLP2-040 `migrate::tests` stay
     green under the `format` subcommand path.
-- **Status:** Merged 2026-05-26 via PR
+- **Status:** Released/Shipped via v0.7.3-beta (2026-05-31; merge commit
+  `8ae65b10` confirmed in tag). Merged 2026-05-26 via PR
   [#1984](https://github.com/eddacraft/anvil-001/pull/1984) — `anvil migrate`
   split into `format` (MLP2-040) + new `schema` subcommand; cross-version
   config-schema reconciliation with an empty-by-design migration registry in
-  `anvil-config::migrations`. Awaiting release-tag evidence to advance to
-  Released/Shipped.
+  `anvil-config::migrations`.
 - **Dependencies:** DISTRIB-002
 - **changeType:** feature
 - **releaseIntent:** candidate
@@ -372,14 +373,15 @@ ecosystem so the update path is **trustworthy, signed, and visible**.
     prefix and never `~/.anvil/`; two prefixes yield two concurrent daemons;
     unset returns the default surface byte-for-byte.
   - `pnpm adr:check` green with ADR-060 indexed.
-- **Status:** Merged 2026-05-31 via PR [#2185](https://github.com/eddacraft/anvil-001/pull/2185)
+- **Status:** Released/Shipped via v0.7.4-beta (2026-06-01; merge commit
+  `c5ee305b` confirmed in tag). Merged 2026-05-31 via PR
+  [#2185](https://github.com/eddacraft/anvil-001/pull/2185)
   (ADR-060 design gate satisfied — Accepted 2026-05-31 via PRs #2164/#2171;
   implemented on `feat/distrib-006-anvil-home-override`: daemon socket/PID +
   user-state re-root under `ANVIL_HOME`, durable project-state writes gated behind
   `--touch-project-state`, `status --json` reports `install_root` /
-  `project_writes_gated`). Merged **after** the v0.7.3-beta tag commit
-  (`8bfd48c4d`, 2026-05-30T19:34Z), so it stays Merged (not Released/Shipped)
-  until it ships in `v0.7.4-beta`.
+  `project_writes_gated`). Merged after the v0.7.3-beta tag commit
+  (`8bfd48c4d`, 2026-05-30T19:34Z) and rode `v0.7.4-beta` as freight.
 - **Dependencies:** ADR-060 (Accepted 2026-05-31) was the Ready gate and is now
   satisfied. Coordinates with ADR-036 (daemon single-instance / socket
   derivation).

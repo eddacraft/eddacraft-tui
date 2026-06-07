@@ -71,7 +71,8 @@ events, samples only the parent pid, and uses 100 static files over a 3 s window
 
 ### RLB-001: Multi-agent load-ramp harness (tipping points)
 
-- **Status:** Merged 2026-05-31 via PR #2184
+- **Status:** Released/Shipped via v0.7.4-beta (2026-06-01; merge commit
+  `72f2de98` confirmed in tag). Merged 2026-05-31 via PR #2184
 - **Intent:** Promote the prototype into a committed, manually-runnable harness
   that ramps N concurrent agents and reports process-tree CPU/RSS per level.
 - **Expected Outcome:** One command prints a saturation table across agent counts
@@ -127,7 +128,8 @@ events, samples only the parent pid, and uses 100 static files over a 3 s window
 
 ### RLB-007: Remediate per-save check cost
 
-- **Status:** Merged 2026-05-31 via PR #2184
+- **Status:** Released/Shipped via v0.7.4-beta (2026-06-01; merge commit
+  `72f2de98` confirmed in tag). Merged 2026-05-31 via PR #2184
 - **Intent:** Stop spawning a full-repo `check --all` per save — scope the action
   to changed paths and/or coalesce and cap concurrency.
 - **Expected Outcome:** The load harness shows watch steady-state CPU drop under

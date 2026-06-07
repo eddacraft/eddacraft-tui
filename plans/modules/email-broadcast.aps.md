@@ -627,7 +627,8 @@ in the same change.
 
 #### EMAIL-010 — Preview-token-only real-send contract
 
-- **Status:** Merged 2026-05-29 via PR #2064
+- **Status:** Released/Shipped via v0.7.3-beta (2026-05-31; merge commit
+  `dcff7f06` confirmed in tag). Merged 2026-05-29 via PR #2064
 - **Priority:** High
 - **Confidence:** High
 - **Intent:** Restore the documented `POST /admin/broadcast` real-send
