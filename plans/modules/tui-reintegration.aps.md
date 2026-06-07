@@ -5,21 +5,34 @@
 
 | ID   | Owner      | Status      | Progress |
 | ---- | ---------- | ----------- | -------- |
-| TUIR | joshuaboys | In Progress | 7/8      |
+| TUIR | joshuaboys | In Progress | 7/9      |
 
-**Last reviewed:** 2026-05-27 — TUIR-008 Ready Checklist closed out
+**Last reviewed:** 2026-06-07 — TUIR-009 added and ratifies D-TUIR-021
+(structural gap surfaced while backfilling `eddacraft-tui-v0.2.4` on the
+public mirror): the publish workflow's `gh release create` step on
+anvil-001 had no `--prerelease`, so the crate release pinned as the
+anvil-001 `latest` and shadowed Anvil product releases; the mirror
+itself never received a Release object, so its `/releases` page stayed
+pinned at the legacy `v0.2.2`. Both gaps were closed manually on
+2026-06-07 (operational, see TUIR-009 body) and the structural fix
+lands in this PR: step 8 of `publish-eddacraft-tui.yml` now uses
+`--prerelease`; the runbook gains a "Mirror Release backfill" recovery
+subsection plus a `gh api …/releases/latest` + `target_commitish` +
+`prerelease` + CHANGELOG/README byte-diff verify step. Progress
+**7/8 → 7/9**. Earlier: 2026-05-27 — TUIR-008 Ready Checklist closed out
 (docs-only): the three outstanding prep items (cutover/history-rewrite
 runbook section + `pre-canonical-archive` preservation, two-layer
 migration rollback, `deny.toml` review) are now documented in
-`docs/runbooks/eddacraft-tui-release.md`. Progress stays **7/8** —
-TUIR-008's body is the operator-driven E2E cut (live `eddacraft-tui-v0.2.3`
-publish, mirror tag propagation, legacy token revocation, downstream
-consumer check against the private `eddacraft/eddacraft-skills`), which
-is irreversible/outward-facing and is **not** done by this PR. Drafting
-the cutover section surfaced a live gap: the content force-push already
-ran (2026-05-25) without the D-TUIR-010 archive — see the checklist note
-and the runbook's corrective step. Earlier: 2026-05-25 — TUIR-005
-publish workflow + release runbook landed via PR #1919 (6/8 → 7/8); the
+`docs/runbooks/eddacraft-tui-release.md`. Progress at that point was
+**7/8** — TUIR-008's body is the operator-driven E2E cut (live
+`eddacraft-tui-v0.2.3` publish, mirror tag propagation, legacy token
+revocation, downstream consumer check against the private
+`eddacraft/eddacraft-skills`), which is irreversible/outward-facing and
+is **not** done by this PR. Drafting the cutover section surfaced a live
+gap: the content force-push already ran (2026-05-25) without the
+D-TUIR-010 archive — see the checklist note and the runbook's
+corrective step. Earlier: 2026-05-25 — TUIR-005 publish workflow +
+release runbook landed via PR #1919 (6/8 → 7/8); the
 `mirror-eddacraft-tui.yml` workflow (TUIR-004) migrated to the
 `eddacraft-mirror-bot` GitHub App so both adjacent mirror auth paths
 converge on the org-owned credential.
