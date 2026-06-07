@@ -93,8 +93,18 @@ if [ ! -f "$go_allow_path" ]; then
   exit 1
 fi
 
-# Default template ships with the kit.
-driver_dir="$(cd "$(dirname "$0")" && pwd)"
+# Default template ships with the kit. Resolve $0 through symlinks
+# first (same rationale as the dispatcher): the templates/ sibling is
+# found relative to the driver's real location, not a link to it.
+driver_path="$0"
+while [ -L "$driver_path" ]; do
+  link_target="$(readlink "$driver_path")"
+  case "$link_target" in
+    /*) driver_path="$link_target" ;;
+    *)  driver_path="$(dirname "$driver_path")/$link_target" ;;
+  esac
+done
+driver_dir="$(cd "$(dirname "$driver_path")" && pwd)"
 if [ -z "$template_path" ]; then
   template_path="$driver_dir/../templates/go-licenses.tmpl"
 fi

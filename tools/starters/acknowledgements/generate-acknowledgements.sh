@@ -132,7 +132,21 @@ else
 fi
 
 project_root="$(cd "$(dirname "$config_path")" && pwd)"
-script_dir="$(cd "$(dirname "$0")" && pwd)"
+
+# Resolve $0 through symlinks before taking dirname: a consumer may
+# expose the dispatcher via a symlink (e.g. ~/.local/bin/), and a bare
+# `dirname "$0"` would then point at the link's directory, where
+# `drivers/` does not exist. Plain `readlink` (no -f) keeps this
+# portable to macOS, which lacked `readlink -f` before 12.3.
+script_path="$0"
+while [ -L "$script_path" ]; do
+  link_target="$(readlink "$script_path")"
+  case "$link_target" in
+    /*) script_path="$link_target" ;;
+    *)  script_path="$(dirname "$script_path")/$link_target" ;;
+  esac
+done
+script_dir="$(cd "$(dirname "$script_path")" && pwd)"
 drivers_dir="${ATTRIB_DRIVERS_DIR:-$script_dir/drivers}"
 
 # ── TOML helpers ─────────────────────────────────────────────────────
