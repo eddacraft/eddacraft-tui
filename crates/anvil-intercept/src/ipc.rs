@@ -1060,23 +1060,43 @@ impl<D: SessionDispatcher> IpcListener<D> {
                             // same-uid gate). The owner-only pipe DACL already
                             // refuses a different-SID client at the kernel; this
                             // explicit `GetNamedPipeClientProcessId → token SID`
-                            // compare is defence in depth. Fail closed: a client
-                            // that is not the owner, or whose SID cannot be
-                            // established, is refused.
-                            use std::os::windows::io::AsRawHandle;
-                            match anvil_intercept_win32::named_pipe_client_is_owner(
-                                connected_server.as_raw_handle(),
-                            ) {
-                                Ok(true) => {}
-                                Ok(false) => {
+                            // compare is defence in depth.
+                            //
+                            // DSV-010b hardening: run it on a blocking thread —
+                            // it issues several synchronous Win32 kernel calls
+                            // (`OpenProcess` + `GetTokenInformation`), and doing
+                            // them inline would block the accept loop's reactor
+                            // thread on a pathologically slow same-uid peer.
+                            // `connected_server` is held alive across the await
+                            // so its handle stays valid; the raw handle is passed
+                            // as `usize` because a Win32 `HANDLE` is not `Send`.
+                            // Fail closed on a non-owner, a validation error, or
+                            // a join failure.
+                            use std::os::windows::io::{AsRawHandle, RawHandle};
+                            let raw_handle = connected_server.as_raw_handle() as usize;
+                            let owner = tokio::task::spawn_blocking(move || {
+                                anvil_intercept_win32::named_pipe_client_is_owner(
+                                    raw_handle as RawHandle,
+                                )
+                            })
+                            .await;
+                            match owner {
+                                Ok(Ok(true)) => {}
+                                Ok(Ok(false)) => {
                                     tracing::warn!(target: "anvil_intercept::ipc", "rejecting named-pipe client: peer SID is not the pipe owner");
                                     eprintln!("anvil-intercept: rejecting named-pipe client: peer SID is not the pipe owner");
                                     drop(connected_server);
                                     continue;
                                 }
-                                Err(err) => {
+                                Ok(Err(err)) => {
                                     tracing::warn!(target: "anvil_intercept::ipc", error = %err, "rejecting named-pipe client: peer SID validation failed");
                                     eprintln!("anvil-intercept: rejecting named-pipe client: peer SID validation failed: {err}");
+                                    drop(connected_server);
+                                    continue;
+                                }
+                                Err(join_err) => {
+                                    tracing::warn!(target: "anvil_intercept::ipc", error = %join_err, "rejecting named-pipe client: peer SID validation task failed");
+                                    eprintln!("anvil-intercept: rejecting named-pipe client: peer SID validation task failed: {join_err}");
                                     drop(connected_server);
                                     continue;
                                 }
