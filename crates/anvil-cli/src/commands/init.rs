@@ -601,10 +601,10 @@ mod tests {
     #[test]
     fn gitignore_not_duplicated() {
         let dir = tempfile::tempdir().unwrap();
-        // Seed both managed entries so there is nothing left to append.
+        // Seed every managed entry so there is nothing left to append.
         fs::write(
             dir.path().join(".gitignore"),
-            ".anvil/cache/\n.anvil/gates.json\n",
+            ".anvil/cache/\n.anvil/gates.json\nanvil/exceptions/.lock\n",
         )
         .unwrap();
 
