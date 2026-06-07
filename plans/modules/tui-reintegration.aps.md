@@ -5,21 +5,26 @@
 
 | ID   | Owner      | Status      | Progress |
 | ---- | ---------- | ----------- | -------- |
-| TUIR | joshuaboys | In Progress | 7/9      |
+| TUIR | joshuaboys | In Progress | 8/9      |
 
-**Last reviewed:** 2026-06-07 — TUIR-009 added and ratifies D-TUIR-021
-(structural gap surfaced while backfilling `eddacraft-tui-v0.2.4` on the
-public mirror): the publish workflow's `gh release create` step on
-anvil-001 had no `--prerelease`, so the crate release pinned as the
-anvil-001 `latest` and shadowed Anvil product releases; the mirror
-itself never received a Release object, so its `/releases` page stayed
-pinned at the legacy `v0.2.2`. Both gaps were closed manually on
-2026-06-07 (operational, see TUIR-009 body) and the structural fix
-lands in this PR: step 8 of `publish-eddacraft-tui.yml` now uses
-`--prerelease`; the runbook gains a "Mirror Release backfill" recovery
-subsection plus a `gh api …/releases/latest` + `target_commitish` +
-`prerelease` + CHANGELOG/README byte-diff verify step. Progress
-**7/8 → 7/9**. Earlier: 2026-05-27 — TUIR-008 Ready Checklist closed out
+**Last reviewed:** 2026-06-07 — TUIR-009 `Merged 2026-06-07` via PR
+#2339 (squash at `817b359b1`): ratifies D-TUIR-021 and closes the
+structural gap surfaced while backfilling `eddacraft-tui-v0.2.4` on
+the public mirror. The publish workflow's `gh release create` step
+on anvil-001 had no `--prerelease`, so the crate release pinned as
+the anvil-001 `latest` and shadowed Anvil product releases; the
+mirror itself never received a Release object, so its `/releases`
+page stayed pinned at the legacy `v0.2.2`. Both gaps were closed
+manually on 2026-06-07 (operational, see TUIR-009 body) and the
+structural fix landed in PR #2339: step 8 of
+`publish-eddacraft-tui.yml` now uses `--prerelease`; the runbook
+gains a "Mirror Release backfill" recovery subsection plus a
+`gh api …/releases/latest` + `target_commitish` + `prerelease` +
+CHANGELOG/README byte-diff verify step; the README banner offset
+in the verify step is derived from
+`wc -l < MIRROR-README.md` (Copilot review on PR #2339) so the
+offset survives banner growth. Progress **7/9 → 8/9** (TUIR-008
+execution-token still `open`). Earlier: 2026-05-27 — TUIR-008 Ready Checklist closed out
 (docs-only): the three outstanding prep items (cutover/history-rewrite
 runbook section + `pre-canonical-archive` preservation, two-layer
 migration rollback, `deny.toml` review) are now documented in
@@ -938,7 +943,7 @@ zero hits.
 
 ### TUIR-009: Mirror-side GitHub Release backfill + workflow gap
 
-- **Status:** open
+- **Status:** Merged 2026-06-07 via PR #2339 (squash at `817b359b1`)
 - **Intent:** Close two structural gaps surfaced 2026-06-07 during
   v0.2.4 backfill: (a) the publish workflow
   (`.github/workflows/publish-eddacraft-tui.yml` step 8) creates
