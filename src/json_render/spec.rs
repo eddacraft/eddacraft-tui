@@ -1,9 +1,13 @@
 //! Typed representation of the `@json-render/core` flat element spec format.
 //!
-//! A json-render dashboard spec is a *flat* element graph: rather than nesting
-//! component objects, every element lives in a single `elements` map addressed
-//! by a string id, and parent/child relationships are expressed as id
-//! references in each element's [`children`](Element::children) list. A
+//! The spec format and overall approach were inspired by Vercel’s json-render
+//! product. These Rust types and the accompanying TUI engine were developed by
+//! the eddacraft team as part of the Anvil project.
+//!
+//! A json-render spec is a *flat* element graph: rather than nesting component
+//! objects, every element lives in a single `elements` map addressed by a
+//! string id, and parent/child relationships are expressed as id references
+//! in each element's [`children`](Element::children) list. A
 //! [`root`](RenderSpec::root) id names the entry point.
 //!
 //! ```json
@@ -18,10 +22,10 @@
 //! }
 //! ```
 //!
-//! The contract is owned web-side by `@eddacraft/render` (which pins
-//! `@json-render/core`); these types mirror that wire format so the same specs
-//! render in a terminal. Per the spec constraints, no Anvil-specific extensions
-//! are added to the structure.
+//! The wire-format contract is owned by `@json-render/core` (pinned by
+//! `@eddacraft/render` on the web side). These Rust types mirror it so the
+//! same authored specs can be rendered in a terminal. No Anvil-specific
+//! extensions are added to the core structure.
 
 use std::collections::BTreeMap;
 
@@ -54,7 +58,7 @@ pub type Props = Map<String, Value>;
 /// designated [`root`](RenderSpec::root) entry point.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RenderSpec {
-    /// Human-readable dashboard title.
+    /// Human-readable title for the spec/surface.
     pub title: String,
     /// Optional longer description. Omitted from output when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -1,7 +1,7 @@
 //! Responsive layout adaptation — width breakpoints shared by components.
 //!
-//! Dashboard specs are authored once and rendered at any terminal size. Rather
-//! than each component inventing its own width thresholds, they consult a single
+//! Specs are authored once and rendered at any terminal size. Rather than each
+//! component inventing its own width thresholds, they consult a single
 //! [`Breakpoint`] derived from the available width, so a spec degrades
 //! consistently: grids collapse to a single column when narrow, tables shed
 //! overflow columns, and so on. Thresholds are chosen around the common test
