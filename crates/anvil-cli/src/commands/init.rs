@@ -357,8 +357,14 @@ fn seed_example_dashboard(root: &Path, force: bool) -> anyhow::Result<()> {
 
 fn append_gitignore_entry(root: &Path) -> anyhow::Result<bool> {
     // Per-project local state Anvil generates that must not be committed:
-    // the cache dir and the gate-run snapshot the dashboard reads (#2242).
-    const ENTRIES: [&str; 2] = [".anvil/cache/", ".anvil/gates.json"];
+    // the cache dir, the gate-run snapshot the dashboard reads (#2242), and
+    // the exception-store write lock (EXCEPT-007) — a runtime artefact
+    // inside the otherwise-tracked anvil/exceptions/ governance dir.
+    const ENTRIES: [&str; 3] = [
+        ".anvil/cache/",
+        ".anvil/gates.json",
+        "anvil/exceptions/.lock",
+    ];
 
     let gitignore = root.join(".gitignore");
 
@@ -494,6 +500,10 @@ mod tests {
         assert!(
             gi.contains(".anvil/gates.json"),
             "transient gate snapshot ignored so it is not committed"
+        );
+        assert!(
+            gi.contains("anvil/exceptions/.lock"),
+            "exception-store write lock ignored so writes don't dirty the tracked governance dir"
         );
     }
 

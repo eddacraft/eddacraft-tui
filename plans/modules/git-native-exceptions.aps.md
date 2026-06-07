@@ -74,7 +74,7 @@ Enforcement of unrelated policy classes; the inline `@anvil-ignore` path
 - **Status:** Proposed
 
 ### EXCEPT-004: Grant/revoke/list/show CLI
-- **Intent:** `anvil exception grant|revoke|list|show` writing tracked records. Writes are **explicit-only** (human-invoked grant/revoke); no evaluation or check command writes the store implicitly, so checks never dirty a worktree.
+- **Intent:** `anvil exception grant|revoke|list|show` writing tracked records via `ExceptionStore::update` (the EXCEPT-007 locked primitive). Writes are **explicit-only** (human-invoked grant/revoke); no evaluation or check command writes the store implicitly, so checks never dirty a worktree. On `WriteOutcome::SkippedReadOnly`, warn and log the underlying I/O error at verbose level — the outcome deliberately conflates read-only checkouts with permission misconfig, so the diagnostic must be reachable (2026-06-08 council).
 - **Expected Outcome:** Operators manage exceptions from the CLI; revocation preserves history.
 - **Validation:** `cargo test -p eddacraft-anvil-cli exception`
 - **Dependencies:** EXCEPT-003, EXCEPT-007

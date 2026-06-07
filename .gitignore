@@ -174,6 +174,9 @@ autonomous-state.json
 # Anvil runtime sidecar — operator state appended on every run
 anvil/kindling/
 anvil/witness/
+# Exception-store write lock (EXCEPT-007) — runtime artefact inside the
+# otherwise-tracked anvil/exceptions/ governance dir
+anvil/exceptions/.lock
 
 # Temporary files
 *.tmp

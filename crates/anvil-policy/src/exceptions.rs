@@ -276,6 +276,19 @@ impl ExceptionStore {
         let dir = workspace_root.join(EXCEPTIONS_FILE);
         let dir = dir.parent().expect("EXCEPTIONS_FILE has a parent");
         std::fs::create_dir_all(dir)?;
+        // Check-create-check, mirroring WitnessWriter::ensure_tree: a
+        // hostile process could race a symlink into place between the
+        // caller's refuse_symlinked_store_paths() and create_dir_all above
+        // — re-verify the directory we are about to lock+write through.
+        match std::fs::symlink_metadata(dir) {
+            Ok(meta) if meta.file_type().is_symlink() => {
+                return Err(ExceptionError::SymlinkedPath {
+                    path: dir.to_path_buf(),
+                });
+            }
+            Ok(_) => {}
+            Err(e) => return Err(e.into()),
+        }
         let lock_path = dir.join(LOCK_FILE_NAME);
         let lock_file = std::fs::OpenOptions::new()
             .create(true)
@@ -893,6 +906,33 @@ mod tests {
         // Restore so TempDir cleanup can delete the tree.
         perms.set_mode(0o755);
         std::fs::set_permissions(tmp.path(), perms).unwrap();
+    }
+
+    /// The realistic CI shape: the tracked structure already exists
+    /// (committed store, cloned read-only), so `create_dir_all`
+    /// succeeds and the failure surfaces at the lock-file open /
+    /// temp-file create instead — must still degrade, not error.
+    #[cfg(unix)]
+    #[test]
+    fn save_skips_readonly_when_structure_exists() {
+        use std::os::unix::fs::PermissionsExt;
+        let tmp = tempfile::TempDir::new().unwrap();
+        let mut tracked = ExceptionStore::empty();
+        tracked.add(make_exception("AP-001", ""));
+        write_store_at(tmp.path(), "anvil/exceptions/store.json", &tracked);
+
+        let dir = tmp.path().join("anvil/exceptions");
+        let mut perms = std::fs::metadata(&dir).unwrap().permissions();
+        perms.set_mode(0o555);
+        std::fs::set_permissions(&dir, perms.clone()).unwrap();
+
+        let loaded = ExceptionStore::load(tmp.path()).unwrap();
+        assert_eq!(loaded.source(), StoreSource::Tracked);
+        let outcome = loaded.save(tmp.path()).unwrap();
+        assert_eq!(outcome, WriteOutcome::SkippedReadOnly);
+
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&dir, perms).unwrap();
     }
 
     #[cfg(unix)]
