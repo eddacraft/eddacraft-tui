@@ -99,7 +99,7 @@ Enforcement of unrelated policy classes; the inline `@anvil-ignore` path
 - **Expected Outcome:** The first CLI wiring inherits a safe store: no silent legacy promotion, no concurrent lost writes, no read-only blocking, no symlink escape.
 - **Validation:** `cargo test -p eddacraft-anvil-policy exceptions` (incl. new provenance/lock/read-only/symlink tests)
 - **Dependencies:** EXCEPT-001, EXCEPT-002
-- **Status:** In Progress
+- **Status:** Merged 2026-06-08 via PR #2366
 
 ### EXCEPT-008: Operator write semantics + guidance
 - **Intent:** Document the operator contract for the tracked store: `anvil/exceptions/store.json` is committed like `anvil/baseline.json`; writes happen only via explicit grant/revoke (EXCEPT-004), so checks never dirty a worktree; evaluate `.gitattributes` (`merge=union`) for concurrent-branch grant conflicts; an upgrade note covers the legacy→tracked migration step.
