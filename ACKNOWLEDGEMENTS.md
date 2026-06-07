@@ -1013,7 +1013,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | Crate | Version | Licence | Source |
 | --- | --- | --- | --- |
 | `miette` | 7.6.0 | Apache License 2.0 | https://github.com/zkat/miette |
-| `eddacraft-tui` | 0.2.4 | Apache License 2.0 | https://github.com/eddacraft/eddacraft-tui |
+| `eddacraft-tui` | 0.3.0 | Apache License 2.0 | https://github.com/eddacraft/eddacraft-tui |
 | `moxcms` | 0.8.1 | Apache License 2.0 | https://github.com/awxkee/moxcms.git |
 | `pxfm` | 0.1.29 | Apache License 2.0 | https://github.com/awxkee/pxfm |
 | `unicode-linebreak` | 0.1.5 | Apache License 2.0 | https://github.com/axelf4/unicode-linebreak |
@@ -1391,15 +1391,11 @@ section above; this block focuses on the build-time runtime surface.
 | @jridgewell/sourcemap-codec | 1.5.5 | MIT | https://github.com/jridgewell/sourcemaps |
 | @napi-rs/wasm-runtime | 0.2.4 | MIT | https://github.com/napi-rs/napi-rs |
 | @nx/nx-linux-x64-gnu | 22.7.5 | MIT | https://github.com/nrwl/nx |
-| @nx/nx-linux-x64-musl | 22.7.5 | MIT | https://github.com/nrwl/nx |
-| @oxc-project/types | 0.133.0 | MIT | https://github.com/oxc-project/oxc |
-| @oxfmt/binding-linux-x64-gnu | 0.53.0 | MIT | https://github.com/oxc-project/oxc |
-| @oxfmt/binding-linux-x64-musl | 0.53.0 | MIT | https://github.com/oxc-project/oxc |
-| @oxlint/binding-linux-x64-gnu | 1.68.0 | MIT | https://github.com/oxc-project/oxc |
-| @oxlint/binding-linux-x64-musl | 1.68.0 | MIT | https://github.com/oxc-project/oxc |
+| @oxc-project/types | 0.132.0 | MIT | https://github.com/oxc-project/oxc |
+| @oxfmt/binding-linux-x64-gnu | 0.52.0 | MIT | https://github.com/oxc-project/oxc |
+| @oxlint/binding-linux-x64-gnu | 1.67.0 | MIT | https://github.com/oxc-project/oxc |
 | @playwright/test | 1.60.0 | Apache-2.0 | https://github.com/microsoft/playwright |
-| @rolldown/binding-linux-x64-gnu | 1.0.3 | MIT | https://github.com/rolldown/rolldown |
-| @rolldown/binding-linux-x64-musl | 1.0.3 | MIT | https://github.com/rolldown/rolldown |
+| @rolldown/binding-linux-x64-gnu | 1.0.2 | MIT | https://github.com/rolldown/rolldown |
 | @rolldown/pluginutils | 1.0.1 | MIT | https://github.com/rolldown/plugins |
 | @standard-schema/spec | 1.1.0 | MIT | https://github.com/standard-schema/standard-schema |
 | @tybys/wasm-util | 0.9.0 | MIT | https://github.com/toyobayashi/wasm-util |
@@ -1410,13 +1406,13 @@ section above; this block focuses on the build-time runtime surface.
 | @types/katex | 0.16.8 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped |
 | @types/ms | 2.1.0 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped |
 | @types/unist | 2.0.11 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped |
-| @vitest/expect | 4.1.8 | MIT | https://github.com/vitest-dev/vitest |
-| @vitest/mocker | 4.1.8 | MIT | https://github.com/vitest-dev/vitest |
-| @vitest/pretty-format | 4.1.8 | MIT | https://github.com/vitest-dev/vitest |
-| @vitest/runner | 4.1.8 | MIT | https://github.com/vitest-dev/vitest |
-| @vitest/snapshot | 4.1.8 | MIT | https://github.com/vitest-dev/vitest |
-| @vitest/spy | 4.1.8 | MIT | https://github.com/vitest-dev/vitest |
-| @vitest/utils | 4.1.8 | MIT | https://github.com/vitest-dev/vitest |
+| @vitest/expect | 4.1.7 | MIT | https://github.com/vitest-dev/vitest |
+| @vitest/mocker | 4.1.7 | MIT | https://github.com/vitest-dev/vitest |
+| @vitest/pretty-format | 4.1.7 | MIT | https://github.com/vitest-dev/vitest |
+| @vitest/runner | 4.1.7 | MIT | https://github.com/vitest-dev/vitest |
+| @vitest/snapshot | 4.1.7 | MIT | https://github.com/vitest-dev/vitest |
+| @vitest/spy | 4.1.7 | MIT | https://github.com/vitest-dev/vitest |
+| @vitest/utils | 4.1.7 | MIT | https://github.com/vitest-dev/vitest |
 | @yarnpkg/lockfile | 1.1.0 | BSD-2-Clause | https://github.com/yarnpkg/yarn/blob/master/packages/lockfile |
 | @zkochan/js-yaml | 0.0.7 | MIT | https://github.com/nodeca/js-yaml |
 | abbrev | 1.1.1 | ISC | https://github.com/isaacs/abbrev-js |
@@ -1535,7 +1531,6 @@ section above; this block focuses on the build-time runtime surface.
 | katex | 0.16.47 | MIT | https://github.com/KaTeX/KaTeX |
 | license-checker | 25.0.1 | BSD-3-Clause | https://github.com/davglass/license-checker |
 | lightningcss-linux-x64-gnu | 1.32.0 | MPL-2.0 | https://github.com/parcel-bundler/lightningcss |
-| lightningcss-linux-x64-musl | 1.32.0 | MPL-2.0 | https://github.com/parcel-bundler/lightningcss |
 | lightningcss | 1.32.0 | MPL-2.0 | https://github.com/parcel-bundler/lightningcss |
 | lines-and-columns | 2.0.3 | MIT | https://github.com/eventualbuddha/lines-and-columns |
 | linkify-it | 5.0.1 | MIT | https://github.com/markdown-it/linkify-it |
@@ -1593,8 +1588,8 @@ section above; this block focuses on the build-time runtime surface.
 | os-homedir | 1.0.2 | MIT | https://github.com/sindresorhus/os-homedir |
 | os-tmpdir | 1.0.2 | MIT | https://github.com/sindresorhus/os-tmpdir |
 | osenv | 0.1.5 | ISC | https://github.com/npm/osenv |
-| oxfmt | 0.53.0 | MIT | https://github.com/oxc-project/oxc |
-| oxlint | 1.68.0 | MIT | https://github.com/oxc-project/oxc |
+| oxfmt | 0.52.0 | MIT | https://github.com/oxc-project/oxc |
+| oxlint | 1.67.0 | MIT | https://github.com/oxc-project/oxc |
 | parse-entities | 4.0.2 | MIT | https://github.com/wooorm/parse-entities |
 | path-is-absolute | 1.0.1 | MIT | https://github.com/sindresorhus/path-is-absolute |
 | path-key | 3.1.1 | MIT | https://github.com/sindresorhus/path-key |
@@ -1615,7 +1610,7 @@ section above; this block focuses on the build-time runtime surface.
 | resolve.exports | 2.0.3 | MIT | https://github.com/lukeed/resolve.exports |
 | resolve | 1.22.12 | MIT | https://github.com/browserify/resolve |
 | restore-cursor | 3.1.0 | MIT | https://github.com/sindresorhus/restore-cursor |
-| rolldown | 1.0.3 | MIT | https://github.com/rolldown/rolldown |
+| rolldown | 1.0.2 | MIT | https://github.com/rolldown/rolldown |
 | run-con | 1.3.2 | (BSD-2-Clause OR MIT OR Apache-2.0) | https://github.com/goatandsheep/rc |
 | safe-buffer | 5.2.1 | MIT | https://github.com/feross/safe-buffer |
 | semver | 5.7.2 | ISC | https://github.com/npm/node-semver |
@@ -1647,7 +1642,7 @@ section above; this block focuses on the build-time runtime surface.
 | tar-stream | 2.2.0 | MIT | https://github.com/mafintosh/tar-stream |
 | tinybench | 2.9.0 | MIT | https://github.com/tinylibs/tinybench |
 | tinyexec | 1.2.2 | MIT | https://github.com/tinylibs/tinyexec |
-| tinyglobby | 0.2.17 | MIT | https://github.com/SuperchupuDev/tinyglobby |
+| tinyglobby | 0.2.16 | MIT | https://github.com/SuperchupuDev/tinyglobby |
 | tinypool | 2.1.0 | MIT | https://github.com/tinylibs/tinypool |
 | tinyrainbow | 3.1.0 | MIT | https://github.com/tinylibs/tinyrainbow |
 | tmp | 0.2.6 | MIT | https://github.com/raszi/node-tmp |
@@ -1660,8 +1655,8 @@ section above; this block focuses on the build-time runtime surface.
 | util-deprecate | 1.0.2 | MIT | https://github.com/TooTallNate/util-deprecate |
 | util-extend | 1.0.3 | MIT | https://github.com/isaacs/util-extend |
 | validate-npm-package-license | 3.0.4 | Apache-2.0 | https://github.com/kemitchell/validate-npm-package-license.js |
-| vite | 8.0.16 | MIT | https://github.com/vitejs/vite |
-| vitest | 4.1.8 | MIT | https://github.com/vitest-dev/vitest |
+| vite | 8.0.14 | MIT | https://github.com/vitejs/vite |
+| vitest | 4.1.7 | MIT | https://github.com/vitest-dev/vitest |
 | wcwidth | 1.0.1 | MIT | https://github.com/timoxley/wcwidth |
 | why-is-node-running | 2.3.0 | MIT | https://github.com/mafintosh/why-is-node-running |
 | wrap-ansi | 7.0.0 | MIT | https://github.com/chalk/wrap-ansi |
