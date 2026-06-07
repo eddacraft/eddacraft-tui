@@ -2,9 +2,23 @@
 
 | ID  | Owner | Status |
 | --- | ----- | ------ |
-| GV2 | —     | Draft  |
+| GV2 | —     | In Progress |
 
-**Last reviewed:** 2026-06-04
+**Last reviewed:** 2026-06-08
+
+> **Reshaped 2026-06-08** around the now-landed spine spec
+> [`docs/architecture/graph-v2-foundation-spec.md`](../../docs/architecture/graph-v2-foundation-spec.md)
+> (GV2-001, merged via PR #2350) and the
+> [2026-06-05 wave planning-council verdict](../reviews/2026-06-05-gv2-wave-planning-council-verdict.md).
+> Three owner decisions are folded in: **grow the wave** (GV2-012/013/014 pulled
+> in so GV2-020 is the full multi-graph registry), **graduate GV2-002** (real
+> stable identity + export-diff, in-wave critical), and **claim privilege
+> containment** (wire `annotate_trust` on the daemon certify path — GV2-029,
+> which blocks the A′ swap). All `Files:` paths are re-grounded onto
+> `crates/anvil-graph-cache/` per [ADR-064](../decisions/064-intercept-graph-cache-crate-boundary.md);
+> the old `crates/anvil-kernel/src/graph/` tree no longer exists. Several Phase 0/1
+> items are reframed from "build" to "ratify what shipped under Sub-phase A +
+> close the named residual gaps".
 
 ## Purpose
 
@@ -29,24 +43,30 @@ can tap the same deterministic model Anvil already trusts.
 
 ## In Scope
 
-- Multi-graph taxonomy with explicit joins, not one mega-graph
-- Stable identity for files, symbols, edges, sessions, plans, and provenance
-  anchors
+- Multi-graph taxonomy with explicit joins, not one mega-graph — pinned in the
+  spine spec
+- Stable, cross-restart identity for files, symbols, edges, sessions, plans, and
+  provenance anchors, with an export-diff primitive precise enough to graduate
+  the conservative save-time `partial` default
 - Complete delta/event contract for graph updates and downstream consumers
-- Semantic code graph v2 schema for symbols, imports, calls, references,
-  exports, source spans, and language metadata
+- Semantic code graph v2 schema for symbols, imports, exports, calls,
+  references, source spans, and language metadata
 - Dependency/impact graph and hot-path indexes for boundary membership, symbol
-  ownership, known-edge existence, and architectural index checks
+  ownership, known-edge existence, and architectural index checks, maintained
+  incrementally
 - Trust/policy graph contract for trust levels, side-effect surfaces, data
-  classifications, invariant guards, and policy evidence
+  classifications, invariant guards, and policy evidence — and wiring the trust
+  annotation pass onto the daemon certify path
 - Control/session graph contract for hosts, drivers, sessions, leases, fences,
   worktrees, and attribution
 - Plan/provenance graph contract joining APS work items, commits, memory
   provenance, and trust posture changes
-- Persistence and snapshot strategy for graph state that remains derivable from
-  source and safe to discard/rebuild
-- Typed query traits usable by the daemon, drivers, MCP server, and future
-  `anvil-weave` harness
+- Multi-graph registry + typed query traits, and the consumer query contract
+- Hot-read enforcement: a type-split admissible API, an ADR-031 Criterion CI
+  gate, a hard-capped reverse-impact depth lever, and the A→A′ backing swap with
+  a verdict-parity proof
+- Persistence-snapshot enforcement (sealed-DTO + structural no-leak guard) for
+  the warm-start path
 
 ## Out of Scope
 
@@ -58,32 +78,37 @@ can tap the same deterministic model Anvil already trusts.
 - Replacing APS, Edda, or Kindling data stores
 - Making MCP the primary control plane
 - Full interprocedural data-flow analysis in this module
+- The Rust-side Edda/Kindling provenance surface itself (EDDA-SEAL owns it);
+  GV2-014 only defines the join contract to it
 
 ## Interfaces
 
 **Depends on:**
 
-- `anvil-kernel` — current `SymbolGraph`, `DependencyGraph`, watcher,
-  incremental update pipeline, and trust annotation pass
-- `anvil-kernel-types` — current `SymbolNode`, `SymbolEdge`, `EdgeType`, and
-  public type boundary
-- `anvil-intercept` / INTD — daemon control authority and change provenance
-  contracts when implementation lands
+- `crates/anvil-graph-cache` — `SymbolGraph`, `DependencyGraph` (+ reverse
+  index), `GraphDelta`, `certify`, the incremental apply pipeline, and the trust
+  annotation pass; extracted per [ADR-064](../decisions/064-intercept-graph-cache-crate-boundary.md)
+- `crates/anvil-kernel-types` — `SymbolNode`, `SymbolEdge`, `EdgeType`,
+  `TrustLevel`, `FileSymbols`, `ImportEdge`
+- `crates/anvil-kernel` — the tree-sitter parser that produces `FileSymbols`
+- `anvil-intercept` / INTD — daemon control authority, `validate_paths` wire,
+  `SessionRecord`/`Attribution` session model ([`intercept-as-built.md`](../../docs/architecture/intercept-as-built.md) §10)
 - `surface-drivers` / DRVR — editor and MCP driver contracts
-- `edda-stack` — provenance and evolution graph concepts already delivered in
-  EDDA/STACK
+- `edda-stack` — provenance and evolution concepts (TS today; Rust counterpart
+  proposed — the open seam for GV2-014)
 - APS modules — plan/work-item metadata for plan/provenance joins
-- ADR-015, ADR-030, ADR-031 — intercept, driver, and latency constraints
+- ADR-031 (latency), ADR-061 (save-time wire), ADR-063 (hot-path boundary),
+  ADR-064 (crate boundary), ADR-067 (parse feed), ADR-069 (persistence)
 
 **Exposes:**
 
-- `docs/architecture/graph-v2-foundation-spec.md` — canonical Graph v2
-  taxonomy, joins, and query boundaries
+- [`docs/architecture/graph-v2-foundation-spec.md`](../../docs/architecture/graph-v2-foundation-spec.md)
+  — canonical Graph v2 taxonomy, cross-graph identity, joins, and query
+  boundaries (the spine)
 - `anvil-kernel-types` Graph v2 schema additions
-- `anvil-kernel::graph` registry/query traits
-- Hot-path read API for daemon/driver enforcement use
+- `anvil-graph-cache` registry/query traits and the typed hot-read API
 - Snapshot and delta contract consumed by downstream projection layers
-- Query contract for GCTX, DRVR, and WEAVE consumers
+- Query contract for GCTX, DRVR, INTD, and WEAVE consumers
 
 ## Constraints
 
@@ -100,7 +125,7 @@ can tap the same deterministic model Anvil already trusts.
 - MCP/agent query surfaces must not define Graph v2 schema requirements; they
   consume projections
 - Privacy-sensitive provenance fields must be minimised and documented before
-  persistence
+  persistence; the privacy line is a sealed-DTO + no-leak test, not a convention
 
 ## Prerequisites
 
@@ -114,40 +139,26 @@ can tap the same deterministic model Anvil already trusts.
 
 Change status to **Ready** when:
 
-- [ ] Graph taxonomy accepted by architecture review
+- [ ] Graph taxonomy ratified by a formal architecture-review council — the
+      spine spec is authored and merged (PR #2350) but carries **Draft**
+      doc-status pending ratification
 - [x] Hot-path/non-hot-path boundary agreed with INTD and DRVR owners —
       ratified in [ADR-063](../decisions/063-gv2-hot-path-boundary.md) (Accepted
-      2026-06-01, Josh as sole owner of the INTD, DRVR, and GV2 surfaces)
+      2026-06-01)
 - [ ] Stable identity model reviewed against git rename and symbol rename cases
-- [x] Persistence strategy ADR drafted or explicitly assigned to GV2-021 —
-      [ADR-069](../decisions/069-graph-v2-persistence.md) **Accepted 2026-06-04**,
-      formalising the
-      `plans/specs/2026-06-01-daemon-save-time-validation-contract.md` §9
-      requirements (full council + design council, SOUND-WITH-FIXES, folded in)
-- [ ] Privacy review completed for persisted provenance/session fields
+      — owned by GV2-002 (now graduated, in-wave critical)
+- [x] Persistence strategy ADR — [ADR-069](../decisions/069-graph-v2-persistence.md)
+      **Accepted 2026-06-04** (GV2-021 Merged via PR #2301)
+- [ ] Privacy review completed for persisted provenance/session fields — **hard
+      blocker for GV2-002 and GV2-010** (they freeze the persistable field
+      shape); feeds the GV2-030 allowlist
 - [x] GCTX module updated to depend on GV2 rather than owning foundation work —
       [graph-context-delivery](graph-context-delivery.aps.md) declares GV2 as a
       dependency and lists schemas, stable IDs, deltas, hot indexes, and
-      persistence as GV2-owned (out of GCTX scope)
-- [ ] Validation commands for the first implementation slice are concrete
-
-> **ADR-061 (Accepted 2026-06-01, council `plan-5768ae0c`) is the consuming
-> save-time contract** for the GV2 hot-read slice (GV2-010/011/020/022). ADR-061
-> deliberately left the "Hot-path/non-hot-path boundary agreed with INTD and DRVR
-> owners" gate open; **[ADR-063](../decisions/063-gv2-hot-path-boundary.md)
-> (Accepted 2026-06-01) now closes it** — it pins the hot-path admission
-> invariant, the read allowlist, the denylist, and the miss/stale policy across
-> the INTD, DRVR, and GV2 surfaces, ratifies the boundary checkbox above, and
-> clears GV2-022 to freeze. Sub-phase A′ is therefore no longer decision-blocked;
-> it now depends on **implementing** the GV2 hot-read slice (GV2-010/011/020/022,
-> all still Draft) under the frozen `validate_paths` wire. GV2-021's
-> persistence/privacy/crash-safety content is specified concretely in
-> `plans/specs/2026-06-01-daemon-save-time-validation-contract.md` §9 (warm-start
-> restores indexes, never the verdict; default-off; per-uid owner-only snapshot
-> location; structural-identity-only privacy line), now ratified as
-> [ADR-069](../decisions/069-graph-v2-persistence.md) (Accepted 2026-06-04). Sub-phase
-> B is therefore no longer decision-blocked; it now depends on **implementing** the
-> warm-start persistence the ADR specifies.
+      persistence as GV2-owned
+- [x] Validation commands for the first implementation slice are concrete — each
+      reshaped work item below carries a runnable validation command grounded on
+      `crates/anvil-graph-cache`
 
 ---
 
@@ -155,16 +166,19 @@ Change status to **Ready** when:
 
 ### Phase 0 — Architecture and Contracts
 
-#### GV2-001: Graph v2 architecture spec and taxonomy
+#### GV2-001: Graph v2 architecture spine spec and taxonomy
 
-- **Status:** Draft
-- **Intent:** Define the joined-graph model Anvil will use for enforcement,
-  provenance, driver attribution, behavioural diff, and assistant projections.
-- **Expected Outcome:** Architecture spec describes the semantic code graph,
-  dependency/impact graph, trust/policy graph, control/session graph, and
-  plan/provenance graph, including what each graph owns and how joins work.
-- **Validation:** Council review pass; spec cross-references ADR-015, ADR-030,
-  ADR-031, and GCTX
+- **Status:** In Progress — spec authored + Merged 2026-06-07 via PR #2350;
+  council ratification of the taxonomy outstanding (the Ready-checklist gate
+  above).
+- **Intent:** State the joined-graph model once: the five graphs, cross-graph
+  identity, the join model, the query/registry API shape, and the subsystem
+  seams — synthesising the ratified ADRs rather than re-deciding them.
+- **Expected Outcome:** Spine spec on `main` describing the semantic code,
+  dependency/impact, trust/policy, control/session, and plan/provenance graphs,
+  what each owns, and how joins work; registered in the generated docs indexes.
+- **Validation:** `pnpm docs:check && pnpm docs:index:check`; formal council
+  ratification flips the taxonomy Ready gate.
 - **Files:** `docs/architecture/graph-v2-foundation-spec.md`
 - **Confidence:** high
 - **Priority:** Critical
@@ -172,37 +186,48 @@ Change status to **Ready** when:
 
 ---
 
-#### GV2-002: Stable graph identity model
+#### GV2-002: Stable graph identity + export-diff primitive
 
 - **Status:** Draft
-- **Intent:** Provide stable identifiers for files, symbols, edges, sessions,
-  plans, and provenance anchors so graph snapshots and deltas remain comparable
-  across edits, renames, commits, and daemon restarts.
+- **Intent:** Replace the position-conflated `symbol_baseline_key`
+  (`file::kind::name`) and the session-local `SymbolNode.id` counter with a
+  stable, cross-restart symbol identity, and deliver the export-diff primitive
+  that graduates the save-time fast path from "any touched public symbol →
+  `partial`" to a real added/removed/renamed-public-symbol diff.
 - **Expected Outcome:** Identity contract covers content hashes, path identity,
-  symbol identity, edge identity, session/worktree identity, and APS/provenance
-  references, with documented rename behaviour.
-- **Validation:** Unit tests for file rename, symbol rename, delete/recreate, and
-  same-name symbols in different scopes
-- **Files:** `crates/anvil-kernel-types/src/graph.rs`,
+  position-independent symbol identity (overload-disambiguated), edge identity,
+  session/worktree identity, and APS/provenance references, with documented
+  rename behaviour; snapshots and deltas stay comparable across restart.
+- **Validation:** Unit tests for file rename, symbol rename, delete/recreate,
+  same-`(kind,name)` overload added to an already-public symbol (red today), and
+  same-name symbols in different scopes — `cargo test -p eddacraft-anvil-graph-cache -- identity`
+- **Files:** `crates/anvil-graph-cache/src/incremental.rs`,
+  `crates/anvil-graph-cache/src/certify.rs`,
+  `crates/anvil-kernel-types/src/graph.rs`,
   `docs/architecture/graph-v2-foundation-spec.md`
 - **Confidence:** medium
 - **Priority:** Critical
 - **Dependencies:** GV2-001
+- **Note:** Gated on the privacy review (it freezes persistable identity fields).
 
 ---
 
 #### GV2-003: Complete graph delta and event contract
 
 - **Status:** Draft
-- **Intent:** Make graph changes observable as complete, deterministic deltas
-  that downstream enforcement, provenance, persistence, and projection consumers
-  can trust.
+- **Intent:** Make graph changes observable as complete, deterministic deltas.
+  Today `GraphDelta.removed_edges` is permanently empty and a modify is modelled
+  as full churn; fix the incremental pipeline to populate removed edges and a
+  changed-node channel, and carry a schema version.
 - **Expected Outcome:** Delta contract includes added/removed/changed nodes,
   added/removed/changed edges, affected files, identity anchors, content hashes,
-  provenance metadata, and schema version.
-- **Validation:** Property test confirms full rebuild and replayed deltas produce
-  equivalent observable graph state
-- **Files:** `crates/anvil-kernel/src/graph/incremental.rs`,
+  provenance metadata, and `schema_version` — with no field that lies about its
+  capability.
+- **Validation:** Property test confirms full rebuild and replayed delta
+  sequences (incl. atomic-save inode flip, rename = delete+create,
+  delete/recreate) produce equivalent observable `(SymbolGraph, DependencyGraph)`
+  state — `cargo test -p eddacraft-anvil-graph-cache -- delta_replay_equivalence`
+- **Files:** `crates/anvil-graph-cache/src/incremental.rs`,
   `crates/anvil-kernel-types/src/graph.rs`
 - **Confidence:** medium
 - **Priority:** Critical
@@ -214,34 +239,46 @@ Change status to **Ready** when:
 
 #### GV2-010: Semantic code graph v2 schema
 
-- **Status:** Draft
+- **Status:** Draft — partially shipped under Sub-phase A (`SymbolNode`,
+  `EdgeType`, `Visibility` exist); this item adds the gaps and splits by
+  consumer.
 - **Intent:** Expand the current symbol/import graph into the canonical semantic
-  code graph used by Anvil's safety checks and downstream graph projections.
-- **Expected Outcome:** Schema models files, modules, symbols, imports, exports,
-  calls, references, source spans, language metadata, visibility, and stable
-  identity without requiring full AST persistence.
+  code graph, separating the A′-critical subset from the GCTX-projection subset.
+- **Expected Outcome:** **A′-critical subset** — stable identity wiring
+  (GV2-002), visibility, import/dependency edges, and a `Reexport` edge type
+  (today re-export recursion rides file-level `dependents_of`). **GCTX-projection
+  subset** — source spans (no-text `ByteRange` only), calls, references, and
+  language metadata, added as additive fields that never persist raw bodies.
 - **Validation:** Snapshot fixtures for TS/JS plus one future-language fixture
-  show deterministic node and edge output
+  show deterministic node/edge output, including a `Reexport` edge case —
+  `cargo test -p eddacraft-anvil-graph-cache -- schema_fixtures`
 - **Files:** `crates/anvil-kernel-types/src/graph.rs`,
-  `crates/anvil-kernel/src/parser/extract.rs`
+  `crates/anvil-kernel/src/parser/extract/mod.rs`
 - **Confidence:** medium
 - **Priority:** Critical
 - **Dependencies:** GV2-002, GV2-003
+- **Note:** Gated on the privacy review (it freezes persistable schema fields).
 
 ---
 
-#### GV2-011: Dependency/impact graph and hot indexes
+#### GV2-011: Dependency/impact graph and incremental hot indexes
 
-- **Status:** Draft
-- **Intent:** Define derived file/module dependency state and the warmed indexes
-  the daemon may read on the hot path.
-- **Expected Outcome:** Boundary membership lookup, symbol ownership lookup,
-  known-edge existence, and precomputed architectural index checks are exposed as
-  bounded reads; transitive impact traversal remains explicitly non-hot-path.
-- **Validation:** Criterion benchmark demonstrates the hot reads meet ADR-031
-  component budgets on the canonical fixture corpus
-- **Files:** `crates/anvil-kernel/src/graph/dependency.rs`,
-  `crates/anvil-kernel/src/graph/symbol_graph.rs`
+- **Status:** Draft — `DependencyGraph` + reverse index shipped; the A′ win is
+  incremental maintenance.
+- **Intent:** Maintain the dependency/impact indexes incrementally so the daemon
+  retires the O(edges) `derive_dependency_graph` full re-derive
+  (`crates/anvil-intercept/src/kernel_cache.rs`) and reads warm, resident state.
+- **Expected Outcome:** Boundary membership, symbol ownership, known-edge
+  existence, and precomputed architectural-index checks are bounded reads,
+  maintained in `apply_delta` with no full re-derive; transitive impact stays
+  explicitly non-hot-path; the precomputed-vs-background read set is enumerated.
+- **Validation:** A property test that the incrementally-maintained indexes equal
+  a cold rebuild after an arbitrary delta sequence; Criterion benchmark (GV2-025)
+  shows the hot reads meet the ADR-031 **save-time** budget on the canonical
+  corpus — `cargo test -p eddacraft-anvil-graph-cache -- index_consistency`
+- **Files:** `crates/anvil-graph-cache/src/dependency.rs`,
+  `crates/anvil-graph-cache/src/symbol_graph.rs`,
+  `crates/anvil-intercept/src/kernel_cache.rs`
 - **Confidence:** high
 - **Priority:** Critical
 - **Dependencies:** GV2-010
@@ -250,16 +287,18 @@ Change status to **Ready** when:
 
 #### GV2-012: Trust and policy graph contract
 
-- **Status:** Draft
+- **Status:** Draft (grown into the wave)
 - **Intent:** Separate trust/policy semantics from the raw semantic graph while
   preserving deterministic joins back to code evidence.
 - **Expected Outcome:** Contract represents trust level, side-effect surfaces,
   data classifications, invariant guards, policy evidence, and override sources
-  without forcing full interprocedural data-flow analysis.
+  without forcing full interprocedural data-flow analysis. Intersects GV2-029
+  (the daemon trust-annotation wiring).
 - **Validation:** Fixtures show trust posture changes are emitted as graph deltas
-  and policy evidence resolves back to source spans
-- **Files:** `crates/anvil-kernel/src/graph/trust.rs`,
-  `crates/anvil-kernel-types/src/graph.rs`,
+  and policy evidence resolves back to source spans —
+  `cargo test -p eddacraft-anvil-graph-cache -- trust_graph`
+- **Files:** `crates/anvil-graph-cache/src/trust.rs`,
+  `crates/anvil-kernel-types/src/trust.rs`,
   `docs/architecture/graph-v2-foundation-spec.md`
 - **Confidence:** medium
 - **Priority:** Critical
@@ -269,15 +308,17 @@ Change status to **Ready** when:
 
 #### GV2-013: Control and session graph contract
 
-- **Status:** Draft
+- **Status:** Draft (grown into the wave)
 - **Intent:** Model execution hosts, drivers, sessions, leases, fences,
-  worktrees, and attribution as a graph that can join to code changes without
+  worktrees, and attribution as a graph that joins to code changes without
   making MCP the control plane.
-- **Expected Outcome:** Contract aligns with INTD and DRVR session/driver
-  models and identifies which fields are hot-path, telemetry-only, or
-  persisted-for-provenance.
+- **Expected Outcome:** Contract **cites** the shipped INTD session model
+  (`SessionRecord`, `SessionId`, `Attribution::Owned`,
+  [`intercept-as-built.md`](../../docs/architecture/intercept-as-built.md) §10)
+  rather than inventing one, and identifies which fields are hot-path,
+  telemetry-only, or persisted-for-provenance.
 - **Validation:** Design review against INTD and DRVR specs; contract covers
-  shell, editor, and MCP driver cases
+  shell, editor, and MCP driver cases.
 - **Files:** `docs/architecture/graph-v2-foundation-spec.md`,
   `plans/specs/anvil-driver-framework/anvil-driver-framework-design-spec.md`
 - **Confidence:** medium
@@ -288,20 +329,23 @@ Change status to **Ready** when:
 
 #### GV2-014: Plan and provenance graph contract
 
-- **Status:** Draft
+- **Status:** Draft (grown into the wave)
 - **Intent:** Join APS intent, git history, Edda provenance, graph deltas, and
   trust posture changes so Anvil can explain why a structural change was allowed
   or challenged.
 - **Expected Outcome:** Contract maps work items, commits, change events,
   memories, policy decisions, and graph-state changes without making APS a
-  runtime prerequisite.
+  runtime prerequisite. **Explicitly resolves the Rust↔TS provenance boundary**
+  (the spine spec G-02 open seam) and shares one provenance contract with
+  EDDA-SEAL rather than designing a second.
 - **Validation:** Fixture trace links one code change to an APS item, commit,
-  graph delta, policy result, and provenance record
+  graph delta, policy result, and provenance record (the spine spec's worked
+  join trace).
 - **Files:** `docs/architecture/graph-v2-foundation-spec.md`,
   `packages/edda-stack/src/contracts/`
 - **Confidence:** medium
 - **Priority:** High
-- **Dependencies:** GV2-003
+- **Dependencies:** GV2-002, GV2-003
 
 ---
 
@@ -309,16 +353,20 @@ Change status to **Ready** when:
 
 #### GV2-020: Multi-graph registry and typed query traits
 
-- **Status:** Draft
+- **Status:** Draft — now buildable (012/013/014 are in-wave).
 - **Intent:** Provide one typed in-process entry point for querying joined graph
   state without coupling consumers to storage or `petgraph` internals.
 - **Expected Outcome:** Registry exposes graph handles and join queries for
   semantic, dependency, trust, control, and provenance graphs; consumers depend
   on traits rather than concrete storage.
 - **Validation:** Kernel unit tests exercise each graph handle and one join query
-  across code/trust/provenance state
-- **Files:** `crates/anvil-kernel/src/graph/mod.rs`,
-  `crates/anvil-kernel/src/graph/registry.rs`
+  across code/trust/provenance state; a **negative test** that a non-admissible
+  (denylist) op is not reachable from the hot-read API type; and one
+  **end-to-end** test driving `validate_paths` through the registry path with a
+  non-vacuous verdict (no zero-callers) —
+  `cargo test -p eddacraft-anvil-graph-cache -- registry`
+- **Files:** `crates/anvil-graph-cache/src/lib.rs`,
+  `crates/anvil-graph-cache/src/registry.rs`
 - **Confidence:** medium
 - **Priority:** Critical
 - **Dependencies:** GV2-010, GV2-011, GV2-012, GV2-013, GV2-014
@@ -335,14 +383,14 @@ Change status to **Ready** when:
   crash-safety expectations, multi-process reader stance, privacy boundaries,
   and migration/versioning rules.
 - **Validation:** ADR reviewed by council-reviewer, kernel-maintainer, and
-  security reviewer
+  security reviewer.
 - **Files:** `plans/decisions/069-graph-v2-persistence.md`
 - **Progress:** [ADR-069](../decisions/069-graph-v2-persistence.md) **Accepted
-  2026-06-04** (Josh) — sealed canonical-DTO load-once snapshot (`postcard`, not
-  rkyv/SQLite/CBOR), default-off, restore-indexes-never-verdict, discard-and-rebuild
-  versioning, structural-identity-only privacy line; reviewed by full council +
-  design council (SOUND-WITH-FIXES, all folded in). **Merged 2026-06-04 via PR
-  [#2301](https://github.com/eddacraft/anvil-001/pull/2301)** (`d8caed47`).
+  2026-06-04** (Josh) — sealed canonical-DTO load-once snapshot (`postcard`),
+  default-off, restore-indexes-never-verdict, discard-and-rebuild versioning,
+  structural-identity-only privacy line. **Merged 2026-06-04 via PR
+  [#2301](https://github.com/eddacraft/anvil-001/pull/2301)** (`d8caed47`). The
+  enforcement of the privacy line is GV2-030.
 - **Confidence:** medium
 - **Priority:** Critical
 - **Dependencies:** GV2-001, GV2-003
@@ -353,31 +401,34 @@ Change status to **Ready** when:
 
 - **Status:** Draft
 - **Intent:** Expose the specific warmed reads the daemon and drivers may use
-  during save-time or mid-edit enforcement without allowing expensive graph work
-  onto the hot path.
+  during save-time or mid-edit enforcement, with explicit warm/stale markers and
+  a miss-degrades-to-fallback rule (never escalate to parse/rebuild/IO on the hot
+  path).
 - **Expected Outcome:** API offers boundary membership, symbol ownership,
-  known-edge existence, and architectural index checks with explicit stale/warm
-  states and fallback behaviour.
-- **Validation:** Benchmarks cite ADR-031 boundaries and fail when p95 exceeds
-  the accepted budget
-- **Files:** `crates/anvil-kernel/src/graph/hot_index.rs`,
-  `crates/anvil-kernel/src/graph/mod.rs`
+  known-edge existence, and architectural index checks; each read returns a
+  `warm`/`stale` marker; the reverse-impact depth is a hard-capped lever
+  (GV2-026). Type-split enforcement is GV2-024; the CI latency gate is GV2-025.
+- **Validation:** A warm-miss test proves a typed `StaleReason` + degrade with no
+  filesystem read; benchmarks (GV2-025) fail when p95 exceeds the ADR-031
+  budget — `cargo test -p eddacraft-anvil-graph-cache -- hot_read`
+- **Files:** `crates/anvil-graph-cache/src/hot_index.rs`,
+  `crates/anvil-graph-cache/src/lib.rs`
 - **Confidence:** high
 - **Priority:** Critical
-- **Dependencies:** GV2-011, GV2-020
+- **Dependencies:** GV2-011
 
 ---
 
 #### GV2-023: Consumer query contract for daemon, drivers, MCP, and weave
 
 - **Status:** Draft
-- **Intent:** Define the graph query boundary that downstream consumers use so
-  GCTX, DRVR, INTD, and WEAVE do not grow incompatible graph adapters.
+- **Intent:** Define the graph query boundary downstream consumers use so GCTX,
+  DRVR, INTD, and WEAVE do not grow incompatible graph adapters.
 - **Expected Outcome:** Query contract separates enforcement reads, diagnostic
   reads, provenance reads, and context projection reads; MCP/assistant queries
   are explicitly projections over the same trusted substrate.
 - **Validation:** Contract review with GCTX, DRVR, INTD, and WEAVE plan owners;
-  each consumer has at least one mapped query scenario
+  each consumer has at least one mapped query scenario.
 - **Files:** `docs/architecture/graph-v2-foundation-spec.md`,
   `plans/modules/graph-context-delivery.aps.md`,
   `plans/modules/surface-drivers.aps.md`,
@@ -388,38 +439,192 @@ Change status to **Ready** when:
 
 ---
 
+### Phase 3 — Enforcement, Wiring, and the A′ Swap
+
+#### GV2-024: Hot-read type split + hot-path debug assertion
+
+- **Status:** Draft
+- **Intent:** Make ADR-063 admissibility "enforced, not aspirational" — a sealed
+  `HotReadApi` exposing only the four allowlist ops, with denylist ops reachable
+  only via a separate `BackgroundReadApi`, plus a debug assertion that trips on
+  any parse/resolve/traversal/IO inside a hot call.
+- **Expected Outcome:** Non-admissible ops do not compile when called from the
+  hot type; the assertion fires under test when a hot call performs disallowed
+  work.
+- **Validation:** A compile-fail test (e.g. `trybuild`) for a denylist call from
+  the hot type; a unit test that the debug assertion trips —
+  `cargo test -p eddacraft-anvil-graph-cache -- admission`
+- **Files:** `crates/anvil-graph-cache/src/hot_index.rs`
+- **Confidence:** medium
+- **Priority:** Critical
+- **Dependencies:** GV2-022
+
+---
+
+#### GV2-025: Criterion hot-read benchmark + ADR-031 CI gate
+
+- **Status:** Draft
+- **Intent:** Land the missing latency gate ADR-063 names — a Criterion harness
+  that fails CI when hot-read p95 exceeds the ADR-031 save-time budget.
+- **Expected Outcome:** `benches/hot_read.rs` measuring per-file lookup,
+  `dependents_of`, and `impact_closure` at depth 1 and at the hard cap on the
+  latency corpus, wired as a CI check; declares its quiet/CI-box requirement.
+- **Validation:** `cargo bench -p eddacraft-anvil-graph-cache` on a quiet box;
+  CI asserts p95 within the ADR-031 interactive budget.
+- **Files:** `crates/anvil-graph-cache/benches/hot_read.rs`,
+  `.github/workflows/ci.yml`
+- **Confidence:** medium
+- **Priority:** Critical
+- **Dependencies:** GV2-011, GV2-022
+
+---
+
+#### GV2-026: Reverse-impact hop-depth lever
+
+- **Status:** Draft
+- **Intent:** Implement the ADR-063 configurable, hard-capped reverse-impact
+  depth (default 1 hop) — today `impact_closure` has only a file-count budget
+  with unbounded depth.
+- **Expected Outcome:** `impact_closure` gains a `max_depth` distinct from the
+  file-count budget, hard-capped and exposed as a feature-flag/config lever
+  (1→2 hops without recompile); an over-cap setting is clamped, not honoured.
+- **Validation:** A 3-hop fixture proves depth=1 stops at the direct importer;
+  a clamp test — `cargo test -p eddacraft-anvil-graph-cache -- impact_depth`
+- **Files:** `crates/anvil-graph-cache/src/certify.rs`,
+  `crates/anvil-intercept/src/save_time.rs`, `flags/manifest.json`
+- **Confidence:** medium
+- **Priority:** High
+- **Dependencies:** GV2-011
+
+---
+
+#### GV2-027: A→A′ backing swap behind `validate_paths`, with verdict parity
+
+- **Status:** Draft
+- **Intent:** Wire the resident GV2 hot-read index behind `validate_paths`,
+  retiring the interim `KernelGraphCache` re-derive, and prove the swap is
+  wire-invariant.
+- **Expected Outcome:** `validate_paths`/`save_time` read the GV2 hot-read API;
+  `backing_schema_version` bumps `interim-symbolgraph-v1` → `gv2-hotindex-v1`; a
+  parity property test asserts verdict-identical `Certifiability` vs the interim
+  backing over arbitrary delta sequences.
+- **Validation:** `cargo test -p eddacraft-anvil-intercept -- backing_parity`;
+  the existing diagnostic-parity gate stays green.
+- **Files:** `crates/anvil-intercept/src/kernel_cache.rs`,
+  `crates/anvil-intercept/src/validate_paths.rs`,
+  `crates/anvil-intercept/src/save_time.rs`
+- **Confidence:** medium
+- **Priority:** Critical
+- **Dependencies:** GV2-022, GV2-024, GV2-028, GV2-029
+
+---
+
+#### GV2-028: Production parser feed for certified verdicts
+
+- **Status:** Draft
+- **Intent:** Wire the ADR-067 kernel-side parse feed so `fed_symbols` yields
+  `FileSymbols` for TS/JS; until this lands every `ContentModify` returns
+  `partial` regardless of graph quality (`validate_paths.rs`).
+- **Expected Outcome:** A body-only edit on a parsed file returns `certified`,
+  not `partial`, end-to-end through the daemon — proving the backing is live in
+  production, not an uncalled library.
+- **Validation:** `cargo test -p eddacraft-anvil-intercept -- parser_feed`
+  asserts a certified verdict on a real range.
+- **Files:** `crates/anvil-intercept/src/validate_paths.rs`,
+  `crates/anvil-cli/src/commands/watch.rs`
+- **Confidence:** medium
+- **Priority:** Critical
+- **Dependencies:** GV2-010
+
+---
+
+#### GV2-029: Wire privilege containment on the daemon certify path
+
+- **Status:** Draft
+- **Intent:** Per the owner decision to **claim privilege containment**, call
+  `annotate_trust` on the daemon apply path (today it is never called, so
+  `trust_level` is always `Unknown` and `previously_privileged` always empty —
+  an inert dimension and a live false-certify). Extend the filter to treat
+  `Boundary` as elevated alongside the `previously_public` diff.
+- **Expected Outcome:** A change that newly imports `node:fs`/`child_process` and
+  exposes a privileged surface does **not** certify clean. **Blocks the GV2-027
+  swap until green.**
+- **Validation:** `cargo test -p eddacraft-anvil-intercept -- privilege_certify`
+  — a `node:fs`-importing privilege-expanding change is not `certified`.
+- **Files:** `crates/anvil-intercept/src/kernel_cache.rs`,
+  `crates/anvil-graph-cache/src/trust.rs`,
+  `crates/anvil-graph-cache/src/certify.rs`,
+  `crates/anvil-graph-cache/src/incremental.rs`
+- **Confidence:** medium
+- **Priority:** Critical
+- **Dependencies:** GV2-012
+
+---
+
+#### GV2-030: Sealed-DTO snapshot serialisation + structural no-leak guard
+
+- **Status:** Draft
+- **Intent:** Enforce the ADR-069 privacy line in code (today it is a convention
+  — no `SnapshotPayload` DTO, codec, or no-leak test exists). Sub-phase B
+  persistence prerequisite.
+- **Expected Outcome:** A sealed allowlist-only `SnapshotPayload` DTO + `postcard`
+  codec; a test failing CI if any transitive field outside the allowlist
+  (`Vec<u8>`, `serde(flatten)`, any source-text `String`) can reach the payload,
+  and asserting every persisted path is workspace-root-relative; gates the
+  `ANVIL_PERSIST_GRAPH` default.
+- **Validation:** `cargo test -p eddacraft-anvil-graph-cache -- snapshot_no_leak`
+  plus a golden round-trip + version-mismatch cold-rebuild test.
+- **Files:** `crates/anvil-graph-cache/src/snapshot.rs`,
+  `crates/anvil-graph-cache/src/lib.rs`
+- **Confidence:** medium
+- **Priority:** High
+- **Dependencies:** GV2-002, GV2-003
+
+---
+
 ## Risks
 
 | Risk | Likelihood | Impact | Mitigation |
 | ---- | ---------- | ------ | ---------- |
 | Graph v2 becomes a generic graph database project | Medium | High | Keep scope tied to enforcement, provenance, hot reads, and deterministic safety decisions |
 | MCP/context needs over-shape the foundation | Medium | High | GCTX depends on GV2 and consumes projections; schema authority stays with GV2 |
-| Hot path accidentally includes expensive traversal | Medium | High | GV2-011/GV2-022 explicitly split hot indexes from non-hot-path traversal and cite ADR-031 |
-| Stable identity is wrong for rename-heavy work | Medium | Medium | GV2-002 includes rename/delete/recreate validation cases before implementation |
-| Persisted session/provenance data captures too much private context | Medium | High | Privacy review in Ready checklist; minimise persisted fields and mark derivable cache state |
-| Multiple graph layers feel too complex for contributors | Medium | Medium | GV2-001 owns taxonomy and examples; query traits hide storage/layout details from consumers |
+| Hot path accidentally includes expensive traversal | Medium | High | GV2-024 type-split makes denylist ops uncallable; GV2-025 ADR-031 CI gate + debug assertion enforce it |
+| The grown wave (012/013/014/020/023) stalls and re-stales like the original module | Medium | Medium | A′ ships on the settled semantic+dependency subset (GV2-027 critical path); the grown rows trail as independently-flaggable work, not swap blockers |
+| Backing swap silently changes verdicts | Medium | High | GV2-027 parity property test asserts verdict-identical Certifiability vs the interim backing |
+| Privilege containment claimed but inert in prod | Medium | High | GV2-029 wires `annotate_trust` + a `node:fs` test, and blocks the GV2-027 swap until green |
+| Stable identity wrong for rename-heavy work | Medium | Medium | GV2-002 includes rename/delete/recreate + overload validation before implementation |
+| Persisted session/provenance data captures too much private context | Medium | High | GV2-030 sealed-DTO + no-leak test; privacy review hard-blocks GV2-002/010 |
+| Slice ships as an uncalled library (zero-callers) | Medium | High | GV2-020 e2e-through-registry test + GV2-028 parser feed prove the backing is live in `validate_paths` |
 
-## Decisions (Initial)
+## Decisions
 
 1. **Multiple joined graphs, not a mega-graph** — semantic code, dependency,
    trust/policy, control/session, and plan/provenance state have different
    lifecycles, privacy concerns, and latency needs.
 2. **Anvil-first** — Graph v2 is justified by prevention, enforcement,
-   provenance, and trust. Assistant context is a projection and a product
-   accelerant, not the foundation's reason to exist.
+   provenance, and trust. Assistant context is a projection and accelerant, not
+   the foundation's reason to exist.
 3. **Hot indexes over hot traversal** — daemon/driver enforcement may read warm
-   indexes, but full recompute, transitive analysis, explanation, and context
+   indexes; full recompute, transitive analysis, explanation, and context
    slicing stay outside the hot path.
 4. **Derivable by default** — persisted graph snapshots are cache state unless a
    future ADR explicitly makes a field authoritative.
 5. **Planless-first preserved** — plan/provenance joins enrich Anvil when APS is
    present, but Graph v2 must still work from source/config alone.
+6. **Grow the wave (2026-06-05 verdict)** — 012/013/014 are in-wave so GV2-020 is
+   the full multi-graph registry; A′ still ships on the semantic+dependency
+   subset without waiting for them.
+7. **Graduate GV2-002** — build real stable identity + export-diff now so precise
+   edits stay `certified`, rather than shipping A′ on the conservative default.
+8. **Claim privilege containment** — save-time certify attests privilege
+   containment, so GV2-029 wires the trust pass and blocks the swap until proven.
 
 ## Stats
 
 | Phase | Items | Completion | Status |
 | ----- | ----- | ---------- | ------ |
-| 0 — Architecture and Contracts | 3 | 0/3 done | Draft |
+| 0 — Architecture and Contracts | 3 | 0/3 done | In Progress |
 | 1 — Graph Schemas | 5 | 0/5 done | Draft |
 | 2 — Runtime Substrate | 4 | 1/4 done | Draft |
-| **Total** | **12** | **1/12 done** | **Draft** |
+| 3 — Enforcement, Wiring, and the A′ Swap | 7 | 0/7 done | Draft |
+| **Total** | **19** | **1/19 done** | **In Progress** |
