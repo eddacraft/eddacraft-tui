@@ -100,19 +100,37 @@ impl CommitsDocument {
 /// `base` and `head` may be any commit-ish (SHA, ref, tag); both are
 /// resolved to full commit SHAs before walking, so the document is
 /// self-describing regardless of how the range was spelled. The walk is
-/// `git rev-list --topo-order --reverse`, giving a deterministic
-/// oldest-first order for a given history.
+/// `git rev-list --topo-order --reverse`, giving an oldest-first order
+/// that is deterministic for a given history and git version. (Topo-sort
+/// tie-breaking of timestamp-tied parallel branches is implementation-
+/// defined across git versions; any cross-version drift surfaces as a
+/// digest mismatch at verification time — degraded, never silently
+/// wrong.)
+///
+/// Shallow clones are refused outright: a grafted boundary commit
+/// reports no parents, which would silently turn its changed-path
+/// footprint into the whole tree (see [`CommitEntry::changed_paths`]).
 ///
 /// # Errors
 ///
-/// [`CapsuleError::Git`] when `git` cannot be spawned, a ref does not
-/// resolve to a commit, or output is not valid UTF-8 (including any
-/// non-UTF-8 changed path — see [`CommitEntry::changed_paths`]).
+/// [`CapsuleError::Git`] when `git` cannot be spawned, the repository
+/// is a shallow clone, a ref does not resolve to a commit, or output is
+/// not valid UTF-8 (including any non-UTF-8 changed path — see
+/// [`CommitEntry::changed_paths`]).
 pub fn collect_commits(
     repo_root: &Path,
     base: &str,
     head: &str,
 ) -> Result<CommitsDocument, CapsuleError> {
+    let shallow = git_stdout(repo_root, &["rev-parse", "--is-shallow-repository"])?;
+    if shallow.trim() == "true" {
+        return Err(CapsuleError::Git(
+            "shallow clone: commit parentage is grafted, which would corrupt \
+             changed-path evidence; run `git fetch --unshallow` before collecting"
+                .to_string(),
+        ));
+    }
+
     let base_sha = resolve_commit(repo_root, base)?;
     let head_sha = resolve_commit(repo_root, head)?;
 
@@ -128,6 +146,12 @@ pub fn collect_commits(
         ],
     )?;
 
+    // TODO(perf): this is 2 subprocesses per commit in the range. A
+    // 3-subprocess batch exists (`git log --format` for metadata + one
+    // `git diff-tree --stdin -r -z --name-only` fed the rev-list) if
+    // capsule ranges ever get big enough to feel it; the parse is
+    // fiddly (root commits, per-commit path grouping), so it is not
+    // pre-paid here.
     let mut commits = Vec::new();
     for sha in list.lines().map(str::trim).filter(|l| !l.is_empty()) {
         commits.push(collect_entry(repo_root, sha)?);
@@ -142,6 +166,11 @@ pub fn collect_commits(
 }
 
 /// Resolve a commit-ish to a full commit SHA.
+///
+/// The real injection guard for user-supplied range strings is that
+/// [`Command::args`] never goes through a shell, so a hostile value can
+/// only ever be one argv entry; `--end-of-options` is defence-in-depth
+/// keeping git from reading a leading-dash value as an option.
 fn resolve_commit(repo_root: &Path, commitish: &str) -> Result<String, CapsuleError> {
     let spec = format!("{commitish}^{{commit}}");
     let out = git_stdout(
@@ -154,7 +183,15 @@ fn resolve_commit(repo_root: &Path, commitish: &str) -> Result<String, CapsuleEr
             &spec,
         ],
     )
-    .map_err(|e| CapsuleError::Git(format!("cannot resolve `{commitish}` to a commit: {e}")))?;
+    .map_err(|e| {
+        // Unwrap the inner Git message so the user-facing error does
+        // not stutter the "git error:" prefix twice.
+        let inner = match e {
+            CapsuleError::Git(message) => message,
+            other => other.to_string(),
+        };
+        CapsuleError::Git(format!("cannot resolve `{commitish}` to a commit: {inner}"))
+    })?;
     Ok(out.trim().to_string())
 }
 
@@ -164,7 +201,9 @@ fn collect_entry(repo_root: &Path, sha: &str) -> Result<CommitEntry, CapsuleErro
         repo_root,
         &["show", "-s", "--format=%T%x1f%P", "--end-of-options", sha],
     )?;
-    let meta = meta.trim_end_matches('\n');
+    // trim_end (not just '\n'): tree/parents are hex, so trailing
+    // whitespace of any platform flavour is safe to strip.
+    let meta = meta.trim_end();
     let (tree, parents_field) = meta.split_once('\x1f').ok_or_else(|| {
         CapsuleError::Git(format!("unexpected `git show` output for {sha}: {meta:?}"))
     })?;
@@ -211,10 +250,30 @@ fn git_stdout(repo_root: &Path, args: &[&str]) -> Result<String, CapsuleError> {
 }
 
 /// Run `git` in `repo_root` and return its raw stdout bytes.
+///
+/// Two evidence-integrity guards apply to every invocation:
+///
+/// - `--no-replace-objects` (global flag): replace refs
+///   (`refs/replace/*`) are transparent to plumbing by default, so a
+///   locally planted `git replace --graft` would otherwise let the
+///   capsule record a commit's SHA alongside a *replacement's* tree,
+///   parents, and changed paths.
+/// - Repo-pinning environment variables are dropped: git exports
+///   `GIT_DIR`/`GIT_INDEX_FILE` when invoking hooks, and CI systems
+///   export `GIT_DIR` too; an inherited absolute `GIT_DIR` beats
+///   `current_dir` discovery and would silently collect evidence from
+///   a different repository than `repo_root`.
 fn git_stdout_bytes(repo_root: &Path, args: &[&str]) -> Result<Vec<u8>, CapsuleError> {
     let output = Command::new("git")
+        .arg("--no-replace-objects")
         .args(args)
         .current_dir(repo_root)
+        .env_remove("GIT_DIR")
+        .env_remove("GIT_WORK_TREE")
+        .env_remove("GIT_INDEX_FILE")
+        .env_remove("GIT_OBJECT_DIRECTORY")
+        .env_remove("GIT_ALTERNATE_OBJECT_DIRECTORIES")
+        .env_remove("GIT_NAMESPACE")
         .output()
         .map_err(|e| CapsuleError::Git(format!("failed to run git {}: {e}", args[0])))?;
     if !output.status.success() {
@@ -493,6 +552,88 @@ mod tests {
             doc.commits[0].changed_paths,
             vec!["with space.txt".to_string(), "ünïcode.txt".to_string()]
         );
+    }
+
+    /// A planted replace ref must not launder evidence: the collector
+    /// reads the real objects, not the replacement (council finding —
+    /// replace refs are transparent to plumbing by default).
+    #[test]
+    fn collect_commits_ignores_replace_objects() {
+        let (dir, root_sha, mid_sha, head_sha) = linear_repo();
+        let root = dir.path();
+
+        // Graft head to no parents: with replace-following enabled,
+        // %P would come back empty and the diff would be vs the empty
+        // tree — a full-tree footprint under the real SHA.
+        git(root, &["replace", "--graft", &head_sha]);
+
+        let doc = collect_commits(root, &root_sha, &head_sha).unwrap();
+
+        let head = doc
+            .commits
+            .iter()
+            .find(|c| c.sha == head_sha)
+            .expect("head in range");
+        assert_eq!(
+            head.parents,
+            vec![mid_sha],
+            "replace graft must not erase real parentage"
+        );
+        assert_eq!(
+            head.changed_paths,
+            vec!["a.txt".to_string(), "c.txt".to_string()],
+            "footprint stays the real first-parent diff"
+        );
+    }
+
+    /// Shallow clones are refused: a grafted boundary commit would
+    /// silently report a whole-tree footprint (council finding).
+    #[test]
+    fn collect_commits_refuses_shallow_clone() {
+        let (dir, _, _, head_sha) = linear_repo();
+
+        let clone_dir = tempfile::tempdir().unwrap();
+        let clone_path = clone_dir.path().join("shallow");
+        git(
+            dir.path(),
+            &[
+                "clone",
+                "-q",
+                "--depth",
+                "1",
+                &format!("file://{}", dir.path().display()),
+                clone_path.to_str().unwrap(),
+            ],
+        );
+
+        let err = collect_commits(&clone_path, &head_sha, &head_sha).unwrap_err();
+
+        assert!(matches!(err, CapsuleError::Git(_)));
+        let msg = err.to_string();
+        assert!(msg.contains("shallow"), "names the refusal: {msg}");
+    }
+
+    /// Non-UTF-8 changed paths abort collection rather than being
+    /// lossily rewritten under a clean digest.
+    #[cfg(unix)]
+    #[test]
+    fn collect_commits_non_utf8_path_is_git_error() {
+        use std::ffi::OsStr;
+        use std::os::unix::ffi::OsStrExt;
+
+        let (dir, _, _, head_sha) = linear_repo();
+        let root = dir.path();
+
+        std::fs::write(root.join(OsStr::from_bytes(b"\xff\xfe.bin")), "raw").unwrap();
+        git(root, &["add", "."]);
+        commit(root, "non-utf8 path");
+        let new_head = git(root, &["rev-parse", "HEAD"]).trim().to_string();
+
+        let err = collect_commits(root, &head_sha, &new_head).unwrap_err();
+
+        assert!(matches!(err, CapsuleError::Git(_)));
+        let msg = err.to_string();
+        assert!(msg.contains("non-UTF-8"), "names the rejection: {msg}");
     }
 
     fn sample_document() -> CommitsDocument {
