@@ -4,7 +4,7 @@
 |----|-------|--------|
 | EXCEPT | @josh | In Progress |
 
-**Last reviewed:** 2026-06-06
+**Last reviewed:** 2026-06-08
 
 > **Operator-authorised (2026-06-06).** The storage-path migration slice
 > (EXCEPT-001/002) is authorised for immediate execution: it is the ADR-073
@@ -12,6 +12,10 @@
 > (`crates/anvil-policy/src/exceptions.rs`) currently persists to
 > `.anvil/exceptions.json` (gitignored, local-only) and has **no callers** —
 > so exceptions neither travel with the repo nor are wired into evaluation yet.
+> EXCEPT-001/002 fix the storage-path violation only: exceptions remain
+> **unenforced** (a hand-written `anvil/exceptions/store.json` does nothing)
+> until EXCEPT-006 wires evaluation, and the first write surface is gated on
+> the EXCEPT-007 hardening contract.
 > Remaining items (schema enrichment, CLI, L3/L4 + capsule integration) stay
 > Proposed pending review. Brainstorm:
 > [`../brainstorms/git-native-governance/`](../brainstorms/git-native-governance/).
@@ -29,6 +33,8 @@ sibling of the in-source `@anvil-ignore` suppression syntax (ADR-004).
 
 - Tracked storage under `anvil/exceptions/` with legacy read-fallback + a
   one-time, non-destructive migration.
+- Write-path hardening (provenance, locking, read-only worktrees, symlink
+  guard) before any CLI write surface.
 - Enriched `anvil.exception.v1` schema (owner/attribution, revocation audit).
 - `anvil exception grant|revoke|list|show|verify` CLI.
 - L3/L4 evaluation integration; witness-envelope + capsule inclusion.
@@ -60,22 +66,22 @@ Enforcement of unrelated policy classes; the inline `@anvil-ignore` path
 - **Status:** Done
 
 ### EXCEPT-003: Enriched `anvil.exception.v1` schema
-- **Intent:** Add owner/`created_by` attribution, stable exception id, finding hash, and a revoked (soft-delete) audit trail; keep backward-compatible deserialisation of the v0 shape.
+- **Intent:** Add owner/`created_by` attribution, stable exception id, finding hash, and a revoked (soft-delete) audit trail; keep backward-compatible deserialisation of the v0 shape. Decide the on-disk layout explicitly — v0 shipped a flat `store.json`, while the brainstorm (`architecture.md` §2.3, `solution.md` §5.6) sketches per-exception files under `active/`/`revoked/` — so the layout choice is deliberate, not inherited.
 - **Expected Outcome:** Schema supports grant/revoke without erasure.
 - **Validation:** `cargo test -p eddacraft-anvil-policy -- exception_schema`
 - **Dependencies:** EXCEPT-001
 - **Status:** Proposed
 
 ### EXCEPT-004: Grant/revoke/list/show CLI
-- **Intent:** `anvil exception grant|revoke|list|show` writing tracked records.
+- **Intent:** `anvil exception grant|revoke|list|show` writing tracked records. Writes are **explicit-only** (human-invoked grant/revoke); no evaluation or check command writes the store implicitly, so checks never dirty a worktree.
 - **Expected Outcome:** Operators manage exceptions from the CLI; revocation preserves history.
 - **Validation:** `cargo test -p eddacraft-anvil-cli exception`
-- **Dependencies:** EXCEPT-003
+- **Dependencies:** EXCEPT-003, EXCEPT-007
 - **Status:** Proposed
 
 ### EXCEPT-005: Scope/expiry verification
 - **Intent:** `anvil exception verify` validates scope globs, expiry at evaluation time, and revocation status.
-- **Expected Outcome:** Expired/revoked exceptions do not apply.
+- **Expected Outcome:** Expired/revoked exceptions do not apply; an unattributed v0-shape grant downgrades (`warn`/`degraded`), it is never silently honoured.
 - **Validation:** `cargo test -p eddacraft-anvil-policy -- exception_verify`
 - **Dependencies:** EXCEPT-003
 - **Status:** Proposed
@@ -84,7 +90,21 @@ Enforcement of unrelated policy classes; the inline `@anvil-ignore` path
 - **Intent:** Apply only valid exceptions during pre-commit/pre-push evaluation; record exception use.
 - **Expected Outcome:** Gates suppress only matching, valid findings; use is recorded.
 - **Validation:** `cargo test -p eddacraft-anvil-l4 -- exceptions`
-- **Dependencies:** EXCEPT-005
+- **Dependencies:** EXCEPT-005, EXCEPT-007
+- **Status:** Proposed
+
+### EXCEPT-007: Write-path hardening (pre-wiring contract)
+- **Intent:** Close the council-identified (2026-06-08) write-path gaps before any caller is wired: (a) `load()` reports provenance (tracked/legacy/none) and `save()` refuses — or requires an explicit migrate acknowledgement — when the in-memory store originated from the legacy path, so the load→modify→save CRUD flow cannot silently promote local-only entries into git (ADR-073 demands an *explicit* cleanup step); (b) `flock` the load-modify-save cycle mirroring `anvil-witness::WitnessWriter`, closing the lost-write race and the `migrate()` exists→save TOCTOU; (c) read-only worktrees degrade to warn + no-op, never a propagated `Io` error from a gate (ADR-002); (d) refuse symlinked `anvil/exceptions/` path components (canonicalise + assert under the workspace root) — the same guard the capsule writer will need.
+- **Expected Outcome:** The first CLI wiring inherits a safe store: no silent legacy promotion, no concurrent lost writes, no read-only blocking, no symlink escape.
+- **Validation:** `cargo test -p eddacraft-anvil-policy exceptions` (incl. new provenance/lock/read-only/symlink tests)
+- **Dependencies:** EXCEPT-001, EXCEPT-002
+- **Status:** Proposed
+
+### EXCEPT-008: Operator write semantics + guidance
+- **Intent:** Document the operator contract for the tracked store: `anvil/exceptions/store.json` is committed like `anvil/baseline.json`; writes happen only via explicit grant/revoke (EXCEPT-004), so checks never dirty a worktree; evaluate `.gitattributes` (`merge=union`) for concurrent-branch grant conflicts; an upgrade note covers the legacy→tracked migration step.
+- **Expected Outcome:** A downstream operator knows to commit the store, why a worktree changed, and how to migrate.
+- **Validation:** `pnpm docs:check`
+- **Dependencies:** EXCEPT-004
 - **Status:** Proposed
 
 ### EXCEPT-009: Capsule inclusion

@@ -87,6 +87,12 @@ impl ExceptionStore {
     /// (`{workspace_root}/anvil/exceptions/store.json`).
     ///
     /// Uses write-temp-then-rename to avoid corruption on interrupted writes.
+    ///
+    /// Not yet called from any production command: the first write surface
+    /// lands with the `EXCEPT-004` CLI and is gated on the `EXCEPT-007`
+    /// hardening contract (provenance-aware writes so legacy data is never
+    /// silently promoted into the tracked tree, file locking, read-only
+    /// worktree handling, symlink guard).
     pub fn save(&self, workspace_root: &Path) -> Result<(), ExceptionError> {
         let path = workspace_root.join(EXCEPTIONS_FILE);
         if let Some(parent) = path.parent() {
@@ -106,6 +112,10 @@ impl ExceptionStore {
     /// and the tracked store does not yet. Idempotent — returns `Ok(false)`
     /// when there is nothing to do. The legacy file is **left in place**;
     /// callers decide when to remove it.
+    ///
+    /// Not yet wired into any command (`EXCEPT-004`), and not safe for
+    /// concurrent callers — the exists-then-save window is closed by
+    /// `EXCEPT-007`'s locking before any startup/CLI wiring.
     pub fn migrate(workspace_root: &Path) -> Result<bool, ExceptionError> {
         let tracked = workspace_root.join(EXCEPTIONS_FILE);
         let legacy = workspace_root.join(LEGACY_EXCEPTIONS_FILE);

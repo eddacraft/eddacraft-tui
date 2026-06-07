@@ -2,15 +2,15 @@
 
 | ID | Owner | Status |
 |----|-------|--------|
-| GITGOV | @josh | Proposed |
+| GITGOV | @josh | In Progress |
 
-**Last reviewed:** 2026-06-06
+**Last reviewed:** 2026-06-08
 
-> **Decision-gated.** Execution of the capsule implementation items
-> (GITGOV-003+) is authorised once [ADR-072](../decisions/072-git-native-governance-substrate.md)
+> **Decision gate cleared (2026-06-08).** [ADR-072](../decisions/072-git-native-governance-substrate.md)
 > (Git substrate) and [ADR-074](../decisions/074-review-capsule-v0-format.md)
-> (capsule v0 format) are Accepted via council. The schema/decision items are
-> ready to review now. Brainstorm:
+> (capsule v0 format) were Accepted via full council review
+> (accept-with-changes; changes applied). Capsule implementation items
+> (GITGOV-003+) are authorised. Brainstorm:
 > [`../brainstorms/git-native-governance/`](../brainstorms/git-native-governance/).
 
 ## Purpose
@@ -56,16 +56,16 @@ release seals (RELEASE-SEAL); supplier bundles (SUPPLIER). Sealed Edda context
 - **Intent:** State that Git is Anvil's durable trust substrate.
 - **Expected Outcome:** [ADR-072](../decisions/072-git-native-governance-substrate.md) reviewed and Accepted.
 - **Validation:** `pnpm adr:check`
-- **Status:** Proposed
+- **Status:** Done 2026-06-08 (Accepted via full council review, accept-with-changes applied)
 
 ### GITGOV-002: ADR — state boundary
 - **Intent:** Ratify `anvil/` durable vs `.anvil/` local; record reconciliations.
 - **Expected Outcome:** [ADR-073](../decisions/073-durable-vs-local-anvil-state.md) reviewed and Accepted.
 - **Validation:** `pnpm adr:check`
-- **Status:** Proposed
+- **Status:** Done 2026-06-08 (Accepted via full council review, accept-with-changes applied)
 
 ### GITGOV-003: Capsule manifest schema
-- **Intent:** Define `anvil.capsule.v1` manifest + `anvil.capsule-verification.v1`, digesting every file with SHA-256 over canonical JSON.
+- **Intent:** Define `anvil.capsule.v1` manifest + `anvil.capsule-verification.v1`, digesting every file with SHA-256 over canonical JSON; carries `witness_seq_start`/`witness_seq_end` range pointers per the ADR-074 full-chain witness model.
 - **Expected Outcome:** Versioned, round-trippable manifest types in `anvil-capsule`.
 - **Validation:** `cargo test -p eddacraft-anvil-capsule -- manifest`
 - **Dependencies:** GITGOV-001
@@ -93,8 +93,8 @@ release seals (RELEASE-SEAL); supplier bundles (SUPPLIER). Sealed Edda context
 - **Status:** Proposed
 
 ### GITGOV-007: Witness collector
-- **Intent:** Collect **verbatim** `anvil-witness::WitnessLine` records covering the range into `witness.ndjson`.
-- **Expected Outcome:** Capsule witness verification reuses `verify_chain_dag` with no re-modelled extract.
+- **Intent:** Collect the **complete witness chain** — every rollover archive segment plus the active file, in walk order — verbatim into `witness.ndjson`; the manifest's `witness_seq_start`/`witness_seq_end` mark the PR-relevant range (ADR-074: `verify_chain_dag` is genesis-anchored with a gap-free `seq` walk and cannot verify a mid-chain subset).
+- **Expected Outcome:** Capsule witness verification reuses `verify_chain_dag` with no re-modelled extract and no partial-chain special-casing.
 - **Validation:** `cargo test -p eddacraft-anvil-capsule -- collect_witness`
 - **Dependencies:** GITGOV-005
 - **Status:** Proposed
@@ -107,10 +107,10 @@ release seals (RELEASE-SEAL); supplier bundles (SUPPLIER). Sealed Edda context
 - **Status:** Proposed
 
 ### GITGOV-009: Verification engine
-- **Intent:** Verify manifest digests, witness chain, digests, and applied exception scope/expiry; emit `pass`/`warn`/`degraded`/`block`/`error`. Resolve the detached-verification question (repo-present vs metadata-only) before `v1` freeze.
+- **Intent:** Verify manifest digests, witness chain, digests, and applied exception scope/expiry; emit `pass`/`warn`/`degraded`/`block`/`error` with the ADR-074 exit-code contract (`0` pass/warn, `1` block, `2` degraded, `3` error). v0 contract per ADR-074: verification requires the repository present; metadata-only detached verification is deferred to `v1`.
 - **Expected Outcome:** `anvil capsule verify` returns honest verdicts; missing evidence is `degraded`, never `pass`.
 - **Validation:** `cargo test -p eddacraft-anvil-capsule -- verify`
-- **Dependencies:** GITGOV-004, GITGOV-007, EXCEPT-009
+- **Dependencies:** GITGOV-004, GITGOV-007, EXCEPT-005 (exception scope/expiry logic; capsule *collection* of exceptions is EXCEPT-009, which depends back on this engine — kept acyclic)
 - **Status:** Proposed
 
 ### GITGOV-010: Capsule explain UX
@@ -128,8 +128,22 @@ release seals (RELEASE-SEAL); supplier bundles (SUPPLIER). Sealed Edda context
 - **Status:** Proposed
 
 ### GITGOV-012: Tamper tests
-- **Intent:** Prove digest-mismatch and witness-break detection, and missing-evidence → `degraded`.
-- **Expected Outcome:** Mutating a capsule file fails verification; removing witness evidence degrades (never passes).
+- **Intent:** Prove digest-mismatch and witness-break detection, missing-evidence → `degraded`, and the ADR-072 §3 scan-on-write line: a planted secret in any evidence file fails capsule creation.
+- **Expected Outcome:** Mutating a capsule file fails verification; removing witness evidence degrades (never passes); secret-bearing evidence never reaches a tracked write.
 - **Validation:** `cargo test -p eddacraft-anvil-capsule -- tamper`
 - **Dependencies:** GITGOV-009
+- **Status:** Proposed
+
+### GITGOV-013: Capsule retention + prune policy
+- **Intent:** Decide retention for in-repo staged capsules (`anvil/evidence/capsules/`) and ship a prune surface before `v1`; document that the v0 default is on-demand/external (`--out` outside the repo) with in-repo staging explicitly opt-in and unpruned.
+- **Expected Outcome:** Stated retention policy (ADR-074 amendment or sub-decision) plus `anvil capsule prune` or a documented manual path; indefinite accumulation is a stated choice, not an accident.
+- **Validation:** `pnpm adr:check`
+- **Dependencies:** GITGOV-004
+- **Status:** Proposed
+
+### GITGOV-014: State-boundary enforcement (ADR-073)
+- **Intent:** Make the `anvil/` vs `.anvil/` boundary enforced, not asserted: (a) `anvil init`/`welcome` seed `.anvil/` wholesale into consumer `.gitignore` (today only `.anvil/cache/` + `.anvil/gates.json` — `crates/anvil-cli/src/commands/init.rs`); (b) a check warns when `.anvil/` paths are tracked or `anvil/` paths are ignored (`git check-ignore` sweep); (c) reconcile this repo's dogfood deviation — `anvil/witness/` + `anvil/kindling/` gitignored, and the bare `memory.json` ignore pattern would silently swallow a future `anvil/edda/memory.json` — by un-ignoring or recording the justification in ADR-072/073, and anchoring loose patterns (`/memory.json`).
+- **Expected Outcome:** Consumer repos cannot accidentally commit runtime state or ignore durable evidence; the dogfood repo stops falsifying the ADR-072 premise.
+- **Validation:** `cargo test -p eddacraft-anvil-cli init_gitignore`
+- **Dependencies:** GITGOV-002
 - **Status:** Proposed

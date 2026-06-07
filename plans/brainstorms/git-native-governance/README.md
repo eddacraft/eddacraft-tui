@@ -16,6 +16,26 @@ The core thesis:
 | [`roadmap.md`](./roadmap.md) | Execution plan with proposed modules, phases, work items, validation commands, and sequencing. |
 | [`agent-handoff.md`](./agent-handoff.md) | Practical handoff for development/planning agents: what to inspect, what to decide first, open questions, and planning prompts. |
 
+## Capture status — read this first
+
+These documents are a **verbatim capture** of a design conversation, kept
+intentionally unedited. Where they conflict with shipped code or the ADRs,
+**the ADRs win**:
+
+- `solution.md` §5.3 `WitnessExtract` (the `L0..L4` sub-objects,
+  `agent.task_id`/`step_id`, `sha256:`-prefixed hashes) is **design fiction**
+  — the shipped type is `anvil-witness::WitnessLine`
+  (`crates/anvil-witness/src/line.rs`), embedded verbatim per ADR-074. Do not
+  implement `WitnessExtract`.
+- `architecture.md` §2.3 / `solution.md` §5.6 per-exception files under
+  `anvil/exceptions/active|revoked/` describe a possible future layout; v0
+  shipped a flat `anvil/exceptions/store.json`, and the layout decision
+  belongs to EXCEPT-003.
+- Authoritative decisions:
+  [ADR-072](../../decisions/072-git-native-governance-substrate.md),
+  [ADR-073](../../decisions/073-durable-vs-local-anvil-state.md),
+  [ADR-074](../../decisions/074-review-capsule-v0-format.md).
+
 ## Recommended first implementation slice
 
 Build **Anvil Review Capsules** first.

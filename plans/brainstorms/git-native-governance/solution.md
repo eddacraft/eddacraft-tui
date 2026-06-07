@@ -321,6 +321,11 @@ Hash or omit email depending on privacy posture.
 
 ## 5.3 WitnessExtract
 
+> **Editorial note (2026-06-08, post-council — the only non-verbatim text in
+> this pack):** the `WitnessExtract` below is **design fiction**. The shipped
+> type is `anvil-witness::WitnessLine` (`crates/anvil-witness/src/line.rs`),
+> embedded verbatim per ADR-074. Do not implement this schema.
+
 Use existing witness line fields where possible.
 
 ```jsonc

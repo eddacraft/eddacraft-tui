@@ -2,7 +2,10 @@
 
 ## Status
 
-Proposed
+**Accepted** — 2026-06-08, full council review (accept-with-changes; the
+required changes — dogfood-deviation note, enforcement-not-assertion,
+EDDA-SEAL accepted-debt honesty — are applied in the accepting commit;
+enforcement work tracked as GITGOV-014)
 
 ## Date
 
@@ -30,6 +33,14 @@ Evidence the boundary already exists in code:
 - `.gitignore` ignores `.anvil/cache/`, `.anvil/logs/`, `.anvil/snapshots/`,
   `.anvil/first-run`, `.anvil/release-state.json`, `.anvil/gates.json`, etc.
 
+> **Dogfood deviation (recorded):** this development monorepo deliberately
+> gitignores `anvil/witness/` and `anvil/kindling/` (`.gitignore` "Anvil
+> runtime sidecar" — constant self-dogfooding churn), so the tracked-state
+> posture above describes **consumer repos**, not this repo's current tree
+> (`git ls-files anvil/` here returns only `anvil/project-id`). GITGOV-014
+> either reconciles the deviation or keeps it explicitly justified; until
+> then it is a recorded exception to this ADR, not evidence against it.
+
 Two places **violate** the convention today:
 
 1. **Exceptions** — `anvil-policy`'s `ExceptionStore` reads/writes
@@ -56,6 +67,17 @@ local runtime state and is gitignored.** New durable governance artefacts MUST
 be written under `anvil/`; new runtime/cache/log/database artefacts MUST be
 written under `.anvil/`.
 
+**Enforcement, not assertion.** Today `anvil init` seeds only `.anvil/cache/`
+and `.anvil/gates.json` into a consumer repo's `.gitignore`
+(`crates/anvil-cli/src/commands/init.rs`), leaving `.anvil/exceptions.json`,
+`.anvil/edda/`, and the runtime SQLite stores one `git add -A` away from being
+committed — the secrets-in-git exposure runs in the opposite direction from
+the one this boundary usually worries about. The boundary is only real once
+(a) `init`/`welcome` seed `.anvil/` wholesale (with explicit `!` re-includes
+if a tracked sub-path is ever justified — none is today), and (b) a check
+warns when paths under `.anvil/` are tracked or paths under `anvil/` are
+ignored. GITGOV-014 carries both.
+
 Classification:
 
 | State | Tree | Tracked? |
@@ -78,7 +100,15 @@ Classification:
   trail) per the EXCEPT module.
 - **EDDA-SEAL-001:** change the Edda default storage path to `anvil/edda/`,
   migrate existing stores, and update the Edda README/config docs. Sequenced
-  after the known Edda correctness fixes (see the EDDA-SEAL roadmap item).
+  after the known Edda correctness fixes. **Acceptance criterion (ADR-072
+  §3):** the migration runs the `anvil-checks` secret scanner (pattern +
+  entropy) over migrated content and blocks/quarantines hits **before** the
+  first tracked write — Edda memory objects carry free-form prose
+  (`statement`, `context.why`, `metadata`) that has never been subject to a
+  tracking decision. **Tracking honesty:** as of 2026-06-08 EDDA-SEAL is
+  *recorded debt*, not in-flight work — no APS module or owner exists yet. It
+  MUST be promoted to a module before any Edda tracked-write ships; until
+  then, nothing moves.
 
 Migration discipline: moves provide a read-fallback to the legacy path and do
 **not** delete legacy data automatically; the user is given an explicit cleanup

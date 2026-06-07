@@ -2,7 +2,10 @@
 
 ## Status
 
-Proposed
+**Accepted** — 2026-06-08, full council review (accept-with-changes; the
+required changes — full-chain witness model, repo-present v0 verification
+contract, exit-code table, ADR-002 cross-reference — are applied in the
+accepting commit)
 
 ## Date
 
@@ -42,7 +45,7 @@ review.anvil-capsule/
 ├── policy.json          # anvil.policy-digest.v1
 ├── baseline.json        # baseline cutoff + digest (from anvil/baseline.json)
 ├── rules.json           # anvil.rules-digest.v1 (rules_sha as witness uses)
-├── witness.ndjson       # verbatim WitnessLine records covering the range
+├── witness.ndjson       # verbatim WitnessLine records — full chain (see Schema rules)
 ├── diagnostics.sarif    # SARIF 2.1.0 subset (reuses ADR-058 emitter)
 ├── exceptions.json      # applied ExceptionRecords (anvil.exception.v1, EXCEPT)
 ├── edda-context.json    # references only; populated only when --include-edda
@@ -59,6 +62,17 @@ review.anvil-capsule/
 - `witness.ndjson` embeds **verbatim** `anvil-witness::WitnessLine` records (not
   a re-modelled extract), so capsule witness verification reuses
   `anvil-witness::verify_chain_dag` rather than a parallel parser.
+- **Full chain, not a range subset.** `verify_chain_dag` anchors at a genesis
+  token (`GENESIS-FRESH`/`GENESIS-BASELINED`) and requires a gap-free `seq`
+  walk (`crates/anvil-witness/src/verify.rs` — a mid-chain first line fails
+  with `UnknownGenesis`/`SequenceGap`), so a capsule cannot embed only the
+  range's lines and still reuse the shipped verifier. v0 therefore embeds the
+  **complete chain** — every rollover archive segment plus the active file,
+  concatenated in walk order — and the manifest records the PR-relevant range
+  as `witness_seq_start`/`witness_seq_end` pointers into it. Witness lines are
+  compact NDJSON; if full-chain size becomes prohibitive for long-lived repos,
+  that is the trigger to build the deferred v1 subchain verifier (accepting a
+  trusted anchor hash in place of a genesis token), never to silently subset.
 - `rules.json`'s `rules_sha` is computed by `anvil_rules::rules_sha` — the exact
   value witnessed on the line — so the capsule's rule identity matches the
   witness chain by construction.
@@ -81,18 +95,30 @@ Closed-state verdicts, with missing evidence never passing:
 | `error` | Tool/internal failure — do not overclaim |
 
 `degraded != pass`, `error != pass`, `missing evidence != clean evidence`.
+**`block` in this table is a verification-CLI verdict, never a save-time gate.**
 Per ADR-002, the capsule verdict is **advisory evidence**, not a new blocking
 gate on user code; it is the closeout/verification surface, akin to the
 ADR-042 carve-out class, and exits non-zero only as a verification CLI, never as
 a save-time block.
 
+`anvil capsule verify` exit codes (the CI contract — GITGOV-009/011):
+
+| Exit | Verdict |
+|------|---------|
+| `0` | `pass`, `warn` (warnings over blocks, ADR-002) |
+| `1` | `block` |
+| `2` | `degraded` |
+| `3` | `error` |
+
 ### Deferred (explicitly not v0)
 
 Git bundles/`.anvil-bundle` packing; refs/notes namespaces
 (`refs/anvil/*`, `refs/notes/anvil-*`); cryptographic signing beyond Git/content
-hashes; detached verification semantics beyond what `commits.json` already
-carries (the create/verify contract names this as an open question to resolve
-before `v1` freeze, see GITGOV-009); Graph-V2 behavioural diff;
+hashes; metadata-only detached verification — **resolved for v0: verification
+requires the repository to be present** (digest and witness checks run against
+the repo the capsule describes; GITGOV-009 pins this contract), and verifying
+from nothing but the capsule's own `commits.json` metadata is deferred to `v1`;
+the v1 subchain witness verifier (see Schema rules); Graph-V2 behavioural diff;
 `--include-sessions`.
 
 ## Rationale

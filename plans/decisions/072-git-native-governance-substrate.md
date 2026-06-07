@@ -2,7 +2,9 @@
 
 ## Status
 
-Proposed
+**Accepted** — 2026-06-08, full council review (accept-with-changes; the
+required changes — named scan-on-write enforcement surfaces — are applied in
+the accepting commit)
 
 ## Date
 
@@ -75,6 +77,14 @@ Boundaries this decision sets:
    secrets, environment dumps, token-bearing output, or unredacted runtime
    state. This generalises the privacy line already drawn for the Graph-V2
    snapshot (ADR-069 §"Privacy line").
+   **Enforcement surfaces (testable, not aspirational):** every free-text
+   field headed for durable evidence is a scan-on-write surface — exception
+   `reason` strings (EXCEPT), Edda `statement`/`context`/`metadata` prose
+   (EDDA-SEAL-001 acceptance criterion, ADR-073), and capsule evidence files
+   (GITGOV-012 includes a secret-in-evidence test). Secret findings are
+   already redacted at the producer (`anvil-checks` `redact_secret` /
+   `redacted_match`), so capsule SARIF inherits redaction; scan-on-write
+   covers content that never passed through a producer.
 4. **Honest verdicts only.** Verification of durable evidence uses closed-state
    verdicts where missing/incomplete evidence is `degraded`, not `pass`
    (formalised for capsules in ADR-074). Consistent with Anvil's "tooling
