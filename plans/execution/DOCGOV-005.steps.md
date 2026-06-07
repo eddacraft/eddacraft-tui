@@ -2,7 +2,7 @@
 
 | Field  | Value                                                                                          |
 | ------ | ---------------------------------------------------------------------------------------------- |
-| Source | [../modules/documentation-governance.aps.md](../modules/documentation-governance.aps.md)       |
+| Source | [../modules/documentation-governance.aps.md](../archive/modules/documentation-governance.aps.md)       |
 | Task   | DOCGOV-005 — Add documentation validation baseline                                             |
 | Status | Draft                                                                                          |
 | ADR    | [ADR-042](../decisions/042-closeout-enforcement-exit-codes.md) — closeout-enforcement carve-out |

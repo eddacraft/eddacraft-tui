@@ -118,6 +118,6 @@ mass-rename now — the map is the cheap fix; renames are churn.
   [EXCEPT](../modules/git-native-exceptions.aps.md),
   [AGOV](../modules/agent-governance-patterns.aps.md),
   [ILGOV](../modules/intent-ledger-governance.aps.md),
-  [DOCGOV](../modules/documentation-governance.aps.md),
+  [DOCGOV](../archive/modules/documentation-governance.aps.md),
   [MDGOV](../modules/markdown-governance.aps.md),
   [APGOV](../modules/api-governance.aps.md)
