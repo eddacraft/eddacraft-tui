@@ -1458,6 +1458,7 @@ name = "eddacraft-anvil-policy"
 version = "0.7.4-beta"
 dependencies = [
  "chrono",
+ "fs2",
  "glob",
  "hex",
  "regex",

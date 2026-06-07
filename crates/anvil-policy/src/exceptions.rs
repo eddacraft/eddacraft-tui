@@ -30,6 +30,61 @@ pub enum ExceptionError {
     Parse(String),
     #[error("serialisation error: {0}")]
     Serialise(String),
+    /// The in-memory store was loaded from the legacy local path; writing
+    /// it to the tracked tree would silently promote local-only data into
+    /// git. ADR-073 requires an explicit step — run
+    /// [`ExceptionStore::migrate`] first, then reload.
+    #[error(
+        "store was loaded from the legacy `.anvil/exceptions.json`; run migrate() before \
+         writing the tracked store (ADR-073 explicit-migration discipline)"
+    )]
+    LegacyOriginNotMigrated,
+    /// A path component under the workspace's `anvil/` governance tree is
+    /// a symlink — refusing to write through it (hostile-repo
+    /// write-outside-worktree gadget). Mirrors `anvil-witness`'s guard.
+    #[error("refusing to write through symlinked governance path: {path}")]
+    SymlinkedPath {
+        /// The offending symlinked component.
+        path: std::path::PathBuf,
+    },
+}
+
+/// Where a loaded store's data came from. Carried (non-serialised) on
+/// [`ExceptionStore`] so write paths can refuse to silently promote
+/// legacy-origin data into the tracked tree (ADR-073).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum StoreSource {
+    /// Loaded from the tracked `anvil/exceptions/store.json`.
+    Tracked,
+    /// Loaded from the legacy `.anvil/exceptions.json` read-fallback.
+    Legacy,
+    /// No store file existed (or the store was constructed in memory).
+    #[default]
+    Fresh,
+}
+
+/// Outcome of a tracked-store write ([`ExceptionStore::save`] /
+/// [`ExceptionStore::update`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[must_use]
+pub enum WriteOutcome {
+    /// The tracked store was written.
+    Written,
+    /// The worktree is read-only — the write was skipped. Gate callers
+    /// surface this as a warning, never a failure (ADR-002).
+    SkippedReadOnly,
+}
+
+/// Outcome of [`ExceptionStore::migrate`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[must_use]
+pub enum MigrateOutcome {
+    /// Legacy data was copied into the tracked store.
+    Migrated,
+    /// Nothing to do: no legacy store, or the tracked store already exists.
+    NothingToDo,
+    /// The worktree is read-only — the migration was skipped (ADR-002).
+    SkippedReadOnly,
 }
 
 /// Tracked store path (ADR-073). Exceptions are durable governance state that
@@ -42,10 +97,19 @@ const EXCEPTIONS_FILE: &str = "anvil/exceptions/store.json";
 /// [`ExceptionStore::migrate`] performs the one-time, non-destructive move.
 const LEGACY_EXCEPTIONS_FILE: &str = ".anvil/exceptions.json";
 
+/// Name of the advisory lock file inside `anvil/exceptions/`, mirroring
+/// the `anvil-witness` writer's flock discipline.
+const LOCK_FILE_NAME: &str = ".lock";
+
 /// Persistent store for policy exceptions.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExceptionStore {
     pub exceptions: Vec<PolicyException>,
+    /// Load provenance (EXCEPT-007). Never serialised; defaults to
+    /// [`StoreSource::Fresh`] on construction and deserialisation —
+    /// [`Self::load`] overwrites it with the real origin.
+    #[serde(skip)]
+    source: StoreSource,
 }
 
 impl ExceptionStore {
@@ -53,47 +117,142 @@ impl ExceptionStore {
     pub fn empty() -> Self {
         Self {
             exceptions: Vec::new(),
+            source: StoreSource::Fresh,
         }
+    }
+
+    /// Where this store's data was loaded from (EXCEPT-007 provenance).
+    /// In-memory constructions report [`StoreSource::Fresh`].
+    #[must_use]
+    pub fn source(&self) -> StoreSource {
+        self.source
     }
 
     /// Loads exceptions, preferring the tracked store
     /// (`{workspace_root}/anvil/exceptions/store.json`) and falling back to the
     /// legacy local store (`{workspace_root}/.anvil/exceptions.json`) for
-    /// repositories not yet migrated (ADR-073).
+    /// repositories not yet migrated (ADR-073). The origin is recorded on the
+    /// returned store ([`Self::source`]); a legacy-origin store **cannot be
+    /// saved** until [`Self::migrate`] runs (no silent promotion into git).
     ///
-    /// Read-only: this never writes or migrates. Use [`Self::migrate`] for the
-    /// one-time move. Returns an empty store if neither file exists.
+    /// Read-only: this never writes or migrates. Returns an empty
+    /// [`StoreSource::Fresh`] store if neither file exists.
     pub fn load(workspace_root: &Path) -> Result<Self, ExceptionError> {
         let tracked = workspace_root.join(EXCEPTIONS_FILE);
         if tracked.exists() {
-            return Self::load_from(&tracked);
+            return Self::load_from(&tracked, StoreSource::Tracked);
         }
         let legacy = workspace_root.join(LEGACY_EXCEPTIONS_FILE);
         if legacy.exists() {
-            return Self::load_from(&legacy);
+            return Self::load_from(&legacy, StoreSource::Legacy);
         }
         Ok(Self::empty())
     }
 
-    /// Reads and parses a store from an explicit path.
-    fn load_from(path: &Path) -> Result<Self, ExceptionError> {
+    /// Reads and parses a store from an explicit path, tagging its origin.
+    fn load_from(path: &Path, source: StoreSource) -> Result<Self, ExceptionError> {
         let content = std::fs::read_to_string(path)?;
-        let store: Self =
+        let mut store: Self =
             serde_json::from_str(&content).map_err(|e| ExceptionError::Parse(e.to_string()))?;
+        store.source = source;
         Ok(store)
     }
 
     /// Saves exceptions to the tracked store
-    /// (`{workspace_root}/anvil/exceptions/store.json`).
+    /// (`{workspace_root}/anvil/exceptions/store.json`) under an exclusive
+    /// flock, with write-temp-then-rename atomicity.
     ///
-    /// Uses write-temp-then-rename to avoid corruption on interrupted writes.
+    /// EXCEPT-007 contract:
+    /// - **Refuses legacy-origin data** ([`ExceptionError::LegacyOriginNotMigrated`])
+    ///   — run [`Self::migrate`] first, then reload; ADR-073 requires the
+    ///   promotion into git to be an explicit step.
+    /// - **Refuses symlinked governance paths**
+    ///   ([`ExceptionError::SymlinkedPath`]).
+    /// - **Read-only worktrees degrade**: returns
+    ///   [`WriteOutcome::SkippedReadOnly`] instead of a propagated I/O error,
+    ///   so a gate can warn-and-continue (ADR-002).
     ///
-    /// Not yet called from any production command: the first write surface
-    /// lands with the `EXCEPT-004` CLI and is gated on the `EXCEPT-007`
-    /// hardening contract (provenance-aware writes so legacy data is never
-    /// silently promoted into the tracked tree, file locking, read-only
-    /// worktree handling, symlink guard).
-    pub fn save(&self, workspace_root: &Path) -> Result<(), ExceptionError> {
+    /// Do not compose `load` → mutate → `save` across concurrent callers —
+    /// use [`Self::update`], which holds the lock across the full cycle.
+    pub fn save(&self, workspace_root: &Path) -> Result<WriteOutcome, ExceptionError> {
+        if self.source == StoreSource::Legacy {
+            return Err(ExceptionError::LegacyOriginNotMigrated);
+        }
+        refuse_symlinked_store_paths(workspace_root)?;
+        match Self::locked(workspace_root, || self.write_tracked(workspace_root)) {
+            Ok(()) => Ok(WriteOutcome::Written),
+            Err(e) if is_readonly_io(&e) => Ok(WriteOutcome::SkippedReadOnly),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Load-modify-save under a single exclusive flock — the safe CRUD
+    /// primitive for the EXCEPT-004 CLI. Two concurrent `update`s cannot
+    /// lose each other's writes (the second loads the first's result).
+    ///
+    /// Same EXCEPT-007 refusals and read-only degrade as [`Self::save`];
+    /// on [`WriteOutcome::SkippedReadOnly`] the mutation is discarded.
+    pub fn update(
+        workspace_root: &Path,
+        mutate: impl FnOnce(&mut Self),
+    ) -> Result<WriteOutcome, ExceptionError> {
+        refuse_symlinked_store_paths(workspace_root)?;
+        let result = Self::locked(workspace_root, || {
+            let mut store = Self::load(workspace_root)?;
+            if store.source == StoreSource::Legacy {
+                return Err(ExceptionError::LegacyOriginNotMigrated);
+            }
+            mutate(&mut store);
+            store.write_tracked(workspace_root)
+        });
+        match result {
+            Ok(()) => Ok(WriteOutcome::Written),
+            Err(e) if is_readonly_io(&e) => Ok(WriteOutcome::SkippedReadOnly),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// One-time, non-destructive migration of the legacy local store
+    /// (`.anvil/exceptions.json`) to the tracked store
+    /// (`anvil/exceptions/store.json`), per ADR-073. This is the explicit
+    /// promotion step that [`Self::save`] refuses to perform implicitly.
+    ///
+    /// Copies the legacy store to the tracked path when the legacy file
+    /// exists and the tracked store does not yet. The tracked-store
+    /// existence check is re-run **under the flock**, so concurrent
+    /// migrations cannot race the exists→write window (one migrates, the
+    /// rest see [`MigrateOutcome::NothingToDo`]). The legacy file is
+    /// **left in place**; callers decide when to remove it.
+    pub fn migrate(workspace_root: &Path) -> Result<MigrateOutcome, ExceptionError> {
+        let tracked = workspace_root.join(EXCEPTIONS_FILE);
+        let legacy = workspace_root.join(LEGACY_EXCEPTIONS_FILE);
+        // Lock-free fast path: nothing to migrate, touch nothing.
+        if tracked.exists() || !legacy.exists() {
+            return Ok(MigrateOutcome::NothingToDo);
+        }
+        refuse_symlinked_store_paths(workspace_root)?;
+        let result = Self::locked(workspace_root, || {
+            // Re-check under the lock: a concurrent migrate may have won.
+            if tracked.exists() {
+                return Ok(MigrateOutcome::NothingToDo);
+            }
+            let mut store = Self::load_from(&legacy, StoreSource::Legacy)?;
+            // The explicit-migration path is the one place a legacy-origin
+            // store may be promoted; re-tag before the tracked write.
+            store.source = StoreSource::Tracked;
+            store.write_tracked(workspace_root)?;
+            Ok(MigrateOutcome::Migrated)
+        });
+        match result {
+            Ok(outcome) => Ok(outcome),
+            Err(e) if is_readonly_io(&e) => Ok(MigrateOutcome::SkippedReadOnly),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Serialise and atomically write this store to the tracked path.
+    /// Callers own refusal checks and locking.
+    fn write_tracked(&self, workspace_root: &Path) -> Result<(), ExceptionError> {
         let path = workspace_root.join(EXCEPTIONS_FILE);
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
@@ -104,27 +263,32 @@ impl ExceptionStore {
         Ok(())
     }
 
-    /// One-time, non-destructive migration of the legacy local store
-    /// (`.anvil/exceptions.json`) to the tracked store
-    /// (`anvil/exceptions/store.json`), per ADR-073.
-    ///
-    /// Copies the legacy store to the tracked path when the legacy file exists
-    /// and the tracked store does not yet. Idempotent — returns `Ok(false)`
-    /// when there is nothing to do. The legacy file is **left in place**;
-    /// callers decide when to remove it.
-    ///
-    /// Not yet wired into any command (`EXCEPT-004`), and not safe for
-    /// concurrent callers — the exists-then-save window is closed by
-    /// `EXCEPT-007`'s locking before any startup/CLI wiring.
-    pub fn migrate(workspace_root: &Path) -> Result<bool, ExceptionError> {
-        let tracked = workspace_root.join(EXCEPTIONS_FILE);
-        let legacy = workspace_root.join(LEGACY_EXCEPTIONS_FILE);
-        if tracked.exists() || !legacy.exists() {
-            return Ok(false);
-        }
-        let store = Self::load_from(&legacy)?;
-        store.save(workspace_root)?;
-        Ok(true)
+    /// Run `body` while holding an exclusive flock on
+    /// `anvil/exceptions/.lock`, mirroring `anvil-witness::WitnessWriter`:
+    /// the lock is held only for the duration of the call, and released
+    /// (via close) before returning. flock is per open-file-description,
+    /// so this serialises writers across threads **and** processes.
+    fn locked<T>(
+        workspace_root: &Path,
+        body: impl FnOnce() -> Result<T, ExceptionError>,
+    ) -> Result<T, ExceptionError> {
+        use fs2::FileExt;
+        let dir = workspace_root.join(EXCEPTIONS_FILE);
+        let dir = dir.parent().expect("EXCEPTIONS_FILE has a parent");
+        std::fs::create_dir_all(dir)?;
+        let lock_path = dir.join(LOCK_FILE_NAME);
+        let lock_file = std::fs::OpenOptions::new()
+            .create(true)
+            .read(true)
+            .write(true)
+            .truncate(false)
+            .open(&lock_path)?;
+        lock_file.lock_exclusive()?;
+        let result = body();
+        // Unlock explicitly so the success path doesn't depend on Drop
+        // order; close would release it regardless.
+        let _ = fs2::FileExt::unlock(&lock_file);
+        result
     }
 
     /// Returns only the exceptions that are currently active (not expired).
@@ -150,6 +314,46 @@ impl ExceptionStore {
     /// Removes all exceptions for the given policy ID.
     pub fn remove_by_policy(&mut self, policy_id: &str) {
         self.exceptions.retain(|e| e.policy_id != policy_id);
+    }
+}
+
+/// Refuse to write through a symlink at any component of the tracked
+/// store's path (`anvil`, `anvil/exceptions`, the store file, the lock
+/// file). A hostile repository shipping a symlinked governance dir would
+/// otherwise redirect writes outside the worktree. Mirrors
+/// `anvil-witness`'s `refuse_if_symlink` discipline; non-existent
+/// components are fine — `create_dir_all` creates real directories.
+fn refuse_symlinked_store_paths(workspace_root: &Path) -> Result<(), ExceptionError> {
+    let store = workspace_root.join(EXCEPTIONS_FILE);
+    let dir = store.parent().expect("EXCEPTIONS_FILE has a parent");
+    let anvil = dir.parent().expect("exceptions dir has a parent");
+    for path in [anvil, dir, &store, &dir.join(LOCK_FILE_NAME)] {
+        // symlink_metadata (not exists()) so a *dangling* symlink — which
+        // exists() reports as absent — is still refused.
+        match std::fs::symlink_metadata(path) {
+            Ok(meta) if meta.file_type().is_symlink() => {
+                return Err(ExceptionError::SymlinkedPath {
+                    path: path.to_path_buf(),
+                });
+            }
+            Ok(_) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e.into()),
+        }
+    }
+    Ok(())
+}
+
+/// Whether an error is the read-only-worktree class that write paths
+/// degrade on (ADR-002: warn, never block) rather than propagate.
+fn is_readonly_io(error: &ExceptionError) -> bool {
+    use std::io::ErrorKind;
+    match error {
+        ExceptionError::Io(e) => matches!(
+            e.kind(),
+            ErrorKind::PermissionDenied | ErrorKind::ReadOnlyFilesystem
+        ),
+        _ => false,
     }
 }
 
@@ -376,7 +580,7 @@ mod tests {
         store.add(make_exception("AP-001", "src/**"));
         store.add(make_exception("AP-003", ""));
 
-        store.save(tmp.path()).unwrap();
+        assert_eq!(store.save(tmp.path()).unwrap(), WriteOutcome::Written);
         let loaded = ExceptionStore::load(tmp.path()).unwrap();
         assert_eq!(loaded.exceptions.len(), 2);
         assert_eq!(loaded.exceptions[0].policy_id, "AP-001");
@@ -440,7 +644,7 @@ mod tests {
         let tmp = tempfile::TempDir::new().unwrap();
         let mut store = ExceptionStore::empty();
         store.add(make_exception("AP-001", "src/**"));
-        store.save(tmp.path()).unwrap();
+        assert_eq!(store.save(tmp.path()).unwrap(), WriteOutcome::Written);
 
         assert!(tmp.path().join("anvil/exceptions/store.json").exists());
         assert!(!tmp.path().join(".anvil/exceptions.json").exists());
@@ -482,7 +686,7 @@ mod tests {
         write_store_at(tmp.path(), ".anvil/exceptions.json", &legacy);
 
         let migrated = ExceptionStore::migrate(tmp.path()).unwrap();
-        assert!(migrated);
+        assert_eq!(migrated, MigrateOutcome::Migrated);
 
         // Tracked store now exists and carries the data.
         assert!(tmp.path().join("anvil/exceptions/store.json").exists());
@@ -499,15 +703,216 @@ mod tests {
         let tmp = tempfile::TempDir::new().unwrap();
 
         // Nothing to migrate when no legacy store exists.
-        assert!(!ExceptionStore::migrate(tmp.path()).unwrap());
+        assert_eq!(
+            ExceptionStore::migrate(tmp.path()).unwrap(),
+            MigrateOutcome::NothingToDo
+        );
 
         let mut legacy = ExceptionStore::empty();
         legacy.add(make_exception("AP-001", ""));
         write_store_at(tmp.path(), ".anvil/exceptions.json", &legacy);
 
         // First migration moves the data.
-        assert!(ExceptionStore::migrate(tmp.path()).unwrap());
+        assert_eq!(
+            ExceptionStore::migrate(tmp.path()).unwrap(),
+            MigrateOutcome::Migrated
+        );
         // Second call is a no-op because the tracked store now exists.
-        assert!(!ExceptionStore::migrate(tmp.path()).unwrap());
+        assert_eq!(
+            ExceptionStore::migrate(tmp.path()).unwrap(),
+            MigrateOutcome::NothingToDo
+        );
+    }
+
+    // --- EXCEPT-007 write-path hardening ---
+
+    #[test]
+    fn load_reports_provenance() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        assert_eq!(
+            ExceptionStore::load(tmp.path()).unwrap().source(),
+            StoreSource::Fresh
+        );
+
+        let mut legacy = ExceptionStore::empty();
+        legacy.add(make_exception("AP-001", ""));
+        write_store_at(tmp.path(), ".anvil/exceptions.json", &legacy);
+        assert_eq!(
+            ExceptionStore::load(tmp.path()).unwrap().source(),
+            StoreSource::Legacy
+        );
+
+        write_store_at(tmp.path(), "anvil/exceptions/store.json", &legacy);
+        assert_eq!(
+            ExceptionStore::load(tmp.path()).unwrap().source(),
+            StoreSource::Tracked
+        );
+    }
+
+    /// The silent-promotion hole the council flagged: load (legacy
+    /// fallback) → save (tracked) must refuse, not quietly copy
+    /// local-only entries into git.
+    #[test]
+    fn save_refuses_legacy_origin_store() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let mut legacy = ExceptionStore::empty();
+        legacy.add(make_exception("AP-001", ""));
+        write_store_at(tmp.path(), ".anvil/exceptions.json", &legacy);
+
+        let loaded = ExceptionStore::load(tmp.path()).unwrap();
+        let err = loaded.save(tmp.path()).unwrap_err();
+        assert!(matches!(err, ExceptionError::LegacyOriginNotMigrated));
+        // Nothing was promoted.
+        assert!(!tmp.path().join("anvil/exceptions/store.json").exists());
+    }
+
+    #[test]
+    fn migrate_then_reload_allows_save() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let mut legacy = ExceptionStore::empty();
+        legacy.add(make_exception("AP-001", ""));
+        write_store_at(tmp.path(), ".anvil/exceptions.json", &legacy);
+
+        assert_eq!(
+            ExceptionStore::migrate(tmp.path()).unwrap(),
+            MigrateOutcome::Migrated
+        );
+        let mut reloaded = ExceptionStore::load(tmp.path()).unwrap();
+        assert_eq!(reloaded.source(), StoreSource::Tracked);
+        reloaded.add(make_exception("AP-002", ""));
+        assert_eq!(reloaded.save(tmp.path()).unwrap(), WriteOutcome::Written);
+    }
+
+    #[test]
+    fn update_applies_mutation_under_lock() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let outcome = ExceptionStore::update(tmp.path(), |store| {
+            store.add(make_exception("AP-001", ""));
+        })
+        .unwrap();
+        assert_eq!(outcome, WriteOutcome::Written);
+        let outcome = ExceptionStore::update(tmp.path(), |store| {
+            store.add(make_exception("AP-002", ""));
+        })
+        .unwrap();
+        assert_eq!(outcome, WriteOutcome::Written);
+        let loaded = ExceptionStore::load(tmp.path()).unwrap();
+        assert_eq!(loaded.exceptions.len(), 2);
+    }
+
+    /// The lost-write race the council flagged: concurrent
+    /// load-modify-save cycles must not drop each other's entries.
+    /// `update` holds the flock across the full cycle, so every
+    /// thread's exception survives.
+    #[test]
+    fn update_concurrent_writers_lose_nothing() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let root = tmp.path().to_path_buf();
+        let threads: Vec<_> = (0..8)
+            .map(|i| {
+                let root = root.clone();
+                std::thread::spawn(move || {
+                    ExceptionStore::update(&root, |store| {
+                        store.add(make_exception(&format!("AP-{i:03}"), ""));
+                    })
+                    .unwrap()
+                })
+            })
+            .collect();
+        for handle in threads {
+            assert_eq!(handle.join().unwrap(), WriteOutcome::Written);
+        }
+        let loaded = ExceptionStore::load(&root).unwrap();
+        assert_eq!(loaded.exceptions.len(), 8);
+    }
+
+    #[test]
+    fn update_refuses_unmigrated_legacy_store() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let mut legacy = ExceptionStore::empty();
+        legacy.add(make_exception("AP-001", ""));
+        write_store_at(tmp.path(), ".anvil/exceptions.json", &legacy);
+
+        let err = ExceptionStore::update(tmp.path(), |store| {
+            store.add(make_exception("AP-002", ""));
+        })
+        .unwrap_err();
+        assert!(matches!(err, ExceptionError::LegacyOriginNotMigrated));
+    }
+
+    /// Hostile-repo gadget: `anvil/exceptions` as a symlink pointing
+    /// outside the worktree must be refused, not written through.
+    #[cfg(unix)]
+    #[test]
+    fn save_refuses_symlinked_exceptions_dir() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let outside = tempfile::TempDir::new().unwrap();
+        std::fs::create_dir_all(tmp.path().join("anvil")).unwrap();
+        std::os::unix::fs::symlink(outside.path(), tmp.path().join("anvil/exceptions")).unwrap();
+
+        let store = ExceptionStore::empty();
+        let err = store.save(tmp.path()).unwrap_err();
+        assert!(matches!(err, ExceptionError::SymlinkedPath { .. }));
+        // Nothing escaped into the symlink target.
+        assert!(!outside.path().join("store.json").exists());
+    }
+
+    /// A dangling symlink reports `exists() == false`; the guard must
+    /// still refuse it rather than letting `create_dir_all` follow it.
+    #[cfg(unix)]
+    #[test]
+    fn save_refuses_dangling_symlinked_store_path() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::create_dir_all(tmp.path().join("anvil/exceptions")).unwrap();
+        std::os::unix::fs::symlink(
+            "/nonexistent/elsewhere.json",
+            tmp.path().join("anvil/exceptions/store.json"),
+        )
+        .unwrap();
+
+        let store = ExceptionStore::empty();
+        let err = store.save(tmp.path()).unwrap_err();
+        assert!(matches!(err, ExceptionError::SymlinkedPath { .. }));
+    }
+
+    /// ADR-002: a read-only worktree (bare CI checkout) degrades to a
+    /// typed skip the gate can warn on — never a propagated I/O error.
+    #[cfg(unix)]
+    #[test]
+    fn save_skips_readonly_worktree() {
+        use std::os::unix::fs::PermissionsExt;
+        let tmp = tempfile::TempDir::new().unwrap();
+        let mut perms = std::fs::metadata(tmp.path()).unwrap().permissions();
+        perms.set_mode(0o555);
+        std::fs::set_permissions(tmp.path(), perms.clone()).unwrap();
+
+        let store = ExceptionStore::empty();
+        let outcome = store.save(tmp.path()).unwrap();
+        assert_eq!(outcome, WriteOutcome::SkippedReadOnly);
+
+        // Restore so TempDir cleanup can delete the tree.
+        perms.set_mode(0o755);
+        std::fs::set_permissions(tmp.path(), perms).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn migrate_skips_readonly_worktree() {
+        use std::os::unix::fs::PermissionsExt;
+        let tmp = tempfile::TempDir::new().unwrap();
+        let mut legacy = ExceptionStore::empty();
+        legacy.add(make_exception("AP-001", ""));
+        write_store_at(tmp.path(), ".anvil/exceptions.json", &legacy);
+
+        let mut perms = std::fs::metadata(tmp.path()).unwrap().permissions();
+        perms.set_mode(0o555);
+        std::fs::set_permissions(tmp.path(), perms.clone()).unwrap();
+
+        let outcome = ExceptionStore::migrate(tmp.path()).unwrap();
+        assert_eq!(outcome, MigrateOutcome::SkippedReadOnly);
+        assert!(!tmp.path().join("anvil/exceptions/store.json").exists());
+
+        perms.set_mode(0o755);
+        std::fs::set_permissions(tmp.path(), perms).unwrap();
     }
 }
