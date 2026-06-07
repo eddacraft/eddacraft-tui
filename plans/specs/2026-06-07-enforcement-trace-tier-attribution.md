@@ -1,5 +1,13 @@
 # Enforcement Trace — Deterministic Tier-Attribution Receipt — Design Spec
 
+| Type | Authority | Owner | Status | Freshness |
+| ---- | --------- | ----- | ------ | --------- |
+| Spec | Advisory | TBD (proposed; `CEWS` on adoption) | Draft | Last reviewed 2026-06-07 against `crates/anvil-policy-engine/src/result.rs`, `plans/decisions/062-policy-evidence-drift-as-evidence.md` |
+
+| Upstream | Downstream |
+| -------- | ---------- |
+| `plans/decisions/037-witness-chain-and-l4-policy.md`, `plans/decisions/058-sarif-shared-emitter-no-finding-model.md`, `plans/decisions/062-policy-evidence-drift-as-evidence.md`, `plans/modules/compliance-evidence-workspace.aps.md` | Future Enforcement Trace ADR and APS plan (none live yet) |
+
 **Status:** Draft — pending Planning Council review (cross-boundary).
 **Date:** 2026-06-07
 **Owner:** TBD (proposed)
@@ -108,9 +116,9 @@ this draft). Optional fields use `#[serde(default, skip_serializing_if =
 
 ```json
 {
-  "schema_version": "1.0.0",
+  "schema_version": "anvil.enforcement-trace.v1",
   "decision_ref": "string",            // stable id of the recorded decision
-  "normalized_action_ref": "string",   // ref to the normalized action under eval
+  "normalized_action_ref": "string",   // ref to the normalised action under eval
   "tool_name": "string",
   "policy_ref": "string",
   "policy_digest": "string",           // hash of the effective policy
@@ -120,7 +128,7 @@ this draft). Optional fields use `#[serde(default, skip_serializing_if =
   "matched_constraint_ref": "string|null",
   "pattern_scan_result": "Clean|Matched|Skipped|null",
   "rate_limit_state_ref": "string|null",   // referenced, not defined here (§3.3)
-  "determinism": "Deterministic|EscalatedToReview", // required attestation (§7)
+  "determinism": "Deterministic|EscalateToReview", // required attestation (§7)
   "advisory_refs": [],                 // non-binding model/heuristic notes (§7)
   "verdict": "Pass|Warn|Block|EscalateToReview",
   "explanation_ref": "string",         // stable reason, not free text
@@ -144,7 +152,7 @@ Morgan's radar entry proposed an 18-field `EnforcementPipelineTrace` /
 **diverges** as follows:
 
 - **Drops `model_judge_used` and `model_judge_result`** from the canonical
-  shape. Including them normalizes the LLM-judge tier as part of Anvil's binding
+  shape. Including them normalises the LLM-judge tier as part of Anvil's binding
   vocabulary — the exact thing the source note warns against. Model assistance,
   if ever present, is represented as non-binding `advisory_refs` (§7).
 - **Adds `determinism`** as a required attestation — the durable differentiator
@@ -163,7 +171,7 @@ schema-versioned closed-set vocabularies (`WorktreeClaimState`, `BlockReason`,
 | Tier | Cost class | Notes |
 | --- | --- | --- |
 | `StaticRule` | cheap | exact/glob tool + constraint match |
-| `PatternScan` | cheap | regex/blocklist scan over normalized args |
+| `PatternScan` | cheap | regex/blocklist scan over normalised args |
 | `RateLimit` | cheap | references existing rate-limit signal if present; not defined here |
 | `EscalateToReview` | terminal | ambiguity routed to human/deferred review |
 
