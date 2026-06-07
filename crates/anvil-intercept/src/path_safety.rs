@@ -32,6 +32,11 @@ use std::io::{self, Read};
 use std::os::fd::{AsFd, BorrowedFd, OwnedFd};
 use std::path::Path;
 
+// `Errno` is only referenced by the Linux `openat2` fallback ladder (the
+// `ENOSYS`/`EPERM` match) and by the tests (`ELOOP`); gate the import so a
+// non-Linux build (e.g. the macOS cross matrix) does not flag it unused under
+// `-D warnings`.
+#[cfg(any(target_os = "linux", test))]
 use nix::errno::Errno;
 use nix::fcntl::{OFlag, openat};
 use nix::sys::stat::Mode;
@@ -128,11 +133,14 @@ pub fn normalise_rel(path: &str) -> Result<RelPath, Escape> {
 /// Propagates the underlying open error (e.g. the root does not exist or is
 /// not a directory).
 pub fn open_workspace_dirfd(root: &Path) -> io::Result<OwnedFd> {
-    let mut flags = OFlag::O_DIRECTORY | OFlag::O_CLOEXEC;
+    // `O_PATH` is the lightest handle that still works as an `*at` anchor, but it
+    // is Linux-only; elsewhere a plain `O_DIRECTORY` fd. Two cfg-split bindings
+    // (rather than `let mut` + a Linux-gated `|=`) so a non-Linux build does not
+    // flag the unmutated `flags` under `-D warnings`.
     #[cfg(target_os = "linux")]
-    {
-        flags |= OFlag::O_PATH;
-    }
+    let flags = OFlag::O_DIRECTORY | OFlag::O_CLOEXEC | OFlag::O_PATH;
+    #[cfg(not(target_os = "linux"))]
+    let flags = OFlag::O_DIRECTORY | OFlag::O_CLOEXEC;
     nix::fcntl::open(root, flags, Mode::empty()).map_err(io::Error::from)
 }
 
