@@ -16,9 +16,12 @@
 | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | -------- | ------------- | ------ | ------ |
 | [Adoption — Operator Runbook](../../docs/runbooks/anvil-adoption.md)                                             | `docs/runbooks/anvil-adoption.md`            | Runbook  | Authoritative | @aneki | Live   |
 | [Air-Gapped Operation Guarantee](../../docs/runbooks/anvil-air-gapped.md)                                        | `docs/runbooks/anvil-air-gapped.md`          | Runbook  | Authoritative | @aneki | Live   |
+| [Database Migrations Runbook](../../docs/runbooks/db-migrations.md)                                              | `docs/runbooks/db-migrations.md`             | Runbook  | Authoritative | @aneki | Live   |
 | [Homebrew Formula Publish — Operator Runbook](../../docs/runbooks/homebrew-publish.md)                           | `docs/runbooks/homebrew-publish.md`          | Runbook  | Authoritative | @aneki | Live   |
 | [Hook Coexistence — Operator Runbook](../../docs/runbooks/anvil-hook-coexistence.md)                             | `docs/runbooks/anvil-hook-coexistence.md`    | Runbook  | Authoritative | @aneki | Live   |
 | [JS/TS Release Surfaces — As-Built Inventory](../../docs/architecture/jsts-release-surfaces.md)                  | `docs/architecture/jsts-release-surfaces.md` | As-built | Derived       | @aneki | Live   |
+| [Neon DB Operations Runbook](../../docs/runbooks/neon-db-operations.md)                                          | `docs/runbooks/neon-db-operations.md`        | Runbook  | Authoritative | @aneki | Live   |
+| [Post-Deploy Smoke Check Runbook](../../docs/runbooks/post-deploy-smoke-check.md)                                | `docs/runbooks/post-deploy-smoke-check.md`   | Runbook  | Authoritative | @aneki | Live   |
 | [Release Signing — Operator Runbook](../../docs/runbooks/release-signing.md)                                     | `docs/runbooks/release-signing.md`           | Runbook  | Authoritative | @aneki | Live   |
 | [Side-by-Side Candidate Install (ANVIL_HOME) — Operator Runbook](../../docs/runbooks/anvil-home-side-by-side.md) | `docs/runbooks/anvil-home-side-by-side.md`   | Runbook  | Authoritative | @aneki | Live   |
 | [Stack Migration Guide](../../docs/guides/stack-migration.md)                                                    | `docs/guides/stack-migration.md`             | Guide    | Authoritative | @aneki | Live   |
@@ -26,14 +29,6 @@
 | [anvil-migrate(1)](../../docs/runbooks/anvil-migrate.md)                                                         | `docs/runbooks/anvil-migrate.md`             | Runbook  | Authoritative | @aneki | Live   |
 | [anvil-run(1)](../../docs/runbooks/anvil-run.md)                                                                 | `docs/runbooks/anvil-run.md`                 | Runbook  | Authoritative | @aneki | Live   |
 | [eddacraft-tui Crate Release — Operator Runbook](../../docs/runbooks/eddacraft-tui-release.md)                   | `docs/runbooks/eddacraft-tui-release.md`     | Runbook  | Authoritative | @aneki | Live   |
-
-## @aneki (aneki@eddacraft.ai)
-
-| Document                                                                          | Path                                       | Type    | Authority     | Owner                       | Status |
-| --------------------------------------------------------------------------------- | ------------------------------------------ | ------- | ------------- | --------------------------- | ------ |
-| [Database Migrations Runbook](../../docs/runbooks/db-migrations.md)               | `docs/runbooks/db-migrations.md`           | Runbook | Authoritative | @aneki (aneki@eddacraft.ai) | Live   |
-| [Neon DB Operations Runbook](../../docs/runbooks/neon-db-operations.md)           | `docs/runbooks/neon-db-operations.md`      | Runbook | Authoritative | @aneki (aneki@eddacraft.ai) | Live   |
-| [Post-Deploy Smoke Check Runbook](../../docs/runbooks/post-deploy-smoke-check.md) | `docs/runbooks/post-deploy-smoke-check.md` | Runbook | Authoritative | @aneki (aneki@eddacraft.ai) | Live   |
 
 ## ADOPT (plans/archive/modules/adoption-friction.aps.md)
 
