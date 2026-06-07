@@ -4,7 +4,9 @@
 | --- | ----- | ----------- |
 | DSV | Josh  | In Progress |
 
-**Last reviewed:** 2026-06-05 (DSV-011 hardening complete)
+**Last reviewed:** 2026-06-08 (DSV-011 Merged — Sub-phase A-W closed 2/2 on
+green cross-matrix evidence, run 27102943706; bench-flake blocker fixed via
+PR #2365)
 
 ## Purpose
 
@@ -40,9 +42,10 @@ persistence) without consumers re-integrating.
   short-term-supported targets. macOS already works (`cfg(unix)`); Windows was the
   gap (verbs unserved, clients were `cfg(not(unix))` stubs). DSV-010 Merged (the
   verbs are served on Windows behind the ADR-068/070 read-safety guard + peer-SID
-  auth + owner-only config trust); DSV-011 (Windows `watch`/`status` clients)
-  In Progress. Same frozen wire and interim backing as Sub-phase A — a *platform*
-  axis, not a *backing* swap, so it is orthogonal to A′/B.
+  auth + owner-only config trust); DSV-011 Merged (Windows `watch`/`status`
+  clients; closed 2/2 on green cross-matrix evidence, run 27102943706). Same
+  frozen wire and interim backing as Sub-phase A — a *platform* axis, not a
+  *backing* swap, so it is orthogonal to A′/B.
 - **Sub-phase A′ — GV2 hot-read swap.** Replace the interim cache with the GV2
   resident warm-index slice (GV2-010/011/020/022) under the unchanged wire.
   Blocked on the GV2 hot-/non-hot-path boundary gate.
@@ -473,9 +476,11 @@ closed in PR #2291). Windows was the real gap: the save-time verbs were not serv
 and the clients were `cfg(not(unix))` stubs. **DSV-010 (Merged 2026-06-05 via
 PR #2328, hardened via #2340)** closes it — the three verbs are served over the
 per-user named pipe behind the ADR-068/070 read-safety guard, peer-SID auth, and
-owner-only config trust. **DSV-011** (the Windows `watch`/`status` clients) is
-In Progress (functional in fallback mode; pipe-client read-timeout hardening
-landed via #2327).
+owner-only config trust. **DSV-011 (Merged 2026-06-05 via PRs #2317 + #2327)**
+completes the pair — the Windows `watch`/`status` clients speak the served
+verbs end-to-end; closure evidence is the green full cross matrix on dispatch
+run 27102943706 (2026-06-07, after PR #2365 fixed an unrelated bench-test
+flake on the Windows leg). Sub-phase A-W is closed 2/2.
 
 #### DSV-010: Windows named-pipe save-time daemon
 
@@ -602,7 +607,16 @@ landed via #2327).
 
 #### DSV-011: Windows `watch` + `status` save-time clients
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-05 via PRs #2317 (client) + #2327 (hardening)
+- **Progress (2026-06-07, closure):** with DSV-010b serving the verbs (PR
+  #2328), the full `rust.yml` cross matrix ran green on dispatch run
+  [27102943706](https://github.com/eddacraft/anvil-001/actions/runs/27102943706)
+  — both `x86_64-pc-windows-msvc` and `aarch64-pc-windows-msvc` legs pass,
+  including the named-pipe fixture test. The one red blocking that evidence
+  was an unrelated latent timing flake in `anvil-bench`'s spawn liveness
+  test (fixed via PR #2365 — deterministic reap instead of a 100 ms sleep).
+  All Expected-Outcome surfaces verified live on `main`; item advances to
+  Merged. Sub-phase A-W closes 2/2.
 - **Progress (2026-06-04):** brought forward alongside DSV-010a (it resolves the
   same windows dead-code: the save-time client machinery had no Windows
   constructor). `WindowsPipeSaveTimeTransport` (`watch_save_time.rs`) speaks
@@ -893,8 +907,8 @@ Merged item; each is an additive improvement under the frozen wire.
 | Sub-phase | Items | Completion | Status |
 | --------- | ----- | ---------- | ------ |
 | A — Interim-cache `validate_paths` | 9 | 9/9 done | Done (all Merged; awaiting release) |
-| A-W — Windows + cross-platform parity | 2 | 1/2 done (DSV-010 Merged — verbs served on Windows + hardening; DSV-011 clients In Progress) | In Progress |
+| A-W — Windows + cross-platform parity | 2 | 2/2 done (DSV-010 Merged — verbs served on Windows + hardening; DSV-011 Merged — clients verified on the green cross matrix, run 27102943706) | Done (all Merged; awaiting release) |
 | A — deferred follow-ups | 5 | 4/5 done | In Progress |
 | A′ — GV2 hot-read swap | 1 | 0/1 done | Blocked |
 | B — Warm-start persistence | 1 | 0/1 done | Blocked |
-| **Total** | **18** | **14/18 done** | **In Progress** |
+| **Total** | **18** | **15/18 done** | **In Progress** |
