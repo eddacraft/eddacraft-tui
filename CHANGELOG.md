@@ -11,6 +11,15 @@ minor version bump indicates a breaking change.
 
 ## [0.3.0] - 2026-06-08
 
+### Breaking
+
+- **`json-render` feature API contract expanded from parse/validation to
+  rendering.** Consumers that enabled the experimental `json-render` feature in
+  0.2.4 should treat the module as a new rendering engine surface: it now exports
+  data binding, sanitisation, responsive helpers, component renderers, a base
+  registry, and `render_spec`. Code that wrapped or re-exported the previous
+  parser-only module should review its public API and feature documentation.
+
 ### Added
 
 - **JSON render component catalogue and renderer.** The `json-render` feature now
