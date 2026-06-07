@@ -131,7 +131,7 @@ A fully-populated document (this is the schema-stability snapshot fixture):
   },
   "plans": [
     {
-      "path": "plans/archive/modules/policy-engine.aps.md",
+      "path": "plans/modules/policy-engine.aps.md",
       "id": "POLENG",
       "status": "In Progress"
     }
