@@ -5,9 +5,9 @@
 
 | ID     | Owner   | Status | Done |
 | ------ | ------- | ------ | ---- |
-| RSTLAN | @aneki | In Progress | 7/8  |
+| RSTLAN | @aneki | In Progress | 8/8  |
 
-**Last reviewed:** 2026-06-05 — RSTLAN-003 (AST anti-pattern catalogue, ADR-071), RSTLAN-007 (`architecture-validate` surface for Rust), and RSTLAN-008 (T3 dogfood) Merged via PR #2329; module advanced to 7/8. Rust passes the T3 checklist and the §16.5 #9 FP bar on Anvil's own crates (571 files, 0 panics, 0 parse-skips, 0% FP). Only RSTLAN-006 (drift baseline) remains to reconcile (merged in code via PR #2324; status lags). `.clone()`-in-hot-loop and serde flatten/secret-field shapes deferred to a follow-on (RSTLAN-003b). Earlier (2026-06-03): NBI re-eval completed; ADR-065 Accepted; anchor re-scoring snapshot recorded; module promoted to Ready.
+**Last reviewed:** 2026-06-07 — RSTLAN-006 (drift baseline default-on for `.rs`) reconciled to Merged (PR #2324, 2026-06-04); all 8 work items now Merged (8/8). Module stays In Progress pending a release tag (all items merged; not yet Released/Shipped). Earlier (2026-06-05): RSTLAN-003 (AST anti-pattern catalogue, ADR-071), RSTLAN-007 (`architecture-validate` surface for Rust), and RSTLAN-008 (T3 dogfood) Merged via PR #2329 — Rust passes the T3 checklist and the §16.5 #9 FP bar on Anvil's own crates (571 files, 0 panics, 0 parse-skips, 0% FP). `.clone()`-in-hot-loop and serde flatten/secret-field shapes deferred to a follow-on (RSTLAN-003b). Earlier (2026-06-03): NBI re-eval completed; ADR-065 Accepted; anchor re-scoring snapshot recorded; module promoted to Ready.
 
 > **Priority update (2026-05-14, reaffirmed 2026-06-03):** RSTLAN is the first Language &
 > Coverage Track 1 anchor after TS because Anvil's primary implementation surface (kernel, daemon, intercept, witness, CLI, graph) is Rust. Self-governance of the shipped substrate is a credibility requirement before wider pack expansion. The module is now Ready; implementation authorised.
@@ -188,10 +188,10 @@ All items are Ready (module promoted 2026-06-03 after NBI re-eval, ADR-065, re-s
 - **Confidence:** medium-high — the validator already accepts edges; the work is primarily in the extractor + call-site plumbing.
 - **Files:** crates/anvil-cli/src/commands/gate.rs, crates/anvil-architecture/src/validator.rs (resolver), crates/anvil-kernel/src/parser/extract/rust.rs
 
-### RSTLAN-006: Drift baseline default-on for `.rs` files — In Progress
+### RSTLAN-006: Drift baseline default-on for `.rs` files — Merged
 
-- **Status:** In Progress
-- **Delivery note:** Two halves. **Architecture/edge drift** for `.rs` was already enabled by RSTLAN-005 (`collect_source_files` + gate `extract_import_edges` include `.rs`; `find_new_violations` diffs Rust edges). **Antipattern/debt drift**: `.rs` added to `AntipatternCheckConfig::default().extensions`, activating the already-`.rs`-scoped deferred-debt rules (DD-001/-002/-003 — un-ticketed TODO/FIXME/HACK/temporary) on Rust across `anvil check`/`gate`/drift **and** the DSV save-time daemon (operator-confirmed, warnings-only). JS/TS-specific rules stay extension-restricted; DSV-009 parity unaffected (corpus is `.ts`-only). Rust antipattern *catalogue* (unwrap/unsafe/serde) remains RSTLAN-003 (ADR-069).
+- **Status:** Merged 2026-06-04 via PR #2324
+- **Delivery note:** Two halves. **Architecture/edge drift** for `.rs` was already enabled by RSTLAN-005 (`collect_source_files` + gate `extract_import_edges` include `.rs`; `find_new_violations` diffs Rust edges). **Antipattern/debt drift**: `.rs` added to `AntipatternCheckConfig::default().extensions`, activating the already-`.rs`-scoped deferred-debt rules (DD-001/-002/-003 — un-ticketed TODO/FIXME/HACK/temporary) on Rust across `anvil check`/`gate`/drift **and** the DSV save-time daemon (operator-confirmed, warnings-only). JS/TS-specific rules stay extension-restricted; DSV-009 parity unaffected (corpus is `.ts`-only). Rust antipattern *catalogue* (unwrap/unsafe/serde) delivered by RSTLAN-003 (ADR-071, PR #2329).
 - **Intent:** Ensure that once a workspace has a baseline, `.rs` files participate in drift detection by default (no opt-in per-language flag).
 - **Expected Outcome:** `anvil drift` and baseline machinery include .rs files in the scanned set and edge set when the grammar+extractor are present; a pure-Rust or mixed workspace gets drift coverage for Rust without extra config.
 - **Scope:** Verify / extend the include logic in drift and baseline paths (likely already generic via architecture collect or kernel scan); update any docs or defaults; tests.
