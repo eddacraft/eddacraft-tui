@@ -37,11 +37,12 @@ persistence) without consumers re-integrating.
   (Tasks 0–17).
 - **Sub-phase A-W — Windows + cross-platform parity.** Bring the Sub-phase A
   save-time surface (daemon verbs + `watch`/`status` clients) to the other
-  short-term-supported targets. macOS already works (`cfg(unix)`); Windows is the
-  gap (verbs unserved, clients are `cfg(not(unix))` stubs). Proposed (DSV-010/011);
-  DSV-010 carries an open Windows read-safety design risk that likely needs an ADR
-  before it goes Ready. Same frozen wire and interim backing as Sub-phase A — a
-  *platform* axis, not a *backing* swap, so it is orthogonal to A′/B.
+  short-term-supported targets. macOS already works (`cfg(unix)`); Windows was the
+  gap (verbs unserved, clients were `cfg(not(unix))` stubs). DSV-010 Merged (the
+  verbs are served on Windows behind the ADR-068/070 read-safety guard + peer-SID
+  auth + owner-only config trust); DSV-011 (Windows `watch`/`status` clients)
+  In Progress. Same frozen wire and interim backing as Sub-phase A — a *platform*
+  axis, not a *backing* swap, so it is orthogonal to A′/B.
 - **Sub-phase A′ — GV2 hot-read swap.** Replace the interim cache with the GV2
   resident warm-index slice (GV2-010/011/020/022) under the unchanged wire.
   Blocked on the GV2 hot-/non-hot-path boundary gate.
@@ -468,10 +469,13 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
 Parity for the Sub-phase A save-time surface on the other short-term-supported
 targets. macOS already works (the daemon and `watch`/`status` clients are
 `cfg(unix)`, so they run on Darwin — the only macOS gap was a Linux-gated test,
-closed in PR #2291). Windows is the real gap: the save-time verbs are not served
-and the clients are `cfg(not(unix))` stubs. DSV-010/011 (Proposed 2026-06-04,
-drafted as a DSV-007 follow-up) bring Windows to parity; DSV-010 carries an open
-read-safety design risk that likely needs an ADR before it goes Ready.
+closed in PR #2291). Windows was the real gap: the save-time verbs were not served
+and the clients were `cfg(not(unix))` stubs. **DSV-010 (Merged 2026-06-05 via
+PR #2328, hardened via #2340)** closes it — the three verbs are served over the
+per-user named pipe behind the ADR-068/070 read-safety guard, peer-SID auth, and
+owner-only config trust. **DSV-011** (the Windows `watch`/`status` clients) is
+In Progress (functional in fallback mode; pipe-client read-timeout hardening
+landed via #2327).
 
 #### DSV-010: Windows named-pipe save-time daemon
 
@@ -569,16 +573,18 @@ read-safety design risk that likely needs an ADR before it goes Ready.
   (today `#![cfg(unix)]`) and its read path are lifted to a cross-platform boundary;
   same-user peer authorisation via the named-pipe ACL / `pipe_name_for_current_user`
   (the SO_PEERCRED equivalent); the frozen wire and verdict semantics are unchanged.
-- **Read-safety design (was the gating unknown — now drafted as
-  [ADR-068](../decisions/068-windows-save-time-read-safety.md), Proposed):** the
+- **Read-safety design (was the gating unknown — resolved by
+  [ADR-068](../decisions/068-windows-save-time-read-safety.md), Accepted; staged
+  by [ADR-070](../decisions/070-daemon-windows-buildability.md), Accepted):** the
   verdict's Unix guard (`path_safety.rs` — `openat2(RESOLVE_NO_SYMLINKS |
   RESOLVE_BENEATH)` against a held `O_PATH` dirfd) has no Windows analogue. ADR-068
   mirrors it with `NtCreateFile` anchored at a held workspace directory handle +
   `OBJ_DONT_REPARSE` (per-component `FILE_OPEN_REPARSE_POINT` ladder fallback),
   preserving C2 (held-handle identity), no-reparse traversal (symlinks + junctions),
   beneath-root, and B2 (read-then-certify; refuse oversized, never truncate), in
-  `anvil-intercept-win32` so the daemon stays `forbid(unsafe_code)`. **DSV-010 goes
-  Ready when ADR-068 is Accepted.**
+  `anvil-intercept-win32` so the daemon stays `forbid(unsafe_code)`. **Shipped in
+  PR #2328** as `read_safety.rs` (the `WorkspaceAnchor` Windows arm); the design
+  gate is closed.
 - **Validation:** a Windows IPC fixture round-trip (mirroring the MLP2-075 `windows_*`
   tests) proving the three verbs answer over the named pipe — the *test* binds a
   per-PID pipe name so it never collides with a real per-user daemon on the same
@@ -586,9 +592,10 @@ read-safety design risk that likely needs an ADR before it goes Ready.
   Expected Outcome; the cross-path parity gate (DSV-009) extended to a Windows path.
 - **Files:** `crates/anvil-intercept/src/{save_time,path_safety,ipc}.rs`,
   `crates/anvil-intercept-win32/`.
-- **Confidence:** low — gated on the read-safety design decision above.
+- **Confidence:** high — delivered; the read-safety design gate is closed (was:
+  low, gated on the design decision above; ADR-068/070 Accepted and shipped).
 - **Priority:** High (short-term-supported target).
-- **Dependencies:** DSV-005; [ADR-068](../decisions/068-windows-save-time-read-safety.md) Accepted (Windows read-safety).
+- **Dependencies:** DSV-005; [ADR-068](../decisions/068-windows-save-time-read-safety.md) Accepted (Windows read-safety); [ADR-070](../decisions/070-daemon-windows-buildability.md) Accepted (buildability staging).
 - **Source:** DSV-007 follow-up (macOS + Windows are short-term save-time targets);
   ADR-015; brainstorms `2026-05-01-hearth-rearchitecture.md` /
   `2026-05-07-daemon-sessions-surfaces-boundaries.md`.
@@ -886,7 +893,7 @@ Merged item; each is an additive improvement under the frozen wire.
 | Sub-phase | Items | Completion | Status |
 | --------- | ----- | ---------- | ------ |
 | A — Interim-cache `validate_paths` | 9 | 9/9 done | Done (all Merged; awaiting release) |
-| A-W — Windows + cross-platform parity | 2 | 1/2 done (DSV-011 hardening + fixture test complete; DSV-010b verbs pending) | In Progress |
+| A-W — Windows + cross-platform parity | 2 | 1/2 done (DSV-010 Merged — verbs served on Windows + hardening; DSV-011 clients In Progress) | In Progress |
 | A — deferred follow-ups | 5 | 4/5 done | In Progress |
 | A′ — GV2 hot-read swap | 1 | 0/1 done | Blocked |
 | B — Warm-start persistence | 1 | 0/1 done | Blocked |
