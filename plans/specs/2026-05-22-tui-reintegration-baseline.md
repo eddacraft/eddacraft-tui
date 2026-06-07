@@ -216,7 +216,8 @@ This file is the **live anchor** that D-TUIR-007's drift gate
 (`.github/workflows/publish-eddacraft-tui.yml`) byte-diffs against at publish
 time, so it must equal the in-repo crate's
 `cargo package --list -p eddacraft-tui --allow-dirty` — not a frozen snapshot.
-It therefore tracks the **post-migration canonical published set (58 files)**.
+It therefore tracks the **post-migration canonical published set (91 files as
+of the 2026-06-08 `eddacraft-tui` v0.3.0 release recovery refresh)**.
 At TUIR-001 capture time it held the standalone v0.2.2 tarball (60 files); the
 two differ by exactly the TUIR-002 import deltas — dropped
 `.github/workflows/{ci,release}.yml`, `deny.toml`, and
@@ -224,7 +225,8 @@ two differ by exactly the TUIR-002 import deltas — dropped
 `MIRROR-README.md`. The original standalone 60-file snapshot is preserved in
 this file's git history at the TUIR-001 capture commit. (TUIR-008 refreshed the
 file to the canonical set so the publish gate, whose live validation was
-deferred to TUIR-008, passes the cut.)
+deferred to TUIR-008, passes the cut; the 2026-06-08 recovery refresh realigned
+the live anchor after the JSON render component catalogue expanded the package.)
 
 ### Repo-management dirs NOT carried to `crates/eddacraft-tui/`
 
