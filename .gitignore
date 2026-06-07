@@ -181,27 +181,11 @@ anvil/witness/
 
 # Local review artefacts
 review/
-# `plans/reviews/` mostly ignored — but release-council artefacts,
-# post-merge review files, CI notes, and dated Clawpatch review notes
-# (triage, rust follow-ups, batch scopes) are durable review evidence.
-# Lint tooling already excludes the whole `plans/` tree via .markdownlintignore
-# and .prettierignore, so nothing tracked here is in scope for format/lint.
-plans/reviews/*
-!plans/reviews/continuous-improvement-log.md
-!plans/reviews/20*-clawpatch-*.md
-!plans/reviews/post-merge/
-!plans/reviews/post-merge/**
-!plans/reviews/release-council/
-!plans/reviews/release-council/**
-# Architecture review councils + their inputs (durable design evidence).
-!plans/reviews/20*-daemon-graph-architecture-review.md
-!plans/reviews/20*-daemon-graph-council-verdict.md
-# Source review backing the 2026-05-09 plan/build/release operating-model spec.
-!plans/reviews/plan-build-release-operating-model.md
-# Source review backing the 2026-05-09 CPU problem analysis and response.
-!plans/reviews/WATCH-CPU-PROBLEM.md
-!plans/reviews/ANVIL-DAEMON-DESIGN-RESPONSE.md
-!plans/reviews/2026-06-01-daemon-graph-architecture-review.md
+# `plans/reviews/` is tracked durable review evidence — council verdicts,
+# triage notes, CI notes, post-merge and release-council reviews, family maps,
+# and architecture review inputs. Lint tooling already excludes the whole
+# `plans/` tree via .markdownlintignore and .prettierignore, so nothing here is
+# in scope for format/lint.
 # GitHub Local Runners
 .github/actions-runner
 
