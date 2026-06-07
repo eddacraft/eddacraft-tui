@@ -571,12 +571,19 @@ mod tests {
 
     #[test]
     fn walk_deep_tree_does_not_overflow_the_stack() {
-        // A 512-deep chain would risk a recursive walk's thread stack on some
-        // hosts; the iterative form handles it. The leaf sits past the depth
-        // cap, proving deep descent terminates by the cap, not by crashing.
+        // A deep chain exercises the iterative walk's descent; the leaf sits
+        // past the 256 depth cap below, proving descent terminates by the cap
+        // (not by crashing or by following the chain to the leaf).
+        //
+        // Depth is bounded below `PATH_MAX` (~1024 on macOS, half of Linux's)
+        // because the chain is built from absolute paths: a 512-deep `d/` chain
+        // overflows macOS `PATH_MAX` during *setup*. 300 keeps the deepest path
+        // well under the limit while still exceeding the 256 cap (the walk only
+        // ever descends to the cap, so the chain need only be deeper than it).
+        const DEPTH: usize = 300;
         let tmp = tempfile::tempdir().expect("tempdir");
         let mut dir = tmp.path().to_path_buf();
-        for _ in 0..512 {
+        for _ in 0..DEPTH {
             dir = dir.join("d");
             std::fs::create_dir(&dir).expect("nested dir");
         }

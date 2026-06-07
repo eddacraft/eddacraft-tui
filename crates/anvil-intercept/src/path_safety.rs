@@ -404,7 +404,16 @@ mod tests {
         let rel = normalise_rel("link/secret").unwrap();
         let err = read_under(dirfd.as_fd(), &rel)
             .expect_err("a symlinked parent component must be refused");
-        assert_eq!(err.raw_os_error(), Some(Errno::ELOOP as i32), "{err}");
+        // Linux `openat2(RESOLVE_NO_SYMLINKS)` refuses a symlinked directory
+        // component with `ELOOP`; the non-Linux `O_NOFOLLOW` ladder opens the
+        // component `O_DIRECTORY | O_NOFOLLOW`, so the unfollowed symlink is
+        // rejected as `ENOTDIR` (e.g. macOS). Both mean "fail closed" — accept
+        // either, matching `ladder_rejects_symlinked_parent_component`.
+        let code = err.raw_os_error();
+        assert!(
+            code == Some(Errno::ELOOP as i32) || code == Some(Errno::ENOTDIR as i32),
+            "expected ELOOP or ENOTDIR, got {err}"
+        );
     }
 
     #[test]
