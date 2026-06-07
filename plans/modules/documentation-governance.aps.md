@@ -9,7 +9,7 @@ closeout behaviour. See: plans/aps-rules.md
 
 | ID     | Owner | Status      | Progress |
 | ------ | ----- | ----------- | -------- |
-| DOCGOV | —     | In Progress | 11/12    |
+| DOCGOV | —     | Complete | 12/12    |
 
 ## Purpose
 
@@ -413,7 +413,7 @@ Current validation commands include `pnpm docs:check`, `pnpm docs:index`, and
 
 ### DOCGOV-010: Reorganise live documentation under canonical taxonomy
 
-- **Status:** Proposed
+- **Status:** Merged
 - **Intent:** Move existing live documents into a coherent folder structure
   driven by the DOCGOV-002 taxonomy (type, authority, owner) rather than
   today's mixed historical layout, now that the validation baseline and
@@ -435,7 +435,26 @@ Current validation commands include `pnpm docs:check`, `pnpm docs:index`, and
   layout), DOCGOV-008 (archive moves run before live reorg to avoid
   shuffling docs that are about to leave), DOCGOV-009 (metadata backfill
   provides the authority/type tags placement depends on)
-- **Confidence:** medium
+- **Closeout:** Merged 2026-06-08 via PR
+  [#2369](https://github.com/eddacraft/anvil-001/pull/2369). **No bulk
+  move was required** — the live doc tree was already taxonomy-aligned by the
+  time this item came up, because the migration happened incrementally across
+  DOCGOV-006/-007/-008 (archive + runbook/as-built relocation) and -009/-011
+  (metadata backfill). Verified post-DOCGOV-011: 112/112 governed non-public
+  docs carry the DOCGOV-002 metadata table, every doc sits under a Type-aligned
+  directory (`As-built` → `docs/architecture/`, `Runbook` → `docs/runbooks/`,
+  `Guide` → `docs/guides/` + `docs/policies/`, `Spec` → `docs/specs/`, etc.),
+  and the only `docs/` root file is `docs/README.md`. The sole intentional
+  type-by-directory exception is `docs/guides/runbook-template.md` (the runbook
+  authoring template). The deliverable is therefore the documentation of the
+  canonical layout: a new **Canonical Folder Layout** section in
+  `docs/guides/documentation-governance.md` codifies placement-by-Type and the
+  rule that authority/owner/status discovery is via the generated
+  `docs/indexes/`, not the folder tree — so future docs land in the right place
+  by default. No inbound-link updates were needed (no docs moved); `docs:check`
+  link validation stays green. Validation passed with
+  `pnpm docs:check && pnpm docs:index:check && pnpm format:check`.
+- **Confidence:** high
 
 ### DOCGOV-011: Continue metadata backfill across remaining live docs
 

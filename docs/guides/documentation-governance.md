@@ -49,6 +49,35 @@ source instead.
 | Public docs       | User-facing behaviour                     | `docs/public/**/*.md` (published separately to the public docs site at `docs.eddacraft.ai`; internal docs MUST NOT link into the public surface for navigation, and the public surface owns its own discovery layer) |
 | Archive           | Historical reference                      | `docs/archive/`, `plans/archive/`                                                                                                                                                                                    |
 
+## Canonical Folder Layout
+
+Live documentation is organised by **Type**: a document's directory follows the
+`Location` column above, so placement is mechanical once the Type is known.
+Authority, owner, and status are _not_ encoded in the folder tree — they are
+declared in each document's metadata table and surfaced through the generated
+indexes under `docs/indexes/` (`pnpm docs:index`). A new document lands in the
+directory that matches its Type; `pnpm docs:check` validates the metadata and
+the generated indexes keep discovery current without a manual index step.
+
+| Directory                                                                 | Holds (Type)                                                               |
+| ------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `docs/architecture/`                                                      | As-built implementation maps (`*-as-built.md`) and architecture references |
+| `docs/runbooks/`                                                          | Runbooks — operational procedure                                           |
+| `docs/guides/`, `docs/policies/`                                          | Guides — developer practice and operational policy                         |
+| `docs/specs/`                                                             | Specs — design intent retained in-repo                                     |
+| `docs/public/`                                                            | Public docs — published to docs.eddacraft.ai; own discovery layer          |
+| `docs/indexes/`                                                           | Generated discovery indexes (do not hand-edit)                             |
+| `docs/governance/`                                                        | Generated governance surfaces (tags catalogue, docs-check baseline)        |
+| `docs/vision/`, `docs/strategy/`                                          | Aspirational / scope guidance (Advisory unless declared otherwise)         |
+| `docs/observability/`, `docs/testing/`, `docs/internal/`, `docs/reviews/` | Role-specific operational records                                          |
+| `docs/archive/`                                                           | Historical reference (not a live path)                                     |
+
+`docs/README.md` is the only Markdown file at the `docs/` root — it is the human
+entrypoint into the tree. The one deliberate exception to type-by-directory
+placement is `docs/guides/runbook-template.md`, which carries `Type: Runbook`
+because it is the authoring template for runbooks but lives under `guides/`
+alongside the other authoring templates.
+
 ## Metadata Convention
 
 New documents and materially touched non-APS documentation must declare their
