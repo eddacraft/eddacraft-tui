@@ -5,10 +5,11 @@
 
 | ID   | Owner      | Status   | Progress |
 | ---- | ---------- | -------- | -------- |
-| TUIN | joshuaboys | Proposed | 2/10     |
+| TUIN | joshuaboys | Proposed | 3/12     |
 
-**Last reviewed:** 2026-05-28 (opportunistic colour-harmonisation spike;
-TUIN-009/010 added). Prior: 2026-05-23 (ADR-050 design pass).
+**Last reviewed:** 2026-06-08 (ADR-050 fallback CLI shell amendment;
+TUIN-011/-012 added). Prior: 2026-05-28 (opportunistic colour-harmonisation
+spike; TUIN-009/010 added); 2026-05-23 (ADR-050 design pass).
 
 > **Execution gate:** TUIN is gated on TUIR-008 (canonical source live in
 > `crates/eddacraft-tui/`, mirror healthy, first crates.io publish from
@@ -30,6 +31,16 @@ TUIN-009/010 added). Prior: 2026-05-23 (ADR-050 design pass).
 > the remaining tuie port candidates as `Proposed` backlog. The
 > colour-harmonisation **implementation** itself stays inert until
 > TUIR-008 closes.
+>
+> **Exception (2026-06-08):** TUIN-011 is a docs-only planning
+> amendment requested by the operator after two imminent downstream
+> adopters surfaced a concrete need for CLI tools with subcommands,
+> flags, and configuration. Like TUIN-001 and TUIN-009, it does not
+> land implementation and therefore does not open TUIN's implementation
+> gate. It amends ADR-050 and this module so TUIN-002 survey work and
+> TUIN-012 implementation work target a fallback CLI shell rather than a
+> single-app launcher; TUIN-004 remains the lifecycle dependency that
+> `runner` composes.
 >
 > **Relationship to TUIR:** TUIR moves the source of truth without
 > behaviour change. TUIN is the first batch of design work that becomes
@@ -59,6 +70,10 @@ surface.
 
 - Argument-parser policy in `eddacraft-tui` core (`clap`, `lexopt`,
   parser-agnostic helpers, or none).
+- Fallback CLI shell shape for runner consumers: global flags,
+  first-level subcommand dispatch, config-file handoff, and the
+  boundary between shared shell plumbing and consumer-owned command
+  semantics.
 - CLI mode-detection helpers (TTY, alt-screen capability, terminfo
   probes) — does the crate ship them, and at what stability tier.
 - Terminal lifecycle ownership: alt-screen entry/exit, raw mode
@@ -109,7 +124,8 @@ surface.
   duplicate mirror plumbing.
 - Anvil consumers (`crates/anvil-tui/`, `crates/anvil-cli/`) — define
   the integration surface that drives lifecycle and CLI decisions.
-- External downstream consumers (`eddacraft-skills` and any others
+- External downstream consumers (`eddacraft-skills`, the two imminent
+  `eddacraft-tui` adopters raised on 2026-06-08, and any others
   enumerated in the TUIR-001 baseline) — surveyed during TUIN-002.
 
 **Exposes:**
@@ -118,11 +134,11 @@ surface.
   ownership, and extension-surface stability. Next free ADR slot at
   drafting time is `050`; numbers are allocated when each ADR PR
   opens.
-- New `eddacraft-tui` feature flags if any decision lands an opt-in
-  helper (`lifecycle` proposed by D-TUIN-003).
-- Optional sibling crate(s) if a decision rejects shipping a surface
-  inside core (e.g. `crates/eddacraft-tui-cli/` if D-TUIN-001 rules
-  out an in-core parser).
+- New `eddacraft-tui` feature flags for opt-in helpers: `runner`
+  (D-TUIN-001 / ADR-050) and `lifecycle` (D-TUIN-003, enabled
+  transitively by `runner`).
+- No sibling CLI crate in the current plan. ADR-050 rejects
+  `eddacraft-tui-cli`; any future split requires a new ADR.
 - API-stability checkpoint document
   (`docs/runbooks/eddacraft-tui-api-checkpoint.md`, new).
 
@@ -132,15 +148,21 @@ surface.
 
 - **Proposed resolution:** `eddacraft-tui` core has zero
   argument-parser dependency. The crate ships an opt-in `runner`
-  feature flag (defaulted OFF) that bundles a turn-key
-  `launch_default<App: TerminalApp>(app) -> ExitCode` entry point —
-  consumer crates without their own CLI add 3 lines to `main.rs` and
-  inherit argument parsing for default flags (`--help`, `--version`,
-  `--theme`, `--no-tui`), terminal lifecycle (alt-screen + raw mode +
-  panic restore), theme selection, mode detection, and the render
-  loop. The runner's minimal parser is provisionally `lexopt` (zero
-  transitive deps, ~300 LoC); TUIN-003 / TUIN-004 may swap without
-  re-ADR. The sibling-crate alternative (`eddacraft-tui-cli`) is
+  feature flag (defaulted OFF) that bundles a small fallback CLI shell:
+  `launch_cli<Cli: TerminalCli>(cli) -> ExitCode` for consumers that
+  need subcommands, flags, configuration, and TUI lifecycle from a few
+  lines of `main.rs`; a narrower `launch_default<App: TerminalApp>`
+  adapter may remain for single-app consumers if TUIN-004 keeps it.
+  Runner consumers inherit argument parsing for shared global flags
+  (`--help`, `--version`, `--theme`, `--no-tui`, `--config`),
+  first-level subcommand dispatch, terminal lifecycle (alt-screen + raw
+  mode + panic restore), theme selection, mode detection, config-file
+  handoff, and the render loop. Consumer crates own domain command
+  semantics, command-specific parsing, nested command trees,
+  completions, env binding, rich validation, and config format / merge
+  semantics. The runner's minimal parser is provisionally `lexopt`
+  (zero transitive deps, ~300 LoC); TUIN-003 / TUIN-004 may swap
+  without re-ADR. The sibling-crate alternative (`eddacraft-tui-cli`) is
   rejected in favour of the feature-flag path for lower consumer
   friction; future split would require its own ADR. Default-on
   argument parsing and a default `[[bin]]` in core both remain
@@ -150,6 +172,7 @@ surface.
   carried forward.
 - **Status:** Proposed (captured by ADR-050 — see
   [`050-eddacraft-tui-runner-and-cli-policy.md`](../decisions/050-eddacraft-tui-runner-and-cli-policy.md);
+  amended 2026-06-08 by TUIN-011 to cover the fallback CLI shell;
   promote to Accepted when ADR-050 itself moves from Proposed →
   Accepted).
 
@@ -239,6 +262,12 @@ surface.
   lifecycle helpers before TUIN-003 lands.** Mitigation: post-TUIR
   cadence is fast; TUIN-002 survey is an early item so consumer
   expectations land before code does.
+- **Fallback shell expands into an unbounded CLI framework.** Mitigation:
+  ADR-050's 2026-06-08 amendment pins the boundary at global flags,
+  first-level subcommand dispatch, config handoff, lifecycle, and render
+  loop. Nested commands, completions, env binding, rich validation, and
+  domain command semantics stay consumer-owned unless a future ADR
+  explicitly changes that boundary.
 - **Stability annotations rot.** Rustdoc-comment stability markers
   drift from reality if not enforced. Mitigation: TUIN-006 outcome
   includes a CI grep that flags new public items missing a stability
@@ -292,27 +321,32 @@ TUIN module resolve.
   terminal lifecycle ownership, CLI helpers, AND the turn-key
   `runner` contract ADR-050 locks — do they own lifecycle, want it
   managed, or wrap it; do they bring their own parser, want one for
-  free, or have no CLI today; what shape would their `App: TerminalApp`
-  implementation take.
+  free, or have no CLI today; what subcommands, global flags, and
+  config-loading shape they need; what shape would their
+  `Cli: TerminalCli` or `App: TerminalApp` implementation take.
 - **Expected Outcome:**
   `plans/specs/2026-XX-XX-eddacraft-tui-post-migration-survey.md`
   with one section per consumer documenting current behaviour (CLI /
   TUI / either / neither), desired behaviour under TUIN (adopt runner /
   adopt lifecycle helpers only / stay fully bespoke), the rough shape
-  of what the consumer would pass into `launch_default(app)` (event
-  type, render frame call, exit conditions), which default flags
-  (`--help`, `--version`, `--theme`, `--no-tui`) suffice vs need
-  extension via `RunnerOptions`, and any pain points or constraints
+  of what the consumer would pass into `launch_cli(cli)` or
+  `launch_default(app)` (command enum, config type, event type, render
+  frame call, exit conditions), which shared global flags (`--help`,
+  `--version`, `--theme`, `--no-tui`, `--config`) suffice vs need
+  extension via `RunnerOptions`, whether first-level dispatch is enough
+  or nested command trees / completions / rich validation require a
+  consumer-owned parser, and any pain points or constraints
   (Windows-only widgets, custom panic-restore needs, alt-screen
-  incompatibility). The survey explicitly covers library-shaped
-  consumers without a CLI today (`eddacraft-skills`, future Rust ports
-  of `anvil-plan-spec` and other current TS-only packages) as the
-  primary `runner` target, and Anvil-shaped consumers
-  (`crates/anvil-tui/`, `crates/anvil-cli/`) as the
+  incompatibility, config format / merge ownership). The survey
+  explicitly covers library-shaped consumers without a CLI today
+  (`eddacraft-skills`, the two imminent `eddacraft-tui` adopters raised
+  2026-06-08, future Rust ports of `anvil-plan-spec`, and other current
+  TS-only packages) as the primary `runner` target, and Anvil-shaped
+  consumers (`crates/anvil-tui/`, `crates/anvil-cli/`) as the
   already-has-its-own-CLI counter-example the runner must *not* absorb
   (per ADR-050's Anvil non-adoption note). Survey output drives the
-  `TerminalApp` trait shape that TUIN-003 / TUIN-004 implement; gaps
-  flagged for follow-up.
+  `TerminalCli` / `TerminalApp` trait shape that TUIN-003 / TUIN-004
+  implement; gaps flagged for follow-up.
 - **Validation:** survey doc lists each known consumer from the
   TUIR-001 baseline plus any new ones identified via the runner
   framing; gaps explicitly flagged for follow-up; ADR-050 referenced
@@ -526,6 +560,71 @@ to tier 1 / tier 0 otherwise.
 **changeType:** docs
 **releaseIntent:** never
 **releaseScope:** none
+
+### TUIN-011: Amend ADR-050 for fallback CLI shell consumers
+
+- **Status:** Done 2026-06-08 (docs-only planning amendment; operator-
+  requested under the TUIN gate)
+
+**Intent:** Capture the new consumer signal that two imminent
+`eddacraft-tui` adopters need CLI tools with subcommands, flags, and
+configuration before TUIN-002 / TUIN-004 shape the runner API. Raise the
+fallback contract from a single-app launcher to a small fallback CLI
+shell without reopening the rejected paths (`clap` in core,
+default-on parser behaviour, `[[bin]]` in the crate, or sibling
+`eddacraft-tui-cli`).
+
+**Outcome:** ADR-050 amended on 2026-06-08 to pin the runner as an
+opt-in fallback CLI shell: global flags (`--help`, `--version`,
+`--theme`, `--no-tui`, `--config`), first-level subcommand dispatch,
+consumer-owned command payload parsing, consumer-owned config format /
+merge semantics, lifecycle, panic restore, theme selection, mode
+detection, and render-loop handoff. TUIN's D-TUIN-001 and TUIN-002 text
+now survey and implement against `launch_cli<Cli: TerminalCli>` as the
+command-shell entry point, with `launch_default<App: TerminalApp>` left
+as an optional narrower adapter for single-app consumers.
+
+**Validation:** `pnpm adr:check`, `pnpm docs:check`, `pnpm format:check`,
+and targeted Prettier check passed locally on 2026-06-08 after the
+ADR/TUIN amendment.
+
+**changeType:** docs
+**releaseIntent:** never
+**releaseScope:** none
+
+### TUIN-012: Implement runner fallback CLI shell
+
+- **Status:** Proposed
+
+**Intent:** Implement the amended ADR-050 `runner` feature contract once
+the TUIN gate opens: a parser-light fallback CLI shell for consumers that
+need shared global flags, first-level subcommand dispatch, config handoff,
+terminal lifecycle, panic restore, theme selection, mode detection, and
+render-loop handoff without adopting a full CLI framework.
+
+**Expected Outcome:** `crates/eddacraft-tui/` exposes a feature-gated
+`runner` module with working-name APIs equivalent to
+`launch_cli<Cli: TerminalCli>(cli) -> ExitCode`, `launch_with`,
+`RunnerOptions`, `CommandSet`, `ConfigSource`, and a runner-local event
+envelope. The `runner` feature enables `lifecycle` transitively and adds
+only the accepted minimal parser dependency unless TUIN-004 implementation
+evidence proves a swap is necessary. The implementation draws the boundary
+where ADR-050 pins it: global flags (`--help`, `--version`, `--theme`,
+`--no-tui`, `--config`), first-level command selection, config-path
+handoff, lifecycle, and render loop are shared; nested commands,
+completions, env binding, rich validation, config format / merge
+semantics, and domain command behaviour remain consumer-owned.
+
+**Validation:** `cargo test -p eddacraft-tui --features runner`; `cargo
+test -p eddacraft-tui --all-features`; `cargo test -p eddacraft-tui
+--no-default-features`; `cargo tree -p eddacraft-tui --features runner
+--prefix=none --edges normal` reviewed against the TUIR-001 dependency
+baseline; at least one example or fixture demonstrates `launch_cli` with
+a subcommand and `--config` path handoff.
+
+**changeType:** internal
+**releaseIntent:** candidate
+**releaseScope:** minor
 
 ## Ready Checklist
 
