@@ -321,6 +321,7 @@ contains breaking changes — see **Breaking** below.
 - `vyfor/animate` powers the new animation runtime — credited in README.
 - `pretext-tui` provides the layout engine integrated as the `pretext` module.
 
-[Unreleased]: https://github.com/eddacraft/eddacraft-tui/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.3.0...HEAD
+[0.3.0]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.2.4...eddacraft-tui-v0.3.0
 [0.2.1]: https://github.com/eddacraft/eddacraft-tui/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/eddacraft/eddacraft-tui/compare/v0.1.0...v0.2.0
