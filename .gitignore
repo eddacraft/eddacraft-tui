@@ -22,3 +22,9 @@ docs/brag-*.md
 
 # Claude AI logs
 .claude/logs/
+
+# Local AI tooling artifacts
+.antigravitycli/
+
+# Local Council review sessions
+review/
