@@ -131,6 +131,12 @@
 | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- | ----- | --------- | ----- | ------ |
 | [Entire's Branch-as-Sidecar Pattern for Session Storage](../../docs/architecture/references/entire-branch-sidecar.md) | `docs/architecture/references/entire-branch-sidecar.md` | Guide | Advisory  | GV2   | Live   |
 
+## GV2 (plans/modules/graph-v2-foundation.aps.md)
+
+| Document                                                                                       | Path                                            | Type | Authority | Owner                                          | Status |
+| ---------------------------------------------------------------------------------------------- | ----------------------------------------------- | ---- | --------- | ---------------------------------------------- | ------ |
+| [Graph v2 Foundation — Architecture Spec](../../docs/architecture/graph-v2-foundation-spec.md) | `docs/architecture/graph-v2-foundation-spec.md` | Spec | Derived   | GV2 (plans/modules/graph-v2-foundation.aps.md) | Draft  |
+
 ## HARNESS
 
 | Document                                                                                     | Path                                             | Type  | Authority     | Owner   | Status |

@@ -18,15 +18,16 @@
 
 ## Draft
 
-| Document                                                                                                                | Path                                             | Type     | Authority     | Owner                                       | Status |
-| ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ | -------- | ------------- | ------------------------------------------- | ------ |
-| [Policy Input Contract — PolicyInput v1](../../docs/specs/policy-input-v1.md)                                           | `docs/specs/policy-input-v1.md`                  | Spec     | Authoritative | POLENG (plans/modules/policy-engine.aps.md) | Draft  |
-| [Real-time Operations Feed Contract (Draft)](../../docs/internal/realtime-feed-contract.md)                             | `docs/internal/realtime-feed-contract.md`        | Spec     | Derived       | OPS                                         | Draft  |
-| [Runbook Template](../../docs/guides/runbook-template.md)                                                               | `docs/guides/runbook-template.md`                | Runbook  | Authoritative | MODULE-CODE                                 | Draft  |
-| [The Ultimate Feature: A Real-Time Deterministic Semantic Guardian](../../docs/vision/aspirational-ultimate-feature.md) | `docs/vision/aspirational-ultimate-feature.md`   | Guide    | Advisory      | VISION                                      | Draft  |
-| [eddacraft Autonomy Constitution (v0)](../../docs/guides/eddacraft-autonomy-constitution.md)                            | `docs/guides/eddacraft-autonomy-constitution.md` | Guide    | Authoritative | HARNESS                                     | Draft  |
-| [weave: Internal Agent Harness](../../docs/internal/weave-feature-brief.md)                                             | `docs/internal/weave-feature-brief.md`           | Spec     | Advisory      | WEAVE                                       | Draft  |
-| [{Component Name} — As-Built](../../docs/architecture/_as-built-template.md)                                            | `docs/architecture/_as-built-template.md`        | As-built | Derived       | MODULE-CODE (link to plans/modules/...)     | Draft  |
+| Document                                                                                                                | Path                                             | Type     | Authority     | Owner                                          | Status |
+| ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ | -------- | ------------- | ---------------------------------------------- | ------ |
+| [Graph v2 Foundation — Architecture Spec](../../docs/architecture/graph-v2-foundation-spec.md)                          | `docs/architecture/graph-v2-foundation-spec.md`  | Spec     | Derived       | GV2 (plans/modules/graph-v2-foundation.aps.md) | Draft  |
+| [Policy Input Contract — PolicyInput v1](../../docs/specs/policy-input-v1.md)                                           | `docs/specs/policy-input-v1.md`                  | Spec     | Authoritative | POLENG (plans/modules/policy-engine.aps.md)    | Draft  |
+| [Real-time Operations Feed Contract (Draft)](../../docs/internal/realtime-feed-contract.md)                             | `docs/internal/realtime-feed-contract.md`        | Spec     | Derived       | OPS                                            | Draft  |
+| [Runbook Template](../../docs/guides/runbook-template.md)                                                               | `docs/guides/runbook-template.md`                | Runbook  | Authoritative | MODULE-CODE                                    | Draft  |
+| [The Ultimate Feature: A Real-Time Deterministic Semantic Guardian](../../docs/vision/aspirational-ultimate-feature.md) | `docs/vision/aspirational-ultimate-feature.md`   | Guide    | Advisory      | VISION                                         | Draft  |
+| [eddacraft Autonomy Constitution (v0)](../../docs/guides/eddacraft-autonomy-constitution.md)                            | `docs/guides/eddacraft-autonomy-constitution.md` | Guide    | Authoritative | HARNESS                                        | Draft  |
+| [weave: Internal Agent Harness](../../docs/internal/weave-feature-brief.md)                                             | `docs/internal/weave-feature-brief.md`           | Spec     | Advisory      | WEAVE                                          | Draft  |
+| [{Component Name} — As-Built](../../docs/architecture/_as-built-template.md)                                            | `docs/architecture/_as-built-template.md`        | As-built | Derived       | MODULE-CODE (link to plans/modules/...)        | Draft  |
 
 ## Live
 
