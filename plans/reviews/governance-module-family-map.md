@@ -37,7 +37,7 @@ belongs to exactly one.
 | **AGOV** (agent-governance-patterns) | A | Signal **producer** | Draft (Tier C) | Trust scoring, destructive-pattern detection, change-volume thresholds, metadata-secret scan, hash-chained audit, capability declaration. Upstream signals consumed by CPACKS + MDGOV. |
 | **ILGOV** (intent-ledger-governance) | A | Provenance layer | Draft (0/6) | Intent-vs-effect provenance — the *original* Anvil thesis ("prove the plan was followed"), now graph-derived effect prediction vs captured intent. |
 | **DOCGOV** (documentation-governance) | B | Knowledge system | In Progress (9/12) | Authority model + lifecycle metadata + validation (`docs:check`/`docs:index`) for APS/ADRs/as-built/runbooks. |
-| **MDGOV** (markdown-governance, Track 5) | B | Validator | Draft | Markdown-as-governance-artefact wellformedness (APS schema, cross-ref integrity). Standalone crate `crates/anvil-markdown-governance` (ADR-028). |
+| **MDGOV** (markdown-governance, Track 5) | B | Validator | Draft | Markdown-as-governance-artefact well-formedness (APS schema, cross-ref integrity). Standalone crate `crates/anvil-markdown-governance` (ADR-028). |
 | **APGOV** (api-governance) | C | Product-surface | Ready | Versioning/deprecation/CORS/OpenAPI/error-contract for the `anvil-api` REST surface. Unrelated to AI-change evidence — see naming hazard below. |
 
 ## The Axis-A spine (where the real joins are)
@@ -79,7 +79,7 @@ belongs to exactly one.
 | EXCEPT → GITGOV | exceptions are capsule evidence; recording exception-use must not fork the witness schema | resolve before GITGOV-009 (review finding F-4) |
 | ILGOV ↔ GV2-014 ↔ EDDA-SEAL | three items independently touch durable provenance under `anvil/edda/` (Rust↔TS boundary) | **one** shared provenance contract, not three (review finding §5) |
 | AGOV-002 ↔ CPACKS | only AGOV-002 (HIPAA/PCI pack stubs) overlaps CPACKS; AGOV-001/003-007 are distinct | migrate AGOV-002 → CPACKS per AGOV audit note; keep the rest |
-| MDGOV ↔ DOCGOV | both validate docs; MDGOV at markdown-parse level (own crate), DOCGOV at authority/metadata level | keep distinct (MDGOV = structural wellformedness; DOCGOV = authority/freshness/links) |
+| MDGOV ↔ DOCGOV | both validate docs; MDGOV at markdown-parse level (own crate), DOCGOV at authority/metadata level | keep distinct (MDGOV = structural well-formedness; DOCGOV = authority/freshness/links) |
 | APGOV ↔ family | Axis C; shares only the word "governance" | consider renaming out of the family (e.g. `api-surface-policy`) — see hazard |
 
 ## Naming hazard (the F-1 root cause)
