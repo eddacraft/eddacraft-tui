@@ -467,7 +467,9 @@ the GV2 slice swap in later without breaking a single consumer.
 ## References
 
 - Planning Council: `plan-5768ae0c` (2026-06-01); input artifact
-  `ANVIL-DAEMON-DESIGN-RESPONSE.md` (PR #2188)
+  [`plans/specs/2026-05-31-daemon-graph-v2-design-response.md`](../specs/2026-05-31-daemon-graph-v2-design-response.md)
+  (PR #2188; lived at repo root as `ANVIL-DAEMON-DESIGN-RESPONSE.md` until
+  2026-06-08)
 - Contract spec:
   [`plans/specs/2026-06-01-daemon-save-time-validation-contract.md`](../specs/2026-06-01-daemon-save-time-validation-contract.md)
 - Related ADRs: ADR-015 (intercept-loop enforcement), ADR-031 (validation

@@ -2,8 +2,8 @@
 
 Companion to the save-time CPU field report (GH
 [#2156](https://github.com/eddacraft/anvil-001/issues/2156)),
-[ADR-061](plans/decisions/061-save-time-daemon-delta-validation.md), and the
-[resource-load-benchmarking module](plans/modules/resource-load-benchmarking.aps.md)
+[ADR-061](../decisions/061-save-time-daemon-delta-validation.md), and the
+[resource-load-benchmarking module](../modules/resource-load-benchmarking.aps.md)
 — all grounded in the same load-probe data. Working doc written to be handed to
 other engineers. Every architectural claim is grounded in a `path:line`
 reference you can open.
