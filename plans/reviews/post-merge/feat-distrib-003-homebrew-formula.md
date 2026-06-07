@@ -31,7 +31,7 @@ Verified: <!-- filled by cleanup agent -->
       the first release using this script lands. (agent: yes — invoked by
       `scripts/aps-cleanup.sh` if present.)
 - [ ] On `Released/Shipped`, advance the module progress counter in
-      `plans/modules/distribution-and-update.aps.md` and
+      `plans/archive/modules/distribution-and-update.aps.md` and
       `plans/index.aps.md` from 3/5 to 4/5. (agent: yes.)
 
 ## Notes

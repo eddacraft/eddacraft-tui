@@ -25,17 +25,17 @@ formula auto-bump extracted from the inline `release.yml` step into a tested
 `scripts/release/bump-homebrew.sh`, plus a `workflow_dispatch` recovery
 workflow, smoke install on macOS arm64/x64, and publish runbook; operator
 follow-up tracked in
-[`plans/reviews/post-merge/feat-distrib-003-homebrew-formula.md`](../reviews/post-merge/feat-distrib-003-homebrew-formula.md).
+[`plans/reviews/post-merge/feat-distrib-003-homebrew-formula.md`](../../reviews/post-merge/feat-distrib-003-homebrew-formula.md).
 DISTRIB-004 **Done** — release cadence and beta
 support-window policy now lives at `docs/policies/release-cadence.md` and is
 cross-linked from README + CONTRIBUTING. DISTRIB-002 **Merged** via PR #1569 —
 `anvil version --check` + advisory surface + watch/status hint; remaining operator
 follow-up tracked in
-[`plans/reviews/post-merge/feat-distrib-002-version-check.md`](../reviews/post-merge/feat-distrib-002-version-check.md).
+[`plans/reviews/post-merge/feat-distrib-002-version-check.md`](../../reviews/post-merge/feat-distrib-002-version-check.md).
 DISTRIB-001 **Merged** via PR #1562; operator follow-up tracked in
-[`plans/reviews/post-merge/feat-distrib-001-signature-verification.md`](../reviews/post-merge/feat-distrib-001-signature-verification.md).
+[`plans/reviews/post-merge/feat-distrib-001-signature-verification.md`](../../reviews/post-merge/feat-distrib-001-signature-verification.md).
 Promoted **Proposed → Ready** alongside acceptance of
-[`plans/specs/2026-05-14-release-plan-v0.7.0-sit-on.md`](../specs/2026-05-14-release-plan-v0.7.0-sit-on.md).
+[`plans/specs/2026-05-14-release-plan-v0.7.0-sit-on.md`](../../specs/2026-05-14-release-plan-v0.7.0-sit-on.md).
 Current state: every item is Released/Shipped — DISTRIB-001..-004 via
 `v0.7.0-beta`, DISTRIB-005 **Released/Shipped via v0.7.3-beta** (PR #1984,
 `anvil migrate schema` cross-version config reconciliation, subcommand-split
@@ -47,10 +47,10 @@ ADR-044 §9 makes DISTRIB-001 and DISTRIB-002 load-bearing for the
 ## Purpose
 
 `anvil update` already exists (per
-[`plans/execution/2026-04-13-anvil-update-command.md`](../execution/2026-04-13-anvil-update-command.md))
+[`plans/execution/2026-04-13-anvil-update-command.md`](../../execution/2026-04-13-anvil-update-command.md))
 with a Homebrew-detect → sidecar → axoupdater resolution chain. The hotfix
 iteration plan in
-[`plans/specs/2026-05-14-release-plan-v0.7.0-sit-on.md`](../specs/2026-05-14-release-plan-v0.7.0-sit-on.md)
+[`plans/specs/2026-05-14-release-plan-v0.7.0-sit-on.md`](../../specs/2026-05-14-release-plan-v0.7.0-sit-on.md)
 assumes that when a senior user hits a bug on Tuesday and we publish a fix on
 Wednesday, they receive the fix without effort.
 
@@ -189,7 +189,7 @@ ecosystem so the update path is **trustworthy, signed, and visible**.
   `b36988a2`). Cleanup agent will advance to Released/Shipped once the
   next release tag ships and the macOS arm64/x64 smoke matrix in
   `Homebrew — bump and smoke` is green; operator follow-up tracked in
-  [`plans/reviews/post-merge/feat-distrib-003-homebrew-formula.md`](../reviews/post-merge/feat-distrib-003-homebrew-formula.md).
+  [`plans/reviews/post-merge/feat-distrib-003-homebrew-formula.md`](../../reviews/post-merge/feat-distrib-003-homebrew-formula.md).
 - **changeType:** internal
 - **releaseIntent:** candidate
 - **releaseScope:** minor
@@ -320,12 +320,12 @@ ecosystem so the update path is **trustworthy, signed, and visible**.
   `anvil-beta`, test only under `/tmp`, accept the user-state leak) is tolerable
   one-off but painful for sustained candidate iteration. The daemon
   single-instance constraint is
-  [`ADR-036`](../decisions/036-daemon-scope-discovery-and-boundaries.md)
+  [`ADR-036`](../../decisions/036-daemon-scope-discovery-and-boundaries.md)
   (`one daemon per (uid, os)`, PID-file exclusive create), so a distinct socket
   prefix per `ANVIL_HOME` is precisely what lets two daemons coexist.
 - **Design gate (SATISFIED) — ADR-060:** Per-project state resolution, the open
   design call that gated this item, is settled in
-  [`ADR-060`](../decisions/060-anvil-home-install-root-override.md) (**Accepted**
+  [`ADR-060`](../../decisions/060-anvil-home-install-root-override.md) (**Accepted**
   2026-05-31). The accepted answer is **Option (a) + a write-guard**: keep
   per-project `.anvil/` (baseline/cache/witness) + `anvil/project-id` resolving
   to the project root so candidate tests run against the real repo with witness
@@ -415,14 +415,14 @@ releases with a documented support window and clean upgrade path" line in
 
 ## Cross-References
 
-- Coordinates with: [`WATCHUX-001`](../archive/modules/watch-ux-advisory-rules.aps.md)
-  (Homebrew detection on install), [`ADTRUST-001`](../archive/modules/adoption-trust-surface.aps.md)
+- Coordinates with: [`WATCHUX-001`](./watch-ux-advisory-rules.aps.md)
+  (Homebrew detection on install), [`ADTRUST-001`](./adoption-trust-surface.aps.md)
   (status surface where update hint renders).
 - Blocks on: none at module level.
-- DISTRIB-001 signing scheme decision: [`ADR-045`](../decisions/045-update-signing-scheme.md)
+- DISTRIB-001 signing scheme decision: [`ADR-045`](../../decisions/045-update-signing-scheme.md)
   chose minisign for update artefact verification.
 - DISTRIB-006 promoted from GitHub issue
   [#1726](https://github.com/eddacraft/anvil-001/issues/1726); coordinates with
-  [`ADR-036`](../decisions/036-daemon-scope-discovery-and-boundaries.md) (daemon
+  [`ADR-036`](../../decisions/036-daemon-scope-discovery-and-boundaries.md) (daemon
   single-instance / socket derivation) and was gated on **ADR-060**
   (per-project state resolution under `ANVIL_HOME`), **Accepted** 2026-05-31.

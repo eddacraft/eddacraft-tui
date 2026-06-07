@@ -6,7 +6,7 @@
 
 | Upstream                                                                                                                                                                                                                                    | Downstream                                                                                                                                                                                                                                      |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [ADR-045](../../plans/decisions/045-update-signing-scheme.md), [DISTRIB-001 in `distribution-and-update.aps.md`](../../plans/modules/distribution-and-update.aps.md), [ADR-044 §9](../../plans/decisions/044-mcp-entry-activation-owned.md) | [`.github/workflows/release-sign-artefacts.yml`](../../.github/workflows/release-sign-artefacts.yml), [`crates/anvil-cli/src/commands/update/signature.rs`](../../crates/anvil-cli/src/commands/update/signature.rs), v0.7.0-beta release notes |
+| [ADR-045](../../plans/decisions/045-update-signing-scheme.md), [DISTRIB-001 in `distribution-and-update.aps.md`](../../plans/archive/modules/distribution-and-update.aps.md), [ADR-044 §9](../../plans/decisions/044-mcp-entry-activation-owned.md) | [`.github/workflows/release-sign-artefacts.yml`](../../.github/workflows/release-sign-artefacts.yml), [`crates/anvil-cli/src/commands/update/signature.rs`](../../crates/anvil-cli/src/commands/update/signature.rs), v0.7.0-beta release notes |
 
 Background: see [ADR-045](../../plans/decisions/045-update-signing-scheme.md).
 This runbook covers the operational mechanics. Read the ADR first for the trust
@@ -218,6 +218,6 @@ produced ones.
 ## References
 
 - [ADR-045: Update Signing Scheme — Minisign](../../plans/decisions/045-update-signing-scheme.md)
-- [DISTRIB-001 — Harden `anvil update` Resolution Chain And Signature Verification](../../plans/modules/distribution-and-update.aps.md)
+- [DISTRIB-001 — Harden `anvil update` Resolution Chain And Signature Verification](../../plans/archive/modules/distribution-and-update.aps.md)
 - [`.github/workflows/release-sign-artefacts.yml`](../../.github/workflows/release-sign-artefacts.yml)
 - [`crates/anvil-cli/src/commands/update/signature.rs`](../../crates/anvil-cli/src/commands/update/signature.rs)

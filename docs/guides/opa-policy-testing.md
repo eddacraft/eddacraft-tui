@@ -153,7 +153,7 @@ To bump:
 1. Update `DEFAULT_OPA_VERSION` in `opa-binary-manager.ts`.
 2. Update the `version:` input (and `EXPECTED_OPA_VERSION` env where present) in
    all four workflows. Re-run `scripts/bench-vs-go-opa.sh` and refresh the
-   POLENG-008 parity result note in `plans/modules/policy-engine.aps.md` if the
+   POLENG-008 parity result note in `plans/archive/modules/policy-engine.aps.md` if the
    reference OPA version changed.
 3. Update any other files in the allowlist in `scripts/check-opa-version-pin.sh`
    (e.g. doc comments, AGENTS.md).

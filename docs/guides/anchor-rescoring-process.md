@@ -153,7 +153,7 @@ These shortcuts defeat the gate:
   (amendments)
 - ADRs: [ADR-027](../../plans/decisions/027-pack-architecture.md) (pack
   architecture — pack ROI is a strategic input to anchor scoring)
-- APS modules: [lang-ts-audit](../../plans/modules/lang-ts-audit.aps.md),
+- APS modules: [lang-ts-audit](../../plans/archive/modules/lang-ts-audit.aps.md),
   [lang-rust](../../plans/modules/lang-rust.aps.md),
   [lang-python](../../plans/modules/lang-python.aps.md),
   [lang-tail-wave](../../plans/modules/lang-tail-wave.aps.md)

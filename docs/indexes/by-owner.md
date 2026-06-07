@@ -83,11 +83,11 @@
 | ----------------------------------------------------------------------------- | ---------------------------------------- | ------- | --------- | ------ | ------ |
 | [Cargo Target Eviction Runbook](../../docs/runbooks/cargo-target-eviction.md) | `docs/runbooks/cargo-target-eviction.md` | Runbook | Advisory  | DEVENV | Live   |
 
-## DISTRIB (plans/modules/distribution-and-update.aps.md)
+## DISTRIB (plans/archive/modules/distribution-and-update.aps.md)
 
-| Document                                                                     | Path                               | Type  | Authority     | Owner                                                  | Status |
-| ---------------------------------------------------------------------------- | ---------------------------------- | ----- | ------------- | ------------------------------------------------------ | ------ |
-| [Release Cadence And Support Policy](../../docs/policies/release-cadence.md) | `docs/policies/release-cadence.md` | Guide | Authoritative | DISTRIB (plans/modules/distribution-and-update.aps.md) | Live   |
+| Document                                                                     | Path                               | Type  | Authority     | Owner                                                          | Status |
+| ---------------------------------------------------------------------------- | ---------------------------------- | ----- | ------------- | -------------------------------------------------------------- | ------ |
+| [Release Cadence And Support Policy](../../docs/policies/release-cadence.md) | `docs/policies/release-cadence.md` | Guide | Authoritative | DISTRIB (plans/archive/modules/distribution-and-update.aps.md) | Live   |
 
 ## DOCGOV
 
@@ -216,11 +216,11 @@
 | ------------------------------------------------------------------------------------------- | ----------------------------------------- | ---- | --------- | ----- | ------ |
 | [Real-time Operations Feed Contract (Draft)](../../docs/internal/realtime-feed-contract.md) | `docs/internal/realtime-feed-contract.md` | Spec | Derived   | OPS   | Draft  |
 
-## POLENG (plans/modules/policy-engine.aps.md)
+## POLENG (plans/archive/modules/policy-engine.aps.md)
 
-| Document                                                                      | Path                            | Type | Authority     | Owner                                       | Status |
-| ----------------------------------------------------------------------------- | ------------------------------- | ---- | ------------- | ------------------------------------------- | ------ |
-| [Policy Input Contract — PolicyInput v1](../../docs/specs/policy-input-v1.md) | `docs/specs/policy-input-v1.md` | Spec | Authoritative | POLENG (plans/modules/policy-engine.aps.md) | Draft  |
+| Document                                                                      | Path                            | Type | Authority     | Owner                                               | Status |
+| ----------------------------------------------------------------------------- | ------------------------------- | ---- | ------------- | --------------------------------------------------- | ------ |
+| [Policy Input Contract — PolicyInput v1](../../docs/specs/policy-input-v1.md) | `docs/specs/policy-input-v1.md` | Spec | Authoritative | POLENG (plans/archive/modules/policy-engine.aps.md) | Draft  |
 
 ## RCLI3
 

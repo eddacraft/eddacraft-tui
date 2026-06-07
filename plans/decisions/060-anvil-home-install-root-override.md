@@ -10,7 +10,7 @@ Accepted (@joshuaboys, 2026-05-31)
 
 ## Context
 
-[DISTRIB-006](../modules/distribution-and-update.aps.md) (promoted from GitHub
+[DISTRIB-006](../archive/modules/distribution-and-update.aps.md) (promoted from GitHub
 issue [#1726](https://github.com/eddacraft/anvil-001/issues/1726)) adds an
 `ANVIL_HOME` env var + `--anvil-home` flag that re-roots Anvil's
 **install-owned** state — user state (today under `dirs::home_dir()`), the daemon

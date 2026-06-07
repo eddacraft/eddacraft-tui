@@ -3,7 +3,7 @@
 **Date:** 2026-04-26
 **Authoritative source:** [LANGTS audit report](./2026-04-26-langts-audit-report.md)
 **Spec context:** [2026-04-08 Language and Coverage Design](./2026-04-08-language-and-coverage-design.md) §7.3, §8.1, §16.5
-**Owning module:** [lang-ts-audit](../modules/lang-ts-audit.aps.md)
+**Owning module:** [lang-ts-audit](../archive/modules/lang-ts-audit.aps.md)
 **Version:** v1 (2026-04-26)
 
 > The bar a programming language must clear before Anvil claims it as a

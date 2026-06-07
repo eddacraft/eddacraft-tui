@@ -56,7 +56,7 @@ that Rust and Python anchors must pass. TS is the language Anvil already
 partially supports (`crates/anvil-kernel/src/parser/languages.rs`); without an
 explicit calibration pass, "T3" is a made-up label. This module is the literal
 first work item in the language-and-coverage plan set per
-[2026-04-08 Language and Coverage Design](../specs/2026-04-08-language-and-coverage-design.md)
+[2026-04-08 Language and Coverage Design](../../specs/2026-04-08-language-and-coverage-design.md)
 §7.3, §8.1, §17.3.
 
 The audit also folds in **Zod-creep rules** (`z.any()`, `z.unknown()`,
@@ -77,9 +77,9 @@ module starts execution.
 - Identify and close TS-specific gaps surfaced during the audit.
 - Publish a **T3 acceptance checklist** as a checked-in artefact (companion
   spec at
-  [2026-04-26-t3-acceptance-checklist.md](../specs/2026-04-26-t3-acceptance-checklist.md);
+  [2026-04-26-t3-acceptance-checklist.md](../../specs/2026-04-26-t3-acceptance-checklist.md);
   audit-derived bar referenced from RSTLAN, PYLAN, every Track 4 pack module,
-  and the pack registry per [ADR-027](../decisions/027-pack-architecture.md)).
+  and the pack registry per [ADR-027](../../decisions/027-pack-architecture.md)).
 - Add Zod-creep rules to TS T2 catalogue.
 - Optional: split into a sub-module for the kernel prerequisite work
   identified by council §16.5 #3 (extractor refactor, grammar version in
@@ -107,11 +107,11 @@ module starts execution.
 
 **Exposes:**
 
-- [LANGTS audit report](../specs/2026-04-26-langts-audit-report.md) —
+- [LANGTS audit report](../../specs/2026-04-26-langts-audit-report.md) —
   point-in-time evidence; current TS implementation state, named TS gaps
   (TS-G1..G7), named kernel-prereq gaps (K1..K5), and the recommended ADRs
   the audit believes are missing.
-- [T3 acceptance checklist (v1)](../specs/2026-04-26-t3-acceptance-checklist.md)
+- [T3 acceptance checklist (v1)](../../specs/2026-04-26-t3-acceptance-checklist.md)
   — the durable, re-usable bar every Track 4 pack module and future anchor
   (RSTLAN, PYLAN) references. Load-bearing for Track 1 items 1 and 2 plus
   all Track 4 packs.
@@ -135,7 +135,7 @@ Change status to **Ready** when:
 - [x] Audit owner named (single accountable owner for the T3 checklist)
       — *audit produced 2026-04-26, see audit report header.*
 - [x] Re-scoring gate run per
-      [docs/guides/anchor-rescoring-process.md](../../docs/guides/anchor-rescoring-process.md);
+      [docs/guides/anchor-rescoring-process.md](../../../docs/guides/anchor-rescoring-process.md);
       session owner named for this invocation. *Run 2026-04-26 (solo,
       self-review) — see the gate-run callout at the top of this module.*
 - [x] Decision recorded on whether kernel prerequisite work (council §16.5 #3)
@@ -163,7 +163,7 @@ K1 ADR) were resolved inline above.
 - **Intent:** Enumerate current TS capability state across the nine T3
   dimensions so "T3" is a measured bar, not a label.
 - **Evidence:**
-  [audit report §3](../specs/2026-04-26-langts-audit-report.md#3-current-ts-implementation-state).
+  [audit report §3](../../specs/2026-04-26-langts-audit-report.md#3-current-ts-implementation-state).
 
 ### LANGTS-002: Close identified TS extraction gaps (TS-G1, TS-G2) — Merged
 
@@ -202,7 +202,7 @@ K1 ADR) were resolved inline above.
 - **Intent:** Publish the durable T3 bar every Track 4 pack and future anchor
   references.
 - **Evidence:**
-  [`plans/specs/2026-04-26-t3-acceptance-checklist.md`](../specs/2026-04-26-t3-acceptance-checklist.md).
+  [`plans/specs/2026-04-26-t3-acceptance-checklist.md`](../../specs/2026-04-26-t3-acceptance-checklist.md).
 
 ### LANGTS-004: Add Zod-creep rules to the TS T2 anti-pattern catalogue — Merged
 
@@ -319,7 +319,7 @@ K1 ADR) were resolved inline above.
   family; `Function.prototype.constructor` deferred to follow-up to
   avoid false positives on legitimate `.constructor` access without an
   AST-aware filter.** *Identified from
-  [2026-05-21 new-user journey audit](../audits/2026-05-21-new-user-journey-audit.md)
+  [2026-05-21 new-user journey audit](../../audits/2026-05-21-new-user-journey-audit.md)
   finding #7 — a planted `export function unsafe(input:any){ return eval(input); }`
   was not caught by any of `check`, `audit`, `gate`, `watch`, or MCP, even
   though `antipattern-scan` is wired and PASSes under `gate` on the same

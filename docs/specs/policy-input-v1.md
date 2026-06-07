@@ -2,7 +2,7 @@
 
 | Type | Authority     | Owner                                                                                     | Status | Freshness                                                                    |
 | ---- | ------------- | ----------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------- |
-| Spec | Authoritative | POLENG ([`plans/modules/policy-engine.aps.md`](../../plans/modules/policy-engine.aps.md)) | Draft  | Last reviewed 2026-05-25 against `main`; implementation landed by POLENG-002 |
+| Spec | Authoritative | POLENG ([`plans/archive/modules/policy-engine.aps.md`](../../plans/archive/modules/policy-engine.aps.md)) | Draft  | Last reviewed 2026-05-25 against `main`; implementation landed by POLENG-002 |
 
 | Upstream                                                                                              | Downstream                                                                                                               |
 | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
@@ -131,7 +131,7 @@ A fully-populated document (this is the schema-stability snapshot fixture):
   },
   "plans": [
     {
-      "path": "plans/modules/policy-engine.aps.md",
+      "path": "plans/archive/modules/policy-engine.aps.md",
       "id": "POLENG",
       "status": "In Progress"
     }

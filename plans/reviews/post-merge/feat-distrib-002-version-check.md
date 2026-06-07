@@ -10,7 +10,7 @@ Verified: <!-- filled by cleanup agent -->
 
 - [x] Step 1 — Move DISTRIB module progress 1/5 → 2/5 and mark
       DISTRIB-002 Merged once this PR lands. (agent: yes — read
-      `plans/modules/distribution-and-update.aps.md` and update the
+      `plans/archive/modules/distribution-and-update.aps.md` and update the
       progress count + DISTRIB-002 Status to Merged.)
 - [ ] Step 2 — When the first v0.7.0-beta-or-later release with an
       attached `Security-Advisory: GHSA-…` line in its release body

@@ -6,7 +6,7 @@
 
 | Upstream                                                                                                                                                                                                                                                                    | Downstream                                                                                            |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| [`plans/modules/distribution-and-update.aps.md`](../../plans/modules/distribution-and-update.aps.md) (DISTRIB-006), [ADR-060](../../plans/decisions/060-anvil-home-install-root-override.md), [ADR-036](../../plans/decisions/036-daemon-scope-discovery-and-boundaries.md) | Boring-Week candidate testing, [adoption runbook](anvil-adoption.md), `anvil status --json` consumers |
+| [`plans/archive/modules/distribution-and-update.aps.md`](../../plans/archive/modules/distribution-and-update.aps.md) (DISTRIB-006), [ADR-060](../../plans/decisions/060-anvil-home-install-root-override.md), [ADR-036](../../plans/decisions/036-daemon-scope-discovery-and-boundaries.md) | Boring-Week candidate testing, [adoption runbook](anvil-adoption.md), `anvil status --json` consumers |
 
 This runbook shows an internal developer how to run a pre-release Anvil
 **candidate** alongside the **production** install — testing a new version

@@ -49,7 +49,7 @@ Phase 2 deliverable (spec §9 step 13).
 
 **Depends on:**
 
-- [`lang-ts-audit`](./lang-ts-audit.aps.md) — TS at T3.
+- [`lang-ts-audit`](../archive/modules/lang-ts-audit.aps.md) — TS at T3.
 - [`pack-pulumi`](./pack-pulumi.aps.md) — first consumer of the pack
   architecture; PACKPUL-001 lands the crate registry.
 - [ADR-027](../decisions/027-pack-architecture.md) — pack architecture

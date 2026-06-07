@@ -6,7 +6,7 @@
 
 | Upstream                                                                                                           | Downstream                                                                                                                                                                           |
 | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [`plans/modules/distribution-and-update.aps.md`](../../plans/modules/distribution-and-update.aps.md) (DISTRIB-005) | [`crates/anvil-cli/src/commands/migrate.rs`](../../crates/anvil-cli/src/commands/migrate.rs), [`crates/anvil-config/src/migrations.rs`](../../crates/anvil-config/src/migrations.rs) |
+| [`plans/archive/modules/distribution-and-update.aps.md`](../../plans/archive/modules/distribution-and-update.aps.md) (DISTRIB-005) | [`crates/anvil-cli/src/commands/migrate.rs`](../../crates/anvil-cli/src/commands/migrate.rs), [`crates/anvil-config/src/migrations.rs`](../../crates/anvil-config/src/migrations.rs) |
 
 ## NAME
 

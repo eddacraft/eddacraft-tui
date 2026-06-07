@@ -63,7 +63,7 @@ Phase 1 deliverable (spec §9 step 3). Unblocks immediately after
 
 **Depends on:**
 
-- [`lang-ts-audit`](./lang-ts-audit.aps.md) — TS substrate at T3.
+- [`lang-ts-audit`](../archive/modules/lang-ts-audit.aps.md) — TS substrate at T3.
 - Pack architecture (this module sets the pattern).
 - Existing OPA pipeline.
 

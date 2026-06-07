@@ -61,7 +61,7 @@ Java, Kotlin, .NET/C#, and C/C++ (now archived).
 
 **Depends on:**
 
-- [`lang-ts-audit`](./lang-ts-audit.aps.md) — extractor abstraction;
+- [`lang-ts-audit`](../archive/modules/lang-ts-audit.aps.md) — extractor abstraction;
   grammar version in cache key (council §16.5 #3 / C-004).
 - Existing kernel parser, symbol graph.
 

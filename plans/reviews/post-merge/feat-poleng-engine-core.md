@@ -9,7 +9,7 @@ Verified: <!-- filled by cleanup agent -->
 ## Steps
 
 - [ ] Advance POLENG-002..007 from `In Progress` to `Merged <date> via PR #NNN`
-      in `plans/modules/policy-engine.aps.md` (agent: yes)
+      in `plans/archive/modules/policy-engine.aps.md` (agent: yes)
 - [ ] Update the POLENG row in `plans/index.aps.md` (done count + the
       POLENG-001 skeleton note, which still reads "In Progress (2026-05-12)")
       to reflect 002..007 merged and POLENG-008 as the only open task

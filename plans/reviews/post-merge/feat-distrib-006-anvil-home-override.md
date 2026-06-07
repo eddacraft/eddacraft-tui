@@ -9,7 +9,7 @@ Verified: <!-- filled by cleanup agent -->
 ## Steps
 
 - [ ] Advance DISTRIB-006 In Progress → Merged in
-      `plans/modules/distribution-and-update.aps.md` + `plans/index.aps.md`
+      `plans/archive/modules/distribution-and-update.aps.md` + `plans/index.aps.md`
       (`Merged YYYY-MM-DD via PR #2185`). Module count stays 5/6 until the item
       is Released/Shipped on the `v0.7.4-beta` tag. (agent: yes)
 - [ ] Confirm DISTRIB-006 rides the `v0.7.4-beta` cut per

@@ -69,7 +69,7 @@ shape entirely.
 
 **Depends on:**
 
-- [`lang-ts-audit`](./lang-ts-audit.aps.md) — T3 acceptance checklist + kernel
+- [`lang-ts-audit`](../archive/modules/lang-ts-audit.aps.md) — T3 acceptance checklist + kernel
   prerequisites (LANGTS-005) — satisfied (6/6, checklist published, extractor
   trait + grammar_version live).
 - Kernel prerequisite work from `lang-ts-audit` (extractor trait, grammar

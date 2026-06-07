@@ -68,7 +68,7 @@ standard policy-hook mechanism once their FP profile is known.
 
 **Depends on:**
 
-- [`lang-ts-audit`](./lang-ts-audit.aps.md) — Phase 1 substrate.
+- [`lang-ts-audit`](../archive/modules/lang-ts-audit.aps.md) — Phase 1 substrate.
 - [`lang-python`](./lang-python.aps.md) — Phase 2 substrate (T2+).
 - [`pack-pulumi`](./pack-pulumi.aps.md) — first consumer of the pack
   architecture; this pack is second to ship.

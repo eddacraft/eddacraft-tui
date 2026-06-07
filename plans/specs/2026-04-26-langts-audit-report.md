@@ -4,7 +4,7 @@
 **Author:** LANGTS audit (anchor item zero)
 **Spec context:** [2026-04-08 Language and Coverage Design](./2026-04-08-language-and-coverage-design.md) §7.3, §8.1, §16.5
 **Companion artefact:** [T3 Acceptance Checklist](./2026-04-26-t3-acceptance-checklist.md)
-**Module:** [lang-ts-audit](../modules/lang-ts-audit.aps.md)
+**Module:** [lang-ts-audit](../archive/modules/lang-ts-audit.aps.md)
 
 > Honest gap surface, not a rubber stamp. Where the kernel is not currently at
 > T3 for TypeScript, this report names it. The companion T3 acceptance
