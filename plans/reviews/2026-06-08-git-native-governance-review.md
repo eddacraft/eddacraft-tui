@@ -168,6 +168,6 @@ Checked specifically, since GV2 is the adjacent active stream:
   [074](../decisions/074-review-capsule-v0-format.md)
 - Modules: [GITGOV](../modules/git-native-governance.aps.md),
   [EXCEPT](../modules/git-native-exceptions.aps.md)
-- Adjacent stream: [`../../docs/architecture/graph-v2-foundation-spec.md`](../../docs/architecture/graph-v2-foundation-spec.md)
-  (note: authored in the `docs/gitgov-review` sibling stream / GV2 work, not yet
-  on `origin/main`)
+- Adjacent stream: the GV2 foundation spine spec
+  `docs/architecture/graph-v2-foundation-spec.md` (PR #2350 — not on
+  `origin/main` until that merges, so referenced as a path rather than a link)
