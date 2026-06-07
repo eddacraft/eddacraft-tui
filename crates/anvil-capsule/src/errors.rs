@@ -18,6 +18,11 @@ pub enum CapsuleError {
     /// The value could not be encoded (practically unreachable).
     #[error("serialisation error: {0}")]
     Serialise(String),
+    /// A `git` invocation failed while collecting evidence — spawn
+    /// failure, unresolvable ref, non-zero exit, or non-UTF-8 output
+    /// (including changed paths, which are never lossily rewritten).
+    #[error("git error: {0}")]
+    Git(String),
     /// A verification document's stored `verdict` disagrees with the
     /// worst-of derivation over its `checks` — a tampered or
     /// hand-assembled document trying to launder a verdict.

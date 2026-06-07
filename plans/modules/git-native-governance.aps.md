@@ -83,7 +83,8 @@ release seals (RELEASE-SEAL); supplier bundles (SUPPLIER). Sealed Edda context
 - **Expected Outcome:** `commits.json` reflects the range deterministically.
 - **Validation:** `cargo test -p eddacraft-anvil-capsule -- collect_commits`
 - **Dependencies:** GITGOV-003
-- **Status:** Proposed
+- **Status:** In Progress (promoted from Proposed 2026-06-08 per NBI — operator
+  goal; first executable dependency of GITGOV-004)
 
 ### GITGOV-006: Policy/baseline/rules digest collector
 - **Intent:** Capture effective policy digest, `rules_sha` (via `anvil_rules::rules_sha`), and baseline cutoff/digest (from `anvil/baseline.json`).

@@ -12,11 +12,13 @@
 //! `anvil_rules::rules_sha`.
 
 pub mod canonical;
+pub mod collect;
 pub mod errors;
 pub mod manifest;
 pub mod verification;
 
 pub use canonical::{canonical_json_bytes, sha256_hex};
+pub use collect::{COMMITS_SCHEMA, CommitEntry, CommitsDocument, collect_commits};
 pub use errors::CapsuleError;
 pub use manifest::{CAPSULE_SCHEMA, CapsuleManifest, CapsuleRange, Producer, REQUIRED_FILES};
 pub use verification::{CapsuleVerification, CheckResult, VERIFICATION_SCHEMA, Verdict};
