@@ -596,13 +596,13 @@ ADR/TUIN amendment.
 
 - **Status:** Proposed
 
-**Intent:** Implement the amended ADR-050 `runner` feature contract once
+- **Intent:** Implement the amended ADR-050 `runner` feature contract once
 the TUIN gate opens: a parser-light fallback CLI shell for consumers that
 need shared global flags, first-level subcommand dispatch, config handoff,
 terminal lifecycle, panic restore, theme selection, mode detection, and
 render-loop handoff without adopting a full CLI framework.
 
-**Expected Outcome:** `crates/eddacraft-tui/` exposes a feature-gated
+- **Expected Outcome:** `crates/eddacraft-tui/` exposes a feature-gated
 `runner` module with working-name APIs equivalent to
 `launch_cli<Cli: TerminalCli>(cli) -> ExitCode`, `launch_with`,
 `RunnerOptions`, `CommandSet`, `ConfigSource`, and a runner-local event
@@ -615,7 +615,7 @@ handoff, lifecycle, and render loop are shared; nested commands,
 completions, env binding, rich validation, config format / merge
 semantics, and domain command behaviour remain consumer-owned.
 
-**Validation:** `cargo test -p eddacraft-tui --features runner`; `cargo
+- **Validation:** `cargo test -p eddacraft-tui --features runner`; `cargo
 test -p eddacraft-tui --all-features`; `cargo test -p eddacraft-tui
 --no-default-features`; `cargo tree -p eddacraft-tui --features runner
 --prefix=none --edges normal` reviewed against the TUIR-001 dependency
