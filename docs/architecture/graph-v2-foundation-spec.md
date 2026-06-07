@@ -6,7 +6,7 @@
 
 | Upstream                                                                                                                                                                                              | Downstream                                                                                                                                              |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ADR-061, ADR-063, ADR-064, ADR-067, ADR-069, ADR-031; `crates/anvil-kernel-types`, `crates/anvil-graph-cache`; [`intercept-as-built.md`](./intercept-as-built.md), [`edda-stack.md`](./edda-stack.md) | `graph-context-delivery` (GCTX), `surface-drivers` (DRVR), `multilayer-protection-v2` (INTD), `weave` (WEAVE); the daemon save-time validation contract |
+| ADR-061, ADR-063, ADR-064, ADR-067, ADR-069, ADR-031, `crates/anvil-kernel-types`, `crates/anvil-graph-cache`, [`intercept-as-built.md`](./intercept-as-built.md), [`edda-stack.md`](./edda-stack.md) | `graph-context-delivery` (GCTX), `surface-drivers` (DRVR), `multilayer-protection-v2` (INTD), `weave` (WEAVE), the daemon save-time validation contract |
 
 ## Purpose and scope
 
