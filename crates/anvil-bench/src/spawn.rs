@@ -160,12 +160,15 @@ mod tests {
 
     #[test]
     fn ensure_running_detects_exited_child() {
-        let child = std::process::Command::new("true")
+        let mut child = std::process::Command::new("true")
             .spawn()
             .expect("spawn `true`");
+        // Reap deterministically before the liveness check: `Child` caches the
+        // exit status, so `try_wait` inside `ensure_running` sees it without a
+        // timing assumption. A fixed sleep raced child startup on loaded
+        // Windows CI runners (Cross matrix red, 2026-06-07).
+        child.wait().expect("`true` exits");
         let mut managed = ManagedChild::new(child, "true-probe");
-        // Give it a moment to exit.
-        std::thread::sleep(std::time::Duration::from_millis(100));
         let err = managed
             .ensure_running("after probe")
             .expect_err("a process that ran `true` should be reported as exited");
