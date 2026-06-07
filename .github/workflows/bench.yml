@@ -43,7 +43,8 @@ jobs:
     name: Criterion benchmarks
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     needs: bench-check
-    timeout-minutes: 60
+    # Kernel benchmarks have taken ~73 minutes on GitHub-hosted runners.
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1
