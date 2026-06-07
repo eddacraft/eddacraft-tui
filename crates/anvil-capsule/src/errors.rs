@@ -18,4 +18,14 @@ pub enum CapsuleError {
     /// The value could not be encoded (practically unreachable).
     #[error("serialisation error: {0}")]
     Serialise(String),
+    /// A verification document's stored `verdict` disagrees with the
+    /// worst-of derivation over its `checks` — a tampered or
+    /// hand-assembled document trying to launder a verdict.
+    #[error("inconsistent verdict: document claims `{claimed}`, checks derive `{derived}`")]
+    InconsistentVerdict {
+        /// The verdict the document stored.
+        claimed: String,
+        /// The verdict derived from the document's own checks.
+        derived: String,
+    },
 }

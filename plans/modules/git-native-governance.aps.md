@@ -67,7 +67,7 @@ release seals (RELEASE-SEAL); supplier bundles (SUPPLIER). Sealed Edda context
 ### GITGOV-003: Capsule manifest schema
 - **Intent:** Define `anvil.capsule.v1` manifest + `anvil.capsule-verification.v1`, digesting every file with SHA-256 over canonical JSON; carries `witness_seq_start`/`witness_seq_end` range pointers per the ADR-074 full-chain witness model.
 - **Expected Outcome:** Versioned, round-trippable manifest types in `anvil-capsule`.
-- **Validation:** `cargo test -p eddacraft-anvil-capsule -- manifest`
+- **Validation:** `cargo test -p eddacraft-anvil-capsule`
 - **Dependencies:** GITGOV-001
 - **Status:** In Progress
 

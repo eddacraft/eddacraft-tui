@@ -20,3 +20,23 @@ pub use canonical::{canonical_json_bytes, sha256_hex};
 pub use errors::CapsuleError;
 pub use manifest::{CAPSULE_SCHEMA, CapsuleManifest, CapsuleRange, Producer, REQUIRED_FILES};
 pub use verification::{CapsuleVerification, CheckResult, VERIFICATION_SCHEMA, Verdict};
+
+/// Probe a document's `schema` field and gate it against `expected`
+/// **before** strict deserialisation, so version mismatch surfaces as
+/// [`CapsuleError::SchemaMismatch`] rather than an opaque
+/// unknown-field parse error from `deny_unknown_fields`.
+pub(crate) fn schema_gate(bytes: &[u8], expected: &'static str) -> Result<(), CapsuleError> {
+    #[derive(serde::Deserialize)]
+    struct SchemaProbe {
+        schema: String,
+    }
+    let probe: SchemaProbe =
+        serde_json::from_slice(bytes).map_err(|e| CapsuleError::Parse(e.to_string()))?;
+    if probe.schema != expected {
+        return Err(CapsuleError::SchemaMismatch {
+            expected,
+            found: probe.schema,
+        });
+    }
+    Ok(())
+}

@@ -6,25 +6,39 @@
 //! witness line is flat. Producers write canonical bytes to disk, so a
 //! verifier can digest raw file bytes without re-parsing.
 
+use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
-/// Recursively sort every object's keys. Arrays keep their order —
-/// element order is semantic (e.g. an ordered check list); only object
-/// key order is presentation noise to normalise away.
-fn sort_value(value: &Value) -> Value {
-    match value {
-        Value::Object(map) => {
-            let mut entries: Vec<(&String, &Value)> = map.iter().collect();
-            entries.sort_by(|a, b| a.0.cmp(b.0));
-            let mut sorted = serde_json::Map::new();
-            for (key, val) in entries {
-                sorted.insert(key.clone(), sort_value(val));
+/// Serialisation adapter that emits objects with sorted keys at every
+/// depth. Sorting happens during emission, so canonical order is a
+/// type-level guarantee — it does not depend on `serde_json`'s
+/// `preserve_order` feature or on any map's internal ordering.
+struct Canonical<'a>(&'a Value);
+
+impl Serialize for Canonical<'_> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self.0 {
+            Value::Object(map) => {
+                let mut entries: Vec<(&String, &Value)> = map.iter().collect();
+                entries.sort_by(|a, b| a.0.cmp(b.0));
+                let mut out = serializer.serialize_map(Some(entries.len()))?;
+                for (key, value) in entries {
+                    out.serialize_entry(key, &Canonical(value))?;
+                }
+                out.end()
             }
-            Value::Object(sorted)
+            // Array order is semantic (e.g. an ordered check list);
+            // only object key order is presentation noise.
+            Value::Array(items) => {
+                let mut out = serializer.serialize_seq(Some(items.len()))?;
+                for item in items {
+                    out.serialize_element(&Canonical(item))?;
+                }
+                out.end()
+            }
+            other => other.serialize(serializer),
         }
-        Value::Array(items) => Value::Array(items.iter().map(sort_value).collect()),
-        other => other.clone(),
     }
 }
 
@@ -36,9 +50,7 @@ fn sort_value(value: &Value) -> Value {
 /// Returns the underlying `serde_json` error if the value cannot be
 /// serialised (practically unreachable for values built from `Value`).
 pub fn canonical_json_bytes(value: &Value) -> Result<Vec<u8>, serde_json::Error> {
-    // `preserve_order` keeps insertion order on `serde_json::Map`, so
-    // inserting in sorted order above guarantees sorted emission here.
-    serde_json::to_vec(&sort_value(value))
+    serde_json::to_vec(&Canonical(value))
 }
 
 /// SHA-256 hex digest of a byte slice — the digest form every manifest
@@ -77,6 +89,15 @@ mod tests {
         );
     }
 
+    /// Objects nested inside arrays sort too — emission-time sorting
+    /// is depth-blind.
+    #[test]
+    fn canonical_bytes_sort_objects_inside_arrays() {
+        let value: Value = serde_json::from_str(r#"[{"b":1,"a":2}]"#).unwrap();
+        let bytes = canonical_json_bytes(&value).unwrap();
+        assert_eq!(std::str::from_utf8(&bytes).unwrap(), r#"[{"a":2,"b":1}]"#);
+    }
+
     /// Array order is semantic and must survive canonicalisation.
     #[test]
     fn canonical_bytes_keep_array_order() {
@@ -85,7 +106,7 @@ mod tests {
         assert_eq!(std::str::from_utf8(&bytes).unwrap(), r#"["b","a"]"#);
     }
 
-    /// Golden pin against a known SHA-256 vector (empty input).
+    /// Golden pin against the well-known SHA-256 empty-input vector.
     #[test]
     fn sha256_hex_golden() {
         assert_eq!(

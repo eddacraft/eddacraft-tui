@@ -17,11 +17,17 @@ use crate::errors::CapsuleError;
 /// The manifest schema identifier this crate produces and accepts.
 pub const CAPSULE_SCHEMA: &str = "anvil.capsule.v1";
 
-/// Evidence files every capsule must list (ADR-074 §Layout). Files are
-/// present-but-empty rather than omitted when there is nothing to
-/// report, so a missing file is unambiguously a tamper/corruption
-/// signal, not "no findings".
-pub const REQUIRED_FILES: [&str; 9] = [
+/// Files every capsule must list (ADR-074 §Layout — everything except
+/// the self-referential `manifest.json`). Files are present-but-empty
+/// rather than omitted when there is nothing to report, so a missing
+/// file is unambiguously a tamper/corruption signal, not "no findings".
+///
+/// `verification.json` is included: the create step writes a
+/// `degraded` placeholder (`CapsuleVerification::from_checks(vec![])`)
+/// and records its digest, so an unverified capsule carries a
+/// machine-readable `degraded` verdict — never silence. The verify
+/// step overwrites it (and re-records the digest).
+pub const REQUIRED_FILES: [&str; 10] = [
     "commits.json",
     "policy.json",
     "baseline.json",
@@ -30,6 +36,7 @@ pub const REQUIRED_FILES: [&str; 9] = [
     "diagnostics.sarif",
     "exceptions.json",
     "edda-context.json",
+    "verification.json",
     "README.md",
 ];
 
@@ -96,6 +103,12 @@ impl CapsuleManifest {
     }
 
     /// Record `name`'s digest from the bytes that were written for it.
+    ///
+    /// Call with the **exact bytes written to disk**. For JSON
+    /// evidence, pass the output of a `to_canonical_bytes()` encoder —
+    /// never a re-serialised form: digests are byte-level, so even a
+    /// whitespace difference between the recorded bytes and the disk
+    /// file is a digest mismatch at verification time.
     pub fn record_file(&mut self, name: &str, bytes: &[u8]) {
         self.files.insert(name.to_string(), sha256_hex(bytes));
     }
@@ -126,21 +139,19 @@ impl CapsuleManifest {
 
     /// Parse and schema-gate a manifest from file bytes.
     ///
+    /// The schema version is probed **before** strict deserialisation,
+    /// so a document from a newer producer fails with
+    /// [`CapsuleError::SchemaMismatch`] ("upgrade your Anvil"), not an
+    /// opaque unknown-field parse error.
+    ///
     /// # Errors
     ///
-    /// [`CapsuleError::Parse`] for malformed JSON or unknown fields;
     /// [`CapsuleError::SchemaMismatch`] when the document declares a
-    /// schema other than [`CAPSULE_SCHEMA`].
+    /// schema other than [`CAPSULE_SCHEMA`]; [`CapsuleError::Parse`]
+    /// for malformed JSON or unknown fields.
     pub fn from_json_bytes(bytes: &[u8]) -> Result<Self, CapsuleError> {
-        let manifest: Self =
-            serde_json::from_slice(bytes).map_err(|e| CapsuleError::Parse(e.to_string()))?;
-        if manifest.schema != CAPSULE_SCHEMA {
-            return Err(CapsuleError::SchemaMismatch {
-                expected: CAPSULE_SCHEMA,
-                found: manifest.schema,
-            });
-        }
-        Ok(manifest)
+        crate::schema_gate(bytes, CAPSULE_SCHEMA)?;
+        serde_json::from_slice(bytes).map_err(|e| CapsuleError::Parse(e.to_string()))
     }
 }
 
@@ -211,7 +222,9 @@ mod tests {
     }
 
     /// Golden pin: the exact canonical encoding is the digest contract.
-    /// A diff here is a schema-epoch event, not a refactor.
+    /// A diff here is a schema-epoch event, not a refactor. The
+    /// embedded hex is `sha256_hex(b"{}")` — the digest `sample()`
+    /// records for `commits.json`.
     #[test]
     fn manifest_canonical_bytes_golden() {
         let bytes = sample().to_canonical_bytes().unwrap();
@@ -234,6 +247,9 @@ mod tests {
         let missing = manifest.missing_required();
         assert!(!missing.contains(&"commits.json"));
         assert!(missing.contains(&"witness.ndjson"));
+        // An unverified capsule is incomplete: the create step must
+        // write (and record) a degraded placeholder verification.json.
+        assert!(missing.contains(&"verification.json"));
         assert_eq!(missing.len(), REQUIRED_FILES.len() - 1);
     }
 
@@ -245,5 +261,40 @@ mod tests {
             manifest.files["rules.json"],
             "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
         );
+    }
+
+    /// Digests are byte-level: whitespace-different JSON is a different
+    /// digest. Producers must record the exact bytes they write.
+    #[test]
+    fn manifest_record_file_is_byte_sensitive() {
+        let mut manifest = sample();
+        manifest.record_file("policy.json", b"{}");
+        let compact = manifest.files["policy.json"].clone();
+        manifest.record_file("policy.json", b"{ }");
+        assert_ne!(manifest.files["policy.json"], compact);
+    }
+
+    /// A v2 manifest with unknown fields fails as `SchemaMismatch`,
+    /// not an opaque unknown-field parse error — probe before parse.
+    #[test]
+    fn manifest_schema_probe_beats_unknown_field_errors() {
+        let raw = br#"{"schema":"anvil.capsule.v2","v2_only":true}"#;
+        let err = CapsuleManifest::from_json_bytes(raw).unwrap_err();
+        assert!(matches!(err, CapsuleError::SchemaMismatch { .. }));
+    }
+
+    /// Duplicate keys in `files` parse last-wins (`serde_json` map
+    /// semantics). Pinned so the behaviour is a named choice: the
+    /// manifest is the digest root — an attacker who can write it can
+    /// write a clean single-key form anyway, so rejection buys nothing.
+    #[test]
+    fn manifest_duplicate_file_keys_parse_last_wins() {
+        let bytes = sample().to_canonical_bytes().unwrap();
+        let text = std::str::from_utf8(&bytes).unwrap().replace(
+            r#""files":{"commits.json":"#,
+            r#""files":{"commits.json":"deadbeef","commits.json":"#,
+        );
+        let parsed = CapsuleManifest::from_json_bytes(text.as_bytes()).unwrap();
+        assert_eq!(parsed.files["commits.json"], sample().files["commits.json"]);
     }
 }
