@@ -5,21 +5,34 @@
 
 | ID   | Owner      | Status      | Progress |
 | ---- | ---------- | ----------- | -------- |
-| TUIR | joshuaboys | In Progress | 7/8      |
+| TUIR | joshuaboys | In Progress | 7/9      |
 
-**Last reviewed:** 2026-05-27 — TUIR-008 Ready Checklist closed out
+**Last reviewed:** 2026-06-07 — TUIR-009 added and ratifies D-TUIR-021
+(structural gap surfaced while backfilling `eddacraft-tui-v0.2.4` on the
+public mirror): the publish workflow's `gh release create` step on
+anvil-001 had no `--prerelease`, so the crate release pinned as the
+anvil-001 `latest` and shadowed Anvil product releases; the mirror
+itself never received a Release object, so its `/releases` page stayed
+pinned at the legacy `v0.2.2`. Both gaps were closed manually on
+2026-06-07 (operational, see TUIR-009 body) and the structural fix
+lands in this PR: step 8 of `publish-eddacraft-tui.yml` now uses
+`--prerelease`; the runbook gains a "Mirror Release backfill" recovery
+subsection plus a `gh api …/releases/latest` + `target_commitish` +
+`prerelease` + CHANGELOG/README byte-diff verify step. Progress
+**7/8 → 7/9**. Earlier: 2026-05-27 — TUIR-008 Ready Checklist closed out
 (docs-only): the three outstanding prep items (cutover/history-rewrite
 runbook section + `pre-canonical-archive` preservation, two-layer
 migration rollback, `deny.toml` review) are now documented in
-`docs/runbooks/eddacraft-tui-release.md`. Progress stays **7/8** —
-TUIR-008's body is the operator-driven E2E cut (live `eddacraft-tui-v0.2.3`
-publish, mirror tag propagation, legacy token revocation, downstream
-consumer check against the private `eddacraft/eddacraft-skills`), which
-is irreversible/outward-facing and is **not** done by this PR. Drafting
-the cutover section surfaced a live gap: the content force-push already
-ran (2026-05-25) without the D-TUIR-010 archive — see the checklist note
-and the runbook's corrective step. Earlier: 2026-05-25 — TUIR-005
-publish workflow + release runbook landed via PR #1919 (6/8 → 7/8); the
+`docs/runbooks/eddacraft-tui-release.md`. Progress at that point was
+**7/8** — TUIR-008's body is the operator-driven E2E cut (live
+`eddacraft-tui-v0.2.3` publish, mirror tag propagation, legacy token
+revocation, downstream consumer check against the private
+`eddacraft/eddacraft-skills`), which is irreversible/outward-facing and
+is **not** done by this PR. Drafting the cutover section surfaced a live
+gap: the content force-push already ran (2026-05-25) without the
+D-TUIR-010 archive — see the checklist note and the runbook's
+corrective step. Earlier: 2026-05-25 — TUIR-005 publish workflow +
+release runbook landed via PR #1919 (6/8 → 7/8); the
 `mirror-eddacraft-tui.yml` workflow (TUIR-004) migrated to the
 `eddacraft-mirror-bot` GitHub App so both adjacent mirror auth paths
 converge on the org-owned credential.
@@ -922,6 +935,62 @@ zero hits.
 **changeType:** internal
 **releaseIntent:** candidate
 **releaseScope:** patch
+
+### TUIR-009: Mirror-side GitHub Release backfill + workflow gap
+
+- **Status:** open
+- **Intent:** Close two structural gaps surfaced 2026-06-07 during
+  v0.2.4 backfill: (a) the publish workflow
+  (`.github/workflows/publish-eddacraft-tui.yml` step 8) creates
+  `gh release create` on `eddacraft/anvil-001` only — the public
+  mirror `eddacraft/eddacraft-tui` never gets a Release object created
+  automatically, so the mirror's `/releases` page stays pinned at the
+  most recent legacy `v0.x.y` Release (v0.2.2 as of 2026-06-07), and
+  `…/releases/latest` does not reflect the new prefixed
+  `eddacraft-tui-vX.Y.Z` releases even though the tags themselves
+  propagate cleanly; and (b) the anvil-001 release is created WITHOUT
+  `--prerelease`, which causes it to pin as the anvil-001 repo's
+  `latest` and shadow Anvil product releases (e.g. v0.7.4-beta).
+  This work item (i) documents the mirror backfill recovery path in
+  the runbook so the next operator doesn't have to discover it, (ii)
+  adds the missing `--prerelease` flag to the publish workflow so the
+  anvil-001 release stops shadowing Anvil product releases, and (iii)
+  patches the existing v0.2.3 (orphan — crate was never published to
+  crates.io) and v0.2.4 anvil-001 releases with `--prerelease` so the
+  v0.7.4-beta product release correctly shows as `latest`.
+- **Expected Outcome:** (1) `docs/runbooks/eddacraft-tui-release.md`
+  carries a "Mirror Release backfill" subsection under Rollback that
+  gives the exact `gh release create` + `target_commitish` patch
+  commands and explains why `--target` matters (default `main` would
+  point the release at whatever `main` HEAD is at backfill time, not
+  at the vX.Y.Z tag's commit). (2) The same runbook's "Verify"
+  section gains a `gh api …/releases/latest` check, a
+  `target_commitish` pin check, a `prerelease` flag check, and a
+  CHANGELOG/README byte-diff check so the operator can confirm mirror
+  sync and anvil-001 release posture at the end of every cut. (3)
+  The decision (D-TUIR-021, ratified by this work item) is that the
+  publish workflow's Release step is intentionally scoped to
+  `anvil-001` with `--prerelease` — the mirror Release is a backfill,
+  not an automation step, to keep the publish workflow free of any
+  second GitHub App or PAT and to preserve D-TUIR-009 / D-TUIR-011
+  tag-protection guarantees. (4) The existing v0.2.3 and v0.2.4
+  anvil-001 releases are re-flagged as `prerelease` so the v0.7.4-beta
+  Anvil product release is correctly the repo's `latest`.
+- **Validation:**
+- `gh api repos/eddacraft/eddacraft-tui/releases/latest
+  --jq .tag_name` returns the most recent prefixed
+  `eddacraft-tui-vX.Y.Z` after the backfill is run;
+- byte-diff of `crates/eddacraft-tui/CHANGELOG.md` against
+  `gh api …/contents/CHANGELOG.md -H "Accept: application/vnd.github.raw"`
+  reports no drift (the mirror README is `MIRROR-README.md + README.md`,
+  so the byte-diff is on the body, not the full file);
+- new `gh release view` of the mirror release shows
+  `targetCommitish` equal to the tag's commit, not `main`;
+- runbook diff is link-clean (`pnpm docs:check`).
+
+**changeType:** docs
+**releaseIntent:** never
+**releaseScope:** none
 
 ## Ready Checklist
 

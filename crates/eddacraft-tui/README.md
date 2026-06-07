@@ -1,36 +1,102 @@
 # eddacraft-tui
 
-Shared Ratatui component library for open-source TUIs that follow the eddacraft
-design system.
+> **A curated, themed, animation-ready Ratatui component library for
+> eddacraft-style TUIs.** Drop-in compatible with `ratatui` 0.30 — add it to
+> your `Cargo.toml` and gain a polished widget set, brand theming, a
+> reflow-free text layout engine, and a JSON-driven dashboard renderer.
 
-## Modules
+## Why eddacraft-tui over vanilla `ratatui`?
 
-- **`theme/`** — eddacraft Terminal Standard colour palette, `Theme` trait,
-  semantic `Role` tokens, and brand theming
-- **`keyboard/`** — key binding definitions, action mapping, and introspectable
-  `Binding` table
-- **`widgets/`** — reusable TUI widgets (see [Widgets](#widgets) below)
-- **`pretext/`** — two-phase prepare/layout text engine for streaming AI output
-  and dynamic reflow
-- **`surface.rs`** — base `Surface` trait for TUI screens
-- **`shell.rs`** — shared shell chrome renderer
+|                                          | `ratatui` |  `eddacraft-tui`  |
+| ---------------------------------------- | :-------: | :---------------: |
+| Core widget set                          |     ✓     |         ✓         |
+| Curated themed widgets (status, data, …) |     —     |         ✓         |
+| `pretext` two-phase text layout          |     —     |         ✓         |
+| `json-render` JSON → terminal renderer   |     —     | ✓ (`json-render`) |
+| Brand-themed spinners & progress         |     —     |         ✓         |
+| Image pane (Kitty / Sixel / iTerm2)      |     —     |    ✓ (`image`)    |
+| Big-text branded splashes                |     —     |  ✓ (`big-text`)   |
 
-## Design System
+## Headline features
 
-Implements the eddacraft Terminal Standard:
+### `json-render` — render dashboard specs in a terminal
 
-| Token       | Colour               |
-| ----------- | -------------------- |
-| Void        | `rgb(13, 13, 15)`    |
-| Structure   | `rgb(42, 42, 46)`    |
-| Off-White   | `rgb(235, 235, 235)` |
-| Ghost Grey  | `rgb(133, 133, 138)` |
-| anvil Ember | `rgb(204, 85, 0)`    |
-| edda Growth | `rgb(46, 139, 87)`   |
-| Brick Red   | `rgb(201, 74, 74)`   |
-| Dull Amber  | `rgb(208, 140, 56)`  |
+Bring your own JSON. `eddacraft-tui` parses the `@json-render/core` flat
+element spec format into typed `RenderSpec` / `Element` / `PropValue`
+structures and validates the spec against a component `Catalog` —
+unknown component types, dangling or cyclic `children` references, and
+missing roots are caught at parse time, not at render time. A separate
+tool (a build step, a server response, an LLM-emitted artefact) can
+ship a UI description and the TUI renders it without any extra glue
+code. `serde` and `serde_json` are feature-gated behind `json-render`,
+so the core widget library stays serde-free.
 
-## Usage
+```toml
+[dependencies]
+eddacraft-tui = { version = "0.2", features = ["json-render"] }
+```
+
+```rust
+use eddacraft_tui::json_render::{
+    base_registry, parse, render_spec, validate, Catalog, RenderSpec, TuiRegistry,
+};
+
+let spec_json = r#"{"root":"dashboard","elements":[...]}"#;
+let spec: RenderSpec = parse(spec_json).expect("valid JSON");
+validate(&spec, &Catalog::base()).expect("spec is valid");
+
+// In your render loop, draw the spec to a ratatui Frame:
+let registry: TuiRegistry = base_registry();
+render_spec(&spec, &registry, frame, area);
+```
+
+This is the parser + renderer foundation for shipping json-render
+dashboard specs natively in a terminal — see the [`json_render` API docs]
+for the full element set (`Stack`, `Grid`, `Card`, `Separator`, `Table`,
+`Heading`, `Text`, `Badge`, `StatusBadge`, `MetricCard`, `Progress`,
+`BarChart`, `LineChart`, `SparklineChart`, `Alert`, `Placeholder`).
+
+[`json_render` API docs]: https://docs.rs/eddacraft-tui/0.2.4/eddacraft_tui/json_render/
+
+### `pretext` — reflow-free text layout for streaming AI
+
+Two-phase text layout inspired by Cheng Lou's Pretext for the browser.
+`pretext` measures word widths once with `unicode-width`, caches the
+layout per container width, and re-runs only on resize. Streaming
+tokens land in a frame with no reflow stutter; container resizes
+invalidate the cache and re-measure in a single pass. Exclusion zones
+let text flow around moving shapes — a sidebar that animates, a live
+chart. The widget itself is zero-sized: all caching lives on
+`PretextState`, so caching works correctly across moves and
+reparenting. See [Pretext layout](#pretext-layout) below for a worked
+example.
+
+### Curated themed widget library
+
+The `widgets/` module ships a curated component set, themed against the
+eddacraft design system. Highlights: `TextInput`, `Editor`, `Select`,
+`Confirm` (inputs); `Spinner`, `ProgressBar`, `ParallelProgress`,
+`StatusBadge`, `StatusBar` (status); `Container`, `Divider`, `Header`
+(layout); `DataTable` (sortable, themed `▲`/`▼` indicators), `Tree`
+(expand/collapse via `TreeState`), `LogPanel` (data); `OverlayStack` +
+`Layer` + `Placement` (overlays); `HelpBar` (chrome); `PretextWidget`
+(text reflow); and `Hideable`, `Disableable`, `Padded` wrappers that
+decorate any `Widget` / `StatefulWidget` without bloating each widget's
+API. See [Widgets](#widgets) below for the full reference.
+
+### Brand theming + animated progress
+
+`EddaCraftTheme` implements the eddacraft Terminal Standard — 8-colour
+palette, semantic `Role` tokens — and pairs with brand spinners:
+`Spinner::new(&theme).eddacraft()` for the bracket mark `[■]`, or
+`.anvil()` for `[‡]`. `ProgressBar` and `ParallelProgress` animate
+toward their target value: your event loop calls `animate_tick` each
+frame and the transition plays. Animations are powered by
+[`vyfor/animate`](https://github.com/vyfor/animate), a minimal
+animation engine for Ratatui. Full guide at
+[`docs/animations.md`](docs/animations.md).
+
+## Quick start
 
 ```toml
 [dependencies]
@@ -58,9 +124,32 @@ running checks.
 - `ShellBranding::Edda` -> `[=]`
 - `ShellBranding::Anvil` -> `[‡]`
 
-`ProgressBar` and `ParallelProgress` animate toward their target value. Your
-event loop must call `animate_tick` each frame for the transition to play — see
-[`docs/animations.md`](docs/animations.md).
+## Modules
+
+- **`theme/`** — eddacraft Terminal Standard colour palette, `Theme` trait,
+  semantic `Role` tokens, and brand theming
+- **`keyboard/`** — key binding definitions, action mapping, and introspectable
+  `Binding` table
+- **`widgets/`** — reusable TUI widgets (see [Widgets](#widgets) below)
+- **`pretext/`** — two-phase prepare/layout text engine for streaming AI output
+  and dynamic reflow
+- **`surface.rs`** — base `Surface` trait for TUI screens
+- **`shell.rs`** — shared shell chrome renderer
+
+## Design System
+
+Implements the eddacraft Terminal Standard:
+
+| Token       | Colour               |
+| ----------- | -------------------- |
+| Void        | `rgb(13, 13, 15)`    |
+| Structure   | `rgb(42, 42, 46)`    |
+| Off-White   | `rgb(235, 235, 235)` |
+| Ghost Grey  | `rgb(133, 133, 138)` |
+| anvil Ember | `rgb(204, 85, 0)`    |
+| edda Growth | `rgb(46, 139, 87)`   |
+| Brick Red   | `rgb(201, 74, 74)`   |
+| Dull Amber  | `rgb(208, 140, 56)`  |
 
 ## Widgets
 
