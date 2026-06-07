@@ -11,6 +11,7 @@ members = [
   "crates/anvil-checks-ast",
   "crates/anvil-checks-napi",
   "crates/anvil-bench",
+  "crates/anvil-capsule",
   "crates/anvil-cli",
   "crates/anvil-config",
   "crates/anvil-intercept",

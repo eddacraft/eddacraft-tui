@@ -69,7 +69,7 @@ release seals (RELEASE-SEAL); supplier bundles (SUPPLIER). Sealed Edda context
 - **Expected Outcome:** Versioned, round-trippable manifest types in `anvil-capsule`.
 - **Validation:** `cargo test -p eddacraft-anvil-capsule -- manifest`
 - **Dependencies:** GITGOV-001
-- **Status:** Proposed
+- **Status:** In Progress
 
 ### GITGOV-004: Capsule create command
 - **Intent:** `anvil capsule create --range <base>..<head> --out <dir>` writes the capsule directory.
