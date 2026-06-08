@@ -149,6 +149,12 @@ In practice, the important point is this:
 - findings explain **what** is wrong
 - the gate tells you **whether you can proceed**
 
+Every `anvil gate` run also records its result to `.anvil/gates.json` (pass
+rate, per-check status, and the checks needing attention). The **Gate Summary**
+dashboard renders that snapshot — run `anvil dashboard` and pick **Gate
+Summary** to read the last run without re-running it. See
+[Dashboards](../guides/dashboard.md#gate-summary).
+
 ## Example
 
 ```text

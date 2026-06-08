@@ -3,19 +3,19 @@ id: dashboard
 title: Dashboards
 description:
   Read-only TUI dashboards over your project's persisted anvil state —
-  architecture health, drift snapshots, and suppressions.
+  architecture health, drift snapshots, suppressions, and the gate summary.
 sidebar_position: 4
 ---
 
 # Dashboards
 
-| Type        | Authority     | Owner                                                                                                                                               | Status | Freshness                                                                             |
-| ----------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------- |
-| Public docs | Authoritative | TDASH ([`plans/modules/native-tui-dashboards.aps.md`](https://github.com/eddacraft/anvil-001/blob/main/plans/modules/native-tui-dashboards.aps.md)) | Live   | Last reviewed 2026-05-31 against `main` for the v0.7.3-beta `anvil dashboard` surface |
+| Type        | Authority     | Owner                                                                                                                                               | Status | Freshness                                                                          |
+| ----------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------- |
+| Public docs | Authoritative | TDASH ([`plans/modules/native-tui-dashboards.aps.md`](https://github.com/eddacraft/anvil-001/blob/main/plans/modules/native-tui-dashboards.aps.md)) | Live   | Last reviewed 2026-06-08 against `main` for the v0.8.0-beta gate-summary dashboard |
 
-| Upstream                                                                                   | Downstream                                                             |
-| ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
-| `anvil dashboard`, persisted `.anvil/` state (architecture, drift snapshots, suppressions) | Operators and beta testers inspecting project health from the terminal |
+| Upstream                                                                                                 | Downstream                                                             |
+| -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `anvil dashboard`, persisted `.anvil/` state (architecture, drift snapshots, suppressions, `gates.json`) | Operators and beta testers inspecting project health from the terminal |
 
 `anvil dashboard` opens native, read-only terminal dashboards over the state
 anvil has already persisted under `.anvil/`. Nothing is recomputed and nothing
@@ -60,6 +60,25 @@ Every active suppression with its scope, file, reason, and expiry. This mirrors
 the suppression health view in [`anvil insights --suppressions`](insights.md),
 in an interactive surface.
 
+## Gate Summary
+
+Every `anvil gate` run records a snapshot of its result to `.anvil/gates.json` —
+pass rate, per-check status, and the checks that need attention. The **Gate
+Summary** dashboard renders that snapshot, so you can read the last gate run at
+a glance without re-running it.
+
+Unlike the three surfaces above, Gate Summary is a **saved dashboard spec**
+rather than a built-in surface: `anvil init` seeds it at
+`.anvil/dashboards/gate-summary.dashboard.json`, and anvil's spec-driven
+dashboard engine renders it (data binding, charts, and responsive layout from a
+declarative JSON spec). Open it from the picker — run `anvil dashboard` and
+choose **Gate Summary** from the list, below the built-in dashboards.
+
+Because it is an ordinary saved spec, you can edit its JSON, or drop your own
+`*.dashboard.json` files into `.anvil/dashboards/`, to tailor or add dashboards;
+they show up in the same picker. The seeded file is preserved across
+`anvil init` runs (overwritten only with `anvil init --force`).
+
 ## What a dashboard reads
 
 Dashboards are projections of on-disk state, not a fresh scan:
@@ -69,6 +88,8 @@ Dashboards are projections of on-disk state, not a fresh scan:
 - **Drift** reads the `anvil drift` snapshot store under `.anvil/`.
 - **Suppressions** reads the inline `@anvil-ignore` directives discovered in
   your tree.
+- **Gate Summary** reads the `.anvil/gates.json` snapshot written by the last
+  `anvil gate` run.
 
 If a dashboard looks empty, it usually means the underlying state has not been
 produced yet — run a scan or capture a drift snapshot first. Dashboards require
