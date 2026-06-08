@@ -9,12 +9,15 @@
 > **A′ slice in the `v0.8.0-beta` window (2026-06-08, [ADR-075](../decisions/075-v080-graph-product-scope.md),
 > Accepted via council).** In-window = the **GV2-027 critical-path closure**:
 > GV2-010, 011, 012, 022, 024, 025, 028, 029, then the A→A′ swap (027).
-> **GV2-010 Merged 2026-06-08 (PR #2419)**; the now-unblocked frontier is
-> **GV2-011, GV2-012, GV2-028** (deps GV2-010 ✓) — promote at pickup. The rest
-> stay dep-blocked along the 7-deep chain. **Deferred to v0.9** (council, off the
-> critical path): GV2-013, 014, 020, 023, 026 (registry/contracts) and GV2-030
-> (sealed-DTO snapshot, with Sub-phase B persistence). 013/014 are dep-unblocked
-> but stay Draft as v0.9 scope. Count is **5/19** (001/002/003/021/010 Merged).
+> **GV2-010 Merged 2026-06-08 (PR #2419)**, **GV2-011 Merged 2026-06-08
+> (PR #2428)**, and **GV2-028 Merged 2026-06-08 (parser feed — shipped under
+> DSV-005 PR #2282, ratified + watch-path proof added here)**; the now-unblocked
+> frontier is **GV2-012** (dep GV2-010 ✓) plus **GV2-022, GV2-024** (dep
+> GV2-011 ✓) — promote at pickup. The rest stay dep-blocked along the chain.
+> **Deferred to v0.9** (council, off the critical path): GV2-013, 014, 020, 023,
+> 026 (registry/contracts) and GV2-030 (sealed-DTO snapshot, with Sub-phase B
+> persistence). 013/014 are dep-unblocked but stay Draft as v0.9 scope. Count is
+> **7/19** (001/002/003/010/011/021/028 Merged).
 
 > **Reshaped 2026-06-08** around the now-landed spine spec
 > [`docs/architecture/graph-v2-foundation-spec.md`](../../docs/architecture/graph-v2-foundation-spec.md)
@@ -614,7 +617,18 @@ Change status to **Ready** when:
 
 #### GV2-028: Production parser feed for certified verdicts
 
-- **Status:** Draft
+- **Status:** Merged 2026-06-08 via PR #2438 — the kernel-side parser feed
+  itself shipped under DSV-005 (PR #2282, ADR-067): `KernelSymbolParser`
+  (`crates/anvil-cli/src/intercept_symbol_parser.rs`) is injected into the daemon
+  via `ForegroundOpts::with_symbol_parser` on the `intercept start` path
+  (`crates/anvil-cli/src/commands/intercept.rs`), so `validate_paths` certifies
+  real TS/JS edits in production. This PR ratifies that wire-up and adds the
+  user-facing watch-path proof
+  (`watch_client_certifies_through_real_daemon_parser`): `anvil watch` → real
+  daemon → real parser → `Certified` end to end, closing the "uncalled library"
+  risk at the production entry point. The original `Files:` anticipated the wire
+  in `watch.rs`; it actually landed in `intercept.rs` (daemon start), with
+  `watch.rs`/`watch_save_time.rs` as the client that consumes the verdict.
 - **Intent:** Wire the ADR-067 kernel-side parse feed so `fed_symbols` yields
   `FileSymbols` for TS/JS; until this lands every `ContentModify` returns
   `partial` regardless of graph quality (`validate_paths.rs`).
@@ -622,9 +636,14 @@ Change status to **Ready** when:
   not `partial`, end-to-end through the daemon — proving the backing is live in
   production, not an uncalled library.
 - **Validation:** `cargo test -p eddacraft-anvil-intercept -- parser_feed`
-  asserts a certified verdict on a real range.
+  (`validate_certifies_when_parser_feeds_matching_surface`, daemon-side, fed
+  surface) plus the real-parser proofs in `eddacraft-anvil`:
+  `real_parser_certifies_repeat_save_through_daemon` (direct `SaveTimeConn`) and
+  `watch_client_certifies_through_real_daemon_parser` (through `anvil watch`).
 - **Files:** `crates/anvil-intercept/src/validate_paths.rs`,
-  `crates/anvil-cli/src/commands/watch.rs`
+  `crates/anvil-cli/src/intercept_symbol_parser.rs`,
+  `crates/anvil-cli/src/commands/intercept.rs`,
+  `crates/anvil-cli/src/commands/watch_save_time.rs`
 - **Confidence:** medium
 - **Priority:** Critical
 - **Dependencies:** GV2-010
@@ -734,7 +753,7 @@ Change status to **Ready** when:
 | Phase | Items | Completion | Status |
 | ----- | ----- | ---------- | ------ |
 | 0 — Architecture and Contracts | 3 | 3/3 done | Complete |
-| 1 — Graph Schemas | 5 | 1/5 done | In Progress |
+| 1 — Graph Schemas | 5 | 2/5 done | In Progress |
 | 2 — Runtime Substrate | 4 | 1/4 done | Draft |
-| 3 — Enforcement, Wiring, and the A′ Swap | 7 | 0/7 done | Draft |
-| **Total** | **19** | **5/19 done** | **In Progress** |
+| 3 — Enforcement, Wiring, and the A′ Swap | 7 | 1/7 done | In Progress |
+| **Total** | **19** | **7/19 done** | **In Progress** |

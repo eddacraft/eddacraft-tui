@@ -836,6 +836,106 @@ mod tests {
         );
     }
 
+    /// GV2-028: the user-facing `anvil watch` path drives a **real** daemon —
+    /// backed by the real tree-sitter [`KernelSymbolParser`] — to a `Certified`
+    /// verdict, proving the parser feed is live in production end to end, not an
+    /// uncalled library. This joins the two halves the other proofs cover
+    /// separately: the daemon-side `real_parser_certifies_repeat_save_through_daemon`
+    /// exercises `SaveTimeConn` directly, and the `FakeTransport` tests above
+    /// exercise the client against a canned verdict. Here `WatchSaveTimeClient`
+    /// (with its `classify_change`) drives a real `SaveTimeConn` over the real
+    /// parser: a cold first save warms the graph (`Partial`), and a
+    /// self-contained re-save certifies through the client.
+    #[test]
+    fn watch_client_certifies_through_real_daemon_parser() {
+        use anvil_checks::antipattern::types::AntipatternCheckConfig;
+        use anvil_intercept::confinement::Confinement;
+        use anvil_intercept::ipc::SaveTimeDispatch;
+        use anvil_intercept::save_time::{SaveTimeConn, SaveTimeState};
+        use anvil_intercept::workspace_pool::WorkScheduler;
+        use anvil_intercept_proto::protocol::ValidatePathsRequest;
+
+        /// A `SaveTimeTransport` that speaks to a real in-process daemon instead
+        /// of a socket: each call opens a `SaveTimeConn` over a shared
+        /// `SaveTimeState` (so the warm graph persists across saves) backed by
+        /// the real `KernelSymbolParser`. `Err(SaveTimeError)` maps to the same
+        /// `Unavailable` the socket transport would surface.
+        struct RealDaemonTransport {
+            state: SaveTimeState,
+        }
+
+        impl SaveTimeTransport for RealDaemonTransport {
+            fn validate_paths(
+                &self,
+                workspace_root: &Path,
+                paths: &[ChangeDescriptor],
+            ) -> Result<ValidatePathsResponse, SaveTimeClientError> {
+                let request = ValidatePathsRequest {
+                    workspace_root: workspace_root.to_string_lossy().into_owned(),
+                    paths: paths.to_vec(),
+                };
+                let mut conn = SaveTimeConn::new(&self.state);
+                conn.validate_paths(&request)
+                    .map_err(|_| SaveTimeClientError::Unavailable)
+            }
+
+            fn request_full_scan(&self, _workspace_root: &Path) -> Result<(), SaveTimeClientError> {
+                Ok(())
+            }
+
+            fn workspace_status(
+                &self,
+                _workspace_root: &Path,
+            ) -> Result<WorkspaceAssurance, SaveTimeClientError> {
+                Err(SaveTimeClientError::Unavailable)
+            }
+        }
+
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let src = tmp.path().join("src");
+        std::fs::create_dir(&src).expect("mkdir");
+        std::fs::write(src.join("a.ts"), b"export function foo() { return 1; }").expect("write");
+
+        let state = SaveTimeState::new(
+            WorkScheduler::new().expect("scheduler"),
+            AntipatternCheckConfig::default(),
+            Confinement::open_default(),
+        )
+        .with_parser(std::sync::Arc::new(
+            crate::intercept_symbol_parser::KernelSymbolParser::new(),
+        ));
+        let mut client = WatchSaveTimeClient::new(
+            Box::new(RealDaemonTransport { state }),
+            tmp.path().to_path_buf(),
+        );
+        // The watch worker hands absolute paths; the client classifies them
+        // root-relative before they reach the daemon.
+        let changed = vec![src.join("a.ts").to_string_lossy().into_owned()];
+
+        // First save: cold cache ⇒ Partial, but it warms the graph with foo.
+        let first = client.validate(changed.clone());
+        let SaveTimeDecision::Validated(first) = first else {
+            panic!("a present real daemon must route to validate_paths, got {first:?}");
+        };
+        assert_eq!(
+            first.coverage,
+            Coverage::Partial,
+            "cold first save through the real parser is Partial",
+        );
+
+        // Second save of the same clean body: self-contained ⇒ Certified,
+        // proving the watch client surfaces a real certified verdict end to end.
+        let second = client.validate(changed);
+        let SaveTimeDecision::Validated(second) = second else {
+            panic!("the warm re-save must still route to the daemon, got {second:?}");
+        };
+        assert_eq!(
+            second.coverage,
+            Coverage::Certified,
+            "a self-contained re-save certifies through `anvil watch` → real daemon → real parser",
+        );
+    }
+
     #[test]
     fn watch_fallback_reports_unavailable_not_clean() {
         let (mut client, _fake) = client_with(vec![Err(SaveTimeClientError::Unavailable)]);
