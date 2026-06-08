@@ -7,8 +7,8 @@
 | ---- | ---------- | ----------- | -------- |
 | TUIR | joshuaboys | In Progress | 9/10     |
 
-**Last reviewed:** 2026-06-08 — TUIR-010 `Merged 2026-06-08` via PR
-#2392: deploys the `mirror-drift-check.yml` watchdog D-TUIR-018
+**Last reviewed:** 2026-06-08 — TUIR-010 `Merged 2026-06-08` via PR #2392:
+deploys the `mirror-drift-check.yml` watchdog D-TUIR-018
 specified and the mirror workflow flagged as not-yet-deployed.
 Replicates the push-side subtree-split + banner-swap inline
 (standalone-replication decision), diffs the reconstructed tree against
@@ -19,8 +19,8 @@ out-of-band push flagged) and Council-hardened against the
 propagation-race false positive. Unblocks TUIR-008's drift-check
 validation line and starts TUIN's 7-consecutive-green-runs gate.
 Progress **8/10 → 9/10**. TUIR-008 execution-token remains `open`.
-Prior: 2026-06-07 — TUIR-009 `Merged 2026-06-07` via PR
-#2339 (squash at `817b359b1`): ratifies D-TUIR-021 and closes the
+Prior: 2026-06-07 — TUIR-009 `Merged 2026-06-07` via PR #2339 
+(squash at `817b359b1`): ratifies D-TUIR-021 and closes the
 structural gap surfaced while backfilling `eddacraft-tui-v0.2.4` on
 the public mirror. The publish workflow's `gh release create` step
 on anvil-001 had no `--prerelease`, so the crate release pinned as
