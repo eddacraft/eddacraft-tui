@@ -242,7 +242,8 @@ Change status to **Ready** when:
 
 #### GV2-003: Complete graph delta and event contract
 
-- **Status:** Merged 2026-06-08 via PR #2391 — full-pack council `council-be812df9` converged pre-merge; dependency GV2-002 Merged (PR #2387)
+- **Status:** Merged 2026-06-08 via PR #2391 — full-pack council `council-be812df9`
+  converged pre-merge; dependency GV2-002 Merged (PR #2387)
 - **Intent:** Make graph changes observable as complete, deterministic deltas.
   Today `GraphDelta.removed_edges` is permanently empty and a modify is modelled
   as full churn; fix the incremental pipeline to populate removed edges and a
