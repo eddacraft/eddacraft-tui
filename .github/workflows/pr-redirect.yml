@@ -36,6 +36,12 @@
 # performs no `actions/checkout` of fork code — it only reads event
 # payload fields and calls `gh` with them.
 #
+# Because there is deliberately no `actions/checkout`, the runner has
+# no git repository for `gh` to infer the target repo from — without
+# a hint, `gh pr comment` / `gh pr close` abort with
+# `fatal: not a git repository`. `GH_REPO` (read natively by `gh`)
+# supplies the repo so both calls work checkout-free.
+#
 # Backport / conflict policy: `docs/policies/eddacraft-tui-mirror.md`
 # §"Drive-by source PR against the mirror".
 
@@ -58,6 +64,7 @@ jobs:
       - name: Post redirect comment and close PR
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
