@@ -331,11 +331,14 @@ pub fn policy_profiles(graph: &SymbolGraph, imports: &[ImportEdge]) -> TrustGrap
             .unwrap_or_default();
 
         for (node, identity) in symbols.iter().zip(identities) {
-            // Skip synthetic external module placeholders (`"node:fs"`, `"axios"`
-            // — file == package name), exactly as `annotate_trust` does. They are
-            // dependency-graph infrastructure, not real source symbols, so they
-            // carry no trust/policy verdict.
-            if node.kind == SymbolKind::Module {
+            // Skip *synthetic external* module placeholders only — the on-demand
+            // nodes `resolve_import` creates for non-relative imports, where
+            // `name == file == specifier` (e.g. `"node:fs"`, `"axios"`;
+            // `incremental::resolve_import`). They are dependency-graph
+            // infrastructure, not source symbols, so they carry no trust verdict.
+            // A real source module (Rust `mod foo`, a TS namespace) has
+            // `name != file` and is classified normally.
+            if node.kind == SymbolKind::Module && node.name == node.file {
                 continue;
             }
 
@@ -757,31 +760,52 @@ mod tests {
     }
 
     #[test]
-    fn trust_graph_producer_skips_synthetic_module_nodes() {
+    fn trust_graph_producer_skips_only_synthetic_module_nodes() {
         let mut g = SymbolGraph::new();
         // A real source symbol.
         g.add_symbol(make_symbol(1, "handler", "a.ts", Visibility::Public))
             .unwrap();
-        // A synthetic external module placeholder (file == package name), as
-        // `resolve_import` creates and `annotate_trust` preserves.
-        let mut module = make_symbol(2, "axios", "axios", Visibility::Public);
-        module.kind = SymbolKind::Module;
-        g.add_symbol(module).unwrap();
+        // A synthetic external module placeholder (name == file == specifier),
+        // as `resolve_import` creates and `annotate_trust` preserves.
+        let mut synthetic = make_symbol(2, "axios", "axios", Visibility::Public);
+        synthetic.kind = SymbolKind::Module;
+        g.add_symbol(synthetic).unwrap();
+        // A REAL source module symbol (Rust `mod foo`): kind Module, but
+        // name != file. Must NOT be skipped (Copilot review feedback).
+        let mut real_module = make_symbol(3, "foo", "src/lib.rs", Visibility::Public);
+        real_module.kind = SymbolKind::Module;
+        g.add_symbol(real_module).unwrap();
 
         let tg = policy_profiles(&g, &[]);
 
         assert!(tg.profile(&ident("a.ts", "handler")).is_some());
-        let module_id = SymbolIdentity {
+        // Real source module is classified.
+        let real_id = SymbolIdentity {
+            file: "src/lib.rs".to_string(),
+            kind: SymbolKind::Module,
+            name: "foo".to_string(),
+            ordinal: 0,
+        };
+        assert!(
+            tg.profile(&real_id).is_some(),
+            "a real source module (name != file) must be classified"
+        );
+        // Synthetic external placeholder is skipped.
+        let synthetic_id = SymbolIdentity {
             file: "axios".to_string(),
             kind: SymbolKind::Module,
             name: "axios".to_string(),
             ordinal: 0,
         };
         assert!(
-            tg.profile(&module_id).is_none(),
-            "synthetic module nodes carry no policy verdict"
+            tg.profile(&synthetic_id).is_none(),
+            "synthetic external module placeholders carry no policy verdict"
         );
-        assert_eq!(tg.len(), 1, "only the real source symbol is classified");
+        assert_eq!(
+            tg.len(),
+            2,
+            "the real symbol and the real module, not the placeholder"
+        );
     }
 
     #[test]
