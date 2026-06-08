@@ -127,6 +127,47 @@ pub enum EdgeType {
     References,
     Calls,
     Imports,
+    /// A re-export: a symbol made available from another module
+    /// (`export { x } from "m"`, `export * from "m"`, Rust `pub use`).
+    /// First-class so impact analysis (GV2-011) can distinguish a re-export
+    /// from a plain import — a re-export widens this module's public surface,
+    /// a plain import does not. The carrier is [`ReexportEdge`] (file → module,
+    /// mirroring [`ImportEdge`]); this variant tags the edge once re-exports
+    /// are lifted into the symbol graph.
+    Reexport,
+}
+
+/// A source span as byte offsets — **no text** (privacy verdict PV-7(e),
+/// 2026-06-08).
+///
+/// Structurally incapable of holding a source body, snippet, or literal: it
+/// carries only positions, so it is safe to persist in the GV2 snapshot DTO
+/// (GV2-030) and to project into assistant context (GCTX) without leaking
+/// code. The frozen no-text shape lands now (GV2-010 schema); the
+/// *population* of spans onto nodes/edges is a GCTX-projection concern wired
+/// in v0.9 (a `span` field attaches when a producer and consumer exist),
+/// per the ADR-075 A′-slice scope.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct ByteRange {
+    /// Inclusive start byte offset into the source file.
+    pub start: u32,
+    /// Exclusive end byte offset into the source file.
+    pub end: u32,
+}
+
+impl ByteRange {
+    /// Length of the span in bytes (`end - start`), saturating at 0 for an
+    /// inverted range rather than panicking.
+    #[must_use]
+    pub fn len(self) -> u32 {
+        self.end.saturating_sub(self.start)
+    }
+
+    /// Whether the span covers zero bytes (empty or inverted).
+    #[must_use]
+    pub fn is_empty(self) -> bool {
+        self.end <= self.start
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -149,6 +190,12 @@ pub struct FileSymbols {
     pub file: String,
     pub symbols: Vec<SymbolNode>,
     pub imports: Vec<ImportEdge>,
+    /// Re-export edges (`export { x } from "m"`, `export * from "m"`,
+    /// Rust `pub use`) — distinct from `imports`, which do not widen the
+    /// public surface. Defaults empty so older serialized `FileSymbols`
+    /// (pre-GV2-010) still deserialize.
+    #[serde(default)]
+    pub reexports: Vec<ReexportEdge>,
 }
 
 /// An import edge from one file to another.
@@ -159,6 +206,28 @@ pub struct ImportEdge {
     pub from_file: String,
     pub to_source: String,
     /// 1-based line number of the import statement (0 = unknown).
+    pub line: u32,
+}
+
+/// A re-export edge: `from_file` re-exports `exported_name` from `to_source`
+/// (`export { exported_name } from "to_source"`, Rust `pub use to_source`).
+///
+/// Modelled as a **symbol → module** edge (GV2-010 decision): the re-exported
+/// name in `from_file` points at the source module, mirroring [`ImportEdge`]
+/// but carrying the name so impact analysis can attribute the widened public
+/// surface to a specific export. A wildcard re-export (`export * from "m"`,
+/// `pub use m::*`) uses `exported_name == "*"`. Carries no source text
+/// (privacy line): names and the module specifier are identity strings, not
+/// bodies.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReexportEdge {
+    /// The re-exporting file (workspace-root-relative).
+    pub from_file: String,
+    /// The re-exported symbol name, or `"*"` for a wildcard re-export.
+    pub exported_name: String,
+    /// The source module specifier the symbol is re-exported from.
+    pub to_source: String,
+    /// 1-based line number of the re-export statement (0 = unknown).
     pub line: u32,
 }
 
@@ -250,6 +319,7 @@ mod tests {
             EdgeType::References,
             EdgeType::Calls,
             EdgeType::Imports,
+            EdgeType::Reexport,
         ];
         for (i, a) in variants.iter().enumerate() {
             for (j, b) in variants.iter().enumerate() {
@@ -272,6 +342,7 @@ mod tests {
             EdgeType::References,
             EdgeType::Calls,
             EdgeType::Imports,
+            EdgeType::Reexport,
         ] {
             let json = serde_json::to_string(&variant).unwrap();
             let back: EdgeType = serde_json::from_str(&json).unwrap();
@@ -486,5 +557,88 @@ mod tests {
         let json = serde_json::to_string(&id).unwrap();
         let back: SymbolIdentity = serde_json::from_str(&json).unwrap();
         assert_eq!(id, back);
+    }
+
+    // --- ByteRange (GV2-010, no-text span per PV-7e) ---
+
+    #[test]
+    fn byte_range_len_and_is_empty() {
+        let span = ByteRange { start: 10, end: 25 };
+        assert_eq!(span.len(), 15);
+        assert!(!span.is_empty());
+
+        let empty = ByteRange { start: 7, end: 7 };
+        assert_eq!(empty.len(), 0);
+        assert!(empty.is_empty());
+    }
+
+    #[test]
+    fn byte_range_inverted_saturates_not_panics() {
+        // An inverted range must not panic (saturating semantics) and reads
+        // as empty rather than producing a bogus length.
+        let inverted = ByteRange { start: 30, end: 10 };
+        assert_eq!(inverted.len(), 0);
+        assert!(inverted.is_empty());
+    }
+
+    #[test]
+    fn byte_range_serde_round_trip() {
+        let span = ByteRange {
+            start: 0,
+            end: 4096,
+        };
+        let json = serde_json::to_string(&span).unwrap();
+        let back: ByteRange = serde_json::from_str(&json).unwrap();
+        assert_eq!(span, back);
+    }
+
+    // --- ReexportEdge (GV2-010) ---
+
+    #[test]
+    fn reexport_edge_named_construction() {
+        let re = ReexportEdge {
+            from_file: "src/index.ts".into(),
+            exported_name: "Button".into(),
+            to_source: "./components/button".into(),
+            line: 3,
+        };
+        assert_eq!(re.exported_name, "Button");
+        assert_eq!(re.to_source, "./components/button");
+    }
+
+    #[test]
+    fn reexport_edge_wildcard_uses_star() {
+        let re = ReexportEdge {
+            from_file: "src/index.ts".into(),
+            exported_name: "*".into(),
+            to_source: "./widgets".into(),
+            line: 1,
+        };
+        assert_eq!(re.exported_name, "*");
+    }
+
+    #[test]
+    fn reexport_edge_serde_round_trip() {
+        let re = ReexportEdge {
+            from_file: "src/index.ts".into(),
+            exported_name: "bar".into(),
+            to_source: "./b".into(),
+            line: 9,
+        };
+        let json = serde_json::to_string(&re).unwrap();
+        let back: ReexportEdge = serde_json::from_str(&json).unwrap();
+        assert_eq!(re.from_file, back.from_file);
+        assert_eq!(re.exported_name, back.exported_name);
+        assert_eq!(re.to_source, back.to_source);
+        assert_eq!(re.line, back.line);
+    }
+
+    #[test]
+    fn file_symbols_reexports_defaults_empty_on_legacy_json() {
+        // Pre-GV2-010 serialized FileSymbols had no `reexports` field; it must
+        // still deserialize (serde default) so older snapshots keep loading.
+        let legacy = r#"{"file":"src/a.ts","symbols":[],"imports":[]}"#;
+        let fs: FileSymbols = serde_json::from_str(legacy).unwrap();
+        assert!(fs.reexports.is_empty());
     }
 }

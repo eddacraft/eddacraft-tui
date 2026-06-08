@@ -290,9 +290,12 @@ Change status to **Ready** when:
 
 #### GV2-010: Semantic code graph v2 schema
 
-- **Status:** Ready (2026-06-08, ADR-075 wave — deps GV2-002/003 Merged) —
+- **Status:** In Progress (2026-06-08, `feat/gv2-010-semantic-graph-schema`) —
   partially shipped under Sub-phase A (`SymbolNode`, `EdgeType`, `Visibility`
-  exist); this item adds the gaps and splits by consumer.
+  exist); this item adds the gaps and splits by consumer. v0.8.0 deliverable
+  (ADR-075 decision): the `Reexport` first-class edge + extraction (A′-critical)
+  and the GCTX-projection **schema types** (no-text `ByteRange` span scaffolding);
+  call/reference/language-metadata *population* is deferred to GCTX/v0.9.
 - **Intent:** Expand the current symbol/import graph into the canonical semantic
   code graph, separating the A′-critical subset from the GCTX-projection subset.
 - **Expected Outcome:** **A′-critical subset** — stable identity wiring

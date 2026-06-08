@@ -20,8 +20,8 @@ pub use feature_flags::{
     TargetingOperator, TargetingRule,
 };
 pub use graph::{
-    EdgeType, FileSymbols, ImportEdge, SymbolEdge, SymbolIdentity, SymbolKind, SymbolNode,
-    Visibility,
+    ByteRange, EdgeType, FileSymbols, ImportEdge, ReexportEdge, SymbolEdge, SymbolIdentity,
+    SymbolKind, SymbolNode, Visibility,
 };
 pub use hooks::{ANVIL_CONFIG_HOOK_PATTERN, is_anvil_managed_command};
 pub use notifications::{
