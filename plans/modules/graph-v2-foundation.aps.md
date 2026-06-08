@@ -322,8 +322,9 @@ Change status to **Ready** when:
 
 #### GV2-011: Dependency/impact graph and incremental hot indexes
 
-- **Status:** In Progress — incremental maintenance landing (the O(edges)
-  re-derive retired); benchmark binding is GV2-025.
+- **Status:** Merged 2026-06-08 via PR #2428 — incremental dependency-graph
+  maintenance landed (the O(edges) `derive_dependency_graph` re-derive retired on
+  the save-time hot path); the Criterion budget gate stays GV2-025.
 - **Intent:** Maintain the dependency/impact indexes incrementally so the daemon
   retires the O(edges) `derive_dependency_graph` full re-derive
   (`crates/anvil-intercept/src/kernel_cache.rs`) and reads warm, resident state.
