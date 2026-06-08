@@ -13,11 +13,13 @@
 //!
 //! Two consequences of "verbatim, no re-modelled extract":
 //!
-//! - The collector never re-canonicalises a line. Bytes on disk become
-//!   bytes in `witness.ndjson`, so the capsule witness is the same
-//!   evidence the enforcing hook wrote — and the verifier (GITGOV-009)
-//!   re-runs the *same* [`anvil_witness::verify_chain_dag`] over the
-//!   single collected file, with no partial-chain special-casing.
+//! - The collector never re-canonicalises a line: each segment's bytes
+//!   are copied unchanged. The only edit is a single `\n` inserted
+//!   *between* segments when one lacks a trailing newline (the boundary
+//!   guard below) — never a byte within a line. So the capsule witness
+//!   is the same evidence the enforcing hook wrote, and the verifier
+//!   (GITGOV-009) re-runs the *same* [`anvil_witness::verify_chain_dag`]
+//!   over the single collected file, with no partial-chain special-casing.
 //! - Segment boundaries are preserved as line boundaries. Witness
 //!   segments are newline-terminated NDJSON; the collector still
 //!   guards a `\n` boundary between concatenated segments so a segment
@@ -106,10 +108,18 @@ pub fn collect_witness(
             if raw.is_empty() {
                 continue;
             }
-            let line = WitnessLine::from_ndjson_line(raw).map_err(|e| CapsuleError::Collect {
-                path: format!("{}:{}", relative(repo_root, &path), offset + 1),
-                detail: format!("parsing witness line: {e}"),
-            })?;
+            // `match` rather than `map_err(closure)` so the 1-based line
+            // number is read in plain control flow (a closure capture is
+            // a CodeQL "unused variable" blind spot).
+            let line = match WitnessLine::from_ndjson_line(raw) {
+                Ok(line) => line,
+                Err(e) => {
+                    return Err(CapsuleError::Collect {
+                        path: format!("{}:{}", relative(repo_root, &path), offset + 1),
+                        detail: format!("parsing witness line: {e}"),
+                    });
+                }
+            };
             if line
                 .commit_sha
                 .as_deref()

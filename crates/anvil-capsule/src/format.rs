@@ -245,7 +245,11 @@ fn render_readme(content: &CapsuleContent) -> String {
 /// range commit, and the `seq` window of the range's witnessed lines.
 fn witness_coverage(witness: &CollectedWitness) -> String {
     match (witness.seq_start, witness.seq_end) {
-        (Some(start), Some(end)) => format!("seq {start}..{end}"),
+        // Inclusive `[start, end]` window — spell it out so the bound is
+        // not read as an exclusive `..` range, and collapse the
+        // single-line case to avoid a confusing `seq 1 to 1`.
+        (Some(start), Some(end)) if start == end => format!("seq {start}"),
+        (Some(start), Some(end)) => format!("seq {start} to {end} (inclusive)"),
         _ if witness.ndjson.is_empty() => "absent (no witness chain)".to_string(),
         _ => "present, no range coverage".to_string(),
     }
