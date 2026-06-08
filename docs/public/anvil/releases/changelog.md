@@ -15,7 +15,7 @@ Draft / unreleased. Release date pending the tag.
 
 The first minor since `v0.7.0-beta`, earned on architecture: Anvil starts moving
 save-time governance off per-save cold-spawned `check` and onto the persistent
-intercept daemon validating deltas (ADR-061). The visible result is a more
+intercept daemon that validates deltas (ADR-061). The visible result is a more
 observable save-time protection path: `anvil watch`, MCP `validate_write`, and
 `anvil status` now agree on daemon-backed assurance and workspace confinement.
 This release also expands Rust project coverage and ships the next dashboard
