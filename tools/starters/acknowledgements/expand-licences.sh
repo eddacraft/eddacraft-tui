@@ -115,8 +115,8 @@ emit_go_fragment=false
 if [ -f "$go_allow_txt" ]; then
   emit_go_fragment=true
 fi
-# `licences.python-allow.txt` is optional on the same back-compat terms
-#: present only for consumers that ship a Python block.
+# `licences.python-allow.txt` is optional on the same back-compat
+# terms: present only for consumers that ship a Python block.
 emit_python_fragment=false
 if [ -f "$python_allow_txt" ]; then
   emit_python_fragment=true

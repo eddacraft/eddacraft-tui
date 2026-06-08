@@ -97,7 +97,13 @@ fi
 # first (same rationale as the dispatcher): the templates/ sibling is
 # found relative to the driver's real location, not a link to it.
 driver_path="$0"
+link_hops=0
 while [ -L "$driver_path" ]; do
+  link_hops=$((link_hops + 1))
+  if [ "$link_hops" -gt 40 ]; then
+    echo "drivers/go.sh: too many symlink levels resolving $0 (circular symlink?)" >&2
+    exit 1
+  fi
   link_target="$(readlink "$driver_path")"
   case "$link_target" in
     /*) driver_path="$link_target" ;;

@@ -136,7 +136,13 @@ project_root="$(cd "$(dirname "$config_path")" && pwd)"
 # `drivers/` does not exist. Plain `readlink` (no -f) keeps this
 # portable to macOS, which lacked `readlink -f` before 12.3.
 script_path="$0"
+link_hops=0
 while [ -L "$script_path" ]; do
+  link_hops=$((link_hops + 1))
+  if [ "$link_hops" -gt 40 ]; then
+    echo "error: too many symlink levels resolving $0 (circular symlink?)" >&2
+    exit 1
+  fi
   link_target="$(readlink "$script_path")"
   case "$link_target" in
     /*) script_path="$link_target" ;;
