@@ -125,7 +125,7 @@ release seals (RELEASE-SEAL); supplier bundles (SUPPLIER). Sealed Edda context
 - **Expected Outcome:** Golden-output tests for pass/warn/degraded/block.
 - **Validation:** `cargo test -p eddacraft-anvil capsule_explain`
 - **Dependencies:** GITGOV-009
-- **Status:** In Progress
+- **Status:** Merged 2026-06-08 via PR #2427
 
 ### GITGOV-011: JSON output
 - **Intent:** `--json` on verify/inspect for CI consumption.
