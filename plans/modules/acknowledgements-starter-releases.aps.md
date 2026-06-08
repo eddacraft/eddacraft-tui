@@ -32,7 +32,7 @@ module, which is genuinely Complete.
 Design contract:
 [`plans/specs/2026-06-08-acknowledgements-starter-releases.md`](../specs/2026-06-08-acknowledgements-starter-releases.md).
 Execution plan:
-[`plans/execution/ATTRIB-017.steps.md`](../execution/ATTRIB-017.steps.md).
+[`plans/execution/ATTRIB-017.actions.md`](../execution/ATTRIB-017.actions.md).
 
 ## Why a new module rather than re-opening v3
 
@@ -107,7 +107,7 @@ for consumers.
   resolves; `git subtree add … v1.0.0 --squash` into a scratch repo reproduces
   the kit tree; the kit self-tests (incl. the new version/changelog consistency
   test) and `expand-licences.sh --check` pass in CI. Full execution breakdown
-  in [`plans/execution/ATTRIB-017.steps.md`](../execution/ATTRIB-017.steps.md).
+  in [`plans/execution/ATTRIB-017.actions.md`](../execution/ATTRIB-017.actions.md).
 - **Files:** `tools/starters/acknowledgements/VERSION`,
   `tools/starters/acknowledgements/CHANGELOG.md`,
   `tools/starters/acknowledgements/tests/version-changelog-consistency.sh`,

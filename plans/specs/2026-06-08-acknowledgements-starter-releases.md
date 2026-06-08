@@ -61,7 +61,7 @@ GitHub will not GC a commit a tag (or Release) points at.
 | Source-side tag format | **Prefixed**: `acknowledgements-starter-vX.Y.Z` on anvil-001 `main` | Same reasoning as D-TUIR-002 — the monorepo ships multiple independently-versioned taggables; a bare `vX.Y.Z` would collide with Anvil **product** release tags. |
 | Mirror-side tag format | **Bare**: `vX.Y.Z` on `eddacraft/acknowledgements-starter` | The mirror is single-product and flat-rooted — the `acknowledgements-starter-` prefix is redundant there and `git subtree add … v1.0.0` reads cleanly for consumers. The release workflow maps prefixed→bare when pushing to the mirror. The mirror has **no** pre-existing tags, so there is no legacy-tag preservation concern (contrast tui's pre-cutover `v0.x`). |
 | Version source of truth in-tree | `tools/starters/acknowledgements/VERSION` (single line) + `CHANGELOG.md` (Keep-a-Changelog style) | The version + notes travel **into** the mirror, so consumers see them after a `subtree pull` too, not only on the Release object. The git tag is the *trigger*; these files are the durable record. |
-| Tag → release consistency | Release workflow asserts a **version triple match**: source tag `vX.Y.Z` == `VERSION` file == top `CHANGELOG.md` `## [X.Y.Z]` heading. Mismatch fails the run | Same discipline as the tui "version-bump PR then tag the merge commit" — prevents a tag that disagrees with the tree. |
+| Tag → release consistency | Release workflow parses `X.Y.Z` from the prefixed source tag (`acknowledgements-starter-vX.Y.Z`) and asserts a **version triple match**: that `X.Y.Z` == `VERSION` file == top `CHANGELOG.md` `## [X.Y.Z]` heading. Mismatch fails the run | Same discipline as the tui "version-bump PR then tag the merge commit" — prevents a tag that disagrees with the tree. |
 | Tag → release coupling | One source tag push → one mirror tag (bare) + one GitHub Release on the mirror, notes drawn from that version's `CHANGELOG.md` section, marked **latest** | Single deliberate action; the Release is the consumer notification surface. |
 | Append-only guarantee | Mirror tag push omits `--force`; if the bare tag already exists on the mirror the push is rejected | D-TUIR-009/011 guarantee — a cut version is immutable; re-cutting requires a new version. |
 | Cadence / who cuts | **Deliberate, operator-driven.** Trivial changes (doc tweaks, `oxfmt` reflows, comment fixes) flow to rolling `main` only. A release is cut when there is a consumer-meaningful change | Per-push releases would be noise; the kit sees frequent trivial commits. |
@@ -98,9 +98,11 @@ git subtree add  --prefix tools/starters/acknowledgements \
   (`git merge-base --is-ancestor "$GITHUB_SHA" origin/main`) — refuse to
   release a tag that points off-trunk. Mirrors ATTRIB-011's refs/heads/main
   guard intent.
-- **Version-triple assertion:** parse `vX.Y.Z` from the tag; require it equals
-  `VERSION` and the top `## [X.Y.Z]` heading in `CHANGELOG.md`. Fail-fast with
-  an actionable error otherwise.
+- **Version-triple assertion:** extract `X.Y.Z` from the prefixed source tag
+  (`acknowledgements-starter-vX.Y.Z` → `X.Y.Z`); require it equals `VERSION`
+  and the top `## [X.Y.Z]` heading in `CHANGELOG.md`. Fail-fast with an
+  actionable error otherwise. (`vX.Y.Z` is the bare form later pushed to the
+  mirror.)
 - **Re-assert kit health (cheap):** run `expand-licences.sh --check` (the
   single-source drift gate). The full `acknowledgements-kit.yml` suite already
   ran on the merge that produced the tag; this is a belt-and-braces guard that

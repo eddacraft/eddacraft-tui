@@ -60,8 +60,10 @@ Pattern source: `eddacraft-tui` release flow
     1. **Ref guard** — tagged commit reachable from `origin/main`
        (`git merge-base --is-ancestor`), else refuse.
     2. `actions/checkout@v4`, `fetch-depth: 0`, `persist-credentials: false`.
-    3. **Version-triple assertion** — tag `vX.Y.Z` == `VERSION` == top
-       `CHANGELOG.md` heading; fail-fast with an actionable message.
+    3. **Version-triple assertion** — parse `X.Y.Z` from the prefixed source
+       tag (`acknowledgements-starter-vX.Y.Z`), then assert
+       `X.Y.Z` == `VERSION` == the `## [X.Y.Z]` `CHANGELOG.md` heading;
+       fail-fast with an actionable message.
     4. **Sanity-check `MIRROR_PUSH_TOKEN`** non-empty (reuse the mirror
        workflow's guard).
     5. **Re-assert kit health** — `bash tools/starters/acknowledgements/expand-licences.sh --check`.
