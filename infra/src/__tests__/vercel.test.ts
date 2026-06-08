@@ -125,10 +125,14 @@ describe('Vercel resources', () => {
     const envVars = resources.filter(
       (r) => r.type === 'vercel:index/projectEnvironmentVariable:ProjectEnvironmentVariable'
     );
+
     const cliId = envVars.find((e) => e.inputs.key === 'GITHUB_CLI_CLIENT_ID');
     expect(cliId).toBeDefined();
+    expect(cliId!.inputs.projectId).toBe('anvil-api-mock-id');
+
     const cliSecret = envVars.find((e) => e.inputs.key === 'GITHUB_CLI_CLIENT_SECRET');
     expect(cliSecret).toBeDefined();
+    expect(cliSecret!.inputs.projectId).toBe('anvil-api-mock-id');
   });
 
   it('wires ADMIN_KEY_PEPPER + ADMIN_PER_OPERATOR_KEYS into anvil-api', () => {
