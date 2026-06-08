@@ -246,8 +246,17 @@ impl TelemetryBroadcaster {
             }
         }
         if outcome.dropped > 0 {
-            self.dropped
+            let previous = self
+                .dropped
                 .fetch_add(outcome.dropped as u64, Ordering::Relaxed);
+            if previous == 0 {
+                tracing::warn!(
+                    target: "anvil_intercept::broadcaster",
+                    dropped = outcome.dropped,
+                    cumulative_dropped = outcome.dropped,
+                    "telemetry subscriber channel full; dropping envelopes (INTD-016)",
+                );
+            }
         }
         outcome
     }

@@ -66,6 +66,16 @@ pub struct DaemonStatusV1 {
     /// consumer — additive-optional, byte-compat for older shapes).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cache_invalidations_rate_limited: Option<u64>,
+    /// DSV-044: currently registered telemetry subscribers. `None` means the
+    /// daemon did not wire the telemetry broadcaster into status (embedded mode
+    /// or an older daemon); `Some(0)` means it is wired and has no subscribers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub telemetry_subscriber_count: Option<u32>,
+    /// DSV-044 / INTD-016: cumulative telemetry envelopes dropped because a
+    /// subscriber channel was full. `None` follows the same availability
+    /// semantics as [`Self::telemetry_subscriber_count`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub telemetry_dropped_envelopes: Option<u64>,
     /// MLP2-051h: Unix seconds at which the daemon assembled this
     /// snapshot. A daemon-level wall-clock anchor distinct from
     /// `HealthStateV1::uptime_seconds` (monotonic-since-start, no
@@ -205,6 +215,8 @@ mod tests {
             cache_invalidations_total: None,
             in_flight_evaluations: None,
             cache_invalidations_rate_limited: None,
+            telemetry_subscriber_count: None,
+            telemetry_dropped_envelopes: None,
             generated_at_unix: 0,
         };
         let line = serde_json::to_string(&status).expect("serialise");
@@ -228,6 +240,8 @@ mod tests {
             cache_invalidations_total: None,
             in_flight_evaluations: None,
             cache_invalidations_rate_limited: None,
+            telemetry_subscriber_count: None,
+            telemetry_dropped_envelopes: None,
             generated_at_unix: 0,
         };
         let json: serde_json::Value = serde_json::to_value(&status).expect("serialise");
@@ -298,6 +312,8 @@ mod tests {
         // pre-MLP2-058 payload above has no key for it, so the
         // parsed value must collapse to None.
         assert_eq!(parsed.cache_invalidations_rate_limited, None);
+        assert_eq!(parsed.telemetry_subscriber_count, None);
+        assert_eq!(parsed.telemetry_dropped_envelopes, None);
     }
 
     /// MLP2-059: a post-MLP2-058 / pre-MLP2-059 daemon (no
@@ -329,6 +345,8 @@ mod tests {
             parsed.cache_invalidations_rate_limited, None,
             "pre-MLP2-059 daemon must surface the new field as None"
         );
+        assert_eq!(parsed.telemetry_subscriber_count, None);
+        assert_eq!(parsed.telemetry_dropped_envelopes, None);
     }
 
     /// MLP2-058: when the new fields are present on the wire they
@@ -350,6 +368,8 @@ mod tests {
             cache_invalidations_total: Some(42),
             in_flight_evaluations: Some(3),
             cache_invalidations_rate_limited: Some(5),
+            telemetry_subscriber_count: Some(2),
+            telemetry_dropped_envelopes: Some(8),
             generated_at_unix: 0,
         };
         let line = serde_json::to_string(&status).expect("serialise");
@@ -361,6 +381,8 @@ mod tests {
         assert_eq!(json["cache_invalidations_total"], 42);
         assert_eq!(json["in_flight_evaluations"], 3);
         assert_eq!(json["cache_invalidations_rate_limited"], 5);
+        assert_eq!(json["telemetry_subscriber_count"], 2);
+        assert_eq!(json["telemetry_dropped_envelopes"], 8);
     }
 
     /// MLP2-058: `None` on the new fields wires as absent, not `null`
@@ -384,6 +406,8 @@ mod tests {
             cache_invalidations_total: None,
             in_flight_evaluations: None,
             cache_invalidations_rate_limited: None,
+            telemetry_subscriber_count: None,
+            telemetry_dropped_envelopes: None,
             generated_at_unix: 0,
         };
         let json: serde_json::Value = serde_json::to_value(&status).expect("serialise");
@@ -393,6 +417,8 @@ mod tests {
         );
         assert!(json.get("cache_invalidations_total").is_none());
         assert!(json.get("in_flight_evaluations").is_none());
+        assert!(json.get("telemetry_subscriber_count").is_none());
+        assert!(json.get("telemetry_dropped_envelopes").is_none());
     }
 
     /// MLP2-051h: a pre-MLP2-051h daemon (no `generated_at_unix` key on
@@ -446,6 +472,8 @@ mod tests {
             cache_invalidations_total: None,
             in_flight_evaluations: None,
             cache_invalidations_rate_limited: None,
+            telemetry_subscriber_count: None,
+            telemetry_dropped_envelopes: None,
             generated_at_unix: 1_716_336_000,
         };
         let line = serde_json::to_string(&status).expect("serialise");
@@ -480,6 +508,8 @@ mod tests {
             cache_invalidations_total: None,
             in_flight_evaluations: None,
             cache_invalidations_rate_limited: None,
+            telemetry_subscriber_count: None,
+            telemetry_dropped_envelopes: None,
             generated_at_unix: 0,
         };
         let json: serde_json::Value = serde_json::to_value(&status).expect("serialise");

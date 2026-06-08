@@ -14,6 +14,8 @@ use thiserror::Error;
 use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsExt};
 
 use crate::rate_window::{RateDecision, RateWindow};
+use crate::registry::SessionRegistry;
+use crate::telemetry::{FenceTransition, TelemetryCorrelation, TelemetryEmitter};
 
 const FENCE_FILE_VERSION: u8 = 1;
 
@@ -249,12 +251,19 @@ struct FenceFile {
 /// firing window does not).
 type CascadeWindows = Arc<Mutex<HashMap<PathBuf, Arc<RateWindow>>>>;
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct FenceStore {
     path: PathBuf,
     /// MLP2-026: per-worktree firing-rate trackers. Lazily created
     /// on first fire for a worktree.
     cascade_windows: CascadeWindows,
+    telemetry: Arc<Mutex<Option<Arc<FenceTelemetry>>>>,
+}
+
+struct FenceTelemetry {
+    registry: Arc<SessionRegistry>,
+    broadcaster: Arc<crate::broadcaster::TelemetryBroadcaster>,
+    emitter: Mutex<TelemetryEmitter>,
 }
 
 impl FenceStore {
@@ -263,7 +272,33 @@ impl FenceStore {
         Self {
             path: path.into(),
             cascade_windows: Arc::new(Mutex::new(HashMap::new())),
+            telemetry: Arc::new(Mutex::new(None)),
         }
+    }
+
+    #[must_use]
+    pub fn with_telemetry(
+        self,
+        registry: Arc<SessionRegistry>,
+        broadcaster: Arc<crate::broadcaster::TelemetryBroadcaster>,
+    ) -> Self {
+        self.set_telemetry(registry, broadcaster);
+        self
+    }
+
+    pub fn set_telemetry(
+        &self,
+        registry: Arc<SessionRegistry>,
+        broadcaster: Arc<crate::broadcaster::TelemetryBroadcaster>,
+    ) {
+        *self
+            .telemetry
+            .lock()
+            .expect("fence telemetry lock poisoned") = Some(Arc::new(FenceTelemetry {
+            registry,
+            broadcaster,
+            emitter: Mutex::new(TelemetryEmitter::new()),
+        }));
     }
 
     /// MLP2-026: snapshot accessor for cascade engaged-state. See
@@ -417,6 +452,7 @@ impl FenceStore {
         }
 
         self.save(&state)?;
+        self.emit_fence_transition(&canonical, FenceTransition::ActiveToFenced);
         Ok(record)
     }
 
@@ -450,8 +486,55 @@ impl FenceStore {
         let removed = state.remove(&canonical);
         if removed.is_some() {
             self.save(&state)?;
+            self.emit_fence_transition(&canonical, FenceTransition::FencedToActive);
         }
         Ok(removed)
+    }
+
+    fn emit_fence_transition(&self, worktree: &Path, transition: FenceTransition) {
+        let telemetry = self
+            .telemetry
+            .lock()
+            .expect("fence telemetry lock poisoned")
+            .clone();
+        let Some(telemetry) = telemetry else {
+            return;
+        };
+        let sessions: Vec<_> = telemetry
+            .registry
+            .active_sessions()
+            .into_iter()
+            .filter(|session| session.worktree == worktree)
+            .collect();
+        if sessions.is_empty() {
+            return;
+        }
+
+        let mut emitter = telemetry
+            .emitter
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        for session in sessions {
+            let session_id = session.id.as_str().to_string();
+            let envelope = emitter.envelope_for_fence_transition(
+                TelemetryCorrelation {
+                    session_id: Some(session_id.clone()),
+                    originating_session_id: Some(session_id),
+                    originating_driver_id: Some(crate::telemetry::INTERCEPT_DRIVER_ID.to_string()),
+                    ..TelemetryCorrelation::default()
+                },
+                worktree,
+                transition,
+            );
+            let outcome = telemetry.broadcaster.broadcast(&envelope);
+            tracing::debug!(
+                target: "anvil_intercept::fence",
+                worktree = %worktree.display(),
+                delivered = outcome.delivered,
+                dropped = outcome.dropped,
+                "fence transition broadcast",
+            );
+        }
     }
 
     fn save(&self, state: &FenceState) -> Result<(), FenceStoreError> {
@@ -804,6 +887,7 @@ fn unix_seconds_now() -> u64 {
 #[cfg(test)]
 mod tests {
     use std::ffi::OsString;
+    use std::sync::Arc;
     use std::time::{Duration, Instant};
 
     #[cfg(unix)]
@@ -813,6 +897,10 @@ mod tests {
     use tempfile::TempDir;
 
     use crate::registry::SessionRegistry;
+    use crate::{
+        broadcaster::TelemetryBroadcaster,
+        fanout::{CrossSessionPolicy, Fanout, OwnershipResolver, SubscriberId},
+    };
 
     use super::*;
 
@@ -822,6 +910,44 @@ mod tests {
 
     fn store_in(temp: &TempDir) -> FenceStore {
         FenceStore::at_path(temp.path().join("state/intercept-fences.json"))
+    }
+
+    struct SingleOwnerResolver {
+        subscriber: SubscriberId,
+        session_id: String,
+    }
+
+    impl OwnershipResolver for SingleOwnerResolver {
+        fn is_authorised(&self, subscriber: &SubscriberId, originating_session_id: &str) -> bool {
+            subscriber == &self.subscriber && originating_session_id == self.session_id
+        }
+    }
+
+    fn store_with_telemetry(
+        temp: &TempDir,
+        worktree: &TempDir,
+    ) -> (
+        FenceStore,
+        Arc<TelemetryBroadcaster>,
+        tokio::sync::mpsc::Receiver<String>,
+    ) {
+        let registry = Arc::new(SessionRegistry::new());
+        let session = SessionId::new("sess-A");
+        registry
+            .register(&session, worktree.path(), None, Instant::now())
+            .expect("register session");
+        let subscriber = SubscriberId::new("subscriber-A");
+        let fanout = Arc::new(Fanout::with_cross_session_policy(
+            Box::new(SingleOwnerResolver {
+                subscriber: subscriber.clone(),
+                session_id: session.as_str().to_string(),
+            }),
+            CrossSessionPolicy::Deny,
+        ));
+        let broadcaster = Arc::new(TelemetryBroadcaster::new(fanout));
+        let rx = broadcaster.register(subscriber, None);
+        let store = store_in(temp).with_telemetry(registry, Arc::clone(&broadcaster));
+        (store, broadcaster, rx)
     }
 
     #[test]
@@ -845,6 +971,52 @@ mod tests {
 
         assert!(reloaded.is_fenced(worktree.path()));
         assert_eq!(reloaded.active_fences()[0].reason, "rule violation");
+    }
+
+    #[test]
+    fn fence_worktree_emits_active_to_fenced_through_fanout() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let worktree = make_worktree();
+        let (store, broadcaster, mut rx) = store_with_telemetry(&temp, &worktree);
+
+        store
+            .fence_worktree(worktree.path(), "rule violation")
+            .expect("fence worktree");
+
+        let frame = rx.try_recv().expect("fence transition frame queued");
+        let value: serde_json::Value = serde_json::from_str(&frame).expect("frame json");
+        assert_eq!(
+            value["params"]["correlation"]["originating_session_id"],
+            "sess-A",
+        );
+        assert_eq!(
+            value["params"]["grouping"]["transition"],
+            serde_json::json!({"from": "active", "to": "fenced"}),
+        );
+        assert_eq!(broadcaster.dropped_envelopes(), 0);
+    }
+
+    #[test]
+    fn unblock_worktree_emits_fenced_to_active_through_fanout() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let worktree = make_worktree();
+        let (store, _broadcaster, mut rx) = store_with_telemetry(&temp, &worktree);
+        store
+            .fence_worktree(worktree.path(), "rule violation")
+            .expect("fence worktree");
+        let _ = rx.try_recv().expect("initial fence transition");
+
+        store
+            .unblock_worktree(worktree.path())
+            .expect("unblock worktree")
+            .expect("fence existed");
+
+        let frame = rx.try_recv().expect("unblock transition frame queued");
+        let value: serde_json::Value = serde_json::from_str(&frame).expect("frame json");
+        assert_eq!(
+            value["params"]["grouping"]["transition"],
+            serde_json::json!({"from": "fenced", "to": "active"}),
+        );
     }
 
     #[test]

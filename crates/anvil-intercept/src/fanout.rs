@@ -122,7 +122,7 @@ use std::sync::{Arc, Mutex};
 
 use sha2::{Digest, Sha256};
 
-use crate::fence::FenceState;
+use crate::fence::FenceStore;
 use crate::registry::SessionRegistry;
 use crate::telemetry::{
     NotificationCorrelation, NotificationEnvelope, NotificationGrouping, NotificationTransition,
@@ -241,17 +241,20 @@ pub enum CrossSessionPolicy {
 /// path.
 pub struct RegistryOwnershipResolver {
     registry: Arc<SessionRegistry>,
-    /// MLP2-071 D6: the live fence state, consulted by
+    /// MLP2-071 D6: the live fence store, consulted by
     /// [`OwnershipResolver::is_degraded_origin`] to find whether an
     /// originating session's worktree carries a
     /// `degraded:spoofed-attribution` fence (MLP2-025).
-    fences: Arc<FenceState>,
+    fence_store: Arc<FenceStore>,
 }
 
 impl RegistryOwnershipResolver {
     #[must_use]
-    pub fn new(registry: Arc<SessionRegistry>, fences: Arc<FenceState>) -> Self {
-        Self { registry, fences }
+    pub fn new(registry: Arc<SessionRegistry>, fence_store: Arc<FenceStore>) -> Self {
+        Self {
+            registry,
+            fence_store,
+        }
     }
 }
 
@@ -270,17 +273,19 @@ impl OwnershipResolver for RegistryOwnershipResolver {
 
     fn is_degraded_origin(&self, originating_session_id: &str) -> bool {
         // MLP2-071 D6: map the originating session id to its worktree,
-        // then ask the fence state whether that worktree carries a
+        // then ask the live fence store whether that worktree carries a
         // spoof fence. An unknown session id maps to `None` → `false`
         // (it is already default-denied by the ownership check, so the
-        // degraded test is moot for it). A registered session on a
-        // worktree the MLP2-025 write-time cross-check fenced as
-        // `degraded:spoofed-attribution` returns `true`, which denies
-        // its envelopes to every cross-session subscriber regardless
-        // of policy (see [`Fanout::decide`]).
+        // degraded test is moot for it). A fence-store load failure maps
+        // to `true`, denying cross-session delivery fail-closed while still
+        // allowing an owned subscriber to receive its own event.
         self.registry
             .worktree_for_session_id(originating_session_id)
-            .is_some_and(|worktree| self.fences.is_spoof_fenced(&worktree))
+            .is_some_and(|worktree| {
+                self.fence_store
+                    .load()
+                    .map_or(true, |state| state.is_spoof_fenced(&worktree))
+            })
     }
 }
 

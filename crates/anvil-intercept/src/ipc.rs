@@ -73,6 +73,11 @@ pub enum SaveTimeError {
 /// `JoinSet`, which requires `Send`). `SaveTimeConn` satisfies this: its shared
 /// state is `Sync` and its admitted-root set is `Send`.
 pub trait SaveTimeDispatch: Send {
+    /// Record the session/worktree pair that this authenticated connection
+    /// registered. DSV-044 producers use it as `originating_session_id` only
+    /// when the transition root matches the registered worktree.
+    fn set_originating_session(&mut self, _session_id: &str, _worktree: &Path) {}
+
     /// Certify a change set, returning the verdict-shaped response.
     ///
     /// # Errors
@@ -2634,6 +2639,7 @@ async fn handle_jsonrpc_request<D: SessionDispatcher>(
             dispatcher,
             peer_pid,
             cross_check,
+            save_time,
         )
     })
 }
@@ -2838,6 +2844,7 @@ fn dispatch_session_jsonrpc<D: SessionDispatcher>(
     dispatcher: &Arc<D>,
     peer_pid: Option<u32>,
     cross_check: Option<&CrossCheckContext>,
+    mut save_time: Option<&mut (dyn SaveTimeDispatch + '_)>,
 ) -> Option<Value> {
     let command = match command_from_jsonrpc(method, params) {
         Ok(command) => command,
@@ -2859,6 +2866,15 @@ fn dispatch_session_jsonrpc<D: SessionDispatcher>(
 
     match dispatch_command(&command, dispatcher, peer_pid, cross_check) {
         Ok(result) => {
+            if let IpcCommand::RegisterSession {
+                session_id,
+                worktree,
+                ..
+            } = &command
+                && let Some(save_time) = save_time.as_deref_mut()
+            {
+                save_time.set_originating_session(session_id.as_str(), worktree);
+            }
             if is_notification {
                 None
             } else {

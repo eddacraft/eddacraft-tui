@@ -248,13 +248,13 @@ impl DaemonState {
         let redaction_key = fanout::TelemetryRedactionKey::new_random().map_err(|err| {
             anyhow::anyhow!("mint per-startup telemetry redaction salt for INTD-015 fanout: {err}")
         })?;
-        // MLP2-071 D6: the resolver needs the fence state to answer
-        // `is_degraded_origin`, so wrap `fences` into its `Arc` before
-        // constructing the resolver and share the same handle with the
-        // `DaemonState` field below.
+        let fence_store = Arc::new(fence_store);
+        // MLP2-071 D6: the resolver needs the live fence store to answer
+        // `is_degraded_origin`, so newly written spoof fences affect fanout
+        // routing immediately rather than being frozen at daemon startup.
         let fences = Arc::new(fences);
         let resolver =
-            fanout::RegistryOwnershipResolver::new(Arc::clone(&registry), Arc::clone(&fences));
+            fanout::RegistryOwnershipResolver::new(Arc::clone(&registry), Arc::clone(&fence_store));
         let fanout = Arc::new(fanout::Fanout::with_cross_session_policy_and_key(
             Box::new(resolver),
             enforcement_config.cross_session_policy(),
@@ -265,9 +265,11 @@ impl DaemonState {
         // operator-configured policy + redaction salt.
         let broadcaster = Arc::new(broadcaster::TelemetryBroadcaster::new(Arc::clone(&fanout)));
 
+        fence_store.set_telemetry(Arc::clone(&registry), Arc::clone(&broadcaster));
+
         Ok(Self {
             registry,
-            fence_store: Arc::new(fence_store),
+            fence_store,
             fences,
             fanout,
             broadcaster,
@@ -1076,7 +1078,8 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
             // on `DaemonStatusProvider` stays `None` until MLP2-014
             // lands its production cache wire-up — the optional
             // wire shape preserves forward-compat.
-            .with_scan_buffer(scan_buffer.clone()),
+            .with_scan_buffer(scan_buffer.clone())
+            .with_broadcaster(Arc::clone(&daemon_state.broadcaster)),
         );
 
         // MLP2-025b: install the production cross-check capability.
@@ -1138,6 +1141,7 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
             if let Some(parser) = opts.symbol_parser.clone() {
                 state = state.with_parser(parser);
             }
+            state = state.with_broadcaster(Arc::clone(&daemon_state.broadcaster));
             // Without a parser, verdicts stay `Partial` — warn so the degraded
             // mode is observable, not a silent feature-off.
             if !state.has_parser() {
@@ -1427,11 +1431,14 @@ mod tests {
             .expect("register session");
 
         // D6 is exercised by its own test below; this test pins the
-        // binding/authorisation contract, so an empty fence state is
+        // binding/authorisation contract, so an empty live fence store is
         // sufficient (no worktree is spoof-fenced here).
-        let fences = Arc::new(fence::FenceState::default());
+        let fences_dir = tempfile::tempdir().expect("fence tempdir");
+        let fence_store = Arc::new(fence::FenceStore::at_path(
+            fences_dir.path().join("state/intercept-fences.json"),
+        ));
         let resolver =
-            fanout::RegistryOwnershipResolver::new(Arc::clone(&registry), Arc::clone(&fences));
+            fanout::RegistryOwnershipResolver::new(Arc::clone(&registry), Arc::clone(&fence_store));
         let owner = fanout::SubscriberId::new("peer:uid=1000:pid=4242:start=42:bin=hash");
         let stranger = fanout::SubscriberId::new("peer:uid=1000:pid=9999:start=99:bin=other");
 
@@ -1507,14 +1514,15 @@ mod tests {
 
         // The store creates its own `state/` parent with 0700; placing
         // the file there satisfies the secure-store-parent guard.
-        let store = fence::FenceStore::at_path(tmp.path().join("state/intercept-fences.json"));
+        let store = Arc::new(fence::FenceStore::at_path(
+            tmp.path().join("state/intercept-fences.json"),
+        ));
         store
             .fence_worktree_for_spoof(&spoofed_wt)
             .expect("spoof-fence the worktree");
-        let fences = Arc::new(store.load().expect("load fence state"));
 
         let resolver =
-            fanout::RegistryOwnershipResolver::new(Arc::clone(&registry), Arc::clone(&fences));
+            fanout::RegistryOwnershipResolver::new(Arc::clone(&registry), Arc::clone(&store));
 
         assert!(
             resolver.is_degraded_origin(spoofed_id.as_str()),

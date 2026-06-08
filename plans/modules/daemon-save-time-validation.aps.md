@@ -4,9 +4,10 @@
 | --- | ----- | ----------- |
 | DSV | Josh  | In Progress |
 
-**Last reviewed:** 2026-06-08 (DSV-011 Merged — Sub-phase A-W closed 2/2 on
-green cross-matrix evidence, run 27102943706; bench-flake blocker fixed via
-PR #2365)
+**Last reviewed:** 2026-06-08 (DSV-044 Done — assurance and fence transitions
+now emit through the production broadcaster/fanout with registered-session /
+registered-worktree correlation; telemetry subscriber/drop counters reach
+`query_status`; intercept lib tests green locally.)
 
 ## Purpose
 
@@ -813,7 +814,32 @@ Merged item; each is an additive improvement under the frozen wire.
 
 #### DSV-044: Emit assurance/fence transitions through the production fanout (Phase E)
 
-- **Status:** Ready
+- **Status:** Done 2026-06-08
+- **Progress (2026-06-08):** delivered — `SaveTimeState` now holds the live
+  `TelemetryBroadcaster` built over the daemon's production `Fanout`, and
+  `SaveTimeConn` carries the registered session id as the load-bearing
+  `originating_session_id` after a successful `RegisterSession` on that
+  connection; mismatched roots suppress the broadcast rather than reusing the
+  last session id. Assurance transitions still emit the local tracing mirror,
+  then build `telemetry::envelope_for_assurance_transition` and call
+  `TelemetryBroadcaster::broadcast`, so own-session subscribers receive the
+  event through the same route/redaction path as MLP2-071 Phase 2. `FenceStore`
+  now has an optional production telemetry attachment and emits
+  `ActiveToFenced` / `FencedToActive` envelopes only for sessions registered on
+  the exact canonical worktree. `RegistryOwnershipResolver` reads live
+  `FenceStore` state for spoof-degraded origins (fail-closed on load error), so
+  newly written spoof fences affect fanout routing immediately. The DSV
+  regressions `save_time::tests::assurance_transition_emits_through_fanout`,
+  `save_time::tests::assurance_transition_does_not_reuse_session_for_other_worktree`,
+  `fence::tests::fence_worktree_emits_active_to_fenced_through_fanout`, and
+  `fence::tests::unblock_worktree_emits_fenced_to_active_through_fanout` pin the
+  production broadcaster path and session/worktree correlation. The Phase 2
+  Council follow-ups tied to producer activation are also closed: live telemetry
+  `subscriber_count` / `dropped_envelopes` are surfaced as additive optional
+  `query_status` fields, and the first slow-subscriber drop logs at `warn`
+  while per-drop detail remains `debug` and non-blocking. Verified locally with
+  `cargo test -p eddacraft-anvil-intercept --lib` (603 passed) and
+  `cargo test -p eddacraft-anvil-intercept-proto` (71 passed).
 - **Unblocked 2026-06-08:** the subscriber surface this depended on —
   [MLP2-071](multilayer-protection-v2.aps.md) **Phase 2** (the IPC
   `subscribe-telemetry` accept-loop multiplex → `Fanout::register`, and the

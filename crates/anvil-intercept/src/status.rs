@@ -55,6 +55,7 @@ use anvil_kernel_types::protection_claim::{
     ProtectionClaim, SurfaceClaim, SurfaceClaimState, WorktreeClaimState,
 };
 
+use crate::broadcaster::TelemetryBroadcaster;
 use crate::fence::{FenceRecord, FenceStore};
 use crate::latency::{LatencyAggregator, LatencyRollup};
 use crate::midedit::ScanBufferService;
@@ -110,6 +111,15 @@ pub struct DaemonStatus {
     /// `SystemTime::now()` so `build_status` itself stays deterministic
     /// and testable.
     pub generated_at_unix: u64,
+    /// DSV-044: telemetry subscriber/drop counters. `None` means no broadcaster
+    /// is wired into this status provider.
+    pub telemetry: Option<TelemetryStats>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TelemetryStats {
+    pub subscriber_count: usize,
+    pub dropped_envelopes: u64,
 }
 
 /// MLP2-058: paired cache counters carried inside [`DaemonStatus`].
@@ -221,6 +231,10 @@ impl DaemonStatus {
                 .in_flight_evaluations
                 .map(|n| u8::try_from(n).unwrap_or(u8::MAX)),
             cache_invalidations_rate_limited: self.cache.map(|c| c.invalidations_rate_limited),
+            telemetry_subscriber_count: self
+                .telemetry
+                .map(|t| u32::try_from(t.subscriber_count).unwrap_or(u32::MAX)),
+            telemetry_dropped_envelopes: self.telemetry.map(|t| t.dropped_envelopes),
             generated_at_unix: self.generated_at_unix,
         }
     }
@@ -323,6 +337,7 @@ pub fn build_status(
         cache,
         in_flight_evaluations,
         generated_at_unix,
+        telemetry: None,
     }
 }
 
@@ -370,6 +385,9 @@ pub struct DaemonStatusProvider {
     /// surfaces that do not own a midedit pipeline (tests, embedded
     /// fallback). `Some` reads `in_flight()` per query.
     scan_buffer: Option<ScanBufferService>,
+    /// DSV-044: optional telemetry broadcaster reference. `None` for tests and
+    /// embedded status snapshots that do not expose subscriber delivery state.
+    broadcaster: Option<Arc<TelemetryBroadcaster>>,
 }
 
 impl std::fmt::Debug for DaemonStatusProvider {
@@ -398,6 +416,7 @@ impl DaemonStatusProvider {
             version: version.into(),
             rule_cache: None,
             scan_buffer: None,
+            broadcaster: None,
         }
     }
 
@@ -419,6 +438,12 @@ impl DaemonStatusProvider {
     #[must_use]
     pub fn with_scan_buffer(mut self, service: ScanBufferService) -> Self {
         self.scan_buffer = Some(service);
+        self
+    }
+
+    #[must_use]
+    pub fn with_broadcaster(mut self, broadcaster: Arc<TelemetryBroadcaster>) -> Self {
+        self.broadcaster = Some(broadcaster);
         self
     }
 }
@@ -465,7 +490,7 @@ impl StatusProvider for DaemonStatusProvider {
         let generated_at_unix = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_or(0, |d| d.as_secs());
-        build_status(
+        let mut status = build_status(
             sessions,
             &fence_records,
             &cascade_records,
@@ -477,7 +502,12 @@ impl StatusProvider for DaemonStatusProvider {
             cache,
             in_flight,
             generated_at_unix,
-        )
+        );
+        status.telemetry = self.broadcaster.as_ref().map(|b| TelemetryStats {
+            subscriber_count: b.subscriber_count(),
+            dropped_envelopes: b.dropped_envelopes(),
+        });
+        status
     }
 }
 

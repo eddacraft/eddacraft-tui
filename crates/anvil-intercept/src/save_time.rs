@@ -54,10 +54,12 @@ use anvil_intercept_proto::protocol::{
 use anvil_kernel_types::FileSymbols;
 
 use crate::assurance::{AssuranceMachine, ScanPriority};
+use crate::broadcaster::TelemetryBroadcaster;
 use crate::confinement::Confinement;
 use crate::ipc::{SaveTimeDispatch, SaveTimeError};
 use crate::kernel_cache::KernelGraphCache;
 use crate::rule_cache::WorktreeKey;
+use crate::telemetry::{TelemetryCorrelation, TelemetryEmitter};
 use crate::validate_paths::{ValidateEnv, validate_paths as run_validate_paths};
 use crate::workspace_admission::AdmittedRoots;
 use crate::workspace_anchor::WorkspaceAnchor;
@@ -137,6 +139,10 @@ pub struct SaveTimeState {
     /// surface can override it — the same deferred surface noted for the
     /// antipattern config).
     caps: DosCaps,
+    /// DSV-044: production telemetry fanout. When present, assurance transitions
+    /// emit the same envelope as the tracing mirror through `Fanout::route`.
+    broadcaster: Option<Arc<TelemetryBroadcaster>>,
+    telemetry: Mutex<TelemetryEmitter>,
 }
 
 impl SaveTimeState {
@@ -165,6 +171,8 @@ impl SaveTimeState {
             confinement,
             parser: None,
             caps: DosCaps::default(),
+            broadcaster: None,
+            telemetry: Mutex::new(TelemetryEmitter::new()),
         }
     }
 
@@ -182,6 +190,15 @@ impl SaveTimeState {
     #[must_use]
     pub fn with_caps(mut self, caps: DosCaps) -> Self {
         self.caps = caps;
+        self
+    }
+
+    /// Attach the production telemetry fanout used by DSV-044 transition
+    /// producers. Tests and embedded listeners can omit it and keep tracing-only
+    /// behaviour.
+    #[must_use]
+    pub fn with_broadcaster(mut self, broadcaster: Arc<TelemetryBroadcaster>) -> Self {
+        self.broadcaster = Some(broadcaster);
         self
     }
 
@@ -240,7 +257,12 @@ impl SaveTimeState {
     /// `f` (which may run the antipattern scan) executes under the **per-key**
     /// machine lock, so verdicts on distinct worktrees proceed in parallel. The
     /// transition record is emitted *after* the machine lock is released.
-    fn with_machine<R>(&self, key: &WorktreeKey, f: impl FnOnce(&mut AssuranceMachine) -> R) -> R {
+    fn with_machine<R>(
+        &self,
+        key: &WorktreeKey,
+        correlation: Option<TelemetryCorrelation>,
+        f: impl FnOnce(&mut AssuranceMachine) -> R,
+    ) -> R {
         let machine = {
             let mut guard = self.lock_map();
             // `Arc<Mutex<AssuranceMachine>>::default()` ⇒ a fresh machine, i.e.
@@ -266,8 +288,40 @@ impl SaveTimeState {
         };
         if let Some(transition) = transition {
             emit_assurance_transition(key.as_path(), &transition);
+            self.broadcast_assurance_transition(key.as_path(), &transition, correlation);
         }
         result
+    }
+
+    fn broadcast_assurance_transition(
+        &self,
+        workspace_root: &Path,
+        transition: &AssuranceTransition,
+        correlation: Option<TelemetryCorrelation>,
+    ) {
+        let (Some(broadcaster), Some(correlation)) = (&self.broadcaster, correlation) else {
+            return;
+        };
+        let workspace_root = workspace_root.display().to_string();
+        let mut emitter = self
+            .telemetry
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        let envelope = emitter.envelope_for_assurance_transition(
+            correlation,
+            &workspace_root,
+            transition.from,
+            transition.to,
+            transition.reason,
+        );
+        let outcome = broadcaster.broadcast(&envelope);
+        tracing::debug!(
+            target: "anvil_intercept::assurance",
+            workspace_root,
+            delivered = outcome.delivered,
+            dropped = outcome.dropped,
+            "workspace assurance transition broadcast",
+        );
     }
 }
 
@@ -351,6 +405,13 @@ pub struct SaveTimeConn<'a> {
     /// verb's root as the primary check-in root — the merged confinement
     /// contract that `to_admitted_roots` is called once per connection).
     admitted: Option<AdmittedRoots>,
+    originating_session: Option<OriginatingSession>,
+}
+
+#[derive(Debug, Clone)]
+struct OriginatingSession {
+    session_id: String,
+    worktree: PathBuf,
 }
 
 impl<'a> SaveTimeConn<'a> {
@@ -360,16 +421,46 @@ impl<'a> SaveTimeConn<'a> {
         Self {
             state,
             admitted: None,
+            originating_session: None,
         }
+    }
+
+    fn telemetry_correlation_for(
+        session: Option<&OriginatingSession>,
+        workspace_root: &Path,
+    ) -> Option<TelemetryCorrelation> {
+        let session = session?;
+        if session.worktree != workspace_root {
+            return None;
+        }
+        let session_id = session.session_id.clone();
+        Some(TelemetryCorrelation {
+            session_id: Some(session_id.clone()),
+            originating_session_id: Some(session_id),
+            originating_driver_id: Some(crate::telemetry::INTERCEPT_DRIVER_ID.to_string()),
+            ..TelemetryCorrelation::default()
+        })
     }
 }
 
 impl SaveTimeDispatch for SaveTimeConn<'_> {
+    fn set_originating_session(&mut self, session_id: &str, worktree: &Path) {
+        let Ok(worktree) = std::fs::canonicalize(worktree) else {
+            self.originating_session = None;
+            return;
+        };
+        self.originating_session = Some(OriginatingSession {
+            session_id: session_id.to_string(),
+            worktree,
+        });
+    }
+
     fn validate_paths(
         &mut self,
         request: &ValidatePathsRequest,
     ) -> Result<ValidatePathsResponse, SaveTimeError> {
         let root = PathBuf::from(&request.workspace_root);
+        let originating_session = self.originating_session.clone();
         // Copy the shared-state reference so `state.*` reads stay disjoint from
         // the per-connection `self.admitted` field the held fd borrows.
         let state = self.state;
@@ -378,6 +469,7 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
         // on the same value `AdmittedRoots` admitted under — a symlinked or
         // non-canonical client root must not split state into two keys.
         let canonical = canonical_root(&root)?;
+        let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical.clone());
         // The pure core keys the cache off `request.workspace_root`, so feed it
         // the canonical form too (it is also the antipattern display root).
@@ -420,7 +512,7 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
         let fed_symbols = move |path: &str, bytes: &[u8]| {
             parser.and_then(|p| parse_pool.install(|| p.parse(Path::new(path), bytes)))
         };
-        let response = state.with_machine(&key, |machine| {
+        let response = state.with_machine(&key, correlation, |machine| {
             run_validate_paths(
                 &request,
                 &state.cache,
@@ -446,10 +538,14 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
         request: &WorkspaceStatusRequest,
     ) -> Result<WorkspaceStatusResponse, SaveTimeError> {
         let root = PathBuf::from(&request.workspace_root);
+        let originating_session = self.originating_session.clone();
         let state = self.state;
         authorise_root(&mut self.admitted, &state.confinement, &root)?;
-        let key = WorktreeKey::from_canonical(canonical_root(&root)?);
-        let workspace_assurance = state.with_machine(&key, |machine| machine.snapshot());
+        let canonical = canonical_root(&root)?;
+        let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
+        let key = WorktreeKey::from_canonical(canonical);
+        let workspace_assurance =
+            state.with_machine(&key, correlation, |machine| machine.snapshot());
         Ok(WorkspaceStatusResponse {
             workspace_assurance,
         })
@@ -460,10 +556,13 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
         request: &RequestFullScanRequest,
     ) -> Result<RequestFullScanResponse, SaveTimeError> {
         let root = PathBuf::from(&request.workspace_root);
+        let originating_session = self.originating_session.clone();
         let state = self.state;
         authorise_root(&mut self.admitted, &state.confinement, &root)?;
-        let key = WorktreeKey::from_canonical(canonical_root(&root)?);
-        let workspace_assurance = state.with_machine(&key, |machine| {
+        let canonical = canonical_root(&root)?;
+        let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
+        let key = WorktreeKey::from_canonical(canonical);
+        let workspace_assurance = state.with_machine(&key, correlation, |machine| {
             // An explicit client request is interactive (client-blocking). This
             // queues the scan (→ `Pending`); the scan *executor* that drives
             // `Pending → Running → Clean` is DSV-006 (Task 16) — until it lands
@@ -503,6 +602,7 @@ fn authorise_root<'f>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fanout::{CrossSessionPolicy, Fanout, OwnershipResolver, SubscriberId};
     use anvil_graph_cache::certify::ChangeKind;
     use anvil_intercept_proto::protocol::{
         AssuranceState, ChangeDescriptor, ChangeKindWire, Coverage, StaleReason,
@@ -805,6 +905,90 @@ mod tests {
         let resp = conn.request_full_scan(&request).expect("admitted");
         assert_eq!(resp.workspace_assurance.state, AssuranceState::Pending);
         assert_eq!(resp.workspace_assurance.reason, None);
+    }
+
+    struct SingleOwnerResolver {
+        subscriber: SubscriberId,
+        session_id: String,
+    }
+
+    impl OwnershipResolver for SingleOwnerResolver {
+        fn is_authorised(&self, subscriber: &SubscriberId, originating_session_id: &str) -> bool {
+            subscriber == &self.subscriber && originating_session_id == self.session_id
+        }
+    }
+
+    /// DSV-044: assurance transitions built by the save-time state now route
+    /// through the production broadcaster, not only the tracing mirror. The
+    /// registered session id is load-bearing: the fanout authorises on it.
+    #[test]
+    fn assurance_transition_emits_through_fanout() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let subscriber = SubscriberId::new("subscriber-A");
+        let fanout = Arc::new(Fanout::with_cross_session_policy(
+            Box::new(SingleOwnerResolver {
+                subscriber: subscriber.clone(),
+                session_id: "sess-A".to_string(),
+            }),
+            CrossSessionPolicy::Deny,
+        ));
+        let broadcaster = Arc::new(TelemetryBroadcaster::new(fanout));
+        let mut rx = broadcaster.register(subscriber, None);
+        let state = state().with_broadcaster(Arc::clone(&broadcaster));
+        let mut conn = SaveTimeConn::new(&state);
+        conn.set_originating_session("sess-A", tmp.path());
+
+        let resp = conn
+            .request_full_scan(&RequestFullScanRequest {
+                workspace_root: tmp.path().to_string_lossy().into_owned(),
+            })
+            .expect("admitted");
+
+        assert_eq!(resp.workspace_assurance.state, AssuranceState::Pending);
+        let frame = rx.try_recv().expect("assurance transition frame queued");
+        let value: serde_json::Value = serde_json::from_str(&frame).expect("frame json");
+        assert_eq!(
+            value["method"],
+            crate::broadcaster::TELEMETRY_NOTIFICATION_METHOD
+        );
+        assert_eq!(
+            value["params"]["correlation"]["originating_session_id"],
+            "sess-A",
+        );
+        assert_eq!(
+            value["params"]["grouping"]["transition"],
+            serde_json::json!({"from": "stale", "to": "pending"}),
+        );
+        assert_eq!(broadcaster.dropped_envelopes(), 0);
+    }
+
+    #[test]
+    fn assurance_transition_does_not_reuse_session_for_other_worktree() {
+        let registered = tempfile::tempdir().expect("registered tempdir");
+        let other = tempfile::tempdir().expect("other tempdir");
+        let subscriber = SubscriberId::new("subscriber-A");
+        let fanout = Arc::new(Fanout::with_cross_session_policy(
+            Box::new(SingleOwnerResolver {
+                subscriber: subscriber.clone(),
+                session_id: "sess-A".to_string(),
+            }),
+            CrossSessionPolicy::Deny,
+        ));
+        let broadcaster = Arc::new(TelemetryBroadcaster::new(fanout));
+        let mut rx = broadcaster.register(subscriber, None);
+        let state = state().with_broadcaster(Arc::clone(&broadcaster));
+        let mut conn = SaveTimeConn::new(&state);
+        conn.set_originating_session("sess-A", registered.path());
+
+        conn.request_full_scan(&RequestFullScanRequest {
+            workspace_root: other.path().to_string_lossy().into_owned(),
+        })
+        .expect("admitted");
+
+        assert!(
+            rx.try_recv().is_err(),
+            "a transition on another admitted root must not be emitted as sess-A",
+        );
     }
 
     /// In allowlist mode: the primary check-in root (first verb) is implicitly
