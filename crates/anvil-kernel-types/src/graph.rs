@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::TrustLevel;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum SymbolKind {
     Function,
     Class,
@@ -40,6 +40,97 @@ pub struct SymbolNode {
     pub visibility: Visibility,
     pub file: String,
     pub trust_level: TrustLevel,
+}
+
+/// Stable, cross-restart symbol identity (GV2-002).
+///
+/// Replaces the position-conflated `file::kind::name` baseline key and the
+/// session-local `SymbolNode.id` counter as the *comparable* identity for
+/// symbols. Two parses of the same source — in different sessions, after a
+/// daemon restart, or on either side of a snapshot reload — assign equal
+/// identities to the same symbols, because no component is session-local.
+///
+/// # Identity components
+///
+/// - `file` — the symbol's path identity. Workspace-root-relative by
+///   contract (the parser feed supplies relative paths; the GV2-030 no-leak
+///   test enforces relativity for anything persisted). A **file rename
+///   changes every identity in the file**: rename is modelled as
+///   delete + create, never tracked history (privacy verdict PV-4,
+///   2026-06-08).
+/// - `kind` / `name` — the structural identity. Same-name symbols in
+///   different scopes stay distinct because method names encode their owner
+///   (`Owner.method`, see [`SymbolKind::Method`]).
+/// - `ordinal` — the overload disambiguator: the occurrence index of this
+///   `(kind, name)` pair within the file, counted in parse (source) order.
+///   Structural only — derived from source position ordering, never from
+///   parameter source text or default-value expressions (privacy verdict
+///   PV-1). Removing an earlier overload shifts later ordinals; that reads
+///   as an identity change, which is the conservative, correct direction
+///   for surface diffing.
+///
+/// # What this is not
+///
+/// Not a persisted format: the in-memory struct is the identity. Any future
+/// compact/hashed encoding must use a named deterministic content hash
+/// (privacy verdict PV-2) — never `std::hash::Hash` over the default
+/// randomly-seeded hasher, which is not stable across processes. Edge
+/// identity is derived, not stored: `(from, to, EdgeType)` over the
+/// endpoints' `SymbolIdentity` values. Session/worktree identity and
+/// APS/provenance references are join-time-only and never appear here
+/// (privacy verdict PV-3).
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct SymbolIdentity {
+    /// Workspace-root-relative path identity.
+    pub file: String,
+    /// Structural kind.
+    pub kind: SymbolKind,
+    /// Symbol name (methods encode their owner as `Owner.method`).
+    pub name: String,
+    /// Occurrence index among same-`(kind, name)` symbols in the file,
+    /// in parse order. 0 for the first (or only) occurrence.
+    pub ordinal: u32,
+}
+
+impl SymbolIdentity {
+    /// Assign stable identities to a file's symbols, in parse order.
+    ///
+    /// The returned vector parallels `symbols`: `identities[i]` is the
+    /// identity of `symbols[i]`. Ordinals are assigned per `(kind, name)`
+    /// pair in slice order, so the caller must pass symbols in parse
+    /// (source) order — `SymbolGraph::symbols_in_file` and
+    /// `FileSymbols.symbols` both preserve it.
+    #[must_use]
+    pub fn for_file_symbols(symbols: &[&SymbolNode]) -> Vec<SymbolIdentity> {
+        let mut seen: std::collections::HashMap<(SymbolKind, &str), u32> =
+            std::collections::HashMap::new();
+        symbols
+            .iter()
+            .map(|s| {
+                let ordinal = seen.entry((s.kind, s.name.as_str())).or_insert(0);
+                let identity = SymbolIdentity {
+                    file: s.file.clone(),
+                    kind: s.kind,
+                    name: s.name.clone(),
+                    ordinal: *ordinal,
+                };
+                *ordinal += 1;
+                identity
+            })
+            .collect()
+    }
+
+    /// The identity of the symbol with session-local id `id` within its
+    /// file's parse-ordered symbol slice, or `None` if `id` is not in
+    /// `symbols`.
+    #[must_use]
+    pub fn of_symbol(symbols: &[&SymbolNode], id: u64) -> Option<SymbolIdentity> {
+        let identities = Self::for_file_symbols(symbols);
+        symbols
+            .iter()
+            .position(|s| s.id == id)
+            .map(|i| identities[i].clone())
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -323,5 +414,101 @@ mod tests {
         let json = r#"{"id":1,"kind":"Function","name":"f","visibility":"Public","file":"a.ts"}"#;
         let result = serde_json::from_str::<SymbolNode>(json);
         assert!(result.is_err());
+    }
+
+    // --- SymbolIdentity (GV2-002) ---
+
+    fn node(id: u64, kind: SymbolKind, name: &str, file: &str) -> SymbolNode {
+        SymbolNode {
+            id,
+            kind,
+            name: name.into(),
+            visibility: Visibility::Public,
+            file: file.into(),
+            trust_level: TrustLevel::Unknown,
+        }
+    }
+
+    #[test]
+    fn identity_is_independent_of_session_ids() {
+        // The same source parsed in two sessions allocates different u64 ids;
+        // the stable identities must be equal.
+        let a = [
+            node(1, SymbolKind::Function, "foo", "a.ts"),
+            node(2, SymbolKind::Class, "Bar", "a.ts"),
+        ];
+        let b = [
+            node(901, SymbolKind::Function, "foo", "a.ts"),
+            node(902, SymbolKind::Class, "Bar", "a.ts"),
+        ];
+        let ia = SymbolIdentity::for_file_symbols(&a.iter().collect::<Vec<_>>());
+        let ib = SymbolIdentity::for_file_symbols(&b.iter().collect::<Vec<_>>());
+        assert_eq!(ia, ib);
+    }
+
+    #[test]
+    fn identity_disambiguates_overloads_by_ordinal() {
+        let syms = [
+            node(1, SymbolKind::Function, "foo", "a.ts"),
+            node(2, SymbolKind::Function, "foo", "a.ts"),
+            node(3, SymbolKind::Function, "bar", "a.ts"),
+        ];
+        let ids = SymbolIdentity::for_file_symbols(&syms.iter().collect::<Vec<_>>());
+        assert_eq!(ids[0].ordinal, 0);
+        assert_eq!(ids[1].ordinal, 1);
+        assert_ne!(ids[0], ids[1], "overloads must have distinct identities");
+        assert_eq!(ids[2].ordinal, 0, "different name starts its own count");
+    }
+
+    #[test]
+    fn identity_distinguishes_same_name_different_kind() {
+        // A free function `render` and a method `Widget.render` differ by
+        // kind and/or encoded owner name — never collapse.
+        let syms = [
+            node(1, SymbolKind::Function, "render", "a.ts"),
+            node(2, SymbolKind::Method, "Widget.render", "a.ts"),
+            node(3, SymbolKind::Class, "render", "a.ts"),
+        ];
+        let ids = SymbolIdentity::for_file_symbols(&syms.iter().collect::<Vec<_>>());
+        assert_eq!(
+            ids.iter().collect::<std::collections::HashSet<_>>().len(),
+            3
+        );
+        assert!(ids.iter().all(|i| i.ordinal == 0));
+    }
+
+    #[test]
+    fn identity_changes_with_file_path() {
+        // File rename = delete + create: identity includes the path.
+        let before = [node(1, SymbolKind::Function, "foo", "old.ts")];
+        let after = [node(1, SymbolKind::Function, "foo", "new.ts")];
+        let ib = SymbolIdentity::for_file_symbols(&before.iter().collect::<Vec<_>>());
+        let ia = SymbolIdentity::for_file_symbols(&after.iter().collect::<Vec<_>>());
+        assert_ne!(ib[0], ia[0]);
+    }
+
+    #[test]
+    fn identity_of_symbol_resolves_by_session_id() {
+        let syms = [
+            node(7, SymbolKind::Function, "foo", "a.ts"),
+            node(9, SymbolKind::Function, "foo", "a.ts"),
+        ];
+        let refs: Vec<_> = syms.iter().collect();
+        let second = SymbolIdentity::of_symbol(&refs, 9).unwrap();
+        assert_eq!(second.ordinal, 1);
+        assert!(SymbolIdentity::of_symbol(&refs, 42).is_none());
+    }
+
+    #[test]
+    fn identity_serde_round_trip() {
+        let id = SymbolIdentity {
+            file: "src/a.ts".into(),
+            kind: SymbolKind::Method,
+            name: "Owner.method".into(),
+            ordinal: 1,
+        };
+        let json = serde_json::to_string(&id).unwrap();
+        let back: SymbolIdentity = serde_json::from_str(&json).unwrap();
+        assert_eq!(id, back);
     }
 }

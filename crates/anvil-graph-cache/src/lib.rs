@@ -13,7 +13,10 @@ pub mod incremental;
 pub mod symbol_graph;
 pub mod trust;
 
-pub use certify::{Certifiability, CertifyStale, ChangeKind, certify, export_surface_changed};
+pub use certify::{
+    Certifiability, CertifyStale, ChangeKind, ExportSurfaceDiff, certify, export_surface_changed,
+    export_surface_diff,
+};
 pub use dependency::DependencyGraph;
 pub use incremental::{GraphDelta, re_resolve_imports, remove_file, update_file};
 pub use symbol_graph::{GraphError, GraphStats, SymbolGraph};

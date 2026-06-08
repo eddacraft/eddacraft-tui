@@ -30,7 +30,9 @@ use anvil_kernel::policy::invariants::cross_layer::CrossLayerViolation;
 use anvil_kernel::policy::invariants::new_dependency::NewDependencyIntroduction;
 use anvil_kernel::policy::invariants::privilege_expansion::PrivilegeExpansion;
 use anvil_kernel::policy::invariants::public_api::PublicApiExpansion;
-use anvil_kernel_types::{EdgeType, SymbolEdge, SymbolKind, SymbolNode, TrustLevel, Visibility};
+use anvil_kernel_types::{
+    EdgeType, SymbolEdge, SymbolIdentity, SymbolKind, SymbolNode, TrustLevel, Visibility,
+};
 
 fn layered_config() -> ArchitectureConfig {
     ArchitectureConfig::from_yaml(
@@ -89,6 +91,17 @@ fn build_engine() -> PolicyEngine {
 
 /// Fixture: domain layer imports from infrastructure — forbidden.
 /// JS equivalent: ARCH-003 layer/boundary violation.
+/// Stable-identity baseline entry for a single (non-overloaded) symbol
+/// (GV2-002): the first occurrence of a (kind, name) pair takes ordinal 0.
+fn baseline_identity(s: &SymbolNode) -> SymbolIdentity {
+    SymbolIdentity {
+        file: s.file.clone(),
+        kind: s.kind,
+        name: s.name.clone(),
+        ordinal: 0,
+    }
+}
+
 #[test]
 fn cross_layer_violation_detected() {
     let config = layered_config();
@@ -608,7 +621,7 @@ fn previously_public_symbol_suppressed() {
     );
 
     let mut previously_public = HashSet::new();
-    previously_public.insert(GraphDelta::symbol_baseline_key(&existing));
+    previously_public.insert(baseline_identity(&existing));
 
     graph.add_symbol(existing).unwrap();
 
@@ -645,7 +658,7 @@ fn previously_privileged_symbol_suppressed() {
     );
 
     let mut previously_privileged = HashSet::new();
-    previously_privileged.insert(GraphDelta::symbol_baseline_key(&existing));
+    previously_privileged.insert(baseline_identity(&existing));
 
     graph.add_symbol(existing).unwrap();
 
@@ -692,7 +705,7 @@ fn baseline_suppresses_known_but_flags_new() {
         .unwrap();
 
     let mut previously_public = HashSet::new();
-    previously_public.insert(GraphDelta::symbol_baseline_key(&known));
+    previously_public.insert(baseline_identity(&known));
 
     graph.add_symbol(known).unwrap();
 
@@ -739,7 +752,7 @@ fn same_name_different_file_public_symbol_still_flags_new_export() {
         .unwrap();
 
     let mut previously_public = HashSet::new();
-    previously_public.insert(GraphDelta::symbol_baseline_key(&known));
+    previously_public.insert(baseline_identity(&known));
 
     let delta = GraphDelta {
         added_symbols: vec![85],
@@ -785,7 +798,7 @@ fn same_name_different_file_privileged_symbol_still_flags_new_access() {
         .unwrap();
 
     let mut previously_privileged = HashSet::new();
-    previously_privileged.insert(GraphDelta::symbol_baseline_key(&known));
+    previously_privileged.insert(baseline_identity(&known));
 
     let delta = GraphDelta {
         added_symbols: vec![87],
@@ -835,7 +848,7 @@ fn same_name_collision_across_files_flags_only_new_file() {
 
     // Only the original identity is baselined as previously public.
     let mut previously_public = HashSet::new();
-    previously_public.insert(GraphDelta::symbol_baseline_key(&baselined));
+    previously_public.insert(baseline_identity(&baselined));
 
     graph.add_symbol(baselined).unwrap();
     graph.add_symbol(newcomer).unwrap();

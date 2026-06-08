@@ -40,7 +40,7 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-use anvil_kernel_types::{TrustLevel, Visibility};
+use anvil_kernel_types::{SymbolIdentity, SymbolKind, Visibility};
 
 use crate::dependency::DependencyGraph;
 use crate::incremental::GraphDelta;
@@ -109,34 +109,197 @@ pub enum Certifiability {
     },
 }
 
-/// Does this update change the file's public or privileged symbol surface?
+/// The export-diff primitive (GV2-002): the precise change to a file's
+/// public/privileged symbol surface across one update.
+///
+/// Replaces the boolean-only surface check with a real
+/// added/removed/renamed-public-symbol diff over stable [`SymbolIdentity`]
+/// keys, graduating the Sub-phase A "any touched public symbol → `partial`"
+/// default towards reason-precise verdicts. Identities are
+/// overload-disambiguated, so adding a same-`(kind, name)` overload to an
+/// already-public symbol reads as `added_public` instead of collapsing into
+/// the baseline.
+///
+/// Rename classification is an in-memory pairing over this single diff —
+/// nothing is retained across updates and no pre-rename name is persisted
+/// (privacy verdict PV-4). The pairing is deliberately conservative: a
+/// removed name and an added name of the same kind are paired as a rename
+/// only when each is the *sole* wholly-removed / wholly-added name of that
+/// kind and their overload counts match. Anything ambiguous (two renames of
+/// the same kind in one save, count mismatches) stays classified as
+/// adds + removes — still a surface change, never a missed one.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ExportSurfaceDiff {
+    /// Public identities present after the update but not before.
+    pub added_public: Vec<SymbolIdentity>,
+    /// Public identities present before the update but not after.
+    pub removed_public: Vec<SymbolIdentity>,
+    /// Unambiguous public renames, as `(old, new)` identity pairs.
+    pub renamed_public: Vec<(SymbolIdentity, SymbolIdentity)>,
+    /// Privileged identities present after the update but not before.
+    pub added_privileged: Vec<SymbolIdentity>,
+    /// Privileged identities present before the update but not after.
+    pub removed_privileged: Vec<SymbolIdentity>,
+}
+
+impl ExportSurfaceDiff {
+    /// True when the public and privileged surfaces are both unchanged.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.added_public.is_empty()
+            && self.removed_public.is_empty()
+            && self.renamed_public.is_empty()
+            && self.added_privileged.is_empty()
+            && self.removed_privileged.is_empty()
+    }
+}
+
+/// Compute the [`ExportSurfaceDiff`] for one file update.
 ///
 /// Compares the pre-update public/privileged baselines carried on the
-/// [`GraphDelta`] against the post-update graph state for the same file. Any
-/// asymmetry — added, removed, or renamed public/privileged symbol — is a
-/// surface change. Body-only edits leave both sets identical.
+/// [`GraphDelta`] against the post-update graph state for the same file,
+/// over stable identities. Body-only edits produce an empty diff.
 ///
-/// Reads only `delta.previously_public` / `delta.previously_privileged` and the
-/// post-update graph; never touches `delta.removed_edges` (always empty).
+/// Reads only `delta.previously_public` / `delta.previously_privileged` and
+/// the post-update graph; never touches `delta.removed_edges` (always empty).
+#[must_use]
+pub fn export_surface_diff(sym: &SymbolGraph, delta: &GraphDelta) -> ExportSurfaceDiff {
+    let current = sym.symbols_in_file(&delta.file);
+    let identities = SymbolIdentity::for_file_symbols(&current);
+
+    let current_public: HashSet<SymbolIdentity> = current
+        .iter()
+        .zip(&identities)
+        .filter(|(s, _)| s.visibility == Visibility::Public)
+        .map(|(_, identity)| identity.clone())
+        .collect();
+    let current_privileged: HashSet<SymbolIdentity> = current
+        .iter()
+        .zip(&identities)
+        .filter(|(s, _)| crate::incremental::is_elevated_trust(s.trust_level))
+        .map(|(_, identity)| identity.clone())
+        .collect();
+
+    let mut added_public: Vec<SymbolIdentity> = current_public
+        .difference(&delta.previously_public)
+        .cloned()
+        .collect();
+    let mut removed_public: Vec<SymbolIdentity> = delta
+        .previously_public
+        .difference(&current_public)
+        .cloned()
+        .collect();
+    added_public.sort();
+    removed_public.sort();
+
+    let renamed_public = pair_renames(
+        &mut added_public,
+        &mut removed_public,
+        &delta.previously_public,
+        &current_public,
+    );
+
+    let mut added_privileged: Vec<SymbolIdentity> = current_privileged
+        .difference(&delta.previously_privileged)
+        .cloned()
+        .collect();
+    let mut removed_privileged: Vec<SymbolIdentity> = delta
+        .previously_privileged
+        .difference(&current_privileged)
+        .cloned()
+        .collect();
+    added_privileged.sort();
+    removed_privileged.sort();
+
+    ExportSurfaceDiff {
+        added_public,
+        removed_public,
+        renamed_public,
+        added_privileged,
+        removed_privileged,
+    }
+}
+
+/// Pair unambiguous renames out of the public add/remove lists.
+///
+/// A name is *wholly removed* when no identity with its `(kind, name)`
+/// remains in the current set, and *wholly added* when none existed in the
+/// baseline. For each kind with exactly one wholly-removed and exactly one
+/// wholly-added name carrying the same overload count, the pair is
+/// classified as a rename (ordinal-by-ordinal) and its entries are drained
+/// from `added` / `removed`. Everything else is left as adds + removes.
+fn pair_renames(
+    added: &mut Vec<SymbolIdentity>,
+    removed: &mut Vec<SymbolIdentity>,
+    baseline: &HashSet<SymbolIdentity>,
+    current: &HashSet<SymbolIdentity>,
+) -> Vec<(SymbolIdentity, SymbolIdentity)> {
+    use std::collections::BTreeMap;
+
+    let group = |items: &[SymbolIdentity],
+                 still_present: &HashSet<SymbolIdentity>|
+     -> BTreeMap<SymbolKind, BTreeMap<String, u32>> {
+        let mut by_kind: BTreeMap<SymbolKind, BTreeMap<String, u32>> = BTreeMap::new();
+        for identity in items {
+            // "Wholly" gone/new: no ordinal of this (kind, name) survives in
+            // (resp. pre-existed in) the other set.
+            let any_present = still_present
+                .iter()
+                .any(|c| c.kind == identity.kind && c.name == identity.name);
+            if !any_present {
+                *by_kind
+                    .entry(identity.kind)
+                    .or_default()
+                    .entry(identity.name.clone())
+                    .or_insert(0) += 1;
+            }
+        }
+        by_kind
+    };
+
+    let wholly_removed = group(removed, current);
+    let wholly_added = group(added, baseline);
+
+    let mut renames = Vec::new();
+    for (kind, removed_names) in &wholly_removed {
+        let Some(added_names) = wholly_added.get(kind) else {
+            continue;
+        };
+        // Unambiguous only: one candidate on each side, equal overload counts.
+        if removed_names.len() != 1 || added_names.len() != 1 {
+            continue;
+        }
+        let (old_name, old_count) = removed_names.iter().next().expect("len checked");
+        let (new_name, new_count) = added_names.iter().next().expect("len checked");
+        if old_count != new_count {
+            continue;
+        }
+        let mut old_ids: Vec<SymbolIdentity> = removed
+            .iter()
+            .filter(|i| i.kind == *kind && i.name == *old_name)
+            .cloned()
+            .collect();
+        let mut new_ids: Vec<SymbolIdentity> = added
+            .iter()
+            .filter(|i| i.kind == *kind && i.name == *new_name)
+            .cloned()
+            .collect();
+        old_ids.sort();
+        new_ids.sort();
+        removed.retain(|i| !(i.kind == *kind && i.name == *old_name));
+        added.retain(|i| !(i.kind == *kind && i.name == *new_name));
+        renames.extend(old_ids.into_iter().zip(new_ids));
+    }
+    renames
+}
+
+/// Does this update change the file's public or privileged symbol surface?
+///
+/// Boolean convenience over [`export_surface_diff`]; see it for the precise
+/// added/removed/renamed breakdown.
 #[must_use]
 pub fn export_surface_changed(sym: &SymbolGraph, delta: &GraphDelta) -> bool {
-    let current = sym.symbols_in_file(&delta.file);
-
-    let current_public: HashSet<String> = current
-        .iter()
-        .filter(|s| s.visibility == Visibility::Public)
-        .map(|s| GraphDelta::symbol_baseline_key(s))
-        .collect();
-    if current_public != delta.previously_public {
-        return true;
-    }
-
-    let current_privileged: HashSet<String> = current
-        .iter()
-        .filter(|s| s.trust_level == TrustLevel::Privileged)
-        .map(|s| GraphDelta::symbol_baseline_key(s))
-        .collect();
-    current_privileged != delta.previously_privileged
+    !export_surface_diff(sym, delta).is_empty()
 }
 
 /// Collect every file transitively impacted by a surface change to `file`,
@@ -187,20 +350,19 @@ fn impact_closure(dep: &DependencyGraph, file: &str, budget: usize) -> Option<Ha
 /// for the one in-band failure mode (`update_file` partially failing) that can
 /// leave `sym` inconsistent while still returning a delta.
 ///
-/// # Known Sub-phase A limitations (council verdict B4)
+/// # Surface decision (GV2-002)
 ///
 /// The surface decision is the `previously_public` / `previously_privileged`
-/// **set**-diff (`incremental.rs` builds them as `HashSet`s keyed by
-/// `file::kind::name`), which the council accepted as conservatively safe. Two
-/// consequences follow and are deferred, not bugs:
-/// - **Name granularity / overloads.** Adding a second public symbol with the
-///   same `kind` and `name` (e.g. a TS overload of an already-public function)
-///   collapses in the set and reads as no surface change. Resolving this needs
-///   stable per-symbol identity (GV2-002, Draft).
-/// - **`TrustLevel::Boundary`.** Only `Privileged` feeds `previously_privileged`
-///   today (`incremental.rs`), and no producer assigns `Boundary` at runtime. If
-///   trust annotation later emits `Boundary` as an elevated surface, extend both
-///   that baseline and the `current_privileged` filter here together.
+/// set-diff over stable [`SymbolIdentity`] keys (`incremental.rs` builds the
+/// baselines). Identities are overload-disambiguated by ordinal, so the
+/// former Sub-phase A limitation — a second public symbol with the same
+/// `kind` and `name` collapsing into one key and reading as no surface
+/// change — is closed: an added overload is a surface change.
+///
+/// Both `TrustLevel::Privileged` and `TrustLevel::Boundary` feed the
+/// privileged surface (`incremental::is_elevated_trust`), closing spec gap
+/// G-06 — a producer emitting `Boundary` can no longer make the export-diff
+/// silently under-fire.
 #[must_use]
 pub fn certify(
     sym: &SymbolGraph,
@@ -251,7 +413,7 @@ pub fn certify(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use anvil_kernel_types::{SymbolKind, SymbolNode};
+    use anvil_kernel_types::{SymbolKind, SymbolNode, TrustLevel};
 
     /// Build a graph holding one file with the given `(name, visibility,
     /// trust)` symbols, and a `GraphDelta` whose `previously_*` baselines are
@@ -272,17 +434,13 @@ mod tests {
         g
     }
 
-    fn key(file: &str, name: &str) -> String {
-        // Call the real helper (via a dummy node) so fixtures track production
-        // behaviour and can't silently desync if the key format changes.
-        GraphDelta::symbol_baseline_key(&SymbolNode {
-            id: 0,
+    fn key(file: &str, name: &str) -> SymbolIdentity {
+        SymbolIdentity {
+            file: file.to_string(),
             kind: SymbolKind::Function,
             name: name.to_string(),
-            visibility: Visibility::Public,
-            file: file.to_string(),
-            trust_level: TrustLevel::Unknown,
-        })
+            ordinal: 0,
+        }
     }
 
     fn delta_for(file: &str, prev_public: &[&str], prev_privileged: &[&str]) -> GraphDelta {
@@ -295,6 +453,26 @@ mod tests {
     }
 
     // ---- export_surface_changed: B4-required fixtures ----
+
+    #[test]
+    fn identity_overload_added_to_already_public_symbol_is_surface_change() {
+        // GV2-002 red test: a.ts had one public `foo`; an overload (second
+        // public symbol with the same kind+name) is added. The string-keyed
+        // set collapses both into one key, so the surface reads unchanged
+        // and the change falsely certifies clean.
+        let sym = sym_with(
+            "a.ts",
+            &[
+                ("foo", Visibility::Public, TrustLevel::Unknown),
+                ("foo", Visibility::Public, TrustLevel::Unknown),
+            ],
+        );
+        let delta = delta_for("a.ts", &["foo"], &[]);
+        assert!(
+            export_surface_changed(&sym, &delta),
+            "adding a public overload must read as a surface change"
+        );
+    }
 
     #[test]
     fn body_only_change_certifies_self_only() {
@@ -375,6 +553,20 @@ mod tests {
             &[("op", Visibility::Internal, TrustLevel::Privileged)],
         );
         let delta = delta_for("a.ts", &[], &[]);
+        assert!(export_surface_changed(&sym, &delta));
+    }
+
+    #[test]
+    fn identity_boundary_trust_is_elevated_surface() {
+        // G-06 regression: a symbol crossing onto TrustLevel::Boundary is a
+        // privilege-surface change, exactly like Privileged.
+        let sym = sym_with(
+            "a.ts",
+            &[("op", Visibility::Internal, TrustLevel::Boundary)],
+        );
+        let delta = delta_for("a.ts", &[], &[]);
+        let diff = export_surface_diff(&sym, &delta);
+        assert_eq!(diff.added_privileged.len(), 1);
         assert!(export_surface_changed(&sym, &delta));
     }
 

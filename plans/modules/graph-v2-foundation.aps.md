@@ -146,8 +146,11 @@ Change status to **Ready** when:
 - [x] Hot-path/non-hot-path boundary agreed with INTD and DRVR owners —
       ratified in [ADR-063](../decisions/063-gv2-hot-path-boundary.md) (Accepted
       2026-06-01)
-- [ ] Stable identity model reviewed against git rename and symbol rename cases
-      — owned by GV2-002 (now graduated, in-wave critical)
+- [x] Stable identity model reviewed against git rename and symbol rename cases
+      — delivered by GV2-002: file rename = delete + create (identities are
+      path-scoped), symbol rename classified by the export-diff with no
+      retained history (PV-4); contract tests in
+      `crates/anvil-graph-cache/tests/identity.rs`
 - [x] Persistence strategy ADR — [ADR-069](../decisions/069-graph-v2-persistence.md)
       **Accepted 2026-06-04** (GV2-021 Merged via PR #2301)
 - [x] Privacy review completed for persisted provenance/session fields —
@@ -194,7 +197,7 @@ Change status to **Ready** when:
 
 #### GV2-002: Stable graph identity + export-diff primitive
 
-- **Status:** Ready — privacy-review gate cleared 2026-06-08
+- **Status:** In Progress — privacy-review gate cleared 2026-06-08
   ([verdict](../reviews/2026-06-08-gv2-privacy-review-verdict.md)); dependency
   GV2-001 Merged + ratified
 - **Intent:** Replace the position-conflated `symbol_baseline_key`

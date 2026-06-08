@@ -2,7 +2,8 @@ use std::collections::{BTreeSet, HashSet};
 use std::path::Path;
 
 use anvil_kernel_types::{
-    EdgeType, FileSymbols, ImportEdge, SymbolKind, SymbolNode, TrustLevel, Visibility,
+    EdgeType, FileSymbols, ImportEdge, SymbolIdentity, SymbolKind, SymbolNode, TrustLevel,
+    Visibility,
 };
 
 use super::symbol_graph::SymbolGraph;
@@ -17,18 +18,30 @@ pub struct GraphDelta {
     pub errors: Vec<String>,
     /// Import sources that existed before this update (for new-dep detection).
     pub previously_imported: HashSet<String>,
-    /// Symbol identities that were already public before this update (for API-expansion detection).
-    pub previously_public: HashSet<String>,
-    /// Symbol identities that were already privileged before this update (for privilege-expansion detection).
-    pub previously_privileged: HashSet<String>,
+    /// Stable identities that were already public before this update (for
+    /// API-expansion detection). Keyed by [`SymbolIdentity`] (GV2-002), so
+    /// same-`(kind, name)` overloads stay distinct via their ordinal instead
+    /// of collapsing into one string key.
+    pub previously_public: HashSet<SymbolIdentity>,
+    /// Stable identities that were already privileged before this update (for
+    /// privilege-expansion detection).
+    pub previously_privileged: HashSet<SymbolIdentity>,
     pub file: String,
 }
 
-impl GraphDelta {
-    pub fn symbol_baseline_key(symbol: &SymbolNode) -> String {
-        format!("{}::{:?}::{}", symbol.file, symbol.kind, symbol.name)
-    }
+/// Is this trust level part of the elevated (privileged) surface?
+///
+/// `Privileged` and `Boundary` both count: a symbol crossing onto either is a
+/// privilege-surface change. Closes spec gap G-06 (the old filter dropped
+/// `Boundary`, so a producer emitting it would have made the export-diff
+/// silently under-fire). Keep this predicate and the `current_privileged`
+/// filter in `certify::export_surface_diff` in lockstep.
+#[must_use]
+pub fn is_elevated_trust(trust: TrustLevel) -> bool {
+    matches!(trust, TrustLevel::Privileged | TrustLevel::Boundary)
+}
 
+impl GraphDelta {
     pub fn is_empty(&self) -> bool {
         self.added_symbols.is_empty()
             && self.removed_symbols.is_empty()
@@ -48,28 +61,31 @@ pub fn update_file(graph: &mut SymbolGraph, new_symbols: FileSymbols) -> GraphDe
 
     // Collect existing import targets BEFORE removing the file, so the
     // new-dep invariant can distinguish genuinely new imports from re-added ones.
-    let old_ids = graph
-        .symbols_in_file(&file)
+    let old_symbols = graph.symbols_in_file(&file);
+    let old_ids = old_symbols.iter().map(|s| s.id).collect::<Vec<_>>();
+    // Stable identities are assigned over the file's full parse-ordered
+    // symbol list (GV2-002): ordinals disambiguate same-(kind, name)
+    // overloads regardless of visibility, so the public/privileged baselines
+    // below stay distinct per overload instead of collapsing into one key.
+    let old_identities = SymbolIdentity::for_file_symbols(&old_symbols);
+    let previously_public: HashSet<SymbolIdentity> = old_symbols
         .iter()
-        .map(|s| s.id)
-        .collect::<Vec<_>>();
+        .zip(&old_identities)
+        .filter(|(s, _)| s.visibility == Visibility::Public)
+        .map(|(_, identity)| identity.clone())
+        .collect();
+    let previously_privileged: HashSet<SymbolIdentity> = old_symbols
+        .iter()
+        .zip(&old_identities)
+        .filter(|(s, _)| is_elevated_trust(s.trust_level))
+        .map(|(_, identity)| identity.clone())
+        .collect();
+    drop(old_symbols);
     let previously_imported: HashSet<String> = old_ids
         .iter()
         .flat_map(|&id| graph.outgoing_edges(id))
         .filter(|e| e.edge_type == EdgeType::Imports)
         .filter_map(|e| graph.get_symbol(e.to).map(|s| s.file.clone()))
-        .collect();
-    let previously_public: HashSet<String> = old_ids
-        .iter()
-        .filter_map(|&id| graph.get_symbol(id))
-        .filter(|s| s.visibility == Visibility::Public)
-        .map(GraphDelta::symbol_baseline_key)
-        .collect();
-    let previously_privileged: HashSet<String> = old_ids
-        .iter()
-        .filter_map(|&id| graph.get_symbol(id))
-        .filter(|s| s.trust_level == TrustLevel::Privileged)
-        .map(GraphDelta::symbol_baseline_key)
         .collect();
 
     let removed_ids = graph.remove_file(&file);

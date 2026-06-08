@@ -1,4 +1,4 @@
-use anvil_kernel_types::TrustLevel;
+use anvil_kernel_types::{SymbolIdentity, TrustLevel};
 
 use crate::graph::{GraphDelta, SymbolGraph};
 use crate::policy::config::ArchitectureConfig;
@@ -25,11 +25,18 @@ impl Invariant for PrivilegeExpansion {
             let Some(sym) = graph.get_symbol(sym_id) else {
                 continue;
             };
-            if sym.trust_level == TrustLevel::Privileged
-                && !delta
-                    .previously_privileged
-                    .contains(&GraphDelta::symbol_baseline_key(sym))
-            {
+            if sym.trust_level != TrustLevel::Privileged {
+                continue;
+            }
+            // Resolve the symbol's stable identity within its post-update
+            // file (GV2-002): ordinals keep same-(kind, name) overloads
+            // distinct, so a newly privileged overload cannot hide behind an
+            // already-privileged baseline entry.
+            let file_symbols = graph.symbols_in_file(&sym.file);
+            let Some(identity) = SymbolIdentity::of_symbol(&file_symbols, sym_id) else {
+                continue;
+            };
+            if !delta.previously_privileged.contains(&identity) {
                 violations.push(Violation {
                     policy_id: self.id().to_string(),
                     file: sym.file.clone(),
@@ -120,7 +127,12 @@ mod tests {
         let existing = make_sym(1, "deleteFiles", "src/cleanup.ts", TrustLevel::Privileged);
 
         let mut previously_privileged = std::collections::HashSet::new();
-        previously_privileged.insert(GraphDelta::symbol_baseline_key(&existing));
+        previously_privileged.insert(SymbolIdentity {
+            file: existing.file.clone(),
+            kind: existing.kind,
+            name: existing.name.clone(),
+            ordinal: 0,
+        });
 
         graph.add_symbol(existing).unwrap();
 
