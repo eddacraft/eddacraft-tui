@@ -82,21 +82,24 @@ impl DependencyGraph {
                 }
             }
         }
-        // Install the new forward edges (cross-file only) and reverse pointers.
-        for target in targets {
-            let target = target.into();
-            if target == file {
-                continue;
-            }
-            self.edges
-                .entry(file.to_string())
-                .or_default()
-                .insert(target.clone());
+        // De-duplicate (the caller may repeat a target) and drop self-edges in
+        // one pass, so the reverse index is touched once per unique target.
+        let new_edges: HashSet<String> = targets
+            .into_iter()
+            .map(Into::into)
+            .filter(|t| t != file)
+            .collect();
+        if new_edges.is_empty() {
+            // No outgoing edges → leave no empty forward set behind.
+            return;
+        }
+        for target in &new_edges {
             self.reverse
-                .entry(target)
+                .entry(target.clone())
                 .or_default()
                 .insert(file.to_string());
         }
+        self.edges.insert(file.to_string(), new_edges);
     }
 
     /// Remove all edges originating from AND pointing to `file`.

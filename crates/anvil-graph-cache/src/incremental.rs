@@ -510,7 +510,9 @@ pub(crate) fn resolve_import(
 /// Re-resolve imports that could not be resolved during initial scan because
 /// the target file had not been parsed yet.
 pub fn re_resolve_imports(graph: &mut SymbolGraph, imports: &[ImportEdge]) {
-    let _ = re_resolve_imports_tracked(graph, imports);
+    // No tracking closure → no per-call allocation for the hot-path callers
+    // (`watch.rs`, embedded builds, benches) that don't need the added-edge list.
+    re_resolve_imports_inner(graph, imports, |_, _, _| {});
 }
 
 /// Like [`re_resolve_imports`], but returns the symbol-graph `Imports` edges it
@@ -532,6 +534,19 @@ pub fn re_resolve_imports_tracked(
     graph: &mut SymbolGraph,
     imports: &[ImportEdge],
 ) -> Vec<(u64, u64, EdgeType)> {
+    let mut added = Vec::new();
+    re_resolve_imports_inner(graph, imports, |from, to, ty| added.push((from, to, ty)));
+    added
+}
+
+/// Shared re-resolution body. Invokes `on_add(from, to, edge_type)` for each
+/// `Imports` edge it inserts, so the non-tracking entry point pays no allocation
+/// and the tracking one collects into a `Vec`.
+fn re_resolve_imports_inner(
+    graph: &mut SymbolGraph,
+    imports: &[ImportEdge],
+    mut on_add: impl FnMut(u64, u64, EdgeType),
+) {
     let known_files: Vec<String> = graph
         .inner()
         .node_weights()
@@ -540,7 +555,6 @@ pub fn re_resolve_imports_tracked(
         .into_iter()
         .collect();
 
-    let mut added = Vec::new();
     for import in imports {
         let from_id = graph
             .symbols_in_file(&import.from_file)
@@ -565,10 +579,9 @@ pub fn re_resolve_imports_tracked(
             edge_type: EdgeType::Imports,
         };
         if graph.add_edge(edge).is_ok() {
-            added.push((from, to, EdgeType::Imports));
+            on_add(from, to, EdgeType::Imports);
         }
     }
-    added
 }
 
 /// Remove a deleted file from the graph entirely.
