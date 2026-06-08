@@ -83,16 +83,19 @@ pub struct GraphDelta {
     pub removed_symbols: Vec<u64>,
     pub added_edges: Vec<(u64, u64, EdgeType)>,
     /// The file's own **outgoing** edges removed by this update, in this
-    /// generation's ids (GV2-003). Captured from the file's symbols before
-    /// `remove_file` drops them. Scoped to outgoing deliberately: an *incoming*
-    /// edge (another file imports this one) belongs to that other file's
-    /// import decision and its dependency does not cease when this file is
-    /// re-saved — "who imports me" is answered by `DependencyGraph::dependents_of`,
-    /// never by this channel (see `certify` rustdoc). On a body-only edit the
-    /// old ids are genuinely gone, so this honestly reports the removed edges
-    /// even when the same import is re-added under fresh ids; the identity-level
-    /// "did the import shape change" question is answered by `node_changes` +
-    /// `previously_imported`, not by diffing raw ids.
+    /// generation's ids — every `EdgeType`, not only `Imports` (today the graph
+    /// only carries `Imports` edges, but this channel reports whatever outgoing
+    /// edges the file's symbols held, so it stays complete as new edge kinds
+    /// land). Captured from the file's symbols before `remove_file` drops them.
+    /// Scoped to outgoing deliberately: an *incoming* edge (another file imports
+    /// this one) belongs to that other file's decision and its dependency does
+    /// not cease when this file is re-saved — "who depends on me" is answered by
+    /// `DependencyGraph::dependents_of`, never by this channel (see `certify`
+    /// rustdoc). On a body-only edit the old ids are genuinely gone, so this
+    /// honestly reports the removed edges even when the same edge is re-added
+    /// under fresh ids; the identity-level "did the import shape change" question
+    /// is answered by `node_changes` + `previously_imported`, not by diffing raw
+    /// ids.
     pub removed_edges: Vec<(u64, u64, EdgeType)>,
     /// Identity-anchored view of the node change set (GV2-003): added,
     /// identity-preserving-changed, and removed nodes for `file`. Lets a
@@ -182,9 +185,9 @@ struct PriorState {
     /// The file's stable identities before the update — for the
     /// changed/removed node-change classification after re-add.
     old_identity_set: HashSet<SymbolIdentity>,
-    /// The file's own outgoing edges, de-duplicated and sorted — the import
-    /// decisions this file is dropping (GV2-003). Incoming edges are
-    /// deliberately excluded: they belong to other files' deltas, and
+    /// The file's own outgoing edges (every `EdgeType`), de-duplicated and
+    /// sorted — the edges this file's symbols are dropping (GV2-003). Incoming
+    /// edges are deliberately excluded: they belong to other files' deltas, and
     /// capturing them would make this an O(graph) scan on the save-time path
     /// for a widely-imported file.
     removed_edges: Vec<(u64, u64, EdgeType)>,
