@@ -5,19 +5,21 @@
 
 | ID   | Owner      | Status      | Progress |
 | ---- | ---------- | ----------- | -------- |
-| TUIR | joshuaboys | In Progress | 8/10     |
+| TUIR | joshuaboys | In Progress | 9/10     |
 
-**Last reviewed:** 2026-06-08 — TUIR-010 added (`In Progress`):
-deploys the `mirror-drift-check.yml` watchdog D-TUIR-018 specified and
-the mirror workflow flagged as not-yet-deployed. Replicates the
-push-side subtree-split + banner-swap inline (standalone-replication
-decision), diffs the reconstructed tree against the public mirror, and
-opens/refreshes a labelled tracked issue on any drift. Algorithm
-verified locally against the live mirror (reconstructed tree
-byte-identical to `eddacraft/eddacraft-tui:main`; simulated out-of-band
-push flagged). Unblocks TUIR-008's drift-check validation line and lets
-TUIN's 7-consecutive-green-runs gate start counting. Progress **8/9 →
-8/10**. Prior: 2026-06-07 — TUIR-009 `Merged 2026-06-07` via PR
+**Last reviewed:** 2026-06-08 — TUIR-010 `Merged 2026-06-08` via PR
+#2392: deploys the `mirror-drift-check.yml` watchdog D-TUIR-018
+specified and the mirror workflow flagged as not-yet-deployed.
+Replicates the push-side subtree-split + banner-swap inline
+(standalone-replication decision), diffs the reconstructed tree against
+the public mirror, and opens/refreshes a labelled tracked issue on any
+drift. Algorithm verified locally against the live mirror (reconstructed
+tree byte-identical to `eddacraft/eddacraft-tui:main`; simulated
+out-of-band push flagged) and Council-hardened against the
+propagation-race false positive. Unblocks TUIR-008's drift-check
+validation line and starts TUIN's 7-consecutive-green-runs gate.
+Progress **8/10 → 9/10**. TUIR-008 execution-token remains `open`.
+Prior: 2026-06-07 — TUIR-009 `Merged 2026-06-07` via PR
 #2339 (squash at `817b359b1`): ratifies D-TUIR-021 and closes the
 structural gap surfaced while backfilling `eddacraft-tui-v0.2.4` on
 the public mirror. The publish workflow's `gh release create` step
@@ -1013,7 +1015,7 @@ zero hits.
 
 ### TUIR-010: Deploy `mirror-drift-check.yml` (D-TUIR-018)
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-08 via PR #2392
 - **Intent:** Land the scheduled mirror-drift watchdog that D-TUIR-018
   specified and the mirror workflow's own header flagged as "a
   documented follow-up and NOT yet deployed." Until this job exists,
