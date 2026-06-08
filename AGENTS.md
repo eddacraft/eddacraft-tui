@@ -49,6 +49,23 @@ Agents MUST update APS state as they work — do not leave this for later:
 Reference spec: <https://github.com/eddacraft/anvil-plan-spec> Project context:
 [`plans/project-context.md`](plans/project-context.md)
 
+### No inline TODOs
+
+Do NOT leave `TODO`, `FIXME`, `XXX`, or `HACK` markers in code, docs, plans, or
+config. Inline markers are invisible to the APS index, drift out of sync, and
+never get scheduled.
+
+Every piece of deferred or follow-up work MUST be tracked as one of:
+
+- an **APS work item** in `plans/modules/<module>.aps.md` — for planned,
+  multi-step, or roadmap-bound work, or
+- a **GitHub Issue** — for standalone bugs, smaller follow-ups, or work without
+  an owning module yet.
+
+If you are tempted to write a `TODO`, instead add the APS item or open the issue
+and reference its ID in the commit or surrounding doc. Pre-existing markers you
+encounter should be converted to an APS item or GitHub Issue, not propagated.
+
 ## Architecture and Design Decisions
 
 Before proposing new architecture, changing technology choices, or planning work
