@@ -46,6 +46,21 @@ impl Verdict {
         }
     }
 
+    /// The lowercase verdict token (`pass`/`warn`/`degraded`/`block`/
+    /// `error`) — the stable string both the JSON encoding and the CLI's
+    /// human output use. Exhaustive `match`, so adding a variant is a
+    /// compile error here rather than silent `Debug`-derived drift.
+    #[must_use]
+    pub fn as_token(self) -> &'static str {
+        match self {
+            Self::Pass => "pass",
+            Self::Warn => "warn",
+            Self::Degraded => "degraded",
+            Self::Block => "block",
+            Self::Error => "error",
+        }
+    }
+
     /// Severity rank for combination: `error > block > degraded >
     /// warn > pass`. `error` outranks `block` because an overclaiming
     /// tool failure must never be laundered into a definite verdict.
@@ -162,9 +177,11 @@ impl CapsuleVerification {
             serde_json::from_slice(bytes).map_err(|e| CapsuleError::Parse(e.to_string()))?;
         let derived = Self::derive_verdict(&doc.checks);
         if doc.verdict != derived {
+            // Use the stable token, not `Debug`, so the message can never
+            // drift from the canonical string if a variant is renamed.
             return Err(CapsuleError::InconsistentVerdict {
-                claimed: format!("{:?}", doc.verdict).to_lowercase(),
-                derived: format!("{derived:?}").to_lowercase(),
+                claimed: doc.verdict.as_token().to_string(),
+                derived: derived.as_token().to_string(),
             });
         }
         Ok(doc)
