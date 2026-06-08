@@ -150,9 +150,14 @@ Change status to **Ready** when:
       — owned by GV2-002 (now graduated, in-wave critical)
 - [x] Persistence strategy ADR — [ADR-069](../decisions/069-graph-v2-persistence.md)
       **Accepted 2026-06-04** (GV2-021 Merged via PR #2301)
-- [ ] Privacy review completed for persisted provenance/session fields — **hard
-      blocker for GV2-002 and GV2-010** (they freeze the persistable field
-      shape); feeds the GV2-030 allowlist
+- [x] Privacy review completed for persisted provenance/session fields —
+      **completed 2026-06-08** (council `gv2-privacy-20260608`,
+      APPROVE-WITH-CONDITIONS, unanimous; conditions PV-1..PV-12 folded into
+      GV2-002/GV2-030 below). The completed answer: **no provenance/session
+      field persists in v1** — the `SnapshotPayload` covers semantic +
+      dependency only, and the per-field-class table feeds the GV2-030
+      allowlist. Verdict:
+      [2026-06-08-gv2-privacy-review-verdict](../reviews/2026-06-08-gv2-privacy-review-verdict.md)
 - [x] GCTX module updated to depend on GV2 rather than owning foundation work —
       [graph-context-delivery](graph-context-delivery.aps.md) declares GV2 as a
       dependency and lists schemas, stable IDs, deltas, hot indexes, and
@@ -189,7 +194,9 @@ Change status to **Ready** when:
 
 #### GV2-002: Stable graph identity + export-diff primitive
 
-- **Status:** Draft
+- **Status:** Ready — privacy-review gate cleared 2026-06-08
+  ([verdict](../reviews/2026-06-08-gv2-privacy-review-verdict.md)); dependency
+  GV2-001 Merged + ratified
 - **Intent:** Replace the position-conflated `symbol_baseline_key`
   (`file::kind::name`) and the session-local `SymbolNode.id` counter with a
   stable, cross-restart symbol identity, and deliver the export-diff primitive
@@ -209,7 +216,19 @@ Change status to **Ready** when:
 - **Confidence:** medium
 - **Priority:** Critical
 - **Dependencies:** GV2-001
-- **Note:** Gated on the privacy review (it freezes persistable identity fields).
+- **Note:** Privacy review completed 2026-06-08 — implement under conditions
+  PV-1..PV-5 of the
+  [privacy verdict](../reviews/2026-06-08-gv2-privacy-review-verdict.md):
+  (PV-1) overload disambiguator is structural only (kind/arity/type-identity
+  refs or fixed-width hash, and/or source-offset ordinal) — never parameter
+  source text or default-value expressions; (PV-2) the stable-id hash is a
+  named deterministic content hash (SHA-256/Blake3/fixed-seed FxHash), never
+  `std::hash::Hash` over the default random-seeded hasher; (PV-3)
+  session/worktree identity and APS/provenance references in the identity
+  contract are join-time-only — absent from any persisted payload in v1;
+  (PV-4) no persisted rename history — rename = delete-old-id + create-new-id;
+  (PV-5) every new hash field declares its input domain (ALLOW-class data or
+  whole-file content; no truncated hashes over literals).
 
 ---
 
@@ -258,7 +277,11 @@ Change status to **Ready** when:
 - **Confidence:** medium
 - **Priority:** Critical
 - **Dependencies:** GV2-002, GV2-003
-- **Note:** Gated on the privacy review (it freezes persistable schema fields).
+- **Note:** Privacy review completed 2026-06-08
+  ([verdict](../reviews/2026-06-08-gv2-privacy-review-verdict.md)) — the
+  persistable schema subset is bounded by the verdict's per-field-class table;
+  source spans stay no-text `ByteRange` (structurally incapable of holding
+  spanned text) and the GCTX-projection fields never persist raw bodies.
 
 ---
 
@@ -583,6 +606,23 @@ Change status to **Ready** when:
 - **Confidence:** medium
 - **Priority:** High
 - **Dependencies:** GV2-002, GV2-003
+- **Note:** Implement under conditions PV-6..PV-12 of the 2026-06-08
+  [privacy verdict](../reviews/2026-06-08-gv2-privacy-review-verdict.md):
+  (PV-6) the v1 DTO covers semantic + dependency only — zero
+  session/attribution/provenance fields; GV2-013/GV2-014 need their own privacy
+  ADRs before persisting (spec condition C-6); (PV-7) the no-leak test asserts
+  no `PathBuf`-typed field exists in the payload, path `String`s are
+  workspace-root-relative, `GraphDelta` (incl. `errors` and the `previously_*`
+  baseline sets) is entirely absent, and identity strings are the only
+  permitted `String` fields; (PV-8) the `WorktreeKey`→filename derivation is a
+  named stable one-way hash, and the test extends to filenames under
+  `graph-cache/`; (PV-9) acceptance criteria pin "identity keys are
+  machine-local; any export/sync/transmit surface requires a new privacy
+  review"; (PV-10) snapshot telemetry counters bind to a machine-local ADR-035
+  pipe with outcome-enum labels only; (PV-11) `ANVIL_PERSIST_GRAPH` enters
+  `flags/manifest.json` before graduation; (PV-12) extend the ADR-069 §8
+  residual-risk note (backup/dotfile-sync/CI-mount pickup, hash correlation)
+  and clarify the §10 GC startup predicate.
 
 ---
 
@@ -597,7 +637,7 @@ Change status to **Ready** when:
 | Backing swap silently changes verdicts | Medium | High | GV2-027 parity property test asserts verdict-identical Certifiability vs the interim backing |
 | Privilege containment claimed but inert in prod | Medium | High | GV2-029 wires `annotate_trust` + a `node:fs` test, and blocks the GV2-027 swap until green |
 | Stable identity wrong for rename-heavy work | Medium | Medium | GV2-002 includes rename/delete/recreate + overload validation before implementation |
-| Persisted session/provenance data captures too much private context | Medium | High | GV2-030 sealed-DTO + no-leak test; privacy review hard-blocks GV2-002/010 |
+| Persisted session/provenance data captures too much private context | Medium | High | GV2-030 sealed-DTO + no-leak test; [privacy verdict](../reviews/2026-06-08-gv2-privacy-review-verdict.md) pins v1 payload to semantic+dependency only (PV-6) with conditions PV-1..PV-12 folded into GV2-002/030 |
 | Slice ships as an uncalled library (zero-callers) | Medium | High | GV2-020 e2e-through-registry test + GV2-028 parser feed prove the backing is live in `validate_paths` |
 
 ## Decisions
