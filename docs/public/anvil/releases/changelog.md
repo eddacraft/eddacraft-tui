@@ -63,7 +63,7 @@ surface.
   assembly.
 - **Resource budgets now cover the save-time path.** New CPU/RSS benches measure
   the real default watch path under churn, the intercept daemon, the MCP server,
-  and concurrent multi-process use; a resource-budget CI job records the SLO
+  and concurrent multi-process use; the `resource-budgets` CI job records the SLO
   envelope for future regressions.
 
 ### Fixed
