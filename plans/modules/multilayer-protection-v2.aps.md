@@ -4215,7 +4215,7 @@ to redesign once GV2-001..-023 land.
   [#2414](https://github.com/eddacraft/anvil-001/pull/2414) (Phase 2 —
   subscriber surface + broadcaster; Phase 1 previously Merged). Awaiting
   release evidence to advance to Released/Shipped → Complete.
-- **Phase 1 (this PR):** Shipped the daemon-side reachability of
+- **Phase 1 (PR [#1793](https://github.com/eddacraft/anvil-001/pull/1793)):** Shipped the daemon-side reachability of
   the fan-out, the keyed redaction primitive that folds in §H2,
   and the registry binding flow:
   - `IpcCommand::SubscribeTelemetry` + `UnsubscribeTelemetry`
@@ -4239,7 +4239,7 @@ to redesign once GV2-001..-023 land.
     (proves the literal #1722 reachability closure) +
     `registry_ownership_resolver_consults_subscriber_binding`
     (proves Phase D's binding flow).
-- **Phase 2 (this PR):** Subscriber surface + production
+- **Phase 2 (PR [#2414](https://github.com/eddacraft/anvil-001/pull/2414)):** Subscriber surface + production
   broadcaster machinery. Implemented:
   - IPC accept-loop multiplex in `crates/anvil-intercept/src/ipc.rs`:
     `subscribe-telemetry` / `unsubscribe-telemetry` JSON-RPC frames
