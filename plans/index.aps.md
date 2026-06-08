@@ -203,7 +203,8 @@ INTD/INTR/INTL/DRVR work is queued after the launch shim.
   - 2026-04-24 council review M1/M5/M9 filed INTD-014 (JSON-RPC 2.0
     conformance + latency benchmark), INTD-015 (daemon-enforced
     telemetry subscription scoping), INTD-016 (DoS protection budgets).
-  - Net: module now has 16 tasks; index reconciled to 0/16.
+  - Net: module now has 16 tasks; denominator reconciled to /16 (0 done
+    at the time of this note; INTD has since completed 16/16, Complete).
 
   Note: this comment lives ABOVE the table because an HTML comment between
   table rows terminates the markdown table semantically; oxfmt then sees the
