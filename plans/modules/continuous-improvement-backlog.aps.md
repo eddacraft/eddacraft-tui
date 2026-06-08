@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 29/48    |
+| CIB | —     | In Progress | 30/48    |
 
 ## Purpose
 
@@ -1069,7 +1069,7 @@ archive.
 
 ### CIB-046: Gate the `anvil plan dashboard` APS surface behind an internal-developer feature flag
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-08 via PR #2440
 - **Intent:** The APS dashboard (`anvil plan dashboard`) renders Anvil's own
   plan internals but ships always-on, unauthenticated, and documented as
   **Class: User-explicit**. That posture is not a deliberate access decision —
