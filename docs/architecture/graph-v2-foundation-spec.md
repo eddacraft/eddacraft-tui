@@ -105,24 +105,32 @@ consumer**, so it is pinned here and owned by GV2-002.
 
 ### Current reality vs. required contract
 
-Today, in-graph symbol identity is the `SymbolNode.id: u64`
-(`crates/anvil-kernel-types/src/graph.rs:37`) — a **session-local monotonic
-counter**, not stable across restart, edit, or rename. The set-key used by the
-save-time certify path is `file::kind::name`
-(`crates/anvil-graph-cache/src/incremental.rs`), which **conflates identity with
-position** and collapses same-`(kind, name)` overloads. This is sound-but-coarse
-for Sub-phase A and is the named gap GV2-002 must close before **precise export
-diffing** and the **trust/provenance symbol joins**. Warm-start snapshot
-comparability does **not** require it — ADR-069 persists the `u64` ids in its
-sealed DTO and reconciles by content hash — so GV2-002 gates GV2-014, **not**
-Sub-phase B persistence (ratification condition C-4).
+The `SymbolNode.id: u64` (`crates/anvil-kernel-types/src/graph.rs`) remains a
+**session-local monotonic counter** used as the in-memory graph handle — it is
+not, and need not be, stable. The _comparable_ identity is `SymbolIdentity`
+(`anvil-kernel-types`, GV2-002): `(file, kind, name, ordinal)`, where `ordinal`
+is the occurrence index among same-`(kind, name)` symbols in parse order — a
+structural overload disambiguator derived from source ordering, never from
+parameter source text (privacy verdict PV-1). The save-time certify baselines
+(`previously_public` / `previously_privileged`) and the `export_surface_diff`
+primitive are keyed on it, so same-`(kind, name)` overloads no longer collapse
+and a rename is classified rather than read as unrelated churn. **Rename
+stance:** rename = delete + create at both file and symbol level; rename
+classification is a per-update, in-memory pairing and no pre-rename name is
+retained or persisted (privacy verdict PV-4). Session/worktree identity and
+APS/provenance references remain join-time-only contract rows — resolved from
+their graph authorities, never persisted graph fields (privacy verdict PV-3).
+Warm-start snapshot comparability never required stable identity — ADR-069
+persists the `u64` ids in its sealed DTO and reconciles by content hash — so
+GV2-002 gated GV2-014 and precise export-diffing, **not** Sub-phase B
+persistence (ratification condition C-4).
 
 ### The identity keys that cross graph boundaries
 
 | Identity                                                               | Authoritative graph   | Stable across restart today?                                         | Crosses into                  |
 | ---------------------------------------------------------------------- | --------------------- | -------------------------------------------------------------------- | ----------------------------- |
 | File identity (path + content hash)                                    | Semantic              | path yes / content-hash yes                                          | dependency, trust, provenance |
-| Symbol identity (stable, position-independent, overload-disambiguated) | Semantic (GV2-002)    | **no — `u64` counter; GV2-002 closes this**                          | trust, provenance             |
+| Symbol identity (stable, position-independent, overload-disambiguated) | Semantic (GV2-002)    | yes — `SymbolIdentity` `(file, kind, name, ordinal)` (GV2-002)       | trust, provenance             |
 | Edge identity (typed `from → to` over symbol/file identity)            | Semantic / dependency | derived                                                              | dependency, provenance        |
 | Session / worktree identity (`SessionId`, `WorktreeKey`)               | Control/session       | yes — but `WorktreeKey` is crate-private to `anvil-intercept` (G-05) | provenance, attribution       |
 | Plan / commit / memory anchors (APS id, commit SHA, Edda ref)          | Plan/provenance       | external                                                             | provenance joins              |
@@ -345,13 +353,14 @@ layer would invert the ADR-064 boundary. Gates the control/session join in the
 worked trace. **Risk:** Medium. **Fix:** GV2-013 defines a shared
 root-relativisation type in `anvil-kernel-types`.
 
-### G-06: `TrustLevel::Boundary` is excluded from the privileged-surface baseline
+### G-06: `TrustLevel::Boundary` is excluded from the privileged-surface baseline — closed
 
-`incremental.rs:71-73` filters only `TrustLevel::Privileged` into
-`previously_privileged`; `Boundary` is dropped. If a trust producer emits
-`Boundary` as an elevated surface before GV2-002, the export-diff silently
-under-fires. **Risk:** Medium. **Fix:** extend the filter alongside/before
-GV2-002 + GV2-029.
+**Closed by GV2-002.** `incremental::is_elevated_trust` feeds both
+`TrustLevel::Privileged` and `TrustLevel::Boundary` into
+`previously_privileged`, and `certify::export_surface_diff` applies the same
+predicate to the post-update surface, so a producer emitting `Boundary` can no
+longer make the export-diff silently under-fire (regression-tested in
+`certify`).
 
 ## Related docs
 
