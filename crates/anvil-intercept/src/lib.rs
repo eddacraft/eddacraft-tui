@@ -41,6 +41,7 @@
 pub mod antipattern_config;
 pub mod assurance;
 pub mod auth;
+pub mod broadcaster;
 // DSV-010a / ADR-069: `change_class` is no longer Unix-gated as a whole — its
 // `CanonicalChange` enum is platform-neutral (the verdict spine needs it on
 // Windows); the inode-based identity/classification inside it stays `cfg(unix)`.
@@ -198,28 +199,23 @@ struct DaemonState {
     fences: Arc<fence::FenceState>,
     /// MLP2-071 (INTD-015 wire-up): per-startup fan-out filter,
     /// constructed once with the resolved cross-session policy and a
-    /// fresh per-startup HMAC salt. The IPC accept loop calls
-    /// `fanout.register` for each `SubscribeTelemetry` connection;
-    /// the producer side calls `fanout.route` before each broadcast.
-    /// Wired in to close the "configured-but-ignored" gap GH issue
-    /// #1722 surfaced — the regression pin is
-    /// [`tests::daemon_state_constructs_fanout_with_configured_cross_session_policy`]
-    /// in this file (constructs `DaemonState` directly and asserts the
-    /// fanout's `cross_session_policy()` mirrors the resolved
-    /// config). An end-to-end pin that drives through `run_foreground`
-    /// and a real socket waits on Phase 2's IPC subscriber surface
-    /// (#1794); the unit pin proves the literal reachability gap
-    /// today.
-    ///
-    /// Phase C posture: the field is constructed and held; the IPC
-    /// listener + producer wire-up that reads it lands in Phase E.
-    /// The `#[allow(dead_code)]` is intentional and stamped — it
-    /// will be removed in the Phase E commit that adds the first
-    /// reader. Removing it without adding the reader would defeat
-    /// the audit closure rule from #1671 / #1721 (we hold the field
-    /// precisely so a future refactor cannot silently drop it).
+    /// fresh per-startup HMAC salt. The fan-out is the authorisation +
+    /// redaction core; the [`Self::broadcaster`] wraps it with the
+    /// per-subscriber delivery channels. Held here so the
+    /// `daemon_state_constructs_fanout_with_configured_cross_session_policy`
+    /// pin can assert the operator-configured policy reached the
+    /// instance. The production reader is [`Self::broadcaster`] (which
+    /// holds its own clone of this `Arc`); this field is read only by
+    /// that pin, so `#[allow(dead_code)]` is stamped for non-test builds.
     #[allow(dead_code)]
     fanout: Arc<fanout::Fanout>,
+    /// MLP2-071 Phase 2: the telemetry broadcaster built over
+    /// [`Self::fanout`]. `run_foreground` clones this into the IPC
+    /// listener so `SubscribeTelemetry` connections register against it,
+    /// and it is the handle a producer (DSV-044's transition emitters)
+    /// calls `broadcast` on. Closes the "no reader" half of #1722: the
+    /// fan-out is no longer constructed-but-unread.
+    broadcaster: Arc<broadcaster::TelemetryBroadcaster>,
 }
 
 impl DaemonState {
@@ -252,18 +248,29 @@ impl DaemonState {
         let redaction_key = fanout::TelemetryRedactionKey::new_random().map_err(|err| {
             anyhow::anyhow!("mint per-startup telemetry redaction salt for INTD-015 fanout: {err}")
         })?;
-        let resolver = fanout::RegistryOwnershipResolver::new(Arc::clone(&registry));
+        // MLP2-071 D6: the resolver needs the fence state to answer
+        // `is_degraded_origin`, so wrap `fences` into its `Arc` before
+        // constructing the resolver and share the same handle with the
+        // `DaemonState` field below.
+        let fences = Arc::new(fences);
+        let resolver =
+            fanout::RegistryOwnershipResolver::new(Arc::clone(&registry), Arc::clone(&fences));
         let fanout = Arc::new(fanout::Fanout::with_cross_session_policy_and_key(
             Box::new(resolver),
             enforcement_config.cross_session_policy(),
             redaction_key,
         ));
+        // MLP2-071 Phase 2: the broadcaster shares the fan-out so the
+        // IPC subscriber surface and any producer route through the same
+        // operator-configured policy + redaction salt.
+        let broadcaster = Arc::new(broadcaster::TelemetryBroadcaster::new(Arc::clone(&fanout)));
 
         Ok(Self {
             registry,
             fence_store: Arc::new(fence_store),
-            fences: Arc::new(fences),
+            fences,
             fanout,
+            broadcaster,
         })
     }
 
@@ -1192,7 +1199,11 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
             let listener = listener
                 .with_status_provider(Arc::clone(&status_provider))
                 .with_limits(ipc_limits)
-                .with_save_time_state(Arc::clone(&save_time_state));
+                .with_save_time_state(Arc::clone(&save_time_state))
+                // MLP2-071 Phase 2: wire the telemetry broadcaster so
+                // `SubscribeTelemetry` connections register against the
+                // daemon's per-startup fan-out.
+                .with_broadcaster(Arc::clone(&daemon_state.broadcaster));
             #[cfg(target_os = "linux")]
             let listener = listener.with_cross_check_context(ipc::CrossCheckContext {
                 registry: Arc::clone(&daemon_state.registry),
@@ -1217,6 +1228,9 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
                 .with_status_provider(Arc::clone(&status_provider))
                 .with_limits(ipc_limits)
                 .with_save_time_state(Arc::clone(&save_time_state))
+                // MLP2-071 Phase 2: wire the telemetry broadcaster (served
+                // on Windows too; the subscriber surface is platform-neutral).
+                .with_broadcaster(Arc::clone(&daemon_state.broadcaster))
         })
         .context("failed to bind intercept IPC listener")?;
 
@@ -1412,7 +1426,12 @@ mod tests {
             .register(&session_id, &worktree, Some(&agent_tag), Instant::now())
             .expect("register session");
 
-        let resolver = fanout::RegistryOwnershipResolver::new(Arc::clone(&registry));
+        // D6 is exercised by its own test below; this test pins the
+        // binding/authorisation contract, so an empty fence state is
+        // sufficient (no worktree is spoof-fenced here).
+        let fences = Arc::new(fence::FenceState::default());
+        let resolver =
+            fanout::RegistryOwnershipResolver::new(Arc::clone(&registry), Arc::clone(&fences));
         let owner = fanout::SubscriberId::new("peer:uid=1000:pid=4242:start=42:bin=hash");
         let stranger = fanout::SubscriberId::new("peer:uid=1000:pid=9999:start=99:bin=other");
 
@@ -1449,6 +1468,67 @@ mod tests {
             !registry.bind_subscriber(&unknown, "anything".into()),
             "binding an unregistered session must return false, not silently \
              create a binding for a ghost session id"
+        );
+    }
+
+    // MLP2-071 D6 (production path): the `RegistryOwnershipResolver`
+    // maps an originating session id to its worktree and reports the
+    // session as degraded iff that worktree carries a
+    // `degraded:spoofed-attribution` fence (MLP2-025). This is the
+    // production counterpart to the `fanout::tests` StubResolver D6
+    // pins — it proves the real registry→fence consultation, not just
+    // the `decide()` branch.
+    #[test]
+    fn registry_ownership_resolver_flags_spoof_fenced_origin_as_degraded() {
+        use crate::fanout::OwnershipResolver;
+        use anvil_intercept_proto::SessionId;
+        use std::sync::Arc;
+        use std::time::Instant;
+
+        let registry = Arc::new(SessionRegistry::new());
+        let tmp = tempfile::tempdir().expect("tempdir");
+
+        // A clean session on a non-fenced worktree.
+        let clean_id = SessionId::new("sess-clean");
+        let clean_wt = tmp.path().join("clean");
+        std::fs::create_dir(&clean_wt).expect("create clean worktree");
+        registry
+            .register(&clean_id, &clean_wt, None, Instant::now())
+            .expect("register clean session");
+
+        // A session whose worktree the MLP2-025 cross-check fenced as
+        // spoofed.
+        let spoofed_id = SessionId::new("sess-spoofed");
+        let spoofed_wt = tmp.path().join("spoofed");
+        std::fs::create_dir(&spoofed_wt).expect("create spoofed worktree");
+        registry
+            .register(&spoofed_id, &spoofed_wt, None, Instant::now())
+            .expect("register spoofed session");
+
+        // The store creates its own `state/` parent with 0700; placing
+        // the file there satisfies the secure-store-parent guard.
+        let store = fence::FenceStore::at_path(tmp.path().join("state/intercept-fences.json"));
+        store
+            .fence_worktree_for_spoof(&spoofed_wt)
+            .expect("spoof-fence the worktree");
+        let fences = Arc::new(store.load().expect("load fence state"));
+
+        let resolver =
+            fanout::RegistryOwnershipResolver::new(Arc::clone(&registry), Arc::clone(&fences));
+
+        assert!(
+            resolver.is_degraded_origin(spoofed_id.as_str()),
+            "a session on a spoof-fenced worktree must report as degraded so \
+             its envelopes are denied to cross-session subscribers (D6)"
+        );
+        assert!(
+            !resolver.is_degraded_origin(clean_id.as_str()),
+            "a session on a clean worktree must NOT be flagged degraded"
+        );
+        assert!(
+            !resolver.is_degraded_origin("sess-unknown"),
+            "an unknown session id is not degraded — it is already \
+             default-denied by the ownership check"
         );
     }
 

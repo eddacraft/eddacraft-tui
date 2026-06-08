@@ -442,3 +442,61 @@ The slice must NOT:
 - `crates/anvil-intercept/src/fanout.rs` — existing filter + contract.
 - PR [#1721](https://github.com/eddacraft/anvil-001/pull/1721) — the
   wire-up pattern this slice mirrors (per-worktree cap + IPC limits).
+
+## Addendum — Phase 2 producer boundary reconciliation (2026-06-08)
+
+This addendum records the one decision where the Phase 2 implementation
+slice deviates from D5 as originally written. It does not re-open any
+security decision (D1–D7 stand); it narrows *who ships the producer
+emission call sites*.
+
+**What changed since 2026-05-21.** D5 step 2–3 told the slice to wire
+the broadcaster at `TelemetryEmitter::delivered_envelope_for_decision`,
+calling it "the only [producer] for v1". Verification against `main`
+(2026-06-08) shows that emitter has **no production caller** — every
+invocation is under `#[cfg(test)]`, and the only live notification
+producer (`save_time::emit_assurance_transition`) emits a `tracing`
+mirror only and carries no `originating_session_id`
+(`save_time.rs:297-336`). So D5's named producer site is not a live
+path today.
+
+**Authoritative boundary.** The later
+[DSV-044](../modules/daemon-save-time-validation.aps.md) grounding
+(2026-06-04) re-drew the ownership line and supersedes D5's producer
+clause:
+
+- **MLP2-071 Phase 2 (this slice) owns the broadcaster machinery and
+  the subscriber surface** — the `SubscribeTelemetry` /
+  `UnsubscribeTelemetry` per-connection JSON-RPC handler →
+  `Fanout::register`, the per-connection outbound channel + writer
+  task, `SubscriberId` minting, the daemon-derived `subscriber_binding`
+  at `RegisterSession`, D6, and a `TelemetryBroadcaster` exposing
+  `broadcast(envelope)` (→ `Fanout::route` → per-subscriber delivery,
+  drop-and-count on a full channel). Files: `ipc.rs`, `lib.rs`,
+  `fanout.rs` (+ a new `broadcaster.rs`).
+- **DSV-044 owns the emission call sites** in
+  `save_time.rs` / `telemetry.rs` / `fence.rs` that *call*
+  `broadcast(...)` from real assurance/fence transitions, including the
+  session-correlation threading those producers need.
+
+**Why this is not "an emit with no reader" nor "a reader with no
+emit".** This slice ships the reader (subscriber surface) *and* the
+broadcaster, and exercises the full delivery path end-to-end: the e2e
+test starts a real daemon, subscribes a driver over a real socket, and
+fires envelopes through the broadcaster's public `broadcast(...)`
+entry — the production delivery machinery — asserting each of the four
+D-case outcomes. The broadcaster is live, callable, and tested;
+DSV-044 then attaches real transition producers to it. This removes
+the circular block the two modules previously held on each other.
+
+**E2E contract adjustment.** The slice's e2e drives `broadcast(...)`
+directly (the production delivery path MLP2-071 owns) rather than a
+live save-time transition (owned by DSV-044). The
+"fires a finding through a live transition" end-to-end lands with
+DSV-044, validated by the DSV
+"assurance-transition-emits-through-fanout" test the DSV-044 entry
+already names.
+
+**Unchanged from the slice contract.** D7's MLP2-070 prerequisite is
+now satisfied (MLP2-070 is Released/Shipped via `v0.7.0-beta`), so the
+CHANGELOG "Known gaps" line is narrowed per D7 in this slice.

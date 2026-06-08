@@ -1229,6 +1229,24 @@ impl SessionRegistry {
             .and_then(|entry| entry.subscriber_binding.clone())
     }
 
+    /// MLP2-071 D6: return the worktree path for an originating
+    /// session id, if the session is registered. The production
+    /// [`crate::fanout::RegistryOwnershipResolver`] uses this to map a
+    /// session id to the worktree whose spoof-fence state it then
+    /// consults ([`crate::fence::FenceState::is_spoof_fenced`]).
+    /// Returns `None` for unknown session ids — the resolver treats
+    /// that as "not degraded" (an unknown session is already
+    /// default-denied by the ownership check).
+    #[must_use]
+    pub fn worktree_for_session_id(&self, originating_session_id: &str) -> Option<PathBuf> {
+        let inner = self.lock();
+        let id = SessionId::new(originating_session_id);
+        inner
+            .sessions
+            .get(&id)
+            .map(|entry| entry.record.worktree.clone())
+    }
+
     pub fn unregister(&self, id: &SessionId) -> Result<bool, RegistryError> {
         let worktree_to_signal = {
             let mut inner = self.lock();

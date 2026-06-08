@@ -136,6 +136,30 @@ impl FenceState {
         self.records.iter().any(|record| record.matches(&canonical))
     }
 
+    /// MLP2-071 D6: `true` iff the worktree currently carries a
+    /// **spoof** fence — a [`FenceRecord`] whose reason is
+    /// [`crate::telemetry::DEGRADED_SPOOFED_ATTRIBUTION`], written by
+    /// [`Self::fence_worktree_for_spoof`] (MLP2-025) when the
+    /// write-time env-tag cross-check fails.
+    ///
+    /// The fan-out's [`crate::fanout::RegistryOwnershipResolver`]
+    /// consults this (via the session's worktree) to deny a
+    /// degraded-spoofed origin's envelopes to cross-session
+    /// subscribers regardless of policy. A non-spoof fence
+    /// (`degraded:fence-cascade`, an explicit operator fence) does
+    /// NOT make a session degraded-spoofed, so this is narrower than
+    /// [`Self::is_fenced`].
+    #[must_use]
+    pub fn is_spoof_fenced(&self, worktree: &Path) -> bool {
+        let Some(canonical) = lookup_path(worktree) else {
+            return false;
+        };
+        self.records.iter().any(|record| {
+            record.matches(&canonical)
+                && record.reason == crate::telemetry::DEGRADED_SPOOFED_ATTRIBUTION
+        })
+    }
+
     /// MLP2-026: read-only access to the persisted cascade
     /// engaged-state records.
     #[must_use]

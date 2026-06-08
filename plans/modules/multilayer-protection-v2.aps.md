@@ -4211,7 +4211,8 @@ to redesign once GV2-001..-023 land.
 
 #### MLP2-071: INTD-015 cross-session policy follow-up
 
-- **Status:** In Progress (Phase 1 landed; Phase 2 follow-up pending)
+- **Status:** In Progress (Phase 1 Merged; Phase 2 subscriber surface
+  + broadcaster implemented — pending merge, see Phase 2 below)
 - **Phase 1 (this PR):** Shipped the daemon-side reachability of
   the fan-out, the keyed redaction primitive that folds in §H2,
   and the registry binding flow:
@@ -4236,17 +4237,47 @@ to redesign once GV2-001..-023 land.
     (proves the literal #1722 reachability closure) +
     `registry_ownership_resolver_consults_subscriber_binding`
     (proves Phase D's binding flow).
-- **Phase 2 (follow-up):** Subscriber surface + production
-  broadcaster. The IPC accept-loop multiplex that routes the
-  `SubscribeTelemetry` frame through to `Fanout::register` and
-  the producer site that calls `Fanout::route` are deferred
-  until the production `NotificationEnvelope` broadcaster
-  feature lands (no in-tree producer broadcasts notification
-  envelopes to network subscribers today; see
-  `crates/anvil-intercept/src/fanout.rs:73-99` for the wave-1
-  doc on the missing producer). Phase 2 unblocks alongside the
-  notification telemetry stream feature itself; tracking
-  continues at #1722.
+- **Phase 2 (this PR):** Subscriber surface + production
+  broadcaster machinery. Implemented:
+  - IPC accept-loop multiplex in `crates/anvil-intercept/src/ipc.rs`:
+    `subscribe-telemetry` / `unsubscribe-telemetry` JSON-RPC frames
+    are intercepted at the per-connection handler, mint a
+    `SubscriberId` from the peer's `SO_PEERCRED` credentials
+    (`mint_subscriber_id`, never wire-supplied), and register against
+    the broadcaster. Each subscriber connection drains a bounded
+    outbound channel via a `select!` arm; a `SubscriberGuard`-style
+    `Subscription` unregisters on disconnect or `unsubscribe`.
+  - `crate::broadcaster::TelemetryBroadcaster` (new module): wraps the
+    per-startup `Fanout` with `SubscriberId → mpsc::Sender` channels;
+    `broadcast(envelope)` routes via `Fanout::route` and writes each
+    per-subscriber delivery (full / redacted), dropping + counting on
+    a full channel (`dropped_envelopes`) rather than blocking the
+    producer (INTD-016). This is the handle DSV-044's producers call.
+  - D6 spoofed-origin denial: `OwnershipResolver::is_degraded_origin`
+    (default false; production `RegistryOwnershipResolver` consults
+    `FenceState::is_spoof_fenced` via the session's worktree) +
+    `Fanout::decide` denies a degraded-spoofed origin to every
+    cross-session subscriber regardless of policy.
+  - Daemon-derived `subscriber_binding` at `RegisterSession` (D3): the
+    binding is the registering peer's minted `SubscriberId`.
+  - `Fanout` + `TelemetryBroadcaster` wired into `DaemonState` and the
+    IPC listener via `IpcListener::with_broadcaster` in `run_foreground`.
+  - Tests: broadcaster unit suite (own/deny/redact/drop/filter/
+    unregister), D6 fanout + production-resolver pins, an in-crate
+    socket e2e (`subscribe_telemetry_streams_owned_envelopes_over_socket`)
+    and a `run_foreground` production wire-up pin
+    (`run_foreground_wires_telemetry_subscriber_surface`).
+  - **Boundary note:** the design pass D5 named
+    `delivered_envelope_for_decision` as the v1 producer site, but that
+    emitter is test-only and the live transition producer
+    (`save_time::emit_assurance_transition`) carries no session
+    correlation. Per the DSV-044 ownership grounding (2026-06-04), the
+    producer *emission call sites* are DSV-044's slice
+    (`save_time`/`telemetry`/`fence.rs`); this slice ships the
+    subscriber surface + broadcaster machinery (`ipc`/`lib`/`fanout`/
+    `broadcaster`) and exercises the full delivery path via
+    `broadcast(...)` over a real socket. See the 2026-06-08 addendum in
+    the design-pass spec. DSV-044 unblocks on this merge.
 - **Design pass:** Complete — see
   [`plans/specs/2026-05-21-intd-015-cross-session-attribution-design-pass.md`](../specs/2026-05-21-intd-015-cross-session-attribution-design-pass.md).
   The spec decides the `IpcCommand::SubscribeTelemetry` frame

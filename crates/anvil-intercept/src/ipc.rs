@@ -684,6 +684,13 @@ pub struct IpcListener<D: SessionDispatcher> {
     /// embedded listeners that do not serve the save-time verbs.
     #[cfg(unix)]
     save_time: Option<Arc<SaveTimeState>>,
+    /// MLP2-071 Phase 2: telemetry broadcaster the IPC subscriber
+    /// surface registers connections with. Set by the daemon at startup
+    /// via [`Self::with_broadcaster`]; `None` for tests and embedded
+    /// listeners that do not serve telemetry subscriptions (those reply
+    /// to `SubscribeTelemetry` with a "not available" error).
+    #[cfg(any(unix, windows))]
+    broadcaster: Option<Arc<crate::broadcaster::TelemetryBroadcaster>>,
     #[cfg(windows)]
     inner: tokio::net::windows::named_pipe::NamedPipeServer,
     #[cfg(windows)]
@@ -750,6 +757,25 @@ impl<D: SessionDispatcher> IpcListener<D> {
     #[must_use]
     pub fn with_save_time_state(mut self, state: Arc<SaveTimeState>) -> Self {
         self.save_time = Some(state);
+        self
+    }
+
+    /// MLP2-071 Phase 2: wire the telemetry broadcaster. The daemon's
+    /// `run_foreground` builder calls this with the broadcaster built
+    /// over `DaemonState`'s per-startup [`crate::fanout::Fanout`], so a
+    /// `SubscribeTelemetry` connection registers against the same
+    /// fan-out (and therefore the same operator-configured cross-session
+    /// policy + redaction salt) that the producer broadcasts through.
+    /// Listeners without it reply to `SubscribeTelemetry` with a
+    /// structured "telemetry subscription not available" error (tests,
+    /// embedded callers).
+    #[cfg(any(unix, windows))]
+    #[must_use]
+    pub fn with_broadcaster(
+        mut self,
+        broadcaster: Arc<crate::broadcaster::TelemetryBroadcaster>,
+    ) -> Self {
+        self.broadcaster = Some(broadcaster);
         self
     }
 }
@@ -869,6 +895,7 @@ impl<D: SessionDispatcher> IpcListener<D> {
             status_provider: Arc::new(NoopStatusProvider),
             cross_check: None,
             save_time: None,
+            broadcaster: None,
         })
     }
 
@@ -888,6 +915,10 @@ impl<D: SessionDispatcher> IpcListener<D> {
         let cross_check = self.cross_check.clone();
         // DSV-005: shared save-time state, cloned per spawn.
         let save_time = self.save_time.clone();
+        // MLP2-071 Phase 2: telemetry broadcaster, cloned per spawn so
+        // each subscriber connection registers against the shared
+        // fan-out.
+        let broadcaster = self.broadcaster.clone();
         let connection_permits = Arc::new(tokio::sync::Semaphore::new(
             limits.max_concurrent_connections,
         ));
@@ -932,9 +963,10 @@ impl<D: SessionDispatcher> IpcListener<D> {
                             let peer_pid = peer_pid_for_tokio_unix_stream(&stream);
                             let conn_cross_check = cross_check.clone();
                             let conn_save_time = save_time.clone();
+                            let conn_broadcaster = broadcaster.clone();
                             joinset.spawn(async move {
                                 let _connection_permit = connection_permit;
-                                if let Err(err) = handle_connection(stream, dispatcher, scan_buffer, conn_status, conn_token, limits, peer_pid, conn_cross_check, conn_save_time).await {
+                                if let Err(err) = handle_connection(stream, dispatcher, scan_buffer, conn_status, conn_token, limits, peer_pid, conn_cross_check, conn_save_time, conn_broadcaster).await {
                                     tracing::warn!(target: "anvil_intercept::ipc", error = %err, "ipc connection ended with error");
                                     eprintln!("anvil-intercept: ipc connection ended with error: {err}");
                                 }
@@ -1011,6 +1043,7 @@ impl<D: SessionDispatcher> IpcListener<D> {
             status_provider: Arc::new(NoopStatusProvider),
             cross_check: None,
             save_time: None,
+            broadcaster: None,
         })
     }
 
@@ -1026,6 +1059,10 @@ impl<D: SessionDispatcher> IpcListener<D> {
         // DSV-010b: shared save-time state, cloned per spawn (parallels the Unix
         // serve loop).
         let save_time = self.save_time.clone();
+        // MLP2-071 Phase 2: telemetry broadcaster, cloned per spawn so
+        // each subscriber connection registers against the shared
+        // fan-out.
+        let broadcaster = self.broadcaster.clone();
         let mut joinset: JoinSet<()> = JoinSet::new();
         let connection_permits = Arc::new(tokio::sync::Semaphore::new(
             limits.max_concurrent_connections,
@@ -1116,6 +1153,7 @@ impl<D: SessionDispatcher> IpcListener<D> {
                             let conn_token = token.clone();
                             let conn_cross_check = cross_check.clone();
                             let conn_save_time = save_time.clone();
+                            let conn_broadcaster = broadcaster.clone();
                             joinset.spawn(async move {
                                 let _connection_permit = connection_permit;
                                 // MLP2-025b: Windows peer-PID is
@@ -1130,7 +1168,7 @@ impl<D: SessionDispatcher> IpcListener<D> {
                                 // becomes the documented fail-closed
                                 // default for un-validated peers.
                                 let peer_pid: Option<u32> = None;
-                                if let Err(err) = handle_connection(connected_server, dispatcher, scan_buffer, conn_status, conn_token, limits, peer_pid, conn_cross_check, conn_save_time).await {
+                                if let Err(err) = handle_connection(connected_server, dispatcher, scan_buffer, conn_status, conn_token, limits, peer_pid, conn_cross_check, conn_save_time, conn_broadcaster).await {
                                     tracing::warn!(target: "anvil_intercept::ipc", error = %err, "ipc connection ended with error");
                                     eprintln!("anvil-intercept: ipc connection ended with error: {err}");
                                 }
@@ -1164,6 +1202,81 @@ impl<D: SessionDispatcher> IpcListener<D> {
 }
 
 // --------------------------------------------------------------------
+// MLP2-071 Phase 2: telemetry subscriber surface.
+// --------------------------------------------------------------------
+
+/// Write a pre-serialised telemetry notification frame (one NDJSON
+/// line) to a subscriber connection. The broadcaster already produced
+/// the JSON object; this only appends the line delimiter.
+async fn write_telemetry_frame<W: AsyncWrite + Unpin>(
+    writer: &mut W,
+    frame: &str,
+) -> Result<(), IpcError> {
+    writer.write_all(frame.as_bytes()).await?;
+    writer.write_all(b"\n").await?;
+    Ok(())
+}
+
+/// A connection's live telemetry subscription: the outbound frame
+/// receiver the read loop drains, plus the broadcaster handle + minted
+/// `SubscriberId` needed to unregister.
+///
+/// The [`Drop`] impl is the single source of truth for teardown:
+/// dropping a `Subscription` (on connection end, on
+/// `UnsubscribeTelemetry`, or when replaced by a re-subscribe)
+/// unregisters from the broadcaster, so a connection drop can never
+/// leak a registration (D5: "disconnecting the IPC socket also
+/// unregisters the subscriber").
+struct Subscription {
+    rx: tokio::sync::mpsc::Receiver<String>,
+    broadcaster: Arc<crate::broadcaster::TelemetryBroadcaster>,
+    id: crate::fanout::SubscriberId,
+}
+
+impl Drop for Subscription {
+    fn drop(&mut self) {
+        self.broadcaster.unregister(&self.id);
+    }
+}
+
+/// Does this JSON-RPC method name request a telemetry subscription?
+/// Accepts the kebab-case discriminator, the underscore form the
+/// launcher emits, and the dotted namespace form, mirroring the
+/// multi-spelling convention `command_from_jsonrpc` already uses.
+fn is_subscribe_telemetry_method(method: &str) -> bool {
+    matches!(
+        method,
+        "subscribe-telemetry" | "subscribe_telemetry" | "telemetry.subscribe"
+    )
+}
+
+/// Does this JSON-RPC method name tear down a telemetry subscription?
+fn is_unsubscribe_telemetry_method(method: &str) -> bool {
+    matches!(
+        method,
+        "unsubscribe-telemetry" | "unsubscribe_telemetry" | "telemetry.unsubscribe"
+    )
+}
+
+/// Parse the optional `session_ids` narrowing filter from a
+/// `subscribe-telemetry` frame's `params.filter`. A malformed or
+/// absent filter yields `None` (no narrowing) — the daemon's fan-out
+/// is the load-bearing boundary, so a bad client filter degrades to
+/// "see everything the fan-out approves", never to over-disclosure.
+fn parse_subscriber_session_filter(value: &Value) -> Option<Vec<String>> {
+    let ids = value
+        .get("params")?
+        .get("filter")?
+        .get("session_ids")?
+        .as_array()?;
+    Some(
+        ids.iter()
+            .filter_map(|v| v.as_str().map(str::to_owned))
+            .collect(),
+    )
+}
+
+// --------------------------------------------------------------------
 // Per-connection handler.
 // --------------------------------------------------------------------
 
@@ -1193,6 +1306,11 @@ async fn handle_connection<D: SessionDispatcher, R: AsyncRead + AsyncWrite + Unp
     // that do not serve the save-time verbs. Served on both Unix and Windows —
     // the reads go through a platform-neutral `WorkspaceAnchor`.
     #[cfg(any(unix, windows))] save_time: Option<Arc<SaveTimeState>>,
+    // MLP2-071 Phase 2: telemetry broadcaster for the subscriber surface.
+    // `None` for listeners that do not serve telemetry subscriptions —
+    // those reply to `SubscribeTelemetry` with a structured "not
+    // available" error rather than silently accepting a no-op.
+    #[cfg(any(unix, windows))] broadcaster: Option<Arc<crate::broadcaster::TelemetryBroadcaster>>,
 ) -> Result<(), IpcError> {
     let mut reader = BufReader::new(stream);
     let mut buf = String::new();
@@ -1201,6 +1319,14 @@ async fn handle_connection<D: SessionDispatcher, R: AsyncRead + AsyncWrite + Unp
     // admitted-root set (built lazily on the first verb) over the shared state.
     #[cfg(any(unix, windows))]
     let mut save_time_conn = save_time.as_deref().map(SaveTimeConn::new);
+
+    // MLP2-071 Phase 2: per-connection telemetry-subscriber state. When
+    // `Some`, this connection has subscribed: the read loop drains its
+    // `rx`, and dropping it (connection end, `UnsubscribeTelemetry`, or
+    // re-subscribe) unregisters from the broadcaster. Listeners without
+    // a broadcaster never set it and the read loop behaves as before.
+    #[cfg(any(unix, windows))]
+    let mut subscription: Option<Subscription> = None;
 
     // INTD-016: per-connection RPS bucket.
     let mut bucket = RpsBucket::from_limits(&limits, std::time::Instant::now());
@@ -1211,18 +1337,56 @@ async fn handle_connection<D: SessionDispatcher, R: AsyncRead + AsyncWrite + Unp
 
     loop {
         buf.clear();
-        let read = match read_connection_line_with_deadline(
-            &mut reader,
-            &mut buf,
-            &mut token,
-            if first_frame_seen {
-                limits.idle_timeout
-            } else {
-                limits.handshake_timeout
-            },
-        )
-        .await?
-        {
+        let deadline = if first_frame_seen {
+            limits.idle_timeout
+        } else {
+            limits.handshake_timeout
+        };
+        // MLP2-071 Phase 2: when this connection is a telemetry
+        // subscriber, race inbound command frames against outbound
+        // telemetry frames so a pushed notification does not wait for
+        // the next client frame. `biased` drains ready telemetry first,
+        // but the bounded channel cap ([`TELEMETRY_SUBSCRIBER_CHANNEL_CAP`])
+        // bounds how long that can defer a read. The subscription is
+        // taken out of the `Option` for the `select!` and restored
+        // unless the broadcaster closed the channel (then we drop it,
+        // which unregisters, and keep the connection open for control
+        // frames).
+        #[cfg(any(unix, windows))]
+        let read = match subscription.take() {
+            Some(mut sub) => {
+                tokio::select! {
+                    biased;
+                    maybe_frame = sub.rx.recv() => {
+                        match maybe_frame {
+                            Some(frame) => {
+                                subscription = Some(sub);
+                                write_telemetry_frame(reader.get_mut(), &frame).await?;
+                                continue;
+                            }
+                            None => {
+                                // Broadcaster dropped our channel; drop
+                                // `sub` (unregisters, idempotent) and
+                                // stop streaming.
+                                continue;
+                            }
+                        }
+                    }
+                    read = read_connection_line_with_deadline(&mut reader, &mut buf, &mut token, deadline) => {
+                        subscription = Some(sub);
+                        read?
+                    }
+                }
+            }
+            None => {
+                read_connection_line_with_deadline(&mut reader, &mut buf, &mut token, deadline)
+                    .await?
+            }
+        };
+        #[cfg(not(any(unix, windows)))]
+        let read =
+            read_connection_line_with_deadline(&mut reader, &mut buf, &mut token, deadline).await?;
+        let read = match read {
             ConnectionRead::Line(read) => read,
             ConnectionRead::Skip => continue,
             ConnectionRead::Closed => return Ok(()),
@@ -1305,6 +1469,91 @@ async fn handle_connection<D: SessionDispatcher, R: AsyncRead + AsyncWrite + Unp
         match serde_json::from_str::<Value>(line) {
             Ok(value) => {
                 if is_jsonrpc_frame(&value) {
+                    // MLP2-071 Phase 2: intercept telemetry
+                    // subscribe/unsubscribe before the generic dispatcher.
+                    // They mutate this connection's outbound streaming
+                    // state (the per-connection channel), which the
+                    // request/response dispatcher cannot reach, and they
+                    // need the peer credentials minted at accept time.
+                    #[cfg(any(unix, windows))]
+                    if let Some(method) = value.get("method").and_then(Value::as_str) {
+                        if is_subscribe_telemetry_method(method) {
+                            let id = value.get("id").cloned();
+                            let is_notification = value.get("id").is_none();
+                            let response = match (
+                                broadcaster.as_ref(),
+                                mint_subscriber_id(peer_pid),
+                            ) {
+                                (Some(bc), Some(subscriber)) => {
+                                    // Idempotent (re)subscribe: drop any prior
+                                    // subscription FIRST so its `Drop`
+                                    // unregisters the old id before we
+                                    // re-register. A same-peer re-subscribe
+                                    // mints the same id, so registering before
+                                    // dropping would unregister the entry we
+                                    // just created.
+                                    drop(subscription.take());
+                                    let filter = parse_subscriber_session_filter(&value);
+                                    let rx = bc.register(subscriber.clone(), filter);
+                                    subscription = Some(Subscription {
+                                        rx,
+                                        broadcaster: Arc::clone(bc),
+                                        id: subscriber,
+                                    });
+                                    if is_notification {
+                                        None
+                                    } else {
+                                        Some(jsonrpc_success(id, None, json!({"subscribed": true})))
+                                    }
+                                }
+                                (None, _) => jsonrpc_request_error(
+                                    id,
+                                    None,
+                                    is_notification,
+                                    -32601,
+                                    "Method not found",
+                                    json!({
+                                        "reason":
+                                            "telemetry subscription is not available on this listener"
+                                    }),
+                                ),
+                                (Some(_), None) => jsonrpc_request_error(
+                                    id,
+                                    None,
+                                    is_notification,
+                                    -32000,
+                                    "Server error",
+                                    json!({
+                                        "reason":
+                                            "could not authenticate subscriber peer credentials"
+                                    }),
+                                ),
+                            };
+                            if let Some(resp) = response {
+                                write_json_response(reader.get_mut(), &resp, "subscribe-telemetry")
+                                    .await?;
+                            }
+                            continue;
+                        }
+                        if is_unsubscribe_telemetry_method(method) {
+                            let id = value.get("id").cloned();
+                            let is_notification = value.get("id").is_none();
+                            // Dropping the subscription unregisters from the
+                            // broadcaster and stops the outbound drain.
+                            // `.take()` is idempotent if not subscribed.
+                            drop(subscription.take());
+                            if !is_notification {
+                                let resp = jsonrpc_success(id, None, json!({"subscribed": false}));
+                                write_json_response(
+                                    reader.get_mut(),
+                                    &resp,
+                                    "unsubscribe-telemetry",
+                                )
+                                .await?;
+                            }
+                            continue;
+                        }
+                    }
                     // DSV-005: hand the per-connection save-time context to the
                     // dispatcher (as the cross-platform trait object). `None`
                     // only on exotic non-unix/-windows targets, or listeners
@@ -3683,6 +3932,22 @@ fn dispatch_command<D: SessionDispatcher>(
                     verified_lineage.as_ref(),
                 )
                 .map_err(|err| err.to_string())?;
+            // MLP2-071 D3: bind the registering peer as the session's
+            // telemetry owner. The binding is the SubscriberId minted
+            // from the connecting peer's authenticated credentials —
+            // never a wire-supplied value (mirrors the MLP2-070 lineage
+            // anchor pattern). The same peer later minting an identical
+            // id on `SubscribeTelemetry` is what makes own-session
+            // delivery work; a different same-UID peer mints a
+            // different id and is denied. We need the live registry to
+            // store the binding, which the production daemon supplies
+            // via `cross_check`; embedded/legacy callers (no
+            // `cross_check`) skip binding and the resolver
+            // default-denies, which is the safe answer.
+            if let (Some(ctx), Some(subscriber)) = (cross_check, mint_subscriber_id(peer_pid)) {
+                ctx.registry
+                    .bind_subscriber(session_id, subscriber.as_str().to_owned());
+            }
             Ok(json!({"ok": true}))
         }
         IpcCommand::Heartbeat { session_id } => {
@@ -3854,6 +4119,44 @@ fn build_operator_context(
         pid: peer_pid,
         hostname,
     }
+}
+
+/// MLP2-071 D2: mint the daemon-side [`crate::fanout::SubscriberId`] for
+/// an IPC peer from its authenticated credentials. NEVER from a
+/// wire-supplied field — `SO_PEERCRED` reports the real connecting pid,
+/// and the `pid_starttime` component defends against PID reuse, so a
+/// hostile same-UID peer cannot forge another peer's id.
+///
+/// Components (Unix): the daemon's own `uid` (the socket-accept gate
+/// already enforces same-UID, so the peer's uid equals the daemon's) +
+/// the peer `pid` + the peer's `pid_starttime` from `/proc/<pid>/stat`.
+/// The binary-path-hash component D2 also describes is deferred: for
+/// the same-UID trust domain, `(uid, pid, pid_starttime)` already
+/// uniquely and unforgeably identifies a live process incarnation; the
+/// binary hash is defense-in-depth tracked as an MLP2-071 follow-up.
+///
+/// Returns `None` when the peer pid is unavailable (legacy NDJSON, no
+/// `SO_PEERCRED`) or its start-time cannot be read (peer exited
+/// mid-handshake, or a non-Linux platform where `pid_starttime` is not
+/// yet supported). A `None` mint means no binding / no subscription,
+/// which the resolver default-denies — fail-closed (D2 degraded note).
+#[cfg(unix)]
+fn mint_subscriber_id(peer_pid: Option<u32>) -> Option<crate::fanout::SubscriberId> {
+    let pid = peer_pid?;
+    let uid = nix::unistd::Uid::current().as_raw();
+    let starttime = anvil_attribution::process::pid_starttime(pid).ok()?;
+    Some(crate::fanout::SubscriberId::new(format!(
+        "peer:uid={uid}:pid={pid}:start={starttime}"
+    )))
+}
+
+#[cfg(not(unix))]
+fn mint_subscriber_id(_peer_pid: Option<u32>) -> Option<crate::fanout::SubscriberId> {
+    // Windows subscriber minting (GetNamedPipeClientProcessId +
+    // process start-time) is the MLP2-028 follow-up; until it lands the
+    // non-Unix subscribe path mints no id and the resolver
+    // default-denies (D2 "degraded SubscriberId" note).
+    None
 }
 
 // --------------------------------------------------------------------
@@ -5767,6 +6070,182 @@ mod tests {
                 .expect("listener did not return after shutdown")
                 .expect("join")
                 .expect("serve");
+        }
+
+        // -------- MLP2-071 Phase 2: telemetry subscriber e2e. --------
+        //
+        // End-to-end over a real Unix socket: a client subscribes, the
+        // daemon mints its SubscriberId from `SO_PEERCRED` and registers
+        // it with the broadcaster, a `broadcast(...)` reaches the client
+        // as a `telemetry.event` notification frame, a cross-session
+        // envelope is denied under the default policy, and unsubscribe
+        // tears the stream down. Linux-gated because subscriber minting
+        // needs `/proc/<pid>/stat`.
+        #[cfg(target_os = "linux")]
+        struct SessionAllowResolver {
+            allowed: std::collections::HashSet<String>,
+        }
+
+        #[cfg(target_os = "linux")]
+        impl crate::fanout::OwnershipResolver for SessionAllowResolver {
+            fn is_authorised(
+                &self,
+                _subscriber: &crate::fanout::SubscriberId,
+                originating_session_id: &str,
+            ) -> bool {
+                self.allowed.contains(originating_session_id)
+            }
+        }
+
+        #[cfg(target_os = "linux")]
+        fn telemetry_envelope(session_id: &str) -> crate::telemetry::NotificationEnvelope {
+            use crate::enforcement::{EnforcementDecision, InterruptDecision};
+            use crate::telemetry::{TelemetryCorrelation, TelemetryEmitter};
+            let mut emitter = TelemetryEmitter::for_tests("e2e", "2026-06-08T00:00:00Z");
+            let decision = EnforcementDecision::Interrupt(InterruptDecision {
+                rule_id: "anvil.secret.aws".to_string(),
+                message: "secret leaked".to_string(),
+                line: Some(1),
+                affected_paths: vec![PathBuf::from("src/secret.ts")],
+            });
+            let correlation = TelemetryCorrelation {
+                session_id: Some(session_id.to_string()),
+                originating_session_id: Some(session_id.to_string()),
+                originating_driver_id: Some("driver-e2e".to_string()),
+                ..TelemetryCorrelation::default()
+            };
+            emitter.delivered_envelope_for_decision(correlation, &decision)
+        }
+
+        #[cfg(target_os = "linux")]
+        #[tokio::test(flavor = "current_thread")]
+        async fn subscribe_telemetry_streams_owned_envelopes_over_socket() {
+            use crate::broadcaster::TelemetryBroadcaster;
+            use crate::fanout::{CrossSessionPolicy, Fanout};
+            use std::collections::HashSet;
+
+            let (_tmp, path) = fresh_socket_path();
+
+            // The subscribing connection owns "sess-owned"; "sess-foreign"
+            // is someone else's session. Default cross-session policy is
+            // Deny.
+            let resolver = SessionAllowResolver {
+                allowed: HashSet::from(["sess-owned".to_string()]),
+            };
+            let fanout = Arc::new(Fanout::with_cross_session_policy(
+                Box::new(resolver),
+                CrossSessionPolicy::Deny,
+            ));
+            let broadcaster = Arc::new(TelemetryBroadcaster::new(Arc::clone(&fanout)));
+
+            let listener = IpcListener::bind(&path, NoopDispatcher)
+                .expect("bind")
+                .with_broadcaster(Arc::clone(&broadcaster));
+            let (shutdown, token) = crate::Shutdown::new();
+            let handle = tokio::spawn(async move { listener.serve(token).await });
+            tokio::task::yield_now().await;
+
+            let stream = UnixStream::connect(&path).await.expect("connect");
+            let mut reader = tokio::io::BufReader::new(stream);
+
+            // Subscribe and read the ack. The ack confirms the daemon has
+            // registered us with the broadcaster, so a subsequent
+            // `broadcast` cannot race ahead of registration.
+            let subscribe = serde_json::json!({
+                "jsonrpc": "2.0",
+                "method": "subscribe-telemetry",
+                "params": {},
+                "id": "sub-1",
+            });
+            {
+                use tokio::io::AsyncWriteExt;
+                reader
+                    .get_mut()
+                    .write_all(format!("{subscribe}\n").as_bytes())
+                    .await
+                    .expect("write subscribe");
+            }
+            let ack = read_one_line(&mut reader).await;
+            assert_eq!(ack["id"], "sub-1");
+            assert_eq!(ack["result"]["subscribed"], true);
+            assert_eq!(
+                broadcaster.subscriber_count(),
+                1,
+                "the daemon must have registered the subscriber before acking"
+            );
+
+            // Own-session envelope → delivered as a telemetry.event frame.
+            let outcome = broadcaster.broadcast(&telemetry_envelope("sess-owned"));
+            assert_eq!(outcome.delivered, 1, "owned-session envelope must deliver");
+            let frame = read_one_line(&mut reader).await;
+            assert_eq!(
+                frame["method"],
+                crate::broadcaster::TELEMETRY_NOTIFICATION_METHOD
+            );
+            assert!(
+                frame.get("id").is_none(),
+                "telemetry frames are notifications"
+            );
+            assert_eq!(
+                frame["params"]["correlation"]["originatingSessionId"]
+                    .as_str()
+                    .or_else(|| frame["params"]["correlation"]["originating_session_id"].as_str()),
+                Some("sess-owned"),
+            );
+
+            // Cross-session envelope under Deny → not delivered.
+            let outcome = broadcaster.broadcast(&telemetry_envelope("sess-foreign"));
+            assert_eq!(outcome.delivered, 0, "cross-session deny must not deliver");
+
+            // Unsubscribe → ack + broadcaster drops us.
+            let unsubscribe = serde_json::json!({
+                "jsonrpc": "2.0",
+                "method": "unsubscribe-telemetry",
+                "id": "unsub-1",
+            });
+            {
+                use tokio::io::AsyncWriteExt;
+                reader
+                    .get_mut()
+                    .write_all(format!("{unsubscribe}\n").as_bytes())
+                    .await
+                    .expect("write unsubscribe");
+            }
+            let ack = read_one_line(&mut reader).await;
+            assert_eq!(ack["id"], "unsub-1");
+            assert_eq!(ack["result"]["subscribed"], false);
+            for _ in 0..50 {
+                if broadcaster.subscriber_count() == 0 {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+            assert_eq!(
+                broadcaster.subscriber_count(),
+                0,
+                "unsubscribe must unregister the subscriber"
+            );
+
+            shutdown.trigger();
+            tokio::time::timeout(Duration::from_secs(1), handle)
+                .await
+                .expect("listener timeout")
+                .expect("join")
+                .expect("serve");
+        }
+
+        // Read exactly one NDJSON line from the connection and parse it
+        // as JSON, with a timeout so a delivery bug fails the test
+        // instead of hanging it.
+        #[cfg(target_os = "linux")]
+        async fn read_one_line<R: tokio::io::AsyncBufRead + Unpin>(reader: &mut R) -> Value {
+            use tokio::io::AsyncBufReadExt;
+            let mut line = String::new();
+            tokio::time::timeout(Duration::from_secs(5), reader.read_line(&mut line))
+                .await
+                .expect("read timed out")
+                .expect("read line");
+            serde_json::from_str(line.trim_end()).expect("parse json frame")
         }
 
         #[tokio::test(flavor = "current_thread")]

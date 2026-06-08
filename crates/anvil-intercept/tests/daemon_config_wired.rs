@@ -518,3 +518,39 @@ async fn run_foreground_applies_ipc_limits_from_config() {
         .expect("daemon task join failure")
         .expect("daemon run_foreground reported error");
 }
+
+/// MLP2-071 Phase 2 wire-up: `run_foreground` must wire the telemetry
+/// broadcaster into the IPC listener so a `subscribe-telemetry` frame
+/// over the real daemon socket is accepted — the daemon mints the
+/// `SubscriberId` from `SO_PEERCRED` and registers it — rather than
+/// rejected with "not available". Before `.with_broadcaster(...)` was
+/// added to the `run_foreground` listener builder, the broadcaster was
+/// `None` and this returned a dead-capability error (the #1671 class).
+///
+/// Linux-gated: subscriber minting reads `/proc/<peer_pid>/stat`, which
+/// is the only platform where `pid_starttime` is implemented today.
+#[cfg(target_os = "linux")]
+#[tokio::test(flavor = "current_thread")]
+async fn run_foreground_wires_telemetry_subscriber_surface() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let (shutdown, handle, socket) = spawn_daemon_with_config(&tmp, Resolved::default()).await;
+
+    let resp = send_jsonrpc(&socket, "sub-1", "subscribe-telemetry", json!({})).await;
+    assert!(
+        resp.get("error").is_none(),
+        "subscribe-telemetry must be accepted by a run_foreground daemon \
+         (the broadcaster is wired); got {resp:?}",
+    );
+    assert_eq!(
+        resp.pointer("/result/subscribed"),
+        Some(&Value::Bool(true)),
+        "the daemon must confirm the subscription; got {resp:?}",
+    );
+
+    shutdown.trigger();
+    tokio::time::timeout(Duration::from_secs(5), handle)
+        .await
+        .expect("daemon shutdown timed out")
+        .expect("daemon task join failure")
+        .expect("daemon run_foreground reported error");
+}

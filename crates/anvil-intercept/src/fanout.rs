@@ -89,32 +89,40 @@
 //!   binds it on the session via
 //!   [`crate::registry::SessionRegistry::bind_subscriber`].
 //!
-//! What Phase 1 deliberately did **not** ship:
+//! ## Deployment posture (MLP2-071 Phase 2)
 //!
-//! * The IPC accept-loop multiplex that routes the
-//!   `IpcCommand::SubscribeTelemetry` frame from a connected
-//!   peer through to `Fanout::register`. The proto variant
-//!   exists; the dispatcher returns a structured
-//!   "JSON-RPC per-connection handler required" error rather
-//!   than silently no-op.
-//! * The producer-side broadcaster that calls [`Fanout::route`]
-//!   on every notification envelope it would otherwise log
-//!   locally. No in-tree producer broadcasts notification
-//!   envelopes to network subscribers today;
-//!   [`crate::telemetry::TelemetryEmitter::delivered_envelope_for_decision`]
-//!   constructs envelopes that callers consume in-process.
+//! Phase 2 shipped the subscriber surface and the delivery path:
 //!
-//! Both are tracked as MLP2-071 Phase 2 / the production
-//! notification telemetry stream feature. Any producer that adds
-//! remote broadcast MUST go through [`Fanout::route`] from day
-//! one — the contract and tests below are the authoritative
-//! specification.
+//! * The IPC accept-loop multiplex routes the
+//!   `subscribe-telemetry` / `unsubscribe-telemetry` JSON-RPC frames
+//!   through to a daemon-minted [`SubscriberId`] (from `SO_PEERCRED`)
+//!   and registers it via [`crate::broadcaster::TelemetryBroadcaster`]
+//!   (which wraps [`Fanout::register`]); each subscriber connection
+//!   drains a bounded outbound channel.
+//! * [`crate::broadcaster::TelemetryBroadcaster::broadcast`] is the
+//!   producer-side entry that calls [`Fanout::route`] and writes each
+//!   per-subscriber delivery (full / redacted) to its channel, dropping
+//!   and counting on a full channel rather than blocking the producer.
+//! * Spoofed-origin envelopes are denied to cross-session subscribers
+//!   regardless of policy ([`OwnershipResolver::is_degraded_origin`],
+//!   design pass D6).
+//!
+//! What Phase 2 deliberately leaves to a follow-up:
+//!
+//! * The production *producer call sites* that build real
+//!   assurance/fence transition envelopes and call
+//!   `TelemetryBroadcaster::broadcast`. No in-tree producer broadcasts
+//!   notification envelopes today; that wiring is DSV-044, gated on
+//!   this broadcaster (now shipped). Any such producer MUST go through
+//!   the broadcaster (and therefore [`Fanout::route`]) — the contract
+//!   and tests below are the authoritative specification.
 
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
 use sha2::{Digest, Sha256};
 
+use crate::fence::FenceState;
 use crate::registry::SessionRegistry;
 use crate::telemetry::{
     NotificationCorrelation, NotificationEnvelope, NotificationGrouping, NotificationTransition,
@@ -165,6 +173,26 @@ pub trait OwnershipResolver: Send + Sync {
     /// session (i.e. the subscriber registered the session, or is
     /// the session itself).
     fn is_authorised(&self, subscriber: &SubscriberId, originating_session_id: &str) -> bool;
+
+    /// MLP2-071 D6: return `true` when the originating session is
+    /// currently in `degraded:spoofed-attribution` state (MLP2-025).
+    ///
+    /// A degraded-origin envelope is delivered to its **own**
+    /// subscriber (`is_authorised == true`) but is **never** delivered
+    /// to any cross-session subscriber, regardless of the
+    /// [`CrossSessionPolicy`]. Redacting a spoofed-attribution
+    /// session's envelope into the cross-session stream would give a
+    /// same-UID adversary a side channel to confirm "the daemon thinks
+    /// this session is spoofed" — information they should not be able
+    /// to extract.
+    ///
+    /// Defaults to `false` so the contract is additive: test and
+    /// embedded resolvers that do not model spoof state keep their
+    /// existing behaviour. The production [`RegistryOwnershipResolver`]
+    /// overrides this to consult the live session registry.
+    fn is_degraded_origin(&self, _originating_session_id: &str) -> bool {
+        false
+    }
 }
 
 /// Cross-session redaction policy.
@@ -213,12 +241,17 @@ pub enum CrossSessionPolicy {
 /// path.
 pub struct RegistryOwnershipResolver {
     registry: Arc<SessionRegistry>,
+    /// MLP2-071 D6: the live fence state, consulted by
+    /// [`OwnershipResolver::is_degraded_origin`] to find whether an
+    /// originating session's worktree carries a
+    /// `degraded:spoofed-attribution` fence (MLP2-025).
+    fences: Arc<FenceState>,
 }
 
 impl RegistryOwnershipResolver {
     #[must_use]
-    pub fn new(registry: Arc<SessionRegistry>) -> Self {
-        Self { registry }
+    pub fn new(registry: Arc<SessionRegistry>, fences: Arc<FenceState>) -> Self {
+        Self { registry, fences }
     }
 }
 
@@ -233,6 +266,21 @@ impl OwnershipResolver for RegistryOwnershipResolver {
         self.registry
             .lookup_subscriber_binding(originating_session_id)
             .is_some_and(|binding| binding == subscriber.as_str())
+    }
+
+    fn is_degraded_origin(&self, originating_session_id: &str) -> bool {
+        // MLP2-071 D6: map the originating session id to its worktree,
+        // then ask the fence state whether that worktree carries a
+        // spoof fence. An unknown session id maps to `None` → `false`
+        // (it is already default-denied by the ownership check, so the
+        // degraded test is moot for it). A registered session on a
+        // worktree the MLP2-025 write-time cross-check fenced as
+        // `degraded:spoofed-attribution` returns `true`, which denies
+        // its envelopes to every cross-session subscriber regardless
+        // of policy (see [`Fanout::decide`]).
+        self.registry
+            .worktree_for_session_id(originating_session_id)
+            .is_some_and(|worktree| self.fences.is_spoof_fenced(&worktree))
     }
 }
 
@@ -496,7 +544,20 @@ impl Fanout {
         };
 
         if self.resolver.is_authorised(subscriber, originator) {
+            // The subscriber owns this session: it sees the full
+            // envelope even when the session is degraded-spoofed. D6
+            // only gates the *cross-session* path below.
             return Delivery::Allow;
+        }
+
+        // MLP2-071 D6: a degraded-spoofed origin is denied to every
+        // non-owning subscriber regardless of policy. This check sits
+        // *after* the ownership check (so the owner still sees its own
+        // envelope) and *before* the policy match (so even a `Redact`
+        // policy cannot leak a spoofed-attribution session into the
+        // cross-session stream).
+        if self.resolver.is_degraded_origin(originator) {
+            return Delivery::Deny;
         }
 
         match cross_session {
@@ -746,12 +807,18 @@ mod tests {
         // explicitly authorised. Anything not in the set returns
         // `false` — matching the trait's default-deny invariant.
         authorised: Mutex<Vec<(SubscriberId, String)>>,
+        // MLP2-071 D6: originating session ids the daemon classifies
+        // as `degraded:spoofed-attribution` (MLP2-025). Empty by
+        // default, so the unmodified resolver behaves exactly as the
+        // pre-D6 fixture.
+        degraded: Mutex<Vec<String>>,
     }
 
     impl StubResolver {
         fn new() -> Self {
             Self {
                 authorised: Mutex::new(Vec::new()),
+                degraded: Mutex::new(Vec::new()),
             }
         }
 
@@ -760,6 +827,12 @@ mod tests {
                 .lock()
                 .unwrap()
                 .push((subscriber.clone(), session_id.to_string()));
+        }
+
+        /// MLP2-071 D6: mark an originating session id as
+        /// degraded-spoofed for the test.
+        fn mark_degraded(&self, session_id: &str) {
+            self.degraded.lock().unwrap().push(session_id.to_string());
         }
     }
 
@@ -770,6 +843,14 @@ mod tests {
                 .unwrap()
                 .iter()
                 .any(|(sub, sess)| sub == subscriber && sess == originating_session_id)
+        }
+
+        fn is_degraded_origin(&self, originating_session_id: &str) -> bool {
+            self.degraded
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|sess| sess == originating_session_id)
         }
     }
 
@@ -908,6 +989,69 @@ mod tests {
         assert_eq!(
             redacted.correlation.originating_session_id.as_deref(),
             Some("sess-A"),
+        );
+    }
+
+    // -------- D6: spoofed-origin cross-check --------
+
+    #[test]
+    fn spoofed_origin_is_denied_to_cross_session_subscriber_even_under_redact() {
+        // MLP2-071 D6: a session the daemon classifies as
+        // `degraded:spoofed-attribution` must never reach a
+        // cross-session subscriber, regardless of policy — not even
+        // as a redacted envelope. Pinning under `Redact` is the
+        // load-bearing case: `Deny` policy would refuse anyway, so
+        // only `Redact` proves D6 is doing work.
+        let mut emitter = TelemetryEmitter::for_tests("p", "2026-05-06T00:00:00Z");
+        let resolver = StubResolver::new();
+        let foreign = SubscriberId::new("subscriber-foreign");
+        // The originating session "sess-A" is degraded-spoofed; the
+        // foreign subscriber does not own it.
+        resolver.mark_degraded("sess-A");
+
+        let fanout =
+            Fanout::with_cross_session_policy(Box::new(resolver), CrossSessionPolicy::Redact);
+        fanout.register(foreign.clone());
+
+        let envelope = make_envelope(&mut emitter, "sess-A", "anvil.secret.aws", "src/secret.ts");
+        let routed = fanout.route(&envelope);
+
+        assert_eq!(routed.len(), 1);
+        assert_eq!(
+            routed[0].delivery,
+            Delivery::Deny,
+            "a degraded:spoofed-attribution origin MUST be denied to a \
+             cross-session subscriber even under Redact policy — leaking \
+             it would confirm the daemon's spoof classification to a \
+             same-UID adversary (design pass D6)",
+        );
+    }
+
+    #[test]
+    fn spoofed_origin_is_still_delivered_full_to_its_own_subscriber() {
+        // D6 gates only the cross-session path. The session's OWN
+        // subscriber still sees the full envelope: the owner already
+        // knows its own attribution state, so there is no side channel
+        // to protect against.
+        let mut emitter = TelemetryEmitter::for_tests("p", "2026-05-06T00:00:00Z");
+        let resolver = StubResolver::new();
+        let owner = SubscriberId::new("subscriber-owner");
+        resolver.authorise(&owner, "sess-A");
+        resolver.mark_degraded("sess-A");
+
+        let fanout =
+            Fanout::with_cross_session_policy(Box::new(resolver), CrossSessionPolicy::Redact);
+        fanout.register(owner.clone());
+
+        let envelope = make_envelope(&mut emitter, "sess-A", "anvil.secret.aws", "src/secret.ts");
+        let routed = fanout.route(&envelope);
+
+        assert_eq!(routed.len(), 1);
+        assert_eq!(
+            routed[0].delivery,
+            Delivery::Allow,
+            "the owning subscriber sees its own session's envelope in full \
+             even when the session is degraded-spoofed",
         );
     }
 

@@ -586,22 +586,26 @@ These are shipped behaviours an operator should know about before adopting
 local-IPC trust boundary documented in
 [`docs/archive/runbooks/v0.6.0-beta-security-note.md`](docs/archive/runbooks/v0.6.0-beta-security-note.md).
 
-- **`telemetry.allow_cross_session` cross-session redaction reaches Fanout but
-  not yet operators.** Post-MLP2-071 Phase 1 the daemon now constructs the
-  cross-session fanout at startup with the operator-configured policy and a
-  fresh per-startup HMAC salt (closes `v0.6.0-beta-security-note.md` §H2 in the
-  same change). The `RegistryOwnershipResolver` is wired against the live
-  session registry, and a session's subscriber binding can be set via
-  `SessionRegistry::bind_subscriber`. **Still missing for operator-visible
-  behaviour:** the IPC `telemetry.subscribe` surface that lets a driver register
-  as a subscriber, and the production `NotificationEnvelope` producer site that
-  calls `Fanout::route` on every emit. Neither shipped in this tag because no
-  in-tree producer broadcasts notification envelopes to remote subscribers today
-  (see `crates/anvil-intercept/src/fanout.rs:79-82`). The safe default (`false`)
-  keeps the redaction filter on the cold path regardless. Tracked in
-  [#1722](https://github.com/eddacraft/anvil-001/issues/1722) + MLP2-071 (Phase
-  1 shipped; Phase 2 — subscriber surface + producer broadcast — opens alongside
-  the production notification telemetry stream feature).
+- **`telemetry.allow_cross_session` subscriber surface ships; no production
+  producer broadcasts to it yet.** MLP2-071 Phase 2 wired the IPC subscriber
+  multiplex (`subscribe-telemetry` / `unsubscribe-telemetry` mint a
+  `SubscriberId` from `SO_PEERCRED` and register against the per-startup
+  fan-out), the `TelemetryBroadcaster` that routes envelopes through
+  `Fanout::route` to per-subscriber channels (dropping + counting on a full
+  channel rather than blocking the producer), the daemon-derived
+  `subscriber_binding` at `RegisterSession`, and the spoofed-origin
+  cross-session denial (design pass D6). The redaction hash is per-startup HMAC
+  keyed, closing `v0.6.0-beta-security-note.md` §H2. The MLP2-070 prerequisite
+  for enabling `allow_cross_session: true` (lineage-anchor daemon-derivation)
+  shipped in `v0.7.0-beta`. **Still missing for operator-visible behaviour:** no
+  in-tree producer yet calls `TelemetryBroadcaster::broadcast` on real
+  assurance/fence transitions, so a subscriber connects successfully but
+  receives no live telemetry until that producer lands. The producer emission
+  call sites are tracked as DSV-044, gated on this Phase 2 broadcaster (now
+  shipped). The safe default (`false`) keeps cross-session redaction on the cold
+  path regardless. Tracked in
+  [#1722](https://github.com/eddacraft/anvil-001/issues/1722) + MLP2-071 (Phases
+  1 + 2 shipped) + DSV-044 (producer emission).
 - **`anvil-run` reports child process metadata to the daemon, but the daemon has
   no `session.report_process` handler.** The launcher at
   `crates/anvil-run/src/spawn.rs:102-128` invokes the daemon JSON-RPC method
