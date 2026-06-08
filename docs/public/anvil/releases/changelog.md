@@ -48,14 +48,15 @@ surface.
   `.anvil/exceptions.json` read fallback and non-destructive migration support.
   Enforcement and operator CLI wiring are still future work, so hand-written
   exception files do not yet suppress findings.
-- **Portable review capsules (`anvil capsule create`).** A new
-  `anvil capsule create --range <base>..<head> --out <dir>` command writes a
-  portable, file-first **Anvil Review Capsule**: a directory that packages a
-  commit range's governance evidence (commit/range metadata and
-  policy/rules/baseline digests) under a SHA-256 `anvil.capsule.v1` digest
-  manifest (ADR-074), so a reviewer, auditor, or supplier can verify it locally
-  without trusting Anvil Cloud. Capsule `verify`/`explain`/`inspect` and
-  witness/diagnostics evidence are future work.
+- **Portable review capsules (`anvil capsule`).** New
+  `anvil capsule create --range <base>..<head> --out <dir>`, `verify`, and
+  `explain` commands package a commit range's governance evidence into a
+  file-first **Anvil Review Capsule**. Capsules carry commit/range metadata,
+  policy/rules/baseline digests, verbatim witness-chain evidence, SARIF
+  diagnostics, and an `anvil.capsule.v1` SHA-256 digest manifest (ADR-074), so a
+  reviewer, auditor, or supplier can verify the range locally without trusting
+  Anvil Cloud. `inspect`, JSON CI output, tamper-test hardening, retention/prune
+  policy, and applied-exception collection remain follow-up work.
 
 ### Changed
 

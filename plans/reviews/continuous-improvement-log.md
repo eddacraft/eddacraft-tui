@@ -1433,3 +1433,13 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Friction:** pnpm test has pre-existing cargo flag inheritance awkwardness (used dedicated ci fixture tests instead); subagent council reviews took >3min to return (polled); nx sync dirtied unrelated tsconfigs during typecheck gate (reverted before commit).
 - **Improvement:** none (the consolidation was the smallest targeted fix for the ruleset duplicate).
 - **Follow-up:** Push branch, open PR to main (targeting CIB-038), run addressing-pr-reviews after 10m even if no bot comments; when merged, flip CIB-038 to Merged in module + reconcile index count/prose; offer wt remove (this is the CIB wt, ask user); monitor for any docs/plans PRs that need re-push post-merge.
+
+### 2026-06-08 — codex (changelog sync)
+
+- **Task:** Update changelog surfaces after recent `v0.8.0-beta` capsule work.
+- **Outcome:** Root and public changelog now describe landed `anvil capsule create`, `verify`, `explain`, witness-chain evidence, and SARIF diagnostics; docs-site changelog JSON has a draft `0.8.0-beta` entry; review-capsules concept page no longer marks SARIF diagnostics as future work.
+- **Worked:** Cross-checked APS `git-native-governance` statuses before changing release prose.
+- **Failed:** None.
+- **Friction:** `format:check` required one oxfmt wrap fix in the public changelog.
+- **Improvement:** Keep release changelog updates in the same PR that flips late-stage feature work to `Merged`.
+- **Follow-up:** None.

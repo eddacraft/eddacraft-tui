@@ -82,6 +82,8 @@ A capsule directory packages, under a digest-complete `manifest.json` using the
   and baseline the evidence corresponds to.
 - **The witness chain** — the verbatim witness lines for the range's sequence
   window, carried as-is so chain identity is preserved.
+- **SARIF diagnostics** — a SARIF 2.1.0 diagnostics document, written empty when
+  no diagnostics are present.
 - **A verification record** — present from creation. A freshly created capsule
   starts in a degraded "no checks run" state, so an unverified capsule never
   claims `pass`.
@@ -93,9 +95,9 @@ witnessed lines by construction.
 :::caution v0 scope
 
 `anvil capsule create`, `verify`, and `explain` ship today. The remaining
-subcommand — `anvil capsule inspect` — and the richer evidence collectors (SARIF
-diagnostics and applied policy exceptions) are planned for a follow-up; today
-those evidence slots are written present-but-empty. See
+subcommand — `anvil capsule inspect` — plus JSON CI output, tamper-test
+hardening, retention/prune policy, and applied policy-exception collection are
+planned for follow-up work. See
 [ADR-074](https://github.com/eddacraft/anvil-001/blob/main/plans/decisions/074-review-capsule-v0-format.md)
 for the capsule format.
 

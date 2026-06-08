@@ -1,6 +1,83 @@
 {
   "releases": [
     {
+      "version": "0.8.0-beta",
+      "date": "TBD",
+      "title": "The Save-Time Daemon",
+      "summary": "Draft release window for the graph-backed save-time daemon: daemon-served validation, Rust project coverage, live dashboards, first-week adoption hints, tracked exception-store foundations, and portable review capsules.",
+      "categories": [
+        {
+          "name": "Save-Time Validation",
+          "entries": [
+            {
+              "title": "`anvil watch` uses the persistent daemon",
+              "description": "Save-time checks can route through the intercept daemon instead of cold-spawning `anvil check` on every save."
+            },
+            {
+              "title": "`anvil status` reports protection posture",
+              "description": "Status output surfaces daemon-backed save-time assurance and workspace confinement state."
+            },
+            {
+              "title": "Workspace confinement",
+              "description": "An opt-in mode confines daemon save-time validation to an admitted workspace root."
+            }
+          ]
+        },
+        {
+          "name": "Language Coverage",
+          "entries": [
+            {
+              "title": "Rust project analysis",
+              "description": "Rust files participate in the default antipattern and drift scan set, with Rust symbol/import extraction, entry-point detection, layer enforcement, and AST-aware antipattern checks."
+            }
+          ]
+        },
+        {
+          "name": "Dashboards and Insights",
+          "entries": [
+            {
+              "title": "Live gate-summary dashboard",
+              "description": "`anvil gate` persists run results to `.anvil/gates.json`, and the TUI can render a live gate-summary dashboard."
+            },
+            {
+              "title": "First-week adoption hint",
+              "description": "Anvil surfaces a first-week adoption signal hint to help new projects find their footing."
+            }
+          ]
+        },
+        {
+          "name": "Governance Evidence",
+          "entries": [
+            {
+              "title": "Tracked exception-store foundation",
+              "description": "Policy exceptions now have a tracked `anvil/exceptions/store.json` storage path with legacy `.anvil/exceptions.json` read fallback and non-destructive migration support."
+            },
+            {
+              "title": "Portable review capsules",
+              "description": "`anvil capsule create`, `verify`, and `explain` package commit-range governance evidence, witness-chain data, SARIF diagnostics, and digest manifests for local verification."
+            }
+          ]
+        },
+        {
+          "name": "Fixes",
+          "entries": [
+            {
+              "title": "Windows home resolution",
+              "description": "Home-directory resolution on Windows honours `USERPROFILE` and `HOME` consistently."
+            },
+            {
+              "title": "Safer suppress paths",
+              "description": "`anvil suppress` rejects drive-relative paths such as `C:foo`."
+            },
+            {
+              "title": "Windows daemon hardening",
+              "description": "The Windows save-time daemon path covers read-safety, pipe client timeouts, operator-config ownership verification, peer-SID checks, and watch/status clients."
+            }
+          ]
+        }
+      ]
+    },
+    {
       "version": "0.1.0",
       "date": "2026-01-27",
       "title": "Initial Release",
