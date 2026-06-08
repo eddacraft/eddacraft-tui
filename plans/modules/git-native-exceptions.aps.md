@@ -70,7 +70,7 @@ Enforcement of unrelated policy classes; the inline `@anvil-ignore` path
 ### EXCEPT-003: Enriched `anvil.exception.v1` schema
 - **Intent:** Add owner/`created_by` attribution, stable exception id, finding hash, and a revoked (soft-delete) audit trail; keep backward-compatible deserialisation of the v0 shape. Decide the on-disk layout explicitly — v0 shipped a flat `store.json`, while the brainstorm (`architecture.md` §2.3, `solution.md` §5.6) sketches per-exception files under `active/`/`revoked/` — so the layout choice is deliberate, not inherited.
 - **Expected Outcome:** Schema supports grant/revoke without erasure.
-- **Validation:** `cargo test -p eddacraft-anvil-policy -- exception_schema` (6 passed, 2026-06-08)
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- exception_schema` (8 passed, 2026-06-08)
 - **Dependencies:** EXCEPT-001
 - **Status:** Done
 

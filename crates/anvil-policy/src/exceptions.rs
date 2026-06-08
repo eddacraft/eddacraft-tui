@@ -6,6 +6,8 @@ use sha2::{Digest, Sha256};
 
 use crate::evaluator::Violation;
 
+const EXCEPTION_SCHEMA_VERSION: &str = "anvil.exception.v1";
+
 /// A policy exception that suppresses matching violations.
 #[derive(Debug, Clone, Serialize)]
 pub struct PolicyException {
@@ -80,6 +82,16 @@ impl<'de> Deserialize<'de> for PolicyException {
         D: Deserializer<'de>,
     {
         let raw = RawPolicyException::deserialize(deserializer)?;
+        let schema_version = if raw.schema_version.is_empty() {
+            default_exception_schema_version()
+        } else if raw.schema_version == EXCEPTION_SCHEMA_VERSION {
+            raw.schema_version
+        } else {
+            return Err(serde::de::Error::custom(format!(
+                "unsupported exception schema_version '{}'; expected '{}'",
+                raw.schema_version, EXCEPTION_SCHEMA_VERSION
+            )));
+        };
         let id = if raw.id.is_empty() {
             exception_id_from_parts(
                 &raw.policy_id,
@@ -91,7 +103,7 @@ impl<'de> Deserialize<'de> for PolicyException {
             raw.id
         };
         Ok(Self {
-            schema_version: raw.schema_version,
+            schema_version,
             id,
             policy_id: raw.policy_id,
             file_pattern: raw.file_pattern,
@@ -107,7 +119,7 @@ impl<'de> Deserialize<'de> for PolicyException {
 }
 
 fn default_exception_schema_version() -> String {
-    "anvil.exception.v1".to_string()
+    EXCEPTION_SCHEMA_VERSION.to_string()
 }
 
 fn exception_id_from_parts(
@@ -692,6 +704,41 @@ mod tests {
         assert_eq!(exception.owner, None);
         assert_eq!(exception.created_by, None);
         assert_eq!(exception.revoked, None);
+    }
+
+    #[test]
+    fn exception_schema_normalises_empty_schema_version_to_v1() {
+        let exception: PolicyException = serde_json::from_str(
+            r#"{
+              "schema_version": "",
+              "policy_id": "AP-001",
+              "file_pattern": "src/**",
+              "reason": "legacy code",
+              "created_at": "2026-06-08T10:00:00Z"
+            }"#,
+        )
+        .unwrap();
+
+        assert_eq!(exception.schema_version, EXCEPTION_SCHEMA_VERSION);
+    }
+
+    #[test]
+    fn exception_schema_rejects_unknown_schema_version() {
+        let err = serde_json::from_str::<PolicyException>(
+            r#"{
+              "schema_version": "anvil.exception.v2",
+              "policy_id": "AP-001",
+              "file_pattern": "src/**",
+              "reason": "legacy code",
+              "created_at": "2026-06-08T10:00:00Z"
+            }"#,
+        )
+        .unwrap_err();
+
+        assert!(
+            err.to_string()
+                .contains("unsupported exception schema_version")
+        );
     }
 
     #[test]
