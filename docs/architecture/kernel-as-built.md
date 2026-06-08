@@ -319,13 +319,13 @@ on-disk warm-start (spec §6.4 fast-follow not built).
 ### 6.3 Symbol extraction
 
 `parser::extract::extract_symbols`
-(`crates/anvil-kernel/src/parser/extract.rs:23-49`) walks the tree-sitter AST
-and produces `FileSymbols { file, symbols, imports }`. The extraction adapter
-handles function declarations, class declarations, exported variables, ES module
-imports, CommonJS `require`, and re-export forms. The id allocator is **0-based
-per file** with an `id_offset` parameter — both `watch.rs` and `embedded.rs`
-rebase per-file ids onto a global allocator after the parallel parse phase (see
-§9.3 + §10).
+(`crates/anvil-kernel/src/parser/extract/mod.rs:64-94`) walks the tree-sitter
+AST and produces `FileSymbols { file, symbols, imports }`. The extraction
+adapter handles function declarations, class declarations, exported variables,
+ES module imports, CommonJS `require`, and re-export forms. The id allocator is
+**0-based per file** with an `id_offset` parameter — both `watch.rs` and
+`embedded.rs` rebase per-file ids onto a global allocator after the parallel
+parse phase (see §9.3 + §10).
 
 ### 6.4 Parser-error reporting
 
@@ -346,28 +346,32 @@ microsecond-scale tail. See §14 and
 
 ## 7. Semantic graph (KERN-020..023)
 
-The `graph` module ships four files. `mod.rs` re-exports `SymbolGraph`,
-`DependencyGraph`, `GraphDelta`, `update_file`, `re_resolve_imports`,
-`remove_file`, `annotate_trust` (`crates/anvil-kernel/src/graph/mod.rs:1-9`).
+The semantic graph is its own crate, `anvil-graph-cache`, re-exported by the
+kernel as `crate::graph` (`crates/anvil-kernel/src/lib.rs:8`). The crate ships
+five modules — `symbol_graph`, `dependency`, `incremental`, `trust`, and
+`certify` (bounded reverse-impact certifiability for the save-time daemon,
+ADR-061 / ADR-064). Its `lib.rs` re-exports `SymbolGraph`, `DependencyGraph`,
+`GraphDelta`, `update_file`, `re_resolve_imports`, `remove_file`, and
+`annotate_trust` (`crates/anvil-graph-cache/src/lib.rs:10-23`).
 
 ### 7.1 `symbol_graph.rs` — the symbol graph
 
-`SymbolGraph` (`crates/anvil-kernel/src/graph/symbol_graph.rs:21-32`) wraps a
+`SymbolGraph` (`crates/anvil-graph-cache/src/symbol_graph.rs:22-33`) wraps a
 `petgraph::DiGraph<SymbolNode, SymbolEdge>` plus three indexes:
 
 - `index: HashMap<u64, NodeIndex>` — id → petgraph slot, O(1) lookup.
 - `files: HashMap<String, Vec<u64>>` — file → contained symbol ids; drives
   `symbols_in_file` and `remove_file` in O(file size).
 - `next_id: u64` — monotonic high-water mark; never decremented on removal (ids
-  must stay unique across the lifetime of the graph — `symbol_graph.rs:25-31`).
+  must stay unique across the lifetime of the graph — `symbol_graph.rs:26-32`).
 
 `remove_file` is non-trivial: petgraph's `remove_node` swap-moves the last node
 into the freed slot, so node-index validity has to be maintained explicitly. The
 implementation collects all `(id, NodeIndex)` pairs, sorts by descending raw
 index, and removes high-to-low so each swap-moved node has already been
-processed (`symbol_graph.rs:95-121`). Test pinned at
+processed (`symbol_graph.rs:100-126`). Test pinned at
 `remove_file_with_interleaved_indices_preserves_other_files`
-(`symbol_graph.rs:277-317`) — a regression that would silently corrupt the graph
+(`symbol_graph.rs:282-323`) — a regression that would silently corrupt the graph
 for any repo where files alternate insert order.
 
 Concurrency model: synchronous, single-writer. The watch loop holds
@@ -378,22 +382,22 @@ deliberately keeps graph mutation serial.
 
 ### 7.2 `dependency.rs` — derived module-level dependency graph
 
-`DependencyGraph` (`crates/anvil-kernel/src/graph/dependency.rs:7-12`) is a
+`DependencyGraph` (`crates/anvil-graph-cache/src/dependency.rs:8-13`) is a
 file-to-file projection of the symbol graph's import edges.
 `HashMap<String, HashSet<String>>` for forward edges, `reverse` for
-who-imports-me lookup. Provides `find_cycle` via DFS (`dependency.rs:85-130`)
+who-imports-me lookup. Provides `find_cycle` via DFS (`dependency.rs:86-131`)
 for cycle detection. It is not yet wired into a kernel-emitted policy event in
 this release — `find_cycle` is a public API consumed elsewhere; the policy
 engine's cross-layer invariant uses the symbol-graph edges directly.
 
 ### 7.3 `trust.rs` — trust annotation pass
 
-`graph::annotate_trust` (`crates/anvil-kernel/src/graph/trust.rs:30-79`) is a
+`graph::annotate_trust` (`crates/anvil-graph-cache/src/trust.rs:29-83`) is a
 whole-graph pass that computes `TrustLevel` for every node from imports plus
 visibility:
 
 - A file that imports a `node:` privileged module (`fs`, `child_process`, `net`,
-  `http`, `https`, `crypto`) gets `Privileged` (`trust.rs:9, 16-25`).
+  `http`, `https`, `crypto`) gets `Privileged` (`trust.rs:8, 19-24`).
 - A file that imports any non-relative external module
   (`!source.starts_with('.') && !source.starts_with('/')`) gets `External` if
   not Privileged.
@@ -406,27 +410,29 @@ Two correctness pins:
 - **Synthetic external module nodes preserve `External` trust.** The resolver
   creates synthetic `SymbolKind::Module` placeholders for bare imports (`axios`,
   `node:fs`, etc., §7.4). `annotate_trust` skips these so the
-  `NewDependencyIntroduction` invariant continues to fire (`trust.rs:52-63`,
+  `NewDependencyIntroduction` invariant continues to fire (`trust.rs:51-61`,
   test `external_trust_preserved_for_synthetic_module_nodes`,
-  `trust.rs:212-237`).
+  `trust.rs:211-237`).
 - **Module-name match is exact-token, not substring.** `fsevents` is External,
-  not Privileged; `http-errors` is External, not Privileged (`trust.rs:20-24`,
-  tests `:152-189`). The `node:fs/promises` subpath form is correctly Privileged
+  not Privileged; `http-errors` is External, not Privileged (`trust.rs:20-23`,
+  tests `:151-189`). The `node:fs/promises` subpath form is correctly Privileged
   (`:191-209`).
 
 ### 7.4 `incremental.rs` — incremental refresh path
 
-`update_file` (`crates/anvil-kernel/src/graph/incremental.rs:41-153`) is the hot
+`update_file` (`crates/anvil-graph-cache/src/incremental.rs:75-200`) is the hot
 path:
 
 1. **Capture pre-state for delta context.** Before removing the file, collect
-   `previously_imported`, `previously_public`, and `previously_privileged` sets
-   so the new-dependency, public-API, and privilege-expansion invariants can
-   distinguish "newly introduced" from "re-added after edit"
-   (`incremental.rs:46-68`).
+   `previously_imported` (file paths) plus the `previously_public`,
+   `previously_privileged`, and `previously_boundary` identity sets — keyed by
+   `SymbolIdentity::for_file_symbols` so same-`(kind, name)` overloads stay
+   distinct (GV2-002) — so the new-dependency, public-API, and
+   privilege-expansion invariants can distinguish "newly introduced" from
+   "re-added after edit" (`incremental.rs:78-114`).
 2. **Remove the old file's symbols and their edges.**
 3. **Insert new symbols.**
-4. **Resolve imports** via `resolve_import` (`incremental.rs:161-246`):
+4. **Resolve imports** via `resolve_import` (`incremental.rs:208-293`):
    - Bare imports (`axios`, `node:fs`) — match an existing module node by name;
      otherwise create a synthetic `SymbolKind::Module` node with
      `TrustLevel::External` and `Visibility::Public`. The id is drawn from
@@ -435,15 +441,15 @@ path:
      filesystem access, then try seven extension candidates (`""`, `.ts`,
      `.tsx`, `.js`, `.jsx`, `/index.ts`, `/index.js`). Ambiguous matches are
      resolved deterministically: shortest known-file path wins
-     (`incremental.rs:218-243`).
+     (`incremental.rs:237-290`).
 5. **Pick a source node for import edges.** First added symbol if any; otherwise
    create a synthetic Module node for the file (so a side-effect-only module
    like `polyfill.ts` still records its imports as graph edges —
-   `incremental.rs:101-121`).
+   `incremental.rs:147-167`).
 6. **Return a `GraphDelta`** carrying added/removed symbol ids, added/removed
    edges, errors, plus the three "previously" sets and the file path.
 
-`re_resolve_imports` (`incremental.rs:250-284`) runs after a batch of
+`re_resolve_imports` (`incremental.rs:297-331`) runs after a batch of
 `update_file` calls to fix up edges that couldn't resolve when the target file
 hadn't yet been parsed (file ordering during the initial scan). Idempotent:
 skips edges that already exist.
@@ -463,13 +469,13 @@ Two bugs were pinned and fixed in `0.5.1-beta` (CHANGELOG entry at line 159):
   `(base + count).max(graph.next_id())` after each `update_file` /
   `re_resolve_imports` to stay ahead of synthetic allocations. Regression test
   pinned at `external_synthetic_does_not_collide_with_next_files_base_id`
-  (`incremental.rs:705-792`).
+  (`incremental.rs:752-846`).
 - **Symbol id `0` treated as the "no source" sentinel.** `update_file` used
   `from_id == 0` as a sentinel for "no usable source node", which silently
   dropped every import edge for the very first file in a fresh watch session
   (whose first symbol takes id 0). Fix: the sentinel is `Option<u64>`, so id 0
   is a valid source. Test pinned at
-  `id_zero_first_symbol_still_emits_import_edges` (`incremental.rs:801-848`).
+  `id_zero_first_symbol_still_emits_import_edges` (`incremental.rs:848-893`).
 
 Both fixes ride in every release after `0.5.1-beta`, including `v0.6.0-beta`.
 
@@ -840,9 +846,9 @@ invariants:
   rayon-collected vector, which is walker-order; subtle non-determinism in walk
   order would surface as id-allocation drift but not as graph-content drift.
 - Import resolution sorts ambiguous matches by shortest path
-  (`incremental.rs:235`).
+  (`incremental.rs:282`).
 - Known-files iteration uses `BTreeSet` for stable ordering before resolution
-  (`incremental.rs:88-94`, `:251-257`).
+  (`incremental.rs:134-140`, `:298-304`).
 - Policy invariants iterate `delta.added_symbols` in insertion order; the dedupe
   set is content-keyed.
 
@@ -888,7 +894,7 @@ Symbol ids come from two interleaved allocators: a per-file allocator inside
 `graph.next_id()` after every `update_file` and `re_resolve_imports` to advance
 their local allocator. Tests pin both the collision case
 (`incremental.rs::external_synthetic_does_not_collide_with_next_files_base_id`,
-`:706-792`) and the id-zero case (`:801-848`). Editing `update_file` without
+`:752-846`) and the id-zero case (`:848-893`). Editing `update_file` without
 preserving these invariants will reintroduce the `0.5.1-beta` cascade.
 
 ## 14. Performance posture
@@ -1027,20 +1033,24 @@ this as-built will be added in the next sweep that touches both docs.
 - `parser/cache.rs` — `AstCache`, `hash_content` (FNV-1a).
 - `parser/languages.rs` — `Language` enum (TS / TSX / JS / JSX) + tree-sitter
   language bridge.
-- `parser/extract.rs` — `extract_symbols` + `FileSymbols` + `ImportEdge`; the
-  AST → graph adapter.
+- `parser/extract/` — `extract_symbols` + `FileSymbols` + `ImportEdge`; the AST
+  → graph adapter (`mod.rs`, plus `rust.rs` / `typescript.rs` per-language
+  extractors).
 - `parser/queries/typescript.scm`, `javascript.scm` — tree-sitter query files
   for symbol extraction.
-- `graph/mod.rs` — re-exports.
-- `graph/symbol_graph.rs` — KERN-020 `SymbolGraph` (petgraph `DiGraph` +
-  indexes + monotonic `next_id`).
-- `graph/dependency.rs` — KERN-021 file-level `DependencyGraph` with cycle
-  detection.
-- `graph/incremental.rs` — KERN-022 `update_file`, `resolve_import`,
-  `re_resolve_imports`, `remove_file`, `GraphDelta`. The hot path. Hosts the
-  `0.5.1-beta` synthetic-id / id-zero fixes.
-- `graph/trust.rs` — KERN-023 `annotate_trust` (Privileged / External / Boundary
-  / Internal classification).
+- The semantic graph subsystem now lives in the sibling `anvil-graph-cache`
+  crate (re-exported as `crate::graph`; `lib.rs` re-exports). See §7. Modules:
+  - `symbol_graph.rs` — KERN-020 `SymbolGraph` (petgraph `DiGraph` + indexes +
+    monotonic `next_id`).
+  - `dependency.rs` — KERN-021 file-level `DependencyGraph` with cycle
+    detection.
+  - `incremental.rs` — KERN-022 `update_file`, `resolve_import`,
+    `re_resolve_imports`, `remove_file`, `GraphDelta`. The hot path. Hosts the
+    `0.5.1-beta` synthetic-id / id-zero fixes.
+  - `trust.rs` — KERN-023 `annotate_trust` (Privileged / External / Boundary /
+    Internal classification).
+  - `certify.rs` — bounded reverse-impact certifiability for the save-time
+    daemon (ADR-061 / ADR-064).
 - `policy/mod.rs` — re-exports.
 - `policy/config.rs` — KERN-030 `ArchitectureConfig` YAML loader,
   `layer_for_file`, `is_import_allowed`.

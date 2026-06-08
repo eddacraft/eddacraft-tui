@@ -557,14 +557,6 @@
     ]
   },
   "asbuilt-paths": {
-    "docs/architecture/kernel-as-built.md": [
-      "source path does not exist: \"crates/anvil-kernel/src/graph/dependency.rs\" (body reference \"crates/anvil-kernel/src/graph/dependency.rs\")",
-      "source path does not exist: \"crates/anvil-kernel/src/graph/incremental.rs\" (body reference \"crates/anvil-kernel/src/graph/incremental.rs\")",
-      "source path does not exist: \"crates/anvil-kernel/src/graph/mod.rs\" (body reference \"crates/anvil-kernel/src/graph/mod.rs\")",
-      "source path does not exist: \"crates/anvil-kernel/src/graph/symbol_graph.rs\" (body reference \"crates/anvil-kernel/src/graph/symbol_graph.rs\")",
-      "source path does not exist: \"crates/anvil-kernel/src/graph/trust.rs\" (body reference \"crates/anvil-kernel/src/graph/trust.rs\")",
-      "source path does not exist: \"crates/anvil-kernel/src/parser/extract.rs\" (body reference \"crates/anvil-kernel/src/parser/extract.rs\")"
-    ],
     "docs/architecture/mcp-shim-as-built.md": [
       "source path does not exist: \"plans/modules/rust-mcp-launch-shim.aps.md\" (body reference \"plans/modules/rust-mcp-launch-shim.aps.md\")",
       "source path does not exist: \"tools/call\" (body reference \"tools/call\")",
