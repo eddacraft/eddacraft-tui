@@ -30,7 +30,7 @@
 
 use anvil_kernel_types::{SymbolKind, SymbolNode, TrustLevel, Visibility};
 
-use super::{FileSymbols, ImportEdge, LanguageExtractor};
+use super::{FileSymbols, ImportEdge, LanguageExtractor, ReexportEdge};
 
 /// Extractor for the Rust anchor (`.rs`).
 pub struct RustExtractor;
@@ -45,6 +45,7 @@ impl LanguageExtractor for RustExtractor {
     ) -> FileSymbols {
         let mut symbols = Vec::new();
         let mut imports = Vec::new();
+        let mut reexports = Vec::new();
         let mut next_id = id_offset;
 
         extract_from_node(
@@ -53,6 +54,7 @@ impl LanguageExtractor for RustExtractor {
             file,
             &mut symbols,
             &mut imports,
+            &mut reexports,
             &mut next_id,
         );
 
@@ -60,6 +62,7 @@ impl LanguageExtractor for RustExtractor {
             file: file.to_string(),
             symbols,
             imports,
+            reexports,
         }
     }
 }
@@ -70,6 +73,7 @@ fn extract_from_node(
     file: &str,
     symbols: &mut Vec<SymbolNode>,
     imports: &mut Vec<ImportEdge>,
+    reexports: &mut Vec<ReexportEdge>,
     next_id: &mut u64,
 ) {
     match node.kind() {
@@ -112,15 +116,15 @@ fn extract_from_node(
         "mod_item" => {
             push_named(node, source, file, symbols, next_id, SymbolKind::Module);
             if let Some(body) = node.child_by_field_name("body") {
-                recurse_children(body, source, file, symbols, imports, next_id);
+                recurse_children(body, source, file, symbols, imports, reexports, next_id);
             }
         }
-        "use_declaration" => extract_use(node, source, file, imports),
+        "use_declaration" => extract_use(node, source, file, imports, reexports),
         "extern_crate_declaration" => extract_extern_crate(node, source, file, imports),
         // Everything else (the `source_file` root, attribute items, comments,
         // top-level statics/consts, expression statements) is traversed
         // generically — its children may hold items we do handle.
-        _ => recurse_children(node, source, file, symbols, imports, next_id),
+        _ => recurse_children(node, source, file, symbols, imports, reexports, next_id),
     }
 }
 
@@ -131,11 +135,12 @@ fn recurse_children(
     file: &str,
     symbols: &mut Vec<SymbolNode>,
     imports: &mut Vec<ImportEdge>,
+    reexports: &mut Vec<ReexportEdge>,
     next_id: &mut u64,
 ) {
     for i in 0..u32::try_from(node.named_child_count()).unwrap_or(0) {
         if let Some(child) = node.named_child(i) {
-            extract_from_node(child, source, file, symbols, imports, next_id);
+            extract_from_node(child, source, file, symbols, imports, reexports, next_id);
         }
     }
 }
@@ -202,21 +207,51 @@ fn emit_assoc_fns(
 }
 
 /// Flatten a `use_declaration` into one [`ImportEdge`] per leaf path.
-fn extract_use(node: tree_sitter::Node, source: &[u8], file: &str, imports: &mut Vec<ImportEdge>) {
+///
+/// A `pub use` (bare `pub`, not the crate-internal `pub(crate)` / `pub(super)`)
+/// re-exports: it widens the module's public surface, so each leaf also emits a
+/// [`ReexportEdge`] alongside its dependency [`ImportEdge`]. The re-exported
+/// name is the last `::` segment of the path (`pub use a::b::C` → `C`);
+/// `to_source` carries the full path, matching Rust's `ImportEdge` convention.
+/// Glob re-exports (`pub use a::b::*`) record the reached module as the path —
+/// finer name tracking is an RSTLAN refinement, deferred (matches the
+/// import-edge behaviour for the same construct).
+fn extract_use(
+    node: tree_sitter::Node,
+    source: &[u8],
+    file: &str,
+    imports: &mut Vec<ImportEdge>,
+    reexports: &mut Vec<ReexportEdge>,
+) {
     let Some(arg) = node.child_by_field_name("argument") else {
         return;
     };
     let mut paths = Vec::new();
     collect_use_paths(arg, source, "", &mut paths);
     let line = node_line(node);
+    let is_reexport = item_visibility(node, source) == Visibility::Public;
     for path in paths {
-        if !path.is_empty() {
-            imports.push(ImportEdge {
+        if path.is_empty() {
+            continue;
+        }
+        if is_reexport {
+            let name = path
+                .rsplit("::")
+                .next()
+                .unwrap_or(path.as_str())
+                .to_string();
+            reexports.push(ReexportEdge {
                 from_file: file.to_string(),
-                to_source: path,
+                exported_name: name,
+                to_source: path.clone(),
                 line,
             });
         }
+        imports.push(ImportEdge {
+            from_file: file.to_string(),
+            to_source: path,
+            line,
+        });
     }
 }
 
@@ -553,6 +588,44 @@ extern crate serde;
     fn pub_use_is_recorded_as_an_edge() {
         let fs = extract(b"pub use crate::internal::Widget;\n");
         assert!(sources(&fs).contains(&"crate::internal::Widget"));
+    }
+
+    #[test]
+    fn pub_use_emits_a_reexport_edge_plain_use_does_not() {
+        // `pub use` widens the public surface → ReexportEdge (name = last
+        // segment) + the dependency ImportEdge. `pub(crate) use` and plain
+        // `use` are not re-exports.
+        let fs = extract(
+            b"
+pub use crate::internal::Widget;
+pub use foo::bar::{Alpha, Beta};
+pub(crate) use crate::hidden::Secret;
+use std::fmt::Debug;
+",
+        );
+        let got: Vec<(&str, &str)> = fs
+            .reexports
+            .iter()
+            .map(|r| (r.exported_name.as_str(), r.to_source.as_str()))
+            .collect();
+        assert_eq!(
+            got,
+            vec![
+                ("Widget", "crate::internal::Widget"),
+                ("Alpha", "foo::bar::Alpha"),
+                ("Beta", "foo::bar::Beta"),
+            ],
+            "only bare `pub use` re-exports; name = last `::` segment"
+        );
+        assert!(fs.reexports.iter().all(|r| r.from_file == "src/lib.rs"));
+        // pub(crate) use and plain use are dependency edges but not re-exports.
+        assert!(
+            !fs.reexports
+                .iter()
+                .any(|r| r.to_source.contains("Secret") || r.to_source.contains("Debug")),
+            "pub(crate)/plain use must not re-export: {:?}",
+            fs.reexports
+        );
     }
 
     #[test]

@@ -606,6 +606,7 @@ mod tests {
                 })
                 .collect(),
             imports: Vec::new(),
+            reexports: Vec::new(),
         }
     }
 
@@ -718,6 +719,7 @@ mod tests {
                 to_source: "axios".to_string(),
                 line: 0,
             }],
+            reexports: Vec::new(),
         };
 
         let delta = update_file(&mut g, syms);
@@ -758,6 +760,7 @@ mod tests {
                 to_source: "./utils".to_string(),
                 line: 0,
             }],
+            reexports: Vec::new(),
         };
 
         let delta = update_file(&mut g, syms);
@@ -788,6 +791,7 @@ mod tests {
                 to_source: "polyfill".to_string(),
                 line: 0,
             }],
+            reexports: Vec::new(),
         };
 
         let delta = update_file(&mut g, syms);
@@ -820,6 +824,7 @@ mod tests {
                 to_source: "axios".to_string(),
                 line: 0,
             }],
+            reexports: Vec::new(),
         };
         let delta1 = update_file(&mut g, syms);
         assert!(
@@ -843,6 +848,7 @@ mod tests {
                 to_source: "axios".to_string(),
                 line: 0,
             }],
+            reexports: Vec::new(),
         };
         let delta2 = update_file(&mut g, syms2);
 
@@ -891,6 +897,7 @@ mod tests {
                 to_source: "./utils".to_string(),
                 line: 0,
             }],
+            reexports: Vec::new(),
         };
 
         let delta = update_file(&mut g, syms);
@@ -924,6 +931,7 @@ mod tests {
                 to_source: "./utils".to_string(),
                 line: 0,
             }],
+            reexports: Vec::new(),
         };
         let delta1 = update_file(&mut g, main_syms);
         assert!(
@@ -943,6 +951,7 @@ mod tests {
                 trust_level: TrustLevel::Unknown,
             }],
             imports: vec![],
+            reexports: Vec::new(),
         };
         update_file(&mut g, util_syms);
 
@@ -1037,6 +1046,7 @@ mod tests {
                 to_source: "axios".to_string(),
                 line: 0,
             }],
+            reexports: Vec::new(),
         };
         let delta_a = update_file(&mut g, a);
         assert!(delta_a.errors.is_empty(), "first file inserts cleanly");
@@ -1073,6 +1083,7 @@ mod tests {
                 },
             ],
             imports: vec![],
+            reexports: Vec::new(),
         };
         let delta_b = update_file(&mut g, b);
         assert!(
@@ -1126,6 +1137,7 @@ mod tests {
                 to_source: "axios".to_string(),
                 line: 0,
             }],
+            reexports: Vec::new(),
         };
 
         let delta = update_file(&mut g, syms);

@@ -61,6 +61,7 @@ fn file_symbols(file: &str, s: &FileSpec, base: u64) -> FileSymbols {
                 line: 0,
             })
             .collect(),
+        reexports: Vec::new(),
     }
 }
 
@@ -406,6 +407,7 @@ fn file_symbols_overloads(file: &str, names: &[&str], base: u64) -> FileSymbols 
             })
             .collect(),
         imports: Vec::new(),
+        reexports: Vec::new(),
     }
 }
 

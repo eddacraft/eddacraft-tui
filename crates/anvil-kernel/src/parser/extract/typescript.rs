@@ -7,7 +7,7 @@
 
 use anvil_kernel_types::{SymbolKind, SymbolNode, TrustLevel, Visibility};
 
-use super::{FileSymbols, ImportEdge, LanguageExtractor};
+use super::{FileSymbols, ImportEdge, LanguageExtractor, ReexportEdge};
 
 /// Extractor for the TypeScript / TSX / JavaScript / JSX family.
 ///
@@ -28,14 +28,24 @@ impl LanguageExtractor for TypeScriptExtractor {
         let root = tree.root_node();
         let mut symbols = Vec::new();
         let mut imports = Vec::new();
+        let mut reexports = Vec::new();
         let mut next_id = id_offset;
 
-        extract_from_node(root, source, file, &mut symbols, &mut imports, &mut next_id);
+        extract_from_node(
+            root,
+            source,
+            file,
+            &mut symbols,
+            &mut imports,
+            &mut reexports,
+            &mut next_id,
+        );
 
         FileSymbols {
             file: file.to_string(),
             symbols,
             imports,
+            reexports,
         }
     }
 }
@@ -46,6 +56,7 @@ fn extract_from_node(
     file: &str,
     symbols: &mut Vec<SymbolNode>,
     imports: &mut Vec<ImportEdge>,
+    reexports: &mut Vec<ReexportEdge>,
     next_id: &mut u64,
 ) {
     match node.kind() {
@@ -61,7 +72,9 @@ fn extract_from_node(
         "enum_declaration" => {
             extract_named_decl(node, source, file, symbols, next_id, SymbolKind::Enum);
         }
-        "export_statement" => extract_export(node, source, file, symbols, imports, next_id),
+        "export_statement" => {
+            extract_export(node, source, file, symbols, imports, reexports, next_id);
+        }
         "import_statement" => extract_import(node, source, file, imports),
         "call_expression" => extract_require(node, source, file, imports),
         "assignment_expression" => extract_cjs_export(node, source, file, symbols, next_id),
@@ -89,7 +102,7 @@ fn extract_from_node(
     ) {
         for i in 0..u32::try_from(node.named_child_count()).unwrap_or(0) {
             if let Some(child) = node.named_child(i) {
-                extract_from_node(child, source, file, symbols, imports, next_id);
+                extract_from_node(child, source, file, symbols, imports, reexports, next_id);
             }
         }
     }
@@ -195,11 +208,12 @@ fn extract_export(
     file: &str,
     symbols: &mut Vec<SymbolNode>,
     imports: &mut Vec<ImportEdge>,
+    reexports: &mut Vec<ReexportEdge>,
     next_id: &mut u64,
 ) {
     if let Some(decl) = node.child_by_field_name("declaration") {
         let before = symbols.len();
-        extract_from_node(decl, source, file, symbols, imports, next_id);
+        extract_from_node(decl, source, file, symbols, imports, reexports, next_id);
         for sym in &mut symbols[before..] {
             sym.visibility = Visibility::Public;
         }
@@ -242,15 +256,28 @@ fn extract_export(
         }
     }
 
-    // Re-export from another module: `export { x } from './mod'`
+    // Re-export from another module: `export { x } from './mod'`,
+    // `export * from './mod'`. Emit the file-level dependency edge (the module
+    // really is a dependency) AND a first-class Reexport edge per re-exported
+    // name so impact analysis (GV2-011) sees the widened public surface — a
+    // re-export, unlike a plain import, re-publishes the named symbol.
     if let Some(source_node) = node.child_by_field_name("source") {
         let raw = node_text(source_node, source);
         let module_path = raw.trim_matches(|c| c == '\'' || c == '"');
+        let line = node_line(node);
         imports.push(ImportEdge {
             from_file: file.to_string(),
             to_source: module_path.to_string(),
-            line: node_line(node),
+            line,
         });
+        for name in reexport_names(node, source) {
+            reexports.push(ReexportEdge {
+                from_file: file.to_string(),
+                exported_name: name,
+                to_source: module_path.to_string(),
+                line,
+            });
+        }
     }
 
     if !handled_clause {
@@ -473,6 +500,35 @@ fn extract_lexical(
             *next_id += 1;
         }
     }
+}
+
+/// The re-exported names for an `export … from "mod"` statement.
+///
+/// `export { a, b as c } from "m"` → `["a", "b"]` (the source-side `name`
+/// field, matching how [`extract_export_clause`] resolves the re-exported
+/// symbol). `export * from "m"` (no clause) → `["*"]`, a wildcard re-export of
+/// the whole surface.
+fn reexport_names(node: tree_sitter::Node, source: &[u8]) -> Vec<String> {
+    for i in 0..u32::try_from(node.named_child_count()).unwrap_or(0) {
+        let Some(child) = node.named_child(i) else {
+            continue;
+        };
+        if child.kind() != "export_clause" {
+            continue;
+        }
+        let mut names = Vec::new();
+        for j in 0..u32::try_from(child.named_child_count()).unwrap_or(0) {
+            if let Some(spec) = child.named_child(j)
+                && spec.kind() == "export_specifier"
+                && let Some(name_node) = spec.child_by_field_name("name")
+            {
+                names.push(node_text(name_node, source));
+            }
+        }
+        return names;
+    }
+    // No export clause — `export * from "m"`: a wildcard re-export.
+    vec![String::from("*")]
 }
 
 /// 1-based line number from a tree-sitter node, or 0 if the row overflows u32.
@@ -992,6 +1048,52 @@ module.exports = foo;
             .find(|i| i.to_source == "./helpers")
             .unwrap();
         assert_eq!(helpers_import.line, 2, "re-export from ./helpers on line 2");
+    }
+
+    #[test]
+    fn reexport_emits_first_class_reexport_edges() {
+        // `export { a, b as c } from "m"` re-exports `a` and `b`; `export * from`
+        // is a wildcard. Each yields a ReexportEdge (in addition to the
+        // dependency ImportEdge) so impact analysis sees the widened surface.
+        let source = b"export { foo, bar as baz } from './utils';\nexport * from './all';\n";
+        let mut parser = Parser::new();
+        let result = parser
+            .parse_bytes(Path::new("src/index.ts"), source)
+            .unwrap();
+        let fs = extract_symbols(&result.tree, source, Path::new("src/index.ts"), 0);
+
+        let got: Vec<(&str, &str, u32)> = fs
+            .reexports
+            .iter()
+            .map(|r| (r.exported_name.as_str(), r.to_source.as_str(), r.line))
+            .collect();
+        assert_eq!(
+            got,
+            vec![
+                ("foo", "./utils", 1),
+                ("bar", "./utils", 1),
+                ("*", "./all", 2),
+            ],
+            "re-export edges (source-side names; `*` for wildcard)"
+        );
+        assert!(fs.reexports.iter().all(|r| r.from_file == "src/index.ts"));
+
+        // The dependency import edges are still emitted alongside.
+        let import_srcs: Vec<&str> = fs.imports.iter().map(|i| i.to_source.as_str()).collect();
+        assert!(import_srcs.contains(&"./utils"));
+        assert!(import_srcs.contains(&"./all"));
+    }
+
+    #[test]
+    fn plain_import_emits_no_reexport_edge() {
+        let source = b"import { x } from './dep';\n";
+        let mut parser = Parser::new();
+        let result = parser.parse_bytes(Path::new("a.ts"), source).unwrap();
+        let fs = extract_symbols(&result.tree, source, Path::new("a.ts"), 0);
+        assert!(
+            fs.reexports.is_empty(),
+            "a plain import must not produce a re-export edge"
+        );
     }
 
     /// K1 parity: the TS extractor, after the `LanguageExtractor`-trait

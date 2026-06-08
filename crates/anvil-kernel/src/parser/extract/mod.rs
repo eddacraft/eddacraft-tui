@@ -24,7 +24,7 @@ use super::languages::Language;
 // relocated to `anvil-kernel-types::graph` (ADR-064) so `anvil-graph-cache` can
 // name them without depending on this parser crate. Re-exported here so existing
 // `crate::parser::extract::{FileSymbols, ImportEdge}` paths keep resolving.
-pub use anvil_kernel_types::{FileSymbols, ImportEdge};
+pub use anvil_kernel_types::{FileSymbols, ImportEdge, ReexportEdge};
 
 /// A per-language symbol extractor.
 ///
@@ -89,6 +89,7 @@ pub fn extract_symbols(
                 file,
                 symbols: Vec::new(),
                 imports: Vec::new(),
+                reexports: Vec::new(),
             }
         }
     }
