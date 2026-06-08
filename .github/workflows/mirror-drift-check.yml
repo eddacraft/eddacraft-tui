@@ -239,9 +239,13 @@ jobs:
         run: |
           set -euo pipefail
           # Ensure the tracking label exists (idempotent: --force updates if
-          # present). A genuine failure here (missing issues: write, API outage)
-          # must surface — warn but don't swallow with `|| true`, since
-          # `gh issue create --label` below 422s if the label never got created.
+          # present). We warn-and-continue rather than abort here on purpose:
+          # a transient blip when the label already exists shouldn't lose the
+          # issue. A genuine failure still surfaces downstream — if the label
+          # truly doesn't exist, `gh issue create --label` below 422s and fails
+          # this step; and a real drift reds the job via "Fail the job on drift"
+          # regardless. (Bare `|| true` is avoided precisely so the warning is
+          # visible in the logs.)
           gh label create "${DRIFT_LABEL}" \
             --color B60205 \
             --description 'eddacraft-tui canonical source has drifted from its public mirror' \
