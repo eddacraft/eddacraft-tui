@@ -129,6 +129,12 @@ The agent can then:
 - Use the legacy Node.js MCP server only if you need the broader legacy tool and
   resource surface today
 
+When you run both patterns together (a background `anvil watch` plus the MCP
+server), enable daemon-backed save-time routing with `ANVIL_WATCH_DAEMON=1`
+(preview) so watch and `anvil_validate_write` share one warm verdict path
+instead of each spinning up its own scan — useful when several agents are
+editing concurrently.
+
 See [MCP Integration](/anvil/integrations/mcp) for full configuration and tool
 reference.
 

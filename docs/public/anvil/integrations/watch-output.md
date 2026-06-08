@@ -8,9 +8,9 @@ sidebar_position: 4
 
 # Watch JSON Output
 
-| Type        | Authority     | Owner                                                                                                                                              | Status | Freshness                                                                |
-| ----------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------ |
-| Public docs | Authoritative | WOUT ([`plans/modules/watch-output-contract.aps.md`](https://github.com/eddacraft/anvil-001/blob/main/plans/modules/watch-output-contract.aps.md)) | Live   | Last reviewed 2026-05-20 against `main` for v0.7.0-beta consumer surface |
+| Type        | Authority     | Owner                                                                                                                                              | Status | Freshness                                                                    |
+| ----------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------- |
+| Public docs | Authoritative | WOUT ([`plans/modules/watch-output-contract.aps.md`](https://github.com/eddacraft/anvil-001/blob/main/plans/modules/watch-output-contract.aps.md)) | Live   | Last reviewed 2026-06-08 against `main` for the v0.8.0-beta consumer surface |
 
 | Upstream                                                                                                                                            | Downstream                                                                              |
 | --------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
@@ -33,6 +33,11 @@ This page describes `anvil.watch.event.v1`. The contract is additive within v1 â
 new optional payload fields and new `event_type` values may appear, but the
 documented variants below stay stable. The full normative spec lives at
 [`docs/specs/watch-output-contract.md`](https://github.com/eddacraft/anvil-001/blob/main/docs/specs/watch-output-contract.md).
+
+The stream is identical whether `anvil watch` runs its own scoped `check` per
+save (the default) or routes save-time validation through the resident daemon
+(`ANVIL_WATCH_DAEMON=1`, preview). The backing changes; the event contract does
+not â€” so consumers never need to branch on it.
 
 :::
 

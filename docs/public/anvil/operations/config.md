@@ -362,6 +362,24 @@ Suppressions without a reason trigger their own warning.
 
 :::
 
+### Tracked exception store (foundation)
+
+Inline `@anvil-ignore` comments are the supported way to suppress findings
+today. Alongside them, anvil now has a tracked, project-level exception store at
+`anvil/exceptions/store.json`. When an older `.anvil/exceptions.json` is present
+it is read as a fallback, and `migrate()` moves it to the tracked path
+non-destructively (ADR-073).
+
+:::caution Enforcement not yet wired
+
+The exception store is a foundation only in this release. Hand-written entries
+in `anvil/exceptions/store.json` (or the legacy `.anvil/exceptions.json`) **do
+not yet suppress findings**, and there is no operator CLI for managing them yet
+— use inline `@anvil-ignore` comments for suppression. Enforcement and the
+management commands are tracked for a follow-up.
+
+:::
+
 ## Watch Mode
 
 Watch mode is configured via CLI flags, not config files.
@@ -392,6 +410,46 @@ anvil watch --action none                # Architecture/dependency watch only, n
 
 Bare names match only that exact path. To exclude a directory's contents, use a
 glob such as `vendor/**` rather than `vendor`.
+
+### Save-time validation through the daemon (preview)
+
+By default each `anvil watch` change runs a scoped `check` over the files that
+changed. Set `ANVIL_WATCH_DAEMON=1` to route those save-time checks through the
+resident intercept daemon instead: the daemon validates the changed-path delta
+against one warm model rather than spawning a per-save subprocess, so
+`anvil watch` and the editor/agent MCP `validate_write` tool converge on the
+same verdict path. If the daemon is not running, watch falls back to a scoped
+`check` over exactly the changed paths and reports save-time assurance as
+`unavailable` rather than a misleading `clean`.
+
+This routing is a preview in this release — it is off unless
+`ANVIL_WATCH_DAEMON` is set. When enabled, `anvil status` gains a `Save-time:`
+line reporting the current assurance state (`clean`, `stale`, `pending`,
+`running`, or `unavailable`) and, in confined mode, the size of the
+admitted-workspace allow-list.
+
+## Workspace confinement
+
+The intercept daemon serves save-time validation for a set of workspace roots.
+By default it runs in **open** mode and adopts each repository on first touch.
+For shared or multi-tenant machines you can confine it to an explicit allow-list
+so it only serves roots you admit. Confinement is operator config the daemon
+reads live — no restart is required.
+
+```bash
+anvil workspace list                      # Show the current mode and allow entries
+anvil workspace mode allowlist            # Only serve admitted roots (plus each
+                                          # connection's primary check-in root)
+anvil workspace allow /path/to/repo       # Admit one root (exact match)
+anvil workspace allow /srv/work --prefix  # Admit an entire subtree
+anvil workspace remove /path/to/repo      # Remove an allow entry
+anvil workspace mode open                 # Back to first-touch adopt (the default)
+```
+
+In `allowlist` mode an empty allow-list still serves each connection's primary
+check-in root, so confinement never locks you out of the repository you are
+working in. `anvil status` shows `· confined: <N>` next to the save-time line
+when the daemon is in allowlist mode.
 
 ## CI Mode
 
@@ -470,6 +528,10 @@ configuration, including:
 - `ANVIL_SCAN_THREADS` — cap on the parallel-scan thread pool used by first-run
   scans, `check`, `gate`, and `audit` (default `min(num_cpus, 4)`); raise this
   when running on a dedicated CI runner
+- `ANVIL_WATCH_DAEMON` — set to `1` (or `true`/`on`/`yes`) to route
+  `anvil watch` save-time validation through the resident intercept daemon
+  (preview; see
+  [Save-time validation through the daemon](#save-time-validation-through-the-daemon-preview))
 
 Legacy Node.js environment variables (`ANVIL_CI`, `ANVIL_FAIL_ON_WARNINGS`) are
 not supported.

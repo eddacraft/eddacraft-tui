@@ -233,6 +233,20 @@ For platforms serving multiple customers:
 - Isolate evidence per tenant
 - Configure boundaries per project
 - Use separate configs per environment
+- Confine the intercept daemon to admitted workspace roots
+
+By default the intercept daemon adopts each repository on first touch (open
+mode). On a shared or multi-tenant machine, switch it to allow-list confinement
+so it only serves roots you explicitly admit:
+
+```bash
+anvil workspace mode allowlist
+anvil workspace allow /srv/tenant-a --prefix
+```
+
+This is admission control on top of the same-UID transport boundary, not a
+replacement for it — confinement narrows _which_ workspaces a same-UID daemon
+will serve. See [Workspace confinement](./config.md#workspace-confinement).
 
 ### Compliance Reporting
 

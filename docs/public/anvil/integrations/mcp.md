@@ -18,7 +18,10 @@ validation. It exposes `anvil_validate_write` for pre-write validation and
 [Available Tools](#available-tools) below. The daemon-backed validation path
 uses Unix sockets on Linux/macOS and owner-only named pipes on Windows as of
 `v0.7.1-beta`; the embedded scanner is the correctness-equivalent fallback when
-the daemon is not reachable.
+the daemon is not reachable. As of `v0.8.0-beta`, `anvil watch` can route its
+save-time checks through the same daemon validation path (preview, opt-in via
+`ANVIL_WATCH_DAEMON=1`), so editor/agent MCP writes and terminal watch converge
+on one warm verdict path instead of two separate scanners.
 
 The legacy Node.js MCP server (`@eddacraft/anvil-mcp-server`, last published at
 `0.4.0-beta`) is no longer the recommended runtime path. Its broader tool,
