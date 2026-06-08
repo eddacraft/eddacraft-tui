@@ -1,18 +1,19 @@
 # Eddacraft-TUI Canonical Source Mirror
 
-| ID        | Owner      | Status   | Progress |
-| --------- | ---------- | -------- | -------- |
-| TUIMIRROR | joshuaboys | Proposed | 0/8      |
+| ID        | Owner      | Status     | Progress |
+| --------- | ---------- | ---------- | -------- |
+| TUIMIRROR | joshuaboys | Superseded | 0/8      |
 
-**Last reviewed:** 2026-05-20
+**Last reviewed:** 2026-06-08 (archived by TUIR-008). Prior: 2026-05-20.
 
-> **Superseded by:** [`tui-reintegration`](./tui-reintegration.aps.md) (TUIR).
-> TUIR carries the same ADR-047 intent at higher resolution — the policy
+> **Archived 2026-06-08 by TUIR-008. Superseded by:**
+> [`tui-reintegration`](../../modules/tui-reintegration.aps.md) (TUIR).
+> TUIR carried the same ADR-047 intent at higher resolution — the policy
 > questions left implicit here (read-only vs release mirror, sync direction,
-> versioning ownership, CI gate split, backport policy) are first-class work
-> items in TUIR. Do not start work against TUIMIRROR; plan and execute under
-> TUIR instead. This file is retained as historical context until TUIR-008
-> archives it.
+> versioning ownership, CI gate split, backport policy) became first-class work
+> items in TUIR, which has now delivered them. No work was ever executed
+> against TUIMIRROR (0/8); this file is retained as historical planning context
+> only. All implementation and history live under TUIR.
 >
 > **Execution gate:** This module implements ADR-047. Do not promote tasks to
 > `Ready` or begin implementation until ADR-047 is accepted. Until then this is

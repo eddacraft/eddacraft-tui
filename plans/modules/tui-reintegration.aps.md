@@ -72,7 +72,7 @@ converge on the org-owned credential.
 > normalisation (drift-check accepts it; the underlying execution token
 > is still `completed`).
 >
-> **Supersedes:** [`eddacraft-tui-canonical-source`](./eddacraft-tui-canonical-source.aps.md)
+> **Supersedes:** [`eddacraft-tui-canonical-source`](../archive/modules/eddacraft-tui-canonical-source.aps.md)
 > (TUIMIRROR, 0/8, Proposed). TUIR carries the same intent at a higher
 > resolution — the policy questions left implicit in TUIMIRROR (read-only vs
 > release mirror, sync direction, versioning ownership, CI gate split,
@@ -952,6 +952,29 @@ zero hits.
   are not accessible from this workspace's CI) and the outcome is
   recorded in the TUIR-008 PR description;
 - index.aps.md reflects archive.
+- **Close-out progress (2026-06-08):** most deliverables are satisfied —
+  the candidate path is proven by three real publishes from canonical
+  source (`eddacraft-tui` 0.2.3 / 0.2.4 / 0.3.0 on crates.io);
+  `pre-canonical-archive` and the legacy `v0.x.y` tags are preserved on
+  the mirror; no Anvil product release is implied (TUIR-009 `--prerelease`);
+  the **drift check reports a clean tree** — first live green run on `main`
+  via `workflow_dispatch` (Actions run 27117186011, 2026-06-08: `Diff`
+  succeeded, the propagation-lag and fail steps both skipped → drift
+  `false`, no `mirror-drift` issue opened) satisfying the D-TUIR-018
+  validation line; the mirror's **read-only posture** is held by the soft
+  mechanism (`pr-redirect.yml` auto-close + `MIRROR-README.md` banner +
+  the authoritative `docs/policies/eddacraft-tui-mirror.md`) rather than a
+  branch ruleset, which the public mirror cannot use because the
+  `eddacraft-mirror-bot` App force-pushes `main`; and **TUIMIRROR is now
+  archived** to `plans/archive/modules/` with a redirect note + index row
+  repointed. **Two operator-only items remain before this flips to
+  Merged:** (1) revoke the legacy crates.io token (`CARGO_REGISTRY_TOKEN`
+  on the `eddacraft/eddacraft-tui` repo secrets, set 2026-04-10) — safe
+  now that three canonical publishes have shipped, needs crates.io auth;
+  (2) the operator-driven `cargo check` of the private
+  `eddacraft/eddacraft-skills` against the candidate via `[patch.crates-io]`
+  (not reachable from this workspace's CI). Status stays `open` pending
+  those two.
 
 **changeType:** internal
 **releaseIntent:** candidate
