@@ -20,7 +20,7 @@
 > **Deferred to v0.9** (council, off the critical path): GV2-013, 014, 020, 023,
 > 026 (registry/contracts) and GV2-030 (sealed-DTO snapshot, with Sub-phase B
 > persistence). 013/014 are dep-unblocked but stay Draft as v0.9 scope. Count is
-> **9/19** (001/002/003/010/011/012/021/022/028 Merged).
+> **11/19** (001/002/003/010/011/012/021/022/027/028/029 Merged).
 
 > **Reshaped 2026-06-08** around the now-landed spine spec
 > [`docs/architecture/graph-v2-foundation-spec.md`](../../docs/architecture/graph-v2-foundation-spec.md)
@@ -605,13 +605,15 @@ Change status to **Ready** when:
 
 #### GV2-027: A→A′ backing swap behind `validate_paths`, with verdict parity
 
-- **Status:** In Progress — `validate_paths` now certifies through the resident
-  GV2 hot-read index (`HotReadApi::certify`, GV2-022) rather than the raw graph
-  pair; `KernelGraphCache::backing_schema_version()` records `gv2-hotindex-v1`;
-  the `backing_parity` property test proves verdict-identical `Certifiability`
-  warm-vs-cold over arbitrary delta sequences (incl. the GV2-029 trust
-  dimension). On `feat/gv2-027-aprime-swap` (stacked on the cherry-picked
-  GV2-029). **Open ADR question deferred to council/owner:** whether A′ adopts
+- **Status:** Merged 2026-06-08 via PR #2446 — `validate_paths` now certifies
+  through the resident GV2 hot-read index (`HotReadApi::certify`, GV2-022) rather
+  than the raw graph pair; `KernelGraphCache::backing_schema_version()` records
+  `gv2-hotindex-v1` (surfaced via a startup `tracing` event); the
+  `backing_parity` property test proves verdict-identical `Certifiability`
+  warm-vs-cold over arbitrary delta sequences and budgets (incl. the GV2-029
+  trust dimension and the `ImpactSetOverflow` branch). Council `council-44d0fe5f`
+  converged (7 fixed / 2 waived / 1 deferred). **Open ADR question deferred to
+  council/owner (tracked in the post-merge plan):** whether A′ adopts
   the depth-capped `HotReadApi::reverse_impact` for the certifiability closure
   (would change the `ImpactSetOverflow`-vs-`ExportSurfaceChange` stale reason in
   graphs deeper than the cap) — kept verdict-preserving here, not decided
@@ -671,7 +673,10 @@ Change status to **Ready** when:
 
 #### GV2-029: Wire privilege containment on the daemon certify path
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-08 via PR #2446 — `annotate_trust` now runs after
+  every `apply_delta` on the daemon path, so the `certify` privilege dimension
+  is live (a `node:fs`-importing privilege-expanding change no longer
+  false-certifies). Landed in the GV2-027 stack.
 - **Intent:** Per the owner decision to **claim privilege containment**, call
   `annotate_trust` on the daemon apply path (today it is never called, so
   `trust_level` is always `Unknown` and `previously_privileged` always empty —
@@ -790,5 +795,5 @@ Change status to **Ready** when:
 | 0 — Architecture and Contracts | 3 | 3/3 done | Complete |
 | 1 — Graph Schemas | 5 | 3/5 done | In Progress |
 | 2 — Runtime Substrate | 4 | 2/4 done | In Progress |
-| 3 — Enforcement, Wiring, and the A′ Swap | 7 | 1/7 done | In Progress |
-| **Total** | **19** | **9/19 done** | **In Progress** |
+| 3 — Enforcement, Wiring, and the A′ Swap | 7 | 3/7 done | In Progress |
+| **Total** | **19** | **11/19 done** | **In Progress** |

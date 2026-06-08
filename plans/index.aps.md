@@ -151,7 +151,7 @@ trusted model.
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
-| [graph-v2-foundation](./modules/graph-v2-foundation.aps.md) | GV2 | In Progress | 9/19 | KERN, anvil-graph-cache, ADR-061/063/064/067/069, ADR-031, INTD, GCTX, EDDA |
+| [graph-v2-foundation](./modules/graph-v2-foundation.aps.md) | GV2 | In Progress | 11/19 | KERN, anvil-graph-cache, ADR-061/063/064/067/069, ADR-031, INTD, GCTX, EDDA |
 | [graph-context-delivery](./modules/graph-context-delivery.aps.md) | GCTX | Draft | 0/13 | GV2 |
 
 ### Hardening & Maintenance
