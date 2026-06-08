@@ -261,6 +261,7 @@ impl SymbolParser for BenchParser {
                 trust_level: TrustLevel::Unknown,
             }],
             imports: Vec::new(),
+            reexports: Vec::new(),
         })
     }
 }
