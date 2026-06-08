@@ -813,19 +813,28 @@ Merged item; each is an additive improvement under the frozen wire.
 
 #### DSV-044: Emit assurance/fence transitions through the production fanout (Phase E)
 
-- **Status:** Blocked
-- **Blocked reason (grounded 2026-06-04):** the subscriber surface this depends
-  on is owned by [MLP2-071](multilayer-protection-v2.aps.md) **Phase 2**, which
-  is itself deferred: "no in-tree producer broadcasts notification envelopes to
-  network subscribers today … the IPC accept-loop multiplex that routes the
-  `SubscribeTelemetry` frame through to `Fanout::register` and the producer site
-  that calls `Fanout::route` are deferred until the production
-  `NotificationEnvelope` broadcaster feature lands" (tracking at #1722; wave-1
-  doc at `crates/anvil-intercept/src/fanout.rs:73-99`). DSV's only slice — the
-  assurance-transition emission call sites — **cannot** land before that reader
-  exists: an emit with no `Fanout::route` reader is dead code, and an emit that
-  bypasses `Fanout::route` is a cross-session telemetry scoping-leak bug (the
-  whole point of INTD-015 redaction). Not started; gated on MLP2-071 Phase 2.
+- **Status:** Ready
+- **Unblocked 2026-06-08:** the subscriber surface this depended on —
+  [MLP2-071](multilayer-protection-v2.aps.md) **Phase 2** (the IPC
+  `subscribe-telemetry` accept-loop multiplex → `Fanout::register`, and the
+  `TelemetryBroadcaster` that calls `Fanout::route` and delivers per-subscriber
+  envelopes) — landed via PR
+  [#2414](https://github.com/eddacraft/anvil-001/pull/2414) (Merged 2026-06-08;
+  closes the subscriber-surface half of #1722). The `Fanout::route` reader now
+  exists, so DSV's emission call sites are no longer "an emit with no reader"
+  (dead code) nor a scoping-leak risk — they route through the live broadcaster
+  (`crate::broadcaster::TelemetryBroadcaster::broadcast`), which enforces the
+  INTD-015 redaction + D6 spoofed-origin denial.
+- **First step on pickup:** this slice is security-sensitive (per-session
+  telemetry scoping + cross-session redaction), so it still warrants the
+  design/Council pass this entry calls for, coordinated with the MLP2-071 owner.
+  The producer/consumer ownership boundary is recorded in
+  [`plans/specs/2026-05-21-intd-015-cross-session-attribution-design-pass.md`](../specs/2026-05-21-intd-015-cross-session-attribution-design-pass.md)
+  (2026-06-08 addendum, "Phase 2 Council follow-ups"): DSV owns the emit call
+  sites in `save_time`/`telemetry`/`fence.rs`; the broadcaster handle they call
+  is MLP2-071's, shipped. The addendum also flags the open identity assumption
+  (registrant==subscriber peer) the design pass should confirm before wiring
+  real producers.
 - **Intent:** Route the DSV-built assurance- (and fence-) transition notification
   envelopes through the production `Fanout::route` so subscribers actually
   receive them, instead of the envelopes being constructed only on the tracing
@@ -847,7 +856,9 @@ Merged item; each is an additive improvement under the frozen wire.
   slice); `crates/anvil-intercept/src/{ipc,lib}.rs` (MLP2-071 slice)
 - **Confidence:** low
 - **Priority:** Low
-- **Dependencies:** MLP2-071 Phase E (subscribe handler + broadcaster); DSV-005
+- **Dependencies:** MLP2-071 Phase E (subscribe handler + broadcaster) —
+  **satisfied** (Merged 2026-06-08 via PR
+  [#2414](https://github.com/eddacraft/anvil-001/pull/2414)); DSV-005 (Merged).
 - **Source:** DSV-005 deferred note ("`Fanout::route` subscriber delivery (Phase
   E)"); MLP2-071 Phase 2.
 
