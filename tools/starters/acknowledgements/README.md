@@ -8,13 +8,13 @@ markdown file (typically `ACKNOWLEDGEMENTS.md`). Hand-curated content above,
 between, and below the markers is preserved verbatim.
 
 Shipped drivers: Rust
-([`cargo-about`](https://github.com/EmbarkStudios/cargo-about)),
-Node ([`license-checker`](https://github.com/davglass/license-checker)),
-Go ([`go-licenses`](https://github.com/google/go-licenses)),
-Python ([`pip-licenses`](https://github.com/raimon49/pip-licenses)),
-and bundled binaries (a hand-maintained inventory, no external
-tool). Existing consumers with a legacy flat `[rust]` config keep
-working unchanged via a back-compat shim (see "Configuration reference" below).
+([`cargo-about`](https://github.com/EmbarkStudios/cargo-about)), Node
+([`license-checker`](https://github.com/davglass/license-checker)), Go
+([`go-licenses`](https://github.com/google/go-licenses)), Python
+([`pip-licenses`](https://github.com/raimon49/pip-licenses)), and bundled
+binaries (a hand-maintained inventory, no external tool). Existing consumers
+with a legacy flat `[rust]` config keep working unchanged via a back-compat shim
+(see "Configuration reference" below).
 
 The kit is the canonical home of the generator. To adopt it in another repo,
 copy this directory wholesale and edit one file (`attribution.toml`) — no script
@@ -27,7 +27,7 @@ edits required.
 | `generate-acknowledgements.sh`       | Dispatcher: parses config, loops blocks, invokes drivers, splices output                     |
 | `drivers/`                           | Ecosystem driver scripts (`rust.sh`, `node.sh`, `go.sh`, `python.sh`, `bundled-binaries.sh`) |
 | `bundled-binaries.toml.example`      | Inventory template for the bundled-binaries driver (non-package-manager binaries)            |
-| `expand-licences.sh`                 | Single-source allow-list expander                                                           |
+| `expand-licences.sh`                 | Single-source allow-list expander                                                            |
 | `attribution.toml.example`           | Annotated template for the consumer-side config                                              |
 | `about.toml.template`                | cargo-about config template (licence allow-list etc)                                         |
 | `about.hbs.template`                 | cargo-about handlebars render template                                                       |
@@ -76,9 +76,9 @@ edits required.
 3. Edit `attribution.toml`: declare one `[[blocks]]` entry per ecosystem you
    ship, pointing each block at the manifest it attributes (a Rust block's
    `manifest_path` at the shipping binary's `Cargo.toml` — usually
-   `crates/your-cli/Cargo.toml` rather than the workspace root, so dev-only
-   deps stay out — a Node block's at its `package.json`, and so on). The
-   per-driver reference lists each driver's keys.
+   `crates/your-cli/Cargo.toml` rather than the workspace root, so dev-only deps
+   stay out — a Node block's at its `package.json`, and so on). The per-driver
+   reference lists each driver's keys.
 
 4. Tune each declared driver's licence policy — e.g. `about.toml`'s `accepted`
    list and `targets` for Rust, or the allow-list files for Node, Go, and
@@ -345,8 +345,8 @@ target file.
 
 ### Back-compat: flat `[rust]` table
 
-The kit's original single-block schema. A config with `[rust]` and no `[[blocks]]`
-entries is treated as if it declared a single unnamed block with
+The kit's original single-block schema. A config with `[rust]` and no
+`[[blocks]]` entries is treated as if it declared a single unnamed block with
 `ecosystem = "rust"`. Markers for the unnamed block omit the name suffix
 (`<!-- BEGIN AUTO-GENERATED -->`), keeping today's `ACKNOWLEDGEMENTS.md` files
 byte-identical after the refactor.
@@ -394,7 +394,7 @@ field instead).
 | ----------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `manifest_path`   | yes                 | `package.json` to walk. For monorepos: one block per shipping `package.json` is the recommended pattern (see Monorepo guidance below).                          |
 | `node_allow_path` | yes                 | `licences.node-allow.txt` — single semicolon-joined SPDX list between the kit's BEGIN/END markers. Auto-populated by `expand-licences.sh` from `licences.toml`. |
-| `prod_only`       | no (default `true`) | If `true`, `license-checker --production` excludes `devDependencies`. Set `false` to include dev tooling (the Anvil-devtools path).                  |
+| `prod_only`       | no (default `true`) | If `true`, `license-checker --production` excludes `devDependencies`. Set `false` to include dev tooling (the Anvil-devtools path).                             |
 | `exclude`         | no                  | Semicolon-joined `package@version` list, forwarded raw to `license-checker --excludePackages`. Use to drop hoisted internal packages a workspace shim surfaces. |
 
 Worked example:
@@ -606,9 +606,9 @@ Simple, broad, blunt. License-checker walks the root and resolves through the
 workspace's hoisted `node_modules`. Use this when per-package separation is not
 worth the bookkeeping.
 
-**Devtools-only block (Anvil pattern).** When the prod surface is
-non-JS but you still want to attribute the JS tooling the repo builds with
-(linters, formatters, Nx, kindling integration), set `prod_only = false` on a
+**Devtools-only block (Anvil pattern).** When the prod surface is non-JS but you
+still want to attribute the JS tooling the repo builds with (linters,
+formatters, Nx, kindling integration), set `prod_only = false` on a
 root-manifest block:
 
 ```toml
@@ -659,10 +659,9 @@ kit-local `drivers/` directory.
 
 ## Future evolution
 
-The dispatcher + driver-per-ecosystem architecture landed with the Rust
-driver; Node, Go, Python, and bundled-binaries drivers followed — see the
-per-driver block reference above. The roadmap is tracked in the upstream
-Anvil project:
+The dispatcher + driver-per-ecosystem architecture landed with the Rust driver;
+Node, Go, Python, and bundled-binaries drivers followed — see the per-driver
+block reference above. The roadmap is tracked in the upstream Anvil project:
 
 - Java/Kotlin / Ruby / Swift drivers deferred until a real consumer needs them
 
