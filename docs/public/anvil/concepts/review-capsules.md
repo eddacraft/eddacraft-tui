@@ -58,6 +58,19 @@ block, `2` degraded, `3` error — so it drops straight into a CI step or a
 reviewer's script. (`anvil capsule create` prints the exact `verify` command to
 run on completion.)
 
+To read a capsule without re-verifying it:
+
+```bash
+anvil capsule explain <dir>
+```
+
+`explain` prints a human-readable summary — range, commits,
+policy/rules/baseline, witness coverage, diagnostics and exception counts, and
+the recorded verdict. It is read-only and repo-independent: it reports the
+verdict the capsule already carries and does **not** re-check it, so it always
+exits `0` on a readable capsule. Gate on the verdict with
+`anvil capsule verify`, not `explain`.
+
 ## What's inside
 
 A capsule directory packages, under a digest-complete `manifest.json` using the
@@ -79,10 +92,10 @@ witnessed lines by construction.
 
 :::caution v0 scope
 
-`anvil capsule create` and `anvil capsule verify` ship today. The remaining
-subcommands — `anvil capsule explain` and `inspect` — and the richer evidence
-collectors (SARIF diagnostics and applied policy exceptions) are planned for a
-follow-up; today those evidence slots are written present-but-empty. See
+`anvil capsule create`, `verify`, and `explain` ship today. The remaining
+subcommand — `anvil capsule inspect` — and the richer evidence collectors (SARIF
+diagnostics and applied policy exceptions) are planned for a follow-up; today
+those evidence slots are written present-but-empty. See
 [ADR-074](https://github.com/eddacraft/anvil-001/blob/main/plans/decisions/074-review-capsule-v0-format.md)
 for the capsule format.
 
