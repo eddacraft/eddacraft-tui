@@ -98,7 +98,8 @@ version="$(grep -m1 -v '^[[:space:]]*$' "$version_file" 2>/dev/null || true)"
 version="${version#"${version%%[![:space:]]*}"}"
 version="${version%"${version##*[![:space:]]}"}"
 
-semver_re='^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'
+# Strict SemVer: numeric identifiers carry no leading zeros (0 or [1-9]…).
+semver_re='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$'
 if ! printf '%s' "$version" | grep -qE "$semver_re"; then
   echo "error: VERSION '$version' is not a valid semver (expected X.Y.Z) in $version_file" >&2
   exit 1

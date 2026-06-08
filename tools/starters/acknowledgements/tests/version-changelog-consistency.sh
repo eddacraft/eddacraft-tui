@@ -14,6 +14,8 @@
 #   2.  Fixture where VERSION disagrees with the changelog heading →
 #       exit 1, stderr names both versions.
 #   3.  Fixture with a malformed VERSION → exit 1, stderr says so.
+#   3b. Fixture with a leading-zero version (`01.2.3`) → exit 1 (strict
+#       SemVer forbids leading zeros).
 #   4.  Fixture missing CHANGELOG.md → exit 1, stderr names the file.
 #   5.  `--tag` matching VERSION (bare `vX.Y.Z`) → exit 0;
 #       a mismatching tag → exit 1.
@@ -92,6 +94,19 @@ if ! printf '%s' "$out3" | grep -qiE "semver|version"; then
   exit 1
 fi
 echo "ok scenario 3: malformed VERSION rejected (exit $exit3)"
+
+# ── Scenario 3b: leading-zero version is rejected (strict SemVer) ─────
+d3b="$fixture_root/leading-zero"
+mkdir -p "$d3b"
+printf '01.2.3\n' >"$d3b/VERSION"
+printf '# Changelog\n\n## [01.2.3] - 2026-06-08\n' >"$d3b/CHANGELOG.md"
+exit3b=0
+out3b="$("$CHECKER" --dir "$d3b" 2>&1)" || exit3b=$?
+if [ "$exit3b" -eq 0 ]; then
+  echo "fail scenario 3b: checker accepted leading-zero VERSION '01.2.3'" >&2
+  exit 1
+fi
+echo "ok scenario 3b: leading-zero VERSION rejected (exit $exit3b)"
 
 # ── Scenario 4: missing CHANGELOG.md ─────────────────────────────────
 d4="$fixture_root/no-changelog"
