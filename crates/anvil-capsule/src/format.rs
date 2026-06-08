@@ -12,6 +12,7 @@ use std::path::Path;
 
 use crate::collect::CommitsDocument;
 use crate::collect_digests::CollectedDigests;
+use crate::collect_witness::CollectedWitness;
 use crate::errors::CapsuleError;
 use crate::manifest::{CapsuleManifest, CapsuleRange, Producer};
 use crate::verification::CapsuleVerification;
@@ -30,6 +31,8 @@ pub struct CapsuleContent {
     pub commits: CommitsDocument,
     /// The collected digest documents (GITGOV-006).
     pub digests: CollectedDigests,
+    /// The collected witness chain + range window (GITGOV-007).
+    pub witness: CollectedWitness,
     /// Producer identity recorded in the manifest.
     pub producer: Producer,
 }
@@ -45,11 +48,14 @@ pub struct CapsuleContent {
 /// written last, so a manifest's presence implies every digest was
 /// recorded).
 ///
+/// `witness.ndjson` carries the verbatim full witness chain
+/// (GITGOV-007); the manifest range's `witness_seq_start`/`_end` mark
+/// the PR-relevant window into it. An empty chain (fresh-adoption repo)
+/// is present-but-empty — valid NDJSON with no lines, which the
+/// verifier reads as missing witness evidence → `degraded`.
+///
 /// Placeholders written by this step (their collectors land later):
 ///
-/// - `witness.ndjson` — empty chain (GITGOV-007 collects the real
-///   full chain; an empty file is valid NDJSON with no lines, and
-///   verification reads it as missing witness evidence → `degraded`)
 /// - `diagnostics.sarif` — minimal empty SARIF document (GITGOV-008
 ///   emits real output via the shared ADR-058 emitter)
 /// - `exceptions.json` — `[]` (EXCEPT-009 collects applied records)
@@ -73,9 +79,10 @@ pub fn write_capsule(
         CapsuleRange {
             base: content.commits.base.clone(),
             head: content.commits.head.clone(),
-            // Pointers into the witness chain land with GITGOV-007.
-            witness_seq_start: None,
-            witness_seq_end: None,
+            // The window of witness `seq` attesting commits in the
+            // range (GITGOV-007); absent when none are witnessed.
+            witness_seq_start: content.witness.seq_start,
+            witness_seq_end: content.witness.seq_end,
         },
         content.producer.clone(),
     );
@@ -91,7 +98,7 @@ pub fn write_capsule(
             content.digests.baseline.to_canonical_bytes()?,
         ),
         ("rules.json", content.digests.rules.to_canonical_bytes()?),
-        ("witness.ndjson", Vec::new()),
+        ("witness.ndjson", content.witness.ndjson.clone()),
         ("diagnostics.sarif", EMPTY_SARIF.as_bytes().to_vec()),
         ("exceptions.json", b"[]".to_vec()),
         ("edda-context.json", b"{}".to_vec()),
@@ -203,6 +210,7 @@ fn render_readme(content: &CapsuleContent) -> String {
         .rules_sha
         .as_deref()
         .unwrap_or("absent (no .anvil.* config)");
+    let witness = witness_coverage(&content.witness);
     format!(
         "# Anvil Review Capsule\n\n\
          Governance evidence for the commit range below, packaged per\n\
@@ -216,17 +224,31 @@ fn render_readme(content: &CapsuleContent) -> String {
          | Policy | {policy} |\n\
          | Baseline | {baseline} |\n\
          | Rules identity | `{rules}` |\n\
+         | Witness | {witness} |\n\
          | Producer | anvil {version} |\n\n\
          `verification.json` starts as a degraded placeholder — an\n\
-         unverified capsule never claims `pass`. `witness.ndjson` and\n\
-         `diagnostics.sarif` are structural stubs until their\n\
-         collectors land (GITGOV-007/-008); empty here means \"not yet\n\
-         collected\", not \"no findings\".\n",
+         unverified capsule never claims `pass`. `witness.ndjson` carries\n\
+         the verbatim full witness chain; an empty file means the repo\n\
+         has no witness chain, not \"no findings\". `diagnostics.sarif`\n\
+         is a structural stub until its collector lands (GITGOV-008).\n",
         base = content.commits.base,
         head = content.commits.head,
         commits = content.commits.commits.len(),
         version = content.producer.anvil_version,
     )
+}
+
+/// Deterministic one-line witness-coverage summary for the README.
+///
+/// Distinguishes the three honest states: an empty chain
+/// (fresh-adoption repo), a chain present but with no line attesting a
+/// range commit, and the `seq` window of the range's witnessed lines.
+fn witness_coverage(witness: &CollectedWitness) -> String {
+    match (witness.seq_start, witness.seq_end) {
+        (Some(start), Some(end)) => format!("seq {start}..{end}"),
+        _ if witness.ndjson.is_empty() => "absent (no witness chain)".to_string(),
+        _ => "present, no range coverage".to_string(),
+    }
 }
 
 #[cfg(test)]
@@ -269,6 +291,7 @@ mod tests {
                     digest: None,
                 },
             },
+            witness: CollectedWitness::default(),
             producer: Producer {
                 anvil_version: "0.0.0-test".to_string(),
             },
@@ -337,6 +360,47 @@ mod tests {
         let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
         assert_eq!(value["version"], "2.1.0");
         assert!(value["runs"].as_array().unwrap().is_empty());
+    }
+
+    /// The witness chain is embedded verbatim and the range pointers
+    /// are recorded in the manifest (GITGOV-007).
+    #[test]
+    fn write_capsule_embeds_witness_chain_and_seq_window() {
+        let dir = tempfile::tempdir().unwrap();
+        let out = dir.path().join("capsule");
+
+        let mut content = sample_content();
+        content.witness = CollectedWitness {
+            ndjson: b"{\"seq\":1}\n{\"seq\":2}\n".to_vec(),
+            seq_start: Some(2),
+            seq_end: Some(7),
+        };
+
+        let manifest = write_capsule(&out, &content).unwrap();
+
+        // Bytes land verbatim, and the recorded digest matches them.
+        let on_disk = std::fs::read(out.join("witness.ndjson")).unwrap();
+        assert_eq!(on_disk, content.witness.ndjson);
+        assert_eq!(sha256_hex(&on_disk), manifest.files["witness.ndjson"]);
+        // The range window is carried on the manifest.
+        assert_eq!(manifest.range.witness_seq_start, Some(2));
+        assert_eq!(manifest.range.witness_seq_end, Some(7));
+    }
+
+    /// A fresh-adoption repo (no witness chain) keeps the
+    /// present-but-empty discipline: an empty `witness.ndjson` and no
+    /// range pointers (absent, never `null`).
+    #[test]
+    fn write_capsule_empty_witness_is_present_but_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let out = dir.path().join("capsule");
+
+        let manifest = write_capsule(&out, &sample_content()).unwrap();
+
+        let on_disk = std::fs::read(out.join("witness.ndjson")).unwrap();
+        assert!(on_disk.is_empty());
+        assert_eq!(manifest.range.witness_seq_start, None);
+        assert_eq!(manifest.range.witness_seq_end, None);
     }
 
     #[test]

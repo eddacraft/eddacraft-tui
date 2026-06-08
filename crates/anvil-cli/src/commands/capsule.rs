@@ -8,13 +8,13 @@
 //!
 //! - **`anvil capsule create --range <base>..<head> --out <dir>`** —
 //!   collect the range (GITGOV-005), the policy/baseline/rules digest
-//!   documents (GITGOV-006), and write the capsule directory with a
-//!   digest-complete `manifest.json`. Evidence whose collectors land
-//!   later (witness chain — GITGOV-007, SARIF diagnostics —
-//!   GITGOV-008, applied exceptions — EXCEPT-009) is written
-//!   present-but-empty; `verification.json` starts as the degraded
-//!   no-checks placeholder, so an unverified capsule never claims
-//!   `pass`.
+//!   documents (GITGOV-006), the verbatim witness chain with the
+//!   range's `seq` window (GITGOV-007), and write the capsule directory
+//!   with a digest-complete `manifest.json`. Evidence whose collectors
+//!   land later (SARIF diagnostics — GITGOV-008, applied exceptions —
+//!   EXCEPT-009) is written present-but-empty; `verification.json`
+//!   starts as the degraded no-checks placeholder, so an unverified
+//!   capsule never claims `pass`.
 //! - `verify` / `explain` / `inspect` land with GITGOV-009/-010/-011.
 //!
 //! ## Identity discipline (GITGOV-006 council follow-up)
@@ -27,10 +27,12 @@
 //! matches witnessed lines by construction, enforced at the single
 //! fill-site below rather than by convention.
 
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use anvil_capsule::{
-    CapsuleContent, Producer, ToolIdentity, collect_commits, collect_digests, write_capsule,
+    CapsuleContent, Producer, ToolIdentity, collect_commits, collect_digests, collect_witness,
+    write_capsule,
 };
 use anyhow::{Context, Result, bail};
 use clap::{Args, Subcommand};
@@ -94,9 +96,15 @@ fn run_create(repo_root: &Path, range: &str, out: &Path) -> Result<()> {
     let digests =
         collect_digests(repo_root, &tool_identity).context("collecting evidence digests")?;
 
+    // The witness window marks which seq attest commits in the range;
+    // the full chain ships whole (the verifier is genesis-anchored).
+    let range_commits: BTreeSet<String> = commits.commits.iter().map(|c| c.sha.clone()).collect();
+    let witness = collect_witness(repo_root, &range_commits).context("collecting witness chain")?;
+
     let content = CapsuleContent {
         commits,
         digests,
+        witness,
         producer,
     };
     let manifest = write_capsule(out, &content).context("writing capsule directory")?;
@@ -307,6 +315,50 @@ mod tests {
         .unwrap();
         let policy_file = policy.policy_file.expect("policy present in scratch repo");
         assert_eq!(policy_file.path, "anvil/policy.yml");
+    }
+
+    /// A witness tree in the repo is collected into `witness.ndjson`
+    /// and the manifest's range pointers mark the head commit's line
+    /// (GITGOV-007 wiring).
+    #[test]
+    fn capsule_create_collects_witness_chain_for_range() {
+        use anvil_witness::{GenesisAnchor, WitnessLine};
+
+        let (dir, base, head) = scratch_repo();
+
+        // Seed a one-line witness chain attesting the head commit under
+        // `anvil/witness/`, where `witness_paths` discovers it.
+        let witness_dir = dir.path().join("anvil/witness");
+        std::fs::create_dir_all(&witness_dir).unwrap();
+        let mut wl = WitnessLine::genesis(
+            &GenesisAnchor::Fresh,
+            "01997e4a-1b2c-7345-8901-abcdef123456",
+            "active",
+            "2026-06-08T00:00:00Z",
+            "pre-commit",
+            None,
+        );
+        wl.commit_sha = Some(head.clone());
+        std::fs::write(
+            witness_dir.join("active.ndjson"),
+            wl.to_ndjson_line().unwrap(),
+        )
+        .unwrap();
+
+        let out_dir = tempfile::tempdir().unwrap();
+        let out = out_dir.path().join("capsule");
+        run_create(dir.path(), &format!("{base}..{head}"), &out).unwrap();
+
+        // The chain landed verbatim and the head line is inside it.
+        let witness = std::fs::read_to_string(out.join("witness.ndjson")).unwrap();
+        assert!(witness.contains(&head), "head commit witnessed in chain");
+
+        // The manifest marks the head line's seq as the range window.
+        let manifest =
+            CapsuleManifest::from_json_bytes(&std::fs::read(out.join("manifest.json")).unwrap())
+                .unwrap();
+        assert_eq!(manifest.range.witness_seq_start, Some(1));
+        assert_eq!(manifest.range.witness_seq_end, Some(1));
     }
 
     #[test]

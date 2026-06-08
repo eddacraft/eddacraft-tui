@@ -71,12 +71,23 @@ pub struct CapsuleRange {
     pub base: String,
     /// Head commit SHA.
     pub head: String,
-    /// First witness `seq` relevant to the range. Missing (not `null`)
-    /// when the range has no witnessed lines.
+    /// First witness `seq` attesting a commit in the range — the lower
+    /// bound of the PR-relevant window into the embedded full chain.
+    /// Missing (not `null`) when the range has no witnessed lines.
+    ///
+    /// The window is `[start, end]` = the min and max `seq` of the
+    /// range's witnessed lines. It is **not** a guarantee that every
+    /// line within the window attests a range commit: bookkeeping lines
+    /// (rollover/baseline) and lines for non-range commits may fall
+    /// between `start` and `end` when range commits are interleaved in
+    /// the chain. A consumer reads the window to locate evidence, then
+    /// filters by `commit_sha` against the range — it must not assume
+    /// the slice is exclusively the PR's.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub witness_seq_start: Option<u64>,
-    /// Last witness `seq` relevant to the range. Missing (not `null`)
-    /// when the range has no witnessed lines.
+    /// Last witness `seq` attesting a commit in the range — the upper
+    /// bound of the window described on [`Self::witness_seq_start`].
+    /// Missing (not `null`) when the range has no witnessed lines.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub witness_seq_end: Option<u64>,
 }

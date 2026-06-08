@@ -1239,6 +1239,7 @@ dependencies = [
  "eddacraft-anvil-baseline",
  "eddacraft-anvil-config",
  "eddacraft-anvil-rules",
+ "eddacraft-anvil-witness",
  "hex",
  "serde",
  "serde_json",

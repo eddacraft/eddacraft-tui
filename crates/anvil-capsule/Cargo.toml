@@ -13,6 +13,7 @@ name = "anvil_capsule"
 anvil-baseline = { path = "../anvil-baseline", package = "eddacraft-anvil-baseline" }
 anvil-config = { path = "../anvil-config", package = "eddacraft-anvil-config" }
 anvil-rules = { path = "../anvil-rules", package = "eddacraft-anvil-rules" }
+anvil-witness = { path = "../anvil-witness", package = "eddacraft-anvil-witness" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
