@@ -1,25 +1,133 @@
 use std::path::Path;
 
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
+use sha2::{Digest, Sha256};
 
 use crate::evaluator::Violation;
 
 /// A policy exception that suppresses matching violations.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct PolicyException {
+    /// Versioned on-disk schema. v0 records without this field deserialize as v1.
+    #[serde(default = "default_exception_schema_version")]
+    pub schema_version: String,
+    /// Stable exception identifier used by future grant/revoke surfaces.
+    #[serde(default)]
+    pub id: String,
     /// The policy ID to suppress (e.g. "AP-001").
     pub policy_id: String,
     /// Glob-style file pattern (e.g. "src/legacy/**"). Empty means all files.
     #[serde(default)]
     pub file_pattern: String,
+    /// Optional stable finding hash for a concrete diagnostic instance.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub finding_hash: Option<String>,
     /// Human-readable justification for the exception.
     pub reason: String,
+    /// Accountable team or owner for the exception.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owner: Option<String>,
+    /// Actor who created the exception.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created_by: Option<String>,
     /// When the exception was created.
     pub created_at: DateTime<Utc>,
     /// Optional expiry — the exception is ignored after this date.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<DateTime<Utc>>,
+    /// Soft-delete audit trail. Revoked exceptions remain in the tracked store.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub revoked: Option<ExceptionRevocation>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ExceptionRevocation {
+    /// When the exception was revoked.
+    pub revoked_at: DateTime<Utc>,
+    /// Actor who revoked the exception.
+    pub revoked_by: String,
+    /// Human-readable revocation reason.
+    pub reason: String,
+}
+
+#[derive(Deserialize)]
+struct RawPolicyException {
+    #[serde(default = "default_exception_schema_version")]
+    schema_version: String,
+    #[serde(default)]
+    id: String,
+    policy_id: String,
+    #[serde(default)]
+    file_pattern: String,
+    #[serde(default)]
+    finding_hash: Option<String>,
+    reason: String,
+    #[serde(default)]
+    owner: Option<String>,
+    #[serde(default)]
+    created_by: Option<String>,
+    created_at: DateTime<Utc>,
+    #[serde(default)]
+    expires_at: Option<DateTime<Utc>>,
+    #[serde(default)]
+    revoked: Option<ExceptionRevocation>,
+}
+
+impl<'de> Deserialize<'de> for PolicyException {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let raw = RawPolicyException::deserialize(deserializer)?;
+        let id = if raw.id.is_empty() {
+            exception_id_from_parts(
+                &raw.policy_id,
+                &raw.file_pattern,
+                raw.created_at,
+                raw.finding_hash.as_deref(),
+            )
+        } else {
+            raw.id
+        };
+        Ok(Self {
+            schema_version: raw.schema_version,
+            id,
+            policy_id: raw.policy_id,
+            file_pattern: raw.file_pattern,
+            finding_hash: raw.finding_hash,
+            reason: raw.reason,
+            owner: raw.owner,
+            created_by: raw.created_by,
+            created_at: raw.created_at,
+            expires_at: raw.expires_at,
+            revoked: raw.revoked,
+        })
+    }
+}
+
+fn default_exception_schema_version() -> String {
+    "anvil.exception.v1".to_string()
+}
+
+fn exception_id_from_parts(
+    policy_id: &str,
+    file_pattern: &str,
+    created_at: DateTime<Utc>,
+    finding_hash: Option<&str>,
+) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(policy_id.as_bytes());
+    hasher.update([0]);
+    hasher.update(file_pattern.as_bytes());
+    hasher.update([0]);
+    hasher.update(created_at.to_rfc3339().as_bytes());
+    hasher.update([0]);
+    if let Some(finding_hash) = finding_hash {
+        hasher.update(finding_hash.as_bytes());
+    }
+    let digest = hasher.finalize();
+    format!("exc_{}", hex::encode(&digest[..12]))
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -276,19 +384,11 @@ impl ExceptionStore {
         let dir = workspace_root.join(EXCEPTIONS_FILE);
         let dir = dir.parent().expect("EXCEPTIONS_FILE has a parent");
         std::fs::create_dir_all(dir)?;
-        // Check-create-check, mirroring WitnessWriter::ensure_tree: a
-        // hostile process could race a symlink into place between the
-        // caller's refuse_symlinked_store_paths() and create_dir_all above
-        // — re-verify the directory we are about to lock+write through.
-        match std::fs::symlink_metadata(dir) {
-            Ok(meta) if meta.file_type().is_symlink() => {
-                return Err(ExceptionError::SymlinkedPath {
-                    path: dir.to_path_buf(),
-                });
-            }
-            Ok(_) => {}
-            Err(e) => return Err(e.into()),
-        }
+        // Check-create-check, mirroring WitnessWriter::ensure_tree: a hostile
+        // process could race a symlink into any governed component between the
+        // caller's guard and create_dir_all above. Re-check the whole path
+        // before opening the lock or writing through it.
+        refuse_symlinked_store_paths(workspace_root)?;
         let lock_path = dir.join(LOCK_FILE_NAME);
         let lock_file = std::fs::OpenOptions::new()
             .create(true)
@@ -315,18 +415,35 @@ impl ExceptionStore {
     pub fn active_exceptions_at(&self, now: DateTime<Utc>) -> Vec<&PolicyException> {
         self.exceptions
             .iter()
-            .filter(|e| !is_expired(e, now))
+            .filter(|e| !is_revoked(e) && !is_expired(e, now))
             .collect()
     }
 
     /// Adds a new exception.
-    pub fn add(&mut self, exception: PolicyException) {
+    pub fn add(&mut self, mut exception: PolicyException) {
+        exception.ensure_schema_defaults();
         self.exceptions.push(exception);
     }
 
     /// Removes all exceptions for the given policy ID.
     pub fn remove_by_policy(&mut self, policy_id: &str) {
         self.exceptions.retain(|e| e.policy_id != policy_id);
+    }
+}
+
+impl PolicyException {
+    fn ensure_schema_defaults(&mut self) {
+        if self.schema_version.is_empty() {
+            self.schema_version = default_exception_schema_version();
+        }
+        if self.id.is_empty() {
+            self.id = exception_id_from_parts(
+                &self.policy_id,
+                &self.file_pattern,
+                self.created_at,
+                self.finding_hash.as_deref(),
+            );
+        }
     }
 }
 
@@ -422,11 +539,19 @@ pub fn is_suppressed_at(
     now: DateTime<Utc>,
 ) -> bool {
     exceptions.iter().any(|ex| {
+        if is_revoked(ex) {
+            return false;
+        }
         if is_expired(ex, now) {
             return false;
         }
         if ex.policy_id != violation.policy_id {
             return false;
+        }
+        if let Some(finding_hash) = ex.finding_hash.as_deref() {
+            if violation.fingerprint.as_deref() != Some(finding_hash) {
+                return false;
+            }
         }
         if ex.file_pattern.is_empty() {
             return true;
@@ -449,6 +574,10 @@ pub fn filter_suppressed(
 
 fn is_expired(exception: &PolicyException, now: DateTime<Utc>) -> bool {
     exception.expires_at.is_some_and(|exp| now > exp)
+}
+
+fn is_revoked(exception: &PolicyException) -> bool {
+    exception.revoked.is_some()
 }
 
 /// Glob matching using the `glob` crate's `Pattern` type.
@@ -491,13 +620,125 @@ mod tests {
     }
 
     fn make_exception(policy_id: &str, file_pattern: &str) -> PolicyException {
+        let created_at = Utc::now();
         PolicyException {
+            schema_version: default_exception_schema_version(),
+            id: exception_id_from_parts(policy_id, file_pattern, created_at, None),
             policy_id: policy_id.to_string(),
             file_pattern: file_pattern.to_string(),
+            finding_hash: None,
             reason: "legacy code".to_string(),
-            created_at: Utc::now(),
+            owner: None,
+            created_by: None,
+            created_at,
             expires_at: None,
+            revoked: None,
         }
+    }
+
+    // --- EXCEPT-003 enriched schema ---
+
+    #[test]
+    fn exception_schema_serialises_v1_attribution_and_revocation() {
+        let created_at = DateTime::parse_from_rfc3339("2026-06-08T10:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let revoked_at = DateTime::parse_from_rfc3339("2026-06-09T10:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let exception = PolicyException {
+            schema_version: "anvil.exception.v1".to_string(),
+            id: "exc_01jz0example".to_string(),
+            policy_id: "AP-001".to_string(),
+            file_pattern: "src/legacy/**".to_string(),
+            finding_hash: Some("sha256:abc123".to_string()),
+            reason: "intentional legacy boundary".to_string(),
+            owner: Some("team-platform".to_string()),
+            created_by: Some("alice@example.test".to_string()),
+            created_at,
+            expires_at: None,
+            revoked: Some(ExceptionRevocation {
+                revoked_at,
+                revoked_by: "bob@example.test".to_string(),
+                reason: "migration complete".to_string(),
+            }),
+        };
+
+        let value = serde_json::to_value(&exception).unwrap();
+
+        assert_eq!(value["schema_version"], "anvil.exception.v1");
+        assert_eq!(value["id"], "exc_01jz0example");
+        assert_eq!(value["finding_hash"], "sha256:abc123");
+        assert_eq!(value["owner"], "team-platform");
+        assert_eq!(value["created_by"], "alice@example.test");
+        assert_eq!(value["revoked"]["revoked_by"], "bob@example.test");
+    }
+
+    #[test]
+    fn exception_schema_deserialises_v0_shape_with_defaults() {
+        let exception: PolicyException = serde_json::from_str(
+            r#"{
+              "policy_id": "AP-001",
+              "file_pattern": "src/**",
+              "reason": "legacy code",
+              "created_at": "2026-06-08T10:00:00Z"
+            }"#,
+        )
+        .unwrap();
+
+        assert_eq!(exception.schema_version, "anvil.exception.v1");
+        assert!(!exception.id.is_empty());
+        assert_eq!(exception.finding_hash, None);
+        assert_eq!(exception.owner, None);
+        assert_eq!(exception.created_by, None);
+        assert_eq!(exception.revoked, None);
+    }
+
+    #[test]
+    fn exception_schema_keeps_flat_store_layout() {
+        let store_json = serde_json::to_value(ExceptionStore {
+            exceptions: vec![make_exception("AP-001", "src/**")],
+            source: StoreSource::Fresh,
+        })
+        .unwrap();
+
+        assert!(store_json.get("exceptions").is_some());
+        assert!(store_json.get("active").is_none());
+        assert!(store_json.get("revoked").is_none());
+    }
+
+    #[test]
+    fn exception_schema_revoked_entries_are_inactive_without_erasure() {
+        let v = make_violation("AP-001", "src/foo.ts");
+        let mut ex = make_exception("AP-001", "src/**");
+        ex.revoked = Some(ExceptionRevocation {
+            revoked_at: Utc::now(),
+            revoked_by: "alice@example.test".to_string(),
+            reason: "no longer needed".to_string(),
+        });
+
+        assert!(!is_suppressed(&v, &[ex.clone()]));
+        assert!(ex.revoked.is_some());
+    }
+
+    #[test]
+    fn exception_schema_finding_hash_limits_suppression_to_matching_fingerprint() {
+        let mut v = make_violation("AP-001", "src/foo.ts");
+        v.fingerprint = Some("sha256:match".to_string());
+        let mut ex = make_exception("AP-001", "src/**");
+        ex.finding_hash = Some("sha256:match".to_string());
+
+        assert!(is_suppressed(&v, &[ex]));
+    }
+
+    #[test]
+    fn exception_schema_finding_hash_does_not_suppress_different_fingerprint() {
+        let mut v = make_violation("AP-001", "src/foo.ts");
+        v.fingerprint = Some("sha256:other".to_string());
+        let mut ex = make_exception("AP-001", "src/**");
+        ex.finding_hash = Some("sha256:match".to_string());
+
+        assert!(!is_suppressed(&v, &[ex]));
     }
 
     #[test]
@@ -532,11 +773,17 @@ mod tests {
     fn expired_exception_is_ignored() {
         let v = make_violation("AP-001", "src/foo.ts");
         let ex = PolicyException {
+            schema_version: default_exception_schema_version(),
+            id: exception_id_from_parts("AP-001", "", Utc::now() - Duration::days(30), None),
             policy_id: "AP-001".to_string(),
             file_pattern: String::new(),
+            finding_hash: None,
             reason: "temporary".to_string(),
+            owner: None,
+            created_by: None,
             created_at: Utc::now() - Duration::days(30),
             expires_at: Some(Utc::now() - Duration::days(1)),
+            revoked: None,
         };
         assert!(!is_suppressed(&v, &[ex]));
     }
@@ -545,11 +792,17 @@ mod tests {
     fn non_expired_exception_applies() {
         let v = make_violation("AP-001", "src/foo.ts");
         let ex = PolicyException {
+            schema_version: default_exception_schema_version(),
+            id: exception_id_from_parts("AP-001", "", Utc::now(), None),
             policy_id: "AP-001".to_string(),
             file_pattern: String::new(),
+            finding_hash: None,
             reason: "temporary".to_string(),
+            owner: None,
+            created_by: None,
             created_at: Utc::now(),
             expires_at: Some(Utc::now() + Duration::days(7)),
+            revoked: None,
         };
         assert!(is_suppressed(&v, &[ex]));
     }
@@ -624,18 +877,30 @@ mod tests {
         let now = Utc::now();
 
         store.add(PolicyException {
+            schema_version: default_exception_schema_version(),
+            id: exception_id_from_parts("AP-001", "", now, None),
             policy_id: "AP-001".to_string(),
             file_pattern: String::new(),
+            finding_hash: None,
             reason: "still valid".to_string(),
+            owner: None,
+            created_by: None,
             created_at: now,
             expires_at: Some(now + Duration::days(7)),
+            revoked: None,
         });
         store.add(PolicyException {
+            schema_version: default_exception_schema_version(),
+            id: exception_id_from_parts("AP-002", "", now - Duration::days(30), None),
             policy_id: "AP-002".to_string(),
             file_pattern: String::new(),
+            finding_hash: None,
             reason: "expired".to_string(),
+            owner: None,
+            created_by: None,
             created_at: now - Duration::days(30),
             expires_at: Some(now - Duration::days(1)),
+            revoked: None,
         });
 
         let active = store.active_exceptions();

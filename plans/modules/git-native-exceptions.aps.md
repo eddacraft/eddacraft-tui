@@ -17,8 +17,9 @@
 > `anvil/exceptions/store.json` does nothing) until EXCEPT-006 wires
 > evaluation, and the first write surface is gated on the EXCEPT-007
 > hardening contract.
-> Remaining items (schema enrichment, CLI, L3/L4 + capsule integration) stay
-> Proposed pending review. Brainstorm:
+> EXCEPT-003 is Done after ADR-073 and EXCEPT-007 cleared the required
+> state-boundary and write-path gates. Remaining CLI, L3/L4, and capsule
+> integration items stay Proposed pending next-work authorisation. Brainstorm:
 > [`../brainstorms/git-native-governance/`](../brainstorms/git-native-governance/).
 
 ## Purpose
@@ -69,9 +70,9 @@ Enforcement of unrelated policy classes; the inline `@anvil-ignore` path
 ### EXCEPT-003: Enriched `anvil.exception.v1` schema
 - **Intent:** Add owner/`created_by` attribution, stable exception id, finding hash, and a revoked (soft-delete) audit trail; keep backward-compatible deserialisation of the v0 shape. Decide the on-disk layout explicitly — v0 shipped a flat `store.json`, while the brainstorm (`architecture.md` §2.3, `solution.md` §5.6) sketches per-exception files under `active/`/`revoked/` — so the layout choice is deliberate, not inherited.
 - **Expected Outcome:** Schema supports grant/revoke without erasure.
-- **Validation:** `cargo test -p eddacraft-anvil-policy -- exception_schema`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- exception_schema` (6 passed, 2026-06-08)
 - **Dependencies:** EXCEPT-001
-- **Status:** Proposed
+- **Status:** Done
 
 ### EXCEPT-004: Grant/revoke/list/show CLI
 - **Intent:** `anvil exception grant|revoke|list|show` writing tracked records via `ExceptionStore::update` (the EXCEPT-007 locked primitive). Writes are **explicit-only** (human-invoked grant/revoke); no evaluation or check command writes the store implicitly, so checks never dirty a worktree. On `WriteOutcome::SkippedReadOnly`, warn and log the underlying I/O error at verbose level — the outcome deliberately conflates read-only checkouts with permission misconfig, so the diagnostic must be reachable (2026-06-08 council).
