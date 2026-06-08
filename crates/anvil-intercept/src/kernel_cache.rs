@@ -622,6 +622,94 @@ mod tests {
         );
     }
 
+    /// GV2-029: the common case the symbol-identity diff alone misses. An
+    /// **all-public** file's first `node:fs` import — every symbol is already
+    /// `Boundary`, so its `Boundary → Privileged` shift nets zero
+    /// `added_privileged` against the `Privileged ∪ Boundary` baseline. The
+    /// `newly_privileged_imports` module-surface dimension catches it. Before
+    /// that dimension, this edit false-certified clean even with the wiring.
+    #[test]
+    fn privilege_certify_withholds_clean_on_all_public_node_fs_import() {
+        use anvil_graph_cache::certify::{Certifiability, CertifyStale, certify};
+
+        let cache = KernelGraphCache::new();
+        let k = key("api");
+
+        cache.apply_delta(
+            &k,
+            ChangeKind::Create,
+            file_symbols("api.ts", &["getData"], &[], 0),
+        );
+        let outcome = cache.apply_delta(
+            &k,
+            ChangeKind::ContentModify,
+            file_symbols("api.ts", &["getData"], &["node:fs"], 10),
+        );
+
+        let verdict = cache
+            .with_graphs(&k, |sym, dep| {
+                certify(sym, dep, &ChangeKind::ContentModify, &outcome.delta, 64)
+            })
+            .expect("warm key present after apply");
+
+        assert!(
+            matches!(
+                verdict,
+                Certifiability::Partial {
+                    reason: CertifyStale::ExportSurfaceChange
+                }
+            ),
+            "an all-public file gaining node:fs must not certify clean, got {verdict:?}"
+        );
+    }
+
+    /// GV2-029: a **second** capability added to an already-privileged file
+    /// (`fs` → `fs + child_process`). `annotate_trust` is file-granular, so every
+    /// symbol was already `Privileged` and the symbol-identity sets are empty —
+    /// only the `newly_privileged_imports` module diff sees the new capability.
+    #[test]
+    fn privilege_certify_withholds_clean_on_second_capability_import() {
+        use anvil_graph_cache::certify::{Certifiability, CertifyStale, certify};
+
+        let cache = KernelGraphCache::new();
+        let k = key("api2");
+
+        cache.apply_delta(
+            &k,
+            ChangeKind::Create,
+            file_symbols("api.ts", &["getData"], &[], 0),
+        );
+        // Already privileged via node:fs.
+        cache.apply_delta(
+            &k,
+            ChangeKind::ContentModify,
+            file_symbols("api.ts", &["getData"], &["node:fs"], 10),
+        );
+        // The edit under test: add child_process — a genuinely new capability
+        // that changes no symbol identity (all symbols were already Privileged).
+        let outcome = cache.apply_delta(
+            &k,
+            ChangeKind::ContentModify,
+            file_symbols("api.ts", &["getData"], &["node:fs", "child_process"], 20),
+        );
+
+        let verdict = cache
+            .with_graphs(&k, |sym, dep| {
+                certify(sym, dep, &ChangeKind::ContentModify, &outcome.delta, 64)
+            })
+            .expect("warm key present after apply");
+
+        assert!(
+            matches!(
+                verdict,
+                Certifiability::Partial {
+                    reason: CertifyStale::ExportSurfaceChange
+                }
+            ),
+            "adding child_process to an already-privileged file must not certify clean, got {verdict:?}"
+        );
+    }
+
     #[test]
     fn apply_delta_consumes_fed_file_symbols_not_a_daemon_parse() {
         // The contract: apply_delta takes already-parsed FileSymbols and builds

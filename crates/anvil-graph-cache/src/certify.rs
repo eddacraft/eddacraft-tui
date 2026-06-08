@@ -43,11 +43,12 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-use anvil_kernel_types::{SymbolIdentity, SymbolKind, Visibility};
+use anvil_kernel_types::{EdgeType, SymbolIdentity, SymbolKind, TrustLevel, Visibility};
 
 use crate::dependency::DependencyGraph;
 use crate::incremental::GraphDelta;
 use crate::symbol_graph::SymbolGraph;
+use crate::trust::is_privileged_import;
 
 /// The shape of a single changed path, reduced to what certifiability needs.
 ///
@@ -159,10 +160,27 @@ pub struct ExportSurfaceDiff {
     pub added_privileged: Vec<SymbolIdentity>,
     /// Privileged identities present before the update but not after.
     pub removed_privileged: Vec<SymbolIdentity>,
+    /// Privileged *module* specifiers (e.g. `node:fs`, `child_process`) this
+    /// file imports after the update but did not before — the side-effect
+    /// **surface** dimension, orthogonal to the symbol-identity sets above
+    /// (GV2-029).
+    ///
+    /// Necessary because `annotate_trust` is *file-granular*: one privileged
+    /// import marks **every** symbol in the file `Privileged`. So a Boundary →
+    /// Privileged escalation on an all-public file nets zero `added_privileged`
+    /// against the `Privileged ∪ Boundary` baseline, and a *second* capability
+    /// added to an already-privileged file (e.g. `fs` → `fs + child_process`)
+    /// changes no symbol identity at all. Diffing the privileged module imports
+    /// directly is a separate monotone check — fail-closed on growth, and
+    /// rename-robust (a rename inside a privileged file leaves the import set
+    /// untouched). De-escalation (a privileged import removed) is intentionally
+    /// *not* flagged here: dropping a capability is the safe direction.
+    pub newly_privileged_imports: Vec<String>,
 }
 
 impl ExportSurfaceDiff {
-    /// True when the public and privileged surfaces are both unchanged.
+    /// True when the public, privileged, and privileged-import surfaces are all
+    /// unchanged.
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.added_public.is_empty()
@@ -170,6 +188,7 @@ impl ExportSurfaceDiff {
             && self.renamed_public.is_empty()
             && self.added_privileged.is_empty()
             && self.removed_privileged.is_empty()
+            && self.newly_privileged_imports.is_empty()
     }
 }
 
@@ -179,13 +198,26 @@ impl ExportSurfaceDiff {
 /// the post-update graph state for the same file, over stable identities.
 /// Body-only edits produce an empty diff.
 ///
-/// The elevated-surface comparison is `Privileged ∪ Boundary` on both sides
-/// (`previously_privileged ∪ previously_boundary` vs the
-/// [`is_elevated_trust`](crate::incremental::is_elevated_trust) filter),
-/// closing spec gap G-06. Note `annotate_trust` assigns `Boundary` to every
-/// public symbol outside privileged files, so where it has run, a new public
-/// symbol appears in **both** `added_public` and `added_privileged` — the
-/// overlap is by construction, not double-counting.
+/// Two orthogonal trust dimensions are diffed independently (a product
+/// lattice: a join on one axis must never absorb a rise on the other):
+///
+/// 1. **Symbol-identity elevation** (`added_privileged` / `removed_privileged`):
+///    the elevated-surface comparison is `Privileged ∪ Boundary` on both sides
+///    (`previously_privileged ∪ previously_boundary` vs the
+///    [`is_elevated_trust`](crate::incremental::is_elevated_trust) filter),
+///    closing spec gap G-06. Note `annotate_trust` assigns `Boundary` to every
+///    public symbol outside privileged files, so where it has run, a new public
+///    symbol appears in **both** `added_public` and `added_privileged` — the
+///    overlap is by construction, not double-counting.
+/// 2. **Privileged-module surface** (`newly_privileged_imports`): a monotone
+///    add-only diff of the file's privileged module imports against the
+///    privileged subset of `previously_imported` (GV2-029). The union in (1)
+///    masks a `Boundary → Privileged` escalation on an all-public file, and a
+///    second capability added to an already-privileged file moves no symbol
+///    identity, so this axis is what makes the daemon certify path actually
+///    withhold-clean on privilege expansion (the kernel `PrivilegeExpansion`
+///    invariant that would otherwise catch it is deliberately off the save-time
+///    hot path — ADR-061 §6).
 ///
 /// Reads only the `previously_*` baselines and the post-update graph; never
 /// touches `delta.removed_edges` (the certify verdict reads importers from the
@@ -244,6 +276,47 @@ pub fn export_surface_diff(sym: &SymbolGraph, delta: &GraphDelta) -> ExportSurfa
     added_privileged.sort();
     removed_privileged.sort();
 
+    // GV2-029: the side-effect-surface dimension. The file's privileged module
+    // imports now (read off the post-update graph's resolved `Imports` targets —
+    // a `node:fs` import resolves to a synthetic external `Module` node whose
+    // `file` is the specifier `"node:fs"`) vs the privileged subset of the
+    // pre-update `previously_imported` baseline. A monotone add-only diff: a
+    // privileged module the file did not import before is an escalation,
+    // independent of the symbol-identity sets above (which `annotate_trust`'s
+    // file-granular `Privileged` stamping makes blind to it).
+    //
+    // Only synthetic *external* module placeholders count (`resolve_import`
+    // stamps bare specifiers `kind = Module, trust = External`). Without that
+    // guard a benign relative import to a project file named exactly `net`/`fs`/
+    // … (resolved `file` == the bare token) would be misclassified privileged by
+    // `is_privileged_import` and falsely withhold. Resolved relative imports
+    // never produce an `External` `Module` node, so the guard excludes them.
+    //
+    // Known limitation (shared with `annotate_trust` and the kernel
+    // `PrivilegeExpansion` invariant): `FileSymbols.reexports` is not yet lifted
+    // into the graph, so a privileged capability reached via
+    // `export * from 'node:fs'` produces no `Imports` edge and is invisible here.
+    // Closing it needs the graph to carry re-export edges — a separate follow-up.
+    let current_privileged_imports: HashSet<String> = sym
+        .symbols_in_file(&delta.file)
+        .into_iter()
+        .flat_map(|s| sym.outgoing_edges(s.id))
+        .filter(|e| e.edge_type == EdgeType::Imports)
+        .filter_map(|e| sym.get_symbol(e.to))
+        .filter(|t| {
+            t.kind == SymbolKind::Module
+                && t.trust_level == TrustLevel::External
+                && is_privileged_import(&t.file)
+        })
+        .map(|t| t.file.clone())
+        .collect();
+    let mut newly_privileged_imports: Vec<String> = current_privileged_imports
+        .iter()
+        .filter(|src| !delta.previously_imported.contains(*src))
+        .cloned()
+        .collect();
+    newly_privileged_imports.sort();
+
     // Counts only — never identity values — so the trace stays inside the
     // privacy verdict's PV-10 label rules even if it is ever piped further.
     tracing::debug!(
@@ -253,6 +326,7 @@ pub fn export_surface_diff(sym: &SymbolGraph, delta: &GraphDelta) -> ExportSurfa
         renamed_public = renamed_public.len(),
         added_privileged = added_privileged.len(),
         removed_privileged = removed_privileged.len(),
+        newly_privileged_imports = newly_privileged_imports.len(),
         "export surface diff computed"
     );
 
@@ -262,6 +336,7 @@ pub fn export_surface_diff(sym: &SymbolGraph, delta: &GraphDelta) -> ExportSurfa
         renamed_public,
         added_privileged,
         removed_privileged,
+        newly_privileged_imports,
     }
 }
 
@@ -451,10 +526,25 @@ pub fn certify(
                     reason: CertifyStale::UnreliableGraph,
                 };
             }
-            if !export_surface_changed(sym, delta) {
+            let surface = export_surface_diff(sym, delta);
+            if surface.is_empty() {
                 return Certifiability::Certified {
                     paths: vec![PathBuf::from(&delta.file)],
                 };
+            }
+            // GV2-029: surface a privilege escalation above `debug` so an
+            // operator can see (and rate-track) the daemon withholding clean on
+            // a newly-privileged surface — a bad shared-module deploy that now
+            // imports `node:fs` should not be invisible. Counts only, never
+            // identity/path values, to stay inside the PV-10 label rules.
+            if !surface.added_privileged.is_empty() || !surface.newly_privileged_imports.is_empty()
+            {
+                tracing::warn!(
+                    target: "anvil_graph_cache::certify",
+                    added_privileged = surface.added_privileged.len(),
+                    newly_privileged_imports = surface.newly_privileged_imports.len(),
+                    "certify withholding clean: privilege surface expanded"
+                );
             }
             // The closure is computed only to distinguish overflow from a
             // bounded impact set; the impacted paths themselves are unused in
@@ -629,6 +719,65 @@ mod tests {
         let diff = export_surface_diff(&sym, &delta);
         assert_eq!(diff.added_privileged.len(), 1);
         assert!(export_surface_changed(&sym, &delta));
+    }
+
+    /// Attach an `Imports` edge from `a.ts`'s symbol id 0 to a target node, so
+    /// the module-surface diff (GV2-029) has an edge to read.
+    fn graph_importing(target: SymbolNode) -> SymbolGraph {
+        use anvil_kernel_types::{EdgeType, SymbolEdge};
+        let mut g = sym_with(
+            "a.ts",
+            &[("entry", Visibility::Public, TrustLevel::Unknown)],
+        );
+        let target_id = target.id;
+        g.add_symbol(target).unwrap();
+        g.add_edge(SymbolEdge {
+            from: 0,
+            to: target_id,
+            edge_type: EdgeType::Imports,
+        })
+        .unwrap();
+        g
+    }
+
+    #[test]
+    fn newly_privileged_module_import_is_surface_change() {
+        // GV2-029: a.ts imports an external `node:fs` module node not present in
+        // previously_imported → the module-surface dimension fires.
+        let sym = graph_importing(SymbolNode {
+            id: 100,
+            kind: SymbolKind::Module,
+            name: "node:fs".to_string(),
+            visibility: Visibility::Public,
+            file: "node:fs".to_string(),
+            trust_level: TrustLevel::External,
+        });
+        let delta = delta_for("a.ts", &["entry"], &[]); // previously_imported empty
+        let diff = export_surface_diff(&sym, &delta);
+        assert_eq!(diff.newly_privileged_imports, vec!["node:fs".to_string()]);
+        assert!(export_surface_changed(&sym, &delta));
+    }
+
+    #[test]
+    fn relative_import_to_file_named_like_a_module_does_not_fire() {
+        // Attack-3 guard: a benign relative import resolving to a project file
+        // literally named "net" (a real Function symbol, Internal trust — NOT an
+        // External Module placeholder) must NOT be misread as a privileged
+        // module import, even though is_privileged_import("net") is true.
+        let sym = graph_importing(SymbolNode {
+            id: 100,
+            kind: SymbolKind::Function,
+            name: "handler".to_string(),
+            visibility: Visibility::Public,
+            file: "net".to_string(),
+            trust_level: TrustLevel::Internal,
+        });
+        let delta = delta_for("a.ts", &["entry"], &[]);
+        let diff = export_surface_diff(&sym, &delta);
+        assert!(
+            diff.newly_privileged_imports.is_empty(),
+            "a relative import to a project file named 'net' must not read as a privileged module"
+        );
     }
 
     #[test]

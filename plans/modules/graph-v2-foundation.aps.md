@@ -677,6 +677,32 @@ Change status to **Ready** when:
   every `apply_delta` on the daemon path, so the `certify` privilege dimension
   is live (a `node:fs`-importing privilege-expanding change no longer
   false-certifies). Landed in the GV2-027 stack.
+- **Post-merge gap closed (2026-06-09):** the #2446 wiring was **necessary but
+  insufficient** for the Expected Outcome. `annotate_trust` is file-granular and
+  `certify::export_surface_diff` unions `Privileged ∪ Boundary`, so an
+  **all-public** file's first `node:fs` import (the common case) and a *second*
+  capability added to an already-privileged file (`fs → fs + child_process`)
+  **still false-certified clean** — verified `Certified` against `main`. The
+  kernel `PrivilegeExpansion` invariant that would catch it is deliberately off
+  the save-time hot path (ADR-061 §6) and the daemon does not run the policy
+  engine (ADR-064). Closed by adding an orthogonal **privileged-module-surface**
+  check to `certify` (`newly_privileged_imports`: current privileged module
+  imports `\` the privileged subset of `previously_imported`), scoped to external
+  module nodes (so a relative import to a project file named `net`/`fs` is not a
+  false withhold). Selected via a design council + pattern research over wiring
+  the policy engine (fights ADR-061 §6 / ADR-064, breaks GV2-027 parity) and a
+  full product-lattice refactor (A+, deferred). Counts-only `tracing::warn!` on a
+  privilege-withhold (PV-10). Tests: `privilege_certify_withholds_clean_on_*`
+  (all-public, second-capability) + `certify::tests::{newly_privileged_module_import_is_surface_change,
+  relative_import_to_file_named_like_a_module_does_not_fire}`.
+- **Residual follow-ups (named):** `PRIVILEGED_MODULES` is a frozen list missing
+  `worker_threads`/`os`/`vm`/`dns`/`tls`/`dgram`/`v8`; `annotate_trust` runs O(N)
+  over the whole warm graph per save under the cache `Mutex` (incremental
+  annotation is a hot-path follow-up); `FileSymbols.reexports` is not lifted into
+  the graph, so a capability reached via `export * from 'node:fs'` is invisible to
+  `annotate_trust`, this check, **and** the kernel `PrivilegeExpansion` invariant
+  alike (shared model gap); and **A+** (refactor `ExportSurfaceDiff` into
+  first-class per-axis monotone predicates) is the durable product-lattice form.
 - **Intent:** Per the owner decision to **claim privilege containment**, call
   `annotate_trust` on the daemon apply path (today it is never called, so
   `trust_level` is always `Unknown` and `previously_privileged` always empty —

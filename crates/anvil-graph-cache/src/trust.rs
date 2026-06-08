@@ -24,7 +24,11 @@ fn is_external_import(source: &str) -> bool {
 /// Matches the bare name (`"fs"`) or the `node:` prefixed form (`"node:fs"`)
 /// as an exact token so that unrelated packages (e.g. `fsevents`, `http-errors`)
 /// are not misclassified.
-fn is_privileged_import(source: &str) -> bool {
+///
+/// `pub(crate)` so `certify::export_surface_diff` can diff the file's privileged
+/// *module* imports directly (GV2-029) — the side-effect-surface dimension that
+/// is orthogonal to the symbol-identity trust diff.
+pub(crate) fn is_privileged_import(source: &str) -> bool {
     let module = source.strip_prefix("node:").unwrap_or(source);
     // Only match the top-level module name (before any `/` subpath).
     let token = module.split('/').next().unwrap_or(module);
