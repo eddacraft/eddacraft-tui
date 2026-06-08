@@ -128,6 +128,8 @@ mod tests {
             cache_invalidations_total: None,
             in_flight_evaluations: None,
             cache_invalidations_rate_limited: None,
+            telemetry_subscriber_count: None,
+            telemetry_dropped_envelopes: None,
             generated_at_unix: 0,
         }
     }

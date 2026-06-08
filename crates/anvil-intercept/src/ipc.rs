@@ -2871,7 +2871,7 @@ fn dispatch_session_jsonrpc<D: SessionDispatcher>(
                 worktree,
                 ..
             } = &command
-                && let Some(save_time) = save_time.as_deref_mut()
+                && let Some(save_time) = &mut save_time
             {
                 save_time.set_originating_session(session_id.as_str(), worktree);
             }
