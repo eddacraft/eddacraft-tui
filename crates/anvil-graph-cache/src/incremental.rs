@@ -510,6 +510,28 @@ pub(crate) fn resolve_import(
 /// Re-resolve imports that could not be resolved during initial scan because
 /// the target file had not been parsed yet.
 pub fn re_resolve_imports(graph: &mut SymbolGraph, imports: &[ImportEdge]) {
+    let _ = re_resolve_imports_tracked(graph, imports);
+}
+
+/// Like [`re_resolve_imports`], but returns the symbol-graph `Imports` edges it
+/// actually added (this generation's `(from, to, EdgeType)` ids).
+///
+/// GV2-011: re-resolution can re-bind a *surviving* import of a file other than
+/// the one being updated — e.g. when the file a specifier previously resolved to
+/// is deleted, a different candidate now wins (`resolve_import` matches by path
+/// suffix with shortest-path tie-breaking). An incremental consumer that
+/// maintains derived state (the dependency graph) cannot see those edge changes
+/// from the updated file's `GraphDelta` alone, so it would silently diverge from
+/// a cold rebuild. Returning the added edges lets the consumer refresh exactly
+/// the affected source files instead of re-deriving the whole graph.
+///
+/// Only *additions* are reported: this function never removes edges (an edge
+/// that ceased to resolve is dropped by `remove_file`/`update_file` removing the
+/// incident symbols, not here).
+pub fn re_resolve_imports_tracked(
+    graph: &mut SymbolGraph,
+    imports: &[ImportEdge],
+) -> Vec<(u64, u64, EdgeType)> {
     let known_files: Vec<String> = graph
         .inner()
         .node_weights()
@@ -518,6 +540,7 @@ pub fn re_resolve_imports(graph: &mut SymbolGraph, imports: &[ImportEdge]) {
         .into_iter()
         .collect();
 
+    let mut added = Vec::new();
     for import in imports {
         let from_id = graph
             .symbols_in_file(&import.from_file)
@@ -541,8 +564,11 @@ pub fn re_resolve_imports(graph: &mut SymbolGraph, imports: &[ImportEdge]) {
             to,
             edge_type: EdgeType::Imports,
         };
-        let _ = graph.add_edge(edge);
+        if graph.add_edge(edge).is_ok() {
+            added.push((from, to, EdgeType::Imports));
+        }
     }
+    added
 }
 
 /// Remove a deleted file from the graph entirely.

@@ -322,8 +322,8 @@ Change status to **Ready** when:
 
 #### GV2-011: Dependency/impact graph and incremental hot indexes
 
-- **Status:** Draft — `DependencyGraph` + reverse index shipped; the A′ win is
-  incremental maintenance.
+- **Status:** In Progress — incremental maintenance landing (the O(edges)
+  re-derive retired); benchmark binding is GV2-025.
 - **Intent:** Maintain the dependency/impact indexes incrementally so the daemon
   retires the O(edges) `derive_dependency_graph` full re-derive
   (`crates/anvil-intercept/src/kernel_cache.rs`) and reads warm, resident state.
@@ -341,6 +341,36 @@ Change status to **Ready** when:
 - **Confidence:** high
 - **Priority:** Critical
 - **Dependencies:** GV2-010
+- **Progress:** Incremental dependency-graph maintenance implemented — the
+  per-save full re-derive (`derive_dependency_graph` on the `apply_delta` hot
+  path) is retired in favour of `DependencyGraph::set_dependencies`
+  (`dependency.rs`). On each non-delete save the affected files are refreshed
+  individually: the changed file, its **prior dependents** (`update_file` drops
+  every `importer → file` edge incident to the file's old symbols, so each is
+  reconciled — re-added if still resolved, dropped if stale), and the **sources
+  of edges re-resolution adds** (`re_resolve_imports_tracked` — forward
+  references that just resolved, and surviving imports of *other* files that
+  re-bind to a new target after a deletion); a delete drops the file in both
+  directions. All bounded by the changed file's local neighbourhood, never the
+  whole graph. `derive_dependency_graph` survives only as the `#[cfg(test)]`
+  cold-rebuild oracle. Cold-rebuild equivalence is proven by a seeded-LCG
+  property test at the dep-graph layer
+  (`index_consistency_under_arbitrary_delta_sequence`, `eddacraft-anvil-graph-cache`)
+  and a multi-seed end-to-end one over arbitrary create/modify/delete/recreate +
+  forward-reference + ambiguous-rebind sequences
+  (`warm_dep_graph_matches_cold_rebuild_over_arbitrary_sequence`,
+  `eddacraft-anvil-intercept`), plus a focused regression for the re-resolution
+  re-bind case a Council CRITICAL surfaced
+  (`re_resolution_rebinds_surviving_import_after_target_delete`). The
+  **precomputed-vs-background read set** is
+  fixed by [ADR-063](../decisions/063-gv2-hot-path-boundary.md): the dependency
+  index serves the hot-path allowlist reads (#2 known-edge existence, #3 bounded
+  reverse impact via `dependents_of` at the hard-capped depth, #4 precomputed
+  architectural-index check) as bounded resident reads; everything on the ADR-063
+  denylist (cross-file resolution, transitive impact beyond the configured depth,
+  full-graph scans, index rebuilds) stays in the background pool. The typed
+  hot-read API + warm/stale markers (GV2-022), the depth lever (GV2-026), and the
+  Criterion budget gate (GV2-025) remain their own items.
 
 ---
 

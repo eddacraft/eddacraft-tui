@@ -18,6 +18,8 @@ pub use certify::{
     export_surface_diff,
 };
 pub use dependency::DependencyGraph;
-pub use incremental::{GraphDelta, re_resolve_imports, remove_file, update_file};
+pub use incremental::{
+    GraphDelta, re_resolve_imports, re_resolve_imports_tracked, remove_file, update_file,
+};
 pub use symbol_graph::{GraphError, GraphStats, SymbolGraph};
 pub use trust::annotate_trust;

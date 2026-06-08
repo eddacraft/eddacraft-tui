@@ -10,16 +10,23 @@
 //!
 //! # Dependency graph maintenance
 //!
-//! `apply_delta` mirrors `anvil-kernel`'s `watch.rs` exactly: it updates the
-//! `SymbolGraph` in place, maintains a per-key `all_imports` accumulator, and
+//! `apply_delta` mirrors `anvil-kernel`'s `watch.rs` for the `SymbolGraph`: it
+//! updates it in place, maintains a per-key `all_imports` accumulator, and
 //! re-runs [`re_resolve_imports`] so a forward reference (a file processed
-//! before its import target) resolves once the target lands. The
-//! `DependencyGraph` is then re-derived from the resolved import edges. This is
-//! the **interim** Sub-phase A backing: re-deriving is O(edges) per save, which
-//! the GV2 sub-phase A′ hot-read swap (ADR-063) later replaces with a resident
-//! incremental reverse index under the same frozen wire. Because the warm path
-//! runs the same update + re-resolve the cold rebuild does, the reverse index
-//! stays consistent with a cold rebuild across arbitrary delta sequences
+//! before its import target) resolves once the target lands.
+//!
+//! The `DependencyGraph` is **maintained incrementally** (GV2-011): the changed
+//! file's outgoing edges are refreshed via [`refresh_file_dependencies`]
+//! (`DependencyGraph::set_dependencies`), and when that file just became
+//! resident — the only case in which another file's forward reference can newly
+//! resolve against it — its dependents are refreshed too; a delete drops the
+//! file in both directions. This retires the O(all-edges)
+//! `derive_dependency_graph` full re-derive that the interim Sub-phase A backing
+//! ran per save (ADR-063 / GV2 sub-phase A′), under the same frozen wire. The
+//! incrementally-maintained index stays structurally equal to a cold rebuild
+//! across arbitrary delta sequences — proven by the dep-graph property test
+//! (`index_consistency_under_arbitrary_delta_sequence`,
+//! `eddacraft-anvil-graph-cache`) and the end-to-end equivalence test here
 //! (`reverse_index_consistent_after_delta`). The `SymbolGraph` itself is mutated
 //! in place (never rebuilt).
 //!
@@ -41,12 +48,12 @@
 //! assurance *state machine* that consumes these lands with the `validate_paths`
 //! orchestration (DSV-005).
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::sync::Mutex;
 
 use anvil_graph_cache::certify::ChangeKind;
 use anvil_graph_cache::{
-    DependencyGraph, GraphDelta, SymbolGraph, re_resolve_imports, remove_file, update_file,
+    DependencyGraph, GraphDelta, SymbolGraph, re_resolve_imports_tracked, remove_file, update_file,
 };
 use anvil_intercept_proto::protocol::StaleReason;
 use anvil_kernel_types::{EdgeType, FileSymbols, ImportEdge};
@@ -222,8 +229,9 @@ impl KernelGraphCache {
     /// [`anvil_graph_cache::update_file`] then retry forward-reference imports
     /// via [`anvil_graph_cache::re_resolve_imports`]; `Delete` drops the file
     /// via [`anvil_graph_cache::remove_file`] (its `symbols.file` names the
-    /// path). The `DependencyGraph` is re-derived from the updated
-    /// `SymbolGraph`. A `Delete` against a key with no warm pair is a no-op: it
+    /// path). The `DependencyGraph` is then maintained **incrementally** from
+    /// the same edge changes (GV2-011) — no whole-graph re-derive. A `Delete`
+    /// against a key with no warm pair is a no-op: it
     /// builds no phantom entry and returns `cold_reason: None` (there is nothing
     /// to invalidate).
     pub fn apply_delta(
@@ -266,20 +274,53 @@ impl KernelGraphCache {
         let delta = if change == ChangeKind::Delete {
             let delta = remove_file(&mut entry.sym, &file);
             entry.all_imports.retain(|i| i.from_file != file);
+            // GV2-011: a delete drops the file in both directions; no re-derive.
+            // `remove_file` clears the reverse index, so dependents that imported
+            // it correctly lose the edge.
+            entry.dep.remove_file(&file);
             delta
         } else {
             // ContentModify / Create / Rename(destination) re-extract the file's
             // symbols, then retry every accumulated import so a forward
             // reference (a file processed before its target) resolves once the
             // target lands — matching the cold-rebuild path (watch.rs).
+            //
+            // GV2-011: maintain the dependency graph incrementally rather than
+            // re-deriving the whole graph (the retired O(all-edges) cost). The set
+            // of files whose symbol-graph import edges can change in one update is
+            // the local neighbourhood, refreshed individually:
+            //  - `file` itself (its own imports were re-extracted);
+            //  - `file`'s prior dependents — `update_file` drops every edge
+            //    incident to `file`'s old symbols, including `importer → file`
+            //    edges, so each prior dependent must be reconciled (the edge is
+            //    re-added if still resolved, dropped if it was stale or no longer
+            //    resolves); captured before the symbol graph is mutated;
+            //  - the sources of edges re-resolution adds — forward references that
+            //    resolved now `file` exists, and surviving imports of *other*
+            //    files that re-bind to a new target (e.g. the file a specifier
+            //    resolved to was deleted, so a different candidate now wins).
             let new_imports = symbols.imports.clone();
+            let mut affected: BTreeSet<String> = entry
+                .dep
+                .dependents_of(&file)
+                .into_iter()
+                .map(str::to_string)
+                .collect();
+            affected.insert(file.clone());
             let delta = update_file(&mut entry.sym, symbols);
             entry.all_imports.retain(|i| i.from_file != file);
             entry.all_imports.extend(new_imports);
-            re_resolve_imports(&mut entry.sym, &entry.all_imports);
+            let readded = re_resolve_imports_tracked(&mut entry.sym, &entry.all_imports);
+            for (from, _to, _ty) in &readded {
+                if let Some(symbol) = entry.sym.get_symbol(*from) {
+                    affected.insert(symbol.file.clone());
+                }
+            }
+            for other in &affected {
+                refresh_file_dependencies(&mut entry.dep, &entry.sym, other);
+            }
             delta
         };
-        entry.dep = derive_dependency_graph(&entry.sym);
 
         let generation = guard.generations.get(key).copied().unwrap_or(0);
         ApplyOutcome {
@@ -317,9 +358,47 @@ fn evict_lru(inner: &mut Inner) {
     }
 }
 
+/// Refresh `file`'s outgoing dependency edges in `dep` from the current symbol
+/// graph, replacing them with the file's resolved cross-file import targets.
+///
+/// GV2-011: this is the bounded, incremental replacement for the whole-graph
+/// `derive_dependency_graph` re-derive. Cost is O(file's symbols × their import
+/// edges) — the local neighbourhood, never the whole graph. Intra-file edges
+/// are skipped, matching the cold rebuild.
+///
+/// The dependency graph today is built from `EdgeType::Imports` edges only —
+/// consistent with the cold oracle [`derive_dependency_graph`] and the symbol
+/// graph, which carries only `Imports` edges (`FileSymbols.reexports` is not yet
+/// lifted into the graph). If a future change lifts another dependency-bearing
+/// edge kind (e.g. `EdgeType::Reexports`) into the symbol graph, this filter,
+/// `derive_dependency_graph`, and `re_resolve_imports` must be updated in
+/// lockstep or the incremental graph will diverge from the cold rebuild.
+fn refresh_file_dependencies(dep: &mut DependencyGraph, sym: &SymbolGraph, file: &str) {
+    let mut targets: Vec<String> = Vec::new();
+    for symbol in sym.symbols_in_file(file) {
+        for edge in sym.outgoing_edges(symbol.id) {
+            if edge.edge_type != EdgeType::Imports {
+                continue;
+            }
+            if let Some(to) = sym.get_symbol(edge.to)
+                && to.file != file
+            {
+                targets.push(to.file.clone());
+            }
+        }
+    }
+    dep.set_dependencies(file, targets);
+}
+
 /// Re-derive the module dependency graph from a `SymbolGraph`'s resolved import
 /// edges. Cross-file `Imports` edges become `from_file -> to_file` dependencies;
-/// intra-file edges are skipped. Mirrors what a cold rebuild produces.
+/// intra-file edges are skipped.
+///
+/// GV2-011: this whole-graph re-derive is **no longer on the save-time path** —
+/// [`KernelGraphCache::apply_delta`] now maintains the dependency graph
+/// incrementally via [`refresh_file_dependencies`]. It survives only as the
+/// cold-rebuild oracle for the equivalence property test below.
+#[cfg(test)]
 fn derive_dependency_graph(sym: &SymbolGraph) -> DependencyGraph {
     let mut dep = DependencyGraph::new();
     for node in sym.inner().node_weights() {
@@ -342,6 +421,7 @@ fn derive_dependency_graph(sym: &SymbolGraph) -> DependencyGraph {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anvil_graph_cache::re_resolve_imports;
     use anvil_kernel_types::{ImportEdge, SymbolKind, SymbolNode, TrustLevel, Visibility};
     use std::path::PathBuf;
 
@@ -631,6 +711,193 @@ mod tests {
             dependents,
             vec!["a/b.ts".to_string()],
             "forward-reference import b.ts -> ./a must resolve once a.ts lands"
+        );
+    }
+
+    /// Deterministic LCG — reproducible delta sequences without a `rand`/
+    /// `proptest` dependency (Anvil determinism principle).
+    struct Lcg(u64);
+    impl Lcg {
+        fn new(seed: u64) -> Self {
+            Self(seed)
+        }
+        fn next_u64(&mut self) -> u64 {
+            self.0 = self
+                .0
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            self.0
+        }
+        fn below(&mut self, n: usize) -> usize {
+            (self.next_u64() >> 33) as usize % n
+        }
+    }
+
+    /// GV2-011 end-to-end cold-rebuild equivalence: the incrementally-maintained
+    /// warm `DependencyGraph` must equal a full cold rebuild (the retired
+    /// `derive_dependency_graph` oracle) after an *arbitrary* delta sequence —
+    /// covering create, body-only modify (import shape unchanged), import-set
+    /// change, delete, and delete/recreate, including forward references that
+    /// resolve only once their target lands. Compares the whole graph (forward
+    /// AND reverse), not a hand-picked file pair.
+    #[test]
+    fn warm_dep_graph_matches_cold_rebuild_over_arbitrary_sequence() {
+        // Modules at TWO depths sharing basenames, so a root file importing the
+        // *other* basename ("./a"/"./b") is ambiguous: `resolve_import` matches by
+        // path suffix and the shortest path wins, so deleting the root winner
+        // re-binds the importer to the nested candidate. This exercises the
+        // re-resolution re-binding path, not just same-directory resolution.
+        let files: [(&str, &str); 4] = [
+            ("a.ts", "a"),
+            ("b.ts", "b"),
+            ("nested/a.ts", "a"),
+            ("nested/b.ts", "b"),
+        ];
+
+        // Several independent seeds, each a long-lived warm cache (incremental,
+        // accumulating state) checked against a fresh cold rebuild after every
+        // step.
+        for seed in [0x5EED_1234_ABCD_u64, 0x0BAD_F00D, 0xDEAD_BEEF, 0x1357_2468] {
+            let mut rng = Lcg::new(seed);
+            let k = key("prop");
+            let cache = KernelGraphCache::new();
+            let mut steps: Vec<(ChangeKind, FileSymbols)> = Vec::new();
+            let mut id_base: u64 = 0;
+
+            for _ in 0..400 {
+                let (file, base) = files[rng.below(files.len())];
+                // 1-in-5 delete, else create/modify with a random import subset.
+                let step = if rng.below(5) == 0 {
+                    (ChangeKind::Delete, file_symbols(file, &[], &[], id_base))
+                } else {
+                    // Random imports of the other basename ("./a"/"./b"), excluding
+                    // the file's own basename to avoid trivial self-resolution.
+                    let imports: Vec<&str> = [("a", "./a"), ("b", "./b")]
+                        .iter()
+                        .filter(|(n, _)| *n != base && rng.below(2) == 0)
+                        .map(|(_, spec)| *spec)
+                        .collect();
+                    // A symbol set that sometimes empties (drop the public
+                    // symbol), making the file unresolvable as an import target.
+                    let syms: &[&str] = if rng.below(4) == 0 { &[] } else { &["sym"] };
+                    let kind = if rng.below(2) == 0 {
+                        ChangeKind::Create
+                    } else {
+                        ChangeKind::ContentModify
+                    };
+                    (kind, file_symbols(file, syms, &imports, id_base))
+                };
+                id_base += 100;
+
+                // Apply this one step to the long-lived warm cache (incremental).
+                cache.apply_delta(&k, step.0, step.1.clone());
+                steps.push(step);
+
+                // Cold rebuild: replay the sequence into a fresh graph with the
+                // all_imports + re_resolve the warm path uses, then derive.
+                let mut cold = SymbolGraph::new();
+                let mut cold_imports: Vec<ImportEdge> = Vec::new();
+                for (change, syms) in &steps {
+                    let f = syms.file.clone();
+                    if *change == ChangeKind::Delete {
+                        remove_file(&mut cold, &f);
+                        cold_imports.retain(|i| i.from_file != f);
+                    } else {
+                        let new_imports = syms.imports.clone();
+                        update_file(&mut cold, syms.clone());
+                        cold_imports.retain(|i| i.from_file != f);
+                        cold_imports.extend(new_imports);
+                        re_resolve_imports(&mut cold, &cold_imports);
+                    }
+                }
+                let cold_dep = derive_dependency_graph(&cold);
+
+                let consistent = match cache.with_graphs(&k, |_, dep| *dep == cold_dep) {
+                    Some(eq) => eq,
+                    // No warm entry (e.g. only deletes on a cold key) ⇒ empty.
+                    None => cold_dep == DependencyGraph::new(),
+                };
+                assert!(
+                    consistent,
+                    "seed {seed:#x}: warm dep graph diverged from cold rebuild \
+                     after {} steps (last: {:?} {})",
+                    steps.len(),
+                    steps.last().map(|(c, _)| c),
+                    steps.last().map_or("", |(_, s)| s.file.as_str()),
+                );
+            }
+        }
+    }
+
+    /// GV2-011 regression (council CRITICAL): re-resolution can re-bind a
+    /// *surviving* import of a file other than the one being saved. Here `main.ts`
+    /// imports `./a`, which suffix-matches both `a.ts` (shortest — wins) and
+    /// `nested/a.ts`. Deleting `a.ts` and then saving an unrelated file makes
+    /// `re_resolve_imports` re-bind `main.ts` to `nested/a.ts` in the symbol
+    /// graph; the incremental dependency graph must follow even though `main.ts`
+    /// was neither the saved file nor a dependent of it. Before the
+    /// `re_resolve_imports_tracked` fix the warm graph kept `main.ts` with no
+    /// outgoing edge while the cold rebuild had `main.ts → nested/a.ts`.
+    #[test]
+    fn re_resolution_rebinds_surviving_import_after_target_delete() {
+        let k = key("rebind");
+        let cache = KernelGraphCache::new();
+
+        cache.apply_delta(&k, ChangeKind::Create, file_symbols("a.ts", &["x"], &[], 0));
+        cache.apply_delta(
+            &k,
+            ChangeKind::Create,
+            file_symbols("nested/a.ts", &["y"], &[], 10),
+        );
+        cache.apply_delta(
+            &k,
+            ChangeKind::Create,
+            file_symbols("main.ts", &["app"], &["./a"], 20),
+        );
+        // main.ts → a.ts (shortest-path winner).
+        let before = cache
+            .with_graphs(&k, |_, dep| {
+                dep.dependencies_of("main.ts")
+                    .into_iter()
+                    .map(str::to_string)
+                    .collect::<Vec<_>>()
+            })
+            .unwrap();
+        assert_eq!(before, vec!["a.ts".to_string()], "setup: main imports a.ts");
+
+        // Delete the winner, then save an unrelated file to trigger re-resolution.
+        cache.apply_delta(&k, ChangeKind::Delete, file_symbols("a.ts", &[], &[], 30));
+        cache.apply_delta(
+            &k,
+            ChangeKind::ContentModify,
+            file_symbols("other.ts", &["z"], &[], 40),
+        );
+
+        let deps = cache
+            .with_graphs(&k, |_, dep| {
+                dep.dependencies_of("main.ts")
+                    .into_iter()
+                    .map(str::to_string)
+                    .collect::<Vec<_>>()
+            })
+            .unwrap();
+        assert_eq!(
+            deps,
+            vec!["nested/a.ts".to_string()],
+            "main.ts must re-bind to nested/a.ts after a.ts is deleted"
+        );
+        let dependents = cache
+            .with_graphs(&k, |_, dep| {
+                dep.dependents_of("nested/a.ts")
+                    .into_iter()
+                    .map(str::to_string)
+                    .collect::<Vec<_>>()
+            })
+            .unwrap();
+        assert_eq!(
+            dependents,
+            vec!["main.ts".to_string()],
+            "reverse index (the certify path's input) must show main.ts"
         );
     }
 }

@@ -4,7 +4,17 @@ use std::collections::{HashMap, HashSet};
 ///
 /// Nodes are file paths, edges are import relationships.
 /// Built from the symbol-level import data extracted by the parser.
-#[derive(Debug)]
+///
+/// The graph keeps two invariants that let it be **maintained incrementally**
+/// (GV2-011) and compared structurally against a cold rebuild:
+/// - the forward (`edges`) and reverse (`reverse`) indexes are always mutual —
+///   `a → b` is in `edges[a]` iff `b → a` is in `reverse[b]`;
+/// - no empty edge set is ever retained, so a file with no remaining edges
+///   leaves no key behind. A graph built incrementally via
+///   [`set_dependencies`](Self::set_dependencies)/[`remove_file`](Self::remove_file)
+///   therefore equals (`==`) one built from scratch via
+///   [`add_dependency`](Self::add_dependency) for the same final edge set.
+#[derive(Debug, PartialEq, Eq)]
 pub struct DependencyGraph {
     /// Map from file to set of files it imports
     edges: HashMap<String, HashSet<String>>,
@@ -45,6 +55,50 @@ impl DependencyGraph {
             .unwrap_or_default()
     }
 
+    /// Replace `file`'s outgoing dependencies with exactly `targets`, keeping the
+    /// reverse index in step. Incoming edges (other files that import `file`) are
+    /// left untouched — "who depends on me" is owned by those other files' edge
+    /// sets, not by this call (the same scoping the `GraphDelta` `removed_edges`
+    /// channel uses).
+    ///
+    /// This is the incremental-maintenance primitive that lets the save-time
+    /// daemon refresh one file's dependency edges in O(file's edges) instead of
+    /// the O(all edges) whole-graph re-derive (GV2-011). A self-dependency
+    /// (`target == file`) is skipped, matching the cross-file-only rule of the
+    /// cold rebuild, and a file left with no outgoing edges retains no empty set.
+    pub fn set_dependencies<I, S>(&mut self, file: &str, targets: I)
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        // Drop the file's current forward edges and their reverse back-pointers.
+        if let Some(old) = self.edges.remove(file) {
+            for dep in old {
+                if let Some(rev) = self.reverse.get_mut(&dep) {
+                    rev.remove(file);
+                    if rev.is_empty() {
+                        self.reverse.remove(&dep);
+                    }
+                }
+            }
+        }
+        // Install the new forward edges (cross-file only) and reverse pointers.
+        for target in targets {
+            let target = target.into();
+            if target == file {
+                continue;
+            }
+            self.edges
+                .entry(file.to_string())
+                .or_default()
+                .insert(target.clone());
+            self.reverse
+                .entry(target)
+                .or_default()
+                .insert(file.to_string());
+        }
+    }
+
     /// Remove all edges originating from AND pointing to `file`.
     pub fn remove_file(&mut self, file: &str) {
         // Remove outgoing edges (file → deps)
@@ -52,6 +106,9 @@ impl DependencyGraph {
             for dep in deps {
                 if let Some(rev) = self.reverse.get_mut(&dep) {
                     rev.remove(file);
+                    if rev.is_empty() {
+                        self.reverse.remove(&dep);
+                    }
                 }
             }
         }
@@ -60,6 +117,9 @@ impl DependencyGraph {
             for importer in importers {
                 if let Some(fwd) = self.edges.get_mut(&importer) {
                     fwd.remove(file);
+                    if fwd.is_empty() {
+                        self.edges.remove(&importer);
+                    }
                 }
             }
         }
@@ -221,5 +281,124 @@ mod tests {
 
         assert_eq!(g.edge_count(), 2);
         assert_eq!(g.file_count(), 3);
+    }
+
+    #[test]
+    fn set_dependencies_replaces_outgoing_only() {
+        let mut g = DependencyGraph::new();
+        g.set_dependencies("a.ts", ["b.ts".to_string(), "c.ts".to_string()]);
+        // d.ts importing a.ts is an *incoming* edge — set_dependencies on a.ts
+        // must not disturb it.
+        g.add_dependency("d.ts".to_string(), "a.ts".to_string());
+
+        // Replace a.ts's outgoing set: drop c.ts, keep b.ts, add e.ts.
+        g.set_dependencies("a.ts", ["b.ts".to_string(), "e.ts".to_string()]);
+
+        let mut deps = g.dependencies_of("a.ts");
+        deps.sort_unstable();
+        assert_eq!(deps, vec!["b.ts", "e.ts"]);
+        // Incoming edge survived; dropped target lost its back-pointer.
+        assert_eq!(g.dependents_of("a.ts"), vec!["d.ts"]);
+        assert!(g.dependents_of("c.ts").is_empty());
+    }
+
+    #[test]
+    fn set_dependencies_to_empty_leaves_no_residue() {
+        let mut g = DependencyGraph::new();
+        g.set_dependencies("a.ts", ["b.ts".to_string()]);
+        g.set_dependencies("a.ts", std::iter::empty::<String>());
+
+        // Structurally identical to a never-touched graph (no empty sets left).
+        assert_eq!(g, DependencyGraph::new());
+    }
+
+    #[test]
+    fn set_dependencies_skips_self_edge() {
+        let mut g = DependencyGraph::new();
+        g.set_dependencies("a.ts", ["a.ts".to_string(), "b.ts".to_string()]);
+        assert_eq!(g.dependencies_of("a.ts"), vec!["b.ts"]);
+        assert!(g.dependents_of("a.ts").is_empty());
+    }
+
+    /// Deterministic linear-congruential generator — keeps the property test
+    /// reproducible (Anvil determinism principle) without a `rand`/`proptest`
+    /// dependency.
+    struct Lcg(u64);
+    impl Lcg {
+        fn new(seed: u64) -> Self {
+            Self(seed)
+        }
+        fn next_u64(&mut self) -> u64 {
+            self.0 = self
+                .0
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1_442_695_040_888_963_407);
+            self.0
+        }
+        fn below(&mut self, n: usize) -> usize {
+            (self.next_u64() >> 33) as usize % n
+        }
+    }
+
+    /// Build a `DependencyGraph` from scratch (the "cold rebuild") for a model
+    /// mapping each file to its outgoing-target set, using only the low-level
+    /// `add_dependency` primitive.
+    fn cold_rebuild(
+        model: &HashMap<String, std::collections::BTreeSet<String>>,
+    ) -> DependencyGraph {
+        let mut g = DependencyGraph::new();
+        for (from, targets) in model {
+            for to in targets {
+                if to != from {
+                    g.add_dependency(from.clone(), to.clone());
+                }
+            }
+        }
+        g
+    }
+
+    /// GV2-011 cold-rebuild equivalence: an incrementally-maintained graph must
+    /// equal a from-scratch rebuild after an *arbitrary* delta sequence. Drives
+    /// `set_dependencies` (refresh a file's outgoing set) and `remove_file`
+    /// (drop a file in both directions) against a ground-truth model and asserts
+    /// structural equality (forward AND reverse indexes) after every step.
+    #[test]
+    fn index_consistency_under_arbitrary_delta_sequence() {
+        use std::collections::BTreeSet;
+
+        let files = ["a.ts", "b.ts", "c.ts", "d.ts", "e.ts"];
+        let mut model: HashMap<String, BTreeSet<String>> = HashMap::new();
+        let mut g = DependencyGraph::new();
+        let mut rng = Lcg::new(0x00C0_FFEE_D00D);
+
+        for step in 0..4000 {
+            let file = files[rng.below(files.len())].to_string();
+            if rng.below(6) == 0 {
+                // Delete: the file vanishes as both a source and a target.
+                model.remove(&file);
+                for targets in model.values_mut() {
+                    targets.remove(&file);
+                }
+                g.remove_file(&file);
+            } else {
+                // Refresh the file's outgoing set with a random cross-file set.
+                let mut targets = BTreeSet::new();
+                let count = rng.below(files.len());
+                for _ in 0..count {
+                    let t = files[rng.below(files.len())].to_string();
+                    if t != file {
+                        targets.insert(t);
+                    }
+                }
+                model.insert(file.clone(), targets.clone());
+                g.set_dependencies(&file, targets.iter().cloned());
+            }
+
+            assert_eq!(
+                g,
+                cold_rebuild(&model),
+                "incremental dep graph diverged from cold rebuild at step {step}"
+            );
+        }
     }
 }
