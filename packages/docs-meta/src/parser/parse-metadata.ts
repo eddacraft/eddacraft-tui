@@ -58,8 +58,6 @@ const PATH_LIKE_ROOT_FILES = new Set([
   'tsconfig.base.json',
 ]);
 
-const PATH_LIKE_EXTENSION_RE = /^[A-Za-z0-9._-]+\.(?:json|lock|md|toml|yaml|yml|accepted)$/;
-
 /**
  * Parse documentation governance metadata from a Markdown source.
  *
@@ -362,16 +360,17 @@ function isPathLike(value: string): boolean {
   if (/^v\d+\.\d+\.\d+/.test(value)) return false;
   if (/^[A-Z]+-\d{3}/.test(value)) return false;
 
+  // A reference is a source path only if it can be addressed unambiguously: a
+  // rooted path under a known top-level directory, or a known root-level file by
+  // name (the allow-list above). A directory-less basename such as `release.yml`
+  // or `overview.md` is treated as a prose mention, not a source pin — even when
+  // a same-named file happens to exist at the root — because an extension alone
+  // does not identify a verifiable location. Reference such files by their full
+  // repo-relative path (or add the bare name to PATH_LIKE_ROOT_FILES) to have
+  // them validated.
   if (PATH_LIKE_ROOTED_PREFIXES.some((prefix) => value.startsWith(prefix))) return true;
   if (PATH_LIKE_ROOT_FILES.has(value)) return true;
-
-  // A bare extension is not enough on its own. A directory-less basename such as
-  // `release.yml`, `overview.md`, or `SKILL.md` cannot be resolved from the
-  // repository root and is almost always a prose mention rather than a source
-  // pin — treating it as a source reference produces unverifiable findings.
-  // Known root-level files are already allowed by name via PATH_LIKE_ROOT_FILES
-  // above; any other extension match must carry a path separator to count.
-  return value.includes('/') && PATH_LIKE_EXTENSION_RE.test(value);
+  return false;
 }
 
 function formatEnumError(field: string, offending: string, fallbackMessage: string): string {

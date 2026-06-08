@@ -104,15 +104,16 @@ describe('parseDocGovernance', () => {
 | -------------------------------- | ---------- |
 | \`scripts/cargo-deny/deny.toml.[licenses].allow\` | operators  |
 
-The check also reads \`about.toml.accepted\`, \`licences.toml\`, and \`overview.md\`.
+The check also reads \`about.toml.accepted\`, \`release.yml\`, and \`overview.md\`.
 `;
 
     const result = parseDocGovernance(content);
 
     // ACKNOWLEDGEMENTS.md is an allow-listed root file; the deny.toml reference
     // carries a directory so it survives with its table-field suffix stripped.
-    // Bare basenames (about.toml.accepted, licences.toml, overview.md) cannot be
-    // resolved from the repository root and are no longer treated as source pins.
+    // Non-allow-listed bare basenames (about.toml.accepted, release.yml,
+    // overview.md) are treated as prose mentions rather than source pins, so
+    // they are dropped.
     expect(result.sourceReferences).toEqual([
       { path: 'ACKNOWLEDGEMENTS.md', context: 'freshness', line: undefined },
       { path: 'scripts/cargo-deny/deny.toml', context: 'upstream', line: undefined },
