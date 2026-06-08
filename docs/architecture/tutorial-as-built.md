@@ -594,7 +594,7 @@ today (`paths.rs:138-306`):
 verifier updates against the v0.6.0-beta CLI surface, with new test pins
 matching the LAUNCH-014 vocabulary pattern. Tracked through LAUNCH-014's "future
 PRs may narrow this to a high-signal subset" lane in
-`plans/modules/launch-flow-readiness.aps.md`.
+`plans/archive/modules/launch-flow-readiness.aps.md`.
 
 ### G-02: Step 3 of ProtectionLoop is a literal simulation, not real execution
 
@@ -673,7 +673,7 @@ just isn't fluid). **Fix:** Not planned; flagged for completeness.
   pinned to.
 - [`checks-as-built.md`](./checks-as-built.md) — the scan pipeline that produces
   the `ScanResults` the discovery surface consumes.
-- [`plans/modules/launch-flow-readiness.aps.md`](../../plans/modules/launch-flow-readiness.aps.md)
+- [`plans/archive/modules/launch-flow-readiness.aps.md`](../../plans/archive/modules/launch-flow-readiness.aps.md)
   — LAUNCH-014 (tutorial reframe to ProtectionLoop default — Complete) and the
   test-pinned copy-invariant decisions.
 - `RELEASE-PLAN.md` — v0.6.0-beta slate framing for LAUNCH-014.

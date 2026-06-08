@@ -7,14 +7,8 @@
     ]
   },
   "links": {
-    "docs/architecture/checks-as-built.md": [
-      "broken link \"../../plans/modules/surface-env-files.aps.md\" — target file does not exist"
-    ],
     "docs/architecture/kernel-benchmarking-spec.md": [
       "broken link \"../../plans/modules/rust-kernel.aps.md\" — target file does not exist"
-    ],
-    "docs/architecture/tutorial-as-built.md": [
-      "broken link \"../../plans/modules/launch-flow-readiness.aps.md\" — target file does not exist"
     ],
     "docs/archive/adapter-implementation-plan-old.md": [
       "broken anchor \"#current-implementation-status\" — heading \"#current-implementation-status\" not found in current file",
@@ -563,31 +557,6 @@
     ]
   },
   "asbuilt-paths": {
-    "docs/architecture/activation-as-built.md": [
-      "source path does not exist: \"plans/modules/launch-flow-readiness.aps.md\" (body reference \"plans/modules/launch-flow-readiness.aps.md\")"
-    ],
-    "docs/architecture/adapter-packages-as-built.md": [
-      "source path does not exist: \"docs/public/aps/examples.md\" (body reference \"docs/public/aps/examples.md\")",
-      "source path does not exist: \"packages/adapters/aps-markdown/\" (body reference \"packages/adapters/aps-markdown/\")",
-      "source path does not exist: \"packages/adapters/common/\" (body reference \"packages/adapters/common/\")",
-      "source path does not exist: \"plans/modules/launch-flow-readiness.aps.md\" (body reference \"plans/modules/launch-flow-readiness.aps.md\")",
-      "source path does not exist: \"scripts/generate-openapi.ts\" (body reference \"scripts/generate-openapi.ts\")",
-      "source path does not exist: \"scripts/generate-templates.js\" (body reference \"scripts/generate-templates.js\")"
-    ],
-    "docs/architecture/api-as-built.md": [
-      "source path does not exist: \"archive/admin-cli-node/\" (body reference \"archive/admin-cli-node/\")",
-      "source path does not exist: \"scripts/check-runtime-cjs.cjs\" (body reference \"scripts/check-runtime-cjs.cjs\")",
-      "source path does not exist: \"scripts/migrate.mjs\" (body reference \"scripts/migrate.mjs\")"
-    ],
-    "docs/architecture/checks-as-built.md": [
-      "source path does not exist: \"crates/anvil-cli/src/commands/check.rs|gate.rs|audit.rs\" (body reference \"crates/anvil-cli/src/commands/check.rs|gate.rs|audit.rs\")",
-      "source path does not exist: \"plans/modules/launch-flow-readiness.aps.md\" (body reference \"plans/modules/launch-flow-readiness.aps.md\")",
-      "source path does not exist: \"plans/modules/surface-env-files.aps.md\" (body reference \"plans/modules/surface-env-files.aps.md\")"
-    ],
-    "docs/architecture/driver-framework-as-built.md": [
-      "source path does not exist: \"crates/anvil-driver-client-rs\" (body reference \"crates/anvil-driver-client-rs\")",
-      "source path does not exist: \"plans/modules/surface-drivers.aps.md\" (body reference \"plans/modules/surface-drivers.aps.md\")"
-    ],
     "docs/architecture/kernel-as-built.md": [
       "source path does not exist: \"crates/anvil-kernel/src/graph/dependency.rs\" (body reference \"crates/anvil-kernel/src/graph/dependency.rs\")",
       "source path does not exist: \"crates/anvil-kernel/src/graph/incremental.rs\" (body reference \"crates/anvil-kernel/src/graph/incremental.rs\")",
@@ -602,9 +571,6 @@
       "source path does not exist: \"tools/list\" (body reference \"tools/list\")",
       "source path does not exist: \"tools/mod.rs\" (body reference \"tools/mod.rs\")",
       "source path does not exist: \"tools/validate_write.rs\" (body reference \"tools/validate_write.rs\")"
-    ],
-    "docs/architecture/tutorial-as-built.md": [
-      "source path does not exist: \"plans/modules/launch-flow-readiness.aps.md\" (body reference \"plans/modules/launch-flow-readiness.aps.md\")"
     ],
     "docs/runbooks/anvil-run.md": [
       "source path does not exist: \"crates/anvil-intercept-lib/tests/\" (body reference \"crates/anvil-intercept-lib/tests/\")"

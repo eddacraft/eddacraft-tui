@@ -268,7 +268,7 @@ use this partition — they run on all files. Callers should only invoke it befo
 language-specific antipattern checks.
 
 **LAUNCH-016 acceptance status (per the APS module,
-`plans/modules/launch-flow-readiness.aps.md:355-385`):**
+`plans/archive/modules/launch-flow-readiness.aps.md:355-385`):**
 
 - (a) Default behaviour scans `.ts` and skips `.py` for language-specific
   checks: **met** by `AntipatternCheckConfig::default().extensions`; the
@@ -498,8 +498,8 @@ Items below are dated and load-bearing for the v0.6.0-beta release:
 user-config opt-in (acceptance criterion (d)) for re-enabling
 unsupported-language scanning is hand-off to a follow-up PR through
 `commands::check`, `commands::watch`, and `commands::audit`
-(`plans/modules/launch-flow-readiness.aps.md:380-385`). The seam is in place —
-downstream consumers compose the user-config decision before invoking
+(`plans/archive/modules/launch-flow-readiness.aps.md:380-385`). The seam is in
+place — downstream consumers compose the user-config decision before invoking
 `partition_for_language_specific_checks`.
 
 ### G-02: Watch-liveness probing is unwired pending LAUNCH-011 (2026-05-07)
@@ -568,8 +568,8 @@ consumers needing a side-effecting JSON flow must run `anvil init --json` and
 
 ## Related docs
 
-- `plans/modules/launch-flow-readiness.aps.md` — APS module file (intent +
-  acceptance for every LAUNCH-NNN task).
+- `plans/archive/modules/launch-flow-readiness.aps.md` — APS module file
+  (intent + acceptance for every LAUNCH-NNN task).
 - `plans/specs/2026-05-04-launch-a1-execution.md` — Tier A1 execution plan with
   the council-locked hard constraints.
 - `docs/public/anvil/guides/wow-start-demo.md` — public-side narrative this doc

@@ -305,13 +305,15 @@ detection, and Postgres advisory-lock-based serialisation.
 ### 7.1 Entry points
 
 - Library: `src/db/migrate.ts:131-194` (`runMigrations(runner, options)`).
-- CLI wrapper: `scripts/migrate.mjs` — Node ESM script bound by the `migrate` /
-  `migrate:dry-run` package scripts (`apps/anvil-api/package.json:scripts`).
+- CLI wrapper: `apps/anvil-api/scripts/migrate.mjs` — Node ESM script bound by
+  the `migrate` / `migrate:dry-run` package scripts
+  (`apps/anvil-api/package.json:scripts`).
 
 The CLI wrapper opens a `Pool` from `@neondatabase/serverless` and adapts
 `pool.query` into the runner's `QueryRunner` shape
-(`scripts/migrate.mjs:36-52`). Exit codes: `0` on success or no-op, `1` on drift
-/ `DATABASE_URL` missing / SQL error (`scripts/migrate.mjs:11-14, 60-64`).
+(`apps/anvil-api/scripts/migrate.mjs:36-52`). Exit codes: `0` on success or
+no-op, `1` on drift / `DATABASE_URL` missing / SQL error
+(`apps/anvil-api/scripts/migrate.mjs:11-14, 60-64`).
 
 ### 7.2 Flow
 
@@ -349,11 +351,12 @@ The CLI wrapper opens a `Pool` from `@neondatabase/serverless` and adapts
 
 ### 7.4 Build-time guards
 
-`scripts/check-runtime-cjs.cjs` runs in `postbuild` and `require()`s `svix` to
-reproduce the exact CommonJS resolution path Vercel hits at cold start. uuid v14
-is ESM-only; a workspace-wide `uuid` floor would crash svix on require with
-`ERR_REQUIRE_ESM`. The guard exists because the regression has already shipped
-to prod once (`scripts/check-runtime-cjs.cjs:7-15`); see also pnpm.overrides
+`apps/anvil-api/scripts/check-runtime-cjs.cjs` runs in `postbuild` and
+`require()`s `svix` to reproduce the exact CommonJS resolution path Vercel hits
+at cold start. uuid v14 is ESM-only; a workspace-wide `uuid` floor would crash
+svix on require with `ERR_REQUIRE_ESM`. The guard exists because the regression
+has already shipped to prod once
+(`apps/anvil-api/scripts/check-runtime-cjs.cjs:7-15`); see also pnpm.overrides
 `svix>uuid` in the workspace root.
 
 ## 8. Migration history
@@ -609,8 +612,8 @@ workspace and can still be run. Operators using `anvil-admin` against a
 `0.6.0-beta+` API will see attribution flow through the key (the API ignores
 `X-Admin-Actor` — `src/middleware/admin-auth.ts:88-108`) rather than the header
 the Node CLI emits, which is fine but slightly surprising. **Risk:** Low.
-**Fix:** archive `apps/admin-cli/` to `archive/admin-cli-node/` once the Rust
-binary is a release-grade replacement (per RCLI2-009 Notes).
+**Fix:** archive `apps/admin-cli/` to an `admin-cli-node` archive folder once
+the Rust binary is a release-grade replacement (per RCLI2-009 Notes).
 
 ### G-05: `_migrations` runner has no rollback path
 
@@ -642,38 +645,38 @@ one-shot data-cleanup migration once the dual-auth window closes.
 
 ### `apps/anvil-api/`
 
-| File                            | Lines | Role                                                                                                                              |
-| ------------------------------- | ----- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `src/index.ts`                  | 113   | Hono app + middleware mount + `/health` + cold-start probe                                                                        |
-| `src/routes/admin.ts`           | 799   | All `/admin/*` handlers (invite, approve, revoke, waitlist list, audit list, user lookup, send-migration two-phase, email-update) |
-| `src/routes/admin-schemas.ts`   | 103   | Zod schemas + types for the admin surface                                                                                         |
-| `src/routes/auth.ts`            | 143   | `/auth/verify`, `/auth/license/refresh` (canonical doc: auth-as-built)                                                            |
-| `src/routes/auth-device.ts`     | 235   | Device-code flow (canonical doc: auth-as-built)                                                                                   |
-| `src/routes/auth-otp.ts`        | 181   | OTP flow (canonical doc: auth-as-built)                                                                                           |
-| `src/routes/auth-session.ts`    | 122   | JWT refresh (canonical doc: auth-as-built)                                                                                        |
-| `src/routes/auth-github.ts`     | 246   | GitHub OAuth (canonical doc: auth-as-built)                                                                                       |
-| `src/routes/waitlist.ts`        | 165   | Public `/waitlist` ingress + token-protected `/waitlist/resend`                                                                   |
-| `src/routes/cron.ts`            | 63    | `/cron/cleanup` purge job                                                                                                         |
-| `src/middleware/admin-auth.ts`  | 191   | Per-operator + shared-key admin auth (canonical doc: auth-as-built)                                                               |
-| `src/middleware/rate-limit.ts`  | 54    | In-memory sliding-window rate limiter                                                                                             |
-| `src/lib/token.ts`              | 42    | `anvil_beta_*` token generation, peppered SHA-256 hashing                                                                         |
-| `src/lib/licence.ts`            | 81    | ES256 PKCS#8 PEM parse, JWT signing, cold-start verify probe                                                                      |
-| `src/lib/email.ts`              | 241   | Resend transactional email senders (waitlist, OTP, invite, migration, admin notification)                                         |
-| `src/lib/audience.ts`           | 73    | Resend audience-membership maintenance                                                                                            |
-| `src/lib/audit.ts`              | 14    | Trivial audit-log helper around `insertAuditLog`                                                                                  |
-| `src/lib/debug.ts`              | 65    | Namespace-gated debug logger with secret sanitisation                                                                             |
-| `src/lib/device-code.ts`        | 40    | `user_code` generation + collision retry helper                                                                                   |
-| `src/lib/feature-flags.ts`      | 129   | `api.scope.*` flag manifest + `resolveApiScope` resolver                                                                          |
-| `src/db/client.ts`              | 28    | Neon-serverless singleton                                                                                                         |
-| `src/db/queries.ts`             | 1139  | All SQL queries + Zod row schemas                                                                                                 |
-| `src/db/migrate.ts`             | 194   | Migration runner library (advisory lock, drift detection, dry-run)                                                                |
-| `src/db/schema.sql`             | 132   | Authoritative schema for fresh installs                                                                                           |
-| `src/db/migrations/*.sql`       | —     | 11 forward-only migrations (see §8)                                                                                               |
-| `scripts/migrate.mjs`           | 70    | CLI wrapper around `runMigrations`                                                                                                |
-| `scripts/check-runtime-cjs.cjs` | 38    | `postbuild` guard for `svix>uuid` ESM regression                                                                                  |
-| `vercel.json`                   | 10    | Build / ignore / cron config                                                                                                      |
-| `package.json`                  | —     | Engine pin (Node ≥22.13), `migrate` / `migrate:dry-run` scripts                                                                   |
-| `README.md`                     | 109   | Operator-facing endpoint + env var reference                                                                                      |
+| File                                           | Lines | Role                                                                                                                              |
+| ---------------------------------------------- | ----- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `src/index.ts`                                 | 113   | Hono app + middleware mount + `/health` + cold-start probe                                                                        |
+| `src/routes/admin.ts`                          | 799   | All `/admin/*` handlers (invite, approve, revoke, waitlist list, audit list, user lookup, send-migration two-phase, email-update) |
+| `src/routes/admin-schemas.ts`                  | 103   | Zod schemas + types for the admin surface                                                                                         |
+| `src/routes/auth.ts`                           | 143   | `/auth/verify`, `/auth/license/refresh` (canonical doc: auth-as-built)                                                            |
+| `src/routes/auth-device.ts`                    | 235   | Device-code flow (canonical doc: auth-as-built)                                                                                   |
+| `src/routes/auth-otp.ts`                       | 181   | OTP flow (canonical doc: auth-as-built)                                                                                           |
+| `src/routes/auth-session.ts`                   | 122   | JWT refresh (canonical doc: auth-as-built)                                                                                        |
+| `src/routes/auth-github.ts`                    | 246   | GitHub OAuth (canonical doc: auth-as-built)                                                                                       |
+| `src/routes/waitlist.ts`                       | 165   | Public `/waitlist` ingress + token-protected `/waitlist/resend`                                                                   |
+| `src/routes/cron.ts`                           | 63    | `/cron/cleanup` purge job                                                                                                         |
+| `src/middleware/admin-auth.ts`                 | 191   | Per-operator + shared-key admin auth (canonical doc: auth-as-built)                                                               |
+| `src/middleware/rate-limit.ts`                 | 54    | In-memory sliding-window rate limiter                                                                                             |
+| `src/lib/token.ts`                             | 42    | `anvil_beta_*` token generation, peppered SHA-256 hashing                                                                         |
+| `src/lib/licence.ts`                           | 81    | ES256 PKCS#8 PEM parse, JWT signing, cold-start verify probe                                                                      |
+| `src/lib/email.ts`                             | 241   | Resend transactional email senders (waitlist, OTP, invite, migration, admin notification)                                         |
+| `src/lib/audience.ts`                          | 73    | Resend audience-membership maintenance                                                                                            |
+| `src/lib/audit.ts`                             | 14    | Trivial audit-log helper around `insertAuditLog`                                                                                  |
+| `src/lib/debug.ts`                             | 65    | Namespace-gated debug logger with secret sanitisation                                                                             |
+| `src/lib/device-code.ts`                       | 40    | `user_code` generation + collision retry helper                                                                                   |
+| `src/lib/feature-flags.ts`                     | 129   | `api.scope.*` flag manifest + `resolveApiScope` resolver                                                                          |
+| `src/db/client.ts`                             | 28    | Neon-serverless singleton                                                                                                         |
+| `src/db/queries.ts`                            | 1139  | All SQL queries + Zod row schemas                                                                                                 |
+| `src/db/migrate.ts`                            | 194   | Migration runner library (advisory lock, drift detection, dry-run)                                                                |
+| `src/db/schema.sql`                            | 132   | Authoritative schema for fresh installs                                                                                           |
+| `src/db/migrations/*.sql`                      | —     | 11 forward-only migrations (see §8)                                                                                               |
+| `apps/anvil-api/scripts/migrate.mjs`           | 70    | CLI wrapper around `runMigrations`                                                                                                |
+| `apps/anvil-api/scripts/check-runtime-cjs.cjs` | 38    | `postbuild` guard for `svix>uuid` ESM regression                                                                                  |
+| `vercel.json`                                  | 10    | Build / ignore / cron config                                                                                                      |
+| `package.json`                                 | —     | Engine pin (Node ≥22.13), `migrate` / `migrate:dry-run` scripts                                                                   |
+| `README.md`                                    | 109   | Operator-facing endpoint + env var reference                                                                                      |
 
 ### `apps/admin-cli/`
 

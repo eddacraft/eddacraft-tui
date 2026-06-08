@@ -11,7 +11,7 @@
 > **Status:** Live (beta) **Last reviewed:** 2026-05-07 against `v0.6.0-beta`
 > slate (HEAD `97b61fd0`) **Crate / location:** `crates/anvil-checks` (+
 > `crates/anvil-checks-napi`, callers in
-> `crates/anvil-cli/src/commands/check.rs|gate.rs|audit.rs`,
+> `crates/anvil-cli/src/commands/{check,gate,audit}.rs`,
 > `crates/anvil-intercept-rules/`) **Module owner (APS):** `scan-performance`
 > (SCAN-NNN parallel walk + ReDoS hardening), with check-category subsets in
 > `surface-env-files.aps.md` (SURFENV), `realtime-ai-validation.aps.md`
@@ -680,7 +680,7 @@ user-config opt-in for re-enabling unsupported-language scanning through
 `commands::check`, `commands::watch`, and `commands::audit` is hand-off to a
 follow-up PR. The seam is in place — downstream consumers compose the
 user-config decision before invoking the partition helper. Tracked at
-`plans/modules/launch-flow-readiness.aps.md` LAUNCH-016 (d). Cross-link
+`plans/archive/modules/launch-flow-readiness.aps.md` LAUNCH-016 (d). Cross-link
 `docs/architecture/activation-as-built.md` §G-01.
 
 ### G-02: SQL coverage is partial
@@ -838,7 +838,7 @@ CLI seams (`crates/anvil-cli/src/`):
   releases.
 - [`plans/modules/scan-performance.aps.md`](../../plans/modules/scan-performance.aps.md)
   — SCAN-001 parallel walk + SCAN-002 ReDoS hardening.
-- [`plans/modules/surface-env-files.aps.md`](../../plans/modules/surface-env-files.aps.md)
+- [`plans/archive/modules/surface-env-files.aps.md`](../../plans/archive/modules/surface-env-files.aps.md)
   — SURFENV-001..004 plan + acceptance.
 - [`plans/modules/realtime-ai-validation.aps.md`](../../plans/modules/realtime-ai-validation.aps.md)
   — AI-001 family open question 3 (rule lives in `anvil-checks`, not in a

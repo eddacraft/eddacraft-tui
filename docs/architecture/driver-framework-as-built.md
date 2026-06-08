@@ -14,18 +14,19 @@
 > `d223b8d9`). **Crates / locations:** `crates/anvil-intercept-proto`,
 > `crates/anvil-intercept-rules`, `packages/anvil-driver-client` (+ Win32
 > primitives in `crates/anvil-intercept-win32`). **Module owner (APS):** DRVR
-> (`plans/modules/surface-drivers.aps.md`, 5/5 active — 2 superseded, 1 deferred
-> under ADR-033), with downstream spec at `plans/specs/anvil-driver-framework/`.
-> Adjacent modules: INTR (`plans/modules/intercept-rules.aps.md`, In Progress
-> 4/8) for the hot-path rule registry, and INTD
-> (`plans/archive/modules/intercept-daemon.aps.md`, Complete 16/16) for the
-> daemon side that consumes the proto. **Used by:** `anvil intercept status` CLI
-> surface (`crates/anvil-cli/src/commands/intercept.rs`); MCP shim's
-> daemon-backed validation client (`crates/anvil-cli/src/mcp/validation.rs`);
-> the in-tree daemon-side capability negotiator
-> (`crates/anvil-intercept/src/auth.rs`); future editor / CI driver integrations
-> consuming `@eddacraft/anvil-driver-client`; the Win32 named-pipe synchronous
-> client (`crates/anvil-intercept-win32::connect_owner_only_pipe_client`).
+> (`plans/archive/modules/surface-drivers.aps.md`, 5/5 active — 2 superseded, 1
+> deferred under ADR-033), with downstream spec at
+> `plans/specs/anvil-driver-framework/`. Adjacent modules: INTR
+> (`plans/modules/intercept-rules.aps.md`, In Progress 4/8) for the hot-path
+> rule registry, and INTD (`plans/archive/modules/intercept-daemon.aps.md`,
+> Complete 16/16) for the daemon side that consumes the proto. **Used by:**
+> `anvil intercept status` CLI surface
+> (`crates/anvil-cli/src/commands/intercept.rs`); MCP shim's daemon-backed
+> validation client (`crates/anvil-cli/src/mcp/validation.rs`); the in-tree
+> daemon-side capability negotiator (`crates/anvil-intercept/src/auth.rs`);
+> future editor / CI driver integrations consuming
+> `@eddacraft/anvil-driver-client`; the Win32 named-pipe synchronous client
+> (`crates/anvil-intercept-win32::connect_owner_only_pipe_client`).
 
 ## 1. Overview
 
@@ -510,7 +511,7 @@ The `query_daemon_status` helper in
 `crates/anvil-cli/src/commands/intercept.rs:77-148` is itself a Rust client of
 the proto. It is the in-tree reference implementation for how a Rust caller
 speaks the protocol without the TS client. The same shape applies to any Rust
-consumer (a future `crates/anvil-driver-client-rs`, the embedded validation
+consumer (a future `anvil-driver-client-rs` crate, the embedded validation
 client, etc.):
 
 1. **Resolve the transport.** Unix:
@@ -762,7 +763,7 @@ and where they don't:
 | §3.3 reconnect-survival (negotiation re-runs from manifest)        | Shipped                                                                                                                                                          | `auth.rs:550-556` and the `negotiate_capability_is_pure_recompute` test                                               |
 | §4.4 redaction contract (secret excerpts, absolute paths)          | **Wired only for `validate_write`.** Other MCP tool surfaces (`scan.files`, `fix.apply`, `status.query`) are spec-only. RMCPF-010 wires the rest in a later tag. | `crates/anvil-cli/src/mcp/tools/validate_write.rs:374-424`; cross-link `intercept-as-built.md` §13 + security note H3 |
 | §4.5 degraded-behaviour structured error                           | Shipped (TS client + MCP shim use the same code names)                                                                                                           | `packages/anvil-driver-client/src/errors.ts:21-51`                                                                    |
-| DRVR Wave 1-3 (DRVR-001/-002/-006/-007/-008)                       | Shipped (PRs #1304, #1307, #1310; remediation #1322)                                                                                                             | `plans/modules/surface-drivers.aps.md:11-13`                                                                          |
+| DRVR Wave 1-3 (DRVR-001/-002/-006/-007/-008)                       | Shipped (PRs #1304, #1307, #1310; remediation #1322)                                                                                                             | `plans/archive/modules/surface-drivers.aps.md:11-13`                                                                  |
 | DRVR Wave 4 (RTAI-005, RTAI-007, RTAI-009, DRVR-003)               | **Deferred under ADR-033.** VSCode extension archived; Wave 4 sits behind an extension un-pause decision.                                                        | `RELEASE-PLAN.md:77, 263-264`; `plans/decisions/033-park-ide-mcp-retire-ts-scanner.md`                                |
 | Reliability-budget quarantine survives daemon restart              | **Client-side only (in-process).** TS ledger persists across reconnect within a process; cross-process / on-disk ledger is documented but not implemented.       | `packages/anvil-driver-client/src/reliability/budget.ts:78-92`                                                        |
 | Driver-version negotiation that survives daemon restart            | **Not addressed.** v1 is single-version daemon — no rolling-upgrade story, no peer compatibility matrix.                                                         | `intercept-as-built.md` §16 gap 10                                                                                    |
@@ -777,7 +778,7 @@ and where they don't:
    package is created on the daemon-driver path; the rest of DRVR (DRVR-001,
    -002, -005) continues against existing INTD dependencies. Ref:
    `plans/decisions/033-park-ide-mcp-retire-ts-scanner.md`,
-   `plans/modules/surface-drivers.aps.md:17-29`.
+   `plans/archive/modules/surface-drivers.aps.md:17-29`.
 2. **Driver-version negotiation that survives daemon restart not addressed.** v1
    is a single-version daemon; no rolling upgrade story, no peer compatibility
    matrix, no driver-version negotiation that survives daemon restart. Operators
@@ -896,8 +897,8 @@ and where they don't:
 - `docs/archive/runbooks/v0.6.0-beta-security-note.md` — security trade-offs; H1
   (drivers.allow file mode), H2 (telemetry redaction hash unsalted), H3 (§4.4
   redaction spec-only), H4 (PID-reuse + macOS fence-first).
-- `plans/modules/surface-drivers.aps.md` — DRVR module plan; Wave 1-3 task
-  records and Wave 4 deferral.
+- `plans/archive/modules/surface-drivers.aps.md` — DRVR module plan; Wave 1-3
+  task records and Wave 4 deferral.
 - `plans/modules/intercept-rules.aps.md` — INTR module plan; the rules crate's
   task list.
 - `plans/decisions/030-surface-drivers-supersede-napi-cutover.md` — ADR-030, the
