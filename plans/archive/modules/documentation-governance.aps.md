@@ -496,13 +496,18 @@ Current validation commands include `pnpm docs:check`, `pnpm docs:index`, and
   tables, emptying the `metadata` baseline bucket (93 → 0). Generated indexes
   under `docs/indexes/` regenerated to include the newly-governed docs.
   Validation passed with `pnpm docs:check` (8/8 surfaces), `pnpm docs:index:check`
-  (0/0), and `pnpm format:check`. **Known debt:** turning on as-built/runbook
-  body validation surfaced 266 pre-existing unresolved inline-code source-path
-  references (renamed source files plus basename doc/workflow mentions in prose);
-  these were absorbed into the `asbuilt-paths` baseline per ADR-003
-  new-edges-only and warrant a follow-up burn-down (not part of metadata
-  coverage), tracked in
-  [#2371](https://github.com/eddacraft/anvil-001/issues/2371).
+  (0/0), and `pnpm format:check`. **Known debt (resolved):** turning on
+  as-built/runbook body validation surfaced 266 pre-existing unresolved
+  inline-code source-path references (renamed source files plus basename
+  doc/workflow mentions in prose); these were absorbed into the `asbuilt-paths`
+  baseline per ADR-003 new-edges-only as a follow-up burn-down (not part of
+  metadata coverage), tracked in
+  [#2371](https://github.com/eddacraft/anvil-001/issues/2371). That burn-down is
+  **complete** — #2371 closed 2026-06-08 via PRs #2383 (parser fix:
+  directory-less basenames are not source pins), #2389, #2393, #2399, and #2402,
+  taking the `asbuilt-paths` baseline from 172 entries to **0**. The surface is
+  now clean across the governed corpus; the bucket is retained as an empty object
+  so it re-fills only on a genuinely new broken source pin.
 - **Confidence:** high
 
 ### DOCGOV-012: Harden the docs-check gating tooling against malformed input and flag misrouting
