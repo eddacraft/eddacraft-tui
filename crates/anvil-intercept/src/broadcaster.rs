@@ -88,8 +88,10 @@ pub struct TelemetryBroadcaster {
     /// [`Self::register`] / [`Self::unregister`].
     channels: Mutex<HashMap<SubscriberId, SubscriberChannel>>,
     /// Cumulative count of envelopes dropped because a subscriber's
-    /// channel was full. Surfaced via [`Self::dropped_envelopes`] and,
-    /// in turn, the daemon `query_status` telemetry lane.
+    /// channel was full, read via [`Self::dropped_envelopes`]. Exposing
+    /// it through the daemon `query_status` telemetry lane is a DSV-044
+    /// prerequisite (it stays `0` until a producer broadcasts), tracked
+    /// in the CHANGELOG known-gaps entry — not wired in this slice.
     dropped: AtomicU64,
 }
 
@@ -123,22 +125,26 @@ impl TelemetryBroadcaster {
         session_id_filter: Option<Vec<String>>,
     ) -> mpsc::Receiver<String> {
         let (tx, rx) = mpsc::channel(TELEMETRY_SUBSCRIBER_CHANNEL_CAP);
-        // Register with the fan-out first so a concurrent `broadcast`
-        // that observes the subscriber in the routing set also finds
-        // the channel (insert happens-before the lock release the
-        // broadcaster re-acquires). The reverse order would let a
-        // route include an id whose channel is not yet present.
+        // Register the fan-out routing entry and the channel *atomically*
+        // under the channels lock. This is the consistent lock order
+        // (channels → fanout); `broadcast` only ever holds the channels
+        // lock *after* `Fanout::route` has released the fanout lock, so
+        // the two never deadlock. Atomicity matters: a concurrent
+        // `broadcast` either routes before this `fanout.register`
+        // (subscriber not yet visible → nothing to deliver) or blocks on
+        // the channels lock we hold until BOTH the routing entry and the
+        // channel exist — so it can never observe the subscriber in the
+        // routing set while its channel is missing (the silent-skip
+        // window the previous fanout-first ordering left open).
+        let mut channels = self.channels.lock().expect("broadcaster mutex poisoned");
         self.fanout.register(id.clone());
-        self.channels
-            .lock()
-            .expect("broadcaster mutex poisoned")
-            .insert(
-                id,
-                SubscriberChannel {
-                    sender: tx,
-                    session_id_filter,
-                },
-            );
+        channels.insert(
+            id,
+            SubscriberChannel {
+                sender: tx,
+                session_id_filter,
+            },
+        );
         rx
     }
 
@@ -146,13 +152,12 @@ impl TelemetryBroadcaster {
     /// fan-out. Idempotent. Called on `UnsubscribeTelemetry` and on
     /// connection drop.
     pub fn unregister(&self, id: &SubscriberId) {
-        // Drop the channel first so an interleaving `broadcast` that
-        // still sees the id in the routing set simply finds no channel
-        // and skips it (no panic, no send to a dead writer).
-        self.channels
-            .lock()
-            .expect("broadcaster mutex poisoned")
-            .remove(id);
+        // Same atomic channels → fanout ordering as `register`, so a
+        // register/unregister race for the same id (e.g. two connections
+        // from one pid minting an identical id) can never leave the
+        // routing set and the channel map disagreeing.
+        let mut channels = self.channels.lock().expect("broadcaster mutex poisoned");
+        channels.remove(id);
         self.fanout.unregister(id);
     }
 
@@ -222,7 +227,12 @@ impl TelemetryBroadcaster {
                 Ok(()) => outcome.delivered += 1,
                 Err(mpsc::error::TrySendError::Full(_)) => {
                     outcome.dropped += 1;
-                    tracing::warn!(
+                    // `debug`, not `warn`: a slow subscriber under a
+                    // high-rate producer would fire this once per envelope,
+                    // flooding the log. The durable, rate-free signal is
+                    // the cumulative `dropped_envelopes` counter; per-event
+                    // detail stays at debug. (Producers land with DSV-044.)
+                    tracing::debug!(
                         target: "anvil_intercept::broadcaster",
                         subscriber = routed.subscriber.as_str(),
                         "telemetry subscriber channel full; dropping envelope (INTD-016)",

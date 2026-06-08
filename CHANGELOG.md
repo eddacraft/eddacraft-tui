@@ -603,7 +603,11 @@ local-IPC trust boundary documented in
   receives no live telemetry until that producer lands. The producer emission
   call sites are tracked as DSV-044, gated on this Phase 2 broadcaster (now
   shipped). The safe default (`false`) keeps cross-session redaction on the cold
-  path regardless. Tracked in
+  path regardless. Two Phase 2 follow-ups are DSV-044 prerequisites: surfacing
+  the broadcaster's `dropped_envelopes` counter via `query_status` (it stays `0`
+  until a producer drops), and `subscribe-telemetry` is Linux-only for now (it
+  returns `-32000` on macOS/Windows, where `pid_starttime` is unavailable —
+  MLP2-027/-028 follow-up). Tracked in
   [#1722](https://github.com/eddacraft/anvil-001/issues/1722) + MLP2-071 (Phases
   1 + 2 shipped) + DSV-044 (producer emission).
 - **`anvil-run` reports child process metadata to the daemon, but the daemon has

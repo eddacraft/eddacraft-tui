@@ -500,3 +500,42 @@ already names.
 **Unchanged from the slice contract.** D7's MLP2-070 prerequisite is
 now satisfied (MLP2-070 is Released/Shipped via `v0.7.0-beta`), so the
 CHANGELOG "Known gaps" line is narrowed per D7 in this slice.
+
+### Phase 2 Council follow-ups (DSV-044 prerequisites)
+
+Surfaced by the full Council pass on the Phase 2 slice. None block this
+merge (they have zero runtime exposure until a producer broadcasts —
+DSV-044), but they MUST be closed before or alongside DSV-044:
+
+1. **Surface `dropped_envelopes` (+ `subscriber_count`) via
+   `query_status`.** The broadcaster counter exists but is not yet on
+   `DaemonStatusV1`; it stays `0` until a producer drops, so wiring it
+   now would observe nothing. Add it with the producer.
+2. **Rate-limit the full-channel drop log.** Currently `debug`-level
+   per drop (downgraded from `warn` to avoid a flood); when a producer
+   lands, add a transition/threshold `warn` so a stalled subscriber is
+   visible without per-event spam.
+3. **Binary-path-hash mint component (D2).** v1 mints
+   `(uid, pid, pid_starttime)`; add the canonicalised `/proc/<pid>/exe`
+   HMAC as defense-in-depth.
+4. **Binding identity assumption.** v1's `subscriber_binding` is the
+   *registering* peer's minted id, so own-session delivery assumes the
+   process that calls `RegisterSession` is the same process that later
+   `subscribe`s (D3, 1:1 binding). A topology where the launcher
+   registers but a separate editor/MCP process subscribes would mint a
+   different id and be denied its own session (fail-closed). Revisit
+   with real driver topologies (capability-grant / `Vec<binding>` is the
+   open-question #2 shape). Register MUST precede subscribe on the same
+   peer.
+5. **macOS / Windows mint.** `pid_starttime` is Linux-only, so
+   `subscribe-telemetry` returns `-32000` on macOS/Windows today
+   (fail-closed, logged server-side); full support is the MLP2-027/-028
+   follow-up.
+
+A production-path e2e (real `RegistryOwnershipResolver` + daemon-derived
+binding, registrant==subscriber over a socket, asserting own-session
+delivery) is best added with DSV-044's producer, since only then can a
+real transition drive `broadcast` end-to-end through `run_foreground`.
+The binding-match logic itself is unit-pinned
+(`registry_ownership_resolver_consults_subscriber_binding`) and the
+transport path is socket-tested in this slice.

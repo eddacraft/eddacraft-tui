@@ -1263,17 +1263,23 @@ fn is_unsubscribe_telemetry_method(method: &str) -> bool {
 /// absent filter yields `None` (no narrowing) — the daemon's fan-out
 /// is the load-bearing boundary, so a bad client filter degrades to
 /// "see everything the fan-out approves", never to over-disclosure.
+///
+/// An empty `session_ids` array also yields `None` (treated as "no
+/// filter", not "allow nothing"): an empty allow-list would silently
+/// suppress every envelope for a subscriber the daemon reports as
+/// subscribed — a confusing footgun. A client that genuinely wants no
+/// telemetry simply does not subscribe.
 fn parse_subscriber_session_filter(value: &Value) -> Option<Vec<String>> {
     let ids = value
         .get("params")?
         .get("filter")?
         .get("session_ids")?
         .as_array()?;
-    Some(
-        ids.iter()
-            .filter_map(|v| v.as_str().map(str::to_owned))
-            .collect(),
-    )
+    let ids: Vec<String> = ids
+        .iter()
+        .filter_map(|v| v.as_str().map(str::to_owned))
+        .collect();
+    if ids.is_empty() { None } else { Some(ids) }
 }
 
 // --------------------------------------------------------------------
@@ -1345,22 +1351,32 @@ async fn handle_connection<D: SessionDispatcher, R: AsyncRead + AsyncWrite + Unp
         // MLP2-071 Phase 2: when this connection is a telemetry
         // subscriber, race inbound command frames against outbound
         // telemetry frames so a pushed notification does not wait for
-        // the next client frame. `biased` drains ready telemetry first,
-        // but the bounded channel cap ([`TELEMETRY_SUBSCRIBER_CHANNEL_CAP`])
-        // bounds how long that can defer a read. The subscription is
-        // taken out of the `Option` for the `select!` and restored
-        // unless the broadcaster closed the channel (then we drop it,
-        // which unregisters, and keep the connection open for control
-        // frames).
+        // the next client frame. This select is deliberately NOT
+        // `biased`: under a high-rate producer a biased telemetry-first
+        // arm would drain up to the full channel cap before ever polling
+        // the inbound read, starving the control lane (a client could
+        // not get its `unsubscribe-telemetry` processed). The fair
+        // round-robin lets inbound control frames make progress even
+        // while telemetry is flowing; the bounded channel cap
+        // ([`TELEMETRY_SUBSCRIBER_CHANNEL_CAP`]) plus drop-on-full keeps
+        // the backlog finite either way. The subscription is taken out
+        // of the `Option` for the `select!` and restored unless the
+        // broadcaster closed the channel (then we drop it, which
+        // unregisters, and keep the connection open for control frames).
         #[cfg(any(unix, windows))]
         let read = match subscription.take() {
             Some(mut sub) => {
                 tokio::select! {
-                    biased;
                     maybe_frame = sub.rx.recv() => {
                         match maybe_frame {
                             Some(frame) => {
                                 subscription = Some(sub);
+                                // Telemetry frames are outbound and
+                                // producer-driven, so they intentionally
+                                // bypass the per-connection RPS bucket
+                                // (which rate-limits inbound *requests*).
+                                // Backpressure for telemetry is the bounded
+                                // channel cap + drop-on-full, not the bucket.
                                 write_telemetry_frame(reader.get_mut(), &frame).await?;
                                 continue;
                             }
@@ -1495,6 +1511,12 @@ async fn handle_connection<D: SessionDispatcher, R: AsyncRead + AsyncWrite + Unp
                                     drop(subscription.take());
                                     let filter = parse_subscriber_session_filter(&value);
                                     let rx = bc.register(subscriber.clone(), filter);
+                                    tracing::info!(
+                                        target: "anvil_intercept::ipc",
+                                        subscriber = subscriber.as_str(),
+                                        peer_pid,
+                                        "telemetry subscriber registered",
+                                    );
                                     subscription = Some(Subscription {
                                         rx,
                                         broadcaster: Arc::clone(bc),
@@ -1517,17 +1539,32 @@ async fn handle_connection<D: SessionDispatcher, R: AsyncRead + AsyncWrite + Unp
                                             "telemetry subscription is not available on this listener"
                                     }),
                                 ),
-                                (Some(_), None) => jsonrpc_request_error(
-                                    id,
-                                    None,
-                                    is_notification,
-                                    -32000,
-                                    "Server error",
-                                    json!({
-                                        "reason":
-                                            "could not authenticate subscriber peer credentials"
-                                    }),
-                                ),
+                                (Some(_), None) => {
+                                    // Peer credentials could not be minted
+                                    // (no SO_PEERCRED peer_pid, or a non-Linux
+                                    // platform where pid_starttime is
+                                    // unavailable). Surface it server-side so
+                                    // a silent macOS/Windows degradation is
+                                    // visible in daemon logs, not just to the
+                                    // client.
+                                    tracing::warn!(
+                                        target: "anvil_intercept::ipc",
+                                        peer_pid,
+                                        "telemetry subscribe denied: could not mint subscriber id \
+                                         from peer credentials",
+                                    );
+                                    jsonrpc_request_error(
+                                        id,
+                                        None,
+                                        is_notification,
+                                        -32000,
+                                        "Server error",
+                                        json!({
+                                            "reason":
+                                                "could not authenticate subscriber peer credentials"
+                                        }),
+                                    )
+                                }
                             };
                             if let Some(resp) = response {
                                 write_json_response(reader.get_mut(), &resp, "subscribe-telemetry")
@@ -1541,6 +1578,13 @@ async fn handle_connection<D: SessionDispatcher, R: AsyncRead + AsyncWrite + Unp
                             // Dropping the subscription unregisters from the
                             // broadcaster and stops the outbound drain.
                             // `.take()` is idempotent if not subscribed.
+                            if subscription.is_some() {
+                                tracing::debug!(
+                                    target: "anvil_intercept::ipc",
+                                    peer_pid,
+                                    "telemetry subscriber unregistered (unsubscribe)",
+                                );
+                            }
                             drop(subscription.take());
                             if !is_notification {
                                 let resp = jsonrpc_success(id, None, json!({"subscribed": false}));
@@ -4127,13 +4171,21 @@ fn build_operator_context(
 /// and the `pid_starttime` component defends against PID reuse, so a
 /// hostile same-UID peer cannot forge another peer's id.
 ///
-/// Components (Unix): the daemon's own `uid` (the socket-accept gate
-/// already enforces same-UID, so the peer's uid equals the daemon's) +
-/// the peer `pid` + the peer's `pid_starttime` from `/proc/<pid>/stat`.
-/// The binary-path-hash component D2 also describes is deferred: for
-/// the same-UID trust domain, `(uid, pid, pid_starttime)` already
-/// uniquely and unforgeably identifies a live process incarnation; the
-/// binary hash is defense-in-depth tracked as an MLP2-071 follow-up.
+/// Components (Unix): the daemon's own `uid` + the peer `pid` + the
+/// peer's `pid_starttime` from `/proc/<pid>/stat`.
+///
+/// **Precondition:** the `uid` here is the *daemon's* uid, used as a
+/// stand-in for the peer's uid because the socket-accept gate
+/// ([`validate_connected_peer_for_client`]) already rejects any peer
+/// whose uid differs from the daemon's — so under that gate they are
+/// equal. If that same-UID gate is ever relaxed (cross-uid telemetry,
+/// a root daemon serving non-root peers), this MUST switch to the
+/// peer's uid read from `SO_PEERCRED` (`peer_cred().uid()`), or two
+/// distinct peers could mint the same id. The binary-path-hash
+/// component D2 also describes is deferred: for the same-UID trust
+/// domain, `(uid, pid, pid_starttime)` already uniquely and
+/// unforgeably identifies a live process incarnation; the binary hash
+/// is defense-in-depth tracked as an MLP2-071 follow-up.
 ///
 /// Returns `None` when the peer pid is unavailable (legacy NDJSON, no
 /// `SO_PEERCRED`) or its start-time cannot be read (peer exited
@@ -5158,6 +5210,31 @@ mod tests {
 
         assert_eq!(label.len(), MAX_TRACE_METHOD_LEN);
         assert!(label.ends_with("..."));
+    }
+
+    // MLP2-071 Phase 2: the subscribe-telemetry `session_ids` filter
+    // parses absent / null / empty to `None` (no narrowing) and a
+    // populated list to `Some(list)`. An empty array must NOT become an
+    // always-deny allow-list (Council footgun fix).
+    #[test]
+    fn parse_subscriber_session_filter_treats_absent_and_empty_as_none() {
+        // Absent filter.
+        assert_eq!(
+            parse_subscriber_session_filter(&json!({"params": {}})),
+            None,
+        );
+        // Empty session_ids array → None (no narrowing), not allow-none.
+        assert_eq!(
+            parse_subscriber_session_filter(&json!({"params": {"filter": {"session_ids": []}}})),
+            None,
+        );
+        // Populated list → Some.
+        assert_eq!(
+            parse_subscriber_session_filter(
+                &json!({"params": {"filter": {"session_ids": ["sess-A", "sess-B"]}}})
+            ),
+            Some(vec!["sess-A".to_string(), "sess-B".to_string()]),
+        );
     }
 
     #[test]
