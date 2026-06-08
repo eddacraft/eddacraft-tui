@@ -11,7 +11,7 @@ sidebar_position: 5
 
 | Type        | Authority     | Owner                                                                                                                                    | Status | Freshness                                                                          |
 | ----------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------- |
-| Public docs | Authoritative | INSIGHTS ([`plans/modules/usage-insights.aps.md`](https://github.com/eddacraft/anvil-001/blob/main/plans/modules/usage-insights.aps.md)) | Live   | Last reviewed 2026-05-31 against `main` for the v0.7.3-beta `anvil insights` views |
+| Public docs | Authoritative | INSIGHTS ([`plans/modules/usage-insights.aps.md`](https://github.com/eddacraft/anvil-001/blob/main/plans/modules/usage-insights.aps.md)) | Live   | Last reviewed 2026-06-08 against `main` for the v0.8.0-beta `anvil insights` views |
 
 | Upstream                                                                         | Downstream                                                                    |
 | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
@@ -84,6 +84,15 @@ per-week buckets, the `weeks_with_data` count, and a `sufficient_data` flag.
 
 `--suppressions` and `--drift` are mutually exclusive — pick one view per
 invocation.
+
+## The first-week nudge
+
+For a newly adopted project, `anvil status` shows a single muted line pointing
+you at `anvil insights` during roughly the first two weeks after adoption — a
+low-noise reminder that the signal is accumulating and worth a look. It is
+local-only, never blocks, and stops appearing once you have run `anvil insights`
+(or once the window passes). It is a nudge toward the views above, not a
+separate surface.
 
 ## Capturing the data
 
