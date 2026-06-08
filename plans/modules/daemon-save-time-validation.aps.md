@@ -952,7 +952,7 @@ Merged item; each is an additive improvement under the frozen wire.
 | --------- | ----- | ---------- | ------ |
 | A — Interim-cache `validate_paths` | 9 | 9/9 done | Done (all Merged; awaiting release) |
 | A-W — Windows + cross-platform parity | 2 | 2/2 done (DSV-010 Merged — verbs served on Windows + hardening; DSV-011 Merged — clients verified on the green cross matrix, run 27102943706) | Done (all Merged; awaiting release) |
-| A — deferred follow-ups | 5 | 4/5 done | In Progress |
+| A — deferred follow-ups | 5 | 5/5 done | Done |
 | A′ — GV2 hot-read swap | 1 | 0/1 done | Blocked |
 | B — Warm-start persistence | 1 | 0/1 done | Blocked |
-| **Total** | **18** | **15/18 done** | **In Progress** |
+| **Total** | **18** | **16/18 done** | **In Progress** |

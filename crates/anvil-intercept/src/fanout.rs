@@ -241,7 +241,7 @@ pub enum CrossSessionPolicy {
 /// path.
 pub struct RegistryOwnershipResolver {
     registry: Arc<SessionRegistry>,
-    /// MLP2-071 D6: the live fence store, consulted by
+    /// MLP2-071 D6: the live fence store cache, consulted by
     /// [`OwnershipResolver::is_degraded_origin`] to find whether an
     /// originating session's worktree carries a
     /// `degraded:spoofed-attribution` fence (MLP2-025).
@@ -272,19 +272,19 @@ impl OwnershipResolver for RegistryOwnershipResolver {
     }
 
     fn is_degraded_origin(&self, originating_session_id: &str) -> bool {
-        // MLP2-071 D6: map the originating session id to its worktree,
-        // then ask the live fence store whether that worktree carries a
-        // spoof fence. An unknown session id maps to `None` → `false`
-        // (it is already default-denied by the ownership check, so the
-        // degraded test is moot for it). A fence-store load failure maps
-        // to `true`, denying cross-session delivery fail-closed while still
-        // allowing an owned subscriber to receive its own event.
+        // MLP2-071 D6: map the originating session id to its worktree, then
+        // ask the live fence-store cache whether that worktree carries a
+        // spoof fence. An unknown session id maps to `None` → `false` (it is
+        // already default-denied by the ownership check, so the degraded test
+        // is moot for it). A missing/cleared cache maps to `true`, denying
+        // cross-session delivery fail-closed without doing disk I/O while
+        // `Fanout::route` holds the subscriber lock.
         self.registry
             .worktree_for_session_id(originating_session_id)
             .is_some_and(|worktree| {
                 self.fence_store
-                    .load()
-                    .map_or(true, |state| state.is_spoof_fenced(&worktree))
+                    .is_spoof_fenced_cached(&worktree)
+                    .unwrap_or(true)
             })
     }
 }

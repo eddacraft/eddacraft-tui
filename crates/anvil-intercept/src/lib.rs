@@ -249,10 +249,11 @@ impl DaemonState {
             anyhow::anyhow!("mint per-startup telemetry redaction salt for INTD-015 fanout: {err}")
         })?;
         let fence_store = Arc::new(fence_store);
-        // MLP2-071 D6: the resolver needs the live fence store to answer
-        // `is_degraded_origin`, so newly written spoof fences affect fanout
-        // routing immediately rather than being frozen at daemon startup.
         let fences = Arc::new(fences);
+        fence_store.cache_loaded_state(&fences);
+        // MLP2-071 D6: the resolver needs the live fence-store cache to answer
+        // `is_degraded_origin`, so startup fences and newly written spoof
+        // fences affect fanout routing without disk I/O under the route lock.
         let resolver =
             fanout::RegistryOwnershipResolver::new(Arc::clone(&registry), Arc::clone(&fence_store));
         let fanout = Arc::new(fanout::Fanout::with_cross_session_policy_and_key(

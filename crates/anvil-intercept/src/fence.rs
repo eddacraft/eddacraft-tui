@@ -254,6 +254,7 @@ type CascadeWindows = Arc<Mutex<HashMap<PathBuf, Arc<RateWindow>>>>;
 #[derive(Clone)]
 pub struct FenceStore {
     path: PathBuf,
+    loaded_state: Arc<Mutex<Option<FenceState>>>,
     /// MLP2-026: per-worktree firing-rate trackers. Lazily created
     /// on first fire for a worktree.
     cascade_windows: CascadeWindows,
@@ -271,6 +272,7 @@ impl FenceStore {
     pub fn at_path(path: impl Into<PathBuf>) -> Self {
         Self {
             path: path.into(),
+            loaded_state: Arc::new(Mutex::new(None)),
             cascade_windows: Arc::new(Mutex::new(HashMap::new())),
             telemetry: Arc::new(Mutex::new(None)),
         }
@@ -294,11 +296,28 @@ impl FenceStore {
         *self
             .telemetry
             .lock()
-            .expect("fence telemetry lock poisoned") = Some(Arc::new(FenceTelemetry {
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(Arc::new(FenceTelemetry {
             registry,
             broadcaster,
             emitter: Mutex::new(TelemetryEmitter::new()),
         }));
+    }
+
+    /// Return the last successfully loaded/saved spoof-fence view without
+    /// touching the filesystem. A missing cache means the store has not proved
+    /// a clean state in this process, so callers that enforce cross-session
+    /// telemetry policy should fail closed.
+    #[must_use]
+    pub fn is_spoof_fenced_cached(&self, worktree: &Path) -> Option<bool> {
+        self.loaded_state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .as_ref()
+            .map(|state| state.is_spoof_fenced(worktree))
+    }
+
+    pub(crate) fn cache_loaded_state(&self, state: &FenceState) {
+        self.set_loaded_state(state);
     }
 
     /// MLP2-026: snapshot accessor for cascade engaged-state. See
@@ -376,38 +395,66 @@ impl FenceStore {
 
     pub fn load(&self) -> Result<FenceState, FenceStoreError> {
         #[cfg(unix)]
-        validate_store_parent(&self.path)?;
+        if let Err(error) = validate_store_parent(&self.path) {
+            self.clear_loaded_state();
+            return Err(error);
+        }
         #[cfg(windows)]
-        recover_windows_backup(&self.path)?;
+        if let Err(error) = recover_windows_backup(&self.path) {
+            self.clear_loaded_state();
+            return Err(error);
+        }
         let content = match fs::read_to_string(&self.path) {
             Ok(content) => content,
             Err(source) if source.kind() == std::io::ErrorKind::NotFound => {
-                return Ok(FenceState::default());
+                let state = FenceState::default();
+                self.set_loaded_state(&state);
+                return Ok(state);
             }
             Err(source) => {
+                self.clear_loaded_state();
                 return Err(FenceStoreError::Read {
                     path: self.path.clone(),
                     source,
                 });
             }
         };
-        let file: FenceFile =
-            serde_json::from_str(&content).map_err(|source| FenceStoreError::Parse {
-                path: self.path.clone(),
-                source,
-            })?;
+        let file: FenceFile = match serde_json::from_str(&content) {
+            Ok(file) => file,
+            Err(source) => {
+                self.clear_loaded_state();
+                return Err(FenceStoreError::Parse {
+                    path: self.path.clone(),
+                    source,
+                });
+            }
+        };
         if file.version != FENCE_FILE_VERSION {
+            self.clear_loaded_state();
             return Err(FenceStoreError::UnsupportedVersion {
                 path: self.path.clone(),
                 version: file.version,
             });
         }
         let mut state = FenceState {
-            records: validate_records(&self.path, file.fences)?,
-            cascades: validate_cascades(&self.path, file.cascades)?,
+            records: match validate_records(&self.path, file.fences) {
+                Ok(records) => records,
+                Err(error) => {
+                    self.clear_loaded_state();
+                    return Err(error);
+                }
+            },
+            cascades: match validate_cascades(&self.path, file.cascades) {
+                Ok(cascades) => cascades,
+                Err(error) => {
+                    self.clear_loaded_state();
+                    return Err(error);
+                }
+            },
         };
         state.records.sort_by(|a, b| a.worktree.cmp(&b.worktree));
         state.cascades.sort_by(|a, b| a.worktree.cmp(&b.worktree));
+        self.set_loaded_state(&state);
         Ok(state)
     }
 
@@ -495,7 +542,7 @@ impl FenceStore {
         let telemetry = self
             .telemetry
             .lock()
-            .expect("fence telemetry lock poisoned")
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clone();
         let Some(telemetry) = telemetry else {
             return;
@@ -563,7 +610,22 @@ impl FenceStore {
         replace_store_file(&tmp, &self.path)?;
         #[cfg(unix)]
         sync_parent(&self.path)?;
+        self.set_loaded_state(state);
         Ok(())
+    }
+
+    fn set_loaded_state(&self, state: &FenceState) {
+        *self
+            .loaded_state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(state.clone());
+    }
+
+    fn clear_loaded_state(&self) {
+        *self
+            .loaded_state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = None;
     }
 }
 
