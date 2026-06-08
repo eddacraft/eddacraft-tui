@@ -11,9 +11,9 @@
 > **Status:** Live (beta) **Last reviewed:** 2026-05-07 against `v0.6.0-beta`
 > slate (HEAD `97b61fd0`) **Crate / location:** `crates/anvil-cli/src/mcp/` (+
 > `commands/mcp*.rs`) **Module owner (APS):** RMCP
-> (`plans/modules/rust-mcp-launch-shim.aps.md`, 8/8 complete) **Used by:**
-> Cursor + Claude Code MCP clients (call `anvil_validate_write` over stdio); the
-> activation orchestrator
+> (`plans/archive/modules/rust-mcp-launch-shim.aps.md`, 8/8 complete) **Used
+> by:** Cursor + Claude Code MCP clients (call `anvil_validate_write` over
+> stdio); the activation orchestrator
 > (`crates/anvil-cli/src/activation/orchestrator/mod.rs:112`) writes the MCP
 > entries during `anvil start`
 
@@ -128,8 +128,8 @@ The shim has no remote surface, no TLS, no signed manifests. Cross-link:
 intercept-as-built §5 "Authentication and trust boundary".
 
 **Stdio frame budget.** `MAX_STDIO_FRAME_BYTES = 4 MiB` (`commands/mcp.rs:24`).
-Validate-write caps `proposedContent` at 1 MiB (`tools/validate_write.rs:20`);
-the larger frame budget covers worst-case JSON string escaping and the JSON-RPC
+Validate-write caps `proposedContent` at 1 MiB (`validate_write.rs:20`); the
+larger frame budget covers worst-case JSON string escaping and the JSON-RPC
 envelope. Oversize lines are discarded with the rest of the line
 (`commands/mcp.rs:261-299`) so the next frame is parsed cleanly.
 
@@ -167,10 +167,10 @@ description: "Quick project health summary. Returns available checks,
 | ----------------- | ----------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `workspaceRoot`   | string (absolute path)                          | no                                          | Defaults to the shim's cwd. Must match the shim cwd if provided; a mismatch yields `untrusted-workspace-root` whose error payload carries `expectedWorkspaceRoot` — the shim's **canonicalised** cwd (resolved symlinks, `/private`-prefixed on macOS, etc.) — so callers can self-correct (CIB-007). The canonical form is intentional and may differ from the path the caller supplied; trust boundary is unchanged.                                                                                  |
 | `path`            | string                                          | yes                                         | Workspace-relative or absolute-inside-`workspaceRoot`.                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `operation`       | enum: `create` / `update` / `delete` / `rename` | yes                                         | Only `create` and `update` consume post-image content; `delete` and `rename` ignore both `proposedContent` and `patch`. See `Operation::requires_content` in `tools/validate_write.rs`.                                                                                                                                                                                                                                                                                                                 |
+| `operation`       | enum: `create` / `update` / `delete` / `rename` | yes                                         | Only `create` and `update` consume post-image content; `delete` and `rename` ignore both `proposedContent` and `patch`. See `Operation::requires_content` in `validate_write.rs`.                                                                                                                                                                                                                                                                                                                       |
 | `proposedContent` | string (UTF-8)                                  | for `create` / `update` when `patch` absent | Full post-operation file content. Capped at 1 MiB. NUL bytes rejected. May be omitted when `patch` is supplied (CIB-005).                                                                                                                                                                                                                                                                                                                                                                               |
 | `patch`           | string                                          | optional                                    | Unified diff. When supplied without `proposedContent`, the validator reads the on-disk file at `workspaceRoot`+`path`, applies the patch in memory, and validates the post-image through the same pipeline as a full-content payload — the disk file is never written. Apply failures surface as `patch-apply-failed`; an unreadable target surfaces as `patch-target-unreadable`. When both fields are supplied `proposedContent` is authoritative and `patch` is correlation metadata only (CIB-005). |
-| `contentEncoding` | enum: `utf-8`                                   | optional                                    | Anything else rejected with `unsupported-encoding`. See `ValidateWriteRequest::parse` in `tools/validate_write.rs`.                                                                                                                                                                                                                                                                                                                                                                                     |
+| `contentEncoding` | enum: `utf-8`                                   | optional                                    | Anything else rejected with `unsupported-encoding`. See `ValidateWriteRequest::parse` in `validate_write.rs`.                                                                                                                                                                                                                                                                                                                                                                                           |
 | `client`          | object                                          | optional                                    | Free-form passthrough.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 
 ### 4.2 Response shape
@@ -194,10 +194,10 @@ description: "Quick project health summary. Returns available checks,
 }
 ```
 
-Built at `tools/validate_write.rs:305-349`. The `decision` enum is
+Built at `validate_write.rs:305-349`. The `decision` enum is
 `anvil_kernel_types::diagnostics::ControlDecision`. The MCP transport wraps this
 payload in the standard `{ content: [{type: "text", text: <json>}], isError }`
-shell at `tools/validate_write.rs:185-197`.
+shell at `validate_write.rs:185-197`.
 
 ### 4.3 JSON-RPC method names (editor → shim)
 
@@ -208,8 +208,8 @@ The shim implements a narrow MCP subset over JSON-RPC 2.0
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `initialize`                | Returns `protocolVersion`, capabilities `{ tools: {} }`, instructions, and `serverInfo` (`mcp.rs:301-325`). Default protocol version is `2024-11-05` (`mcp.rs:16`). |
 | `notifications/initialized` | No-op.                                                                                                                                                              |
-| `tools/list`                | Returns descriptors from the MCP tool registry (`mcp.rs:327-338`).                                                                                                  |
-| `tools/call`                | Looks up the named registry tool, applies the tool-specific auth gate when required, then dispatches to the registered handler (`mcp.rs:340-369`).                  |
+| tools/list                  | Returns descriptors from the MCP tool registry (`mcp.rs:327-338`).                                                                                                  |
+| tools/call                  | Looks up the named registry tool, applies the tool-specific auth gate when required, then dispatches to the registered handler (`mcp.rs:340-369`).                  |
 | `ping`                      | Returns `{}`.                                                                                                                                                       |
 | `shutdown`                  | Returns null result; does not exit.                                                                                                                                 |
 | `exit`                      | If sent as a notification (no `id`), the loop breaks and the shim exits. Sent as a request, returns Invalid Request.                                                |
@@ -271,11 +271,11 @@ Operational failures from the daemon path (parse errors, timeouts, peer-cred
 rejection, mismatched JSON-RPC id, truncated response) do **not** auto-promote
 to embedded. They propagate as `DaemonValidationOutcome::OperationalFailure`
 (`validation.rs:151-164`), which the validate-write tool maps to
-`backend_failure_payload` (`tools/validate_write.rs:225-257`): a hard `block`
-decision with `daemonStatus: "unavailable"` (distinct from `not-wired`) and a
-structured `error` payload. This is RMCP's fail-closed contract — silently
-demoting from a wired-but-broken daemon to embedded would mask exactly the
-failures the operator needs to see.
+`backend_failure_payload` (`validate_write.rs:225-257`): a hard `block` decision
+with `daemonStatus: "unavailable"` (distinct from `not-wired`) and a structured
+`error` payload. This is RMCP's fail-closed contract — silently demoting from a
+wired-but-broken daemon to embedded would mask exactly the failures the operator
+needs to see.
 
 The mapping from `DaemonValidationOutcome` to `DaemonStatus` lives at
 `validation.rs:361-383`:
@@ -302,9 +302,9 @@ the embedded path is a single-shot in-process evaluation with no side effects.
 
 **Diagnostic-envelope parity is the load-bearing property.** The two paths
 return the same `anvil.diagnostic.v1` shape on the same fixture. The parity test
-pin at `tools/validate_write.rs:1034-1063`
+pin at `validate_write.rs:1034-1063`
 (`daemon_and_embedded_paths_emit_identical_diagnostic_envelopes`) and the
-live-daemon variant at `tools/validate_write.rs:1070-1116`
+live-daemon variant at `validate_write.rs:1070-1116`
 (`live_daemon_mcp_tool_call_matches_embedded_diagnostic_envelope`) prove that
 for an MCP-only deployment without a running daemon, the embedded path produces
 the same enforcement decision as the daemon-backed one.
@@ -321,7 +321,7 @@ What the embedded path does **not** carry:
 
 ## 7. Correlation envelope
 
-The response carries `correlation` at `tools/validate_write.rs:325-333`:
+The response carries `correlation` at `validate_write.rs:325-333`:
 
 | Field             | Value                                           | Notes                                                                                                                      |
 | ----------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
@@ -335,8 +335,7 @@ The response carries `correlation` at `tools/validate_write.rs:325-333`:
 
 The fields are tool-local in v1. RTAI-007 / DRVR-002 may promote
 `enforcementMode` and `daemonStatus` to the canonical correlation envelope in
-`anvil-kernel-types`; the comment at `tools/validate_write.rs:314-319` calls
-this out.
+`anvil-kernel-types`; the comment at `validate_write.rs:314-319` calls this out.
 
 ## 8. Enforcement mode resolution
 
@@ -364,7 +363,7 @@ Diagnostics are returned to the caller verbatim regardless of mode — only the
 workspace escape) always block regardless of mode (`enforcement.rs:1-31`
 discusses the contract; pinned by
 `enforcement_mode_off_still_rejects_malformed_input` at
-`tools/validate_write.rs:1460-1476`).
+`validate_write.rs:1460-1476`).
 
 INTD-008 aliases `interrupt`/`fence` (→ `Block`) and `advisory`/`proceed` (→
 `Off`) are accepted (`enforcement.rs:84-91`) for forward compatibility with the
@@ -373,7 +372,7 @@ daemon-side vocabulary.
 ## 9. Redaction filter (§4.4 contract)
 
 Secret-rule diagnostics are redacted before the response leaves the shim.
-`normalise_response_diagnostics` (`tools/validate_write.rs:374-401`) walks each
+`normalise_response_diagnostics` (`validate_write.rs:374-401`) walks each
 diagnostic; for `Category::Secret` entries it:
 
 - Replaces `id` with `redact_secret_id` (regex sweep, then SHA-256 hash fallback
@@ -497,15 +496,15 @@ When an MCP client calls `anvil_validate_write`:
    (`commands/mcp.rs:340-369`) verifies the tool name and calls
    `validate_write::call(arguments)` (`mcp.rs:368`).
 6. **validate_write parses + validates input** — `ValidateWriteRequest::parse`
-   (`tools/validate_write.rs:476-527`). Workspace-escape
-   (`reject_symlink_escape` at `validate_write.rs:732-748`), oversize content,
-   NUL bytes, and non-UTF-8 encodings all short-circuit to a structured `block`.
+   (`validate_write.rs:476-527`). Workspace-escape (`reject_symlink_escape` at
+   `validate_write.rs:732-748`), oversize content, NUL bytes, and non-UTF-8
+   encodings all short-circuit to a structured `block`.
 7. **validate_write resolves enforcement mode** — `.anvil.yaml` lookup via
    `WorkspaceEnforcementResolver::resolve` (`validate_write.rs:111-115`) →
    `enforcement::load_for_workspace` (`enforcement.rs:135-149`).
 8. **validate_write calls the validation backend** —
    `validate_pre_write(&request, &LocalDaemonValidationClient)`
-   (`tools/validate_write.rs:151-157`). See §5 for the routing.
+   (`validate_write.rs:151-157`). See §5 for the routing.
 9. **validate_write redacts the response** — `normalise_response_diagnostics`
    (`validate_write.rs:374-401`, §9).
 10. **validate_write builds the correlation envelope** — `validation_payload` →
@@ -515,10 +514,10 @@ When an MCP client calls `anvil_validate_write`:
 11. **Shim writes response to stdout** — `write_message`
     (`commands/mcp.rs:525-530`) serialises and flushes.
 
-`isError` (`tools/validate_write.rs:185-197`) is set when `decision == "block"`
-or an `error` field is present, so MCP clients that key off the standard
-`isError` flag pattern-match the same way as those that inspect the `decision`
-field directly.
+`isError` (`validate_write.rs:185-197`) is set when `decision == "block"` or an
+`error` field is present, so MCP clients that key off the standard `isError`
+flag pattern-match the same way as those that inspect the `decision` field
+directly.
 
 ## 13. Cross-cutting concerns
 
@@ -530,7 +529,7 @@ Windows). Cross-link: `docs/architecture/intercept-as-built.md` §5
 "Authentication and trust boundary". The shim has no remote surface, no TLS, no
 signed manifests in v1. An MCP client an operator does not fully trust still
 runs inside this trust boundary — the shim cannot distinguish "Cursor" from "a
-same-UID third-party agent that called `tools/call`".
+same-UID third-party agent that called the tools/call method".
 
 ### Determinism
 
@@ -546,7 +545,7 @@ pins the parity).
 
 The shim's failure semantics are explicit:
 
-- Malformed input → `block` (`tools/validate_write.rs:124-132`).
+- Malformed input → `block` (`validate_write.rs:124-132`).
 - Workspace escape → `block` (`validate_write.rs:1287-1330` test pins).
 - Server cwd deleted → `block` with `server-cwd-unavailable` error
   (`validate_write.rs:75-89, 259-283`).
@@ -599,7 +598,7 @@ alongside the `chore/windows-status` workstream that already shipped the
 
 ### G-02: §4.4 redaction filter spec-only outside `validate_write`
 
-The wired filter today is at `tools/validate_write.rs:374-424`. The broader §4.4
+The wired filter today is at `validate_write.rs:374-424`. The broader §4.4
 contract (covering `scan.files`, `fix.apply`, `status.query`) is shipped as
 specification only; runtime parity is owned by RMCPF-010. Operators who install
 third-party MCP clients into the v1 cut see un-redacted absolute paths and
@@ -615,10 +614,9 @@ transport. See `docs/archive/runbooks/v0.6.0-beta-security-note.md` §H3
 `hash_of_path` (`crates/anvil-intercept/src/fanout.rs:436-441`) is unsalted
 SHA-256. The shim does not directly invoke this primitive on the dominant
 `validate_write` path (the regex sweep substitutes `[REDACTED]` rather than a
-hash), but the hash fallback in `redact_secret_id`
-(`tools/validate_write.rs:403-413`) inherits the same primitive. A same-UID
-subscriber who can guess at the deployment's repository tree can rainbow-table
-`(rule_id, hashed_path)` pairs.
+hash), but the hash fallback in `redact_secret_id` (`validate_write.rs:403-413`)
+inherits the same primitive. A same-UID subscriber who can guess at the
+deployment's repository tree can rainbow-table `(rule_id, hashed_path)` pairs.
 
 **Risk:** Low for `validate_write` (regex sweep dominates); medium for the
 broader fan-out path. **Fix:** Per-startup HMAC salt minted on daemon launch.
@@ -667,19 +665,19 @@ HTTP in `v0.6.0-beta` — `anvil mcp serve --stdio` is the only shape
 
 ### `crates/anvil-cli/src/mcp/`
 
-| File                      | Role                                                                                                                                                                                                                                  |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mod.rs`                  | Module surface — re-exports `enforcement`, `tools`, `validation`.                                                                                                                                                                     |
-| `tools/mod.rs`            | Tool registry — re-exports `validate_write`.                                                                                                                                                                                          |
-| `tools/validate_write.rs` | RMCP-004: the `anvil_validate_write` tool. Descriptor, request parser, workspace-escape guard, redaction filter, response builder, correlation envelope.                                                                              |
-| `validation.rs`           | RMCP-005: `DaemonValidationClient` trait, `LocalDaemonValidationClient`, `SocketDaemonValidationClient`, `request_daemon_diagnostics` (Unix), embedded fallback, `DaemonStatus` enum, `ValidationBackend` enum, `validate_pre_write`. |
-| `enforcement.rs`          | RTAI-006: `EnforcementMode` enum, `decision_for` matrix, `load_for_workspace` reading `.anvil.yaml`. The mode-to-decision policy.                                                                                                     |
+| File                                               | Role                                                                                                                                                                                                                                  |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mod.rs`                                           | Module surface — re-exports `enforcement`, `tools`, `validation`.                                                                                                                                                                     |
+| `crates/anvil-cli/src/mcp/tools/mod.rs`            | Tool registry — re-exports `validate_write`.                                                                                                                                                                                          |
+| `crates/anvil-cli/src/mcp/tools/validate_write.rs` | RMCP-004: the `anvil_validate_write` tool. Descriptor, request parser, workspace-escape guard, redaction filter, response builder, correlation envelope.                                                                              |
+| `validation.rs`                                    | RMCP-005: `DaemonValidationClient` trait, `LocalDaemonValidationClient`, `SocketDaemonValidationClient`, `request_daemon_diagnostics` (Unix), embedded fallback, `DaemonStatus` enum, `ValidationBackend` enum, `validate_pre_write`. |
+| `enforcement.rs`                                   | RTAI-006: `EnforcementMode` enum, `decision_for` matrix, `load_for_workspace` reading `.anvil.yaml`. The mode-to-decision policy.                                                                                                     |
 
 ### `crates/anvil-cli/src/commands/`
 
 | File            | Role                                                                                                                                                                                                                                                             |
 | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mcp.rs`        | RMCP-002 / RMCP-003 / RMCP-007: `anvil mcp serve --stdio` stdio loop, JSON-RPC dispatcher, MCP `initialize` / `tools/list` / `tools/call`, auth gate, `anvil mcp install --client cursor\|claude-code` wrapper.                                                  |
+| `mcp.rs`        | RMCP-002 / RMCP-003 / RMCP-007: `anvil mcp serve --stdio` stdio loop, JSON-RPC dispatcher, MCP `initialize` / tools/list / tools/call methods, auth gate, `anvil mcp install --client cursor\|claude-code` wrapper.                                              |
 | `mcp_config.rs` | RCLI3-016 / LAUNCH-009.5: `anvil mcp-config` advanced surface — emit, write, verify editor configs for Cursor / Claude Code with stdio or HTTP transport. Shared `install_rust_stdio_target` helper used by `anvil mcp install` and the activation orchestrator. |
 
 ### Cross-crate
@@ -708,8 +706,8 @@ HTTP in `v0.6.0-beta` — `anvil mcp serve --stdio` is the only shape
   Windows `correlation.daemonStatus` framing.
 - `docs/archive/runbooks/v0.6.0-beta-security-note.md` §H2 (unsalted hash) and
   §H3 (§4.4 spec-only) — the operator-facing trade-offs the shim inherits.
-- `plans/modules/rust-mcp-launch-shim.aps.md` — RMCP-001..RMCP-008, the eight A1
-  work items behind this surface.
+- `plans/archive/modules/rust-mcp-launch-shim.aps.md` — RMCP-001..RMCP-008, the
+  eight A1 work items behind this surface.
 - `plans/modules/rust-mcp-full-port.aps.md` — RMCPF, the tracked follow-up that
   wires the broader §4.4 redaction contract and ports the legacy tool catalogue.
 - `plans/specs/anvil-driver-framework/editor-and-mcp-driver-design.md` §2.3a,

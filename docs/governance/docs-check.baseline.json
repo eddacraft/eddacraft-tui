@@ -556,13 +556,5 @@
       "broken link \"../../modules/rust-mcp-launch-shim.aps.md\" — target file does not exist"
     ]
   },
-  "asbuilt-paths": {
-    "docs/architecture/mcp-shim-as-built.md": [
-      "source path does not exist: \"plans/modules/rust-mcp-launch-shim.aps.md\" (body reference \"plans/modules/rust-mcp-launch-shim.aps.md\")",
-      "source path does not exist: \"tools/call\" (body reference \"tools/call\")",
-      "source path does not exist: \"tools/list\" (body reference \"tools/list\")",
-      "source path does not exist: \"tools/mod.rs\" (body reference \"tools/mod.rs\")",
-      "source path does not exist: \"tools/validate_write.rs\" (body reference \"tools/validate_write.rs\")"
-    ]
-  }
+  "asbuilt-paths": {}
 }
