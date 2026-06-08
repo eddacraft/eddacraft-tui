@@ -374,6 +374,7 @@ mod tests {
                     line: 0,
                 })
                 .collect(),
+            reexports: Vec::new(),
         }
     }
 
