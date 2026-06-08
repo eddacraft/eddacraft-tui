@@ -87,13 +87,40 @@ remain sequenced behind Graph V2 foundations.
 - **Capsule manifest schema (GITGOV-003).** The new `anvil-capsule` crate owns a
   versioned `anvil.capsule.v1` manifest and `anvil.capsule-verification.v1`
   shape, with SHA-256 canonical-JSON file digests and witness-range pointers.
-  Create/collect/verify UX remains future work.
+- **Capsule create command + collectors (GITGOV-004/-005/-006).**
+  `anvil capsule create --range <base>..<head> --out <dir>` now writes a capsule
+  directory from a real range. A commit/range collector resolves commits, tree
+  hashes, parents, and changed paths (GITGOV-005); a policy/baseline/rules
+  digest collector captures the governance inputs (GITGOV-006); both reuse
+  existing crates rather than re-modelling evidence.
+  `anvil_rules::OPA_RUNTIME_VERSION` is the shared constant (the hook aliases
+  it) and the CLI fills `ToolIdentity`/`Producer` from a single binding. Witness
+  and diagnostics capsule entries are structural placeholders until
+  GITGOV-007/-008 land their collectors; `verify`/`explain`/`inspect` UX remains
+  future work.
 - **Tracked exception store foundation (EXCEPT-001/-002/-007).**
   `ExceptionStore` now prefers tracked `anvil/exceptions/store.json`, falls back
   to legacy `.anvil/exceptions.json`, and supports non-destructive migration.
   The write path is hardened for provenance, locking, read-only worktrees, and
   symlink escapes before any CLI caller is wired. Exceptions remain unenforced
   until the later EXCEPT evaluation and CLI items land.
+
+### Graph V2 foundation (GV2-002, ADR-063, ADR-064)
+
+- **Stable symbol identity + export-diff primitive (GV2-002).** The
+  `anvil-graph-cache` crate replaces the position-conflated
+  `symbol_baseline_key` (`file::kind::name`) and the session-local
+  `SymbolNode.id` counter with a stable, cross-restart symbol identity
+  (overload-disambiguated by structural refs only) plus an edge-identity
+  derivation, so snapshots and deltas stay comparable across daemon restarts. It
+  also lands the export-diff primitive that lets the save-time fast path
+  graduate from "any touched public symbol → `partial`" toward a real
+  added/removed/renamed-public-symbol diff. Renames are modelled as
+  delete-old-id + create-new-id with no persisted rename history; the privacy
+  review ([verdict](./plans/reviews/2026-06-08-gv2-privacy-review-verdict.md),
+  PV-1..PV-5) cleared the identity contract — structural-only overload
+  disambiguators, named deterministic content hashes, join-time-only
+  session/provenance refs — before merge.
 
 ### Flags catalogue (FLAGCAT-002…006)
 
