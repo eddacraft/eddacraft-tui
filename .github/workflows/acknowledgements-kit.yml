@@ -101,6 +101,12 @@ jobs:
       - name: Licences drift detector self-test
         run: bash tools/starters/acknowledgements/tests/licences-drift.sh
 
+      # ATTRIB-017 release versioning — VERSION must agree with the
+      # newest CHANGELOG.md heading (and the checker the release workflow
+      # uses for its tag triple-match must behave).
+      - name: Version / changelog consistency test
+        run: bash tools/starters/acknowledgements/tests/version-changelog-consistency.sh
+
       # ATTRIB-012 Node driver tests. Render + strict skip cleanly if
       # npm is unavailable; the setup-node step above guarantees it.
       - name: Node driver preflight test

@@ -3,9 +3,9 @@
 
 # Acknowledgements Starter Releases
 
-| ID     | Owner      | Status   |
-| ------ | ---------- | -------- |
-| ATTRIB | joshuaboys | Proposed |
+| ID     | Owner      | Status      |
+| ------ | ---------- | ----------- |
+| ATTRIB | joshuaboys | In Progress |
 
 **Last reviewed:** 2026-06-08
 
@@ -93,7 +93,7 @@ for consumers.
 
 ### ATTRIB-017: Versioned releases on the acknowledgements-starter mirror
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** Consumers of the public mirror can be notified of updates, read a
   changelog, and pin to an immutable version.
 - **Expected Outcome:** A deliberate `vX.Y.Z` tag + GitHub Release surface on
