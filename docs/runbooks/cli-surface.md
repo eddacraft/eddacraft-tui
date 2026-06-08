@@ -526,7 +526,7 @@ $ anvil intercept unblock --all --dry-run
 **Class:** Admin **Purpose:** Manage the save-time daemon's workspace admission
 (which project roots the `anvil-intercept` daemon will serve). **When to use:**
 To switch the daemon between `open` (first-touch adopt) and `allowlist` mode, or
-to curate the allow-list of served roots (confinement; ADR-060).
+to curate the `allowlist` of served roots (confinement; ADR-060).
 
 **Synopsis:** `anvil workspace <mode|allow|deny|list>`
 
