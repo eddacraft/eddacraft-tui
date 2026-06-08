@@ -25,7 +25,9 @@
 
 - [Next Best Items](#next-best-items)
 - [Release Plan](#release-plan)
+- [Graph Substrate](#graph-substrate)
 - [Hardening & Maintenance](#hardening--maintenance)
+- [Intercept Loop](#intercept-loop)
 - [Continuous Improvement](#continuous-improvement)
 - [Adoption and Sustained Use](#adoption-and-sustained-use)
 - [Rust Engine](#rust-engine)
@@ -38,9 +40,7 @@
 - [Engineering Platform](#engineering-platform)
 - [Test Quality](#test-quality)
 - [Language & Coverage](#language--coverage)
-- [Graph Substrate](#graph-substrate)
 - [Rust MCP Launch Path](#rust-mcp-launch-path)
-- [Intercept Loop](#intercept-loop)
 - [Future](#future)
 - [Dormant — Not Yet Scheduled](#dormant-not-yet-scheduled)
 
@@ -135,6 +135,24 @@ index focused on current work. The active planning window is the **`v0.8.0-beta`
 candidate — see the header above, [`RELEASE-PLAN.md`](../RELEASE-PLAN.md), and the
 active module tables below.
 
+**Active work below leads with the current `v0.8.0-beta` window** — Graph
+Substrate (GV2 A′ slice, the rank-1 payload), Hardening & Maintenance (the
+A→A′ daemon save-time swap, DSV), and Intercept Loop (MLP2 enforcement
+substrate) — then the rest of the active modules, then the
+[Dormant](#dormant-not-yet-scheduled) band.
+
+### Graph Substrate
+
+Persistent joined graph substrate for deterministic enforcement, provenance,
+trust, control/session joins, and optional assistant context projection. Graph
+v2 is Anvil-first; agent context delivery consumes projections over that same
+trusted model.
+
+| Module | Scope | Status | Progress | Dependencies |
+| ------ | ----- | ------ | -------- | ------------ |
+| [graph-v2-foundation](./modules/graph-v2-foundation.aps.md) | GV2 | In Progress | 4/19 | KERN, anvil-graph-cache, ADR-061/063/064/067/069, ADR-031, INTD, GCTX, EDDA |
+| [graph-context-delivery](./modules/graph-context-delivery.aps.md) | GCTX | Draft | 0/13 | GV2 |
+
 ### Hardening & Maintenance
 
 Codebase cleanup, .anvil file format, and BMAD v4 compatibility.
@@ -161,6 +179,54 @@ Codebase cleanup, .anvil file format, and BMAD v4 compatibility.
 
 **Design doc (Forge & Temper — archived):**
 [docs/archive/2026-02-24-forge-temper-review-pipeline.md](../docs/archive/2026-02-24-forge-temper-review-pipeline.md)
+
+### Intercept Loop
+
+Host-local enforcement daemon that detects policy violations from AI agent file
+changes and interrupts the correct session via process-group control.
+Shell-first, single-host initially, proving the core enforcement thesis. See
+[design spec](./specs/anvil-driver-framework/) for the broader driver framework
+vision.
+
+**Implementation state (2026-04-30):** The A1 INTD slice is merged and green:
+INTD-001 (daemon scaffold), INTD-002 (full cross-platform IPC), INTD-003
+(session registry), INTD-005 (enforcement pipeline), INTD-007 (fence
+persistence), INTD-013 (telemetry mirror), and INTD-014 (JSON-RPC conformance +
+latency harness). The current release now pulls the completed A1 subset from
+INTD and INTR to support RMCP/RTAI pre-write validation; the remaining
+INTD/INTR/INTL/DRVR work is queued after the launch shim.
+
+<!--
+  INTD count history:
+  - Pre-NOTIFY-009: index claimed 0/11, module already had 12 tasks (001–012) — off-by-one.
+  - NOTIFY-009 added INTD-013 to mirror control decisions onto telemetry.
+  - 2026-04-24 council review M1/M5/M9 filed INTD-014 (JSON-RPC 2.0
+    conformance + latency benchmark), INTD-015 (daemon-enforced
+    telemetry subscription scoping), INTD-016 (DoS protection budgets).
+  - Net: module now has 16 tasks; index reconciled to 0/16.
+
+  Note: this comment lives ABOVE the table because an HTML comment between
+  table rows terminates the markdown table semantically; oxfmt then sees the
+  post-comment rows as orphaned prose and rewraps them. Keeping the comment
+  here ensures the four module rows below form one contiguous, valid table.
+-->
+
+| Module | Scope | Status | Progress | Dependencies |
+| ------ | ----- | ------ | -------- | ------------ |
+| [intercept-daemon](./archive/modules/intercept-daemon.aps.md) | INTD | Complete | 16/16 (A1 slice: INTD-001/-002/-003/-005/-007/-013/-014; A2 Wave 1: INTD-008/-012/-015 (PRs #1305/#1306); A2 Wave 2: INTD-004/-006/-009/-010/-016 (PR #1308); A2 Wave 3: INTD-011 (PR #1309)) | anvil-checks, anvil-kernel (watcher), INTR, INTL, NOTIFY |
+| [intercept-launcher](./archive/modules/intercept-launcher.aps.md) | INTL | Complete | 9/9 | INTD; coordinates `AgentTag` proto with MLP-014; shipped via PR #1528 (merged 2026-05-14 at `5d38e546`) with `crates/anvil-run/` + 49 unit + 3 shell-integration tests green. All nine items Released/Shipped via `v0.7.0-beta` (2026-05-21); module **Complete**; archived |
+| [intercept-rules](./modules/intercept-rules.aps.md) | INTR | In Progress | 5/8 (INTR-004 path-deny rule Complete 2026-05-13; INTR-003 antipattern wrapper / INTR-005 regex-content / INTR-007 rule-config fleshed to **Ready** 2026-05-28 — scope/files grounded in `crates/anvil-intercept-rules/` + existing `anvil-checks` / `anvil-config` APIs; INTR-007 depends on INTR-003 + INTR-005) | anvil-checks, GV2 later for hot-read rules only |
+| [multilayer-protection](./archive/modules/multilayer-protection.aps.md) | MLP | Complete | 18/18 (Done 2026-05-13/-14: MLP-001..-018; MLP-018 closed 2026-05-14 via split into MLP2) | INTD / DRVR / RMCP / RTAI / LAUNCH + anvil-checks; ADRs 036–039 Accepted. MLP-009 was the v0.7.0-beta hard gate; MLP-018 split into MLP2. Per-item detail in the archived module. |
+| [multilayer-protection-v2](./modules/multilayer-protection-v2.aps.md) | MLP2 | In Progress | 71/87 (daemon-integration debt from the MLP-018 catalogue, Groups A–R; per-item PR/wave history in the module file) | All MLP v1 primitives; INTD enforcement pipeline; DRVR driver framework; RMCP/RMCPF MCP shim; RTAI mid-edit telemetry; LAUNCH activation orchestrator; kindling-integration. ADRs 036–039 already Accepted under MLP. |
+| [ssh-remote-host-daemon](./modules/ssh-remote-host-daemon.aps.md) | SSHREMOTE | Proposed | 0/8 (created 2026-05-14 from ADR-043 / SSH remote-host daemon design; remote host owns daemon, hooks, launcher, and witnesses; local side is display/control only) | INTD, INTL, MLP, DRVR, RMCP/RMCPF; ADRs [036](./decisions/036-daemon-scope-discovery-and-boundaries.md), [037](./decisions/037-witness-chain-and-l4-policy.md), [038](./decisions/038-hook-surface-and-noise-discipline.md), [043](./decisions/043-ssh-remote-host-daemon.md). Not in the v0.7 MLP release gate until promoted. |
+| [watch-ux-advisory-rules](./archive/modules/watch-ux-advisory-rules.aps.md) | WATCHUX | Complete | 8/8 (**WATCHUX-001..004 Released/Shipped via [`v0.6.3-beta`](./releases/v0.6.3-beta.md) on 2026-05-15**; WATCHUX-005..007 merged via PR #1524; WATCHUX-008 implemented on `feat/watchux-008-config-cache`) | anvil-cli audit/start/watch/status/config, anvil-kernel watch/watcher, anvil-tui watch surface, MLP config/baseline |
+| [watch-output-contract](./modules/watch-output-contract.aps.md) | WOUT | Done | 6/6 (created 2026-05-14 from consumer-piping question; hardens `anvil --json watch` from best-effort JSON lines into a versioned NDJSON contract — `anvil.watch.event.v1`. WOUT-001..006 implemented 2026-05-14 with typed wire envelope, stdout/stderr discipline, integration harness, golden fixtures and consumer docs. PR #1554 merged; narratively **Merged** in lifecycle; advances to Released/Shipped on v0.7.0-beta release evidence) | anvil-cli watch JSON mode, anvil-kernel watch events, anvil-kernel-types, WATCHUX stdout/stderr fallback semantics |
+| [surface-drivers](./archive/modules/surface-drivers.aps.md) | DRVR | Complete | 5/5 active (2 superseded, 1 deferred under ADR-033) — DRVR-007 Complete (PR #1304: auth.rs trust boundary v1); DRVR-006 Complete (PR #1304: option-(b) Distinguish recorded); DRVR-001 Complete (PR #1307: shared TS driver client); DRVR-002 Complete (PR #1310: editor-driver protocol design + capability negotiation); DRVR-008 Complete (PR #1310: capability negotiation + manifest method advertisement) | INTD-002/-003/-005/-013/-015, ADR-030, ADR-033 (IDE/MCP archived — DRVR-003 deferred until a new extension package is created on the daemon-driver path), RMCP/RMCPF sequencing, GV2 control/session graph later — supersedes TSRET-003/-004 (KERN-050/-051/-052 superseded-into-INTD per ADR-030); DRVR-004 superseded by RMCP/RMCPF; DRVR-003 deferred per ADR-033; DRVR-005 (architecture cross-links) remains Draft pending DRVR-003 un-pause |
+
+**Architecture Decisions:**
+[D-015: Intercept Loop Enforcement](./decisions/015-intercept-loop-enforcement.md),
+[D-030: Surface Drivers Supersede napi Cutover](./decisions/030-surface-drivers-supersede-napi-cutover.md),
+[D-033: Park IDE/MCP Surfaces; Retire TS Scanner Now](./decisions/033-park-ide-mcp-retire-ts-scanner.md)
 
 ### Continuous Improvement
 
@@ -595,18 +661,6 @@ it, each new module would re-design the same plumbing.
 | §16.5 #12 — parallelism-is-logical-dependency clarification                                                                                         | Inline in spec §9; track modules inherit                                         |
 | Council C-025 — suppression parser authority                                                                                                        | ✅ ADR-029 (Accepted)                                                            |
 
-### Graph Substrate
-
-Persistent joined graph substrate for deterministic enforcement, provenance,
-trust, control/session joins, and optional assistant context projection. Graph
-v2 is Anvil-first; agent context delivery consumes projections over that same
-trusted model.
-
-| Module | Scope | Status | Progress | Dependencies |
-| ------ | ----- | ------ | -------- | ------------ |
-| [graph-v2-foundation](./modules/graph-v2-foundation.aps.md) | GV2 | In Progress | 4/19 | KERN, anvil-graph-cache, ADR-061/063/064/067/069, ADR-031, INTD, GCTX, EDDA |
-| [graph-context-delivery](./modules/graph-context-delivery.aps.md) | GCTX | Draft | 0/13 | GV2 |
-
 ### Rust MCP Launch Path
 
 Current-release Rust MCP launch shim plus next-release full parity port. The
@@ -618,54 +672,6 @@ proposed writes before they land. Full TS MCP server parity is next-release work
 | ------ | ----- | ------ | -------- | ------------ |
 | [rust-mcp-launch-shim](./archive/modules/rust-mcp-launch-shim.aps.md) | RMCP | Complete | 8/8 (A1 launch slice closed 2026-04-30 — RMCP-001..-008 shipped; RMCP-008 GUI dry-run recorded in `plans/specs/2026-04-26-rtai-demo-runbook.md` §8; follow-up gaps tracked as #1194/#1195/#1197) | RCLI3-016/-016b, RTAI, AIGUARD-002, anvil-checks; daemon preferred but embedded fallback allowed |
 | [rust-mcp-full-port](./modules/rust-mcp-full-port.aps.md) | RMCPF | In Progress | 6/10 (RMCPF-001 inventory, RMCPF-002 architecture spec, RMCPF-003 Phase 1 readiness decisions, and RMCPF-010 check/gate/status MCP tool parity slice Complete; `anvil_check` ships as the daemon-RPC translator's correctness-equivalent embedded fallback and `anvil_gate` ships as MCP-driver-local composition with planless in-process and full subprocess modes. RMCPF-011 (fix/suppress/boundary tools) and RMCPF-012 (prompts retired) shipped via PR #1558 (merged 2026-05-14, commit `56d5fd89`); registry now exposes seven tools, `prompts` capability omitted, `prompts/list` returns -32601.) | RMCP, DRVR, `archive/anvil-mcp-server` (archived per ADR-033 — frozen reference) |
-
-### Intercept Loop
-
-Host-local enforcement daemon that detects policy violations from AI agent file
-changes and interrupts the correct session via process-group control.
-Shell-first, single-host initially, proving the core enforcement thesis. See
-[design spec](./specs/anvil-driver-framework/) for the broader driver framework
-vision.
-
-**Implementation state (2026-04-30):** The A1 INTD slice is merged and green:
-INTD-001 (daemon scaffold), INTD-002 (full cross-platform IPC), INTD-003
-(session registry), INTD-005 (enforcement pipeline), INTD-007 (fence
-persistence), INTD-013 (telemetry mirror), and INTD-014 (JSON-RPC conformance +
-latency harness). The current release now pulls the completed A1 subset from
-INTD and INTR to support RMCP/RTAI pre-write validation; the remaining
-INTD/INTR/INTL/DRVR work is queued after the launch shim.
-
-<!--
-  INTD count history:
-  - Pre-NOTIFY-009: index claimed 0/11, module already had 12 tasks (001–012) — off-by-one.
-  - NOTIFY-009 added INTD-013 to mirror control decisions onto telemetry.
-  - 2026-04-24 council review M1/M5/M9 filed INTD-014 (JSON-RPC 2.0
-    conformance + latency benchmark), INTD-015 (daemon-enforced
-    telemetry subscription scoping), INTD-016 (DoS protection budgets).
-  - Net: module now has 16 tasks; index reconciled to 0/16.
-
-  Note: this comment lives ABOVE the table because an HTML comment between
-  table rows terminates the markdown table semantically; oxfmt then sees the
-  post-comment rows as orphaned prose and rewraps them. Keeping the comment
-  here ensures the four module rows below form one contiguous, valid table.
--->
-
-| Module | Scope | Status | Progress | Dependencies |
-| ------ | ----- | ------ | -------- | ------------ |
-| [intercept-daemon](./archive/modules/intercept-daemon.aps.md) | INTD | Complete | 16/16 (A1 slice: INTD-001/-002/-003/-005/-007/-013/-014; A2 Wave 1: INTD-008/-012/-015 (PRs #1305/#1306); A2 Wave 2: INTD-004/-006/-009/-010/-016 (PR #1308); A2 Wave 3: INTD-011 (PR #1309)) | anvil-checks, anvil-kernel (watcher), INTR, INTL, NOTIFY |
-| [intercept-launcher](./archive/modules/intercept-launcher.aps.md) | INTL | Complete | 9/9 | INTD; coordinates `AgentTag` proto with MLP-014; shipped via PR #1528 (merged 2026-05-14 at `5d38e546`) with `crates/anvil-run/` + 49 unit + 3 shell-integration tests green. All nine items Released/Shipped via `v0.7.0-beta` (2026-05-21); module **Complete**; archived |
-| [intercept-rules](./modules/intercept-rules.aps.md) | INTR | In Progress | 5/8 (INTR-004 path-deny rule Complete 2026-05-13; INTR-003 antipattern wrapper / INTR-005 regex-content / INTR-007 rule-config fleshed to **Ready** 2026-05-28 — scope/files grounded in `crates/anvil-intercept-rules/` + existing `anvil-checks` / `anvil-config` APIs; INTR-007 depends on INTR-003 + INTR-005) | anvil-checks, GV2 later for hot-read rules only |
-| [multilayer-protection](./archive/modules/multilayer-protection.aps.md) | MLP | Complete | 18/18 (Done 2026-05-13/-14: MLP-001..-018; MLP-018 closed 2026-05-14 via split into MLP2) | INTD / DRVR / RMCP / RTAI / LAUNCH + anvil-checks; ADRs 036–039 Accepted. MLP-009 was the v0.7.0-beta hard gate; MLP-018 split into MLP2. Per-item detail in the archived module. |
-| [multilayer-protection-v2](./modules/multilayer-protection-v2.aps.md) | MLP2 | In Progress | 71/87 (daemon-integration debt from the MLP-018 catalogue, Groups A–R; per-item PR/wave history in the module file) | All MLP v1 primitives; INTD enforcement pipeline; DRVR driver framework; RMCP/RMCPF MCP shim; RTAI mid-edit telemetry; LAUNCH activation orchestrator; kindling-integration. ADRs 036–039 already Accepted under MLP. |
-| [ssh-remote-host-daemon](./modules/ssh-remote-host-daemon.aps.md) | SSHREMOTE | Proposed | 0/8 (created 2026-05-14 from ADR-043 / SSH remote-host daemon design; remote host owns daemon, hooks, launcher, and witnesses; local side is display/control only) | INTD, INTL, MLP, DRVR, RMCP/RMCPF; ADRs [036](./decisions/036-daemon-scope-discovery-and-boundaries.md), [037](./decisions/037-witness-chain-and-l4-policy.md), [038](./decisions/038-hook-surface-and-noise-discipline.md), [043](./decisions/043-ssh-remote-host-daemon.md). Not in the v0.7 MLP release gate until promoted. |
-| [watch-ux-advisory-rules](./archive/modules/watch-ux-advisory-rules.aps.md) | WATCHUX | Complete | 8/8 (**WATCHUX-001..004 Released/Shipped via [`v0.6.3-beta`](./releases/v0.6.3-beta.md) on 2026-05-15**; WATCHUX-005..007 merged via PR #1524; WATCHUX-008 implemented on `feat/watchux-008-config-cache`) | anvil-cli audit/start/watch/status/config, anvil-kernel watch/watcher, anvil-tui watch surface, MLP config/baseline |
-| [watch-output-contract](./modules/watch-output-contract.aps.md) | WOUT | Done | 6/6 (created 2026-05-14 from consumer-piping question; hardens `anvil --json watch` from best-effort JSON lines into a versioned NDJSON contract — `anvil.watch.event.v1`. WOUT-001..006 implemented 2026-05-14 with typed wire envelope, stdout/stderr discipline, integration harness, golden fixtures and consumer docs. PR #1554 merged; narratively **Merged** in lifecycle; advances to Released/Shipped on v0.7.0-beta release evidence) | anvil-cli watch JSON mode, anvil-kernel watch events, anvil-kernel-types, WATCHUX stdout/stderr fallback semantics |
-| [surface-drivers](./archive/modules/surface-drivers.aps.md) | DRVR | Complete | 5/5 active (2 superseded, 1 deferred under ADR-033) — DRVR-007 Complete (PR #1304: auth.rs trust boundary v1); DRVR-006 Complete (PR #1304: option-(b) Distinguish recorded); DRVR-001 Complete (PR #1307: shared TS driver client); DRVR-002 Complete (PR #1310: editor-driver protocol design + capability negotiation); DRVR-008 Complete (PR #1310: capability negotiation + manifest method advertisement) | INTD-002/-003/-005/-013/-015, ADR-030, ADR-033 (IDE/MCP archived — DRVR-003 deferred until a new extension package is created on the daemon-driver path), RMCP/RMCPF sequencing, GV2 control/session graph later — supersedes TSRET-003/-004 (KERN-050/-051/-052 superseded-into-INTD per ADR-030); DRVR-004 superseded by RMCP/RMCPF; DRVR-003 deferred per ADR-033; DRVR-005 (architecture cross-links) remains Draft pending DRVR-003 un-pause |
-
-**Architecture Decisions:**
-[D-015: Intercept Loop Enforcement](./decisions/015-intercept-loop-enforcement.md),
-[D-030: Surface Drivers Supersede napi Cutover](./decisions/030-surface-drivers-supersede-napi-cutover.md),
-[D-033: Park IDE/MCP Surfaces; Retire TS Scanner Now](./decisions/033-park-ide-mcp-retire-ts-scanner.md)
 
 ### Future
 
