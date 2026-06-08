@@ -18,7 +18,7 @@
 > **Deferred to v0.9** (council, off the critical path): GV2-013, 014, 020, 023,
 > 026 (registry/contracts) and GV2-030 (sealed-DTO snapshot, with Sub-phase B
 > persistence). 013/014 are dep-unblocked but stay Draft as v0.9 scope. Count is
-> **8/19** (001/002/003/010/011/012/021/028 Merged).
+> **9/19** (001/002/003/010/011/012/021/022/028 Merged).
 
 > **Reshaped 2026-06-08** around the now-landed spine spec
 > [`docs/architecture/graph-v2-foundation-spec.md`](../../docs/architecture/graph-v2-foundation-spec.md)
@@ -496,11 +496,13 @@ Change status to **Ready** when:
 
 #### GV2-022: Hot-path read API and latency guardrails
 
-- **Status:** In Progress — dep GV2-011 Merged (PR #2428); `hot_index.rs`
-  hot-read API landed on `feat/gv2-022-hot-read-api` (the four ADR-063 allowlist
-  reads behind `HotRead`/`HotReadMiss`, hard-capped `reverse_impact`,
-  miss-degrades-to-fallback). Merged flip + count reconcile follow in a
-  post-merge `chore(aps)` PR (the #2421/#2432 pattern).
+- **Status:** Merged 2026-06-08 via PR #2442 — `hot_index.rs` hot-read API
+  (the four ADR-063 allowlist reads behind `HotRead`/`HotReadMiss`, hard-capped
+  cycle-terminating `reverse_impact`, miss-degrades-to-fallback; `HotReadMiss`
+  kept graph-cache-local per ADR-064 §2). Council `council-0a9fac6d` converged
+  (5 fixed, 1 waived). Read API only — no callers yet, so the hot path is
+  unchanged until the GV2-027 swap; the type split (GV2-024), depth flag lever
+  (GV2-026), and Criterion gate (GV2-025) remain their own items.
 - **Intent:** Expose the specific warmed reads the daemon and drivers may use
   during save-time or mid-edit enforcement, with explicit warm/stale markers and
   a miss-degrades-to-fallback rule (never escalate to parse/rebuild/IO on the hot
@@ -759,6 +761,6 @@ Change status to **Ready** when:
 | ----- | ----- | ---------- | ------ |
 | 0 — Architecture and Contracts | 3 | 3/3 done | Complete |
 | 1 — Graph Schemas | 5 | 3/5 done | In Progress |
-| 2 — Runtime Substrate | 4 | 1/4 done | Draft |
+| 2 — Runtime Substrate | 4 | 2/4 done | In Progress |
 | 3 — Enforcement, Wiring, and the A′ Swap | 7 | 1/7 done | In Progress |
-| **Total** | **19** | **8/19 done** | **In Progress** |
+| **Total** | **19** | **9/19 done** | **In Progress** |
