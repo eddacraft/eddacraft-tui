@@ -560,10 +560,10 @@ pub fn is_suppressed_at(
         if ex.policy_id != violation.policy_id {
             return false;
         }
-        if let Some(finding_hash) = ex.finding_hash.as_deref() {
-            if violation.fingerprint.as_deref() != Some(finding_hash) {
-                return false;
-            }
+        if let Some(finding_hash) = ex.finding_hash.as_deref()
+            && violation.fingerprint.as_deref() != Some(finding_hash)
+        {
+            return false;
         }
         if ex.file_pattern.is_empty() {
             return true;
