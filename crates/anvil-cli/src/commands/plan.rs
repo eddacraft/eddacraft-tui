@@ -27,8 +27,37 @@ pub struct DashboardArgs {}
 
 pub fn run(args: &PlanArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     match &args.command {
-        PlanCommand::Dashboard(_args) => run_dashboard(global),
+        PlanCommand::Dashboard(_args) => {
+            // CIB-046: the APS dashboard is an internal-developer surface,
+            // gated behind `tui-dashboard.aps-dashboard`. Refuse before any
+            // workspace I/O when the gate is closed.
+            if !crate::feature_flags::aps_dashboard_access_allowed() {
+                return Err(refuse_dashboard(global));
+            }
+            run_dashboard(global)
+        }
     }
+}
+
+/// CIB-046: refuse the internal-developer APS dashboard when the gate is
+/// closed. Mirrors the admin auth-required envelope so structured consumers
+/// get a JSON error and humans get a clear next step, and returns
+/// [`crate::output::AuthRequired`] so `main` maps it to `EXIT_AUTH_REQUIRED`.
+fn refuse_dashboard(global: &GlobalArgs) -> anyhow::Error {
+    let detail = "`anvil plan dashboard` is an internal-developer surface. Set \
+         ANVIL_DEV=1 for local development, or set ANVIL_ADMIN_KEY.";
+    if global.json {
+        eprintln!(
+            "{}",
+            serde_json::json!({
+                "error": "authentication_required",
+                "detail": detail,
+            })
+        );
+    } else {
+        eprintln!("Authentication required: {detail}");
+    }
+    crate::output::AuthRequired.into()
 }
 
 fn run_dashboard(global: &GlobalArgs) -> anyhow::Result<()> {
@@ -211,5 +240,23 @@ mod tests {
         assert_eq!(tui_snapshot.work_items[0].id, "APSCAN-011");
         assert_eq!(tui_snapshot.work_items.len(), 1);
         assert_eq!(tui_snapshot.warnings[0].target, "APSCAN-011");
+    }
+
+    fn test_global() -> GlobalArgs {
+        GlobalArgs {
+            json: false,
+            no_tui: false,
+            verbose: false,
+            anvil_home: None,
+            touch_project_state: false,
+        }
+    }
+
+    #[test]
+    fn refuse_dashboard_returns_auth_required() {
+        // CIB-046: a closed gate yields an AuthRequired error so `main`
+        // maps it to EXIT_AUTH_REQUIRED, the same exit code as `admin`.
+        let err = refuse_dashboard(&test_global());
+        assert!(err.is::<crate::output::AuthRequired>());
     }
 }

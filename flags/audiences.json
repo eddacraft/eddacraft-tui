@@ -24,6 +24,12 @@
       "status": "active"
     },
     {
+      "id": "staff-internal-developer",
+      "name": "Internal developer",
+      "axis": "staff",
+      "status": "active"
+    },
+    {
       "id": "channel-early-access",
       "name": "Early access channel",
       "axis": "channel",

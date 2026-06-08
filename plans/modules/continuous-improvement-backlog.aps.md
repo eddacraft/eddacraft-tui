@@ -1069,7 +1069,7 @@ archive.
 
 ### CIB-046: Gate the `anvil plan dashboard` APS surface behind an internal-developer feature flag
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** The APS dashboard (`anvil plan dashboard`) renders Anvil's own
   plan internals but ships always-on, unauthenticated, and documented as
   **Class: User-explicit**. That posture is not a deliberate access decision —
@@ -1122,6 +1122,26 @@ archive.
   a gating check); audience resolved (`staff-internal-developer`), the remaining
   implementation choice is the existing licence-gate command-metadata path vs. a
   dedicated check.
+- **Implementation note (2026-06-08, In Progress):** chose the **dedicated check
+  at dispatch** over the licence-gate command-metadata path — the licence gate
+  (`CLI_GATED_COMMANDS` / `requires_auth`) keys on customer plan tier, a
+  different axis from a staff-internal surface, and would gate all of `plan`
+  rather than the `dashboard` subcommand. Correction to the item framing: there
+  is **no explicit auth-bypass set** to remove `plan dashboard` from — it was
+  unauthenticated simply because `"plan"` is absent from `CLI_GATED_COMMANDS`;
+  gating is therefore an *added* check, not a deletion. New flag
+  `tui-dashboard.aps-dashboard` is **default-disabled**; runtime open paths are
+  `ANVIL_DEV=1` (local override, extended in `local_overrides_from_env`) and a
+  non-empty `ANVIL_ADMIN_KEY`; a closed gate returns `output::AuthRequired` →
+  `EXIT_AUTH_REQUIRED` (3), mirroring `admin`. The `staff-internal-developer`
+  audience is declared in the inventory and on the `tui-dashboard` group, but
+  the MVP does **not** plumb a staff-axis signal into the CLI evaluation context
+  (`/auth/verify` carries no staff claim today), so the flag cannot yet resolve
+  `enabled` for a real authenticated caller via targeting — **deferred
+  follow-up**: plumb a staff/role claim so the flag targets
+  `staff-internal-developer` directly. `cli-surface.md` reclassifies `anvil
+  plan` from `User-explicit` to a new `Internal` class. Drift gates green
+  (`pnpm nx test flags-catalogue`, `cargo test -p eddacraft-anvil-kernel-types`).
 
 ### CIB-047: Surface the save-time daemon-absent fallback in the watch TUI
 

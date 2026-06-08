@@ -1347,6 +1347,11 @@ mod tests {
 
     #[test]
     fn bypass_auth_plan_dashboard() {
+        // The licence gate (customer plan tiers) does not apply to the APS
+        // dashboard — it is an internal-developer surface. CIB-046 gates it
+        // separately at dispatch via `feature_flags::aps_dashboard_access_allowed`
+        // (default-disabled flag + ANVIL_DEV / ANVIL_ADMIN_KEY escape hatches),
+        // not through `requires_auth`, so this stays `false`.
         assert!(!requires_auth(&parse_command(&["plan", "dashboard"])));
     }
 

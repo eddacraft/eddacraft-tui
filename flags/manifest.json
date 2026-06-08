@@ -88,6 +88,22 @@
         }
       ],
       "primaryGroup": "docs"
+    },
+    {
+      "key": "tui-dashboard.aps-dashboard",
+      "owner": "CIB",
+      "intent": "Gate the read-only APS plan dashboard (`anvil plan dashboard`) to internal developers",
+      "class": "entitlement",
+      "valueType": "boolean",
+      "variants": [
+        { "key": "enabled", "value": true },
+        { "key": "disabled", "value": false }
+      ],
+      "defaultVariant": "disabled",
+      "status": "active",
+      "createdFor": "CIB-046",
+      "description": "Internal-developer access to the terminal APS dashboard; default-disabled, opened via ANVIL_DEV local override or ANVIL_ADMIN_KEY",
+      "primaryGroup": "tui-dashboard"
     }
   ]
 }

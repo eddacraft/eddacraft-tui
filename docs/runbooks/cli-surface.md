@@ -641,9 +641,18 @@ $ anvil mcp serve --stdio
 
 ## anvil plan
 
-**Class:** User-explicit **Purpose:** Inspect APS planning state. **When to
-use:** To browse active APS work items and module status in a read-only
-dashboard.
+**Class:** Internal **Purpose:** Inspect Anvil's own APS planning state. **When
+to use:** Internal developers browsing active APS work items and module status
+in a read-only dashboard while dogfooding Anvil.
+
+**Access (CIB-046):** the APS dashboard is gated behind the
+`tui-dashboard.aps-dashboard` feature flag (catalogue group `tui-dashboard`,
+audience `staff-internal-developer`) and is **default-disabled**. It opens for a
+caller who sets `ANVIL_DEV=1` (local development) or a non-empty
+`ANVIL_ADMIN_KEY` (the same credential `anvil admin` uses); otherwise the
+command refuses with exit code 3 (authentication required). Plumbing a
+staff-axis audience signal from `/auth/verify` so the flag can target
+`staff-internal-developer` for an authenticated caller is a deferred follow-up.
 
 **Synopsis:** `anvil plan dashboard`
 
@@ -653,13 +662,14 @@ dashboard.
 | ----------- | ---------------------------------------------- |
 | `dashboard` | Show active APS work in a read-only dashboard. |
 
-**Exit codes:** 0 (success), 1 (error)
+**Exit codes:** 0 (success), 1 (error), 3 (gate closed — set `ANVIL_DEV=1` or
+`ANVIL_ADMIN_KEY`)
 
 **Examples:**
 
 ```
-$ anvil plan dashboard
-$ anvil plan dashboard --json
+$ ANVIL_DEV=1 anvil plan dashboard
+$ ANVIL_DEV=1 anvil plan dashboard --json
 ```
 
 ---

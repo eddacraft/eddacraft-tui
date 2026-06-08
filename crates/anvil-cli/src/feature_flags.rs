@@ -21,7 +21,7 @@
 use anvil_kernel::feature_flags::{
     FlagOverrides, ResolutionDetails, ResolutionReason, resolve_flag,
 };
-use anvil_kernel_types::feature_flags_catalogue::cli_licence_gate;
+use anvil_kernel_types::feature_flags_catalogue::{cli_licence_gate, tui_dashboard_aps_dashboard};
 use anvil_kernel_types::{
     AudienceContext, EnvironmentContext, EnvironmentName, EvaluationContext, FeatureFlagDefinition,
 };
@@ -172,17 +172,23 @@ pub const DEV_BYPASS_ENV_VAR: &str = "ANVIL_DEV";
 
 /// Build the [`FlagOverrides`] map implied by environment variables.
 ///
-/// Currently the only recognised source is `ANVIL_DEV=1`, which inserts a
-/// local override forcing `cli.licence-gate` to its `"enabled"` variant.
-/// Returning an owned value (rather than `Option`) keeps callers that
-/// always pass overrides simple; an empty map is a no-op inside the
-/// resolver.
+/// `ANVIL_DEV=1` is the single recognised source. It inserts local
+/// overrides forcing the developer-bypassable flags to their `"enabled"`
+/// variant: `cli.licence-gate` (FLAGM-003) and, since CIB-046,
+/// `tui-dashboard.aps-dashboard` (the internal-developer APS dashboard
+/// gate). Returning an owned value (rather than `Option`) keeps callers
+/// that always pass overrides simple; an empty map is a no-op inside the
+/// resolver, and the resolver only applies the override whose key matches
+/// the flag under evaluation, so carrying both keys is harmless.
 pub fn local_overrides_from_env() -> FlagOverrides {
     let mut overrides = FlagOverrides::default();
     if std::env::var(DEV_BYPASS_ENV_VAR).as_deref() == Ok("1") {
         overrides
             .local
             .insert(CLI_LICENCE_GATE_KEY.into(), "enabled".into());
+        overrides
+            .local
+            .insert(APS_DASHBOARD_GATE_KEY.into(), "enabled".into());
     }
     overrides
 }
@@ -207,6 +213,52 @@ pub fn cli_dev_bypass_active() -> Option<ResolutionDetails> {
     } else {
         None
     }
+}
+
+// ── CIB-046: internal-developer gate for `anvil plan dashboard` ──────
+
+/// The `tui-dashboard.aps-dashboard` flag key, sourced from the generated
+/// catalogue so it cannot drift from `flags/manifest.json`.
+pub const APS_DASHBOARD_GATE_KEY: &str = tui_dashboard_aps_dashboard::KEY;
+
+/// Operator escape-hatch env var: a non-empty value grants access to the
+/// internal-developer APS dashboard without a personal credential, the same
+/// way `anvil admin` authenticates (see `bypass_auth_admin`). A presence
+/// check is sufficient here — the dashboard is read-only and local, so the
+/// gate does not validate the key against the server.
+pub const ADMIN_KEY_ENV_VAR: &str = "ANVIL_ADMIN_KEY";
+
+/// Whether the caller may open the read-only APS plan dashboard
+/// (`anvil plan dashboard`).
+///
+/// CIB-046 brings this surface — previously always-on and unauthenticated
+/// because `"plan"` is absent from [`CLI_GATED_COMMANDS`] — under the
+/// FLAGCAT catalogue as an internal-developer feature. The flag is
+/// default-disabled; the two runtime paths that open it are `ANVIL_DEV=1`
+/// (the developer local override, via [`local_overrides_from_env`]) and a
+/// non-empty `ANVIL_ADMIN_KEY`. Plumbing a staff-axis audience signal from
+/// `/auth/verify` so the flag can target `staff-internal-developer` for a
+/// real authenticated caller is a deferred follow-up.
+pub fn aps_dashboard_access_allowed() -> bool {
+    // `trim().is_empty()` rejects a whitespace-only value (a common shell
+    // accident, e.g. `export ANVIL_ADMIN_KEY=" "`) so it cannot open the gate.
+    let admin_key_present =
+        std::env::var(ADMIN_KEY_ENV_VAR).is_ok_and(|value| !value.trim().is_empty());
+    aps_dashboard_access_allowed_with(admin_key_present, &local_overrides_from_env())
+}
+
+/// Pure gate decision, separated from env I/O so it can be unit-tested with
+/// synthetic inputs. Access is granted when a non-empty admin key is present
+/// or the flag resolves to its `"enabled"` variant for the supplied
+/// overrides (any resolver path to `"enabled"`, including the dev override).
+fn aps_dashboard_access_allowed_with(admin_key_present: bool, overrides: &FlagOverrides) -> bool {
+    if admin_key_present {
+        return true;
+    }
+    let definition = tui_dashboard_aps_dashboard::definition();
+    let context = cli_evaluation_context("cli-session", None);
+    let details = resolve_flag(&definition, &context, Some(overrides));
+    details.variant == tui_dashboard_aps_dashboard::variants::ENABLED
 }
 
 #[cfg(test)]
@@ -315,8 +367,10 @@ mod tests {
     #[test]
     fn local_overrides_from_env_ignores_non_one_values() {
         // Only the literal "1" enables dev bypass; any other value (including
-        // "true", "0", or empty) is a no-op.
-        for value in ["true", "0", "", "yes"] {
+        // "true", "0", empty, or a whitespace-decorated "1") is a no-op. The
+        // decorated cases guard against a future `.trim()` "helpfully" widening
+        // the contract.
+        for value in ["true", "0", "", "yes", "1\n", " 1", "1 "] {
             temp_env::with_var(DEV_BYPASS_ENV_VAR, Some(value), || {
                 let overrides = local_overrides_from_env();
                 assert!(
@@ -342,5 +396,141 @@ mod tests {
         temp_env::with_var(DEV_BYPASS_ENV_VAR, None::<&str>, || {
             assert!(cli_dev_bypass_active().is_none());
         });
+    }
+
+    // ── CIB-046: APS dashboard internal-developer gate ──────────────
+
+    #[test]
+    fn aps_dashboard_gate_key_matches_catalogue() {
+        assert_eq!(APS_DASHBOARD_GATE_KEY, "tui-dashboard.aps-dashboard");
+        let definition = tui_dashboard_aps_dashboard::definition();
+        assert_eq!(definition.key, APS_DASHBOARD_GATE_KEY);
+        // Default-disabled: the surface is closed unless explicitly opened.
+        assert_eq!(definition.default_variant, "disabled");
+    }
+
+    #[test]
+    fn aps_dashboard_denied_by_default() {
+        // No admin key, no overrides → the default "disabled" variant wins.
+        assert!(!aps_dashboard_access_allowed_with(
+            false,
+            &FlagOverrides::default()
+        ));
+        // Pin *why* it is denied: the resolver lands on the manifest default,
+        // not a targeting match. This makes a `defaultVariant` flip to
+        // "enabled" fail here immediately rather than silently opening the gate.
+        let definition = tui_dashboard_aps_dashboard::definition();
+        let context = cli_evaluation_context("cli-session", None);
+        let details = resolve_flag(&definition, &context, Some(&FlagOverrides::default()));
+        assert_eq!(details.variant, "disabled");
+        assert_eq!(details.reason, ResolutionReason::Default);
+    }
+
+    #[test]
+    fn aps_dashboard_audience_is_inert_without_staff_axis_plumbing() {
+        // MVP deferral guard: the `staff-internal-developer` audience is
+        // declared on the `tui-dashboard` group, but the flag carries no
+        // targeting rule and the CLI evaluation context has no staff-axis
+        // signal. So even a caller whose context names that audience (here via
+        // account_tier) still resolves to the default "disabled" variant. When
+        // the staff-axis follow-up lands, this test should be updated alongside
+        // the new targeting rule — it exists to flag that the gap is intentional.
+        let definition = tui_dashboard_aps_dashboard::definition();
+        assert!(
+            definition.targeting.is_none(),
+            "MVP flag must carry no targeting; the only open paths are the escape hatches"
+        );
+        let context = cli_evaluation_context("cli-session", Some("staff-internal-developer"));
+        let details = resolve_flag(&definition, &context, Some(&FlagOverrides::default()));
+        assert_eq!(details.variant, "disabled");
+        assert_eq!(details.reason, ResolutionReason::Default);
+    }
+
+    #[test]
+    fn aps_dashboard_allowed_with_admin_key() {
+        // A present admin key opens the surface regardless of flag state.
+        assert!(aps_dashboard_access_allowed_with(
+            true,
+            &FlagOverrides::default()
+        ));
+    }
+
+    #[test]
+    fn aps_dashboard_allowed_with_dev_override() {
+        // The ANVIL_DEV=1 local override forces the flag to "enabled".
+        temp_env::with_var(DEV_BYPASS_ENV_VAR, Some("1"), || {
+            let overrides = local_overrides_from_env();
+            assert_eq!(
+                overrides
+                    .local
+                    .get(APS_DASHBOARD_GATE_KEY)
+                    .map(String::as_str),
+                Some("enabled"),
+                "ANVIL_DEV=1 must insert a local override on {APS_DASHBOARD_GATE_KEY}"
+            );
+            assert!(aps_dashboard_access_allowed_with(false, &overrides));
+        });
+    }
+
+    #[test]
+    fn aps_dashboard_env_gate_denies_when_no_env_set() {
+        // End-to-end through the env-reading entry point: with neither
+        // ANVIL_ADMIN_KEY nor ANVIL_DEV set, the dashboard is refused.
+        temp_env::with_vars(
+            [
+                (ADMIN_KEY_ENV_VAR, None::<&str>),
+                (DEV_BYPASS_ENV_VAR, None::<&str>),
+            ],
+            || {
+                assert!(!aps_dashboard_access_allowed());
+            },
+        );
+    }
+
+    #[test]
+    fn aps_dashboard_env_gate_allows_with_admin_key() {
+        temp_env::with_vars(
+            [
+                (ADMIN_KEY_ENV_VAR, Some("admin-token")),
+                (DEV_BYPASS_ENV_VAR, None::<&str>),
+            ],
+            || {
+                assert!(aps_dashboard_access_allowed());
+            },
+        );
+    }
+
+    #[test]
+    fn aps_dashboard_env_gate_denies_with_empty_admin_key() {
+        // An empty ANVIL_ADMIN_KEY is not a credential.
+        temp_env::with_vars(
+            [
+                (ADMIN_KEY_ENV_VAR, Some("")),
+                (DEV_BYPASS_ENV_VAR, None::<&str>),
+            ],
+            || {
+                assert!(!aps_dashboard_access_allowed());
+            },
+        );
+    }
+
+    #[test]
+    fn aps_dashboard_env_gate_denies_with_whitespace_only_admin_key() {
+        // A whitespace-only ANVIL_ADMIN_KEY (a common shell accident) is not a
+        // credential and must not open the gate.
+        for value in ["   ", "\t", " \n"] {
+            temp_env::with_vars(
+                [
+                    (ADMIN_KEY_ENV_VAR, Some(value)),
+                    (DEV_BYPASS_ENV_VAR, None::<&str>),
+                ],
+                || {
+                    assert!(
+                        !aps_dashboard_access_allowed(),
+                        "whitespace-only admin key {value:?} must not open the gate"
+                    );
+                },
+            );
+        }
     }
 }

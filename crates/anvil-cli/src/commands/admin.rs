@@ -520,7 +520,10 @@ pub fn run(args: &AdminArgs, global: &GlobalArgs) -> Result<()> {
         return run_admin_auth(command, global);
     }
 
-    let admin_key = resolve_admin_key(std::env::var("ANVIL_ADMIN_KEY"), global.json)?;
+    let admin_key = resolve_admin_key(
+        std::env::var(crate::feature_flags::ADMIN_KEY_ENV_VAR),
+        global.json,
+    )?;
     let rt = tokio::runtime::Runtime::new().context("creating tokio runtime")?;
     let client = crate::auth::client::AnvilClient::with_token(admin_key)?;
 

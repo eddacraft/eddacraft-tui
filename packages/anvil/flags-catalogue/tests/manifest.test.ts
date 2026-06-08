@@ -26,7 +26,7 @@ describe('flags catalogue manifest', () => {
     expect(FeatureFlagManifestSchema.safeParse(featureFlagManifest()).success).toBe(true);
   });
 
-  it('contains exactly the five shipped flags', () => {
+  it('contains exactly the six shipped flags', () => {
     const keys = featureFlagManifest().flags.map((f) => f.key);
     expect(keys).toEqual([
       'api.scope.beta',
@@ -34,6 +34,7 @@ describe('flags catalogue manifest', () => {
       'api.scope.preview',
       'cli.licence-gate',
       'docs.access',
+      'tui-dashboard.aps-dashboard',
     ]);
   });
 
@@ -92,22 +93,23 @@ describe('typed accessors', () => {
 });
 
 describe('gating-model inventories', () => {
-  it('groups.json validates and carries the seven primary groups', () => {
+  it('groups.json validates and carries the eight primary groups', () => {
     expect(FlagGroupManifestSchema.safeParse(flagGroups()).success).toBe(true);
     expect(flagGroups().groups.map((g) => g.id)).toEqual([
       'cli',
       'docs',
       'api',
       'dashboard',
+      'tui-dashboard',
       'ide',
       'daemon',
       'hook',
     ]);
   });
 
-  it('audiences.json validates and carries the nine canonical audiences', () => {
+  it('audiences.json validates and carries the ten canonical audiences', () => {
     expect(FlagAudienceManifestSchema.safeParse(flagAudiences()).success).toBe(true);
-    expect(flagAudiences().audiences).toHaveLength(9);
+    expect(flagAudiences().audiences).toHaveLength(10);
   });
 
   it('environments.json validates with the renamed five-environment set', () => {

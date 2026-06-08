@@ -30,6 +30,13 @@
       "defaultStatus": "active"
     },
     {
+      "id": "tui-dashboard",
+      "name": "Terminal (TUI) dashboard surface",
+      "defaultClass": "entitlement",
+      "defaultAudiences": ["staff-internal-developer"],
+      "defaultStatus": "active"
+    },
+    {
       "id": "ide",
       "name": "Editor / IDE surface",
       "defaultClass": "rollout",
