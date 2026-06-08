@@ -5,6 +5,15 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use thiserror::Error;
 
+/// The embedded OPA runtime version every `rules_sha` producer pins.
+///
+/// Shared so the witness writer (the pre-commit hook) and the capsule
+/// digest collector (GITGOV-006) feed `rules_sha` the **same**
+/// constant by construction — a divergence here would make capsule
+/// rule identity silently disagree with witnessed lines. Owned by
+/// this crate because the value is an input to [`rules_sha`].
+pub const OPA_RUNTIME_VERSION: &str = "0.10.0";
+
 /// Errors that can occur while assembling or hashing a
 /// [`RulesShaInput`].
 #[derive(Debug, Error)]

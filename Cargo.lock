@@ -1140,6 +1140,7 @@ dependencies = [
  "dirs",
  "eddacraft-anvil-architecture",
  "eddacraft-anvil-baseline",
+ "eddacraft-anvil-capsule",
  "eddacraft-anvil-checks",
  "eddacraft-anvil-checks-ast",
  "eddacraft-anvil-config",

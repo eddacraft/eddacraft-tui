@@ -74,9 +74,14 @@ release seals (RELEASE-SEAL); supplier bundles (SUPPLIER). Sealed Edda context
 ### GITGOV-004: Capsule create command
 - **Intent:** `anvil capsule create --range <base>..<head> --out <dir>` writes the capsule directory.
 - **Expected Outcome:** A capsule directory with manifest + collected evidence files is produced for a real range.
-- **Validation:** `cargo test -p eddacraft-anvil-cli capsule_create`
+- **Validation:** `cargo test -p eddacraft-anvil capsule_create` (the CLI
+  package is `eddacraft-anvil`; earlier text named a nonexistent
+  `eddacraft-anvil-cli`)
 - **Dependencies:** GITGOV-003, GITGOV-005, GITGOV-006
-- **Status:** Proposed
+- **Status:** In Progress (promoted from Proposed 2026-06-08 per NBI — operator
+  goal). Also closes the GITGOV-006 review follow-up: promote the shared OPA
+  runtime version constant (`anvil_rules::OPA_RUNTIME_VERSION`) and unify the
+  `ToolIdentity`/`Producer` fill-site in the CLI.
 
 ### GITGOV-005: Commit/range collector
 - **Intent:** Resolve a commit range to commits, tree hashes, parents, and changed paths.
@@ -116,14 +121,14 @@ release seals (RELEASE-SEAL); supplier bundles (SUPPLIER). Sealed Edda context
 ### GITGOV-010: Capsule explain UX
 - **Intent:** Human-readable `anvil capsule explain` (range, commits, policy/rules/baseline, witness coverage, diagnostics counts, exceptions, verdict).
 - **Expected Outcome:** Golden-output tests for pass/warn/degraded/block.
-- **Validation:** `cargo test -p eddacraft-anvil-cli capsule_explain`
+- **Validation:** `cargo test -p eddacraft-anvil capsule_explain`
 - **Dependencies:** GITGOV-009
 - **Status:** Proposed
 
 ### GITGOV-011: JSON output
 - **Intent:** `--json` on verify/inspect for CI consumption.
 - **Expected Outcome:** Stable machine-readable verdict + manifest summary.
-- **Validation:** `cargo test -p eddacraft-anvil-cli capsule_json`
+- **Validation:** `cargo test -p eddacraft-anvil capsule_json`
 - **Dependencies:** GITGOV-009
 - **Status:** Proposed
 
@@ -144,6 +149,6 @@ release seals (RELEASE-SEAL); supplier bundles (SUPPLIER). Sealed Edda context
 ### GITGOV-014: State-boundary enforcement (ADR-073)
 - **Intent:** Make the `anvil/` vs `.anvil/` boundary enforced, not asserted: (a) `anvil init`/`welcome` seed `.anvil/` wholesale into consumer `.gitignore` (today only `.anvil/cache/` + `.anvil/gates.json` — `crates/anvil-cli/src/commands/init.rs`); (b) a check warns when `.anvil/` paths are tracked or `anvil/` paths are ignored (`git check-ignore` sweep); (c) reconcile this repo's dogfood deviation — `anvil/witness/` + `anvil/kindling/` gitignored, and the bare `memory.json` ignore pattern would silently swallow a future `anvil/edda/memory.json` — by un-ignoring or recording the justification in ADR-072/073, and anchoring loose patterns (`/memory.json`).
 - **Expected Outcome:** Consumer repos cannot accidentally commit runtime state or ignore durable evidence; the dogfood repo stops falsifying the ADR-072 premise.
-- **Validation:** `cargo test -p eddacraft-anvil-cli init_gitignore`
+- **Validation:** `cargo test -p eddacraft-anvil init_gitignore`
 - **Dependencies:** GITGOV-002
 - **Status:** Proposed

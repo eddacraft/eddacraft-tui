@@ -71,5 +71,7 @@
 mod input;
 mod version;
 
-pub use input::{RulesShaError, RulesShaInput, config_sha_from_canonical, rules_sha};
+pub use input::{
+    OPA_RUNTIME_VERSION, RulesShaError, RulesShaInput, config_sha_from_canonical, rules_sha,
+};
 pub use version::{RequiredAnvilVersion, VersionFloorError};

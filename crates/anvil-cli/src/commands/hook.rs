@@ -1542,11 +1542,11 @@ fn emit_internal(class: ErrorClass, sup: &mut SuppressionLog) {
 /// (MLP2-019) both pin `"0.10.0"` for the v1 rule sets. The pre-commit
 /// hook must use the same string so a witness line written here and a
 /// verification check run on L4 collapse to the same `rules_sha` for
-/// equivalent configs. A future version bump moves in lockstep across
-/// all three call sites (centralising the constant is deferred until a
-/// second consumer needs it — three usage points is below the
-/// rule-of-three threshold).
-const HOOK_OPA_RUNTIME_VERSION: &str = "0.10.0";
+/// equivalent configs. Centralised in `anvil_rules::OPA_RUNTIME_VERSION`
+/// once the capsule digest collector became the second consumer
+/// (GITGOV-006 council follow-up); `anvil-l4` keeps its own literal to
+/// stay free of the `anvil-rules` dependency.
+const HOOK_OPA_RUNTIME_VERSION: &str = anvil_rules::OPA_RUNTIME_VERSION;
 
 /// MLP2-014: compute the `rules_sha` for the active rule set at hook
 /// fire time, or `None` when no `.anvil.<ext>` config is present.

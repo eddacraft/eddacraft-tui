@@ -15,6 +15,7 @@ pub mod canonical;
 pub mod collect;
 pub mod collect_digests;
 pub mod errors;
+pub mod format;
 pub mod manifest;
 pub mod verification;
 
@@ -26,6 +27,7 @@ pub use collect_digests::{
     collect_digests,
 };
 pub use errors::CapsuleError;
+pub use format::{CapsuleContent, write_capsule};
 pub use manifest::{CAPSULE_SCHEMA, CapsuleManifest, CapsuleRange, Producer, REQUIRED_FILES};
 pub use verification::{CapsuleVerification, CheckResult, VERIFICATION_SCHEMA, Verdict};
 

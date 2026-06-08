@@ -235,6 +235,9 @@ enum Commands {
     Hook(commands::hook::HookArgs),
     /// Manage the `anvil/baseline.json` adoption record.
     Baseline(commands::baseline::BaselineArgs),
+    /// Package a commit range's governance evidence into a portable,
+    /// locally verifiable review capsule (ADR-074).
+    Capsule(commands::capsule::CapsuleArgs),
     /// Manage architecture boundary definitions.
     Architecture(commands::architecture::ArchitectureArgs),
     /// Authenticate with the Anvil service.
@@ -302,6 +305,7 @@ fn command_canonical_name(cmd: &Commands) -> &'static str {
         Commands::Hooks(_) => "hooks",
         Commands::Hook(_) => "hook",
         Commands::Baseline(_) => "baseline",
+        Commands::Capsule(_) => "capsule",
         Commands::Architecture(_) => "architecture",
         Commands::Policy(_) => "policy",
         Commands::Update(_) => "update",
@@ -1069,6 +1073,7 @@ fn main() -> ExitCode {
         Commands::Hook(args) => commands::hook::run(args, &cli.global),
         Commands::Uninstall(args) => commands::uninstall::run(args, &cli.global),
         Commands::Baseline(args) => commands::baseline::run(args, &cli.global),
+        Commands::Capsule(args) => commands::capsule::run(args, &cli.global),
         Commands::Architecture(args) => commands::architecture::run(args, &cli.global),
         Commands::Policy(args) => commands::policy::run(args, &cli.global),
         Commands::Validate(args) => commands::validate::run(args, &cli.global),

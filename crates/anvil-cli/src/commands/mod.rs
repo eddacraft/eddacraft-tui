@@ -5,6 +5,7 @@ pub mod audit;
 pub mod audit_chain;
 pub mod auth;
 pub mod baseline;
+pub mod capsule;
 pub mod check;
 pub mod check_catalog;
 pub mod check_guards;
