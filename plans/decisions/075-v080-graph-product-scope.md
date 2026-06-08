@@ -55,8 +55,11 @@ Re-scope `v0.8.0-beta` from the interim-cache slice into the **Graph V2
 product**. Bring the following into the active window:
 
 1. **GV2 foundation** — the remaining `graph-v2-foundation` items (010, 011, 012,
-   013, 014, 020, 022, 023, 024, 025, 026, 027, 028, 029, 030), sequenced by the
-   module's dependency graph.
+   013, 014, 020, 022, 023, 024, 025, 026, 027, 028, 029), sequenced by the
+   module's dependency graph. **GV2-030 (sealed-DTO snapshot no-leak guard) is
+   excluded** — it is the warm-start persistence (Sub-phase B) enforcement gate
+   and stays deferred with it; nothing in-scope persists (the A′ backing is
+   rebuild-on-restart), so deferring it leaks nothing.
 2. **The A→A′ backing swap** — GV2-027 retires the interim `KernelGraphCache`
    re-derive and points `validate_paths`/`save_time` at the resident GV2 hot-read
    index under the **unchanged frozen wire**, with a verdict-parity property
