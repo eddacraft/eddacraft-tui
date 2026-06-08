@@ -9,12 +9,12 @@
 > **A′ slice in the `v0.8.0-beta` window (2026-06-08, [ADR-075](../decisions/075-v080-graph-product-scope.md),
 > Accepted via council).** In-window = the **GV2-027 critical-path closure**:
 > GV2-010, 011, 012, 022, 024, 025, 028, 029, then the A→A′ swap (027).
-> **GV2-010 is the Ready frontier** (deps GV2-002/003 Merged); the rest are
-> dep-blocked along the 7-deep chain. **Deferred to v0.9** (council, off the
+> **GV2-010 Merged 2026-06-08 (PR #2419)**; the now-unblocked frontier is
+> **GV2-011, GV2-012, GV2-028** (deps GV2-010 ✓) — promote at pickup. The rest
+> stay dep-blocked along the 7-deep chain. **Deferred to v0.9** (council, off the
 > critical path): GV2-013, 014, 020, 023, 026 (registry/contracts) and GV2-030
 > (sealed-DTO snapshot, with Sub-phase B persistence). 013/014 are dep-unblocked
-> but stay Draft as v0.9 scope. Count is **4/19** (001/002/003/021 Merged) — the
-> index row's `2/19` was stale.
+> but stay Draft as v0.9 scope. Count is **5/19** (001/002/003/021/010 Merged).
 
 > **Reshaped 2026-06-08** around the now-landed spine spec
 > [`docs/architecture/graph-v2-foundation-spec.md`](../../docs/architecture/graph-v2-foundation-spec.md)
@@ -290,12 +290,13 @@ Change status to **Ready** when:
 
 #### GV2-010: Semantic code graph v2 schema
 
-- **Status:** In Progress (2026-06-08, `feat/gv2-010-semantic-graph-schema`) —
-  partially shipped under Sub-phase A (`SymbolNode`, `EdgeType`, `Visibility`
-  exist); this item adds the gaps and splits by consumer. v0.8.0 deliverable
-  (ADR-075 decision): the `Reexports` first-class edge + extraction (A′-critical)
-  and the GCTX-projection **schema types** (no-text `ByteRange` span scaffolding);
-  call/reference/language-metadata *population* is deferred to GCTX/v0.9.
+- **Status:** Merged 2026-06-08 via PR #2419 — shipped the `Reexports`
+  first-class edge + `ReexportEdge` carrier + extraction (TS/JS + Rust, A′-critical)
+  and the GCTX-projection **schema type** (no-text `ByteRange`), with
+  `schema_fixtures`. Council `council-66cb4833` (accept-with-changes applied:
+  namespace/type-only/alias/glob re-export name correctness). Per the ADR-075
+  decision, call/reference/language-metadata *population* is deferred to
+  GCTX/v0.9 and span-field *attachment* to GV2-011/v0.9.
 - **Intent:** Expand the current symbol/import graph into the canonical semantic
   code graph, separating the A′-critical subset from the GCTX-projection subset.
 - **Expected Outcome:** **A′-critical subset** — stable identity wiring
@@ -702,7 +703,7 @@ Change status to **Ready** when:
 | Phase | Items | Completion | Status |
 | ----- | ----- | ---------- | ------ |
 | 0 — Architecture and Contracts | 3 | 3/3 done | Complete |
-| 1 — Graph Schemas | 5 | 0/5 done | Draft |
+| 1 — Graph Schemas | 5 | 1/5 done | In Progress |
 | 2 — Runtime Substrate | 4 | 1/4 done | Draft |
 | 3 — Enforcement, Wiring, and the A′ Swap | 7 | 0/7 done | Draft |
-| **Total** | **19** | **4/19 done** | **In Progress** |
+| **Total** | **19** | **5/19 done** | **In Progress** |
