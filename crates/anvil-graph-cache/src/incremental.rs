@@ -17,11 +17,18 @@ use super::symbol_graph::SymbolGraph;
 /// manual `Default` prevents).
 pub const GRAPH_DELTA_SCHEMA_VERSION: u32 = 1;
 
+// A delta's `schema_version` of 0 means "unset"; the contract requires a real
+// version on every delta. Guard the invariant at compile time.
+const _: () = assert!(GRAPH_DELTA_SCHEMA_VERSION != 0);
+
 /// How a symbol's stable identity related to the file's prior state across one
 /// update (GV2-003). Anchors each touched node to its [`SymbolIdentity`] so a
 /// consumer can reason about the change without re-deriving identities or
 /// reaching into the (already-mutated) graph for removed nodes.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// The derived `Ord` is `Added < Changed < Removed`, then by identity — the
+/// order [`classify_node_changes`] sorts into.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum NodeChange {
     /// The identity is new this update — no symbol with it existed before.
     Added(SymbolIdentity),
@@ -29,6 +36,13 @@ pub enum NodeChange {
     /// re-inserted (a body edit, or a visibility/trust change). "Changed"
     /// here is identity-preserving: same `(file, kind, name, ordinal)`,
     /// potentially different visibility/trust.
+    ///
+    /// This variant says *that* the node changed, not *what* changed — the
+    /// node payload (visibility, trust) is not carried. To learn whether the
+    /// change was security-relevant (an `Internal → Public` surface expansion
+    /// or a trust escalation), join the identity against the delta's
+    /// `previously_public` / `previously_privileged` / `previously_boundary`
+    /// baselines, which is exactly what `certify::export_surface_diff` does.
     Changed(SymbolIdentity),
     /// The identity existed before and is gone after this update.
     Removed(SymbolIdentity),
@@ -68,12 +82,16 @@ pub struct GraphDelta {
     pub added_symbols: Vec<u64>,
     pub removed_symbols: Vec<u64>,
     pub added_edges: Vec<(u64, u64, EdgeType)>,
-    /// Import edges removed by this update, in this generation's ids
-    /// (GV2-003). Populated from the file's outgoing import edges captured
-    /// before `remove_file`. On a body-only edit the old ids are genuinely
-    /// gone, so this honestly reports the removed edges even when the same
-    /// import is re-added under fresh ids; the identity-level "did the import
-    /// shape change" question is answered by `node_changes` +
+    /// The file's own **outgoing** edges removed by this update, in this
+    /// generation's ids (GV2-003). Captured from the file's symbols before
+    /// `remove_file` drops them. Scoped to outgoing deliberately: an *incoming*
+    /// edge (another file imports this one) belongs to that other file's
+    /// import decision and its dependency does not cease when this file is
+    /// re-saved — "who imports me" is answered by `DependencyGraph::dependents_of`,
+    /// never by this channel (see `certify` rustdoc). On a body-only edit the
+    /// old ids are genuinely gone, so this honestly reports the removed edges
+    /// even when the same import is re-added under fresh ids; the identity-level
+    /// "did the import shape change" question is answered by `node_changes` +
     /// `previously_imported`, not by diffing raw ids.
     pub removed_edges: Vec<(u64, u64, EdgeType)>,
     /// Identity-anchored view of the node change set (GV2-003): added,
@@ -164,9 +182,11 @@ struct PriorState {
     /// The file's stable identities before the update — for the
     /// changed/removed node-change classification after re-add.
     old_identity_set: HashSet<SymbolIdentity>,
-    /// Every edge incident to the file's symbols (outgoing + incoming),
-    /// de-duplicated and sorted — `remove_file` drops exactly these, so they
-    /// are the genuinely removed edges (GV2-003).
+    /// The file's own outgoing edges, de-duplicated and sorted — the import
+    /// decisions this file is dropping (GV2-003). Incoming edges are
+    /// deliberately excluded: they belong to other files' deltas, and
+    /// capturing them would make this an O(graph) scan on the save-time path
+    /// for a widely-imported file.
     removed_edges: Vec<(u64, u64, EdgeType)>,
 }
 
@@ -210,9 +230,6 @@ impl PriorState {
         let mut edge_set: HashSet<(u64, u64, EdgeType)> = HashSet::new();
         for &id in &old_ids {
             for e in graph.outgoing_edges(id) {
-                edge_set.insert((e.from, e.to, e.edge_type));
-            }
-            for e in graph.incoming_edges(id) {
                 edge_set.insert((e.from, e.to, e.edge_type));
             }
         }
@@ -328,6 +345,19 @@ pub fn update_file(graph: &mut SymbolGraph, new_symbols: FileSymbols) -> GraphDe
     // identity is `Added`; a prior identity now absent is `Removed`.
     let node_changes = classify_node_changes(graph, &file, &old_identity_set);
 
+    // Counts only — no identities, names, or paths beyond the target file the
+    // caller already supplied — so this stays inside the privacy verdict's
+    // PV-10 telemetry rules.
+    tracing::debug!(
+        target: "anvil_graph_cache::delta",
+        added = added_ids.len(),
+        removed = removed_ids.len(),
+        added_edges = added_edges.len(),
+        removed_edges = removed_edges.len(),
+        node_changes = node_changes.len(),
+        "update_file delta"
+    );
+
     GraphDelta {
         schema_version: GRAPH_DELTA_SCHEMA_VERSION,
         added_symbols: added_ids,
@@ -374,23 +404,11 @@ fn classify_node_changes(
             changes.push(NodeChange::Removed(identity.clone()));
         }
     }
-    changes.sort_by(|a, b| {
-        // Stable, total order: by identity, then by variant rank so an
-        // Added/Changed/Removed of the same identity never reorder
-        // non-deterministically.
-        a.identity()
-            .cmp(b.identity())
-            .then_with(|| variant_rank(a).cmp(&variant_rank(b)))
-    });
+    // Added/Changed/Removed are disjoint by construction (an identity is in
+    // current-only, both, or before-only), so the derived `NodeChange` order
+    // (variant, then identity) is already a total order with no ties to break.
+    changes.sort();
     changes
-}
-
-fn variant_rank(change: &NodeChange) -> u8 {
-    match change {
-        NodeChange::Added(_) => 0,
-        NodeChange::Changed(_) => 1,
-        NodeChange::Removed(_) => 2,
-    }
 }
 
 /// Resolve an import specifier to a symbol ID in the graph.
@@ -526,25 +544,29 @@ pub fn re_resolve_imports(graph: &mut SymbolGraph, imports: &[ImportEdge]) {
 
 /// Remove a deleted file from the graph entirely.
 ///
-/// GV2-003: reports the full removal honestly — `removed_edges` carries every
-/// edge incident to the file's symbols, and `node_changes` lists each removed
-/// identity as [`NodeChange::Removed`] — so a delete is a complete event, not
-/// just a list of vanished ids.
+/// GV2-003: reports the removal honestly — `removed_edges` carries the file's
+/// own outgoing import edges (scoped exactly as `update_file`'s; see the field
+/// docs), and `node_changes` lists each removed identity as
+/// [`NodeChange::Removed`], sorted to match `update_file`'s ordering — so a
+/// delete is a complete, consistently-shaped event, not just a list of
+/// vanished ids.
+///
+/// `previously_imported` is intentionally left empty: it exists for the
+/// new-dependency invariant's re-add suppression, which is only meaningful on
+/// an `update_file`, never on a delete (a deleted file imports nothing after).
 pub fn remove_file(graph: &mut SymbolGraph, file: &str) -> GraphDelta {
     let old_symbols = graph.symbols_in_file(file);
     let old_ids: Vec<u64> = old_symbols.iter().map(|s| s.id).collect();
-    let removed_node_changes: Vec<NodeChange> = SymbolIdentity::for_file_symbols(&old_symbols)
+    let mut removed_node_changes: Vec<NodeChange> = SymbolIdentity::for_file_symbols(&old_symbols)
         .into_iter()
         .map(NodeChange::Removed)
         .collect();
+    removed_node_changes.sort();
     drop(old_symbols);
 
     let mut removed_edge_set: HashSet<(u64, u64, EdgeType)> = HashSet::new();
     for &id in &old_ids {
         for e in graph.outgoing_edges(id) {
-            removed_edge_set.insert((e.from, e.to, e.edge_type));
-        }
-        for e in graph.incoming_edges(id) {
             removed_edge_set.insert((e.from, e.to, e.edge_type));
         }
     }

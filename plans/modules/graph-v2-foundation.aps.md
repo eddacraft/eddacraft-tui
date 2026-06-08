@@ -254,7 +254,10 @@ Change status to **Ready** when:
   ships as a field vs a documented reference): `removed_edges` is now
   **populated** (was permanently empty); a `node_changes` channel anchors
   added/changed/removed nodes to stable `SymbolIdentity` (the identity
-  anchors); `schema_version` is carried on every delta. **Content hashes** ride
+  anchors); `schema_version` is carried on every delta. "Changed edges" need
+  no separate channel — an edge's identity derives from its endpoint
+  identities, so an endpoint change is reported via `node_changes` and the edge
+  is re-created under the new ids. **Content hashes** ride
   the `FileSymbols` parser feed (hashed at the `validate_paths` boundary — not
   recomputable in graph-cache without file bytes) and **provenance/session
   metadata** is join-time-only (privacy verdict PV-3); neither is added as a

@@ -11,11 +11,13 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use anvil_graph_cache::incremental::{
-    GRAPH_DELTA_SCHEMA_VERSION, NodeChange, re_resolve_imports, remove_file, update_file,
+    GRAPH_DELTA_SCHEMA_VERSION, GraphDelta, NodeChange, re_resolve_imports, remove_file,
+    update_file,
 };
 use anvil_graph_cache::symbol_graph::SymbolGraph;
-use anvil_kernel_types::TrustLevel;
-use anvil_kernel_types::{EdgeType, FileSymbols, ImportEdge, SymbolKind, SymbolNode, Visibility};
+use anvil_kernel_types::{
+    EdgeType, FileSymbols, ImportEdge, SymbolKind, SymbolNode, TrustLevel, Visibility,
+};
 
 // ---------- fixtures ----------
 
@@ -63,22 +65,27 @@ fn file_symbols(file: &str, s: &FileSpec, base: u64) -> FileSymbols {
 }
 
 /// A structural fingerprint of a `SymbolGraph` that ignores session-local ids
-/// and node ordering: the set of `(file, kind, name)` symbols plus the set of
-/// import edges expressed as `(from_file, from_name) -> (to_file)`.
+/// and node ordering: a **multiset** (count per `(file, kind, name)`) of
+/// symbols plus the set of import edges expressed as `from_file -> to_file`.
 ///
-/// Two graphs with this fingerprint are observably equivalent for the purposes
-/// of the contract (same symbols, same import topology), regardless of how ids
-/// were allocated.
+/// The symbol channel is a count map, not a set, on purpose: overloads share
+/// `(file, kind, name)` (they differ only by ordinal — GV2-002), so a set
+/// would collapse them and hide an overload-count divergence between the
+/// incremental and rebuilt graphs. Two graphs with this fingerprint are
+/// observably equivalent for the contract (same symbol multiset, same import
+/// topology), regardless of how ids were allocated.
 #[derive(Debug, PartialEq, Eq)]
 struct GraphFingerprint {
-    symbols: BTreeSet<(String, String, String)>,
+    symbols: BTreeMap<(String, String, String), usize>,
     import_edges: BTreeSet<(String, String)>,
 }
 
 fn fingerprint(g: &SymbolGraph) -> GraphFingerprint {
-    let mut symbols = BTreeSet::new();
+    let mut symbols: BTreeMap<(String, String, String), usize> = BTreeMap::new();
     for n in g.inner().node_weights() {
-        symbols.insert((n.file.clone(), format!("{:?}", n.kind), n.name.clone()));
+        *symbols
+            .entry((n.file.clone(), format!("{:?}", n.kind), n.name.clone()))
+            .or_insert(0) += 1;
     }
     let mut import_edges = BTreeSet::new();
     for n in g.inner().node_weights() {
@@ -376,5 +383,143 @@ fn delete_reports_all_nodes_removed() {
             .iter()
             .all(|c| matches!(c, NodeChange::Removed(_))),
         "delete must classify every node as Removed"
+    );
+}
+
+// ---------- overload-sensitivity + edge-scope (council-driven) ----------
+
+/// Build `FileSymbols` allowing repeated names (overloads) — the multiset
+/// fingerprint must distinguish overload counts.
+fn file_symbols_overloads(file: &str, names: &[&str], base: u64) -> FileSymbols {
+    FileSymbols {
+        file: file.to_string(),
+        symbols: names
+            .iter()
+            .enumerate()
+            .map(|(i, n)| SymbolNode {
+                id: base + i as u64,
+                kind: SymbolKind::Function,
+                name: (*n).to_string(),
+                visibility: Visibility::Public,
+                file: file.to_string(),
+                trust_level: TrustLevel::Unknown,
+            })
+            .collect(),
+        imports: Vec::new(),
+    }
+}
+
+#[test]
+fn delta_replay_equivalence_is_overload_count_sensitive() {
+    // Incrementally end at two `foo` overloads; rebuild also has two. The
+    // multiset fingerprint must see count 2, not collapse to 1 — and the
+    // incremental path (add 2, drop to 1, add back to 2) must converge.
+    let mut g = SymbolGraph::new();
+    update_file(&mut g, file_symbols_overloads("a.ts", &["foo", "foo"], 0));
+    update_file(&mut g, file_symbols_overloads("a.ts", &["foo"], 100)); // drop one
+    update_file(&mut g, file_symbols_overloads("a.ts", &["foo", "foo"], 200)); // back to two
+
+    let mut rebuilt = SymbolGraph::new();
+    update_file(
+        &mut rebuilt,
+        file_symbols_overloads("a.ts", &["foo", "foo"], 0),
+    );
+
+    let fp = fingerprint(&g);
+    assert_eq!(fp, fingerprint(&rebuilt));
+    assert_eq!(
+        fp.symbols
+            .get(&("a.ts".into(), "Function".into(), "foo".into())),
+        Some(&2),
+        "fingerprint must record both overloads, not collapse them"
+    );
+}
+
+#[test]
+fn removed_edges_excludes_incoming_cross_file_edges() {
+    // b.ts imports a.ts. Re-saving a.ts (body-only) must NOT report the
+    // b->a edge in removed_edges — that incoming edge belongs to b's import
+    // decision, which did not change. (Council finding C-001.)
+    let mut g = SymbolGraph::new();
+    update_file(&mut g, file_symbols("src/a.ts", &spec(&["target"], &[]), 0));
+    update_file(
+        &mut g,
+        file_symbols("src/b.ts", &spec(&["caller"], &["./a"]), 100),
+    );
+    // Sanity: the b->a dependency exists.
+    assert!(
+        dep_edges(&g).contains(&("src/b.ts".to_string(), "src/a.ts".to_string())),
+        "precondition: b imports a"
+    );
+
+    // Re-save a.ts with the same surface.
+    let d = update_file(
+        &mut g,
+        file_symbols("src/a.ts", &spec(&["target"], &[]), 200),
+    );
+    assert!(
+        d.removed_edges.is_empty(),
+        "a body-only re-save of an imported file must not report incoming \
+         edges as removed, got {:?}",
+        d.removed_edges
+    );
+}
+
+#[test]
+fn per_delta_added_edges_account_for_resolved_imports() {
+    // Importee-before-importer order: update_file alone (no re_resolve) must
+    // report the cross-file edge in its own added_edges — not rely on a later
+    // re-resolve pass to paper it over. (Council finding C-002.)
+    let mut g = SymbolGraph::new();
+    update_file(
+        &mut g,
+        file_symbols("src/util.ts", &spec(&["helper"], &[]), 0),
+    );
+    let d: GraphDelta = update_file(
+        &mut g,
+        file_symbols("src/main.ts", &spec(&["app"], &["./util"]), 100),
+    );
+    assert!(
+        d.added_edges
+            .iter()
+            .any(|(_, _, t)| *t == EdgeType::Imports),
+        "update_file must itself report the resolvable import edge, got {:?}",
+        d.added_edges
+    );
+}
+
+#[test]
+fn node_changes_derive_total_order_is_stable() {
+    // The derived NodeChange Ord must be a stable total order: classifying the
+    // same change twice yields identical, sorted vectors.
+    let mut g1 = SymbolGraph::new();
+    update_file(
+        &mut g1,
+        file_symbols("a.ts", &spec(&["keep", "drop"], &[]), 0),
+    );
+    let d1 = update_file(
+        &mut g1,
+        file_symbols("a.ts", &spec(&["keep", "new"], &[]), 100),
+    );
+
+    let mut g2 = SymbolGraph::new();
+    update_file(
+        &mut g2,
+        file_symbols("a.ts", &spec(&["keep", "drop"], &[]), 0),
+    );
+    let d2 = update_file(
+        &mut g2,
+        file_symbols("a.ts", &spec(&["keep", "new"], &[]), 100),
+    );
+
+    assert_eq!(
+        d1.node_changes, d2.node_changes,
+        "classification not stable"
+    );
+    let mut sorted = d1.node_changes.clone();
+    sorted.sort();
+    assert_eq!(
+        d1.node_changes, sorted,
+        "node_changes must be emitted sorted"
     );
 }
