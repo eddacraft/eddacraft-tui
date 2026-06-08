@@ -850,13 +850,13 @@ Merged item; each is an additive improvement under the frozen wire.
   design/Council pass coordinated with the MLP2-071 owner; do not land the
   emission sites before the MLP2-071 fanout reader exists (an emit with no reader
   is dead code; an emit that bypasses `Fanout::route` is a scoping-leak bug).
-- **Validation:** the MLP2-071 Phase E subscribe/broadcast tests plus a DSV
+- **Validation:** the MLP2-071 Phase 2 subscribe/broadcast tests plus a DSV
   assurance-transition-emits-through-fanout test.
 - **Files:** `crates/anvil-intercept/src/{save_time,telemetry,fence}.rs` (DSV
   slice); `crates/anvil-intercept/src/{ipc,lib}.rs` (MLP2-071 slice)
 - **Confidence:** low
 - **Priority:** Low
-- **Dependencies:** MLP2-071 Phase E (subscribe handler + broadcaster) —
+- **Dependencies:** MLP2-071 Phase 2 (subscribe handler + broadcaster) —
   **satisfied** (Merged 2026-06-08 via PR
   [#2414](https://github.com/eddacraft/anvil-001/pull/2414)); DSV-005 (Merged).
 - **Source:** DSV-005 deferred note ("`Fanout::route` subscriber delivery (Phase
