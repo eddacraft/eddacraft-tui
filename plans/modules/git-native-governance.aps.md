@@ -111,7 +111,7 @@ release seals (RELEASE-SEAL); supplier bundles (SUPPLIER). Sealed Edda context
 - **Expected Outcome:** `diagnostics.sarif` present (empty when none), no unified finding model introduced.
 - **Validation:** `cargo test -p eddacraft-anvil-capsule -- collect_diagnostics`
 - **Dependencies:** GITGOV-004
-- **Status:** In Progress
+- **Status:** Merged 2026-06-08 via PR #2405
 
 ### GITGOV-009: Verification engine
 - **Intent:** Verify manifest digests, witness chain, digests, and applied exception scope/expiry; emit `pass`/`warn`/`degraded`/`block`/`error` with the ADR-074 exit-code contract (`0` pass/warn, `1` block, `2` degraded, `3` error). v0 contract per ADR-074: verification requires the repository present; metadata-only detached verification is deferred to `v1`.
