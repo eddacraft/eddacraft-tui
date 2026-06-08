@@ -1,0 +1,245 @@
+# Cut a versioned release of the acknowledgements starter kit to its
+# public mirror.
+#
+# ATTRIB-017. This is the second, deliberate publish surface for the kit
+# — complementary to `mirror-acknowledgements-starter.yml`, which keeps
+# the mirror's `main` force-pushed to "latest" on every change. This
+# workflow instead fires on a release tag and produces an immutable,
+# append-only `vX.Y.Z` tag + GitHub Release on
+# `eddacraft/acknowledgements-starter`, so external consumers can pin to
+# a known-good version and be notified when the kit changes.
+#
+# The two surfaces stay independent:
+#   - rolling `main`  → force-pushed every kit change (track latest)
+#   - `vX.Y.Z` tags   → cut deliberately here (pin + changelog + Release)
+#
+# Tag conventions (see plans/specs/2026-06-08-acknowledgements-starter-releases.md):
+#   - Source side (this repo): PREFIXED `acknowledgements-starter-vX.Y.Z`.
+#     The monorepo ships multiple independently-versioned taggables; a
+#     bare `vX.Y.Z` would collide with Anvil product release tags.
+#   - Mirror side: BARE `vX.Y.Z`. The mirror is single-product and
+#     flat-rooted, so the prefix is redundant there and
+#     `git subtree add … v1.0.0` reads cleanly for consumers. This
+#     workflow maps prefixed→bare when pushing.
+#
+# Append-only guarantee: the mirror tag is pushed WITHOUT `--force`. If
+# the bare tag already exists on the mirror the push is rejected — a cut
+# version is immutable; re-cutting requires a new version. (Mirrors the
+# eddacraft-tui publish flow's D-TUIR-009/011 contract.)
+#
+# Pre-push transformation: `MIRROR-README.md` is prepended onto
+# `README.md` (then removed) so the public repo reads with its
+# "this is a mirror" banner up front — identical to the rolling mirror.
+#
+# Auth: reuses the existing `MIRROR_PUSH_TOKEN` secret — the
+# fine-grained PAT scoped to `eddacraft/acknowledgements-starter` with
+# `Contents: Read and write`. Fine-grained `Contents: write` covers both
+# the tag push and GitHub Release creation, so no new secret is needed.
+# Auth uses an HTTP Basic `extraheader` (the URL-embedded
+# `x-access-token:${TOKEN}@github.com` form is fragile to stray bytes —
+# CURLE_URL_MALFORMAT).
+#
+# Operator runbook: docs/runbooks/acknowledgements-starter-release.md.
+# See plans/execution/ATTRIB-017.actions.md for the full design.
+
+name: Release — acknowledgements starter kit
+
+on:
+  push:
+    tags:
+      - 'acknowledgements-starter-v[0-9]+.[0-9]+.[0-9]+'
+      - 'acknowledgements-starter-v[0-9]+.[0-9]+.[0-9]+-*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing source tag to (re)release, e.g. acknowledgements-starter-v1.0.0'
+        required: true
+
+concurrency:
+  group: release-acknowledgements-starter
+  # A release must not be interrupted mid-push; never cancel in-progress.
+  cancel-in-progress: false
+
+# Least-privilege GITHUB_TOKEN: this workflow does not write anvil-001
+# GitHub state. The `contents: read` here is used only by the
+# reachable-from-main guard (compare API); all mirror writes leave via
+# MIRROR_PUSH_TOKEN.
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Tag + Release to eddacraft/acknowledgements-starter
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout (tag commit, full history — subtree split needs it)
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          # push:tag → github.ref is refs/tags/<tag>; dispatch → the tag input.
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve tag + version
+        run: |
+          set -euo pipefail
+          if [ -n "${{ github.event.inputs.tag }}" ]; then
+            TAG="${{ github.event.inputs.tag }}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          # Constrain the tag shape even on workflow_dispatch, where the
+          # on.push.tags filter does not apply.
+          if ! printf '%s' "${TAG}" | grep -qE '^acknowledgements-starter-v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error::tag '${TAG}' is not a valid source release tag (expected acknowledgements-starter-vX.Y.Z)"
+            exit 1
+          fi
+          SHA="$(git rev-parse HEAD)"
+          MIRROR_TAG="v${TAG#acknowledgements-starter-v}"
+          {
+            echo "TAG=${TAG}"
+            echo "SHA=${SHA}"
+            echo "MIRROR_TAG=${MIRROR_TAG}"
+          } >> "${GITHUB_ENV}"
+          echo "Source tag ${TAG} @ ${SHA} → mirror tag ${MIRROR_TAG}"
+
+      # The on.push.tags filter does not constrain which ref the tag's
+      # commit lies on, and workflow_dispatch can name any tag. Reject a
+      # tag whose commit is not on main's history before any mirror write.
+      - name: Guard — tag commit must be reachable from main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          STATUS="$(gh api "repos/${GITHUB_REPOSITORY}/compare/main...${SHA}" --jq '.status' 2>/dev/null || echo 'unknown')"
+          case "${STATUS}" in
+            behind|identical)
+              echo "Tag ${TAG} (sha ${SHA}) is reachable from main (${STATUS}) — OK"
+              ;;
+            *)
+              echo "::error::Tag ${TAG} points at ${SHA}, which is not reachable from main (status: ${STATUS}). Refusing to release from a non-main commit."
+              exit 1
+              ;;
+          esac
+
+      - name: Sanity-check mirror push token
+        env:
+          MIRROR_PUSH_TOKEN: ${{ secrets.MIRROR_PUSH_TOKEN }}
+        run: |
+          if [ -z "${MIRROR_PUSH_TOKEN}" ]; then
+            echo '::error::secret MIRROR_PUSH_TOKEN is empty — wire the fine-grained PAT before re-running'
+            exit 1
+          fi
+
+      # Version-triple assertion: parse X.Y.Z from the prefixed tag and
+      # require it equals VERSION and the newest CHANGELOG.md heading.
+      # Shared with the kit self-tests via check-version.sh.
+      - name: Assert version triple (tag == VERSION == CHANGELOG)
+        run: bash tools/starters/acknowledgements/check-version.sh --tag "${TAG}"
+
+      # Belt-and-braces: the full kit suite already ran on the merge that
+      # produced this commit; re-assert the single-source licence drift
+      # gate so the tagged tree is internally consistent.
+      - name: Re-assert kit health (licences drift)
+        run: bash tools/starters/acknowledgements/expand-licences.sh --check
+
+      - name: Configure git identity
+        run: |
+          git config --global user.name  'anvil-mirror-bot'
+          git config --global user.email 'anvil-mirror-bot@users.noreply.github.com'
+
+      - name: Swap MIRROR-README onto README (on a throwaway commit)
+        run: |
+          set -euo pipefail
+          KIT_DIR=tools/starters/acknowledgements
+          if [ ! -f "${KIT_DIR}/MIRROR-README.md" ]; then
+            echo "::error::${KIT_DIR}/MIRROR-README.md missing — the public framing header is required"
+            exit 1
+          fi
+          tmp="$(mktemp)"
+          cat "${KIT_DIR}/MIRROR-README.md" "${KIT_DIR}/README.md" > "${tmp}"
+          mv "${tmp}" "${KIT_DIR}/README.md"
+          rm "${KIT_DIR}/MIRROR-README.md"
+          git add "${KIT_DIR}/README.md" "${KIT_DIR}/MIRROR-README.md"
+          git commit -m "chore(mirror): prepend public README header [skip ci]" --allow-empty
+
+      - name: Subtree split
+        run: |
+          set -euo pipefail
+          git subtree split \
+            --prefix=tools/starters/acknowledgements \
+            -b _release_split
+
+      - name: Push bare tag to mirror (append-only, no --force)
+        env:
+          MIRROR_PUSH_TOKEN: ${{ secrets.MIRROR_PUSH_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Authenticate via an HTTP Basic header instead of embedding the
+          # token in the URL (URL-embedded credentials are fragile to a
+          # stray byte → CURLE_URL_MALFORMAT). Single tag refspec, no
+          # --force: if ${MIRROR_TAG} already exists on the mirror the push
+          # is rejected — the append-only immutability guarantee.
+          basic=$(printf '%s' "x-access-token:${MIRROR_PUSH_TOKEN}" | base64 -w0)
+          git -c "http.https://github.com/.extraheader=Authorization: Basic ${basic}" \
+              push \
+              https://github.com/eddacraft/acknowledgements-starter.git \
+              "_release_split:refs/tags/${MIRROR_TAG}"
+
+      - name: Extract changelog section for release notes
+        run: |
+          set -euo pipefail
+          VERSION_NUM="${MIRROR_TAG#v}"
+          CHANGELOG=tools/starters/acknowledgements/CHANGELOG.md
+          notes="$(mktemp)"
+          # Print the body between this version's `## [X.Y.Z]` heading and
+          # the next `## [` heading (or EOF), trimming surrounding blanks.
+          awk -v ver="${VERSION_NUM}" '
+            $0 ~ "^## \\[" ver "\\]" {grab=1; next}
+            grab && /^## \[/ {exit}
+            grab {print}
+          ' "${CHANGELOG}" \
+            | sed -e '/./,$!d' \
+            | sed -e ':a' -e '/^\n*$/{$d;N;ba}' > "${notes}"
+          if [ ! -s "${notes}" ]; then
+            echo "::error::no changelog body found for ${VERSION_NUM} in ${CHANGELOG}"
+            exit 1
+          fi
+          echo "NOTES_FILE=${notes}" >> "${GITHUB_ENV}"
+          echo "----- release notes -----"
+          cat "${notes}"
+
+      - name: Create GitHub Release on the mirror
+        env:
+          GH_TOKEN: ${{ secrets.MIRROR_PUSH_TOKEN }}
+        run: |
+          set -euo pipefail
+          # The bare tag was pushed above, so the Release attaches to the
+          # existing mirror tag. Marked --latest: the mirror is the
+          # user-facing repo and this is its canonical release surface.
+          gh release create "${MIRROR_TAG}" \
+            --repo eddacraft/acknowledgements-starter \
+            --title "${MIRROR_TAG}" \
+            --notes-file "${NOTES_FILE}" \
+            --latest
+
+      - name: Summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          {
+            echo '## Release result'
+            echo
+            echo 'Source tag (anvil-001):     `'"${TAG:-unknown}"'`'
+            echo 'Source commit:              `'"${SHA:-unknown}"'`'
+            echo 'Mirror tag:                 `eddacraft/acknowledgements-starter:'"${MIRROR_TAG:-unknown}"'`'
+            echo 'GitHub Release:             `eddacraft/acknowledgements-starter '"${MIRROR_TAG:-unknown}"'`'
+            echo 'Job outcome:                `'"${JOB_STATUS}"'`'
+            echo
+            echo 'Verify with:'
+            echo
+            echo '    gh release view '"${MIRROR_TAG:-vX.Y.Z}"' --repo eddacraft/acknowledgements-starter'
+            echo '    gh api repos/eddacraft/acknowledgements-starter/git/refs/tags/'"${MIRROR_TAG:-vX.Y.Z}"
+          } >> "${GITHUB_STEP_SUMMARY}"
