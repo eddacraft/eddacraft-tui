@@ -297,9 +297,8 @@ pub fn export_surface_diff(sym: &SymbolGraph, delta: &GraphDelta) -> ExportSurfa
     // into the graph, so a privileged capability reached via
     // `export * from 'node:fs'` produces no `Imports` edge and is invisible here.
     // Closing it needs the graph to carry re-export edges — a separate follow-up.
-    let current_privileged_imports: HashSet<String> = sym
-        .symbols_in_file(&delta.file)
-        .into_iter()
+    let current_privileged_imports: HashSet<String> = current
+        .iter()
         .flat_map(|s| sym.outgoing_edges(s.id))
         .filter(|e| e.edge_type == EdgeType::Imports)
         .filter_map(|e| sym.get_symbol(e.to))
@@ -535,15 +534,17 @@ pub fn certify(
             // GV2-029: surface a privilege escalation above `debug` so an
             // operator can see (and rate-track) the daemon withholding clean on
             // a newly-privileged surface — a bad shared-module deploy that now
-            // imports `node:fs` should not be invisible. Counts only, never
-            // identity/path values, to stay inside the PV-10 label rules.
-            if !surface.added_privileged.is_empty() || !surface.newly_privileged_imports.is_empty()
-            {
+            // imports `node:fs` should not be invisible. Gated on
+            // `newly_privileged_imports` only: that is the unambiguous
+            // new-capability signal, whereas `added_privileged` is the
+            // `Privileged ∪ Boundary` diff and so also fires on ordinary public
+            // API additions (a new public symbol is `Boundary`). Counts only,
+            // never identity/path values, to stay inside the PV-10 label rules.
+            if !surface.newly_privileged_imports.is_empty() {
                 tracing::warn!(
                     target: "anvil_graph_cache::certify",
-                    added_privileged = surface.added_privileged.len(),
                     newly_privileged_imports = surface.newly_privileged_imports.len(),
-                    "certify withholding clean: privilege surface expanded"
+                    "certify withholding clean: privileged module surface expanded"
                 );
             }
             // The closure is computed only to distinguish overflow from a
