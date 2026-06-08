@@ -1,6 +1,6 @@
 # Post-merge: feat-tuir-010-mirror-drift-check
 
-PR: #NNN
+PR: #2392
 Branch: `feat/tuir-010-mirror-drift-check`
 APS: TUIR-010 (module: tui-reintegration)
 Merged: <!-- filled by cleanup agent -->
