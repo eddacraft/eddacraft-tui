@@ -45,9 +45,10 @@ you only have a short session, these are the right places to spend it.
   the MCP list, then ask the AI to make a wrong rewrite and watch the daemon
   refuse it.
 - **Repo language profile honesty.** Activation now names detected languages and
-  their coverage tier (TS supported, SQL and Markdown partial, Python and Rust
-  unsupported). Language-specific antipattern checks honour the profile;
-  cross-language checks (e.g. secrets) still run on every file.
+  their coverage tier (TypeScript, JavaScript, and Rust supported; SQL and
+  Markdown partial; Python unsupported). Language-specific antipattern checks
+  honour the profile; cross-language checks (e.g. secrets) still run on every
+  file.
 - **Foreground daemon ops.** The daemon runs in foreground only in v1
   (`anvil intercept start --foreground`). Fences survive restart;
   `anvil intercept unblock --worktree <PATH>` clears a fenced worktree on Unix,
@@ -569,9 +570,11 @@ One sentence describing what happened.
   reserve fence-directory removal for full reset or corrupt daemon state.
 - **Windows CI runs only on `main` syncs.** A dev-branch build's CI green does
   not mean the Windows target was tested for that change.
-- **Primary language coverage is TypeScript and JavaScript.** SQL and Markdown
-  are partial; Python and Rust are unsupported in v1. The activation summary
-  names the gap.
+- **Primary language coverage is TypeScript, JavaScript, and Rust.** SQL and
+  Markdown are partial; Python is unsupported in v1. The activation summary
+  names the gap. Rust antipattern rules currently emit at advisory
+  (`info`/`warning`) severity, and Rust architecture/boundary checks — like
+  every language — only run when an `.anvil/architecture.yaml` is present.
 - **Gate checks may call your existing tools.** If lint, test, OPA, or other
   project tools are missing locally, `anvil gate` may skip or fail those checks.
 - **Architecture checks need an architecture definition.** Use

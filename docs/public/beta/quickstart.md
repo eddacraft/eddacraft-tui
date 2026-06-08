@@ -21,8 +21,8 @@ Your feedback directly shapes the product before public launch.
 
 ## Prerequisites
 
-- A real repository you know well (TypeScript or JavaScript gets the strongest
-  coverage; SQL and Markdown get partial coverage; Python and Rust are
+- A real repository you know well (TypeScript, JavaScript, or Rust gets the
+  strongest coverage; SQL and Markdown get partial coverage; Python is
   unsupported in v1)
 - **macOS**, **Linux**, or **Windows** (x86_64 or aarch64)
 - Cursor or Claude Code installed if you want to test the MCP catch path
@@ -208,7 +208,7 @@ We are especially interested in feedback on these areas in `0.6.0-beta`:
 | **Wow-start activation (`anvil start`)**   | Does the first minute land? Does the printed protection state match what is actually wired?                 |
 | **MCP catch via Cursor / Claude Code**     | After restart, does `anvil` show in the MCP list? Does an AI rewrite get refused before the write lands?    |
 | **Activation states copy (no over-claim)** | If activation reports `needs_action` or `unsupported`, is the explanation specific and the next step real?  |
-| **Language profile honesty**               | If your repo is mostly Python or Rust, does the activation summary name the gap instead of pretending?      |
+| **Language profile honesty**               | If your repo is mostly Python, does the activation summary name the gap instead of pretending?              |
 | **Tutorial experience (`ProtectionLoop`)** | Is the protection-loop walk clear? Does it leave you in a useful state?                                     |
 | **`anvil version`**                        | Does it correctly identify your install method and print the right upgrade command?                         |
 | **Watch fallback**                         | When MCP can't attach, does `anvil watch --source` / `anvil start --watch` produce useful save-time signal? |

@@ -114,7 +114,7 @@ emitted, what passed, what failed, and when.
 | **Anti-Pattern Library**     | 18 registry-driven rules (15 default, 3 opt-in)                                            |
 | **Parallel Scan Engine**     | Rust scanner runs tens of artifacts concurrently                                           |
 | **Watch Mode (fallback)**    | Save-time fallback when MCP pre-write cannot attach                                        |
-| **Repo language profile**    | TS supported; SQL and Markdown partial; out-of-scope languages named honestly              |
+| **Repo language profile**    | TS / JS / Rust supported; SQL and Markdown partial; out-of-scope languages named honestly  |
 | **Suppression System**       | Allow exceptions with mandatory explanations                                               |
 | **GitHub Integration**       | PR checks and inline comments                                                              |
 

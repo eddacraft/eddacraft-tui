@@ -109,8 +109,8 @@ state — one of:
   unenforced, stale, or all-quarantined
 - `watching` — save-time watch fallback active (MCP could not attach)
 - `needs_action` — repair hint provided
-- `unsupported` — repo language profile is out of scope (e.g. Python or Rust in
-  this release)
+- `unsupported` — repo language profile is out of scope (e.g. Python in this
+  release)
 - `error` — see the diagnostic output
 
 When the daemon is running and reachable over owner-only IPC, the
