@@ -156,9 +156,10 @@ impl<'a> HotReadApi<'a> {
 
     /// Allowlist #1 — the resident symbols of an already-extracted `file`.
     ///
-    /// A file with no `files` entry (never extracted, or evicted) is a typed
-    /// warm-miss, distinguishing it from a genuinely symbol-empty resident file
-    /// so the daemon never reads a false-empty surface.
+    /// A file with no recorded symbols — never extracted, evicted, or extracted
+    /// but symbol-empty (all leave no `files` entry; see
+    /// [`SymbolGraph::contains_file`]) — is a typed warm-miss, so the daemon
+    /// degrades to fallback rather than trusting a false-empty surface.
     pub fn resident_symbols(&self, file: &str) -> HotRead<Vec<&'a SymbolNode>> {
         if self.sym.contains_file(file) {
             HotRead::Warm(self.sym.symbols_in_file(file))
