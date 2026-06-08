@@ -673,7 +673,7 @@ one-shot data-cleanup migration once the dual-auth window closes.
 | `src/db/schema.sql`                            | 132   | Authoritative schema for fresh installs                                                                                           |
 | `src/db/migrations/*.sql`                      | —     | 11 forward-only migrations (see §8)                                                                                               |
 | `apps/anvil-api/scripts/migrate.mjs`           | 70    | CLI wrapper around `runMigrations`                                                                                                |
-| `apps/anvil-api/scripts/check-runtime-cjs.cjs` | 38    | `postbuild` guard for `svix>uuid` ESM regression                                                                                  |
+| `apps/anvil-api/scripts/check-runtime-cjs.cjs` | 43    | `postbuild` guard for `svix>uuid` ESM regression                                                                                  |
 | `vercel.json`                                  | 10    | Build / ignore / cron config                                                                                                      |
 | `package.json`                                 | —     | Engine pin (Node ≥22.13), `migrate` / `migrate:dry-run` scripts                                                                   |
 | `README.md`                                    | 109   | Operator-facing endpoint + env var reference                                                                                      |

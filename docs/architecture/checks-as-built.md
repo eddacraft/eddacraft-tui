@@ -11,11 +11,13 @@
 > **Status:** Live (beta) **Last reviewed:** 2026-05-07 against `v0.6.0-beta`
 > slate (HEAD `97b61fd0`) **Crate / location:** `crates/anvil-checks` (+
 > `crates/anvil-checks-napi`, callers in
-> `crates/anvil-cli/src/commands/{check,gate,audit}.rs`,
-> `crates/anvil-intercept-rules/`) **Module owner (APS):** `scan-performance`
-> (SCAN-NNN parallel walk + ReDoS hardening), with check-category subsets in
-> `surface-env-files.aps.md` (SURFENV), `realtime-ai-validation.aps.md`
-> (AI-001), `command-safety-surfaces.aps.md` (archived; runtime owned by
+> `crates/anvil-cli/src/commands/check.rs`,
+> `crates/anvil-cli/src/commands/gate.rs`,
+> `crates/anvil-cli/src/commands/audit.rs`, `crates/anvil-intercept-rules/`)
+> **Module owner (APS):** `scan-performance` (SCAN-NNN parallel walk + ReDoS
+> hardening), with check-category subsets in `surface-env-files.aps.md`
+> (SURFENV), `realtime-ai-validation.aps.md` (AI-001),
+> `command-safety-surfaces.aps.md` (archived; runtime owned by
 > `anvil-checks::command_safety`), and `ai-guardrail-profile.aps.md` (AIGUARD).
 > The pre-`0.4` Rust port lives in archived modules `anvil-rust-scanner.aps.md`,
 > `anvil-scanner-parity-gaps.aps.md`, and `anvil-ts-scanner-retirement.aps.md`.

@@ -905,8 +905,9 @@ guard the auto-registration block with a `has()` check.
   execution-plan generation.
 - `packages/aps/src/templates/{generator,index}.ts` — three-variant template
   generator.
-- `packages/aps/scripts/generate-templates.js` — emit nine template files into a
-  directory.
+- `packages/aps/scripts/generate-templates.js` — emit the three standard
+  `*-template.md` files (`index-template.md`, `leaf-template.md`,
+  `simple-template.md`) into a directory.
 - `packages/aps/templates/*.md` — nine static template files (committed).
 - `packages/aps/examples/*` — five example documents (incl. `system-ecommerce/`
   multi-module index and `nested-index/`).
