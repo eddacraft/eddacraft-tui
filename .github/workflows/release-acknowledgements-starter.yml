@@ -220,17 +220,22 @@ jobs:
           CHANGELOG=tools/starters/acknowledgements/CHANGELOG.md
           notes="$(mktemp)"
           # Print the body between this version's `## [X.Y.Z]` heading and
-          # the next `## [` heading (or EOF), trimming surrounding blanks.
+          # the next `## [` heading (or EOF), with leading AND trailing blank
+          # lines trimmed in a single deterministic pass (no trailing blank
+          # line in the release notes regardless of CHANGELOG spacing).
           # Match the heading by LITERAL prefix (index==1), not a regex —
           # the dots in a version are regex wildcards and would let
           # `## [1X0Y0]` masquerade as `## [1.0.0]`, polluting the notes.
           awk -v head="## [${VERSION_NUM}]" '
-            index($0, head) == 1 {grab=1; next}
-            grab && /^## \[/ {exit}
-            grab {print}
-          ' "${CHANGELOG}" \
-            | sed -e '/./,$!d' \
-            | sed -e ':a' -e '/^\n*$/{$d;N;ba}' > "${notes}"
+            index($0, head) == 1 { grab = 1; next }
+            grab && /^## \[/     { exit }
+            grab                 { body[++n] = $0 }
+            END {
+              s = 1; while (s <= n && body[s] ~ /^[[:space:]]*$/) s++
+              e = n; while (e >= s && body[e] ~ /^[[:space:]]*$/) e--
+              for (i = s; i <= e; i++) print body[i]
+            }
+          ' "${CHANGELOG}" > "${notes}"
           if [ ! -s "${notes}" ]; then
             echo "::error::no changelog body found for ${VERSION_NUM} in ${CHANGELOG}"
             exit 1
