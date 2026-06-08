@@ -54,21 +54,35 @@ edits required.
 
    Or just `cp -r` the directory in if you don't want subtree tracking.
 
-2. Bootstrap the consumer-side files (one-off, then commit):
+2. Bootstrap the always-needed files (one-off, then commit):
 
    ```bash
    cp tools/starters/acknowledgements/attribution.toml.example attribution.toml
-   cp tools/starters/acknowledgements/about.toml.template about.toml
-   cp tools/starters/acknowledgements/about.hbs.template about.hbs
    cp tools/starters/acknowledgements/ACKNOWLEDGEMENTS.md.template ACKNOWLEDGEMENTS.md
    ```
 
-3. Edit `attribution.toml` so `[rust].manifest_path` points at the Cargo
-   manifest you ship (usually `crates/your-cli/Cargo.toml` rather than the
-   workspace root, so dev-only deps stay out of the attribution).
+   Then copy the per-driver config for each ecosystem you ship. For Rust:
 
-4. Tune `about.toml`'s `accepted` list and `targets` to match your licence
-   policy and the platforms you build for.
+   ```bash
+   cp tools/starters/acknowledgements/about.toml.template about.toml
+   cp tools/starters/acknowledgements/about.hbs.template about.hbs
+   ```
+
+   The Node, Go, and Python drivers use allow-list files
+   (`licences.<eco>-allow.txt.template`) instead; the bundled-binaries driver
+   uses `bundled-binaries.toml.example`. See the per-driver block reference
+   below for the files each ecosystem needs.
+
+3. Edit `attribution.toml`: declare one `[[blocks]]` entry per ecosystem you
+   ship, pointing each block at the manifest it attributes (a Rust block's
+   `manifest_path` at the shipping binary's `Cargo.toml` — usually
+   `crates/your-cli/Cargo.toml` rather than the workspace root, so dev-only
+   deps stay out — a Node block's at its `package.json`, and so on). The
+   per-driver reference lists each driver's keys.
+
+4. Tune each declared driver's licence policy — e.g. `about.toml`'s `accepted`
+   list and `targets` for Rust, or the allow-list files for Node, Go, and
+   Python.
 
 5. Generate:
 

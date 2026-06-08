@@ -1,9 +1,14 @@
 # acknowledgements-starter
 
-A drop-in third-party-attribution pipeline. Wraps
-[`cargo-about`](https://github.com/EmbarkStudios/cargo-about) and splices its
-output between `BEGIN`/`END` marker comments in a target markdown file
-(typically `ACKNOWLEDGEMENTS.md`). Hand-curated content above and below the
+A drop-in third-party-attribution pipeline. A dispatcher reads a `[[blocks]]`
+array from `attribution.toml` and routes each block to an ecosystem-specific
+driver — Rust ([`cargo-about`](https://github.com/EmbarkStudios/cargo-about)),
+Node ([`license-checker`](https://github.com/davglass/license-checker)), Go
+([`go-licenses`](https://github.com/google/go-licenses)), Python
+([`pip-licenses`](https://github.com/raimon49/pip-licenses)), and
+hand-maintained bundled binaries — splicing each driver's output between
+`BEGIN`/`END` marker comments in a target markdown file (typically
+`ACKNOWLEDGEMENTS.md`). Hand-curated content above, between, and below the
 markers is preserved verbatim.
 
 > **This repository is a read-only mirror.** The canonical source lives in a
