@@ -430,17 +430,19 @@ mod tests {
     fn aps_dashboard_audience_is_inert_without_staff_axis_plumbing() {
         // MVP deferral guard: the `staff-internal-developer` audience is
         // declared on the `tui-dashboard` group, but the flag carries no
-        // targeting rule and the CLI evaluation context has no staff-axis
-        // signal. So even a caller whose context names that audience (here via
-        // account_tier) still resolves to the default "disabled" variant. When
-        // the staff-axis follow-up lands, this test should be updated alongside
-        // the new targeting rule — it exists to flag that the gap is intentional.
+        // targeting rule, and `cli_evaluation_context` populates only the
+        // plan/tier fields (`licence_plan`/`account_tier`) — there is no
+        // staff-axis field to carry that audience. So even a fully-populated
+        // plan/tier context resolves to the default "disabled" variant; nothing
+        // short of the escape hatches can open the gate today. When the
+        // staff-axis follow-up lands, this test should be updated alongside the
+        // new targeting rule — it exists to flag that the gap is intentional.
         let definition = tui_dashboard_aps_dashboard::definition();
         assert!(
             definition.targeting.is_none(),
             "MVP flag must carry no targeting; the only open paths are the escape hatches"
         );
-        let context = cli_evaluation_context("cli-session", Some("staff-internal-developer"));
+        let context = cli_evaluation_context("cli-session", Some("plan-enterprise"));
         let details = resolve_flag(&definition, &context, Some(&FlagOverrides::default()));
         assert_eq!(details.variant, "disabled");
         assert_eq!(details.reason, ResolutionReason::Default);

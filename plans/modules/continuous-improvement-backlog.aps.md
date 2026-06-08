@@ -1090,7 +1090,10 @@ archive.
     `build.rs` codegen, and the manifest<->TS<->Rust drift gates (nx
     `test:flags-catalogue` + `cargo test` kernel-types) with no drift.
   - `anvil plan dashboard` is hidden/refused unless the flag resolves enabled
-    for the caller, and the command is removed from the auth-bypass set.
+    for the caller, gated at dispatch. (Correction, captured during
+    implementation: there is no explicit auth-bypass *set* to remove it from —
+    it was unauthenticated only because `plan` is absent from the licence-gate
+    set `CLI_GATED_COMMANDS`; see the Implementation note below.)
   - A local escape hatch that is **not** "open to everyone" survives `anvil auth`
     being down — gate acceptance on the `tui-dashboard.aps-dashboard` flag or on
     `ANVIL_ADMIN_KEY` (the `admin` command already authenticates this way
@@ -1101,9 +1104,11 @@ archive.
 - **Validation:** flag-catalogue drift tests green (TS + Rust); with the flag
   disabled (and no `ANVIL_ADMIN_KEY`), `anvil plan dashboard` is hidden/refused;
   with the flag enabled for an internal-developer caller **or** with
-  `ANVIL_ADMIN_KEY` set, the dashboard opens with `anvil auth` down; an
-  `auth_bypass`/`requires_auth` test asserts `plan dashboard` is no longer in
-  the bypass set; `cli-surface.md` no longer lists it as User-explicit.
+  `ANVIL_ADMIN_KEY` set, the dashboard opens with `anvil auth` down; a
+  binary-level test asserts `plan dashboard` is refused (exit 3) when the gate
+  is closed (the licence-gate `requires_auth` test is unchanged — `plan` stays
+  out of that set by design); `cli-surface.md` no longer lists it as
+  User-explicit.
 - **Decision (resolved 2026-06-03):** add a new `staff-internal-developer`
   audience (staff axis) to `flags/audiences.json` rather than reuse
   `staff-anvil-internal` — "internal developer" is intentionally narrower than
