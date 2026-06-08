@@ -12,8 +12,8 @@
 //!
 //! `apply_delta` mirrors `anvil-kernel`'s `watch.rs` for the `SymbolGraph`: it
 //! updates it in place, maintains a per-key `all_imports` accumulator, re-runs
-//! [`re_resolve_imports`] so a forward reference (a file processed before its
-//! import target) resolves once the target lands, and re-runs
+//! [`re_resolve_imports_tracked`] so a forward reference (a file processed before
+//! its import target) resolves once the target lands, and re-runs
 //! [`annotate_trust`](anvil_graph_cache::annotate_trust) so the warm graph's
 //! `trust_level` stays live for the `certify` privilege dimension (GV2-029).
 //!
