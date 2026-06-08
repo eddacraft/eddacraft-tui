@@ -195,19 +195,9 @@ mod tests {
     }
 
     fn commit(dir: &Path, message: &str) {
-        git(
-            dir,
-            &[
-                "-c",
-                "user.name=capsule-test",
-                "-c",
-                "user.email=capsule@test.invalid",
-                "commit",
-                "-q",
-                "-m",
-                message,
-            ],
-        );
+        // Identity + signing are pinned at the repo level in
+        // `scratch_repo`.
+        git(dir, &["commit", "-q", "-m", message]);
     }
 
     /// A scratch repo with two commits, an `.anvil.yml` config, and a
@@ -215,7 +205,17 @@ mod tests {
     fn scratch_repo() -> (tempfile::TempDir, String, String) {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path();
-        git(root, &["init", "-q"]);
+        // `--template=` (empty) keeps host git template hooks out of
+        // the fixture; identity/signing pins keep commits deterministic
+        // on hosts with global `commit.gpgsign=true`.
+        git(root, &["init", "-q", "--template="]);
+        for (key, value) in [
+            ("user.email", "capsule@test.invalid"),
+            ("user.name", "capsule-test"),
+            ("commit.gpgsign", "false"),
+        ] {
+            git(root, &["config", key, value]);
+        }
 
         std::fs::write(root.join(".anvil.yml"), "checks:\n  enabled: true\n").unwrap();
         std::fs::create_dir_all(root.join("anvil")).unwrap();
