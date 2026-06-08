@@ -149,8 +149,16 @@ impl SaveTimeState {
         config: AntipatternCheckConfig,
         confinement: Confinement,
     ) -> Self {
+        let cache = KernelGraphCache::new();
+        // GV2-027: record which resident backing the daemon certifies against at
+        // startup — `gv2-hotindex-v1` after the A→A′ swap. Wire-invisible; this
+        // is the one diagnostic surface for the otherwise-internal marker.
+        tracing::debug!(
+            backing = cache.backing_schema_version(),
+            "save-time graph cache initialised"
+        );
         Self {
-            cache: KernelGraphCache::new(),
+            cache,
             assurance: Mutex::new(HashMap::new()),
             config,
             scheduler,

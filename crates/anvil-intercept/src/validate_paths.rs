@@ -18,7 +18,8 @@ use std::path::PathBuf;
 
 use anvil_checks::antipattern::check::run_antipattern_check_bytes;
 use anvil_checks::antipattern::types::{AntipatternCheckConfig, Warning, WarningSeverity};
-use anvil_graph_cache::certify::{Certifiability, CertifyStale, ChangeKind, certify};
+use anvil_graph_cache::HotReadApi;
+use anvil_graph_cache::certify::{Certifiability, CertifyStale, ChangeKind};
 use anvil_intercept_proto::protocol::{
     ChangeDescriptor, ChangeKindWire, CheckFamily, Coverage, EvaluatedPath, StaleReason,
     ValidatePathsRequest, ValidatePathsResponse,
@@ -492,9 +493,14 @@ where
     };
 
     let outcome = cache.apply_delta(key, ChangeKind::ContentModify, symbols);
+    // GV2-027 (A→A′): certify through the resident GV2 hot-read index
+    // (`HotReadApi`) rather than the raw graph pair, so the warm hot-index is
+    // the live backing behind the unchanged `validate_paths` wire. Verdict is
+    // identical to the interim direct-`certify` backing by construction (proven
+    // over arbitrary delta sequences by `backing_parity`).
     let verdict = cache
         .with_graphs(key, |sym, dep| {
-            certify(sym, dep, &ChangeKind::ContentModify, &outcome.delta, budget)
+            HotReadApi::new(sym, dep).certify(&ChangeKind::ContentModify, &outcome.delta, budget)
         })
         .unwrap_or(Certifiability::Partial {
             reason: CertifyStale::CrossFileResolutionNeeded,

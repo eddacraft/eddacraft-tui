@@ -68,6 +68,17 @@ use crate::rule_cache::WorktreeKey;
 /// by the same per-daemon concurrent-worktree cap.
 pub const DEFAULT_KERNEL_CACHE_CAPACITY: usize = 1024;
 
+/// Identifies the resident backing the save-time daemon certifies against,
+/// behind the frozen `validate_paths` wire (ADR-061).
+///
+/// Sub-phase A shipped over `interim-symbolgraph-v1` — a `SymbolGraph` cache
+/// rebuilt on restart. GV2-027 completes the A→A′ swap: the daemon now certifies
+/// through the resident GV2 hot-read index ([`anvil_graph_cache::HotReadApi`]),
+/// so the backing is `gv2-hotindex-v1`. The wire is unchanged — this marker is
+/// the internal record of which backing answered, for diagnostics and the
+/// `backing_parity` proof, never a wire field.
+pub const BACKING_SCHEMA_VERSION: &str = "gv2-hotindex-v1";
+
 /// A warm graph pair plus its LRU recency stamp.
 #[derive(Debug)]
 struct Entry {
@@ -148,6 +159,13 @@ impl KernelGraphCache {
     #[must_use]
     pub fn capacity(&self) -> usize {
         self.capacity
+    }
+
+    /// The resident backing this cache certifies against — `gv2-hotindex-v1`
+    /// after the GV2-027 A→A′ swap (see [`BACKING_SCHEMA_VERSION`]).
+    #[must_use]
+    pub fn backing_schema_version(&self) -> &'static str {
+        BACKING_SCHEMA_VERSION
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Inner> {
@@ -908,6 +926,198 @@ mod tests {
                     steps.len(),
                     steps.last().map(|(c, _)| c),
                     steps.last().map_or("", |(_, s)| s.file.as_str()),
+                );
+            }
+        }
+    }
+
+    /// GV2-027 backing parity: the A→A′ swap routes certification through the
+    /// resident GV2 hot-read index ([`anvil_graph_cache::HotReadApi`]). This
+    /// proves the swap is **wire-invariant** — over an arbitrary delta sequence,
+    /// certifying a change against the warm, incrementally-maintained backing
+    /// yields the **verdict-identical** [`Certifiability`] as certifying the same
+    /// change (same delta) against a cold rebuild (the `interim-symbolgraph-v1`
+    /// backing the swap retires). Extends the GV2-011 *structural* cold-rebuild
+    /// equivalence to the certify verdict, covering the export-surface (`sym`)
+    /// and reverse-impact (`dep`) reads plus the GV2-029 trust annotation
+    /// (occasional `node:fs` imports escalate a symbol to `Privileged`).
+    #[test]
+    // One coherent property: budget → seed → step → (warm apply, cold rebuild,
+    // backing-equality + verdict-parity assert) → per-budget distribution check.
+    // Splitting the nested loops out would obscure the proof's flow.
+    #[allow(clippy::too_many_lines)]
+    fn backing_parity_warm_matches_cold_rebuild_over_arbitrary_sequence() {
+        use anvil_graph_cache::HotReadApi;
+        use anvil_graph_cache::certify::{Certifiability, CertifyStale, certify};
+
+        let files: [(&str, &str); 4] = [
+            ("a.ts", "a"),
+            ("b.ts", "b"),
+            ("nested/a.ts", "a"),
+            ("nested/b.ts", "b"),
+        ];
+
+        // Two budgets: 64 is realistic (this 4-file corpus can never reach it, so
+        // the closure is always bounded → ExportSurfaceChange/Certified only); 1
+        // forces ImpactSetOverflow on any file with ≥2 importers, so the overflow
+        // verdict is on the parity surface too. The per-budget distribution
+        // assertions below pin that neither branch is silently unexercised.
+        for budget in [64usize, 1usize] {
+            let (mut certified, mut surface, mut overflow) = (0usize, 0usize, 0usize);
+
+            for seed in [0x5EED_1234_ABCD_u64, 0x0BAD_F00D, 0xDEAD_BEEF, 0x1357_2468] {
+                let mut rng = Lcg::new(seed);
+                let k = key("parity");
+                let cache = KernelGraphCache::new();
+                // The cache certifies against the A′ resident hot-index backing.
+                assert_eq!(cache.backing_schema_version(), BACKING_SCHEMA_VERSION);
+                let mut steps: Vec<(ChangeKind, FileSymbols)> = Vec::new();
+                let mut id_base: u64 = 0;
+
+                for _ in 0..400 {
+                    let (file, base) = files[rng.below(files.len())];
+                    let step = if rng.below(5) == 0 {
+                        (ChangeKind::Delete, file_symbols(file, &[], &[], id_base))
+                    } else {
+                        let mut imports: Vec<&str> = [("a", "./a"), ("b", "./b")]
+                            .iter()
+                            .filter(|(n, _)| *n != base && rng.below(2) == 0)
+                            .map(|(_, spec)| *spec)
+                            .collect();
+                        // 1-in-4: newly import a privileged module so the GV2-029
+                        // trust dimension (Internal → Privileged escalation) is
+                        // part of the parity surface, not just structural edges.
+                        if rng.below(4) == 0 {
+                            imports.push("node:fs");
+                        }
+                        let syms: &[&str] = if rng.below(4) == 0 { &[] } else { &["sym"] };
+                        let kind = if rng.below(2) == 0 {
+                            ChangeKind::Create
+                        } else {
+                            ChangeKind::ContentModify
+                        };
+                        (kind, file_symbols(file, syms, &imports, id_base))
+                    };
+                    id_base += 100;
+
+                    let outcome = cache.apply_delta(&k, step.0, step.1.clone());
+                    steps.push(step.clone());
+
+                    // Cold rebuild of (sym, dep) replaying the whole sequence,
+                    // step-faithful to apply_delta: update/remove + re_resolve +
+                    // annotate_trust *after every step* (so a cold-side delta, were
+                    // it computed, would see the same `previously_*` baselines).
+                    let mut cold = SymbolGraph::new();
+                    let mut cold_imports: Vec<ImportEdge> = Vec::new();
+                    for (change, syms) in &steps {
+                        let f = syms.file.clone();
+                        if *change == ChangeKind::Delete {
+                            remove_file(&mut cold, &f);
+                            cold_imports.retain(|i| i.from_file != f);
+                        } else {
+                            let new_imports = syms.imports.clone();
+                            update_file(&mut cold, syms.clone());
+                            cold_imports.retain(|i| i.from_file != f);
+                            cold_imports.extend(new_imports);
+                            re_resolve_imports(&mut cold, &cold_imports);
+                        }
+                        annotate_trust(&mut cold, &cold_imports);
+                    }
+                    let cold_dep = derive_dependency_graph(&cold);
+
+                    // Certify the SAME change (ContentModify, as validate_paths
+                    // does) with the warm-produced delta against both backings.
+                    // Using the warm delta on both arms is sound *because* the
+                    // backings are proven structurally identical each step (the
+                    // `dep_eq` assertion below + identical deterministic
+                    // update_file replay), so a cold-computed delta would be the
+                    // same — the only variable under test is the backing's
+                    // (sym, dep) reads. The warm arm goes through `HotReadApi` —
+                    // the live A′ backing.
+                    let dep_eq = cache.with_graphs(&k, |_, dep| *dep == cold_dep);
+                    let v_warm = cache.with_graphs(&k, |sym, dep| {
+                        HotReadApi::new(sym, dep).certify(
+                            &ChangeKind::ContentModify,
+                            &outcome.delta,
+                            budget,
+                        )
+                    });
+                    let v_cold = certify(
+                        &cold,
+                        &cold_dep,
+                        &ChangeKind::ContentModify,
+                        &outcome.delta,
+                        budget,
+                    );
+
+                    match v_warm {
+                        Some(v_warm) => {
+                            assert_eq!(
+                                dep_eq,
+                                Some(true),
+                                "seed {seed:#x} budget {budget}: warm dep graph \
+                                 diverged from cold rebuild after {} steps",
+                                steps.len(),
+                            );
+                            assert_eq!(
+                                v_warm,
+                                v_cold,
+                                "seed {seed:#x} budget {budget}: warm hot-index \
+                                 verdict diverged from cold rebuild after {} steps \
+                                 (last: {:?} {})",
+                                steps.len(),
+                                steps.last().map(|(c, _)| c),
+                                steps.last().map_or("", |(_, s)| s.file.as_str()),
+                            );
+                            match &v_warm {
+                                Certifiability::Certified { .. } => certified += 1,
+                                Certifiability::Partial {
+                                    reason: CertifyStale::ExportSurfaceChange,
+                                } => surface += 1,
+                                Certifiability::Partial {
+                                    reason: CertifyStale::ImpactSetOverflow,
+                                } => overflow += 1,
+                                Certifiability::Partial { .. } => {}
+                            }
+                        }
+                        // `with_graphs` is None only for a key with no warm entry.
+                        // The cold rebuild must then also be empty — assert it
+                        // rather than skipping, so a warm-eviction-shaped
+                        // divergence can't hide here.
+                        None => assert_eq!(
+                            cold_dep,
+                            DependencyGraph::new(),
+                            "seed {seed:#x} budget {budget}: no warm entry but cold \
+                             rebuild is non-empty after {} steps",
+                            steps.len(),
+                        ),
+                    }
+                }
+            }
+
+            // Non-vacuousness: prove the parity surface actually exercised the
+            // verdict branches it claims to cover, deterministically (the LCG is
+            // seeded, so these counts are fixed).
+            assert!(
+                certified > 0,
+                "budget {budget}: no Certified verdict across the run — \
+                 parity test may be vacuous",
+            );
+            assert!(
+                surface > 0,
+                "budget {budget}: no ExportSurfaceChange verdict across the run",
+            );
+            if budget == 1 {
+                assert!(
+                    overflow > 0,
+                    "budget 1: ImpactSetOverflow branch never exercised — \
+                     overflow parity is unproven",
+                );
+            } else {
+                assert_eq!(
+                    overflow, 0,
+                    "budget {budget}: closure cannot exceed budget with this \
+                     4-file corpus, so overflow must not occur",
                 );
             }
         }

@@ -605,7 +605,17 @@ Change status to **Ready** when:
 
 #### GV2-027: A→A′ backing swap behind `validate_paths`, with verdict parity
 
-- **Status:** Draft
+- **Status:** In Progress — `validate_paths` now certifies through the resident
+  GV2 hot-read index (`HotReadApi::certify`, GV2-022) rather than the raw graph
+  pair; `KernelGraphCache::backing_schema_version()` records `gv2-hotindex-v1`;
+  the `backing_parity` property test proves verdict-identical `Certifiability`
+  warm-vs-cold over arbitrary delta sequences (incl. the GV2-029 trust
+  dimension). On `feat/gv2-027-aprime-swap` (stacked on the cherry-picked
+  GV2-029). **Open ADR question deferred to council/owner:** whether A′ adopts
+  the depth-capped `HotReadApi::reverse_impact` for the certifiability closure
+  (would change the `ImpactSetOverflow`-vs-`ExportSurfaceChange` stale reason in
+  graphs deeper than the cap) — kept verdict-preserving here, not decided
+  unilaterally.
 - **Intent:** Wire the resident GV2 hot-read index behind `validate_paths`,
   retiring the interim `KernelGraphCache` re-derive, and prove the swap is
   wire-invariant.

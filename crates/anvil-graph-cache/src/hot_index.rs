@@ -58,7 +58,9 @@ use std::collections::HashSet;
 
 use anvil_kernel_types::{SymbolNode, TrustLevel};
 
+use crate::certify::{Certifiability, ChangeKind, certify};
 use crate::dependency::DependencyGraph;
+use crate::incremental::GraphDelta;
 use crate::symbol_graph::SymbolGraph;
 
 /// Hard ceiling on the reverse-impact hop depth.
@@ -240,6 +242,39 @@ impl<'a> HotReadApi<'a> {
             Some(node) => HotRead::Warm(node.trust_level),
             None => HotRead::Stale(HotReadMiss::WarmStateEvicted),
         }
+    }
+
+    /// Certify one changed file's verdict over this resident warm backing — the
+    /// save-time daemon's A′ entry point (GV2-027).
+    ///
+    /// This makes the hot-read API the **live backing** the daemon reads behind
+    /// the frozen `validate_paths` wire (ADR-061): the A→A′ swap routes
+    /// certification through `HotReadApi` rather than threading the raw
+    /// `(SymbolGraph, DependencyGraph)` pair, so the resident GV2 hot-index is
+    /// the access path and GV2-024 has a single surface to seal.
+    ///
+    /// It is **verdict-identical** to [`crate::certify::certify`] by
+    /// construction — it delegates to the same verdict authority over the same
+    /// resident graphs, so the backing swap is wire-invariant (proven at the
+    /// daemon layer by the `backing_parity` property test).
+    ///
+    /// **GV2-024 caveat:** the verdict still uses `certify`'s *unbounded-depth*
+    /// certifiability closure ([`crate::certify`]'s `impact_closure`), not the
+    /// depth-capped [`Self::reverse_impact`] the rest of this API enforces. So
+    /// when GV2-024 type-splits the hot-read surface to make denylist ops
+    /// uncallable, it must explicitly **either** replace this body with a
+    /// depth-capped closure **or** exclude `certify` from the seal with a
+    /// recorded ADR-061/063 rationale — adopting the cap here would change the
+    /// `ImpactSetOverflow`-vs-`ExportSurfaceChange` stale reason in graphs deeper
+    /// than the cap, a verdict-affecting decision deliberately **not** made here.
+    #[must_use]
+    pub fn certify(
+        &self,
+        change: &ChangeKind,
+        delta: &GraphDelta,
+        budget: usize,
+    ) -> Certifiability {
+        certify(self.sym, self.dep, change, delta, budget)
     }
 }
 
