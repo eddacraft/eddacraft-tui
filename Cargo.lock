@@ -1237,9 +1237,11 @@ dependencies = [
 name = "eddacraft-anvil-capsule"
 version = "0.7.4-beta"
 dependencies = [
+ "chrono",
  "eddacraft-anvil-baseline",
  "eddacraft-anvil-config",
  "eddacraft-anvil-kernel-types",
+ "eddacraft-anvil-policy",
  "eddacraft-anvil-rules",
  "eddacraft-anvil-sarif",
  "eddacraft-anvil-witness",

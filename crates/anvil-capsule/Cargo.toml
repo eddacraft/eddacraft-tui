@@ -16,6 +16,8 @@ anvil-rules = { path = "../anvil-rules", package = "eddacraft-anvil-rules" }
 anvil-witness = { path = "../anvil-witness", package = "eddacraft-anvil-witness" }
 anvil-sarif = { path = "../anvil-sarif", package = "eddacraft-anvil-sarif" }
 anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }
+anvil-policy = { path = "../anvil-policy", package = "eddacraft-anvil-policy" }
+chrono = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

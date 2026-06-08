@@ -20,6 +20,7 @@ pub mod errors;
 pub mod format;
 pub mod manifest;
 pub mod verification;
+pub mod verify;
 
 pub use canonical::{canonical_json_bytes, sha256_hex};
 pub use collect::{COMMITS_SCHEMA, CommitEntry, CommitsDocument, collect_commits};
@@ -34,6 +35,7 @@ pub use errors::CapsuleError;
 pub use format::{CapsuleContent, write_capsule};
 pub use manifest::{CAPSULE_SCHEMA, CapsuleManifest, CapsuleRange, Producer, REQUIRED_FILES};
 pub use verification::{CapsuleVerification, CheckResult, VERIFICATION_SCHEMA, Verdict};
+pub use verify::{verify_capsule, verify_capsule_at};
 
 /// Probe a document's `schema` field and gate it against `expected`
 /// **before** strict deserialisation, so version mismatch surfaces as

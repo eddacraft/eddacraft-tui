@@ -16,7 +16,12 @@
 //!   present-but-empty; `verification.json` starts as the degraded
 //!   no-checks placeholder, so an unverified capsule never claims
 //!   `pass`.
-//! - `verify` / `explain` / `inspect` land with GITGOV-009/-010/-011.
+//! - **`anvil capsule verify <dir>`** (GITGOV-009) — re-collect the
+//!   repo-present digests, reuse `verify_chain_dag` (witness) and the
+//!   EXCEPT-005 exception verifier, combine into closed-state verdicts,
+//!   persist `verification.json`, and exit per the ADR-074 table
+//!   (`0` pass/warn, `1` block, `2` degraded, `3` error).
+//! - `explain` / `inspect` land with GITGOV-010/-011.
 //!
 //! ## Identity discipline (GITGOV-006 council follow-up)
 //!
@@ -32,8 +37,9 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use anvil_capsule::{
-    CapsuleContent, Producer, ToolIdentity, collect_commits, collect_diagnostics, collect_digests,
-    collect_witness, write_capsule,
+    CapsuleContent, CapsuleManifest, CapsuleVerification, Producer, ToolIdentity, Verdict,
+    collect_commits, collect_diagnostics, collect_digests, collect_witness, verify_capsule,
+    write_capsule,
 };
 use anyhow::{Context, Result, bail};
 use clap::{Args, Subcommand};
@@ -51,6 +57,17 @@ pub struct CapsuleArgs {
 enum CapsuleCommand {
     /// Create a review capsule directory for a commit range.
     Create(CreateArgs),
+    /// Verify a capsule directory and print closed-state verdicts
+    /// (GITGOV-009). Exits `0` pass/warn, `1` block, `2` degraded,
+    /// `3` error (ADR-074). Repo-present: digests are re-collected from
+    /// the current repository.
+    Verify(VerifyArgs),
+}
+
+#[derive(Debug, Args)]
+struct VerifyArgs {
+    /// The capsule directory to verify.
+    capsule: PathBuf,
 }
 
 #[derive(Debug, Args)]
@@ -72,6 +89,16 @@ pub fn run(args: &CapsuleArgs, _global: &GlobalArgs) -> Result<()> {
         CapsuleCommand::Create(create) => {
             let repo_root = workspace_root()?;
             run_create(&repo_root, &create.range, &create.out)
+        }
+        CapsuleCommand::Verify(verify) => {
+            let repo_root = workspace_root()?;
+            let verification = verify_and_record(&repo_root, &verify.capsule)?;
+            print_verification(&verification);
+            // ADR-074 exit-code contract (0 pass/warn, 1 block, 2 degraded,
+            // 3 error). `process::exit` because this is a terminal verb and
+            // the generic `run() -> Result<()>` arm cannot carry a custom
+            // code; the verdict logic itself is `verify_and_record`.
+            std::process::exit(verification.verdict.exit_code());
         }
     }
 }
@@ -131,6 +158,64 @@ fn run_create(repo_root: &Path, range: &str, out: &Path) -> Result<()> {
     );
     println!("verify with: anvil capsule verify {}", out.display());
     Ok(())
+}
+
+/// Verify `capsule_dir` against `repo_root`, persist the verdict back
+/// into the capsule (`verification.json` + its re-recorded manifest
+/// digest, ADR-074), and return the verification document.
+///
+/// The write-back is skipped when the manifest is unreadable (the engine
+/// returns an `error` verdict in that case) — there is nothing to update.
+fn verify_and_record(repo_root: &Path, capsule_dir: &Path) -> Result<CapsuleVerification> {
+    let verification = verify_capsule(capsule_dir, repo_root);
+
+    if let Ok(manifest_bytes) = std::fs::read(capsule_dir.join("manifest.json"))
+        && let Ok(mut manifest) = CapsuleManifest::from_json_bytes(&manifest_bytes)
+    {
+        let bytes = verification
+            .to_canonical_bytes()
+            .context("encoding verification.json")?;
+        std::fs::write(capsule_dir.join("verification.json"), &bytes)
+            .context("writing verification.json")?;
+        manifest.record_file("verification.json", &bytes);
+        let manifest_bytes = manifest
+            .to_canonical_bytes()
+            .context("encoding manifest.json")?;
+        std::fs::write(capsule_dir.join("manifest.json"), &manifest_bytes)
+            .context("writing manifest.json")?;
+    }
+
+    Ok(verification)
+}
+
+/// Lowercase verdict token (`pass`/`warn`/`degraded`/`block`/`error`).
+/// Exhaustive `match` — breaks at compile time if a variant is added,
+/// and does not couple display output to the `Debug` derive.
+fn verdict_token(verdict: Verdict) -> &'static str {
+    match verdict {
+        Verdict::Pass => "pass",
+        Verdict::Warn => "warn",
+        Verdict::Degraded => "degraded",
+        Verdict::Block => "block",
+        Verdict::Error => "error",
+    }
+}
+
+/// Print the per-check results and the combined verdict + exit code.
+fn print_verification(verification: &CapsuleVerification) {
+    for check in &verification.checks {
+        let detail = check.detail.as_deref().unwrap_or("");
+        println!(
+            "  [{}] {} — {detail}",
+            verdict_token(check.verdict),
+            check.name
+        );
+    }
+    println!(
+        "verdict: {} (exit {})",
+        verdict_token(verification.verdict),
+        verification.verdict.exit_code()
+    );
 }
 
 /// Split `<base>..<head>`, rejecting empty or whitespace-bearing
@@ -366,6 +451,57 @@ mod tests {
                 .unwrap();
         assert_eq!(manifest.range.witness_seq_start, Some(1));
         assert_eq!(manifest.range.witness_seq_end, Some(1));
+    }
+
+    /// `verify` of a fresh, intact capsule passes and persists the verdict
+    /// back into the capsule (GITGOV-009 CLI wiring + write-back).
+    #[test]
+    fn capsule_verify_passes_and_records_verdict() {
+        use anvil_witness::{GenesisAnchor, WitnessLine};
+
+        let (dir, base, head) = scratch_repo();
+        let witness_dir = dir.path().join("anvil/witness");
+        std::fs::create_dir_all(&witness_dir).unwrap();
+        let mut wl = WitnessLine::genesis(
+            &GenesisAnchor::Fresh,
+            "01997e4a-1b2c-7345-8901-abcdef123456",
+            "active",
+            "2026-06-08T00:00:00Z",
+            "pre-commit",
+            None,
+        );
+        wl.commit_sha = Some(head.clone());
+        std::fs::write(
+            witness_dir.join("active.ndjson"),
+            wl.to_ndjson_line().unwrap(),
+        )
+        .unwrap();
+
+        let out_dir = tempfile::tempdir().unwrap();
+        let out = out_dir.path().join("capsule");
+        run_create(dir.path(), &format!("{base}..{head}"), &out).unwrap();
+
+        let verification = verify_and_record(dir.path(), &out).unwrap();
+        assert_eq!(
+            verification.verdict,
+            Verdict::Pass,
+            "checks: {:?}",
+            verification.checks
+        );
+
+        // The verdict was persisted, and the manifest still digests the
+        // rewritten verification.json (re-verifies clean).
+        let written = anvil_capsule::CapsuleVerification::from_json_bytes(
+            &std::fs::read(out.join("verification.json")).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(written.verdict, Verdict::Pass);
+        let reverify = verify_and_record(dir.path(), &out).unwrap();
+        assert_eq!(
+            reverify.verdict,
+            Verdict::Pass,
+            "manifest digest re-recorded"
+        );
     }
 
     #[test]
