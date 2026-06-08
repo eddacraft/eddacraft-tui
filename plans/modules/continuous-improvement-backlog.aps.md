@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 29/47    |
+| CIB | —     | In Progress | 29/48    |
 
 ## Purpose
 
@@ -1151,3 +1151,38 @@ archive.
   `warned` flag is already computed); the `anvil-tui` watch surface.
 - **Confidence:** medium — small additive UI signal; the `warned` flag already
   exists, the work is plumbing it to the TUI footer.
+
+### CIB-048: Worktree cargo `target/` dirs oversubscribe the shared Projects disk
+
+- **Status:** Draft
+- **Intent:** Each agent worktree carries its own full Rust `target/` (~100G), so
+  a dozen-plus live worktrees on `/home/aneki/Projects` (a separate disk) sum to
+  ~1.7T and intermittently fill the disk to 100%, ENOSPC-blocking every agent
+  mid-task — even a single source-file write fails. Make worktrees share one
+  build-output location (or redirect it onto the roomy disk) so worktree count no
+  longer multiplies build-cache footprint.
+- **Expected Outcome:** A documented, default-on mechanism so a new worktree does
+  not allocate its own ~100G `target/`. Candidate shapes (pick during planning):
+  a shared `CARGO_TARGET_DIR` exported by the post-`wt-new` / post-start `rust`
+  hook pointing at a single cache on the larger disk; or a per-machine
+  `.cargo/config.toml` `build.target-dir` override. Sibling worktrees must never
+  be touched to reclaim space; only a worktree's own regenerable artefacts are
+  fair game. Behaviour is opt-outable for anyone who wants isolated targets.
+- **Validation:** create two worktrees from `main`, build each, and confirm
+  build output lands in one shared location (single `target/` grows; the second
+  worktree adds no second ~100G tree); `df` on the Projects disk stays well under
+  capacity across N worktrees. Document the guarantee in
+  `docs/guides/worktree-policy.md`.
+- **Identified From:** continuous-improvement-log 2026-05-29 (CIB-026 and #2068 —
+  the latter explicitly flagged "shared-target worktree config is a real
+  recurring infra fix — candidate CIB item if it recurs"; it had already recurred
+  one entry earlier). Recurring across sessions; worked around each time by
+  reclaiming only the current worktree's own `target/debug/incremental` and
+  building to an external target dir on the roomy disk.
+- **Coordinates with:** `scripts/dev/wt-new.sh`, the post-start `rust` worktree
+  hook, `docs/guides/worktree-policy.md`; any per-worktree `CARGO_TARGET_DIR`
+  conventions already in `wt.toml`.
+- **Confidence:** medium — the problem and its impact are well-evidenced and
+  recurring; the exact mechanism (shared env var vs cargo config vs hook) is a
+  planning decision, and a shared target dir can change incremental-rebuild
+  behaviour across worktrees, so it needs a deliberate choice not a blind flip.
