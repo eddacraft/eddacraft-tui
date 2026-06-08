@@ -157,7 +157,7 @@ fn schema_fixtures_reexport_edge_type_is_first_class() {
     let re = SymbolEdge {
         from: 1,
         to: 2,
-        edge_type: EdgeType::Reexport,
+        edge_type: EdgeType::Reexports,
     };
     assert_ne!(re.edge_type, EdgeType::Imports);
     assert_ne!(re.edge_type, EdgeType::Calls);

@@ -133,8 +133,8 @@ pub enum EdgeType {
     /// from a plain import — a re-export widens this module's public surface,
     /// a plain import does not. The carrier is [`ReexportEdge`] (file → module,
     /// mirroring [`ImportEdge`]); this variant tags the edge once re-exports
-    /// are lifted into the symbol graph.
-    Reexport,
+    /// are lifted into the symbol graph. Plural to match `Imports`/`Calls`.
+    Reexports,
 }
 
 /// A source span as byte offsets — **no text** (privacy verdict PV-7(e),
@@ -219,7 +219,7 @@ pub struct ImportEdge {
 /// `pub use m::*`) uses `exported_name == "*"`. Carries no source text
 /// (privacy line): names and the module specifier are identity strings, not
 /// bodies.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReexportEdge {
     /// The re-exporting file (workspace-root-relative).
     pub from_file: String,
@@ -319,7 +319,7 @@ mod tests {
             EdgeType::References,
             EdgeType::Calls,
             EdgeType::Imports,
-            EdgeType::Reexport,
+            EdgeType::Reexports,
         ];
         for (i, a) in variants.iter().enumerate() {
             for (j, b) in variants.iter().enumerate() {
@@ -342,7 +342,7 @@ mod tests {
             EdgeType::References,
             EdgeType::Calls,
             EdgeType::Imports,
-            EdgeType::Reexport,
+            EdgeType::Reexports,
         ] {
             let json = serde_json::to_string(&variant).unwrap();
             let back: EdgeType = serde_json::from_str(&json).unwrap();
@@ -627,10 +627,7 @@ mod tests {
         };
         let json = serde_json::to_string(&re).unwrap();
         let back: ReexportEdge = serde_json::from_str(&json).unwrap();
-        assert_eq!(re.from_file, back.from_file);
-        assert_eq!(re.exported_name, back.exported_name);
-        assert_eq!(re.to_source, back.to_source);
-        assert_eq!(re.line, back.line);
+        assert_eq!(re, back);
     }
 
     #[test]

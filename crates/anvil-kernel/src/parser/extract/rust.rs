@@ -206,16 +206,30 @@ fn emit_assoc_fns(
     }
 }
 
+/// One resolved leaf of a `use` tree.
+struct UseLeaf {
+    /// The imported path — `ImportEdge.to_source` and, for a re-export, the
+    /// `ReexportEdge.to_source` (Rust's full-path convention).
+    source: String,
+    /// The name a consumer binds to when this leaf is re-exported: the `as`
+    /// alias if present, `*` for a glob, else the path's last `::` segment.
+    name: String,
+}
+
+/// Last `::` segment of a path (`a::b::C` → `C`); the path itself if unscoped.
+fn last_segment(path: &str) -> String {
+    path.rsplit("::").next().unwrap_or(path).to_string()
+}
+
 /// Flatten a `use_declaration` into one [`ImportEdge`] per leaf path.
 ///
-/// A `pub use` (bare `pub`, not the crate-internal `pub(crate)` / `pub(super)`)
+/// A bare `pub use` (not the crate-internal `pub(crate)` / `pub(super)`)
 /// re-exports: it widens the module's public surface, so each leaf also emits a
 /// [`ReexportEdge`] alongside its dependency [`ImportEdge`]. The re-exported
-/// name is the last `::` segment of the path (`pub use a::b::C` → `C`);
-/// `to_source` carries the full path, matching Rust's `ImportEdge` convention.
-/// Glob re-exports (`pub use a::b::*`) record the reached module as the path —
-/// finer name tracking is an RSTLAN refinement, deferred (matches the
-/// import-edge behaviour for the same construct).
+/// name is the consumer-visible binding — the `as` alias
+/// (`pub use a::B as C` → `C`), `*` for a glob (`pub use a::*`), else the
+/// path's last segment (`pub use a::b::C` → `C`). `to_source` carries the full
+/// path, matching Rust's `ImportEdge` convention.
 fn extract_use(
     node: tree_sitter::Node,
     source: &[u8],
@@ -226,30 +240,25 @@ fn extract_use(
     let Some(arg) = node.child_by_field_name("argument") else {
         return;
     };
-    let mut paths = Vec::new();
-    collect_use_paths(arg, source, "", &mut paths);
+    let mut leaves = Vec::new();
+    collect_use_paths(arg, source, "", &mut leaves);
     let line = node_line(node);
     let is_reexport = item_visibility(node, source) == Visibility::Public;
-    for path in paths {
-        if path.is_empty() {
+    for leaf in leaves {
+        if leaf.source.is_empty() {
             continue;
         }
         if is_reexport {
-            let name = path
-                .rsplit("::")
-                .next()
-                .unwrap_or(path.as_str())
-                .to_string();
             reexports.push(ReexportEdge {
                 from_file: file.to_string(),
-                exported_name: name,
-                to_source: path.clone(),
+                exported_name: leaf.name.clone(),
+                to_source: leaf.source.clone(),
                 line,
             });
         }
         imports.push(ImportEdge {
             from_file: file.to_string(),
-            to_source: path,
+            to_source: leaf.source,
             line,
         });
     }
@@ -257,7 +266,7 @@ fn extract_use(
 
 /// Recursively flatten a `use` tree, accumulating the `::`-joined prefix so a
 /// grouped `foo::{a, b}` yields `foo::a` and `foo::b`.
-fn collect_use_paths(node: tree_sitter::Node, source: &[u8], prefix: &str, out: &mut Vec<String>) {
+fn collect_use_paths(node: tree_sitter::Node, source: &[u8], prefix: &str, out: &mut Vec<UseLeaf>) {
     match node.kind() {
         "scoped_use_list" => {
             let path = node
@@ -280,23 +289,30 @@ fn collect_use_paths(node: tree_sitter::Node, source: &[u8], prefix: &str, out: 
                 }
             }
         }
-        // `foo::bar as baz` — the edge tracks the imported path, not the alias.
-        // A `self as x` leaf still means "the parent module itself".
+        // `foo::bar as baz` — the import edge tracks the source path, but a
+        // re-export binds the *alias* (`baz`), which is the public name. A
+        // `self as x` leaf still means "the parent module itself".
         "use_as_clause" => {
             let path = node
                 .child_by_field_name("path")
                 .map(|p| node_text(p, source))
                 .unwrap_or_default();
+            let alias = node
+                .child_by_field_name("alias")
+                .map(|a| node_text(a, source));
             if path == "self" {
-                push_module_self(prefix, out);
+                push_module_self(prefix, alias, out);
             } else {
-                out.push(join_path(prefix, &path));
+                let source_path = join_path(prefix, &path);
+                let name = alias.unwrap_or_else(|| last_segment(&source_path));
+                out.push(UseLeaf {
+                    source: source_path,
+                    name,
+                });
             }
         }
-        // `foo::*` — record the module the glob reaches into. The scope is
-        // accumulated in `prefix` by the enclosing `scoped_use_list`; combine it
-        // with any path child (covers both grammar shapes) and skip an empty
-        // result rather than emit a bare `*` edge.
+        // `foo::*` — record the module the glob reaches into; a re-export of it
+        // re-publishes the whole surface, so the name is the `*` wildcard.
         "use_wildcard" => {
             let child = node
                 .named_child(0)
@@ -304,7 +320,10 @@ fn collect_use_paths(node: tree_sitter::Node, source: &[u8], prefix: &str, out: 
                 .unwrap_or_default();
             let full = join_path(prefix, &child);
             if !full.is_empty() {
-                out.push(full);
+                out.push(UseLeaf {
+                    source: full,
+                    name: String::from("*"),
+                });
             }
         }
         // A bare `self` leaf in a group — `use foo::{self, bar}` — imports the
@@ -312,10 +331,15 @@ fn collect_use_paths(node: tree_sitter::Node, source: &[u8], prefix: &str, out: 
         _ => {
             let text = node_text(node, source);
             if text == "self" {
-                push_module_self(prefix, out);
+                push_module_self(prefix, None, out);
             } else {
                 // Leaf paths: `foo`, `crate::a::B`, `super::x`, `self::y`.
-                out.push(join_path(prefix, &text));
+                let source_path = join_path(prefix, &text);
+                let name = last_segment(&source_path);
+                out.push(UseLeaf {
+                    source: source_path,
+                    name,
+                });
             }
         }
     }
@@ -323,9 +347,15 @@ fn collect_use_paths(node: tree_sitter::Node, source: &[u8], prefix: &str, out: 
 
 /// `self` as a use-list leaf refers to the enclosing module path. Emit that
 /// prefix as the edge (a top-level bare `use self;` has no prefix → no edge).
-fn push_module_self(prefix: &str, out: &mut Vec<String>) {
+/// A `self as x` re-export binds the alias `x`; otherwise the module's last
+/// segment is the bound name.
+fn push_module_self(prefix: &str, alias: Option<String>, out: &mut Vec<UseLeaf>) {
     if !prefix.is_empty() {
-        out.push(prefix.to_string());
+        let name = alias.unwrap_or_else(|| last_segment(prefix));
+        out.push(UseLeaf {
+            source: prefix.to_string(),
+            name,
+        });
     }
 }
 
@@ -626,6 +656,32 @@ use std::fmt::Debug;
             "pub(crate)/plain use must not re-export: {:?}",
             fs.reexports
         );
+    }
+
+    #[test]
+    fn pub_use_alias_reexports_the_alias_name() {
+        // `pub use foo::Bar as Baz` re-publishes the binding as `Baz` (what
+        // consumers see), not the source-side `Bar`.
+        let fs = extract(b"pub use crate::internal::Widget as Gadget;\n");
+        let got: Vec<(&str, &str)> = fs
+            .reexports
+            .iter()
+            .map(|r| (r.exported_name.as_str(), r.to_source.as_str()))
+            .collect();
+        assert_eq!(got, vec![("Gadget", "crate::internal::Widget")]);
+    }
+
+    #[test]
+    fn pub_use_glob_reexports_wildcard() {
+        // `pub use foo::*` re-publishes the whole module surface → name `*`,
+        // consistent with the TS `export * from` convention.
+        let fs = extract(b"pub use crate::prelude::*;\n");
+        let got: Vec<(&str, &str)> = fs
+            .reexports
+            .iter()
+            .map(|r| (r.exported_name.as_str(), r.to_source.as_str()))
+            .collect();
+        assert_eq!(got, vec![("*", "crate::prelude")]);
     }
 
     #[test]

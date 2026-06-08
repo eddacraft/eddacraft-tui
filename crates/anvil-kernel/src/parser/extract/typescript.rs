@@ -248,11 +248,32 @@ fn extract_export(
 
     let mut handled_clause = false;
     for i in 0..u32::try_from(node.named_child_count()).unwrap_or(0) {
-        if let Some(child) = node.named_child(i)
-            && child.kind() == "export_clause"
-        {
-            handled_clause = true;
-            extract_export_clause(child, source, file, symbols, next_id);
+        let Some(child) = node.named_child(i) else {
+            continue;
+        };
+        match child.kind() {
+            "export_clause" => {
+                handled_clause = true;
+                extract_export_clause(child, source, file, symbols, next_id);
+            }
+            // `export * as ns from "m"` — a namespace re-export binds the whole
+            // module surface to `ns`. Emit a public `Export` symbol named `ns`
+            // (not the bare `*` fallback) and mark the clause handled.
+            "namespace_export" => {
+                handled_clause = true;
+                let name =
+                    namespace_export_name(child, source).unwrap_or_else(|| String::from("*"));
+                symbols.push(SymbolNode {
+                    id: *next_id,
+                    kind: SymbolKind::Export,
+                    name,
+                    visibility: Visibility::Public,
+                    file: file.to_string(),
+                    trust_level: TrustLevel::default(),
+                });
+                *next_id += 1;
+            }
+            _ => {}
         }
     }
 
@@ -504,31 +525,53 @@ fn extract_lexical(
 
 /// The re-exported names for an `export … from "mod"` statement.
 ///
-/// `export { a, b as c } from "m"` → `["a", "b"]` (the source-side `name`
-/// field, matching how [`extract_export_clause`] resolves the re-exported
-/// symbol). `export * from "m"` (no clause) → `["*"]`, a wildcard re-export of
-/// the whole surface.
+/// - `export { a, b as c } from "m"` → `["a", "b"]` (the source-side `name`
+///   field, matching how [`extract_export_clause`] resolves the re-exported
+///   symbol; alias tracking is deferred).
+/// - `export * as ns from "m"` → `["ns"]` (namespace re-export).
+/// - `export * from "m"` (bare wildcard) → `["*"]`.
 fn reexport_names(node: tree_sitter::Node, source: &[u8]) -> Vec<String> {
     for i in 0..u32::try_from(node.named_child_count()).unwrap_or(0) {
         let Some(child) = node.named_child(i) else {
             continue;
         };
-        if child.kind() != "export_clause" {
-            continue;
-        }
-        let mut names = Vec::new();
-        for j in 0..u32::try_from(child.named_child_count()).unwrap_or(0) {
-            if let Some(spec) = child.named_child(j)
-                && spec.kind() == "export_specifier"
-                && let Some(name_node) = spec.child_by_field_name("name")
-            {
-                names.push(node_text(name_node, source));
+        match child.kind() {
+            "export_clause" => {
+                let mut names = Vec::new();
+                for j in 0..u32::try_from(child.named_child_count()).unwrap_or(0) {
+                    if let Some(spec) = child.named_child(j)
+                        && spec.kind() == "export_specifier"
+                        && let Some(name_node) = spec.child_by_field_name("name")
+                    {
+                        names.push(node_text(name_node, source));
+                    }
+                }
+                return names;
             }
+            "namespace_export" => {
+                return vec![
+                    namespace_export_name(child, source).unwrap_or_else(|| String::from("*")),
+                ];
+            }
+            _ => {}
         }
-        return names;
     }
     // No export clause — `export * from "m"`: a wildcard re-export.
     vec![String::from("*")]
+}
+
+/// The bound identifier of a `namespace_export` node (`* as ns` → `ns`).
+fn namespace_export_name(node: tree_sitter::Node, source: &[u8]) -> Option<String> {
+    // The grammar exposes the alias as the namespace_export's named child
+    // (an `identifier`); fall back across named children defensively.
+    for i in 0..u32::try_from(node.named_child_count()).unwrap_or(0) {
+        if let Some(child) = node.named_child(i)
+            && child.kind() == "identifier"
+        {
+            return Some(node_text(child, source));
+        }
+    }
+    node.named_child(0).map(|n| node_text(n, source))
 }
 
 /// 1-based line number from a tree-sitter node, or 0 if the row overflows u32.
@@ -1096,6 +1139,62 @@ module.exports = foo;
         );
     }
 
+    #[test]
+    fn namespace_reexport_binds_the_alias_not_wildcard() {
+        // `export * as ns from "m"` re-publishes the whole module under `ns`;
+        // the edge name is `ns`, and a public `Export` symbol named `ns` is
+        // emitted (not the bare `*` fallback used for `export * from "m"`).
+        let source = b"export * as widgets from './widgets';\n";
+        let mut parser = Parser::new();
+        let result = parser
+            .parse_bytes(Path::new("src/index.ts"), source)
+            .unwrap();
+        let fs = extract_symbols(&result.tree, source, Path::new("src/index.ts"), 0);
+
+        let re: Vec<(&str, &str)> = fs
+            .reexports
+            .iter()
+            .map(|r| (r.exported_name.as_str(), r.to_source.as_str()))
+            .collect();
+        assert_eq!(re, vec![("widgets", "./widgets")]);
+        assert!(
+            fs.symbols
+                .iter()
+                .any(|s| s.kind == SymbolKind::Export && s.name == "widgets"),
+            "namespace re-export emits an Export symbol named `widgets`, got {:?}",
+            fs.symbols
+        );
+        assert!(
+            !fs.symbols.iter().any(|s| s.name == "*"),
+            "no bare `*` symbol for a named namespace re-export"
+        );
+    }
+
+    #[test]
+    fn type_only_reexport_keeps_named_edges() {
+        // `export type { T } from "m"` is a named re-export (the `type` keyword
+        // is a token, not a different specifier kind) — it must not collapse to
+        // a `*` wildcard.
+        let source = b"export type { Props } from './types';\n";
+        let mut parser = Parser::new();
+        let result = parser
+            .parse_bytes(Path::new("src/index.ts"), source)
+            .unwrap();
+        let fs = extract_symbols(&result.tree, source, Path::new("src/index.ts"), 0);
+
+        let names: Vec<&str> = fs
+            .reexports
+            .iter()
+            .map(|r| r.exported_name.as_str())
+            .collect();
+        assert_eq!(
+            names,
+            ["Props"],
+            "type-only re-export keeps the named edge, got {:?}",
+            fs.reexports
+        );
+    }
+
     /// K1 parity: the TS extractor, after the `LanguageExtractor`-trait
     /// refactor, must produce byte-for-byte the same `FileSymbols` (symbol ids,
     /// kinds, names, visibilities, and import edges with line numbers) as the
@@ -1151,6 +1250,18 @@ export { foo } from './other';\n";
             "import-edge parity drifted from pre-refactor walker"
         );
         assert!(fs.imports.iter().all(|i| i.from_file == "src/mod.ts"));
+
+        // --- Re-exports (GV2-010): the `export { foo } from './other'` line ---
+        let reexports: Vec<(&str, &str, u32)> = fs
+            .reexports
+            .iter()
+            .map(|r| (r.exported_name.as_str(), r.to_source.as_str(), r.line))
+            .collect();
+        assert_eq!(
+            reexports,
+            vec![("foo", "./other", 6)],
+            "re-export edge output must stay pinned"
+        );
     }
 
     /// K1: the orchestrator routes through `TypeScriptExtractor` for every
