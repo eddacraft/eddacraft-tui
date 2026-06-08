@@ -20,7 +20,8 @@
 > **Deferred to v0.9** (council, off the critical path): GV2-013, 014, 020, 023,
 > 026 (registry/contracts) and GV2-030 (sealed-DTO snapshot, with Sub-phase B
 > persistence). 013/014 are dep-unblocked but stay Draft as v0.9 scope. Count is
-> **11/19** (001/002/003/010/011/012/021/022/027/028/029 Merged).
+> **11/20** (001/002/003/010/011/012/021/022/027/028/029 Merged; GV2-031 added
+> as a Draft follow-up for the re-export privilege blind spot found in #2453).
 
 > **Reshaped 2026-06-08** around the now-landed spine spec
 > [`docs/architecture/graph-v2-foundation-spec.md`](../../docs/architecture/graph-v2-foundation-spec.md)
@@ -777,6 +778,36 @@ Change status to **Ready** when:
 
 ---
 
+#### GV2-031: Lift re-export edges so transitive privilege is visible
+
+- **Status:** Draft
+- **Intent:** `FileSymbols.reexports` is never lifted into the `SymbolGraph` —
+  `update_file` inserts `Imports` edges only, so the `EdgeType::Reexports`
+  variant is modelled but never produced. A privileged capability reached via
+  `export * from 'node:fs'` (or a re-export chain through an intermediary)
+  therefore produces no graph edge and is invisible to **all three** privilege
+  mechanisms alike: `annotate_trust` (iterates `ImportEdge` only), the certify
+  `newly_privileged_imports` module-surface check (GV2-029), and the kernel
+  `PrivilegeExpansion` invariant. A shared transitive privilege bypass surfaced
+  by the GV2-029 adversarial review (PR #2453).
+- **Expected Outcome:** `update_file`/`re_resolve_imports` lift `reexports` into
+  `Reexports` edges; `annotate_trust` and `certify::export_surface_diff` follow a
+  re-export to its privileged module target, so a file that re-exports `node:fs`
+  is classified privileged and a change introducing such a re-export does **not**
+  certify clean. Direct-import behaviour (GV2-029) is unchanged.
+- **Validation:** `cargo test -p eddacraft-anvil-intercept -- reexport_privilege`
+  — `export * from 'node:fs'` (direct and via an intermediary re-export)
+  withholds a clean verdict; a benign re-export (`export * from './local'`) still
+  certifies. Plus a graph-cache unit test that `Reexports` edges are produced.
+- **Files:** `crates/anvil-graph-cache/src/incremental.rs`,
+  `crates/anvil-graph-cache/src/trust.rs`,
+  `crates/anvil-graph-cache/src/certify.rs`
+- **Confidence:** medium
+- **Priority:** High
+- **Dependencies:** GV2-029
+
+---
+
 ## Risks
 
 | Risk | Likelihood | Impact | Mitigation |
@@ -821,5 +852,5 @@ Change status to **Ready** when:
 | 0 — Architecture and Contracts | 3 | 3/3 done | Complete |
 | 1 — Graph Schemas | 5 | 3/5 done | In Progress |
 | 2 — Runtime Substrate | 4 | 2/4 done | In Progress |
-| 3 — Enforcement, Wiring, and the A′ Swap | 7 | 3/7 done | In Progress |
-| **Total** | **19** | **11/19 done** | **In Progress** |
+| 3 — Enforcement, Wiring, and the A′ Swap | 8 | 3/8 done | In Progress |
+| **Total** | **20** | **11/20 done** | **In Progress** |
