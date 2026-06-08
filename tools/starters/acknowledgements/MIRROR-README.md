@@ -43,6 +43,27 @@ git subtree pull --prefix tools/starters/acknowledgements \
 
 Or just `cp -r` the directory in if you don't want subtree tracking.
 
+### Tracking latest vs pinning a release
+
+`main` always holds the latest kit and is force-pushed on every change — adopt
+or pull from `main` (above) to track the bleeding edge.
+
+To pin a **specific, immutable version** instead, adopt or pull from a release
+tag (`vX.Y.Z`):
+
+```bash
+git subtree add --prefix tools/starters/acknowledgements \
+  https://github.com/eddacraft/acknowledgements-starter.git v1.0.0 --squash
+```
+
+Release tags are append-only — a published `vX.Y.Z` never changes. Each release
+has a GitHub Release with notes drawn from [`CHANGELOG.md`](./CHANGELOG.md);
+**watch this repository's releases** to be notified when the kit updates, and
+see the
+[Releases page](https://github.com/eddacraft/acknowledgements-starter/releases)
+for the version history. Versions follow [SemVer](https://semver.org/): a major
+bump signals a breaking change to the kit's contract.
+
 ## Design history
 
 The starter kit grew out of the Rust-CLI attribution pipeline shipped with the

@@ -687,3 +687,23 @@ gh workflow run mirror-acknowledgements-starter.yml --ref main \
 
 The `reason` input is recorded on the throwaway prepend-README commit and in the
 GitHub step summary, so manual dispatches are auditable later.
+
+### Versioned releases
+
+Alongside the rolling `main` mirror, deliberate releases are cut as immutable
+`vX.Y.Z` tags + GitHub Releases on the mirror, so external consumers can pin a
+known-good version and be notified of updates. The kit's version lives in
+[`VERSION`](./VERSION) and [`CHANGELOG.md`](./CHANGELOG.md); both travel into
+the mirror.
+
+To cut one: bump `VERSION` + add a `CHANGELOG.md` entry (PR), then tag the merge
+commit `acknowledgements-starter-vX.Y.Z` and push it.
+`.github/workflows/release-acknowledgements-starter.yml` does the rest. Full
+procedure (incl. the mirror tag-protection pre-flight) is in
+[`docs/runbooks/acknowledgements-starter-release.md`](../../../docs/runbooks/acknowledgements-starter-release.md).
+
+Check `VERSION` ↔ `CHANGELOG.md` consistency locally with:
+
+```bash
+bash tools/starters/acknowledgements/check-version.sh
+```
