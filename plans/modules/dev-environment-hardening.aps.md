@@ -197,7 +197,7 @@ surfaced already landed independently via PR #2086 and is not re-counted here.
 
 ### DEVENV-007: Wire change-scoped parity into the wt pre-commit + classifier
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Wave:** 1 (harden now)
 - **Intent:** Make the local pre-commit gate match CI's classifier and close the
   path-gate that hid the observability E2E break.
@@ -216,7 +216,7 @@ surfaced already landed independently via PR #2086 and is not re-counted here.
 
 ### DEVENV-008: Spike — reproducible dev-environment base (go/no-go ADR)
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Wave:** 2 (spike / evaluate)
 - **Intent:** Decide whether to re-platform the dev environment onto a reproducible
   base, with a hard exit so it cannot become open-ended research.
