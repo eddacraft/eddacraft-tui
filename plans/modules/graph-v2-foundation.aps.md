@@ -295,8 +295,8 @@ Change status to **Ready** when:
   and the GCTX-projection **schema type** (no-text `ByteRange`), with
   `schema_fixtures`. Council `council-66cb4833` (accept-with-changes applied:
   namespace/type-only/alias/glob re-export name correctness). Per the ADR-075
-  decision, call/reference/language-metadata *population* is deferred to
-  GCTX/v0.9 and span-field *attachment* to GV2-011/v0.9.
+  decision, call/reference/language-metadata *population* and span-field
+  *attachment* (onto nodes/edges) are deferred to GCTX/v0.9.
 - **Intent:** Expand the current symbol/import graph into the canonical semantic
   code graph, separating the A′-critical subset from the GCTX-projection subset.
 - **Expected Outcome:** **A′-critical subset** — stable identity wiring
