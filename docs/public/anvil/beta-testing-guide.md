@@ -97,8 +97,8 @@ The most useful feedback answers these questions:
 - Did Cursor or Claude Code show `anvil` in the MCP list after restart? Did an
   AI rewrite get refused before the write landed, or did it slip through?
 - Did the language profile in the activation summary match your repo? If your
-  repo is mostly Python or Rust, did the summary name the gap instead of
-  pretending coverage?
+  repo is mostly Python, did the summary name the gap instead of pretending
+  coverage?
 - Did install, sign-in (if you used it), and project setup work without help?
 - Were warnings accurate, actionable, and easy to triage?
 - When MCP couldn't attach, did the watch fallback (`anvil start --watch` /

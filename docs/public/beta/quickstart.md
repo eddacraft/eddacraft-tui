@@ -201,7 +201,7 @@ such as update checks.
 
 ## What to Test
 
-We are especially interested in feedback on these areas in `0.6.0-beta`:
+We are especially interested in feedback on these areas in the current beta:
 
 | Area                                       | What to try                                                                                                 |
 | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |

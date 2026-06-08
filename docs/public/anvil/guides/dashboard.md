@@ -37,7 +37,7 @@ anvil dashboard suppressions
 Run with no argument to get the picker. Pass a name to jump straight to one
 surface.
 
-## The three surfaces
+## The built-in surfaces
 
 ### Architecture Health
 
