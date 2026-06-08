@@ -819,17 +819,21 @@ mod tests {
     #[test]
     fn expired_exception_is_ignored() {
         let v = make_violation("AP-001", "src/foo.ts");
+        // Pin one `now` so the derived `id` and `created_at` agree (a
+        // second `Utc::now()` could tick between them).
+        let now = Utc::now();
+        let created_at = now - Duration::days(30);
         let ex = PolicyException {
             schema_version: default_exception_schema_version(),
-            id: exception_id_from_parts("AP-001", "", Utc::now() - Duration::days(30), None),
+            id: exception_id_from_parts("AP-001", "", created_at, None),
             policy_id: "AP-001".to_string(),
             file_pattern: String::new(),
             finding_hash: None,
             reason: "temporary".to_string(),
             owner: None,
             created_by: None,
-            created_at: Utc::now() - Duration::days(30),
-            expires_at: Some(Utc::now() - Duration::days(1)),
+            created_at,
+            expires_at: Some(now - Duration::days(1)),
             revoked: None,
         };
         assert!(!is_suppressed(&v, &[ex]));
@@ -838,17 +842,19 @@ mod tests {
     #[test]
     fn non_expired_exception_applies() {
         let v = make_violation("AP-001", "src/foo.ts");
+        // One `now` so the derived `id` matches `created_at`.
+        let now = Utc::now();
         let ex = PolicyException {
             schema_version: default_exception_schema_version(),
-            id: exception_id_from_parts("AP-001", "", Utc::now(), None),
+            id: exception_id_from_parts("AP-001", "", now, None),
             policy_id: "AP-001".to_string(),
             file_pattern: String::new(),
             finding_hash: None,
             reason: "temporary".to_string(),
             owner: None,
             created_by: None,
-            created_at: Utc::now(),
-            expires_at: Some(Utc::now() + Duration::days(7)),
+            created_at: now,
+            expires_at: Some(now + Duration::days(7)),
             revoked: None,
         };
         assert!(is_suppressed(&v, &[ex]));
