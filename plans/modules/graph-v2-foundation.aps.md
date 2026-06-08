@@ -754,7 +754,7 @@ Change status to **Ready** when:
 | Phase | Items | Completion | Status |
 | ----- | ----- | ---------- | ------ |
 | 0 — Architecture and Contracts | 3 | 3/3 done | Complete |
-| 1 — Graph Schemas | 5 | 2/5 done | In Progress |
+| 1 — Graph Schemas | 5 | 3/5 done | In Progress |
 | 2 — Runtime Substrate | 4 | 1/4 done | Draft |
 | 3 — Enforcement, Wiring, and the A′ Swap | 7 | 1/7 done | In Progress |
-| **Total** | **19** | **7/19 done** | **In Progress** |
+| **Total** | **19** | **8/19 done** | **In Progress** |
