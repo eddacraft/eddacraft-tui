@@ -565,6 +565,18 @@ pub fn is_suppressed_at(
         {
             return false;
         }
+        // An unparseable scope must not suppress. Classify it explicitly
+        // so enforcement and `verify_exception_at`'s `InvalidScope`
+        // verdict agree by construction, not by the accident of
+        // `glob_matches`'s error arm. Keep the diagnostic the
+        // short-circuit would otherwise swallow (council EXCEPT-005).
+        if !scope_is_valid(&ex.file_pattern) {
+            eprintln!(
+                "warning: invalid exception glob pattern '{}'; exception does not apply",
+                ex.file_pattern
+            );
+            return false;
+        }
         if ex.file_pattern.is_empty() {
             return true;
         }
@@ -615,6 +627,146 @@ fn glob_matches(pattern: &str, path: &str) -> bool {
     }
 }
 
+/// Verdict for a single exception at evaluation time (EXCEPT-005).
+///
+/// A single, precedence-ordered classification — the first failing check
+/// wins, most-terminal first: an exception that is both revoked and
+/// expired reports `Revoked`. The precedence is
+/// `Revoked` > `Expired` > `InvalidScope` > `Unattributed` > `Active`:
+/// deliberately-dead grants (revoked, then expired) before structural
+/// faults (an unparseable scope glob) before trust faults (a v0-shape
+/// grant with no attribution) before a clean `Active`.
+///
+/// This type *classifies*; it does not enforce. Only
+/// [`Active`](Self::Active) and [`Unattributed`](Self::Unattributed)
+/// [`applies()`](Self::applies); the latter also [`is_downgrade()`](Self::is_downgrade),
+/// the signal a consumer uses to surface `warn`/`degraded` instead of a
+/// clean `pass` (ADR-073). Acting on that signal — refusing to silently
+/// honour an unattributed grant during L3/L4 evaluation — is wired by
+/// EXCEPT-006; the legacy [`is_suppressed_at`] path does not yet consult
+/// this verdict. Expired / revoked / invalid-scope grants do not apply.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExceptionVerdict {
+    /// Soft-deleted via [`PolicyException::revoked`]; does not apply.
+    Revoked,
+    /// Past [`PolicyException::expires_at`] at evaluation time; does not apply.
+    Expired,
+    /// `file_pattern` is not a parseable glob; cannot be safely matched,
+    /// so it does not apply.
+    InvalidScope,
+    /// Valid and in-date but **unattributed** — no `owner` and no
+    /// `created_by` (the v0 shape). [`applies()`](Self::applies) is true,
+    /// but [`is_downgrade()`](Self::is_downgrade) flags it so a verdict-aware
+    /// consumer surfaces `warn`/`degraded` rather than honouring it
+    /// silently (the enforcement wiring is EXCEPT-006).
+    Unattributed,
+    /// Valid, in-date, in-scope, and attributed. Applies cleanly.
+    Active,
+}
+
+impl ExceptionVerdict {
+    /// Whether an exception with this verdict suppresses a matching
+    /// finding. `Active` and `Unattributed` apply; the rest do not.
+    #[must_use]
+    pub fn applies(self) -> bool {
+        matches!(self, Self::Active | Self::Unattributed)
+    }
+
+    /// Whether this verdict is a downgrade signal: the exception applies
+    /// but the evaluation must not report a clean `pass`. True only for
+    /// [`Unattributed`](Self::Unattributed).
+    #[must_use]
+    pub fn is_downgrade(self) -> bool {
+        matches!(self, Self::Unattributed)
+    }
+
+    /// Stable lowercase token for diagnostics / capsule verdicts.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Revoked => "revoked",
+            Self::Expired => "expired",
+            Self::InvalidScope => "invalid-scope",
+            Self::Unattributed => "unattributed",
+            Self::Active => "active",
+        }
+    }
+}
+
+/// An exception paired with its verification verdict.
+///
+/// Borrows the source record — zero-copy and the full
+/// [`PolicyException`] stays in reach (id, reason, owner, expiry, …),
+/// so a consumer never has to re-project fields as needs grow.
+#[derive(Debug, Clone, Copy)]
+pub struct VerifiedException<'a> {
+    /// The verified exception.
+    pub exception: &'a PolicyException,
+    /// Its verdict at the `now` it was verified against.
+    pub verdict: ExceptionVerdict,
+}
+
+/// Verify one exception at the current time. See [`verify_exception_at`].
+#[must_use]
+pub fn verify_exception(exception: &PolicyException) -> ExceptionVerdict {
+    verify_exception_at(exception, Utc::now())
+}
+
+/// Classify `exception`'s validity at `now` into an [`ExceptionVerdict`].
+///
+/// Validates revocation, expiry, scope-glob well-formedness, and
+/// attribution — **not** whether it matches any particular violation
+/// (that is [`is_suppressed_at`]). The precedence is documented on
+/// [`ExceptionVerdict`].
+#[must_use]
+pub fn verify_exception_at(exception: &PolicyException, now: DateTime<Utc>) -> ExceptionVerdict {
+    if is_revoked(exception) {
+        return ExceptionVerdict::Revoked;
+    }
+    if is_expired(exception, now) {
+        return ExceptionVerdict::Expired;
+    }
+    if !scope_is_valid(&exception.file_pattern) {
+        return ExceptionVerdict::InvalidScope;
+    }
+    if is_unattributed(exception) {
+        return ExceptionVerdict::Unattributed;
+    }
+    ExceptionVerdict::Active
+}
+
+/// Verify every exception in `exceptions` at `now`.
+#[must_use]
+pub fn verify_exceptions_at(
+    exceptions: &[PolicyException],
+    now: DateTime<Utc>,
+) -> Vec<VerifiedException<'_>> {
+    exceptions
+        .iter()
+        .map(|ex| VerifiedException {
+            exception: ex,
+            verdict: verify_exception_at(ex, now),
+        })
+        .collect()
+}
+
+/// Whether `file_pattern` is a usable scope: empty (= all files) or a
+/// well-formed glob. Mirrors [`glob_matches`]'s separator normalisation
+/// so the validity check and the match use the same parser.
+fn scope_is_valid(file_pattern: &str) -> bool {
+    file_pattern.is_empty() || glob::Pattern::new(&file_pattern.replace('\\', "/")).is_ok()
+}
+
+/// A grant is unattributed when it carries neither an `owner` nor a
+/// `created_by` — the v0 schema shape, which predates ADR-073's
+/// attribution requirement. A **blank** (empty or whitespace-only) value
+/// counts as absent: `owner: ""` is attribution in name only and must
+/// not let a v0-shape grant masquerade as `Active` (council EXCEPT-005).
+fn is_unattributed(exception: &PolicyException) -> bool {
+    let blank = |s: &String| s.trim().is_empty();
+    exception.owner.as_ref().is_none_or(blank) && exception.created_by.as_ref().is_none_or(blank)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -646,6 +798,185 @@ mod tests {
             expires_at: None,
             revoked: None,
         }
+    }
+
+    /// An attributed, in-date, valid-scope grant (an `Active` baseline).
+    fn make_attributed(policy_id: &str, file_pattern: &str) -> PolicyException {
+        let mut ex = make_exception(policy_id, file_pattern);
+        ex.owner = Some("team-platform".to_string());
+        ex.created_by = Some("alice@example.test".to_string());
+        ex
+    }
+
+    // --- EXCEPT-005 scope/expiry/revocation verification ---
+
+    #[test]
+    fn exception_verify_active_for_attributed_in_scope_grant() {
+        let ex = make_attributed("AP-001", "src/legacy/**");
+        let verdict = verify_exception(&ex);
+        assert_eq!(verdict, ExceptionVerdict::Active);
+        assert!(verdict.applies());
+        assert!(!verdict.is_downgrade());
+    }
+
+    #[test]
+    fn exception_verify_empty_scope_is_valid() {
+        // Empty file_pattern means "all files" — a valid scope, not InvalidScope.
+        let ex = make_attributed("AP-001", "");
+        assert_eq!(verify_exception(&ex), ExceptionVerdict::Active);
+    }
+
+    #[test]
+    fn exception_verify_expired_does_not_apply() {
+        let now = Utc::now();
+        let mut ex = make_attributed("AP-001", "src/**");
+        ex.created_at = now - Duration::days(30);
+        ex.expires_at = Some(now - Duration::days(1));
+        let verdict = verify_exception_at(&ex, now);
+        assert_eq!(verdict, ExceptionVerdict::Expired);
+        assert!(!verdict.applies());
+    }
+
+    #[test]
+    fn exception_verify_revoked_does_not_apply() {
+        let mut ex = make_attributed("AP-001", "src/**");
+        ex.revoked = Some(ExceptionRevocation {
+            revoked_at: Utc::now(),
+            revoked_by: "bob@example.test".to_string(),
+            reason: "no longer needed".to_string(),
+        });
+        let verdict = verify_exception(&ex);
+        assert_eq!(verdict, ExceptionVerdict::Revoked);
+        assert!(!verdict.applies());
+    }
+
+    #[test]
+    fn exception_verify_invalid_scope_glob_does_not_apply() {
+        // An unclosed character class is not a parseable glob.
+        let ex = make_attributed("AP-001", "src/[unclosed");
+        let verdict = verify_exception(&ex);
+        assert_eq!(verdict, ExceptionVerdict::InvalidScope);
+        assert!(!verdict.applies());
+    }
+
+    /// The core EXCEPT-005 contract: a v0-shape grant (no `owner`, no
+    /// `created_by`) applies but as a downgrade — never silently honoured.
+    #[test]
+    fn exception_verify_unattributed_v0_grant_downgrades() {
+        let ex = make_exception("AP-001", "src/**"); // owner + created_by None
+        let verdict = verify_exception(&ex);
+        assert_eq!(verdict, ExceptionVerdict::Unattributed);
+        assert!(verdict.applies(), "still applies");
+        assert!(verdict.is_downgrade(), "but flagged as a downgrade");
+    }
+
+    #[test]
+    fn exception_verify_owner_alone_is_attributed() {
+        let mut ex = make_exception("AP-001", "src/**");
+        ex.owner = Some("team-platform".to_string());
+        assert_eq!(verify_exception(&ex), ExceptionVerdict::Active);
+    }
+
+    #[test]
+    fn exception_verify_created_by_alone_is_attributed() {
+        let mut ex = make_exception("AP-001", "src/**");
+        ex.created_by = Some("alice@example.test".to_string());
+        assert_eq!(verify_exception(&ex), ExceptionVerdict::Active);
+    }
+
+    /// Precedence: revoked beats expired beats invalid-scope beats
+    /// unattributed. A grant that trips every check reports `Revoked`.
+    #[test]
+    fn exception_verify_precedence_revoked_over_expired_over_scope_over_attribution() {
+        let now = Utc::now();
+        // Unattributed + invalid scope + expired + revoked → Revoked.
+        let mut ex = make_exception("AP-001", "src/[bad");
+        ex.expires_at = Some(now - Duration::days(1));
+        ex.revoked = Some(ExceptionRevocation {
+            revoked_at: now,
+            revoked_by: "bob".to_string(),
+            reason: "x".to_string(),
+        });
+        assert_eq!(verify_exception_at(&ex, now), ExceptionVerdict::Revoked);
+
+        // Drop revocation → Expired wins over invalid-scope + attribution.
+        ex.revoked = None;
+        assert_eq!(verify_exception_at(&ex, now), ExceptionVerdict::Expired);
+
+        // Drop expiry → InvalidScope wins over attribution.
+        ex.expires_at = None;
+        assert_eq!(
+            verify_exception_at(&ex, now),
+            ExceptionVerdict::InvalidScope
+        );
+    }
+
+    #[test]
+    fn exception_verify_verdict_tokens_are_stable() {
+        assert_eq!(ExceptionVerdict::Revoked.as_str(), "revoked");
+        assert_eq!(ExceptionVerdict::Expired.as_str(), "expired");
+        assert_eq!(ExceptionVerdict::InvalidScope.as_str(), "invalid-scope");
+        assert_eq!(ExceptionVerdict::Unattributed.as_str(), "unattributed");
+        assert_eq!(ExceptionVerdict::Active.as_str(), "active");
+    }
+
+    #[test]
+    fn exception_verify_batch_classifies_each() {
+        let now = Utc::now();
+        let mut revoked = make_attributed("AP-002", "src/**");
+        revoked.revoked = Some(ExceptionRevocation {
+            revoked_at: now,
+            revoked_by: "bob".to_string(),
+            reason: "x".to_string(),
+        });
+        let exceptions = vec![
+            make_attributed("AP-001", "src/**"),
+            revoked,
+            make_exception("AP-003", "src/**"),
+        ];
+        let verified = verify_exceptions_at(&exceptions, now);
+        assert_eq!(verified.len(), 3);
+        assert_eq!(verified[0].verdict, ExceptionVerdict::Active);
+        assert_eq!(verified[1].verdict, ExceptionVerdict::Revoked);
+        assert_eq!(verified[1].exception.policy_id, "AP-002");
+        assert_eq!(verified[2].verdict, ExceptionVerdict::Unattributed);
+    }
+
+    /// Expiry is exclusive at the exact boundary: `now == expires_at` is
+    /// not yet expired. Pins the contract GITGOV-009 replays against.
+    #[test]
+    fn exception_verify_at_exact_expiry_boundary_is_not_yet_expired() {
+        let t = Utc::now();
+        let mut ex = make_attributed("AP-001", "src/**");
+        ex.expires_at = Some(t);
+        assert_eq!(verify_exception_at(&ex, t), ExceptionVerdict::Active);
+        assert_eq!(
+            verify_exception_at(&ex, t + Duration::nanoseconds(1)),
+            ExceptionVerdict::Expired
+        );
+    }
+
+    /// Blank attribution (`Some("")` / whitespace) is attribution in name
+    /// only — still `Unattributed`, never `Active`.
+    #[test]
+    fn exception_verify_blank_attribution_is_unattributed() {
+        let mut ex = make_exception("AP-001", "src/**");
+        ex.owner = Some("   ".to_string());
+        ex.created_by = Some(String::new());
+        assert_eq!(verify_exception(&ex), ExceptionVerdict::Unattributed);
+    }
+
+    /// Once revoked/expired/invalid-scope are cleared, a valid-but-
+    /// unattributed grant lands on `Unattributed` (the last precedence
+    /// step), guarding the scope-vs-attribution check order.
+    #[test]
+    fn exception_verify_precedence_lands_on_unattributed_when_only_attribution_missing() {
+        let now = Utc::now();
+        let ex = make_exception("AP-001", "src/**"); // valid scope, no attribution
+        assert_eq!(
+            verify_exception_at(&ex, now),
+            ExceptionVerdict::Unattributed
+        );
     }
 
     // --- EXCEPT-003 enriched schema ---

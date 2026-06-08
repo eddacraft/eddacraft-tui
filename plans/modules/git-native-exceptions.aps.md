@@ -86,7 +86,7 @@ Enforcement of unrelated policy classes; the inline `@anvil-ignore` path
 - **Expected Outcome:** Expired/revoked exceptions do not apply; an unattributed v0-shape grant downgrades (`warn`/`degraded`), it is never silently honoured.
 - **Validation:** `cargo test -p eddacraft-anvil-policy -- exception_verify`
 - **Dependencies:** EXCEPT-003
-- **Status:** Proposed
+- **Status:** In Progress
 
 ### EXCEPT-006: L3/L4 integration
 - **Intent:** Apply only valid exceptions during pre-commit/pre-push evaluation; record exception use.
