@@ -540,6 +540,7 @@ layers:
                 previously_imported: HashSet::new(),
                 previously_public: HashSet::new(),
                 previously_privileged: HashSet::new(),
+                previously_boundary: HashSet::new(),
                 file: "src/domain/mod_0.ts".to_string(),
             };
 

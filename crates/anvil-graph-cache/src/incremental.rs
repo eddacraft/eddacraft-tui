@@ -23,19 +23,35 @@ pub struct GraphDelta {
     /// same-`(kind, name)` overloads stay distinct via their ordinal instead
     /// of collapsing into one string key.
     pub previously_public: HashSet<SymbolIdentity>,
-    /// Stable identities that were already privileged before this update (for
-    /// privilege-expansion detection).
+    /// Stable identities that were already `TrustLevel::Privileged` before
+    /// this update — and only `Privileged`. The `PrivilegeExpansion`
+    /// invariant compares against this set exclusively, so a
+    /// `Boundary → Privileged` escalation is *not* in the baseline and
+    /// correctly fires.
     pub previously_privileged: HashSet<SymbolIdentity>,
+    /// Stable identities that were already `TrustLevel::Boundary` before
+    /// this update. Kept separate from `previously_privileged` because the
+    /// two consumers need different semantics: the certify export-diff
+    /// treats `Privileged ∪ Boundary` as the elevated surface (spec gap
+    /// G-06), while the privilege-expansion invariant must see
+    /// `Privileged`-only (`Boundary` marks a public API boundary, not
+    /// privileged module access — `annotate_trust` assigns it to every
+    /// public symbol outside privileged files).
+    pub previously_boundary: HashSet<SymbolIdentity>,
     pub file: String,
 }
 
-/// Is this trust level part of the elevated (privileged) surface?
+/// Is this trust level part of the elevated surface the export-diff watches?
 ///
-/// `Privileged` and `Boundary` both count: a symbol crossing onto either is a
-/// privilege-surface change. Closes spec gap G-06 (the old filter dropped
-/// `Boundary`, so a producer emitting it would have made the export-diff
-/// silently under-fire). Keep this predicate and the `current_privileged`
-/// filter in `certify::export_surface_diff` in lockstep.
+/// `Privileged` and `Boundary` both count: a symbol crossing onto either is
+/// an elevated-surface change for `certify::export_surface_diff` (spec gap
+/// G-06 — the old filter dropped `Boundary`, so a producer emitting it on a
+/// non-public symbol would have made the export-diff silently under-fire).
+/// This predicate is for the *diff* path only: the `PrivilegeExpansion`
+/// invariant intentionally checks `Privileged` alone, against the
+/// `Privileged`-only `previously_privileged` baseline, so `annotate_trust`'s
+/// blanket `Boundary` on public symbols never spams privileged-access
+/// violations and a `Boundary → Privileged` escalation still fires.
 #[must_use]
 pub fn is_elevated_trust(trust: TrustLevel) -> bool {
     matches!(trust, TrustLevel::Privileged | TrustLevel::Boundary)
@@ -65,8 +81,11 @@ pub fn update_file(graph: &mut SymbolGraph, new_symbols: FileSymbols) -> GraphDe
     let old_ids = old_symbols.iter().map(|s| s.id).collect::<Vec<_>>();
     // Stable identities are assigned over the file's full parse-ordered
     // symbol list (GV2-002): ordinals disambiguate same-(kind, name)
-    // overloads regardless of visibility, so the public/privileged baselines
-    // below stay distinct per overload instead of collapsing into one key.
+    // overloads regardless of visibility, so the baselines below stay
+    // distinct per overload instead of collapsing into one key.
+    // INVARIANT: symbols_in_file returns insertion order, which equals parse
+    // order because update_file feeds FileSymbols.symbols in parser emission
+    // order — the ordering contract for_file_symbols documents.
     let old_identities = SymbolIdentity::for_file_symbols(&old_symbols);
     let previously_public: HashSet<SymbolIdentity> = old_symbols
         .iter()
@@ -77,7 +96,13 @@ pub fn update_file(graph: &mut SymbolGraph, new_symbols: FileSymbols) -> GraphDe
     let previously_privileged: HashSet<SymbolIdentity> = old_symbols
         .iter()
         .zip(&old_identities)
-        .filter(|(s, _)| is_elevated_trust(s.trust_level))
+        .filter(|(s, _)| s.trust_level == TrustLevel::Privileged)
+        .map(|(_, identity)| identity.clone())
+        .collect();
+    let previously_boundary: HashSet<SymbolIdentity> = old_symbols
+        .iter()
+        .zip(&old_identities)
+        .filter(|(s, _)| s.trust_level == TrustLevel::Boundary)
         .map(|(_, identity)| identity.clone())
         .collect();
     drop(old_symbols);
@@ -169,6 +194,7 @@ pub fn update_file(graph: &mut SymbolGraph, new_symbols: FileSymbols) -> GraphDe
         previously_imported,
         previously_public,
         previously_privileged,
+        previously_boundary,
         file,
     }
 }

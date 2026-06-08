@@ -86,6 +86,10 @@ impl SymbolGraph {
         self.index.get(&id).map(|idx| &mut self.graph[*idx])
     }
 
+    /// Symbols of `file` in insertion order — which equals parse (source)
+    /// order because `update_file` inserts `FileSymbols.symbols` in parser
+    /// emission order. `SymbolIdentity::for_file_symbols` ordinals depend on
+    /// this; do not reorder the per-file id list.
     pub fn symbols_in_file(&self, file: &str) -> Vec<&SymbolNode> {
         self.files
             .get(file)

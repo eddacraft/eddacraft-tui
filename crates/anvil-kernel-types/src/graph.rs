@@ -119,18 +119,6 @@ impl SymbolIdentity {
             })
             .collect()
     }
-
-    /// The identity of the symbol with session-local id `id` within its
-    /// file's parse-ordered symbol slice, or `None` if `id` is not in
-    /// `symbols`.
-    #[must_use]
-    pub fn of_symbol(symbols: &[&SymbolNode], id: u64) -> Option<SymbolIdentity> {
-        let identities = Self::for_file_symbols(symbols);
-        symbols
-            .iter()
-            .position(|s| s.id == id)
-            .map(|i| identities[i].clone())
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -485,18 +473,6 @@ mod tests {
         let ib = SymbolIdentity::for_file_symbols(&before.iter().collect::<Vec<_>>());
         let ia = SymbolIdentity::for_file_symbols(&after.iter().collect::<Vec<_>>());
         assert_ne!(ib[0], ia[0]);
-    }
-
-    #[test]
-    fn identity_of_symbol_resolves_by_session_id() {
-        let syms = [
-            node(7, SymbolKind::Function, "foo", "a.ts"),
-            node(9, SymbolKind::Function, "foo", "a.ts"),
-        ];
-        let refs: Vec<_> = syms.iter().collect();
-        let second = SymbolIdentity::of_symbol(&refs, 9).unwrap();
-        assert_eq!(second.ordinal, 1);
-        assert!(SymbolIdentity::of_symbol(&refs, 42).is_none());
     }
 
     #[test]

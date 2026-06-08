@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use anvil_kernel_types::{SymbolIdentity, Visibility};
 
 use crate::graph::{GraphDelta, SymbolGraph};
@@ -21,6 +23,13 @@ impl Invariant for PublicApiExpansion {
     ) -> Vec<Violation> {
         let mut violations = Vec::new();
 
+        // Resolve stable identities once per file (GV2-002): ordinals keep
+        // same-(kind, name) overloads distinct, so a new public overload of
+        // an existing export is itself an API expansion. Computed lazily per
+        // file — not per symbol — to keep the loop O(file symbols), not
+        // O(added × file symbols).
+        let mut identity_by_id: HashMap<&str, HashMap<u64, SymbolIdentity>> = HashMap::new();
+
         for &sym_id in &delta.added_symbols {
             let Some(sym) = graph.get_symbol(sym_id) else {
                 continue;
@@ -28,15 +37,22 @@ impl Invariant for PublicApiExpansion {
             if sym.visibility != Visibility::Public {
                 continue;
             }
-            // Resolve the symbol's stable identity within its post-update
-            // file (GV2-002): ordinals keep same-(kind, name) overloads
-            // distinct, so a new public overload of an existing export is
-            // itself an API expansion.
-            let file_symbols = graph.symbols_in_file(&sym.file);
-            let Some(identity) = SymbolIdentity::of_symbol(&file_symbols, sym_id) else {
+            let file_identities = identity_by_id.entry(sym.file.as_str()).or_insert_with(|| {
+                let file_symbols = graph.symbols_in_file(&sym.file);
+                let identities = SymbolIdentity::for_file_symbols(&file_symbols);
+                file_symbols.iter().map(|s| s.id).zip(identities).collect()
+            });
+            let Some(identity) = file_identities.get(&sym_id) else {
+                // Every added id must be reachable from its file's symbol
+                // list; a miss means graph state diverged mid-evaluation.
+                // Loud in debug builds, conservative skip in release.
+                debug_assert!(
+                    false,
+                    "added symbol {sym_id} missing from its file's symbol list"
+                );
                 continue;
             };
-            if !delta.previously_public.contains(&identity) {
+            if !delta.previously_public.contains(identity) {
                 violations.push(Violation {
                     policy_id: self.id().to_string(),
                     file: sym.file.clone(),

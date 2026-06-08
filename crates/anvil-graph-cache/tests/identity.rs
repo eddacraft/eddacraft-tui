@@ -306,3 +306,37 @@ fn identity_body_only_edit_still_certifies() {
     );
     assert!(matches!(v, Certifiability::Certified { .. }));
 }
+
+/// Documents the known residual (see `ExportSurfaceDiff` docs): removing one
+/// overload and adding a different one in the same save with the total count
+/// preserved re-assigns the same identity set, so the surface reads
+/// unchanged and the save certifies. Shared with the old string-key scheme;
+/// closing it needs per-symbol signature content, which privacy verdict PV-1
+/// excludes from identity. If this test ever fails, the limitation has been
+/// closed — update the docs that name it.
+#[test]
+fn identity_count_preserving_overload_churn_is_a_known_residual() {
+    let mut g = SymbolGraph::new();
+    update_file(
+        &mut g,
+        file_symbols(
+            "a.ts",
+            vec![public_fn(1, "foo", "a.ts"), public_fn(2, "foo", "a.ts")],
+        ),
+    );
+
+    // One overload removed AND a different one appended: count preserved.
+    let delta = update_file(
+        &mut g,
+        file_symbols(
+            "a.ts",
+            vec![public_fn(10, "foo", "a.ts"), public_fn(11, "foo", "a.ts")],
+        ),
+    );
+
+    let diff = export_surface_diff(&g, &delta);
+    assert!(
+        diff.is_empty(),
+        "count-preserving same-name churn is the documented undetectable shape"
+    );
+}

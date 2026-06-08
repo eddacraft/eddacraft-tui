@@ -209,6 +209,11 @@ Change status to **Ready** when:
   position-independent symbol identity (overload-disambiguated), edge identity,
   session/worktree identity, and APS/provenance references, with documented
   rename behaviour; snapshots and deltas stay comparable across restart.
+  Per-row delivery: symbol identity + rename stance + edge-identity derivation
+  ship in code/spec here; content hashes already exist (`validate_paths`);
+  session/worktree identity and APS/provenance references are pinned as
+  join-time-only contract rows (privacy verdict PV-3) and implement at
+  GV2-013/GV2-014.
 - **Validation:** Unit tests for file rename, symbol rename, delete/recreate,
   same-`(kind,name)` overload added to an already-public symbol (red today), and
   same-name symbols in different scopes — `cargo test -p eddacraft-anvil-graph-cache -- identity`

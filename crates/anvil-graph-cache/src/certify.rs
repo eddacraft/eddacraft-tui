@@ -128,6 +128,22 @@ pub enum Certifiability {
 /// kind and their overload counts match. Anything ambiguous (two renames of
 /// the same kind in one save, count mismatches) stays classified as
 /// adds + removes — still a surface change, never a missed one.
+///
+/// # Asymmetry and residual limitation
+///
+/// The privileged surface (`added_privileged` / `removed_privileged`) is
+/// **not** rename-classified: a privileged rename appears as one entry in
+/// each list. Callers must not read `added_privileged.is_empty()` as "no
+/// privileged rename happened".
+///
+/// One overload shape still escapes detection: removing one overload and
+/// adding a different one **in the same save with the total count
+/// preserved** (e.g. drop `foo` #0, append a new `foo`) re-assigns the same
+/// `{foo:0, foo:1}` identity set, so the surface reads unchanged and the
+/// save certifies. This was equally invisible to the old string-key scheme;
+/// closing it needs per-symbol signature content, which privacy verdict
+/// PV-1 deliberately excludes from identity. The common overload cases —
+/// adding one (count grows) or removing one (count shrinks) — are detected.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ExportSurfaceDiff {
     /// Public identities present after the update but not before.
@@ -156,12 +172,20 @@ impl ExportSurfaceDiff {
 
 /// Compute the [`ExportSurfaceDiff`] for one file update.
 ///
-/// Compares the pre-update public/privileged baselines carried on the
-/// [`GraphDelta`] against the post-update graph state for the same file,
-/// over stable identities. Body-only edits produce an empty diff.
+/// Compares the pre-update baselines carried on the [`GraphDelta`] against
+/// the post-update graph state for the same file, over stable identities.
+/// Body-only edits produce an empty diff.
 ///
-/// Reads only `delta.previously_public` / `delta.previously_privileged` and
-/// the post-update graph; never touches `delta.removed_edges` (always empty).
+/// The elevated-surface comparison is `Privileged ∪ Boundary` on both sides
+/// (`previously_privileged ∪ previously_boundary` vs the
+/// [`is_elevated_trust`](crate::incremental::is_elevated_trust) filter),
+/// closing spec gap G-06. Note `annotate_trust` assigns `Boundary` to every
+/// public symbol outside privileged files, so where it has run, a new public
+/// symbol appears in **both** `added_public` and `added_privileged` — the
+/// overlap is by construction, not double-counting.
+///
+/// Reads only the `previously_*` baselines and the post-update graph; never
+/// touches `delta.removed_edges` (always empty).
 #[must_use]
 pub fn export_surface_diff(sym: &SymbolGraph, delta: &GraphDelta) -> ExportSurfaceDiff {
     let current = sym.symbols_in_file(&delta.file);
@@ -173,11 +197,16 @@ pub fn export_surface_diff(sym: &SymbolGraph, delta: &GraphDelta) -> ExportSurfa
         .filter(|(s, _)| s.visibility == Visibility::Public)
         .map(|(_, identity)| identity.clone())
         .collect();
-    let current_privileged: HashSet<SymbolIdentity> = current
+    let current_elevated: HashSet<SymbolIdentity> = current
         .iter()
         .zip(&identities)
         .filter(|(s, _)| crate::incremental::is_elevated_trust(s.trust_level))
         .map(|(_, identity)| identity.clone())
+        .collect();
+    let baseline_elevated: HashSet<SymbolIdentity> = delta
+        .previously_privileged
+        .union(&delta.previously_boundary)
+        .cloned()
         .collect();
 
     let mut added_public: Vec<SymbolIdentity> = current_public
@@ -199,17 +228,28 @@ pub fn export_surface_diff(sym: &SymbolGraph, delta: &GraphDelta) -> ExportSurfa
         &current_public,
     );
 
-    let mut added_privileged: Vec<SymbolIdentity> = current_privileged
-        .difference(&delta.previously_privileged)
+    let mut added_privileged: Vec<SymbolIdentity> = current_elevated
+        .difference(&baseline_elevated)
         .cloned()
         .collect();
-    let mut removed_privileged: Vec<SymbolIdentity> = delta
-        .previously_privileged
-        .difference(&current_privileged)
+    let mut removed_privileged: Vec<SymbolIdentity> = baseline_elevated
+        .difference(&current_elevated)
         .cloned()
         .collect();
     added_privileged.sort();
     removed_privileged.sort();
+
+    // Counts only — never identity values — so the trace stays inside the
+    // privacy verdict's PV-10 label rules even if it is ever piped further.
+    tracing::debug!(
+        target: "anvil_graph_cache::certify",
+        added_public = added_public.len(),
+        removed_public = removed_public.len(),
+        renamed_public = renamed_public.len(),
+        added_privileged = added_privileged.len(),
+        removed_privileged = removed_privileged.len(),
+        "export surface diff computed"
+    );
 
     ExportSurfaceDiff {
         added_public,
@@ -234,6 +274,8 @@ fn pair_renames(
     baseline: &HashSet<SymbolIdentity>,
     current: &HashSet<SymbolIdentity>,
 ) -> Vec<(SymbolIdentity, SymbolIdentity)> {
+    // BTreeMap for deterministic iteration order — pair selection must be
+    // stable across runs.
     use std::collections::BTreeMap;
 
     let group = |items: &[SymbolIdentity],
@@ -267,6 +309,12 @@ fn pair_renames(
         };
         // Unambiguous only: one candidate on each side, equal overload counts.
         if removed_names.len() != 1 || added_names.len() != 1 {
+            tracing::debug!(
+                target: "anvil_graph_cache::certify",
+                removed_candidates = removed_names.len(),
+                added_candidates = added_names.len(),
+                "ambiguous rename shape — conservatively kept as adds + removes"
+            );
             continue;
         }
         let (old_name, old_count) = removed_names.iter().next().expect("len checked");
@@ -284,8 +332,10 @@ fn pair_renames(
             .filter(|i| i.kind == *kind && i.name == *new_name)
             .cloned()
             .collect();
-        old_ids.sort();
-        new_ids.sort();
+        // Pair ordinal-by-ordinal, explicitly — independent of the field
+        // order behind SymbolIdentity's derived Ord.
+        old_ids.sort_by_key(|i| i.ordinal);
+        new_ids.sort_by_key(|i| i.ordinal);
         removed.retain(|i| !(i.kind == *kind && i.name == *old_name));
         added.retain(|i| !(i.kind == *kind && i.name == *new_name));
         renames.extend(old_ids.into_iter().zip(new_ids));
@@ -352,17 +402,20 @@ fn impact_closure(dep: &DependencyGraph, file: &str, budget: usize) -> Option<Ha
 ///
 /// # Surface decision (GV2-002)
 ///
-/// The surface decision is the `previously_public` / `previously_privileged`
-/// set-diff over stable [`SymbolIdentity`] keys (`incremental.rs` builds the
-/// baselines). Identities are overload-disambiguated by ordinal, so the
-/// former Sub-phase A limitation — a second public symbol with the same
-/// `kind` and `name` collapsing into one key and reading as no surface
-/// change — is closed: an added overload is a surface change.
+/// The surface decision is a set-diff of the `previously_*` baselines over
+/// stable [`SymbolIdentity`] keys (`incremental.rs` builds them). Identities
+/// are overload-disambiguated by ordinal, so the former Sub-phase A
+/// limitation — a second public symbol with the same `kind` and `name`
+/// collapsing into one key and reading as no surface change — is closed for
+/// count-changing overload edits; see [`ExportSurfaceDiff`] for the one
+/// count-preserving shape that remains undetectable by design.
 ///
-/// Both `TrustLevel::Privileged` and `TrustLevel::Boundary` feed the
-/// privileged surface (`incremental::is_elevated_trust`), closing spec gap
-/// G-06 — a producer emitting `Boundary` can no longer make the export-diff
-/// silently under-fire.
+/// The elevated surface unions `TrustLevel::Privileged` and
+/// `TrustLevel::Boundary` (`incremental::is_elevated_trust`), closing spec
+/// gap G-06 on the export-diff path. The `PrivilegeExpansion` policy
+/// invariant deliberately stays `Privileged`-only against the
+/// `Privileged`-only `previously_privileged` baseline — see
+/// `incremental::GraphDelta::previously_boundary` for the split's rationale.
 #[must_use]
 pub fn certify(
     sym: &SymbolGraph,
