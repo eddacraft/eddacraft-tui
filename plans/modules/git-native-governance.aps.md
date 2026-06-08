@@ -103,7 +103,7 @@ release seals (RELEASE-SEAL); supplier bundles (SUPPLIER). Sealed Edda context
 - **Expected Outcome:** Capsule witness verification reuses `verify_chain_dag` with no re-modelled extract and no partial-chain special-casing.
 - **Validation:** `cargo test -p eddacraft-anvil-capsule -- collect_witness`
 - **Dependencies:** GITGOV-005
-- **Status:** In Progress
+- **Status:** Merged 2026-06-08 via PR #2390
 
 ### GITGOV-008: Diagnostics collector
 - **Intent:** Include a SARIF 2.1.0 diagnostics summary via the ADR-058 shared emitter.
