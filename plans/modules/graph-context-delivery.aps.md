@@ -1,10 +1,17 @@
 # Graph Context Delivery
 
-| ID   | Owner | Status | Progress |
-| ---- | ----- | ------ | -------- |
-| GCTX | —     | Draft  | 0/13     |
+| ID   | Owner | Status   | Progress |
+| ---- | ----- | -------- | -------- |
+| GCTX | —     | Proposed | 0/13     |
 
-**Last reviewed:** 2026-04-28
+**Last reviewed:** 2026-06-08
+
+> **Pulled into the `v0.8.0-beta` window (2026-06-08, [ADR-075](../decisions/075-v080-graph-product-scope.md),
+> Proposed — pending council)** as the assistant-facing projection over GV2.
+> Items stay dep-blocked on the GV2 foundation (no `Ready` items yet); promoted
+> Draft → Proposed to reflect in-window scope. ADR-075 carries a stated escape
+> hatch: if GCTX threatens the cut, it is re-deferred to the A′-slice scope
+> without re-opening the decision.
 
 ## Purpose
 

@@ -6,6 +6,15 @@
 
 **Last reviewed:** 2026-06-08
 
+> **Pulled into the `v0.8.0-beta` window (2026-06-08, [ADR-075](../decisions/075-v080-graph-product-scope.md),
+> Proposed — pending council).** The GV2 foundation + the A→A′ backing swap
+> (GV2-027) are now in-window, no longer deferred. Unblocked frontier promoted
+> Draft → Ready: **GV2-010, GV2-013, GV2-014** (deps Merged). The rest stay
+> dep-blocked until predecessors land; GV2-030 (sealed-DTO snapshot) stays Draft
+> because warm-start persistence (Sub-phase B / [ADR-069](../decisions/069-graph-v2-persistence.md))
+> remains deferred. Count is **4/19** (001/002/003/021 Merged) — the index row's
+> `2/19` was stale.
+
 > **Reshaped 2026-06-08** around the now-landed spine spec
 > [`docs/architecture/graph-v2-foundation-spec.md`](../../docs/architecture/graph-v2-foundation-spec.md)
 > (GV2-001, merged via PR #2350) and the
@@ -280,9 +289,9 @@ Change status to **Ready** when:
 
 #### GV2-010: Semantic code graph v2 schema
 
-- **Status:** Draft — partially shipped under Sub-phase A (`SymbolNode`,
-  `EdgeType`, `Visibility` exist); this item adds the gaps and splits by
-  consumer.
+- **Status:** Ready (2026-06-08, ADR-075 wave — deps GV2-002/003 Merged) —
+  partially shipped under Sub-phase A (`SymbolNode`, `EdgeType`, `Visibility`
+  exist); this item adds the gaps and splits by consumer.
 - **Intent:** Expand the current symbol/import graph into the canonical semantic
   code graph, separating the A′-critical subset from the GCTX-projection subset.
 - **Expected Outcome:** **A′-critical subset** — stable identity wiring
@@ -353,7 +362,7 @@ Change status to **Ready** when:
 
 #### GV2-013: Control and session graph contract
 
-- **Status:** Draft (grown into the wave)
+- **Status:** Ready (2026-06-08, ADR-075 wave — dep GV2-001 Merged)
 - **Intent:** Model execution hosts, drivers, sessions, leases, fences,
   worktrees, and attribution as a graph that joins to code changes without
   making MCP the control plane.
@@ -377,7 +386,7 @@ Change status to **Ready** when:
 
 #### GV2-014: Plan and provenance graph contract
 
-- **Status:** Draft (grown into the wave)
+- **Status:** Ready (2026-06-08, ADR-075 wave — deps GV2-002/003 Merged)
 - **Intent:** Join APS intent, git history, Edda provenance, graph deltas, and
   trust posture changes so Anvil can explain why a structural change was allowed
   or challenged.

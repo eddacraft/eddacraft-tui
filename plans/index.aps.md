@@ -14,9 +14,11 @@
 > (2026-05-21, daemon-working product slate: MLP v1 18/18, `anvil-run`
 > launcher INTL 9/9, MLP2 integration surface) plus the `v0.7.1-beta` /
 > `v0.7.2-beta` honesty patches. The next active window is **`v0.8.0-beta`**
-> (save-time daemon delta-validation arc, ADR-061; scope assembling on
-> `main`). See [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) for the cut detail and
-> [`ROADMAP.md`](../ROADMAP.md) for thematic context across horizons.
+> ("The Graph-Backed Save-Time Daemon" — the interim-cache slice is Merged;
+> [ADR-075](./decisions/075-v080-graph-product-scope.md) (Proposed) expanded the
+> window to the Graph V2 product: GV2 foundation + A→A′ swap + GCTX, default-on
+> daemon routing). See [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) for the cut detail
+> and [`ROADMAP.md`](../ROADMAP.md) for thematic context across horizons.
 
 ## Contents
 
@@ -105,17 +107,19 @@ Selection rules:
 
 | Rank | NBI | Mode | Source | Why now | Next action |
 | ---- | --- | ---- | ------ | ------- | ----------- |
-| 1 | `v0.8.0-beta` cut readiness | Ready | [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) + [`daemon-save-time-validation`](./modules/daemon-save-time-validation.aps.md) | The window's content is fully Merged: headline Sub-phase A 9/9, A-W closed 2/2 on cross-matrix evidence (dispatch run 27102943706), and the Ready-freight slate (RLB-002/003/004/005/008 #2228, TUIDASH-003..-013 #2229/#2246, RTAI-007/-009 #2227, INSIGHTS-004 #2226) all landed. Cadence policy: cut when ready + gates green, no calendar gate. | Operator-run the release flow (assess → preflight) against the cut criteria — ADR-061 §8 correctness bar, `release-readiness.yml` on the source SHA, fresh `ACKNOWLEDGEMENTS` — then prune + re-scope the window on closeout (which also flips POLENG/DISTRIB/RSTLAN release-gated statuses). |
-| 2 | GITGOV-004 — capsule create command | Schedule | [`git-native-governance`](./modules/git-native-governance.aps.md) | GITGOV-003 (capsule manifest schema) Merged 2026-06-08 via PR #2353 with council fixes applied, so the arc's first executable consumer of the schema is next; `create` precedes the collectors (-005..-008) and the verification engine (-009). | Promote Proposed → Ready and start. |
-| 3 | EXCEPT-003 — enriched `anvil.exception.v1` schema | Schedule | [`git-native-exceptions`](./modules/git-native-exceptions.aps.md) | Carried from the prior refresh, now stronger: EXCEPT-007 write-path hardening Merged 2026-06-08 via PR #2366 and the capsule manifest schema is landed, so the enriched schema can pin against real shapes. Unblocks the grant/revoke CLI (-004) and scope/expiry verification (-005); coordinates with capsule inclusion (-009). | Promote Proposed → Ready; pin the schema alongside the landed GITGOV-003 shapes. |
+| 1 | GV2 foundation wave (`v0.8.0-beta` payload) | Ready | [`graph-v2-foundation`](./modules/graph-v2-foundation.aps.md) + [ADR-075](./decisions/075-v080-graph-product-scope.md) | ADR-075 (Proposed, pending council) pulled the GV2 foundation + A′ swap + GCTX into the window; the cut now depends on the graph, not on the already-Merged interim slice. Unblocked frontier GV2-010/013/014 (`Ready`, deps GV2-001/002/003 Merged). | Start GV2-010 (semantic schema); sequence 011→022→024/028/029 toward the GV2-027 A′ swap. Run `/council` on ADR-075 in parallel. |
+| 2 | A→A′ backing swap (GV2-027) | Schedule | [`daemon-save-time-validation`](./modules/daemon-save-time-validation.aps.md) Sub-phase A′ | The user-facing payoff: swaps the daemon's interim re-derive for the resident GV2 hot-index under the unchanged wire, after which `ANVIL_WATCH_DAEMON` flips default-on. Boundary gate already closed (ADR-063); A′ unblocked. | Build the GV2-022/024/028/029 chain, then land GV2-027 with the verdict-parity proof + the GV2-025 Criterion gate. |
+| 3 | GITGOV-008 — diagnostics collector | Schedule | [`git-native-governance`](./modules/git-native-governance.aps.md) | GITGOV-004/005/006/007 all Merged 2026-06-08; -008 is the next Proposed item with deps satisfied (GITGOV-004). (EXCEPT-003 is already in flight on PR #2401, so it is no longer an NBI candidate.) | Promote Proposed → Ready and start. |
 
-NBI review note (2026-06-08, second pass): GITGOV-003 closed Merged (PR #2353)
-and the DSV-011 Done row cleared (Sub-phase A-W closed 2/2 on matrix
-evidence; see the DSV module for the record). With every Merged-awaiting-release
-item now riding the window, the cut itself takes rank 1. The broad Ready pool
-(USAGE, EDGE, DASH*, OPAG, EVAL, CPOL, IORISK, GATE, ATC, PATT, TRUST, ILGOV,
-LAC) remains available but none of it outranks cutting the window or the
-governance-substrate arc.
+NBI review note (2026-06-08, third pass): the window was re-scoped from the
+interim-cache slice to the **Graph V2 product** by
+[ADR-075](./decisions/075-v080-graph-product-scope.md) (Proposed — pending
+council). The cut is therefore **no longer content-complete**: rank 1 moves from
+"cut now" to **building the GV2 wave**. The prior rank-2/3 governance rows are
+superseded — GITGOV-004 Merged (#2385), EXCEPT-003 in flight (#2401); GITGOV-008
+is the live governance pick. The broad Ready pool (USAGE, EDGE, DASH*, OPAG,
+EVAL, CPOL, IORISK, GATE, ATC, PATT, TRUST, ILGOV, LAC) remains available but
+does not outrank the v0.8.0 payload.
 
 ## Release Plan
 
@@ -652,8 +656,8 @@ trusted model.
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
-| [graph-v2-foundation](./modules/graph-v2-foundation.aps.md) | GV2 | In Progress | 2/19 | KERN, anvil-graph-cache, ADR-061/063/064/067/069, ADR-031, INTD, GCTX, EDDA |
-| [graph-context-delivery](./modules/graph-context-delivery.aps.md) | GCTX | Draft | 0/13 | GV2 |
+| [graph-v2-foundation](./modules/graph-v2-foundation.aps.md) | GV2 | In Progress | 4/19 | KERN, anvil-graph-cache, ADR-061/063/064/067/069, ADR-031, INTD, GCTX, EDDA |
+| [graph-context-delivery](./modules/graph-context-delivery.aps.md) | GCTX | Proposed | 0/13 | GV2 |
 
 ### Rust MCP Launch Path
 

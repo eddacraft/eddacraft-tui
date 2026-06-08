@@ -47,8 +47,14 @@ persistence) without consumers re-integrating.
   frozen wire and interim backing as Sub-phase A — a *platform* axis, not a
   *backing* swap, so it is orthogonal to A′/B.
 - **Sub-phase A′ — GV2 hot-read swap.** Replace the interim cache with the GV2
-  resident warm-index slice (GV2-010/011/020/022) under the unchanged wire.
-  Blocked on the GV2 hot-/non-hot-path boundary gate.
+  resident warm-index slice under the unchanged wire. **Unblocked** — the
+  hot-/non-hot-path boundary gate is closed by
+  [ADR-063](../decisions/063-gv2-hot-path-boundary.md) (Accepted 2026-06-01), and
+  the swap is **pulled into the `v0.8.0-beta` window** by
+  [ADR-075](../decisions/075-v080-graph-product-scope.md) (Proposed — pending
+  council). The swap itself is GV2-027 (deps GV2-022/024/028/029); sequenced
+  behind the GV2 foundation frontier (GV2-010 → 011 → 022 …). Carries a
+  verdict-parity proof + the ADR-031 Criterion gate (GV2-025).
 - **Sub-phase B — warm-start persistence.** Add a default-off, per-uid,
   owner-only snapshot that restores graph indexes (never the verdict) on daemon
   restart, per the validation contract §9. Blocked on the GV2-021 persistence ADR.
