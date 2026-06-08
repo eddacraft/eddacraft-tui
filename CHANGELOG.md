@@ -14,7 +14,7 @@ engineering maintenance are recorded in the
 
 The first minor since `v0.7.0-beta`, earned on architecture: Anvil starts moving
 save-time governance off per-save cold-spawned `check` and onto the persistent
-intercept daemon validating deltas
+intercept daemon that validates deltas
 ([ADR-061](./plans/decisions/061-save-time-daemon-delta-validation.md)). The
 visible result is a more observable save-time protection path: `anvil watch`,
 MCP `validate_write`, and `anvil status` now agree on daemon-backed assurance
