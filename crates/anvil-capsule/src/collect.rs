@@ -615,7 +615,8 @@ mod tests {
 
     /// Non-UTF-8 changed paths abort collection rather than being
     /// lossily rewritten under a clean digest.
-    #[cfg(unix)]
+    // macOS rejects these raw path bytes at the filesystem boundary.
+    #[cfg(all(unix, not(target_os = "macos")))]
     #[test]
     fn collect_commits_non_utf8_path_is_git_error() {
         use std::ffi::OsStr;
