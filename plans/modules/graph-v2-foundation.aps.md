@@ -10,14 +10,15 @@
 > Accepted via council).** In-window = the **GV2-027 critical-path closure**:
 > GV2-010, 011, 012, 022, 024, 025, 028, 029, then the A→A′ swap (027).
 > **GV2-010 Merged 2026-06-08 (PR #2419)**, **GV2-011 Merged 2026-06-08
-> (PR #2428)**, and **GV2-028 Merged 2026-06-08 (parser feed — shipped under
-> DSV-005 PR #2282, ratified + watch-path proof added here)**; the now-unblocked
-> frontier is **GV2-012** (dep GV2-010 ✓) plus **GV2-022, GV2-024** (dep
-> GV2-011 ✓) — promote at pickup. The rest stay dep-blocked along the chain.
+> (PR #2428)**, **GV2-012 Merged 2026-06-08 (PR #2436)**, and **GV2-028 Merged
+> 2026-06-08 (parser feed — shipped under DSV-005 PR #2282, ratified + watch-path
+> proof added here)**; the now-unblocked frontier is **GV2-022, GV2-024** (dep
+> GV2-011 ✓) plus **GV2-029** (dep GV2-012 ✓) — promote at pickup. The rest stay
+> dep-blocked along the chain.
 > **Deferred to v0.9** (council, off the critical path): GV2-013, 014, 020, 023,
 > 026 (registry/contracts) and GV2-030 (sealed-DTO snapshot, with Sub-phase B
 > persistence). 013/014 are dep-unblocked but stay Draft as v0.9 scope. Count is
-> **7/19** (001/002/003/010/011/021/028 Merged).
+> **8/19** (001/002/003/010/011/012/021/028 Merged).
 
 > **Reshaped 2026-06-08** around the now-landed spine spec
 > [`docs/architecture/graph-v2-foundation-spec.md`](../../docs/architecture/graph-v2-foundation-spec.md)
@@ -380,7 +381,7 @@ Change status to **Ready** when:
 
 #### GV2-012: Trust and policy graph contract
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-08 via PR #2436
 - **Intent:** Separate trust/policy semantics from the raw semantic graph while
   preserving deterministic joins back to code evidence.
 - **Expected Outcome:** Contract represents trust level, side-effect surfaces,
