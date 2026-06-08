@@ -197,9 +197,9 @@ Change status to **Ready** when:
 
 #### GV2-002: Stable graph identity + export-diff primitive
 
-- **Status:** In Progress — privacy-review gate cleared 2026-06-08
-  ([verdict](../reviews/2026-06-08-gv2-privacy-review-verdict.md)); dependency
-  GV2-001 Merged + ratified
+- **Status:** Merged 2026-06-08 via PR #2387 — privacy-review gate cleared the
+  same day ([verdict](../reviews/2026-06-08-gv2-privacy-review-verdict.md));
+  full-pack council `council-f33ee5ef` converged pre-merge
 - **Intent:** Replace the position-conflated `symbol_baseline_key`
   (`file::kind::name`) and the session-local `SymbolNode.id` counter with a
   stable, cross-restart symbol identity, and deliver the export-diff primitive
