@@ -365,7 +365,13 @@ function isPathLike(value: string): boolean {
   if (PATH_LIKE_ROOTED_PREFIXES.some((prefix) => value.startsWith(prefix))) return true;
   if (PATH_LIKE_ROOT_FILES.has(value)) return true;
 
-  return PATH_LIKE_EXTENSION_RE.test(value);
+  // A bare extension is not enough on its own. A directory-less basename such as
+  // `release.yml`, `overview.md`, or `SKILL.md` cannot be resolved from the
+  // repository root and is almost always a prose mention rather than a source
+  // pin — treating it as a source reference produces unverifiable findings.
+  // Known root-level files are already allowed by name via PATH_LIKE_ROOT_FILES
+  // above; any other extension match must carry a path separator to count.
+  return value.includes('/') && PATH_LIKE_EXTENSION_RE.test(value);
 }
 
 function formatEnumError(field: string, offending: string, fallbackMessage: string): string {
