@@ -11,12 +11,15 @@ All notable changes to anvil are documented here.
 
 ## [0.8.0-beta] — TBD — The Save-Time Daemon
 
-The first minor since `v0.7.0-beta`, earned on architecture: it begins moving
-save-time governance off per-save cold-spawned `check` and onto a persistent
-intercept daemon that validates deltas (ADR-061). Most of the daemon work so far
-is foundational plumbing; the user-visible surface is the new `anvil status`
-assurance fields, opt-in workspace confinement, and the gate-summary dashboard.
-Release date pending the tag.
+Draft / unreleased. Release date pending the tag.
+
+The first minor since `v0.7.0-beta`, earned on architecture: Anvil starts moving
+save-time governance off per-save cold-spawned `check` and onto the persistent
+intercept daemon validating deltas (ADR-061). The visible result is a more
+observable save-time protection path: `anvil watch`, MCP `validate_write`, and
+`anvil status` now agree on daemon-backed assurance and workspace confinement.
+This release also expands Rust project coverage and ships the next dashboard
+surface.
 
 ### Added
 
@@ -26,13 +29,25 @@ Release date pending the tag.
   protection posture is observable.
 - **Opt-in workspace confinement mode.** A new opt-in mode confines the daemon's
   save-time validation to an admitted workspace root.
+- **Rust project analysis.** Rust files are now part of the default
+  antipattern/drift scan set, with Rust symbol/import extraction, Rust
+  entry-point detection, Rust layer/boundary enforcement in `anvil gate`, and an
+  AST-aware Rust antipattern catalogue.
 - **Live gate-summary dashboard.** `anvil gate` now persists run results to
   `.anvil/gates.json`
   ([#2242](https://github.com/eddacraft/anvil-001/issues/2242)), and a new live
   gate-summary dashboard surface renders them
-  ([#2237](https://github.com/eddacraft/anvil-001/issues/2237)).
+  ([#2237](https://github.com/eddacraft/anvil-001/issues/2237)). The underlying
+  TUI dashboard renderer now supports spec-defined dashboards, data binding,
+  charts, responsive layouts, live previews, and hardened handling for malformed
+  specs.
 - **First-run adoption hint.** Anvil surfaces a first-week adoption signal hint
   to help new projects find their footing.
+- **Tracked exception-store foundation.** Policy exceptions now have a tracked
+  `anvil/exceptions/store.json` storage path with legacy
+  `.anvil/exceptions.json` read fallback and non-destructive migration support.
+  Enforcement and operator CLI wiring are still future work, so hand-written
+  exception files do not yet suppress findings.
 
 ### Changed
 
@@ -42,6 +57,14 @@ Release date pending the tag.
   the watch-CPU report
   ([#2156](https://github.com/eddacraft/anvil-001/issues/2156)) that
   `v0.7.4-beta` addressed only with a stopgap.
+- **MCP `validate_write` uses the same daemon save-time path.** MCP callers now
+  exercise the daemon-backed validation lane instead of a separate cold path, so
+  editor/agent integrations and `anvil watch` converge on the same verdict
+  assembly.
+- **Resource budgets now cover the save-time path.** New CPU/RSS benches measure
+  the real default watch path under churn, the intercept daemon, the MCP server,
+  and concurrent multi-process use; a resource-budget CI job records the SLO
+  envelope for future regressions.
 
 ### Fixed
 
@@ -51,6 +74,10 @@ Release date pending the tag.
   rooted ones.
 - **Deep-tree TUI rendering no longer overflows the stack** on deep component
   trees.
+- **Windows save-time daemon path is buildable and harder to spoof.** The
+  Windows save-time client/server path now covers read-safety, pipe client
+  timeouts, operator-config ownership verification, non-reactor peer-SID checks,
+  and Windows `watch`/`status` save-time clients.
 
 ## [0.7.4-beta] — 2026-06-01 — Side-by-Side Installs
 

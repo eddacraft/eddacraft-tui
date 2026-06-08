@@ -14,8 +14,8 @@ date pending the tag. The headline is architectural: save-time governance starts
 moving off per-save cold-spawned `check` and onto a persistent intercept daemon
 that validates deltas
 ([ADR-061](./plans/decisions/061-save-time-daemon-delta-validation.md), Accepted
-2026-06-01). Sub-phase A delivered 9 of 11 items; A′/B remain blocked on Graph
-V2 foundations.
+2026-06-01). Sub-phase A and the A-W Windows parity slice are now merged; A′/B
+remain sequenced behind Graph V2 foundations.
 
 ### Daemon save-time validation (DSV / ADR-061, ADR-063, ADR-064, ADR-067)
 
@@ -50,11 +50,50 @@ V2 foundations.
 - **Cross-path antipattern parity gate (DSV-009).** A parity gate plus a shared
   diagnostic sort keep the daemon's cross-path antipattern verdicts aligned with
   the cold-path `check`.
+- **Windows save-time parity (DSV-010/-011, ADR-068/-070).** The named-pipe
+  daemon path now serves the save-time verbs on Windows behind guarded reads,
+  peer-SID auth, owner-only operator-config trust, client timeouts, and
+  off-reactor peer checks. Windows `watch`/`status` clients are no longer inert
+  stubs; closure evidence came from the green cross matrix after the bench-flake
+  fix in PR #2365.
 - **Graph boundary ADRs.**
   [ADR-063](./plans/decisions/063-gv2-hot-path-boundary.md) closed the Graph V2
   hot-/non-hot-path read boundary (reverse-impact depth is a hard-capped lever)
   and [ADR-064](./plans/decisions/064-intercept-graph-cache-crate-boundary.md)
   extracted the `anvil-graph-cache` crate for the daemon graph boundary.
+
+### Rust language coverage (RSTLAN-001…008, ADR-065, ADR-071)
+
+- **Rust parser and graph substrate.** `tree-sitter-rust` is wired into the
+  kernel, with Rust symbol/import extraction for `use`/`mod` shapes and Rust
+  entry-point detection for binaries and workspaces.
+- **Rust architecture enforcement.** `anvil gate` and the architecture validator
+  consume kernel-supplied Rust edges; layer/boundary checks now resolve Rust
+  crate/module paths and emit violations for new cross-layer Rust edges.
+- **Rust default scan coverage.** `.rs` files are in the default
+  antipattern/drift set. JS/TS-specific rules stay extension-restricted, while
+  Rust deferred-debt checks and the Rust AST catalogue run on Rust surfaces.
+- **Dogfood acceptance.** The Rust T3 pass on Anvil's own crates covered 571
+  files with no panics or parse skips and met the false-positive bar. Follow-on
+  Rust catalogue expansions (`.clone()` hot-loop, serde flatten/secret-field
+  shapes) are deferred rather than hidden in this release.
+
+### Git-native governance and exceptions (ADR-072, ADR-073, ADR-074)
+
+- **Git-native governance decision gate.** ADR-072 (Git substrate), ADR-073
+  (`anvil/` durable state vs `.anvil/` local state), and ADR-074 (review capsule
+  v0 format) were accepted via full council review. The result is an authorised
+  file-first governance path without introducing a cloud-trust dependency.
+- **Capsule manifest schema (GITGOV-003).** The new `anvil-capsule` crate owns a
+  versioned `anvil.capsule.v1` manifest and `anvil.capsule-verification.v1`
+  shape, with SHA-256 canonical-JSON file digests and witness-range pointers.
+  Create/collect/verify UX remains future work.
+- **Tracked exception store foundation (EXCEPT-001/-002/-007).**
+  `ExceptionStore` now prefers tracked `anvil/exceptions/store.json`, falls back
+  to legacy `.anvil/exceptions.json`, and supports non-destructive migration.
+  The write path is hardened for provenance, locking, read-only worktrees, and
+  symlink escapes before any CLI caller is wired. Exceptions remain unenforced
+  until the later EXCEPT evaluation and CLI items land.
 
 ### Flags catalogue (FLAGCAT-002…006)
 
@@ -83,6 +122,14 @@ V2 foundations.
   hardened against malformed/hostile specs. The live gate-summary dashboard
   (TUIDASH-013) renders gate results persisted to `.anvil/gates.json`.
 
+### GitHub CLI auth groundwork (GHCLIAUTH-001/-003, ADR-066)
+
+- The GitHub device-flow replacement for headless SSH/tmux auth is partially
+  prepared: `mintSession`/licence minting logic is extracted for reuse, and the
+  API can link GitHub identities by stable numeric `github_id` without allowing
+  a re-bind. OAuth-app provisioning, live device-flow endpoints, CLI polling,
+  and confirm-endpoint removal remain gated follow-up items.
+
 ### Adoption insights
 
 - **First-week adoption signal (INSIGHTS-004).** A first-run adoption hint,
@@ -98,8 +145,8 @@ V2 foundations.
   is green. `release.yml` allowlists CLI `v*` tags in the plan job. Copilot
   autofix is hardened against the untrusted-checkout alert (code-scanning #826).
 - `RELEASE-PLAN.md` is enforced forward-looking (a `docs:check` surface);
-  `eddacraft-tui 0.2.4` lands with an ACKNOWLEDGEMENTS refresh; Regal is
-  pinned/bumped across workflows.
+  `eddacraft-tui 0.2.4` and `0.3.0` land with ACKNOWLEDGEMENTS / changelog
+  release hygiene; Regal is pinned/bumped across workflows.
 - The six-week minor-beta cadence hold is retired — minors cut when ready and
   gates are green, not on a calendar.
 
@@ -109,6 +156,10 @@ V2 foundations.
   (CIB-039); the CLAWP #1740 test-hardening batch hardens vacuous findings;
   inline TODO/FIXME comments are removed or converted to explanatory notes.
   Continuous-improvement items CIB-016/-027/-032/-035/-046/-047 land alongside.
+- Documentation-governance closeout reaches the governed live-doc metadata
+  backfill finish line (DOCGOV-011): governed non-public live docs are covered,
+  generated indexes are refreshed, and the remaining source-path debt is linked
+  to tracking issue #2371 rather than silently normalised.
 
 ## [0.7.4-beta] — 2026-06-01 — Side-by-Side Installs
 
