@@ -42,7 +42,7 @@
 - [Language & Coverage](#language--coverage)
 - [Rust MCP Launch Path](#rust-mcp-launch-path)
 - [Future](#future)
-- [Dormant — Not Yet Scheduled](#dormant-not-yet-scheduled)
+- [Dormant: Not Yet Scheduled](#dormant-not-yet-scheduled)
 
 Anvil makes AI-generated code safe to merge by catching architecture boundary
 violations and AI escape-hatch anti-patterns at file-save time. Developers get
@@ -688,7 +688,7 @@ proposed writes before they land. Full TS MCP server parity is next-release work
 | [lineage-authorship-confidence](./modules/lineage-authorship-confidence.aps.md) | LAC | Lineage and authorship confidence tracking | Ready |
 | [unified-config-format](./modules/unified-config-format.aps.md) | UCFG | Unified configuration format across surfaces | Proposed |
 
-### Dormant — Not Yet Scheduled
+### Dormant: Not Yet Scheduled
 
 Module families with no active (`Ready` / `In Progress`) work — all `Draft`,
 `Proposed`, or `Blocked` — plus completed/archived pointers kept for
