@@ -281,14 +281,17 @@ fn pair_renames(
     let group = |items: &[SymbolIdentity],
                  still_present: &HashSet<SymbolIdentity>|
      -> BTreeMap<SymbolKind, BTreeMap<String, u32>> {
+        // Precompute the present (kind, name) pairs once so the membership
+        // probe below is O(1) instead of rescanning the whole set per item.
+        let present_pairs: HashSet<(SymbolKind, &str)> = still_present
+            .iter()
+            .map(|c| (c.kind, c.name.as_str()))
+            .collect();
         let mut by_kind: BTreeMap<SymbolKind, BTreeMap<String, u32>> = BTreeMap::new();
         for identity in items {
             // "Wholly" gone/new: no ordinal of this (kind, name) survives in
             // (resp. pre-existed in) the other set.
-            let any_present = still_present
-                .iter()
-                .any(|c| c.kind == identity.kind && c.name == identity.name);
-            if !any_present {
+            if !present_pairs.contains(&(identity.kind, identity.name.as_str())) {
                 *by_kind
                     .entry(identity.kind)
                     .or_default()
