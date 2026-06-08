@@ -126,11 +126,14 @@ release must deliver both the core value AND a friction-free first experience.
 ### 0.5.0-beta – 0.7.4-beta — Beta Release Windows (Shipped)
 
 Migrated from [`index.aps.md`](./index.aps.md) on 2026-06-08 to keep the active
-index focused on current work. These windows are fully shipped; module tables
-below read "Complete / Locked". For active release sequencing see
-[`RELEASE-PLAN.md`](../RELEASE-PLAN.md); for thematic context see
-[`ROADMAP.md`](../ROADMAP.md). The headings below were `###` in the source
-index and are demoted one level here to sit under this window banner.
+index focused on current work. These release windows have shipped. The tables
+below are a **point-in-time historical snapshot** captured at migration:
+per-row statuses (including any `In Progress`, `Post-tag graduation`, or other
+non-terminal rows) reflect that moment, not live state — each module's own
+`.aps.md` file remains the work-state authority. For active release sequencing
+see [`RELEASE-PLAN.md`](../RELEASE-PLAN.md); for thematic context see
+[`ROADMAP.md`](../ROADMAP.md). Headings are demoted one level (`###` → `####`)
+to sit under this banner.
 
 #### Shipped operational window — `v0.6.2-beta` / `v0.6.3-beta` patch
 
