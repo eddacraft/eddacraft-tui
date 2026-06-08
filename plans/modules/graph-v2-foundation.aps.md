@@ -661,7 +661,7 @@ Change status to **Ready** when:
 
 #### GV2-029: Wire privilege containment on the daemon certify path
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Per the owner decision to **claim privilege containment**, call
   `annotate_trust` on the daemon apply path (today it is never called, so
   `trust_level` is always `Unknown` and `previously_privileged` always empty —
@@ -679,6 +679,22 @@ Change status to **Ready** when:
 - **Confidence:** medium
 - **Priority:** Critical
 - **Dependencies:** GV2-012
+- **Note (2026-06-08):** The **filter half** ("treat `Boundary` as elevated")
+  already landed ahead of this item — `is_elevated_trust` (`Privileged ∪
+  Boundary`) and the split `previously_boundary` baseline shipped via
+  `c0e13954d` (GV2-002 follow-up, spec gap G-06), with the
+  `previously_privileged`/`Boundary` primitives in `anvil-graph-cache` on `main`.
+  The dependency on **GV2-012** is satisfied by those merged primitives;
+  GV2-012's in-flight `TrustGraph`/`PolicyProfile` contract (PR #2436) is **not**
+  on this item's path and is not touched here. The genuine remaining delta is
+  the **daemon wiring**: `apply_delta` updated the warm `SymbolGraph` and
+  re-resolved imports but never re-ran `annotate_trust`, so the daemon's
+  `trust_level` stayed `Unknown` and a `node:fs`-importing change false-certified
+  clean (reproduced as a red test, `Certified` before the fix). This item adds
+  the `annotate_trust(&mut entry.sym, &entry.all_imports)` call after every
+  `apply_delta` mutation (completing the `watch.rs` mirror) plus the
+  `privilege_certify_*` daemon test. Net change is confined to
+  `crates/anvil-intercept/src/kernel_cache.rs`.
 
 ---
 

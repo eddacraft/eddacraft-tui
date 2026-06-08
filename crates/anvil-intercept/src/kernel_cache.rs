@@ -11,9 +11,11 @@
 //! # Dependency graph maintenance
 //!
 //! `apply_delta` mirrors `anvil-kernel`'s `watch.rs` for the `SymbolGraph`: it
-//! updates it in place, maintains a per-key `all_imports` accumulator, and
-//! re-runs [`re_resolve_imports`] so a forward reference (a file processed
-//! before its import target) resolves once the target lands.
+//! updates it in place, maintains a per-key `all_imports` accumulator, re-runs
+//! [`re_resolve_imports`] so a forward reference (a file processed before its
+//! import target) resolves once the target lands, and re-runs
+//! [`annotate_trust`](anvil_graph_cache::annotate_trust) so the warm graph's
+//! `trust_level` stays live for the `certify` privilege dimension (GV2-029).
 //!
 //! The `DependencyGraph` is **maintained incrementally** (GV2-011): the changed
 //! file's outgoing edges are refreshed via [`refresh_file_dependencies`]
@@ -53,7 +55,8 @@ use std::sync::Mutex;
 
 use anvil_graph_cache::certify::ChangeKind;
 use anvil_graph_cache::{
-    DependencyGraph, GraphDelta, SymbolGraph, re_resolve_imports_tracked, remove_file, update_file,
+    DependencyGraph, GraphDelta, SymbolGraph, annotate_trust, re_resolve_imports_tracked,
+    remove_file, update_file,
 };
 use anvil_intercept_proto::protocol::StaleReason;
 use anvil_kernel_types::{EdgeType, FileSymbols, ImportEdge};
@@ -322,6 +325,18 @@ impl KernelGraphCache {
             delta
         };
 
+        // GV2-029: re-annotate trust on the warm graph after every mutation,
+        // completing the `watch.rs` mirror. Without this `trust_level` stayed
+        // `Unknown` on every daemon-resident symbol, so the `certify` privilege
+        // dimension was inert and a change that newly imported `node:fs`/
+        // `child_process` (escalating a symbol to `Privileged`) falsely
+        // certified clean. Annotating here — after `re_resolve_imports_tracked`,
+        // over the current `all_imports` — makes both the post-update graph
+        // `certify` reads and the baseline the next `update_file` captures carry
+        // live trust. Disjoint field borrows (`sym` mut, `all_imports` shared)
+        // mirror `annotate_trust(&mut state.graph, &state.all_imports)`.
+        annotate_trust(&mut entry.sym, &entry.all_imports);
+
         let generation = guard.generations.get(key).copied().unwrap_or(0);
         ApplyOutcome {
             delta,
@@ -518,6 +533,75 @@ mod tests {
             .unwrap();
         assert_eq!(count, 2, "a.ts updated in place, b.ts preserved");
         assert!(b_present, "b.ts symbol id 10 survives an a.ts update");
+    }
+
+    /// GV2-029: the daemon apply path must run `annotate_trust` so a change that
+    /// newly imports a privileged module (`node:fs`) escalates its symbols'
+    /// trust and the warm certify path withholds a clean verdict. Before the
+    /// wiring `trust_level` stayed `Unknown` on every warm symbol — the
+    /// privilege dimension was inert and this privilege-expanding edit falsely
+    /// certified clean.
+    #[test]
+    fn privilege_certify_withholds_clean_on_new_node_fs_import() {
+        use anvil_graph_cache::certify::{Certifiability, certify};
+
+        // `handler.ts` with a public entry and an internal helper, plus the
+        // given import specifiers. The internal helper is the witness: a public
+        // symbol is already `Boundary` (elevated), so its `Boundary →
+        // Privileged` shift is invisible by design, whereas the internal helper
+        // moves `Internal → Privileged` and surfaces as an added-privileged
+        // identity once the file imports `node:fs`.
+        let symbols = |imports: &[&str], base: u64| FileSymbols {
+            file: "handler.ts".to_string(),
+            symbols: vec![
+                SymbolNode {
+                    id: base,
+                    kind: SymbolKind::Function,
+                    name: "handle".to_string(),
+                    visibility: Visibility::Public,
+                    file: "handler.ts".to_string(),
+                    trust_level: TrustLevel::Unknown,
+                },
+                SymbolNode {
+                    id: base + 1,
+                    kind: SymbolKind::Function,
+                    name: "do_io".to_string(),
+                    visibility: Visibility::Internal,
+                    file: "handler.ts".to_string(),
+                    trust_level: TrustLevel::Unknown,
+                },
+            ],
+            imports: imports
+                .iter()
+                .map(|src| ImportEdge {
+                    from_file: "handler.ts".to_string(),
+                    to_source: (*src).to_string(),
+                    line: 0,
+                })
+                .collect(),
+            reexports: Vec::new(),
+        };
+
+        let cache = KernelGraphCache::new();
+        let k = key("svc");
+
+        // Warm the cache with the pre-edit file: no privileged import.
+        cache.apply_delta(&k, ChangeKind::Create, symbols(&[], 0));
+
+        // The edit adds a `node:fs` import — a privilege-expanding change that
+        // leaves the public symbol names untouched.
+        let outcome = cache.apply_delta(&k, ChangeKind::ContentModify, symbols(&["node:fs"], 10));
+
+        let verdict = cache
+            .with_graphs(&k, |sym, dep| {
+                certify(sym, dep, &ChangeKind::ContentModify, &outcome.delta, 64)
+            })
+            .expect("warm key present after apply");
+
+        assert!(
+            matches!(verdict, Certifiability::Partial { .. }),
+            "a change newly importing node:fs must not certify clean, got {verdict:?}"
+        );
     }
 
     #[test]
