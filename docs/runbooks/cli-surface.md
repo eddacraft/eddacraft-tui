@@ -21,6 +21,16 @@ where relevant.
 | `--no-tui`         | Disable TUI rendering; use plain text output.          |
 | `--verbose` / `-v` | Enable verbose logging.                                |
 
+> **Class is descriptive, not an auth marker.** The **Class** field below
+> describes _who_ typically runs a command and _when_ (User-explicit, Setup,
+> Admin, Background, Internal) — it does **not** indicate whether authentication
+> is enforced. Auth posture is independent: a command requires auth only if it
+> is licence-gated (`feature_flags::CLI_GATED_COMMANDS`), admin-key-gated
+> (`anvil admin`), or feature-gated (e.g. `anvil plan dashboard`, CIB-046).
+> Several `Admin`-class commands are unauthenticated because they act on local
+> state with no server authority. Do not infer gating from Class — see
+> [ADR-076](../../plans/decisions/076-feature-catalogue-surface-registry.md).
+
 ---
 
 ## anvil audit
@@ -507,6 +517,36 @@ $ anvil intercept status
 $ anvil intercept status --json
 $ anvil intercept unblock --worktree /path/to/worktree
 $ anvil intercept unblock --all --dry-run
+```
+
+---
+
+## anvil workspace
+
+**Class:** Admin **Purpose:** Manage the save-time daemon's workspace admission
+(which project roots the `anvil-intercept` daemon will serve). **When to use:**
+To switch the daemon between `open` (first-touch adopt) and `allowlist` mode, or
+to curate the allow-list of served roots (confinement; ADR-060).
+
+**Synopsis:** `anvil workspace <mode|allow|deny|list>`
+
+**Subcommands:**
+
+| Subcommand | Description                                                                           |
+| ---------- | ------------------------------------------------------------------------------------- |
+| `mode`     | Set admission mode: `open` (first-touch adopt, default) or `allowlist`.               |
+| `allow`    | Add an allow entry (exact by default; `--prefix` confines a subtree). Allowlist only. |
+| `deny`     | Remove an allow entry by path.                                                        |
+| `list`     | Show the current admission mode and allow entries.                                    |
+
+**Exit codes:** 0 (success), 1 (error)
+
+**Examples:**
+
+```
+$ anvil workspace list
+$ anvil workspace mode allowlist
+$ anvil workspace allow /path/to/project --prefix
 ```
 
 ---
@@ -1030,6 +1070,39 @@ $ anvil baseline --refresh
 $ anvil baseline verify
 $ anvil baseline --new-identity
 $ anvil baseline --refresh --accept-suspicious
+```
+
+---
+
+## anvil capsule
+
+**Class:** User-explicit (on-demand) / Background (CI) **Purpose:** Create,
+verify, and explain review capsules — file-first, inspectable governance
+evidence directories for a commit range (GITGOV;
+[ADR-074](../../plans/decisions/074-review-capsule-v0-format.md)). **When to
+use:** To package a commit range's witness/policy/baseline evidence for review
+or audit, and to verify or summarise a capsule's closed-state verdict.
+
+**Synopsis:** `anvil capsule <create|verify|explain>`
+
+**Subcommands:**
+
+| Subcommand | Description                                                                                                          |
+| ---------- | -------------------------------------------------------------------------------------------------------------------- |
+| `create`   | Create a review capsule directory for a commit range.                                                                |
+| `verify`   | Verify a capsule directory and print closed-state verdicts; re-collects digests from the repo.                       |
+| `explain`  | Print a human-readable summary of a capsule (range, policy, witness coverage, verdict). Read-only, repo-independent. |
+
+**Exit codes (`verify`):** 0 (pass/warn), 1 (block), 2 (degraded), 3 (error).
+`explain` exits 0 on success regardless of the recorded verdict — gate on the
+verdict with `anvil capsule verify`, not `explain`.
+
+**Examples:**
+
+```
+$ anvil capsule create --range main..HEAD --out ./capsule-dir
+$ anvil capsule verify ./capsule-dir
+$ anvil capsule explain ./capsule-dir
 ```
 
 ---
