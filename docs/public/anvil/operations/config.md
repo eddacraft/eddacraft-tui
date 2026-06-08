@@ -366,9 +366,10 @@ Suppressions without a reason trigger their own warning.
 
 Inline `@anvil-ignore` comments are the supported way to suppress findings
 today. Alongside them, anvil now has a tracked, project-level exception store at
-`anvil/exceptions/store.json`. When an older `.anvil/exceptions.json` is present
-it is read as a fallback, and `migrate()` moves it to the tracked path
-non-destructively (ADR-073).
+`anvil/exceptions/store.json`. An older `.anvil/exceptions.json`, if present, is
+still honoured as a read-only fallback. A non-destructive migration of the
+legacy file to the tracked path is defined (ADR-073) but is not yet surfaced as
+an operator command in this release.
 
 :::caution Enforcement not yet wired
 
