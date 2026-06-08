@@ -118,7 +118,7 @@ release seals (RELEASE-SEAL); supplier bundles (SUPPLIER). Sealed Edda context
 - **Expected Outcome:** `anvil capsule verify` returns honest verdicts; missing evidence is `degraded`, never `pass`.
 - **Validation:** `cargo test -p eddacraft-anvil-capsule -- verify`
 - **Dependencies:** GITGOV-004, GITGOV-007, EXCEPT-005 (exception scope/expiry logic; capsule *collection* of exceptions is EXCEPT-009, which depends back on this engine — kept acyclic)
-- **Status:** In Progress
+- **Status:** Merged 2026-06-08 via PR #2420
 
 ### GITGOV-010: Capsule explain UX
 - **Intent:** Human-readable `anvil capsule explain` (range, commits, policy/rules/baseline, witness coverage, diagnostics counts, exceptions, verdict).
