@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 71/87 |
+| MLP2 | @aneki | In Progress | 72/87 |
 
 **Current work:** Post-`v0.7.1-beta` cleanup-agent sweep on
 2026-05-23 advanced MLP2-051f / MLP2-051h / MLP2-069 from
@@ -4211,8 +4211,10 @@ to redesign once GV2-001..-023 land.
 
 #### MLP2-071: INTD-015 cross-session policy follow-up
 
-- **Status:** In Progress (Phase 1 Merged; Phase 2 subscriber surface
-  + broadcaster implemented — pending merge, see Phase 2 below)
+- **Status:** Merged 2026-06-08 via PR
+  [#2414](https://github.com/eddacraft/anvil-001/pull/2414) (Phase 2 —
+  subscriber surface + broadcaster; Phase 1 previously Merged). Awaiting
+  release evidence to advance to Released/Shipped → Complete.
 - **Phase 1 (this PR):** Shipped the daemon-side reachability of
   the fan-out, the keyed redaction primitive that folds in §H2,
   and the registry binding flow:
@@ -4369,10 +4371,10 @@ to redesign once GV2-001..-023 land.
 | M. Full-codebase Council corrective follow-ons | 6 (MLP2-061..-066) | 6/6 (Complete) |
 | N. Daemon evaluator host (GV2 groundwork) | 1 (MLP2-067) | 0/1 |
 | O. MLP2-016 audit follow-ons | 2 (MLP2-068..-069) | 1/2 |
-| P. v0.7.0-beta release-council follow-ups | 2 (MLP2-070..-071) | 1/2 (MLP2-070 Released/Shipped via `v0.7.0-beta` — PR [#1805](https://github.com/eddacraft/anvil-001/pull/1805); MLP2-071 Phase 1 Merged, Phase 2 pending) |
+| P. v0.7.0-beta release-council follow-ups | 2 (MLP2-070..-071) | 2/2 (MLP2-070 Released/Shipped via `v0.7.0-beta` — PR [#1805](https://github.com/eddacraft/anvil-001/pull/1805); MLP2-071 Merged 2026-06-08 via PR [#2414](https://github.com/eddacraft/anvil-001/pull/2414) — Phase 2 subscriber surface + broadcaster) |
 | Q. New-user journey audit follow-ups | 2 (MLP2-072..-073) | 2/2 (Merged — PRs [#1819](https://github.com/eddacraft/anvil-001/pull/1819), [#1821](https://github.com/eddacraft/anvil-001/pull/1821)) |
 | R. v0.7.0-beta release-council follow-ups | 1 (MLP2-074) | 1/1 (Merged — PR [#1895](https://github.com/eddacraft/anvil-001/pull/1895)) |
-| **Total** | **81** | **64/81** |
+| **Total** | **81** | **65/81** |
 
 ## Recommended landing order
 
