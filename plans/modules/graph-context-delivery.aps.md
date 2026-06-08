@@ -1,17 +1,19 @@
 # Graph Context Delivery
 
-| ID   | Owner | Status   | Progress |
-| ---- | ----- | -------- | -------- |
-| GCTX | —     | Proposed | 0/13     |
+| ID   | Owner | Status | Progress |
+| ---- | ----- | ------ | -------- |
+| GCTX | —     | Draft  | 0/13     |
 
 **Last reviewed:** 2026-06-08
 
-> **Pulled into the `v0.8.0-beta` window (2026-06-08, [ADR-075](../decisions/075-v080-graph-product-scope.md),
-> Proposed — pending council)** as the assistant-facing projection over GV2.
-> Items stay dep-blocked on the GV2 foundation (no `Ready` items yet); promoted
-> Draft → Proposed to reflect in-window scope. ADR-075 carries a stated escape
-> hatch: if GCTX threatens the cut, it is re-deferred to the A′-slice scope
-> without re-opening the decision.
+> **Scoped to v0.9, not v0.8.0-beta (2026-06-08, [ADR-075](../decisions/075-v080-graph-product-scope.md),
+> Accepted via council).** GCTX was considered for the v0.8.0 window but the
+> council recommended against it: 0/13, unproven, with an unresolved GCTX-002
+> architectural decision (which MCP target) and an unmet **context-egress privacy
+> review** — the 2026-06-08 GV2 privacy verdict covers persistence only (PV-9
+> reserves export surfaces for a separate review). GCTX opens the **v0.9** window
+> alongside the non-critical-path GV2 items (registry/contracts); the egress
+> privacy review is a v0.9 cut prerequisite.
 
 ## Purpose
 

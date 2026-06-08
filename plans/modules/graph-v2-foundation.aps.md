@@ -6,14 +6,15 @@
 
 **Last reviewed:** 2026-06-08
 
-> **Pulled into the `v0.8.0-beta` window (2026-06-08, [ADR-075](../decisions/075-v080-graph-product-scope.md),
-> Proposed — pending council).** The GV2 foundation + the A→A′ backing swap
-> (GV2-027) are now in-window, no longer deferred. Unblocked frontier promoted
-> Draft → Ready: **GV2-010, GV2-013, GV2-014** (deps Merged). The rest stay
-> dep-blocked until predecessors land; GV2-030 (sealed-DTO snapshot) stays Draft
-> because warm-start persistence (Sub-phase B / [ADR-069](../decisions/069-graph-v2-persistence.md))
-> remains deferred. Count is **4/19** (001/002/003/021 Merged) — the index row's
-> `2/19` was stale.
+> **A′ slice in the `v0.8.0-beta` window (2026-06-08, [ADR-075](../decisions/075-v080-graph-product-scope.md),
+> Accepted via council).** In-window = the **GV2-027 critical-path closure**:
+> GV2-010, 011, 012, 022, 024, 025, 028, 029, then the A→A′ swap (027).
+> **GV2-010 is the Ready frontier** (deps GV2-002/003 Merged); the rest are
+> dep-blocked along the 7-deep chain. **Deferred to v0.9** (council, off the
+> critical path): GV2-013, 014, 020, 023, 026 (registry/contracts) and GV2-030
+> (sealed-DTO snapshot, with Sub-phase B persistence). 013/014 are dep-unblocked
+> but stay Draft as v0.9 scope. Count is **4/19** (001/002/003/021 Merged) — the
+> index row's `2/19` was stale.
 
 > **Reshaped 2026-06-08** around the now-landed spine spec
 > [`docs/architecture/graph-v2-foundation-spec.md`](../../docs/architecture/graph-v2-foundation-spec.md)
@@ -362,7 +363,7 @@ Change status to **Ready** when:
 
 #### GV2-013: Control and session graph contract
 
-- **Status:** Ready (2026-06-08, ADR-075 wave — dep GV2-001 Merged)
+- **Status:** Draft — dep GV2-001 Merged (unblocked), but **v0.9 scope** per ADR-075 (non-critical-path)
 - **Intent:** Model execution hosts, drivers, sessions, leases, fences,
   worktrees, and attribution as a graph that joins to code changes without
   making MCP the control plane.
@@ -386,7 +387,7 @@ Change status to **Ready** when:
 
 #### GV2-014: Plan and provenance graph contract
 
-- **Status:** Ready (2026-06-08, ADR-075 wave — deps GV2-002/003 Merged)
+- **Status:** Draft — deps GV2-002/003 Merged (unblocked), but **v0.9 scope** per ADR-075 (non-critical-path)
 - **Intent:** Join APS intent, git history, Edda provenance, graph deltas, and
   trust posture changes so Anvil can explain why a structural change was allowed
   or challenged.

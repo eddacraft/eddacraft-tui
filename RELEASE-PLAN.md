@@ -54,30 +54,31 @@ validating deltas**
 daemon with the **Graph V2 resident model**, delivering it to **every user by
 default** rather than behind an opt-in flag.
 
-**Scope expanded 2026-06-08 by
-[ADR-075](./plans/decisions/075-v080-graph-product-scope.md) (Proposed — pending
-council).** The interim-cache slice (Sub-phase A) is Merged, but as scoped it
-reached only opt-in users on one check family. The window now also carries the
-**GV2 foundation**, the **A→A′ hot-read backing swap** (GV2-027, under the
-unchanged frozen wire), the **GCTX** assistant-context projection, and a flip of
-`ANVIL_WATCH_DAEMON` to **default-on** once the §8 correctness bar is green —
-turning v0.8.0 from an internal re-plumbing into a graph-backed product a
-default user actually experiences. Warm-start persistence (Sub-phase B, ADR-069)
-stays deferred. **Cut when the slice is ready and the gates are green — no
-calendar gate.** This trades a materially later cut for a real default user
-payload.
+**Scope set 2026-06-08 by
+[ADR-075](./plans/decisions/075-v080-graph-product-scope.md) (Accepted via
+council, accept-with-changes).** The interim-cache slice (Sub-phase A) is
+Merged, but as scoped it reached only opt-in users on one check family. The
+window now carries the **GV2 A′-critical-path foundation** + the **A→A′ hot-read
+backing swap** (GV2-027, under the unchanged frozen wire), and flips
+`ANVIL_WATCH_DAEMON` to **default-on** (with rollout controls) once the §8 bar +
+A′ swap are green — so every user gets a graph-backed save-time daemon. The
+**assistant-facing graph product** (GCTX context delivery, multi-graph registry,
+consumer query contract) and warm-start persistence are **deferred to v0.9**
+(council recommendation: do not put GCTX, 0/13 with an unresolved GCTX-002
+architectural decision and an unmet egress-privacy review, on this critical
+path). **Cut when the A′ slice is ready and the gates are green — no calendar
+gate.**
 
 ### Phase plan
 
-| Phase                                   | Scope                                                                                                                                                                                                                                                                                          | State                                                                                                                                |
-| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| **Daemon Sub-phase A** (interim slice)  | `validate_paths` wire + watch/MCP re-point, backed by an interim `(SymbolGraph, DependencyGraph)` cache. [ADR-063](./plans/decisions/063-gv2-hot-path-boundary.md) closed the hot-path boundary + [ADR-064](./plans/decisions/064-intercept-graph-cache-crate-boundary.md) the crate boundary. | **Merged** — DSV Sub-phase A 9/9 + A-W 2/2 (cross-matrix, run 27102943706). Ships flag-off (`ANVIL_WATCH_DAEMON`), antipattern-only. |
-| **Ready freight** (parallel)            | RLB-002/003/004/005/008, TUIDASH-003..013, RTAI-007/-009, INSIGHTS-004.                                                                                                                                                                                                                        | **Merged** — landed via #2226/#2227/#2228/#2229/#2246.                                                                               |
-| **GV2 foundation** (ADR-075)            | The `graph-v2-foundation` items (010–030 less persistence), sequenced by the module dep graph — semantic schema, incremental hot indexes, trust/control/plan-provenance contracts, multi-graph registry, hot-read API + guardrails, Criterion CI gate, privilege containment.                  | **In progress** — frontier GV2-010/013/014 `Ready` (deps Merged); rest dep-blocked until predecessors land. GV2 4/19.                |
-| **A→A′ backing swap** (ADR-075)         | GV2-027 retires the interim re-derive; `validate_paths`/`save_time` read the resident GV2 hot-index under the **unchanged wire**; `backing_schema_version` → `gv2-hotindex-v1`.                                                                                                                | **Blocked** on GV2-022/024/028/029. Gated on a verdict-parity proof + the GV2-025 ADR-031 Criterion gate.                            |
-| **GCTX context delivery** (ADR-075)     | The `graph-context-delivery` module (13 items) — MCP tools/resources, context slicing, affected-test lookup, token-reduction measurement over GV2.                                                                                                                                             | **Proposed** — dep-blocked on the GV2 foundation. Escape hatch: re-deferred to the A′ slice if it threatens the cut.                 |
-| **Default-on daemon routing** (ADR-075) | Flip `ANVIL_WATCH_DAEMON` to default-on for `check` watches so the save-time fix reaches every user.                                                                                                                                                                                           | **Pending** — gated behind the ADR-061 §8 correctness bar + the A′ swap.                                                             |
-| **Closeout hygiene**                    | POLENG (9/9) + DISTRIB (6/6) → `Complete` after tag verification; GV2 gate-row → reflect ADR-063.                                                                                                                                                                                              | pending                                                                                                                              |
+| Phase                                         | Scope                                                                                                                                                                                                                                                                                          | State                                                                                                                                       |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Daemon Sub-phase A** (interim slice)        | `validate_paths` wire + watch/MCP re-point, backed by an interim `(SymbolGraph, DependencyGraph)` cache. [ADR-063](./plans/decisions/063-gv2-hot-path-boundary.md) closed the hot-path boundary + [ADR-064](./plans/decisions/064-intercept-graph-cache-crate-boundary.md) the crate boundary. | **Merged** — DSV Sub-phase A 9/9 + A-W 2/2 (cross-matrix, run 27102943706). Ships flag-off (`ANVIL_WATCH_DAEMON`), antipattern-only.        |
+| **Ready freight** (parallel)                  | RLB-002/003/004/005/008, TUIDASH-003..013, RTAI-007/-009, INSIGHTS-004.                                                                                                                                                                                                                        | **Merged** — landed via #2226/#2227/#2228/#2229/#2246.                                                                                      |
+| **GV2 A′-critical-path foundation** (ADR-075) | The GV2-027 dependency closure: GV2-010 (semantic schema), 011 (incremental hot indexes), 012 (trust/policy contract), 022 (hot-read API + guardrails), 024 (hot-read type split), 025 (Criterion CI gate), 028 (production parser feed), 029 (privilege containment).                         | **In progress** — frontier GV2-010 `Ready` (deps Merged); rest dep-blocked along the 7-deep chain. GV2 4/19.                                |
+| **A→A′ backing swap** (ADR-075)               | GV2-027 retires the interim re-derive; `validate_paths`/`save_time` read the resident GV2 hot-index under the **unchanged wire**; `backing_schema_version` → `gv2-hotindex-v1`.                                                                                                                | **Blocked** on GV2-022/024/028/029 (chain bottoms out at GV2-010). Gated on verdict-parity + the GV2-025 Criterion gate + **GV2-028 Done**. |
+| **Default-on daemon routing** (ADR-075)       | Flip `ANVIL_WATCH_DAEMON` to default-on for `check` watches so the save-time fix reaches every user — **with rollout controls** (opt-out env, daemon-presence/auto-start guard, revert signal, staged rollout).                                                                                | **Pending** — gated behind the §8 bar + the A′ swap + the rollout controls.                                                                 |
+| **Closeout hygiene**                          | POLENG (9/9) + DISTRIB (6/6) → `Complete` after tag verification; GV2 gate-row → reflect ADR-063.                                                                                                                                                                                              | pending                                                                                                                                     |
 
 ### Sub-phase A is gated on the architecture review council
 
@@ -140,25 +141,30 @@ invalidation taxonomy + inode classification, cross-path diagnostic parity,
 `Cross` matrix green (incl. Windows), `release-readiness.yml` pass on the source
 SHA, and `ACKNOWLEDGEMENTS` fresh.
 
-Graph-product bar (added by
-[ADR-075](./plans/decisions/075-v080-graph-product-scope.md)):
+A′ bar (added by [ADR-075](./plans/decisions/075-v080-graph-product-scope.md)):
 
 - **A→A′ swap proven** — GV2-027 verdict-parity property test green vs the
-  interim backing, and the **GV2-025 Criterion gate** (ADR-031 save-time budget)
-  green on the canonical corpus. The swap must not ship before GV2-028's
-  production parser feed (else `ContentModify` stays `partial`).
-- **Default-on daemon routing** — `ANVIL_WATCH_DAEMON` flipped default-on for
-  `check` watches, behind the §8 bar.
-- **GCTX surface** — landed and tested **or** explicitly re-deferred to the A′
-  slice per the ADR-075 escape hatch; the cut note states which.
+  interim backing; the **GV2-025 Criterion gate** (ADR-031 save-time budget,
+  named CI job on a quiet-box runner) green on the canonical corpus; **and
+  GV2-028 (production parser feed) Done** (else `ContentModify` stays
+  `partial`). All three are hard gates, not prose.
+- **Default-on daemon routing shipped with controls** — `ANVIL_WATCH_DAEMON`
+  default-on for `check` watches behind the §8 bar, **plus**: a documented
+  `ANVIL_WATCH_DAEMON=0` opt-out exercised in the runbook; default-on
+  conditional on a live daemon / auto-start (no `daemon-absent` warning storm
+  for non-daemon users; Windows gated on the DSV-010b served-verb set); a named
+  revert signal (p95 over ADR-031 budget or WARN-rate threshold) + staged
+  rollout (beta before GA).
 
-### Deferred (not in this window)
+### Deferred (to v0.9 or later)
 
-ADR-061 Sub-phase B / warm-start persistence (GV2-030,
-[ADR-069](./plans/decisions/069-graph-v2-persistence.md));
-`ssh-remote-host-daemon` (ADR-043 still Proposed). (GV2 hot-read backing /
-`graph-v2-foundation` / `graph-context-delivery` were **pulled into the window**
-by ADR-075 — no longer deferred.)
+- **Assistant graph product → v0.9:** `graph-context-delivery` (GCTX, +
+  context-egress privacy review) and the non-critical-path GV2 items — GV2-013
+  (control/session), 014 (plan/provenance), 020 (multi-graph registry), 023
+  (consumer query contract), 026 (reverse-impact lever).
+- **Persistence:** ADR-061 Sub-phase B / warm-start (GV2-030 sealed-DTO no-leak
+  guard, [ADR-069](./plans/decisions/069-graph-v2-persistence.md)).
+- `ssh-remote-host-daemon` (ADR-043 still Proposed).
 
 ---
 
@@ -179,12 +185,12 @@ Authoritative source:
 
 ## Risks (active window)
 
-| Risk                                                                                                       | Mitigation                                                                                                                                                                                                                                                      |
-| ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Sub-phase A starts before its blockers are resolved and ships an unsound `certified` claim.                | The council corrections are a hard gate in the sub-phase A plan; all (B1/B2/B3/B4/B5/B6/B7 + item 8) resolved 2026-06-02, so coding may begin. The cut criteria still require the §8 correctness gates (taxonomy + parity + auth) to pass before Phase 2 ships. |
-| The expanded GV2 scope (ADR-075) slips the cut indefinitely; GCTX (0/13, unproven) dominates the timeline. | Scope is now intentional, not creep (ADR-075). The ADR-075 escape hatch re-defers GCTX to the A′ slice without re-opening the decision if it threatens the cut; the daemon-backing payload (A′ swap) ships independently. Persistence (Sub-phase B) stays out.  |
-| Daemon save-time work re-introduces the CPU problem it exists to fix.                                      | The 1-hop reverse-impact cap (ADR-063, a hard-capped lever) + the ADR-031 latency budget + the two-pool isolation keep the hot path bounded.                                                                                                                    |
-| The window accretes (this document rots back into a historical record).                                    | "How this document works" + the closeout prune step keep it to one active window.                                                                                                                                                                               |
+| Risk                                                                                                                                                | Mitigation                                                                                                                                                                                                                                                                     |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Default-on `ANVIL_WATCH_DAEMON` degrades or destabilises stock installs (daemon-absent warning storm; daemon-defect blast radius across all users). | Rollout controls are cut criteria (ADR-075): `ANVIL_WATCH_DAEMON=0` opt-out, default-on conditional on a live daemon / auto-start (Windows gated on DSV-010b), a named revert signal, and staged rollout (beta → GA). The §8 correctness bar still gates the flip.             |
+| The 7-deep GV2-027 A′ chain slips the cut — esp. GV2-028 (parser feed, medium-confidence).                                                          | Scope is the A′ slice only (council): GCTX + multi-graph registry + persistence are deferred to v0.9, off the critical path. GV2-028 Done is an explicit cut gate, so a slip can't silently ship `partial` verdicts. v0.7.x remains the P0 patch vehicle if the cut runs long. |
+| Daemon save-time work re-introduces the CPU problem it exists to fix.                                                                               | The 1-hop reverse-impact cap (ADR-063, a hard-capped lever) + the ADR-031 latency budget + the two-pool isolation keep the hot path bounded.                                                                                                                                   |
+| The window accretes (this document rots back into a historical record).                                                                             | "How this document works" + the closeout prune step keep it to one active window.                                                                                                                                                                                              |
 
 ## Records & roadmap
 

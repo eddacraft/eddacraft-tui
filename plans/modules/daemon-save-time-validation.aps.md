@@ -50,11 +50,12 @@ persistence) without consumers re-integrating.
   resident warm-index slice under the unchanged wire. **Unblocked** — the
   hot-/non-hot-path boundary gate is closed by
   [ADR-063](../decisions/063-gv2-hot-path-boundary.md) (Accepted 2026-06-01), and
-  the swap is **pulled into the `v0.8.0-beta` window** by
-  [ADR-075](../decisions/075-v080-graph-product-scope.md) (Proposed — pending
-  council). The swap itself is GV2-027 (deps GV2-022/024/028/029); sequenced
-  behind the GV2 foundation frontier (GV2-010 → 011 → 022 …). Carries a
-  verdict-parity proof + the ADR-031 Criterion gate (GV2-025).
+  the swap is the **headline v0.8.0-beta payload** per
+  [ADR-075](../decisions/075-v080-graph-product-scope.md) (Accepted via council).
+  The swap itself is GV2-027 (deps GV2-022/024/028/029); sequenced behind the
+  GV2-010 → 011 → 022 … chain. Carries a verdict-parity proof + the ADR-031
+  Criterion gate (GV2-025) + GV2-028 Done as hard cut gates, then the default-on
+  `ANVIL_WATCH_DAEMON` flip with rollout controls.
 - **Sub-phase B — warm-start persistence.** Add a default-off, per-uid,
   owner-only snapshot that restores graph indexes (never the verdict) on daemon
   restart, per the validation contract §9. Blocked on the GV2-021 persistence ADR.

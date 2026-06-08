@@ -15,10 +15,11 @@
 > launcher INTL 9/9, MLP2 integration surface) plus the `v0.7.1-beta` /
 > `v0.7.2-beta` honesty patches. The next active window is **`v0.8.0-beta`**
 > ("The Graph-Backed Save-Time Daemon" — the interim-cache slice is Merged;
-> [ADR-075](./decisions/075-v080-graph-product-scope.md) (Proposed) expanded the
-> window to the Graph V2 product: GV2 foundation + A→A′ swap + GCTX, default-on
-> daemon routing). See [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) for the cut detail
-> and [`ROADMAP.md`](../ROADMAP.md) for thematic context across horizons.
+> [ADR-075](./decisions/075-v080-graph-product-scope.md) (Accepted via council)
+> scopes the window to the GV2 **A′ slice** + the A→A′ swap + default-on daemon
+> routing. The assistant graph product — GCTX + multi-graph registry — and
+> persistence are deferred to v0.9). See [`RELEASE-PLAN.md`](../RELEASE-PLAN.md)
+> for the cut detail and [`ROADMAP.md`](../ROADMAP.md) for thematic context.
 
 ## Contents
 
@@ -107,19 +108,21 @@ Selection rules:
 
 | Rank | NBI | Mode | Source | Why now | Next action |
 | ---- | --- | ---- | ------ | ------- | ----------- |
-| 1 | GV2 foundation wave (`v0.8.0-beta` payload) | Ready | [`graph-v2-foundation`](./modules/graph-v2-foundation.aps.md) + [ADR-075](./decisions/075-v080-graph-product-scope.md) | ADR-075 (Proposed, pending council) pulled the GV2 foundation + A′ swap + GCTX into the window; the cut now depends on the graph, not on the already-Merged interim slice. Unblocked frontier GV2-010/013/014 (`Ready`, deps GV2-001/002/003 Merged). | Start GV2-010 (semantic schema); sequence 011→022→024/028/029 toward the GV2-027 A′ swap. Run `/council` on ADR-075 in parallel. |
-| 2 | A→A′ backing swap (GV2-027) | Schedule | [`daemon-save-time-validation`](./modules/daemon-save-time-validation.aps.md) Sub-phase A′ | The user-facing payoff: swaps the daemon's interim re-derive for the resident GV2 hot-index under the unchanged wire, after which `ANVIL_WATCH_DAEMON` flips default-on. Boundary gate already closed (ADR-063); A′ unblocked. | Build the GV2-022/024/028/029 chain, then land GV2-027 with the verdict-parity proof + the GV2-025 Criterion gate. |
+| 1 | GV2 A′ slice (`v0.8.0-beta` payload) | Ready | [`graph-v2-foundation`](./modules/graph-v2-foundation.aps.md) + [ADR-075](./decisions/075-v080-graph-product-scope.md) | ADR-075 (Accepted via council) scopes the cut to the GV2-027 critical-path closure + the A→A′ swap + default-on. Ready frontier is **GV2-010** (deps GV2-002/003 Merged); the rest are dep-blocked along the 7-deep chain. | Start GV2-010 (semantic schema); sequence 011→022→024/025/028 and 012→029 toward the GV2-027 A′ swap. |
+| 2 | A→A′ backing swap (GV2-027) + default-on | Schedule | [`daemon-save-time-validation`](./modules/daemon-save-time-validation.aps.md) Sub-phase A′ | The user-facing payoff: swaps the daemon's interim re-derive for the resident GV2 hot-index under the unchanged wire, after which `ANVIL_WATCH_DAEMON` flips default-on (with rollout controls). Boundary gate already closed (ADR-063). | Land GV2-027 with verdict-parity + GV2-025 Criterion gate + GV2-028 Done; then the default-on flip behind the §8 bar + rollout controls. |
 | 3 | GITGOV-008 — diagnostics collector | Schedule | [`git-native-governance`](./modules/git-native-governance.aps.md) | GITGOV-004/005/006/007 all Merged 2026-06-08; -008 is the next Proposed item with deps satisfied (GITGOV-004). (EXCEPT-003 is already in flight on PR #2401, so it is no longer an NBI candidate.) | Promote Proposed → Ready and start. |
 
 NBI review note (2026-06-08, third pass): the window was re-scoped from the
-interim-cache slice to the **Graph V2 product** by
-[ADR-075](./decisions/075-v080-graph-product-scope.md) (Proposed — pending
-council). The cut is therefore **no longer content-complete**: rank 1 moves from
-"cut now" to **building the GV2 wave**. The prior rank-2/3 governance rows are
-superseded — GITGOV-004 Merged (#2385), EXCEPT-003 in flight (#2401); GITGOV-008
-is the live governance pick. The broad Ready pool (USAGE, EDGE, DASH*, OPAG,
-EVAL, CPOL, IORISK, GATE, ATC, PATT, TRUST, ILGOV, LAC) remains available but
-does not outrank the v0.8.0 payload.
+interim-cache slice to the GV2 **A′ slice** by
+[ADR-075](./decisions/075-v080-graph-product-scope.md) (Accepted via council
+session `council-614e422c`, accept-with-changes — the council recommended the A′
+slice over the full graph product, deferring GCTX + multi-graph registry +
+persistence to v0.9). The cut is **no longer content-complete**: rank 1 is
+**building the GV2-027 A′ critical path** (frontier GV2-010). Prior governance
+rows superseded — GITGOV-004 Merged (#2385), EXCEPT-003 in flight (#2401);
+GITGOV-008 is the live governance pick. The broad Ready pool (USAGE, EDGE, DASH*,
+OPAG, EVAL, CPOL, IORISK, GATE, ATC, PATT, TRUST, ILGOV, LAC) remains available
+but does not outrank the v0.8.0 payload.
 
 ## Release Plan
 
@@ -657,7 +660,7 @@ trusted model.
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
 | [graph-v2-foundation](./modules/graph-v2-foundation.aps.md) | GV2 | In Progress | 4/19 | KERN, anvil-graph-cache, ADR-061/063/064/067/069, ADR-031, INTD, GCTX, EDDA |
-| [graph-context-delivery](./modules/graph-context-delivery.aps.md) | GCTX | Proposed | 0/13 | GV2 |
+| [graph-context-delivery](./modules/graph-context-delivery.aps.md) | GCTX | Draft | 0/13 | GV2 |
 
 ### Rust MCP Launch Path
 
