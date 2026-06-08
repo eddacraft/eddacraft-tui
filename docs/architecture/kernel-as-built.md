@@ -447,7 +447,7 @@ path:
    like `polyfill.ts` still records its imports as graph edges —
    `incremental.rs:147-167`).
 6. **Return a `GraphDelta`** carrying added/removed symbol ids, added/removed
-   edges, errors, plus the three "previously" sets and the file path.
+   edges, errors, plus the four "previously" sets and the file path.
 
 `re_resolve_imports` (`incremental.rs:297-331`) runs after a batch of
 `update_file` calls to fix up edges that couldn't resolve when the target file
