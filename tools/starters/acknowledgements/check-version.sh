@@ -126,8 +126,10 @@ fi
 # --- Optional: tag must agree -----------------------------------------
 if [ -n "$tag" ]; then
   tag_version="$tag"
-  tag_version="${tag_version#acknowledgements-starter-v}"  # prefixed source form
-  tag_version="${tag_version#v}"                            # bare mirror form
+  tag_version="${tag_version#acknowledgements-starter-}"   # drop source-tag prefix → leaves vX.Y.Z
+  tag_version="${tag_version#v}"                            # drop a single leading v → X.Y.Z
+  # A malformed double-prefixed tag (…-vvX.Y.Z) now leaves a leading "v",
+  # which the semver check below rejects rather than silently accepting.
   if ! printf '%s' "$tag_version" | grep -qE "$semver_re"; then
     echo "error: tag '$tag' does not carry a valid semver version (parsed '$tag_version')" >&2
     exit 1

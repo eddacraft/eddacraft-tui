@@ -140,10 +140,17 @@ overwritten. To correct a bad cut:
   gh release edit vX.Y.Z --repo eddacraft/acknowledgements-starter --latest=false
   ```
 
-- If the tag push succeeded but the Release step failed, re-run the workflow via
-  `workflow_dispatch` with the same tag — `gh release create` attaches to the
-  already-pushed tag, and the append-only tag push is a no-op-or-reject (it does
-  not clobber). Do not delete and re-push the tag.
+- **Partial failure (tag pushed, Release not created):** re-run the workflow via
+  `workflow_dispatch` with the same tag. The workflow is idempotent — it detects
+  the already-present mirror tag and skips the push (leaving the immutable tag
+  untouched), then creates the missing Release. Do **not** delete and re-push
+  the tag.
+- **Re-dispatching a fully-completed release** is safe and a no-op: the tag-push
+  step skips (tag exists) and the Release step skips (Release exists); the job
+  succeeds without changing anything.
+- If the tag push fails with a `denied`/`protected tag` error, the mirror has a
+  tag-protection rule — see the [Pre-flight](#pre-flight-mirror-tag-protection)
+  above; fix the rule, then re-dispatch.
 
 ## Token rotation
 

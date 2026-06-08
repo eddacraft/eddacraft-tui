@@ -5,18 +5,22 @@
 # self-test and the `release-acknowledgements-starter.yml` workflow's
 # version-triple assertion — across:
 #
-#   1. The REAL kit: its `VERSION` agrees with the newest `## [X.Y.Z]`
-#      heading in `CHANGELOG.md` → exit 0. (This is the invariant CI
-#      gates: a version bump must update both files.)
-#   2. Fixture where VERSION disagrees with the changelog heading →
-#      exit 1, stderr names both versions.
-#   3. Fixture with a malformed VERSION → exit 1, stderr says so.
-#   4. Fixture missing CHANGELOG.md → exit 1, stderr names the file.
-#   5. `--tag` matching VERSION (bare `vX.Y.Z`) → exit 0;
-#      a mismatching tag → exit 1.
-#   6. `--tag` in the prefixed source form
-#      (`acknowledgements-starter-vX.Y.Z`) is accepted and compared on
-#      its `X.Y.Z` component → exit 0.
+#   1.  The REAL kit: its `VERSION` agrees with the newest `## [X.Y.Z]`
+#       heading in `CHANGELOG.md` → exit 0. (This is the invariant CI
+#       gates: a version bump must update both files.)
+#   1b. The REAL kit with a prefixed `--tag` — the exact call the release
+#       workflow makes; also covers the default-dir symlink-resolution
+#       path the `--dir` fixtures bypass.
+#   2.  Fixture where VERSION disagrees with the changelog heading →
+#       exit 1, stderr names both versions.
+#   3.  Fixture with a malformed VERSION → exit 1, stderr says so.
+#   4.  Fixture missing CHANGELOG.md → exit 1, stderr names the file.
+#   5.  `--tag` matching VERSION (bare `vX.Y.Z`) → exit 0;
+#       a mismatching tag → exit 1.
+#   6.  `--tag` in the prefixed source form
+#       (`acknowledgements-starter-vX.Y.Z`) is accepted and compared on
+#       its `X.Y.Z` component → exit 0.
+#   7.  A malformed double-prefixed tag (`…-vvX.Y.Z`) → exit 1.
 #
 # Local invocation:
 #   tools/starters/acknowledgements/tests/version-changelog-consistency.sh
@@ -42,6 +46,18 @@ if [ "$exit1" -ne 0 ]; then
   exit 1
 fi
 echo "ok scenario 1: real kit VERSION matches CHANGELOG.md heading"
+
+# ── Scenario 1b: real kit + prefixed --tag (the exact release-workflow
+# call). Also exercises the default-dir symlink-resolution path that the
+# --dir fixtures below bypass.
+real_ver="$(grep -m1 -v '^[[:space:]]*$' "$SCRIPT_DIR/../VERSION" | tr -d '[:space:]')"
+exit1b=0
+out1b="$("$CHECKER" --tag "acknowledgements-starter-v${real_ver}" 2>&1)" || exit1b=$?
+if [ "$exit1b" -ne 0 ]; then
+  echo "fail scenario 1b: real kit + prefixed --tag acknowledgements-starter-v${real_ver} rejected (exit $exit1b): $out1b" >&2
+  exit 1
+fi
+echo "ok scenario 1b: real kit + prefixed --tag (release-workflow call) accepted"
 
 # ── Scenario 2: VERSION disagrees with the changelog heading ─────────
 d2="$fixture_root/mismatch"
@@ -127,5 +143,16 @@ if [ "$exit6" -ne 0 ]; then
 fi
 echo "ok scenario 6: prefixed source-tag form accepted"
 
+# ── Scenario 7: a malformed double-prefixed tag is rejected ──────────
+# `acknowledgements-starter-vv2.1.0` must NOT strip down to a valid
+# version — guards the defense-in-depth property of the checker.
+exit7=0
+out7="$("$CHECKER" --dir "$d5" --tag "acknowledgements-starter-vv2.1.0" 2>&1)" || exit7=$?
+if [ "$exit7" -eq 0 ]; then
+  echo "fail scenario 7: checker accepted malformed double-prefixed tag '…-vv2.1.0'" >&2
+  exit 1
+fi
+echo "ok scenario 7: malformed double-prefixed tag rejected (exit $exit7)"
+
 echo
-echo "version/changelog consistency tests passed: 7/7 scenarios green."
+echo "version/changelog consistency tests passed: all scenarios green."

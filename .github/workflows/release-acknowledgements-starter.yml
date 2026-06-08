@@ -82,15 +82,31 @@ jobs:
           persist-credentials: false
 
       - name: Resolve tag + version
+        # The workflow_dispatch input is passed via env, NOT interpolated into
+        # the script body — a `${{ … }}` expression expands as script *text*
+        # before bash runs, so an operator-supplied tag could inject shell. The
+        # env var reaches the script as inert data (same pattern as
+        # publish-eddacraft-tui.yml's GIT_REF).
+        env:
+          DISPATCH_TAG: ${{ github.event.inputs.tag }}
         run: |
           set -euo pipefail
-          if [ -n "${{ github.event.inputs.tag }}" ]; then
-            TAG="${{ github.event.inputs.tag }}"
+          if [ -n "${DISPATCH_TAG:-}" ]; then
+            TAG="${DISPATCH_TAG}"
           else
             TAG="${GITHUB_REF#refs/tags/}"
           fi
           # Constrain the tag shape even on workflow_dispatch, where the
-          # on.push.tags filter does not apply.
+          # on.push.tags filter does not apply. The case guard rejects any
+          # character outside the allowed set (notably a newline, which would
+          # otherwise smuggle a second line into the GITHUB_ENV write below and
+          # slip past the per-line grep).
+          case "${TAG}" in
+            *[!A-Za-z0-9.-]*)
+              echo "::error::tag '${TAG}' contains characters outside [A-Za-z0-9.-]"
+              exit 1
+              ;;
+          esac
           if ! printf '%s' "${TAG}" | grep -qE '^acknowledgements-starter-v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
             echo "::error::tag '${TAG}' is not a valid source release tag (expected acknowledgements-starter-vX.Y.Z)"
             exit 1
@@ -176,16 +192,26 @@ jobs:
           MIRROR_PUSH_TOKEN: ${{ secrets.MIRROR_PUSH_TOKEN }}
         run: |
           set -euo pipefail
+          MIRROR_URL=https://github.com/eddacraft/acknowledgements-starter.git
           # Authenticate via an HTTP Basic header instead of embedding the
           # token in the URL (URL-embedded credentials are fragile to a
-          # stray byte → CURLE_URL_MALFORMAT). Single tag refspec, no
-          # --force: if ${MIRROR_TAG} already exists on the mirror the push
-          # is rejected — the append-only immutability guarantee.
+          # stray byte → CURLE_URL_MALFORMAT).
           basic=$(printf '%s' "x-access-token:${MIRROR_PUSH_TOKEN}" | base64 -w0)
-          git -c "http.https://github.com/.extraheader=Authorization: Basic ${basic}" \
-              push \
-              https://github.com/eddacraft/acknowledgements-starter.git \
-              "_release_split:refs/tags/${MIRROR_TAG}"
+          auth=(-c "http.https://github.com/.extraheader=Authorization: Basic ${basic}")
+          # Idempotent re-run safety: a published version's tag is immutable
+          # (append-only). If ${MIRROR_TAG} already exists on the mirror, an
+          # unforced push would be REJECTED and — under `set -e` — abort the
+          # job before the Release step, breaking the documented re-run
+          # recovery (tag pushed, Release failed → re-dispatch). So skip the
+          # push when the tag is already present and let the Release step run.
+          if git "${auth[@]}" ls-remote --exit-code --tags "${MIRROR_URL}" "refs/tags/${MIRROR_TAG}" >/dev/null 2>&1; then
+            echo "Mirror tag ${MIRROR_TAG} already exists — leaving it untouched (append-only; idempotent re-run)."
+          else
+            # Single tag refspec, no --force, no --mirror, no wildcard. Any
+            # future widening of this refspec must be re-reviewed against the
+            # append-only guarantee.
+            git "${auth[@]}" push "${MIRROR_URL}" "_release_split:refs/tags/${MIRROR_TAG}"
+          fi
 
       - name: Extract changelog section for release notes
         run: |
@@ -195,8 +221,11 @@ jobs:
           notes="$(mktemp)"
           # Print the body between this version's `## [X.Y.Z]` heading and
           # the next `## [` heading (or EOF), trimming surrounding blanks.
-          awk -v ver="${VERSION_NUM}" '
-            $0 ~ "^## \\[" ver "\\]" {grab=1; next}
+          # Match the heading by LITERAL prefix (index==1), not a regex —
+          # the dots in a version are regex wildcards and would let
+          # `## [1X0Y0]` masquerade as `## [1.0.0]`, polluting the notes.
+          awk -v head="## [${VERSION_NUM}]" '
+            index($0, head) == 1 {grab=1; next}
             grab && /^## \[/ {exit}
             grab {print}
           ' "${CHANGELOG}" \
@@ -215,14 +244,22 @@ jobs:
           GH_TOKEN: ${{ secrets.MIRROR_PUSH_TOKEN }}
         run: |
           set -euo pipefail
-          # The bare tag was pushed above, so the Release attaches to the
-          # existing mirror tag. Marked --latest: the mirror is the
-          # user-facing repo and this is its canonical release surface.
-          gh release create "${MIRROR_TAG}" \
-            --repo eddacraft/acknowledgements-starter \
-            --title "${MIRROR_TAG}" \
-            --notes-file "${NOTES_FILE}" \
-            --latest
+          # Idempotent re-run safety: if the Release already exists (a prior
+          # run got this far), skip creation rather than fail — `gh release
+          # create` errors on an existing release. This is what makes the
+          # "tag pushed, Release failed → re-dispatch" recovery actually work.
+          if gh release view "${MIRROR_TAG}" --repo eddacraft/acknowledgements-starter >/dev/null 2>&1; then
+            echo "Release ${MIRROR_TAG} already exists on the mirror — leaving it untouched (idempotent re-run)."
+          else
+            # The bare tag was pushed above, so the Release attaches to the
+            # existing mirror tag. Marked --latest: the mirror is the
+            # user-facing repo and this is its canonical release surface.
+            gh release create "${MIRROR_TAG}" \
+              --repo eddacraft/acknowledgements-starter \
+              --title "${MIRROR_TAG}" \
+              --notes-file "${NOTES_FILE}" \
+              --latest
+          fi
 
       - name: Summary
         if: always()
