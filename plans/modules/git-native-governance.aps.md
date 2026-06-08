@@ -90,7 +90,7 @@ release seals (RELEASE-SEAL); supplier bundles (SUPPLIER). Sealed Edda context
 - **Expected Outcome:** `policy.json`/`rules.json`/`baseline.json` match the witnessed identity by construction.
 - **Validation:** `cargo test -p eddacraft-anvil-capsule -- collect_digests`
 - **Dependencies:** GITGOV-003
-- **Status:** In Progress
+- **Status:** Merged 2026-06-08 via PR #2379
 
 ### GITGOV-007: Witness collector
 - **Intent:** Collect the **complete witness chain** — every rollover archive segment plus the active file, in walk order — verbatim into `witness.ndjson`; the manifest's `witness_seq_start`/`witness_seq_end` mark the PR-relevant range (ADR-074: `verify_chain_dag` is genesis-anchored with a gap-free `seq` walk and cannot verify a mid-chain subset).
