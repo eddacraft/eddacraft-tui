@@ -8,13 +8,79 @@ use anvil_kernel_types::{
 
 use super::symbol_graph::SymbolGraph;
 
+/// Schema version of the [`GraphDelta`] event contract (GV2-003).
+///
+/// Bumped whenever the meaning or completeness of a delta field changes, so a
+/// consumer can refuse a delta it does not understand rather than silently
+/// mis-apply it. Carried on every delta via the manual [`Default`] impl and
+/// the constructing functions; never 0 (a 0 would mean "unset", which the
+/// manual `Default` prevents).
+pub const GRAPH_DELTA_SCHEMA_VERSION: u32 = 1;
+
+/// How a symbol's stable identity related to the file's prior state across one
+/// update (GV2-003). Anchors each touched node to its [`SymbolIdentity`] so a
+/// consumer can reason about the change without re-deriving identities or
+/// reaching into the (already-mutated) graph for removed nodes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NodeChange {
+    /// The identity is new this update — no symbol with it existed before.
+    Added(SymbolIdentity),
+    /// The identity existed before and still exists; the symbol was
+    /// re-inserted (a body edit, or a visibility/trust change). "Changed"
+    /// here is identity-preserving: same `(file, kind, name, ordinal)`,
+    /// potentially different visibility/trust.
+    Changed(SymbolIdentity),
+    /// The identity existed before and is gone after this update.
+    Removed(SymbolIdentity),
+}
+
+impl NodeChange {
+    /// The stable identity this change anchors to.
+    #[must_use]
+    pub fn identity(&self) -> &SymbolIdentity {
+        match self {
+            NodeChange::Added(id) | NodeChange::Changed(id) | NodeChange::Removed(id) => id,
+        }
+    }
+}
+
 /// Changes produced by an incremental graph update.
-#[derive(Debug, Clone, Default)]
+///
+/// The id-keyed channels (`added_symbols`, `removed_symbols`, `added_edges`,
+/// `removed_edges`) describe the change in terms of this graph generation's
+/// session-local `u64` ids — the form the policy invariants and `watch.rs`
+/// consume. The identity-anchored `node_changes` channel (GV2-003) describes
+/// the *same* change in terms of stable [`SymbolIdentity`] so the distinction
+/// between a genuinely new node, an identity-preserving change, and a removal
+/// survives the remove-then-re-add that `update_file` performs.
+///
+/// Every field reports honestly: `removed_edges` is populated (GV2-003 — it
+/// was permanently empty before), and no field is present that the pipeline
+/// cannot fill. **Content hashes** ride the `FileSymbols` parser feed
+/// (hashed at the `validate_paths` boundary, not recomputable here without
+/// file bytes) and **provenance/session anchors** are join-time-only (privacy
+/// verdict PV-3, 2026-06-08); neither is a `GraphDelta` field because this
+/// layer cannot populate them truthfully.
+#[derive(Debug, Clone)]
 pub struct GraphDelta {
+    /// Event-contract schema version. See [`GRAPH_DELTA_SCHEMA_VERSION`].
+    pub schema_version: u32,
     pub added_symbols: Vec<u64>,
     pub removed_symbols: Vec<u64>,
     pub added_edges: Vec<(u64, u64, EdgeType)>,
+    /// Import edges removed by this update, in this generation's ids
+    /// (GV2-003). Populated from the file's outgoing import edges captured
+    /// before `remove_file`. On a body-only edit the old ids are genuinely
+    /// gone, so this honestly reports the removed edges even when the same
+    /// import is re-added under fresh ids; the identity-level "did the import
+    /// shape change" question is answered by `node_changes` +
+    /// `previously_imported`, not by diffing raw ids.
     pub removed_edges: Vec<(u64, u64, EdgeType)>,
+    /// Identity-anchored view of the node change set (GV2-003): added,
+    /// identity-preserving-changed, and removed nodes for `file`. Lets a
+    /// consumer replay or reconcile over stable identity rather than
+    /// session-local ids.
+    pub node_changes: Vec<NodeChange>,
     pub errors: Vec<String>,
     /// Import sources that existed before this update (for new-dep detection).
     pub previously_imported: HashSet<String>,
@@ -41,6 +107,26 @@ pub struct GraphDelta {
     pub file: String,
 }
 
+impl Default for GraphDelta {
+    /// An empty delta carrying the current schema version — never version 0.
+    fn default() -> Self {
+        Self {
+            schema_version: GRAPH_DELTA_SCHEMA_VERSION,
+            added_symbols: Vec::new(),
+            removed_symbols: Vec::new(),
+            added_edges: Vec::new(),
+            removed_edges: Vec::new(),
+            node_changes: Vec::new(),
+            errors: Vec::new(),
+            previously_imported: HashSet::new(),
+            previously_public: HashSet::new(),
+            previously_privileged: HashSet::new(),
+            previously_boundary: HashSet::new(),
+            file: String::new(),
+        }
+    }
+}
+
 /// Is this trust level part of the elevated surface the export-diff watches?
 ///
 /// `Privileged` and `Boundary` both count: a symbol crossing onto either is
@@ -63,7 +149,84 @@ impl GraphDelta {
             && self.removed_symbols.is_empty()
             && self.added_edges.is_empty()
             && self.removed_edges.is_empty()
+            && self.node_changes.is_empty()
             && self.errors.is_empty()
+    }
+}
+
+/// Everything about a file's prior graph state that `remove_file` destroys and
+/// the resulting [`GraphDelta`] needs — captured in one pass before removal.
+struct PriorState {
+    previously_public: HashSet<SymbolIdentity>,
+    previously_privileged: HashSet<SymbolIdentity>,
+    previously_boundary: HashSet<SymbolIdentity>,
+    previously_imported: HashSet<String>,
+    /// The file's stable identities before the update — for the
+    /// changed/removed node-change classification after re-add.
+    old_identity_set: HashSet<SymbolIdentity>,
+    /// Every edge incident to the file's symbols (outgoing + incoming),
+    /// de-duplicated and sorted — `remove_file` drops exactly these, so they
+    /// are the genuinely removed edges (GV2-003).
+    removed_edges: Vec<(u64, u64, EdgeType)>,
+}
+
+impl PriorState {
+    fn capture(graph: &SymbolGraph, file: &str) -> Self {
+        let old_symbols = graph.symbols_in_file(file);
+        let old_ids: Vec<u64> = old_symbols.iter().map(|s| s.id).collect();
+        // Stable identities are assigned over the file's full parse-ordered
+        // symbol list (GV2-002): ordinals disambiguate same-(kind, name)
+        // overloads regardless of visibility, so the baselines stay distinct
+        // per overload instead of collapsing into one key.
+        // INVARIANT: symbols_in_file returns insertion order, which equals
+        // parse order because update_file feeds FileSymbols.symbols in parser
+        // emission order — the ordering contract for_file_symbols documents.
+        let old_identities = SymbolIdentity::for_file_symbols(&old_symbols);
+        let by_trust = |want: TrustLevel| -> HashSet<SymbolIdentity> {
+            old_symbols
+                .iter()
+                .zip(&old_identities)
+                .filter(|(s, _)| s.trust_level == want)
+                .map(|(_, identity)| identity.clone())
+                .collect()
+        };
+        let previously_public: HashSet<SymbolIdentity> = old_symbols
+            .iter()
+            .zip(&old_identities)
+            .filter(|(s, _)| s.visibility == Visibility::Public)
+            .map(|(_, identity)| identity.clone())
+            .collect();
+        let previously_privileged = by_trust(TrustLevel::Privileged);
+        let previously_boundary = by_trust(TrustLevel::Boundary);
+        let old_identity_set: HashSet<SymbolIdentity> = old_identities.into_iter().collect();
+
+        let previously_imported: HashSet<String> = old_ids
+            .iter()
+            .flat_map(|&id| graph.outgoing_edges(id))
+            .filter(|e| e.edge_type == EdgeType::Imports)
+            .filter_map(|e| graph.get_symbol(e.to).map(|s| s.file.clone()))
+            .collect();
+
+        let mut edge_set: HashSet<(u64, u64, EdgeType)> = HashSet::new();
+        for &id in &old_ids {
+            for e in graph.outgoing_edges(id) {
+                edge_set.insert((e.from, e.to, e.edge_type));
+            }
+            for e in graph.incoming_edges(id) {
+                edge_set.insert((e.from, e.to, e.edge_type));
+            }
+        }
+        let mut removed_edges: Vec<_> = edge_set.into_iter().collect();
+        removed_edges.sort();
+
+        Self {
+            previously_public,
+            previously_privileged,
+            previously_boundary,
+            previously_imported,
+            old_identity_set,
+            removed_edges,
+        }
     }
 }
 
@@ -75,43 +238,17 @@ impl GraphDelta {
 pub fn update_file(graph: &mut SymbolGraph, new_symbols: FileSymbols) -> GraphDelta {
     let file = new_symbols.file.clone();
 
-    // Collect existing import targets BEFORE removing the file, so the
-    // new-dep invariant can distinguish genuinely new imports from re-added ones.
-    let old_symbols = graph.symbols_in_file(&file);
-    let old_ids = old_symbols.iter().map(|s| s.id).collect::<Vec<_>>();
-    // Stable identities are assigned over the file's full parse-ordered
-    // symbol list (GV2-002): ordinals disambiguate same-(kind, name)
-    // overloads regardless of visibility, so the baselines below stay
-    // distinct per overload instead of collapsing into one key.
-    // INVARIANT: symbols_in_file returns insertion order, which equals parse
-    // order because update_file feeds FileSymbols.symbols in parser emission
-    // order — the ordering contract for_file_symbols documents.
-    let old_identities = SymbolIdentity::for_file_symbols(&old_symbols);
-    let previously_public: HashSet<SymbolIdentity> = old_symbols
-        .iter()
-        .zip(&old_identities)
-        .filter(|(s, _)| s.visibility == Visibility::Public)
-        .map(|(_, identity)| identity.clone())
-        .collect();
-    let previously_privileged: HashSet<SymbolIdentity> = old_symbols
-        .iter()
-        .zip(&old_identities)
-        .filter(|(s, _)| s.trust_level == TrustLevel::Privileged)
-        .map(|(_, identity)| identity.clone())
-        .collect();
-    let previously_boundary: HashSet<SymbolIdentity> = old_symbols
-        .iter()
-        .zip(&old_identities)
-        .filter(|(s, _)| s.trust_level == TrustLevel::Boundary)
-        .map(|(_, identity)| identity.clone())
-        .collect();
-    drop(old_symbols);
-    let previously_imported: HashSet<String> = old_ids
-        .iter()
-        .flat_map(|&id| graph.outgoing_edges(id))
-        .filter(|e| e.edge_type == EdgeType::Imports)
-        .filter_map(|e| graph.get_symbol(e.to).map(|s| s.file.clone()))
-        .collect();
+    // Snapshot everything about the file's prior state that `remove_file` is
+    // about to destroy (baselines, prior identities, incident edges).
+    let before = PriorState::capture(graph, &file);
+    let PriorState {
+        previously_public,
+        previously_privileged,
+        previously_boundary,
+        previously_imported,
+        old_identity_set,
+        removed_edges,
+    } = before;
 
     let removed_ids = graph.remove_file(&file);
 
@@ -185,17 +322,74 @@ pub fn update_file(graph: &mut SymbolGraph, new_symbols: FileSymbols) -> GraphDe
         }
     }
 
+    // GV2-003: classify the file's nodes against their prior identities.
+    // `update_file` removes-then-re-adds, so a body edit re-inserts the same
+    // identity under a fresh id — that is a `Changed`, not an `Added`. A new
+    // identity is `Added`; a prior identity now absent is `Removed`.
+    let node_changes = classify_node_changes(graph, &file, &old_identity_set);
+
     GraphDelta {
+        schema_version: GRAPH_DELTA_SCHEMA_VERSION,
         added_symbols: added_ids,
         removed_symbols: removed_ids,
         added_edges,
-        removed_edges: Vec::new(),
+        removed_edges,
+        node_changes,
         errors,
         previously_imported,
         previously_public,
         previously_privileged,
         previously_boundary,
         file,
+    }
+}
+
+/// Build the identity-anchored [`NodeChange`] list for `file` against the
+/// `before` identity set (GV2-003).
+///
+/// Reads the post-update symbols of `file` from `graph`, assigns their stable
+/// identities, and partitions: a post-update identity present in `before` is
+/// `Changed` (re-inserted), absent from `before` is `Added`; a `before`
+/// identity absent post-update is `Removed`. Output is sorted for a
+/// reproducible delta.
+fn classify_node_changes(
+    graph: &SymbolGraph,
+    file: &str,
+    before: &HashSet<SymbolIdentity>,
+) -> Vec<NodeChange> {
+    let current = graph.symbols_in_file(file);
+    let current_identities = SymbolIdentity::for_file_symbols(&current);
+    let current_set: HashSet<SymbolIdentity> = current_identities.iter().cloned().collect();
+
+    let mut changes: Vec<NodeChange> = Vec::new();
+    for identity in &current_identities {
+        if before.contains(identity) {
+            changes.push(NodeChange::Changed(identity.clone()));
+        } else {
+            changes.push(NodeChange::Added(identity.clone()));
+        }
+    }
+    for identity in before {
+        if !current_set.contains(identity) {
+            changes.push(NodeChange::Removed(identity.clone()));
+        }
+    }
+    changes.sort_by(|a, b| {
+        // Stable, total order: by identity, then by variant rank so an
+        // Added/Changed/Removed of the same identity never reorder
+        // non-deterministically.
+        a.identity()
+            .cmp(b.identity())
+            .then_with(|| variant_rank(a).cmp(&variant_rank(b)))
+    });
+    changes
+}
+
+fn variant_rank(change: &NodeChange) -> u8 {
+    match change {
+        NodeChange::Added(_) => 0,
+        NodeChange::Changed(_) => 1,
+        NodeChange::Removed(_) => 2,
     }
 }
 
@@ -331,10 +525,37 @@ pub fn re_resolve_imports(graph: &mut SymbolGraph, imports: &[ImportEdge]) {
 }
 
 /// Remove a deleted file from the graph entirely.
+///
+/// GV2-003: reports the full removal honestly — `removed_edges` carries every
+/// edge incident to the file's symbols, and `node_changes` lists each removed
+/// identity as [`NodeChange::Removed`] — so a delete is a complete event, not
+/// just a list of vanished ids.
 pub fn remove_file(graph: &mut SymbolGraph, file: &str) -> GraphDelta {
+    let old_symbols = graph.symbols_in_file(file);
+    let old_ids: Vec<u64> = old_symbols.iter().map(|s| s.id).collect();
+    let removed_node_changes: Vec<NodeChange> = SymbolIdentity::for_file_symbols(&old_symbols)
+        .into_iter()
+        .map(NodeChange::Removed)
+        .collect();
+    drop(old_symbols);
+
+    let mut removed_edge_set: HashSet<(u64, u64, EdgeType)> = HashSet::new();
+    for &id in &old_ids {
+        for e in graph.outgoing_edges(id) {
+            removed_edge_set.insert((e.from, e.to, e.edge_type));
+        }
+        for e in graph.incoming_edges(id) {
+            removed_edge_set.insert((e.from, e.to, e.edge_type));
+        }
+    }
+    let mut removed_edges: Vec<_> = removed_edge_set.into_iter().collect();
+    removed_edges.sort();
+
     let removed_ids = graph.remove_file(file);
     GraphDelta {
         removed_symbols: removed_ids,
+        removed_edges,
+        node_changes: removed_node_changes,
         file: file.to_string(),
         ..Default::default()
     }

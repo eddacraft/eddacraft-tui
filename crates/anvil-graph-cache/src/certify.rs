@@ -21,11 +21,14 @@
 //!
 //! # Reverse-impact discovery (council verdict B1)
 //!
-//! Importer discovery reads [`DependencyGraph::dependents_of`] **exclusively**.
-//! The `GraphDelta::removed_edges` channel is always empty (`incremental.rs`
-//! never populates it), so certify must never branch on it. The daemon caches
-//! the `(SymbolGraph, DependencyGraph)` pair (DSV-004 Task 7) precisely so this
-//! reverse index is reachable on the hot path.
+//! Importer discovery reads [`DependencyGraph::dependents_of`] **exclusively**,
+//! never `GraphDelta::removed_edges`: a removed *symbol* edge does not imply a
+//! removed *file* dependency (another symbol in the same file may carry the
+//! same import), so the resident reverse index is the only sound importer
+//! source. GV2-003 populates `removed_edges`, but this path still must not
+//! branch on it. The daemon caches the `(SymbolGraph, DependencyGraph)` pair
+//! (DSV-004 Task 7) precisely so this reverse index is reachable on the hot
+//! path.
 //!
 //! # Crate boundary (ADR-064 §2)
 //!
@@ -185,7 +188,9 @@ impl ExportSurfaceDiff {
 /// overlap is by construction, not double-counting.
 ///
 /// Reads only the `previously_*` baselines and the post-update graph; never
-/// touches `delta.removed_edges` (always empty).
+/// touches `delta.removed_edges` (the certify verdict reads importers from the
+/// `DependencyGraph` reverse index, not the per-update edge churn — GV2-003
+/// populates `removed_edges`, but this path still does not branch on it).
 #[must_use]
 pub fn export_surface_diff(sym: &SymbolGraph, delta: &GraphDelta) -> ExportSurfaceDiff {
     let current = sym.symbols_in_file(&delta.file);

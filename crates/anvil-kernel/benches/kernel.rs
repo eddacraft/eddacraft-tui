@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -531,17 +530,11 @@ layers:
 
             let delta = GraphDelta {
                 added_symbols: (0..delta_symbols).collect(),
-                removed_symbols: Vec::new(),
                 added_edges: (0..edge_count)
                     .map(|i| (i, 100 + i, EdgeType::Imports))
                     .collect(),
-                removed_edges: Vec::new(),
-                errors: Vec::new(),
-                previously_imported: HashSet::new(),
-                previously_public: HashSet::new(),
-                previously_privileged: HashSet::new(),
-                previously_boundary: HashSet::new(),
                 file: "src/domain/mod_0.ts".to_string(),
+                ..Default::default()
             };
 
             group.bench_with_input(

@@ -242,7 +242,7 @@ Change status to **Ready** when:
 
 #### GV2-003: Complete graph delta and event contract
 
-- **Status:** Draft
+- **Status:** In Progress — dependency GV2-002 Merged (PR #2387)
 - **Intent:** Make graph changes observable as complete, deterministic deltas.
   Today `GraphDelta.removed_edges` is permanently empty and a modify is modelled
   as full churn; fix the incremental pipeline to populate removed edges and a
@@ -250,7 +250,16 @@ Change status to **Ready** when:
 - **Expected Outcome:** Delta contract includes added/removed/changed nodes,
   added/removed/changed edges, affected files, identity anchors, content hashes,
   provenance metadata, and `schema_version` — with no field that lies about its
-  capability.
+  capability. Per-row delivery (the "no lying field" principle decides what
+  ships as a field vs a documented reference): `removed_edges` is now
+  **populated** (was permanently empty); a `node_changes` channel anchors
+  added/changed/removed nodes to stable `SymbolIdentity` (the identity
+  anchors); `schema_version` is carried on every delta. **Content hashes** ride
+  the `FileSymbols` parser feed (hashed at the `validate_paths` boundary — not
+  recomputable in graph-cache without file bytes) and **provenance/session
+  metadata** is join-time-only (privacy verdict PV-3); neither is added as a
+  `GraphDelta` field because this layer cannot populate them truthfully —
+  documented on the type rather than shipped as an empty lying field.
 - **Validation:** Property test confirms full rebuild and replayed delta
   sequences (incl. atomic-save inode flip, rename = delete+create,
   delete/recreate) produce equivalent observable `(SymbolGraph, DependencyGraph)`
