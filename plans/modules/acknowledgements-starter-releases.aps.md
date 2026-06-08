@@ -3,9 +3,9 @@
 
 # Acknowledgements Starter Releases
 
-| ID     | Owner      | Status      |
-| ------ | ---------- | ----------- |
-| ATTRIB | joshuaboys | In Progress |
+| ID     | Owner      | Status   |
+| ------ | ---------- | -------- |
+| ATTRIB | joshuaboys | Complete |
 
 **Last reviewed:** 2026-06-08
 
@@ -93,7 +93,7 @@ for consumers.
 
 ### ATTRIB-017: Versioned releases on the acknowledgements-starter mirror
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-08 via PR #2418
 - **Intent:** Consumers of the public mirror can be notified of updates, read a
   changelog, and pin to an immutable version.
 - **Expected Outcome:** A deliberate `vX.Y.Z` tag + GitHub Release surface on
@@ -130,3 +130,13 @@ in sync on rolling `main` (mirror run 27118992612, 2026-06-08); the gap is the
 **1.0.0** by operator directive (four ecosystem drivers + bundled-binaries have
 shipped; the contract is stable). Kept as a single work item with a 7-action
 execution plan, matching the ATTRIB-011 precedent.
+
+**Complete 2026-06-08.** Implementation merged via PR #2418 (release workflow,
+shared `check-version.sh`, kit self-test, runbook, consumer pinning docs;
+survived a 3-lens Council + Copilot review). First cut **`v1.0.0`** landed on
+`eddacraft/acknowledgements-starter` (release run 27128030923): mirror tag
+`v1.0.0` present, GitHub Release marked latest with changelog-derived notes,
+`git subtree add … v1.0.0 --squash` round-trip verified. Mirror tag-protection
+pre-flight was clean (no rulesets, no classic protection). The operator-only
+steps in the actions plan (pre-flight + first cut) are done; remaining future
+releases follow `docs/runbooks/acknowledgements-starter-release.md`.
