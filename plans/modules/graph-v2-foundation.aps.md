@@ -496,7 +496,11 @@ Change status to **Ready** when:
 
 #### GV2-022: Hot-path read API and latency guardrails
 
-- **Status:** Draft
+- **Status:** In Progress — dep GV2-011 Merged (PR #2428); `hot_index.rs`
+  hot-read API landed on `feat/gv2-022-hot-read-api` (the four ADR-063 allowlist
+  reads behind `HotRead`/`HotReadMiss`, hard-capped `reverse_impact`,
+  miss-degrades-to-fallback). Merged flip + count reconcile follow in a
+  post-merge `chore(aps)` PR (the #2421/#2432 pattern).
 - **Intent:** Expose the specific warmed reads the daemon and drivers may use
   during save-time or mid-edit enforcement, with explicit warm/stale markers and
   a miss-degrades-to-fallback rule (never escalate to parse/rebuild/IO on the hot

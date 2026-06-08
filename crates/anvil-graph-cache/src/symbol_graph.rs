@@ -82,6 +82,15 @@ impl SymbolGraph {
         self.index.get(&id).map(|idx| &self.graph[*idx])
     }
 
+    /// Whether `file` is resident in the graph (it has been extracted and at
+    /// least one symbol was recorded). Distinguishes "resident but empty"
+    /// reads from "never seen / evicted" on the hot path — O(1), no scan.
+    /// A symbol-less file leaves no `files` entry, so it reads as non-resident;
+    /// the hot-read API treats that as a warm-miss rather than a false empty.
+    pub fn contains_file(&self, file: &str) -> bool {
+        self.files.contains_key(file)
+    }
+
     pub fn get_symbol_mut(&mut self, id: u64) -> Option<&mut SymbolNode> {
         self.index.get(&id).map(|idx| &mut self.graph[*idx])
     }

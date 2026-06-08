@@ -47,6 +47,14 @@ impl DependencyGraph {
             .unwrap_or_default()
     }
 
+    /// Whether the directed dependency edge `from → to` exists (i.e. `from`
+    /// imports `to`). Answered in O(1)/O(degree) from the resident forward
+    /// index without allocating — the hot-path "known-edge existence" read
+    /// (ADR-063 allowlist #2).
+    pub fn has_edge(&self, from: &str, to: &str) -> bool {
+        self.edges.get(from).is_some_and(|deps| deps.contains(to))
+    }
+
     /// Get all files that directly import `file`.
     pub fn dependents_of(&self, file: &str) -> Vec<&str> {
         self.reverse
