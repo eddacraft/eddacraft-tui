@@ -293,18 +293,18 @@ Change status to **Ready** when:
 - **Status:** In Progress (2026-06-08, `feat/gv2-010-semantic-graph-schema`) —
   partially shipped under Sub-phase A (`SymbolNode`, `EdgeType`, `Visibility`
   exist); this item adds the gaps and splits by consumer. v0.8.0 deliverable
-  (ADR-075 decision): the `Reexport` first-class edge + extraction (A′-critical)
+  (ADR-075 decision): the `Reexports` first-class edge + extraction (A′-critical)
   and the GCTX-projection **schema types** (no-text `ByteRange` span scaffolding);
   call/reference/language-metadata *population* is deferred to GCTX/v0.9.
 - **Intent:** Expand the current symbol/import graph into the canonical semantic
   code graph, separating the A′-critical subset from the GCTX-projection subset.
 - **Expected Outcome:** **A′-critical subset** — stable identity wiring
-  (GV2-002), visibility, import/dependency edges, and a `Reexport` edge type
+  (GV2-002), visibility, import/dependency edges, and a `Reexports` edge type
   (today re-export recursion rides file-level `dependents_of`). **GCTX-projection
   subset** — source spans (no-text `ByteRange` only), calls, references, and
   language metadata, added as additive fields that never persist raw bodies.
 - **Validation:** Snapshot fixtures for TS/JS plus one future-language fixture
-  show deterministic node/edge output, including a `Reexport` edge case —
+  show deterministic node/edge output, including a `Reexports` edge case —
   `cargo test -p eddacraft-anvil-graph-cache -- schema_fixtures`
 - **Files:** `crates/anvil-kernel-types/src/graph.rs`,
   `crates/anvil-kernel/src/parser/extract/mod.rs`

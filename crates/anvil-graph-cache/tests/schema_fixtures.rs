@@ -1,5 +1,5 @@
 //! GV2-010 schema fixtures — deterministic node/edge output for the semantic
-//! code graph v2 schema, including the first-class `Reexport` edge.
+//! code graph v2 schema, including the first-class `Reexports` edge.
 //!
 //! `anvil-graph-cache` deliberately does not link the parser (ADR-064 —
 //! `anvil-kernel` depends on this crate, so a dev-dependency back would cycle).
@@ -152,7 +152,7 @@ fn schema_fixtures_rust_pub_use_reexport_future_language() {
 
 #[test]
 fn schema_fixtures_reexport_edge_type_is_first_class() {
-    // The Reexport edge variant is distinct from Imports, so impact analysis
+    // The Reexports edge variant is distinct from Imports, so impact analysis
     // can tell a re-export (widens the surface) from a plain dependency.
     let re = SymbolEdge {
         from: 1,

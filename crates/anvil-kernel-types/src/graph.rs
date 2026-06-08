@@ -212,13 +212,14 @@ pub struct ImportEdge {
 /// A re-export edge: `from_file` re-exports `exported_name` from `to_source`
 /// (`export { exported_name } from "to_source"`, Rust `pub use to_source`).
 ///
-/// Modelled as a **symbol → module** edge (GV2-010 decision): the re-exported
-/// name in `from_file` points at the source module, mirroring [`ImportEdge`]
-/// but carrying the name so impact analysis can attribute the widened public
-/// surface to a specific export. A wildcard re-export (`export * from "m"`,
-/// `pub use m::*`) uses `exported_name == "*"`. Carries no source text
-/// (privacy line): names and the module specifier are identity strings, not
-/// bodies.
+/// A **file-level carrier** (`from_file` → `to_source`, mirroring
+/// [`ImportEdge`]) that names the re-exported symbol in `exported_name`. This
+/// realizes the GV2-010 symbol→module re-export relationship at file
+/// granularity — enough for impact analysis to attribute the widened public
+/// surface to a specific export; lifting to symbol-level endpoints is GV2-011's
+/// job. A wildcard re-export (`export * from "m"`, `pub use m::*`) uses
+/// `exported_name == "*"`. Carries no source text (privacy line): names and the
+/// module specifier are identity strings, not bodies.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ReexportEdge {
     /// The re-exporting file (workspace-root-relative).
