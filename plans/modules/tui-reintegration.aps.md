@@ -5,9 +5,14 @@
 
 | ID   | Owner      | Status      | Progress |
 | ---- | ---------- | ----------- | -------- |
-| TUIR | joshuaboys | In Progress | 9/10     |
+| TUIR | joshuaboys | Done | 10/10     |
 
-**Last reviewed:** 2026-06-08 — TUIR-010 `Merged 2026-06-08` via PR #2392:
+**Last reviewed:** 2026-06-08 — TUIR-008 `Done` by operator evidence:
+canonical publishes from Anvil are proven, the mirror is healthy and
+TUIMIRROR is archived, the legacy mirror `CARGO_REGISTRY_TOKEN` has been
+revoked, and the private `eddacraft/eddacraft-skills` `[patch.crates-io]`
+consumer check passed. This closes the final TUIR work item and advances
+Progress **9/10 → 10/10**. Prior: 2026-06-08 — TUIR-010 `Merged 2026-06-08` via PR #2392:
 deploys the `mirror-drift-check.yml` watchdog D-TUIR-018
 specified and the mirror workflow flagged as not-yet-deployed.
 Replicates the push-side subtree-split + banner-swap inline
@@ -918,7 +923,7 @@ zero hits.
 
 ### TUIR-008: End-to-end verification and TUIMIRROR retirement
 
-- **Status:** open
+- **Status:** Done
 - **Intent:** Prove the in-repo crate, Anvil consumers, mirror, publish
   path, and policy docs work as one operating model, and archive the
   superseded TUIMIRROR module.
@@ -968,14 +973,11 @@ zero hits.
   branch ruleset, which the public mirror cannot use because the
   `eddacraft-mirror-bot` App force-pushes `main`; and **TUIMIRROR is now
   archived** to `plans/archive/modules/` with a redirect note + index row
-  repointed. **Two operator-only items remain before this flips to
-  Merged:** (1) revoke the legacy crates.io token (`CARGO_REGISTRY_TOKEN`
-  on the `eddacraft/eddacraft-tui` repo secrets, set 2026-04-10) — safe
-  now that three canonical publishes have shipped, needs crates.io auth;
-  (2) the operator-driven `cargo check` of the private
-  `eddacraft/eddacraft-skills` against the candidate via `[patch.crates-io]`
-  (not reachable from this workspace's CI). Status stays `open` pending
-  those two.
+  repointed. **Operator update 2026-06-08:** the legacy crates.io token
+  (`CARGO_REGISTRY_TOKEN` on the `eddacraft/eddacraft-tui` repo secrets,
+  set 2026-04-10) has been revoked, and the operator-driven `cargo check`
+  of the private `eddacraft/eddacraft-skills` against the candidate via
+  `[patch.crates-io]` passed. Status flips from `open` to `Done`.
 
 **changeType:** internal
 **releaseIntent:** candidate

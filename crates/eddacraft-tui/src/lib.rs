@@ -26,6 +26,8 @@
 //! | [`pretext`] | Two-phase prepare/layout text engine — measure once, lay out cheaply |
 //! | [`theme`] | `Theme` trait + `EddaCraftTheme` implementation |
 //! | [`keyboard`] | `KeyHandler` mapping crossterm events to semantic `Action`s |
+//! | `lifecycle` (feature `lifecycle`) | Terminal raw-mode / alternate-screen guard and panic restore |
+//! | `runner` (feature `runner`) | Small fallback CLI shell for consumers without their own parser |
 //! | [`surface`] | `Surface` trait for multi-screen TUI applications |
 //! | [`shell`] | Branded header/footer chrome renderer |
 //! | [`compat`] | Terminal detection and minimum-size validation |
@@ -40,7 +42,13 @@ pub mod compat;
 #[cfg_attr(docsrs, doc(cfg(feature = "json-render")))]
 pub mod json_render;
 pub mod keyboard;
+#[cfg(feature = "lifecycle")]
+#[cfg_attr(docsrs, doc(cfg(feature = "lifecycle")))]
+pub mod lifecycle;
 pub mod pretext;
+#[cfg(feature = "runner")]
+#[cfg_attr(docsrs, doc(cfg(feature = "runner")))]
+pub mod runner;
 pub mod shell;
 pub mod surface;
 #[cfg(any(test, feature = "test-utils"))]
@@ -54,6 +62,9 @@ pub mod prelude {
     pub use crate::animation::{animate_tick, is_animating};
     pub use crate::compat::{TerminalInfo, detect_terminal, validate_minimum_size};
     pub use crate::keyboard::{Action, Binding, KeyHandler};
+    #[cfg(feature = "lifecycle")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "lifecycle")))]
+    pub use crate::lifecycle::{TerminalGuard, restore_terminal};
     pub use crate::pretext::{ExclusionZone, LayoutResult, PositionedWord, PreparedText};
     pub use crate::shell::{ShellBranding, render_shell};
     pub use crate::surface::Surface;

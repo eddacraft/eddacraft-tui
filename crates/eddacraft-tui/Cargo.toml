@@ -37,9 +37,12 @@ image = { version = "0.25", default-features = false, optional = true }
 # consumers that render json-render dashboard specs (TUIDASH).
 serde = { version = "1", features = ["derive"], optional = true }
 serde_json = { version = "1", optional = true }
+lexopt = { version = "0.3", optional = true }
 
 [features]
 test-utils = []
+lifecycle = []
+runner = ["lifecycle", "dep:lexopt"]
 # Enabling `image` pulls a substantial transitive graph (ratatui-image, image,
 # rayon, the windows crate family, icy_sixel, etc.). Build time and binary
 # size grow accordingly — only enable if `ImagePane` is needed.

@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Date
 
@@ -17,6 +17,17 @@ Proposed
   still opt-in, still parser-light, still no `clap` in core, still no `[[bin]]`
   in the crate, but now explicitly capable of global flags, first-level
   subcommand dispatch, and consumer-owned config loading hooks.
+- **2026-06-08:** Operator override accepts this ADR and authorises TUIN-012
+  implementation before the seven-consecutive-green mirror-drift observation
+  window completes. TUIR-008 is closed; the override is limited to the runner
+  fallback CLI shell and does not relax the ADR's no-`clap`, opt-in feature,
+  no-`[[bin]]`, and consumer-owned command semantics boundaries.
+- **2026-06-08:** TUIN-012 implementation review narrowed the first shipped
+  runner boundary: the fallback shell owns global parsing, first-level command
+  selection, config-path handoff, and typed `--theme` / `--no-tui` hints. It
+  exposes `lifecycle` transitively but does not automatically enter raw mode,
+  apply themes, or run an event/render loop; those remain consumer-owned until a
+  follow-up lifecycle/render-loop work item explicitly designs them.
 
 ## Context
 
@@ -43,8 +54,8 @@ Two consumer shapes drive the decision:
    (`eddacraft-skills` today; `anvil-plan-spec` and other future Rust
    ports of currently-TS surfaces) — they want to ship a usable
    terminal experience without re-implementing argument parsing,
-   alt-screen lifecycle, panic restore, theme selection, and mode
-   detection from scratch. The "library wins, app loses" framing
+   first-level dispatch, and config-path handoff from scratch. The
+   "library wins, app loses" framing
    (TUIR D-TUIR-014's spirit) leaves these consumers paying the same
    integration tax Anvil pays at the widget layer — but for the
    *application* layer instead of the *library* layer.
@@ -74,8 +85,8 @@ consumer. A library-shaped consumer must:
 - discover the right helper APIs from rustdoc and stitch them
   together;
 - own its own `[[bin]]` plus a hand-rolled `fn main()` that wires
-  parser → mode detection → terminal lifecycle → render loop →
-  panic-restore;
+  parser → first-level command selection → config path handoff → command
+  execution;
 - replicate this for every new consumer.
 
 The forces TUIN must balance:
@@ -126,12 +137,14 @@ fn main() -> std::process::ExitCode {
 The runner is a **small fallback CLI shell**, not a full CLI framework.
 It owns the common application-layer plumbing that otherwise gets
 rewritten by every small consumer: global flag parsing, mode selection,
-terminal lifecycle, panic restore, theme selection, config-file handoff,
-and first-level subcommand dispatch. It deliberately does **not** own
-domain command semantics, nested command trees, shell completions,
-environment-variable binding, or rich validation. Consumers that need
-those bring their own parser and call lower-level runner / lifecycle
-helpers.
+config-file handoff, and first-level subcommand dispatch. TUIN-012 narrows the
+first shipped boundary: `--theme` and `--no-tui` are typed runner-level hints,
+while terminal lifecycle entry, theme application, and event/render-loop
+behaviour remain consumer-owned until a follow-up explicitly designs those
+pieces. The runner deliberately does **not** own domain command semantics,
+nested command trees, shell completions, environment-variable binding, or rich
+validation. Consumers that need those bring their own parser and call lower-level
+runner / lifecycle helpers.
 
 The exact API surface lands in TUIN-003 / TUIN-004; the policy this
 ADR locks is the contract:
@@ -140,13 +153,13 @@ ADR locks is the contract:
 | --- | --- |
 | **No `clap` (or equivalent heavy parser) in core's default build** | Upheld from TUIR Out-of-Scope. The `runner` feature MAY pull a minimal parser (`lexopt` is the working assumption — zero-dep, ~300 LoC) for global args (`--help`, `--version`, `--theme`, `--no-tui`, `--config`) plus first-level subcommand dispatch. |
 | **`runner` is opt-in** | Defaulted OFF. Consumers that want only widgets and themes (Anvil today) pay zero cost. |
-| **`runner` composes other opt-in features, not replaces them** | `runner` enables `lifecycle` (D-TUIN-003) transitively. Mode-detection (D-TUIN-002, core / unflagged) is available regardless. |
+| **`runner` composes other opt-in features, not replaces them** | `runner` enables `lifecycle` (D-TUIN-003) transitively so consumer code can opt into `TerminalGuard` without composing both flags manually. TUIN-012 does not make `launch_cli` enter raw mode automatically. |
 | **`runner` takes a consumer-supplied app, not a pre-baked one** | Public `TerminalCli` / `TerminalApp` (working names) traits the consumer implements. `launch_cli<C: TerminalCli>(cli: C) -> ExitCode` is the command-shell entry point; single-app consumers may still use a narrower `launch_default<A: TerminalApp>(app: A) -> ExitCode` adapter if TUIN-004 keeps it. |
 | **Subcommands are first-level and consumer-owned** | The runner parses the global shell envelope and selects one declared command. The consumer owns the command enum / payload, command-specific parsing, execution, and help copy beyond the shared envelope. Nested subcommands or rich validation are an explicit signal to use a consumer-owned parser. |
 | **Config loading is a hook, not a format mandate** | `--config <path>` is a shared global flag, but `eddacraft-tui` does not pick TOML/YAML/JSON, config discovery paths, schema validation, or merge semantics. The consumer receives the optional path and returns its own config type. |
 | **No `[[bin]]` in core** | Upheld from D-TUIN-004. The `[[bin]]` lives in each consumer crate; `eddacraft-tui` ships the library helper they call. |
 | **Anvil does not adopt the runner** | Anvil keeps its `clap::Parser` tree, `EXIT_*` constants, and `TerminalGuard` (`crates/anvil-cli/src/tui.rs`). The runner is for consumers without an existing CLI, not a migration target for those with one. |
-| **`TerminalGuard` migrates to `eddacraft-tui::lifecycle`** | The Anvil-side implementation (`anvil-cli/src/tui.rs:46-101`) is the reference; TUIN-004 moves it to `crates/eddacraft-tui/src/lifecycle/`. Whether Anvil re-exports the moved type or keeps its local one is an Anvil-internal call deferred to TUIN-004 implementation (or a follow-up ADR if the decision needs to be load-bearing); the consumer survey in TUIN-002 covers external consumers, not Anvil's own posture. |
+| **`TerminalGuard` migrates to `eddacraft-tui::lifecycle`** | The Anvil-side implementation (`anvil-cli/src/tui.rs:46-101`) is the reference; TUIN-012 moves the RAII guard and best-effort panic restore to `crates/eddacraft-tui/src/lifecycle.rs`. Whether Anvil re-exports the moved type or keeps its local one is an Anvil-internal call deferred to a follow-up if the decision needs to be load-bearing; the consumer survey in TUIN-002 covers external consumers, not Anvil's own posture. |
 | **A sibling `eddacraft-tui-cli` crate is NOT created** | D-TUIN-001 left both "opt-in feature flag" and "sibling crate" on the table. ADR-050 picks the feature-flag path: lower friction for consumers, no extra publish/release surface, and `runner`-feature consumers naturally opt out of the parser weight if they don't enable it. A future split into a sibling crate would require its own ADR. |
 
 ### Renames in TUIN
@@ -166,7 +179,13 @@ This ADR also fixes a TUIN scope-framing issue surfaced during draft:
   `TerminalCli` / `TerminalApp` trait shape that TUIN-003 / TUIN-004
   land.
 
-### Reference runner contract (illustrative — not normative for this ADR)
+### Future runner contract (illustrative — not normative for TUIN-012)
+
+TUIN-012 ships the smaller fallback shell boundary: global parsing,
+first-level command selection, config-path handoff, and typed mode/theme hints.
+The following sketch captures the larger event/render-loop shape that may be
+reopened by a future lifecycle/render-loop work item; it is intentionally not the
+TUIN-012 API contract.
 
 ```rust
 // crates/eddacraft-tui/src/runner/mod.rs   (under feature = "runner")
@@ -276,8 +295,8 @@ the opt-in shape.
 
 The bare TUIN-001..-004 surface lands the *primitives* (mode
 detection, lifecycle, examples), but each consumer must still write
-the same ~50 lines of glue: parse args, install panic hook, enter
-alt-screen, build terminal, instantiate theme, run loop, restore.
+the same glue around argument parsing, global flags, first-level command
+selection, config path handoff, and error reporting.
 For Anvil that's fine — Anvil has the glue and a strong reason to
 own it. For library-shaped consumers (`eddacraft-skills`,
 `anvil-plan-spec` future Rust port, any consumer-without-CLI), the
@@ -287,10 +306,11 @@ trivial without preventing the bespoke thing.
 
 The 2026-06-08 consumer signal strengthens that rationale: two
 imminent consumers need CLI tools as well as TUI surfaces. If the
-fallback stops at "single render loop plus `--theme`", both consumers
-still duplicate the same command envelope, config handoff, and mode
-selection. The runner should absorb that shared shell, while leaving
-each consumer's command semantics in the consumer crate.
+fallback stops at examples and lifecycle helpers, both consumers still
+duplicate the same command envelope, config handoff, and mode/theme
+hints. The runner should absorb that shared shell, while leaving each
+consumer's command semantics and TUI execution model in the consumer
+crate.
 
 The "library wins, app loses" framing TUIR uses to justify zero
 in-core Anvil dependencies is fully consistent here: the runner is
@@ -341,7 +361,7 @@ the swap is a TUIN-003 implementation note rather than a new ADR.
 
 | Option | Pros | Cons |
 | --- | --- | --- |
-| **Chosen: opt-in `runner` feature in core, small fallback CLI shell, no `[[bin]]` in core** | Single-crate consumption surface; opt-in posture preserves widget-only consumers' weight budget; global flags, first-level subcommand dispatch, config handoff, lifecycle, and render-loop plumbing stop being duplicated across near-term consumers; consumer ships its own `[[bin]]` so domain CLI shape stays under consumer control. | Couples runner cadence to widget cadence; `runner` feature surface grows the published `Cargo.toml` even when the feature is off; first-level dispatch may be too small for some consumers. |
+| **Chosen: opt-in `runner` feature in core, small fallback CLI shell, no `[[bin]]` in core** | Single-crate consumption surface; opt-in posture preserves widget-only consumers' weight budget; global flags, first-level subcommand dispatch, config handoff, and typed mode/theme hints stop being duplicated across near-term consumers; consumer ships its own `[[bin]]` so domain CLI shape stays under consumer control. | Couples runner cadence to widget cadence; `runner` feature surface grows the published `Cargo.toml` even when the feature is off; first-level dispatch may be too small for some consumers; lifecycle/render-loop glue still needs a follow-up if consumers want it shared. |
 | **Sibling crate `eddacraft-tui-cli`** | Stronger separation of cadences; widget consumers never see the runner surface. | Two-crate consumption; version-skew risk; another publish workflow to maintain (TUIR-005 currently scopes one publish workflow only). |
 | **No runner — ship lifecycle + parser helpers individually** | Smallest surface area; maximally composable. | Every consumer rewrites the glue; failure mode is "consumers stop reaching for `eddacraft-tui` for CLI-shaped projects and grow their own incompatible scaffolding". |
 | **Ship a `[[bin]]` in core that runs a demo** | Trivially discoverable. | D-TUIN-004 forbids this for good reason: `[[bin]]` pulls the CLI dependency surface into the default build, breaks the library contract. The demo case is well served by `examples/` (D-TUIN-004 / TUIN-005). |
@@ -355,10 +375,9 @@ the swap is a TUIN-003 implementation note rather than a new ADR.
     lines of glue.
   - The "library wins, app loses" trade-off TUIR carries forward
     stops costing consumers their application layer.
-  - The runner sets a single, opinionated default for terminal
-    lifecycle, panic restore, theme selection, mode detection, global
-    flags, first-level command dispatch, and config handoff that
-    downstream consumers don't have to re-derive.
+  - The runner sets a single, opinionated default for global flags,
+    first-level command dispatch, config handoff, and typed mode/theme
+    hints that downstream consumers don't have to re-derive.
   - Anvil's existing CLI is untouched; widget-only consumers pay zero
     cost; the runner is opt-in throughout.
 
@@ -386,10 +405,10 @@ the swap is a TUIN-003 implementation note rather than a new ADR.
     until at least one external consumer ships against them.
   - **Fallback shell grows into a full CLI framework by accretion.**
     Mitigation: ADR-050 draws the boundary at global flags,
-    first-level subcommand dispatch, config handoff, lifecycle, and
-    render loop. Nested command trees, completions, env binding, rich
-    validation, and domain command semantics stay consumer-owned unless
-    a future ADR explicitly changes that boundary.
+    first-level subcommand dispatch, config handoff, and typed mode/theme
+    hints. Terminal lifecycle entry, render loop, nested command trees,
+    completions, env binding, rich validation, and domain command semantics
+    stay consumer-owned unless a future ADR explicitly changes that boundary.
   - **Anvil reviewers reach for the runner anyway during refactors.**
     Mitigation: this ADR explicitly names Anvil as a non-adopter;
     `crates/anvil-cli/src/tui.rs` keeps its own `TerminalGuard`
