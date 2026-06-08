@@ -846,6 +846,7 @@ mod tests {
     /// (with its `classify_change`) drives a real `SaveTimeConn` over the real
     /// parser: a cold first save warms the graph (`Partial`), and a
     /// self-contained re-save certifies through the client.
+    #[cfg(unix)]
     #[test]
     fn watch_client_certifies_through_real_daemon_parser() {
         use anvil_checks::antipattern::types::AntipatternCheckConfig;
