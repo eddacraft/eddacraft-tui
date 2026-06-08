@@ -123,6 +123,35 @@ fn python_only_repo_state_is_unsupported() {
 
 #[cfg(not(target_os = "windows"))]
 #[test]
+fn rust_only_repo_is_supported_not_unsupported() {
+    // RSTLAN reconciliation: Rust ships the antipattern catalogue,
+    // default `.rs` scanning, and architecture analysis, so a
+    // Rust-only repo must report the `supported` tier and must NOT
+    // collapse to the `unsupported` protection state. Without MCP
+    // wiring the state is `needs_action` (the user can still get
+    // coverage), exactly like the TS-only case.
+    let dir = tempfile::tempdir().unwrap();
+    write(&dir.path().join("src/main.rs"), "fn main() {}\n");
+    write(&dir.path().join("src/lib.rs"), "pub fn f() {}\n");
+    write(
+        &dir.path().join(".anvilrc"),
+        "profile: default\nchecks: []\n",
+    );
+
+    let parsed = run_verify_json(dir.path());
+    let langs = parsed["repo_languages"].as_array().unwrap();
+    let rust = langs
+        .iter()
+        .find(|e| e["name"] == "Rust")
+        .expect("Rust entry");
+    assert_eq!(rust["coverage_tier"], "supported");
+    assert_eq!(rust["files_seen"], 2);
+    assert_eq!(parsed["all_languages_unsupported"], false);
+    assert_eq!(parsed["state"], "needs_action");
+}
+
+#[cfg(not(target_os = "windows"))]
+#[test]
 fn mixed_repo_does_not_collapse_to_unsupported() {
     // Even with two unsupported files, the presence of supported
     // languages keeps the state at `needs_action` (the user can
