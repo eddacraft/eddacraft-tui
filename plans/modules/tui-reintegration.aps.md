@@ -5,9 +5,19 @@
 
 | ID   | Owner      | Status      | Progress |
 | ---- | ---------- | ----------- | -------- |
-| TUIR | joshuaboys | In Progress | 8/9      |
+| TUIR | joshuaboys | In Progress | 8/10     |
 
-**Last reviewed:** 2026-06-07 — TUIR-009 `Merged 2026-06-07` via PR
+**Last reviewed:** 2026-06-08 — TUIR-010 added (`In Progress`):
+deploys the `mirror-drift-check.yml` watchdog D-TUIR-018 specified and
+the mirror workflow flagged as not-yet-deployed. Replicates the
+push-side subtree-split + banner-swap inline (standalone-replication
+decision), diffs the reconstructed tree against the public mirror, and
+opens/refreshes a labelled tracked issue on any drift. Algorithm
+verified locally against the live mirror (reconstructed tree
+byte-identical to `eddacraft/eddacraft-tui:main`; simulated out-of-band
+push flagged). Unblocks TUIR-008's drift-check validation line and lets
+TUIN's 7-consecutive-green-runs gate start counting. Progress **8/9 →
+8/10**. Prior: 2026-06-07 — TUIR-009 `Merged 2026-06-07` via PR
 #2339 (squash at `817b359b1`): ratifies D-TUIR-021 and closes the
 structural gap surfaced while backfilling `eddacraft-tui-v0.2.4` on
 the public mirror. The publish workflow's `gh release create` step
@@ -467,7 +477,11 @@ trust surface and crates.io contract.
   a tracked issue. This catches: a mirror force-push collision
   (D-TUIR-009), a missed `paths:` trigger on the mirror workflow,
   and silent banner-swap-step regressions.
-- **Status:** Proposed.
+- **Status:** Accepted — implemented by TUIR-010
+  (`.github/workflows/mirror-drift-check.yml`). The job replicates the
+  push-side transform inline rather than sharing a script (TUIR-010
+  standalone-replication decision); both workflows carry a
+  cross-reference comment so the transforms stay aligned.
 
 **D-TUIR-019:** Workspace clippy `-D warnings` × verbatim
 `clippy::pedantic = "warn"` collision (resolved by in-crate fixes)
@@ -994,6 +1008,65 @@ zero hits.
 - runbook diff is link-clean (`pnpm docs:check`).
 
 **changeType:** docs
+**releaseIntent:** never
+**releaseScope:** none
+
+### TUIR-010: Deploy `mirror-drift-check.yml` (D-TUIR-018)
+
+- **Status:** In Progress
+- **Intent:** Land the scheduled mirror-drift watchdog that D-TUIR-018
+  specified and the mirror workflow's own header flagged as "a
+  documented follow-up and NOT yet deployed." Until this job exists,
+  the only way to confirm the public mirror still matches canonical
+  source is the manual diff an operator runs by hand — which also
+  means TUIR-008's "mirror drift check (D-TUIR-018) reports a clean
+  tree" validation has nothing to invoke, and TUIN's Ready Checklist
+  ("drift check green for at least 7 consecutive runs") cannot even
+  begin counting.
+- **Expected Outcome:**
+  `.github/workflows/mirror-drift-check.yml` runs daily
+  (`cron: '27 5 * * *'`) and on `workflow_dispatch`. It reconstructs
+  the tree the mirror workflow *would* push — `git subtree split
+  --prefix=crates/eddacraft-tui` plus the MIRROR-README banner swap,
+  replicated inline to keep zero blast radius on the proven push-side
+  workflow (per the TUIR-010 standalone-replication decision) — then
+  diffs that **tree** (never commit SHAs) against a read-only shallow
+  fetch of `eddacraft/eddacraft-tui:main`. A clean diff passes; any
+  non-empty diff opens or refreshes a labelled (`mirror-drift`)
+  tracked issue on anvil-001 and fails the job, per D-TUIR-018. The
+  mirror is public, so the fetch needs no credentials and the job
+  mints no App token — its only write is the issue, via the default
+  `GITHUB_TOKEN` (`permissions: contents: read`, `issues: write`).
+  Both this file and `mirror-eddacraft-tui.yml` carry a
+  cross-reference comment on the subtree-split + banner-swap steps so
+  a future edit to one is mirrored in the other (the documented cost
+  of replication over a shared script).
+- **Validation:** algorithm verified locally against the live mirror
+  before merge — the reconstructed split tree
+  (`bb6cba45…`) was byte-identical to `eddacraft/eddacraft-tui:main`'s
+  tree (clean/green), and a simulated out-of-band mirror commit
+  (D-TUIR-009 model) was correctly flagged as drift (red). On merge,
+  a `workflow_dispatch` run on `main` must report clean — this is the
+  artefact TUIR-008's drift-check validation line consumes.
+- **Council (standard pack) — addressed:** propagation-race false
+  positive (a daily run racing an in-flight, push-triggered mirror)
+  is the failure mode that would reset TUIN's 7-green gate — handled
+  by a "Tolerate propagation lag" step that skips (no issue, no
+  failure) when a mirror run is `in_progress`/`queued`
+  (`actions: read`); `cancel-in-progress: false` so a 14-min split
+  isn't killed; `gh label create` no longer swallows real failures;
+  `gh issue list --limit 1`; tree-only scope limit + untrusted-mirror
+  trust boundary documented. Security pack: no critical/major — the
+  job holds no write-capable mirror credential, never checks out the
+  fetched tip, and a hostile mirror can at worst cause a spurious
+  issue + red job.
+- **Deferred follow-up (F-002):** the two workflows' transforms are
+  kept aligned by a comment contract, not a CI gate. A future TUIR-010
+  follow-up may add a lint asserting both produce the same tree (or
+  revisit the shared-script option the standalone-replication decision
+  set aside). Tracked here; not blocking.
+
+**changeType:** ci
 **releaseIntent:** never
 **releaseScope:** none
 

@@ -45,11 +45,15 @@
 # boxes requires the `/tmp/gnu-shim/dirname` PATH shim documented in
 # the release runbook.
 #
-# Drift check: D-TUIR-018 specifies a separate `mirror-drift-check.yml`
-# daily job that diffs the canonical subtree against the live mirror
-# tree. That workflow is a documented follow-up and is NOT yet
-# deployed — on-call operators investigating a suspected drift today
-# need to run the diff manually until that workflow lands.
+# Drift check: D-TUIR-018 is implemented by the separate
+# `.github/workflows/mirror-drift-check.yml` daily job (TUIR-010), which
+# diffs the canonical subtree against the live mirror tree and opens a
+# tracked issue on any drift. That job REPLICATES the subtree-split and
+# the "Swap MIRROR-README onto README" step below to reconstruct the
+# expected mirror tree — the two must produce the SAME TREE (incidental
+# YAML form may differ): any change to the `--prefix` or the banner-swap
+# *content* here MUST be mirrored in `mirror-drift-check.yml` in the same
+# PR, or the watchdog reports false drift.
 #
 # See plans/modules/tui-reintegration.aps.md (D-TUIR-004, D-TUIR-009,
 # D-TUIR-012, D-TUIR-018) and the ATTRIB-011 precedent

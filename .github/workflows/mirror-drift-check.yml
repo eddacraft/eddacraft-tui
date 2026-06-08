@@ -1,0 +1,321 @@
+# Detect drift between the canonical `eddacraft-tui` crate and its public mirror.
+#
+# D-TUIR-018 (module: tui-reintegration). The canonical source lives at
+# `crates/eddacraft-tui/` in this repository and is mirrored to
+# `eddacraft/eddacraft-tui:main` by `mirror-eddacraft-tui.yml` (D-TUIR-004 /
+# D-TUIR-012). This job is the watchdog for that mirror: it reconstructs the
+# tree the mirror workflow *would* push and diffs it against the mirror's live
+# `main`. Any non-empty diff fails the job and opens (or refreshes) a tracked
+# issue so an operator investigates.
+#
+# What drift this catches (per D-TUIR-018):
+#   - a mirror force-push collision (D-TUIR-009) — someone pushed to the public
+#     mirror's `main` out of band;
+#   - a missed `paths:` trigger on the mirror workflow — a change under
+#     `crates/eddacraft-tui/` that never propagated;
+#   - a silent banner-swap-step regression (D-TUIR-012) — the README header
+#     transform drifting between the two workflows.
+#
+# Why the transform here must stay SEMANTICALLY aligned with
+# `mirror-eddacraft-tui.yml`: the only way to compute the "expected" mirror tree
+# is to replicate the mirror workflow's transform (subtree split of
+# `crates/eddacraft-tui` + the MIRROR-README banner swap). Per the TUIR-010
+# decision we replicate that logic inline rather than share it, to keep zero
+# blast radius on the proven public-push workflow. "Aligned" means the two
+# produce the IDENTICAL TREE — not byte-identical YAML: the steps already differ
+# in incidental form (this job reads `${CRATE_DIR}` from `env`, uses a
+# `chore(drift):` commit message; the mirror uses a local var and
+# `chore(mirror):`). Those differences are commit-metadata only and do not
+# affect the tree (see below). The divergence risk is real: any edit to the
+# subtree-split prefix or the banner-swap *content* in `mirror-eddacraft-tui.yml`
+# MUST be mirrored here in the same PR, or this watchdog reports false drift.
+# Both files carry a cross-reference comment on those steps. NOTE: this contract
+# is comment-enforced, not yet CI-gated — a future follow-up may add a lint that
+# asserts the two transforms produce the same tree (tracked under TUIR-010).
+#
+# Tree-only comparison: we diff *trees*, never commit SHAs. `git subtree split`
+# is deterministic in tree content but its commit SHAs vary run-to-run
+# (committer timestamps), and the two workflows' banner-swap commits use
+# different messages. Git tree SHAs are computed from file content and modes
+# ONLY — never from commit message, author, or timestamps — so comparing trees
+# (`git diff <split> <mirror/main>`) is immune to all of that and reports only
+# genuine content drift.
+#
+# Scope limit (deliberate): because the comparison is tree-only, drift that
+# leaves file content unchanged is NOT detected — e.g. an out-of-band
+# `--allow-empty` commit or a history/metadata rewrite on the mirror that
+# reproduces the same tree. This watchdog guards CONTENT parity, which is what
+# D-TUIR-018 calls for; commit-identity tracking is out of scope.
+#
+# Propagation lag: the mirror is pushed by a separate, push-triggered workflow.
+# If a commit under `crates/eddacraft-tui/` landed on main shortly before this
+# job runs, the mirror push may still be in-flight — the mirror tip is then the
+# pre-push tree while our reconstruction is the post-push tree, which looks like
+# drift but is not. The "Tolerate propagation lag" step below detects an active
+# mirror run and skips (no issue, no failure); the next run re-checks once the
+# mirror settles.
+#
+# Auth: the mirror is a PUBLIC repo, so the drift fetch needs no credentials and
+# its tip is never checked out, merged, or executed — only tree-diffed — so a
+# hostile mirror state cannot escalate past a spurious issue + red job. Unlike
+# the mirror workflow, this job mints no App token. Its only writes are listing
+# workflow runs (`actions: read`) and opening/refreshing an issue on THIS repo
+# via the default `GITHUB_TOKEN` (`issues: write`).
+#
+# Runner: `ubuntu-latest` is required. `git subtree split` shells out to
+# `dirname`, and uutils coreutils 0.2.2 mis-handles multi-segment prefixes
+# (returns `a/b` for `a/b/c/.`). GitHub Actions `ubuntu-latest` ships GNU
+# coreutils and is unaffected (same constraint as the mirror workflow).
+#
+# See plans/modules/tui-reintegration.aps.md (TUIR-010, D-TUIR-018, D-TUIR-009,
+# D-TUIR-012) and the mirror workflow `.github/workflows/mirror-eddacraft-tui.yml`.
+
+name: Mirror drift — eddacraft-tui crate
+
+on:
+  schedule:
+    # Daily at 05:27 UTC. Off-peak and clear of the 02:00 nightly and the
+    # Monday 06:xx security/codeql cluster.
+    - cron: '27 5 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: mirror-drift-check
+  # Queue, don't cancel: this is a read-only watchdog whose costliest step is a
+  # non-resumable O(history) subtree split. Cancelling an in-flight run to start
+  # a fresh one would just restart that walk from scratch; letting it finish and
+  # queueing the next is cheaper and avoids orphaning a half-created issue.
+  cancel-in-progress: false
+
+# Least-privilege: read this repo's contents to reconstruct the expected tree;
+# read Actions to detect an in-flight mirror push (propagation-lag tolerance);
+# write issues only to raise/refresh the drift tracker. No mirror push happens
+# here — the mirror is fetched read-only over the public HTTPS endpoint.
+permissions:
+  contents: read
+  actions: read
+  issues: write
+
+env:
+  CRATE_DIR: crates/eddacraft-tui
+  MIRROR_URL: https://github.com/eddacraft/eddacraft-tui.git
+  MIRROR_SLUG: eddacraft/eddacraft-tui
+  DRIFT_LABEL: mirror-drift
+
+jobs:
+  drift:
+    name: Diff canonical subtree against eddacraft/eddacraft-tui:main
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # The scheduled trigger always runs on the default branch, but
+      # workflow_dispatch runs on whatever ref the operator selects. A
+      # feature branch legitimately carries in-flight `crates/eddacraft-tui`
+      # changes that have NOT yet propagated to the mirror, so reconstructing
+      # that branch's tree would report false drift and open a spurious issue.
+      # Refuse any ref but main (mirrors the push-side workflow's guard).
+      - name: Guard — only check drift from refs/heads/main
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_REF}" != 'refs/heads/main' ]; then
+            echo "::error::drift check refused: GITHUB_REF=${GITHUB_REF} (only refs/heads/main is allowed; the mirror tracks canonical main)"
+            exit 1
+          fi
+
+      - name: Checkout (full history — subtree split needs it)
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # The subtree split walks history through a throwaway banner-swap commit,
+      # so git needs a local identity even though nothing is pushed.
+      - name: Configure git identity
+        run: |
+          set -euo pipefail
+          git config --global user.name  'eddacraft-mirror-bot[bot]'
+          git config --global user.email 'eddacraft-mirror-bot[bot]@users.noreply.github.com'
+
+      # --- BEGIN replicated transform (keep aligned with mirror-eddacraft-tui.yml) ---
+      # This banner swap MUST produce the same tree as the "Swap MIRROR-README
+      # onto README" step in mirror-eddacraft-tui.yml. Incidental form may differ
+      # (env var, commit message); the file transform must not. If you change
+      # one, change both in the same PR (see header comment).
+      - name: Swap MIRROR-README onto README (on a throwaway commit)
+        run: |
+          set -euo pipefail
+          if [ ! -f "${CRATE_DIR}/MIRROR-README.md" ]; then
+            echo "::error::${CRATE_DIR}/MIRROR-README.md missing — the public framing header is required"
+            exit 1
+          fi
+          if [ ! -f "${CRATE_DIR}/README.md" ]; then
+            echo "::error::${CRATE_DIR}/README.md missing — cannot prepend banner without a README"
+            exit 1
+          fi
+          tmp="$(mktemp)"
+          cat "${CRATE_DIR}/MIRROR-README.md" "${CRATE_DIR}/README.md" > "${tmp}"
+          mv "${tmp}" "${CRATE_DIR}/README.md"
+          rm "${CRATE_DIR}/MIRROR-README.md"
+          git add "${CRATE_DIR}/README.md" "${CRATE_DIR}/MIRROR-README.md"
+          git commit -m 'chore(drift): prepend public README header [skip ci]' --allow-empty
+
+      - name: Subtree split
+        run: |
+          set -euo pipefail
+          git subtree split \
+            --prefix="${CRATE_DIR}" \
+            -b _mirror_split
+          # Non-empty assertion mirrors the push-side guard: an empty split
+          # means the prefix was renamed/removed without updating this job, in
+          # which case "drift" is meaningless and we should fail loudly rather
+          # than diff against nothing.
+          if ! git rev-parse --verify --quiet _mirror_split >/dev/null; then
+            echo '::error::subtree split did not produce _mirror_split branch'
+            exit 1
+          fi
+          if [ -z "$(git ls-tree _mirror_split)" ]; then
+            echo '::error::_mirror_split has no tree content — refusing to diff (prefix likely moved)'
+            exit 1
+          fi
+      # --- END replicated transform ---
+
+      - name: Fetch mirror main (read-only, public)
+        run: |
+          set -euo pipefail
+          git remote add mirror "${MIRROR_URL}"
+          # Shallow fetch of just the mirror tip — we only need its tree.
+          git fetch --no-tags --depth=1 mirror main
+          git rev-parse --short FETCH_HEAD
+
+      - name: Diff expected tree against mirror main
+        id: diff
+        run: |
+          set -euo pipefail
+          # Tree-only comparison (see header comment): compare the content of
+          # the reconstructed split tip against the mirror's live main tip.
+          # --quiet implies --exit-code: git returns 1 on any difference.
+          if git diff --quiet _mirror_split FETCH_HEAD; then
+            echo 'drift=false' >> "${GITHUB_OUTPUT}"
+            echo 'No drift: reconstructed subtree matches eddacraft/eddacraft-tui:main.'
+          else
+            echo 'drift=true' >> "${GITHUB_OUTPUT}"
+            # Capture a bounded, human-readable summary of the drift for the
+            # issue body and step summary. Cap the stat so a pathological diff
+            # cannot blow the GitHub field limits.
+            git diff --stat _mirror_split FETCH_HEAD | head -c 60000 > drift.txt
+            echo '::warning::mirror drift detected — see job summary and tracked issue'
+          fi
+
+      # Propagation-lag tolerance (see header comment). A drift reading is a
+      # false alarm if the push-triggered mirror workflow is still running for a
+      # recent commit. If a mirror run is in-flight or queued, treat the diff as
+      # lag rather than drift: skip the issue and the failure. The next run
+      # re-checks once the mirror settles. This is what keeps the watchdog from
+      # crying wolf (and resetting TUIN's consecutive-green-runs gate) on a push
+      # that lands close to this job's start.
+      - name: Tolerate propagation lag (skip if a mirror push is in-flight)
+        id: settle
+        if: steps.diff.outputs.drift == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          active=$(gh run list \
+            --workflow mirror-eddacraft-tui.yml \
+            --json status \
+            --jq '[.[] | select(.status == "in_progress" or .status == "queued")] | length')
+          if [ "${active}" -gt 0 ]; then
+            echo 'settling=true' >> "${GITHUB_OUTPUT}"
+            echo "::notice::mirror push in-flight (${active} active run(s)) — treating drift as propagation lag, not failing"
+          else
+            echo 'settling=false' >> "${GITHUB_OUTPUT}"
+          fi
+
+      - name: Open or refresh drift issue
+        if: steps.diff.outputs.drift == 'true' && steps.settle.outputs.settling != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          # Ensure the tracking label exists (idempotent: --force updates if
+          # present). A genuine failure here (missing issues: write, API outage)
+          # must surface — warn but don't swallow with `|| true`, since
+          # `gh issue create --label` below 422s if the label never got created.
+          gh label create "${DRIFT_LABEL}" \
+            --color B60205 \
+            --description 'eddacraft-tui canonical source has drifted from its public mirror' \
+            --force || echo "::warning::gh label create failed — issue may be unlabelable"
+
+          {
+            echo "Automated mirror-drift check detected a difference between the"
+            echo "canonical \`${CRATE_DIR}/\` subtree (anvil-001 \`main\`) and the public"
+            echo "mirror \`${MIRROR_SLUG}:main\`."
+            echo
+            echo "**Run:** ${RUN_URL}"
+            echo "**Source SHA:** \`${GITHUB_SHA}\`"
+            echo
+            echo 'Drift (expected ← mirror):'
+            echo
+            echo '```'
+            cat drift.txt 2>/dev/null || echo '(diff stat unavailable — see workflow logs)'
+            echo '```'
+            echo
+            echo 'Likely causes (D-TUIR-018): out-of-band push to the mirror, a missed'
+            echo "\`paths:\` trigger on the mirror workflow, or a banner-swap regression."
+            echo 'Resolve by re-running `mirror-eddacraft-tui.yml` (workflow_dispatch) once'
+            echo 'the root cause is understood, then close this issue.'
+          } > issue-body.md
+
+          existing=$(gh issue list --label "${DRIFT_LABEL}" --state open \
+            --limit 1 --json number --jq '.[0].number // empty')
+          if [ -n "${existing}" ]; then
+            gh issue comment "${existing}" --body-file issue-body.md
+            echo "Refreshed existing drift issue #${existing}."
+          else
+            gh issue create \
+              --title 'Mirror drift detected: eddacraft/eddacraft-tui out of sync' \
+              --label "${DRIFT_LABEL}" \
+              --body-file issue-body.md
+            echo 'Opened a new drift issue.'
+          fi
+
+      - name: Summary
+        if: always()
+        env:
+          DRIFT: ${{ steps.diff.outputs.drift }}
+          SETTLING: ${{ steps.settle.outputs.settling }}
+        run: |
+          {
+            echo '## Mirror drift check'
+            echo
+            echo 'Canonical subtree: `'"${CRATE_DIR}"'` (anvil-001 `main`)'
+            echo 'Mirror target:     `'"${MIRROR_SLUG}"':main`'
+            echo 'Source commit:     `'"${GITHUB_SHA}"'`'
+            echo
+            if [ "${DRIFT:-}" = 'true' ] && [ "${SETTLING:-}" = 'true' ]; then
+              echo '**Result: propagation lag** — a mirror push is in-flight; the'
+              echo 'apparent drift is treated as lag (no issue, no failure). The next'
+              echo 'run re-checks once the mirror settles.'
+              echo
+              echo '```'
+              cat drift.txt 2>/dev/null || echo '(diff stat unavailable)'
+              echo '```'
+            elif [ "${DRIFT:-}" = 'true' ]; then
+              echo '**Result: DRIFT DETECTED** — a tracked issue was opened or refreshed.'
+              echo
+              echo '```'
+              cat drift.txt 2>/dev/null || echo '(diff stat unavailable)'
+              echo '```'
+            elif [ "${DRIFT:-}" = 'false' ]; then
+              echo '**Result: clean** — the mirror matches the canonical subtree.'
+            else
+              echo '**Result: check did not complete** — see the failed step above.'
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Fail the job on drift
+        if: steps.diff.outputs.drift == 'true' && steps.settle.outputs.settling != 'true'
+        run: |
+          echo '::error::eddacraft-tui mirror is out of sync with canonical source'
+          exit 1
