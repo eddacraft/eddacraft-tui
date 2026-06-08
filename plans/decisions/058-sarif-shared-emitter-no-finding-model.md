@@ -88,9 +88,28 @@ refactor that nothing else currently needs.
   (e.g. a unified `anvil findings` surface), that is its own decision with its
   own ADR — note it, do not pre-build it.
 
+## Amendment (2026-06-08, GITGOV-008)
+
+The emitter moved from inside the `anvil-cli` binary
+(`crates/anvil-cli/src/output/sarif.rs`) into its own library crate,
+**`crates/anvil-sarif`** (`eddacraft-anvil-sarif`, `publish = false`). This
+is the literal realisation of this ADR's stated "shared across the
+finding-emitting commands (and any future SARIF output)" consequence: the
+review-capsule diagnostics collector (GITGOV-008) is the first non-CLI
+producer, and a binary-internal module cannot be a cross-crate dependency
+without a cycle.
+
+The move is location-only — no shape, schema, or finding-model change. The
+CLI keeps the `crate::output::sarif::*` path via a one-line re-export
+(`pub use anvil_sarif as sarif;`), so the per-command adapters are untouched.
+The vendored schema and its validation test move with the emitter; the schema
+is now exposed as `anvil_sarif::SARIF_SCHEMA_JSON` so every producer validates
+against one source. No new ADR is warranted: this implements an existing
+decision, it does not change one.
+
 ## References
 
 - Design: [`../specs/2026-05-29-sarif-output-design.md`](../specs/2026-05-29-sarif-output-design.md) (Decision 3 — Shared Finding Model)
-- APS: `SARIFOUT-002` (emitter + schema harness), `SARIFOUT-003/004/005` (adapters), `SARIFOUT` module
+- APS: `SARIFOUT-002` (emitter + schema harness), `SARIFOUT-003/004/005` (adapters), `SARIFOUT` module; `GITGOV-008` (relocation + capsule adapter)
 - Related ADRs: [ADR-056](056-format-flag-output-selector.md) (the `--format` selector)
-- Code: `crates/anvil-cli/src/output/sarif.rs`, `crates/anvil-cli/src/output/sarif-schema-2.1.0.json`
+- Code: `crates/anvil-sarif/src/lib.rs`, `crates/anvil-sarif/src/sarif-schema-2.1.0.json` (since GITGOV-008; previously `crates/anvil-cli/src/output/sarif.rs`)

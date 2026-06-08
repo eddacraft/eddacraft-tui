@@ -37,6 +37,7 @@ anvil-witness = { path = "../anvil-witness", package = "eddacraft-anvil-witness"
 anvil-rules = { path = "../anvil-rules", package = "eddacraft-anvil-rules" }
 anvil-baseline = { path = "../anvil-baseline", package = "eddacraft-anvil-baseline" }
 anvil-capsule = { path = "../anvil-capsule", package = "eddacraft-anvil-capsule" }
+anvil-sarif = { path = "../anvil-sarif", package = "eddacraft-anvil-sarif" }
 anvil-hook = { path = "../anvil-hook", package = "eddacraft-anvil-hook" }
 anvil-l4 = { path = "../anvil-l4", package = "eddacraft-anvil-l4" }
 anvil-config = { path = "../anvil-config", package = "eddacraft-anvil-config" }

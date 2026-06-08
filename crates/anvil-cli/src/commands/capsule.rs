@@ -9,12 +9,13 @@
 //! - **`anvil capsule create --range <base>..<head> --out <dir>`** —
 //!   collect the range (GITGOV-005), the policy/baseline/rules digest
 //!   documents (GITGOV-006), the verbatim witness chain with the
-//!   range's `seq` window (GITGOV-007), and write the capsule directory
-//!   with a digest-complete `manifest.json`. Evidence whose collectors
-//!   land later (SARIF diagnostics — GITGOV-008, applied exceptions —
-//!   EXCEPT-009) is written present-but-empty; `verification.json`
-//!   starts as the degraded no-checks placeholder, so an unverified
-//!   capsule never claims `pass`.
+//!   range's `seq` window (GITGOV-007), the SARIF diagnostics document
+//!   (GITGOV-008, via the shared ADR-058 emitter), and write the capsule
+//!   directory with a digest-complete `manifest.json`. Evidence whose
+//!   collector lands later (applied exceptions — EXCEPT-009) is written
+//!   present-but-empty; `verification.json` starts as the degraded
+//!   no-checks placeholder, so an unverified capsule never claims
+//!   `pass`.
 //! - `verify` / `explain` / `inspect` land with GITGOV-009/-010/-011.
 //!
 //! ## Identity discipline (GITGOV-006 council follow-up)
@@ -31,8 +32,8 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use anvil_capsule::{
-    CapsuleContent, Producer, ToolIdentity, collect_commits, collect_digests, collect_witness,
-    write_capsule,
+    CapsuleContent, Producer, ToolIdentity, collect_commits, collect_diagnostics, collect_digests,
+    collect_witness, write_capsule,
 };
 use anyhow::{Context, Result, bail};
 use clap::{Args, Subcommand};
@@ -101,10 +102,16 @@ fn run_create(repo_root: &Path, range: &str, out: &Path) -> Result<()> {
     let range_commits: BTreeSet<String> = commits.commits.iter().map(|c| c.sha.clone()).collect();
     let witness = collect_witness(repo_root, &range_commits).context("collecting witness chain")?;
 
+    // v0: no diagnostics source is wired into capsule create yet, so the
+    // collector renders a complete empty SARIF document. A verify-time
+    // check pass will feed real diagnostics here later (GITGOV-009+).
+    let diagnostics = collect_diagnostics(&[]).context("rendering diagnostics")?;
+
     let content = CapsuleContent {
         commits,
         digests,
         witness,
+        diagnostics,
         producer,
     };
     let manifest = write_capsule(out, &content).context("writing capsule directory")?;

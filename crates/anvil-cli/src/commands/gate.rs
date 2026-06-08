@@ -4276,8 +4276,7 @@ rules: []
         let value = serde_json::to_value(build_gate_sarif(&result)).expect("serialise");
 
         let schema: serde_json::Value =
-            serde_json::from_str(include_str!("../output/sarif-schema-2.1.0.json"))
-                .expect("schema json");
+            serde_json::from_str(anvil_sarif::SARIF_SCHEMA_JSON).expect("schema json");
         let validator = jsonschema::validator_for(&schema).expect("compile schema");
         let errors: Vec<String> = validator
             .iter_errors(&value)

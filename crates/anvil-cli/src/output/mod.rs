@@ -1,6 +1,9 @@
 pub mod json;
 pub mod plain;
-pub mod sarif;
+/// Shared SARIF 2.1.0 emitter (ADR-058), re-exported from its own crate so
+/// non-CLI producers (the review capsule, GITGOV-008) reuse the same emitter.
+/// Command adapters keep referencing `crate::output::sarif::*` unchanged.
+pub use anvil_sarif as sarif;
 
 /// Sentinel error: the command already printed its output and only needs
 /// `main` to exit with `EXIT_ERROR` without reprinting the message.

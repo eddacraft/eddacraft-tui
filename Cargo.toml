@@ -13,6 +13,7 @@ members = [
   "crates/anvil-bench",
   "crates/anvil-capsule",
   "crates/anvil-cli",
+  "crates/anvil-sarif",
   "crates/anvil-config",
   "crates/anvil-intercept",
   "crates/anvil-intercept-proto",

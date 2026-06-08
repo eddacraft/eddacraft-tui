@@ -72,6 +72,7 @@ reqwest = { version = "0.13", default-features = false, features = ["blocking", 
 rustix = { version = "1", features = ["fs", "param", "stdio", "termios"] }
 signal-hook = { version = "0.3" }
 tokio = { version = "1", features = ["full"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["aws-lc-rs", "tls12"] }
 tokio-util = { version = "0.7", features = ["codec", "io"] }
 tracing = { version = "0.1" }
 
@@ -91,6 +92,7 @@ reqwest = { version = "0.13", default-features = false, features = ["blocking", 
 rustix = { version = "1", features = ["fs", "param", "stdio", "termios"] }
 signal-hook = { version = "0.3" }
 tokio = { version = "1", features = ["full"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["aws-lc-rs", "tls12"] }
 tokio-util = { version = "0.7", features = ["codec", "io"] }
 tracing = { version = "0.1" }
 
@@ -111,6 +113,7 @@ reqwest = { version = "0.13", default-features = false, features = ["blocking", 
 rustix = { version = "1", features = ["fs", "param", "stdio", "termios"] }
 signal-hook = { version = "0.3" }
 tokio = { version = "1", features = ["full"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["aws-lc-rs", "tls12"] }
 tokio-util = { version = "0.7", features = ["codec", "io"] }
 tracing = { version = "0.1" }
 
@@ -131,6 +134,7 @@ reqwest = { version = "0.13", default-features = false, features = ["blocking", 
 rustix = { version = "1", features = ["fs", "param", "stdio", "termios"] }
 signal-hook = { version = "0.3" }
 tokio = { version = "1", features = ["full"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["aws-lc-rs", "tls12"] }
 tokio-util = { version = "0.7", features = ["codec", "io"] }
 tracing = { version = "0.1" }
 
@@ -147,6 +151,7 @@ hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc
 hyper-util = { version = "0.1", features = ["client-legacy", "client-proxy", "http1", "http2", "server"] }
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "default-tls", "http2", "json", "rustls-no-provider", "stream"] }
 tokio = { version = "1", features = ["full"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["aws-lc-rs", "tls12"] }
 tokio-util = { version = "0.7", features = ["codec", "io"] }
 tracing = { version = "0.1" }
 winapi = { version = "0.3", default-features = false, features = ["consoleapi", "fileapi", "handleapi", "impl-default", "processenv", "processthreadsapi", "std", "synchapi", "sysinfoapi", "winbase", "winerror", "winuser"] }
@@ -165,6 +170,7 @@ hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc
 hyper-util = { version = "0.1", features = ["client-legacy", "client-proxy", "http1", "http2", "server"] }
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "default-tls", "http2", "json", "rustls-no-provider", "stream"] }
 tokio = { version = "1", features = ["full"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["aws-lc-rs", "tls12"] }
 tokio-util = { version = "0.7", features = ["codec", "io"] }
 tracing = { version = "0.1" }
 winapi = { version = "0.3", default-features = false, features = ["consoleapi", "fileapi", "handleapi", "impl-default", "processenv", "processthreadsapi", "std", "synchapi", "sysinfoapi", "winbase", "winerror", "winuser"] }

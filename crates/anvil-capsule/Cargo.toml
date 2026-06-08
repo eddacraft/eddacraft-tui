@@ -14,6 +14,8 @@ anvil-baseline = { path = "../anvil-baseline", package = "eddacraft-anvil-baseli
 anvil-config = { path = "../anvil-config", package = "eddacraft-anvil-config" }
 anvil-rules = { path = "../anvil-rules", package = "eddacraft-anvil-rules" }
 anvil-witness = { path = "../anvil-witness", package = "eddacraft-anvil-witness" }
+anvil-sarif = { path = "../anvil-sarif", package = "eddacraft-anvil-sarif" }
+anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
@@ -23,6 +25,7 @@ workspace-hack.workspace = true
 
 [dev-dependencies]
 tempfile = { workspace = true }
+jsonschema = "0.45"
 
 [lints]
 workspace = true

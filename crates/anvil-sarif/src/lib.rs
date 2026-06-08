@@ -1,29 +1,31 @@
-//! SARIFOUT-002 — a thin, shared SARIF 2.1.0 emitter.
+//! Shared SARIF 2.1.0 emitter for Anvil (ADR-058, SARIFOUT-002).
 //!
-//! This module owns the SARIF document *shape* for the bounded subset Anvil
+//! This crate owns the SARIF document *shape* for the bounded subset Anvil
 //! emits (the GitHub Code Scanning ingest subset): `runs[]` / `tool.driver` /
 //! `rules[]` / `results[]` / `locations[]` / `suppressions[]` /
-//! `partialFingerprints`. It is a pure serialisation layer — no command is
-//! wired here. Per-command adapters (SARIFOUT-003/004/005) map each command's
-//! existing finding shape into these types; there is deliberately **no**
-//! unified in-process finding model (ADR-058).
+//! `partialFingerprints`. It is a pure serialisation layer — no command or
+//! collector is wired here. Consumers map their existing finding shape into
+//! these types: the CLI's per-command adapters (SARIFOUT-003/004/005) and the
+//! review-capsule diagnostics collector (GITGOV-008) each do so independently;
+//! there is deliberately **no** unified in-process finding model (ADR-058).
+//!
+//! It lives in its own crate (rather than inside the `anvil-cli` binary) so
+//! non-CLI producers — the review capsule first — can reuse the one emitter,
+//! exactly the "shared across any future SARIF output" intent ADR-058 recorded.
 //!
 //! The bundled upstream SARIF 2.1.0 JSON Schema
 //! (`sarif-schema-2.1.0.json`, vendored verbatim from schemastore) is the
 //! validation gate: the test module checks emitted documents against it.
 //!
+//! Part of the public surface (e.g. `SuppressionKind::External`, `Level::None`,
+//! `ReportingDescriptor::help_uri`) is a faithful slice of the SARIF model used
+//! by some consumers and not others; as a library API it is exercised by the
+//! test module rather than silenced with a blanket `dead_code` allow.
+//!
 //! User-facing docs for `--format sarif` live in the GitHub integration guide
 //! (`docs/public/anvil/integrations/github.md`, "Code Scanning (SARIF)"); the
 //! out-of-band Code Scanning upload check is
 //! `docs/runbooks/sarif-code-scanning-upload.md`.
-
-// The `anvil check` adapter (SARIFOUT-003) consumes most of this API; the
-// remaining surface (e.g. `SuppressionKind::External`, `Level::None`,
-// `ReportingDescriptor::help_uri`) is a faithful slice of the SARIF model kept
-// for the `audit` / `gate` adapters (SARIFOUT-004/005) and is exercised by the
-// test module. Dead-code analysis is silenced module-wide rather than scattering
-// per-item allows.
-#![allow(dead_code)]
 
 use std::collections::BTreeMap;
 
@@ -37,6 +39,12 @@ pub const SARIF_VERSION: &str = "2.1.0";
 /// distribution of SARIF 2.1.0 (the bundled schema's own `$id` is the OASIS raw
 /// URL); both describe the same 2.1.0 schema.
 pub const SARIF_SCHEMA_URI: &str = "https://json.schemastore.org/sarif-2.1.0.json";
+
+/// The bundled upstream SARIF 2.1.0 JSON Schema, vendored verbatim from
+/// schemastore. Exposed as the single source of the validation gate so any
+/// SARIF producer (this crate's tests, the CLI command adapters, the review
+/// capsule) validates against the same schema rather than a private copy.
+pub const SARIF_SCHEMA_JSON: &str = include_str!("sarif-schema-2.1.0.json");
 
 /// `tool.driver.name` for every Anvil-emitted run.
 pub const DRIVER_NAME: &str = "anvil";
@@ -96,7 +104,7 @@ struct Tool {
 struct Driver {
     name: &'static str,
     information_uri: &'static str,
-    version: String,
+    version: &'static str,
     rules: Vec<ReportingDescriptor>,
 }
 
@@ -105,7 +113,7 @@ impl Driver {
         Self {
             name: DRIVER_NAME,
             information_uri: DRIVER_INFORMATION_URI,
-            version: env!("CARGO_PKG_VERSION").to_string(),
+            version: env!("CARGO_PKG_VERSION"),
             rules,
         }
     }
@@ -373,8 +381,8 @@ pub fn stable_fingerprint(rule_id: &str, uri: &str, line: Option<u32>, message: 
 mod tests {
     use super::*;
 
-    /// The bundled upstream SARIF 2.1.0 schema, vendored verbatim.
-    const SARIF_SCHEMA: &str = include_str!("sarif-schema-2.1.0.json");
+    /// The bundled upstream SARIF 2.1.0 schema (the crate's pub const).
+    const SARIF_SCHEMA: &str = super::SARIF_SCHEMA_JSON;
 
     /// Build a representative document exercising the full pinned subset:
     /// rules with descriptions, a plain result, and a suppressed result with a

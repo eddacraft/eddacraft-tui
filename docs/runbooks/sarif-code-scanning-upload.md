@@ -4,9 +4,9 @@
 | ------- | --------- | -------- | ------ | --------------------------------------------------------------- |
 | Runbook | Advisory  | SARIFOUT | Live   | Created 2026-05-29 for SARIFOUT-006 against the SARIFOUT module |
 
-| Upstream                                                                                               | Downstream                                    |
-| ------------------------------------------------------------------------------------------------------ | --------------------------------------------- |
-| `crates/anvil-cli/src/output/sarif.rs`, `plans/decisions/058-sarif-shared-emitter-no-finding-model.md` | Operators validating `anvil … --format sarif` |
+| Upstream                                                                                        | Downstream                                    |
+| ----------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `crates/anvil-sarif/src/lib.rs`, `plans/decisions/058-sarif-shared-emitter-no-finding-model.md` | Operators validating `anvil … --format sarif` |
 
 ## What this is
 
@@ -18,8 +18,8 @@ findings render in the Security tab.
 It is deliberately **not** a CI test: uploading to Code Scanning depends on
 network access and GitHub's ingest behaviour, which are non-deterministic. The
 in-repo guarantee is the schema-validation test against the bundled
-`crates/anvil-cli/src/output/sarif-schema-2.1.0.json`; this runbook is the
-end-to-end confidence check on top of it.
+`crates/anvil-sarif/src/sarif-schema-2.1.0.json`; this runbook is the end-to-end
+confidence check on top of it.
 
 ## Prerequisites
 

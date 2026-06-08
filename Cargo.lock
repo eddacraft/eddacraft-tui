@@ -1157,6 +1157,7 @@ dependencies = [
  "eddacraft-anvil-policy-engine",
  "eddacraft-anvil-rayon-init",
  "eddacraft-anvil-rules",
+ "eddacraft-anvil-sarif",
  "eddacraft-anvil-tui",
  "eddacraft-anvil-witness",
  "eddacraft-tui",
@@ -1238,9 +1239,12 @@ version = "0.7.4-beta"
 dependencies = [
  "eddacraft-anvil-baseline",
  "eddacraft-anvil-config",
+ "eddacraft-anvil-kernel-types",
  "eddacraft-anvil-rules",
+ "eddacraft-anvil-sarif",
  "eddacraft-anvil-witness",
  "hex",
+ "jsonschema",
  "serde",
  "serde_json",
  "sha2 0.11.0",
@@ -1537,6 +1541,17 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.18",
  "uuid",
+ "workspace-hack",
+]
+
+[[package]]
+name = "eddacraft-anvil-sarif"
+version = "0.7.4-beta"
+dependencies = [
+ "jsonschema",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
  "workspace-hack",
 ]
 
@@ -5977,6 +5992,7 @@ dependencies = [
  "syn 2.0.117",
  "thiserror 2.0.18",
  "tokio",
+ "tokio-rustls",
  "tokio-util",
  "tracing",
  "tracing-core",

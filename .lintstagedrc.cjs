@@ -15,8 +15,9 @@ const isVendoredOutput = (file) => {
     normalised.startsWith('tools/nx-rust/dist/') ||
     // Vendored upstream SARIF 2.1.0 schema (SARIFOUT): kept byte-identical to
     // upstream and listed in .prettierignore, so oxfmt rejects it as an
-    // excluded target. Filter it here like other vendored output.
-    normalised.endsWith('crates/anvil-cli/src/output/sarif-schema-2.1.0.json')
+    // excluded target. Filter it here like other vendored output. Lives in
+    // anvil-sarif since GITGOV-008 (relocated from anvil-cli/src/output/).
+    normalised.endsWith('crates/anvil-sarif/src/sarif-schema-2.1.0.json')
   );
 };
 

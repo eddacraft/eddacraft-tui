@@ -11,18 +11,12 @@
 use std::path::Path;
 
 use crate::collect::CommitsDocument;
+use crate::collect_diagnostics::CollectedDiagnostics;
 use crate::collect_digests::CollectedDigests;
 use crate::collect_witness::CollectedWitness;
 use crate::errors::CapsuleError;
 use crate::manifest::{CapsuleManifest, CapsuleRange, Producer};
 use crate::verification::CapsuleVerification;
-
-/// Minimal valid SARIF 2.1.0 document for the diagnostics placeholder
-/// — a structured format's "present-but-empty" is an empty *document*,
-/// not an empty byte stream (a 0-byte file would fail any consumer
-/// that parses it before reading the degraded verdict). GITGOV-008
-/// replaces this with real output from the shared ADR-058 emitter.
-const EMPTY_SARIF: &str = r#"{"version":"2.1.0","runs":[]}"#;
 
 /// Everything the writer needs to assemble a capsule directory.
 #[derive(Debug, Clone)]
@@ -33,6 +27,8 @@ pub struct CapsuleContent {
     pub digests: CollectedDigests,
     /// The collected witness chain + range window (GITGOV-007).
     pub witness: CollectedWitness,
+    /// The rendered SARIF diagnostics document (GITGOV-008).
+    pub diagnostics: CollectedDiagnostics,
     /// Producer identity recorded in the manifest.
     pub producer: Producer,
 }
@@ -54,10 +50,13 @@ pub struct CapsuleContent {
 /// is present-but-empty — valid NDJSON with no lines, which the
 /// verifier reads as missing witness evidence → `degraded`.
 ///
+/// `diagnostics.sarif` is rendered by the GITGOV-008 collector via the
+/// shared ADR-058 emitter; with no diagnostics it is a complete,
+/// schema-valid SARIF document with empty `results[]` (never a 0-byte
+/// file).
+///
 /// Placeholders written by this step (their collectors land later):
 ///
-/// - `diagnostics.sarif` — minimal empty SARIF document (GITGOV-008
-///   emits real output via the shared ADR-058 emitter)
 /// - `exceptions.json` — `[]` (EXCEPT-009 collects applied records)
 /// - `edda-context.json` — `{}` (reference-only, gated on EDDA-SEAL)
 /// - `verification.json` — [`CapsuleVerification::from_checks`] with
@@ -99,7 +98,7 @@ pub fn write_capsule(
         ),
         ("rules.json", content.digests.rules.to_canonical_bytes()?),
         ("witness.ndjson", content.witness.ndjson.clone()),
-        ("diagnostics.sarif", EMPTY_SARIF.as_bytes().to_vec()),
+        ("diagnostics.sarif", content.diagnostics.sarif.clone()),
         ("exceptions.json", b"[]".to_vec()),
         ("edda-context.json", b"{}".to_vec()),
         ("verification.json", verification.to_canonical_bytes()?),
@@ -229,8 +228,10 @@ fn render_readme(content: &CapsuleContent) -> String {
          `verification.json` starts as a degraded placeholder — an\n\
          unverified capsule never claims `pass`. `witness.ndjson` carries\n\
          the verbatim full witness chain; an empty file means the repo\n\
-         has no witness chain, not \"no findings\". `diagnostics.sarif`\n\
-         is a structural stub until its collector lands (GITGOV-008).\n",
+         has no witness chain, not \"no findings\". `diagnostics.sarif` is\n\
+         a SARIF 2.1.0 document; in v0 its `results[]` is empty because no\n\
+         check pass is wired into capsule creation yet (GITGOV-009+) —\n\
+         read it as \"no diagnostics collected\", not \"none found\".\n",
         base = content.commits.base,
         head = content.commits.head,
         commits = content.commits.commits.len(),
@@ -296,6 +297,7 @@ mod tests {
                 },
             },
             witness: CollectedWitness::default(),
+            diagnostics: crate::collect_diagnostics::collect_diagnostics(&[]).unwrap(),
             producer: Producer {
                 anvil_version: "0.0.0-test".to_string(),
             },
@@ -350,11 +352,12 @@ mod tests {
         assert!(verification.checks.is_empty());
     }
 
-    /// The diagnostics placeholder is a valid (empty) SARIF document,
-    /// not a 0-byte stream — consumers that parse it before reading
-    /// the degraded verdict must not crash.
+    /// With no diagnostics, `diagnostics.sarif` is a complete SARIF
+    /// document — an `anvil` run with empty `results[]` — not a 0-byte
+    /// stream and not an empty `runs[]` (GITGOV-008 via the shared
+    /// emitter).
     #[test]
-    fn write_capsule_diagnostics_placeholder_is_valid_sarif() {
+    fn write_capsule_diagnostics_is_valid_empty_sarif_document() {
         let dir = tempfile::tempdir().unwrap();
         let out = dir.path().join("capsule");
 
@@ -363,7 +366,10 @@ mod tests {
         let bytes = std::fs::read(out.join("diagnostics.sarif")).unwrap();
         let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
         assert_eq!(value["version"], "2.1.0");
-        assert!(value["runs"].as_array().unwrap().is_empty());
+        let runs = value["runs"].as_array().unwrap();
+        assert_eq!(runs.len(), 1, "a complete run, not an empty runs[]");
+        assert_eq!(runs[0]["tool"]["driver"]["name"], "anvil");
+        assert!(runs[0]["results"].as_array().unwrap().is_empty());
     }
 
     /// The witness chain is embedded verbatim and the range pointers

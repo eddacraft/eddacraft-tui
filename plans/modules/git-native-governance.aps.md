@@ -47,8 +47,9 @@ release seals (RELEASE-SEAL); supplier bundles (SUPPLIER). Sealed Edda context
   `crates/anvil-cli/src/commands/capsule.rs`.
 - Reuses: `anvil-witness` (`WitnessLine`, `verify_chain_dag`), `anvil-baseline`
   (`Baseline`, cutoff), `anvil-rules` (`rules_sha`), `anvil-policy`
-  (`ExceptionStore`), `anvil-config` (discovery), `anvil-cli` SARIF emitter
-  (ADR-058), `anvil-kernel-types` (diagnostics).
+  (`ExceptionStore`), `anvil-config` (discovery), `anvil-sarif` SARIF emitter
+  (ADR-058; relocated from `anvil-cli` by GITGOV-008), `anvil-kernel-types`
+  (diagnostics).
 
 ## Work Items
 
@@ -110,7 +111,7 @@ release seals (RELEASE-SEAL); supplier bundles (SUPPLIER). Sealed Edda context
 - **Expected Outcome:** `diagnostics.sarif` present (empty when none), no unified finding model introduced.
 - **Validation:** `cargo test -p eddacraft-anvil-capsule -- collect_diagnostics`
 - **Dependencies:** GITGOV-004
-- **Status:** Proposed
+- **Status:** In Progress
 
 ### GITGOV-009: Verification engine
 - **Intent:** Verify manifest digests, witness chain, digests, and applied exception scope/expiry; emit `pass`/`warn`/`degraded`/`block`/`error` with the ADR-074 exit-code contract (`0` pass/warn, `1` block, `2` degraded, `3` error). v0 contract per ADR-074: verification requires the repository present; metadata-only detached verification is deferred to `v1`.
