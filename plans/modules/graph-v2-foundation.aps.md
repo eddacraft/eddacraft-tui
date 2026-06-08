@@ -380,7 +380,7 @@ Change status to **Ready** when:
 
 #### GV2-012: Trust and policy graph contract
 
-- **Status:** Draft (grown into the wave)
+- **Status:** In Progress
 - **Intent:** Separate trust/policy semantics from the raw semantic graph while
   preserving deterministic joins back to code evidence.
 - **Expected Outcome:** Contract represents trust level, side-effect surfaces,

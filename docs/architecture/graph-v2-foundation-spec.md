@@ -53,14 +53,14 @@ Sub-phase A backing and lives in `crates/anvil-graph-cache/` (ADR-064). This
 spec describes the target end-state; the table below marks how far each piece is
 from it so a reader knows what is design vs reality.
 
-| Layer                                   | Where it lives today                                                                                                                   | State                                                                 |
-| --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Semantic code graph                     | `crates/anvil-graph-cache/src/symbol_graph.rs`, `crates/anvil-kernel-types/src/graph.rs`                                               | Shipped (Sub-phase A); schema additions pending (GV2-010)             |
-| Dependency/impact graph + reverse index | `crates/anvil-graph-cache/src/dependency.rs`                                                                                           | Shipped; incremental maintenance + hot-read API pending (GV2-011/022) |
-| Trust/policy graph                      | trust metadata on nodes (`crates/anvil-kernel-types/src/trust.rs`); richer graph contract Draft                                        | Partial (GV2-012)                                                     |
-| Control/session graph                   | shipped **in INTD** as `SessionRecord`/`Attribution` ([`intercept-as-built.md`](./intercept-as-built.md) §10); graph-shaped join Draft | Partial (GV2-013)                                                     |
-| Plan/provenance graph                   | provenance shipped **in TS** ([`edda-stack.md`](./edda-stack.md)); Rust join Draft                                                     | Open seam (GV2-014)                                                   |
-| Registry + query traits                 | none yet — consumers call `certify()`/`with_graphs()` directly                                                                         | Draft (GV2-020/023)                                                   |
+| Layer                                   | Where it lives today                                                                                                                       | State                                                                 |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
+| Semantic code graph                     | `crates/anvil-graph-cache/src/symbol_graph.rs`, `crates/anvil-kernel-types/src/graph.rs`                                                   | Shipped (Sub-phase A); schema additions pending (GV2-010)             |
+| Dependency/impact graph + reverse index | `crates/anvil-graph-cache/src/dependency.rs`                                                                                               | Shipped; incremental maintenance + hot-read API pending (GV2-011/022) |
+| Trust/policy graph                      | `PolicyProfile`/`TrustGraph` keyed on `SymbolIdentity` (`crates/anvil-kernel-types/src/trust.rs`, `crates/anvil-graph-cache/src/trust.rs`) | Contract defined (GV2-012); daemon wiring pending (GV2-029)           |
+| Control/session graph                   | shipped **in INTD** as `SessionRecord`/`Attribution` ([`intercept-as-built.md`](./intercept-as-built.md) §10); graph-shaped join Draft     | Partial (GV2-013)                                                     |
+| Plan/provenance graph                   | provenance shipped **in TS** ([`edda-stack.md`](./edda-stack.md)); Rust join Draft                                                         | Open seam (GV2-014)                                                   |
+| Registry + query traits                 | none yet — consumers call `certify()`/`with_graphs()` directly                                                                             | Draft (GV2-020/023)                                                   |
 
 ## Principles
 
@@ -177,6 +177,56 @@ If any single join in that chain cannot be followed by a defined identity key,
 the trace breaks — which is why GV2-002 gates GV2-014 and why G-05 (the
 worktree→file bridge) gates the control/session join.
 
+## The trust/policy graph contract (GV2-012)
+
+The trust/policy graph is a **separate graph keyed on `SymbolIdentity`**, not a
+bag of fields on the semantic node. It joins to the semantic graph via symbol
+identity (the semantic ↔ trust join above) and never embeds a semantic node, so
+a trust verdict can change without rewriting the code graph and a code edit can
+re-key without losing its policy meaning. The contract types live in
+`crates/anvil-kernel-types/src/trust.rs`; the store (`TrustGraph`) and its delta
+logic live in `crates/anvil-graph-cache/src/trust.rs`.
+
+### What a symbol's `PolicyProfile` carries
+
+- **Trust level** — `TrustLevel`
+  (`Unknown`/`Internal`/`Boundary`/`External`/`Privileged`), the single trust
+  axis (shipped Sub-phase A).
+- **Side-effect surfaces** — a `BTreeSet<SideEffectSurface>`: `Network`,
+  `Filesystem`, `Process`, `Crypto`, `Environment`. The v0.8 import heuristic
+  populates the four module-derived surfaces; `Environment` is part of the
+  vocabulary for the config-access producer.
+- **Data classifications** — a `BTreeSet<DataClassification>`
+  (`Unknown`→`Public`→`Internal`→`Confidential`→`Secret`), ordered least-to-most
+  sensitive.
+- **Invariant guards** — a `BTreeSet<InvariantGuard>` naming the save-time
+  guards that watch the symbol: `NewDependencyIntroduction`,
+  `PrivilegeExpansion`, `ApiSurfaceExpansion`.
+- **Policy evidence** — a `Vec<PolicyEvidence>`; each record anchors to a
+  `SymbolIdentity` plus an optional no-text `ByteRange` span and **resolves back
+  to source** via `PolicyEvidence::resolve()` (file + span). It carries no
+  source text (privacy verdict PV-7(e)).
+- **Override source** — `OverrideSource`
+  (`Heuristic`/`Configuration`/`Baseline`/`Annotation`), so every verdict is
+  auditable.
+
+### Scope guard
+
+These are **declarative classifications joined to a symbol**, derived from
+bounded, local evidence (e.g. a file's import set) — **not** full
+interprocedural data-flow analysis, which GV2-012 explicitly excludes. Richer
+producers may refine the same fields later without changing the contract.
+
+### Trust posture changes are emitted as deltas
+
+`TrustGraph::posture_delta(before, after)` diffs two trust graphs into a
+deterministic, identity-ordered `Vec<TrustPostureChange>`
+(`Classified`/`Reclassified`/`Declassified`); `posture_changes_for_delta` scopes
+that diff to the symbols a semantic `GraphDelta` actually touched, so a
+save-time update emits exactly the trust posture changes for the symbols that
+moved. `TrustPostureChange::is_privilege_escalation()` flags a move onto
+`Privileged` — the signal the daemon trust-annotation wiring (GV2-029) acts on.
+
 ## The query / registry API shape
 
 Consumers (INTD, DRVR, GCTX, WEAVE) must depend on **traits over joined state**,
@@ -254,11 +304,13 @@ The crux of "is the system designed": for each seam, where is it pinned?
   not define GV2 schemas, and GV2 wins on conflict; mutually acknowledged in
   both module specs. GCTX-002 (which server hosts it) is a sequencing decision,
   not a seam gap.
-- **graph ↔ trust/policy** — **partial.** Trust levels on nodes are shipped
-  (`TrustLevel`: `Unknown`/`Internal`/`Boundary`/`External`/`Privileged`,
-  `crates/anvil-kernel-types/src/trust.rs`); the richer trust/policy _graph_
-  contract (side-effect surfaces, data classes, policy evidence) is Draft inside
-  GV2-012. No separate authoritative trust-graph doc exists yet.
+- **graph ↔ trust/policy** — **pinned.** Trust levels on nodes are shipped
+  (`TrustLevel`: `Unknown`/`Internal`/`Boundary`/`External`/`Privileged`); the
+  richer trust/policy _graph_ contract (side-effect surfaces, data classes,
+  invariant guards, policy evidence, override sources) is now defined as a
+  separate `SymbolIdentity`-keyed graph (GV2-012, see "The trust/policy graph
+  contract" above). The remaining work is wiring `annotate_trust` onto the
+  daemon certify path (GV2-029), not the contract.
 - **graph ↔ provenance/edda-stack** — **the open seam.** Provenance is
   authoritatively specified in **TypeScript** (Kindling → Ember → Edda,
   [`edda-stack.md`](./edda-stack.md)); the Rust-side counterpart
@@ -325,12 +377,16 @@ counterpart is proposed only. **Risk:** Medium (only the provenance join, not
 the A′ swap). **Fix:** a provenance/kindling design stage; tracked as the open
 seam above.
 
-### G-03: Trust/policy graph contract is Draft and undocumented outside GV2
+### G-03: Trust/policy graph contract is documented — partially closed
 
-No authoritative trust-graph doc; the contract lives only inside GV2-012's
-assumptions, and `annotate_trust` is not yet wired on the daemon certify path
-(privilege-containment risk). **Risk:** Medium. **Fix:** GV2-012 + the daemon
-trust-wiring item (GV2-029).
+**Closed for the contract by GV2-012.** The trust/policy graph is now an
+authoritative, `SymbolIdentity`-keyed contract documented above ("The
+trust/policy graph contract") and implemented in
+`crates/anvil-kernel-types/src/trust.rs` +
+`crates/anvil-graph-cache/src/trust.rs` (`PolicyProfile`, `TrustGraph`,
+`posture_delta`). **Residual:** `annotate_trust` is still not wired on the
+daemon certify path (privilege-containment risk). **Risk:** Low (contract risk
+retired; wiring is mechanical). **Fix:** the daemon trust-wiring item (GV2-029).
 
 ### G-04: Top-level architecture docs predate Graph v2
 

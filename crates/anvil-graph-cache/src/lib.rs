@@ -22,4 +22,4 @@ pub use incremental::{
     GraphDelta, re_resolve_imports, re_resolve_imports_tracked, remove_file, update_file,
 };
 pub use symbol_graph::{GraphError, GraphStats, SymbolGraph};
-pub use trust::annotate_trust;
+pub use trust::{TrustGraph, TrustPostureChange, annotate_trust, policy_profiles};
