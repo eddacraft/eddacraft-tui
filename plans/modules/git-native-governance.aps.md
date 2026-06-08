@@ -78,10 +78,11 @@ release seals (RELEASE-SEAL); supplier bundles (SUPPLIER). Sealed Edda context
   package is `eddacraft-anvil`; earlier text named a nonexistent
   `eddacraft-anvil-cli`)
 - **Dependencies:** GITGOV-003, GITGOV-005, GITGOV-006
-- **Status:** In Progress (promoted from Proposed 2026-06-08 per NBI — operator
-  goal). Also closes the GITGOV-006 review follow-up: promote the shared OPA
-  runtime version constant (`anvil_rules::OPA_RUNTIME_VERSION`) and unify the
-  `ToolIdentity`/`Producer` fill-site in the CLI.
+- **Status:** Merged 2026-06-08 via PR #2385. Also closed the GITGOV-006 review
+  follow-up: `anvil_rules::OPA_RUNTIME_VERSION` is the shared constant (hook
+  aliases it) and the CLI fills `ToolIdentity`/`Producer` from a single
+  binding. Witness/diagnostics capsule entries are structural placeholders
+  until GITGOV-007/-008 land their collectors.
 
 ### GITGOV-005: Commit/range collector
 - **Intent:** Resolve a commit range to commits, tree hashes, parents, and changed paths.
