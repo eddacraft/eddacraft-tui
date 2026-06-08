@@ -124,7 +124,7 @@ anvil audit-chain --json                           # machine-readable report
 
 Exit code is **non-zero when drift meets or exceeds `--threshold`** (inclusive,
 so `--threshold 5` flips on the 5th unwitnessed commit). The nightly GitHub
-workflow at `.github/workflows/anvil-audit.yml` (installed via the activation
+workflow `anvil-audit.yml` in `.github/workflows/` (installed via the activation
 orchestrator, MLP2-053) runs this command and emits a `degraded:audit-drift`
 marker when threshold is met.
 
@@ -394,7 +394,7 @@ the gate" section).
 
 The nightly L5 audit workflow lives at
 [`crates/anvil-cli/src/templates/anvil-audit-workflow.yml`](../../crates/anvil-cli/src/templates/anvil-audit-workflow.yml)
-and is copied into `.github/workflows/anvil-audit.yml` by the activation
+and is copied into `.github/workflows/` as `anvil-audit.yml` by the activation
 orchestrator. ADR-037 §D-9: active by default; operators disable by commenting
 out the `schedule:` block, not by deleting the workflow.
 

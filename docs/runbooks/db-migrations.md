@@ -55,8 +55,8 @@ applying anything.
 
 ## Exact commands
 
-The CLI imports the compiled lib from `apps/anvil-api/dist/`, so the API must be
-built first. From the repo root:
+The CLI imports the compiled lib from `apps/anvil-api`'s generated `dist/`
+output, so the API must be built first. From the repo root:
 
 ```bash
 pnpm --filter @eddacraft/anvil-api run build

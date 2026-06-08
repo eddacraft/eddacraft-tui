@@ -485,8 +485,8 @@ carries the APS state changes:
 - Sweep cross-cutting callouts per
   [`aps-rules.md#cross-cutting-modules`](../../plans/aps-rules.md#cross-cutting-modules)
   (resolve / downgrade / document-and-close).
-- `git mv plans/modules/operating-model-migration.aps.md plans/archive/modules/`
-  once the module is Complete and all callouts are resolved.
+- Archive the module to `plans/archive/modules/operating-model-migration.aps.md`
+  via `git mv` once the module is Complete and all callouts are resolved.
 
 ## Mode notes
 

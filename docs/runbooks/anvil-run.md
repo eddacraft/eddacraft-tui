@@ -137,7 +137,7 @@ Env propagation is **advisory only**. Any same-UID process can spoof or unset
    path, not a security boundary.
 
 These daemon-side requirements are enforced in `crates/anvil-intercept` and
-tested under `crates/anvil-intercept-lib/tests/`. Neither `ANVIL_TASK_ID` nor
+tested under `crates/anvil-intercept/tests/`. Neither `ANVIL_TASK_ID` nor
 `ANVIL_AGENT_TAG` is a substitute for the witness chain as an audit record; the
 chain (ADR-037 §D-2) is the only authenticated provenance.
 

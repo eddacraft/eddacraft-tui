@@ -563,22 +563,6 @@
       "source path does not exist: \"tools/list\" (body reference \"tools/list\")",
       "source path does not exist: \"tools/mod.rs\" (body reference \"tools/mod.rs\")",
       "source path does not exist: \"tools/validate_write.rs\" (body reference \"tools/validate_write.rs\")"
-    ],
-    "docs/runbooks/anvil-run.md": [
-      "source path does not exist: \"crates/anvil-intercept-lib/tests/\" (body reference \"crates/anvil-intercept-lib/tests/\")"
-    ],
-    "docs/runbooks/anvil-witness-chain.md": [
-      "source path does not exist: \".github/workflows/anvil-audit.yml\" (body reference \".github/workflows/anvil-audit.yml\")"
-    ],
-    "docs/runbooks/branch-reconciliation.md": [
-      "source path does not exist: \"apps/anvil-cli/\" (body reference \"apps/anvil-cli/\")",
-      "source path does not exist: \"packages/platform/\" (body reference \"packages/platform/\")"
-    ],
-    "docs/runbooks/db-migrations.md": [
-      "source path does not exist: \"apps/anvil-api/dist/\" (body reference \"apps/anvil-api/dist/\")"
-    ],
-    "docs/runbooks/main-first-cutover.md": [
-      "source path does not exist: \"plans/modules/operating-model-migration.aps.md\" (body reference \"plans/modules/operating-model-migration.aps.md\")"
     ]
   }
 }

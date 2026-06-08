@@ -108,9 +108,9 @@ The branch audit produced these high-level facts:
 
 The 491 main-only files are concentrated in:
 
-- `apps/anvil-cli/` (341): the old Node CLI; `dev` archived this to
+- apps/anvil-cli/ (341, since removed): the old Node CLI; `dev` archived this to
   `archive/anvil-cli-node/` and `main` never received the cleanup
-- `packages/platform/` (28): old package; removed on `dev`
+- packages/platform/ (28, since removed): old package; removed on `dev`
 - `crates/eddacraft-tui/` (27): old crate; removed on `dev`
 - `plans/execution/` (22), old `plans/modules/` (15): plan reorg on `dev`
 - `.claude/hooks/` (9), `.claude/agent-bus/` (9), `.claude/settings.json`,
