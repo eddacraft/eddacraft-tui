@@ -73,10 +73,11 @@ converge on the org-owned credential.
 > is still `completed`).
 >
 > **Supersedes:** [`eddacraft-tui-canonical-source`](../archive/modules/eddacraft-tui-canonical-source.aps.md)
-> (TUIMIRROR, 0/8, Proposed). TUIR carries the same intent at a higher
-> resolution — the policy questions left implicit in TUIMIRROR (read-only vs
-> release mirror, sync direction, versioning ownership, CI gate split,
-> backport policy) are first-class work items here.
+> (TUIMIRROR, 0/8, Superseded — archived 2026-06-08 via TUIR-008). TUIR
+> carried the same intent at a higher resolution — the policy questions left
+> implicit in TUIMIRROR (read-only vs release mirror, sync direction,
+> versioning ownership, CI gate split, backport policy) became first-class
+> work items here.
 
 ## Purpose
 
