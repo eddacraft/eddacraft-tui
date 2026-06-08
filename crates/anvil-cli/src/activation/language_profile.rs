@@ -102,6 +102,12 @@ pub const LANGUAGE_REGISTRY: &[LanguageEntry] = &[
         basis: "antipattern checks ship",
     },
     LanguageEntry {
+        name: "Rust",
+        extensions: &[".rs"],
+        coverage_tier: CoverageTier::Supported,
+        basis: "antipattern + secret checks ship",
+    },
+    LanguageEntry {
         name: "SQL",
         extensions: &[".sql"],
         coverage_tier: CoverageTier::Partial,
@@ -118,12 +124,6 @@ pub const LANGUAGE_REGISTRY: &[LanguageEntry] = &[
         extensions: &[".py", ".pyw"],
         coverage_tier: CoverageTier::Unsupported,
         basis: "language pack not yet shipped",
-    },
-    LanguageEntry {
-        name: "Rust",
-        extensions: &[".rs"],
-        coverage_tier: CoverageTier::Supported,
-        basis: "antipattern + secret checks ship",
     },
     LanguageEntry {
         name: "Go",
@@ -791,7 +791,9 @@ mod tests {
         let ts_pos = names.iter().position(|n| *n == "TypeScript").unwrap();
         let py_pos = names.iter().position(|n| *n == "Python").unwrap();
         let rs_pos = names.iter().position(|n| *n == "Rust").unwrap();
-        assert!(ts_pos < py_pos, "names: {names:?}");
-        assert!(py_pos < rs_pos, "names: {names:?}");
+        // "Most-supported first": Rust (Supported) is grouped with the
+        // supported tier ahead of Python (Unsupported).
+        assert!(ts_pos < rs_pos, "names: {names:?}");
+        assert!(rs_pos < py_pos, "names: {names:?}");
     }
 }
