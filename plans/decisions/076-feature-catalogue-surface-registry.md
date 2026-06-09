@@ -2,10 +2,10 @@
 
 ## Status
 
-**Draft** — 2026-06-09. Captures a brainstormed model for reaction; open
-questions remain (storage shape, a handful of granularity calls, the runtime
-staff-axis gap). Not yet council-ready. Extends — does not supersede —
-[ADR-048](048-feature-group-architectural-model.md).
+**Draft** — 2026-06-09. The five open questions were worked through and
+resolved the same day (see Resolved Questions); a **feature-dependency facet**
+was added. Ready to promote to **Proposed** pending a council pass. Extends —
+does not supersede — [ADR-048](048-feature-group-architectural-model.md).
 
 ## Date
 
@@ -79,25 +79,48 @@ inventory, and drive flagging through the dimensions that already exist.
    since environment targeting is universal (any feature can be scoped to
    `local`/`development`/`preview`/`demo`/`production`).
 
-3. **No new flag class or dimension.** Reuse `Entitlement` / `OpsKillSwitch` /
-   `Rollout` and the audience + environment axes. Edition ≡ entitlement; auth ≡
-   entitlement + auth-bearing audience.
+3. **No new flag class or dimension; presence and behaviour are orthogonal
+   (Q1).** Reuse `Entitlement` / `OpsKillSwitch` / `Rollout` and the audience +
+   environment axes. Edition ≡ entitlement; auth ≡ entitlement + auth-bearing
+   audience. Crucially, there is **no "enforcement point" field**: a surface
+   resolves **on/off** for a caller — off for *any* reason (not in the audience,
+   not enabled in this environment, killed by the safety switch) — and because
+   every registry entry is a **surface**, off ⇒ the command is refused/hidden,
+   uniformly and derivably. **Behaviour is the orthogonal "what you get when
+   on"**: `valueType: boolean` is pure on/off (nothing more to read);
+   `number`/`object` carries an in-code value (e.g. 2 vs 4 MCP servers), and
+   `targeting` selects *which* value among those who have it. "If they don't
+   have it, behaviour doesn't matter."
 
 4. **Keep it lean via category defaults.** A feature inherits its category's
    class/audience/environment and declares only **overrides** (e.g. `mcp.serve`
    overriding the `mcp` gated default to open). This prevents a 6 → 40 flag
    explosion from becoming 19 identical licence flags.
 
-5. **Auth lists become catalogue-derived.** `CLI_GATED_COMMANDS` and the
+5. **Feature dependencies are explicit (`requires` edges).** A feature may
+   declare `requires: [feature-keys]`. A feature is effectively-available iff
+   its own presence resolves on **and** every `requires` target is available,
+   transitively. Two enforcement moments: **runtime cascade-off** (a dependency
+   absent ⇒ the dependent is absent too — never serve a half-broken feature) and
+   an **authoring/CI blast-radius report** (turning A off reports "B, C, D also
+   go dark"). The graph is a **DAG**, gated for `requires`-target existence and
+   **acyclicity** (a cycle makes "is it on?" undecidable). **Hard `requires`
+   only** — no `suggests`/`enhances`/`conflicts-with` until a real need appears
+   (that softer-relation sprawl is where feature systems balloon).
+
+6. **Auth lists become catalogue-derived.** `CLI_GATED_COMMANDS` and the
    admin/staff gates stop being hand-maintained Rust lists and are derived from
-   each feature's declared access posture — the same single-source pattern
-   CIB-046 already uses to read its key from the catalogue.
+   each surface's presence resolution (audience/environment/kill-switch) — the
+   same single-source pattern CIB-046 already uses to read its key from the
+   catalogue.
 
-6. **Storage = the existing `flags/` config**, extended. (Open question: all
-   features in `manifest.json` vs. a dedicated `flags/surfaces.json` registry it
-   references — see Open Questions.)
+7. **Storage = a dedicated `flags/surfaces.json` registry (Q2).** Surfaces +
+   categories + `requires` edges live in their own graph document (with the
+   existence + acyclicity gates); `manifest.json` stays the lean policy-flag
+   layer that **references** surface keys. The Rust `build.rs` and TS codegen +
+   drift gates extend to the second file.
 
-7. **Runtime stays config-resolved, not build-time.** A product edition is a
+8. **Runtime stays config-resolved, not build-time.** A product edition is a
    profile that resolves features on/off per audience/environment at startup;
    one binary. Build-time omission (cargo `#[cfg(feature)]`) is a **deferred**
    optimization for a concrete edition, not part of this model.
@@ -129,28 +152,50 @@ until a real SKU needs it.
   back-capture pass is needed; risk of over-cataloguing pure plumbing.
 - **Risks:** (1) non-customer audiences (staff/internal) have no signal in the
   CLI evaluation context today — the CIB-046 deferral — so auth restriction to
-  internal audiences can't fully resolve at runtime yet; (2) putting ~40 entries
-  in one `manifest.json` may hurt readability.
-- **Mitigations:** category defaults keep declarations minimal; the
+  internal audiences can't fully resolve at runtime until RBAC lands; (2) the
+  dependency graph adds an acyclicity-gate surface and a new failure mode
+  (mis-declared `requires` edges) to maintain.
+- **Mitigations:** category defaults keep declarations minimal; the dedicated
+  `flags/surfaces.json` registry keeps the graph out of `manifest.json`; the
   `foundational` category contains plumbing without pretending it is a SKU
   lever; the granularity rule bounds the entry count to roughly command-count;
-  build-time omission is explicitly deferred; the staff-axis plumbing is tracked
-  as a follow-up to CIB-046.
+  build-time omission is explicitly deferred; staff-axis resolution is folded
+  into the eventual RBAC work; `requires` edges are CI-gated for existence +
+  acyclicity and limited to hard dependencies.
 
-## Open Questions
+## Resolved Questions (2026-06-09)
 
-1. **Storage shape** — all features in `manifest.json`, or a dedicated
-   `flags/surfaces.json` registry that policy flags reference?
-2. **Enforcement point** — both CIB-046 (refuse *invocation*) and a quota (run,
-   but cap *behaviour*) are "Entitlement + audience" yet enforce at different
-   points. Should a feature declare `gate: invocation | behaviour`, or is that
-   left to consuming code? (This is the one thing the model does not yet name.)
-3. **`dashboard.project` granularity** — one feature for all native views, or
-   per-view so `gate-summary` could be gated separately from `architecture`?
-4. **`admin.credential` split** — its own feature, or an un-gateable corner of
-   `admin`?
-5. **Staff-axis runtime plumbing** — when/how to carry a staff/role claim into
-   the CLI evaluation context (CIB-046 follow-up).
+The five questions raised at draft time were worked through with the operator
+and resolved as follows; a sixth concern (dependencies) was raised and folded
+into the Decision.
+
+1. **Enforcement point → no field.** Dissolved by the audience/behaviour
+   orthogonality: presence (audience/environment/kill-switch) gates the surface
+   on/off uniformly (derivable because every entry is a surface); behaviour is
+   the orthogonal value-when-on, signalled by `valueType` and selected by
+   `targeting`. See Decision §3. The mooted `gate: invocation | behaviour` enum
+   is rejected — a feature can both gate invocation and carry a tiered value, so
+   it is not a single per-feature mode.
+2. **Dependencies (raised here) → explicit `requires` edges.** Cascade-off at
+   runtime + authoring-time blast-radius report; DAG with existence + acyclicity
+   gates; hard requires only. See Decision §5.
+3. **Storage shape → dedicated `flags/surfaces.json`.** See Decision §7.
+4. **`dashboard.project` granularity → per-view.** Each native view
+   (`dashboard.architecture`/`dashboard.drift`/`dashboard.suppressions`) is its
+   own feature that `requires` its engine feature, so cascade-off drops a view
+   exactly when its data source is dropped; the saved-spec capability
+   (`gate-summary` and the `.dashboard.json` picker) is a separate
+   `dashboard.saved` feature.
+5. **`admin.credential` split → yes.** `admin.credential` (the `admin auth`
+   subcommands) is its own `foundational`, open-audience feature distinct from
+   `admin.operations` (admin-key audience) — the audience divergence is the
+   boundary; you cannot require the key to set the key.
+6. **Staff-axis runtime plumbing → deferred, integrate with RBAC.** Declare
+   staff audiences now; escape hatches (`ANVIL_DEV`/`ANVIL_ADMIN_KEY`) carry
+   runtime resolution until **RBAC** lands, which is the natural home for
+   role/staff identity — at which point staff resolution integrates there (a
+   dedicated staff signal in the evaluation context, not an overload of the
+   customer `user_role` axis). CIB-046 follow-up.
 
 ## References
 
@@ -181,15 +226,18 @@ their category default; only divergent ones declare an override.
 | `mcp` | `mcp.serve` | **ungated** | capability + env | edition/omit candidate |
 | `mcp` | `mcp.config` | licence-gated | Entitlement | — |
 | `dashboard` | `dashboard.aps` (`plan dashboard`) | **staff-gated** (CIB-046, catalogued) | Entitlement/staff | already a feature |
-| `dashboard` | `dashboard.project` (native views) | ungated | env | merge architecture/drift/suppressions/gate-summary (open Q3) |
+| `dashboard` | `dashboard.architecture` / `dashboard.drift` / `dashboard.suppressions` | ungated | env | per-view; each `requires` its engine feature (Q3) |
+| `dashboard` | `dashboard.saved` (`.dashboard.json` picker, incl. `gate-summary`) | ungated | env | saved-spec capability, separate from native views |
 | `save-time` | `watch` | licence-gated | Entitlement | daemon routing is a Rollout sub-behaviour |
 | `save-time` | `intercept` | ungated | env | merge start/status/unblock |
 | `hooks` | `hooks` | ungated | env | merge manage + run |
 | `admin` | `admin.operations` | admin-key gated | Entitlement (admin) | — |
-| `admin` | `admin.credential` (`admin auth`) | **ungated** | foundational | split — configures the key (open Q4) |
+| `foundational` | `admin.credential` (`admin auth`) | **ungated** | foundational | split from `admin.operations` — configures the key (Q4) |
 | `tools` | `edda`, `capsule`, `insights` | ungated | env / Entitlement (later) | one each, user's own data |
 | `setup` | `init`, `start`, `welcome`, `new`, `wizard` | licence-gated | Entitlement | onboarding |
 | `foundational` | `auth`, `config`, `migrate`, `update`, `uninstall`, `doctor`, `version`, `licenses`, `tutorial`, `workspace` | ungated | env-only (default on everywhere) | base layer; never a SKU lever |
 
-≈ 40 features across 9 categories — roughly command-count, the signal that the
-granularity is honest.
+≈ 43 features across 9 categories (the per-view dashboard split adds a few) —
+roughly command-count, the signal that the granularity is honest. `requires`
+edges (e.g. each `dashboard.*` view → its engine feature) live in
+`flags/surfaces.json`, not shown here.
