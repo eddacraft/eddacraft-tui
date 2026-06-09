@@ -105,22 +105,27 @@ Selection rules:
 
 | Rank | NBI | Mode | Source | Why now | Next action |
 | ---- | --- | ---- | ------ | ------- | ----------- |
-| 1 | GV2 A′ slice (`v0.8.0-beta` payload) | Ready | [`graph-v2-foundation`](./modules/graph-v2-foundation.aps.md) + [ADR-075](./decisions/075-v080-graph-product-scope.md) | ADR-075 (Accepted via council) scopes the cut to the GV2-027 critical-path closure + the A→A′ swap + default-on. **GV2-010/011/012/028 Merged**; the now-unblocked frontier is GV2-022/024 (dep GV2-011 ✓) plus GV2-029 (dep GV2-012 ✓). | Start GV2-022/024 (dep GV2-011 ✓) and GV2-029 (dep GV2-012 ✓); sequence 022→024/025. GV2-012 is Merged, so GV2-029 is now unblocked. GV2-028 (parser feed) is live and also backs the GV2-027 A′ swap. |
-| 2 | A→A′ backing swap (GV2-027) + default-on | Schedule | [`daemon-save-time-validation`](./modules/daemon-save-time-validation.aps.md) Sub-phase A′ | The user-facing payoff: swaps the daemon's interim re-derive for the resident GV2 hot-index under the unchanged wire, after which `ANVIL_WATCH_DAEMON` flips default-on (with rollout controls). Boundary gate already closed (ADR-063). | Land GV2-027 with verdict-parity + GV2-025 Criterion gate + GV2-028 Done; then the default-on flip behind the §8 bar + rollout controls. |
-| 3 | GITGOV-011/012/013/014 — capsule follow-ups | Schedule | [`git-native-governance`](./modules/git-native-governance.aps.md) | GITGOV-003..010 all Merged 2026-06-08 — capsule create/collect/verify/explain is complete through PR #2427 (incl. -008 diagnostics via PR #2405). The open governance frontier is GITGOV-011 (JSON output), -012 (tamper tests), -013 (retention/prune), -014 (state-boundary enforcement); all deps are satisfied. (EXCEPT-003 already Merged via PR #2401.) | Pick the highest-value of -011 (CI JSON) / -012 (tamper proof) and promote Proposed → Ready. |
+| 1 | GV2 A′ hot-path hardening (`v0.8.0-beta`) — GV2-024/025 | Ready | [`graph-v2-foundation`](./modules/graph-v2-foundation.aps.md) + [ADR-075](./decisions/075-v080-graph-product-scope.md) | ADR-075 (Accepted via council) scopes the cut to the GV2-027 critical-path closure + the A→A′ swap + default-on. **GV2-010/011/012/022/028/029 and the GV2-027 swap itself are all Merged** (the #2442/#2446 wave). The only open critical-path items are **GV2-024** (hot-read type split + hot-path debug assertion, dep GV2-022 ✓) and **GV2-025** (Criterion p95 + ADR-031 CI gate, deps GV2-011/022 ✓), both Draft. | Promote GV2-024 → GV2-025 (Draft → Ready); sequence 024→025. GV2-024 makes denylist hot-path ops uncallable + adds the debug assertion; GV2-025 lands the Criterion p95 gate the default-on flip (rank 2) depends on. NB: GV2-027 merged ahead of its declared GV2-024 dep — 024 is now a hardening follow-up, not a swap blocker. |
+| 2 | `ANVIL_WATCH_DAEMON` default-on flip | Schedule | [`daemon-save-time-validation`](./modules/daemon-save-time-validation.aps.md) Sub-phase A′ | The A→A′ backing swap (GV2-027) is **Merged 2026-06-08 (#2446)** — `validate_paths` now certifies through the resident GV2 hot-read index with verdict parity, and GV2-029 wired privilege containment in the same stack. The remaining user-facing step is flipping `ANVIL_WATCH_DAEMON` default-on (with rollout controls). Boundary gate already closed (ADR-063). | After GV2-025's Criterion p95 gate is green, flip `ANVIL_WATCH_DAEMON` default-on behind the §8 bar + rollout controls. |
+| 3 | GITGOV-011/012/013/014 — capsule follow-ups | Schedule | [`git-native-governance`](./modules/git-native-governance.aps.md) | GITGOV-003..010 all Merged 2026-06-08 — capsule create/collect/verify/explain is complete through PR #2427 (incl. -008 diagnostics via PR #2405). The open governance frontier is GITGOV-011 (JSON output), -012 (tamper tests), -013 (retention/prune), -014 (state-boundary enforcement); all deps are satisfied. (EXCEPT-003 is Done via PR #2401.) | Pick the highest-value of -011 (CI JSON) / -012 (tamper proof) and promote Proposed → Ready. |
 
-NBI review note (2026-06-08, third pass): the window was re-scoped from the
-interim-cache slice to the GV2 **A′ slice** by
-[ADR-075](./decisions/075-v080-graph-product-scope.md) (Accepted via council
-session `council-614e422c`, accept-with-changes — the council recommended the A′
-slice over the full graph product, deferring GCTX + multi-graph registry +
-persistence to v0.9). The cut is **no longer content-complete**: rank 1 is
-**building the GV2-027 A′ critical path** (frontier GV2-010). Prior governance
-rows superseded — GITGOV-003..010 all Merged 2026-06-08 (capsule complete
-through PR #2427; -008 diagnostics via PR #2405), EXCEPT-003 Merged (#2401);
-the live governance frontier is now GITGOV-011/012/013/014. The broad Ready pool (USAGE, EDGE, DASH*,
-OPAG, EVAL, CPOL, IORISK, GATE, ATC, PATT, TRUST, ILGOV, LAC) remains available
-but does not outrank the v0.8.0 payload.
+NBI review note (2026-06-09, fourth pass): the #2442/#2446 wave landed the A′
+swap, so ranks 1–2 are re-scoped from the third pass. **GV2-022** (hot-read API,
+#2442), **GV2-028** (parser feed, #2438), **GV2-029** (privilege containment,
+#2446), and **GV2-027** (A→A′ backing swap, #2446) are all Merged — `validate_paths`
+now certifies through the resident GV2 hot-read index with verdict parity. The
+A′ slice is wired live; the only open critical-path items are **GV2-024**
+(hot-read type split + hot-path debug assertion) and **GV2-025** (Criterion p95 /
+ADR-031 CI gate), both Draft. Note GV2-027 merged **ahead of** its declared
+GV2-024 dependency: 024 enforces the hot-path constraint as a hardening
+follow-up, not a swap blocker. Once GV2-025's latency gate is green, the
+`ANVIL_WATCH_DAEMON` default-on flip (rank 2) is the remaining v0.8.0 step.
+Governance frontier unchanged from the third pass — GITGOV-003..010 all Merged
+2026-06-08 (capsule complete through PR #2427; -008 diagnostics via PR #2405),
+EXCEPT-003 Done (#2401), live frontier GITGOV-011/012/013/014 (all Proposed).
+The broad Ready pool (USAGE, EDGE, DASH*, OPAG, EVAL, CPOL, IORISK, GATE, ATC,
+PATT, TRUST, ILGOV, LAC) remains available but does not outrank the v0.8.0
+payload.
 
 ## Release Plan
 
