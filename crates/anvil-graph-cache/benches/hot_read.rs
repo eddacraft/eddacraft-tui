@@ -2,8 +2,10 @@
 //!
 //! ADR-063 declares the resident hot-read API "admissible" only if it stays
 //! inside the ADR-031 interactive save-time budget, but until now nothing
-//! measured it. This bench closes that gap: it times the four allowlist hot
-//! reads ([`HotReadApi`]) plus the A′ verdict entry ([`certify`]) over a
+//! measured it. This bench closes that gap: it times all four [`HotReadApi`]
+//! allowlist categories — `resident_symbols`/`symbol_owner` (#1), `known_edge`
+//! (#2), `reverse_impact` at depth 1 and at the hard cap (#3), and
+//! `boundary_membership` (#4) — plus the A′ verdict entry ([`certify`]) over a
 //! versioned resident-graph corpus, reports p50/p95/p99, and **exits non-zero
 //! when any op's p95 exceeds the budget** — so the CI step that runs it is the
 //! gate, not a report.
@@ -109,6 +111,21 @@ fn main() {
         let _ = black_box(api.resident_symbols(black_box(HUB_FILE)));
     });
 
+    // Allowlist #1 — symbol-ownership lookup (which file owns a symbol id), O(1).
+    failed |= measure_gate("symbol_owner (hub api)", stall, || {
+        let _ = black_box(api.symbol_owner(black_box(HUB_API_SYMBOL_ID)));
+    });
+
+    // Allowlist #2 — known-edge existence over the resident dependency index.
+    failed |= measure_gate("known_edge (importer→hub)", stall, || {
+        let _ = black_box(api.known_edge(black_box(KNOWN_IMPORTER), black_box(HUB_FILE)));
+    });
+
+    // Allowlist #4 — precomputed boundary/trust membership for a symbol id, O(1).
+    failed |= measure_gate("boundary_membership (hub api)", stall, || {
+        let _ = black_box(api.boundary_membership(black_box(HUB_API_SYMBOL_ID)));
+    });
+
     // Allowlist #3 — bounded reverse-impact closure, depth 1 (direct importers).
     failed |= measure_gate("reverse_impact depth=1 (hub)", stall, || {
         let _ = black_box(api.reverse_impact(black_box(HUB_FILE), 1, IMPACT_BUDGET));
@@ -168,8 +185,11 @@ fn measure_gate(label: &str, stall: Duration, mut op: impl FnMut()) -> bool {
         }
         samples.push(started.elapsed());
     }
+    // Sort here so the p95 the gate reads is not coupled to a side effect of
+    // `report`; `report` receives an already-sorted slice.
+    samples.sort_unstable();
     report_dimensions(label);
-    report(label, &mut samples);
+    report(label, &samples);
     gate(
         label,
         samples[percentile_index(samples.len(), 95)],
@@ -183,6 +203,13 @@ fn measure_gate(label: &str, stall: Duration, mut op: impl FnMut()) -> bool {
 
 /// The fan-in hub whose reverse-impact closure the depth benches walk.
 const HUB_FILE: &str = "hub.ts";
+/// A symbol id resident in the corpus: `build_corpus` adds the hub file's
+/// symbols first, so id 0 is the hub's public `api` symbol — used by the
+/// `symbol_owner`/`boundary_membership` O(1) reads.
+const HUB_API_SYMBOL_ID: u64 = 0;
+/// A file that directly imports the hub — i.e. a known edge `(importer → hub)`
+/// resident in the dependency graph, used by the `known_edge` read.
+const KNOWN_IMPORTER: &str = "l1_0.ts";
 /// Total files in the corpus (hub + direct importers + second-hop importers).
 const CORPUS_FILES: usize = 1 + HUB_DIRECT_IMPORTERS + HUB_DIRECT_IMPORTERS * SECOND_HOP_FANOUT;
 
@@ -282,12 +309,14 @@ fn report_dimensions(op: &str) {
     );
 }
 
-fn report(name: &str, samples: &mut [Duration]) {
+/// Print p50/p95/p99 for an **already-sorted** sample slice (the caller sorts
+/// once in `measure_gate`, so the gate's p95 does not depend on a side effect
+/// here).
+fn report(name: &str, samples: &[Duration]) {
     if samples.is_empty() {
         println!("{name}: samples=0 (no measurements)");
         return;
     }
-    samples.sort_unstable();
     println!(
         "{name}: samples={} p50={} p95={} p99={}",
         samples.len(),

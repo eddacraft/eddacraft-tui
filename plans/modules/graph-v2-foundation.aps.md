@@ -570,8 +570,13 @@ Change status to **Ready** when:
 #### GV2-025: Criterion hot-read benchmark + ADR-031 CI gate
 
 - **Status:** In Progress
-- **Intent:** Land the missing latency gate ADR-063 names — a Criterion harness
-  that fails CI when hot-read p95 exceeds the ADR-031 save-time budget.
+- **Intent:** Land the missing latency gate ADR-063 names — a `cargo bench`
+  harness that fails CI when hot-read p95 exceeds the ADR-031 save-time budget.
+  (Implemented as a `harness = false` bench with a hand-rolled percentile +
+  `process::exit` gate, not a literal `criterion_group!` harness, to match the
+  repo's existing ADR-031 latency gate — `ipc_roundtrip` — since Criterion's
+  statistical output yields no clean p95 pass/fail exit code. The "Criterion"
+  in this item's title is retained only as the work-item label.)
 - **Expected Outcome:** `benches/hot_read.rs` measuring per-file lookup,
   `dependents_of`, and `impact_closure` at depth 1 and at the hard cap on the
   latency corpus, wired as a CI check; declares its quiet/CI-box requirement.
