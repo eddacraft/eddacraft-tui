@@ -16,13 +16,17 @@ Verified: <!-- filled by cleanup agent -->
       (#2421/#2432 pattern), to avoid colliding with any concurrent GV2 flips. (agent: yes)
 - [ ] Confirm `cargo test -p eddacraft-anvil-intercept -- backing_parity` and the
       diagnostic-parity gate are green on `main`. (agent: yes)
-- [ ] **Owner/council decision (not auto-resolvable):** decide whether sub-phase
+- [x] **Owner/council decision (not auto-resolvable):** decide whether sub-phase
       A′ adopts the depth-capped `HotReadApi::reverse_impact` for the
       certifiability closure (would change the
       `ImpactSetOverflow`-vs-`ExportSurfaceChange` stale reason in graphs deeper
       than `MAX_REVERSE_IMPACT_DEPTH`). Reconciles ADR-061 §6 (cert closure
       default 1 hop) with ADR-063 (bounded hot reads). Currently
       verdict-preserving (unbounded `impact_closure` retained). (human required)
+      **Resolved 2026-06-09:** owner chose path A — adopt the depth cap. Captured
+      in [ADR-077](../../decisions/077-cert-closure-depth-cap.md) (Proposed,
+      awaiting ratification); implemented by GV2-024. The relabel is between two
+      `Partial` reasons, so the swap stays coverage-verdict-preserving.
 
 ## Notes
 

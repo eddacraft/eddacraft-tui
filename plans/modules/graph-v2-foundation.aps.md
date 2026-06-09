@@ -549,21 +549,31 @@ Change status to **Ready** when:
 
 #### GV2-024: Hot-read type split + hot-path debug assertion
 
-- **Status:** Draft
+- **Status:** Draft — code gated on [ADR-077](../decisions/077-cert-closure-depth-cap.md)
+  ratification (owner chose "decide the ADR first, then code" for the
+  `HotReadApi::certify` seal fork GV2-027 deferred).
 - **Intent:** Make ADR-063 admissibility "enforced, not aspirational" — a sealed
   `HotReadApi` exposing only the four allowlist ops, with denylist ops reachable
   only via a separate `BackgroundReadApi`, plus a debug assertion that trips on
-  any parse/resolve/traversal/IO inside a hot call.
+  any parse/resolve/traversal/IO inside a hot call. Per
+  [ADR-077](../decisions/077-cert-closure-depth-cap.md) (path A), the seal also
+  depth-caps `certify`'s closure (`impact_closure` → `MAX_REVERSE_IMPACT_DEPTH`)
+  so no unbounded transitive walk is reachable from the hot type and the seal
+  needs no carve-out for `certify`.
 - **Expected Outcome:** Non-admissible ops do not compile when called from the
   hot type; the assertion fires under test when a hot call performs disallowed
-  work.
+  work; `HotReadApi::certify`'s GV2-024 doc-comment caveat is discharged (body
+  uses the depth-capped closure) and `backing_parity` is re-baselined under the
+  cap (warm == cold).
 - **Validation:** A compile-fail test (e.g. `trybuild`) for a denylist call from
   the hot type; a unit test that the debug assertion trips —
-  `cargo test -p eddacraft-anvil-graph-cache -- admission`
-- **Files:** `crates/anvil-graph-cache/src/hot_index.rs`
+  `cargo test -p eddacraft-anvil-graph-cache -- admission`; the re-baselined
+  `cargo test -p eddacraft-anvil-intercept -- backing_parity` stays green.
+- **Files:** `crates/anvil-graph-cache/src/hot_index.rs`,
+  `crates/anvil-graph-cache/src/certify.rs`
 - **Confidence:** medium
 - **Priority:** Critical
-- **Dependencies:** GV2-022
+- **Dependencies:** GV2-022, ADR-077 (decision gate)
 
 ---
 
