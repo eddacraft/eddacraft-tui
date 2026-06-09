@@ -5,16 +5,19 @@
 
 | ID   | Owner      | Status   | Progress |
 | ---- | ---------- | -------- | -------- |
-| TUIN | joshuaboys | In Progress | 4/12     |
+| TUIN | joshuaboys | In Progress | 4/13     |
 
-**Last reviewed:** 2026-06-08 (TUIN-012 Done: feature-gated `lifecycle` and
-`runner` modules landed in `crates/eddacraft-tui/`, using `lexopt` for shared
-global parsing, config-path handoff, and typed mode/theme hints while preserving
-consumer-owned lifecycle, render-loop, and command semantics; operator
-override accepted ADR-050 and promoted TUIN-012 before the
-seven-consecutive-green mirror-drift observation window completed; TUIR-008 is
-closed and the override is limited to the ADR-050 runner fallback CLI shell
-boundaries). Prior: 2026-06-08
+**Last reviewed:** 2026-06-09 (TUIN-013 added Proposed: first-class public
+docs-site section for `eddacraft-tui`, sibling to `/aps` and `/kindling`,
+narrative-only with API reference linked to docs.rs; surfaced alongside the
+runner BYO-parser docs PR #2462). Prior: 2026-06-08 (TUIN-012 Done:
+feature-gated `lifecycle` and `runner` modules landed in
+`crates/eddacraft-tui/`, using `lexopt` for shared global parsing, config-path
+handoff, and typed mode/theme hints while preserving consumer-owned lifecycle,
+render-loop, and command semantics; operator override accepted ADR-050 and
+promoted TUIN-012 before the seven-consecutive-green mirror-drift observation
+window completed; TUIR-008 is closed and the override is limited to the ADR-050
+runner fallback CLI shell boundaries). Prior: 2026-06-08
 (ADR-050 fallback CLI shell amendment; TUIN-011/-012 added). Prior: 2026-05-28 (opportunistic colour-harmonisation
 spike; TUIN-009/010 added); 2026-05-23 (ADR-050 design pass).
 
@@ -657,6 +660,39 @@ a subcommand and `--config` path handoff.
 **changeType:** internal
 **releaseIntent:** candidate
 **releaseScope:** minor
+
+### TUIN-013: First-class public docs-site section for `eddacraft-tui`
+
+- **Status:** Proposed
+- **Intent:** Give `eddacraft-tui` its own public docs-site section, a sibling
+  to `/aps` and `/kindling`, rather than a bullet under `/edda-stack`. The
+  OSS crate currently has no narrative front door on the docs-site: its
+  canonical reference lives in rustdoc (docs.rs) and the README that travels
+  with the read-only mirror (ADR-047), but a discoverable getting-started /
+  concepts surface is missing. Surfaced 2026-06-09 alongside the runner
+  bring-your-own-parser docs (PR #2462), whose `runner` module narrative
+  seeds the section's CLI page.
+- **Expected Outcome:** New `docs/public/eddacraft-tui/` content tree following
+  the APS/kindling section pattern (Docusaurus frontmatter — `id` / `title` /
+  `sidebar_position` — plus the DOCGOV-002 metadata convention every new public
+  doc carries; no internal-governance Upstream/Downstream tables): `overview`,
+  `getting-started`, a widgets tour, `theming`, `json-render`, `pretext`, and a
+  `cli-runner` page seeded from the `runner` module rustdoc. Site wiring: a new
+  plugin instance + navbar entry in `apps/docs-site/docusaurus.config.ts`, a
+  `apps/docs-site/sidebars/eddacraft-tui.ts` sidebar, the `vercel.json`
+  `ignoreCommand` path-list entry, and a row in `apps/docs-site/AGENTS.md`. API
+  reference is **linked to docs.rs, not duplicated** — the section is narrative
+  only, to avoid the multi-surface drift the mirror governance warns against
+  (canonical reference stays on the crate + docs.rs).
+- **Validation:** `pnpm docs:check` passes (new pages carry the metadata
+  convention; relative links resolve); `pnpm docs:index` regenerated and
+  committed; the docs-site builds with the new section; the section renders at
+  `/eddacraft-tui` with a working sidebar. Cross-link from the crate README's
+  Documentation section to the new site section resolves.
+
+**changeType:** docs
+**releaseIntent:** never
+**releaseScope:** none
 
 ## Ready Checklist
 
