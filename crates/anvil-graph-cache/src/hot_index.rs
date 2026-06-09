@@ -45,14 +45,20 @@
 //! `CrossFileResolutionNeeded → StaleReason::CrossFileResolutionNeeded`,
 //! `ImpactSetOverflow → StaleReason::ImpactSetOverflow`.
 //!
-//! # What this item does *not* do
+//! # Hot-path seal (GV2-024)
 //!
-//! The compile-time type split that makes non-admissible (denylist) ops
-//! *uncallable* from the hot surface is GV2-024; the runtime-configurable depth
-//! lever wired through `flags/manifest.json` is GV2-026; the Criterion CI
-//! latency gate is GV2-025; the A→A′ backing swap behind `validate_paths` is
-//! GV2-027. This module ships the read API and the warm/stale contract those
-//! items build on.
+//! The admissibility above is **compile-enforced**, not just documented:
+//! non-admissible (denylist) ops live on [`BackgroundReadApi`] and are
+//! unreachable from this hot surface, [`HotPathSurface`] is a sealed marker only
+//! [`HotReadApi`] implements, and the bounded walks carry a `debug_assert` depth
+//! guard (ADR-063 §3 / ADR-077). Two `compile_fail` doctests on
+//! [`HotPathSurface`] prove the seal holds.
+//!
+//! # Out of scope
+//!
+//! The runtime-configurable depth lever wired through `flags/manifest.json` is
+//! GV2-026; the Criterion CI latency gate is GV2-025 (landed); the A→A′ backing
+//! swap behind `validate_paths` is GV2-027 (landed).
 
 use std::collections::HashSet;
 
@@ -207,6 +213,11 @@ impl<'a> HotReadApi<'a> {
         max_depth: u32,
         budget: usize,
     ) -> HotRead<HashSet<String>> {
+        // An over-cap request is clamped, not honoured (ADR-063 §3) — the cap is
+        // enforced here by construction. The shared bounded walk
+        // (`certify::bounded_impact_closure`) carries the `debug_assert` that
+        // trips on an over-cap depth, since its `depth` is a direct parameter
+        // rather than a pre-clamped one.
         let depth = max_depth.min(MAX_REVERSE_IMPACT_DEPTH);
         let mut seen: HashSet<String> = HashSet::new();
         let mut frontier: Vec<String> = vec![file.to_string()];
@@ -266,8 +277,10 @@ impl<'a> HotReadApi<'a> {
     /// traversal and the GV2-024 seal covers the whole `HotReadApi` uniformly —
     /// no carve-out. The cap can only flip an over-cap-chain stale reason from
     /// `ImpactSetOverflow` to `ExportSurfaceChange` (both `Partial`); the
-    /// `certified | partial` verdict is unchanged, and warm/cold stay identical
-    /// (both share the capped closure; proven by `backing_parity`).
+    /// `certified | partial` verdict is unchanged. The cap's verdict-neutrality
+    /// (the over-cap-chain flip) is covered by the unit tests in
+    /// [`crate::certify`]; `backing_parity` independently proves warm == cold for
+    /// the corpus it generates (both backings share this capped closure).
     #[must_use]
     pub fn certify(
         &self,
@@ -276,6 +289,83 @@ impl<'a> HotReadApi<'a> {
         budget: usize,
     ) -> Certifiability {
         certify(self.sym, self.dep, change, delta, budget)
+    }
+}
+
+mod sealed {
+    /// Private supertrait that makes [`super::HotPathSurface`] **sealed**: it can
+    /// only be named (and therefore implemented) inside this crate.
+    pub trait Sealed {}
+    impl Sealed for super::HotReadApi<'_> {}
+}
+
+/// Marker for the ADR-063 hot-path read surface — the type a `validate_paths` /
+/// mid-edit caller holds while it issues save-time reads.
+///
+/// **Sealed**: only [`HotReadApi`] implements it (the supertrait is private), so
+/// no external type can present itself as hot-path-admissible, and hot-path
+/// generic code can bound on `T: HotPathSurface` to accept *only* the allowlist
+/// surface. The ADR-063 denylist — unbounded transitive traversal, cross-file
+/// resolution, full-graph scans — lives on [`BackgroundReadApi`] and is
+/// unreachable through this marker.
+///
+/// The seal is enforced at compile time. A denylist op is uncallable from the
+/// hot surface:
+///
+/// ```compile_fail
+/// use anvil_graph_cache::{DependencyGraph, HotReadApi, SymbolGraph};
+/// let (sym, dep) = (SymbolGraph::new(), DependencyGraph::new());
+/// let hot = HotReadApi::new(&sym, &dep);
+/// // `impact_closure_unbounded` is a BackgroundReadApi (denylist) op — it does
+/// // not exist on the hot surface, so this does not compile.
+/// let _ = hot.impact_closure_unbounded("a.ts", 64);
+/// ```
+///
+/// …and the marker itself cannot be implemented outside this crate:
+///
+/// ```compile_fail
+/// struct Rogue;
+/// impl anvil_graph_cache::HotPathSurface for Rogue {} // sealed supertrait → error
+/// ```
+pub trait HotPathSurface: sealed::Sealed {}
+impl HotPathSurface for HotReadApi<'_> {}
+
+/// The background-pool read surface (ADR-063 **denylist**): reads that are *not*
+/// hot-path-admissible. Deliberately a distinct type from [`HotReadApi`] so
+/// these ops are structurally **unreachable** from a save-time / mid-edit call —
+/// completeness is the background pool's job, never the hot path (ADR-063
+/// miss/stale policy). It borrows the same resident graphs immutably.
+///
+/// Today it hosts the unbounded reverse-impact closure (retired from the hot
+/// `certify` path by ADR-077); cross-file resolution and full-graph scans are
+/// the other ADR-063 denylist reads that will land here as the background pool
+/// grows. The constructor takes only what the current denylist read needs
+/// (`dep`); it will take `sym` when a symbol-graph denylist read lands.
+///
+/// **Public despite having no in-crate caller yet:** the background pool that
+/// consumes it lives in a *sibling* crate (`anvil-intercept`), so the surface
+/// must be `pub` to be reachable there — `pub(crate)` would not do. Standing the
+/// boundary up now (ADR-064's "fix the boundary once" posture) is the deliberate
+/// GV2-024 decision: it gives the seal a concrete denylist home and the
+/// `compile_fail` proofs something real to point at, rather than waiting for the
+/// first consumer to retro-fit the split.
+pub struct BackgroundReadApi<'a> {
+    dep: &'a DependencyGraph,
+}
+
+impl<'a> BackgroundReadApi<'a> {
+    /// Wrap the resident dependency graph for background (non-hot-path) reads.
+    pub fn new(dep: &'a DependencyGraph) -> Self {
+        Self { dep }
+    }
+
+    /// Unbounded transitive reverse-impact closure of `file` — the full
+    /// re-export chain to any depth, bounded only by `budget` (`None` on
+    /// overflow). This is the **denylist** counterpart to
+    /// [`HotReadApi::reverse_impact`]'s hard-capped walk: admissible only off the
+    /// hot path, where "slower but complete" is the goal.
+    pub fn impact_closure_unbounded(&self, file: &str, budget: usize) -> Option<HashSet<String>> {
+        crate::certify::impact_closure_unbounded(self.dep, file, budget)
     }
 }
 
@@ -519,5 +609,40 @@ mod tests {
         // "empty.ts" was never recorded with a symbol → non-resident → miss.
         let read = api.resident_symbols("empty.ts");
         assert_eq!(read.miss(), Some(HotReadMiss::WarmStateEvicted));
+    }
+
+    /// The denylist unbounded closure lives on [`BackgroundReadApi`] and walks
+    /// past the hard cap that bounds the hot [`HotReadApi::reverse_impact`] — the
+    /// type split in action: the background surface sees the full transitive
+    /// chain, the hot surface truncates at the cap.
+    #[test]
+    fn background_impact_closure_unbounded_walks_past_the_hot_cap() {
+        // a.ts ← b.ts ← c.ts ← d.ts: a 3-hop chain, one hop past the cap (2).
+        let mut dep = DependencyGraph::new();
+        dep.add_dependency("b.ts".to_string(), "a.ts".to_string());
+        dep.add_dependency("c.ts".to_string(), "b.ts".to_string());
+        dep.add_dependency("d.ts".to_string(), "c.ts".to_string());
+
+        // Hot surface: hard-capped at MAX_REVERSE_IMPACT_DEPTH hops → {b, c}.
+        let sym = SymbolGraph::new();
+        let hot = HotReadApi::new(&sym, &dep);
+        let capped = hot
+            .reverse_impact("a.ts", MAX_REVERSE_IMPACT_DEPTH, 64)
+            .warm()
+            .expect("warm");
+        assert_eq!(capped.len(), 2, "hot reverse_impact truncates at the cap");
+        assert!(
+            !capped.contains("d.ts"),
+            "the 3rd hop is beyond the hot cap"
+        );
+
+        // Background surface: unbounded → reaches the full chain {b, c, d}.
+        let bg = BackgroundReadApi::new(&dep);
+        let full = bg
+            .impact_closure_unbounded("a.ts", 64)
+            .expect("within budget");
+        let mut got: Vec<&str> = full.iter().map(String::as_str).collect();
+        got.sort_unstable();
+        assert_eq!(got, vec!["b.ts", "c.ts", "d.ts"]);
     }
 }

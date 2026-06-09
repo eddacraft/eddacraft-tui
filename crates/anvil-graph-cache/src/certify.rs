@@ -435,31 +435,45 @@ pub fn export_surface_changed(sym: &SymbolGraph, delta: &GraphDelta) -> bool {
     !export_surface_diff(sym, delta).is_empty()
 }
 
-/// Collect every file transitively impacted by a surface change to `file`,
-/// reading reverse edges from the [`DependencyGraph`].
+/// The save-time (hot-path) certifiability closure: a breadth-first reverse-impact
+/// walk of `file` hard-capped at the ADR-063 ceiling [`MAX_REVERSE_IMPACT_DEPTH`]
+/// (ADR-077, path A). `certify` calls this directly.
 ///
 /// Walks `dependents_of` outward (direct importers, then their importers — the
 /// re-export chain), deduplicating. Returns `None` the moment the distinct
-/// impacted set would exceed `budget`, the overflow signal that maps to
-/// [`CertifyStale::ImpactSetOverflow`]. `file` itself is not counted.
+/// impacted set would exceed `budget` (the [`CertifyStale::ImpactSetOverflow`]
+/// signal). An over-cap chain is **truncated**, never walked unbounded, so no
+/// transitive traversal beyond the ceiling is reachable on the hot path. Capping
+/// is monotone — it can only *shrink* the closure — so it only ever flips an
+/// over-cap-chain verdict from `ImpactSetOverflow` to `ExportSurfaceChange` (both
+/// `Partial`); coverage and soundness are unchanged (the closure sizes the stale
+/// reason but is never inline-validated).
 ///
-/// # ADR-077: hard depth cap
+/// **Origin on a cycle:** `file` is not seeded into the impacted set and, on an
+/// acyclic graph, never enters it. On a cyclic import graph it *can* re-enter as
+/// a dependent of one of its own importers and then count against `budget` — this
+/// is the pre-ADR-077 walk's behavior, preserved deliberately so the depth cap is
+/// the *only* change here (it differs from [`crate::hot_index::HotReadApi::reverse_impact`],
+/// which excludes `file` explicitly; both verdicts stay `Partial` regardless).
 ///
-/// The walk is **breadth-first and hard-depth-capped at
-/// [`MAX_REVERSE_IMPACT_DEPTH`]** (ADR-077, path A), matching
-/// [`crate::hot_index::HotReadApi::reverse_impact`]'s model: an over-cap
-/// re-export chain is **truncated**, never walked unbounded, so no transitive
-/// traversal beyond the ADR-063 §3 ceiling is reachable on the save-time hot
-/// path. Capping is monotone — it can only *shrink* the closure — so it only
-/// ever flips an over-cap-chain verdict from `ImpactSetOverflow` to
-/// `ExportSurfaceChange` (both `Partial`); coverage and soundness are unchanged
-/// (the closure sizes the stale reason but is never inline-validated). The depth
-/// is fixed at the hard cap; the runtime 1→2-hop lever stays GV2-026's scope.
-fn impact_closure(dep: &DependencyGraph, file: &str, budget: usize) -> Option<HashSet<String>> {
+/// `depth` MUST be within the ADR-063 hard cap on any save-time call. A
+/// `debug_assert` enforces it, so a future caller that lifts the cap on the hot
+/// path trips under test rather than silently reintroducing an unbounded walk
+/// (the runtime 1→2-hop lever stays GV2-026's scope, still under the cap).
+pub(crate) fn bounded_impact_closure(
+    dep: &DependencyGraph,
+    file: &str,
+    depth: u32,
+    budget: usize,
+) -> Option<HashSet<String>> {
+    debug_assert!(
+        depth <= MAX_REVERSE_IMPACT_DEPTH,
+        "hot-path reverse-impact depth {depth} exceeds the ADR-063 cap {MAX_REVERSE_IMPACT_DEPTH}"
+    );
     let mut impacted: HashSet<String> = HashSet::new();
     let mut frontier: Vec<String> = vec![file.to_string()];
 
-    for _ in 0..MAX_REVERSE_IMPACT_DEPTH {
+    for _ in 0..depth {
         let mut next: Vec<String> = Vec::new();
         for current in &frontier {
             for importer in dep.dependents_of(current) {
@@ -475,6 +489,34 @@ fn impact_closure(dep: &DependencyGraph, file: &str, budget: usize) -> Option<Ha
             break;
         }
         frontier = next;
+    }
+
+    Some(impacted)
+}
+
+/// Unbounded transitive reverse-impact closure — the **ADR-063 denylist** walk,
+/// reachable only via [`crate::hot_index::BackgroundReadApi`], never the hot
+/// path. Walks the full re-export chain to any depth, bounded only by `budget`
+/// (`None` on overflow). This is the pre-ADR-077 closure, retired from save-time
+/// `certify`; it stays valid for the background pool, where "slower but
+/// complete" is the goal (ADR-063 miss/stale policy).
+pub(crate) fn impact_closure_unbounded(
+    dep: &DependencyGraph,
+    file: &str,
+    budget: usize,
+) -> Option<HashSet<String>> {
+    let mut impacted: HashSet<String> = HashSet::new();
+    let mut frontier: Vec<String> = vec![file.to_string()];
+
+    while let Some(current) = frontier.pop() {
+        for importer in dep.dependents_of(&current) {
+            if impacted.insert(importer.to_string()) {
+                if impacted.len() > budget {
+                    return None;
+                }
+                frontier.push(importer.to_string());
+            }
+        }
     }
 
     Some(impacted)
@@ -570,8 +612,9 @@ pub fn certify(
             }
             // The closure is computed only to distinguish overflow from a
             // bounded impact set; the impacted paths themselves are unused in
-            // Sub-phase A (every surface change is `Partial` regardless).
-            match impact_closure(dep, &delta.file, budget) {
+            // Sub-phase A (every surface change is `Partial` regardless). Hard
+            // depth-capped at MAX_REVERSE_IMPACT_DEPTH per ADR-077 (path A).
+            match bounded_impact_closure(dep, &delta.file, MAX_REVERSE_IMPACT_DEPTH, budget) {
                 None => Certifiability::Partial {
                     reason: CertifyStale::ImpactSetOverflow,
                 },
@@ -993,7 +1036,8 @@ mod tests {
         for importer in ["d.ts", "e.ts", "f.ts"] {
             dep.add_dependency(importer.to_string(), "c.ts".to_string()); // depth 3 (> cap)
         }
-        let closure = impact_closure(&dep, "a.ts", 64).expect("within budget");
+        let closure = bounded_impact_closure(&dep, "a.ts", MAX_REVERSE_IMPACT_DEPTH, 64)
+            .expect("within budget");
         let mut got: Vec<&str> = closure.iter().map(String::as_str).collect();
         got.sort_unstable();
         assert_eq!(
@@ -1025,6 +1069,19 @@ mod tests {
                 reason: CertifyStale::ExportSurfaceChange
             }
         );
+    }
+
+    /// ADR-063/077 admission guard: the shared bounded walk debug-asserts its
+    /// depth stays within the hard cap, so a hot-path caller that requested an
+    /// over-cap walk trips under test rather than silently traversing unbounded.
+    /// Debug-only (the `debug_assert` is compiled out in release).
+    #[cfg(debug_assertions)]
+    #[test]
+    #[should_panic(expected = "exceeds the ADR-063 cap")]
+    fn admission_bounded_closure_trips_beyond_cap() {
+        let mut dep = DependencyGraph::new();
+        dep.add_dependency("b.ts".to_string(), "a.ts".to_string());
+        let _ = bounded_impact_closure(&dep, "a.ts", MAX_REVERSE_IMPACT_DEPTH + 1, 64);
     }
 
     #[test]

@@ -19,7 +19,9 @@ pub use certify::{
     export_surface_diff,
 };
 pub use dependency::DependencyGraph;
-pub use hot_index::{HotRead, HotReadApi, HotReadMiss, MAX_REVERSE_IMPACT_DEPTH};
+pub use hot_index::{
+    BackgroundReadApi, HotPathSurface, HotRead, HotReadApi, HotReadMiss, MAX_REVERSE_IMPACT_DEPTH,
+};
 pub use incremental::{
     GraphDelta, re_resolve_imports, re_resolve_imports_tracked, remove_file, update_file,
 };
