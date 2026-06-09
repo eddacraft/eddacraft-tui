@@ -30,9 +30,13 @@ and two Accepted ADRs are in genuine tension on the save-time hot path:
   dedup (cycle safety) and `len() > budget` (returns `None`).
 - **[ADR-063](063-gv2-hot-path-boundary.md) §3** (hot-path allowlist #3) requires
   reverse impact to be **hard-depth-capped** (`MAX_REVERSE_IMPACT_DEPTH = 2`,
-  default lever 1 hop), and states a closure exceeding the configured depth is a
-  **miss (`impact-set-overflow`), never an unbounded walk**. This is what
-  `HotReadApi::reverse_impact` (`hot_index.rs:204`) implements.
+  default lever 1 hop): the walk **truncates** at the cap — that is what bars an
+  unbounded walk — and "**result-set overflow at the configured depth** is a miss
+  (`impact-set-overflow`), never an unbounded walk." Depth exceedance is **not**
+  itself a miss. This is exactly what `HotReadApi::reverse_impact`
+  (`hot_index.rs:204`) implements: it walks to `min(max_depth,
+  MAX_REVERSE_IMPACT_DEPTH)` hops, returns `Warm` with the (possibly truncated)
+  set, and degrades to `ImpactSetOverflow` only when `seen.len() > budget`.
 
 So `HotReadApi` carries **two reverse-traversal models**: every allowlist read is
 hard-capped, but `certify` reaches an unbounded transitive walk through
@@ -128,7 +132,7 @@ future readers must keep re-justifying.
 
 | Option | Pros | Cons |
 |--------|------|------|
-| **Cap the closure (chosen)** — ADR-063 §3 governs the hot path; `certify` adopts the depth-capped walk | Closes the unbounded-tail hole on the certify path; uniform GV2-024 seal, no exception; coverage-verdict- and soundness-preserving; warm/cold parity by construction | Wire-visible `StaleReason` changes for >2-hop over-budget graphs (`impact-set-overflow` → `export-surface-change`); `backing_parity` must be re-baselined |
+| **Cap the closure (chosen)** — ADR-063 §3 governs the hot path; `certify` adopts the depth-capped walk | Closes the unbounded-tail hole on the certify path; uniform GV2-024 seal, no exception; coverage-verdict- and soundness-preserving; warm/cold parity by construction | wire-visible `StaleReason` changes for >2-hop over-budget graphs (`impact-set-overflow` → `cross-file-resolution-needed`, no new enum value); `backing_parity` must be re-baselined |
 | **Exclude `certify` from the seal** — keep unbounded `impact_closure`, document `certify` as an admissible composite (ADR-061 §6 governs) | Zero code and zero wire change; retains the most-specific reason for deep graphs | Leaves an unbounded transitive walk reachable on the hot path — the exact tail-latency hole ADR-063 exists to close; seal becomes non-uniform (a standing documented exception); deep in-budget re-export chains walk every hop every save |
 | **Honour the configurable depth lever in `certify`** — thread ADR-063's runtime 1→2-hop lever into the verdict | Operationally tunable in one place | Couples a wire-visible verdict reason to a deployment knob (a depth change silently re-labels `StaleReason`); widens the surface GV2-024 must reason about; the lever is GV2-026's scope, not yet built |
 
