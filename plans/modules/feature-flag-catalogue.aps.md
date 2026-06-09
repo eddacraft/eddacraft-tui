@@ -5,7 +5,7 @@
 
 | ID   | Owner | Priority | Status | Progress |
 | ------- | ----- | -------- | ------ | -------- |
-| FLAGCAT | —     | medium   | In Progress | 7/8      |
+| FLAGCAT | —     | medium   | In Progress | 7/9      |
 
 **Last reviewed:** 2026-06-01 — Reframed FLAGCAT-008 to its
 beta-intentional disposition: the `cli.licence-gate` membership (including
@@ -630,3 +630,37 @@ Status promoted Draft → **Ready** 2026-05-28.
   `CLI_GATED_COMMANDS`; the open question is purely which subset is the
   right GA entry set. Out-of-scope: redesigning the licence model, and any
   beta-window change to the gate.
+
+### FLAGCAT-009: Stand up `flags/surfaces.json` + back-capture the CLI surface inventory
+
+- **Status:** In Progress
+- **Intent:** Execute [ADR-076](../decisions/076-feature-catalogue-surface-registry.md)
+  sequencing step (b): make the surface/feature the catalogue's primary noun by
+  standing up a dedicated `flags/surfaces.json` registry and back-capturing the
+  full ~43-surface CLI inventory (9 capability categories). **Data + static
+  validation only** — runtime cascade-off, auth-list derivation, Rust codegen,
+  and per-environment plumbing are explicitly deferred (later ADR-076 slices).
+- **Expected Outcome:**
+  - `flags/surfaces.json` — categories + surfaces with declared access posture
+    (`open`/`licence`/`admin-key`/`staff`), `requires` edges, `invocation`
+    (`system` for git hooks), `mustAlwaysBeOpen` (recovery-critical floor), and
+    `catalogued: false` for foundational plumbing.
+  - `FlagSurfaceManifestSchema` in `@eddacraft/anvil-contracts` enforcing the
+    static checks: unique keys, category-ref + `requires`-target existence,
+    **acyclicity**, and the `mustAlwaysBeOpen ⇒ open` invariant.
+  - Loader + accessors (`flagSurfaces`, `mustAlwaysBeOpenSurfaces`) in
+    `@eddacraft/anvil-flags-catalogue` with cross-inventory audience integrity,
+    fail-loud at module load.
+  - `tests/surfaces.test.ts` as the CI-gated consistency check.
+- **Validation:** `pnpm nx test flags-catalogue` green (incl. the new suite +
+  negative schema tests); `format:check`/typecheck clean. Zero behaviour change
+  (no CLI/runtime consumer yet).
+- **Identified From:** ADR-076 (Proposed, council-reviewed 2026-06-09).
+- **Coordinates with:** `flags/surfaces.json`,
+  `packages/anvil/contracts/src/schemas/feature-flags.schema.ts`,
+  `packages/anvil/flags-catalogue/src/manifest.ts`; the existing
+  `manifest.json` policy layer (referenced, not modified).
+- **Out of scope (deferred per ADR-076):** runtime cascade-off resolution
+  layer, deriving `CLI_GATED_COMMANDS` from the catalogue, Rust `build.rs`
+  codegen for surfaces, per-environment + staff-axis runtime plumbing.
+- **Confidence:** high — additive data + schema + tests, no consumer wiring.

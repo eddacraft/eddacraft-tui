@@ -9,7 +9,14 @@
  * @module @eddacraft/anvil-flags-catalogue
  */
 
-export { featureFlagManifest, flagGroups, flagAudiences, flagEnvironments } from './manifest.js';
+export {
+  featureFlagManifest,
+  flagGroups,
+  flagAudiences,
+  flagEnvironments,
+  flagSurfaces,
+  mustAlwaysBeOpenSurfaces,
+} from './manifest.js';
 
 export {
   CLI_LICENCE_GATE,

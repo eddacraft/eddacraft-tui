@@ -352,6 +352,195 @@ export const FlagGroupManifestSchema = z
 export type FlagGroupManifest = z.infer<typeof FlagGroupManifestSchema>;
 
 // =============================================================================
+// Surface registry (ADR-076) — flags/surfaces.json
+// =============================================================================
+//
+// The surface/feature is the catalogue's primary noun. This registry
+// back-captures the CLI surface inventory. It is declared data + static checks
+// only — runtime cascade-off and auth-list derivation are deferred (ADR-076).
+
+// Current access posture of a surface (descriptive back-capture of today's
+// reality, from the 2026-06-08 audit). The entitlement+audience encoding the
+// resolver consumes is the later derivation slice; here `access` records the
+// observed posture. `open` = ungated.
+export const SurfaceAccessSchema = z.enum(['open', 'licence', 'admin-key', 'staff']);
+export type SurfaceAccess = z.infer<typeof SurfaceAccessSchema>;
+
+// How a surface is invoked. `system` surfaces (e.g. git hooks) MUST NOT be
+// refused by a kill-switch — a non-zero exit breaks the calling tool, not a UX
+// message (ADR-076 §3 categorical exception).
+export const SurfaceInvocationSchema = z.enum(['user', 'system']);
+export type SurfaceInvocation = z.infer<typeof SurfaceInvocationSchema>;
+
+// Category = capability grouping within ADR-048's `cli` surface (ADR-076 §2),
+// a defaults carrier for access posture.
+export const SurfaceCategorySchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  defaultAccess: SurfaceAccessSchema,
+  defaultStatus: InventoryEntryStatusSchema,
+});
+export type SurfaceCategoryEntry = z.infer<typeof SurfaceCategorySchema>;
+
+export const SurfaceSchema = z.object({
+  key: z.string().regex(FLAG_KEY_PATTERN),
+  name: z.string().min(1),
+  category: z.string().min(1),
+  // Override the category's defaultAccess. `open` here overrides a gated
+  // category default to ungated (it is an explicit value, not absence).
+  access: SurfaceAccessSchema.optional(),
+  // The gating audience(s) when access is `staff`/`admin-key`; validated
+  // against flags/audiences.json by the loader. The schema rejects audiences
+  // unless effectiveAccess is `staff`/`admin-key` (so `open`/`licence` carry
+  // none). Descriptive today — runtime enforcement is the deferred resolver
+  // slice.
+  audiences: z.array(z.string().min(1)).optional(),
+  invocation: SurfaceInvocationSchema.default('user'),
+  // Inventoried but not policy-managed (foundational plumbing) when false.
+  catalogued: z.boolean().default(true),
+  // Categorically immune to refusal/kill-switch — recovery-critical surfaces
+  // (auth, admin.credential). Enforced open by the schema.
+  mustAlwaysBeOpen: z.boolean().default(false),
+  // Declared hard dependencies (other surface keys). Drives the static
+  // blast-radius/acyclicity check; runtime cascade-off is deferred.
+  requires: z.array(z.string().min(1)).default([]),
+  status: InventoryEntryStatusSchema.default('active'),
+  notes: z.string().optional(),
+});
+export type SurfaceEntry = z.infer<typeof SurfaceSchema>;
+
+/** Detect a cycle in the `requires` graph; returns the first cycle found. */
+function findRequiresCycle(
+  surfaces: ReadonlyArray<{ key: string; requires?: string[] }>
+): string[] | null {
+  const edges = new Map<string, string[]>();
+  for (const s of surfaces) edges.set(s.key, s.requires ?? []);
+  const WHITE = 0,
+    GREY = 1,
+    BLACK = 2;
+  const colour = new Map<string, number>();
+  for (const k of edges.keys()) colour.set(k, WHITE);
+  const stack: string[] = [];
+
+  function dfs(node: string): string[] | null {
+    colour.set(node, GREY);
+    stack.push(node);
+    for (const next of edges.get(node) ?? []) {
+      if (!edges.has(next)) continue; // missing target reported separately
+      const c = colour.get(next);
+      if (c === GREY) return [...stack.slice(stack.indexOf(next)), next];
+      if (c === WHITE) {
+        const found = dfs(next);
+        if (found) return found;
+      }
+    }
+    stack.pop();
+    colour.set(node, BLACK);
+    return null;
+  }
+
+  for (const k of edges.keys()) {
+    if (colour.get(k) === WHITE) {
+      const cycle = dfs(k);
+      if (cycle) return cycle;
+    }
+  }
+  return null;
+}
+
+export const FlagSurfaceManifestSchema = z
+  .object({
+    schemaVersion: z.literal(FEATURE_FLAG_SCHEMA_VERSION),
+    categories: z.array(SurfaceCategorySchema),
+    surfaces: z.array(SurfaceSchema),
+  })
+  .check((ctx) => {
+    const { categories, surfaces } = ctx.value;
+
+    const categoryIds = new Set(categories.map((c) => c.id));
+    if (categoryIds.size !== categories.length) {
+      ctx.issues.push({
+        code: 'custom',
+        input: categories,
+        message: 'Category ids must be unique within the registry',
+        path: ['categories'],
+      });
+    }
+
+    const surfaceKeys = surfaces.map((s) => s.key);
+    const surfaceKeySet = new Set(surfaceKeys);
+    if (surfaceKeySet.size !== surfaceKeys.length) {
+      ctx.issues.push({
+        code: 'custom',
+        input: surfaces,
+        message: 'Surface keys must be unique within the registry',
+        path: ['surfaces'],
+      });
+    }
+
+    surfaces.forEach((s, i) => {
+      if (!categoryIds.has(s.category)) {
+        ctx.issues.push({
+          code: 'custom',
+          input: s.category,
+          message: `Surface "${s.key}" references unknown category "${s.category}"`,
+          path: ['surfaces', i, 'category'],
+        });
+      }
+      for (const dep of s.requires ?? []) {
+        if (!surfaceKeySet.has(dep)) {
+          ctx.issues.push({
+            code: 'custom',
+            input: dep,
+            message: `Surface "${s.key}" requires unknown surface "${dep}"`,
+            path: ['surfaces', i, 'requires'],
+          });
+        }
+      }
+      const cat = categories.find((c) => c.id === s.category);
+      const effectiveAccess = s.access ?? cat?.defaultAccess ?? 'open';
+      // Recovery-critical surfaces must be open — you cannot pin-open a gate.
+      if (s.mustAlwaysBeOpen && effectiveAccess !== 'open') {
+        ctx.issues.push({
+          code: 'custom',
+          input: effectiveAccess,
+          message: `Surface "${s.key}" is mustAlwaysBeOpen but resolves to gated access "${effectiveAccess}"`,
+          path: ['surfaces', i, 'mustAlwaysBeOpen'],
+        });
+      }
+      // Audiences only make sense for an audience-gated posture.
+      if (
+        s.audiences &&
+        s.audiences.length > 0 &&
+        !['staff', 'admin-key'].includes(effectiveAccess)
+      ) {
+        ctx.issues.push({
+          code: 'custom',
+          input: s.audiences,
+          message: `Surface "${s.key}" declares audiences but access "${effectiveAccess}" is not audience-gated`,
+          path: ['surfaces', i, 'audiences'],
+        });
+      }
+    });
+
+    // Cycle detection is only meaningful on a key-unique graph — duplicate
+    // keys collapse edges in the adjacency map and could mask a cycle. Skip it
+    // when duplicates are already flagged above.
+    if (surfaceKeySet.size === surfaceKeys.length) {
+      const cycle = findRequiresCycle(surfaces);
+      if (cycle) {
+        ctx.issues.push({
+          code: 'custom',
+          input: cycle,
+          message: `requires graph must be acyclic; found cycle: ${cycle.join(' → ')}`,
+          path: ['surfaces'],
+        });
+      }
+    }
+  });
+export type FlagSurfaceManifest = z.infer<typeof FlagSurfaceManifestSchema>;
+
+// =============================================================================
 // Validation
 // =============================================================================
 
