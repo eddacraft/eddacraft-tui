@@ -258,15 +258,16 @@ impl<'a> HotReadApi<'a> {
     /// resident graphs, so the backing swap is wire-invariant (proven at the
     /// daemon layer by the `backing_parity` property test).
     ///
-    /// **GV2-024 caveat:** the verdict still uses `certify`'s *unbounded-depth*
-    /// certifiability closure ([`crate::certify`]'s `impact_closure`), not the
-    /// depth-capped [`Self::reverse_impact`] the rest of this API enforces. So
-    /// when GV2-024 type-splits the hot-read surface to make denylist ops
-    /// uncallable, it must explicitly **either** replace this body with a
-    /// depth-capped closure **or** exclude `certify` from the seal with a
-    /// recorded ADR-061/063 rationale — adopting the cap here would change the
-    /// `ImpactSetOverflow`-vs-`ExportSurfaceChange` stale reason in graphs deeper
-    /// than the cap, a verdict-affecting decision deliberately **not** made here.
+    /// **GV2-024 / ADR-077 (resolved):** the GV2-027 fork — adopt a depth-capped
+    /// closure here, or exclude `certify` from the seal — was decided **path A**
+    /// by [ADR-077](../../../plans/decisions/077-cert-closure-depth-cap.md): the
+    /// shared [`crate::certify`] `impact_closure` is now hard-depth-capped at
+    /// [`MAX_REVERSE_IMPACT_DEPTH`], so this entry carries **no** unbounded
+    /// traversal and the GV2-024 seal covers the whole `HotReadApi` uniformly —
+    /// no carve-out. The cap can only flip an over-cap-chain stale reason from
+    /// `ImpactSetOverflow` to `ExportSurfaceChange` (both `Partial`); the
+    /// `certified | partial` verdict is unchanged, and warm/cold stay identical
+    /// (both share the capped closure; proven by `backing_parity`).
     #[must_use]
     pub fn certify(
         &self,

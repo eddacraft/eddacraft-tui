@@ -46,6 +46,7 @@ use std::path::PathBuf;
 use anvil_kernel_types::{EdgeType, SymbolIdentity, SymbolKind, TrustLevel, Visibility};
 
 use crate::dependency::DependencyGraph;
+use crate::hot_index::MAX_REVERSE_IMPACT_DEPTH;
 use crate::incremental::GraphDelta;
 use crate::symbol_graph::SymbolGraph;
 use crate::trust::is_privileged_import;
@@ -441,19 +442,39 @@ pub fn export_surface_changed(sym: &SymbolGraph, delta: &GraphDelta) -> bool {
 /// re-export chain), deduplicating. Returns `None` the moment the distinct
 /// impacted set would exceed `budget`, the overflow signal that maps to
 /// [`CertifyStale::ImpactSetOverflow`]. `file` itself is not counted.
+///
+/// # ADR-077: hard depth cap
+///
+/// The walk is **breadth-first and hard-depth-capped at
+/// [`MAX_REVERSE_IMPACT_DEPTH`]** (ADR-077, path A), matching
+/// [`crate::hot_index::HotReadApi::reverse_impact`]'s model: an over-cap
+/// re-export chain is **truncated**, never walked unbounded, so no transitive
+/// traversal beyond the ADR-063 §3 ceiling is reachable on the save-time hot
+/// path. Capping is monotone — it can only *shrink* the closure — so it only
+/// ever flips an over-cap-chain verdict from `ImpactSetOverflow` to
+/// `ExportSurfaceChange` (both `Partial`); coverage and soundness are unchanged
+/// (the closure sizes the stale reason but is never inline-validated). The depth
+/// is fixed at the hard cap; the runtime 1→2-hop lever stays GV2-026's scope.
 fn impact_closure(dep: &DependencyGraph, file: &str, budget: usize) -> Option<HashSet<String>> {
     let mut impacted: HashSet<String> = HashSet::new();
     let mut frontier: Vec<String> = vec![file.to_string()];
 
-    while let Some(current) = frontier.pop() {
-        for importer in dep.dependents_of(&current) {
-            if impacted.insert(importer.to_string()) {
-                if impacted.len() > budget {
-                    return None;
+    for _ in 0..MAX_REVERSE_IMPACT_DEPTH {
+        let mut next: Vec<String> = Vec::new();
+        for current in &frontier {
+            for importer in dep.dependents_of(current) {
+                if impacted.insert(importer.to_string()) {
+                    if impacted.len() > budget {
+                        return None;
+                    }
+                    next.push(importer.to_string());
                 }
-                frontier.push(importer.to_string());
             }
         }
+        if next.is_empty() {
+            break;
+        }
+        frontier = next;
     }
 
     Some(impacted)
@@ -956,6 +977,52 @@ mod tests {
             v,
             Certifiability::Partial {
                 reason: CertifyStale::ImpactSetOverflow
+            }
+        );
+    }
+
+    /// a.ts ← b.ts ← c.ts ← {d,e,f}: the unbounded closure is `{b,c,d,e,f}` (5),
+    /// but ADR-077 hard-depth-caps the certifiability closure at
+    /// `MAX_REVERSE_IMPACT_DEPTH` (2) so it truncates to `{b,c}` — no unbounded
+    /// transitive walk is reachable on the hot path.
+    #[test]
+    fn impact_closure_is_hard_depth_capped_adr077() {
+        let mut dep = DependencyGraph::new();
+        dep.add_dependency("b.ts".to_string(), "a.ts".to_string()); // depth 1
+        dep.add_dependency("c.ts".to_string(), "b.ts".to_string()); // depth 2
+        for importer in ["d.ts", "e.ts", "f.ts"] {
+            dep.add_dependency(importer.to_string(), "c.ts".to_string()); // depth 3 (> cap)
+        }
+        let closure = impact_closure(&dep, "a.ts", 64).expect("within budget");
+        let mut got: Vec<&str> = closure.iter().map(String::as_str).collect();
+        got.sort_unstable();
+        assert_eq!(
+            got,
+            vec!["b.ts", "c.ts"],
+            "closure truncates at MAX_REVERSE_IMPACT_DEPTH={MAX_REVERSE_IMPACT_DEPTH} hops"
+        );
+    }
+
+    /// Same 3-hop chain with `budget = 3`: the unbounded closure (5) would
+    /// overflow → `ImpactSetOverflow`, but the depth-capped closure (`{b,c}` = 2)
+    /// fits → `ExportSurfaceChange`. ADR-077: capping is monotone (it can only
+    /// turn overflow into surface-change, never the reverse) and verdict-neutral
+    /// (both are `Partial`).
+    #[test]
+    fn over_cap_chain_within_budget_is_surface_change_not_overflow_adr077() {
+        let sym = sym_with("a.ts", &[("baz", Visibility::Public, TrustLevel::Unknown)]);
+        let delta = delta_for("a.ts", &["foo"], &[]);
+        let mut dep = DependencyGraph::new();
+        dep.add_dependency("b.ts".to_string(), "a.ts".to_string());
+        dep.add_dependency("c.ts".to_string(), "b.ts".to_string());
+        for importer in ["d.ts", "e.ts", "f.ts"] {
+            dep.add_dependency(importer.to_string(), "c.ts".to_string());
+        }
+        let v = certify(&sym, &dep, &ChangeKind::ContentModify, &delta, 3);
+        assert_eq!(
+            v,
+            Certifiability::Partial {
+                reason: CertifyStale::ExportSurfaceChange
             }
         );
     }
