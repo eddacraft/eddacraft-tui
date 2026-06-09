@@ -674,8 +674,7 @@ a subcommand and `--config` path handoff.
   seeds the section's CLI page.
 - **Expected Outcome:** New `docs/public/eddacraft-tui/` content tree following
   the APS/kindling section pattern (Docusaurus frontmatter — `id` / `title` /
-  `sidebar_position` — plus the DOCGOV-002 metadata convention every new public
-  doc carries; no internal-governance Upstream/Downstream tables): `overview`,
+  `sidebar_position`; no internal DOCGOV governance table for `docs/public/**`): `overview`,
   `getting-started`, a widgets tour, `theming`, `json-render`, `pretext`, and a
   `cli-runner` page seeded from the `runner` module rustdoc. Site wiring: a new
   plugin instance + navbar entry in `apps/docs-site/docusaurus.config.ts`, a
