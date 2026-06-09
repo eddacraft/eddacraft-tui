@@ -203,8 +203,9 @@ impl<'a> HotReadApi<'a> {
     /// hold: a warm result contains at most `budget` files, and the read
     /// returns [`HotReadMiss::ImpactSetOverflow`] the moment the closure *would*
     /// exceed it — the same `len() > budget` semantics as
-    /// [`crate::certify`]'s `impact_closure`, so the worst case is bounded by
-    /// construction (cap × budget). A file with no importers warms to an empty
+    /// [`mod@crate::certify`]'s `bounded_impact_closure` (the certify-side capped
+    /// walk), so the worst case is bounded by construction (cap × budget). A file
+    /// with no importers warms to an empty
     /// set; `max_depth == 0` (a degenerate input below the ADR-061 §6 default of
     /// 1 hop) skips the walk and warms to an empty set.
     pub fn reverse_impact(
@@ -213,11 +214,11 @@ impl<'a> HotReadApi<'a> {
         max_depth: u32,
         budget: usize,
     ) -> HotRead<HashSet<String>> {
-        // An over-cap request is clamped, not honoured (ADR-063 §3) — the cap is
-        // enforced here by construction. The shared bounded walk
-        // (`certify::bounded_impact_closure`) carries the `debug_assert` that
-        // trips on an over-cap depth, since its `depth` is a direct parameter
-        // rather than a pre-clamped one.
+        // This method runs its own walk (below). An over-cap request is clamped,
+        // not honoured (ADR-063 §3), so the cap is enforced here by construction
+        // and no assertion is needed. (The separate certify-side walk,
+        // `bounded_impact_closure`, takes `depth` as a direct parameter and so
+        // carries the `debug_assert` that trips on an over-cap depth.)
         let depth = max_depth.min(MAX_REVERSE_IMPACT_DEPTH);
         let mut seen: HashSet<String> = HashSet::new();
         let mut frontier: Vec<String> = vec![file.to_string()];
@@ -272,15 +273,15 @@ impl<'a> HotReadApi<'a> {
     /// **GV2-024 / ADR-077 (resolved):** the GV2-027 fork — adopt a depth-capped
     /// closure here, or exclude `certify` from the seal — was decided **path A**
     /// by [ADR-077](../../../plans/decisions/077-cert-closure-depth-cap.md): the
-    /// shared [`crate::certify`] `impact_closure` is now hard-depth-capped at
+    /// shared [`mod@crate::certify`] closure is now hard-depth-capped at
     /// [`MAX_REVERSE_IMPACT_DEPTH`], so this entry carries **no** unbounded
     /// traversal and the GV2-024 seal covers the whole `HotReadApi` uniformly —
     /// no carve-out. The cap can only flip an over-cap-chain stale reason from
     /// `ImpactSetOverflow` to `ExportSurfaceChange` (both `Partial`); the
     /// `certified | partial` verdict is unchanged. The cap's verdict-neutrality
     /// (the over-cap-chain flip) is covered by the unit tests in
-    /// [`crate::certify`]; `backing_parity` independently proves warm == cold for
-    /// the corpus it generates (both backings share this capped closure).
+    /// [`mod@crate::certify`]; `backing_parity` independently proves warm == cold
+    /// for the corpus it generates (both backings share this capped closure).
     #[must_use]
     pub fn certify(
         &self,
