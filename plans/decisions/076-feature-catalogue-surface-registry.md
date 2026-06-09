@@ -87,8 +87,8 @@ inventory, and drive flagging through the dimensions that already exist.
    not enabled in this environment, killed by the safety switch) — and because
    every registry entry is a **surface**, off ⇒ the command is refused/hidden,
    uniformly and derivably. **Behaviour is the orthogonal "what you get when
-   on"**: `valueType: boolean` is pure on/off (nothing more to read);
-   `number`/`object` carries an in-code value (e.g. 2 vs 4 MCP servers), and
+   on"**: `valueType: "boolean"` is pure on/off (nothing more to read);
+   `"number"`/`"object"` carries an in-code value (e.g. 2 vs 4 MCP servers), and
    `targeting` selects *which* value among those who have it. "If they don't
    have it, behaviour doesn't matter."
 
