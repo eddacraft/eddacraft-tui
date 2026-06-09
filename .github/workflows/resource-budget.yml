@@ -103,6 +103,29 @@ jobs:
             exit 1
           fi
           echo "validate_paths SLO gate correctly fails on a synthetic regression"
+      # GV2-025 / ADR-063: the resident hot-read latency gate. In-process
+      # microbench (no daemon/inotify), p95 ~3 orders of magnitude under the
+      # 80 ms ADR-031 save-time budget, so it gates on the standard runner. The
+      # bench exits non-zero on a p95 breach, so the step itself is the gate.
+      - name: Measure hot-read latency budget (GV2-025)
+        run: |
+          set -o pipefail
+          cargo bench -p eddacraft-anvil-graph-cache --bench hot_read | tee hot-read-budget.log
+      # Prove the hot-read gate is live: a 120 ms injected stall MUST drive p95
+      # past the 80 ms budget and exit non-zero. Build first so a *compile*
+      # failure is unambiguous rather than mistaken for "gate tripped".
+      - name: Self-test — hot-read gate trips on a synthetic regression
+        if: success() || failure()
+        run: |
+          set -o pipefail
+          cargo build -p eddacraft-anvil-graph-cache --bench hot_read
+          if ANVIL_BENCH_HOTREAD_STALL_MS=120 \
+              cargo bench -p eddacraft-anvil-graph-cache --bench hot_read \
+              2>&1 | tee hot-read-budget-selftest.log; then
+            echo "::error::hot-read gate did not fail on a 120 ms synthetic regression"
+            exit 1
+          fi
+          echo "hot-read gate correctly fails on a synthetic regression"
       - name: Upload resource budget verdicts
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -112,6 +135,8 @@ jobs:
             *-resource-budget.json
             validate-paths-slo.log
             validate-paths-slo-selftest.log
+            hot-read-budget.log
+            hot-read-budget-selftest.log
           if-no-files-found: ignore
           retention-days: 30
 

@@ -9,6 +9,14 @@ description = "Parser-free semantic graph state and algorithms for the Anvil dae
 [lib]
 name = "anvil_graph_cache"
 
+# GV2-025: hot-read latency gate. `harness = false` — a plain `main()` that
+# measures p50/p95/p99 and exits non-zero on a p95 budget breach, mirroring the
+# repo's other ADR-031 latency gate (`anvil-intercept`'s `ipc_roundtrip`), since
+# Criterion's statistical harness does not yield a clean p95 pass/fail exit code.
+[[bench]]
+name = "hot_read"
+harness = false
+
 [dependencies]
 anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }
 petgraph = { workspace = true }

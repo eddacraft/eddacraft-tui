@@ -569,7 +569,7 @@ Change status to **Ready** when:
 
 #### GV2-025: Criterion hot-read benchmark + ADR-031 CI gate
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Land the missing latency gate ADR-063 names — a Criterion harness
   that fails CI when hot-read p95 exceeds the ADR-031 save-time budget.
 - **Expected Outcome:** `benches/hot_read.rs` measuring per-file lookup,
@@ -578,7 +578,9 @@ Change status to **Ready** when:
 - **Validation:** `cargo bench -p eddacraft-anvil-graph-cache` on a quiet box;
   CI asserts p95 within the ADR-031 interactive budget.
 - **Files:** `crates/anvil-graph-cache/benches/hot_read.rs`,
-  `.github/workflows/ci.yml`
+  `crates/anvil-graph-cache/Cargo.toml`,
+  `.github/workflows/resource-budget.yml` (the gate lands beside the sibling
+  ADR-031 `validate_paths` latency gate, not in `ci.yml`)
 - **Confidence:** medium
 - **Priority:** Critical
 - **Dependencies:** GV2-011, GV2-022
