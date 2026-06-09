@@ -1233,8 +1233,13 @@ archive.
   1. `skips_auth_for_local_probe` also matches
      `Commands::Start(args) if args.verify`; full `anvil start` stays
      auth-gated.
-  2. When the coerced exit code is `EXIT_OK`, the informational JSON envelope is
-     written to stdout; non-zero / probe error envelopes stay on stderr.
+  2. The JSON envelope is only ever produced under `--json`, so the call-site
+     `eprintln!` becomes a stdout write for **every** envelope — the action
+     `authRequired` payload *and* the probe / non-auth error envelopes —
+     per the `--json` stream policy in `docs/guides/cli-output-streams.md`
+     (structured JSON on stdout, human diagnostics on stderr). Exit-code
+     routing is unchanged: the action command coerces to `EXIT_OK`, the probe
+     keeps its non-zero code.
 - **Validation:** air-gapped subprocess regressions — (1) `anvil start --verify`
   runs unauthenticated without the auth wall; (2) `anvil start --json`
   unauthenticated emits the `authRequired` envelope on stdout with exit 0. Both
@@ -1246,7 +1251,8 @@ archive.
   (`skips_auth_for_local_probe`, `auth_required_response`, the auth-gate block
   ~L991–1006); `crates/anvil-cli/tests/air_gapped.rs`.
 - **Confidence:** high — both root causes located and confirmed; the fix is a
-  predicate arm plus a stdout/stderr branch, tightly scoped to one file.
+  predicate arm plus routing the `--json` envelope to stdout, tightly scoped to
+  one file.
 
 ### CIB-050: AST registry load failures silently disable scanning
 
