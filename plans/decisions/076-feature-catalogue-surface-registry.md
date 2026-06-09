@@ -245,11 +245,13 @@ into the Decision.
 
 1. **Enforcement point → no field.** Dissolved by the audience/behaviour
    orthogonality: presence (audience/environment/kill-switch) gates the surface
-   on/off uniformly (derivable because every entry is a surface); behaviour is
-   the orthogonal value-when-on, signalled by `valueType` and selected by
-   `targeting`. See Decision §3. The mooted `gate: invocation | behaviour` enum
-   is rejected — a feature can both gate invocation and carry a tiered value, so
-   it is not a single per-feature mode.
+   on/off, and behaviour is the orthogonal value-when-on, signalled by
+   `valueType` and selected by `targeting`. See Decision §3. The mooted
+   `gate: invocation | behaviour` enum is rejected — a feature can both gate
+   invocation and carry a tiered value, so it is not a single per-feature mode.
+   (Post-council: "off ⇒ refuse" holds for the general case but is **not
+   uniform** — system-invoked and recovery-critical surfaces are categorical
+   exceptions; see Decision §3 and the `MUST_ALWAYS_BE_OPEN` floor in §6.)
 2. **Dependencies (raised here) → explicit `requires` edges, declared + static
    only.** In scope: edges as data, the authoring-time blast-radius report, and
    existence + acyclicity gates; **runtime cascade-off deferred** to its own ADR
