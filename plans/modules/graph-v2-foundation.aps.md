@@ -20,8 +20,9 @@
 > **Deferred to v0.9** (council, off the critical path): GV2-013, 014, 020, 023,
 > 026 (registry/contracts) and GV2-030 (sealed-DTO snapshot, with Sub-phase B
 > persistence). 013/014 are dep-unblocked but stay Draft as v0.9 scope. Count is
-> **11/20** (001/002/003/010/011/012/021/022/027/028/029 Merged; GV2-031 added
-> as a Draft follow-up for the re-export privilege blind spot found in #2453).
+> **13/20** (001/002/003/010/011/012/021/022/024/025/027/028/029 Merged — GV2-024
+> #2470 + GV2-025 #2459 closed the A′ hot-path hardening; GV2-031 is a Draft
+> follow-up for the re-export privilege blind spot found in #2453).
 
 > **Reshaped 2026-06-08** around the now-landed spine spec
 > [`docs/architecture/graph-v2-foundation-spec.md`](../../docs/architecture/graph-v2-foundation-spec.md)
@@ -549,9 +550,12 @@ Change status to **Ready** when:
 
 #### GV2-024: Hot-read type split + hot-path debug assertion
 
-- **Status:** In Progress — [ADR-077](../decisions/077-cert-closure-depth-cap.md)
-  ratified (Accepted 2026-06-09, PR #2458; path A) resolves the
-  `HotReadApi::certify` seal fork GV2-027 deferred. Code unblocked.
+- **Status:** Merged 2026-06-09 via PR #2470 — depth-capped `certify`'s closure
+  (ADR-077 path A) and sealed the hot-read surface: `BackgroundReadApi` denylist
+  home, `HotPathSurface` sealed marker, `debug_assert` depth guard, two
+  `compile_fail` proofs. [ADR-077](../decisions/077-cert-closure-depth-cap.md)
+  (Accepted 2026-06-09, PR #2458; path A) had resolved the `HotReadApi::certify`
+  seal fork GV2-027 deferred.
 - **Intent:** Make ADR-063 admissibility "enforced, not aspirational" — a sealed
   `HotReadApi` exposing only the four allowlist ops, with denylist ops reachable
   only via a separate `BackgroundReadApi`, plus a debug assertion that trips on
@@ -579,7 +583,7 @@ Change status to **Ready** when:
 
 #### GV2-025: Criterion hot-read benchmark + ADR-031 CI gate
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-09 via PR #2459
 - **Intent:** Land the missing latency gate ADR-063 names — a `cargo bench`
   harness that fails CI when hot-read p95 exceeds the ADR-031 save-time budget.
   (Implemented as a `harness = false` bench with a hand-rolled percentile +
