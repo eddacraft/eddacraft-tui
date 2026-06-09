@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 30/48    |
+| CIB | —     | In Progress | 30/50    |
 
 ## Purpose
 
@@ -1211,3 +1211,70 @@ archive.
   recurring; the exact mechanism (shared env var vs cargo config vs hook) is a
   planning decision, and a shared target dir can change incremental-rebuild
   behaviour across worktrees, so it needs a deliberate choice not a blind flip.
+
+### CIB-049: `anvil start --verify` is auth-gated and `--json` auth envelopes go to stderr
+
+- **Status:** Draft
+- **Intent:** Two related CLI auth-gate defects in
+  `crates/anvil-cli/src/main.rs`, both verified against `main` on 2026-06-09
+  (clawpatch run `20260609T111844-b83fca`, feature `feat_cli-command_ba5ccdd3a6`):
+  1. `StartArgs` carries a documented read-only `verify: bool` — the
+     `anvil start --verify` sibling of `anvil status --verify` — but
+     `skips_auth_for_local_probe` matches `Commands::Status(args) if args.verify`
+     only. So `start --verify`, despite being a read-only probe, hits the auth
+     wall, breaking air-gapped and scripted consumers.
+  2. `auth_required_response` coerces action commands
+     (start/welcome/init/gate/audit/watch) to `EXIT_OK` with a success-shaped
+     `{"state":"authRequired", …}` envelope (issue #1822), but the call site
+     `eprintln!`s every envelope to stderr. Under `--json`, `anvil start`
+     unauthenticated exits 0 with its structured payload on stderr — a JSON
+     consumer reading stdout gets nothing.
+- **Expected Outcome:**
+  1. `skips_auth_for_local_probe` also matches
+     `Commands::Start(args) if args.verify`; full `anvil start` stays
+     auth-gated.
+  2. When the coerced exit code is `EXIT_OK`, the informational JSON envelope is
+     written to stdout; non-zero / probe error envelopes stay on stderr.
+- **Validation:** air-gapped subprocess regressions — (1) `anvil start --verify`
+  runs unauthenticated without the auth wall; (2) `anvil start --json`
+  unauthenticated emits the `authRequired` envelope on stdout with exit 0. Both
+  must first fail against the current code (proven-mutant bar).
+- **Identified From:** clawpatch review 2026-06-09 — findings `…-_8f848cf67e`
+  (api-contract, medium/high) and `…-_00e37f07d6` (api-contract, medium/high),
+  both verified real.
+- **Coordinates with:** `crates/anvil-cli/src/main.rs`
+  (`skips_auth_for_local_probe`, `auth_required_response`, the auth-gate block
+  ~L991–1006); `crates/anvil-cli/tests/air_gapped.rs`.
+- **Confidence:** high — both root causes located and confirmed; the fix is a
+  predicate arm plus a stdout/stderr branch, tightly scoped to one file.
+
+### CIB-050: AST registry load failures silently disable scanning
+
+- **Status:** Draft
+- **Intent:** In `crates/anvil-checks-ast/src/lib.rs`, `load_rules` early-returns
+  `LoadOutcome { rules: [], init_errors: [] }` when
+  `load_compiled_registry` yields no registry, discarding
+  `LoadRegistryResult.warnings` (documented as "missing file, parse error,
+  schema mismatch"). `scan_bytes` then reports a default clean output — no
+  warnings, no `patterns_checked`, no init error — so a bad or unloadable
+  registry looks like a passing scan and gate-time AST rules are silently
+  disabled. This contradicts the ADR-071 §3 "fail loudly, never silently produce
+  nothing" guarantee the same function enforces for per-rule failures (missing
+  predicate, malformed query, no `@target` capture). Verified against `main` on
+  2026-06-09 (clawpatch run `20260609T120358-c18565`, feature
+  `feat_library_f65cfd1ba9`).
+- **Expected Outcome:** a registry that cannot be loaded or parsed surfaces the
+  loader warnings through `AstScanOutput` (folded into `init_errors`, or a new
+  explicit `registry_errors`/`registry_warnings` field the CLI surfaces like AST
+  query/predicate init failures) rather than producing a silent clean result.
+- **Validation:** a focused test that a missing / malformed registry yields a
+  non-empty error channel in `AstScanOutput` (must fail against current code,
+  which returns an empty `init_errors`).
+- **Identified From:** clawpatch review 2026-06-09 — finding
+  `fnd_sig-feat-library-f65cfd1ba9-d89a_7c56581562` (bug, medium/high), verified
+  real.
+- **Coordinates with:** `crates/anvil-checks-ast/src/lib.rs` (`load_rules`
+  `None`-branch + `AstScanOutput` shape); `crates/anvil-checks/src/antipattern/registry_loader.rs`
+  (`LoadRegistryResult.warnings`).
+- **Confidence:** high — root cause located (dropped `loaded.warnings`); the fix
+  is propagating an already-computed warning channel plus one test.
