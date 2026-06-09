@@ -58,9 +58,9 @@ block, `2` degraded, `3` error — so it drops straight into a CI step or a
 reviewer's script. (`anvil capsule create` prints the exact `verify` command to
 run on completion.)
 
-Add `--json` to emit the verdict as the `anvil.capsule-verification.v1`
-document on stdout — the exit code is unchanged, so a CI step can both gate on
-the exit status and parse the verdict from the same run:
+Add `--json` to emit the verdict as the `anvil.capsule-verification.v1` document
+on stdout — the exit code is unchanged, so a CI step can both gate on the exit
+status and parse the verdict from the same run:
 
 ```bash
 anvil capsule verify --json <dir>
@@ -105,8 +105,8 @@ witnessed lines by construction.
 :::caution v0 scope
 
 `anvil capsule create`, `verify`, and `explain` ship today, the last two with
-`--json` for CI consumption. The remaining subcommand — `anvil capsule
-inspect` — plus tamper-test hardening, retention/prune policy, and applied
+`--json` for CI consumption. The remaining subcommand — `anvil capsule inspect`
+— plus tamper-test hardening, retention/prune policy, and applied
 policy-exception collection are planned for follow-up work. See
 [ADR-074](https://github.com/eddacraft/anvil-001/blob/main/plans/decisions/074-review-capsule-v0-format.md)
 for the capsule format.
