@@ -206,11 +206,14 @@ The `widgets/` module ships a curated component set. Highlights:
 
 ## Optional features
 
-| Feature      | Adds                                                                                        |
-| ------------ | ------------------------------------------------------------------------------------------- |
-| `image`      | `ImagePane` — themed wrapper around [`ratatui-image`] (Kitty / Sixel / iTerm2 / halfblocks) |
-| `big-text`   | `BigBanner` — themed wrapper around [`tui-big-text`] for branded splashes                   |
-| `test-utils` | Snapshot testing helpers re-exported for downstream crates                                  |
+| Feature       | Adds                                                                                        |
+| ------------- | ------------------------------------------------------------------------------------------- |
+| `image`       | `ImagePane` — themed wrapper around [`ratatui-image`] (Kitty / Sixel / iTerm2 / halfblocks) |
+| `big-text`    | `BigBanner` — themed wrapper around [`tui-big-text`] for branded splashes                   |
+| `lifecycle`   | `TerminalGuard` raw-mode / alternate-screen RAII guard + panic restore                      |
+| `runner`      | Small fallback CLI shell — global flags + first-level commands (enables `lifecycle`)        |
+| `json-render` | Parser + registry for the `@json-render/core` declarative spec format                       |
+| `test-utils`  | Snapshot testing helpers re-exported for downstream crates                                  |
 
 ```toml
 [dependencies]
@@ -219,6 +222,77 @@ eddacraft-tui = { version = "0.2", features = ["image", "big-text"] }
 
 [`ratatui-image`]: https://crates.io/crates/ratatui-image
 [`tui-big-text`]: https://crates.io/crates/tui-big-text
+
+## Fallback CLI shell (`runner`)
+
+Building a terminal tool that doesn't have a CLI yet? The `runner` feature ships
+a small fallback shell so you don't hand-roll the same envelope every time. It
+parses shared global flags (`--help`, `--version`, `--theme`, `--no-tui`,
+`--config`) and selects a first-level command, then hands the rest to you — in
+~3 lines, with no `clap`-weight dependency (it uses zero-dep [`lexopt`]
+internally).
+
+```toml
+[dependencies]
+eddacraft-tui = { version = "0.3", features = ["runner"] }
+```
+
+```rust,ignore
+fn main() -> std::process::ExitCode {
+    eddacraft_tui::runner::launch_cli(MyTool::new())
+}
+```
+
+**It is a fallback, not a CLI framework.** It intentionally does not do nested
+command trees, argument validation, generated per-command `--help`,
+environment-variable binding, or shell completions. A serious CLI wants those —
+and that is the expected outcome, not a missing feature.
+
+When you reach that point, **bring your own parser** and hand the runner
+pre-parsed options via `launch_with`. You keep full control of your CLI surface
+and still get the runner's command dispatch, config handoff, and lifecycle/theme
+integration. The runner never owns or re-exports your parser, so its API stays
+independent of your `clap` major version.
+
+```toml
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+eddacraft-tui = { version = "0.3", features = ["runner"] }
+```
+
+```rust,ignore
+use clap::Parser;
+use eddacraft_tui::runner::{launch_with, RunnerMode, RunnerOptions};
+
+#[derive(Parser)]
+#[command(name = "mytool", version)]
+struct Cli {
+    command: String,
+    #[arg(long)]
+    theme: Option<String>,
+    #[arg(long = "no-tui")]
+    no_tui: bool,
+    #[arg(long)]
+    config: Option<std::path::PathBuf>,
+}
+
+fn main() -> std::process::ExitCode {
+    let cli = Cli::parse(); // clap owns help, validation, completions, …
+    let options = RunnerOptions {
+        command: Some(cli.command),
+        config_path: cli.config,
+        theme: cli.theme,
+        mode: if cli.no_tui { RunnerMode::Plain } else { RunnerMode::Tui },
+        ..RunnerOptions::default()
+    };
+    launch_with(MyApp::new(), options)
+}
+```
+
+See the [`runner` module docs](https://docs.rs/eddacraft-tui/latest/eddacraft_tui/runner/)
+for the full contract.
+
+[`lexopt`]: https://crates.io/crates/lexopt
 
 ## Pretext layout
 

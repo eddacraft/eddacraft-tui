@@ -1,3 +1,69 @@
+//! Small fallback CLI shell for consumers without their own argument parser.
+//!
+//! The runner is a convenience layer, not a CLI framework. It owns the
+//! undifferentiated plumbing a small terminal tool would otherwise rewrite:
+//! shared global flags, first-level subcommand selection, and a config-path
+//! handoff. Domain command semantics, parsing of command-specific arguments,
+//! and the render loop stay with the consumer.
+//!
+//! # What the runner parses
+//!
+//! Global envelope only — handled by a zero-dependency parser ([`lexopt`]):
+//!
+//! - `--help` / `-h`, `--version` / `-V`
+//! - `--theme <name>`, `--no-tui`, `--config <path>`
+//! - one first-level command name; everything after it is handed to the
+//!   consumer's [`TerminalCli::parse_command`] verbatim
+//!
+//! # When you've outgrown it
+//!
+//! The runner deliberately does **not** do nested command trees, typed
+//! argument validation, `--help` generated from your command internals,
+//! environment-variable binding, or shell completions. A serious CLI will
+//! want those — that is the expected outcome, not a gap.
+//!
+//! When you reach that point, **bring your own parser** ([`clap`], `argh`,
+//! hand-rolled — your choice) and hand the runner pre-parsed options via
+//! [`launch_with`]. You keep full control of your CLI surface and still get
+//! the runner's lifecycle/theme integration; the runner never owns or
+//! re-exports your parser, so your `clap` major version is yours alone.
+//!
+//! ```ignore
+//! // Cargo.toml — your crate brings the parser it needs:
+//! //   clap = { version = "4", features = ["derive"] }
+//! //   eddacraft-tui = { version = "0.3", features = ["runner"] }
+//!
+//! use clap::Parser;
+//! use eddacraft_tui::runner::{launch_with, RunnerMode, RunnerOptions};
+//!
+//! #[derive(Parser)]
+//! #[command(name = "mytool", version)]
+//! struct Cli {
+//!     command: String,
+//!     #[arg(long)]
+//!     theme: Option<String>,
+//!     #[arg(long = "no-tui")]
+//!     no_tui: bool,
+//!     #[arg(long)]
+//!     config: Option<std::path::PathBuf>,
+//! }
+//!
+//! fn main() -> std::process::ExitCode {
+//!     let cli = Cli::parse(); // clap owns help, validation, completions, …
+//!     let options = RunnerOptions {
+//!         command: Some(cli.command),
+//!         config_path: cli.config,
+//!         theme: cli.theme,
+//!         mode: if cli.no_tui { RunnerMode::Plain } else { RunnerMode::Tui },
+//!         ..RunnerOptions::default()
+//!     };
+//!     launch_with(MyApp::new(), options)
+//! }
+//! ```
+//!
+//! [`lexopt`]: https://docs.rs/lexopt
+//! [`clap`]: https://docs.rs/clap
+
 use std::ffi::OsString;
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -134,12 +200,28 @@ enum RunnerAction {
     Run(RunnerOptions),
 }
 
-/// Run a consumer CLI from the current process arguments.
+/// Run a consumer CLI from the current process arguments using the built-in
+/// fallback parser.
+///
+/// This is the ~3-line entry point for a small tool: the runner parses the
+/// [global envelope](self#what-the-runner-parses) and selects a first-level
+/// command for you. Need nested commands, argument validation, generated
+/// `--help`, env binding, or completions? You've outgrown the fallback —
+/// parse with your own parser (e.g. [`clap`](https://docs.rs/clap)) and call
+/// [`launch_with`] instead. See the [module docs](self) for the pattern.
 pub fn launch_cli<C: TerminalCli>(cli: C) -> ExitCode {
     launch_with_args(cli, std::env::args_os().skip(1))
 }
 
-/// Run a consumer CLI with pre-parsed runner options.
+/// Run a consumer CLI with pre-parsed runner options — the bring-your-own-parser
+/// entry point.
+///
+/// Use this when you parse arguments yourself (with [`clap`](https://docs.rs/clap),
+/// `argh`, or by hand) and only want the runner's command dispatch, config
+/// handoff, and lifecycle/theme integration. The runner does not own or
+/// re-export your parser, so its public API stays independent of your parser's
+/// version. For the trivial case where the built-in parser suffices, use
+/// [`launch_cli`].
 #[allow(clippy::needless_pass_by_value)]
 pub fn launch_with<C: TerminalCli>(mut cli: C, options: RunnerOptions) -> ExitCode {
     match execute(&mut cli, &options) {
