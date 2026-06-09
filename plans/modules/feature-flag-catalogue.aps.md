@@ -5,7 +5,7 @@
 
 | ID   | Owner | Priority | Status | Progress |
 | ------- | ----- | -------- | ------ | -------- |
-| FLAGCAT | —     | medium   | In Progress | 7/9      |
+| FLAGCAT | —     | medium   | In Progress | 8/9      |
 
 **Last reviewed:** 2026-06-01 — Reframed FLAGCAT-008 to its
 beta-intentional disposition: the `cli.licence-gate` membership (including
@@ -633,7 +633,7 @@ Status promoted Draft → **Ready** 2026-05-28.
 
 ### FLAGCAT-009: Stand up `flags/surfaces.json` + back-capture the CLI surface inventory
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-09 via PR #2468
 - **Intent:** Execute [ADR-076](../decisions/076-feature-catalogue-surface-registry.md)
   sequencing step (b): make the surface/feature the catalogue's primary noun by
   standing up a dedicated `flags/surfaces.json` registry and back-capturing the
