@@ -549,9 +549,9 @@ Change status to **Ready** when:
 
 #### GV2-024: Hot-read type split + hot-path debug assertion
 
-- **Status:** Draft — code gated on [ADR-077](../decisions/077-cert-closure-depth-cap.md)
-  ratification (owner chose "decide the ADR first, then code" for the
-  `HotReadApi::certify` seal fork GV2-027 deferred).
+- **Status:** Ready — [ADR-077](../decisions/077-cert-closure-depth-cap.md)
+  ratified (Accepted 2026-06-09, PR #2458; path A) resolves the
+  `HotReadApi::certify` seal fork GV2-027 deferred. Code unblocked.
 - **Intent:** Make ADR-063 admissibility "enforced, not aspirational" — a sealed
   `HotReadApi` exposing only the four allowlist ops, with denylist ops reachable
   only via a separate `BackgroundReadApi`, plus a debug assertion that trips on

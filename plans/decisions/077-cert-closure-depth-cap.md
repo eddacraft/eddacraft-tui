@@ -2,11 +2,13 @@
 
 ## Status
 
-**Proposed** — 2026-06-09. Resolves the owner/council decision GV2-027
+**Accepted** — 2026-06-09, Josh (sole owner of the INTD and GV2 surfaces; same
+ratifying authority as [ADR-063](063-gv2-hot-path-boundary.md)), via PR #2458.
+Resolves the owner/council decision GV2-027
 ([PR #2446](https://github.com/eddacraft/anvil-001/pull/2446)) deferred and
 flagged in `HotReadApi::certify`'s doc comment. Refines — does not supersede —
 [ADR-061](061-save-time-daemon-delta-validation.md) §6 and
-[ADR-063](063-gv2-hot-path-boundary.md) §3. Ratification gates GV2-024
+[ADR-063](063-gv2-hot-path-boundary.md) §3. Ratification unblocks GV2-024
 (hot-read type split + seal).
 
 ## Date
