@@ -204,7 +204,7 @@ enum RunnerAction {
 /// fallback parser.
 ///
 /// This is the ~3-line entry point for a small tool: the runner parses the
-/// [global envelope](self#what-the-runner-parses) and selects a first-level
+/// [global envelope](#what-the-runner-parses) and selects a first-level
 /// command for you. Need nested commands, argument validation, generated
 /// `--help`, env binding, or completions? You've outgrown the fallback —
 /// parse with your own parser (e.g. [`clap`](https://docs.rs/clap)) and call
