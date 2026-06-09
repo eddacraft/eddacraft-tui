@@ -128,11 +128,11 @@ release seals (RELEASE-SEAL); supplier bundles (SUPPLIER). Sealed Edda context
 - **Status:** Merged 2026-06-08 via PR #2427
 
 ### GITGOV-011: JSON output
-- **Intent:** `--json` on verify/inspect for CI consumption.
-- **Expected Outcome:** Stable machine-readable verdict + manifest summary.
+- **Intent:** `--json` on `verify` and `explain` (the inspect surface, GITGOV-010) for CI consumption.
+- **Expected Outcome:** Stable machine-readable verdict (`verify --json` emits the `anvil.capsule-verification.v1` document, exit codes preserved) + manifest summary (`explain --json` emits an `anvil.capsule-explain.v1` summary).
 - **Validation:** `cargo test -p eddacraft-anvil capsule_json`
 - **Dependencies:** GITGOV-009
-- **Status:** Proposed
+- **Status:** In Progress
 
 ### GITGOV-012: Tamper tests
 - **Intent:** Prove digest-mismatch and witness-break detection, missing-evidence → `degraded`, and the ADR-072 §3 scan-on-write line: a planted secret in any evidence file fails capsule creation.

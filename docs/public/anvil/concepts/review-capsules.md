@@ -58,6 +58,14 @@ block, `2` degraded, `3` error — so it drops straight into a CI step or a
 reviewer's script. (`anvil capsule create` prints the exact `verify` command to
 run on completion.)
 
+Add `--json` to emit the verdict as the `anvil.capsule-verification.v1`
+document on stdout — the exit code is unchanged, so a CI step can both gate on
+the exit status and parse the verdict from the same run:
+
+```bash
+anvil capsule verify --json <dir>
+```
+
 To read a capsule without re-verifying it:
 
 ```bash
@@ -69,7 +77,9 @@ policy/rules/baseline, witness coverage, diagnostics and exception counts, and
 the recorded verdict. It is read-only and repo-independent: it reports the
 verdict the capsule already carries and does **not** re-check it, so it always
 exits `0` on a readable capsule. Gate on the verdict with
-`anvil capsule verify`, not `explain`.
+`anvil capsule verify`, not `explain`. Add `--json` for an
+`anvil.capsule-explain.v1` summary in which each evidence field carries an
+explicit state (`present`/`absent`/`missing`/`unreadable`).
 
 ## What's inside
 
@@ -94,10 +104,10 @@ witnessed lines by construction.
 
 :::caution v0 scope
 
-`anvil capsule create`, `verify`, and `explain` ship today. The remaining
-subcommand — `anvil capsule inspect` — plus JSON CI output, tamper-test
-hardening, retention/prune policy, and applied policy-exception collection are
-planned for follow-up work. See
+`anvil capsule create`, `verify`, and `explain` ship today, the last two with
+`--json` for CI consumption. The remaining subcommand — `anvil capsule
+inspect` — plus tamper-test hardening, retention/prune policy, and applied
+policy-exception collection are planned for follow-up work. See
 [ADR-074](https://github.com/eddacraft/anvil-001/blob/main/plans/decisions/074-review-capsule-v0-format.md)
 for the capsule format.
 

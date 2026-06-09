@@ -1093,6 +1093,13 @@ or audit, and to verify or summarise a capsule's closed-state verdict.
 | `verify`   | Verify a capsule directory and print closed-state verdicts; re-collects digests from the repo.                       |
 | `explain`  | Print a human-readable summary of a capsule (range, policy, witness coverage, verdict). Read-only, repo-independent. |
 
+**`--json` (`verify`, `explain`):** emit machine-readable output for CI
+instead of the human text. `verify --json` prints the
+`anvil.capsule-verification.v1` document (verdict + per-check results); the
+ADR-074 exit code is unchanged, so a CI step gates on the exit status and
+parses the verdict from the same run. `explain --json` prints an
+`anvil.capsule-explain.v1` summary (range, evidence states, recorded verdict).
+
 **Exit codes (`verify`):** 0 (pass/warn), 1 (block), 2 (degraded), 3 (error).
 `explain` exits 0 on success regardless of the recorded verdict — gate on the
 verdict with `anvil capsule verify`, not `explain`.
@@ -1102,7 +1109,8 @@ verdict with `anvil capsule verify`, not `explain`.
 ```
 $ anvil capsule create --range main..HEAD --out ./capsule-dir
 $ anvil capsule verify ./capsule-dir
-$ anvil capsule explain ./capsule-dir
+$ anvil capsule verify --json ./capsule-dir
+$ anvil capsule explain --json ./capsule-dir
 ```
 
 ---

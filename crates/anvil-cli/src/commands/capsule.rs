@@ -38,12 +38,12 @@ use std::path::{Path, PathBuf};
 
 use anvil_capsule::{
     BaselineDigest, CapsuleContent, CapsuleManifest, CapsuleVerification, CommitsDocument,
-    PolicyDigest, Producer, RulesDigest, ToolIdentity, collect_commits, collect_diagnostics,
-    collect_digests, collect_witness, verify_capsule, write_capsule,
+    PolicyDigest, Producer, RulesDigest, ToolIdentity, canonical_json_bytes, collect_commits,
+    collect_diagnostics, collect_digests, collect_witness, verify_capsule, write_capsule,
 };
 use anyhow::{Context, Result, bail};
 use clap::{Args, Subcommand};
-use serde_json::Value;
+use serde_json::{Value, json};
 
 use crate::GlobalArgs;
 use crate::util::workspace_root;
@@ -78,12 +78,25 @@ enum CapsuleCommand {
 struct VerifyArgs {
     /// The capsule directory to verify.
     capsule: PathBuf,
+    /// Emit the `anvil.capsule-verification.v1` document as canonical
+    /// JSON on stdout instead of the human per-check lines (GITGOV-011,
+    /// for CI consumption). The ADR-074 exit code is unchanged, so a CI
+    /// step can gate on the exit status and parse the verdict from the
+    /// same run.
+    #[arg(long)]
+    json: bool,
 }
 
 #[derive(Debug, Args)]
 struct ExplainArgs {
     /// The capsule directory to summarise.
     capsule: PathBuf,
+    /// Emit an `anvil.capsule-explain.v1` summary as JSON on stdout
+    /// instead of the human report (GITGOV-011). Like the human form it
+    /// is descriptive — it reports the capsule's recorded verdict, it
+    /// does not adjudicate (gate with `anvil capsule verify --json`).
+    #[arg(long)]
+    json: bool,
 }
 
 #[derive(Debug, Args)]
@@ -109,7 +122,16 @@ pub fn run(args: &CapsuleArgs, _global: &GlobalArgs) -> Result<()> {
         CapsuleCommand::Verify(verify) => {
             let repo_root = workspace_root()?;
             let verification = verify_and_record(&repo_root, &verify.capsule)?;
-            print_verification(&verification);
+            if verify.json {
+                // The machine-readable verdict is exactly the persisted
+                // `verification.json` document — already schema-gated and
+                // digest-stable, so CI parses the same bytes the capsule
+                // carries. `?` surfaces an encode failure as the generic
+                // error arm (exit 1) before we commit to a verdict code.
+                print!("{}", verification_json_line(&verification)?);
+            } else {
+                print_verification(&verification);
+            }
             // `process::exit` skips destructors, including the libstd
             // stdout flush — block-buffered when piped, so the verdict
             // could be lost down a pipe. Flush explicitly first.
@@ -124,8 +146,12 @@ pub fn run(args: &CapsuleArgs, _global: &GlobalArgs) -> Result<()> {
             // No `workspace_root()`: explain reads only the capsule, so a
             // reviewer can run it on a received directory outside any repo
             // (ADR-072 offline-verifiable posture).
-            let report = render_explanation(&explain.capsule)
-                .with_context(|| format!("explaining capsule {}", explain.capsule.display()))?;
+            let report = if explain.json {
+                render_explanation_json(&explain.capsule)
+            } else {
+                render_explanation(&explain.capsule)
+            }
+            .with_context(|| format!("explaining capsule {}", explain.capsule.display()))?;
             print!("{report}");
             Ok(())
         }
@@ -396,10 +422,7 @@ fn witness_field(capsule_dir: &Path, manifest: &CapsuleManifest) -> String {
     // chain is surfaced like every other field, never folded into a
     // misleading `0 lines`.
     let line_count = match slot(capsule_dir, "witness.ndjson") {
-        Slot::Bytes(bytes) => String::from_utf8_lossy(&bytes)
-            .lines()
-            .filter(|l| !l.trim().is_empty())
-            .count(),
+        Slot::Bytes(bytes) => count_ndjson_lines(&bytes),
         Slot::Missing => 0,
         Slot::Unreadable => return "(unreadable)".to_string(),
     };
@@ -433,6 +456,56 @@ fn witness_field(capsule_dir: &Path, manifest: &CapsuleManifest) -> String {
     }
 }
 
+/// SARIF result tallies by level — every result lands in exactly one
+/// bucket, so `errors + warnings + notes + suppressed` is the total.
+struct DiagnosticCounts {
+    errors: usize,
+    warnings: usize,
+    notes: usize,
+    suppressed: usize,
+}
+
+/// Count SARIF 2.1.0 §3.27.10 result levels in a parsed `diagnostics.sarif`
+/// document. An absent level defaults to `warning`; `none` is a
+/// *suppressed* result, kept in its own bucket so it is never laundered
+/// into a `note`. Shared by the text field and the JSON summary so the
+/// two can never disagree on the tally.
+fn diagnostic_counts(doc: &Value) -> DiagnosticCounts {
+    let (mut errors, mut warnings, mut notes, mut suppressed) = (0usize, 0usize, 0usize, 0usize);
+    if let Some(runs) = doc.get("runs").and_then(Value::as_array) {
+        for run in runs {
+            let Some(results) = run.get("results").and_then(Value::as_array) else {
+                continue;
+            };
+            for result in results {
+                match result.get("level").and_then(Value::as_str) {
+                    Some("error") => errors += 1,
+                    None | Some("warning") => warnings += 1,
+                    Some("none") => suppressed += 1,
+                    _ => notes += 1,
+                }
+            }
+        }
+    }
+    DiagnosticCounts {
+        errors,
+        warnings,
+        notes,
+        suppressed,
+    }
+}
+
+/// Count NDJSON records in a witness chain: non-blank lines, the same
+/// rule the text `Witness` field uses (`str::lines` handles `\n`/`\r\n`;
+/// whitespace-only lines are not records). Shared so the JSON summary
+/// reports the identical line count.
+fn count_ndjson_lines(bytes: &[u8]) -> usize {
+    String::from_utf8_lossy(bytes)
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .count()
+}
+
 /// `Diagnostics` — total SARIF results plus a per-level breakdown
 /// (`diagnostics.sarif`); `none` when there are no results.
 fn diagnostics_field(capsule_dir: &Path) -> String {
@@ -445,27 +518,12 @@ fn diagnostics_field(capsule_dir: &Path) -> String {
         return "(unreadable)".to_string();
     };
 
-    let (mut errors, mut warnings, mut notes, mut suppressed) = (0usize, 0usize, 0usize, 0usize);
-    if let Some(runs) = doc.get("runs").and_then(Value::as_array) {
-        for run in runs {
-            let Some(results) = run.get("results").and_then(Value::as_array) else {
-                continue;
-            };
-            for result in results {
-                // SARIF 2.1.0 §3.27.10 levels. An absent level defaults to
-                // `warning`; `none` is a *suppressed* result, kept in its
-                // own bucket so it is never laundered into a `note`. Every
-                // result lands in exactly one bucket, so the total always
-                // equals the breakdown sum.
-                match result.get("level").and_then(Value::as_str) {
-                    Some("error") => errors += 1,
-                    None | Some("warning") => warnings += 1,
-                    Some("none") => suppressed += 1,
-                    _ => notes += 1,
-                }
-            }
-        }
-    }
+    let DiagnosticCounts {
+        errors,
+        warnings,
+        notes,
+        suppressed,
+    } = diagnostic_counts(&doc);
 
     let total = errors + warnings + notes + suppressed;
     if total == 0 {
@@ -597,6 +655,262 @@ fn is_display_unsafe(c: char) -> bool {
             | '\u{2066}'..='\u{2069}' // bidi isolates
             | '\u{FEFF}'              // zero-width no-break space (BOM)
         )
+}
+
+// ----- GITGOV-011: `--json` output -----
+
+/// The schema identifier for the `explain --json` summary document.
+const EXPLAIN_SUMMARY_SCHEMA: &str = "anvil.capsule-explain.v1";
+
+/// The `verify --json` line: the verification document as canonical JSON
+/// (sorted keys, minimal whitespace — exactly the persisted
+/// `verification.json` bytes) plus a trailing newline. Routed through
+/// [`CapsuleVerification::to_canonical_bytes`] so the emitted verdict is
+/// byte-identical to the one the capsule carries, for any verdict
+/// including `error`.
+fn verification_json_line(verification: &CapsuleVerification) -> Result<String> {
+    let bytes = verification
+        .to_canonical_bytes()
+        .context("encoding verification JSON")?;
+    let mut line = String::from_utf8(bytes).context("verification JSON is not UTF-8")?;
+    line.push('\n');
+    Ok(line)
+}
+
+/// Render the `explain --json` summary (`anvil.capsule-explain.v1`) for
+/// the capsule at `capsule_dir` as a single line of canonical JSON plus a
+/// trailing newline.
+///
+/// The JSON analogue of [`render_explanation`]: same facts, machine
+/// typed. Every degradable evidence field is a status-tagged object: a
+/// `present` field carries its typed payload, and every degraded state
+/// (`absent`, `missing`, `unreadable`, `malformed`) carries **only**
+/// `{"status": …}` with no payload keys — so a consumer branches on
+/// `status` once, then reads payload only on `present`. That keeps a
+/// partial or tampered capsule honest about *which* evidence is gone, the
+/// same distinctions the human report draws. Only `manifest.json` (the
+/// digest root) is required; everything else degrades in place.
+///
+/// Output is [`canonical_json_bytes`] — recursively sorted keys, minimal
+/// whitespace — the same canonical discipline as `verify --json`, so both
+/// capsule JSON surfaces are byte-stable across runs and platforms.
+///
+/// Unlike the text form this does **not** sanitise string values, by
+/// design. JSON encoding escapes the structural/control set (quotes,
+/// backslash, `U+0000`–`U+001F` including newline and `ESC`), so
+/// row-forging and ANSI injection are neutralised — but Unicode
+/// bidi-control and zero-width characters (the Trojan-Source class the
+/// text path's [`one_line`]/[`is_display_unsafe`] strips) pass through
+/// verbatim, because this is a machine surface (parse the data, don't
+/// render it). A tool that displays this JSON to a terminal owns its own
+/// bidi safety; the sanitised, terminal-safe view is the human `explain`.
+fn render_explanation_json(capsule_dir: &Path) -> Result<String> {
+    let manifest_bytes = std::fs::read(capsule_dir.join("manifest.json"))
+        .context("cannot read manifest.json (the capsule's digest root)")?;
+    let manifest =
+        CapsuleManifest::from_json_bytes(&manifest_bytes).context("invalid manifest.json")?;
+
+    let summary = json!({
+        "schema": EXPLAIN_SUMMARY_SCHEMA,
+        "capsule_schema": manifest.schema,
+        "producer": { "anvil_version": manifest.producer.anvil_version },
+        "range": { "base": manifest.range.base, "head": manifest.range.head },
+        "commits": commits_json(capsule_dir),
+        "policy": policy_json(capsule_dir),
+        "rules": rules_json(capsule_dir),
+        "baseline": baseline_json(capsule_dir),
+        "witness": witness_json(capsule_dir, &manifest),
+        "diagnostics": diagnostics_json(capsule_dir),
+        "exceptions": exceptions_json(capsule_dir),
+        "verdict": verdict_json(capsule_dir),
+    });
+
+    let bytes = canonical_json_bytes(&summary).context("encoding explain summary JSON")?;
+    let mut line = String::from_utf8(bytes).context("explain summary JSON is not UTF-8")?;
+    line.push('\n');
+    Ok(line)
+}
+
+/// A bare `{"status":"<token>"}` object for a degraded evidence field —
+/// `absent` (the digest records no such evidence), `missing` (layout file
+/// gone), `unreadable` (read/parse error), or `malformed` (present but
+/// structurally wrong). Degraded states carry no payload keys; only a
+/// `present` field does.
+fn status(token: &str) -> Value {
+    json!({ "status": token })
+}
+
+/// `commits` — `{status, count}` when readable.
+fn commits_json(capsule_dir: &Path) -> Value {
+    match slot(capsule_dir, "commits.json") {
+        Slot::Bytes(bytes) => CommitsDocument::from_json_bytes(&bytes).map_or_else(
+            |_| status("unreadable"),
+            |doc| json!({ "status": "present", "count": doc.commits.len() }),
+        ),
+        Slot::Missing => status("missing"),
+        Slot::Unreadable => status("unreadable"),
+    }
+}
+
+/// `policy` — `{status, path}` for an effective policy file, else
+/// `absent` (no policy in the digest).
+fn policy_json(capsule_dir: &Path) -> Value {
+    match slot(capsule_dir, "policy.json") {
+        Slot::Bytes(bytes) => match PolicyDigest::from_json_bytes(&bytes) {
+            Ok(doc) => doc.policy_file.map_or_else(
+                || status("absent"),
+                |file| json!({ "status": "present", "path": file.path }),
+            ),
+            Err(_) => status("unreadable"),
+        },
+        Slot::Missing => status("missing"),
+        Slot::Unreadable => status("unreadable"),
+    }
+}
+
+/// `rules` — `{status, rules_sha}` (the full identity, not the short
+/// form) when config is present, else `absent`.
+fn rules_json(capsule_dir: &Path) -> Value {
+    match slot(capsule_dir, "rules.json") {
+        Slot::Bytes(bytes) => match RulesDigest::from_json_bytes(&bytes) {
+            Ok(doc) => doc.rules_sha.map_or_else(
+                || status("absent"),
+                |sha| json!({ "status": "present", "rules_sha": sha }),
+            ),
+            Err(_) => status("unreadable"),
+        },
+        Slot::Missing => status("missing"),
+        Slot::Unreadable => status("unreadable"),
+    }
+}
+
+/// `baseline` — `present` with `cutoff_commit` when the baseline pins a
+/// cutoff; `present` with no `cutoff_commit` key when a baseline exists
+/// without one; `absent` when there is no baseline. `cutoff_commit` is
+/// only ever a string — its absence is carried by the key being omitted,
+/// not by a `null`, so the field stays consistent with the rest of the
+/// schema (absence is a state, never a `null` value).
+fn baseline_json(capsule_dir: &Path) -> Value {
+    match slot(capsule_dir, "baseline.json") {
+        Slot::Bytes(bytes) => match BaselineDigest::from_json_bytes(&bytes) {
+            Ok(doc) => match (doc.cutoff_commit, doc.digest) {
+                (Some(cutoff), _) => json!({ "status": "present", "cutoff_commit": cutoff }),
+                (None, Some(_)) => json!({ "status": "present" }),
+                (None, None) => status("absent"),
+            },
+            Err(_) => status("unreadable"),
+        },
+        Slot::Missing => status("missing"),
+        Slot::Unreadable => status("unreadable"),
+    }
+}
+
+/// `witness` — the range `seq` window (from the manifest) and the
+/// embedded chain's line count, mirroring the text field's states. A
+/// `present` field carries the payload (`seq_start`/`seq_end` —
+/// `null` when the chain is present with no range coverage — plus
+/// `chain_present` and `lines`); every degraded state carries only its
+/// `status`: `absent` (no chain, no window), `malformed` (an asymmetric
+/// seq window — a tampered manifest), or `unreadable`. `seq_start`/
+/// `seq_end` are the only payload keys that may be `null`; that `null`
+/// means "no range window on a present chain", distinct from the chain's
+/// absence (which is the `absent` status).
+fn witness_json(capsule_dir: &Path, manifest: &CapsuleManifest) -> Value {
+    let lines = match slot(capsule_dir, "witness.ndjson") {
+        Slot::Bytes(bytes) => count_ndjson_lines(&bytes),
+        Slot::Missing => 0,
+        Slot::Unreadable => return status("unreadable"),
+    };
+
+    match (
+        manifest.range.witness_seq_start,
+        manifest.range.witness_seq_end,
+    ) {
+        (Some(_), None) | (None, Some(_)) => status("malformed"),
+        (Some(start), Some(end)) => json!({
+            "status": "present",
+            "seq_start": start,
+            "seq_end": end,
+            // The window is recorded but no chain backs it — the same
+            // unbacked-claim signal the text field spells as "chain absent".
+            "chain_present": lines > 0,
+            "lines": lines,
+        }),
+        (None, None) if lines == 0 => status("absent"),
+        (None, None) => json!({
+            "status": "present",
+            "seq_start": Value::Null,
+            "seq_end": Value::Null,
+            "chain_present": true,
+            "lines": lines,
+        }),
+    }
+}
+
+/// `diagnostics` — `{status:"present"}` with the SARIF total and the
+/// per-level breakdown; the total always equals the breakdown sum.
+fn diagnostics_json(capsule_dir: &Path) -> Value {
+    let bytes = match slot(capsule_dir, "diagnostics.sarif") {
+        Slot::Bytes(bytes) => bytes,
+        Slot::Missing => return status("missing"),
+        Slot::Unreadable => return status("unreadable"),
+    };
+    let Ok(doc) = serde_json::from_slice::<Value>(&bytes) else {
+        return status("unreadable");
+    };
+    let DiagnosticCounts {
+        errors,
+        warnings,
+        notes,
+        suppressed,
+    } = diagnostic_counts(&doc);
+    json!({
+        "status": "present",
+        "total": errors + warnings + notes + suppressed,
+        "error": errors,
+        "warning": warnings,
+        "note": notes,
+        "suppressed": suppressed,
+    })
+}
+
+/// `exceptions` — `{status:"present", count}` (count of applied
+/// exceptions). A document that is valid JSON but not an array is
+/// `malformed` (wrong shape — a CI-actionable signal); bytes that are not
+/// JSON at all are `unreadable`. The machine surface keeps these distinct
+/// where the text field collapses both to `(unreadable)`.
+fn exceptions_json(capsule_dir: &Path) -> Value {
+    let bytes = match slot(capsule_dir, "exceptions.json") {
+        Slot::Bytes(bytes) => bytes,
+        Slot::Missing => return status("missing"),
+        Slot::Unreadable => return status("unreadable"),
+    };
+    match serde_json::from_slice::<Value>(&bytes) {
+        Ok(Value::Array(items)) => json!({ "status": "present", "count": items.len() }),
+        Ok(_) => status("malformed"),
+        Err(_) => status("unreadable"),
+    }
+}
+
+/// `verdict` — the recorded `verification.json` verdict, its exit code,
+/// and the per-check breakdown. `present` carries the structured
+/// verdict; the create-time placeholder (degraded, no checks) is
+/// reported faithfully as `present` with an empty `checks` array.
+fn verdict_json(capsule_dir: &Path) -> Value {
+    let bytes = match slot(capsule_dir, "verification.json") {
+        Slot::Bytes(bytes) => bytes,
+        Slot::Missing => return status("missing"),
+        Slot::Unreadable => return status("unreadable"),
+    };
+    match CapsuleVerification::from_json_bytes(&bytes) {
+        Ok(verification) => json!({
+            "status": "present",
+            "verdict": verification.verdict.as_token(),
+            "exit_code": verification.verdict.exit_code(),
+            "checks": verification.checks,
+        }),
+        Err(_) => status("unreadable"),
+    }
 }
 
 /// Split `<base>..<head>`, rejecting empty or whitespace-bearing
@@ -1232,12 +1546,10 @@ mod tests {
         );
     }
 
-    /// A repo with no governance evidence: every absent field reads as
-    /// `absent`/`none`, never a crash or a misleading zero.
-    #[test]
-    fn capsule_explain_renders_absent_fields() {
-        let stage = tempfile::tempdir().unwrap();
-        let out = stage.path().join("capsule");
+    /// A capsule whose repo carried no governance evidence: an empty
+    /// commit list, no policy/rules/baseline, no witness chain, and the
+    /// write-time empty SARIF + exceptions placeholders.
+    fn absent_capsule(out: &Path) {
         let content = CapsuleContent {
             commits: CommitsDocument {
                 schema: COMMITS_SCHEMA.to_string(),
@@ -1271,7 +1583,16 @@ mod tests {
                 anvil_version: "0.8.0-beta".to_string(),
             },
         };
-        write_capsule(&out, &content).unwrap();
+        write_capsule(out, &content).unwrap();
+    }
+
+    /// A repo with no governance evidence: every absent field reads as
+    /// `absent`/`none`, never a crash or a misleading zero.
+    #[test]
+    fn capsule_explain_renders_absent_fields() {
+        let stage = tempfile::tempdir().unwrap();
+        let out = stage.path().join("capsule");
+        absent_capsule(&out);
 
         let report = render_explanation(&out).unwrap();
         assert!(report.contains("Commits     0"), "{report}");
@@ -1657,6 +1978,397 @@ mod tests {
         assert!(
             !report.lines().any(|l| l == "  Verdict: PASS (exit 0)"),
             "forged line leaked: {report}"
+        );
+    }
+
+    // ----- GITGOV-011: `--json` output -----
+
+    /// The single trailing-newline JSON line emitted by `verify --json`.
+    /// Asserts it is exactly the verification document (round-trips
+    /// through the schema-gated parser) and a single line — for any
+    /// verdict, including the `error` one create never produces.
+    #[test]
+    fn capsule_json_verify_emits_verification_document() {
+        let doc = CapsuleVerification::from_checks(vec![
+            check("manifest-digests", Verdict::Pass, "10 files verified"),
+            check("witness-chain", Verdict::Block, "seq gap at 3"),
+        ]);
+        assert_eq!(doc.verdict, Verdict::Block); // worst-of
+
+        let line = verification_json_line(&doc).unwrap();
+        assert!(line.ends_with('\n'), "trailing newline: {line:?}");
+        assert_eq!(line.matches('\n').count(), 1, "single line: {line:?}");
+
+        let parsed = CapsuleVerification::from_json_bytes(line.trim_end().as_bytes()).unwrap();
+        assert_eq!(parsed, doc, "round-trips through the schema-gated parser");
+    }
+
+    /// An `error`-verdict document (e.g. an unreadable manifest) still
+    /// encodes to a clean JSON line — the JSON surface never panics on a
+    /// verdict the human path also renders.
+    #[test]
+    fn capsule_json_verify_encodes_error_verdict() {
+        let doc = CapsuleVerification::from_checks(vec![check(
+            "manifest-digests",
+            Verdict::Error,
+            "manifest.json unreadable",
+        )]);
+        let line = verification_json_line(&doc).unwrap();
+        let value: Value = serde_json::from_str(&line).unwrap();
+        assert_eq!(value["verdict"], "error");
+    }
+
+    /// The full `explain --json` summary over a rich capsule: every field
+    /// is present and typed, and the recorded verdict is the create-time
+    /// placeholder (degraded, no checks).
+    #[test]
+    fn capsule_json_explain_summary_is_fully_typed() {
+        let stage = tempfile::tempdir().unwrap();
+        let out = stage.path().join("capsule");
+        rich_capsule(&out);
+
+        let line = render_explanation_json(&out).unwrap();
+        assert!(line.ends_with('\n'));
+        assert_eq!(line.matches('\n').count(), 1, "single JSON line: {line:?}");
+        let v: Value = serde_json::from_str(&line).unwrap();
+
+        assert_eq!(v["schema"], "anvil.capsule-explain.v1");
+        assert_eq!(v["capsule_schema"], "anvil.capsule.v1");
+        assert_eq!(v["producer"]["anvil_version"], "0.8.0-beta");
+        assert_eq!(
+            v["range"]["base"],
+            "1111111111111111111111111111111111111111"
+        );
+        assert_eq!(
+            v["range"]["head"],
+            "2222222222222222222222222222222222222222"
+        );
+        assert_eq!(v["commits"], json!({"status": "present", "count": 2}));
+        assert_eq!(
+            v["policy"],
+            json!({"status": "present", "path": "anvil/policy.yml"})
+        );
+        assert_eq!(
+            v["rules"],
+            json!({
+                "status": "present",
+                "rules_sha": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+            })
+        );
+        assert_eq!(
+            v["baseline"],
+            json!({
+                "status": "present",
+                "cutoff_commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            })
+        );
+        assert_eq!(
+            v["witness"],
+            json!({
+                "status": "present",
+                "seq_start": 2,
+                "seq_end": 4,
+                "chain_present": true,
+                "lines": 3
+            })
+        );
+        assert_eq!(
+            v["diagnostics"],
+            json!({
+                "status": "present",
+                "total": 2,
+                "error": 1,
+                "warning": 1,
+                "note": 0,
+                "suppressed": 0
+            })
+        );
+        assert_eq!(v["exceptions"], json!({"status": "present", "count": 1}));
+        // rich_capsule leaves the create-time placeholder in place.
+        assert_eq!(
+            v["verdict"],
+            json!({
+                "status": "present",
+                "verdict": "degraded",
+                "exit_code": 2,
+                "checks": []
+            })
+        );
+    }
+
+    /// A verified capsule's recorded verdict appears in `explain --json`
+    /// with its checks — the structured analogue of the text verdict
+    /// section.
+    #[test]
+    fn capsule_json_explain_reports_recorded_verdict_with_checks() {
+        let stage = tempfile::tempdir().unwrap();
+        let out = stage.path().join("capsule");
+        rich_capsule(&out);
+        set_verification(
+            &out,
+            &CapsuleVerification::from_checks(vec![
+                check("manifest-digests", Verdict::Pass, "10 files verified"),
+                check("witness-chain", Verdict::Warn, "1 merge line"),
+            ]),
+        );
+
+        let v: Value = serde_json::from_str(&render_explanation_json(&out).unwrap()).unwrap();
+        assert_eq!(v["verdict"]["status"], "present");
+        assert_eq!(v["verdict"]["verdict"], "warn");
+        assert_eq!(v["verdict"]["exit_code"], 0);
+        let checks = v["verdict"]["checks"].as_array().unwrap();
+        assert_eq!(checks.len(), 2);
+        assert_eq!(checks[0]["name"], "manifest-digests");
+        assert_eq!(checks[0]["verdict"], "pass");
+        assert_eq!(checks[1]["verdict"], "warn");
+        assert_eq!(checks[1]["detail"], "1 merge line");
+    }
+
+    /// A repo with no governance evidence: each degradable field carries
+    /// its honest `absent`/`present`-with-zero state — never a crash or a
+    /// misleading omission.
+    #[test]
+    fn capsule_json_explain_absent_fields_are_typed_states() {
+        let stage = tempfile::tempdir().unwrap();
+        let out = stage.path().join("capsule");
+        absent_capsule(&out);
+
+        let v: Value = serde_json::from_str(&render_explanation_json(&out).unwrap()).unwrap();
+        assert_eq!(v["commits"], json!({"status": "present", "count": 0}));
+        assert_eq!(v["policy"], json!({"status": "absent"}));
+        assert_eq!(v["rules"], json!({"status": "absent"}));
+        assert_eq!(v["baseline"], json!({"status": "absent"}));
+        assert_eq!(v["witness"], json!({"status": "absent"}));
+        assert_eq!(
+            v["diagnostics"],
+            json!({
+                "status": "present",
+                "total": 0,
+                "error": 0,
+                "warning": 0,
+                "note": 0,
+                "suppressed": 0
+            })
+        );
+        assert_eq!(v["exceptions"], json!({"status": "present", "count": 0}));
+    }
+
+    /// A missing layout file is a tamper signal in JSON too: `status:
+    /// missing`, and the manifest-backed range still reports.
+    #[test]
+    fn capsule_json_explain_marks_missing_file() {
+        let stage = tempfile::tempdir().unwrap();
+        let out = stage.path().join("capsule");
+        rich_capsule(&out);
+        std::fs::remove_file(out.join("commits.json")).unwrap();
+
+        let v: Value = serde_json::from_str(&render_explanation_json(&out).unwrap()).unwrap();
+        assert_eq!(v["commits"], json!({"status": "missing"}));
+        assert_eq!(
+            v["range"]["head"],
+            "2222222222222222222222222222222222222222"
+        );
+    }
+
+    /// A manifest claiming a witness window whose chain file is gone is an
+    /// unbacked claim — `chain_present: false`, the JSON analogue of the
+    /// text "chain absent".
+    #[test]
+    fn capsule_json_explain_witness_window_without_chain() {
+        let stage = tempfile::tempdir().unwrap();
+        let out = stage.path().join("capsule");
+        rich_capsule(&out); // manifest records seq 2..4
+        std::fs::remove_file(out.join("witness.ndjson")).unwrap();
+
+        let v: Value = serde_json::from_str(&render_explanation_json(&out).unwrap()).unwrap();
+        assert_eq!(
+            v["witness"],
+            json!({
+                "status": "present",
+                "seq_start": 2,
+                "seq_end": 4,
+                "chain_present": false,
+                "lines": 0
+            })
+        );
+    }
+
+    /// An asymmetric witness seq window (one pointer without the other)
+    /// is a tampered manifest — reported as `status: malformed`.
+    #[test]
+    fn capsule_json_explain_malformed_witness_window() {
+        let stage = tempfile::tempdir().unwrap();
+        let out = stage.path().join("capsule");
+        rich_capsule(&out);
+        // Drop one side of the seq window directly in the manifest JSON
+        // (explain does not digest-verify the manifest it reads).
+        let mut manifest: Value =
+            serde_json::from_slice(&std::fs::read(out.join("manifest.json")).unwrap()).unwrap();
+        manifest["range"]["witness_seq_end"] = Value::Null;
+        std::fs::write(
+            out.join("manifest.json"),
+            serde_json::to_vec(&manifest).unwrap(),
+        )
+        .unwrap();
+
+        let v: Value = serde_json::from_str(&render_explanation_json(&out).unwrap()).unwrap();
+        assert_eq!(v["witness"], json!({"status": "malformed"}));
+    }
+
+    /// JSON encoding neutralises a planted control character structurally:
+    /// a newline in an untrusted policy path is escaped, so the output
+    /// stays a single JSON line and the value round-trips verbatim — no
+    /// forged row, no lossy `one_line` mangling of legitimate data.
+    #[test]
+    fn capsule_json_explain_escapes_injected_control_chars() {
+        let stage = tempfile::tempdir().unwrap();
+        let out = stage.path().join("capsule");
+        rich_capsule(&out);
+        let hostile = "anvil/policy.yml\n  forged: true";
+        let policy = PolicyDigest {
+            schema: POLICY_DIGEST_SCHEMA.to_string(),
+            policy_file: Some(FileDigest {
+                path: hostile.to_string(),
+                digest: "0".repeat(64),
+            }),
+            config_file: None,
+        };
+        rewrite_recorded(&out, "policy.json", &policy.to_canonical_bytes().unwrap());
+
+        let line = render_explanation_json(&out).unwrap();
+        assert_eq!(line.matches('\n').count(), 1, "single JSON line: {line:?}");
+        let v: Value = serde_json::from_str(&line).unwrap();
+        // The raw path is preserved exactly (JSON data, not terminal display).
+        assert_eq!(v["policy"]["path"], hostile);
+    }
+
+    /// An unreadable manifest is the one hard failure for `explain
+    /// --json` too — the digest root carries the range, so there is
+    /// nothing to summarise.
+    #[test]
+    fn capsule_json_explain_errors_when_manifest_unreadable() {
+        let stage = tempfile::tempdir().unwrap();
+        let out = stage.path().join("capsule");
+        std::fs::create_dir_all(&out).unwrap();
+        assert!(render_explanation_json(&out).is_err());
+    }
+
+    /// A baseline present without a cutoff is `present` with no
+    /// `cutoff_commit` key — absence is a state (key omitted), never a
+    /// `null` value, so the schema carries no nulls in optional payload.
+    #[test]
+    fn capsule_json_explain_baseline_present_without_cutoff() {
+        let stage = tempfile::tempdir().unwrap();
+        let out = stage.path().join("capsule");
+        rich_capsule(&out);
+        let baseline = BaselineDigest {
+            schema: BASELINE_DIGEST_SCHEMA.to_string(),
+            cutoff_commit: None,
+            digest: Some("a".repeat(64)),
+        };
+        rewrite_recorded(
+            &out,
+            "baseline.json",
+            &baseline.to_canonical_bytes().unwrap(),
+        );
+
+        let v: Value = serde_json::from_str(&render_explanation_json(&out).unwrap()).unwrap();
+        assert_eq!(v["baseline"], json!({"status": "present"}));
+        assert!(
+            v["baseline"].get("cutoff_commit").is_none(),
+            "no null cutoff_commit key: {}",
+            v["baseline"]
+        );
+    }
+
+    /// A missing required evidence file is a `missing` status in JSON, the
+    /// machine-readable tamper signal — covered here for `diagnostics`
+    /// (the `commits` missing path is tested separately).
+    #[test]
+    fn capsule_json_explain_marks_missing_diagnostics() {
+        let stage = tempfile::tempdir().unwrap();
+        let out = stage.path().join("capsule");
+        rich_capsule(&out);
+        std::fs::remove_file(out.join("diagnostics.sarif")).unwrap();
+
+        let v: Value = serde_json::from_str(&render_explanation_json(&out).unwrap()).unwrap();
+        assert_eq!(v["diagnostics"], json!({"status": "missing"}));
+    }
+
+    /// An `exceptions.json` that parses as JSON but is not an array is
+    /// `malformed` (wrong shape), kept distinct from `unreadable`
+    /// (bytes-not-JSON) on the machine surface.
+    #[test]
+    fn capsule_json_explain_malformed_exceptions() {
+        let stage = tempfile::tempdir().unwrap();
+        let out = stage.path().join("capsule");
+        rich_capsule(&out);
+        // Valid JSON, wrong shape (object, not the expected array).
+        rewrite_recorded(&out, "exceptions.json", br#"{"oops": true}"#);
+
+        let v: Value = serde_json::from_str(&render_explanation_json(&out).unwrap()).unwrap();
+        assert_eq!(v["exceptions"], json!({"status": "malformed"}));
+    }
+
+    /// An existing-but-unreadable witness chain surfaces as `unreadable`
+    /// on the JSON path too — never folded into a misleading `lines: 0`.
+    #[cfg(unix)]
+    #[test]
+    fn capsule_json_explain_witness_unreadable_is_marked() {
+        use std::os::unix::fs::PermissionsExt;
+        let stage = tempfile::tempdir().unwrap();
+        let out = stage.path().join("capsule");
+        rich_capsule(&out);
+        let chain = out.join("witness.ndjson");
+        std::fs::set_permissions(&chain, std::fs::Permissions::from_mode(0o000)).unwrap();
+        let blocked = std::fs::read(&chain).is_err();
+        let report = render_explanation_json(&out);
+        std::fs::set_permissions(&chain, std::fs::Permissions::from_mode(0o644)).unwrap();
+        if !blocked {
+            return; // running as root (CAP_DAC_OVERRIDE); nothing to assert
+        }
+        let v: Value = serde_json::from_str(&report.unwrap()).unwrap();
+        assert_eq!(v["witness"], json!({"status": "unreadable"}));
+    }
+
+    /// The full `verify --json` path on a corrupt-manifest capsule: the
+    /// engine yields an `error` verdict (not an `Err`), and the emitted
+    /// JSON line carries it — exercising `verify_and_record` +
+    /// `verification_json_line` together, not just the encoder.
+    #[test]
+    fn capsule_json_verify_emits_error_verdict_on_corrupt_manifest() {
+        let stage = tempfile::tempdir().unwrap();
+        let out = stage.path().join("capsule");
+        rich_capsule(&out);
+        // Garbage manifest: the digest root no longer parses.
+        std::fs::write(out.join("manifest.json"), b"not json at all").unwrap();
+
+        // repo_root is irrelevant — the engine errors on the manifest
+        // before reaching any repository checks.
+        let verification = verify_and_record(stage.path(), &out).unwrap();
+        assert_eq!(verification.verdict, Verdict::Error);
+
+        let line = verification_json_line(&verification).unwrap();
+        let v: Value = serde_json::from_str(&line).unwrap();
+        assert_eq!(v["verdict"], "error");
+    }
+
+    /// Both capsule JSON surfaces are canonical (recursively sorted keys):
+    /// re-encoding the parsed `explain --json` output through the same
+    /// canonical encoder is a fixed point, so the bytes are stable.
+    #[test]
+    fn capsule_json_explain_output_is_canonical() {
+        let stage = tempfile::tempdir().unwrap();
+        let out = stage.path().join("capsule");
+        rich_capsule(&out);
+
+        let line = render_explanation_json(&out).unwrap();
+        let v: Value = serde_json::from_str(&line).unwrap();
+        let recanonicalised = canonical_json_bytes(&v).unwrap();
+        assert_eq!(
+            line.trim_end().as_bytes(),
+            recanonicalised.as_slice(),
+            "explain --json output is already canonical"
         );
     }
 }
