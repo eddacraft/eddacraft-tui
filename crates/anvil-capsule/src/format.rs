@@ -10,6 +10,8 @@
 
 use std::path::Path;
 
+use anvil_checks::secret::{SecretCheckConfig, scan_content_with_compiled_patterns};
+
 use crate::collect::CommitsDocument;
 use crate::collect_diagnostics::CollectedDiagnostics;
 use crate::collect_digests::CollectedDigests;
@@ -72,8 +74,6 @@ pub fn write_capsule(
     out_dir: &Path,
     content: &CapsuleContent,
 ) -> Result<CapsuleManifest, CapsuleError> {
-    prepare_out_dir(out_dir)?;
-
     let mut manifest = CapsuleManifest::new(
         CapsuleRange {
             base: content.commits.base.clone(),
@@ -105,6 +105,14 @@ pub fn write_capsule(
         ("README.md", readme.into_bytes()),
     ];
 
+    // Scan-on-write (ADR-072 §3, GITGOV-012): refuse a capsule whose
+    // evidence carries secret-shaped content *before* touching the
+    // filesystem — so secret-bearing evidence never reaches a tracked
+    // write and no partial capsule directory is left behind.
+    scan_evidence_for_secrets(&files)?;
+
+    prepare_out_dir(out_dir)?;
+
     for (name, bytes) in &files {
         write_file(out_dir, name, bytes)?;
         manifest.record_file(name, bytes);
@@ -124,6 +132,78 @@ pub fn write_capsule(
     write_file(out_dir, "manifest.json", &manifest_bytes)?;
 
     Ok(manifest)
+}
+
+/// Scan-on-write enforcement (ADR-072 §3, GITGOV-012): every byte
+/// bound for a tracked capsule file is scanned for structurally
+/// unambiguous secret shapes. Durable Git evidence must never carry
+/// raw secrets; this covers content that never passed through a
+/// producer's redaction — committed paths, future applied-exception
+/// reason strings, README prose. A finding fails capsule creation
+/// (the caller runs this before any filesystem write).
+///
+/// Two deliberate deviations from [`SecretCheckConfig::default`]:
+///
+/// - **Entropy disabled.** Capsule evidence is digest-dense (SHA-256
+///   hex, base64 SARIF); statistical entropy detection would
+///   false-positive and block legitimate capsules. Scan-on-write
+///   enforces *identifiable* secret shapes (API keys, tokens,
+///   private-key headers) — the honest line ADR-072 §3 draws — not
+///   entropy guesses. Commit SHAs and digests are additionally
+///   shape-allowlisted by anvil-checks, and every high-confidence
+///   pattern is prefix-anchored, so bare hex never matches.
+/// - **Per-line guard lifted.** Canonical capsule JSON is compact (a
+///   single line); the default 4 KiB SCAN-002 per-line guard would
+///   skip a whole evidence file before any pattern ran. A capsule is
+///   bounded, locally produced content — not adversarial minified
+///   input — so scanning the full line is safe.
+///
+/// # Coverage boundary
+///
+/// This scans the ten tracked evidence files. `manifest.json` is not
+/// scanned directly: its fields are structurally non-free-text
+/// (constant schema, commit SHAs, a `u64` seq window, file→SHA-256
+/// digests), and its only string input — `producer.anvil_version` —
+/// is already scanned via the README, which re-emits it. Any future
+/// **free-text** field added to the manifest must be added to the
+/// scanned set here.
+///
+/// # Known limitation (tracked: GITGOV-012)
+///
+/// With entropy disabled, free-text coverage is limited to
+/// prefix-anchored secret shapes. The free-text-bearing files ADR-072
+/// §3 names — applied-exception `reason` strings and Edda prose — are
+/// inert placeholders today (`exceptions.json` = `[]`,
+/// `edda-context.json` = `{}`). When EXCEPT-009 / EDDA-SEAL wire real
+/// prose into those files, they must scan with entropy enabled: the
+/// digest-density rationale for disabling it does not hold for prose.
+fn scan_evidence_for_secrets(files: &[(&str, Vec<u8>)]) -> Result<(), CapsuleError> {
+    let config = SecretCheckConfig {
+        enable_entropy: false,
+        max_line_bytes: usize::MAX,
+        ..SecretCheckConfig::default()
+    };
+    for (name, bytes) in files {
+        // Evidence is UTF-8 by construction (canonical JSON, NDJSON,
+        // SARIF, Markdown — all serialised from Rust strings), so the
+        // lossy path is unreachable. A future evidence type emitting
+        // non-UTF-8 bytes must validate UTF-8 before this gate, since
+        // U+FFFD substitution could otherwise split a secret token.
+        let content = String::from_utf8_lossy(bytes);
+        // No custom patterns: pass an empty compiled set so the
+        // built-in `LazyLock` patterns are used with no per-call
+        // recompilation (the legacy `scan_content` entry point would
+        // re-run `compile_custom_patterns` each call).
+        let findings =
+            scan_content_with_compiled_patterns(&content, name, &config, &[], usize::MAX).0;
+        if !findings.is_empty() {
+            return Err(CapsuleError::SecretInEvidence {
+                file: (*name).to_string(),
+                count: findings.len(),
+            });
+        }
+    }
+    Ok(())
 }
 
 /// Create `out_dir` if missing; refuse a symlinked or non-empty
@@ -260,7 +340,7 @@ fn witness_coverage(witness: &CollectedWitness) -> String {
 mod tests {
     use super::*;
     use crate::canonical::sha256_hex;
-    use crate::collect::COMMITS_SCHEMA;
+    use crate::collect::{COMMITS_SCHEMA, CommitEntry};
     use crate::collect_digests::{
         BASELINE_DIGEST_SCHEMA, BaselineDigest, POLICY_DIGEST_SCHEMA, PolicyDigest,
         RULES_DIGEST_SCHEMA, RulesDigest,
@@ -473,6 +553,78 @@ mod tests {
 
         write_capsule(&out, &sample_content()).unwrap();
 
+        assert!(out.join("manifest.json").exists());
+    }
+
+    /// A textbook AWS access key — structurally unambiguous and not
+    /// suppressed by the `EXAMPLE` keyword for high-confidence patterns
+    /// (anvil-checks #1800) — leaked as a committed file path. It flows
+    /// verbatim into `commits.json`; `CommitEntry` carries no message
+    /// field in v0, so a secret-shaped *path* is the realistic v0
+    /// leak vector into capsule evidence.
+    fn content_with_secret_in_a_changed_path() -> CapsuleContent {
+        let mut content = sample_content();
+        content.commits.commits.push(CommitEntry {
+            sha: "3333333333333333333333333333333333333333".to_string(),
+            tree: "4444444444444444444444444444444444444444".to_string(),
+            parents: vec![],
+            changed_paths: vec!["config/AKIAIOSFODNN7EXAMPLE.env".to_string()],
+        });
+        content
+    }
+
+    /// GITGOV-012 / ADR-072 §3 scan-on-write: secret-shaped bytes bound
+    /// for a tracked evidence file fail capsule creation, naming the
+    /// offending file.
+    #[test]
+    fn write_capsule_tamper_secret_in_evidence_fails_creation() {
+        let dir = tempfile::tempdir().unwrap();
+        let out = dir.path().join("capsule");
+
+        let err = write_capsule(&out, &content_with_secret_in_a_changed_path()).unwrap_err();
+
+        assert!(
+            matches!(&err, CapsuleError::SecretInEvidence { file, .. } if file == "commits.json"),
+            "expected SecretInEvidence on commits.json, got {err:?}"
+        );
+    }
+
+    /// The scan-on-write gate runs before any filesystem write, so a
+    /// refused capsule leaves nothing on disk — secret-bearing evidence
+    /// never reaches a tracked write (the GITGOV-012 invariant).
+    #[test]
+    fn write_capsule_tamper_secret_never_reaches_disk() {
+        let dir = tempfile::tempdir().unwrap();
+        let out = dir.path().join("capsule");
+
+        let _ = write_capsule(&out, &content_with_secret_in_a_changed_path()).unwrap_err();
+
+        assert!(
+            !out.exists(),
+            "capsule dir must not be created when a secret is refused"
+        );
+    }
+
+    /// Clean, digest-dense evidence (real 40-hex SHAs, SHA-256 digests,
+    /// base64 SARIF) must not false-positive — scan-on-write enforces
+    /// identifiable secret shapes, not entropy guesses. This is the
+    /// regression guard that the gate stays silent on legitimate
+    /// capsules.
+    #[test]
+    fn write_capsule_tamper_clean_evidence_is_not_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let out = dir.path().join("capsule");
+
+        // A normal commit with hex SHAs and a plain path — no secret.
+        let mut content = sample_content();
+        content.commits.commits.push(CommitEntry {
+            sha: "5555555555555555555555555555555555555555".to_string(),
+            tree: "6666666666666666666666666666666666666666".to_string(),
+            parents: vec!["1111111111111111111111111111111111111111".to_string()],
+            changed_paths: vec!["src/lib.rs".to_string()],
+        });
+
+        write_capsule(&out, &content).expect("clean evidence must write");
         assert!(out.join("manifest.json").exists());
     }
 }

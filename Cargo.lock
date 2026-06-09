@@ -1239,6 +1239,7 @@ version = "0.7.4-beta"
 dependencies = [
  "chrono",
  "eddacraft-anvil-baseline",
+ "eddacraft-anvil-checks",
  "eddacraft-anvil-config",
  "eddacraft-anvil-kernel-types",
  "eddacraft-anvil-policy",

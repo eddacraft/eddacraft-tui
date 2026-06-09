@@ -139,7 +139,8 @@ release seals (RELEASE-SEAL); supplier bundles (SUPPLIER). Sealed Edda context
 - **Expected Outcome:** Mutating a capsule file fails verification; removing witness evidence degrades (never passes); secret-bearing evidence never reaches a tracked write.
 - **Validation:** `cargo test -p eddacraft-anvil-capsule -- tamper`
 - **Dependencies:** GITGOV-009
-- **Status:** Proposed
+- **Note (scan-on-write coverage):** v0 scans the ten tracked evidence files with entropy **off** (digest-dense evidence would false-positive), so free-text coverage is limited to prefix-anchored secret shapes. The free-text fields ADR-072 §3 names — applied-exception `reason` strings (EXCEPT-009) and Edda prose (EDDA-SEAL) — are inert placeholders today (`exceptions.json` = `[]`, `edda-context.json` = `{}`); when those collectors land real prose they must scan with entropy enabled. `manifest.json` is not scanned directly (structurally non-free-text; `producer.anvil_version` is already covered via the README).
+- **Status:** In Progress
 
 ### GITGOV-013: Capsule retention + prune policy
 - **Intent:** Decide retention for in-repo staged capsules (`anvil/evidence/capsules/`) and ship a prune surface before `v1`; document that the v0 default is on-demand/external (`--out` outside the repo) with in-repo staging explicitly opt-in and unpruned.

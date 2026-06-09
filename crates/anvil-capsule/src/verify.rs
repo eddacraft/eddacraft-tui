@@ -792,4 +792,122 @@ mod tests {
         assert_eq!(check.verdict, Verdict::Error);
         assert_eq!(v.verdict.exit_code(), 3);
     }
+
+    /// GITGOV-012 witness-break: a witness chain that is present but
+    /// internally broken (a second genesis anchor where a non-first
+    /// line must reference a prior line's SHA-256) blocks. The digest
+    /// is re-recorded so `manifest-digests` still passes — isolating
+    /// the `verify_chain_dag` reuse as the check that catches the
+    /// break, not the byte-digest check.
+    #[test]
+    fn verify_blocks_on_witness_chain_tamper() {
+        let (dir, base, head) = scratch_repo();
+        let stage = tempfile::tempdir().unwrap();
+        let out = out_dir(&stage);
+        build_capsule(dir.path(), &base, &head, &out);
+
+        let genesis = WitnessLine::genesis(
+            &GenesisAnchor::Fresh,
+            "01997e4a-1b2c-7345-8901-abcdef123456",
+            "active",
+            "2026-06-08T00:00:00Z",
+            "pre-commit",
+            None,
+        );
+        // `to_ndjson_line` already appends the trailing newline, so two
+        // copies form two NDJSON lines. Two genesis anchors: the second
+        // line is non-first yet still claims genesis → a broken chain
+        // (`StrayGenesis`).
+        let line = genesis.to_ndjson_line().unwrap();
+        let mut broken = line.clone();
+        broken.extend_from_slice(&line);
+        rewrite_recorded(&out, "witness.ndjson", &broken);
+
+        let v = verify_capsule(&out, dir.path());
+        let witness = v.checks.iter().find(|c| c.name == CHECK_WITNESS).unwrap();
+        assert_eq!(
+            witness.verdict,
+            Verdict::Block,
+            "detail: {:?}",
+            witness.detail
+        );
+        assert_eq!(v.verdict, Verdict::Block);
+        assert_eq!(v.verdict.exit_code(), 1);
+        // The byte-digest check is NOT what caught it — the tampered
+        // file's digest was re-recorded.
+        let manifest = v.checks.iter().find(|c| c.name == CHECK_MANIFEST).unwrap();
+        assert_eq!(manifest.verdict, Verdict::Pass);
+    }
+
+    /// GITGOV-012 missing-evidence: removing witness evidence degrades
+    /// and never passes (ADR-074 closed-state honesty). A recorded
+    /// file gone from disk is missing evidence (`degraded`), not a
+    /// byte tamper (`block`).
+    #[test]
+    fn verify_degrades_on_missing_witness_after_tamper() {
+        let (dir, base, head) = scratch_repo();
+        let stage = tempfile::tempdir().unwrap();
+        let out = out_dir(&stage);
+        build_capsule(dir.path(), &base, &head, &out);
+
+        std::fs::remove_file(out.join("witness.ndjson")).unwrap();
+
+        let v = verify_capsule(&out, dir.path());
+        let witness = v.checks.iter().find(|c| c.name == CHECK_WITNESS).unwrap();
+        assert_eq!(witness.verdict, Verdict::Degraded);
+        assert_ne!(v.verdict, Verdict::Pass, "missing evidence must never pass");
+        assert_eq!(v.verdict, Verdict::Degraded);
+        assert_eq!(v.verdict.exit_code(), 2);
+    }
+
+    /// GITGOV-012 witness-break, realistic edit: a second line whose
+    /// `prev_line_hash` no longer matches the prior line's canonical
+    /// hash — the canonical "someone edited the witness evidence"
+    /// tamper — breaks the chain (`ChainBreak`) and blocks. The digest
+    /// is re-recorded so `manifest-digests` still passes, isolating
+    /// the `verify_chain_dag` reuse as the check that catches it.
+    #[test]
+    fn verify_blocks_on_witness_prev_hash_tamper() {
+        let (dir, base, head) = scratch_repo();
+        let stage = tempfile::tempdir().unwrap();
+        let out = out_dir(&stage);
+        build_capsule(dir.path(), &base, &head, &out);
+
+        let line1 = WitnessLine::genesis(
+            &GenesisAnchor::Fresh,
+            "01997e4a-1b2c-7345-8901-abcdef123456",
+            "active",
+            "2026-06-08T00:00:00Z",
+            "pre-commit",
+            None,
+        );
+        let mut line2 = WitnessLine::genesis(
+            &GenesisAnchor::Fresh,
+            "01997e4a-1b2c-7345-8901-abcdef123456",
+            "active",
+            "2026-06-08T00:00:01Z",
+            "pre-commit",
+            None,
+        );
+        line2.seq = 2;
+        // A wrong-but-plausible SHA-256 prev reference — not line1's
+        // genuine canonical hash — so the DAG walk cannot anchor it.
+        line2.prev_line_hash =
+            "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef".to_string();
+
+        // `to_ndjson_line` already terminates each line with a newline.
+        let mut broken = line1.to_ndjson_line().unwrap();
+        broken.extend_from_slice(&line2.to_ndjson_line().unwrap());
+        rewrite_recorded(&out, "witness.ndjson", &broken);
+
+        let v = verify_capsule(&out, dir.path());
+        let witness = v.checks.iter().find(|c| c.name == CHECK_WITNESS).unwrap();
+        assert_eq!(
+            witness.verdict,
+            Verdict::Block,
+            "detail: {:?}",
+            witness.detail
+        );
+        assert_eq!(v.verdict, Verdict::Block);
+    }
 }

@@ -53,4 +53,19 @@ pub enum CapsuleError {
     /// `rules_sha` (invalid rule id or config digest).
     #[error("rules identity error: {0}")]
     RulesIdentity(String),
+    /// Scan-on-write refused the capsule: secret-shaped content was
+    /// found in evidence bound for a durable file (ADR-072 §3 — no
+    /// secrets in durable Git evidence). Creation fails **before** any
+    /// evidence file is written, so secret-bearing evidence never
+    /// reaches a tracked write (GITGOV-012).
+    #[error(
+        "refusing to write capsule: {count} secret-shaped finding(s) in evidence file `{file}` \
+         (ADR-072 §3: durable evidence must not contain secrets)"
+    )]
+    SecretInEvidence {
+        /// Capsule-relative evidence file the finding(s) were in.
+        file: String,
+        /// Number of secret findings detected in that file.
+        count: usize,
+    },
 }
