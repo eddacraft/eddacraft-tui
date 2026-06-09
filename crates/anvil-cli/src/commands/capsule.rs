@@ -806,19 +806,26 @@ fn baseline_json(capsule_dir: &Path) -> Value {
 }
 
 /// `witness` — the range `seq` window (from the manifest) and the
-/// embedded chain's line count, mirroring the text field's states. A
-/// `present` field carries the payload (`seq_start`/`seq_end` —
-/// `null` when the chain is present with no range coverage — plus
-/// `chain_present` and `lines`); every degraded state carries only its
-/// `status`: `absent` (no chain, no window), `malformed` (an asymmetric
-/// seq window — a tampered manifest), or `unreadable`. `seq_start`/
-/// `seq_end` are the only payload keys that may be `null`; that `null`
-/// means "no range window on a present chain", distinct from the chain's
-/// absence (which is the `absent` status).
+/// embedded chain's line count. A `present` field carries the payload
+/// (`seq_start`/`seq_end` — `null` when the chain is present with no
+/// range coverage — plus `chain_present` and `lines`); every degraded
+/// state carries only its `status`: `missing` (the required
+/// `witness.ndjson` is gone — a tamper signal, surfaced like every other
+/// missing evidence file), `unreadable`, `malformed` (an asymmetric seq
+/// window — a tampered manifest), or `absent` (the file is present but
+/// empty and no window covers the range — a legitimately empty chain).
+/// The `missing`-vs-`absent` split is sharper here than in the text
+/// field, which renders a removed and an empty chain alike: on the
+/// machine surface a removed required file is a distinct, actionable
+/// tamper signal. `seq_start`/`seq_end` are the only payload keys that
+/// may be `null` (no range window on a present chain).
 fn witness_json(capsule_dir: &Path, manifest: &CapsuleManifest) -> Value {
     let lines = match slot(capsule_dir, "witness.ndjson") {
         Slot::Bytes(bytes) => count_ndjson_lines(&bytes),
-        Slot::Missing => 0,
+        // A removed required file is a tamper signal, surfaced as
+        // `missing` like every other evidence file — not folded into the
+        // window logic below where it would read as `absent`/`present`.
+        Slot::Missing => return status("missing"),
         Slot::Unreadable => return status("unreadable"),
     };
 
@@ -2170,15 +2177,30 @@ mod tests {
         );
     }
 
-    /// A manifest claiming a witness window whose chain file is gone is an
-    /// unbacked claim — `chain_present: false`, the JSON analogue of the
-    /// text "chain absent".
+    /// A removed required `witness.ndjson` is a tamper signal — `missing`,
+    /// surfaced like every other gone evidence file, not folded into the
+    /// window logic where it would read as a backed-looking `present`.
     #[test]
-    fn capsule_json_explain_witness_window_without_chain() {
+    fn capsule_json_explain_witness_file_removed_is_missing() {
         let stage = tempfile::tempdir().unwrap();
         let out = stage.path().join("capsule");
         rich_capsule(&out); // manifest records seq 2..4
         std::fs::remove_file(out.join("witness.ndjson")).unwrap();
+
+        let v: Value = serde_json::from_str(&render_explanation_json(&out).unwrap()).unwrap();
+        assert_eq!(v["witness"], json!({"status": "missing"}));
+    }
+
+    /// A present-but-empty chain under a recorded window is an unbacked
+    /// claim — `present` with `chain_present: false` (distinct from the
+    /// removed-file `missing` case above).
+    #[test]
+    fn capsule_json_explain_witness_empty_under_window() {
+        let stage = tempfile::tempdir().unwrap();
+        let out = stage.path().join("capsule");
+        rich_capsule(&out); // manifest records seq 2..4
+        // The file is present but holds no records (blank lines only).
+        rewrite_recorded(&out, "witness.ndjson", b"\n");
 
         let v: Value = serde_json::from_str(&render_explanation_json(&out).unwrap()).unwrap();
         assert_eq!(

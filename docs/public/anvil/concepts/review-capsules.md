@@ -79,7 +79,7 @@ verdict the capsule already carries and does **not** re-check it, so it always
 exits `0` on a readable capsule. Gate on the verdict with
 `anvil capsule verify`, not `explain`. Add `--json` for an
 `anvil.capsule-explain.v1` summary in which each evidence field carries an
-explicit state (`present`/`absent`/`missing`/`unreadable`).
+explicit state (`present`/`absent`/`missing`/`unreadable`/`malformed`).
 
 ## What's inside
 
