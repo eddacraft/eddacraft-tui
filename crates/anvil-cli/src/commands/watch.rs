@@ -13,7 +13,7 @@ use crate::warmup_cache::load_watch_warmup_cache;
 #[derive(Debug, Args)]
 #[command(
     about = "Watch files and report save-time Anvil findings.",
-    after_help = "Behaviour:\n  - The initial scan builds baseline/readiness state; existing repo contents are not reported as new save-time violations.\n  - Watch and audit skip local tool state, agent worktrees, generated folders, and common caches by default.\n  - The TUI opens only when stdin and stdout are terminals; otherwise watch falls back to plain output."
+    after_help = "Behaviour:\n  - The initial scan builds baseline/readiness state; existing repo contents are not reported as new save-time violations.\n  - Watch and audit skip local tool state, agent worktrees, generated folders, and common caches by default.\n  - The TUI opens only when stdin and stdout are terminals; otherwise watch falls back to plain output.\n\nSave-time daemon:\n  - Save-time validation is served by the Anvil daemon; run `anvil start` first for daemon-backed validation.\n  - ANVIL_WATCH_DAEMON controls routing: unset routes through a live daemon when one answers (default), ANVIL_WATCH_DAEMON=0 opts out, ANVIL_WATCH_DAEMON=1 forces daemon routing (falls back to a scoped check with a warning when no daemon answers).\n  - When no daemon answers, watch falls back to a scoped check and reports assurance unavailable{daemon-absent}."
 )]
 pub struct WatchArgs {
     /// File or directory to scope the watcher (when a file is given, its
@@ -423,6 +423,18 @@ const fn child_stdio_policy(json: bool, tui_parent: bool) -> (ChildStdio, ChildS
     } else {
         (ChildStdio::Inherit, ChildStdio::Inherit)
     }
+}
+
+/// The one-line plain-surface advisory for a daemon-absent fallback. Names
+/// `anvil start` so the watch surface itself teaches recovery (UJ-006).
+/// ASCII-only, matching the watch banner policy for Windows terminals.
+fn fallback_advisory_line(
+    assurance: &anvil_intercept_proto::protocol::WorkspaceAssurance,
+) -> String {
+    format!(
+        "[warn] anvil watch: save-time daemon unavailable -- falling back to a scoped check ({}); run `anvil start` for daemon-backed validation",
+        crate::commands::watch_save_time::assurance_label(assurance),
+    )
 }
 
 /// Build the Command for action dispatch (extracted for testability).
@@ -845,7 +857,7 @@ impl DispatcherInner {
             && !check_paths.is_empty()
             && let Some(client) = self.save_time.as_ref()
         {
-            use crate::commands::watch_save_time::{SaveTimeDecision, assurance_label};
+            use crate::commands::watch_save_time::SaveTimeDecision;
             match recover(client.lock()).validate(check_paths.clone()) {
                 SaveTimeDecision::Validated(response) => {
                     self.report_daemon_verdict(&response, start.elapsed());
@@ -867,10 +879,7 @@ impl DispatcherInner {
                         // for the human plain surface only (WOUT-003 — do not mix
                         // unstructured text into a JSON consumer's stderr).
                         if !self.json {
-                            eprintln!(
-                                "[warn] anvil watch: save-time daemon unavailable — falling back to a scoped check ({})",
-                                assurance_label(&assurance),
-                            );
+                            eprintln!("{}", fallback_advisory_line(&assurance));
                         }
                     }
                     // Fall through to the subprocess scoped to exactly the
@@ -1608,6 +1617,54 @@ mod tests {
     #[test]
     fn resolve_action_rejects_unknown() {
         assert!(resolve_action(Some("deploy")).is_err());
+    }
+
+    // --- UJ-006: the CLI itself teaches the daemon story ---
+
+    #[test]
+    fn watch_long_help_names_daemon_start_and_routing_values() {
+        use clap::CommandFactory;
+        let mut cli = crate::Cli::command();
+        let watch = cli
+            .find_subcommand_mut("watch")
+            .expect("watch subcommand exists");
+        let help = watch.render_long_help().to_string();
+        assert!(
+            help.contains("daemon"),
+            "long help must name the daemon, got:\n{help}",
+        );
+        assert!(
+            help.contains("anvil start"),
+            "long help must name the `anvil start` prerequisite, got:\n{help}",
+        );
+        assert!(
+            help.contains("ANVIL_WATCH_DAEMON"),
+            "long help must name the routing env var, got:\n{help}",
+        );
+        for value in ["unset", "ANVIL_WATCH_DAEMON=0", "ANVIL_WATCH_DAEMON=1"] {
+            assert!(
+                help.contains(value),
+                "long help must document the {value} routing value, got:\n{help}",
+            );
+        }
+    }
+
+    #[test]
+    fn fallback_advisory_names_anvil_start() {
+        let line =
+            fallback_advisory_line(&crate::commands::watch_save_time::daemon_absent_assurance());
+        assert!(
+            line.contains("daemon unavailable"),
+            "advisory must say the daemon is unavailable, got: {line}",
+        );
+        assert!(
+            line.contains("anvil start"),
+            "advisory must name `anvil start` so the surface teaches recovery, got: {line}",
+        );
+        assert!(
+            line.contains("unavailable{daemon-absent}"),
+            "advisory keeps the assurance label, got: {line}",
+        );
     }
 
     #[test]
