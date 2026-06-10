@@ -3,5 +3,13 @@
   "compilerOptions": {
     "declaration": true,
     "declarationMap": true
-  }
+  },
+  "references": [
+    {
+      "path": "../contracts/tsconfig.lib.json"
+    },
+    {
+      "path": "../runtime/tsconfig.lib.json"
+    }
+  ]
 }
