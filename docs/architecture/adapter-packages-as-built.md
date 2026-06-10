@@ -57,8 +57,8 @@ they're all secondary surfaces compared to the Rust core:
   Kindling. Eleven observation kinds, four query scopes, malicious-AI test suite
   proving read-only enforcement.
 
-All three are `0.7.4-beta` package versions, matching the latest release tag
-`v0.7.4-beta` exactly (`packages/adapters/package.json:3`,
+All three are `0.8.0-beta` package versions, matching the latest release tag
+`v0.8.0-beta` exactly (`packages/adapters/package.json:3`,
 `packages/aps/package.json:3`, `packages/kindling-integration/package.json:3`).
 Versioning is package-local; none is gated to the Rust binary version.
 
@@ -730,10 +730,10 @@ port is not on the slate per
 
 ### 19.2 Versioning
 
-All three packages are at `0.7.4-beta` package version
+All three packages are at `0.8.0-beta` package version
 (`packages/adapters/package.json:3`, `packages/aps/package.json:3`,
 `packages/kindling-integration/package.json:3`) — they match the **latest
-release tag** (`v0.7.4-beta`) exactly. None is gated on a Rust-binary version
+release tag** (`v0.8.0-beta`) exactly. None is gated on a Rust-binary version
 pin. This matches the wider monorepo pattern: Rust crates and TS packages move
 together at release tags, and the in-flight branch can carry mismatched versions
 between tags.

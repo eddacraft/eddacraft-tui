@@ -13,7 +13,7 @@ Welcome to the anvil beta. Thank you for putting real projects through the tool:
 the best feedback comes from normal development work, not from perfect demo
 repos.
 
-**Current version:** 0.7.4-beta (the `v0.8.0-beta` cut is in flight)
+**Current version:** 0.8.0-beta
 
 anvil is a single native binary that analyses your codebase for architectural
 drift, AI-generated anti-patterns, and project convention violations. It is
@@ -23,15 +23,13 @@ pre-write attachment is not available.
 
 ## What's New to Focus Testing On
 
-The current tagged cut is `0.7.4-beta`; a `v0.8.0-beta` candidate is in flight
-on dev builds. These are the highest-leverage flows. If you only have a short
-session, these are the right places to spend it.
+The current tagged cut is `0.8.0-beta`. These are the highest-leverage flows.
+If you only have a short session, these are the right places to spend it.
 
-### Coming in `v0.8.0-beta` — the daemon-backed save path
+### New in `v0.8.0-beta` — the daemon-backed save path
 
-These features are landing on dev builds ahead of the `v0.8.0-beta` tag. If you
-run a dev build, they are the freshest surfaces to exercise; on the `0.7.4-beta`
-tag they are a preview of what is next.
+These are the freshest surfaces in the current cut and the right places to
+focus a testing session.
 
 - **Daemon-backed save-time validation is default-on when live.** With a live
   daemon (started by `anvil start`), `anvil watch` routes each save through the
