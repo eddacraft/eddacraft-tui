@@ -31,8 +31,18 @@
 //! ```
 //!
 //! `secret-detection: false` / `antipattern: true` boolean shorthands
-//! are also accepted. Unknown keys inside `intercept-rules` are typed
-//! errors, not ignored — a typo must not silently disable a rule.
+//! are also accepted. Unknown keys inside `intercept-rules` — including
+//! inside the per-rule objects — are typed errors, not ignored: a typo
+//! must not silently disable a rule.
+//!
+//! `antipattern: true` registers [`AntipatternScanRule::default()`]
+//! (all default patterns, `Error` severity threshold); per-operator
+//! threshold/pattern tuning is deliberately not exposed in v1 (per-rule
+//! granularity is out of module scope). A config that explicitly
+//! disables every rule and configures no patterns yields an **empty
+//! registry that allows everything** — callers that consider that a
+//! misconfiguration should check [`RuleRegistry::is_empty`] at startup
+//! and warn.
 
 use std::path::Path;
 
@@ -196,12 +206,15 @@ fn invalid(path: &str, reason: &str) -> RuleConfigError {
     }
 }
 
-/// Accept `true` / `false` or `{ enabled: bool }`.
+/// Accept `true` / `false` or `{ enabled: bool }`. Extra keys inside the
+/// object are typed errors — a typo like `enabld` must not silently fall
+/// back to the default.
 fn parse_enabled(entry: &Value, path: &str) -> Result<bool, RuleConfigError> {
     if let Some(flag) = entry.as_bool() {
         return Ok(flag);
     }
     if let Some(object) = entry.as_object() {
+        reject_unknown_keys(object, &["enabled"], path)?;
         let Some(enabled) = object.get("enabled") else {
             return Err(invalid(
                 &format!("{path}.enabled"),
@@ -218,11 +231,31 @@ fn parse_enabled(entry: &Value, path: &str) -> Result<bool, RuleConfigError> {
     ))
 }
 
-/// Accept `[string]` or `{ patterns: [string] }`.
+/// Reject keys outside `allowed` so a typo inside a rule object is a
+/// typed error rather than a silently ignored setting.
+fn reject_unknown_keys(
+    object: &serde_json::Map<String, Value>,
+    allowed: &[&str],
+    path: &str,
+) -> Result<(), RuleConfigError> {
+    for key in object.keys() {
+        if !allowed.contains(&key.as_str()) {
+            return Err(invalid(
+                &format!("{path}.{key}"),
+                &format!("unknown key; expected only {}", allowed.join(", ")),
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Accept `[string]` or `{ patterns: [string] }`. Extra keys inside the
+/// object are typed errors.
 fn parse_patterns(entry: &Value, path: &str) -> Result<Vec<String>, RuleConfigError> {
     let (list, path) = if let Some(list) = entry.as_array() {
         (list, path.to_string())
     } else if let Some(object) = entry.as_object() {
+        reject_unknown_keys(object, &["patterns"], path)?;
         let path = format!("{path}.patterns");
         let Some(patterns) = object.get("patterns") else {
             return Err(invalid(&path, "missing `patterns` list"));
@@ -339,6 +372,26 @@ mod tests {
             (
                 json!({ "enforcement": { "intercept-rules": { "regex-contnet": {} } } }),
                 "enforcement.intercept-rules.regex-contnet",
+            ),
+            (
+                json!({ "enforcement": { "intercept-rules": { "secret-detection": {} } } }),
+                "enforcement.intercept-rules.secret-detection.enabled",
+            ),
+            (
+                json!({ "enforcement": { "intercept-rules": { "path-deny": {} } } }),
+                "enforcement.intercept-rules.path-deny.patterns",
+            ),
+            (
+                json!({ "enforcement": { "intercept-rules": {
+                    "antipattern": { "enabled": true, "sevrity": "error" }
+                } } }),
+                "enforcement.intercept-rules.antipattern.sevrity",
+            ),
+            (
+                json!({ "enforcement": { "intercept-rules": {
+                    "path-deny": { "patterns": [], "pattern": [] }
+                } } }),
+                "enforcement.intercept-rules.path-deny.pattern",
             ),
         ];
 

@@ -4,14 +4,24 @@
 //!
 //! Patterns are compiled eagerly at construction so malformed patterns
 //! surface as a typed [`RegexContentError::InvalidPattern`] rather than
-//! failing on the hot path (the INTR-004 eager-compile precedent). The
-//! `regex` crate's linear-time matching is the only `ReDoS` bound — no
-//! additional execution budget is layered here.
+//! failing on the hot path (the INTR-004 eager-compile precedent).
+//! Empty and duplicate patterns are also rejected at construction: an
+//! empty pattern matches every line (an interrupt-everything operator
+//! footgun) and duplicates would emit diagnostics with colliding ids.
+//! The `regex` crate's linear-time matching is the only `ReDoS` bound —
+//! no additional execution budget is layered here.
 //!
 //! Determinism: "first registered pattern wins" — patterns are evaluated
 //! in registration order, and the first pattern with a match reports its
-//! earliest matching line. `Removed` changes and missing/binary content
-//! always Allow.
+//! earliest matching line. `Removed` changes and missing content always
+//! Allow. Content bytes are decoded with [`String::from_utf8_lossy`]
+//! (matching the secret and antipattern wrappers), so isolated invalid
+//! bytes cannot mask a matching line — pure binary junk decodes to
+//! replacement characters and simply matches nothing. Lines are split
+//! with [`str::lines`], which strips `\r`, so `$`-anchored patterns
+//! behave the same on CRLF and LF content. (The antipattern scanner's
+//! upstream `split('\n')` keeps the `\r`; that divergence is inherited
+//! from `anvil-checks`, not introduced here.)
 
 use anvil_kernel_types::{Category, Diagnostic, DiagnosticSource, Location, Mode, Severity};
 use regex::Regex;
@@ -47,6 +57,7 @@ pub enum RegexContentError {
 
 /// Hot-path rule that interrupts when a changed file's content matches
 /// one of the configured regex patterns.
+#[derive(Clone)]
 pub struct RegexContentRule {
     compiled: Vec<(String, Regex)>,
 }
@@ -72,10 +83,27 @@ impl RegexContentRule {
     /// if a pattern is malformed rather than failing silently on the hot
     /// path.
     pub fn new(config: RegexContentConfig) -> Result<Self, RegexContentError> {
+        let mut seen = std::collections::HashSet::new();
         let compiled = config
             .patterns
             .into_iter()
             .map(|pattern| {
+                if pattern.is_empty() {
+                    return Err(RegexContentError::InvalidPattern {
+                        pattern,
+                        reason: "empty pattern matches every line; \
+                                 remove it or replace with an explicit pattern"
+                            .to_string(),
+                    });
+                }
+                if !seen.insert(pattern.clone()) {
+                    return Err(RegexContentError::InvalidPattern {
+                        pattern,
+                        reason: "duplicate pattern; each pattern must be unique \
+                                 so diagnostic ids stay distinct"
+                            .to_string(),
+                    });
+                }
                 Regex::new(&pattern)
                     .map(|regex| (pattern.clone(), regex))
                     .map_err(|err| RegexContentError::InvalidPattern {
@@ -124,9 +152,11 @@ impl RegexContentRule {
         let Some(content) = input.content else {
             return Vec::new();
         };
-        let Ok(content) = std::str::from_utf8(content) else {
-            return Vec::new();
-        };
+        // Lossy decode, matching the secret and antipattern wrappers: an
+        // isolated invalid byte must not mask a matching line, and pure
+        // binary junk decodes to replacement characters that match
+        // nothing.
+        let content = String::from_utf8_lossy(content);
 
         let mut matches = Vec::new();
         for (pattern, regex) in &self.compiled {
@@ -332,14 +362,53 @@ mod tests {
             r.evaluate(&input(path, ChangeKind::Modified, None)),
             RuleDecision::Allow
         );
+        // Pure binary junk decodes to replacement characters and matches
+        // nothing.
         assert_eq!(
-            r.evaluate(&input(
-                path,
-                ChangeKind::Modified,
-                Some(b"\xffFORBIDDEN_TOKEN")
-            )),
+            r.evaluate(&input(path, ChangeKind::Modified, Some(b"\xff\xfe\x00"))),
             RuleDecision::Allow
         );
+    }
+
+    /// An isolated invalid byte must not mask a matching line — lossy
+    /// decode mirrors the secret wrapper, closing the "append a junk
+    /// byte to bypass the rule" hole.
+    #[test]
+    fn mixed_invalid_utf8_content_still_matches() {
+        let r = rule(&["FORBIDDEN_TOKEN"]);
+        let path = Path::new("src/api.rs");
+
+        match r.evaluate(&input(
+            path,
+            ChangeKind::Modified,
+            Some(b"FORBIDDEN_TOKEN\n\xff"),
+        )) {
+            RuleDecision::Interrupt(reason) => {
+                assert_eq!(reason.line, std::num::NonZeroU32::new(1));
+            }
+            RuleDecision::Allow => panic!("invalid trailing byte must not bypass the rule"),
+        }
+    }
+
+    #[test]
+    fn empty_pattern_is_rejected_at_construction() {
+        let err = RegexContentRule::new(RegexContentConfig::new(vec![String::new()]))
+            .expect_err("empty pattern must error");
+        let RegexContentError::InvalidPattern { pattern, reason } = err;
+        assert!(pattern.is_empty());
+        assert!(reason.contains("empty pattern"));
+    }
+
+    #[test]
+    fn duplicate_pattern_is_rejected_at_construction() {
+        let err = RegexContentRule::new(RegexContentConfig::new(vec![
+            "FORBIDDEN".to_string(),
+            "FORBIDDEN".to_string(),
+        ]))
+        .expect_err("duplicate pattern must error");
+        let RegexContentError::InvalidPattern { pattern, reason } = err;
+        assert_eq!(pattern, "FORBIDDEN");
+        assert!(reason.contains("duplicate"));
     }
 
     #[test]
