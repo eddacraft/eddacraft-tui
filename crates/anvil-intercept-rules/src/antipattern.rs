@@ -206,7 +206,13 @@ fn warning_to_diagnostic(warning: &Warning, mode: Mode) -> Diagnostic {
         Location {
             file: warning.location.file.clone(),
             line: u32::try_from(warning.location.line).ok().filter(|l| *l > 0),
-            column: warning.location.column.and_then(|c| u32::try_from(c).ok()),
+            // The scanner's column is a 0-based byte offset
+            // (`regex::Match::start()`); the canonical envelope expects
+            // 1-based columns.
+            column: warning
+                .location
+                .column
+                .and_then(|c| u32::try_from(c.saturating_add(1)).ok()),
             end_line: None,
             end_column: None,
         },

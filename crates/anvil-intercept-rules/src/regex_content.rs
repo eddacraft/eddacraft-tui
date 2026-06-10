@@ -70,10 +70,13 @@ impl std::fmt::Debug for RegexContentRule {
     }
 }
 
-/// A single pattern match: the configured pattern and the 1-based line
-/// it first matched on.
+/// A single pattern match: the configured pattern, its registration
+/// index, and the 1-based line it first matched on. The index feeds the
+/// diagnostic id so distinct patterns that sanitise to the same id
+/// fragment (e.g. `foo-bar` vs `foo bar`) still get distinct ids.
 struct PatternMatch<'a> {
     pattern: &'a str,
+    index: usize,
     line: u32,
 }
 
@@ -159,16 +162,20 @@ impl RegexContentRule {
         let content = String::from_utf8_lossy(content);
 
         let mut matches = Vec::new();
-        for (pattern, regex) in &self.compiled {
-            let hit = content.lines().enumerate().find_map(|(index, line)| {
+        for (index, (pattern, regex)) in self.compiled.iter().enumerate() {
+            let hit = content.lines().enumerate().find_map(|(line_index, line)| {
                 if regex.is_match(line) {
-                    u32::try_from(index + 1).ok()
+                    u32::try_from(line_index + 1).ok()
                 } else {
                     None
                 }
             });
             if let Some(line) = hit {
-                matches.push(PatternMatch { pattern, line });
+                matches.push(PatternMatch {
+                    pattern,
+                    index,
+                    line,
+                });
                 if matches.len() >= limit {
                     break;
                 }
@@ -219,11 +226,14 @@ impl InterceptRule for RegexContentRule {
 
 fn match_to_diagnostic(path: &str, hit: &PatternMatch<'_>, mode: Mode) -> Diagnostic {
     Diagnostic::new(
+        // The registration index keeps ids distinct even when two
+        // patterns sanitise to the same fragment.
         format!(
-            "diag_regex_content_{}_{}_{}_{}",
+            "diag_regex_content_{}_{}_{}_p{}_{}",
             mode_id_part(&mode),
             sanitise_id_part(path),
             hit.line,
+            hit.index,
             sanitise_id_part(hit.pattern),
         ),
         Severity::Error,
@@ -427,7 +437,7 @@ mod tests {
         assert_eq!(d.schema_version, "anvil.diagnostic.v1");
         assert_eq!(
             d.id,
-            "diag_regex_content_pre_write_src_api_rs_2_forbidden_token"
+            "diag_regex_content_pre_write_src_api_rs_2_p0_forbidden_token"
         );
         assert_eq!(d.severity, Severity::Error);
         assert_eq!(d.category, Category::Policy);
@@ -463,6 +473,23 @@ mod tests {
         assert_eq!(diagnostics.len(), 2);
         assert_eq!(diagnostics[0].location.line, Some(1));
         assert_eq!(diagnostics[1].location.line, Some(2));
+    }
+
+    /// Distinct patterns that sanitise to the same id fragment still get
+    /// distinct diagnostic ids via the registration index.
+    #[test]
+    fn diagnostics_ids_stay_distinct_for_sanitise_colliding_patterns() {
+        let r = rule(&["foo-bar", "foo bar"]);
+        let path = Path::new("src/api.rs");
+        let body = b"foo-bar\nfoo bar\n";
+
+        let diagnostics = r.diagnostics(
+            &input(path, ChangeKind::Modified, Some(body)),
+            &Mode::Unknown("pre-write".to_string()),
+        );
+
+        assert_eq!(diagnostics.len(), 2);
+        assert_ne!(diagnostics[0].id, diagnostics[1].id);
     }
 
     #[test]
