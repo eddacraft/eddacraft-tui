@@ -8,10 +8,17 @@ Verified: <!-- filled by cleanup agent -->
 
 ## Steps
 
-- [ ] Step 1 — Reconcile `plans/index.aps.md` — deliberately excluded from this
+- [x] Step 1 — Reconcile `plans/index.aps.md` — deliberately excluded from this
       PR to avoid colliding with the held #2472. Fold ALL of: GV2-024 #2470 +
       GV2-025 #2459 Merged, DSV-021 Done, and the NBI re-rank (default-on now
       shipped) into one update; then close/supersede #2472. (agent: yes)
+      **Done 2026-06-10** — #2472 was repurposed as the fold itself (retitled
+      "reconcile v0.8.0 A′ + default-on completion") and merged at 02:48Z,
+      rather than closed: GV2 13/20 (024 #2470 + 025 #2459 Merged), DSV row
+      18/19 with the DSV-021 #2473 default-on note, NBI rank 1 re-ranked to
+      the v0.8.0-beta release cut; consistency nits fixed in 3a9a0a81.
+      Verified on `main`: `aps:index:check` rc=0. The ADR-075 opt-out/revert
+      runbook gate the rank-1 next action depends on landed via #2477.
 - [ ] Step 2 — Reset the **shared main checkout** working tree: it still holds the
       original uncommitted DSV-021 changes (this PR was patch-copied, not moved).
       After merge those are redundant — confirm `git -C <main> diff` against the
