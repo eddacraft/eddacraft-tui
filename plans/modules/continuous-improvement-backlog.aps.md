@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 39/61    |
+| CIB | —     | In Progress | 39/64    |
 
 ## Purpose
 
@@ -1602,3 +1602,75 @@ archive.
   module closeouts; capsule-as-built G-06.
 - **Confidence:** high — documentation of already-merged behaviour; every
   correction carries verified pins.
+
+### CIB-062: auth-gate tracing WARN leaks raw JSON onto golden-path stderr
+
+- **Status:** In Progress (2026-06-11)
+- **Intent:** running a gated command unauthenticated (`anvil status`;
+  `anvil welcome` too on pre-ADR-080 installed builds) prints a raw JSON
+  tracing line — `{"timestamp":…,"level":"WARN","fields":{"message":"cli
+  command authentication required"},…}` — to stderr directly under the
+  human auth message, duplicating it as machine noise on the beta golden
+  path.
+- **Expected Outcome:** the pre-dispatch auth-gate event in
+  `crates/anvil-cli/src/main.rs` is emitted at `info`, not `warn` —
+  auth-required is an *expected state* per issue #1822 (exit 0,
+  informational) — so the CLI's default `warn` filter (CIB-024) keeps
+  stderr clean while `ANVIL_LOG=info` still surfaces the event for
+  operators. The human stderr message from `check_auth` is unchanged.
+- **Files:** `crates/anvil-cli/src/main.rs`
+- **Validation:** integration test asserting an unauthenticated gated
+  command's stderr carries no `"level":"WARN"` JSON line at the default
+  filter; `cargo test -p eddacraft-anvil`.
+- **Identified From:** 2026-06-10/11 beta golden-path walkthrough;
+  reproduced live against a fresh debug build (`status`) and the
+  installed pre-ungate binary (`welcome`).
+- **Coordinates with:** CIB-024 (CLI stream policy), CIB-060 (same gate
+  surface, message content — independent edits), issue #1822.
+- **Confidence:** high — one-line severity change with the stream policy
+  already documented.
+
+### CIB-063: install.sh docs URL disagrees with the product surfaces
+
+- **Status:** In Progress (2026-06-11)
+- **Intent:** `install.sh` closes with `https://eddacraft.dev/docs` while
+  `README.md`, `anvil welcome`, and the what's-new banner all point at
+  `https://docs.eddacraft.ai` — the first URL a new user sees disagrees
+  with every later one.
+- **Expected Outcome:** `install.sh` prints `https://docs.eddacraft.ai`,
+  matching the canonical docs origin used by the product surfaces.
+- **Files:** `install.sh`
+- **Validation:** `grep -c "docs.eddacraft.ai" install.sh` ≥ 1 and
+  `grep -c "eddacraft.dev/docs" install.sh` = 0; `bash -n install.sh`.
+- **Identified From:** 2026-06-10/11 beta golden-path walkthrough
+  (install → welcome transcript comparison).
+- **Coordinates with:** DISTRIB-002 (install surface), CIB-059
+  (quickstart wording).
+- **Confidence:** high — one-line string change.
+
+### CIB-064: one planted secret reports under two SECRET rule ids
+
+- **Status:** In Progress (2026-06-11)
+- **Intent:** a planted `OPENAI_API_KEY = "sk-proj-…"` line reports twice
+  — `SECRET-API-KEY` (low-confidence keyword pattern) and
+  `SECRET-OPENAI-API-KEY` (high-confidence shape pattern) — on the same
+  string, double-counting one credential in the demo/golden-path scan
+  output.
+- **Expected Outcome:** in
+  `crates/anvil-checks/src/secret/scanner.rs`, a low-confidence keyword
+  match whose range overlaps a high-confidence shape match on the same
+  line is suppressed — the same credential reports once, under the
+  precise provider rule id. Non-overlapping matches and lines with only
+  low-confidence matches are unchanged; custom patterns (always
+  low-confidence) follow the same rule.
+- **Files:** `crates/anvil-checks/src/secret/scanner.rs`
+- **Validation:** unit tests — overlap dedups to the high-confidence
+  finding; non-overlapping pairs still report both; `cargo test -p
+  eddacraft-anvil-checks` and `cargo test -p eddacraft-anvil` (the
+  consuming `check`/`gate` surfaces).
+- **Identified From:** 2026-06-10/11 beta golden-path walkthrough;
+  reproduced via `anvil check` on a planted OpenAI project key.
+- **Coordinates with:** issue #1800 (high-confidence pattern class),
+  SARIFOUT-003 (`SECRET-*` rule-id projection).
+- **Confidence:** high — root cause located (per-pattern scan loop has
+  no cross-pattern overlap dedup); fix is local to the scanner.
