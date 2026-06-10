@@ -52,3 +52,21 @@ never with feature work.
 - Checkpoints raised: none
 - Next: UJ-003 (entry docs rewritten around the two paths) — in flight
   in a parallel worktree.
+
+## Cycle 4 — 2026-06-10
+
+- Item: UJ-003 — Quickstart and beta guide rewritten around the two paths
+- Outcome: done (validation: `pnpm docs:check` 8/8 surfaces green;
+  `pnpm docs:index` + oxfmt clean; fresh-context verification
+  CONDITIONAL PASS — both findings fixed: "in every routing state"
+  save-time claim corrected for the =0 opt-out, ANVIL_HOME note
+  re-worded to platform-standard paths incl. Windows %APPDATA%. Drift
+  corrected: item said `anvil mcp-install`; real surface is `anvil
+  start` wiring + `anvil mcp-config --target`; quickstart documents the
+  real commands and the module item carries the correction note.)
+  PR #2503.
+- Plan changes: UJ-003 → Merged 2026-06-10 via PR #2503; UJ counts 4/11
+  (script-managed); UJ-003 body annotated with the mcp-install drift
+  correction.
+- Checkpoints raised: none
+- Next: UJ-008 (consolidated save-time validation guide).

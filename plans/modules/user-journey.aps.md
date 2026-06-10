@@ -9,7 +9,7 @@ from the v0.8.0-beta user-journey completeness review (operator-directed).
 
 | ID  | Owner  | Status | Progress |
 | --- | ------ | ------ | -------- |
-| UJ  | @aneki | In Progress | 3/11 |
+| UJ  | @aneki | In Progress | 4/11 |
 
 **Last reviewed:** 2026-06-10 (created from the v0.8.0-beta user-journey
 completeness review. Operator direction: beta posture permits explicit guidance
@@ -116,14 +116,16 @@ carry the user to the next step without a docs lookup.
 
 ### UJ-003: Quickstart and beta guide rewritten around the two paths
 
-- **Status:** Ready
+- **Status:** Merged 2026-06-10 via PR #2503
 - **Intent:** Entry docs sell and guide the two-path journey and stop trailing
   the product by two releases.
 - **Expected Outcome:** The quickstart leads with install then "run
   `anvil start` (daily save-time protection) or `anvil welcome` (see what
   Anvil finds)"; prerequisites include Rust projects (v0.8.0 RSTLAN);
   `ANVIL_HOME` is noted in the install section; MCP/agent integration
-  (`anvil mcp-install`) is a numbered step, not an appendix; stale
+  (`anvil start` wiring + `anvil mcp-config`; the item originally said
+  `anvil mcp-install`, which does not exist) is a numbered step, not an
+  appendix; stale
   `v0.7.2-beta` version pins are refreshed. The beta-testing guide reflects
   the v0.8.0 feature set.
 - **Files:** `docs/public/anvil/quickstart.md`,

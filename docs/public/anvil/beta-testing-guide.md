@@ -13,7 +13,7 @@ Welcome to the anvil beta. Thank you for putting real projects through the tool:
 the best feedback comes from normal development work, not from perfect demo
 repos.
 
-**Current version:** 0.7.2-beta
+**Current version:** 0.7.4-beta (the `v0.8.0-beta` cut is in flight)
 
 anvil is a single native binary that analyses your codebase for architectural
 drift, AI-generated anti-patterns, and project convention violations. It is
@@ -23,46 +23,40 @@ pre-write attachment is not available.
 
 ## What's New to Focus Testing On
 
-The current tagged cut is `0.7.2-beta`; a `0.7.3-beta` candidate ("Surfacing the
-Signal") is in flight on dev builds. These are the highest-leverage flows. If
-you only have a short session, these are the right places to spend it.
+The current tagged cut is `0.7.4-beta`; a `v0.8.0-beta` candidate is in flight
+on dev builds. These are the highest-leverage flows. If you only have a short
+session, these are the right places to spend it.
 
-- **`anvil watch` now runs code-quality checks by default (`0.7.2-beta`).** A
-  bare `anvil watch` previously watched architecture and dependency edges only
-  and ran no code-quality scan, while the dashboard still read "100% pass". It
-  now runs `anvil check --all` on each save. Confirm a save with a real
-  antipattern actually surfaces a finding. Run `anvil watch --action none` to
-  restore the architecture/dependency-only watch.
-- **Wow-start activation (`anvil start`).** `install → cd repo → anvil start` is
-  the canonical first minute. The command runs init + first-scan + MCP install
-  in one go and ends with a literal protection state (`protecting`,
-  `ready_restart_required`, `watching`, `needs_action`, `unsupported`, or
-  `error`). The state is the contract -- trust it.
-- **Daemon-backed MCP validation in Cursor and Claude Code.** The
-  `anvil_validate_write` MCP tool is backed by the local daemon over owner-only
-  IPC on Unix and Windows, with the embedded path as a correctness-equivalent
-  fallback. Restart the editor after `anvil start` and verify `anvil` shows in
-  the MCP list, then ask the AI to make a wrong rewrite and watch the daemon
-  refuse it.
-- **Repo language profile honesty.** Activation now names detected languages and
-  their coverage tier (TypeScript, JavaScript, and Rust supported; SQL and
-  Markdown partial; Python unsupported). Language-specific antipattern checks
-  honour the profile; cross-language checks (e.g. secrets) still run on every
-  file.
-- **Foreground daemon ops.** The daemon runs in foreground only in v1
-  (`anvil intercept start --foreground`). Fences survive restart;
-  `anvil intercept unblock --worktree <PATH>` clears a fenced worktree on Unix,
-  while Windows users should stop and restart the daemon if every surface is
-  quarantined. `anvil intercept status` is available on every supported target.
-- **`anvil version` install-method awareness.** Reports current and latest
-  version and prints the upgrade command for your install method (Homebrew,
-  Scoop, WinGet, installer, dev build).
+### Coming in `v0.8.0-beta` — the daemon-backed save path
 
-### Coming in `0.7.3-beta` — Surfacing the Signal
+These features are landing on dev builds ahead of the `v0.8.0-beta` tag. If you
+run a dev build, they are the freshest surfaces to exercise; on the `0.7.4-beta`
+tag they are a preview of what is next.
 
-These features are landing on dev builds ahead of the `0.7.3-beta` tag. If you
-run a dev build, they are the freshest surfaces to exercise; if you are on the
-`0.7.2-beta` tag, they are a preview of what is next.
+- **Daemon-backed save-time validation is default-on when live.** With a live
+  daemon (started by `anvil start`), `anvil watch` routes each save through the
+  daemon instead of spawning a subprocess scan — faster verdicts plus a
+  workspace assurance state. Set `ANVIL_WATCH_DAEMON=0` to opt out, `=1` to
+  force daemon routing; when no daemon answers, watch falls back to a scoped
+  check. Confirm the fallback advisory and the recovery hint (`anvil start`)
+  make sense.
+- **`anvil status` states the save-time posture.** Status now prints a
+  `Save-time:` line whenever daemon routing is on — including an explicit off
+  state naming `anvil start` when no daemon is running. Only an explicit
+  `ANVIL_WATCH_DAEMON=0` opt-out hides the line. Check the posture line matches
+  reality on your machine.
+- **Rust project analysis.** Rust is a supported analysis language: Rust
+  antipattern rules emit at advisory severity, and the activation language
+  profile names Rust coverage. Point anvil at a real Rust repo and judge the
+  findings.
+- **Gate-summary dashboard.** `anvil init` seeds a gate-summary dashboard spec
+  under `.anvil/dashboards/`; open it via the `anvil dashboard` picker after
+  running `anvil gate`.
+- **Two self-guiding entry paths.** Install output and the endings of
+  `anvil welcome`, `anvil init`, and `anvil start` each name the single next
+  step. Tell us anywhere a surface leaves you wondering what to type next.
+
+### Shipped in `0.7.3-beta` / `0.7.4-beta` — Surfacing the Signal
 
 - **`anvil dashboard` — read-only TUI dashboards.** Live views over persisted
   `.anvil/` state: **Architecture Health**, **Drift Snapshots**, and
@@ -84,6 +78,29 @@ run a dev build, they are the freshest surfaces to exercise; if you are on the
   `RUST_LOG` output) now route to stderr, leaving stdout reserved for command
   output, so `anvil … --json` is safe to pipe into `jq`. `anvil --json watch` is
   now a stable NDJSON stream (`anvil.watch.event.v1`).
+
+### Still load-bearing from `0.7.2-beta`
+
+- **Wow-start activation (`anvil start`).** `install → cd repo → anvil start` is
+  the canonical first minute. The command runs init + first-scan + MCP install
+  in one go and ends with a literal protection state (`protecting`,
+  `ready_restart_required`, `watching`, `needs_action`, `unsupported`, or
+  `error`). The state is the contract -- trust it.
+- **Daemon-backed MCP validation in Cursor and Claude Code.** The
+  `anvil_validate_write` MCP tool is backed by the local daemon over owner-only
+  IPC on Unix and Windows, with the embedded path as a correctness-equivalent
+  fallback. Restart the editor after `anvil start` and verify `anvil` shows in
+  the MCP list, then ask the AI to make a wrong rewrite and watch the daemon
+  refuse it.
+- **`anvil watch` runs code-quality checks by default.** A bare `anvil watch`
+  runs `anvil check --all` on each save. Confirm a save with a real antipattern
+  actually surfaces a finding. Run `anvil watch --action none` to restore the
+  architecture/dependency-only watch.
+- **Repo language profile honesty.** Activation names detected languages and
+  their coverage tier (TypeScript, JavaScript, and Rust supported; SQL and
+  Markdown partial; Python unsupported). Language-specific antipattern checks
+  honour the profile; cross-language checks (e.g. secrets) still run on every
+  file.
 
 ## What We Need From You
 
@@ -117,7 +134,7 @@ are real.
 You will need:
 
 - A macOS, Linux, or Windows machine.
-- A TypeScript or JavaScript project you are comfortable testing against.
+- A TypeScript, JavaScript, or Rust project you are comfortable testing against.
 - Git installed, ideally with a clean working tree or a disposable branch.
 - Beta access tied to the email or GitHub account we invited.
 - Node.js and your project package manager if you want gate checks to run your
@@ -241,6 +258,11 @@ If you only want a read-only check (no init, no scan, no MCP write):
 anvil start --verify
 ```
 
+If you would rather see what anvil finds before wiring protection, the other
+beta path is `anvil welcome` — the guided discovery surface. Record whether it
+lands you on something genuinely useful and whether it points you back at
+`anvil start` when you are done.
+
 ### 2. Try the MCP Catch in Your Editor
 
 With `anvil start` reporting `protecting` and your editor restarted, ask the AI
@@ -305,6 +327,12 @@ finding.
 ```bash
 anvil watch --source
 ```
+
+From `v0.8.0-beta`, when a live daemon answers, watch routes save-time
+validation through the daemon by default. `ANVIL_WATCH_DAEMON=0` opts out, `=1`
+forces daemon routing, and `anvil status` states the save-time posture in every
+case. If the daemon stops mid-session, watch should warn once and fall back to a
+scoped check that names `anvil start` as the recovery step.
 
 Save a file. Watch should print the active scope and respond when files change.
 On large repos it should print startup feedback immediately while warm-up runs,

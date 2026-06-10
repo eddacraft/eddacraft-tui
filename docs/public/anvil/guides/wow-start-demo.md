@@ -55,7 +55,7 @@ allowed vocabulary.
 
 ## Prerequisites
 
-- A current anvil install (see [Install](../quickstart.md#install)).
+- A current anvil install (see [Install](../quickstart.md#1-install)).
 - **Cursor** or **Claude Code** installed — one is enough. v1 ships MCP install
   for Cursor and Claude Code only; nothing else is wired.
 - A real TypeScript, JavaScript, or Rust project. SQL and Markdown get partial
@@ -278,7 +278,7 @@ generate noise without findings:
 
 If you want save-time signal anyway in a state where `--watch` has skipped, the
 unconditional path is `anvil watch --source` (covered in
-[Beta Quickstart: Turn On Watch Mode](../quickstart.md#turn-on-watch-mode-fallback)).
+[Beta Quickstart: Turn On Watch Mode](../quickstart.md#7-turn-on-watch-mode-fallback)).
 
 ## The protection states, plainly
 

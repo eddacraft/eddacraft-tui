@@ -7,23 +7,31 @@ sidebar_position: 3
 
 # Quickstart
 
-Install anvil, scan your project, and fix your first issue -- all in under 5
-minutes.
+Install anvil, then take one of the two beta paths to first value — all in under
+5 minutes:
+
+- **`anvil start`** — daily value: daemon-backed save-time protection that
+  validates files as you (or your AI agent) save them.
+- **`anvil welcome`** — discovery: see what anvil finds in your own repo, guided
+  from the terminal.
+
+You can run both; most people start with `anvil start` and explore with
+`anvil welcome` afterwards.
 
 ## Prerequisites
 
-- A TypeScript or JavaScript project
+- A TypeScript, JavaScript, or Rust project
 - A terminal (macOS, Linux, or Windows)
 
-## Install
+## 1. Install
 
 :::info Beta
 
-anvil is currently in beta — the latest tagged release is `v0.7.2-beta`. If your
-team has gated beta access, use the GitHub account tied to that access when
-prompted by anvil or the docs site. See the
-[beta testing guide](/anvil/beta-testing-guide) for the current scope and known
-gaps. If you're upgrading an existing `0.6.x` install, see the
+anvil is currently in beta — the latest tagged release is `v0.7.4-beta`, with
+the `v0.8.0-beta` cut in flight. If your team has gated beta access, use the
+GitHub account tied to that access when prompted by anvil or the docs site. See
+the [beta testing guide](/anvil/beta-testing-guide) for the current scope and
+known gaps. If you're upgrading an existing `0.6.x` install, see the
 [0.7.0-beta upgrade notes](releases/upgrade-notes.md#upgrading-to-070-beta) for
 the operator delta.
 
@@ -61,6 +69,15 @@ brew upgrade eddacraft/tap/anvil
 Use one install method per machine. To move from Homebrew to the standalone
 installer, uninstall the Homebrew formula first.
 
+:::note `ANVIL_HOME`
+
+anvil keeps user-level state (credentials, daemon socket, caches) under standard
+XDG paths. Set `ANVIL_HOME=/some/dir` to re-root all of it — useful for running
+a candidate build beside a production install. Project state under `.anvil/` in
+your repo is unaffected by the override.
+
+:::
+
 :::tip Windows users
 
 If the installer doesn't add `anvil` to your PATH automatically, add
@@ -72,7 +89,7 @@ $env:Path = "$env:USERPROFILE\.eddacraft\bin;$env:Path"
 
 :::
 
-## Authenticate
+## 2. Authenticate
 
 Start the default device-code login flow:
 
@@ -89,7 +106,13 @@ If you need email OTP instead, run:
 anvil auth login --otp
 ```
 
-## Activate (`anvil start`)
+## 3. Take a Path: `anvil start` or `anvil welcome`
+
+Both beta paths begin in your repo root. `anvil start` activates daily
+protection; `anvil welcome` walks you through what anvil finds first. Each
+surface names the next step, so neither path needs a docs lookup.
+
+### The daily-value path: `anvil start`
 
 From the root of your project, run:
 
@@ -116,12 +139,12 @@ state — one of:
 When the daemon is running and reachable over owner-only IPC, the
 `anvil_validate_write` MCP tool runs through the daemon-backed path; an embedded
 scanner is the correctness-equivalent fallback when the daemon is not available.
-In `v0.7.x-beta` the protection-claim contract is defined across
-`anvil status --json`, `anvil doctor --json`, the `anvil_validate_write`
-MCP-tool response, and the TypeScript driver-client. The MCP response only
-carries `protection_claim` when the daemon is reachable. As of `v0.7.1-beta`,
-Windows reaches the daemon through the named-pipe client too, so
-`correlation.daemonStatus` and `protection_claim` are no longer Unix-only.
+The protection-claim contract is defined across `anvil status --json`,
+`anvil doctor --json`, the `anvil_validate_write` MCP-tool response, and the
+TypeScript driver-client. The MCP response only carries `protection_claim` when
+the daemon is reachable. As of `v0.7.1-beta`, Windows reaches the daemon through
+the named-pipe client too, so `correlation.daemonStatus` and `protection_claim`
+are no longer Unix-only.
 
 To probe state without writing config:
 
@@ -144,7 +167,46 @@ existing repository as new violations. Watch reports findings after later file
 changes. It also prints startup feedback immediately and falls back to plain
 output when stdin or stdout is not a terminal.
 
-## Scan Your Project
+From `v0.8.0-beta`, when a live anvil daemon answers, `anvil watch` routes
+save-time validation through the daemon by default — faster verdicts and a
+workspace assurance state you can read at any time with `anvil status`. Set
+`ANVIL_WATCH_DAEMON=0` to opt out, or `=1` to force daemon routing. See
+`anvil watch --help` for the routing details.
+
+### The discovery path: `anvil welcome`
+
+If you would rather see what anvil finds before wiring protection, run:
+
+```bash
+cd path/to/your/repo
+anvil welcome
+```
+
+`anvil welcome` opens the guided terminal surface: a discovery scan over your
+own repo, an interactive tutorial, and quick links to the other surfaces. On a
+first run it offers guided setup; afterwards it lands on the welcome hub. When
+you are done exploring, it points you at `anvil start` for daily protection.
+
+## 4. Connect Your AI Editor (MCP)
+
+`anvil start` already wires MCP entries for Cursor and Claude Code (writing
+`~/.cursor/mcp.json` and `~/.claude.json`). To finish the connection:
+
+1. Restart Cursor or Claude Code so it picks up the new MCP entry.
+2. Check that `anvil` appears in the editor's MCP server list.
+3. Ask the AI to make a change you know is wrong — the `anvil_validate_write`
+   tool should refuse it before the write lands.
+
+To generate the editor config manually (or to re-emit it for one editor), use:
+
+```bash
+anvil mcp-config --target claude-code   # or: --target cursor
+```
+
+See the [MCP integration guide](integrations/mcp.md) for the full setup and
+troubleshooting reference.
+
+## 5. Scan Your Project
 
 You can also surface findings directly with the targeted source-analysis
 command:
@@ -195,7 +257,7 @@ To run the broader gate surface, use:
 anvil gate --profile dev
 ```
 
-## Diagnostics
+## 6. Diagnostics
 
 Verify state and the binary you're running:
 
@@ -209,7 +271,7 @@ anvil doctor              # Environment health check
 Scoop, WinGet, the install script, or a developer build, and prints the right
 upgrade command for that path.
 
-## Turn On Watch Mode (fallback)
+## 7. Turn On Watch Mode (fallback)
 
 If `anvil start` finished in `watching` rather than `protecting`, anvil is
 already running the save-time fallback. To run a standalone watcher in another
@@ -245,7 +307,7 @@ in-editor diagnostics.
 
 :::
 
-## Fix Your First Issue
+## 8. Fix Your First Issue
 
 Take one of the warnings from the scan -- say AP-003, the explicit `any` in
 `src/utils/parser.ts`:
@@ -300,7 +362,7 @@ One warning down. Repeat for the rest at your own pace.
   architectural drift
 - [CI integration](/anvil/tutorials/ci) -- add anvil to your pipeline
 
-**v0.7.x-beta operator surfaces** (runbooks are the source of truth):
+**Operator surfaces** (runbooks are the source of truth):
 
 - [`anvil-run` — wrapped-launch ingress](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/anvil-run.md)
   — route `claude`, `codex`, `aider`, and similar agents through a
