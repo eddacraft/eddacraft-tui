@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 33/55    |
+| CIB | —     | In Progress | 33/56    |
 
 ## Purpose
 
@@ -1418,3 +1418,43 @@ archive.
 - **Coordinates with:** the NBI rank-1 release-cut gate.
 - **Confidence:** high — bookkeeping reconcile against already-verified
   merge state.
+
+### CIB-056: Driver-client Windows pipe gate must verify the current-user SID
+
+- **Status:** In Progress
+- **Intent:** the `Transport.connect` contract
+  (`packages/anvil-driver-client/src/transport/types.ts`) promises a
+  platform owner gate before `connect()` resolves, but the Windows
+  implementation (`validateWindowsPipeName` in
+  `packages/anvil-driver-client/src/transport/windows.ts`) only shape-checks
+  the `\\.\pipe\anvil-intercept-<sid>` pattern. It never compares the SID
+  suffix to the current user's SID, so a misconfigured or
+  attacker-influenced `pipeName` targeting another user's daemon pipe
+  connects successfully and is treated as trusted. The Unix transport has
+  the real gate (mode-0600 + current-uid stat); the daemon side already
+  binds owner-only (INTD-002) and checks client SIDs (DSV-010b/ADR-070) —
+  this is the missing client half. Clawpatch finding
+  `fnd_sig-feat-cli-command-a4f9ddbd8c-_55d076e44e`, promoted from umbrella
+  #1826 to focused issue #2484.
+- **Expected Outcome:** on win32, `connect()` rejects with
+  `anvil-daemon-wrong-owner` when the pipe-name SID suffix does not match
+  the current user's SID (derived via an injectable provider; default
+  implementation shells out to `whoami /user`, fails closed on resolution
+  failure). The shape check, error codes, and public API stay
+  backward-compatible. The deeper pipe-squat defence (server SID via
+  security descriptor or handshake attestation) stays a documented
+  follow-up on #2484, not silently claimed.
+- **Validation:** vitest unit tests (runnable on Linux via injected SID
+  provider) covering: suffix == current SID accepted; mismatched SID
+  rejected with `anvil-daemon-wrong-owner`; SID-resolution failure rejects
+  (fail closed); existing shape-check cases unchanged.
+- **Identified From:** clawpatch v0.7.0-beta sweep (2026-05-21), top of the
+  open-findings queue in the 2026-06-10 triage; promoted per #1826's
+  load-bearing-consumer rule (surface-drivers DRVR-001 is live, ADR-030).
+- **Coordinates with:** issue #2484, umbrella #1826,
+  `crates/anvil-intercept-win32/src/lib.rs::pipe_name_for_current_user`
+  (canonical `S-1-…` SID string both sides must agree on), INTD-012
+  successor work for Windows CI coverage.
+- **Confidence:** high — narrow, well-understood gate with an established
+  Unix analogue; the only platform-sensitive piece (SID lookup) is
+  injection-seamed for tests.

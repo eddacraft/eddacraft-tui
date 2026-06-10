@@ -19,7 +19,14 @@ export {
   type ResolveOptions,
 } from './path.js';
 export { UnixSocketTransport, validateUnixSocketOwnership } from './unix.js';
-export { WindowsNamedPipeTransport, validateWindowsPipeName } from './windows.js';
+export {
+  parseSidFromWhoamiOutput,
+  resolveCurrentUserSid,
+  validateWindowsPipeName,
+  validateWindowsPipeOwnership,
+  WindowsNamedPipeTransport,
+  type WindowsTransportOptions,
+} from './windows.js';
 export type {
   Transport,
   TransportCloseCause,
