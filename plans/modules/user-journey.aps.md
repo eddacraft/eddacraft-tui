@@ -9,7 +9,7 @@ from the v0.8.0-beta user-journey completeness review (operator-directed).
 
 | ID  | Owner  | Status | Progress |
 | --- | ------ | ------ | -------- |
-| UJ  | @aneki | In Progress | 6/11 |
+| UJ  | @aneki | In Progress | 7/11 |
 
 **Last reviewed:** 2026-06-10 (created from the v0.8.0-beta user-journey
 completeness review. Operator direction: beta posture permits explicit guidance
@@ -253,7 +253,7 @@ carry the user to the next step without a docs lookup.
 
 ### UJ-009: Gate-summary dashboard reaches existing projects
 
-- **Status:** Ready
+- **Status:** Merged 2026-06-10 via PR #2505
 - **Intent:** Upgraders get the v0.8.0 gate-summary dashboard — today only
   fresh `anvil init` runs seed it, so existing projects never see it.
 - **Expected Outcome:** Existing projects gain the gate-summary dashboard via

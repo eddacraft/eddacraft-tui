@@ -97,3 +97,23 @@ never with feature work.
 - Checkpoints raised: none
 - Next: UJ-009 (gate-summary reach) — implemented in a parallel
   worktree, PR to follow.
+
+## Cycle 7 — 2026-06-10
+
+- Item: UJ-009 — Gate-summary dashboard reaches existing projects
+- Outcome: done (chosen path: zero-write built-in fallback — the picker
+  and `anvil dashboard gate-summary` serve the embedded
+  GATE_SUMMARY_SPEC whenever no saved spec shadows it; saved specs
+  always win; embedded spec stays the CIB-053 single source. Validation:
+  4 new tests green + full anvil/anvil-tui suites; clippy+fmt clean;
+  real transcripts in a fresh repo — picker --json lists the builtin
+  entry, direct launch resolves where it previously bailed. Subagent
+  verification unavailable (spend limit); all six surfaces traced
+  inline for shadowing consistency. Accepted edge: outside any
+  workspace the direct launch falls through to the unknown-name error.)
+  PR #2505.
+- Plan changes: UJ-009 → Merged 2026-06-10 via PR #2505; UJ counts 7/11
+  (script-managed).
+- Checkpoints raised: none
+- Next: UJ-010 (PR #2506 open, flips deferred); then only design-gated
+  items (UJ-004, UJ-007) and UJ-011 shaping remain.
