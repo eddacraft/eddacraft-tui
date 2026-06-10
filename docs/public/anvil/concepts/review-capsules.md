@@ -104,14 +104,14 @@ witnessed lines by construction.
 
 ## Retention and pruning
 
-Retention is **keep-until-explicitly-pruned**: nothing in anvil ever deletes a
+Retention is **keep-until-explicitly-pruned**: nothing in Anvil ever deletes a
 capsule automatically — no create-time rotation, no hooks, no age-based cleanup.
 External capsules (the default) are yours to manage. If your team opts into
 staging capsules in-repo under `anvil/evidence/capsules/`, they accumulate
 indefinitely by design; bounding the tree is an explicit act:
 
 ```bash
-anvil capsule prune --keep-last 10          # dry run: prints what would go
+anvil capsule prune --keep-last 10          # dry run: prints the would-delete list
 anvil capsule prune --keep-last 10 --apply  # stages the deletions
 ```
 

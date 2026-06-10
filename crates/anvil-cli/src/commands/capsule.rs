@@ -993,7 +993,7 @@ fn run_prune(repo_root: &Path, root: Option<&Path>, keep_last: usize, apply: boo
         None => repo_root.join(DEFAULT_STAGING_ROOT),
     };
     if !staging_root.exists() {
-        println!(
+        eprintln!(
             "staging root {} does not exist — nothing to prune",
             staging_root.display()
         );
@@ -1008,12 +1008,12 @@ fn run_prune(repo_root: &Path, root: Option<&Path>, keep_last: usize, apply: boo
             "warning: no capsules found under {} — is this the staging root?",
             staging_root.display()
         );
-        println!("nothing to prune");
+        eprintln!("nothing to prune");
         return Ok(());
     }
 
     if plan.delete.is_empty() {
-        println!(
+        eprintln!(
             "nothing to prune: {} orderable capsule(s) <= --keep-last {keep_last}",
             plan.keep.len()
         );
@@ -1027,7 +1027,9 @@ fn run_prune(repo_root: &Path, root: Option<&Path>, keep_last: usize, apply: boo
         for capsule in &plan.delete {
             println!("{}", one_line(&capsule.dir.display().to_string()));
         }
-        println!(
+        // Summary is chatter, not a path — stderr keeps stdout a pure
+        // line-oriented would-delete list for scripts.
+        eprintln!(
             "dry run: {} capsule(s) would be deleted, {} kept — re-run with --apply to delete",
             plan.delete.len(),
             plan.keep.len() + plan.unordered.len()
@@ -1043,7 +1045,7 @@ fn run_prune(repo_root: &Path, root: Option<&Path>, keep_last: usize, apply: boo
             println!("{}", one_line(&capsule.dir.display().to_string()));
         }
     }
-    println!(
+    eprintln!(
         "pruned {} capsule(s), kept {} — deletions are staged; commit to record the prune",
         plan.delete.len() - failures.len(),
         plan.keep.len() + plan.unordered.len()

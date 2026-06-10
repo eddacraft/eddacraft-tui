@@ -1,6 +1,6 @@
 # Post-merge: feat-gitgov-013-capsule-retention
 
-PR: #TBD
+PR: #2487
 Branch: `feat/gitgov-013-capsule-retention`
 APS: GITGOV-013
 Merged: <!-- filled by cleanup agent -->
