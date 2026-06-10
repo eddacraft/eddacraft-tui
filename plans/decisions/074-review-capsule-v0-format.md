@@ -119,7 +119,8 @@ requires the repository to be present** (digest and witness checks run against
 the repo the capsule describes; GITGOV-009 pins this contract), and verifying
 from nothing but the capsule's own `commits.json` metadata is deferred to `v1`;
 the v1 subchain witness verifier (see Schema rules); Graph-V2 behavioural diff;
-`--include-sessions`.
+`--include-sessions`. Retention and prune policy for staged capsules is
+decided in [ADR-078](078-capsule-retention-and-prune.md).
 
 ## Rationale
 
