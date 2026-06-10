@@ -20,9 +20,10 @@ uses Unix sockets on Linux/macOS and owner-only named pipes on Windows as of
 `v0.7.1-beta`; the embedded scanner is the correctness-equivalent fallback when
 the daemon is not reachable. As of `v0.8.0-beta`, `anvil watch` routes its
 save-time checks through the same daemon validation path by default when the
-daemon is live (`ANVIL_WATCH_DAEMON=0` opts out), so editor/agent MCP writes and
-terminal watch converge on one warm verdict path instead of two separate
-scanners.
+daemon is live (`ANVIL_WATCH_DAEMON=0` opts out; see the
+[save-time validation guide](../guides/save-time-validation.md) for the full
+routing story), so editor/agent MCP writes and terminal watch converge on one
+warm verdict path instead of two separate scanners.
 
 The legacy Node.js MCP server (`@eddacraft/anvil-mcp-server`, last published at
 `0.4.0-beta`) is no longer the recommended runtime path. Its broader tool,

@@ -41,6 +41,7 @@ const sidebars: SidebarsConfig = {
         'guides/solo-dev-flow',
         'guides/team-flow',
         'guides/agent-harness',
+        'guides/save-time-validation',
         'guides/dashboard',
         'guides/insights',
       ],

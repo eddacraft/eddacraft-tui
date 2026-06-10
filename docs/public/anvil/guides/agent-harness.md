@@ -134,7 +134,9 @@ server), daemon-backed save-time routing is used automatically when the resident
 daemon is live, so watch and `anvil_validate_write` share one warm verdict path
 instead of each spinning up its own scan — useful when several agents are
 editing concurrently. Set `ANVIL_WATCH_DAEMON=0` to opt out, or
-`ANVIL_WATCH_DAEMON=1` to force the daemon path while diagnosing routing.
+`ANVIL_WATCH_DAEMON=1` to force the daemon path while diagnosing routing. The
+[save-time validation guide](save-time-validation.md) covers the full routing
+story, assurance states, and fallback behaviour.
 
 See [MCP Integration](/anvil/integrations/mcp) for full configuration and tool
 reference.

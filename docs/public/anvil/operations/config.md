@@ -414,6 +414,11 @@ glob such as `vendor/**` rather than `vendor`.
 
 ### Save-time validation through the daemon
 
+The full save-time story — daemon role, assurance states, confinement, and
+fallback behaviour — lives in the
+[save-time validation guide](../guides/save-time-validation.md). This section is
+the configuration reference for the routing control.
+
 By default `anvil watch` uses daemon-backed save-time validation when a resident
 intercept daemon is already live and serving the save-time verbs. The daemon
 validates the changed-path delta against one warm model rather than spawning a
@@ -434,8 +439,9 @@ explicit false value, not by blanking.
 When daemon routing is active, `anvil status` gains a `Save-time:` line
 reporting the current assurance state (`clean`, `stale`, `pending`, `running`,
 or `unavailable`) and, in confined mode, the size of the admitted-workspace
-allow-list. With the variable unset and no daemon live, `anvil status` keeps the
-pre-daemon output unchanged.
+allow-list. With the variable unset and no daemon live, `anvil status` prints an
+explicit off-state line naming `anvil start`; only an explicit
+`ANVIL_WATCH_DAEMON=0` opt-out hides the save-time line.
 
 ## Workspace confinement
 
@@ -451,7 +457,7 @@ anvil workspace mode allowlist            # Only serve admitted roots (plus each
                                           # connection's primary check-in root)
 anvil workspace allow /path/to/repo       # Admit one root (exact match)
 anvil workspace allow /srv/work --prefix  # Admit an entire subtree
-anvil workspace remove /path/to/repo      # Remove an allow entry
+anvil workspace deny /path/to/repo        # Remove an allow entry
 anvil workspace mode open                 # Back to first-touch adopt (the default)
 ```
 
