@@ -45,7 +45,8 @@ The Rust rules target the failure modes Rust code actually ships:
 - **RS-001** — `unwrap()` or `expect()` in non-test code (info)
 - **RS-002** — `panic!()` reached from non-test code (info)
 - **RS-003** — `unsafe` block without a `// SAFETY:` comment (info)
-- **RS-004** — `Deserialize` struct without `deny_unknown_fields` (info)
+- **RS-004** — `Deserialize` struct without `deny_unknown_fields` (info, opt-in:
+  run with `--include-opt-in` to enable it)
 - **RS-005** — `todo!()` or `unimplemented!()` shipped (warning)
 
 RS-001 through RS-004 are **AST rules**: anvil parses your Rust source and
