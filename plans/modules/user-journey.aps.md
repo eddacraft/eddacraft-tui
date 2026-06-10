@@ -9,7 +9,7 @@ from the v0.8.0-beta user-journey completeness review (operator-directed).
 
 | ID  | Owner  | Status | Progress |
 | --- | ------ | ------ | -------- |
-| UJ  | @aneki | In Progress | 13/15 |
+| UJ  | @aneki | In Progress | 14/15 |
 
 **Last reviewed:** 2026-06-10 (created from the v0.8.0-beta user-journey
 completeness review. Operator direction: beta posture permits explicit guidance
@@ -381,7 +381,7 @@ carry the user to the next step without a docs lookup.
 
 ### UJ-014: Refresh surviving tutorials + journey-aligned index
 
-- **Status:** Ready
+- **Status:** Merged 2026-06-10 via PR #2513
 - **Intent:** The surviving tutorials should reflect the two-path journey and
   current language coverage instead of trailing the product.
 - **Expected Outcome:** `architecture.md` gains a Rust example beside the
@@ -389,7 +389,11 @@ carry the user to the next step without a docs lookup.
   `index.md` is rewritten around the two beta paths and names the
   in-terminal `anvil tutorial` as the interactive sibling.
 - **Files:** `docs/public/anvil/tutorials/{architecture,drift,index}.md`
-- **Validation:** `pnpm docs:check` + `pnpm docs:index` green.
+- **Validation:** `pnpm docs:check` 8/8 + `pnpm docs:index` green (2026-06-10);
+  fresh-context review verified the Rust examples against the
+  yaml_parser/rust_resolve/validator code and surfaced a pre-existing doc bug
+  (inline `@anvil-ignore` is not wired to boundary violations) — the
+  architecture tutorial's Suppress section was corrected as part of this item.
 - **Dependencies:** UJ-012/UJ-013 (the index lists the final set)
 - **Confidence:** high
 - **changeType:** docs

@@ -244,3 +244,26 @@ never with feature work.
 - Next: UJ-014 (tutorial refresh + index rewrite) — architecture/drift
   legs already drafted in a parallel worktree; index rewrite unblocks
   once #2511 merges.
+
+## Cycle 14 — 2026-06-10
+
+- Item: UJ-014 — Refresh surviving tutorials + journey-aligned index
+- Outcome: done (architecture.md gains the Rust architecture.yaml
+  example, resolution-semantics note, and Rust fix example; its
+  misleading Suppress block — `@anvil-ignore ARCH-001` is not wired to
+  boundary violations — replaced with depends_on edits + the
+  new-edges-only baseline posture; drift.md cross-links the
+  dashboard/insights guides; index.md rewritten around the two beta
+  paths, naming the in-terminal `anvil tutorial` as the interactive
+  sibling, listing the final five-tutorial set with guide pointers
+  replacing the ci/suppressions rows. Validation: docs:check 8/8,
+  docs:index clean, format:check exit 0; two fresh-context reviews —
+  the suppression doc bug was their catch.) PR #2513.
+- Plan changes: UJ-014 → Merged 2026-06-10 via PR #2513; UJ counts
+  14/15.
+- Checkpoints raised: none.
+- Next: UJ-015 (retire ci/suppressions into their guides) — unblocked
+  once #2513 merges. Pre-verification already done: suppressions.md is
+  heavily drifted (wrong suppressions.json schema vs the shipped
+  loader, no SUP-001 rule, comma multi-rule unsupported by the ADR-029
+  regex) — the fold carries only code-verified content.
