@@ -119,6 +119,12 @@ the rule catalogue before a tag is cut. If the script is absent, record that the
 TypeScript scanner parity harness has been archived and rely on the Rust scanner
 tests in the normal preflight bundle.
 
+For releases that carry default-on save-time daemon routing (`v0.8.0-beta`
+onward), the
+[daemon routing rollout controls](#daemon-routing-rollout-controls-adr-075) gate
+must also pass before tag — exercise the opt-out and confirm the revert signal
+is monitorable.
+
 #### 3. Prepare Release State
 
 ```bash
@@ -251,6 +257,88 @@ This owns:
 - release issue closure
 
 There is no back-merge step — `main` is the single integration target.
+
+## Daemon Routing Rollout Controls (ADR-075)
+
+From `v0.8.0-beta`, `anvil watch --action check` routes save-time validation
+through the intercept daemon **by default when a live daemon answers the
+presence probe**
+([ADR-075](../../plans/decisions/075-v080-graph-product-scope.md), DSV-021).
+Flipping a previously opt-in persistent daemon to default-on is a rollout
+problem, not only a correctness gate: ADR-075 makes a documented opt-out, a
+named revert signal, and a staged rollout cut prerequisites. This section is
+that procedure. It applies to every release whose tag range includes or carries
+the default-on routing change.
+
+### Pre-tag opt-out exercise
+
+Run on a box with a live daemon (`anvil daemon` serving the workspace — the same
+constraint as the DSV-021 post-merge verification). Record the four outcomes in
+the release tracking issue.
+
+1. **Default-on baseline** — with `ANVIL_WATCH_DAEMON` unset and the daemon
+   live, `anvil watch --action check` routes through the daemon and
+   `anvil status` shows the `Save-time:` assurance line.
+2. **Opt-out** — `ANVIL_WATCH_DAEMON=0 anvil watch --action check` takes the
+   subprocess-only path, and `ANVIL_WATCH_DAEMON=0 anvil status` drops the
+   `Save-time:` line (pre-daemon output, unchanged). `false`/`off`/`no` are
+   equivalent; matching is case-insensitive.
+3. **Daemon-absent default** — stop the daemon; with the variable unset, `watch`
+   keeps the quiet subprocess path with **no** `daemon-absent` warnings (the
+   presence guard — non-daemon installs must see no behaviour change).
+4. **Forced-on fallback** — `ANVIL_WATCH_DAEMON=1` with the daemon stopped falls
+   back to the same scoped `check`, warns **once** (the warn-once latch), and
+   reports save-time assurance as `unavailable`, never `clean`.
+
+Any deviation is a release blocker under the normal
+[failure policy](#failure-policy) — fix forward or pull the routing change out
+of the cut; do not tag with a broken opt-out.
+
+### Named revert signal
+
+Either of the following, observed on the released build, trips the revert
+decision:
+
+- **Latency** — save-time p95 over the 80 ms
+  [ADR-031](../../plans/decisions/031-validation-latency-rubric.md) budget. In
+  CI this is the `Measure hot-read latency budget (GV2-025)` gate in
+  `resource-budget.yml`; in the field, a reproducible report of `watch`
+  save-time validation exceeding the budget counts.
+- **WARN rate** — daemon-routing fallback warnings recurring across sessions in
+  the default (unset) mode. The latch warns once per session, so any sustained
+  stream of routing WARNs from default-mode users means the presence guard or
+  the daemon is misbehaving in the field.
+
+### Revert procedure
+
+1. **Per-install mitigation (immediate):** affected users set
+   `ANVIL_WATCH_DAEMON=0`. This is the documented opt-out — subprocess path
+   restored, no reinstall, no daemon restart. Publish the workaround in the
+   release issue and channel comms.
+2. **Fleet revert (patch release):** flip the unset default in
+   `daemon_routing_mode_from`
+   (`crates/anvil-cli/src/commands/watch_save_time.rs`) from `DefaultOnWhenLive`
+   back to `Disabled` (restoring the pre-`v0.8.0-beta` opt-in posture), update
+   the [configuration docs](../public/anvil/operations/config.md) to match, and
+   ship through the normal patch cadence — or via
+   [`emergency-hotfix.md`](emergency-hotfix.md) if the signal is P0. `=1`
+   forced-on must keep working so daemon users retain the feature while the
+   default reverts.
+3. **Do not yank** the published release for a routing regression alone — the
+   opt-out makes it recoverable per-install. Yank only if the release meets the
+   [`rollback-bad-published-release.md`](rollback-bad-published-release.md)
+   criteria independently.
+4. **Record and track:** log the observed signal, the decision, and the evidence
+   in the release tracking issue, and file an APS follow-up item for the re-flip
+   criteria before default-on ships again.
+
+### Staged rollout
+
+Default-on routing ships to the **beta channel first**; a stable/GA release
+inherits it only after the beta has soaked with no revert signal. On Windows,
+default-on is additionally gated on the DSV-010b served-verb set — confirm the
+`rust.yml` Windows matrix is green for the source SHA before a tag that enables
+routing there.
 
 ## Strategy Guide
 
