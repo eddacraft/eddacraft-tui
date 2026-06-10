@@ -1386,10 +1386,13 @@ name = "eddacraft-anvil-intercept-rules"
 version = "0.7.4-beta"
 dependencies = [
  "eddacraft-anvil-checks",
+ "eddacraft-anvil-config",
  "eddacraft-anvil-kernel-types",
  "globset",
+ "regex",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror 2.0.18",
  "workspace-hack",
 ]
