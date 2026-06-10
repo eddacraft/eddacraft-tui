@@ -12,10 +12,10 @@ Component-level, dated, source-pinned descriptions of what is actually shipping.
 The shape is set by the [as-built template](_as-built-template.md) — copy it
 when adding a new one.
 
-- [Auth System](auth-as-built.md) — beta auth API, token lifecycle, GitHub OAuth
-  - OTP/device-code flows, JWT licence, local admin key lifecycle, trusted
-    identity claim handling, gaps register (current, targeted delta-reviewed
-    2026-06-10 against main `45dd1047a`)
+- [Auth System](auth-as-built.md) — beta auth API, token lifecycle, GitHub
+  OAuth + OTP/device-code flows, JWT licence, local admin key lifecycle, trusted
+  identity claim handling, gaps register (current, targeted delta-reviewed
+  2026-06-10 against main `45dd1047a`)
 - [Intercept daemon](intercept-as-built.md) — IPC surface (UDS + named pipe),
   peer-cred trust boundary, AD-7 fence-on-failure, fence persistence, interrupt
   ladder, registry, win32 listener, save-time `validate_paths` pipeline +
@@ -59,8 +59,8 @@ when adding a new one.
   sensitive-fields catalogue (current, targeted delta-reviewed 2026-06-10
   against main `45dd1047a`)
 - [Tutorial subsystem](tutorial-as-built.md) —
-  `anvil-tui/src/surfaces/tutorial/*` multi-file engine (mod.rs 1845 + discovery
-  913 + discovery_render 683 + executor + fix + render + showcase + verify +
+  `anvil-tui/src/surfaces/tutorial/*` multi-file engine (mod.rs 1846 + discovery
+  933 + discovery_render 781 + executor + fix + render + showcase + verify +
   watch_demo + 10 snapshot pins). LAUNCH-014 ProtectionLoop default, welcome
   showcase wiring, and two test-pinned copy invariants (current, targeted
   delta-reviewed 2026-06-10 against main `45dd1047a`)
