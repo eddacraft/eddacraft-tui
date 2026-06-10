@@ -651,3 +651,42 @@ fn start_watch_renders_partial_protection_and_starts_watcher() {
         "fallback path MUST NEVER claim `fully protected`, got:\n{captured}"
     );
 }
+
+/// CIB-049: `start --verify` is a read-only local probe and must skip
+/// the auth wall through `skips_auth_for_local_probe` itself — NOT via
+/// the `ANVIL_DEV` escape hatch the other tests in this file lean on.
+/// Unauthenticated human mode runs the probe instead of printing the
+/// auth-required message.
+#[test]
+fn start_verify_runs_probe_unauthenticated_without_dev() {
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+
+    let mut cmd = Command::new(ANVIL_BIN);
+    cmd.arg("--no-tui")
+        .arg("start")
+        .arg("--verify")
+        .current_dir(dir.path())
+        .env("HOME", home.path())
+        .env("USERPROFILE", home.path())
+        // Point XDG at an empty dir so no credentials resolve.
+        .env("XDG_CONFIG_HOME", home.path().join("xdg"))
+        .env_remove("ANVIL_DEV")
+        .env_remove("ANVIL_LICENSE")
+        .env("ANVIL_SKIP_WELCOME", "1")
+        .env("ANVIL_NO_PROMPT", "1");
+    let output = cmd.output().expect("failed to invoke anvil binary");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        !stderr.contains("Authentication required"),
+        "start --verify must skip the auth wall via the local-probe \
+         predicate, not ANVIL_DEV: stderr=\n{stderr}",
+    );
+    assert!(
+        stdout.contains("ACTIVATION"),
+        "expected the human activation diagnostic on stdout: \
+         stdout=\n{stdout}\nstderr=\n{stderr}",
+    );
+}

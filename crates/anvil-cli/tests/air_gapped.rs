@@ -400,6 +400,36 @@ fn anvil_status_verify_json_skips_auth_refresh_with_expired_credentials() {
     assert_no_network_auth_update_markers(&stdout, &stderr);
 }
 
+/// CIB-049 (1): `anvil start --verify` is the read-only activation
+/// probe sibling of `anvil status --verify` (`StartArgs::verify` is
+/// documented as producing the same output). It must skip the auth
+/// wall and run the local probe unauthenticated — air-gapped and
+/// scripted consumers depend on it.
+#[test]
+fn anvil_start_verify_json_runs_local_probe_unauthenticated() {
+    let config_home = tempfile::tempdir().unwrap();
+    let Some(out) = run_air_gapped_without_dev(
+        &["--no-tui", "--json", "start", "--verify"],
+        config_home.path(),
+    ) else {
+        return;
+    };
+
+    assert!(
+        out.status.code().is_some(),
+        "anvil start --verify --json was killed by signal under air-gap: {:?}",
+        out.status,
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    // The local activation diagnostic on stdout is the positive
+    // evidence the probe ran instead of the auth gate: the auth path
+    // cannot synthesise this shape, and unauthenticated it would have
+    // emitted an `authRequired` envelope and returned early.
+    assert_local_activation_diagnostic_shape(&stdout);
+    assert_no_network_auth_update_markers(&stdout, &stderr);
+}
+
 // #1705 (Council C-011): the air-gap runbook commits every core
 // MLP/INTL protection command to making zero network calls, and its
 // "How to extend the gate" section makes adding a `#[test]` here

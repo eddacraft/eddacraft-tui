@@ -178,23 +178,27 @@ fn format_json_auth_failure_emits_only_json_envelope() {
         "auth-required on an action command should exit 0; stderr:\n{}",
         String::from_utf8_lossy(&output.stderr),
     );
-    assert!(
-        output.stdout.is_empty(),
-        "`check --format json` auth failure must not write stdout: {}",
-        String::from_utf8_lossy(&output.stdout),
-    );
+    // CIB-049: the envelope is structured data, so per the `--json`
+    // stream policy it lands on **stdout**, not stderr.
+    let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
-    let parsed: serde_json::Value = serde_json::from_str(stderr.trim()).unwrap_or_else(|err| {
-        panic!("stderr must be one JSON auth envelope, got {stderr:?}: {err}")
+    let parsed: serde_json::Value = serde_json::from_str(stdout.trim()).unwrap_or_else(|err| {
+        panic!(
+            "stdout must be one JSON auth envelope, got stdout={stdout:?} stderr={stderr:?}: {err}"
+        )
     });
     assert_eq!(
         parsed.get("state").and_then(|v| v.as_str()),
         Some("authRequired"),
-        "`--format json` must get the structured auth envelope, not human text: {stderr}",
+        "`--format json` must get the structured auth envelope, not human text: {stdout}",
     );
     assert_eq!(
-        stderr.trim().lines().count(),
+        stdout.trim().lines().count(),
         1,
-        "stderr should be only the JSON envelope — no human chatter leaked: {stderr}",
+        "stdout should be only the JSON envelope — no human chatter leaked: {stdout}",
+    );
+    assert!(
+        stderr.trim().is_empty(),
+        "no human chatter or duplicate envelope on stderr: {stderr}",
     );
 }

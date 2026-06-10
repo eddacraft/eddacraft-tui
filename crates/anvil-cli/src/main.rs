@@ -351,8 +351,16 @@ fn command_requests_structured_output(cmd: &Commands) -> bool {
     }
 }
 
+/// Read-only activation probes that must work unauthenticated (and
+/// air-gapped): `status --verify` and its documented sibling
+/// `start --verify` (CIB-049). Full (mutating) `start` and plain
+/// `status` stay auth-gated.
 fn skips_auth_for_local_probe(cmd: &Commands) -> bool {
-    matches!(cmd, Commands::Status(args) if args.verify)
+    match cmd {
+        Commands::Status(args) => args.verify,
+        Commands::Start(args) => args.verify,
+        _ => false,
+    }
 }
 
 /// Returns `true` for commands whose entire purpose is to report the
@@ -389,9 +397,11 @@ fn is_auth_state_probe(cmd: &Commands) -> bool {
 /// in yet" from "user tried to log in and it failed".
 ///
 /// Pure so it can be unit-tested without depending on credential I/O.
-/// Returns `(exit_code, Some(json_envelope))` when `--json` is set, or
-/// `(exit_code, None)` in text mode (stderr message already emitted by
-/// `check_auth`).
+/// Returns `(exit_code, Some(json_envelope))` when `--json` is set —
+/// the caller prints the envelope to **stdout** (structured data, per
+/// the stream policy in `docs/guides/cli-output-streams.md`) — or
+/// `(exit_code, None)` in text mode, where `check_auth` already
+/// emitted the human-readable message to stderr.
 fn auth_required_response(
     cmd: &Commands,
     code: u8,
@@ -999,7 +1009,11 @@ fn main() -> ExitCode {
         tracing::warn!(target: "anvil_cli", "cli command authentication required");
         let (exit_code, json_envelope) = auth_required_response(&cli.command, code, wants_json);
         if let Some(envelope) = json_envelope {
-            eprintln!("{envelope}");
+            // CIB-049: the envelope only exists under `--json` / `--format
+            // json`, and structured output belongs on stdout (stream policy,
+            // `docs/guides/cli-output-streams.md`) — a JSON consumer piping
+            // stdout must receive it. Exit-code routing is unchanged.
+            println!("{envelope}");
         }
         return ExitCode::from(exit_code);
     }
@@ -1408,6 +1422,31 @@ mod tests {
         assert!(!requires_auth(&parse_command(&[
             "admin", "approve", "--batch", "1"
         ])));
+    }
+
+    // ── skips_auth_for_local_probe (CIB-049) ────────────────────────
+
+    #[test]
+    fn local_probe_skip_matches_status_verify() {
+        assert!(skips_auth_for_local_probe(&parse_command(&[
+            "status", "--verify"
+        ])));
+    }
+
+    #[test]
+    fn local_probe_skip_matches_start_verify() {
+        // CIB-049: `start --verify` is the documented read-only sibling
+        // of `status --verify` and must not hit the auth wall.
+        assert!(skips_auth_for_local_probe(&parse_command(&[
+            "start", "--verify"
+        ])));
+    }
+
+    #[test]
+    fn local_probe_skip_excludes_full_start_and_status() {
+        // Full (mutating) `start` and plain `status` stay auth-gated.
+        assert!(!skips_auth_for_local_probe(&parse_command(&["start"])));
+        assert!(!skips_auth_for_local_probe(&parse_command(&["status"])));
     }
 
     // ── is_auth_state_probe / auth_required_response (#1822) ────────

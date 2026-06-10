@@ -87,6 +87,13 @@ surface.
   Windows save-time client/server path now covers read-safety, pipe client
   timeouts, operator-config ownership verification, non-reactor peer-SID checks,
   and Windows `watch`/`status` save-time clients.
+- **`anvil start --verify` runs unauthenticated, and `--json` auth envelopes
+  moved to stdout.** The read-only `start --verify` activation probe no longer
+  hits the auth wall (matching `status --verify`, including air-gapped use). And
+  when authentication is required under `--json` / `--format json`, the
+  structured `authRequired` envelope is now written to **stdout** (previously
+  stderr), per the CLI output-stream policy. Exit codes are unchanged; scripts
+  that read the envelope from stderr should switch to stdout.
 
 ## [0.7.4-beta] — 2026-06-01 — Side-by-Side Installs
 

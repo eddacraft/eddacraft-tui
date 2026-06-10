@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 30/50    |
+| CIB | —     | In Progress | 31/50    |
 
 ## Purpose
 
@@ -1214,7 +1214,7 @@ archive.
 
 ### CIB-049: `anvil start --verify` is auth-gated and `--json` auth envelopes go to stderr
 
-- **Status:** Draft
+- **Status:** Merged 2026-06-10 via PR #2474
 - **Intent:** Two related CLI auth-gate defects in
   `crates/anvil-cli/src/main.rs`, both verified against `main` on 2026-06-09
   (clawpatch run `20260609T111844-b83fca`, feature `feat_cli-command_ba5ccdd3a6`):
