@@ -81,8 +81,14 @@ pub fn run(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         data.insights_hint =
             crate::insights::first_week_hint::first_week_insights_hint(&hint_root, Utc::now());
         // UJ-010: post-upgrade what's-new one-liner, once per version change.
-        data.whats_new_hint =
-            crate::whats_new::post_upgrade_hint(&hint_root, env!("CARGO_PKG_VERSION"));
+        // Gathered ONLY when the plain surface will render (the same predicate
+        // as the dispatch below, inverted): computing it consumes the
+        // exactly-once marker, so gathering on the TUI path — which does not
+        // render this hint — would silently burn the announcement.
+        if global.no_tui || !std::io::stdout().is_terminal() {
+            data.whats_new_hint =
+                crate::whats_new::post_upgrade_hint(&hint_root, env!("CARGO_PKG_VERSION"));
+        }
     }
 
     if global.json {
@@ -581,11 +587,13 @@ fn print_plain(
     // config is invalid).
     print!("{}", render_rule_mode_summary(&root));
     // DISTRIB-002 update hint, INSIGHTS-004 nudge, and the UJ-010
-    // what's-new line share the single footer line in plain output (to
-    // match the TUI watch strip which reserves one hint_area and gives
-    // insights_hint precedence). INSIGHTS-004 takes priority; the
-    // what's-new line outranks the update hint because it fires exactly
-    // once per version while the update hint repeats daily.
+    // what's-new line share the single footer line in plain output.
+    // INSIGHTS-004 takes priority (matching the TUI watch strip, which
+    // renders insights over update); the what's-new line outranks the
+    // update hint because it fires exactly once per version while the
+    // update hint repeats daily. The what's-new line is plain-only by
+    // design — its gather is coupled to this surface so the
+    // exactly-once marker is never consumed without rendering.
     if let Some(hint) = &data.insights_hint {
         println!("{hint}");
     } else if let Some(hint) = &data.whats_new_hint {

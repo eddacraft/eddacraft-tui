@@ -29,8 +29,10 @@ fn decide(previous: Option<&str>, current: &str) -> Option<String> {
     match previous {
         None => None,
         Some(prev) if prev.trim() == current => None,
+        // ASCII-only, matching the one-line hint convention (Windows cp1252
+        // consoles and CI log captures).
         Some(_) => Some(format!(
-            "anvil upgraded to v{current} — what's new: https://docs.eddacraft.ai/anvil/releases/changelog"
+            "anvil upgraded to v{current} -- what's new: https://docs.eddacraft.ai/anvil/releases/changelog"
         )),
     }
 }
@@ -93,6 +95,10 @@ mod tests {
         assert!(
             line.contains("changelog"),
             "carries a changelog pointer: {line}"
+        );
+        assert!(
+            line.is_ascii(),
+            "one-line hints are ASCII-only for cp1252 consoles: {line}",
         );
     }
 
