@@ -51,9 +51,12 @@ const EMBEDDED_GATE_SUMMARY_DESCRIPTION: &str = "Latest gate runs by check (buil
 /// UJ-009: existing projects (initialised before gate-summary seeding) get the
 /// embedded spec as a built-in fallback. A saved spec with the same name —
 /// init-seeded or user-customised — always wins, so the fallback never
-/// clobbers or shadows user state.
+/// clobbers or shadows user state. The comparison is on the SANITISED stem:
+/// a hostile stem whose display form collides with `gate-summary` must
+/// shadow the built-in too, or every listing surface would show the name
+/// twice.
 fn embedded_gate_summary_available(specs: &[SavedDashboard]) -> bool {
-    !specs.iter().any(|s| s.name == GATE_SUMMARY_NAME)
+    !specs.iter().any(|s| sanitize(&s.name) == GATE_SUMMARY_NAME)
 }
 
 /// The catalogue of native dashboards, in display order.
@@ -216,17 +219,28 @@ fn run_picker(
             }
         }
         // UJ-009: built-in gate-summary entry when no saved spec shadows it.
-        if embedded_gate_summary_available(specs)
-            && let Ok(surface) = spec::load_str(
+        if embedded_gate_summary_available(specs) {
+            match spec::load_str(
                 anvil_tui::dashboard_catalog::GATE_SUMMARY_SPEC,
                 root.to_path_buf(),
-            )
-        {
-            items.push(ListEntry::spec(
-                GATE_SUMMARY_NAME.to_string(),
-                surface.title().to_string(),
-                surface,
-            ));
+            ) {
+                Ok(surface) => items.push(ListEntry::spec(
+                    GATE_SUMMARY_NAME.to_string(),
+                    surface.title().to_string(),
+                    surface,
+                )),
+                // The embedded spec is compiled in and pinned by tests; a
+                // parse failure here is a release defect. Fail loudly in
+                // debug builds and surface it via tracing in release rather
+                // than silently hiding the entry.
+                Err(err) => {
+                    debug_assert!(false, "embedded gate-summary spec invalid: {err}");
+                    tracing::error!(
+                        error = %err,
+                        "embedded gate-summary spec failed to parse; picker entry omitted",
+                    );
+                }
+            }
         }
     }
 
