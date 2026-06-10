@@ -67,6 +67,11 @@ when adding a new one.
   `packages/kindling-integration/` (capture session bridge, observation
   contract, benchmarks). APS schema drift to public docs flagged (current,
   against `v0.6.0-beta`)
+- [Review capsules](capsule-as-built.md) — `anvil capsule`
+  create/verify/explain/prune, `anvil.capsule.v1` manifest + verification
+  formats, scan-on-write secret gate, four-check verify engine with the ADR-074
+  exit-code contract, ADR-078 retention/prune (current, against main
+  `d6e7b4189`)
 
 Planned next set:
 

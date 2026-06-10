@@ -153,6 +153,12 @@
 | ---------------------------------------------------------------------------- | --------------------------------------- | ----- | ------------- | ----- | ------ |
 | [Git Hook Compatibility Policy](../../docs/guides/git-hook-compatibility.md) | `docs/guides/git-hook-compatibility.md` | Guide | Authoritative | GHOOK | Live   |
 
+## GITGOV
+
+| Document                                                                  | Path                                    | Type     | Authority | Owner  | Status |
+| ------------------------------------------------------------------------- | --------------------------------------- | -------- | --------- | ------ | ------ |
+| [Review Capsules — As-Built](../../docs/architecture/capsule-as-built.md) | `docs/architecture/capsule-as-built.md` | As-built | Derived   | GITGOV | Live   |
+
 ## GV2
 
 | Document                                                                                                              | Path                                                    | Type  | Authority | Owner | Status |

@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 36/56    |
+| CIB | —     | In Progress | 37/57    |
 
 ## Purpose
 
@@ -1458,3 +1458,32 @@ archive.
 - **Confidence:** high — narrow, well-understood gate with an established
   Unix analogue; the only platform-sensitive piece (SID lookup) is
   injection-seamed for tests.
+
+### CIB-057: capsule subsystem as-built architecture doc
+
+- **Status:** Merged 2026-06-10 via PR #2512
+- **Intent:** the git-native governance capsule wedge (GITGOV-003..013,
+  `crates/anvil-capsule` + the `anvil capsule` CLI lane, ~8k source lines,
+  ADRs 072/073/074/078) shipped with zero internal architecture coverage —
+  the only "capsule" mentions in `docs/architecture/` are Kindling capture
+  capsules, a different concept. The subsystem rides the v0.8.0-beta window;
+  the next maintainer or reviewer has no source-pinned map of the manifest
+  formats, verify engine, exit-code contract, or retention semantics.
+- **Expected Outcome:** `docs/architecture/capsule-as-built.md` following
+  `_as-built-template.md` — lifecycle (create/verify/prune) with file:line
+  pins, surfaces table, invariants (canonical-JSON digesting,
+  present-but-empty discipline, verdict-laundering guard, full-chain
+  witness), known-gaps register, source references — plus the
+  `docs/architecture/README.md` index entry.
+- **Validation:** `pnpm docs:check` green (validates code-wrapped source
+  paths in governed as-builts); `pnpm run format:check` green;
+  `node scripts/aps/index-counts.mjs --check` green.
+- **Identified From:** 2026-06-10 internal-architecture-docs drift
+  assessment (f5-dev-workflow session): all as-builts stamped 2026-05-07
+  against `v0.6.0-beta`; the 2026-06-08 sweep (#2371) fixed paths only;
+  capsule subsystem had no as-built at all.
+- **Coordinates with:** GITGOV module closeout (release-evidence gate),
+  ADR-078, the public concepts page
+  `docs/public/anvil/concepts/review-capsules.md`.
+- **Confidence:** high — documentation of already-merged, tested behaviour;
+  every claim line-pinned against main `d6e7b4189`.
