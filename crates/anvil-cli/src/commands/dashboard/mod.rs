@@ -42,6 +42,20 @@ pub struct CatalogEntry {
 /// One-line description shown for a saved spec dashboard in the picker.
 const SAVED_SPEC_DESCRIPTION: &str = "Saved dashboard spec (.anvil/dashboards)";
 
+/// Name of the gate-summary dashboard, whether saved or embedded.
+const GATE_SUMMARY_NAME: &str = "gate-summary";
+
+/// One-line description shown for the embedded gate-summary fallback.
+const EMBEDDED_GATE_SUMMARY_DESCRIPTION: &str = "Latest gate runs by check (built-in)";
+
+/// UJ-009: existing projects (initialised before gate-summary seeding) get the
+/// embedded spec as a built-in fallback. A saved spec with the same name —
+/// init-seeded or user-customised — always wins, so the fallback never
+/// clobbers or shadows user state.
+fn embedded_gate_summary_available(specs: &[SavedDashboard]) -> bool {
+    !specs.iter().any(|s| s.name == GATE_SUMMARY_NAME)
+}
+
 /// The catalogue of native dashboards, in display order.
 fn catalog() -> Vec<CatalogEntry> {
     vec![
@@ -108,11 +122,20 @@ pub fn run(args: &DashboardArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             {
                 return launch_spec(saved, root, global);
             }
+            // UJ-009: no saved gate-summary spec — serve the embedded one.
+            if name == GATE_SUMMARY_NAME
+                && let Some(root) = root.as_deref()
+            {
+                return launch_embedded_gate_summary(root, global);
+            }
             let names = catalog
                 .iter()
                 .map(|entry| entry.name.to_string())
                 // Saved names are untrusted file stems — sanitise for display.
                 .chain(specs.iter().map(|s| sanitize(&s.name)))
+                .chain(
+                    embedded_gate_summary_available(&specs).then(|| GATE_SUMMARY_NAME.to_string()),
+                )
                 .collect::<Vec<_>>()
                 .join(", ");
             anyhow::bail!(
@@ -158,12 +181,19 @@ fn run_picker(
                 "description": SAVED_SPEC_DESCRIPTION, "available": true, "kind": "spec",
             })
         }));
+        if embedded_gate_summary_available(specs) {
+            listing.push(serde_json::json!({
+                "name": GATE_SUMMARY_NAME, "title": "Gate Summary",
+                "description": EMBEDDED_GATE_SUMMARY_DESCRIPTION,
+                "available": true, "kind": "builtin",
+            }));
+        }
         println!("{}", serde_json::to_string_pretty(&listing)?);
         return Ok(());
     }
 
     if global.no_tui || !std::io::stdout().is_terminal() || !std::io::stdin().is_terminal() {
-        print_picker(catalog, specs);
+        print_picker(catalog, specs, embedded_gate_summary_available(specs));
         return Ok(());
     }
 
@@ -185,6 +215,19 @@ fn run_picker(
                 ));
             }
         }
+        // UJ-009: built-in gate-summary entry when no saved spec shadows it.
+        if embedded_gate_summary_available(specs)
+            && let Ok(surface) = spec::load_str(
+                anvil_tui::dashboard_catalog::GATE_SUMMARY_SPEC,
+                root.to_path_buf(),
+            )
+        {
+            items.push(ListEntry::spec(
+                GATE_SUMMARY_NAME.to_string(),
+                surface.title().to_string(),
+                surface,
+            ));
+        }
     }
 
     let state = tui::run_surface(DashboardListState::new(items))?;
@@ -196,10 +239,39 @@ fn run_picker(
             if let (Some(saved), Some(root)) = (specs.iter().find(|s| s.name == name), root) {
                 return launch_spec(saved, root, global);
             }
+            if name == GATE_SUMMARY_NAME
+                && let Some(root) = root
+            {
+                return launch_embedded_gate_summary(root, global);
+            }
             launch(&name, global)
         }
         None => Ok(()),
     }
+}
+
+/// Launch the embedded gate-summary dashboard (UJ-009). Mirrors
+/// [`launch_spec`]'s surface contract: `--json` emits the spec verbatim,
+/// non-interactive prints a one-line note, a TTY runs the spec surface.
+fn launch_embedded_gate_summary(root: &Path, global: &GlobalArgs) -> anyhow::Result<()> {
+    let text = anvil_tui::dashboard_catalog::GATE_SUMMARY_SPEC;
+    if global.json {
+        println!("{text}");
+        return Ok(());
+    }
+
+    let state = spec::load_str(text, root.to_path_buf())?;
+
+    if global.no_tui || !std::io::stdout().is_terminal() || !std::io::stdin().is_terminal() {
+        println!(
+            "Dashboard '{GATE_SUMMARY_NAME}' ({}) — run in an interactive terminal to view.",
+            state.title()
+        );
+        return Ok(());
+    }
+
+    tui::run_surface(state)?;
+    Ok(())
 }
 
 /// Launch a saved spec dashboard: parse it and render it through the json-render
@@ -252,15 +324,19 @@ fn launch(name: &str, global: &GlobalArgs) -> anyhow::Result<()> {
     }
 }
 
-fn print_picker(catalog: &[CatalogEntry], specs: &[SavedDashboard]) {
-    print!("{}", format_picker(catalog, specs));
+fn print_picker(catalog: &[CatalogEntry], specs: &[SavedDashboard], embedded_gate_summary: bool) {
+    print!("{}", format_picker(catalog, specs, embedded_gate_summary));
 }
 
 /// Render the plain-text picker. Split out from [`print_picker`] so the column
 /// layout is unit-testable without capturing stdout. The name column is
-/// self-sizing to the longest entry (native or saved spec), so adding a longer
-/// dashboard name never runs the name into its description.
-fn format_picker(catalog: &[CatalogEntry], specs: &[SavedDashboard]) -> String {
+/// self-sizing to the longest entry (native, saved spec, or built-in), so
+/// adding a longer dashboard name never runs the name into its description.
+fn format_picker(
+    catalog: &[CatalogEntry],
+    specs: &[SavedDashboard],
+    embedded_gate_summary: bool,
+) -> String {
     let mut out = String::from("Anvil Dashboards\n\n");
     // Saved-spec names are file stems from a possibly-hostile repo; sanitise
     // them before they reach stdout. Native names are static and trusted.
@@ -269,6 +345,7 @@ fn format_picker(catalog: &[CatalogEntry], specs: &[SavedDashboard]) -> String {
         .iter()
         .map(|entry| entry.name.len())
         .chain(saved_names.iter().map(String::len))
+        .chain(embedded_gate_summary.then_some(GATE_SUMMARY_NAME.len()))
         .max()
         .unwrap_or(0);
     for entry in catalog {
@@ -286,6 +363,12 @@ fn format_picker(catalog: &[CatalogEntry], specs: &[SavedDashboard]) -> String {
     }
     for name in &saved_names {
         let _ = writeln!(out, "  {name:<width$}  {SAVED_SPEC_DESCRIPTION}");
+    }
+    if embedded_gate_summary {
+        let _ = writeln!(
+            out,
+            "  {GATE_SUMMARY_NAME:<width$}  {EMBEDDED_GATE_SUMMARY_DESCRIPTION}"
+        );
     }
     out
 }
@@ -375,7 +458,7 @@ mod tests {
 
     #[test]
     fn plain_picker_separates_name_and_description_columns() {
-        let text = format_picker(&catalog(), &[]);
+        let text = format_picker(&catalog(), &[], true);
         for entry in catalog() {
             let line = text
                 .lines()
@@ -401,7 +484,7 @@ mod tests {
             title: "My Gate".to_string(),
             path: std::path::PathBuf::from(".anvil/dashboards/my-gate.json"),
         }];
-        let text = format_picker(&catalog(), &specs);
+        let text = format_picker(&catalog(), &specs, true);
         let line = text
             .lines()
             .find(|l| l.contains("my-gate"))
@@ -422,12 +505,73 @@ mod tests {
             title: "T".to_string(),
             path: std::path::PathBuf::from(".anvil/dashboards/x.json"),
         }];
-        let text = format_picker(&catalog(), &specs);
+        let text = format_picker(&catalog(), &specs, true);
         assert!(!text.contains('\u{1b}'), "ESC stripped from stem");
         assert!(!text.contains('\u{07}'), "BEL stripped from stem");
         assert!(
             text.contains("evil]0;pwnedname"),
             "sanitised stem shown: {text:?}"
+        );
+    }
+
+    // --- UJ-009: embedded gate-summary reaches projects without a saved spec ---
+
+    #[test]
+    fn embedded_gate_summary_spec_loads() {
+        let state = spec::load_str(
+            anvil_tui::dashboard_catalog::GATE_SUMMARY_SPEC,
+            std::path::PathBuf::from("."),
+        )
+        .expect("embedded gate-summary spec must parse");
+        assert!(
+            !state.title().is_empty(),
+            "embedded spec carries a human title",
+        );
+    }
+
+    #[test]
+    fn embedded_gate_summary_yields_to_a_saved_spec() {
+        assert!(
+            embedded_gate_summary_available(&[]),
+            "no saved specs: the embedded gate-summary serves upgraders",
+        );
+        let saved = SavedDashboard {
+            name: GATE_SUMMARY_NAME.to_string(),
+            title: "Customised".to_string(),
+            path: std::path::PathBuf::from(".anvil/dashboards/gate-summary.dashboard.json"),
+        };
+        assert!(
+            !embedded_gate_summary_available(std::slice::from_ref(&saved)),
+            "a saved gate-summary spec (init-seeded or user-customised) must win",
+        );
+    }
+
+    #[test]
+    fn picker_lists_embedded_gate_summary_without_saved_specs() {
+        let text = format_picker(&catalog(), &[], true);
+        let line = text
+            .lines()
+            .find(|l| l.contains(GATE_SUMMARY_NAME))
+            .expect("embedded gate-summary listed for projects without a saved spec");
+        assert!(
+            line.contains(EMBEDDED_GATE_SUMMARY_DESCRIPTION),
+            "got: {line:?}",
+        );
+    }
+
+    #[test]
+    fn picker_lists_gate_summary_exactly_once_when_saved_spec_exists() {
+        let saved = SavedDashboard {
+            name: GATE_SUMMARY_NAME.to_string(),
+            title: "Gate Summary".to_string(),
+            path: std::path::PathBuf::from(".anvil/dashboards/gate-summary.dashboard.json"),
+        };
+        let specs = vec![saved];
+        let text = format_picker(&catalog(), &specs, embedded_gate_summary_available(&specs));
+        assert_eq!(
+            text.matches(GATE_SUMMARY_NAME).count(),
+            1,
+            "saved spec shadows the embedded entry, no double listing:\n{text}",
         );
     }
 

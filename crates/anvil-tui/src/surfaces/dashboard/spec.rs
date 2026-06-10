@@ -205,6 +205,21 @@ pub fn read_raw(path: &Path) -> Result<String, SpecLoadError> {
     }
 }
 
+/// Parse a spec from an embedded string (no file read), returning a surface
+/// bound against `<root>/.anvil/`. Serves built-in dashboards that ship inside
+/// the binary, e.g. the gate-summary fallback for projects whose
+/// `.anvil/dashboards/` predates init seeding (UJ-009).
+///
+/// # Errors
+/// [`SpecLoadError::Parse`] if the text is not valid json-render JSON.
+pub fn load_str(text: &str, root: PathBuf) -> Result<SpecDashboardState, SpecLoadError> {
+    let spec = parse(text).map_err(|source| SpecLoadError::Parse {
+        path: "<embedded>".to_string(),
+        source,
+    })?;
+    Ok(SpecDashboardState::new(spec, root))
+}
+
 /// Read and parse the saved spec at `path`, returning a surface bound against
 /// `<root>/.anvil/`.
 ///
