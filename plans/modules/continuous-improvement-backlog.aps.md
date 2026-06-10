@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 34/56    |
+| CIB | —     | In Progress | 36/56    |
 
 ## Purpose
 
@@ -1375,7 +1375,7 @@ archive.
 
 ### CIB-054: pre-tag v0.8.0 changelog claims must match shipped behaviour
 
-- **Status:** Ready
+- **Status:** Merged 2026-06-10 via PR #2493
 - **Intent:** two draft v0.8.0-beta changelog entries over-claim against the
   code: the `anvil watch` "Changed" entry never says daemon routing needs a
   live daemon (`anvil start`) and silently falls back without one
@@ -1400,7 +1400,7 @@ archive.
 
 ### CIB-055: reconcile the stale RELEASE-PLAN.md v0.8.0 phase table
 
-- **Status:** Ready
+- **Status:** Merged 2026-06-10 via PR #2496
 - **Intent:** the active-window phase table still shows the A→A′ backing swap
   as **Blocked** and "GV2 4/19", but the slice is complete — GV2-022/027/028/029
   landed on the #2442/#2446 wave, GV2-024 (#2470) + GV2-025 (#2459) closed the
