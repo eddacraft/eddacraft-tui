@@ -4,7 +4,10 @@
 |----|-------|--------|
 | GITGOV | @josh | In Progress |
 
-**Last reviewed:** 2026-06-08
+**Last reviewed:** 2026-06-10 (GITGOV-011 #2460 + GITGOV-012 #2465 Merged
+2026-06-09; GITGOV-014 promoted Proposed → Ready — dep GITGOV-002 satisfied,
+scope/files concrete. GITGOV-013 stays Proposed: design-gated on the ADR-074
+retention amendment.)
 
 > **Decision gate cleared (2026-06-08).** [ADR-072](../decisions/072-git-native-governance-substrate.md)
 > (Git substrate) and [ADR-074](../decisions/074-review-capsule-v0-format.md)
@@ -154,4 +157,4 @@ release seals (RELEASE-SEAL); supplier bundles (SUPPLIER). Sealed Edda context
 - **Expected Outcome:** Consumer repos cannot accidentally commit runtime state or ignore durable evidence; the dogfood repo stops falsifying the ADR-072 premise.
 - **Validation:** `cargo test -p eddacraft-anvil init_gitignore`
 - **Dependencies:** GITGOV-002
-- **Status:** Proposed
+- **Status:** Ready

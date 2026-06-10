@@ -106,7 +106,7 @@ Selection rules:
 | Rank | NBI | Mode | Source | Why now | Next action |
 | ---- | --- | ---- | ------ | ------- | ----------- |
 | 1 | `v0.8.0-beta` release cut — verify cut criteria | Schedule | [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) + [ADR-075](./decisions/075-v080-graph-product-scope.md) | The ADR-075 v0.8.0 implementation slice is **complete**: the GV2 A′ hot-path hardening (GV2-024 #2470 + GV2-025 #2459, on the #2442/#2446 swap wave) **and** default-on save-time daemon routing (**DSV-021 #2473** — unset routes through a live daemon, `=0` opts out, presence-guarded so daemon-absent installs are unaffected). What remains is the cut itself. | Audit the §8 base correctness bar (full `Cross` matrix incl. Windows green, `release-readiness.yml` on the source SHA, fresh `ACKNOWLEDGEMENTS`) and confirm the remaining ADR-075 rollout controls (named revert signal + staged beta→GA), then cut `v0.8.0-beta`. |
-| 2 | GITGOV-011/012/013/014 — capsule follow-ups | Schedule | [`git-native-governance`](./modules/git-native-governance.aps.md) | GITGOV-003..010 all Merged 2026-06-08 — capsule create/collect/verify/explain is complete through PR #2427 (incl. -008 diagnostics via PR #2405). The open governance frontier is GITGOV-011 (JSON output), -012 (tamper tests), -013 (retention/prune), -014 (state-boundary enforcement); all deps are satisfied. (EXCEPT-003 is Done via PR #2401.) | Pick the highest-value of -011 (CI JSON) / -012 (tamper proof) and promote Proposed → Ready. |
+| 2 | GITGOV-014 — state-boundary enforcement | Ready | [`git-native-governance`](./modules/git-native-governance.aps.md) | GITGOV-003..012 all Merged — capsule create/collect/verify/explain complete through PR #2427, then **GITGOV-011 (CI JSON) Merged 2026-06-09 via PR #2460** and **GITGOV-012 (tamper tests) Merged 2026-06-09 via PR #2465**. The open governance frontier is GITGOV-014 (state-boundary enforcement, dep GITGOV-002 ✓, promoted Ready 2026-06-10) and GITGOV-013 (retention/prune — stays Proposed, design-gated on an ADR-074 retention amendment). (EXCEPT-003 is Done via PR #2401.) | Pick up GITGOV-014; shape the GITGOV-013 retention decision when an owner slot opens. |
 
 NBI review note (2026-06-10, sixth pass): the entire ADR-075 v0.8.0
 implementation slice is now **complete**. The GV2 A′ hot-path hardening landed —
@@ -119,9 +119,10 @@ with verdict parity, the hot path is sealed, the latency gate is green, and the
 save-time fix now reaches every user on a live daemon. The remaining v0.8.0 work
 is the **release cut** itself (rank 1): the §8 base correctness bar + confirming
 the named revert signal / staged beta→GA rollout controls.
-Governance frontier unchanged from the third pass — GITGOV-003..010 all Merged
-2026-06-08 (capsule complete through PR #2427; -008 diagnostics via PR #2405),
-EXCEPT-003 Done (#2401), live frontier GITGOV-011/012/013/014 (all Proposed).
+Governance frontier advanced — GITGOV-003..010 all Merged 2026-06-08 (capsule
+complete through PR #2427; -008 diagnostics via PR #2405), then GITGOV-011
+(#2460) and GITGOV-012 (#2465) Merged 2026-06-09; EXCEPT-003 Done (#2401). Live
+frontier: GITGOV-014 (Ready 2026-06-10), GITGOV-013 (Proposed, design-gated).
 The broad Ready pool (USAGE, EDGE, DASH*, OPAG, EVAL, CPOL, IORISK, GATE, ATC,
 PATT, TRUST, ILGOV, LAC) remains available but does not outrank the v0.8.0
 payload.
