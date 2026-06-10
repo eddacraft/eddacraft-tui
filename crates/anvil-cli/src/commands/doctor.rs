@@ -667,17 +667,40 @@ fn check_state_boundary() -> DiagnosticCheck {
     check_state_boundary_at(Path::new("."))
 }
 
+/// Outcome of the durable-state ignore sweep. `truncated` is set when the
+/// walk hit its entry cap, so a clean result cannot be over-claimed.
+struct DurableSweep {
+    ignored: Vec<String>,
+    truncated: bool,
+}
+
+/// Strip the env vars through which an enclosing git context (hooks,
+/// submodule operations, some CI runners) would redirect our probes at a
+/// different repository than `root`.
+fn git_at(root: &Path) -> Command {
+    let mut cmd = Command::new("git");
+    cmd.current_dir(root)
+        .env_remove("GIT_DIR")
+        .env_remove("GIT_WORK_TREE")
+        .env_remove("GIT_INDEX_FILE");
+    cmd
+}
+
 /// GITGOV-014 (ADR-073): the durable-vs-runtime state boundary check.
 /// Warns when paths under `.anvil/` (local runtime state) are git-tracked,
 /// or paths under `anvil/` (durable governance evidence) are gitignored.
 /// `anvil/exceptions/.lock` is exempt — it is the one sanctioned runtime
 /// artefact inside the tracked governance tree (EXCEPT-007). Warn, never
 /// Fail: the boundary is a posture, and a repo may carry a recorded,
-/// justified deviation (ADR-073's dogfood note).
+/// justified deviation (ADR-073's dogfood note). Like every other doctor
+/// check, this is rooted at the process cwd — doctor's contract is "run at
+/// the project root", and `check_anvil_dir` / `check_config_exists` share
+/// the same assumption.
 fn check_state_boundary_at(root: &Path) -> DiagnosticCheck {
-    let in_repo = Command::new("git")
+    use std::fmt::Write as _;
+
+    let in_repo = git_at(root)
         .args(["rev-parse", "--git-dir"])
-        .current_dir(root)
         .output()
         .is_ok_and(|o| o.status.success());
     if !in_repo {
@@ -694,9 +717,26 @@ fn check_state_boundary_at(root: &Path) -> DiagnosticCheck {
     }
 
     let tracked_runtime = tracked_runtime_paths(root);
-    let ignored_durable = ignored_durable_paths(root);
+    let sweep = ignored_durable_paths(root);
 
-    if tracked_runtime.is_empty() && ignored_durable.is_empty() {
+    let Some(sweep) = sweep else {
+        // git check-ignore itself failed (exit >= 2): the durable side of the
+        // boundary is unverifiable, which must not masquerade as Pass.
+        if tracked_runtime.is_empty() {
+            return DiagnosticCheck {
+                name: "state-boundary".to_string(),
+                category: "Configuration".to_string(),
+                status: CheckStatus::Skipped,
+                message: "git check-ignore failed — durable-state sweep unavailable".to_string(),
+                details: None,
+                auto_fixable: false,
+                remediation: Remediation::default(),
+            };
+        }
+        return state_boundary_warn(&tracked_runtime, &[], false, true);
+    };
+
+    if tracked_runtime.is_empty() && sweep.ignored.is_empty() && !sweep.truncated {
         return DiagnosticCheck {
             name: "state-boundary".to_string(),
             category: "Configuration".to_string(),
@@ -707,10 +747,38 @@ fn check_state_boundary_at(root: &Path) -> DiagnosticCheck {
             remediation: Remediation::default(),
         };
     }
+    if tracked_runtime.is_empty() && sweep.ignored.is_empty() {
+        // Nothing found, but the capped walk cannot prove the whole tree
+        // clean — say so instead of over-claiming.
+        let mut message = String::from(
+            "durable anvil/ vs runtime .anvil/ state boundary holds in the swept subset",
+        );
+        let _ = write!(message, " (walk capped — tree larger than the sweep bound)");
+        return DiagnosticCheck {
+            name: "state-boundary".to_string(),
+            category: "Configuration".to_string(),
+            status: CheckStatus::Pass,
+            message,
+            details: None,
+            auto_fixable: false,
+            remediation: Remediation::default(),
+        };
+    }
+
+    state_boundary_warn(&tracked_runtime, &sweep.ignored, sweep.truncated, false)
+}
+
+/// Build the Warn-shaped state-boundary result.
+fn state_boundary_warn(
+    tracked_runtime: &[String],
+    ignored_durable: &[String],
+    truncated: bool,
+    sweep_failed: bool,
+) -> DiagnosticCheck {
+    use std::fmt::Write as _;
 
     let mut details = String::new();
     let list = |buf: &mut String, header: &str, paths: &[String]| {
-        use std::fmt::Write as _;
         if paths.is_empty() {
             return;
         }
@@ -727,23 +795,33 @@ fn check_state_boundary_at(root: &Path) -> DiagnosticCheck {
     list(
         &mut details,
         "Runtime state tracked by git (should be gitignored, .anvil/ is local):",
-        &tracked_runtime,
+        tracked_runtime,
     );
     list(
         &mut details,
         "Durable governance state swallowed by .gitignore (anvil/ must travel with the repo):",
-        &ignored_durable,
+        ignored_durable,
     );
+    if truncated {
+        details.push_str("Sweep capped — the anvil/ tree has more entries than were checked.\n");
+    }
+    if sweep_failed {
+        details.push_str("git check-ignore failed — the durable-ignore side was not verified.\n");
+    }
 
-    // Prefer the untrack command when runtime state is tracked (the riskier
-    // direction — runtime stores can carry secrets); otherwise point at the
-    // ignore rule that swallows the first durable path.
+    // The untrack command is surgical: exactly the offending paths, never a
+    // recursive `.anvil` sweep that would also untrack any deliberately
+    // tracked file. Quoted so paths with spaces stay copy-pasteable.
     let command = if tracked_runtime.is_empty() {
         ignored_durable
             .first()
-            .map(|p| format!("git check-ignore -v {p}"))
+            .map(|p| format!("git check-ignore -v '{p}'"))
     } else {
-        Some("git rm -r --cached .anvil".to_string())
+        let mut cmd = String::from("git rm --cached --");
+        for p in tracked_runtime.iter().take(8) {
+            let _ = write!(cmd, " '{p}'");
+        }
+        Some(cmd)
     };
 
     DiagnosticCheck {
@@ -758,7 +836,8 @@ fn check_state_boundary_at(root: &Path) -> DiagnosticCheck {
         details: Some(details.trim_end().to_string()),
         auto_fixable: false,
         remediation: Remediation {
-            summary: "Untrack `.anvil/` runtime state and keep it gitignored; remove \
+            summary: "Untrack the listed `.anvil/` runtime paths (verify each is truly \
+                      runtime state first) and keep `.anvil/` gitignored; remove \
                       `.gitignore` rules that swallow durable `anvil/` evidence (or record \
                       the deviation as a justified exception per ADR-073). \
                       `anvil/exceptions/.lock` is exempt (EXCEPT-007)."
@@ -771,9 +850,8 @@ fn check_state_boundary_at(root: &Path) -> DiagnosticCheck {
 
 /// Paths under `.anvil/` present in the git index.
 fn tracked_runtime_paths(root: &Path) -> Vec<String> {
-    let out = Command::new("git")
+    let out = git_at(root)
         .args(["ls-files", "-z", "--", ".anvil"])
-        .current_dir(root)
         .output();
     match out {
         Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout)
@@ -786,21 +864,29 @@ fn tracked_runtime_paths(root: &Path) -> Vec<String> {
 }
 
 /// Existing paths under `anvil/` that a `.gitignore` rule would swallow.
-/// The sweep is bounded so a pathological tree cannot stall doctor.
-fn ignored_durable_paths(root: &Path) -> Vec<String> {
+/// The walk is bounded so a pathological tree cannot stall doctor; the
+/// result records whether the bound was hit. Returns `None` when
+/// `git check-ignore` itself fails (exit >= 2), so the caller can
+/// distinguish "nothing ignored" from "could not check". `--no-index` is
+/// passed so already-tracked paths still report their matching ignore rule
+/// (without it git suppresses tracked paths and a swallowing rule added
+/// after commit would go unnoticed).
+fn ignored_durable_paths(root: &Path) -> Option<DurableSweep> {
     use std::io::Write as _;
 
     const SWEEP_CAP: usize = 512;
 
     let durable_root = root.join("anvil");
     if !durable_root.is_dir() {
-        return Vec::new();
+        return Some(DurableSweep {
+            ignored: Vec::new(),
+            truncated: false,
+        });
     }
-    let candidates: Vec<String> = walkdir::WalkDir::new(&durable_root)
+    let mut candidates: Vec<String> = walkdir::WalkDir::new(&durable_root)
         .min_depth(1)
         .into_iter()
         .filter_map(Result::ok)
-        .take(SWEEP_CAP)
         .filter_map(|e| {
             let rel = e.path().strip_prefix(root).ok()?;
             let rel = rel.to_string_lossy().replace('\\', "/");
@@ -808,36 +894,55 @@ fn ignored_durable_paths(root: &Path) -> Vec<String> {
             // runtime state inside the tracked governance tree.
             (rel != "anvil/exceptions/.lock").then_some(rel)
         })
+        .take(SWEEP_CAP + 1)
         .collect();
+    let truncated = candidates.len() > SWEEP_CAP;
+    candidates.truncate(SWEEP_CAP);
+    // Deterministic order: which paths are checked (and shown) must not
+    // depend on filesystem readdir order.
+    candidates.sort_unstable();
     if candidates.is_empty() {
-        return Vec::new();
+        return Some(DurableSweep {
+            ignored: Vec::new(),
+            truncated,
+        });
     }
 
-    let child = Command::new("git")
-        .args(["check-ignore", "-z", "--stdin"])
-        .current_dir(root)
+    let child = git_at(root)
+        .args(["check-ignore", "-z", "--stdin", "--no-index"])
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::null())
         .spawn();
     let Ok(mut child) = child else {
-        return Vec::new();
+        return None;
     };
-    if let Some(mut stdin) = child.stdin.take() {
-        for c in &candidates {
-            if stdin.write_all(c.as_bytes()).is_err() || stdin.write_all(b"\0").is_err() {
-                break;
-            }
-        }
+    // Feed stdin from a thread: writing all candidates before draining
+    // stdout can deadlock once the child's stdout pipe buffer fills.
+    let writer = child.stdin.take().map(|mut stdin| {
+        let batch = candidates.join("\0");
+        std::thread::spawn(move || {
+            let _ = stdin.write_all(batch.as_bytes());
+            let _ = stdin.write_all(b"\0");
+        })
+    });
+    let out = child.wait_with_output();
+    if let Some(handle) = writer {
+        let _ = handle.join();
     }
-    // Exit code 1 means "no path is ignored" — not an error.
-    match child.wait_with_output() {
-        Ok(o) => String::from_utf8_lossy(&o.stdout)
-            .split('\0')
-            .filter(|s| !s.is_empty())
-            .map(str::to_string)
-            .collect(),
-        Err(_) => Vec::new(),
+    let out = out.ok()?;
+    // Exit code 1 means "no path is ignored" — not an error. Anything
+    // above 1 is a real failure and must not read as a clean sweep.
+    match out.status.code() {
+        Some(0 | 1) => Some(DurableSweep {
+            ignored: String::from_utf8_lossy(&out.stdout)
+                .split('\0')
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+                .collect(),
+            truncated,
+        }),
+        _ => None,
     }
 }
 
@@ -1405,13 +1510,23 @@ mod tests {
             pattern_title: "Y".into(),
             error: "z".into(),
         }]));
-        // state-boundary Warn branch: a git repo tracking runtime state.
+        // state-boundary Warn branches: tracked runtime state, and durable
+        // state swallowed by an ignore rule — both arms must carry the
+        // LAUNCH-005 remediation contract.
         out.push({
             let tmp = tempfile::tempdir().expect("create tempdir");
             git_in(tmp.path(), &["init", "-q"]);
             std::fs::create_dir_all(tmp.path().join(".anvil")).unwrap();
             std::fs::write(tmp.path().join(".anvil/gates.json"), "{}").unwrap();
             git_in(tmp.path(), &["add", ".anvil/gates.json"]);
+            check_state_boundary_at(tmp.path())
+        });
+        out.push({
+            let tmp = tempfile::tempdir().expect("create tempdir");
+            git_in(tmp.path(), &["init", "-q"]);
+            std::fs::write(tmp.path().join(".gitignore"), "anvil/witness/\n").unwrap();
+            std::fs::create_dir_all(tmp.path().join("anvil/witness")).unwrap();
+            std::fs::write(tmp.path().join("anvil/witness/chain.ndjson"), "{}").unwrap();
             check_state_boundary_at(tmp.path())
         });
         out
@@ -1640,7 +1755,9 @@ mod tests {
 
     /// `git` invocation for state-boundary fixtures. `GIT_CONFIG_GLOBAL` and
     /// `GIT_CONFIG_SYSTEM` are pointed at the null device so a developer's
-    /// global excludesFile cannot leak into the fixture repo's ignore rules.
+    /// global excludesFile cannot leak into the fixture repo's ignore rules,
+    /// and `GIT_DIR`/`GIT_WORK_TREE`/`GIT_INDEX_FILE` are stripped so an
+    /// enclosing git context (hooks, CI) cannot redirect the fixture.
     fn git_in(root: &Path, args: &[&str]) {
         let null = if cfg!(windows) { "NUL" } else { "/dev/null" };
         let out = Command::new("git")
@@ -1648,6 +1765,9 @@ mod tests {
             .current_dir(root)
             .env("GIT_CONFIG_GLOBAL", null)
             .env("GIT_CONFIG_SYSTEM", null)
+            .env_remove("GIT_DIR")
+            .env_remove("GIT_WORK_TREE")
+            .env_remove("GIT_INDEX_FILE")
             .output()
             .expect("run git");
         assert!(out.status.success(), "git {args:?} failed: {out:?}");
@@ -1740,6 +1860,52 @@ mod tests {
                 .contains("check-ignore"),
             "remediation offers the rule-locating command: {:?}",
             check.remediation.command
+        );
+    }
+
+    #[test]
+    fn state_boundary_catches_tracked_durable_path_under_swallowing_rule() {
+        // A durable path committed BEFORE a swallowing rule was added: without
+        // `--no-index` git check-ignore suppresses tracked paths and the rule
+        // goes unnoticed (false Pass).
+        let tmp = tempfile::tempdir().unwrap();
+        git_in(tmp.path(), &["init", "-q"]);
+        std::fs::create_dir_all(tmp.path().join("anvil/witness")).unwrap();
+        std::fs::write(tmp.path().join("anvil/witness/chain.ndjson"), "{}").unwrap();
+        git_in(tmp.path(), &["add", "anvil/witness/chain.ndjson"]);
+        std::fs::write(tmp.path().join(".gitignore"), "anvil/witness/\n").unwrap();
+        let check = check_state_boundary_at(tmp.path());
+        assert_eq!(check.status, CheckStatus::Warn, "{:?}", check.message);
+        assert!(
+            check
+                .details
+                .as_deref()
+                .unwrap_or("")
+                .contains("anvil/witness"),
+            "tracked-but-swallowed durable path is reported: {:?}",
+            check.details
+        );
+    }
+
+    #[test]
+    fn state_boundary_untrack_command_is_surgical() {
+        // The remediation must name exactly the offending paths — never a
+        // recursive `.anvil` untrack that would also remove deliberately
+        // tracked files.
+        let tmp = tempfile::tempdir().unwrap();
+        git_in(tmp.path(), &["init", "-q"]);
+        std::fs::create_dir_all(tmp.path().join(".anvil")).unwrap();
+        std::fs::write(tmp.path().join(".anvil/kindling.db"), "x").unwrap();
+        git_in(tmp.path(), &["add", ".anvil/kindling.db"]);
+        let check = check_state_boundary_at(tmp.path());
+        let cmd = check.remediation.command.as_deref().unwrap_or("");
+        assert!(
+            cmd.contains("'.anvil/kindling.db'"),
+            "command names the offending path: {cmd}"
+        );
+        assert!(
+            !cmd.contains("rm -r"),
+            "no recursive untrack of the whole .anvil tree: {cmd}"
         );
     }
 
