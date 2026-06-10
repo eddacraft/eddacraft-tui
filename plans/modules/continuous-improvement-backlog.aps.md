@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 42/64    |
+| CIB | —     | In Progress | 42/65    |
 
 ## Purpose
 
@@ -1675,3 +1675,36 @@ archive.
   SARIFOUT-003 (`SECRET-*` rule-id projection).
 - **Confidence:** high — root cause located (per-pattern scan loop has
   no cross-pattern overlap dedup); fix is local to the scanner.
+
+### CIB-065: schema `$id` URIs still use the retired eddacraft.dev domain
+
+- **Status:** Draft
+- **Intent:** the three published JSON Schemas declare `$id` URIs under
+  `https://eddacraft.dev/anvil/schemas/…` while every product surface
+  (README, `anvil welcome`, what's-new, install.sh as of CIB-063) uses
+  the eddacraft.ai domain family — the schemas' network identity points
+  at a domain the product no longer presents.
+- **Expected Outcome:** the `$id` values in `schemas/anvil-status.v1.json`,
+  `schemas/anvil-insights.v1.json`, and
+  `schemas/workflow-session-event.schema.json` move to the canonical
+  domain (owner decision: `https://eddacraft.ai/anvil/schemas/…` vs
+  `https://docs.eddacraft.ai/anvil/schemas/…`). Blast radius is the three
+  files: all in-repo consumers (`status.rs` doc comment,
+  `status_json_contract.rs`) reference the schemas by file path, and no
+  code constructs or resolves the `$id` URLs (verified by grep,
+  2026-06-11). While editing, also reconcile the
+  `workflow-session-event` filename/`$id` mismatch (`…schema.json` on
+  disk vs `…v1.schema.json` in the `$id`).
+- **Files:** `schemas/anvil-status.v1.json`,
+  `schemas/anvil-insights.v1.json`,
+  `schemas/workflow-session-event.schema.json`
+- **Validation:** `git grep -c "eddacraft.dev" -- schemas/` = 0;
+  `cargo test -p eddacraft-anvil --test status_json_contract` green
+  (schema still parses and validates the emitted payload).
+- **Identified From:** CIB-063 reviewer sweep (PR #2528) — flagged as
+  out of scope for the one-line install.sh fix.
+- **Coordinates with:** CIB-063 (docs-domain alignment), DISTRIB-002
+  (shipped-surface consistency).
+- **Confidence:** medium — mechanical edit, but the target domain (and
+  whether `$id` stability matters to any external consumer) is an owner
+  call before execution.
