@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 38/58    |
+| CIB | —     | In Progress | 38/60    |
 
 ## Purpose
 
@@ -1518,3 +1518,49 @@ archive.
   the v0.8.0-beta release-cut readiness gate (NBI rank 1).
 - **Confidence:** high — documentation of already-merged behaviour;
   every correction carries verified pins.
+
+### CIB-059: quickstart leads with the ungated `anvil welcome` demo
+
+- **Status:** In Progress (2026-06-11)
+- **Intent:** the quickstart fronts "2. Authenticate" before "3. Take a
+  Path" and never says `anvil welcome` runs without logging in — it hides
+  the ADR-080 ungated demo surface from exactly the invite-less users it
+  was created for (UJ-003 / PR #2503 landed before ADR-080 / PR #2509 and
+  never got the back-edit).
+- **Expected Outcome:** `docs/public/anvil/quickstart.md` reflects the
+  ADR-080 posture: `anvil welcome` is presented as runnable immediately
+  after install with no login, and authentication is introduced where it
+  is actually required — at `anvil start` and the other durable surfaces.
+  No change to the documented auth flows themselves.
+- **Files:** `docs/public/anvil/quickstart.md`
+- **Validation:** `pnpm docs:check` green; the rewritten section order
+  matches the live gate behaviour (`welcome` ungated, `start` gated)
+  verified in the 2026-06-10 walkthrough.
+- **Identified From:** 2026-06-10 beta user-journey live walkthrough
+  (operator session); cross-checked against ADR-080 and
+  `CLI_GATED_COMMANDS` in `crates/anvil-cli/src/feature_flags.rs`.
+- **Coordinates with:** UJ-003/UJ-004 (shipped), FLAGCAT-008 (GA gate
+  revisit), the v0.8.0-beta release-cut readiness gate.
+- **Confidence:** high — docs-only, behaviour already shipped.
+
+### CIB-060: auth wall points users without beta access at the request channel
+
+- **Status:** In Progress (2026-06-11)
+- **Intent:** the not-logged-in gate message says only "Authentication
+  required. Run `anvil auth login` to authenticate." — a user without a
+  beta invite dead-ends with no pointer to how to get access.
+- **Expected Outcome:** the unauthenticated (`Ok(None)` credentials) gate
+  surface names the early-access channel (`https://eddacraft.ai`) on both
+  the human stderr message and, additively, the `--json` envelope. The
+  expired-session and invalid-edict messages stay unchanged (those users
+  already have access). Exit-code routing (#1822) unchanged.
+- **Files:** `crates/anvil-cli/src/main.rs`
+- **Validation:** `cargo test -p eddacraft-anvil` message/envelope
+  assertions; manual unauthenticated transcript shows the pointer.
+- **Identified From:** 2026-06-10 beta user-journey live walkthrough
+  (operator session); request channel per `README.md` ("Early access at
+  eddacraft.ai").
+- **Coordinates with:** UJ-004/ADR-080 (gate placement), issue #1822
+  (exit-0 posture).
+- **Confidence:** high — message-surface change with existing test
+  coverage to extend.
