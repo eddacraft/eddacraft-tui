@@ -71,10 +71,11 @@ installer, uninstall the Homebrew formula first.
 
 :::note `ANVIL_HOME`
 
-anvil keeps user-level state (credentials, daemon socket, caches) under standard
-XDG paths. Set `ANVIL_HOME=/some/dir` to re-root all of it — useful for running
-a candidate build beside a production install. Project state under `.anvil/` in
-your repo is unaffected by the override.
+anvil keeps user-level state (credentials, daemon socket, caches) under
+platform-standard config paths (`~/.config/anvil` on Unix and macOS,
+`%APPDATA%\anvil` on Windows). Set `ANVIL_HOME=/some/dir` to re-root all of it —
+useful for running a candidate build beside a production install. Project state
+under `.anvil/` in your repo is unaffected by the override.
 
 :::
 

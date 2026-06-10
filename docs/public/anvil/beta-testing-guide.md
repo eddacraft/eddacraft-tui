@@ -330,9 +330,9 @@ anvil watch --source
 
 From `v0.8.0-beta`, when a live daemon answers, watch routes save-time
 validation through the daemon by default. `ANVIL_WATCH_DAEMON=0` opts out, `=1`
-forces daemon routing, and `anvil status` states the save-time posture in every
-case. If the daemon stops mid-session, watch should warn once and fall back to a
-scoped check that names `anvil start` as the recovery step.
+forces daemon routing, and `anvil status` states the save-time posture unless
+you opted out. If the daemon stops mid-session, watch should warn once and fall
+back to a scoped check that names `anvil start` as the recovery step.
 
 Save a file. Watch should print the active scope and respond when files change.
 On large repos it should print startup feedback immediately while warm-up runs,
