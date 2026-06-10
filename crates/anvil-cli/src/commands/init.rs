@@ -336,10 +336,9 @@ pub(crate) fn generate_config_with_force(
 }
 
 /// The example `gate-summary` dashboard spec seeded into `.anvil/dashboards/`.
-/// Embedded from the committed copy so it stays the single source of truth
-/// (the same file the repo dogfoods and the engine tests bind against).
-const GATE_SUMMARY_SPEC: &str =
-    include_str!("../../../../.anvil/dashboards/gate-summary.dashboard.json");
+/// Re-exported from anvil-tui's crate assets — the single source of truth the
+/// engine tests bind against (moved out of `.anvil/` under ADR-073, CIB-053).
+const GATE_SUMMARY_SPEC: &str = anvil_tui::dashboard_catalog::GATE_SUMMARY_SPEC;
 
 /// Seed the example gate-summary dashboard so `anvil dashboard gate-summary`
 /// works after a gate run. Skips an existing spec unless `force`, so a user's

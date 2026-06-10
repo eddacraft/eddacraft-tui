@@ -31,6 +31,13 @@ pub use plan_card::PlanCard;
 pub use suppression::SuppressionRequest;
 pub use warning_list::WarningList;
 
+/// The shipped `gate-summary` dashboard spec — the single source of truth
+/// for what `anvil init` seeds into `.anvil/dashboards/` and what the
+/// spec-parity tests validate. Lives in crate assets rather than `.anvil/`
+/// so the dogfood repo keeps its runtime tree untracked (ADR-073, CIB-053).
+pub const GATE_SUMMARY_SPEC: &str =
+    include_str!("../../assets/dashboards/gate-summary.dashboard.json");
+
 /// The Anvil-domain component type names, in catalogue order.
 pub const DOMAIN_COMPONENTS: [&str; 6] = [
     "GateResultCard",

@@ -73,13 +73,9 @@ Thumbs.db
 !.opencode/skills/addressing-pr-reviews/
 !.opencode/skills/dependabot/
 docs/analysis/claude-code-safety-net-review.md
-.anvil/first-run
-.anvil/tutorial-progress.json
-.anvil/release-state.json
-.anvil/gates.json
-.anvil/cache/
-.anvil/logs/
-.anvil/snapshots/
+# The whole .anvil/ tree is local runtime state (ADR-073; CIB-053 untracked
+# the last legacy files) — matches what `anvil init` seeds for consumers.
+.anvil/
 
 # Claude Code — ignore local state, keep declarative config and vendored hooks
 # Committed: agents/*.md, skills/, rules/*.md, commands/, selected hooks

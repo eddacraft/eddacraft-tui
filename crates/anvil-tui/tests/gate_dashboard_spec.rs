@@ -1,6 +1,7 @@
 //! End-to-end test for the shipped `gate-summary` dashboard spec (#2237).
 //!
-//! Proves the spec at `.anvil/dashboards/gate-summary.dashboard.json` parses,
+//! Proves the shipped gate-summary spec (crate assets, seeded to
+//! `.anvil/dashboards/` by `anvil init`) parses,
 //! validates against the Anvil catalogue, and renders through the engine when
 //! bound to a `gates.*` data context matching the shape `anvil gate` persists
 //! to `.anvil/gates.json` (#2242, `GateSnapshot`). If the spec's `$data` paths
@@ -11,9 +12,9 @@ use eddacraft_tui::json_render::{DataContext, bind, parse, render_spec, validate
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 
-/// The shipped spec, embedded from the repo root so the test tracks the real
-/// file (path is relative to this source file: tests/ -> anvil-tui -> crates -> root).
-const GATE_SPEC: &str = include_str!("../../../.anvil/dashboards/gate-summary.dashboard.json");
+/// The shipped spec — the same constant `anvil init` seeds from, so the test
+/// tracks the real artefact (ADR-073/CIB-053 moved it into crate assets).
+const GATE_SPEC: &str = anvil_tui::dashboard_catalog::GATE_SUMMARY_SPEC;
 
 /// A representative `.anvil/gates.json`, mirroring `GateSnapshot`'s camelCase
 /// shape (status/statusLabel/checksRun/warnings/durationSeconds/checkRows/

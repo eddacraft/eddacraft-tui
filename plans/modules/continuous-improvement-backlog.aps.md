@@ -1347,7 +1347,7 @@ archive.
 
 ### CIB-053: disposition the dogfood repo's tracked `.anvil/` paths
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** the GITGOV-014 doctor `state-boundary` check (ADR-073) warns in
   this repo because four `.anvil/` runtime paths are git-tracked:
   `.anvil/baseline.json` (pre-boundary legacy — ADR-073 places the durable
