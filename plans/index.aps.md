@@ -141,7 +141,8 @@ candidate — see the header above, [`RELEASE-PLAN.md`](../RELEASE-PLAN.md), and
 active module tables below.
 
 **Active work below leads with the current `v0.8.0-beta` window** — Graph
-Substrate (GV2 A′ slice, the rank-1 payload), Hardening & Maintenance (the
+Substrate (GV2 A′ slice, the now-landed v0.8.0 payload; the NBI rank-1 item is
+verifying the release-cut criteria), Hardening & Maintenance (the
 A→A′ daemon save-time swap, DSV), and Intercept Loop (MLP2 enforcement
 substrate) — then the rest of the active modules, then the
 [Dormant](#dormant-not-yet-scheduled) band.

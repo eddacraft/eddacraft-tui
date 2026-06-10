@@ -4,7 +4,7 @@
 | --- | ----- | ------ |
 | GV2 | —     | In Progress |
 
-**Last reviewed:** 2026-06-08
+**Last reviewed:** 2026-06-09
 
 > **A′ slice in the `v0.8.0-beta` window (2026-06-08, [ADR-075](../decisions/075-v080-graph-product-scope.md),
 > Accepted via council).** In-window = the **GV2-027 critical-path closure**:
@@ -13,10 +13,12 @@
 > (PR #2428)**, **GV2-012 Merged 2026-06-08 (PR #2436)**, and **GV2-028 Merged
 > 2026-06-08 (parser feed — shipped under DSV-005 PR #2282, ratified + watch-path
 > proof added here)**; **GV2-022 Merged
-> 2026-06-08 (PR #2442 — hot-read API)**; the now-unblocked frontier is
-> **GV2-024** (dep GV2-022 ✓) plus **GV2-029** (dep GV2-012 ✓) — promote at
-> pickup. With GV2-022 + GV2-028 landed, GV2-027's remaining gates are GV2-024
-> and GV2-029. The rest stay dep-blocked along the chain.
+> 2026-06-08 (PR #2442 — hot-read API)**; **GV2-029 Merged 2026-06-08 (PR
+> #2446 — privilege containment)** and the **GV2-027 A→A′ swap Merged
+> 2026-06-08 in the same stack (PR #2446)** — 027 landed ahead of its declared
+> GV2-024 dep, and **GV2-024 (PR #2470)** + **GV2-025 (PR #2459)**, both Merged
+> 2026-06-09, closed the A′ hot-path hardening as follow-ups. The in-window
+> critical path is fully Merged.
 > **Deferred to v0.9** (council, off the critical path): GV2-013, 014, 020, 023,
 > 026 (registry/contracts) and GV2-030 (sealed-DTO snapshot, with Sub-phase B
 > persistence). 013/014 are dep-unblocked but stay Draft as v0.9 scope. Count is
@@ -873,5 +875,5 @@ Change status to **Ready** when:
 | 0 — Architecture and Contracts | 3 | 3/3 done | Complete |
 | 1 — Graph Schemas | 5 | 3/5 done | In Progress |
 | 2 — Runtime Substrate | 4 | 2/4 done | In Progress |
-| 3 — Enforcement, Wiring, and the A′ Swap | 8 | 3/8 done | In Progress |
-| **Total** | **20** | **11/20 done** | **In Progress** |
+| 3 — Enforcement, Wiring, and the A′ Swap | 8 | 5/8 done | In Progress |
+| **Total** | **20** | **13/20 done** | **In Progress** |
