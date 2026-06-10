@@ -167,11 +167,16 @@ benchmark-results/
 # Local machine state and secrets
 settings.local.json
 logs/
-memory.json
+# Anchored so it cannot swallow durable anvil/edda/memory.json (ADR-073 /
+# GITGOV-014); .claude/memory.json carries its own entry above.
+/memory.json
 autonomous-state.json
 .setup-meta
 
-# Anvil runtime sidecar — operator state appended on every run
+# Anvil runtime sidecar — operator state appended on every run. Recorded
+# dogfood deviation from the ADR-073 tracked-anvil/ posture (constant
+# self-dogfooding churn); `anvil doctor`'s state-boundary check will warn
+# here by design — the warn is honest, the justification lives in ADR-073.
 anvil/kindling/
 anvil/witness/
 # Exception-store write lock (EXCEPT-007) — runtime artefact inside the
