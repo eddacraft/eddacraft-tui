@@ -18,6 +18,7 @@
 #![forbid(unsafe_code)]
 
 pub mod antipattern;
+pub mod config;
 pub mod path_deny;
 pub mod reasoning;
 pub mod regex_content;
@@ -32,6 +33,9 @@ use anvil_kernel_types::{Category, Diagnostic, DiagnosticSource, Location, Mode,
 use serde::{Deserialize, Serialize};
 
 pub use antipattern::AntipatternScanRule;
+pub use config::{
+    InterceptRulesConfig, RuleConfigError, registry_from_value, registry_from_workspace,
+};
 pub use path_deny::{PathDenyConfig, PathDenyError, PathDenyListRule};
 pub use reasoning::LaunchReasoningPatternRule;
 pub use regex_content::{RegexContentConfig, RegexContentError, RegexContentRule};
