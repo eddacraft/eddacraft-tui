@@ -117,3 +117,34 @@ never with feature work.
 - Checkpoints raised: none
 - Next: UJ-010 (PR #2506 open, flips deferred); then only design-gated
   items (UJ-004, UJ-007) and UJ-011 shaping remain.
+
+## Cycle 8 — 2026-06-10
+
+- Item: UJ-010 — Post-upgrade what's-new one-liner
+- Outcome: done (validation: 5 new `whats_new` tests green — seed-
+  silently, same-version silent, announce-with-pointer, exactly-once
+  across runs, suppressed/gated runs write nothing; full anvil +
+  anvil-tui suites green; workspace clippy + fmt clean. Manual
+  transcript blocked by the licence gate; scope note: the line carries
+  version + changelog pointer, a fetched release headline would need
+  the network probe and was deliberately left out.) PR #2506.
+- Plan changes: UJ-010 → Merged 2026-06-10 via PR #2506; UJ counts 8/11
+  (script-managed); UJ-011 annotated with the shaping draft
+  (`plans/execution/UJ-011.shaping.md`); lessons recorded in
+  `plans/execution/lessons/2026-06-10-uj-loop-run.md`.
+- Checkpoints raised:
+  - UJ-004 (auth-wall placement vs first wow): needs a new ADR — every
+    manual transcript this run hit the login wall before any value,
+    exactly the failure the item names; `dashboard` is already ungated
+    and demonstrates the alternative. Proposal for the operator: ungate
+    read-only `anvil welcome` as the demo surface, keep durable
+    surfaces (`init`, `start`, `watch`) gated.
+  - UJ-007 (watch offers to start the daemon): UJ-001/UJ-006 shipped
+    "run `anvil start`" guidance on every relevant surface; the item
+    itself names guidance-only as an acceptable resolution. Proposal:
+    affirm guidance-only (no prompt, no auto-start) as an ADR-075
+    amendment and close UJ-007.
+  - UJ-011: shaping draft ready for operator review (see above);
+    follow-up items UJ-012..015 file on approval.
+- Next: stop — no Ready items remain; everything left is
+  checkpoint-level (UJ-004, UJ-007, UJ-011 review).

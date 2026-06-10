@@ -9,7 +9,7 @@ from the v0.8.0-beta user-journey completeness review (operator-directed).
 
 | ID  | Owner  | Status | Progress |
 | --- | ------ | ------ | -------- |
-| UJ  | @aneki | In Progress | 7/11 |
+| UJ  | @aneki | In Progress | 8/11 |
 
 **Last reviewed:** 2026-06-10 (created from the v0.8.0-beta user-journey
 completeness review. Operator direction: beta posture permits explicit guidance
@@ -279,7 +279,7 @@ carry the user to the next step without a docs lookup.
 
 ### UJ-010: Post-upgrade what's-new one-liner
 
-- **Status:** Ready
+- **Status:** Merged 2026-06-10 via PR #2506
 - **Intent:** An upgrade should announce its headline once — today new
   capability is invisible and the daemon stays cold (compounds UJ-006/-007).
 - **Expected Outcome:** The first run after a version change prints one line
@@ -299,6 +299,11 @@ carry the user to the next step without a docs lookup.
 ### UJ-011: Tutorials overhaul
 
 - **Status:** Proposed
+- **Shaping draft:** `plans/execution/UJ-011.shaping.md` (2026-06-10 loop run)
+  — audit of the six web tutorials, a journey-aligned target set of five
+  (two new: daily-value save-time walkthrough + Rust project analysis), a
+  retirement list (ci, suppressions → guides), and four proposed follow-up
+  items (UJ-012..015). Awaiting operator review before items are filed.
 - **Intent:** Tutorials should be something every user actually uses; today
   they trail the product (no Rust analysis tutorial) and do not reflect the
   two-path journey. Operator direction: out-of-the-box usefulness ranks
