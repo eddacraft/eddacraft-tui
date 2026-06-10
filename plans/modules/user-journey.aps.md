@@ -9,7 +9,7 @@ from the v0.8.0-beta user-journey completeness review (operator-directed).
 
 | ID  | Owner  | Status | Progress |
 | --- | ------ | ------ | -------- |
-| UJ  | @aneki | In Progress | 10/15 |
+| UJ  | @aneki | In Progress | 11/15 |
 
 **Last reviewed:** 2026-06-10 (created from the v0.8.0-beta user-journey
 completeness review. Operator direction: beta posture permits explicit guidance
@@ -147,7 +147,13 @@ carry the user to the next step without a docs lookup.
 
 ### UJ-004: Auth-wall placement vs first wow
 
-- **Status:** Proposed
+- **Status:** Merged 2026-06-10 via PR #2509
+- **Disposition:** Operator decision 2026-06-10 — ungate read-only
+  `anvil welcome` as the beta demo surface, recorded in
+  [ADR-080](../decisions/080-ungate-welcome-demo-surface.md) (Accepted).
+  `welcome` removed from `CLI_GATED_COMMANDS`; durable surfaces stay gated;
+  the welcome ending hands off to the gated `anvil start`, so the licence
+  wall sits where ongoing value begins.
 - **Intent:** Decide where the beta licence gate sits relative to first value:
   today `welcome`, `check`, `status`, `init`, and `watch` are all gated
   (`CLI_GATED_COMMANDS`), so the first command any new user runs is a login

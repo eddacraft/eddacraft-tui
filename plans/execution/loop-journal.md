@@ -184,3 +184,21 @@ never with feature work.
   operator answers.
 - Next: UJ-004 (ADR-080 + ungate `welcome`), then UJ-012..015 are the
   remaining Ready work.
+
+## Cycle 11 — 2026-06-10
+
+- Item: UJ-004 — Auth-wall placement vs first wow
+- Outcome: done (operator: "ungate welcome" → ADR-080 Accepted +
+  `welcome` removed from CLI_GATED_COMMANDS. Validation: TDD red→green
+  on `requires_auth_welcome` (now asserts NOT gated) +
+  `command_needs_licence_gate_rejects_bypass_commands` pins the
+  exclusion; full suite, clippy, fmt green; real transcript —
+  unauthenticated `anvil welcome` renders the surface ending in the
+  `anvil start` handoff, where it previously printed the
+  refresh-token error. ADR records the accepted consequence that
+  welcome's guided setup can seed config without auth.) PR #2509.
+- Plan changes: UJ-004 → Merged 2026-06-10 via PR #2509; UJ counts
+  11/15; DECISION-LOG row for ADR-080.
+- Checkpoints raised: none — all operator decisions executed.
+- Next: UJ-012..015 (tutorial execution set) are the module's remaining
+  Ready work.
