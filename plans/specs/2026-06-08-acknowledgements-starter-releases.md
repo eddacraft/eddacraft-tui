@@ -7,7 +7,7 @@ Module: `ATTRIB` (adds ATTRIB-017; follow-on to ATTRIB-011)
 Status: Draft
 Coordinates with:
 [`plans/archive/modules/attribution-pipeline-v3.aps.md`](../archive/modules/attribution-pipeline-v3.aps.md),
-[`plans/execution/ATTRIB-011.steps.md`](../execution/ATTRIB-011.steps.md),
+[`plans/archive/execution/ATTRIB-011.steps.md`](../archive/execution/ATTRIB-011.steps.md),
 [`.github/workflows/mirror-acknowledgements-starter.yml`](../../.github/workflows/mirror-acknowledgements-starter.yml),
 [`.github/workflows/publish-eddacraft-tui.yml`](../../.github/workflows/publish-eddacraft-tui.yml),
 [`docs/runbooks/eddacraft-tui-release.md`](../../docs/runbooks/eddacraft-tui-release.md),

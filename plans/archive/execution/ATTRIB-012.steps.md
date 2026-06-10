@@ -13,7 +13,7 @@ Unblocks ATTRIB-015 (Anvil's own `node-devtools` block in
 beyond Rust.
 
 Full design contract at
-[`plans/specs/2026-05-22-acknowledgements-multi-block-and-multi-eco.md`](../specs/2026-05-22-acknowledgements-multi-block-and-multi-eco.md)
+[`plans/specs/2026-05-22-acknowledgements-multi-block-and-multi-eco.md`](../../specs/2026-05-22-acknowledgements-multi-block-and-multi-eco.md)
 § "Node — `drivers/node.sh` (ATTRIB-012)".
 
 ## Decisions (recorded on kickoff, 2026-05-24)

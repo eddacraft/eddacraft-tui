@@ -1,8 +1,8 @@
 # Documentation Tags Catalogue
 
-| Type  | Authority     | Owner  | Status | Freshness                                                                                                |
-| ----- | ------------- | ------ | ------ | -------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | DOCGOV | Live   | Last reviewed 2026-05-12 against `plans/execution/DOCGOV-005.steps.md` and `pnpm docs:check` v0.6.1-beta |
+| Type  | Authority     | Owner  | Status | Freshness                                                                                                        |
+| ----- | ------------- | ------ | ------ | ---------------------------------------------------------------------------------------------------------------- |
+| Guide | Authoritative | DOCGOV | Live   | Last reviewed 2026-05-12 against `plans/archive/execution/DOCGOV-005.steps.md` and `pnpm docs:check` v0.6.1-beta |
 
 | Upstream                                                                                   | Downstream                                                                                               |
 | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |

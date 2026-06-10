@@ -47,7 +47,7 @@ ADR-044 §9 makes DISTRIB-001 and DISTRIB-002 load-bearing for the
 ## Purpose
 
 `anvil update` already exists (per
-[`plans/execution/2026-04-13-anvil-update-command.md`](../../execution/2026-04-13-anvil-update-command.md))
+[`plans/execution/2026-04-13-anvil-update-command.md`](../execution/2026-04-13-anvil-update-command.md))
 with a Homebrew-detect → sidecar → axoupdater resolution chain. The hotfix
 iteration plan in
 [`plans/specs/2026-05-14-release-plan-v0.7.0-sit-on.md`](../../specs/2026-05-14-release-plan-v0.7.0-sit-on.md)

@@ -157,4 +157,4 @@ can run mechanically.
   - [DOCGOV](../archive/modules/documentation-governance.aps.md) — DOCGOV-004 (ADR
     integrity, first closeout-enforcement check), DOCGOV-005 (this ADR's
     triggering task), DOCGOV-006 / DOCGOV-007 (queued sub-surfaces)
-- Execution plan: [DOCGOV-005.steps.md](../execution/DOCGOV-005.steps.md)
+- Execution plan: [DOCGOV-005.steps.md](../archive/execution/DOCGOV-005.steps.md)

@@ -2,7 +2,7 @@
 
 > **Date:** 2026-05-11
 > **Owner:** OPMODEL-012 (action plan:
-> [`plans/execution/opmodel-012.steps.md`](../execution/opmodel-012.steps.md))
+> [`plans/archive/execution/opmodel-012.steps.md`](../archive/execution/opmodel-012.steps.md))
 > **Purpose:** Inventory every `.github/workflows/*.yml` for branch triggers
 > that reference `dev` or `main`, identify which workflows must change before
 > the main-first cutover, and which can be cleaned up after.

@@ -12,7 +12,7 @@
 > the current `dev -> main` promotion model to the target main-first model.
 > Implements OPMODEL-012. **Inputs:**
 > [`plans/audits/2026-05-11-opmodel-012-workflow-audit.md`](../../plans/audits/2026-05-11-opmodel-012-workflow-audit.md),
-> [`plans/execution/opmodel-012.steps.md`](../../plans/execution/opmodel-012.steps.md).
+> [`plans/archive/execution/opmodel-012.steps.md`](../../plans/archive/execution/opmodel-012.steps.md).
 > **Companion playbooks:**
 > [`branch-reconciliation.md`](./branch-reconciliation.md) (one-time divergence
 > recovery — distinct from this cutover),
@@ -474,8 +474,8 @@ target operating model per the
 ## APS / issue closeout
 
 Cutover completion triggers the Phase 3 PR (per
-[`opmodel-012.steps.md`](../../plans/execution/opmodel-012.steps.md)). That PR
-carries the APS state changes:
+[`opmodel-012.steps.md`](../../plans/archive/execution/opmodel-012.steps.md)).
+That PR carries the APS state changes:
 
 - Mark OPMODEL-012 `Complete` with a completion line citing: cutover SHA,
   default-branch change time, branch-protection settings applied, dev

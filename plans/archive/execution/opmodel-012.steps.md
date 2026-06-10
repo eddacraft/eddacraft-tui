@@ -1,6 +1,6 @@
 # OPMODEL-012 — Main-first cutover and dev retirement (action plan)
 
-> **Spec:** [`plans/archive/modules/operating-model-migration.aps.md`](../archive/modules/operating-model-migration.aps.md) → OPMODEL-012 (archived 2026-05-11)
+> **Spec:** [`plans/archive/modules/operating-model-migration.aps.md`](../modules/operating-model-migration.aps.md) → OPMODEL-012 (archived 2026-05-11)
 > **Status:** Complete — Phase 0 (PR #1410), Phase 2 (operator-driven 2026-05-11; cutover SHA `b6f236e9`), and Phase 3 (this PR) all landed in the same window. Module archived to `plans/archive/modules/operating-model-migration.aps.md`.
 > **Owner:** Josh + Claude (operator + agent split per phase)
 
@@ -17,7 +17,7 @@
   re-run `gh pr list --base dev --state open` immediately before Phase 2.
 - 15 CI workflows in `.github/workflows/` total; 1 is cutover-blocking
   (`pr-base-guard.yml`), 6 need post-cutover cleanup, 8 need no change. See
-  [`workflow audit`](../audits/2026-05-11-opmodel-012-workflow-audit.md).
+  [`workflow audit`](../../audits/2026-05-11-opmodel-012-workflow-audit.md).
 - The four cutover docs (`branching-strategy.md`, `worktree-policy.md`,
   `release-runbook.md`, `SKILL.md`) already carry dual-mode structure with
   explicit "Current Compatibility Model" / "Target Model" sections — Phase 3
@@ -102,7 +102,7 @@ quoting from the playbook:
 Opens after the operator confirms Phase 2 is done. **The Phase 3 PR body
 must include three machine-verifiable Phase 2 evidence blocks** (cutover SHA,
 branch-protection JSON, default branch) per
-[`docs/runbooks/main-first-cutover.md#verification`](../../docs/runbooks/main-first-cutover.md#verification).
+[`docs/runbooks/main-first-cutover.md#verification`](../../../docs/runbooks/main-first-cutover.md#verification).
 Without those, do not open the PR. This is the interlock that prevents a
 fresh agent session from flipping the docs based on chat-memory alone.
 
@@ -154,7 +154,7 @@ Reviewer: operations-reviewer (single council member).
 | CI workflow pinned to `dev` silently stops running after cutover | Phase 0 audit catches; Phase 1 PRs land before Phase 2. |
 | Branch protection misconfigured on `main` | Playbook lists the exact required check names from `gh pr checks` on a recent merged PR; operator copies that list. |
 | Someone pushes to `main` directly between Phase 0 and Phase 2 (no protection yet) | Phase 2 step 3 re-checks fast-forward window; if broken, abort and reschedule. |
-| Docs flip lands before Phase 2 completes | Phase 3 PR body must paste three machine-verifiable Phase 2 evidence outputs (cutover SHA, branch-protection JSON, default branch) per the [cutover playbook Verification section](../../docs/runbooks/main-first-cutover.md#verification). PR cannot be reviewed without those three blocks present. Stops a fresh agent in a new session from opening Phase 3 on chat-memory alone. |
+| Docs flip lands before Phase 2 completes | Phase 3 PR body must paste three machine-verifiable Phase 2 evidence outputs (cutover SHA, branch-protection JSON, default branch) per the [cutover playbook Verification section](../../../docs/runbooks/main-first-cutover.md#verification). PR cannot be reviewed without those three blocks present. Stops a fresh agent in a new session from opening Phase 3 on chat-memory alone. |
 
 ## Decision points awaiting operator
 

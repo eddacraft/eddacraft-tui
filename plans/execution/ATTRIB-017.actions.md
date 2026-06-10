@@ -10,7 +10,7 @@ updates, read a changelog, and pin to an immutable version.
 Design contract:
 [`plans/specs/2026-06-08-acknowledgements-starter-releases.md`](../specs/2026-06-08-acknowledgements-starter-releases.md).
 Direct predecessor:
-[`plans/execution/ATTRIB-011.steps.md`](./ATTRIB-011.steps.md).
+[`plans/archive/execution/ATTRIB-011.steps.md`](../archive/execution/ATTRIB-011.steps.md).
 Pattern source: `eddacraft-tui` release flow
 ([`docs/runbooks/eddacraft-tui-release.md`](../../docs/runbooks/eddacraft-tui-release.md),
 [`.github/workflows/publish-eddacraft-tui.yml`](../../.github/workflows/publish-eddacraft-tui.yml)).

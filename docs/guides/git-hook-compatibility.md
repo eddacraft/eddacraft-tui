@@ -279,7 +279,7 @@ No other steps are required. CI inherits the same path because the CI image runs
 
 ## Testing this policy
 
-Step validations from `plans/execution/GHOOK-001.steps.md`:
+Step validations from `plans/archive/execution/GHOOK-001.steps.md`:
 
 ```bash
 # Step 1 — Audit current hook assumptions.
@@ -301,7 +301,8 @@ design (warnings over blocks).
 ## Cross-references
 
 - `plans/modules/git-config-hooks.aps.md` — module spec for GHOOK.
-- `plans/execution/GHOOK-001.steps.md` — execution checklist this doc fulfils.
+- `plans/archive/execution/GHOOK-001.steps.md` — execution checklist this doc
+  fulfils.
 - `docs/public/anvil/operations/git-hooks.md` — user-facing summary that links
   here for the policy detail.
 - `docs/public/anvil/operations/git-hooks.md` — pre-commit examples (carried

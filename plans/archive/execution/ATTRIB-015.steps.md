@@ -22,7 +22,7 @@ Two parallel side-effects:
   ecosystem drivers) hit them.
 
 Full design at
-[`plans/specs/2026-05-22-acknowledgements-multi-block-and-multi-eco.md`](../specs/2026-05-22-acknowledgements-multi-block-and-multi-eco.md)
+[`plans/specs/2026-05-22-acknowledgements-multi-block-and-multi-eco.md`](../../specs/2026-05-22-acknowledgements-multi-block-and-multi-eco.md)
 § "Anvil adopts a Node devtools attribution block (ATTRIB-015)".
 
 ## Decisions (recorded on kickoff, 2026-05-24)

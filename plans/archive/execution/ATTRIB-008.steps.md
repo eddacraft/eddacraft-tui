@@ -13,7 +13,7 @@ Unblocks ATTRIB-012 (Node), ATTRIB-013 (Go), ATTRIB-014 (Python),
 and ATTRIB-015 (Anvil's own Node devtools block).
 
 Full design contract at
-[`plans/specs/2026-05-22-acknowledgements-multi-block-and-multi-eco.md`](../specs/2026-05-22-acknowledgements-multi-block-and-multi-eco.md).
+[`plans/specs/2026-05-22-acknowledgements-multi-block-and-multi-eco.md`](../../specs/2026-05-22-acknowledgements-multi-block-and-multi-eco.md).
 
 ## Decisions (recorded on kickoff, 2026-05-24)
 

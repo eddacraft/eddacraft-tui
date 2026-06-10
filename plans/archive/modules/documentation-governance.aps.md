@@ -206,7 +206,7 @@ Current validation commands include `pnpm docs:check`, `pnpm docs:index`, and
   design across nine decisions before any code landed; the outcome is
   recorded in [ADR-042](../../decisions/042-closeout-enforcement-exit-codes.md)
   (closeout-enforcement carve-out from ADR-002) and the 24-step action plan
-  at [`plans/execution/DOCGOV-005.steps.md`](../../execution/DOCGOV-005.steps.md).
+  at [`plans/execution/DOCGOV-005.steps.md`](../execution/DOCGOV-005.steps.md).
   Ships `pnpm docs:check` as a thin Node ESM orchestrator over seven
   surfaces (`metadata`, `tags`, `links`, `aps`, `adr`, `index-freshness`,
   `asbuilt-paths`) — five real validators plus two no-op stubs reserved for
@@ -340,7 +340,7 @@ Current validation commands include `pnpm docs:check`, `pnpm docs:index`, and
 ### DOCGOV-008: Migrate stale entrypoints and archive dead docs
 
 - **Status:** Complete
-- **Execution plan:** [`plans/execution/DOCGOV-008.steps.md`](../../execution/DOCGOV-008.steps.md); audit evidence + closeout delta at [`plans/execution/DOCGOV-008.audit.md`](../../execution/DOCGOV-008.audit.md). All 6 tasks completed on `docs/docgov-008-archive-dead-docs` (release-runbook relocation via Option A; 19 archive moves; 20 files moved out-of-repo to `~/Projects/anvil-gtm-wip/`; entrypoint relinks; baseline `metadata` shrank 179 → 140). PR [#1892](https://github.com/eddacraft/anvil-001/pull/1892) closed after the branch reached `main` at `14a40a78`; fresh closeout validation passed on 2026-05-24.
+- **Execution plan:** [`plans/execution/DOCGOV-008.steps.md`](../execution/DOCGOV-008.steps.md); audit evidence + closeout delta at [`plans/execution/DOCGOV-008.audit.md`](../execution/DOCGOV-008.audit.md). All 6 tasks completed on `docs/docgov-008-archive-dead-docs` (release-runbook relocation via Option A; 19 archive moves; 20 files moved out-of-repo to `~/Projects/anvil-gtm-wip/`; entrypoint relinks; baseline `metadata` shrank 179 → 140). PR [#1892](https://github.com/eddacraft/anvil-001/pull/1892) closed after the branch reached `main` at `14a40a78`; fresh closeout validation passed on 2026-05-24.
 - **Intent:** Reduce ambiguity by fixing stale onboarding links, archiving
   dead operational docs out of active paths, and resolving the long-standing
   release-runbook migration exception — done before the live-doc backfill /
