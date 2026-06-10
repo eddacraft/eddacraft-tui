@@ -37,3 +37,18 @@ never with feature work.
 - Checkpoints raised: none
 - Next: UJ-001 (golden-path next-step threading in install/welcome/
   init/start).
+
+## Cycle 3 — 2026-06-10
+
+- Item: UJ-001 — Golden-path next-step threading in CLI and install output
+- Outcome: done (validation: 6 new closing-hint tests green — start ×3
+  incl. restart_required honesty case, init, welcome ×2; full crate
+  suite green; workspace clippy + fmt clean; `bash -n install.sh`
+  clean; fresh-context verification PASS — all four surfaces' exit
+  paths traced, live-claim-at-restart_required finding fixed with a
+  pinning test). PR #2502.
+- Plan changes: UJ-001 → Merged 2026-06-10 via PR #2502; UJ counts 3/11
+  (script-managed).
+- Checkpoints raised: none
+- Next: UJ-003 (entry docs rewritten around the two paths) — in flight
+  in a parallel worktree.

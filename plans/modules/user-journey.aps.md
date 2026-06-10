@@ -9,7 +9,7 @@ from the v0.8.0-beta user-journey completeness review (operator-directed).
 
 | ID  | Owner  | Status | Progress |
 | --- | ------ | ------ | -------- |
-| UJ  | @aneki | In Progress | 2/11 |
+| UJ  | @aneki | In Progress | 3/11 |
 
 **Last reviewed:** 2026-06-10 (created from the v0.8.0-beta user-journey
 completeness review. Operator direction: beta posture permits explicit guidance
@@ -74,7 +74,7 @@ carry the user to the next step without a docs lookup.
 
 ### UJ-001: Golden-path next-step threading in CLI and install output
 
-- **Status:** Ready
+- **Status:** Merged 2026-06-10 via PR #2502
 - **Intent:** A new user should never need docs to know what to type next;
   every onboarding-path command names the single next step.
 - **Expected Outcome:** `install.sh` closing output and the endings of
