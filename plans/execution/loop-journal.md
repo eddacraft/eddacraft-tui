@@ -202,3 +202,25 @@ never with feature work.
 - Checkpoints raised: none — all operator decisions executed.
 - Next: UJ-012..015 (tutorial execution set) are the module's remaining
   Ready work.
+
+## Cycle 12 — 2026-06-10
+
+- Item: UJ-012 — "Your first save caught" tutorial
+- Outcome: done (new flagship tutorial
+  `docs/public/anvil/tutorials/first-save-caught.md` walking
+  `anvil start` → daemon (`anvil intercept start --foreground`) →
+  `anvil watch --source` → deliberate bad save → reading the finding →
+  `anvil status` posture, narrative-aligned with the in-terminal
+  ProtectionLoop path; linked from the quickstart daily-value step and
+  the tutorials index. Validation: `pnpm docs:check` 8/8,
+  `pnpm docs:index` clean, `format:check` exit 0; fresh-context
+  verification confirmed every transcript snippet against the rendering
+  code and caught one overclaim — `anvil start` does not launch the
+  daemon (activation orchestrator excludes daemon spawn by design) —
+  fixed before PR. Live end-to-end walk blocked by the agent
+  environment's licence gate + inotify limits; gate-unavailable is not
+  a content veto.) PR #2510.
+- Plan changes: UJ-012 → Merged 2026-06-10 via PR #2510; UJ counts
+  12/15; stale "UJ is 10/15" release-plan row note reconciled.
+- Checkpoints raised: none.
+- Next: UJ-013 (Rust analysis tutorial) — Ready, independent of UJ-012.

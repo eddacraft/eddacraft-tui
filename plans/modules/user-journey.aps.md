@@ -9,7 +9,7 @@ from the v0.8.0-beta user-journey completeness review (operator-directed).
 
 | ID  | Owner  | Status | Progress |
 | --- | ------ | ------ | -------- |
-| UJ  | @aneki | In Progress | 11/15 |
+| UJ  | @aneki | In Progress | 12/15 |
 
 **Last reviewed:** 2026-06-10 (created from the v0.8.0-beta user-journey
 completeness review. Operator direction: beta posture permits explicit guidance
@@ -335,7 +335,7 @@ carry the user to the next step without a docs lookup.
 
 ### UJ-012: "Your first save caught" tutorial
 
-- **Status:** Ready
+- **Status:** Merged 2026-06-10 via PR #2510
 - **Intent:** The daily-value path deserves the flagship tutorial: a user who
   follows it ends with daemon-backed save-time validation catching a real
   mistake in their own repo.
@@ -345,10 +345,13 @@ carry the user to the next step without a docs lookup.
   The narrative order matches the in-terminal `anvil tutorial`
   (ProtectionLoop) so the two surfaces tell one story (operator decision,
   UJ-011 shaping).
-- **Files:** `docs/public/anvil/tutorials/` (new page),
+- **Files:** `docs/public/anvil/tutorials/first-save-caught.md` (new),
   `docs/public/anvil/quickstart.md`, `docs/public/anvil/tutorials/index.md`
-- **Validation:** `pnpm docs:check` + `pnpm docs:index` green; the tutorial
-  walked end-to-end on a real repo.
+- **Validation:** `pnpm docs:check` 8/8 + `pnpm docs:index` green (2026-06-10);
+  every transcript snippet verified against the rendering code by a
+  fresh-context reviewer (the licence gate + inotify limits block a live
+  end-to-end walk in the agent environment; gate-unavailable is not a content
+  veto).
 - **Dependencies:** UJ-011 (shaping, approved)
 - **Confidence:** high
 - **changeType:** docs
