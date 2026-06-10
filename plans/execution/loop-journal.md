@@ -70,3 +70,30 @@ never with feature work.
   correction.
 - Checkpoints raised: none
 - Next: UJ-008 (consolidated save-time validation guide).
+
+## Cycle 5 — 2026-06-10
+
+- Item: UJ-008 — Consolidated save-time validation guide
+- Outcome: done (validation: `pnpm docs:check` 8/8; docs:index + oxfmt
+  clean; new guide carries governance + Upstream/Downstream tables and
+  the sidebar entry; fresh-context fact-check FAIL→fixed: nonexistent
+  `anvil workspace remove` corrected to `deny` (also a pre-existing
+  config.md bug), nested-backtick span, `--foreground` requiredness,
+  reconnect-rescan guarantee softened to best-effort, Windows parity
+  claim narrowed to daemon-status correlation). PR #2504.
+- Plan changes: UJ-008 → Merged 2026-06-10 via PR #2504; UJ counts
+  (script-managed).
+- Checkpoints raised: none
+- Next: UJ-002 validation + UJ-009.
+
+## Cycle 6 — 2026-06-10
+
+- Item: UJ-002 — Welcome path lands on a populated surface
+- Outcome: done, no change needed (validation: code trace — welcome hub
+  options all gather live data at launch; first-run lands on the
+  discovery-scan-populated tutorial; no welcome surface recommends a
+  persisted-data target. Item body carries the disposition.)
+- Plan changes: UJ-002 → Done 2026-06-10 (verified — no change needed).
+- Checkpoints raised: none
+- Next: UJ-009 (gate-summary reach) — implemented in a parallel
+  worktree, PR to follow.

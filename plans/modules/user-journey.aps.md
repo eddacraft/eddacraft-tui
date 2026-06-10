@@ -9,7 +9,7 @@ from the v0.8.0-beta user-journey completeness review (operator-directed).
 
 | ID  | Owner  | Status | Progress |
 | --- | ------ | ------ | -------- |
-| UJ  | @aneki | In Progress | 4/11 |
+| UJ  | @aneki | In Progress | 6/11 |
 
 **Last reviewed:** 2026-06-10 (created from the v0.8.0-beta user-journey
 completeness review. Operator direction: beta posture permits explicit guidance
@@ -98,7 +98,15 @@ carry the user to the next step without a docs lookup.
 
 ### UJ-002: Welcome path lands on a populated surface
 
-- **Status:** Ready
+- **Status:** Done 2026-06-10 (verified — no change needed)
+- **Disposition:** Code-trace verification found the feared failure mode does
+  not exist: every welcome hub option gathers live data at launch
+  (`collect_gate_data()` runs the checks; audit/doctor collect fresh), and the
+  first-run flow lands on the tutorial populated by a real discovery scan. No
+  welcome surface recommends a persisted-data surface (e.g. the gate-summary
+  saved spec). Manual TUI run blocked by the beta licence gate in the agent
+  environment; evidence is the code trace (`crates/anvil-cli/src/commands/welcome.rs`
+  hub dispatch + `gate.rs::collect_gate_data`).
 - **Intent:** The first visual surface the welcome path recommends must show
   real findings from the user's own repo — an empty first view kills the wow.
 - **Expected Outcome:** After `anvil welcome` on a non-trivial repo, the
@@ -225,7 +233,7 @@ carry the user to the next step without a docs lookup.
 
 ### UJ-008: Consolidated save-time validation guide
 
-- **Status:** Ready
+- **Status:** Merged 2026-06-10 via PR #2504
 - **Intent:** The daily-driver value proposition deserves one page; today the
   daemon/save-time story is split across config.md, mcp.md, and
   agent-harness.md.
