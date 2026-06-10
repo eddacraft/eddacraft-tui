@@ -60,8 +60,14 @@ one-line-of-metadata cost.
 - **Negative / accepted:** welcome's embedded guided-setup flow can write
   `.anvilrc` and the first-run marker without authentication — config
   seeding is not treated as gated value (running the gated `init` command
-  directly still requires auth). The discovery scan runs locally and sends
-  nothing anywhere, so no licensing-relevant capability leaks.
+  directly still requires auth). Likewise, the welcome hub runs gate /
+  audit / doctor data collection and a watch session **in-process**, so
+  equivalents of gated commands are reachable interactively without auth.
+  This is accepted for beta: the hub's one-off interactive runs are the
+  demo; the gate is a client-side access funnel, not a security boundary,
+  and the **scriptable** CLI commands (`gate`, `watch`, `audit`, `check`,
+  …) remain gated for automation and daily use. All scans stay local; no
+  licensing-relevant remote capability is exposed.
 - **Risks:** if beta access control later needs to cover discovery itself,
   re-adding `welcome` to `CLI_GATED_COMMANDS` is the same one-line change.
 - **Mitigations:** the GA revisit of `cli.licence-gate` (already on record)
