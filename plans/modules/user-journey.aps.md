@@ -218,7 +218,10 @@ carry the user to the next step without a docs lookup.
   [ADR-079](../decisions/079-watch-daemon-guidance-only.md): no offer-to-start
   prompt, no auto-start. The guidance surface shipped via UJ-001/-005/-006
   made the prompt redundant; the item itself named this an acceptable
-  outcome. Zero code.
+  outcome. Zero code. The Expected Outcome's conditional branch ("if
+  adopted, `anvil watch` ... offers a one-time prompt") did not trigger, so
+  the prompt-specific Files/Validation below are moot — the decision record
+  is ADR-079 and the DECISION-LOG row.
 - **Intent:** Close the last gap between "default-on routing" and "every user
   actually daemon-backed": watch can offer to start the daemon instead of
   silently falling back.
