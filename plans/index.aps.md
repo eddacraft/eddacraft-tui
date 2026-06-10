@@ -106,7 +106,7 @@ Selection rules:
 | Rank | NBI | Mode | Source | Why now | Next action |
 | ---- | --- | ---- | ------ | ------- | ----------- |
 | 1 | `v0.8.0-beta` release cut — verify cut criteria | Schedule | [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) + [ADR-075](./decisions/075-v080-graph-product-scope.md) | The ADR-075 v0.8.0 implementation slice is **complete**: the GV2 A′ hot-path hardening (GV2-024 #2470 + GV2-025 #2459, on the #2442/#2446 swap wave) **and** default-on save-time daemon routing (**DSV-021 #2473** — unset routes through a live daemon, `=0` opts out, presence-guarded so daemon-absent installs are unaffected). What remains is the cut itself. | Audit the §8 base correctness bar (full `Cross` matrix incl. Windows green, `release-readiness.yml` on the source SHA, fresh `ACKNOWLEDGEMENTS`) and confirm the remaining ADR-075 rollout controls (named revert signal + staged beta→GA), then cut `v0.8.0-beta`. |
-| 2 | GITGOV-013 — capsule retention/prune decision | Schedule | [`git-native-governance`](./modules/git-native-governance.aps.md) | GITGOV-003..012 and now **GITGOV-014 (state-boundary enforcement, Merged 2026-06-10 via PR #2479)** are all Merged — the capsule wedge plus the ADR-073 boundary enforcement are complete. The last open GITGOV item is GITGOV-013 (retention/prune), design-gated on an ADR-074 retention amendment. (EXCEPT-003 is Done via PR #2401; CIB-053 tracks the dogfood tracked-`.anvil/` disposition the new doctor check surfaced.) | Shape the GITGOV-013 retention decision when an owner slot opens. |
+| 2 | GITGOV module closeout — release evidence | Schedule | [`git-native-governance`](./modules/git-native-governance.aps.md) | **GITGOV-013 Merged 2026-06-10 via PR #2487** (ADR-078 capsule retention decision + `anvil capsule prune`), closing the module's open frontier — GITGOV-001..014 are all terminal. The capsule wedge (create/collect/verify/explain/prune) rides the next release window; the module advances past In Progress only on release evidence (tag inclusion). (EXCEPT-003 Done #2401; CIB-053 dispositioned via #2481.) | No execution work left in GITGOV; pick the next NBI from the broad Ready pool, and let the cleanup agent advance statuses on release evidence. |
 
 NBI review note (2026-06-10, sixth pass): the entire ADR-075 v0.8.0
 implementation slice is now **complete**. The GV2 A′ hot-path hardening landed —
@@ -122,9 +122,10 @@ the named revert signal / staged beta→GA rollout controls.
 Governance frontier advanced — GITGOV-003..010 all Merged 2026-06-08 (capsule
 complete through PR #2427; -008 diagnostics via PR #2405), GITGOV-011 (#2460)
 and GITGOV-012 (#2465) Merged 2026-06-09, then GITGOV-014 Merged 2026-06-10
-via PR #2479 (ADR-073 state-boundary enforcement); EXCEPT-003 Done (#2401).
-Last open GITGOV item: GITGOV-013 (Proposed, design-gated on the ADR-074
-retention amendment).
+via PR #2479 (ADR-073 state-boundary enforcement), and GITGOV-013 Merged
+2026-06-10 via PR #2487 (ADR-078 retention decision + `anvil capsule prune`);
+EXCEPT-003 Done (#2401). GITGOV-001..014 are all terminal — no open GITGOV
+execution work remains.
 The broad Ready pool (USAGE, EDGE, DASH*, OPAG, EVAL, CPOL, IORISK, GATE, ATC,
 PATT, TRUST, ILGOV, LAC) remains available but does not outrank the v0.8.0
 payload.

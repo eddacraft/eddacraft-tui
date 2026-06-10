@@ -4,11 +4,10 @@
 |----|-------|--------|
 | GITGOV | @josh | In Progress |
 
-**Last reviewed:** 2026-06-10 (GITGOV-014 Merged via PR #2479 — wholesale
-`.anvil/` gitignore seeding, doctor `state-boundary` check, dogfood
-`.gitignore` reconciliation; tracked-`.anvil/` disposition follow-up filed as
-CIB-053. GITGOV-013 stays Proposed: design-gated on the ADR-074 retention
-amendment.)
+**Last reviewed:** 2026-06-10 (GITGOV-013 Merged via PR #2487 — ADR-078
+retention decision Accepted via council + `anvil capsule prune` shipped. With
+GITGOV-014 (#2479) this closes the module's open frontier: GITGOV-001..014
+are all terminal. Module stays In Progress pending release evidence.)
 
 > **Decision gate cleared (2026-06-08).** [ADR-072](../decisions/072-git-native-governance-substrate.md)
 > (Git substrate) and [ADR-074](../decisions/074-review-capsule-v0-format.md)
@@ -151,7 +150,7 @@ release seals (RELEASE-SEAL); supplier bundles (SUPPLIER). Sealed Edda context
 - **Expected Outcome:** Stated retention policy (ADR-074 amendment or sub-decision) plus `anvil capsule prune` or a documented manual path; indefinite accumulation is a stated choice, not an accident.
 - **Validation:** `pnpm adr:check`
 - **Dependencies:** GITGOV-004
-- **Status:** In Progress
+- **Status:** Merged 2026-06-10 via PR #2487
 
 ### GITGOV-014: State-boundary enforcement (ADR-073)
 - **Intent:** Make the `anvil/` vs `.anvil/` boundary enforced, not asserted: (a) `anvil init`/`welcome` seed `.anvil/` wholesale into consumer `.gitignore` (today only `.anvil/cache/` + `.anvil/gates.json` — `crates/anvil-cli/src/commands/init.rs`); (b) a check warns when `.anvil/` paths are tracked or `anvil/` paths are ignored (`git check-ignore` sweep); (c) reconcile this repo's dogfood deviation — `anvil/witness/` + `anvil/kindling/` gitignored, and the bare `memory.json` ignore pattern would silently swallow a future `anvil/edda/memory.json` — by un-ignoring or recording the justification in ADR-072/073, and anchoring loose patterns (`/memory.json`).
