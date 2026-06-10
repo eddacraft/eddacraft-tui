@@ -1077,13 +1077,14 @@ $ anvil baseline --refresh --accept-suspicious
 ## anvil capsule
 
 **Class:** User-explicit (on-demand) / Background (CI) **Purpose:** Create,
-verify, and explain review capsules — file-first, inspectable governance
+verify, explain, and prune review capsules — file-first, inspectable governance
 evidence directories for a commit range (GITGOV;
 [ADR-074](../../plans/decisions/074-review-capsule-v0-format.md)). **When to
 use:** To package a commit range's witness/policy/baseline evidence for review
-or audit, and to verify or summarise a capsule's closed-state verdict.
+or audit, to verify or summarise a capsule's closed-state verdict, and to stage
+explicit retention cleanup for old in-repo capsule evidence.
 
-**Synopsis:** `anvil capsule <create|verify|explain>`
+**Synopsis:** `anvil capsule <create|verify|explain|prune>`
 
 **Subcommands:**
 
@@ -1092,6 +1093,7 @@ or audit, and to verify or summarise a capsule's closed-state verdict.
 | `create`   | Create a review capsule directory for a commit range.                                                                |
 | `verify`   | Verify a capsule directory and print closed-state verdicts; re-collects digests from the repo.                       |
 | `explain`  | Print a human-readable summary of a capsule (range, policy, witness coverage, verdict). Read-only, repo-independent. |
+| `prune`    | Plan or stage deletion of old in-repo capsule directories; dry-run by default and never commits.                     |
 
 **`--json` (`verify`, `explain`):** emit machine-readable output for CI instead
 of the human text. `verify --json` prints the `anvil.capsule-verification.v1`
@@ -1104,6 +1106,14 @@ states, recorded verdict).
 `explain` exits 0 on success regardless of the recorded verdict — gate on the
 verdict with `anvil capsule verify`, not `explain`.
 
+**Flags (`prune`):**
+
+| Flag              | Description                                                                                                        |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `--root <dir>`    | Staging root to prune; defaults to `anvil/evidence/capsules/`. Must stay inside the repository and outside `.git`. |
+| `--keep-last <n>` | Keep the newest N orderable capsules; required and must be at least 1.                                             |
+| `--apply`         | Stage the selected deletions with `git rm`. Without this flag, `prune` is a dry run and touches nothing.           |
+
 **Examples:**
 
 ```
@@ -1111,6 +1121,8 @@ $ anvil capsule create --range main..HEAD --out ./capsule-dir
 $ anvil capsule verify ./capsule-dir
 $ anvil capsule verify --json ./capsule-dir
 $ anvil capsule explain --json ./capsule-dir
+$ anvil capsule prune --keep-last 10
+$ anvil capsule prune --keep-last 10 --apply
 ```
 
 ---

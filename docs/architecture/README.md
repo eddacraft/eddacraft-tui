@@ -12,8 +12,10 @@ Component-level, dated, source-pinned descriptions of what is actually shipping.
 The shape is set by the [as-built template](_as-built-template.md) — copy it
 when adding a new one.
 
-- [Auth System](auth-as-built.md) — beta auth API, token lifecycle, JWT licence,
-  device-code / OTP flows, gaps register (current)
+- [Auth System](auth-as-built.md) — beta auth API, token lifecycle, GitHub OAuth
+  - OTP/device-code flows, JWT licence, local admin key lifecycle, trusted
+    identity claim handling, gaps register (current, targeted delta-reviewed
+    2026-06-10 against main `45dd1047a`)
 - [Intercept daemon](intercept-as-built.md) — IPC surface (UDS + named pipe),
   peer-cred trust boundary, AD-7 fence-on-failure, fence persistence, interrupt
   ladder, registry, win32 listener, save-time `validate_paths` pipeline +
@@ -24,12 +26,14 @@ when adding a new one.
   install (LAUNCH-009), watch-fallback decision (LAUNCH-011), DSV-021 save-time
   daemon routing, UJ-001/-005/-006 threading, ADR-080 gate posture (current,
   delta-reviewed 2026-06-10 against main `a1c41e284`)
-- [MCP shim](mcp-shim-as-built.md) — Rust MCP server, `anvil_validate_write`
-  tool, daemon-backed vs embedded-fallback validation, correlation envelope,
-  §4.4 redaction filter (current, against `v0.6.0-beta`)
+- [MCP shim](mcp-shim-as-built.md) — Rust MCP server, eight-tool registry,
+  `anvil_validate_write` + driver/client tools, daemon-backed vs
+  embedded-fallback validation, correlation envelope, §4.4 redaction filter
+  (current, targeted delta-reviewed 2026-06-10 against main `45dd1047a`)
 - [Checks pipeline](checks-as-built.md) — `anvil-checks` registry, AP / AI / GS
-  / DD / RL families, suppressions, language-profile gating, baseline, the four
-  CLI surfaces (current, against `v0.6.0-beta`)
+  / DD / RL / SC / SG families, `anvil-checks-ast` tier, suppressions,
+  language-profile gating, baseline, 27-rule catalogue, four CLI surfaces
+  (current, targeted delta-reviewed 2026-06-10 against main `45dd1047a`)
 - [Kernel](kernel-as-built.md) — watcher (notify + glob filter), tree-sitter
   parser, semantic graph (KERN-020..023), policy engine, embedded API, watch
   loop, GV2 hot-read surface (sealed, ADR-077 depth-capped). Supersedes
@@ -45,34 +49,37 @@ when adding a new one.
   clients, Win32 named-pipe primitives, intercept-rules hot-path library (full
   INTR rule set + config) (current, delta-reviewed 2026-06-10 against main
   `a1c41e284`; spec→code drift documented in §12)
-- [anvil-api service](api-as-built.md) — Hono on Vercel, non-auth admin
-  surfaces, license / migration runner, middleware stack, Neon DB layer,
-  apps/admin-cli retirement path (current, against `v0.6.0-beta`; auth flows
-  live in `auth-as-built.md`)
+- [anvil-api service](api-as-built.md) — Hono on Vercel, non-auth admin surfaces
+  including `/admin/broadcast`, licence / migration runner, trace-context +
+  admin-rate-limit middleware, Neon DB layer, apps/admin-cli retirement path
+  (current, targeted delta-reviewed 2026-06-10 against main `45dd1047a`; auth
+  flows live in `auth-as-built.md`)
 - [anvil-observability](observability-as-built.md) — namespace registry, tracing
-  subscriber, traceparent helper, sensitive-fields advisory list (current,
-  against `v0.6.0-beta`)
+  subscriber, live redacting formatter, traceparent helper, namespace bridges,
+  sensitive-fields catalogue (current, targeted delta-reviewed 2026-06-10
+  against main `45dd1047a`)
 - [Tutorial subsystem](tutorial-as-built.md) —
   `anvil-tui/src/surfaces/tutorial/*` multi-file engine (mod.rs 1845 + discovery
   913 + discovery_render 683 + executor + fix + render + showcase + verify +
-  watch_demo + 10 snapshot pins). LAUNCH-014 ProtectionLoop default + two
-  test-pinned copy invariants (current, against `v0.6.0-beta`)
-- [Widget catalogue](widgets-as-built.md) — `anvil-tui/widgets/` (anvil-
-  specific composites) + upstream `eddacraft-tui` v0.1.0 (published on
-  crates.io: 13 widgets — confirm / container / divider / editor / header /
-  log_panel / parallel_progress / progress_bar / select / spinner / status_badge
-  / status_bar / text_input). Theme contract, keyboard handler, snapshot pinning
-  (current, against `v0.6.0-beta`)
+  watch_demo + 10 snapshot pins). LAUNCH-014 ProtectionLoop default, welcome
+  showcase wiring, and two test-pinned copy invariants (current, targeted
+  delta-reviewed 2026-06-10 against main `45dd1047a`)
+- [Widget catalogue](widgets-as-built.md) — `anvil-tui/widgets/` (anvil-specific
+  composites) + in-monorepo path `eddacraft-tui` v0.3.0 with 22 widgets,
+  feature-gated image/big-text widgets, theme contract, keyboard binding
+  metadata, snapshot pinning (current, targeted delta-reviewed 2026-06-10
+  against main `45dd1047a`)
 - [CLI TUI runner](cli-tui-runner-as-built.md) — `crates/anvil-cli/src/tui.rs`
   (495 lines) — terminal session lifecycle, `run_surface_in` shared-terminal
   pattern, animation tick, watch_loop dirty-paint gate, panic-safety gap
   documented (current, against `v0.6.0-beta`)
 - [Adapter packages](adapter-packages-as-built.md) — `packages/adapters/`
   (SpecKit + BMAD + Generic + APS-Markdown shipping; OpenSpec + BMAD-v4 in
-  progress), `packages/aps/` (validator + templates + examples + schemas),
-  `packages/kindling-integration/` (capture session bridge, observation
-  contract, benchmarks). APS schema drift to public docs flagged (current,
-  against `v0.6.0-beta`)
+  progress), `packages/aps/` (15-rule validator + templates + examples +
+  schemas), `packages/kindling-integration/` (capture session bridge,
+  observation contract, benchmarks). Public APS schema drift is resolved via
+  DOCGOV-003 (current, targeted delta-reviewed 2026-06-10 against main
+  `45dd1047a`)
 - [Review capsules](capsule-as-built.md) — `anvil capsule`
   create/verify/explain/prune, `anvil.capsule.v1` manifest + verification
   formats, scan-on-write secret gate, four-check verify engine with the ADR-074

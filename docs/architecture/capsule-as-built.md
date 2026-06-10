@@ -259,11 +259,11 @@ unscheduled.
 in code but not implemented (`crates/anvil-capsule/src/collect.rs:149-154`).
 **Risk:** Low for typical PR ranges. **Fix:** unscheduled performance follow-up.
 
-### G-06: prune absent from the CLI-surface runbook
+### G-06: prune absent from the CLI-surface runbook — resolved
 
-`docs/runbooks/cli-surface.md` documents `capsule create/verify/explain` but not
-`prune` (added later via GITGOV-013). **Risk:** Low. **Fix:** runbook row on the
-next runbook freshness pass.
+Resolved 2026-06-11: `docs/runbooks/cli-surface.md` now documents
+`capsule create/verify/explain/prune`, including the `prune` retention flags and
+dry-run-by-default behaviour added via GITGOV-013. **Risk:** Closed.
 
 ## Source references
 
