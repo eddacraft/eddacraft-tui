@@ -811,15 +811,16 @@ fn state_boundary_warn(
 
     // The untrack command is surgical: exactly the offending paths, never a
     // recursive `.anvil` sweep that would also untrack any deliberately
-    // tracked file. Quoted so paths with spaces stay copy-pasteable.
+    // tracked file. Quoted so paths with spaces (or quotes) stay
+    // copy-pasteable.
     let command = if tracked_runtime.is_empty() {
         ignored_durable
             .first()
-            .map(|p| format!("git check-ignore -v '{p}'"))
+            .map(|p| format!("git check-ignore -v {}", shell_quote(p)))
     } else {
         let mut cmd = String::from("git rm --cached --");
         for p in tracked_runtime.iter().take(8) {
-            let _ = write!(cmd, " '{p}'");
+            let _ = write!(cmd, " {}", shell_quote(p));
         }
         Some(cmd)
     };
@@ -846,6 +847,12 @@ fn state_boundary_warn(
             doc_url: None,
         },
     }
+}
+
+/// POSIX single-quote a path for a copy-pasteable remediation command.
+/// Embedded single quotes use the standard `'\''` close-escape-reopen form.
+fn shell_quote(path: &str) -> String {
+    format!("'{}'", path.replace('\'', r"'\''"))
 }
 
 /// Paths under `.anvil/` present in the git index.
@@ -883,8 +890,13 @@ fn ignored_durable_paths(root: &Path) -> Option<DurableSweep> {
             truncated: false,
         });
     }
+    // `sort_by_file_name` makes the traversal order itself deterministic, so
+    // when the cap truncates a large tree the *same* subset is checked on
+    // every run/machine — capping an unsorted readdir-order walk would make
+    // the warning set nondeterministic.
     let mut candidates: Vec<String> = walkdir::WalkDir::new(&durable_root)
         .min_depth(1)
+        .sort_by_file_name()
         .into_iter()
         .filter_map(Result::ok)
         .filter_map(|e| {
@@ -898,8 +910,8 @@ fn ignored_durable_paths(root: &Path) -> Option<DurableSweep> {
         .collect();
     let truncated = candidates.len() > SWEEP_CAP;
     candidates.truncate(SWEEP_CAP);
-    // Deterministic order: which paths are checked (and shown) must not
-    // depend on filesystem readdir order.
+    // Depth-first sorted traversal is already deterministic; this final sort
+    // just normalises the display order to plain lexicographic.
     candidates.sort_unstable();
     if candidates.is_empty() {
         return Some(DurableSweep {
@@ -1906,6 +1918,15 @@ mod tests {
         assert!(
             !cmd.contains("rm -r"),
             "no recursive untrack of the whole .anvil tree: {cmd}"
+        );
+    }
+
+    #[test]
+    fn shell_quote_escapes_embedded_single_quotes() {
+        assert_eq!(shell_quote("anvil/plain.json"), "'anvil/plain.json'");
+        assert_eq!(
+            shell_quote("anvil/it's here.json"),
+            r"'anvil/it'\''s here.json'"
         );
     }
 
