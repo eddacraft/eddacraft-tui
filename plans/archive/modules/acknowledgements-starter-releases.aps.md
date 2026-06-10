@@ -26,13 +26,13 @@ HEAD that is rewound on the next sync.
 This module adds the second surface, modelled on the proven `eddacraft-tui`
 release flow (D-TUIR-002 / -006 / -009 / -021). It **retains the ATTRIB
 lineage** (continuing the id space after ATTRIB-016) rather than re-opening the
-archived [`attribution-pipeline-v3`](../archive/modules/attribution-pipeline-v3.aps.md)
+archived [`attribution-pipeline-v3`](../../archive/modules/attribution-pipeline-v3.aps.md)
 module, which is genuinely Complete.
 
 Design contract:
-[`plans/specs/2026-06-08-acknowledgements-starter-releases.md`](../specs/2026-06-08-acknowledgements-starter-releases.md).
+[`plans/specs/2026-06-08-acknowledgements-starter-releases.md`](../../specs/2026-06-08-acknowledgements-starter-releases.md).
 Execution plan:
-[`plans/execution/ATTRIB-017.actions.md`](../execution/ATTRIB-017.actions.md).
+[`plans/execution/ATTRIB-017.actions.md`](../../execution/ATTRIB-017.actions.md).
 
 ## Why a new module rather than re-opening v3
 
@@ -109,7 +109,7 @@ for consumers.
   resolves; `git subtree add … v1.0.0 --squash` into a scratch repo reproduces
   the kit tree; the kit self-tests (incl. the new version/changelog consistency
   test) and `expand-licences.sh --check` pass in CI. Full execution breakdown
-  in [`plans/execution/ATTRIB-017.actions.md`](../execution/ATTRIB-017.actions.md).
+  in [`plans/execution/ATTRIB-017.actions.md`](../../execution/ATTRIB-017.actions.md).
 - **Files:** `tools/starters/acknowledgements/VERSION`,
   `tools/starters/acknowledgements/CHANGELOG.md`,
   `tools/starters/acknowledgements/tests/version-changelog-consistency.sh`,

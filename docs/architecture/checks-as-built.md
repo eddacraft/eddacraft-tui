@@ -587,7 +587,7 @@ analyser) share one parallel walk pattern, rolled out in `0.5.0-beta`:
   order does not leak thread scheduling into user-visible output
   (`audit.rs:148-154`, `antipattern/scanner.rs:852-858`).
 
-ReDoS hardening (SCAN-002, `plans/modules/scan-performance.aps.md` §82+):
+ReDoS hardening (SCAN-002, `plans/archive/modules/scan-performance.aps.md` §82+):
 
 - Secret scan: 4 KiB per-line guard (`SecretCheckConfig::max_line_bytes`,
   `secret/types.rs:36-43`); oversized lines are dropped before any regex runs
@@ -838,7 +838,7 @@ CLI seams (`crates/anvil-cli/src/`):
   env-template filtering).
 - [`CHANGELOG.md`](../../CHANGELOG.md) — customer-facing checks summary across
   releases.
-- [`plans/modules/scan-performance.aps.md`](../../plans/modules/scan-performance.aps.md)
+- [`plans/archive/modules/scan-performance.aps.md`](../../plans/archive/modules/scan-performance.aps.md)
   — SCAN-001 parallel walk + SCAN-002 ReDoS hardening.
 - [`plans/archive/modules/surface-env-files.aps.md`](../../plans/archive/modules/surface-env-files.aps.md)
   — SURFENV-001..004 plan + acceptance.

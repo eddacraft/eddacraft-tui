@@ -11,7 +11,7 @@ sidebar_position: 4
 
 | Type        | Authority     | Owner                                                                                                                                               | Status | Freshness                                                                          |
 | ----------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------- |
-| Public docs | Authoritative | TDASH ([`plans/modules/native-tui-dashboards.aps.md`](https://github.com/eddacraft/anvil-001/blob/main/plans/modules/native-tui-dashboards.aps.md)) | Live   | Last reviewed 2026-06-08 against `main` for the v0.8.0-beta gate-summary dashboard |
+| Public docs | Authoritative | TDASH ([`plans/archive/modules/native-tui-dashboards.aps.md`](https://github.com/eddacraft/anvil-001/blob/main/plans/archive/modules/native-tui-dashboards.aps.md)) | Live   | Last reviewed 2026-06-08 against `main` for the v0.8.0-beta gate-summary dashboard |
 
 | Upstream                                                                                                 | Downstream                                                             |
 | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |

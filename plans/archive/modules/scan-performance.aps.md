@@ -259,7 +259,7 @@ reference the council finding IDs where relevant.
     `welcome::tests::discovery_parallel` invariant tests.
   - `crates/anvil-bench/benches/walk_discovery.rs` — unchanged; the SCAN-005
     bench already measures the seq-vs-parallel walk delta Phase 1a now realises.
-  - `crates/anvil-tui/.../discovery.rs` — not touched; finding-order invariant
+  - `crates/anvil-tui/.../../discovery.rs` — not touched; finding-order invariant
     held via the existing final sort, no struct change needed.
 - **Confidence:** medium (truncation + dedup under parallel is non-trivial)
 - **Priority:** Low

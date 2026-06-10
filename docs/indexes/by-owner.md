@@ -345,11 +345,11 @@
 | [Borrow / Adopt Candidates](../../docs/strategy/borrow-adopt-candidates.md)    | `docs/strategy/borrow-adopt-candidates.md`   | Guide | Advisory  | STRATEGY | Live   |
 | [Competitor Tier 2 Tracking](../../docs/strategy/competitor-tier2-tracking.md) | `docs/strategy/competitor-tier2-tracking.md` | Guide | Advisory  | STRATEGY | Live   |
 
-## TDASH (plans/modules/native-tui-dashboards.aps.md)
+## TDASH (plans/archive/modules/native-tui-dashboards.aps.md)
 
-| Document                                                  | Path                                    | Type        | Authority     | Owner                                              | Status |
-| --------------------------------------------------------- | --------------------------------------- | ----------- | ------------- | -------------------------------------------------- | ------ |
-| [Dashboards](../../docs/public/anvil/guides/dashboard.md) | `docs/public/anvil/guides/dashboard.md` | Public docs | Authoritative | TDASH (plans/modules/native-tui-dashboards.aps.md) | Live   |
+| Document                                                  | Path                                    | Type        | Authority     | Owner                                                      | Status |
+| --------------------------------------------------------- | --------------------------------------- | ----------- | ------------- | ---------------------------------------------------------- | ------ |
+| [Dashboards](../../docs/public/anvil/guides/dashboard.md) | `docs/public/anvil/guides/dashboard.md` | Public docs | Authoritative | TDASH (plans/archive/modules/native-tui-dashboards.aps.md) | Live   |
 
 ## TEST
 

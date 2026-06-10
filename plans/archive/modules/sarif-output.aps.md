@@ -17,14 +17,14 @@ shared-model gates. See plans/specs/2026-05-29-sarif-output-design.md.
 
 > **Provenance:** Promoted from
 > [CIB-014](continuous-improvement-backlog.aps.md) on 2026-05-29. Source
-> brainstorm: [2026-05-24 Drako borrow assessment](../brainstorms/2026-05-24-drako-borrow-assessment.md)
+> brainstorm: [2026-05-24 Drako borrow assessment](../../brainstorms/2026-05-24-drako-borrow-assessment.md)
 > §4 Borrow A (Drako cited as parallel evolution, not dependency). Design pass
 > resolving the three open gates:
-> [2026-05-29 SARIF output design](../specs/2026-05-29-sarif-output-design.md).
+> [2026-05-29 SARIF output design](../../specs/2026-05-29-sarif-output-design.md).
 
 ## Designs
 
-- [SARIF Output Design](../specs/2026-05-29-sarif-output-design.md) — resolves
+- [SARIF Output Design](../../specs/2026-05-29-sarif-output-design.md) — resolves
   flag surface, module home, and shared-finding-model questions; defines the
   bounded 2.1.0 subset and the PR wave plan.
 
@@ -100,10 +100,10 @@ table. No engine-crate refactor.
 
 Both ADRs are filed and **Accepted 2026-05-29**: (1) the `--format` value-enum
 as canonical output selector —
-**[ADR-056](../decisions/056-format-flag-output-selector.md)** (amended to
+**[ADR-056](../../decisions/056-format-flag-output-selector.md)** (amended to
 per-command scope during SARIFOUT-001); (2) shared SARIF emitter + per-command
 adapters with no unified finding model —
-**[ADR-058](../decisions/058-sarif-shared-emitter-no-finding-model.md)** (filed
+**[ADR-058](../../decisions/058-sarif-shared-emitter-no-finding-model.md)** (filed
 with SARIFOUT-002).
 
 ## Work Items
