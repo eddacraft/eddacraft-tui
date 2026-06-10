@@ -148,3 +148,23 @@ never with feature work.
     follow-up items UJ-012..015 file on approval.
 - Next: stop — no Ready items remain; everything left is
   checkpoint-level (UJ-004, UJ-007, UJ-011 review).
+
+## Cycle 9 — 2026-06-10
+
+- Item: UJ-009 follow-up — seeded gate-summary stem shadows the builtin
+- Outcome: done (a project memory note surfaced a shipped bug in
+  #2505 minutes after merge: `spec::discover` names saved specs by file
+  stem, so the init-seeded spec is `gate-summary.dashboard`, which the
+  exact-name shadow check missed — seeded projects double-listed the
+  dashboard and the direct launch served the embedded copy over the
+  saved spec. Fix: `.dashboard`-suffix-aware shadow check + saved-spec
+  precedence at both launch dispatch points. Validation: new
+  red→green test, 29 dashboard tests green, clippy+fmt clean, real
+  transcript on a simulated seeded project — single listing, direct
+  launch resolves to the saved spec.) PR #2507.
+- Plan changes: none (fix to already-Merged UJ-009; no status change).
+- Checkpoints raised: none new (UJ-004 / UJ-007 / UJ-011 review stand
+  from cycle 8).
+- Next: stop — no Ready items remain; UJ is 8/11 with three
+  checkpoint-level items (UJ-004 ADR, UJ-007 decision, UJ-011 shaping
+  review) awaiting the operator.
