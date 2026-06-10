@@ -1,17 +1,18 @@
 # Intercept Rules
 
-| ID   | Owner  | Status      | Progress |
-| ---- | ------ | ----------- | -------- |
-| INTR | @aneki | In Progress | 5/8      |
+| ID   | Owner  | Status   | Progress |
+| ---- | ------ | -------- | -------- |
+| INTR | @aneki | Complete | 8/8      |
 
-**Last reviewed:** 2026-05-28 — INTR-003 (antipattern wrapper), INTR-005
-(regex-content rule), and INTR-007 (rule configuration) fleshed to **Ready**:
-each now carries scope/files grounded in `crates/anvil-intercept-rules/` and the
-existing `anvil-checks` / `anvil-config` APIs, dependencies, and a concrete unit
-validation mirroring the shipped INTR-002 / INTR-004 / INTR-008 wrappers.
-INTR-007 depends on INTR-003 and INTR-005 landing first. Module remains
-**In Progress** (5/8 Done). Earlier (2026-05-13, Wave 0 G5): INTR-004 path-deny
-promoted **Draft → Ready** so the carry-forward gate closed before Wave 1.
+**Last reviewed:** 2026-06-10 — INTR-003 (antipattern wrapper), INTR-005
+(regex-content rule), and INTR-007 (rule configuration) landed together on
+`feat/INTR-003-005-007-rules` (INTR-007 depends on the other two, all three
+scoped to `crates/anvil-intercept-rules/`). Module is now **Complete**
+(8/8 Done); release-evidence advancement and archive are follow-ups per the
+APS lifecycle. Earlier (2026-05-28): the three items fleshed to Ready with
+scope/files grounded in the existing `anvil-checks` / `anvil-config` APIs.
+Earlier (2026-05-13, Wave 0 G5): INTR-004 path-deny promoted **Draft → Ready**
+so the carry-forward gate closed before Wave 1.
 
 > **A1 launch slice (cherry-picked, not the whole module):** INTR-001 (rule
 > trait), INTR-002 (secret-detection wrapper), INTR-006 (rule registry —
@@ -151,7 +152,20 @@ daemon hot path.
   `Removed`-change allow, the missing/binary-content allow, and
   canonical-diagnostic mapping (category, source module, line) mirroring the
   secret-wrapper test shape.
-- **Status:** In Progress
+- **Status:** Done
+- **Progress (2026-06-10, `feat/INTR-003-005-007-rules`):**
+  `AntipatternScanRule` shipped in
+  `crates/anvil-intercept-rules/src/antipattern.rs`. Scans borrowed
+  `RuleInput` content via `anvil_checks::antipattern::scan_file` — no disk
+  reads, no rayon pool on the hot path. Interrupt semantics mirror
+  `run_antipattern_check` pass/fail: only non-suppressed findings at or
+  above the configured `severity_threshold` interrupt (default `Error`, so
+  warning-level findings like `: any` pass through while AP-008 dynamic
+  `eval` interrupts). Non-scannable extensions and `Removed` changes always
+  `Allow`. Diagnostics map to `Category::Antipattern` with the registry
+  suggestion as the remediation hint and the antipattern id in the message
+  (registry normalisation would clobber a per-finding rule_id). 9 unit
+  tests pass.
 
 ### INTR-004: Path Deny List Rule
 
@@ -213,7 +227,17 @@ daemon hot path.
   interrupt with correct line, first-pattern-wins ordering, clean-content allow,
   `Removed`-change allow, missing/binary-content allow, and canonical-diagnostic
   line mapping.
-- **Status:** In Progress
+- **Status:** Done
+- **Progress (2026-06-10, `feat/INTR-003-005-007-rules`):**
+  `RegexContentRule` shipped in
+  `crates/anvil-intercept-rules/src/regex_content.rs`. Patterns compile
+  eagerly at construction (typed `RegexContentError::InvalidPattern`,
+  mirroring INTR-004's eager-compile precedent); evaluation matches
+  compiled patterns per line of the borrowed content and interrupts via
+  `interrupt_at` with the 1-based line. First-registered-pattern-wins
+  ordering; `Removed` changes and missing/binary content always `Allow`.
+  Canonical `Category::Policy` diagnostics with matched line + remediation
+  hint. 13 unit tests pass.
 
 ### INTR-006: Rule Registry
 
@@ -281,7 +305,20 @@ daemon hot path.
   constructing deny-list + regex + antipattern rules, a malformed-config typed
   error (no silent default), and a round-trip that the constructed registry
   rejects a content payload its configured rules should interrupt.
-- **Status:** In Progress
+- **Status:** Done
+- **Progress (2026-06-10, `feat/INTR-003-005-007-rules`):** `config.rs`
+  shipped: `InterceptRulesConfig` parses the
+  `enforcement.intercept-rules` block (discovered via
+  `anvil_config::discover(root, ".anvil")`, yaml → yml → json → toml) into
+  typed config — `secret-detection` (default on), `antipattern` (default
+  off, hot-path default stays minimal), `path-deny` and `regex-content`
+  pattern lists. Absent file/block folds into defaults; malformed values
+  and unknown rule keys return typed `RuleConfigError` variants (operator
+  no-silent-defaults rule). `into_registry()` compiles globs/regexes once
+  and assembles the INTR-006 registry in deterministic order: path-deny →
+  secret-detection → antipattern → regex-content. 8 unit tests pass,
+  including a `.anvil.yaml` discovery round-trip that interrupts on a
+  configured deny path.
 
 ### INTR-008: Launch reasoning-pattern rule wrapper
 
