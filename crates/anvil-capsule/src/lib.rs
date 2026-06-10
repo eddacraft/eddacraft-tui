@@ -19,6 +19,7 @@ pub mod collect_witness;
 pub mod errors;
 pub mod format;
 pub mod manifest;
+pub mod prune;
 pub mod verification;
 pub mod verify;
 
@@ -34,6 +35,7 @@ pub use collect_witness::{CollectedWitness, collect_witness};
 pub use errors::CapsuleError;
 pub use format::{CapsuleContent, write_capsule};
 pub use manifest::{CAPSULE_SCHEMA, CapsuleManifest, CapsuleRange, Producer, REQUIRED_FILES};
+pub use prune::{CapsuleRef, PruneFailure, PrunePlan, SkippedEntry, apply_prune, plan_prune};
 pub use verification::{CapsuleVerification, CheckResult, VERIFICATION_SCHEMA, Verdict};
 pub use verify::{verify_capsule, verify_capsule_at};
 

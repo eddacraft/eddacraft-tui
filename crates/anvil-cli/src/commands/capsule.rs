@@ -38,8 +38,9 @@ use std::path::{Path, PathBuf};
 
 use anvil_capsule::{
     BaselineDigest, CapsuleContent, CapsuleManifest, CapsuleVerification, CommitsDocument,
-    PolicyDigest, Producer, RulesDigest, ToolIdentity, canonical_json_bytes, collect_commits,
-    collect_diagnostics, collect_digests, collect_witness, verify_capsule, write_capsule,
+    PolicyDigest, Producer, PrunePlan, RulesDigest, ToolIdentity, apply_prune,
+    canonical_json_bytes, collect_commits, collect_diagnostics, collect_digests, collect_witness,
+    plan_prune, verify_capsule, write_capsule,
 };
 use anyhow::{Context, Result, bail};
 use clap::{Args, Subcommand};
@@ -72,6 +73,15 @@ enum CapsuleCommand {
     /// verdict (non-zero only when the capsule cannot be read); gate on
     /// the verdict with `anvil capsule verify`, not this command.
     Explain(ExplainArgs),
+    /// Explicitly dispose of staged capsules (ADR-078, GITGOV-013).
+    /// Dry-run by default: prints what `--apply` would delete and
+    /// touches nothing. Candidates are schema-gated (only parseable
+    /// `anvil.capsule.v1` directories), ordered by head-commit
+    /// committer date; capsules the repository cannot order are always
+    /// kept. `--apply` deletes tracked capsules via the git index
+    /// (staged deletion — committing remains your act) and never
+    /// commits. Nothing in Anvil prunes capsules automatically.
+    Prune(PruneArgs),
 }
 
 #[derive(Debug, Args)]
@@ -113,11 +123,38 @@ struct CreateArgs {
     out: PathBuf,
 }
 
+#[derive(Debug, Args)]
+struct PruneArgs {
+    /// Staging root to prune. Defaults to `anvil/evidence/capsules/`
+    /// (ADR-073). Must resolve inside the repository working tree and
+    /// outside `.git`.
+    #[arg(long)]
+    root: Option<PathBuf>,
+    /// Keep the newest N orderable capsules; the rest are selected for
+    /// deletion. Must be at least 1 — deleting every capsule is a
+    /// manual `git rm` decision, not a prune invocation (ADR-078).
+    #[arg(long, value_parser = clap::value_parser!(u32).range(1..))]
+    keep_last: u32,
+    /// Perform the deletion. Without this flag prune is a dry run:
+    /// it prints the would-delete list and touches nothing.
+    #[arg(long)]
+    apply: bool,
+}
+
 pub fn run(args: &CapsuleArgs, _global: &GlobalArgs) -> Result<()> {
     match &args.command {
         CapsuleCommand::Create(create) => {
             let repo_root = workspace_root()?;
             run_create(&repo_root, &create.range, &create.out)
+        }
+        CapsuleCommand::Prune(prune) => {
+            let repo_root = workspace_root()?;
+            run_prune(
+                &repo_root,
+                prune.root.as_deref(),
+                prune.keep_last as usize,
+                prune.apply,
+            )
         }
         CapsuleCommand::Verify(verify) => {
             let repo_root = workspace_root()?;
@@ -942,6 +979,141 @@ fn parse_range(range: &str) -> Result<(&str, &str)> {
         bail!("--range sides must not contain whitespace; got `{range}`");
     }
     Ok((base, head))
+}
+
+/// Default in-repo staging root (ADR-073).
+const DEFAULT_STAGING_ROOT: &str = "anvil/evidence/capsules";
+
+/// The `prune` flow (ADR-078): plan over the staging root, report on
+/// stdout (would-delete list, one path per line) with warnings on
+/// stderr, and — only under `--apply` — delete via the git index.
+fn run_prune(repo_root: &Path, root: Option<&Path>, keep_last: usize, apply: bool) -> Result<()> {
+    let staging_root = match root {
+        Some(root) => validate_prune_root(repo_root, root)?,
+        None => repo_root.join(DEFAULT_STAGING_ROOT),
+    };
+    if !staging_root.exists() {
+        println!(
+            "staging root {} does not exist — nothing to prune",
+            staging_root.display()
+        );
+        return Ok(());
+    }
+
+    let plan = plan_prune(repo_root, &staging_root, keep_last)
+        .with_context(|| format!("planning prune of {}", staging_root.display()))?;
+    report_prune_warnings(&plan);
+    if plan.keep.is_empty() && plan.delete.is_empty() && plan.unordered.is_empty() {
+        eprintln!(
+            "warning: no capsules found under {} — is this the staging root?",
+            staging_root.display()
+        );
+        println!("nothing to prune");
+        return Ok(());
+    }
+
+    if plan.delete.is_empty() {
+        println!(
+            "nothing to prune: {} orderable capsule(s) <= --keep-last {keep_last}",
+            plan.keep.len()
+        );
+        return Ok(());
+    }
+
+    for capsule in &plan.delete {
+        println!("{}", capsule.dir.display());
+    }
+    if !apply {
+        println!(
+            "dry run: {} capsule(s) would be deleted, {} kept — re-run with --apply to delete",
+            plan.delete.len(),
+            plan.keep.len() + plan.unordered.len()
+        );
+        return Ok(());
+    }
+
+    let failures = apply_prune(repo_root, &plan);
+    let deleted = plan.delete.len() - failures.len();
+    println!(
+        "pruned {deleted} capsule(s), kept {} — deletions are staged; commit to record the prune",
+        plan.keep.len() + plan.unordered.len()
+    );
+    if !failures.is_empty() {
+        for failure in &failures {
+            eprintln!(
+                "error: failed to remove {}: {}",
+                failure.dir.display(),
+                failure.error
+            );
+        }
+        bail!(
+            "{} of {} deletion(s) failed",
+            failures.len(),
+            plan.delete.len()
+        );
+    }
+    Ok(())
+}
+
+/// Stderr warnings for the parts of a prune plan that need operator
+/// attention but never change the exit code (ADR-002 posture).
+fn report_prune_warnings(plan: &PrunePlan) {
+    for entry in &plan.skipped {
+        eprintln!(
+            "warning: skipped {} ({})",
+            entry.path.display(),
+            entry.reason
+        );
+    }
+    if !plan.unordered.is_empty() {
+        eprintln!(
+            "warning: {} capsule(s) kept because the repository does not know their head \
+             commit (cannot be ordered honestly):",
+            plan.unordered.len()
+        );
+        for capsule in &plan.unordered {
+            eprintln!("warning:   {}", capsule.dir.display());
+        }
+    }
+}
+
+/// `--root` must resolve to a directory inside the repository working
+/// tree and never inside `.git` (ADR-078; mirrors
+/// `refuse_out_inside_git_dir`). Prune stages deletions through the
+/// index, so an out-of-repo root is meaningless — external capsule
+/// directories are the operator's to manage directly.
+fn validate_prune_root(repo_root: &Path, root: &Path) -> Result<PathBuf> {
+    let absolute = if root.is_absolute() {
+        root.to_path_buf()
+    } else {
+        repo_root.join(root)
+    };
+    let Ok(resolved) = absolute.canonicalize() else {
+        // A missing root is handled (as "nothing to prune") by the
+        // caller; refuse only what resolves somewhere unsafe.
+        return Ok(absolute);
+    };
+    let canonical_repo = repo_root
+        .canonicalize()
+        .with_context(|| format!("resolving repository root {}", repo_root.display()))?;
+    if !resolved.starts_with(&canonical_repo) {
+        bail!(
+            "--root {} resolves outside the repository working tree; prune only manages \
+             in-repo staging (ADR-078) — external capsule directories are yours to manage \
+             directly",
+            root.display()
+        );
+    }
+    if let Ok(git_dir) = repo_root.join(".git").canonicalize()
+        && resolved.starts_with(&git_dir)
+    {
+        bail!(
+            "--root {} resolves inside the repository's .git directory; choose a staging \
+             root in the working tree",
+            root.display()
+        );
+    }
+    Ok(resolved)
 }
 
 /// Refuse `--out` resolving inside the repository's `.git` directory —
@@ -2392,5 +2564,90 @@ mod tests {
             recanonicalised.as_slice(),
             "explain --json output is already canonical"
         );
+    }
+
+    // --- prune (ADR-078, GITGOV-013) ---
+
+    /// A minimal capsule directory (manifest only) pointing at `head` —
+    /// enough for the schema gate and ordering; prune never reads the
+    /// evidence files.
+    fn write_min_capsule(root: &Path, name: &str, head: &str) -> std::path::PathBuf {
+        let dir = root.join(name);
+        std::fs::create_dir_all(&dir).unwrap();
+        let manifest = CapsuleManifest::new(
+            anvil_capsule::CapsuleRange {
+                base: "0".repeat(40),
+                head: head.to_string(),
+                witness_seq_start: None,
+                witness_seq_end: None,
+            },
+            Producer {
+                anvil_version: "0.0.0-test".to_string(),
+            },
+        );
+        std::fs::write(
+            dir.join("manifest.json"),
+            serde_json::to_vec(&manifest).unwrap(),
+        )
+        .unwrap();
+        dir
+    }
+
+    #[test]
+    fn prune_root_outside_repo_is_refused() {
+        let (repo, _base, _head) = scratch_repo();
+        let outside = tempfile::tempdir().unwrap();
+        let err = validate_prune_root(repo.path(), outside.path()).unwrap_err();
+        assert!(err.to_string().contains("outside the repository"), "{err}");
+    }
+
+    #[test]
+    fn prune_root_inside_git_dir_is_refused() {
+        let (repo, _base, _head) = scratch_repo();
+        let inside = repo.path().join(".git/capsules");
+        std::fs::create_dir_all(&inside).unwrap();
+        let err = validate_prune_root(repo.path(), &inside).unwrap_err();
+        assert!(err.to_string().contains(".git"), "{err}");
+    }
+
+    #[test]
+    fn prune_missing_default_root_is_a_noop() {
+        let (repo, _base, _head) = scratch_repo();
+        run_prune(repo.path(), None, 1, false).expect("noop prune");
+        run_prune(repo.path(), None, 1, true).expect("noop apply");
+    }
+
+    #[test]
+    fn prune_dry_run_deletes_nothing_apply_deletes_oldest() {
+        let (repo, _base, _head) = scratch_repo();
+        // scratch_repo's two commits share a committer second; pin two
+        // commits with distinct dates so "oldest" is unambiguous.
+        let commit_at = |epoch: &str, msg: &str| -> String {
+            let date = format!("{epoch} +0000");
+            let out = Command::new("git")
+                .args(["commit", "-q", "--allow-empty", "-m", msg])
+                .env("GIT_COMMITTER_DATE", &date)
+                .env("GIT_AUTHOR_DATE", &date)
+                .current_dir(repo.path())
+                .output()
+                .expect("spawn git commit");
+            assert!(out.status.success(), "{out:?}");
+            git(repo.path(), &["rev-parse", "HEAD"]).trim().to_string()
+        };
+        let old = commit_at("1700000000", "old");
+        let new = commit_at("1700000100", "new");
+        let root = repo.path().join("anvil/evidence/capsules");
+        let old_dir = write_min_capsule(&root, "cap-old", &old);
+        let new_dir = write_min_capsule(&root, "cap-new", &new);
+
+        run_prune(repo.path(), None, 1, false).expect("dry run");
+        assert!(
+            old_dir.exists() && new_dir.exists(),
+            "dry run deletes nothing"
+        );
+
+        run_prune(repo.path(), None, 1, true).expect("apply");
+        assert!(!old_dir.exists(), "oldest capsule deleted on --apply");
+        assert!(new_dir.exists(), "newest capsule kept");
     }
 }

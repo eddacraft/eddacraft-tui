@@ -243,7 +243,7 @@ fn collect_entry(repo_root: &Path, sha: &str) -> Result<CommitEntry, CapsuleErro
 }
 
 /// Run `git` in `repo_root` and return its stdout as UTF-8.
-fn git_stdout(repo_root: &Path, args: &[&str]) -> Result<String, CapsuleError> {
+pub(crate) fn git_stdout(repo_root: &Path, args: &[&str]) -> Result<String, CapsuleError> {
     let raw = git_stdout_bytes(repo_root, args)?;
     String::from_utf8(raw)
         .map_err(|_| CapsuleError::Git(format!("git {} returned non-UTF-8 output", args[0])))

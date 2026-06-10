@@ -23,6 +23,10 @@ pub enum CapsuleError {
     /// (including changed paths, which are never lossily rewritten).
     #[error("git error: {0}")]
     Git(String),
+    /// The prune surface refused an invocation or could not read the
+    /// staging root (ADR-078).
+    #[error("prune error: {0}")]
+    Prune(String),
     /// A verification document's stored `verdict` disagrees with the
     /// worst-of derivation over its `checks` — a tampered or
     /// hand-assembled document trying to launder a verdict.
