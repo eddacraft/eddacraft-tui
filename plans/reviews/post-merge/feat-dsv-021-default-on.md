@@ -1,6 +1,6 @@
 # Post-merge: feat-dsv-021-default-on
 
-PR: #NNN
+PR: #2473
 Branch: `feat/dsv-021-default-on`
 APS: DSV-021
 Merged: <!-- filled by cleanup agent -->
@@ -8,8 +8,8 @@ Verified: <!-- filled by cleanup agent -->
 
 ## Steps
 
-- [ ] Step 1 — Reconcile `plans/index.aps.md` (deliberately excluded from this PR
-      to avoid colliding with the held #2472). Fold ALL of: GV2-024 #2470 +
+- [ ] Step 1 — Reconcile `plans/index.aps.md` — deliberately excluded from this
+      PR to avoid colliding with the held #2472. Fold ALL of: GV2-024 #2470 +
       GV2-025 #2459 Merged, DSV-021 Done, and the NBI re-rank (default-on now
       shipped) into one update; then close/supersede #2472. (agent: yes)
 - [ ] Step 2 — Reset the **shared main checkout** working tree: it still holds the
@@ -32,7 +32,7 @@ Verified: <!-- filled by cleanup agent -->
   `1/true/on/yes` forces the preview path.
 - **Adversarial review** confirmed the safety claim (silent, startup-time probe;
   no per-save latency; no auto-start). Addressed: pinned + documented the
-  empty/unrecognized-value behavior (treated as unset, not a silent disable) with
+  empty/unrecognised-value behaviour (treated as unset, not a silent disable) with
   tests. **Open MINOR follow-up**: `build_save_time_client`'s `DefaultOnWhenLive`
   guard branch has no *direct* unit test (indirectly covered by the FakeTransport
   probe-fail test + the `daemon_routing_mode_from` tests) — extract a
