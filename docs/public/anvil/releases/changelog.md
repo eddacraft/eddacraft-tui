@@ -1136,3 +1136,7 @@ See [Upgrade Notes](/anvil/releases/upgrade-notes) for migration guides.
 ## v0.7.4-beta
 
 - Release preparation metadata generated.
+
+## v0.8.0-beta
+
+- Release preparation metadata generated.
