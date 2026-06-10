@@ -11,7 +11,7 @@ sidebar_position: 5
 
 | Type        | Authority     | Owner                                                                                                                                    | Status | Freshness                                                                          |
 | ----------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------- |
-| Public docs | Authoritative | INSIGHTS ([`plans/modules/usage-insights.aps.md`](https://github.com/eddacraft/anvil-001/blob/main/plans/modules/usage-insights.aps.md)) | Live   | Last reviewed 2026-06-08 against `main` for the v0.8.0-beta `anvil insights` views |
+| Public docs | Authoritative | INSIGHTS ([`plans/modules/usage-insights.aps.md`](https://github.com/eddacraft/anvil-001/blob/main/plans/modules/usage-insights.aps.md)) | Live   | Last reviewed 2026-06-10 against `main` for the v0.8.0-beta `anvil insights` views |
 
 | Upstream                                                                         | Downstream                                                                    |
 | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
@@ -40,6 +40,27 @@ witness chain and recorded activity:
 
 Add `--json` to emit a schema-versioned `anvil.insights.v1` document for your
 own tooling.
+
+## Suppressing a finding
+
+Not every finding needs fixing right now. Suppressions are appropriate for
+legacy code that predates anvil, intentional decisions with a documented reason,
+and temporary exceptions with planned work — they are an acknowledgement, not a
+fix, so track them and reduce the count over time.
+
+Suppress a finding inline with a comment on the offending line or the line above
+it, naming one rule id and a reason after `--`:
+
+```typescript
+// @anvil-ignore AP-003 -- legacy parser uses any, migration planned
+export function parse(input: any): Record<string, unknown> {
+  // ...
+}
+```
+
+Each directive suppresses exactly one rule. A directive without a `--` reason
+still suppresses, but shows up as "No reason provided" in the health view below
+— give every suppression a reason so the list stays auditable.
 
 ## Suppression health (`--suppressions`)
 

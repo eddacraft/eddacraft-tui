@@ -53,6 +53,76 @@ For Windows runners, use the PowerShell installer:
   run: irm https://install.eddacraft.ai/windows | iex
 ```
 
+To cover all three platforms in one job, use a matrix:
+
+```yaml
+jobs:
+  anvil:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            install: curl -fsSL https://install.eddacraft.ai | sh
+          - os: windows-latest
+            install: irm https://install.eddacraft.ai/windows | iex
+            shell: pwsh
+          - os: macos-latest
+            install: curl -fsSL https://install.eddacraft.ai | sh
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install anvil
+        shell: ${{ matrix.shell || 'bash' }}
+        run: ${{ matrix.install }}
+
+      - name: Run anvil
+        env:
+          ANVIL_LICENSE: ${{ secrets.ANVIL_LICENSE }}
+        run: anvil gate --profile ci
+```
+
+:::tip CI authentication
+
+If your gate checks require beta access, set `ANVIL_LICENSE` from your CI secret
+store before running anvil. Locally you use `anvil auth login`; CI should use a
+secret value, not an interactive login.
+
+:::
+
+The `ci` profile runs all check categories (no skips). Output mode and
+interactivity are controlled separately by TTY detection, `--json`, and
+`--progress` flags — the profile selects which checks to run and which
+thresholds to apply.
+
+### Where CI fits
+
+CI is the outermost of anvil's protection layers — the safety net behind
+save-time validation (`anvil watch` / MCP pre-write, see the
+[save-time guide](../guides/save-time-validation.md)) and commit-time git hooks
+(see [Git hook setup](../operations/git-hooks.md)). Issues caught at inner
+layers never reach CI; the goal is to catch everything at save-time.
+
+### Other CI systems
+
+The same install-and-gate pattern works on any runner with the exit codes below.
+GitLab CI, for example:
+
+```yaml
+# .gitlab-ci.yml
+anvil:
+  stage: test
+  variables:
+    ANVIL_LICENSE: $ANVIL_LICENSE
+  before_script:
+    - curl -fsSL https://install.eddacraft.ai | sh
+  script:
+    - anvil gate --profile ci
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+```
+
 ### Exit Codes
 
 | Code | Meaning          | Action            |
