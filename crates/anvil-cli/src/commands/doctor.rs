@@ -118,6 +118,7 @@ fn run_all_checks() -> Vec<DiagnosticCheck> {
         check_hooks_installed(),
         check_registry_patterns_compile(),
         check_project_id(),
+        check_state_boundary(),
     ]
 }
 
@@ -659,6 +660,184 @@ fn check_project_id() -> DiagnosticCheck {
                 doc_url: None,
             },
         },
+    }
+}
+
+fn check_state_boundary() -> DiagnosticCheck {
+    check_state_boundary_at(Path::new("."))
+}
+
+/// GITGOV-014 (ADR-073): the durable-vs-runtime state boundary check.
+/// Warns when paths under `.anvil/` (local runtime state) are git-tracked,
+/// or paths under `anvil/` (durable governance evidence) are gitignored.
+/// `anvil/exceptions/.lock` is exempt — it is the one sanctioned runtime
+/// artefact inside the tracked governance tree (EXCEPT-007). Warn, never
+/// Fail: the boundary is a posture, and a repo may carry a recorded,
+/// justified deviation (ADR-073's dogfood note).
+fn check_state_boundary_at(root: &Path) -> DiagnosticCheck {
+    let in_repo = Command::new("git")
+        .args(["rev-parse", "--git-dir"])
+        .current_dir(root)
+        .output()
+        .is_ok_and(|o| o.status.success());
+    if !in_repo {
+        return DiagnosticCheck {
+            name: "state-boundary".to_string(),
+            category: "Configuration".to_string(),
+            status: CheckStatus::Skipped,
+            message: "not a git repository — durable/runtime state boundary not checkable"
+                .to_string(),
+            details: None,
+            auto_fixable: false,
+            remediation: Remediation::default(),
+        };
+    }
+
+    let tracked_runtime = tracked_runtime_paths(root);
+    let ignored_durable = ignored_durable_paths(root);
+
+    if tracked_runtime.is_empty() && ignored_durable.is_empty() {
+        return DiagnosticCheck {
+            name: "state-boundary".to_string(),
+            category: "Configuration".to_string(),
+            status: CheckStatus::Pass,
+            message: "durable anvil/ vs runtime .anvil/ state boundary holds (ADR-073)".to_string(),
+            details: None,
+            auto_fixable: false,
+            remediation: Remediation::default(),
+        };
+    }
+
+    let mut details = String::new();
+    let list = |buf: &mut String, header: &str, paths: &[String]| {
+        use std::fmt::Write as _;
+        if paths.is_empty() {
+            return;
+        }
+        buf.push_str(header);
+        for p in paths.iter().take(8) {
+            buf.push_str("\n  - ");
+            buf.push_str(p);
+        }
+        if paths.len() > 8 {
+            let _ = write!(buf, "\n  … and {} more", paths.len() - 8);
+        }
+        buf.push('\n');
+    };
+    list(
+        &mut details,
+        "Runtime state tracked by git (should be gitignored, .anvil/ is local):",
+        &tracked_runtime,
+    );
+    list(
+        &mut details,
+        "Durable governance state swallowed by .gitignore (anvil/ must travel with the repo):",
+        &ignored_durable,
+    );
+
+    // Prefer the untrack command when runtime state is tracked (the riskier
+    // direction — runtime stores can carry secrets); otherwise point at the
+    // ignore rule that swallows the first durable path.
+    let command = if tracked_runtime.is_empty() {
+        ignored_durable
+            .first()
+            .map(|p| format!("git check-ignore -v {p}"))
+    } else {
+        Some("git rm -r --cached .anvil".to_string())
+    };
+
+    DiagnosticCheck {
+        name: "state-boundary".to_string(),
+        category: "Configuration".to_string(),
+        status: CheckStatus::Warn,
+        message: format!(
+            "state boundary breached: {} runtime path(s) tracked, {} durable path(s) ignored",
+            tracked_runtime.len(),
+            ignored_durable.len()
+        ),
+        details: Some(details.trim_end().to_string()),
+        auto_fixable: false,
+        remediation: Remediation {
+            summary: "Untrack `.anvil/` runtime state and keep it gitignored; remove \
+                      `.gitignore` rules that swallow durable `anvil/` evidence (or record \
+                      the deviation as a justified exception per ADR-073). \
+                      `anvil/exceptions/.lock` is exempt (EXCEPT-007)."
+                .to_string(),
+            command,
+            doc_url: None,
+        },
+    }
+}
+
+/// Paths under `.anvil/` present in the git index.
+fn tracked_runtime_paths(root: &Path) -> Vec<String> {
+    let out = Command::new("git")
+        .args(["ls-files", "-z", "--", ".anvil"])
+        .current_dir(root)
+        .output();
+    match out {
+        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout)
+            .split('\0')
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// Existing paths under `anvil/` that a `.gitignore` rule would swallow.
+/// The sweep is bounded so a pathological tree cannot stall doctor.
+fn ignored_durable_paths(root: &Path) -> Vec<String> {
+    use std::io::Write as _;
+
+    const SWEEP_CAP: usize = 512;
+
+    let durable_root = root.join("anvil");
+    if !durable_root.is_dir() {
+        return Vec::new();
+    }
+    let candidates: Vec<String> = walkdir::WalkDir::new(&durable_root)
+        .min_depth(1)
+        .into_iter()
+        .filter_map(Result::ok)
+        .take(SWEEP_CAP)
+        .filter_map(|e| {
+            let rel = e.path().strip_prefix(root).ok()?;
+            let rel = rel.to_string_lossy().replace('\\', "/");
+            // EXCEPT-007: the exception-store write lock is sanctioned
+            // runtime state inside the tracked governance tree.
+            (rel != "anvil/exceptions/.lock").then_some(rel)
+        })
+        .collect();
+    if candidates.is_empty() {
+        return Vec::new();
+    }
+
+    let child = Command::new("git")
+        .args(["check-ignore", "-z", "--stdin"])
+        .current_dir(root)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn();
+    let Ok(mut child) = child else {
+        return Vec::new();
+    };
+    if let Some(mut stdin) = child.stdin.take() {
+        for c in &candidates {
+            if stdin.write_all(c.as_bytes()).is_err() || stdin.write_all(b"\0").is_err() {
+                break;
+            }
+        }
+    }
+    // Exit code 1 means "no path is ignored" — not an error.
+    match child.wait_with_output() {
+        Ok(o) => String::from_utf8_lossy(&o.stdout)
+            .split('\0')
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+            .collect(),
+        Err(_) => Vec::new(),
     }
 }
 
@@ -1226,6 +1405,15 @@ mod tests {
             pattern_title: "Y".into(),
             error: "z".into(),
         }]));
+        // state-boundary Warn branch: a git repo tracking runtime state.
+        out.push({
+            let tmp = tempfile::tempdir().expect("create tempdir");
+            git_in(tmp.path(), &["init", "-q"]);
+            std::fs::create_dir_all(tmp.path().join(".anvil")).unwrap();
+            std::fs::write(tmp.path().join(".anvil/gates.json"), "{}").unwrap();
+            git_in(tmp.path(), &["add", ".anvil/gates.json"]);
+            check_state_boundary_at(tmp.path())
+        });
         out
     }
 
@@ -1446,6 +1634,128 @@ mod tests {
             checks.iter().any(|c| c.name == "registry-patterns-compile"),
             "registry-patterns-compile must be registered in run_all_checks",
         );
+    }
+
+    // --- state-boundary (GITGOV-014, ADR-073) ---
+
+    /// `git` invocation for state-boundary fixtures. `GIT_CONFIG_GLOBAL` and
+    /// `GIT_CONFIG_SYSTEM` are pointed at the null device so a developer's
+    /// global excludesFile cannot leak into the fixture repo's ignore rules.
+    fn git_in(root: &Path, args: &[&str]) {
+        let null = if cfg!(windows) { "NUL" } else { "/dev/null" };
+        let out = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .env("GIT_CONFIG_GLOBAL", null)
+            .env("GIT_CONFIG_SYSTEM", null)
+            .output()
+            .expect("run git");
+        assert!(out.status.success(), "git {args:?} failed: {out:?}");
+    }
+
+    #[test]
+    fn run_all_checks_includes_state_boundary_check() {
+        let checks = run_all_checks();
+        assert!(
+            checks.iter().any(|c| c.name == "state-boundary"),
+            "state-boundary must be registered in run_all_checks",
+        );
+    }
+
+    #[test]
+    fn state_boundary_skipped_outside_git_repo() {
+        let tmp = tempfile::tempdir().unwrap();
+        let check = check_state_boundary_at(tmp.path());
+        assert_eq!(check.status, CheckStatus::Skipped);
+    }
+
+    #[test]
+    fn state_boundary_passes_when_boundary_holds() {
+        let tmp = tempfile::tempdir().unwrap();
+        git_in(tmp.path(), &["init", "-q"]);
+        std::fs::write(tmp.path().join(".gitignore"), ".anvil/\n").unwrap();
+        std::fs::create_dir_all(tmp.path().join(".anvil/cache")).unwrap();
+        std::fs::write(tmp.path().join(".anvil/cache/x"), "runtime").unwrap();
+        std::fs::create_dir_all(tmp.path().join("anvil/witness")).unwrap();
+        std::fs::write(tmp.path().join("anvil/witness/chain.ndjson"), "{}").unwrap();
+        git_in(tmp.path(), &["add", "anvil"]);
+        let check = check_state_boundary_at(tmp.path());
+        assert_eq!(check.status, CheckStatus::Pass, "{:?}", check.message);
+    }
+
+    #[test]
+    fn state_boundary_warns_on_tracked_runtime_state() {
+        let tmp = tempfile::tempdir().unwrap();
+        git_in(tmp.path(), &["init", "-q"]);
+        std::fs::create_dir_all(tmp.path().join(".anvil")).unwrap();
+        std::fs::write(tmp.path().join(".anvil/exceptions.json"), "[]").unwrap();
+        git_in(tmp.path(), &["add", ".anvil/exceptions.json"]);
+        let check = check_state_boundary_at(tmp.path());
+        assert_eq!(check.status, CheckStatus::Warn);
+        assert!(
+            check
+                .details
+                .as_deref()
+                .unwrap_or("")
+                .contains(".anvil/exceptions.json"),
+            "details name the tracked runtime path: {:?}",
+            check.details
+        );
+        assert!(
+            check
+                .remediation
+                .command
+                .as_deref()
+                .unwrap_or("")
+                .contains("git rm"),
+            "remediation offers the untrack command: {:?}",
+            check.remediation.command
+        );
+    }
+
+    #[test]
+    fn state_boundary_warns_on_ignored_durable_state() {
+        let tmp = tempfile::tempdir().unwrap();
+        git_in(tmp.path(), &["init", "-q"]);
+        std::fs::write(tmp.path().join(".gitignore"), "anvil/witness/\n").unwrap();
+        std::fs::create_dir_all(tmp.path().join("anvil/witness")).unwrap();
+        std::fs::write(tmp.path().join("anvil/witness/chain.ndjson"), "{}").unwrap();
+        let check = check_state_boundary_at(tmp.path());
+        assert_eq!(check.status, CheckStatus::Warn);
+        assert!(
+            check
+                .details
+                .as_deref()
+                .unwrap_or("")
+                .contains("anvil/witness"),
+            "details name the ignored durable path: {:?}",
+            check.details
+        );
+        assert!(
+            check
+                .remediation
+                .command
+                .as_deref()
+                .unwrap_or("")
+                .contains("check-ignore"),
+            "remediation offers the rule-locating command: {:?}",
+            check.remediation.command
+        );
+    }
+
+    #[test]
+    fn state_boundary_exempts_exception_store_lock() {
+        // anvil/exceptions/.lock is the one sanctioned runtime artefact inside
+        // the tracked governance tree (EXCEPT-007) — ignoring it is correct.
+        let tmp = tempfile::tempdir().unwrap();
+        git_in(tmp.path(), &["init", "-q"]);
+        std::fs::write(tmp.path().join(".gitignore"), "anvil/exceptions/.lock\n").unwrap();
+        std::fs::create_dir_all(tmp.path().join("anvil/exceptions")).unwrap();
+        std::fs::write(tmp.path().join("anvil/exceptions/.lock"), "").unwrap();
+        std::fs::write(tmp.path().join("anvil/exceptions/active.json"), "[]").unwrap();
+        git_in(tmp.path(), &["add", "anvil/exceptions/active.json"]);
+        let check = check_state_boundary_at(tmp.path());
+        assert_eq!(check.status, CheckStatus::Pass, "{:?}", check.details);
     }
 
     #[test]
