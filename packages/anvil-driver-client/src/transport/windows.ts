@@ -119,7 +119,12 @@ export function resolveCurrentUserSid(): string {
   if (cachedWhoamiSid !== null) {
     return cachedWhoamiSid;
   }
-  const systemRoot = process.env['SystemRoot'] ?? 'C:\\Windows';
+  // Trust SystemRoot only when it is an absolute drive path — a
+  // relative or UNC-ish value would reintroduce the CWD/PATH planting
+  // risk the absolute invocation exists to close.
+  const envRoot = process.env['SystemRoot'];
+  const systemRoot =
+    envRoot !== undefined && /^[A-Za-z]:\\/.test(envRoot) ? envRoot : 'C:\\Windows';
   const whoamiPath = `${systemRoot}\\System32\\whoami.exe`;
   let output: string;
   try {
