@@ -9,7 +9,7 @@ from the v0.8.0-beta user-journey completeness review (operator-directed).
 
 | ID  | Owner  | Status | Progress |
 | --- | ------ | ------ | -------- |
-| UJ  | @aneki | In Progress | 0/11 |
+| UJ  | @aneki | In Progress | 1/11 |
 
 **Last reviewed:** 2026-06-10 (created from the v0.8.0-beta user-journey
 completeness review. Operator direction: beta posture permits explicit guidance
@@ -157,7 +157,7 @@ carry the user to the next step without a docs lookup.
 
 ### UJ-005: `anvil status` always states the save-time posture
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-10 via PR #2500
 - **Intent:** Status is the home screen; it must state the save-time posture
   even when the daemon is off, instead of omitting the line and hiding the
   flagship gap.
