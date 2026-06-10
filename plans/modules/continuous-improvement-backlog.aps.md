@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 33/56    |
+| CIB | —     | In Progress | 34/56    |
 
 ## Purpose
 
@@ -1421,7 +1421,7 @@ archive.
 
 ### CIB-056: Driver-client Windows pipe gate must verify the current-user SID
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-10 via PR #2485
 - **Intent:** the `Transport.connect` contract
   (`packages/anvil-driver-client/src/transport/types.ts`) promises a
   platform owner gate before `connect()` resolves, but the Windows
