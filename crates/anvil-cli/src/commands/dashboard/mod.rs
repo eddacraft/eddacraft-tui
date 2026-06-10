@@ -70,6 +70,23 @@ fn embedded_gate_summary_available(specs: &[SavedDashboard]) -> bool {
     gate_summary_saved(specs).is_none()
 }
 
+/// The comma-joined valid-names list for the unknown-dashboard error. Saved
+/// names are untrusted file stems — sanitised for display. `gate-summary` is
+/// always routable (to the owning saved spec or the built-in), so it is
+/// listed unless a saved spec already carries that literal name.
+fn valid_dashboard_names(catalog: &[CatalogEntry], specs: &[SavedDashboard]) -> String {
+    catalog
+        .iter()
+        .map(|entry| entry.name.to_string())
+        .chain(specs.iter().map(|s| sanitize(&s.name)))
+        .chain(
+            (!specs.iter().any(|s| sanitize(&s.name) == GATE_SUMMARY_NAME))
+                .then(|| GATE_SUMMARY_NAME.to_string()),
+        )
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 /// The catalogue of native dashboards, in display order.
 fn catalog() -> Vec<CatalogEntry> {
     vec![
@@ -147,19 +164,10 @@ pub fn run(args: &DashboardArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                 }
                 return launch_embedded_gate_summary(root, global);
             }
-            let names = catalog
-                .iter()
-                .map(|entry| entry.name.to_string())
-                // Saved names are untrusted file stems — sanitise for display.
-                .chain(specs.iter().map(|s| sanitize(&s.name)))
-                .chain(
-                    embedded_gate_summary_available(&specs).then(|| GATE_SUMMARY_NAME.to_string()),
-                )
-                .collect::<Vec<_>>()
-                .join(", ");
             anyhow::bail!(
-                "unknown dashboard '{}'. Valid dashboards: {names}",
-                sanitize(&name)
+                "unknown dashboard '{}'. Valid dashboards: {}",
+                sanitize(&name),
+                valid_dashboard_names(&catalog, &specs)
             )
         }
         Resolution::ComingSoon(name) => {
@@ -611,6 +619,17 @@ mod tests {
         assert!(
             gate_summary_saved(&specs).is_some(),
             "direct launch must resolve to the seeded saved spec, not the embedded one",
+        );
+        // The alias stays advertised: `gate-summary` routes to the seeded
+        // spec, so the unknown-name help must keep listing it.
+        let names = valid_dashboard_names(&catalog(), &specs);
+        assert!(
+            names.contains("gate-summary.dashboard"),
+            "saved stem listed: {names}",
+        );
+        assert!(
+            names.split(", ").any(|n| n == GATE_SUMMARY_NAME),
+            "the gate-summary alias stays listed on seeded projects: {names}",
         );
     }
 
