@@ -1,7 +1,10 @@
 use std::io;
 use std::process::Command;
 
-use crate::secret::patterns::{DEFAULT_COMPILED_PATTERNS, PatternMatcher, compile_custom_patterns};
+use crate::secret::patterns::{
+    CompiledPattern, DEFAULT_COMPILED_PATTERNS, PatternMatcher, compile_custom_patterns,
+};
+use crate::secret::scanner::suppressed_by_high_confidence_overlap;
 use crate::secret::types::{FindingType, SecretCheckConfig, SecretFinding};
 
 /// Output of a git-history secret scan.
@@ -61,6 +64,40 @@ fn build_log_args(depth_flag: String, skip_extensions: &[String]) -> Vec<String>
         }
     }
     args
+}
+
+/// Collect the non-allowlisted pattern matches (first match per pattern)
+/// for one added history line.
+///
+/// Mirrors the on-disk scanner's allowlist tiers: high-confidence patterns
+/// are the credential shape itself, so the fuzzy keyword tier
+/// (`example`/`test`/…) is skipped — otherwise textbook keys like
+/// `AKIAIOSFODNN7EXAMPLE` are wrongly suppressed (issue #1800).
+fn line_pattern_matches<'p>(
+    line_content: &str,
+    custom_patterns: &'p [CompiledPattern],
+    matcher: &PatternMatcher,
+) -> Vec<(&'p CompiledPattern, std::ops::Range<usize>)> {
+    let mut line_matches = Vec::new();
+    for pattern in DEFAULT_COMPILED_PATTERNS
+        .iter()
+        .chain(custom_patterns.iter())
+    {
+        let Some(match_result) = pattern.regex.find(line_content) else {
+            continue;
+        };
+        let matched_value = match_result.as_str();
+        let allowlisted = if pattern.high_confidence {
+            matcher.is_shape_or_custom_allowlisted(matched_value)
+        } else {
+            matcher.is_allowlisted(matched_value)
+        };
+        if allowlisted {
+            continue;
+        }
+        line_matches.push((pattern, match_result.range()));
+    }
+    line_matches
 }
 
 pub fn scan_git_history(
@@ -152,29 +189,15 @@ pub fn scan_git_history(
             lines_skipped_oversize += 1;
             continue;
         }
-        for pattern in DEFAULT_COMPILED_PATTERNS
-            .iter()
-            .chain(custom_patterns.iter())
-        {
-            let maybe_match = pattern.regex.find(line_content);
-            let matched_value = match maybe_match {
-                Some(match_result) => match_result.as_str(),
-                None => continue,
-            };
+        let line_matches = line_pattern_matches(line_content, &custom_patterns, &matcher);
 
-            // Mirror the on-disk scanner's allowlist tiers: high-confidence
-            // patterns are the credential shape itself, so the fuzzy keyword
-            // tier (`example`/`test`/…) is skipped — otherwise textbook keys
-            // like `AKIAIOSFODNN7EXAMPLE` are wrongly suppressed (issue #1800).
-            let allowlisted = if pattern.high_confidence {
-                matcher.is_shape_or_custom_allowlisted(matched_value)
-            } else {
-                matcher.is_allowlisted(matched_value)
-            };
-            if allowlisted {
+        for (pattern, range) in &line_matches {
+            // CIB-063: mirror the on-disk scanner's cross-pattern dedup —
+            // see `suppressed_by_high_confidence_overlap`.
+            if suppressed_by_high_confidence_overlap(pattern, range, &line_matches) {
                 continue;
             }
-
+            let matched_value = &line_content[range.clone()];
             findings.push(SecretFinding {
                 file: if current_file == "git-history:unknown" {
                     format!("git-history:{commit_hash}")
@@ -365,6 +388,26 @@ mod tests {
         assert!(
             findings.iter().any(|f| f.file.ends_with("my config.py")),
             "path with spaces should be attributed correctly: {findings:?}"
+        );
+
+        let _ = std::fs::remove_dir_all(&repo);
+    }
+
+    #[test]
+    fn dedups_overlapping_keyword_and_provider_match_in_history() {
+        // CIB-063 parity in the git path: `API_KEY = "AKIA…"` matches both
+        // the low-confidence `API Key` keyword pattern and the
+        // high-confidence `AWS Key` shape — one credential must report
+        // once, under the provider pattern.
+        let repo = temp_repo();
+        commit_file(&repo, "creds.py", &format!("API_KEY = \"{AWS_KEY}\"\n"));
+
+        let findings = scan(&repo);
+        let names: Vec<_> = findings.iter().map(|f| f.pattern_name.as_str()).collect();
+        assert_eq!(
+            names,
+            vec!["AWS Key (in git history)"],
+            "one credential, one history finding"
         );
 
         let _ = std::fs::remove_dir_all(&repo);

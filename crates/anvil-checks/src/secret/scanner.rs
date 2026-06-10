@@ -148,6 +148,25 @@ fn should_skip_pattern_match(
             && is_credit_card_false_positive(line, match_start, match_end))
 }
 
+/// CIB-063: one credential, one finding. A low-confidence keyword pattern
+/// often wraps the same value a high-confidence shape pattern identifies
+/// precisely (`OPENAI_API_KEY = "sk-proj-…"` matches both `API Key` and
+/// `OpenAI API Key`). A low-confidence match overlapping a high-confidence
+/// one on the same line is the same credential seen twice — report it once,
+/// under the provider-specific pattern. Custom patterns always compile with
+/// `high_confidence: false`, so they too yield to an overlapping built-in
+/// shape match; the credential still reports, just under the precise rule.
+pub(crate) fn suppressed_by_high_confidence_overlap(
+    pattern: &CompiledPattern,
+    range: &std::ops::Range<usize>,
+    line_matches: &[(&CompiledPattern, std::ops::Range<usize>)],
+) -> bool {
+    !pattern.high_confidence
+        && line_matches.iter().any(|(other, other_range)| {
+            other.high_confidence && other_range.start < range.end && range.start < other_range.end
+        })
+}
+
 /// SCAN-002: per-call stats returned alongside findings. Currently exposes
 /// the count of lines that exceeded `SecretCheckConfig::max_line_bytes` and
 /// were therefore skipped before regex evaluation.
@@ -270,6 +289,7 @@ pub fn scan_content_with_compiled_patterns(
 
         let line_number = index + 1;
 
+        let mut line_matches: Vec<(&CompiledPattern, std::ops::Range<usize>)> = Vec::new();
         for pattern in patterns_iter() {
             for matched_range in pattern.regex.find_iter(line) {
                 if should_skip_pattern_match(
@@ -281,23 +301,26 @@ pub fn scan_content_with_compiled_patterns(
                 ) {
                     continue;
                 }
+                line_matches.push((pattern, matched_range.range()));
+            }
+        }
 
-                let matched_value = matched_range.as_str();
-                findings.push(SecretFinding {
-                    file: file_path.to_string(),
-                    line: line_number,
-                    finding_type: FindingType::Pattern,
-                    pattern_name: pattern.name.clone(),
-                    redacted_match: matcher.redact_secret(matched_value),
-                    redacted_line: matcher.redact_range_in_line(
-                        line,
-                        matched_range.start(),
-                        matched_range.end(),
-                    ),
-                });
-                if findings.len() == limit {
-                    return (findings, stats);
-                }
+        for (pattern, range) in &line_matches {
+            if suppressed_by_high_confidence_overlap(pattern, range, &line_matches) {
+                continue;
+            }
+
+            let matched_value = &line[range.clone()];
+            findings.push(SecretFinding {
+                file: file_path.to_string(),
+                line: line_number,
+                finding_type: FindingType::Pattern,
+                pattern_name: pattern.name.clone(),
+                redacted_match: matcher.redact_secret(matched_value),
+                redacted_line: matcher.redact_range_in_line(line, range.start, range.end),
+            });
+            if findings.len() == limit {
+                return (findings, stats);
             }
         }
     }
@@ -482,6 +505,42 @@ export function go(){return [k,s];}";
             findings.iter().any(|f| f.pattern_name == "OpenAI API Key"),
             "sk-proj-… key must flag, got: {:?}",
             findings.iter().map(|f| &f.pattern_name).collect::<Vec<_>>()
+        );
+    }
+
+    // CIB-063 — one credential, one finding. `OPENAI_API_KEY = "sk-proj-…"`
+    // matched both the low-confidence `API Key` keyword pattern and the
+    // high-confidence `OpenAI API Key` shape pattern, double-reporting the
+    // same planted string (SECRET-API-KEY + SECRET-OPENAI-API-KEY) on the
+    // beta golden path.
+
+    #[test]
+    fn overlapping_keyword_match_dedups_to_the_provider_pattern() {
+        let config = SecretCheckConfig::default();
+        let key = format!("sk-proj-{}", "abcdefghijklmnopqrst");
+        let content = format!("const OPENAI_API_KEY = \"{key}\";");
+        let findings = scan_content(&content, "src/config.ts", &config);
+        let names: Vec<_> = findings.iter().map(|f| f.pattern_name.as_str()).collect();
+        assert_eq!(
+            names,
+            vec!["OpenAI API Key"],
+            "one credential must report once, under the provider pattern"
+        );
+    }
+
+    #[test]
+    fn non_overlapping_matches_on_one_line_both_report() {
+        let config = SecretCheckConfig {
+            enable_entropy: false,
+            ..SecretCheckConfig::default()
+        };
+        let key = format!("sk-proj-{}", "abcdefghijklmnopqrst");
+        let content = format!("api_key='abcdEFGH1234567890'; const OTHER = '{key}';");
+        let findings = scan_content(&content, "src/config.ts", &config);
+        let names: Vec<_> = findings.iter().map(|f| f.pattern_name.as_str()).collect();
+        assert!(
+            names.contains(&"API Key") && names.contains(&"OpenAI API Key"),
+            "distinct values on one line keep their own findings, got: {names:?}"
         );
     }
 
