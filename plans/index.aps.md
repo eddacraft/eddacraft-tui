@@ -120,9 +120,11 @@ save-time fix now reaches every user on a live daemon. The remaining v0.8.0 work
 is the **release cut** itself (rank 1): the §8 base correctness bar + confirming
 the named revert signal / staged beta→GA rollout controls.
 Governance frontier advanced — GITGOV-003..010 all Merged 2026-06-08 (capsule
-complete through PR #2427; -008 diagnostics via PR #2405), then GITGOV-011
-(#2460) and GITGOV-012 (#2465) Merged 2026-06-09; EXCEPT-003 Done (#2401). Live
-frontier: GITGOV-014 (Ready 2026-06-10), GITGOV-013 (Proposed, design-gated).
+complete through PR #2427; -008 diagnostics via PR #2405), GITGOV-011 (#2460)
+and GITGOV-012 (#2465) Merged 2026-06-09, then GITGOV-014 Merged 2026-06-10
+via PR #2479 (ADR-073 state-boundary enforcement); EXCEPT-003 Done (#2401).
+Last open GITGOV item: GITGOV-013 (Proposed, design-gated on the ADR-074
+retention amendment).
 The broad Ready pool (USAGE, EDGE, DASH*, OPAG, EVAL, CPOL, IORISK, GATE, ATC,
 PATT, TRUST, ILGOV, LAC) remains available but does not outrank the v0.8.0
 payload.
