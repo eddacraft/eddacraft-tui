@@ -20,11 +20,11 @@ const sidebars: SidebarsConfig = {
       collapsed: false,
       items: [
         'tutorials/tutorials',
-        'tutorials/policies',
+        'tutorials/first-save-caught',
+        'tutorials/rust-project',
         'tutorials/architecture',
         'tutorials/drift',
-        'tutorials/ci',
-        'tutorials/suppressions',
+        'tutorials/policies',
       ],
     },
     {

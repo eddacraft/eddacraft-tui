@@ -35,6 +35,17 @@ for the full version matrix.
 `anvil hooks install` installs file-mode hooks today. The `--config` flag opts
 into native config-mode without changing the default.
 
+For a hand-written file-mode hook, the staged-only check keeps pre-commit fast:
+
+```bash
+# .husky/pre-commit (or .git/hooks/pre-commit)
+anvil check --changed --staged
+```
+
+The `--changed --staged` flags restrict analysis to staged files, and the
+managed config-mode hook installs `ANVIL_HOOK=1 anvil gate --progress` instead —
+keep the manual script if you want staged-only checks.
+
 When both file hooks and config-hook entries exist for the same event, Git runs
 **both**, so choose one mode per event to avoid duplicate execution. Anvil
 surfaces this as a structured warning from `anvil hooks install --config`,
@@ -125,6 +136,7 @@ The same data is available under the `coexistence` key in
 
 - [Git hook compatibility policy](https://github.com/eddacraft/anvil/blob/main/docs/guides/git-hook-compatibility.md)
   — the canonical contributor-facing compatibility baseline and rollout policy.
-- [CI Integration tutorial](../tutorials/ci.md) — pre-commit and CI examples.
+- [GitHub integration guide](../integrations/github.md) — CI pipelines, SARIF
+  upload, and branch protection.
 - [Agent Harness guide](../guides/agent-harness.md) — using Anvil as a
   pre-commit guardrail for AI-assisted workflows.

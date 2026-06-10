@@ -222,5 +222,6 @@ your workflow needs machine-readable output.
 - [Architecture boundaries](/anvil/tutorials/architecture) -- templates and
   enforcement
 - [Drift detection](/anvil/tutorials/drift) -- track architectural changes
-- [CI integration](/anvil/tutorials/ci) -- add anvil to your pipeline
-- [Suppressions](/anvil/tutorials/suppressions) -- manage legacy warnings
+- [GitHub integration](integrations/github.md) -- add anvil to your pipeline
+- [Suppression health](guides/insights.md) -- create, audit, and retire
+  suppressions

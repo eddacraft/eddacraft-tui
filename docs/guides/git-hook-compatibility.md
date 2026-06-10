@@ -15,7 +15,8 @@ the published product. It is the artefact produced by `GHOOK-001` (see
 hook-related guidance that follows.
 
 > **Status:** Accepted (2026-04-26). Supersedes ad-hoc statements in
-> `docs/public/anvil/tutorials/ci.md`,
+> `docs/public/anvil/integrations/github.md` (formerly
+> `docs/public/anvil/tutorials/ci.md`),
 > `docs/public/anvil/guides/agent-harness.md`, and the in-tree audit notes
 > captured below.
 
@@ -68,8 +69,9 @@ scope for later GHOOK work but is **not** modified by GHOOK-001.
 
 ### Public docs
 
-- `docs/public/anvil/tutorials/ci.md` — pre-commit example uses
-  `.husky/pre-commit (or .git/hooks/pre-commit)`.
+- `docs/public/anvil/operations/git-hooks.md` — pre-commit example uses
+  `.husky/pre-commit (or .git/hooks/pre-commit)` (carried from the retired
+  `tutorials/ci.md`).
 - `docs/public/anvil/guides/agent-harness.md` — pre-commit pattern uses
   `.git/hooks/pre-commit`.
 - `docs/public/anvil/operations/config.md` — points at `lint-staged` / Husky for
@@ -302,7 +304,8 @@ design (warnings over blocks).
 - `plans/execution/GHOOK-001.steps.md` — execution checklist this doc fulfils.
 - `docs/public/anvil/operations/git-hooks.md` — user-facing summary that links
   here for the policy detail.
-- `docs/public/anvil/tutorials/ci.md` — pre-commit examples; references this doc
-  for the version baseline.
+- `docs/public/anvil/operations/git-hooks.md` — pre-commit examples (carried
+  from the retired `tutorials/ci.md`); references this doc for the version
+  baseline.
 - `docs/public/anvil/guides/agent-harness.md` — pre-commit pattern; references
   this doc for the version baseline.

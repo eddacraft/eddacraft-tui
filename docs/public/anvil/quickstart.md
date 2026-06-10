@@ -365,7 +365,7 @@ One warning down. Repeat for the rest at your own pace.
   module boundaries
 - [Drift detection](/anvil/tutorials/drift) -- capture snapshots and track
   architectural drift
-- [CI integration](/anvil/tutorials/ci) -- add anvil to your pipeline
+- [GitHub integration](integrations/github.md) -- add anvil to your pipeline
 
 **Operator surfaces** (runbooks are the source of truth):
 
