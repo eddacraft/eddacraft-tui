@@ -61,7 +61,7 @@ parent for the deferred ATTRIB-005 direction.
 - Per-push / automatic releases — releases are deliberate.
 - Publishing to any package registry (npm, crates.io) — the kit is a
   `git subtree` artifact.
-- SBOM / attestation — owned by [`supply-chain-attestation`](./supply-chain-attestation.aps.md).
+- SBOM / attestation — owned by [`supply-chain-attestation`](../../modules/supply-chain-attestation.aps.md).
 
 ## Interfaces
 
