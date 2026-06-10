@@ -53,15 +53,19 @@ export {
   UnixSocketTransport,
   WindowsNamedPipeTransport,
   defaultTransportFactory,
+  parseSidFromWhoamiOutput,
+  resolveCurrentUserSid,
   resolveDefaultSocketPath,
   validateUnixSocketOwnership,
   validateWindowsPipeName,
+  validateWindowsPipeOwnership,
   type ResolvedPath,
   type Transport,
   type TransportCloseCause,
   type TransportFactory,
   type TransportFactoryOptions,
   type TransportHandlers,
+  type WindowsTransportOptions,
 } from './transport/index.js';
 
 export {

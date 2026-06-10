@@ -82,6 +82,21 @@ describe('validateWindowsPipeOwnership', () => {
       validateWindowsPipeOwnership(pipeFor(CURRENT_SID.slice(0, -2)), CURRENT_SID)
     ).toThrowError(DriverClientError);
   });
+
+  it('refuses a malformed current-user SID instead of comparing it', () => {
+    // A provider returning an empty string or a user name must never
+    // be able to match a crafted suffix — the shape gate fails closed.
+    expect(() => validateWindowsPipeOwnership(pipeFor(''), '')).toThrowError(DriverClientError);
+    expect(() => validateWindowsPipeOwnership(pipeFor('josh'), 'josh')).toThrowError(
+      DriverClientError
+    );
+  });
+
+  it('is self-contained: refuses a pipe name without the daemon prefix', () => {
+    expect(() =>
+      validateWindowsPipeOwnership('\\\\.\\pipe\\rogue-server', CURRENT_SID)
+    ).toThrowError(DriverClientError);
+  });
 });
 
 describe('parseSidFromWhoamiOutput', () => {
@@ -100,6 +115,28 @@ describe('parseSidFromWhoamiOutput', () => {
       '',
     ].join('\r\n');
     expect(parseSidFromWhoamiOutput(table)).toBe(CURRENT_SID);
+  });
+
+  it('extracts the SID from list-format `whoami /user /fo list` output', () => {
+    expect(
+      parseSidFromWhoamiOutput(`User Name: desktop\\josh\r\nSID:       ${CURRENT_SID}\r\n`)
+    ).toBe(CURRENT_SID);
+  });
+
+  it('is not fooled by a trailing integrity-level SID after the CSV line', () => {
+    // If the invocation ever drifts towards `/all`-style output, the
+    // account SID must still win over an appended S-1-16-… token.
+    expect(parseSidFromWhoamiOutput(`"desktop\\josh","${CURRENT_SID}"\r\nS-1-16-4096\r\n`)).toBe(
+      CURRENT_SID
+    );
+  });
+
+  it('is not fooled by an SID-shaped user name in the CSV user column', () => {
+    expect(parseSidFromWhoamiOutput(`"${OTHER_SID}","${CURRENT_SID}"\r\n`)).toBe(CURRENT_SID);
+  });
+
+  it('fails closed when the CSV SID column is not a SID', () => {
+    expect(parseSidFromWhoamiOutput(`"desktop\\josh","not-a-sid"\r\n`)).toBeNull();
   });
 
   it('returns null when no SID is present', () => {
@@ -133,24 +170,51 @@ describe('WindowsNamedPipeTransport ownership gate', () => {
 
   it('passes the gate on a SID match and proceeds to the connection attempt', async () => {
     // No daemon listens on this path in the test environment, so a
-    // passed gate surfaces as unavailable — NOT wrong-owner. That
-    // ordering is the assertion: the gate ran and let the name through.
+    // passed gate surfaces as unavailable — NOT wrong-owner. The
+    // provider call count proves the gate actually executed (an
+    // ENOENT alone could also mean the validators were skipped).
+    let providerCalls = 0;
     const transport = new WindowsNamedPipeTransport(pipeFor(CURRENT_SID), {
-      currentUserSid: () => CURRENT_SID,
+      currentUserSid: () => {
+        providerCalls += 1;
+        return CURRENT_SID;
+      },
     });
     await expect(transport.connect(handlers)).rejects.toMatchObject({
       code: 'anvil-daemon-unavailable',
     });
+    expect(providerCalls).toBe(1);
   });
 
-  it('can still connect() after a wrong-owner rejection was raised pre-socket', async () => {
-    // The gate throws before handlers are registered; the transport
-    // must not be left half-connected ("already connected" trap).
+  it('is not left in the already-connected state after a pre-socket owner rejection', async () => {
+    // The gate throws before handlers are registered; a second
+    // connect() must hit the gate again, not the "already connected"
+    // TypeError.
     const transport = new WindowsNamedPipeTransport(pipeFor(OTHER_SID), {
       currentUserSid: () => CURRENT_SID,
     });
     await expect(transport.connect(handlers)).rejects.toMatchObject({
       code: 'anvil-daemon-wrong-owner',
+    });
+    await expect(transport.connect(handlers)).rejects.toMatchObject({
+      code: 'anvil-daemon-wrong-owner',
+    });
+  });
+
+  it('fails closed when the provider returns a non-SID value', async () => {
+    const transport = new WindowsNamedPipeTransport(pipeFor(CURRENT_SID), {
+      currentUserSid: () => 'desktop\\josh',
+    });
+    await expect(transport.connect(handlers)).rejects.toMatchObject({
+      code: 'anvil-daemon-wrong-owner',
+    });
+  });
+
+  it('maps a non-Error provider throw to a structured wrong-owner rejection', async () => {
+    const transport = new WindowsNamedPipeTransport(pipeFor(CURRENT_SID), {
+      currentUserSid: () => {
+        throw 'string throw';
+      },
     });
     await expect(transport.connect(handlers)).rejects.toMatchObject({
       code: 'anvil-daemon-wrong-owner',

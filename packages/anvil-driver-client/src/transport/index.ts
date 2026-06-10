@@ -57,5 +57,8 @@ export const defaultTransportFactory: TransportFactory = (
   if (resolved.kind === 'unix') {
     return new UnixSocketTransport(resolved.socketPath);
   }
-  return new WindowsNamedPipeTransport(resolved.pipeName);
+  return new WindowsNamedPipeTransport(
+    resolved.pipeName,
+    options.currentUserSid !== undefined ? { currentUserSid: options.currentUserSid } : {}
+  );
 };

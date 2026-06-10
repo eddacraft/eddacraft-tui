@@ -33,6 +33,17 @@
  *      client-SID check (DSV-010b / ADR-070) remains the authoritative
  *      gate.
  *
+ * Trust anchor: the gate is only as trustworthy as the resolved SID.
+ * The default provider executes `%SystemRoot%\System32\whoami.exe` by
+ * absolute path (never a PATH lookup) and blocks the event loop for at
+ * most one resolution per process (cached). Two contexts MUST inject
+ * their own provider instead: services using thread-level
+ * impersonation (`whoami` reports the thread token, and the
+ * process-lifetime cache would pin the first identity it sees), and
+ * non-Windows hosts driving this transport with an explicit `pipeName`
+ * (there is no SID to resolve, so the default provider fails the gate
+ * CLOSED — inject the SID the rig expects, or use a fake transport).
+ *
  * If the consumer needs a stronger Windows check before the #2484
  * follow-up lands, they can supply a custom transport via the
  * `transportFactory` option on {@link DriverClient} and run their own
@@ -48,49 +59,80 @@ import type { Transport, TransportCloseCause, TransportHandlers } from './types.
 const PIPE_PREFIX = '\\\\.\\pipe\\anvil-intercept-';
 
 /**
- * String-form SID pattern (`S-1-<authority>-<subauths…>`). Matched on
- * word boundaries so it lifts the SID column out of any `whoami /user`
- * output format (table, csv, list) without depending on localised
- * column headers.
+ * String-form SID pattern (`S-1-<authority>-<subauths…>`). The /g flag
+ * is for multi-match collection via `String.prototype.match`; matched
+ * on word boundaries so it lifts the SID column out of table/list
+ * `whoami /user` output without depending on localised column headers.
  */
-const SID_PATTERN = /\bS-1-\d+(?:-\d+)+\b/gi;
+const SID_PATTERN = /\bS-1-\d+(?:-\d+)+\b/g;
+
+/** Anchored SID-shape check for a value that must be exactly one SID. */
+const FULL_SID_PATTERN = /^S-1-\d+(?:-\d+)+$/i;
 
 /**
- * Extract the current user's SID from `whoami /user` output. Returns
- * the LAST match: the SID column follows the user-name column in every
- * `whoami` format, and a user name could in principle embed an
- * SID-shaped substring. Exported for tests; `null` means no SID found.
+ * Extract the current user's SID from `whoami /user` output. Exported
+ * for tests; `null` means no SID could be confidently extracted.
+ *
+ * CSV (`/fo csv /nh`, the form {@link resolveCurrentUserSid} pins): the
+ * SID is the last quoted field of the first data line. The parse is
+ * anchored to that structure so an SID-shaped token anywhere else — a
+ * crafted user name, or a trailing integrity-level SID such as
+ * `S-1-16-4096` if the invocation ever drifts — can never win. A
+ * CSV-shaped line whose last field is not a SID returns `null` (fail
+ * closed) rather than falling through to a guess.
+ *
+ * Non-CSV fallback (table/list formats): the account-SID column is
+ * last in both, so take the last SID-shaped token.
  */
 export function parseSidFromWhoamiOutput(output: string): string | null {
+  const firstLine = output.split(/\r?\n/).find((line) => line.trim().length > 0);
+  if (firstLine !== undefined) {
+    const quotedFields = firstLine.match(/"[^"]*"/g);
+    if (quotedFields !== null && quotedFields.length >= 2) {
+      const lastField = quotedFields[quotedFields.length - 1]!.slice(1, -1);
+      return FULL_SID_PATTERN.test(lastField) ? lastField : null;
+    }
+  }
   const matches = output.match(SID_PATTERN);
   return matches === null ? null : matches[matches.length - 1]!;
 }
 
-/** Process-lifetime cache: a user's SID cannot change under a running
- *  process, and the factory builds a fresh transport per reconnect
- *  attempt — without the cache every reconnect would spawn `whoami`. */
+/** Process-lifetime cache: a (non-impersonating) process's user SID
+ *  cannot change, and the factory builds a fresh transport per
+ *  reconnect attempt — without the cache every reconnect would spawn
+ *  `whoami`. Only successful resolutions are cached; failures retry.
+ *  CAVEAT: direct calls to {@link resolveCurrentUserSid} share this
+ *  cache — tests must use the {@link WindowsTransportOptions}
+ *  injection seam, and impersonating services must inject a
+ *  thread-token-derived provider (see module header). */
 let cachedWhoamiSid: string | null = null;
 
 /**
- * Default current-user SID provider: `whoami /user /fo csv /nh`.
+ * Default current-user SID provider: `%SystemRoot%\System32\whoami.exe
+ * /user /fo csv /nh`, executed by ABSOLUTE path — a PATH or CWD lookup
+ * would let a planted `whoami` feed the gate an attacker-chosen SID.
  * Throws a structured `anvil-daemon-wrong-owner` error when the SID
- * cannot be resolved — the ownership gate fails closed.
+ * cannot be resolved — the ownership gate fails closed (including on
+ * non-Windows hosts, where the binary does not exist).
  */
 export function resolveCurrentUserSid(): string {
   if (cachedWhoamiSid !== null) {
     return cachedWhoamiSid;
   }
+  const systemRoot = process.env['SystemRoot'] ?? 'C:\\Windows';
+  const whoamiPath = `${systemRoot}\\System32\\whoami.exe`;
   let output: string;
   try {
-    output = execFileSync('whoami', ['/user', '/fo', 'csv', '/nh'], {
+    output = execFileSync(whoamiPath, ['/user', '/fo', 'csv', '/nh'], {
       encoding: 'utf8',
       timeout: 5_000,
       windowsHide: true,
     });
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
     throw driverError(
       'anvil-daemon-wrong-owner',
-      `cannot resolve current user SID (whoami /user failed): ${(err as Error).message}`
+      `cannot resolve current user SID (whoami /user failed): ${message}`
     );
   }
   const sid = parseSidFromWhoamiOutput(output);
@@ -105,12 +147,27 @@ export function resolveCurrentUserSid(): string {
 }
 
 /**
- * Ownership half of the pre-connect gate: the (shape-valid) pipe
- * name's SID suffix must be the current user's SID. SID string
- * comparison is case-insensitive — string SIDs are canonically
- * upper-case `S-…` but case carries no identity on Windows.
+ * Ownership half of the pre-connect gate: the pipe name's SID suffix
+ * must be the current user's SID. Self-contained — re-guards the
+ * prefix and shape-validates the resolved SID so a malformed provider
+ * return (empty string, user name, truncated value) can never
+ * accidentally match a crafted suffix. SID string comparison is
+ * case-insensitive — string SIDs are canonically upper-case `S-…` but
+ * case carries no identity on Windows.
  */
 export function validateWindowsPipeOwnership(pipeName: string, currentUserSid: string): void {
+  if (!pipeName.startsWith(PIPE_PREFIX)) {
+    throw driverError(
+      'anvil-daemon-wrong-owner',
+      `pipe name does not match daemon-bound pattern '${PIPE_PREFIX}<sid>': ${pipeName}`
+    );
+  }
+  if (!FULL_SID_PATTERN.test(currentUserSid)) {
+    throw driverError(
+      'anvil-daemon-wrong-owner',
+      'resolved current-user SID is not a canonical S-1-… SID string'
+    );
+  }
   const suffix = pipeName.slice(PIPE_PREFIX.length);
   if (suffix.toUpperCase() !== currentUserSid.toUpperCase()) {
     throw driverError(
@@ -279,10 +336,8 @@ export class WindowsNamedPipeTransport implements Transport {
       if (err instanceof DriverClientError) {
         throw err;
       }
-      throw driverError(
-        'anvil-daemon-wrong-owner',
-        `cannot resolve current user SID: ${(err as Error).message}`
-      );
+      const message = err instanceof Error ? err.message : String(err);
+      throw driverError('anvil-daemon-wrong-owner', `cannot resolve current user SID: ${message}`);
     }
   }
 

@@ -88,7 +88,11 @@ type Listener<T> = (event: T) => void;
 
 export class DriverClient {
   private readonly transportFactory: TransportFactory;
-  private readonly transportOptions: { socketPath?: string; pipeName?: string };
+  private readonly transportOptions: {
+    socketPath?: string;
+    pipeName?: string;
+    currentUserSid?: () => string;
+  };
   private readonly readTimeoutMs: number;
   private readonly enforcementAckTimeoutMs: number;
   private readonly enforcementAckMethods: Set<string>;
@@ -117,6 +121,7 @@ export class DriverClient {
     this.transportOptions = {
       ...(options.socketPath !== undefined ? { socketPath: options.socketPath } : {}),
       ...(options.pipeName !== undefined ? { pipeName: options.pipeName } : {}),
+      ...(options.currentUserSid !== undefined ? { currentUserSid: options.currentUserSid } : {}),
     };
     this.readTimeoutMs = options.timeoutsMs?.readOnly ?? DEFAULT_READ_TIMEOUT_MS;
     this.enforcementAckTimeoutMs =

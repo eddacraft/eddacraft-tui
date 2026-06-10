@@ -116,6 +116,12 @@ export interface DriverClientOptions {
    *  Windows: pipe name. */
   socketPath?: string;
   pipeName?: string;
+  /** Current-user SID provider for the Windows transport's ownership
+   *  gate (see `WindowsTransportOptions.currentUserSid`). Needed by
+   *  non-Windows test rigs that pass `pipeName` and by impersonating
+   *  services; production Windows consumers can rely on the default
+   *  `whoami /user` resolution. */
+  currentUserSid?: () => string;
   /** Inject a custom transport factory — used by tests and by the
    *  rare consumer that wants to wrap the transport. */
   transportFactory?: TransportFactory;

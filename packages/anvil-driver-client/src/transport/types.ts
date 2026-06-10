@@ -46,7 +46,10 @@ export interface Transport {
   /** Open the underlying socket / pipe. Must perform the wrong-owner
    *  check before resolving; rejects with `anvil-daemon-wrong-owner`
    *  if the peer is not the current user. Rejects with
-   *  `anvil-daemon-unavailable` if no listener exists. */
+   *  `anvil-daemon-unavailable` if no listener exists. When connect()
+   *  rejects before the underlying socket was established (e.g. the
+   *  owner gate refused the path), `onClose` is NOT fired — the
+   *  handlers were never registered. */
   connect(handlers: TransportHandlers): Promise<void>;
   /** Send raw bytes (typically one NDJSON line). Rejects with a
    *  structured {@link DriverClientError} if the transport has been
@@ -69,6 +72,12 @@ export interface TransportFactoryOptions {
   /** Windows named-pipe name — overrides the default
    *  `\\.\pipe\anvil-intercept-<sid>` resolution. */
   pipeName?: string;
+  /** Current-user SID provider forwarded to the Windows transport's
+   *  ownership gate, overriding the default `whoami /user` resolution.
+   *  Required for non-Windows rigs that drive the Windows transport
+   *  via an explicit `pipeName` (the default provider fails the gate
+   *  closed there) and for impersonating services. */
+  currentUserSid?: () => string;
 }
 
 /**
