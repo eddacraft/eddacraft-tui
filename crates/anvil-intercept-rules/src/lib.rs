@@ -17,6 +17,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod antipattern;
 pub mod path_deny;
 pub mod reasoning;
 pub mod registry;
@@ -29,6 +30,7 @@ use anvil_kernel_types::diagnostics::KnownMode;
 use anvil_kernel_types::{Category, Diagnostic, DiagnosticSource, Location, Mode, Severity};
 use serde::{Deserialize, Serialize};
 
+pub use antipattern::AntipatternScanRule;
 pub use path_deny::{PathDenyConfig, PathDenyError, PathDenyListRule};
 pub use reasoning::LaunchReasoningPatternRule;
 pub use registry::{RegistryDecision, RegistryError, RegistryMode, RuleRegistry};

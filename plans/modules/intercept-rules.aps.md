@@ -151,7 +151,7 @@ daemon hot path.
   `Removed`-change allow, the missing/binary-content allow, and
   canonical-diagnostic mapping (category, source module, line) mirroring the
   secret-wrapper test shape.
-- **Status:** Ready
+- **Status:** In Progress
 
 ### INTR-004: Path Deny List Rule
 
@@ -213,7 +213,7 @@ daemon hot path.
   interrupt with correct line, first-pattern-wins ordering, clean-content allow,
   `Removed`-change allow, missing/binary-content allow, and canonical-diagnostic
   line mapping.
-- **Status:** Ready
+- **Status:** In Progress
 
 ### INTR-006: Rule Registry
 
@@ -281,7 +281,7 @@ daemon hot path.
   constructing deny-list + regex + antipattern rules, a malformed-config typed
   error (no silent default), and a round-trip that the constructed registry
   rejects a content payload its configured rules should interrupt.
-- **Status:** Ready
+- **Status:** In Progress
 
 ### INTR-008: Launch reasoning-pattern rule wrapper
 
