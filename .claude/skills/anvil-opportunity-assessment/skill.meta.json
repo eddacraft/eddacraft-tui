@@ -1,0 +1,22 @@
+{
+  "name": "anvil-opportunity-assessment",
+  "origin": {
+    "type": "local",
+    "repo": "eddacraft-skills",
+    "path": "skills/eddacraft/anvil-opportunity-assessment",
+    "ref": "main",
+    "lastImportedCommit": null
+  },
+  "status": "canonical",
+  "targets": {
+    "claude": true,
+    "opencode": true,
+    "openclaw": true
+  },
+  "agentSupport": {
+    "scope": "general",
+    "agents": [],
+    "notes": "anvil-specific product and architecture opportunity assessment workflow."
+  },
+  "localChanges": []
+}

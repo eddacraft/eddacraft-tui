@@ -1,8 +1,7 @@
 ---
 name: pulumi-automation-api
 version: 1.0.0
-description:
-  Best practices for using Pulumi Automation API to programmatically orchestrate
+description: Best practices for using Pulumi Automation API to programmatically orchestrate
   infrastructure operations. Covers multi-stack orchestration, embedding Pulumi
   in applications, architecture choices, and common patterns.
 ---
@@ -27,12 +26,12 @@ running `pulumi up` from the CLI, you call functions in your code that perform
 the same operations.
 
 ```typescript
-import * as automation from '@pulumi/pulumi/automation';
+import * as automation from "@pulumi/pulumi/automation";
 
 // Create or select a stack
 const stack = await automation.LocalWorkspace.createOrSelectStack({
-  stackName: 'dev',
-  projectName: 'my-project',
+  stackName: "dev",
+  projectName: "my-project",
   program: async () => {
     // Your Pulumi program here
   },
@@ -99,8 +98,8 @@ commands, Automation API provides:
 
 ```typescript
 const stack = await automation.LocalWorkspace.createOrSelectStack({
-  stackName: 'dev',
-  workDir: './infrastructure', // Points to existing Pulumi project
+  stackName: "dev",
+  workDir: "./infrastructure", // Points to existing Pulumi project
 });
 ```
 
@@ -114,13 +113,13 @@ const stack = await automation.LocalWorkspace.createOrSelectStack({
 **Inline Source** - Pulumi program embedded in orchestrator:
 
 ```typescript
-import * as aws from '@pulumi/aws';
+import * as aws from "@pulumi/aws";
 
 const stack = await automation.LocalWorkspace.createOrSelectStack({
-  stackName: 'dev',
-  projectName: 'my-project',
+  stackName: "dev",
+  projectName: "my-project",
   program: async () => {
-    const bucket = new aws.s3.Bucket('my-bucket');
+    const bucket = new aws.s3.Bucket("my-bucket");
     return { bucketName: bucket.id };
   },
 });
@@ -131,7 +130,7 @@ const stack = await automation.LocalWorkspace.createOrSelectStack({
 - Single team owns everything
 - Tight coupling between orchestration and infrastructure is desired
 - Distributing as compiled binary (no source files needed)
-- Simpler deployment artifact
+- Simpler deployment artefact
 
 ### Language Independence
 
@@ -152,20 +151,20 @@ teams use theirs.
 Deploy multiple stacks in dependency order:
 
 ```typescript
-import * as automation from '@pulumi/pulumi/automation';
+import * as automation from "@pulumi/pulumi/automation";
 
 async function deploy() {
   const stacks = [
-    { name: 'infrastructure', dir: './infra' },
-    { name: 'platform', dir: './platform' },
-    { name: 'application', dir: './app' },
+    { name: "infrastructure", dir: "./infra" },
+    { name: "platform", dir: "./platform" },
+    { name: "application", dir: "./app" },
   ];
 
   for (const stackInfo of stacks) {
     console.log(`Deploying ${stackInfo.name}...`);
 
     const stack = await automation.LocalWorkspace.createOrSelectStack({
-      stackName: 'prod',
+      stackName: "prod",
       workDir: stackInfo.dir,
     });
 
@@ -177,16 +176,16 @@ async function deploy() {
 async function destroy() {
   // Destroy in reverse order
   const stacks = [
-    { name: 'application', dir: './app' },
-    { name: 'platform', dir: './platform' },
-    { name: 'infrastructure', dir: './infra' },
+    { name: "application", dir: "./app" },
+    { name: "platform", dir: "./platform" },
+    { name: "infrastructure", dir: "./infra" },
   ];
 
   for (const stackInfo of stacks) {
     console.log(`Destroying ${stackInfo.name}...`);
 
     const stack = await automation.LocalWorkspace.selectStack({
-      stackName: 'prod',
+      stackName: "prod",
       workDir: stackInfo.dir,
     });
 
@@ -201,13 +200,13 @@ Set stack configuration programmatically:
 
 ```typescript
 const stack = await automation.LocalWorkspace.createOrSelectStack({
-  stackName: 'dev',
-  workDir: './infrastructure',
+  stackName: "dev",
+  workDir: "./infrastructure",
 });
 
 // Set configuration values
-await stack.setConfig('aws:region', { value: 'us-west-2' });
-await stack.setConfig('dbPassword', { value: 'secret', secret: true });
+await stack.setConfig("aws:region", { value: "us-west-2" });
+await stack.setConfig("dbPassword", { value: "secret", secret: true });
 
 // Then deploy
 await stack.up();
@@ -222,7 +221,7 @@ const upResult = await stack.up();
 
 // Get all outputs
 const outputs = await stack.outputs();
-console.log(`VPC ID: ${outputs['vpcId'].value}`);
+console.log(`VPC ID: ${outputs["vpcId"].value}`);
 
 // Or from the up result
 console.log(`Outputs: ${JSON.stringify(upResult.outputs)}`);
@@ -236,8 +235,8 @@ Handle deployment failures gracefully:
 try {
   const result = await stack.up({ onOutput: console.log });
 
-  if (result.summary.result === 'failed') {
-    console.error('Deployment failed');
+  if (result.summary.result === "failed") {
+    console.error("Deployment failed");
     process.exit(1);
   }
 } catch (error) {
@@ -252,21 +251,21 @@ When stacks are independent, deploy in parallel:
 
 ```typescript
 const independentStacks = [
-  { name: 'service-a', dir: './service-a' },
-  { name: 'service-b', dir: './service-b' },
-  { name: 'service-c', dir: './service-c' },
+  { name: "service-a", dir: "./service-a" },
+  { name: "service-b", dir: "./service-b" },
+  { name: "service-c", dir: "./service-c" },
 ];
 
 await Promise.all(
   independentStacks.map(async (stackInfo) => {
     const stack = await automation.LocalWorkspace.createOrSelectStack({
-      stackName: 'prod',
+      stackName: "prod",
       workDir: stackInfo.dir,
     });
     return stack.up({
       onOutput: (msg) => console.log(`[${stackInfo.name}] ${msg}`),
     });
-  })
+  }),
 );
 ```
 
@@ -274,19 +273,17 @@ await Promise.all(
 
 ### Separate Configuration from Code
 
-Externalise configuration into files or environment variables:
+Externalize configuration into files or environment variables:
 
 ```typescript
-import * as fs from 'fs';
+import * as fs from "fs";
 
 interface DeployConfig {
   stacks: Array<{ name: string; dir: string }>;
   environment: string;
 }
 
-const config: DeployConfig = JSON.parse(
-  fs.readFileSync('./deploy-config.json', 'utf-8')
-);
+const config: DeployConfig = JSON.parse(fs.readFileSync("./deploy-config.json", "utf-8"));
 
 for (const stackInfo of config.stacks) {
   const stack = await automation.LocalWorkspace.createOrSelectStack({
@@ -327,7 +324,7 @@ await stack.up({
 
 - **pulumi-best-practices**: Code-level patterns for Pulumi programs
 - **pulumi-component**: Authoring reusable ComponentResource classes
-- **pulumi-esc**: Centralised secrets and configuration management
+- **pulumi-esc**: Centralized secrets and configuration management
 
 ## References
 

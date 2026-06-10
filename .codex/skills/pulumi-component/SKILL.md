@@ -1,8 +1,7 @@
 ---
 name: pulumi-component
 version: 1.0.0
-description:
-  Guide for authoring Pulumi ComponentResource classes. Use when creating
+description: Guide for authoring Pulumi ComponentResource classes. Use when creating
   reusable infrastructure components, designing component interfaces, setting up
   multi-language support, or distributing component packages.
 ---
@@ -42,8 +41,8 @@ Every component has four required elements:
 ### TypeScript
 
 ```typescript
-import * as pulumi from '@pulumi/pulumi';
-import * as aws from '@pulumi/aws';
+import * as pulumi from "@pulumi/pulumi";
+import * as aws from "@pulumi/aws";
 
 interface StaticSiteArgs {
   indexDocument?: pulumi.Input<string>;
@@ -54,13 +53,9 @@ class StaticSite extends pulumi.ComponentResource {
   public readonly bucketName: pulumi.Output<string>;
   public readonly websiteUrl: pulumi.Output<string>;
 
-  constructor(
-    name: string,
-    args: StaticSiteArgs,
-    opts?: pulumi.ComponentResourceOptions
-  ) {
+  constructor(name: string, args: StaticSiteArgs, opts?: pulumi.ComponentResourceOptions) {
     // 1. Call super with type URN: <package>:<module>:<type>
-    super('myorg:index:StaticSite', name, {}, opts);
+    super("myorg:index:StaticSite", name, {}, opts);
 
     // 2. Create child resources with parent: this
     const bucket = new aws.s3.Bucket(`${name}-bucket`, {}, { parent: this });
@@ -69,10 +64,10 @@ class StaticSite extends pulumi.ComponentResource {
       `${name}-website`,
       {
         bucket: bucket.id,
-        indexDocument: { suffix: args.indexDocument ?? 'index.html' },
-        errorDocument: { key: args.errorDocument ?? 'error.html' },
+        indexDocument: { suffix: args.indexDocument ?? "index.html" },
+        errorDocument: { key: args.errorDocument ?? "error.html" },
       },
-      { parent: this }
+      { parent: this },
     );
 
     // 3. Expose outputs as class properties
@@ -88,8 +83,8 @@ class StaticSite extends pulumi.ComponentResource {
 }
 
 // Usage
-const site = new StaticSite('marketing', {
-  indexDocument: 'index.html',
+const site = new StaticSite("marketing", {
+  indexDocument: "index.html",
 });
 export const url = site.websiteUrl;
 ```
@@ -163,12 +158,8 @@ Full examples: `myorg:index:StaticSite`, `acme:index:KubernetesCluster`
 class MyComponent extends pulumi.ComponentResource {
   public readonly url: pulumi.Output<string>;
 
-  constructor(
-    name: string,
-    args: MyArgs,
-    opts?: pulumi.ComponentResourceOptions
-  ) {
-    super('myorg:index:MyComponent', name, {}, opts);
+  constructor(name: string, args: MyArgs, opts?: pulumi.ComponentResourceOptions) {
+    super("myorg:index:MyComponent", name, {}, opts);
     const bucket = new aws.s3.Bucket(`${name}-bucket`, {}, { parent: this });
     this.url = bucket.bucketRegionalDomainName;
     // Missing registerOutputs -- component stuck "creating"
@@ -182,12 +173,8 @@ class MyComponent extends pulumi.ComponentResource {
 class MyComponent extends pulumi.ComponentResource {
   public readonly url: pulumi.Output<string>;
 
-  constructor(
-    name: string,
-    args: MyArgs,
-    opts?: pulumi.ComponentResourceOptions
-  ) {
-    super('myorg:index:MyComponent', name, {}, opts);
+  constructor(name: string, args: MyArgs, opts?: pulumi.ComponentResourceOptions) {
+    super("myorg:index:MyComponent", name, {}, opts);
     const bucket = new aws.s3.Bucket(`${name}-bucket`, {}, { parent: this });
     this.url = bucket.bucketRegionalDomainName;
 
@@ -205,7 +192,7 @@ instantiated multiple times.
 
 ```typescript
 // Collides if two instances of this component exist
-const bucket = new aws.s3.Bucket('my-bucket', {}, { parent: this });
+const bucket = new aws.s3.Bucket("my-bucket", {}, { parent: this });
 ```
 
 **Right**:
@@ -308,7 +295,7 @@ Functions cannot be serialised across language boundaries.
 
 ```typescript
 interface MyArgs {
-  nameTransform: (name: string) => string; // Cannot serialise
+  nameTransform: (name: string) => string; // Cannot serialize
 }
 ```
 
@@ -328,18 +315,14 @@ they need:
 
 ```typescript
 interface SecureBucketArgs {
-  enableVersioning?: boolean; // Defaults to true
-  enableEncryption?: boolean; // Defaults to true
-  blockPublicAccess?: boolean; // Defaults to true
+  enableVersioning?: pulumi.Input<boolean>; // Defaults to true
+  enableEncryption?: pulumi.Input<boolean>; // Defaults to true
+  blockPublicAccess?: pulumi.Input<boolean>; // Defaults to true
 }
 
 class SecureBucket extends pulumi.ComponentResource {
-  constructor(
-    name: string,
-    args: SecureBucketArgs,
-    opts?: pulumi.ComponentResourceOptions
-  ) {
-    super('myorg:index:SecureBucket', name, {}, opts);
+  constructor(name: string, args: SecureBucketArgs, opts?: pulumi.ComponentResourceOptions) {
+    super("myorg:index:SecureBucket", name, {}, opts);
 
     const enableVersioning = args.enableVersioning ?? true;
     const enableEncryption = args.enableEncryption ?? true;
@@ -350,7 +333,7 @@ class SecureBucket extends pulumi.ComponentResource {
 }
 
 // Consumer only overrides what they need
-const bucket = new SecureBucket('data', { enableVersioning: false });
+const bucket = new SecureBucket("data", { enableVersioning: false });
 ```
 
 ---
@@ -386,26 +369,22 @@ class Database extends pulumi.ComponentResource {
   public readonly port: pulumi.Output<number>;
   public readonly securityGroupId: pulumi.Output<string>;
 
-  constructor(
-    name: string,
-    args: DatabaseArgs,
-    opts?: pulumi.ComponentResourceOptions
-  ) {
-    super('myorg:index:Database', name, {}, opts);
+  constructor(name: string, args: DatabaseArgs, opts?: pulumi.ComponentResourceOptions) {
+    super("myorg:index:Database", name, {}, opts);
 
     const sg = new aws.ec2.SecurityGroup(
       `${name}-sg`,
       {
         /* ... */
       },
-      { parent: this }
+      { parent: this },
     );
     const cluster = new aws.rds.Cluster(
       `${name}-cluster`,
       {
         /* ... */
       },
-      { parent: this }
+      { parent: this },
     );
 
     this.endpoint = cluster.endpoint;
@@ -442,9 +421,9 @@ specific requirements.
 
 ```typescript
 interface SecureBucketArgs {
-  enableVersioning?: boolean;
-  enableEncryption?: boolean;
-  blockPublicAccess?: boolean;
+  enableVersioning?: pulumi.Input<boolean>;
+  enableEncryption?: pulumi.Input<boolean>;
+  blockPublicAccess?: pulumi.Input<boolean>;
   tags?: pulumi.Input<Record<string, pulumi.Input<string>>>;
 }
 
@@ -452,19 +431,15 @@ class SecureBucket extends pulumi.ComponentResource {
   public readonly bucketId: pulumi.Output<string>;
   public readonly arn: pulumi.Output<string>;
 
-  constructor(
-    name: string,
-    args: SecureBucketArgs = {},
-    opts?: pulumi.ComponentResourceOptions
-  ) {
-    super('myorg:index:SecureBucket', name, {}, opts);
+  constructor(name: string, args: SecureBucketArgs = {}, opts?: pulumi.ComponentResourceOptions) {
+    super("myorg:index:SecureBucket", name, {}, opts);
 
     const bucket = new aws.s3.Bucket(
       `${name}-bucket`,
       {
         tags: args.tags,
       },
-      { parent: this }
+      { parent: this },
     );
 
     // Versioning on by default
@@ -473,9 +448,9 @@ class SecureBucket extends pulumi.ComponentResource {
         `${name}-versioning`,
         {
           bucket: bucket.id,
-          versioningConfiguration: { status: 'Enabled' },
+          versioningConfiguration: { status: "Enabled" },
         },
-        { parent: this }
+        { parent: this },
       );
     }
 
@@ -485,11 +460,9 @@ class SecureBucket extends pulumi.ComponentResource {
         `${name}-encryption`,
         {
           bucket: bucket.id,
-          rules: [
-            { applyServerSideEncryptionByDefault: { sseAlgorithm: 'AES256' } },
-          ],
+          rules: [{ applyServerSideEncryptionByDefault: { sseAlgorithm: "AES256" } }],
         },
-        { parent: this }
+        { parent: this },
       );
     }
 
@@ -504,7 +477,7 @@ class SecureBucket extends pulumi.ComponentResource {
           ignorePublicAcls: true,
           restrictPublicBuckets: true,
         },
-        { parent: this }
+        { parent: this },
       );
     }
 
@@ -523,26 +496,20 @@ Use optional args to gate creation of sub-resources:
 interface WebServiceArgs {
   image: pulumi.Input<string>;
   port: pulumi.Input<number>;
-  // Control-flow args use plain types — Input<boolean> is always truthy as an
-  // object, so branching on it would create resources unconditionally.
-  enableMonitoring?: boolean;
-  alarmEmail?: string;
+  enableMonitoring?: pulumi.Input<boolean>;
+  alarmEmail?: pulumi.Input<string>;
 }
 
 class WebService extends pulumi.ComponentResource {
-  constructor(
-    name: string,
-    args: WebServiceArgs,
-    opts?: pulumi.ComponentResourceOptions
-  ) {
-    super('myorg:index:WebService', name, {}, opts);
+  constructor(name: string, args: WebServiceArgs, opts?: pulumi.ComponentResourceOptions) {
+    super("myorg:index:WebService", name, {}, opts);
 
     const service = new aws.ecs.Service(
       `${name}-service`,
       {
         // ...service config...
       },
-      { parent: this }
+      { parent: this },
     );
 
     // Only create alarm infrastructure when monitoring is enabled
@@ -554,10 +521,10 @@ class WebService extends pulumi.ComponentResource {
           `${name}-alert-email`,
           {
             topic: topic.arn,
-            protocol: 'email',
+            protocol: "email",
             endpoint: args.alarmEmail,
           },
-          { parent: this }
+          { parent: this },
         );
       }
 
@@ -567,7 +534,7 @@ class WebService extends pulumi.ComponentResource {
           // ...alarm config referencing service...
           alarmActions: [topic.arn],
         },
-        { parent: this }
+        { parent: this },
       );
     }
 
@@ -588,12 +555,8 @@ class VpcNetwork extends pulumi.ComponentResource {
   public readonly publicSubnetIds: pulumi.Output<string>[];
   public readonly privateSubnetIds: pulumi.Output<string>[];
 
-  constructor(
-    name: string,
-    args: VpcNetworkArgs,
-    opts?: pulumi.ComponentResourceOptions
-  ) {
-    super('myorg:index:VpcNetwork', name, {}, opts);
+  constructor(name: string, args: VpcNetworkArgs, opts?: pulumi.ComponentResourceOptions) {
+    super("myorg:index:VpcNetwork", name, {}, opts);
     // ...create VPC, subnets, route tables...
     this.registerOutputs({ vpcId: this.vpcId });
   }
@@ -603,12 +566,8 @@ class VpcNetwork extends pulumi.ComponentResource {
 class Platform extends pulumi.ComponentResource {
   public readonly kubeconfig: pulumi.Output<string>;
 
-  constructor(
-    name: string,
-    args: PlatformArgs,
-    opts?: pulumi.ComponentResourceOptions
-  ) {
-    super('myorg:index:Platform', name, {}, opts);
+  constructor(name: string, args: PlatformArgs, opts?: pulumi.ComponentResourceOptions) {
+    super("myorg:index:Platform", name, {}, opts);
 
     // Compose lower-level components
     const network = new VpcNetwork(
@@ -616,7 +575,7 @@ class Platform extends pulumi.ComponentResource {
       {
         cidrBlock: args.cidrBlock,
       },
-      { parent: this }
+      { parent: this },
     );
 
     const cluster = new aws.eks.Cluster(
@@ -626,46 +585,10 @@ class Platform extends pulumi.ComponentResource {
           subnetIds: network.privateSubnetIds,
         },
       },
-      { parent: this }
+      { parent: this },
     );
 
-    // Construct kubeconfig from actual EKS cluster outputs
-    this.kubeconfig = pulumi
-      .all([cluster.endpoint, cluster.certificateAuthority, cluster.name])
-      .apply(([endpoint, ca, clusterName]) =>
-        JSON.stringify({
-          apiVersion: 'v1',
-          kind: 'Config',
-          clusters: [
-            {
-              cluster: {
-                server: endpoint,
-                'certificate-authority-data': ca.data,
-              },
-              name: clusterName,
-            },
-          ],
-          contexts: [
-            {
-              context: { cluster: clusterName, user: clusterName },
-              name: clusterName,
-            },
-          ],
-          'current-context': clusterName,
-          users: [
-            {
-              name: clusterName,
-              user: {
-                exec: {
-                  apiVersion: 'client.authentication.k8s.io/v1beta1',
-                  command: 'aws',
-                  args: ['eks', 'get-token', '--cluster-name', clusterName],
-                },
-              },
-            },
-          ],
-        })
-      );
+    this.kubeconfig = cluster.kubeconfig;
     this.registerOutputs({ kubeconfig: this.kubeconfig });
   }
 }
@@ -679,13 +602,13 @@ automatically:
 
 ```typescript
 // Consumer passes a provider for a different region
-const usWest = new aws.Provider('us-west', { region: 'us-west-2' });
+const usWest = new aws.Provider("us-west", { region: "us-west-2" });
 const site = new StaticSite(
-  'west-site',
-  { indexDocument: 'index.html' },
+  "west-site",
+  { indexDocument: "index.html" },
   {
     providers: [usWest],
-  }
+  },
 );
 ```
 
@@ -786,8 +709,8 @@ needed. Pulumi introspects exported classes automatically.
 
 ```typescript
 // index.ts -- exports are the entry point
-export { StaticSite, StaticSiteArgs } from './staticSite';
-export { SecureBucket, SecureBucketArgs } from './secureBucket';
+export { StaticSite, StaticSiteArgs } from "./staticSite";
+export { SecureBucket, SecureBucketArgs } from "./secureBucket";
 ```
 
 **Python** (`runtime: python`):
@@ -902,7 +825,7 @@ name: Publish Component
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 permissions:
   id-token: write
@@ -921,9 +844,8 @@ jobs:
         with:
           organization: ${{ env.PULUMI_ORG }}
           requested-token-type: urn:pulumi:token-type:access_token:organization
-      - run: |
-          pulumi package publish https://github.com/${{ github.repository }} \
-            --publisher ${{ env.PULUMI_ORG }}
+      - run: pulumi package publish https://github.com/${{ github.repository }}
+          --publisher ${{ env.PULUMI_ORG }}
 ```
 
 **Prerequisites**: Configure GitHub OIDC integration with Pulumi Cloud before

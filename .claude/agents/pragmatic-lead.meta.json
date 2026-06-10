@@ -1,0 +1,13 @@
+{
+  "name": "pragmatic-lead",
+  "kind": "agent",
+  "status": "canonical",
+  "targets": {
+    "claude": true,
+    "opencode": true,
+    "openclaw": false
+  },
+  "roles": ["council-reviewer-pool", "council-facilitator"],
+  "bundles": ["council"],
+  "localChanges": []
+}

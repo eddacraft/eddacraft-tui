@@ -1,0 +1,24 @@
+{
+  "name": "dev-workflow",
+  "origin": {
+    "type": "local",
+    "repo": "code-env",
+    "path": "skills/eddacraft/dev-workflow",
+    "ref": "main",
+    "lastImportedCommit": null
+  },
+  "status": "canonical",
+  "targets": {
+    "claude": true,
+    "opencode": true,
+    "openclaw": false
+  },
+  "agentSupport": {
+    "scope": "general",
+    "agents": [],
+    "notes": "Set scope to agent-specific and list agents when a skill is intended for specific assistant agents or plugin-like workflows."
+  },
+  "localChanges": [
+    "SKILL.md is project-localised for anvil; body intentionally not synced from catalogue (2026-06-10)"
+  ]
+}

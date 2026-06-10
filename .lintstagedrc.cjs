@@ -29,6 +29,22 @@ const isAuditJson = (file) => {
   );
 };
 
+// Agent-config class dirs (.claude/, .codex/, .opencode/) are excluded from
+// oxfmt via .prettierignore to avoid mangling embedded ```markdown fences in
+// skill files. Filter their JSON files (*.meta.json, skill.meta.json) so
+// lint-staged doesn't pass them to oxfmt and trigger "no target files" errors.
+const isAgentConfig = (file) => {
+  const normalised = normalisePath(file);
+  return (
+    normalised.includes('/.claude/') ||
+    normalised.startsWith('.claude/') ||
+    normalised.includes('/.codex/') ||
+    normalised.startsWith('.codex/') ||
+    normalised.includes('/.opencode/') ||
+    normalised.startsWith('.opencode/')
+  );
+};
+
 const filter = (files) => files.filter((f) => !isVendoredOutput(f));
 
 // Quote each file with JSON.stringify so paths containing spaces (common on
@@ -45,7 +61,7 @@ module.exports = {
     return [`oxfmt --write ${list}`, `oxlint --fix ${list}`, `eslint --fix ${list}`];
   },
   '*.json': (files) => {
-    const kept = filter(files);
+    const kept = filter(files).filter((f) => !isAgentConfig(f));
     if (kept.length === 0) return [];
     const formatted = kept.filter((file) => !isAuditJson(file));
     const auditJson = kept.filter(isAuditJson);

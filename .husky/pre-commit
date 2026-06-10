@@ -14,13 +14,13 @@ run_node_tool() {
 
 run_oxfmt_check_on_staged_files() {
   if command -v pnpm >/dev/null 2>&1; then
-    git diff --cached --name-only --diff-filter=ACMR -z -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.json' '*.yml' '*.yaml' ':(exclude)plans/audits/*.json' ':(exclude)crates/anvil-sarif/src/sarif-schema-2.1.0.json' |
+    git diff --cached --name-only --diff-filter=ACMR -z -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.json' '*.yml' '*.yaml' ':(exclude)plans/audits/*.json' ':(exclude)crates/anvil-sarif/src/sarif-schema-2.1.0.json' ':(exclude).claude/**' ':(exclude).codex/**' ':(exclude).opencode/**' |
       xargs -0 sh -c '
         [ "$#" -eq 0 ] && exit 0
         pnpm exec oxfmt --check -- "$@"
       ' sh
   elif command -v npx >/dev/null 2>&1; then
-    git diff --cached --name-only --diff-filter=ACMR -z -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.json' '*.yml' '*.yaml' ':(exclude)plans/audits/*.json' ':(exclude)crates/anvil-sarif/src/sarif-schema-2.1.0.json' |
+    git diff --cached --name-only --diff-filter=ACMR -z -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.json' '*.yml' '*.yaml' ':(exclude)plans/audits/*.json' ':(exclude)crates/anvil-sarif/src/sarif-schema-2.1.0.json' ':(exclude).claude/**' ':(exclude).codex/**' ':(exclude).opencode/**' |
       xargs -0 sh -c '
         [ "$#" -eq 0 ] && exit 0
         npx oxfmt --check -- "$@"

@@ -1,0 +1,13 @@
+{
+  "name": "kernel-maintainer",
+  "kind": "agent",
+  "status": "canonical",
+  "targets": {
+    "claude": true,
+    "opencode": true,
+    "openclaw": false
+  },
+  "roles": ["council-reviewer-pool"],
+  "bundles": ["council"],
+  "localChanges": []
+}

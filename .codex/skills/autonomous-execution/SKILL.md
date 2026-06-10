@@ -1,16 +1,13 @@
 ---
 name: autonomous-execution
-description:
-  Long-running autonomous tasks, checkpointing, error recovery, progress
-  tracking
+description: Long-running autonomous tasks, checkpointing, error recovery, progress tracking
 ---
 
-# Autonomous Execution Skill
+# Autonomous Execution
 
 ## Overview
 
-Execute complex, multi-step tasks autonomously with checkpointing, error
-handling, and progress reporting.
+Execute complex, multi-step tasks autonomously with checkpointing, error handling, and progress reporting.
 
 ## When to Apply
 
@@ -27,7 +24,7 @@ handling, and progress reporting.
 Before autonomous execution:
 
 ```
-1. Define clear end state
+1. Define a clear end state
 2. Break into atomic tasks
 3. Identify checkpoints
 4. Plan rollback strategy
@@ -36,10 +33,9 @@ Before autonomous execution:
 
 ### 2. Execution Loop
 
-```python
+```
 while not complete and not blocked:
     task = get_next_task()
-
     log_start(task)
     create_checkpoint()
 
@@ -72,6 +68,8 @@ while not complete and not blocked:
 - At phase boundaries
 - Periodically (every N minutes)
 
+A simple way to checkpoint code state is `git commit` after each verified step. Use a feature branch and revert if needed.
+
 ### 4. Progress Reporting
 
 ```
@@ -102,7 +100,7 @@ Retry strategy:
 ```
 Response:
 1. Stop execution
-2. Roll back to last checkpoint
+2. Roll back to last checkpoint (e.g. `git reset --hard <sha>`)
 3. Log full error context
 4. Notify user
 5. Await instruction
@@ -120,7 +118,9 @@ Options:
 
 ## State Management
 
-### State File Structure
+Persist state between long-running steps so the work can be resumed.
+
+### Example state file
 
 ```json
 {
@@ -144,24 +144,26 @@ Options:
       "id": 1,
       "timestamp": "ISO timestamp",
       "task_id": 5,
-      "state_snapshot": {}
+      "git_sha": "abc1234"
     }
   ]
 }
 ```
+
+Save it somewhere durable — for example `.opencode/state/<session-id>.json` (add the directory to `.gitignore`).
 
 ### Resume from Checkpoint
 
 ```
 1. Load state file
 2. Find last successful checkpoint
-3. Restore state snapshot
+3. Restore state (e.g. `git reset --hard <sha>` if appropriate)
 4. Continue from next pending task
 ```
 
 ## Safety Guardrails
 
-### Before Destructive Operations
+### Before destructive operations
 
 ```
 1. Confirm operation is intended
@@ -171,7 +173,7 @@ Options:
 5. Execute with verification
 ```
 
-### Maximum Limits
+### Maximum limits
 
 ```
 - Max runtime per task: 10 minutes
@@ -180,7 +182,7 @@ Options:
 - Max file deletions: 10 without confirmation
 ```
 
-### Protected Operations
+### Protected operations
 
 Always require confirmation for:
 
@@ -189,15 +191,3 @@ Always require confirmation for:
 - Changing permissions
 - External API calls
 - Database modifications
-
-## Integration with update_plan
-
-Use `update_plan` continuously:
-
-```
-1. Create plan steps for all major tasks
-2. Mark one item as in_progress at a time
-3. Mark steps completed immediately after verification
-4. Add new steps for discovered work
-5. Keep statuses accurate during errors/retries
-```

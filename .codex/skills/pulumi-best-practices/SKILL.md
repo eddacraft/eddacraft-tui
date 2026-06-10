@@ -1,8 +1,7 @@
 ---
 name: pulumi-best-practices
 version: 1.0.0
-description:
-  Best practices for writing reliable Pulumi programs. Covers Output handling,
+description: Best practices for writing reliable Pulumi programs. Covers Output handling,
   resource dependencies, component structure, secrets management, safe
   refactoring with aliases, and deployment workflows.
 ---
@@ -36,13 +35,13 @@ to race conditions and deployment failures.
 **Wrong**:
 
 ```typescript
-const bucket = new aws.s3.Bucket('bucket');
+const bucket = new aws.s3.Bucket("bucket");
 
 bucket.id.apply((bucketId) => {
   // WRONG: This resource won't appear in preview
-  new aws.s3.BucketObject('object', {
+  new aws.s3.BucketObject("object", {
     bucket: bucketId,
-    content: 'hello',
+    content: "hello",
   });
 });
 ```
@@ -50,12 +49,12 @@ bucket.id.apply((bucketId) => {
 **Right**:
 
 ```typescript
-const bucket = new aws.s3.Bucket('bucket');
+const bucket = new aws.s3.Bucket("bucket");
 
 // Pass the output directly - Pulumi handles the dependency
-const object = new aws.s3.BucketObject('object', {
+const object = new aws.s3.BucketObject("object", {
   bucket: bucket.id, // Output<string> works here
-  content: 'hello',
+  content: "hello",
 });
 ```
 
@@ -85,7 +84,7 @@ deploy in wrong order or reference values that don't exist yet.
 **Wrong**:
 
 ```typescript
-const vpc = new aws.ec2.Vpc('vpc', { cidrBlock: '10.0.0.0/16' });
+const vpc = new aws.ec2.Vpc("vpc", { cidrBlock: "10.0.0.0/16" });
 
 // WRONG: Extracting the value breaks the dependency chain
 let vpcId: string;
@@ -93,20 +92,20 @@ vpc.id.apply((id) => {
   vpcId = id;
 });
 
-const subnet = new aws.ec2.Subnet('subnet', {
+const subnet = new aws.ec2.Subnet("subnet", {
   vpcId: vpcId, // May be undefined, no tracked dependency
-  cidrBlock: '10.0.1.0/24',
+  cidrBlock: "10.0.1.0/24",
 });
 ```
 
 **Right**:
 
 ```typescript
-const vpc = new aws.ec2.Vpc('vpc', { cidrBlock: '10.0.0.0/16' });
+const vpc = new aws.ec2.Vpc("vpc", { cidrBlock: "10.0.0.0/16" });
 
-const subnet = new aws.ec2.Subnet('subnet', {
+const subnet = new aws.ec2.Subnet("subnet", {
   vpcId: vpc.id, // Pass the Output directly
-  cidrBlock: '10.0.1.0/24',
+  cidrBlock: "10.0.1.0/24",
 });
 ```
 
@@ -120,7 +119,7 @@ const name = bucket.id.apply((id) => `prefix-${id}-suffix`);
 const name = pulumi.interpolate`prefix-${bucket.id}-suffix`;
 
 // RIGHT - use pulumi.concat for simple concatenation
-const name = pulumi.concat('prefix-', bucket.id, '-suffix');
+const name = pulumi.concat("prefix-", bucket.id, "-suffix");
 ```
 
 **Reference**: https://www.pulumi.com/docs/concepts/inputs-outputs/
@@ -144,13 +143,13 @@ reason about your infrastructure at a higher level.
 
 ```typescript
 // Flat structure - no logical grouping, hard to reuse
-const bucket = new aws.s3.Bucket('app-bucket');
-const bucketPolicy = new aws.s3.BucketPolicy('app-bucket-policy', {
+const bucket = new aws.s3.Bucket("app-bucket");
+const bucketPolicy = new aws.s3.BucketPolicy("app-bucket-policy", {
   bucket: bucket.id,
   policy: policyDoc,
 });
-const originAccessIdentity = new aws.cloudfront.OriginAccessIdentity('app-oai');
-const distribution = new aws.cloudfront.Distribution('app-cdn', {
+const originAccessIdentity = new aws.cloudfront.OriginAccessIdentity("app-oai");
+const distribution = new aws.cloudfront.Distribution("app-cdn", {
   /* ... */
 });
 ```
@@ -160,18 +159,14 @@ const distribution = new aws.cloudfront.Distribution('app-cdn', {
 ```typescript
 interface StaticSiteArgs {
   domain: string;
-  content: pulumi.asset.Archive;
+  content: pulumi.asset.AssetArchive;
 }
 
 class StaticSite extends pulumi.ComponentResource {
   public readonly url: pulumi.Output<string>;
 
-  constructor(
-    name: string,
-    args: StaticSiteArgs,
-    opts?: pulumi.ComponentResourceOptions
-  ) {
-    super('myorg:components:StaticSite', name, args, opts);
+  constructor(name: string, args: StaticSiteArgs, opts?: pulumi.ComponentResourceOptions) {
+    super("myorg:components:StaticSite", name, args, opts);
 
     // Resources created here - see practice 4 for parent setup
     const bucket = new aws.s3.Bucket(`${name}-bucket`, {}, { parent: this });
@@ -183,15 +178,15 @@ class StaticSite extends pulumi.ComponentResource {
 }
 
 // Reusable across stacks
-const site = new StaticSite('marketing', {
-  domain: 'marketing.example.com',
-  content: new pulumi.asset.FileArchive('./dist'),
+const site = new StaticSite("marketing", {
+  domain: "marketing.example.com",
+  content: new pulumi.asset.FileArchive("./dist"),
 });
 ```
 
 **Component best practices**:
 
-- Use a consistent type URN pattern: `organisation:module:ComponentName`
+- Use a consistent type URN pattern: `organization:module:ComponentName`
 - Call `registerOutputs()` at the end of the constructor
 - Expose outputs as class properties for consumers
 - Accept `ComponentResourceOptions` to allow callers to set providers, aliases,
@@ -224,7 +219,7 @@ what makes the component actually group its children.
 ```typescript
 class MyComponent extends pulumi.ComponentResource {
   constructor(name: string, opts?: pulumi.ComponentResourceOptions) {
-    super('myorg:components:MyComponent', name, {}, opts);
+    super("myorg:components:MyComponent", name, {}, opts);
 
     // WRONG: No parent set - this bucket appears at root level
     const bucket = new aws.s3.Bucket(`${name}-bucket`);
@@ -237,7 +232,7 @@ class MyComponent extends pulumi.ComponentResource {
 ```typescript
 class MyComponent extends pulumi.ComponentResource {
   constructor(name: string, opts?: pulumi.ComponentResourceOptions) {
-    super('myorg:components:MyComponent', name, {}, opts);
+    super("myorg:components:MyComponent", name, {}, opts);
 
     // RIGHT: Parent establishes hierarchy
     const bucket = new aws.s3.Bucket(
@@ -245,7 +240,7 @@ class MyComponent extends pulumi.ComponentResource {
       {},
       {
         parent: this,
-      }
+      },
     );
 
     const policy = new aws.s3.BucketPolicy(
@@ -256,7 +251,7 @@ class MyComponent extends pulumi.ComponentResource {
       },
       {
         parent: this,
-      }
+      },
     );
   }
 }
@@ -308,7 +303,7 @@ pulumi config set --secret apiKey sk-1234567890
 const config = new pulumi.Config();
 
 // This retrieves a secret - the value stays encrypted
-const dbPassword = config.requireSecret('databasePassword');
+const dbPassword = config.requireSecret("databasePassword");
 
 // Creating outputs from secrets preserves secrecy
 const connectionString = pulumi.interpolate`postgres://user:${dbPassword}@host/db`;
@@ -318,7 +313,7 @@ const connectionString = pulumi.interpolate`postgres://user:${dbPassword}@host/d
 const computed = pulumi.secret(someValue);
 ```
 
-**Use Pulumi ESC for centralised secrets**:
+**Use Pulumi ESC for centralized secrets**:
 
 ```yaml
 # Pulumi.yaml
@@ -328,7 +323,7 @@ environment:
 
 ```bash
 # ESC manages secrets centrally across stacks
-pulumi env set production-secrets db.password --secret "hunter2"
+esc env set production-secrets db.password --secret "hunter2"
 ```
 
 **What qualifies as a secret**:
@@ -365,10 +360,10 @@ Aliases preserve resource identity through refactors.
 
 ```typescript
 // Before: resource named "my-bucket"
-const bucket = new aws.s3.Bucket('my-bucket');
+const bucket = new aws.s3.Bucket("my-bucket");
 
 // After: renamed without alias - DESTROYS THE BUCKET
-const bucket = new aws.s3.Bucket('application-bucket');
+const bucket = new aws.s3.Bucket("application-bucket");
 ```
 
 **Right**:
@@ -376,11 +371,11 @@ const bucket = new aws.s3.Bucket('application-bucket');
 ```typescript
 // After: renamed with alias - preserves the existing bucket
 const bucket = new aws.s3.Bucket(
-  'application-bucket',
+  "application-bucket",
   {},
   {
-    aliases: [{ name: 'my-bucket' }],
-  }
+    aliases: [{ name: "my-bucket" }],
+  },
 );
 ```
 
@@ -388,25 +383,25 @@ const bucket = new aws.s3.Bucket(
 
 ```typescript
 // Before: top-level resource
-const bucket = new aws.s3.Bucket('my-bucket');
+const bucket = new aws.s3.Bucket("my-bucket");
 
 // After: inside a component - needs alias with old parent
 class MyComponent extends pulumi.ComponentResource {
   constructor(name: string, opts?: pulumi.ComponentResourceOptions) {
-    super('myorg:components:MyComponent', name, {}, opts);
+    super("myorg:components:MyComponent", name, {}, opts);
 
     const bucket = new aws.s3.Bucket(
-      'bucket',
+      "bucket",
       {},
       {
         parent: this,
         aliases: [
           {
-            name: 'my-bucket',
+            name: "my-bucket",
             parent: pulumi.rootStackResource, // Was at root
           },
         ],
-      }
+      },
     );
   }
 }
@@ -416,13 +411,13 @@ class MyComponent extends pulumi.ComponentResource {
 
 ```typescript
 // Simple name change
-aliases: [{ name: 'old-name' }];
+aliases: [{ name: "old-name" }];
 
 // Parent change
-aliases: [{ name: 'resource-name', parent: oldParent }];
+aliases: [{ name: "resource-name", parent: oldParent }];
 
 // Full URN (when you know the exact previous URN)
-aliases: ['urn:pulumi:stack::project::aws:s3/bucket:Bucket::old-name'];
+aliases: ["urn:pulumi:stack::project::aws:s3/bucket:Bucket::old-name"];
 ```
 
 **Lifecycle**:
@@ -502,7 +497,6 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     steps:
-      - uses: actions/checkout@v4
       - name: Pulumi Up
         uses: pulumi/actions@v5
         with:
@@ -555,5 +549,5 @@ When reviewing Pulumi code, verify:
   Use skill `pulumi-component`.
 - **pulumi-automation-api**: Programmatic orchestration of multiple stacks. Use
   skill `pulumi-automation-api`.
-- **pulumi-esc**: Centralised secrets and configuration management. Use skill
+- **pulumi-esc**: Centralized secrets and configuration management. Use skill
   `pulumi-esc`.

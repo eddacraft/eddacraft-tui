@@ -1,0 +1,13 @@
+{
+  "name": "protocols",
+  "kind": "agent-support",
+  "status": "canonical",
+  "targets": {
+    "claude": true,
+    "opencode": true,
+    "openclaw": false
+  },
+  "roles": ["shared-agent-protocol"],
+  "bundles": ["council"],
+  "localChanges": []
+}

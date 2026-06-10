@@ -1,7 +1,6 @@
 ---
 name: dependabot
-description:
-  Full-lifecycle security and quality alert remediation — sweeps Dependabot
+description: Full-lifecycle security and quality alert remediation — sweeps Dependabot
   alerts and/or Copilot AI code quality findings, builds a prioritised fix plan
   with research citations, executes fixes with persistent problem-solving, and
   opens draft PRs with detailed reports
@@ -55,6 +54,7 @@ $ARGUMENTS
 #### 1.1 Determine active tracks
 
 Based on invocation args, activate one or both tracks:
+
 - Default (`/dependabot`): dependabot track only
 - `quality` / `--quality`: code quality track only
 - `--all`: both tracks
@@ -95,6 +95,7 @@ NOT fall back to processing all code scanning alerts — the skill only handles
 Copilot AI quality findings, not arbitrary SAST tools.
 
 For each finding, gather:
+
 - Rule ID and description
 - Severity
 - File path and line range
@@ -122,13 +123,13 @@ note it for the user in the plan rather than creating a new branch.
 
 Determine the project's tooling:
 
-| Signal              | How to detect                                            |
-| ------------------- | -------------------------------------------------------- |
-| Package manager     | Lock file: `pnpm-lock.yaml`, `yarn.lock`, `package-lock.json` |
-| Workspace structure | `pnpm-workspace.yaml`, `workspaces` in root `package.json`    |
-| Override mechanism  | pnpm: `pnpm.overrides`, npm: `overrides`, yarn: `resolutions` |
-| Build command       | `scripts` in root `package.json`, Nx/Turbo detection          |
-| Test command        | vitest, jest, etc. from scripts or config files                |
+| Signal              | How to detect                                                        |
+| ------------------- | -------------------------------------------------------------------- |
+| Package manager     | Lock file: `pnpm-lock.yaml`, `yarn.lock`, `package-lock.json`        |
+| Workspace structure | `pnpm-workspace.yaml`, `workspaces` in root `package.json`           |
+| Override mechanism  | pnpm: `pnpm.overrides`, npm: `overrides`, yarn: `resolutions`        |
+| Build command       | `scripts` in root `package.json`, Nx/Turbo detection                 |
+| Test command        | vitest, jest, etc. from scripts or config files                      |
 | Default branch      | `gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name'` |
 
 #### 1.6 Gather dependency details (dependabot track)
@@ -176,13 +177,13 @@ significant effort on an unreachable path.
 
 **Classify strategy:**
 
-| Strategy         | When                                                         |
-| ---------------- | ------------------------------------------------------------ |
-| **Quick bump**   | Patch/minor update available, low risk                       |
-| **Major upgrade**| Breaking changes, needs testing and possibly code changes     |
-| **Replace**      | Dependency is unmaintained/legacy, modern alternative exists  |
-| **Override**     | Transitive dep can be forced via lock file overrides          |
-| **Escalate**     | Fix requires architectural changes beyond dependency surface  |
+| Strategy          | When                                                         |
+| ----------------- | ------------------------------------------------------------ |
+| **Quick bump**    | Patch/minor update available, low risk                       |
+| **Major upgrade** | Breaking changes, needs testing and possibly code changes    |
+| **Replace**       | Dependency is unmaintained/legacy, modern alternative exists |
+| **Override**      | Transitive dep can be forced via lock file overrides         |
+| **Escalate**      | Fix requires architectural changes beyond dependency surface |
 
 Groups classified as **Escalate** skip execution entirely and go straight to the
 sweep report with their research findings attached.
@@ -211,12 +212,12 @@ independently assess:
 
 Classify each finding:
 
-| Classification       | Meaning                                                      |
-| -------------------- | ------------------------------------------------------------ |
-| **Apply suggestion** | Copilot's diff is correct, apply it                          |
+| Classification       | Meaning                                                                                                                                                                     |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Apply suggestion** | Copilot's diff is correct, apply it                                                                                                                                         |
 | **Fix differently**  | Finding is valid but write a better fix, note why deviated. Must be confined to the same file — if the better fix requires cross-file changes, classify as Escalate instead |
-| **Dismiss**          | Finding is invalid or code is intentionally written that way |
-| **Escalate**         | Fix is cross-file, behaviour-changing, or needs domain knowledge |
+| **Dismiss**          | Finding is invalid or code is intentionally written that way                                                                                                                |
+| **Escalate**         | Fix is cross-file, behaviour-changing, or needs domain knowledge                                                                                                            |
 
 The scope check happens at assessment time, not execution time. If reading the
 context reveals that any fix (suggested or alternative) would require changes
@@ -261,6 +262,7 @@ classifications before execution begins.
 Ask:
 
 > "Here is the fix plan. You can respond with:
+>
 > - **approve all** or **go** — execute every group as planned
 > - **skip group N** or **skip \<name\>** — exclude specific groups
 > - **only groups 1, 3** — execute only named groups
@@ -314,6 +316,7 @@ The sweep report distinguishes three states: **fixed** (PR opened),
 #### 4.3 Dependabot execution
 
 **Branch naming:**
+
 - npm single-alert: `dependabot/fix/<package-name>`
 - npm multi-alert: `dependabot/fix/<root-dep>-group`
 - actions: `dependabot/fix/actions-<action-name>`
@@ -337,7 +340,7 @@ Never assume a pinned version is intentional. Check:
 
 - Is there an explicit override/resolution in `package.json`? → intentional,
   investigate why (git blame, commit messages) before proceeding
-- Is it just a lock file resolution artifact? → incidental, proceed with the
+- Is it just a lock file resolution artefact? → incidental, proceed with the
   upgrade
 
 **Escalation triggers:**
@@ -358,6 +361,7 @@ Never assume a pinned version is intentional. Check:
   ```
 
 **Commits:**
+
 - `fix(deps): upgrade <package> to vN.x`
 - `fix(deps): replace <old> with <new>`
 - Atomic commits — version bump separate from code adaptations
@@ -372,28 +376,34 @@ Never assume a pinned version is intentional. Check:
 **Strategy:** <strategy used>
 
 ## What was vulnerable
+
 <package> via <dependency chain> — <CVE summary in plain English>
 
 ## What was done
+
 - <concrete changes made>
 
 ## Research sources
+
 - [source title](url) — what it told us
 - [source title](url) — what it told us
 
 ## What was tested
+
 - Build: pass/fail
 - Test suite: pass (N tests) / fail (details)
 - Affected packages: <list>
 - Pre-existing failures (not caused by this change): <list or "none">
 
 ## Escalated items
+
 (none, or: description of what needs further discussion)
 ```
 
 #### 4.4 Code quality execution
 
 **Branch naming:**
+
 - `quality/fix/<category>` — e.g., `quality/fix/error-handling`,
   `quality/fix/unused-code`
 - `quality/fix/misc` — for bundled single findings from different categories
@@ -417,6 +427,7 @@ For each finding in an approved group:
 - Hard backstop: >10 files, >3 packages, architectural changes
 
 **Commits:**
+
 - `fix(quality): <category> improvements` for grouped fixes
 - `fix(quality): address <specific finding>` for singles in misc
 
@@ -432,24 +443,29 @@ For each finding in an approved group:
 ## Findings
 
 ### <file-path>:<line>
+
 - **Finding:** <what Copilot flagged>
 - **Action:** applied suggestion / fixed differently / dismissed
 - **Rationale:** <why this fix is correct, or why it differs from the suggestion>
 - **Diff context:** <brief description of the change>
 
 ### <file-path>:<line>
+
 ...
 
 ## What was tested
+
 - Build: pass/fail
 - Test suite: pass (N tests)
 - Lint: pass/fail
 - Affected packages: <list>
 
 ## Dismissed findings
+
 - <file:line> — <reason for dismissal>
 
 ## Escalated findings
+
 - <file:line> — <reason for escalation>
 ```
 
