@@ -1007,7 +1007,12 @@ fn main() -> ExitCode {
             wants_json,
         )
     {
-        tracing::warn!(target: "anvil_cli", "cli command authentication required");
+        // CIB-061: `info`, not `warn` — auth-required is an expected
+        // state (issue #1822) and `check_auth` already put the human
+        // message on stderr; at `warn` the event passed the CLI's
+        // default filter and leaked a raw JSON line under that message.
+        // `ANVIL_LOG=info` still surfaces it for operators.
+        tracing::info!(target: "anvil_cli", "cli command authentication required");
         let (exit_code, json_envelope) = auth_required_response(&cli.command, code, wants_json);
         if let Some(envelope) = json_envelope {
             // CIB-049: the envelope only exists under `--json` / `--format
