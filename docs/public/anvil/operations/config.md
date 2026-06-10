@@ -422,8 +422,8 @@ the configuration reference for the routing control.
 By default `anvil watch` uses daemon-backed save-time validation when a resident
 intercept daemon is already live and serving the save-time verbs. The daemon
 validates the changed-path delta against one warm model rather than spawning a
-per-save subprocess, so `anvil watch` and the editor/agent MCP `validate_write`
-tool converge on the same verdict path.
+per-save subprocess, so `anvil watch` and the editor/agent MCP
+`anvil_validate_write` tool converge on the same verdict path.
 
 If no daemon is live, the default path stays quiet and runs a scoped `check`
 over exactly the changed files, never a whole-repository `--all` scan. Set
