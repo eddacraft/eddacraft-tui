@@ -44,7 +44,7 @@ Use these when you are ready for a specific capability:
 
 | #   | Tutorial                                                 | Description                                                           | Prerequisites        |
 | --- | -------------------------------------------------------- | --------------------------------------------------------------------- | -------------------- |
-| 1   | [Your First Save Caught](first-save-caught.md)           | Activate save-time protection and catch a deliberate mistake yourself | `anvil start`        |
+| 1   | [Your First Save Caught](first-save-caught.md)           | Activate save-time protection and catch a deliberate mistake yourself | Install + auth       |
 | 2   | [Architecture Boundaries](/anvil/tutorials/architecture) | Define layers and enforce module boundaries                           | `anvil init`         |
 | 3   | [Custom Policies](/anvil/tutorials/policies)             | Write OPA/Rego rules to enforce your team's standards                 | OPA binary installed |
 | 4   | [Drift Detection](/anvil/tutorials/drift)                | Capture snapshots and track architectural drift over time             | Architecture set up  |
