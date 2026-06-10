@@ -9,7 +9,7 @@ from the v0.8.0-beta user-journey completeness review (operator-directed).
 
 | ID  | Owner  | Status | Progress |
 | --- | ------ | ------ | -------- |
-| UJ  | @aneki | In Progress | 14/15 |
+| UJ  | @aneki | Complete | 15/15 |
 
 **Last reviewed:** 2026-06-10 (created from the v0.8.0-beta user-journey
 completeness review. Operator direction: beta posture permits explicit guidance
@@ -402,7 +402,7 @@ carry the user to the next step without a docs lookup.
 
 ### UJ-015: Retire ci and suppressions tutorials into their guides
 
-- **Status:** Ready
+- **Status:** Merged 2026-06-10 via PR #2514
 - **Intent:** Two tutorials duplicate guide content; per the approved shaping
   (operator decision: fold `ci.md`), they retire into the pages that own the
   material.
@@ -414,8 +414,13 @@ carry the user to the next step without a docs lookup.
 - **Files:** `docs/public/anvil/tutorials/{ci,suppressions}.md` (removed),
   `docs/public/anvil/integrations/github.md`,
   `docs/public/anvil/guides/{dashboard,insights}.md`, sidebars
-- **Validation:** `pnpm docs:check` + `pnpm docs:index` green; no inbound
-  links to the removed pages.
+- **Validation:** `pnpm docs:check` 8/8 + `pnpm docs:index` green
+  (2026-06-10); no live inbound links to the removed pages (fresh-context
+  sweep + Docusaurus build SUCCESS); both docs apps' manual sidebars updated —
+  the sweep also added the UJ-012/UJ-013 pages missing from those explicit
+  lists. The old file-level/bulk-suppression content was drift
+  (suppressions.json is an export/dashboard surface, not a scanner input) and
+  was deliberately not carried.
 - **Dependencies:** UJ-014 (index rewrite lands the final set first)
 - **Confidence:** medium
 - **changeType:** docs

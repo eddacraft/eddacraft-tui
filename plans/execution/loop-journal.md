@@ -267,3 +267,28 @@ never with feature work.
   heavily drifted (wrong suppressions.json schema vs the shipped
   loader, no SUP-001 rule, comma multi-rule unsupported by the ADR-029
   regex) — the fold carries only code-verified content.
+
+## Cycle 15 — 2026-06-10
+
+- Item: UJ-015 — Retire ci and suppressions tutorials into their guides
+- Outcome: done (folds: github.md gains matrix/auth-tip/ci-profile/
+  other-CI-systems; insights.md gains "Suppressing a finding" with the
+  code-verified inline syntax; git-hooks.md gains the staged-only
+  pre-commit example. Removals + sweep: both tutorial pages deleted;
+  quickstart/first-project/git-hooks/git-hook-compatibility repointed;
+  BOTH docs apps' manual sidebars updated — the sweep also added the
+  UJ-012/UJ-013 pages that were missing from those explicit lists; the
+  docs-check baseline regenerated canonically. Deliberately not
+  carried: the old file-level/bulk-suppression sections (drift —
+  suppressions.json is export/dashboard-only, schema mismatched the
+  shipped loader), SUP-001 (nonexistent), comma multi-rule directives
+  (unsupported). Validation: docs:check 8/8, docs:index clean,
+  format:check exit 0, Docusaurus build SUCCESS; fresh-context review's
+  two real findings fixed pre-PR, its third resolved by #2513's merge.)
+  PR #2514.
+- Plan changes: UJ-015 → Merged 2026-06-10 via PR #2514; UJ counts
+  15/15; module status → Complete (archive deferred to release-tag
+  inclusion per archiving rules).
+- Checkpoints raised: none.
+- Next: stop — the UJ module is fully dispositioned; no Ready items
+  remain in the UJ-012..015 scope this run was invoked for.

@@ -35,3 +35,25 @@ scripts and Copilot threads landing minutes after PR creation.
 - **Patching struct initializers by suffix-matching a field line hits the
   WRONG structs** (`WatchData` also has `insights_hint`). Let the compiler
   list E0063 sites and patch only those.
+
+## Addendum — UJ-012..015 run (same day, second loop invocation)
+
+- **docs:check does not validate the Docusaurus sidebars.** Both apps
+  (`apps/docs-site` and `apps/anvil-docs-private`) keep MANUAL explicit
+  sidebar lists in `sidebars/anvil.ts`. New public pages are invisible in
+  nav until added to BOTH, and deleting a page without removing its sidebar
+  id breaks the docs build. UJ-012/013 shipped without sidebar entries; the
+  UJ-015 sweep caught it. Add a sidebar check to any new-page checklist.
+- **Never hand-edit docs-check.baseline.json** — `pnpm
+  docs:check:update-baseline` regenerates it canonically; a `json.dump`
+  rewrite reformats ~600 lines of noise.
+- **Fresh-context verification keeps catching real drift in docs work**:
+  this run it found `anvil start` does not spawn the daemon, the
+  cfg(test)-exclusion is RS-001/002-only, `@anvil-ignore` is not wired to
+  boundary violations, and the suppressions tutorial documented an
+  unshipped suppressions.json schema. Budget for one verify pass per docs
+  page; give the verifier the item text + code pointers, not conclusions.
+- **Monitor-based PR watching beats polling**: arm a Monitor that exits on
+  MERGED / CHECK-FAILED / unresolved-threads>0 and keep working; Copilot
+  threads landed minutes after creation on 3 of 4 PRs and each blocked
+  auto-merge until resolved.
