@@ -183,6 +183,12 @@ else
       unit-tests)
         add_command 'pnpm test'
         ;;
+      e2e)
+        # DEVENV-007: mirror CI's E2E harness step (ci.yml e2e-harness job) so
+        # local validation runs the same cross-surface suite for E2E-impacting
+        # diffs. CLI suites self-skip when the anvil binary is absent.
+        add_command 'pnpm --filter @eddacraft/anvil-e2e test'
+        ;;
       cargo-clippy)
         add_command 'pnpm lint:rust'
         ;;

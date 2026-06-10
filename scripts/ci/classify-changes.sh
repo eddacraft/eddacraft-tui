@@ -142,6 +142,22 @@ for path in "${paths[@]}"; do
       ;;
   esac
 
+  # DEVENV-007 (ADR-057): the cross-surface E2E harness (apps/e2e) and the
+  # Playwright config are the E2E surface itself, so editing them requires the
+  # `e2e` check directly. TS *source* anywhere also implies the E2E surface (see
+  # the `ts` → `e2e` mapping below): the harness builds the anvil-api dependency
+  # closure and exercises core/api/adapters/contracts, so a TS source change is
+  # E2E-impacting even when it never touches apps/e2e. That closes the path-gate
+  # that let an observability source break skip E2E on its PR (which gated only
+  # on apps/e2e edits) and land the failure on the integration branch.
+  case "${path}" in
+    apps/e2e/* | apps/e2e/**/* | playwright.config.ts)
+      add_unique path_classes 'e2e'
+      add_unique risk_classes 'source'
+      matched=true
+      ;;
+  esac
+
   case "${path}" in
     policies/* | policies/**/* | *.rego)
       add_unique path_classes 'policy'
@@ -277,6 +293,13 @@ for path_class in "${path_classes[@]}"; do
       add_unique required_checks 'lint'
       add_unique required_checks 'typecheck'
       add_unique required_checks 'unit-tests'
+      # DEVENV-007: TS source is E2E-impacting (harness builds the anvil-api
+      # closure). Mirrors CI's intended trigger: "any TS source or the harness".
+      add_unique required_checks 'e2e'
+      ;;
+    e2e)
+      # The E2E harness / Playwright config themselves.
+      add_unique required_checks 'e2e'
       ;;
     rust)
       add_unique required_checks 'cargo-fmt'

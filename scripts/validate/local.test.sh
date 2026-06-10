@@ -44,6 +44,8 @@ jq -e '.commands | index("pnpm test:validate-local")' >/dev/null <<<"${plan}"
 jq -e '.commands[] | select(contains("scripts/validate/local.sh"))' >/dev/null <<<"${plan}"
 jq -e '.commands | index("cargo test --workspace")' >/dev/null <<<"${plan}"
 jq -e '.commands | index("opa test --verbose policies/fixtures/")' >/dev/null <<<"${plan}"
+# DEVENV-007: a TS source change selects the E2E harness surface (mirrors CI).
+jq -e '.commands | index("pnpm --filter @eddacraft/anvil-e2e test")' >/dev/null <<<"${plan}"
 
 dependency_paths="${tmp_dir}/dependency.paths"
 printf '%s\n' 'pnpm-lock.yaml' >"${dependency_paths}"

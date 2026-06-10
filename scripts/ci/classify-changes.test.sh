@@ -46,6 +46,22 @@ assert_json_contains "${ts}" '.pathClasses | index("ts")' 'TS path class'
 assert_json_contains "${ts}" '.requiredChecks | index("typecheck")' 'TS requires typecheck'
 assert_json_contains "${ts}" '.requiredChecks | index("unit-tests")' 'TS requires unit tests'
 
+# DEVENV-007: TS source is E2E-impacting (the harness builds the anvil-api
+# closure), so any `ts` change must require the `e2e` surface. This closes the
+# path-gate that let a TS source break (e.g. observability) skip E2E on its PR.
+assert_json_contains "${ts}" '.requiredChecks | index("e2e")' 'TS source requires the e2e surface'
+
+ts_only=$(run_case ts-only packages/anvil-observability/src/tracer.ts)
+assert_json_contains "${ts_only}" '.requiredChecks | index("e2e")' 'lone TS source change still requires e2e (observability gap)'
+
+# Harness-internal non-TS files (package.json, tsconfig) route to the `e2e`
+# class directly so editing the harness still requires the e2e check without
+# falling through to the conservative `unknown` bucket.
+e2e_harness=$(run_case e2e-harness apps/e2e/package.json playwright.config.ts)
+assert_json_contains "${e2e_harness}" '.pathClasses | index("e2e")' 'harness paths route to the e2e class'
+assert_json_contains "${e2e_harness}" '.requiredChecks | index("e2e")' 'harness paths require the e2e check'
+assert_json_contains "${e2e_harness}" '.pathClasses | index("unknown") == null' 'harness paths do NOT fall through to unknown'
+
 rust=$(run_case rust crates/anvil-cli/src/main.rs Cargo.toml Cargo.lock rust-toolchain.toml dist-workspace.toml)
 assert_json_contains "${rust}" '.pathClasses | index("rust")' 'Rust path class'
 assert_json_contains "${rust}" '.requiredChecks | index("cargo-check")' 'Rust requires cargo check'

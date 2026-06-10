@@ -35,11 +35,15 @@ server = "lsof -ti :{{ branch | hash_port }} -sTCP:LISTEN | xargs kill 2>/dev/nu
 [[pre-commit]]
 target-reloc = "test -n \"${CARGO_TARGET_DIR:-}\" || echo 'WARNING (DEVENV-002): CARGO_TARGET_DIR is unset — cargo builds write to the in-tree target/ on the full Projects mount. Run: direnv allow'"
 
-# Quick checks on every commit
+# DEVENV-007 (ADR-057): change-scoped validation that shares CI's classifier
+# (scripts/ci/classify-changes.sh) rather than always running the full-workspace
+# format/lint/typecheck. The blunt prior hook ran all three even on a docs-only
+# or rust-only commit; this selects the surfaces CI requires for the staged diff,
+# so a docs commit skips typecheck and a TS-source commit also runs unit + E2E,
+# closing the local↔CI parity gap. With no staged changes it is a no-op. Use
+# `git commit --no-verify` to bypass when iterating.
 [[pre-commit]]
-format = "pnpm run format:check"
-lint = "pnpm run lint:check"
-typecheck = "pnpm run typecheck"
+validate = "bash scripts/validate/local.sh --staged"
 
 # Full suite before merge
 [[pre-merge]]

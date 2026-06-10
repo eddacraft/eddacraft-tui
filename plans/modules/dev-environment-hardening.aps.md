@@ -9,7 +9,7 @@ build/cache, worktree lifecycle, and toolchain determinism. Implements ADR-057.
 
 | ID     | Owner | Status      | Progress |
 | ------ | ----- | ----------- | -------- |
-| DEVENV | —     | In Progress | 5/8      |
+| DEVENV | —     | In Progress | 6/8      |
 
 ## Purpose
 
@@ -197,7 +197,7 @@ surfaced already landed independently via PR #2086 and is not re-counted here.
 
 ### DEVENV-007: Wire change-scoped parity into the wt pre-commit + classifier
 
-- **Status:** Ready
+- **Status:** Merged 2026-06-10 via PR #2516
 - **Wave:** 1 (harden now)
 - **Intent:** Make the local pre-commit gate match CI's classifier and close the
   path-gate that hid the observability E2E break.

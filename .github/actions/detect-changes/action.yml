@@ -150,6 +150,11 @@ runs:
 
         E2E_CHANGED=false
 
+        # DEVENV-007: harness-internal edits are a cheap, classifier-independent
+        # signal kept here as a belt-and-suspenders trigger. The TS-source case
+        # (the real gap — a PR gated only on apps/e2e edits skipped E2E for a TS
+        # source break and landed it on the integration branch) is driven by the
+        # shared classifier's `e2e` required check below, so CI and local agree.
         while IFS= read -r file; do
           if [[ -n "$file" ]]; then
             # E2E patterns
@@ -212,6 +217,12 @@ runs:
         fi
         if has_class rust; then
           RUST_CHANGED=true
+        fi
+        # DEVENV-007: the shared classifier marks TS source (and the harness
+        # itself) as E2E-impacting. Honour it so a TS-source PR runs the E2E
+        # harness instead of deferring the break to the integration push.
+        if has_check e2e; then
+          E2E_CHANGED=true
         fi
         if has_check markdownlint; then
           MARKDOWNLINT_REQUIRED=true
