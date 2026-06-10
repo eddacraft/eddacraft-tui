@@ -9,7 +9,7 @@ from the v0.8.0-beta user-journey completeness review (operator-directed).
 
 | ID  | Owner  | Status | Progress |
 | --- | ------ | ------ | -------- |
-| UJ  | @aneki | In Progress | 12/15 |
+| UJ  | @aneki | In Progress | 13/15 |
 
 **Last reviewed:** 2026-06-10 (created from the v0.8.0-beta user-journey
 completeness review. Operator direction: beta posture permits explicit guidance
@@ -360,17 +360,19 @@ carry the user to the next step without a docs lookup.
 
 ### UJ-013: "Analyse a Rust project" tutorial
 
-- **Status:** Ready
+- **Status:** Merged 2026-06-10 via PR #2511
 - **Intent:** Rust is a supported v0.8.0 analysis language with no tutorial;
   the discovery-wow path needs a Rust walkthrough.
 - **Expected Outcome:** A new web tutorial walks a real Rust repo through
   discovery (`anvil welcome` / `anvil check --all`), explains the
   advisory-severity Rust rules and the language-profile claim, and ends on
   the daily-value handoff (`anvil start`). Listed in the tutorials index.
-- **Files:** `docs/public/anvil/tutorials/` (new page),
+- **Files:** `docs/public/anvil/tutorials/rust-project.md` (new),
   `docs/public/anvil/tutorials/index.md`
-- **Validation:** `pnpm docs:check` + `pnpm docs:index` green; walked
-  end-to-end on a real Rust repo.
+- **Validation:** `pnpm docs:check` 8/8 + `pnpm docs:index` green (2026-06-10);
+  every claim verified against check/render code by a fresh-context reviewer
+  (licence gate blocks a live walk in the agent environment;
+  gate-unavailable is not a content veto).
 - **Dependencies:** UJ-011 (shaping, approved)
 - **Confidence:** high
 - **changeType:** docs

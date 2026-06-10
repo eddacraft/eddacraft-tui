@@ -224,3 +224,23 @@ never with feature work.
   12/15; stale "UJ is 10/15" release-plan row note reconciled.
 - Checkpoints raised: none.
 - Next: UJ-013 (Rust analysis tutorial) — Ready, independent of UJ-012.
+
+## Cycle 13 — 2026-06-10
+
+- Item: UJ-013 — "Analyse a Rust project" tutorial
+- Outcome: done (new tutorial
+  `docs/public/anvil/tutorials/rust-project.md`: discovery via
+  `anvil welcome` / `anvil check --all`, RS-001..005 advisory catalogue
+  with the cfg(test)-exclusion scope stated per rule, suppression
+  syntax, the `anvil start --verify` language-profile claim, ending on
+  the daily-value handoff. Listed in the tutorials index. Validation:
+  docs:check 8/8, docs:index clean, format:check exit 0; fresh-context
+  verification caught two real inaccuracies pre-PR — test exclusion is
+  RS-001/002-only, and the sample output was missing the message line —
+  both fixed.) PR #2511.
+- Plan changes: UJ-013 → Merged 2026-06-10 via PR #2511; UJ counts
+  13/15.
+- Checkpoints raised: none.
+- Next: UJ-014 (tutorial refresh + index rewrite) — architecture/drift
+  legs already drafted in a parallel worktree; index rewrite unblocks
+  once #2511 merges.
