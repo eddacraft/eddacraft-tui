@@ -48,15 +48,26 @@ const GATE_SUMMARY_NAME: &str = "gate-summary";
 /// One-line description shown for the embedded gate-summary fallback.
 const EMBEDDED_GATE_SUMMARY_DESCRIPTION: &str = "Latest gate runs by check (built-in)";
 
+/// The saved spec that owns the gate-summary name, if any. Two stems claim
+/// it: `gate-summary` and `gate-summary.dashboard` — the latter because
+/// `anvil init` seeds `gate-summary.dashboard.json` and [`spec::discover`]
+/// names saved specs by file stem (stems keep inner dots). The comparison is
+/// on the SANITISED stem: a hostile stem whose display form collides must
+/// shadow the built-in too, or listing surfaces would show the name twice.
+fn gate_summary_saved(specs: &[SavedDashboard]) -> Option<&SavedDashboard> {
+    specs.iter().find(|s| {
+        let name = sanitize(&s.name);
+        let stem = name.strip_suffix(".dashboard").unwrap_or(&name);
+        stem == GATE_SUMMARY_NAME
+    })
+}
+
 /// UJ-009: existing projects (initialised before gate-summary seeding) get the
-/// embedded spec as a built-in fallback. A saved spec with the same name —
+/// embedded spec as a built-in fallback. A saved spec that owns the name —
 /// init-seeded or user-customised — always wins, so the fallback never
-/// clobbers or shadows user state. The comparison is on the SANITISED stem:
-/// a hostile stem whose display form collides with `gate-summary` must
-/// shadow the built-in too, or every listing surface would show the name
-/// twice.
+/// clobbers or shadows user state.
 fn embedded_gate_summary_available(specs: &[SavedDashboard]) -> bool {
-    !specs.iter().any(|s| sanitize(&s.name) == GATE_SUMMARY_NAME)
+    gate_summary_saved(specs).is_none()
 }
 
 /// The catalogue of native dashboards, in display order.
@@ -125,10 +136,15 @@ pub fn run(args: &DashboardArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             {
                 return launch_spec(saved, root, global);
             }
-            // UJ-009: no saved gate-summary spec — serve the embedded one.
+            // UJ-009: `gate-summary` routes to the saved spec that owns the
+            // name (the seeded stem is `gate-summary.dashboard`), else to
+            // the embedded built-in.
             if name == GATE_SUMMARY_NAME
                 && let Some(root) = root.as_deref()
             {
+                if let Some(saved) = gate_summary_saved(&specs) {
+                    return launch_spec(saved, root, global);
+                }
                 return launch_embedded_gate_summary(root, global);
             }
             let names = catalog
@@ -256,6 +272,9 @@ fn run_picker(
             if name == GATE_SUMMARY_NAME
                 && let Some(root) = root
             {
+                if let Some(saved) = gate_summary_saved(specs) {
+                    return launch_spec(saved, root, global);
+                }
                 return launch_embedded_gate_summary(root, global);
             }
             launch(&name, global)
@@ -570,6 +589,28 @@ mod tests {
         assert!(
             line.contains(EMBEDDED_GATE_SUMMARY_DESCRIPTION),
             "got: {line:?}",
+        );
+    }
+
+    #[test]
+    fn seeded_stem_shadows_the_builtin() {
+        // `anvil init` seeds `gate-summary.dashboard.json`; discover() names
+        // saved specs by file stem, so the seeded spec is named
+        // `gate-summary.dashboard`, not `gate-summary`. It must still shadow
+        // the built-in, or seeded projects double-list the dashboard.
+        let saved = SavedDashboard {
+            name: "gate-summary.dashboard".to_string(),
+            title: "Gate Summary".to_string(),
+            path: std::path::PathBuf::from(".anvil/dashboards/gate-summary.dashboard.json"),
+        };
+        let specs = vec![saved];
+        assert!(
+            !embedded_gate_summary_available(&specs),
+            "the init-seeded stem must shadow the built-in",
+        );
+        assert!(
+            gate_summary_saved(&specs).is_some(),
+            "direct launch must resolve to the seeded saved spec, not the embedded one",
         );
     }
 
