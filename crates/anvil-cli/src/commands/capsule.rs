@@ -1020,10 +1020,13 @@ fn run_prune(repo_root: &Path, root: Option<&Path>, keep_last: usize, apply: boo
         return Ok(());
     }
 
-    for capsule in &plan.delete {
-        println!("{}", capsule.dir.display());
-    }
     if !apply {
+        // One sanitised path per line: the only machine-readable surface
+        // until `--json` lands, so a planted newline in a directory name
+        // must not forge extra rows.
+        for capsule in &plan.delete {
+            println!("{}", one_line(&capsule.dir.display().to_string()));
+        }
         println!(
             "dry run: {} capsule(s) would be deleted, {} kept — re-run with --apply to delete",
             plan.delete.len(),
@@ -1033,9 +1036,16 @@ fn run_prune(repo_root: &Path, root: Option<&Path>, keep_last: usize, apply: boo
     }
 
     let failures = apply_prune(repo_root, &plan);
-    let deleted = plan.delete.len() - failures.len();
+    // List what actually went, not what was planned — on partial failure
+    // the stdout set must reflect the resulting state (ADR-078).
+    for capsule in &plan.delete {
+        if !failures.iter().any(|f| f.dir == capsule.dir) {
+            println!("{}", one_line(&capsule.dir.display().to_string()));
+        }
+    }
     println!(
-        "pruned {deleted} capsule(s), kept {} — deletions are staged; commit to record the prune",
+        "pruned {} capsule(s), kept {} — deletions are staged; commit to record the prune",
+        plan.delete.len() - failures.len(),
         plan.keep.len() + plan.unordered.len()
     );
     if !failures.is_empty() {
@@ -1088,14 +1098,26 @@ fn validate_prune_root(repo_root: &Path, root: &Path) -> Result<PathBuf> {
     } else {
         repo_root.join(root)
     };
-    let Ok(resolved) = absolute.canonicalize() else {
-        // A missing root is handled (as "nothing to prune") by the
-        // caller; refuse only what resolves somewhere unsafe.
-        return Ok(absolute);
-    };
     let canonical_repo = repo_root
         .canonicalize()
         .with_context(|| format!("resolving repository root {}", repo_root.display()))?;
+    let Ok(resolved) = absolute.canonicalize() else {
+        // A missing root is handled (as "nothing to prune") by the
+        // caller — but the containment check must still hold, and
+        // `Path::starts_with` is component-wise (it does not collapse
+        // `..`), so normalise lexically before comparing. Without this,
+        // `--root ../missing` would skip validation entirely and a later
+        // creation of that directory would put the scan outside the repo.
+        let normalized = lexical_normalize(&absolute);
+        if !normalized.starts_with(&canonical_repo) && !normalized.starts_with(repo_root) {
+            bail!(
+                "--root {} resolves outside the repository working tree; prune only \
+                 manages in-repo staging (ADR-078)",
+                root.display()
+            );
+        }
+        return Ok(absolute);
+    };
     if !resolved.starts_with(&canonical_repo) {
         bail!(
             "--root {} resolves outside the repository working tree; prune only manages \
@@ -1114,6 +1136,26 @@ fn validate_prune_root(repo_root: &Path, root: &Path) -> Result<PathBuf> {
         );
     }
     Ok(resolved)
+}
+
+/// Collapse `.` and `..` components without touching the filesystem, so
+/// containment checks hold for paths that do not exist yet. Leading `..`
+/// segments (escaping past the root) are preserved, which correctly
+/// fails a `starts_with` containment test.
+fn lexical_normalize(path: &Path) -> PathBuf {
+    let mut out = PathBuf::new();
+    for component in path.components() {
+        match component {
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                if !out.pop() {
+                    out.push("..");
+                }
+            }
+            other => out.push(other),
+        }
+    }
+    out
 }
 
 /// Refuse `--out` resolving inside the repository's `.git` directory —
@@ -2608,6 +2650,29 @@ mod tests {
         std::fs::create_dir_all(&inside).unwrap();
         let err = validate_prune_root(repo.path(), &inside).unwrap_err();
         assert!(err.to_string().contains(".git"), "{err}");
+    }
+
+    #[test]
+    fn prune_nonexistent_traversal_root_is_refused() {
+        // `..` segments in a NOT-yet-existing --root must still fail the
+        // containment check (canonicalize can't resolve them; the lexical
+        // normalisation must).
+        let (repo, _base, _head) = scratch_repo();
+        let err = validate_prune_root(repo.path(), Path::new("../missing-outside")).unwrap_err();
+        assert!(err.to_string().contains("outside the repository"), "{err}");
+    }
+
+    #[test]
+    fn prune_zero_candidates_is_a_warned_noop() {
+        let (repo, _base, _head) = scratch_repo();
+        let root = repo.path().join("anvil/evidence/capsules");
+        std::fs::create_dir_all(root.join("not-a-capsule")).unwrap();
+        std::fs::write(root.join("not-a-capsule/manifest.json"), b"{}").unwrap();
+        run_prune(repo.path(), None, 1, true).expect("noop with zero candidates");
+        assert!(
+            root.join("not-a-capsule").exists(),
+            "non-capsule entries are never deleted"
+        );
     }
 
     #[test]

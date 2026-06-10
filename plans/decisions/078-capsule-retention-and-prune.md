@@ -102,10 +102,14 @@ safe, deterministic, and dry-run by default.**
      non-zero; succeeded deletions are listed so the resulting state is
      explicit.
    - **Exit codes:** `0` = success, including dry-run and nothing-to-do;
-     `1` = any error (refused `--root` or `--keep-last 0`, not a git
-     repository, or one or more deletions failed). Warnings (skipped
-     entries, unordered capsules, zero candidates) go to **stderr** and do
-     not change the exit code (ADR-002 posture).
+     `1` = any runtime error (refused `--root`, not a git repository, or
+     one or more deletions failed). Invalid invocations — `--keep-last 0`
+     or malformed flags — are refused at argument parsing with the
+     CLI-standard usage-error exit (2), consistent with every other anvil
+     command; the library layer independently refuses `keep_last == 0` as
+     defence in depth. Warnings (skipped entries, unordered capsules,
+     zero candidates) go to **stderr** and do not change the exit code
+     (ADR-002 posture).
    - Machine-readable (`--json`) output is **deferred** until a consumer
      exists; the dry-run stdout list is line-oriented (one path per line) so
      scripts can consume it meanwhile.

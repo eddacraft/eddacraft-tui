@@ -198,18 +198,25 @@ pub fn apply_prune(repo_root: &Path, plan: &PrunePlan) -> Vec<PruneFailure> {
 /// Remove one capsule directory: staged deletion for tracked content,
 /// filesystem removal for whatever remains.
 fn remove_capsule_dir(repo_root: &Path, dir: &Path) -> Result<(), String> {
-    let tracked =
-        crate::collect::git_stdout(repo_root, &["ls-files", "-z", "--", &dir.to_string_lossy()])
-            .map_err(|e| format!("checking tracked state: {e}"))?;
+    // A lossy path conversion would silently change the pathspec, making
+    // `ls-files` miss tracked entries and the prune fall back to a
+    // filesystem-only delete — exactly the silently-revertible disposal
+    // the index path exists to prevent. Refuse instead (matches the
+    // collector's reject-don't-rewrite posture for non-UTF-8).
+    let dir_str = dir.to_str().ok_or_else(|| {
+        format!(
+            "capsule directory path is not valid UTF-8: {}; cannot pass to git",
+            dir.display()
+        )
+    })?;
+    let tracked = crate::collect::git_stdout(repo_root, &["ls-files", "-z", "--", dir_str])
+        .map_err(|e| format!("checking tracked state: {e}"))?;
     if !tracked.trim_end_matches('\0').is_empty() {
         // `-f` only bypasses the staged/modified-content guard — the
         // decision to delete was already made by the schema-gated plan;
         // it never widens which paths are removed.
-        crate::collect::git_stdout(
-            repo_root,
-            &["rm", "-r", "-q", "-f", "--", &dir.to_string_lossy()],
-        )
-        .map_err(|e| format!("git rm: {e}"))?;
+        crate::collect::git_stdout(repo_root, &["rm", "-r", "-q", "-f", "--", dir_str])
+            .map_err(|e| format!("git rm: {e}"))?;
     }
     if dir.exists() {
         std::fs::remove_dir_all(dir).map_err(|e| format!("removing directory: {e}"))?;
@@ -221,9 +228,16 @@ fn remove_capsule_dir(repo_root: &Path, dir: &Path) -> Result<(), String> {
 /// not know the commit (shallow clone, foreign capsule) — the honest
 /// "cannot order" signal.
 fn head_committer_time(repo_root: &Path, head: &str) -> Option<i64> {
-    // `^{commit}` refuses non-commit objects that happen to share a name.
+    // `^{commit}` refuses non-commit objects that happen to share a
+    // name; `--end-of-options` stops a hostile manifest `head` that
+    // starts with `-` from being parsed as an option (same discipline
+    // as the collectors).
     let spec = format!("{head}^{{commit}}");
-    let out = crate::collect::git_stdout(repo_root, &["log", "-1", "--format=%ct", &spec]).ok()?;
+    let out = crate::collect::git_stdout(
+        repo_root,
+        &["log", "-1", "--format=%ct", "--end-of-options", &spec],
+    )
+    .ok()?;
     out.trim().parse::<i64>().ok()
 }
 
@@ -428,6 +442,34 @@ mod tests {
         #[cfg(unix)]
         assert!(skipped.contains(&"cap-link".to_string()), "{skipped:?}");
         assert!(plan.delete.is_empty(), "nothing eligible for deletion");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn apply_reports_partial_failure_and_continues() {
+        use std::os::unix::fs::PermissionsExt;
+        let repo = repo();
+        let a = commit_at(repo.path(), "a", "1700000000");
+        let b = commit_at(repo.path(), "b", "1700000050");
+        let c = commit_at(repo.path(), "c", "1700000100");
+        let root = repo.path().join("staging");
+        let dir_a = write_capsule_dir(&root, "cap-a", &a);
+        let dir_b = write_capsule_dir(&root, "cap-b", &b);
+        write_capsule_dir(&root, "cap-c", &c);
+        // Make cap-a undeletable: removing its children needs write
+        // permission on the directory itself.
+        std::fs::set_permissions(&dir_a, std::fs::Permissions::from_mode(0o555)).unwrap();
+
+        let plan = plan_prune(repo.path(), &root, 1).unwrap();
+        assert_eq!(plan.delete.len(), 2);
+        let failures = apply_prune(repo.path(), &plan);
+        // Restore permissions so the tempdir can clean up.
+        std::fs::set_permissions(&dir_a, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+        assert_eq!(failures.len(), 1, "{failures:?}");
+        assert_eq!(failures[0].dir, dir_a);
+        assert!(!dir_b.exists(), "the other deletion still went through");
+        assert!(dir_a.exists(), "the failed capsule is still on disk");
     }
 
     #[test]
