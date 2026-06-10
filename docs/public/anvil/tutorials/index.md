@@ -50,6 +50,7 @@ Use these when you are ready for a specific capability:
 | 4   | [Drift Detection](/anvil/tutorials/drift)                | Capture snapshots and track architectural drift over time             | Architecture set up  |
 | 5   | [CI Integration](/anvil/tutorials/ci)                    | Add anvil to GitHub Actions, GitLab CI, and git hooks                 | —                    |
 | 6   | [Suppressions](/anvil/tutorials/suppressions)            | Suppress warnings for legacy code and intentional decisions           | —                    |
+| 7   | [Analyse a Rust Project](rust-project.md)                | Discovery scan, the advisory Rust rules, and the language profile     | A Rust repo          |
 
 ---
 
