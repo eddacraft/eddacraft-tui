@@ -392,9 +392,9 @@
 | --------------------------------------------------------------------------- | -------------------------------------- | ---- | --------- | ----- | ------ |
 | [weave: Internal Agent Harness](../../docs/internal/weave-feature-brief.md) | `docs/internal/weave-feature-brief.md` | Spec | Advisory  | WEAVE | Draft  |
 
-## WOUT (plans/modules/watch-output-contract.aps.md)
+## WOUT (plans/archive/modules/watch-output-contract.aps.md)
 
-| Document                                                                                  | Path                                             | Type        | Authority     | Owner                                             | Status |
-| ----------------------------------------------------------------------------------------- | ------------------------------------------------ | ----------- | ------------- | ------------------------------------------------- | ------ |
-| [Watch JSON Output](../../docs/public/anvil/integrations/watch-output.md)                 | `docs/public/anvil/integrations/watch-output.md` | Public docs | Authoritative | WOUT (plans/modules/watch-output-contract.aps.md) | Live   |
-| [Watch Output Contract — anvil.watch.event.v1](../../docs/specs/watch-output-contract.md) | `docs/specs/watch-output-contract.md`            | Spec        | Authoritative | WOUT (plans/modules/watch-output-contract.aps.md) | Live   |
+| Document                                                                                  | Path                                             | Type        | Authority     | Owner                                                     | Status |
+| ----------------------------------------------------------------------------------------- | ------------------------------------------------ | ----------- | ------------- | --------------------------------------------------------- | ------ |
+| [Watch JSON Output](../../docs/public/anvil/integrations/watch-output.md)                 | `docs/public/anvil/integrations/watch-output.md` | Public docs | Authoritative | WOUT (plans/archive/modules/watch-output-contract.aps.md) | Live   |
+| [Watch Output Contract — anvil.watch.event.v1](../../docs/specs/watch-output-contract.md) | `docs/specs/watch-output-contract.md`            | Spec        | Authoritative | WOUT (plans/archive/modules/watch-output-contract.aps.md) | Live   |

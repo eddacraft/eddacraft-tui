@@ -8,9 +8,9 @@ sidebar_position: 4
 
 # Watch JSON Output
 
-| Type        | Authority     | Owner                                                                                                                                              | Status | Freshness                                                                    |
-| ----------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------- |
-| Public docs | Authoritative | WOUT ([`plans/modules/watch-output-contract.aps.md`](https://github.com/eddacraft/anvil-001/blob/main/plans/modules/watch-output-contract.aps.md)) | Live   | Last reviewed 2026-06-08 against `main` for the v0.8.0-beta consumer surface |
+| Type        | Authority     | Owner                                                                                                                                                              | Status | Freshness                                                                    |
+| ----------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------ | ---------------------------------------------------------------------------- |
+| Public docs | Authoritative | WOUT ([`plans/archive/modules/watch-output-contract.aps.md`](https://github.com/eddacraft/anvil-001/blob/main/plans/archive/modules/watch-output-contract.aps.md)) | Live   | Last reviewed 2026-06-08 against `main` for the v0.8.0-beta consumer surface |
 
 | Upstream                                                                                                                                            | Downstream                                                                              |
 | --------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |

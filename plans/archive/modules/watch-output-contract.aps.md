@@ -2,12 +2,10 @@
 
 | ID   | Owner  | Status | Progress |
 | ---- | ------ | ------ | -------- |
-| WOUT | @aneki | Done   | 6/6      |
+| WOUT | @aneki | Complete | 6/6      |
 
-**Last reviewed:** 2026-05-19 (final release sweep: PR #1554 is **Merged** in the
-lifecycle narrative — schema `Status: Done` per `plans/aps-rules.md` §"Module
-Schema Status Values"; WOUT rides `v0.7.0-beta` as developer-facing release
-freight and advances to Released/Shipped when release evidence lands.)
+**Last reviewed:** 2026-06-10 (archived — Released/Shipped in v0.7.0-beta
+(2026-05-21); all six items Merged via PR #1554 — module Complete)
 
 Earlier 2026-05-14:
 

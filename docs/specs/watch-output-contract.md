@@ -1,8 +1,8 @@
 # Watch Output Contract — `anvil.watch.event.v1`
 
-| Type | Authority     | Owner                                                                                                   | Status | Freshness                                                                                                       |
-| ---- | ------------- | ------------------------------------------------------------------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------- |
-| Spec | Authoritative | WOUT ([`plans/modules/watch-output-contract.aps.md`](../../plans/modules/watch-output-contract.aps.md)) | Live   | Last reviewed 2026-05-29 against `main`; WOUT-001..006 implemented and documented as the stable v1 watch stream |
+| Type | Authority     | Owner                                                                                                                   | Status | Freshness                                                                                                       |
+| ---- | ------------- | ----------------------------------------------------------------------------------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------------- |
+| Spec | Authoritative | WOUT ([`plans/archive/modules/watch-output-contract.aps.md`](../../plans/archive/modules/watch-output-contract.aps.md)) | Live   | Last reviewed 2026-05-29 against `main`; WOUT-001..006 implemented and documented as the stable v1 watch stream |
 
 | Upstream                                                                                                                                          | Downstream                                                                                                                                                                                                     |
 | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

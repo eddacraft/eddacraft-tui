@@ -5,9 +5,10 @@
 
 | ID | Owner | Priority | Status |
 | ----- | ----- | -------- | ------ |
-| EMAIL | —     | Medium   | In Progress |
+| EMAIL | —     | Medium   | Complete |
 
-**Last reviewed:** 2026-05-25 (Clawpatch delta triage added EMAIL-010; GH #1926)
+**Last reviewed:** 2026-06-10 (archived — all 10 items Done/Released; EMAIL-010
+Released/Shipped via v0.7.3-beta (2026-05-31) via PR #2064 — module Complete)
 
 ## Purpose
 
