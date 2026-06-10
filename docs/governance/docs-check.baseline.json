@@ -128,7 +128,9 @@
       "broken link \"../planning/MONITOR_FEATURE.md\" — target file does not exist",
       "broken link \"../planning/PLAN.md\" — target file does not exist"
     ],
-    "docs/archive/status/README.md": ["broken link \"../INDEX.md\" — target file does not exist"],
+    "docs/archive/status/README.md": [
+      "broken link \"../INDEX.md\" — target file does not exist"
+    ],
     "docs/guides/command-safety.md": [
       "broken anchor \"../architecture/overview.md#gate-layer\" — file exists but heading \"#gate-layer\" not found"
     ],
@@ -161,10 +163,8 @@
       "broken link \"/anvil/first-gate\" — target file does not exist",
       "broken link \"/anvil/quickstart\" — target file does not exist",
       "broken link \"/anvil/tutorials/architecture\" — target file does not exist",
-      "broken link \"/anvil/tutorials/ci\" — target file does not exist",
       "broken link \"/anvil/tutorials/drift\" — target file does not exist",
-      "broken link \"/anvil/tutorials/policies\" — target file does not exist",
-      "broken link \"/anvil/tutorials/suppressions\" — target file does not exist"
+      "broken link \"/anvil/tutorials/policies\" — target file does not exist"
     ],
     "docs/public/anvil/guides/agent-harness.md": [
       "broken link \"/anvil/integrations/github\" — target file does not exist",
@@ -227,7 +227,6 @@
       "broken link \"/anvil/operations/config\" — target file does not exist",
       "broken link \"/anvil/operations/troubleshooting\" — target file does not exist",
       "broken link \"/anvil/tutorials/architecture\" — target file does not exist",
-      "broken link \"/anvil/tutorials/ci\" — target file does not exist",
       "broken link \"/anvil/tutorials/drift\" — target file does not exist",
       "broken link \"/anvil/tutorials/policies\" — target file does not exist"
     ],
@@ -243,28 +242,8 @@
     "docs/public/anvil/tutorials/architecture.md": [
       "broken link \"/anvil/tutorials/drift\" — target file does not exist"
     ],
-    "docs/public/anvil/tutorials/ci.md": [
-      "broken link \"/anvil/operations/git-hooks\" — target file does not exist",
-      "broken link \"/anvil/tutorials/suppressions\" — target file does not exist"
-    ],
-    "docs/public/anvil/tutorials/drift.md": [
-      "broken link \"/anvil/tutorials/ci\" — target file does not exist"
-    ],
-    "docs/public/anvil/tutorials/index.md": [
-      "broken link \"/anvil/first-project\" — target file does not exist",
-      "broken link \"/anvil/quickstart\" — target file does not exist",
-      "broken link \"/anvil/tutorials/architecture\" — target file does not exist",
-      "broken link \"/anvil/tutorials/ci\" — target file does not exist",
-      "broken link \"/anvil/tutorials/drift\" — target file does not exist",
-      "broken link \"/anvil/tutorials/policies\" — target file does not exist",
-      "broken link \"/anvil/tutorials/suppressions\" — target file does not exist"
-    ],
     "docs/public/anvil/tutorials/policies.md": [
       "broken link \"/anvil/tutorials/architecture\" — target file does not exist"
-    ],
-    "docs/public/anvil/tutorials/suppressions.md": [
-      "broken link \"/anvil/tutorials\" — target file does not exist",
-      "broken link \"/anvil/tutorials/ci\" — target file does not exist"
     ],
     "docs/public/anvil/when-to-use.md": [
       "broken link \"/anvil/quickstart\" — target file does not exist"
