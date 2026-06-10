@@ -140,6 +140,15 @@ reset the reference point. :::
 - **Use drift budgets as guardrails** -- allow some flexibility for active
   development, tighten for stable modules
 
+## See Drift on the Dashboards
+
+Drift findings feed the same surfaces as every other check family:
+
+- the [dashboard guide](../guides/dashboard.md) shows gate and check results --
+  including drift -- in the terminal dashboard picker
+- the [insights guide](../guides/insights.md) tracks how findings move over
+  time, which is drift's question asked weekly
+
 ---
 
 **Next:** [CI Integration](/anvil/tutorials/ci)

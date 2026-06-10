@@ -15,8 +15,8 @@ validating boundaries.
 ## Prerequisites
 
 - anvil initialised (`anvil init`)
-- A TypeScript or JavaScript project with at least a few directories under
-  `src/`
+- A TypeScript, JavaScript, or Rust project with at least a few directories
+  under `src/`
 
 ## 1. Plan Your Layers
 
@@ -68,6 +68,45 @@ layers:
 ```
 
 Edit the `patterns` values to match your actual directory layout.
+
+The same file shape works for a Rust crate — layers map module directories under
+the crate's `src/`:
+
+```yaml
+schema_version: '0.1.0'
+template: layered
+layers:
+  api:
+    patterns:
+      - 'src/api/**'
+    depends_on:
+      - services
+      - shared
+
+  services:
+    patterns:
+      - 'src/services/**'
+    depends_on:
+      - storage
+      - shared
+
+  storage:
+    patterns:
+      - 'src/storage/**'
+    depends_on:
+      - shared
+
+  shared:
+    patterns:
+      - 'src/util/**'
+    depends_on: []
+```
+
+For Rust, boundary edges come from `use crate::…` / `self::…` / `super::…`
+imports resolved within each crate's `src/` tree. External crates (`std`,
+`serde`, …) are never boundary findings, and an import anvil cannot resolve to a
+file is dropped rather than guessed — a missed edge is a missed drift signal,
+never a false violation.
 
 ## 3. Validate the Architecture Definition
 
@@ -124,17 +163,32 @@ import { ReportRepo } from '../../repositories/report.repo';
 import { ReportService } from '../../services/report.service';
 ```
 
-**Suppress** -- if the violation is intentional:
+The Rust equivalent:
 
-```typescript
-// @anvil-ignore ARCH-001 Direct access needed for bulk export job
-import { ReportRepo } from '../../repositories/report.repo';
+```rust
+// Before (violation): api reaches into storage directly
+use crate::storage::report_store::ReportStore;
+
+// After (correct): route through the service layer
+use crate::services::report_service::ReportService;
 ```
+
+**Accept** -- if the cross-layer import is intentional, record the decision
+where the checker reads it:
+
+- **Allow it in the architecture file** -- add the target layer to the importing
+  layer's `depends_on`. The architecture file is the contract; an intended
+  dependency belongs in it, not beside the import.
+- **Rely on the baseline** -- anvil's posture is _new edges only_: edges
+  captured in your baseline snapshot are existing posture and do not re-report;
+  only new violations surface (see [Drift Detection](/anvil/tutorials/drift) for
+  snapshots and budgets).
 
 :::caution
 
-Suppressions require a reason. A bare `@anvil-ignore` without an explanation
-triggers its own warning.
+Inline `// @anvil-ignore` comments suppress **antipattern** findings (the `AP-*`
+/ `RS-*` rules) and are not read by the boundary checker — an
+`@anvil-ignore ARCH-001` comment has no effect.
 
 :::
 
