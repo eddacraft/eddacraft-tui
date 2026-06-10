@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 32/50    |
+| CIB | —     | In Progress | 32/52    |
 
 ## Purpose
 
@@ -1285,3 +1285,62 @@ archive.
   (`LoadRegistryResult.warnings`).
 - **Confidence:** high — root cause located (dropped `loaded.warnings`); the fix
   is propagating an already-computed warning channel plus one test.
+
+### CIB-051: `anvil start --verify --format` is silently ignored
+
+- **Status:** Draft
+- **Intent:** `anvil start --verify` computes `read_only = args.verify ||
+  global.json` and the `--format <ext>` first-run config write
+  (`pre_write_anvil_config`) is gated on `!read_only`, so
+  `start --verify --format yaml` silently drops `--format` with no feedback.
+  The other mutating-flag combinations are rejected explicitly —
+  `--watch --verify` and `--new-identity --verify` both `bail!` before any
+  side effect, and `--new-identity` documents "Incompatible with `--verify`
+  (read-only)" — but `--format` has no analogous rejection, no doc note on
+  the arg, and no test pinning the silent-ignore, so the no-op can silently
+  stop being a no-op if the gating or ordering changes.
+- **Expected Outcome:** the combination is made consistent with the sibling
+  flags — either `start --verify --format <ext>` bails like `--new-identity`
+  (preferred for consistency), or the `--format` arg doc explicitly states it
+  is ignored under `--verify`. Either way a regression test pins the chosen
+  contract.
+- **Validation:** a test for `start --verify --format yaml` asserting the
+  chosen behaviour (clean bail before side effects, or no-op with no config
+  file written).
+- **Identified From:** council review of PR #2474 (CIB-049),
+  adversarial-reviewer MINOR — flag-combination sweep of the
+  `skips_auth_for_local_probe` expansion.
+- **Coordinates with:** `crates/anvil-cli/src/commands/start.rs` (`read_only`
+  gating, `pre_write_anvil_config`, the `--watch`/`--new-identity` bails);
+  `crates/anvil-cli/tests/start.rs`.
+- **Confidence:** high — behaviour confirmed from the code; the open choice
+  (bail vs document) is small and local.
+
+### CIB-052: admin JSON auth errors still go to stderr
+
+- **Status:** Draft
+- **Intent:** PR #2474 (CIB-049) routed the pre-dispatch auth-gate `--json`
+  envelopes to stdout per the stream policy
+  (`docs/guides/cli-output-streams.md`). `admin.rs::print_auth_required`
+  is now the only place in the CLI that emits a JSON-shaped auth error to
+  stderr. The admin surface authenticates via `ANVIL_ADMIN_KEY` (it is not in
+  the gated-command set, so it never hits the main auth wall), which makes the
+  divergence functionally harmless today — but it is a maintenance trap for
+  anyone extending the admin surface under `--json`, and an inconsistency for
+  scripted admin consumers.
+- **Expected Outcome:** the admin JSON auth-error output follows the stream
+  policy (structured JSON on stdout, exit codes unchanged), or — if the admin
+  surface is deliberately exempt — `print_auth_required` carries an explicit
+  comment documenting the divergence and why.
+- **Validation:** if the stream changes, a test asserting the admin
+  auth-error JSON lands on stdout with the existing exit code; if
+  documented-divergence is chosen, the comment is the deliverable (doc-only,
+  no test).
+- **Identified From:** council review of PR #2474 (CIB-049),
+  adversarial-reviewer NIT — consistency sweep after the envelope stream
+  change.
+- **Coordinates with:** `crates/anvil-cli/src/commands/admin.rs`
+  (`print_auth_required`).
+- **Confidence:** medium — mechanics are trivial; the open question is
+  policy (align vs document), and admin consumers parsing stderr today would
+  see a stream change.
