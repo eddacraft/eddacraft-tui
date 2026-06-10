@@ -13,7 +13,7 @@ use crate::warmup_cache::load_watch_warmup_cache;
 #[derive(Debug, Args)]
 #[command(
     about = "Watch files and report save-time Anvil findings.",
-    after_help = "Behaviour:\n  - The initial scan builds baseline/readiness state; existing repo contents are not reported as new save-time violations.\n  - Watch and audit skip local tool state, agent worktrees, generated folders, and common caches by default.\n  - The TUI opens only when stdin and stdout are terminals; otherwise watch falls back to plain output.\n\nSave-time daemon:\n  - Save-time validation is served by the Anvil daemon; run `anvil start` first for daemon-backed validation.\n  - ANVIL_WATCH_DAEMON controls routing: unset routes through a live daemon when one answers (default), ANVIL_WATCH_DAEMON=0 opts out, ANVIL_WATCH_DAEMON=1 forces daemon routing (falls back to a scoped check with a warning when no daemon answers).\n  - When no daemon answers, watch falls back to a scoped check and reports assurance unavailable{daemon-absent}."
+    after_help = "Behaviour:\n  - The initial scan builds baseline/readiness state; existing repo contents are not reported as new save-time violations.\n  - Watch and audit skip local tool state, agent worktrees, generated folders, and common caches by default.\n  - The TUI opens only when stdin and stdout are terminals; otherwise watch falls back to plain output.\n\nSave-time daemon:\n  - Save-time validation is served by the Anvil daemon; run `anvil start` first for daemon-backed validation.\n  - ANVIL_WATCH_DAEMON controls routing: unset routes through a live daemon when one answers (default), ANVIL_WATCH_DAEMON=0 opts out, ANVIL_WATCH_DAEMON=1 forces daemon routing (falls back to a scoped check with a warning when no daemon answers).\n  - When daemon routing is engaged but the daemon stops answering (forced-on start, or a mid-session disconnect), watch falls back to a scoped check and reports assurance unavailable{daemon-absent}."
 )]
 pub struct WatchArgs {
     /// File or directory to scope the watcher (when a file is given, its
@@ -1664,6 +1664,10 @@ mod tests {
         assert!(
             line.contains("unavailable{daemon-absent}"),
             "advisory keeps the assurance label, got: {line}",
+        );
+        assert!(
+            line.is_ascii(),
+            "advisory is ASCII-only per the watch banner policy, got: {line}",
         );
     }
 
