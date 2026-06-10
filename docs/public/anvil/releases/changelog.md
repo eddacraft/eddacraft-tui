@@ -9,9 +9,7 @@ sidebar_position: 1
 
 All notable changes to anvil are documented here.
 
-## [0.8.0-beta] — TBD — The Save-Time Daemon
-
-Draft / unreleased. Release date pending the tag.
+## [0.8.0-beta] — 2026-06-11 — The Save-Time Daemon
 
 The first minor since `v0.7.0-beta`, earned on architecture: Anvil starts moving
 save-time governance off per-save cold-spawned `check` and onto the persistent
@@ -99,6 +97,15 @@ surface.
   structured `authRequired` envelope is now written to **stdout** (previously
   stderr), per the CLI output-stream policy. Exit codes are unchanged; scripts
   that read the envelope from stderr should switch to stdout.
+- **Overlapping secret matches report a single finding.** When a low-confidence
+  keyword pattern and a high-confidence provider pattern match the same
+  credential on one line, the secrets check — and the git-history scanner — now
+  reports it once, under the precise provider rule id.
+- **Unauthenticated gated commands keep stderr clean.** The auth-gate tracing
+  event no longer prints a raw JSON line under the human auth-required message;
+  set `ANVIL_LOG=info` to surface it for operators.
+- **`install.sh` closes with the live docs URL** (`https://docs.eddacraft.ai`),
+  matching every other surface.
 
 ## [0.7.4-beta] — 2026-06-01 — Side-by-Side Installs
 

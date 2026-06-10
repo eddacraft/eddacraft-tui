@@ -6,11 +6,7 @@ This changelog contains customer-relevant changes only. Internal refactors and
 engineering maintenance are recorded in the
 [Engineering History](./ENGINEERING-HISTORY.md).
 
-## [0.8.0-beta] — TBD — The Save-Time Daemon
-
-> **Draft / unreleased.** This section accumulates customer-relevant changes
-> landed on `main` since `v0.7.4-beta`; the date and final scope are pending the
-> tag cut.
+## [0.8.0-beta] — 2026-06-11 — The Save-Time Daemon
 
 The first minor since `v0.7.0-beta`, earned on architecture: Anvil starts moving
 save-time governance off per-save cold-spawned `check` and onto the persistent
@@ -132,6 +128,23 @@ ships the next dashboard surface.
   Windows save-time client/server path now covers read-safety, pipe client
   timeouts, operator-config ownership verification, non-reactor peer-SID checks,
   and Windows `watch`/`status` save-time clients (DSV-010/-011, ADR-068/-070).
+- **`anvil start --verify` runs unauthenticated, and `--json` auth envelopes
+  moved to stdout.** The read-only `start --verify` activation probe no longer
+  hits the auth wall (matching `status --verify`, including air-gapped use), and
+  when authentication is required under `--json` / `--format json` the
+  structured `authRequired` envelope is written to stdout rather than stderr,
+  per the CLI output-stream policy. Exit codes are unchanged (CIB-049).
+- **Overlapping secret matches report a single finding.** When a low-confidence
+  keyword pattern and a high-confidence provider pattern match the same
+  credential on one line, the secrets check — and the git-history scanner — now
+  reports it once, under the precise provider rule id.
+- **Unauthenticated gated commands keep stderr clean.** The pre-dispatch
+  auth-gate tracing event now logs at info, so the human auth-required message
+  is no longer followed by a raw JSON tracing line; `ANVIL_LOG=info` still
+  surfaces it for operators.
+- **`install.sh` closes with the live docs URL.** The installer now points at
+  `https://docs.eddacraft.ai`, matching README, `anvil welcome`, and the
+  what's-new banner (CIB-062).
 
 ## [0.7.4-beta] — 2026-06-01 — Side-by-Side Installs
 
