@@ -9,7 +9,7 @@ from the v0.8.0-beta user-journey completeness review (operator-directed).
 
 | ID  | Owner  | Status | Progress |
 | --- | ------ | ------ | -------- |
-| UJ  | @aneki | In Progress | 8/11 |
+| UJ  | @aneki | In Progress | 10/15 |
 
 **Last reviewed:** 2026-06-10 (created from the v0.8.0-beta user-journey
 completeness review. Operator direction: beta posture permits explicit guidance
@@ -213,7 +213,12 @@ carry the user to the next step without a docs lookup.
 
 ### UJ-007: Watch offers to start the daemon when absent
 
-- **Status:** Proposed
+- **Status:** Done 2026-06-10 (decision: guidance-only, ADR-079)
+- **Disposition:** Operator decision 2026-06-10 — guidance-only affirmed via
+  [ADR-079](../decisions/079-watch-daemon-guidance-only.md): no offer-to-start
+  prompt, no auto-start. The guidance surface shipped via UJ-001/-005/-006
+  made the prompt redundant; the item itself named this an acceptable
+  outcome. Zero code.
 - **Intent:** Close the last gap between "default-on routing" and "every user
   actually daemon-backed": watch can offer to start the daemon instead of
   silently falling back.
@@ -298,12 +303,12 @@ carry the user to the next step without a docs lookup.
 
 ### UJ-011: Tutorials overhaul
 
-- **Status:** Proposed
-- **Shaping draft:** `plans/execution/UJ-011.shaping.md` (2026-06-10 loop run)
-  — audit of the six web tutorials, a journey-aligned target set of five
-  (two new: daily-value save-time walkthrough + Rust project analysis), a
-  retirement list (ci, suppressions → guides), and four proposed follow-up
-  items (UJ-012..015). Awaiting operator review before items are filed.
+- **Status:** Done 2026-06-10 (shaping approved; follow-ups filed)
+- **Shaping:** `plans/execution/UJ-011.shaping.md` (2026-06-10 loop run) —
+  approved by the operator 2026-06-10 with both open questions answered:
+  fold `ci.md` into the GitHub integration guide, and keep the web tutorials
+  aligned with the in-terminal `anvil tutorial` narrative. Execution items
+  UJ-012..015 filed below.
 - **Intent:** Tutorials should be something every user actually uses; today
   they trail the product (no Rust analysis tutorial) and do not reflect the
   two-path journey. Operator direction: out-of-the-box usefulness ranks
@@ -318,6 +323,86 @@ carry the user to the next step without a docs lookup.
 - **Dependencies:** UJ-003 (quickstart defines the journey the tutorials
   deepen)
 - **Confidence:** medium
+
+### UJ-012: "Your first save caught" tutorial
+
+- **Status:** Ready
+- **Intent:** The daily-value path deserves the flagship tutorial: a user who
+  follows it ends with daemon-backed save-time validation catching a real
+  mistake in their own repo.
+- **Expected Outcome:** A new web tutorial walks `anvil start` → daemon-backed
+  watch → a deliberately bad save → reading the finding → `anvil status`
+  posture. Linked from the quickstart's path step and the tutorials index.
+  The narrative order matches the in-terminal `anvil tutorial`
+  (ProtectionLoop) so the two surfaces tell one story (operator decision,
+  UJ-011 shaping).
+- **Files:** `docs/public/anvil/tutorials/` (new page),
+  `docs/public/anvil/quickstart.md`, `docs/public/anvil/tutorials/index.md`
+- **Validation:** `pnpm docs:check` + `pnpm docs:index` green; the tutorial
+  walked end-to-end on a real repo.
+- **Dependencies:** UJ-011 (shaping, approved)
+- **Confidence:** high
+- **changeType:** docs
+- **releaseIntent:** candidate
+- **releaseScope:** patch
+
+### UJ-013: "Analyse a Rust project" tutorial
+
+- **Status:** Ready
+- **Intent:** Rust is a supported v0.8.0 analysis language with no tutorial;
+  the discovery-wow path needs a Rust walkthrough.
+- **Expected Outcome:** A new web tutorial walks a real Rust repo through
+  discovery (`anvil welcome` / `anvil check --all`), explains the
+  advisory-severity Rust rules and the language-profile claim, and ends on
+  the daily-value handoff (`anvil start`). Listed in the tutorials index.
+- **Files:** `docs/public/anvil/tutorials/` (new page),
+  `docs/public/anvil/tutorials/index.md`
+- **Validation:** `pnpm docs:check` + `pnpm docs:index` green; walked
+  end-to-end on a real Rust repo.
+- **Dependencies:** UJ-011 (shaping, approved)
+- **Confidence:** high
+- **changeType:** docs
+- **releaseIntent:** candidate
+- **releaseScope:** patch
+
+### UJ-014: Refresh surviving tutorials + journey-aligned index
+
+- **Status:** Ready
+- **Intent:** The surviving tutorials should reflect the two-path journey and
+  current language coverage instead of trailing the product.
+- **Expected Outcome:** `architecture.md` gains a Rust example beside the
+  TypeScript one; `drift.md` cross-links the dashboards/insights surfaces;
+  `index.md` is rewritten around the two beta paths and names the
+  in-terminal `anvil tutorial` as the interactive sibling.
+- **Files:** `docs/public/anvil/tutorials/{architecture,drift,index}.md`
+- **Validation:** `pnpm docs:check` + `pnpm docs:index` green.
+- **Dependencies:** UJ-012/UJ-013 (the index lists the final set)
+- **Confidence:** high
+- **changeType:** docs
+- **releaseIntent:** candidate
+- **releaseScope:** patch
+
+### UJ-015: Retire ci and suppressions tutorials into their guides
+
+- **Status:** Ready
+- **Intent:** Two tutorials duplicate guide content; per the approved shaping
+  (operator decision: fold `ci.md`), they retire into the pages that own the
+  material.
+- **Expected Outcome:** `ci.md`'s unique content folds into the GitHub
+  integration guide and `suppressions.md`'s into the dashboard/insights
+  guides; the tutorial pages are removed with inbound links repointed
+  (archive-cascade rules: link sweep + regenerated indexes; no orphaned
+  references).
+- **Files:** `docs/public/anvil/tutorials/{ci,suppressions}.md` (removed),
+  `docs/public/anvil/integrations/github.md`,
+  `docs/public/anvil/guides/{dashboard,insights}.md`, sidebars
+- **Validation:** `pnpm docs:check` + `pnpm docs:index` green; no inbound
+  links to the removed pages.
+- **Dependencies:** UJ-014 (index rewrite lands the final set first)
+- **Confidence:** medium
+- **changeType:** docs
+- **releaseIntent:** candidate
+- **releaseScope:** patch
 
 ## Sequencing
 

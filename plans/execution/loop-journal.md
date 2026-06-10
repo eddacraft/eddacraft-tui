@@ -168,3 +168,19 @@ never with feature work.
 - Next: stop — no Ready items remain; UJ is 8/11 with three
   checkpoint-level items (UJ-004 ADR, UJ-007 decision, UJ-011 shaping
   review) awaiting the operator.
+
+## Cycle 10 — 2026-06-10
+
+- Item: UJ-007 + UJ-011 — operator decisions executed
+- Outcome: done (operator: "guidance-only" for UJ-007 → ADR-079
+  Accepted, zero code; UJ-011 shaping approved with both open questions
+  answered — fold ci.md into the GitHub guide, align web tutorials with
+  the in-terminal `anvil tutorial` narrative). UJ-004 ("ungate
+  welcome") executes next as ADR-080 + the CLI_GATED_COMMANDS change.
+- Plan changes: UJ-007 → Done (ADR-079); UJ-011 → Done (shaping
+  approved); UJ-012..015 filed as Ready (tutorial execution set);
+  DECISION-LOG row for ADR-079; shaping doc marked approved.
+- Checkpoints raised: none — all three cycle-8 checkpoints now have
+  operator answers.
+- Next: UJ-004 (ADR-080 + ungate `welcome`), then UJ-012..015 are the
+  remaining Ready work.
