@@ -273,6 +273,7 @@ mod tests {
             ],
             update_hint: None,
             insights_hint: None,
+            whats_new_hint: None,
         })
     }
 

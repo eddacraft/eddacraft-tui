@@ -47,6 +47,12 @@ pub struct StatusData {
     /// 7-day week, and only when the user has not run the default
     /// insights summary in that week. `None` otherwise.
     pub insights_hint: Option<String>,
+    /// UJ-010: one-line post-upgrade what's-new announcement set by
+    /// anvil-cli on the first run after a version change — exactly once
+    /// per version, persisted via a project-local marker. `None` on
+    /// same-version runs, fresh installs (the marker seeds silently),
+    /// suppressed runs, and gated project writes.
+    pub whats_new_hint: Option<String>,
 }
 
 /// Which panel is focused.
@@ -235,6 +241,7 @@ mod tests {
             }],
             update_hint: None,
             insights_hint: None,
+            whats_new_hint: None,
         }
     }
 

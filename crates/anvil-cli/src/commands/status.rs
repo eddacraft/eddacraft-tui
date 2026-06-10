@@ -80,6 +80,9 @@ pub fn run(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             crate::util::workspace_root().unwrap_or_else(|_| Path::new(".").to_path_buf());
         data.insights_hint =
             crate::insights::first_week_hint::first_week_insights_hint(&hint_root, Utc::now());
+        // UJ-010: post-upgrade what's-new one-liner, once per version change.
+        data.whats_new_hint =
+            crate::whats_new::post_upgrade_hint(&hint_root, env!("CARGO_PKG_VERSION"));
     }
 
     if global.json {
@@ -181,6 +184,9 @@ fn gather_status_data(root: &str) -> StatusData {
         // same pattern as update_hint so tests and --json paths stay
         // unaffected by the nudge.
         insights_hint: None,
+        // UJ-010: populated by caller (status run) after gather, same
+        // pattern as the hints above.
+        whats_new_hint: None,
     }
 }
 
@@ -574,11 +580,15 @@ fn print_plain(
     // mode summary (a single line in the common case, three when the
     // config is invalid).
     print!("{}", render_rule_mode_summary(&root));
-    // DISTRIB-002 update hint and INSIGHTS-004 nudge share the single
-    // footer line in plain output (to match the TUI watch strip which
-    // reserves one hint_area and gives insights_hint precedence).
-    // INSIGHTS-004 takes priority when present.
+    // DISTRIB-002 update hint, INSIGHTS-004 nudge, and the UJ-010
+    // what's-new line share the single footer line in plain output (to
+    // match the TUI watch strip which reserves one hint_area and gives
+    // insights_hint precedence). INSIGHTS-004 takes priority; the
+    // what's-new line outranks the update hint because it fires exactly
+    // once per version while the update hint repeats daily.
     if let Some(hint) = &data.insights_hint {
+        println!("{hint}");
+    } else if let Some(hint) = &data.whats_new_hint {
         println!("{hint}");
     } else if let Some(hint) = &data.update_hint {
         println!("{}", hint.render_line());
@@ -2309,6 +2319,7 @@ mod tests {
             recent_runs: Vec::new(),
             update_hint: None,
             insights_hint: None,
+            whats_new_hint: None,
         };
         let layers = derive_layers(&data, &diag);
         let claim = derive_protection(&diag, &layers);

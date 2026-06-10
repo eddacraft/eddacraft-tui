@@ -20,6 +20,7 @@ mod tui;
 mod update_hint;
 mod util;
 mod warmup_cache;
+mod whats_new;
 
 use std::io::IsTerminal;
 use std::process::ExitCode;
