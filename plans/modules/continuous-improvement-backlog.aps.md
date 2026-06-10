@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 32/52    |
+| CIB | —     | In Progress | 32/53    |
 
 ## Purpose
 
@@ -1344,3 +1344,31 @@ archive.
 - **Confidence:** medium — mechanics are trivial; the open question is
   policy (align vs document), and admin consumers parsing stderr today would
   see a stream change.
+
+### CIB-053: disposition the dogfood repo's tracked `.anvil/` paths
+
+- **Status:** Draft
+- **Intent:** the GITGOV-014 doctor `state-boundary` check (ADR-073) warns in
+  this repo because four `.anvil/` runtime paths are git-tracked:
+  `.anvil/baseline.json` (pre-boundary legacy — ADR-073 places the durable
+  baseline at `anvil/baseline.json`), `.anvil/config.yml` (stale policies
+  example), `.anvil/plans/aps-test123.json` (old test fixture), and
+  `.anvil/dashboards/gate-summary.dashboard.json` (deliberate — the
+  `include_str!` single-source spec embedded by `init.rs`). The first three
+  look like accidents; the fourth is justified but contradicts ADR-073's "no
+  tracked sub-path is justified today" line.
+- **Expected Outcome:** each of the four paths is either untracked (with any
+  consumer repointed), relocated (e.g. the embedded dashboard spec moved to a
+  source dir outside `.anvil/`), or recorded as a justified exception in
+  ADR-073; the dogfood `anvil doctor` state-boundary warn reflects only
+  recorded deviations.
+- **Validation:** `git ls-files .anvil` lists only paths with a recorded
+  ADR-073 justification; `cargo test -p eddacraft-anvil seeds_gate_summary`
+  stays green if the embedded spec moves.
+- **Identified From:** GITGOV-014 implementation — first real-world run of
+  the new doctor state-boundary check on this repo.
+- **Coordinates with:** `crates/anvil-cli/src/commands/init.rs`
+  (`include_str!` path), ADR-073, GITGOV-014.
+- **Confidence:** medium — the three legacy paths need a quick consumer
+  sweep before untracking; the dashboard-spec move touches the init seeding
+  test and the dogfood dashboard workflow.
