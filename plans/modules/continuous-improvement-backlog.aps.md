@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 31/50    |
+| CIB | —     | In Progress | 32/50    |
 
 ## Purpose
 
@@ -1256,7 +1256,7 @@ archive.
 
 ### CIB-050: AST registry load failures silently disable scanning
 
-- **Status:** Draft
+- **Status:** Merged 2026-06-10 via PR #2475
 - **Intent:** In `crates/anvil-checks-ast/src/lib.rs`, `load_rules` early-returns
   `LoadOutcome { rules: [], init_errors: [] }` when
   `load_compiled_registry` yields no registry, discarding

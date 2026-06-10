@@ -4,7 +4,7 @@
 use std::path::PathBuf;
 
 use anvil_checks::antipattern::registry_loader::{
-    Detection, LoadRegistryOptions, load_compiled_registry,
+    Detection, LoadRegistryOptions, load_compiled_registry, reset_registry_cache,
 };
 
 use super::*;
@@ -398,5 +398,101 @@ fn no_init_errors_against_workspace_registry() {
         out.init_errors.is_empty(),
         "workspace registry must load cleanly: {:?}",
         out.init_errors
+    );
+}
+
+// --- CIB-050: registry load failures must surface, not silently disable ----
+
+#[test]
+fn malformed_registry_surfaces_loader_warnings_as_init_errors() {
+    reset_registry_cache();
+    // ADR-071 §3 "fail loudly, never silently produce nothing": a registry
+    // that exists but cannot be parsed must not yield a default clean scan.
+    // The loader's warnings ("missing file, parse error, schema mismatch")
+    // have to reach `AstScanOutput` the same way per-rule init failures do.
+    let dir = tempfile::tempdir().unwrap();
+    let bad = dir.path().join("registry.json");
+    std::fs::write(&bad, "{ this is not valid json").unwrap();
+
+    let opts = AstScanOptions {
+        registry_path: Some(bad),
+        include_opt_in: false,
+    };
+    let out = scan_bytes(&[("src/lib.rs", b"fn f() { x.unwrap(); }\n")], None, &opts);
+
+    assert!(
+        !out.init_errors.is_empty(),
+        "an unparseable registry must surface the loader warnings instead of \
+         reporting a silent clean scan: {out:?}",
+    );
+    assert!(
+        out.init_errors
+            .iter()
+            .any(|e| e.contains("schema validation")),
+        "init_errors should carry the loader's parse/schema warning: {:?}",
+        out.init_errors,
+    );
+    assert!(
+        out.patterns_checked.is_empty() && out.warnings.is_empty(),
+        "no rules ran, so the output must not claim otherwise: {out:?}",
+    );
+}
+
+#[test]
+fn unreadable_registry_surfaces_loader_warnings_as_init_errors() {
+    reset_registry_cache();
+    // Same guarantee for the read-failure shape ("Failed to read registry
+    // at ..."): an explicit registry path that does not exist on disk.
+    //
+    // NOTE: the loader only returns `registry: None` for an explicit
+    // *file-shaped* path that fails `read_to_string` (a directory here —
+    // stable across platforms); a missing override path falls back to the
+    // embedded registry with a warning instead, which is the working-scan
+    // case, not this one.
+    let dir = tempfile::tempdir().unwrap();
+    let unreadable = dir.path().join("registry-as-dir");
+    std::fs::create_dir(&unreadable).unwrap();
+
+    let opts = AstScanOptions {
+        registry_path: Some(unreadable),
+        include_opt_in: false,
+    };
+    let out = scan_bytes(&[("src/lib.rs", b"fn f() {}\n")], None, &opts);
+
+    assert!(
+        out.init_errors
+            .iter()
+            .any(|e| e.contains("Failed to read registry")),
+        "a read failure on an explicit registry path must surface in \
+         init_errors: {:?}",
+        out.init_errors,
+    );
+}
+
+#[test]
+fn missing_override_path_falls_back_to_embedded_and_surfaces_warning() {
+    // A configured registry path that does not exist falls back to the
+    // embedded catalogue (the scan still runs), but the misconfiguration
+    // warning must surface through `init_errors`, not vanish.
+    reset_registry_cache();
+    let dir = tempfile::tempdir().unwrap();
+    let missing = dir.path().join("no-such-registry.json");
+
+    let opts = AstScanOptions {
+        registry_path: Some(missing),
+        include_opt_in: false,
+    };
+    let out = scan_bytes(&[("src/lib.rs", b"fn f() { x.unwrap(); }\n")], None, &opts);
+
+    assert!(
+        out.init_errors
+            .iter()
+            .any(|e| e.contains("falling back to embedded registry")),
+        "the embedded-fallback warning must surface in init_errors: {:?}",
+        out.init_errors,
+    );
+    assert!(
+        !out.patterns_checked.is_empty(),
+        "the embedded registry still runs the scan: {out:?}",
     );
 }

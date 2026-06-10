@@ -86,15 +86,25 @@ fn load_rules(opts: &AstScanOptions) -> LoadOutcome {
         registry_path: opts.registry_path.clone(),
     });
     let Some(registry) = loaded.registry else {
+        // CIB-050 / ADR-071 §3: a registry that cannot be loaded or parsed
+        // must fail loudly, never silently produce nothing. The loader's
+        // warnings (missing file, parse error, schema mismatch) are the only
+        // record of why — fold them into `init_errors` so `AstScanOutput`
+        // surfaces them like any other scanner-init failure instead of
+        // reporting a default clean scan with AST rules silently disabled.
         return LoadOutcome {
             rules: Vec::new(),
-            init_errors: Vec::new(),
+            init_errors: loaded.warnings,
         };
     };
 
     let language = rust_language();
     let mut rules = Vec::new();
-    let mut init_errors = Vec::new();
+    // Same surfacing for a registry that loaded with warnings (e.g. a
+    // configured registry path that does not exist, falling back to the
+    // embedded catalogue): the scan still runs, but the operator must see
+    // the misconfiguration.
+    let mut init_errors = loaded.warnings;
 
     for cp in &registry.patterns {
         let Detection::Ast { ast_query } = &cp.detection else {
