@@ -20,6 +20,7 @@
 pub mod antipattern;
 pub mod path_deny;
 pub mod reasoning;
+pub mod regex_content;
 pub mod registry;
 pub mod secret;
 
@@ -33,6 +34,7 @@ use serde::{Deserialize, Serialize};
 pub use antipattern::AntipatternScanRule;
 pub use path_deny::{PathDenyConfig, PathDenyError, PathDenyListRule};
 pub use reasoning::LaunchReasoningPatternRule;
+pub use regex_content::{RegexContentConfig, RegexContentError, RegexContentRule};
 pub use registry::{RegistryDecision, RegistryError, RegistryMode, RuleRegistry};
 pub use secret::SecretDetectionRule;
 
