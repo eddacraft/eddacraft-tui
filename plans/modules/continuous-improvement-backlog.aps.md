@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 33/53    |
+| CIB | —     | In Progress | 33/55    |
 
 ## Purpose
 
@@ -1372,3 +1372,49 @@ archive.
 - **Confidence:** medium — the three legacy paths need a quick consumer
   sweep before untracking; the dashboard-spec move touches the init seeding
   test and the dogfood dashboard workflow.
+
+### CIB-054: pre-tag v0.8.0 changelog claims must match shipped behaviour
+
+- **Status:** Ready
+- **Intent:** two draft v0.8.0-beta changelog entries over-claim against the
+  code: the `anvil watch` "Changed" entry never says daemon routing needs a
+  live daemon (`anvil start`) and silently falls back without one
+  (DSV-021 `DefaultOnWhenLive` contract), and the MCP entry says
+  `validate_write` uses "the same daemon save-time path … converge on the
+  same verdict assembly" when MCP deliberately uses the daemon `scan_buffer`
+  verb, not watch's `validate_paths` (DSV-007 Task 13 decision).
+- **Expected Outcome:** the watch entry names the live-daemon condition and
+  `anvil start`; the MCP entry says "daemon-backed" rather than "same
+  path"/"same verdict assembly"; the public docs changelog mirrors both
+  corrections. Lands before the `v0.8.0-beta` tag cut.
+- **Validation:** `pnpm docs:check` green; entries reviewed against
+  `crates/anvil-cli/src/commands/watch_save_time.rs` (routing modes) and
+  `crates/anvil-cli/src/mcp/validation.rs` (`scan_buffer`).
+- **Files:** `CHANGELOG.md`, `docs/public/anvil/releases/changelog.md`
+- **Identified From:** 2026-06-10 v0.8.0-beta user-journey completeness
+  review (operator session).
+- **Coordinates with:** UJ-006 (watch help/advisory wording), the NBI rank-1
+  release-cut gate.
+- **Confidence:** high — text-only, behaviour contract already verified
+  against code.
+
+### CIB-055: reconcile the stale RELEASE-PLAN.md v0.8.0 phase table
+
+- **Status:** Ready
+- **Intent:** the active-window phase table still shows the A→A′ backing swap
+  as **Blocked** and "GV2 4/19", but the slice is complete — GV2-022/027/028/029
+  landed on the #2442/#2446 wave, GV2-024 (#2470) + GV2-025 (#2459) closed the
+  A′ hardening, and DSV-021 (#2473) flipped default-on routing (the index NBI
+  note and GV2 13/20 already say so). Anyone reading the release plan to judge
+  cut readiness gets the wrong answer.
+- **Expected Outcome:** the v0.8.0 phase-table rows reflect the
+  Merged/Done state with PR references, consistent with `plans/index.aps.md`;
+  no second window or header-shape change is introduced.
+- **Validation:** `pnpm release-plan:check` green; phase-table states match
+  the index NBI note.
+- **Files:** `RELEASE-PLAN.md`
+- **Identified From:** 2026-06-10 v0.8.0-beta user-journey completeness
+  review (operator session).
+- **Coordinates with:** the NBI rank-1 release-cut gate.
+- **Confidence:** high — bookkeeping reconcile against already-verified
+  merge state.

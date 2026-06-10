@@ -4,13 +4,15 @@
 
 | ID       | Owner  | Status | Progress |
 | -------- | ------ | ------ | -------- |
-| INSIGHTS | @aneki | In Progress | 3/4 |
+| INSIGHTS | @aneki | In Progress | 3/5 |
 
-**Last reviewed:** 2026-05-14 (promoted **Proposed → Ready** alongside
-acceptance of
+**Last reviewed:** 2026-06-10 (INSIGHTS-005 filed from the v0.8.0-beta
+user-journey completeness review — extend the INSIGHTS-004 first-week nudge
+to the `anvil welcome` closing output, the one command every new user runs.
+Previously 2026-05-14: promoted **Proposed → Ready** alongside acceptance of
 [`plans/specs/2026-05-14-release-plan-v0.7.0-sit-on.md`](../specs/2026-05-14-release-plan-v0.7.0-sit-on.md).
 Module-level `In Progress` means Wave 4 work has started. INSIGHTS-001
-is load-bearing; the other three extend its data path. All data stays
+is load-bearing; the others extend its data path. All data stays
 local-only — no telemetry on this module.)
 
 ## Purpose
@@ -281,12 +283,44 @@ number visible to the user, not just to a future post-release survey.
   - text: "First-week users now see a single weekly nudge pointing at
     `anvil insights`."
 
+### INSIGHTS-005: First-Week Nudge on the Welcome Surface
+
+- **Status:** Ready
+- **Intent:** The first-week nudge reaches the one command every new user
+  definitely runs — `anvil welcome` — not only `status` and watch.
+- **Expected Outcome:** `anvil welcome` closing output includes the
+  first-week insights hint under the same contract as INSIGHTS-004 (14-day
+  window from `anvil/project-id` `created_at`, once per week, suppressed
+  after `anvil insights`, shared `.anvil/insights-hint.json` state — no new
+  state file or rate-limit bucket).
+- **Files:**
+  - `crates/anvil-cli/src/commands/welcome.rs`
+  - `crates/anvil-cli/src/insights/first_week_hint.rs`
+- **Validation:**
+  - `cargo test -p eddacraft-anvil` first-week-hint welcome surface tests
+    (shown within window, suppressed after `anvil insights`, rate-limit
+    shared with status/watch)
+- **Dependencies:** INSIGHTS-004 (hint mechanism; PR #2226)
+- **Identified From:** 2026-06-10 v0.8.0-beta user-journey completeness
+  review; coordinates with [`UJ-001`](./user-journey.aps.md) (welcome
+  closing-output threading).
+- **Confidence:** high
+- **changeType:** feature
+- **releaseIntent:** candidate
+- **releaseScope:** patch
+- **releaseNote:**
+  - audience: user
+  - type: changed
+  - text: "The first-week insights nudge now also appears after
+    `anvil welcome`."
+
 ## Sequencing
 
 1. **INSIGHTS-001** is the load-bearing item; everything else extends its
    data path.
 2. **INSIGHTS-002**, **INSIGHTS-003**, **INSIGHTS-004** are parallel after
    -001.
+3. **INSIGHTS-005** follows -004 (same hint mechanism, new surface).
 
 ## Release Notes
 
