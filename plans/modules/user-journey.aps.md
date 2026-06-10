@@ -9,7 +9,7 @@ from the v0.8.0-beta user-journey completeness review (operator-directed).
 
 | ID  | Owner  | Status | Progress |
 | --- | ------ | ------ | -------- |
-| UJ  | @aneki | In Progress | 1/11 |
+| UJ  | @aneki | In Progress | 2/11 |
 
 **Last reviewed:** 2026-06-10 (created from the v0.8.0-beta user-journey
 completeness review. Operator direction: beta posture permits explicit guidance
@@ -183,7 +183,7 @@ carry the user to the next step without a docs lookup.
 
 ### UJ-006: Daemon guidance on the watch surface and help
 
-- **Status:** Ready
+- **Status:** Merged 2026-06-10 via PR #2501
 - **Intent:** A user must be able to learn from the CLI itself that save-time
   validation is daemon-served and how to enable it.
 - **Expected Outcome:** `anvil watch --help` long help names the daemon, the

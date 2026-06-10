@@ -20,3 +20,20 @@ never with feature work.
 - Next: UJ-006 (watch help/advisory daemon guidance) — independent
   files; bookkeeping flips deferred until #2500 lands to avoid index
   count-cell collisions.
+
+## Cycle 2 — 2026-06-10
+
+- Item: UJ-006 — Daemon guidance on the watch surface and help
+- Outcome: done (validation: `cargo test -p eddacraft-anvil
+  commands::watch` 75 green incl. 2 new tests — long-help assertion via
+  the real `Cli::command()` surface + fallback-advisory pointer;
+  workspace clippy clean; `anvil watch --help` transcript shows the
+  Save-time daemon section; fresh-context verification CONDITIONAL PASS
+  — both MAJOR findings fixed: misattached doc-comment split, `=1`
+  wording corrected to match the warned-fallback implementation; ASCII
+  advisory per the watch banner policy). PR #2501.
+- Plan changes: UJ-006 → Merged 2026-06-10 via PR #2501; UJ counts 2/11
+  (script-managed).
+- Checkpoints raised: none
+- Next: UJ-001 (golden-path next-step threading in install/welcome/
+  init/start).
