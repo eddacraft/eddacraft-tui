@@ -157,4 +157,4 @@ release seals (RELEASE-SEAL); supplier bundles (SUPPLIER). Sealed Edda context
 - **Expected Outcome:** Consumer repos cannot accidentally commit runtime state or ignore durable evidence; the dogfood repo stops falsifying the ADR-072 premise.
 - **Validation:** `cargo test -p eddacraft-anvil init_gitignore`
 - **Dependencies:** GITGOV-002
-- **Status:** Ready
+- **Status:** In Progress

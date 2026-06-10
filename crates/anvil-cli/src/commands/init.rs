@@ -356,15 +356,13 @@ fn seed_example_dashboard(root: &Path, force: bool) -> anyhow::Result<()> {
 }
 
 fn append_gitignore_entry(root: &Path) -> anyhow::Result<bool> {
-    // Per-project local state Anvil generates that must not be committed:
-    // the cache dir, the gate-run snapshot the dashboard reads (#2242), and
-    // the exception-store write lock (EXCEPT-007) — a runtime artefact
-    // inside the otherwise-tracked anvil/exceptions/ governance dir.
-    const ENTRIES: [&str; 3] = [
-        ".anvil/cache/",
-        ".anvil/gates.json",
-        "anvil/exceptions/.lock",
-    ];
+    // ADR-073: the whole `.anvil/` tree is local runtime state and is ignored
+    // wholesale (no tracked sub-path is justified today; use a `!` re-include
+    // if one ever is). `anvil/exceptions/.lock` (EXCEPT-007) is the one runtime
+    // artefact inside the otherwise-tracked anvil/ governance tree. Repos
+    // initialised before ADR-073 may also carry the narrow `.anvil/cache/` /
+    // `.anvil/gates.json` entries — harmless duplicates we no longer seed.
+    const ENTRIES: [&str; 2] = [".anvil/", "anvil/exceptions/.lock"];
 
     let gitignore = root.join(".gitignore");
 
@@ -492,18 +490,59 @@ mod tests {
     }
 
     #[test]
-    fn init_gitignores_cache_and_gate_snapshot() {
+    fn init_gitignores_anvil_runtime_tree_wholesale() {
         let dir = tempfile::tempdir().unwrap();
         run_plain(dir.path(), false).expect("init");
         let gi = std::fs::read_to_string(dir.path().join(".gitignore")).unwrap();
-        assert!(gi.contains(".anvil/cache/"), "cache dir ignored");
         assert!(
-            gi.contains(".anvil/gates.json"),
-            "transient gate snapshot ignored so it is not committed"
+            gi.lines().any(|l| l.trim() == ".anvil/"),
+            "the whole .anvil/ runtime tree is ignored (ADR-073): {gi}"
         );
         assert!(
             gi.contains("anvil/exceptions/.lock"),
             "exception-store write lock ignored so writes don't dirty the tracked governance dir"
+        );
+        assert!(
+            !gi.contains(".anvil/cache/") && !gi.contains(".anvil/gates.json"),
+            "narrow legacy entries are not seeded into fresh repos — the wholesale \
+             .anvil/ entry covers them: {gi}"
+        );
+    }
+
+    #[test]
+    fn init_gitignore_upgrades_legacy_narrow_entries() {
+        // A repo initialised before ADR-073 has only the narrow entries; a
+        // re-run must add the wholesale `.anvil/` line (duplicates of the
+        // legacy lines are not re-appended).
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join(".gitignore"),
+            ".anvil/cache/\n.anvil/gates.json\nanvil/exceptions/.lock\n",
+        )
+        .unwrap();
+        let updated = append_gitignore_entry(dir.path()).expect("append");
+        assert!(updated, "legacy gitignore gains the wholesale entry");
+        let gi = std::fs::read_to_string(dir.path().join(".gitignore")).unwrap();
+        assert!(gi.lines().any(|l| l.trim() == ".anvil/"));
+        assert_eq!(
+            gi.matches("anvil/exceptions/.lock").count(),
+            1,
+            "already-present entries are not duplicated"
+        );
+    }
+
+    #[test]
+    fn init_gitignore_is_idempotent() {
+        let dir = tempfile::tempdir().unwrap();
+        let first = append_gitignore_entry(dir.path()).expect("first append");
+        let second = append_gitignore_entry(dir.path()).expect("second append");
+        assert!(first, "fresh repo gets the entries");
+        assert!(!second, "second run appends nothing");
+        let gi = std::fs::read_to_string(dir.path().join(".gitignore")).unwrap();
+        assert_eq!(
+            gi.lines().filter(|l| l.trim() == ".anvil/").count(),
+            1,
+            "exactly one wholesale entry"
         );
     }
 
@@ -565,7 +604,7 @@ mod tests {
         assert!(content.contains("- \"antipattern-scan\""));
 
         let gitignore = fs::read_to_string(dir.path().join(".gitignore")).unwrap();
-        assert!(gitignore.contains(".anvil/cache/"));
+        assert!(gitignore.lines().any(|l| l.trim() == ".anvil/"));
     }
 
     #[test]
@@ -604,7 +643,7 @@ mod tests {
         // Seed every managed entry so there is nothing left to append.
         fs::write(
             dir.path().join(".gitignore"),
-            ".anvil/cache/\n.anvil/gates.json\nanvil/exceptions/.lock\n",
+            ".anvil/\nanvil/exceptions/.lock\n",
         )
         .unwrap();
 
@@ -616,14 +655,14 @@ mod tests {
 
         let content = fs::read_to_string(dir.path().join(".gitignore")).unwrap();
         assert_eq!(
-            content.matches(".anvil/cache/").count(),
+            content.lines().filter(|l| l.trim() == ".anvil/").count(),
             1,
-            "cache entry not duplicated"
+            "wholesale runtime entry not duplicated"
         );
         assert_eq!(
-            content.matches(".anvil/gates.json").count(),
+            content.matches("anvil/exceptions/.lock").count(),
             1,
-            "gate snapshot entry not duplicated"
+            "exception-lock entry not duplicated"
         );
     }
 
