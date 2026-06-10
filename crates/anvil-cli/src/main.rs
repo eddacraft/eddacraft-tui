@@ -1253,12 +1253,15 @@ mod tests {
 
     #[test]
     fn requires_auth_welcome() {
-        assert!(requires_auth(&parse_command(&["welcome"])));
+        // ADR-080 (UJ-004): `welcome` is the ungated beta demo surface — the
+        // discovery path shows value before the licence gate; durable
+        // surfaces (`init`, `start`, `watch`) stay gated.
+        assert!(!requires_auth(&parse_command(&["welcome"])));
     }
 
     #[test]
     fn requires_auth_start() {
-        // LAUNCH-006: `start` is its own command; gated like `welcome` /
+        // LAUNCH-006: `start` is its own command; gated like
         // `init` / `status` / `watch`. Pre-LAUNCH-006 this test was
         // `requires_auth_start_alias` and asserted the alias behaviour.
         assert!(requires_auth(&parse_command(&["start"])));

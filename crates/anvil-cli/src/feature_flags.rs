@@ -39,6 +39,10 @@ pub const CLI_LICENCE_GATE_KEY: &str = cli_licence_gate::KEY;
 ///
 /// Keep in sync with `FeatureFlagDefinition::description` and with the
 /// auth-bypass list maintained alongside `requires_auth`.
+///
+/// `welcome` is deliberately absent (ADR-080 / UJ-004): the read-mostly
+/// discovery surface is the beta demo and sits in front of the licence
+/// wall; durable surfaces (`init`, `start`, `watch`) stay gated.
 pub const CLI_GATED_COMMANDS: &[&str] = &[
     "architecture",
     "audit",
@@ -56,7 +60,6 @@ pub const CLI_GATED_COMMANDS: &[&str] = &[
     "start",
     "status",
     "watch",
-    "welcome",
     "whoami",
     "wizard",
 ];
@@ -310,6 +313,9 @@ mod tests {
 
     #[test]
     fn command_needs_licence_gate_rejects_bypass_commands() {
+        // ADR-080 (UJ-004): `welcome` is deliberately ungated — the beta
+        // demo surface sits in front of the licence wall.
+        assert!(!command_needs_licence_gate("welcome"));
         assert!(!command_needs_licence_gate("doctor"));
         assert!(!command_needs_licence_gate("admin"));
         assert!(!command_needs_licence_gate("login"));
