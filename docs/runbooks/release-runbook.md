@@ -287,8 +287,9 @@ the release tracking issue.
    keeps the quiet subprocess path with **no** `daemon-absent` warnings (the
    presence guard — non-daemon installs must see no behaviour change).
 4. **Forced-on fallback** — `ANVIL_WATCH_DAEMON=1` with the daemon stopped falls
-   back to the same scoped `check`, warns **once** (the warn-once latch), and
-   reports save-time assurance as `unavailable`, never `clean`.
+   back to the same scoped `check`, warns **once per disconnect** (the latch
+   resets on reconnect), and reports save-time assurance as `unavailable`, never
+   `clean`.
 
 Any deviation is a release blocker under the normal
 [failure policy](#failure-policy) — fix forward or pull the routing change out
@@ -304,10 +305,11 @@ decision:
   CI this is the `Measure hot-read latency budget (GV2-025)` gate in
   `resource-budget.yml`; in the field, a reproducible report of `watch`
   save-time validation exceeding the budget counts.
-- **WARN rate** — daemon-routing fallback warnings recurring across sessions in
-  the default (unset) mode. The latch warns once per session, so any sustained
-  stream of routing WARNs from default-mode users means the presence guard or
-  the daemon is misbehaving in the field.
+- **WARN rate** — daemon-routing fallback warnings recurring in the default
+  (unset) mode. The latch warns once **per disconnect** and resets on reconnect,
+  so repeated WARNs within one session mean the daemon is flapping, and a
+  sustained stream of routing WARNs from default-mode users means the presence
+  guard or the daemon is misbehaving in the field.
 
 ### Revert procedure
 
