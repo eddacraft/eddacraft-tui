@@ -1,22 +1,23 @@
 # anvil-kernel — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                             |
-| -------- | --------- | ----- | ------ | ----------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | KERN  | Live   | Last reviewed 2026-05-07 against `v0.6.0-beta` and `crates/anvil-kernel`, `crates/anvil-kernel-types` |
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                      |
+| -------- | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| As-built | Derived   | KERN  | Live   | Last reviewed 2026-06-10 (targeted delta review: GV2-024 hot-read split/seal, ADR-077 depth cap) against main `a1c41e284`; full review 2026-05-07 against `v0.6.0-beta` and `crates/anvil-kernel`, `crates/anvil-kernel-types` |
 
 | Upstream                                                    | Downstream                                                                               |
 | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | `crates/anvil-kernel`, `crates/anvil-kernel-types`, ADR-030 | engine ports (RENG), TUI / RATS surfaces, watch CLI (LAUNCH), MCP shim embedded fallback |
 
-> **Status:** Live (beta) **Last reviewed:** 2026-05-07 against `v0.6.0-beta`
-> slate (HEAD `97b61fd0`) **Crate / location:** `crates/anvil-kernel` (+
-> `crates/anvil-kernel-types`) **Module owner (APS):** KERN (kernel substrate,
-> 22/25 — 3 daemon-mode items superseded by INTD per ADR-030); downstream
-> callers in RENG (engine ports), surfaces in RATS / TUI, watch CLI in LAUNCH
-> **Used by:** `anvil watch`, `anvil check` / `gate` / `audit` (via embedded
-> API), `anvil-checks` registry consumers, MCP shim's
-> `LocalDaemonValidationClient` embedded fallback (validation routes through the
-> kernel for parse + graph)
+> **Status:** Live (beta) **Last reviewed:** 2026-06-10 (targeted delta review:
+> GV2-024 hot-read split/seal, ADR-077 depth cap) against main `a1c41e284`; full
+> review 2026-05-07 against `v0.6.0-beta` slate (HEAD `97b61fd0`) **Crate /
+> location:** `crates/anvil-kernel` (+ `crates/anvil-kernel-types`) **Module
+> owner (APS):** KERN (kernel substrate, 22/25 — 3 daemon-mode items superseded
+> by INTD per ADR-030); downstream callers in RENG (engine ports), surfaces in
+> RATS / TUI, watch CLI in LAUNCH **Used by:** `anvil watch`, `anvil check` /
+> `gate` / `audit` (via embedded API), `anvil-checks` registry consumers, MCP
+> shim's `LocalDaemonValidationClient` embedded fallback (validation routes
+> through the kernel for parse + graph)
 
 ## 1. Overview
 
@@ -348,11 +349,18 @@ microsecond-scale tail. See §14 and
 
 The semantic graph is its own crate, `anvil-graph-cache`, re-exported by the
 kernel as `crate::graph` (`crates/anvil-kernel/src/lib.rs:8`). The crate ships
-five modules — `symbol_graph`, `dependency`, `incremental`, `trust`, and
-`certify` (bounded reverse-impact certifiability for the save-time daemon,
-ADR-061 / ADR-064). Its `lib.rs` re-exports `SymbolGraph`, `DependencyGraph`,
-`GraphDelta`, `update_file`, `re_resolve_imports`, `remove_file`, and
-`annotate_trust` (`crates/anvil-graph-cache/src/lib.rs:10-23`).
+six modules — `symbol_graph`, `dependency`, `incremental`, `trust`, `certify`
+(bounded reverse-impact certifiability for the save-time daemon, ADR-061 /
+ADR-064, depth-capped under ADR-077 — §7.6), and `hot_index` (the sealed
+save-time hot-read surface, GV2-022 / ADR-063 — §7.5)
+(`crates/anvil-graph-cache/src/lib.rs:10-15`). Its `lib.rs` re-exports the graph
+core (`SymbolGraph`, `DependencyGraph`, `GraphDelta`, `update_file`,
+`re_resolve_imports`, `remove_file`, `annotate_trust`), the certifiability
+surface (`certify`, `CertifyStale`, `Certifiability`, `export_surface_diff`),
+the trust contract (`TrustGraph`, `TrustPostureChange`, `policy_profiles`), and
+the hot-read surface (`HotReadApi`, `BackgroundReadApi`, `HotPathSurface`,
+`HotRead`, `HotReadMiss`, `MAX_REVERSE_IMPACT_DEPTH`)
+(`crates/anvil-graph-cache/src/lib.rs:10-29`).
 
 ### 7.1 `symbol_graph.rs` — the symbol graph
 
@@ -478,6 +486,42 @@ Two bugs were pinned and fixed in `0.5.1-beta` (CHANGELOG entry at line 159):
   `id_zero_first_symbol_still_emits_import_edges` (`incremental.rs:848-893`).
 
 Both fixes ride in every release after `0.5.1-beta`, including `v0.6.0-beta`.
+
+### 7.5 `hot_index.rs` — sealed save-time hot-read surface (GV2-022 / ADR-063)
+
+`HotReadApi` (`crates/anvil-graph-cache/src/hot_index.rs:153-156`) holds shared
+references to the warm `(SymbolGraph, DependencyGraph)` pair and exposes only
+the four ADR-063 hot-path-admissible reads (`hot_index.rs:16-26`): resident
+per-file symbol lookup, known-edge existence, bounded reverse impact, and
+precomputed boundary/trust membership. Every read returns
+`HotRead<T> = Warm(T) | Stale(HotReadMiss)`, `#[must_use]`
+(`hot_index.rs:112-119`). `HotReadMiss` — `WarmStateEvicted` /
+`CrossFileResolutionNeeded` / `ImpactSetOverflow` (`hot_index.rs:86-105`) — is
+graph-cache-local; the daemon maps it to the wire `StaleReason` at the boundary
+(ADR-064 §2). On a miss the caller must degrade to its daemon-absent fallback —
+never escalate to an on-hot-path parse, resolve, traversal, or I/O.
+
+The seal (GV2-024): denylist reads live on `BackgroundReadApi`
+(`hot_index.rs:353-355`), which hosts `impact_closure_unbounded`
+(`hot_index.rs:368-370`); `HotPathSurface` is a sealed marker trait implemented
+only by `HotReadApi` (`hot_index.rs:331-332`); two `compile_fail` doctests pin
+the seal (`hot_index.rs:316-330`).
+
+### 7.6 `certify.rs` — save-time certifiability, depth-capped (ADR-077)
+
+`certify::certify` (`crates/anvil-graph-cache/src/certify.rs:565`, ADR-061 /
+ADR-064) sizes its surface-change stale reason via
+`bounded_impact_closure(dep, &delta.file, MAX_REVERSE_IMPACT_DEPTH, budget)`
+(`certify.rs:617`); `MAX_REVERSE_IMPACT_DEPTH = 2` (`hot_index.rs:80`).
+`bounded_impact_closure` truncates at the cap, with a `debug_assert` depth guard
+(`certify.rs:463-495`). The closure only sizes the stale reason
+(`ImpactSetOverflow` vs `ExportSurfaceChange`) and is never inline-validated, so
+capping is verdict- and soundness-preserving; the only observable effect is that
+some >2-hop over-budget graphs report `ExportSurfaceChange` (wire
+`cross-file-resolution-needed`) instead of `impact-set-overflow`. The
+pre-ADR-077 unbounded walk survives only as `impact_closure_unbounded`
+(`certify.rs:503`), reachable solely through `BackgroundReadApi` — background
+pool only (ADR-077, `plans/decisions/077-cert-closure-depth-cap.md`).
 
 ## 8. Policy engine (KERN-030..032)
 
@@ -720,7 +764,11 @@ without updating the daemon path breaks that test.
 `watch::run_watch` (`crates/anvil-kernel/src/watch.rs:520-615`) is the
 foreground watch entry point. It returns a `WatchHandle` that owns the
 `Arc<AtomicBool>` shutdown flag, a thread-join handle, and the `WatcherHandle`
-keeping notify-rs alive (`watch.rs:60-74`).
+keeping notify-rs alive (`watch.rs:60-74`). Save-time daemon-vs-embedded routing
+for `anvil watch` (`ANVIL_WATCH_DAEMON`, DSV-021) is not part of this loop — it
+lives in the anvil-cli layer
+(`crates/anvil-cli/src/commands/watch_save_time.rs:105-114`); see
+`docs/architecture/intercept-as-built.md`.
 
 ### 11.1 Startup
 
@@ -1050,7 +1098,12 @@ this as-built will be added in the next sweep that touches both docs.
   - `trust.rs` — KERN-023 `annotate_trust` (Privileged / External / Boundary /
     Internal classification).
   - `certify.rs` — bounded reverse-impact certifiability for the save-time
-    daemon (ADR-061 / ADR-064).
+    daemon (ADR-061 / ADR-064): `certify`, `bounded_impact_closure` (ADR-077
+    depth-capped), `impact_closure_unbounded` (background-only).
+  - `hot_index.rs` — GV2-022 / ADR-063 sealed hot-read surface: `HotReadApi`
+    four-read allowlist, `BackgroundReadApi` denylist, sealed `HotPathSurface`
+    marker, `HotRead` / `HotReadMiss`, `MAX_REVERSE_IMPACT_DEPTH` (the ADR-077
+    cap).
 - `policy/mod.rs` — re-exports.
 - `policy/config.rs` — KERN-030 `ArchitectureConfig` YAML loader,
   `layer_for_file`, `is_import_allowed`.

@@ -1,19 +1,22 @@
 # anvil-intercept — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                                                                   |
-| -------- | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | INTD  | Live   | Last reviewed 2026-05-07 against `v0.6.0-beta` and `crates/anvil-intercept`, `crates/anvil-intercept-proto`, `crates/anvil-intercept-win32` |
+| Type     | Authority | Owner     | Status | Freshness                                                                                                                                                                                                 |
+| -------- | --------- | --------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | INTD, DSV | Live   | Last reviewed 2026-06-10 (targeted delta review: DSV save-time validation arc, ADR-070 peer-SID gate, MLP2-071 subscriber surface) against main `a1c41e284`; full review 2026-05-07 against `v0.6.0-beta` |
 
-| Upstream                                                                                                                          | Downstream                                                                                                        |
-| --------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `crates/anvil-intercept`, `crates/anvil-intercept-proto`, `crates/anvil-intercept-rules`, `crates/anvil-intercept-win32`, ADR-015 | MCP shim validation client (RMCP), driver framework clients (DRVR), CLI intercept surface, embedded fallback path |
+| Upstream                                                                                                                                                                             | Downstream                                                                                                        |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| `crates/anvil-intercept`, `crates/anvil-intercept-proto`, `crates/anvil-intercept-rules`, `crates/anvil-intercept-win32`, `crates/anvil-graph-cache`, `crates/anvil-checks`, ADR-015 | MCP shim validation client (RMCP), driver framework clients (DRVR), CLI intercept surface, embedded fallback path |
 
-> **Status:** Live (beta) **Last reviewed:** 2026-05-07 against `v0.6.0-beta`
-> slate (HEAD `8bbe65b9`) **Crate:** `crates/anvil-intercept` (+
+> **Status:** Live (beta) **Last reviewed:** 2026-06-10 (targeted delta review:
+> DSV save-time validation arc, ADR-070 peer-SID gate, MLP2-071 subscriber
+> surface) against main `a1c41e284`; full review 2026-05-07 against
+> `v0.6.0-beta` slate (HEAD `8bbe65b9`) **Crate:** `crates/anvil-intercept` (+
 > `anvil-intercept-proto`, `anvil-intercept-rules`, `anvil-intercept-win32`)
 > **Module owner (APS):** INTD (`plans/archive/modules/intercept-daemon.aps.md`,
-> 16/16 complete), INTL (`plans/archive/modules/intercept-launcher.aps.md`,
-> Complete 9/9) **Used by:** `anvil intercept` CLI surface
+> 16/16 complete), DSV (`plans/modules/daemon-save-time-validation.aps.md`),
+> INTL (`plans/archive/modules/intercept-launcher.aps.md`, Complete 9/9) **Used
+> by:** `anvil intercept` CLI surface
 > (`crates/anvil-cli/src/commands/intercept.rs`),
 > `anvil-cli/src/mcp/validation.rs` (daemon-backed validation client), driver
 > framework (proto + auth surface)
@@ -21,10 +24,11 @@
 ## 1. Overview
 
 `anvil-intercept` is the per-user singleton daemon that mediates pre-write
-validation of AI-driven file changes. It runs as a foreground process for the v1
-cut, holds the trust boundary for owner-only IPC and the AD-7 fence-on-failure
-invariant, and is the authoritative producer for the control-lane session graph
-(sessions, worktrees, fences, attribution).
+validation of AI-driven file changes and — since the DSV arc — save-time
+validation of just-written change sets. It runs as a foreground process for the
+v1 cut, holds the trust boundary for owner-only IPC and the AD-7
+fence-on-failure invariant, and is the authoritative producer for the
+control-lane session graph (sessions, worktrees, fences, attribution).
 
 Concretely the daemon:
 
@@ -44,6 +48,13 @@ Concretely the daemon:
   `LocalDaemonValidationClient` calls in daemon-backed mode
   (`crates/anvil-intercept/src/midedit.rs`,
   `crates/anvil-cli/src/mcp/validation.rs`).
+- Serves the save-time `validate_paths` verdict verb: certifies a client's
+  change set against the resident warm graph cache via the GV2 hot-read index
+  (`HotReadApi::certify`, `gv2-hotindex-v1`), folding each path into a
+  per-worktree workspace-assurance state
+  (`crates/anvil-intercept/src/validate_paths.rs`,
+  `crates/anvil-intercept/src/save_time.rs`). The wire is frozen across DSV
+  sub-phases (ADR-061); only the cache backing swaps underneath it. See §4a.
 - Provides an in-process `embedded_evaluate` API that produces the same
   `anvil.diagnostic.v1` envelope the daemon-backed path emits
   (`crates/anvil-intercept/src/embedded.rs`).
@@ -187,8 +198,8 @@ Owned by `anvil-intercept-proto`. Each line on the wire is one `IpcEnvelope`
 JSON-RPC-style `id` for request/response correlation.
 
 JSON-RPC method names and the capability lattice live in
-`anvil-intercept-proto/src/protocol.rs`. Six `anvil/`-namespaced methods are
-defined:
+`anvil-intercept-proto/src/protocol.rs`. Nine `anvil/`-namespaced methods are
+defined (`ALL_ANVIL_METHODS`, `protocol.rs:212-222`):
 
 - `anvil/publishDiagnostics` (`ANVIL_PUBLISH_DIAGNOSTICS`, `protocol.rs:75`) —
   server → client diagnostic notification.
@@ -200,6 +211,16 @@ defined:
 - `anvil/gate/request` (`ANVIL_GATE_REQUEST`, `protocol.rs:96`).
 - `anvil/suppression/apply` (`ANVIL_SUPPRESSION_APPLY`, `protocol.rs:103`).
 - `anvil/status/query` (`ANVIL_STATUS_QUERY`, `protocol.rs:108`).
+- `anvil/validate_paths` (`ANVIL_VALIDATE_PATHS`, `protocol.rs:153`) — client →
+  server, the save-time verdict verb (ADR-061 / DSV-002); certifies a change set
+  against the warm graph cache. The wire is frozen across DSV sub-phases — only
+  the cache backing swaps. See §4a.
+- `anvil/workspace_status` (`ANVIL_WORKSPACE_STATUS`, `protocol.rs:158`) —
+  client → server, read-only `WorkspaceAssurance` snapshot without submitting a
+  change set.
+- `anvil/request_full_scan` (`ANVIL_REQUEST_FULL_SCAN`, `protocol.rs:164`) —
+  client → server, request a cold full scan to rebuild a clean baseline after
+  assurance goes `Stale`/`Unavailable`.
 
 The capability lattice is `Attached < Participating` (`protocol.rs:124-139`); v1
 only ever downgrades, never promotes implicitly.
@@ -250,6 +271,79 @@ no longer in the code. The remaining Windows gap is **MCP-side only**
 (`correlation.daemonStatus` always `not-wired`); see §12 and §16 gap 9 for the
 framing.
 
+## 4a. Save-time validation (`validate_paths`)
+
+> Numbered `4a` rather than renumbering §5–§18: the section postdates the
+> 2026-05-07 full review (DSV arc) and the doc's `§N` cross-references are
+> load-bearing.
+
+The save-time arc (DSV, `plans/modules/daemon-save-time-validation.aps.md`) adds
+a second validation surface beside the pre-write `scan_buffer` path: the daemon
+certifies a **just-written** change set against its resident warm graph cache
+and answers with a verdict-shaped `ValidatePathsResponse`. `anvil watch` is the
+consuming client; the MCP pre-write path stays on `scan_buffer` (§12).
+
+### 4a.1 Verdict core
+
+`validate_paths` (`crates/anvil-intercept/src/validate_paths.rs:297-396`) is a
+pure function of the request, the warm cache, and the assurance machine:
+
+- Coalesces the change set last-writer-per-path (`validate_paths.rs:318-325`).
+- Reads each content-bearing path under the guarded anchor and computes the
+  daemon's **own** content hash — the client's `content_hash` hint is never used
+  (`validate_paths.rs:195-207`; pinned by
+  `tests::evaluated_echoes_daemon_computed_hash_not_client_hint`,
+  `validate_paths.rs:736-779`).
+- Certifies a `ContentModify` against the warm cache via the GV2 hot-read index
+  — `HotReadApi::certify` over `KernelGraphCache::with_graphs`
+  (`validate_paths.rs:501-507`).
+- Runs the antipattern family over the guarded bytes on an injected rayon pool
+  (`run_antipattern_check_bytes`, `validate_paths.rs:348-353`).
+- Folds graph-certifiability into the `AssuranceMachine`
+  (`validate_paths.rs:381`).
+
+`coverage = Certified` iff every path is graph-certifiable self-contained AND
+the antipattern scan passed (`validate_paths.rs:383-387`). `check_families` is
+frozen as `[antipattern]` — `certified` is **never** an unscoped
+structural-safety claim (`protocol.rs:315-318`).
+
+### 4a.2 Symbol feed (ADR-064 — the daemon never parses)
+
+Symbols come from an injected `SymbolParser` (the tree-sitter impl lives in
+`anvil-cli`) called with the **exact** guarded bytes the daemon read and hashed
+(`save_time.rs:26-34`; `lib.rs:428-435`, `with_symbol_parser`). With no parser
+injected every verdict is a safe `Partial(CrossFileResolutionNeeded)` — the
+daemon warns at startup so the degraded mode is observable (`lib.rs:1151`).
+
+### 4a.3 Read-safety anchor (DSV-003/ADR-061 §5; DSV-010/ADR-068)
+
+Unix reads go through `openat2` with `RESOLVE_NO_SYMLINKS | RESOLVE_BENEATH`
+(`path_safety.rs:187-193`); Windows uses a directory-handle + `OBJ_DONT_REPARSE`
+ladder (`save_time.rs` module doc, lines 36-40). A refused root never reaches
+the filesystem and an admitted root cannot be retargeted after admission
+(`workspace_admission.rs`, security C2/C3).
+
+### 4a.4 Parse-size DoS cap (DSV-006)
+
+Files past `caps.max_parse_bytes` are skipped **before** parse/scan/hash with a
+coverage diagnostic, not a finding (`validate_paths.rs:220-242`, `:424-456`) —
+the save still proceeds; the path simply cannot certify.
+
+### 4a.5 Diagnostic parity (DSV-009/ADR-061 §8)
+
+Every surface orders findings by `(path, rule_id, span, summary)` before the
+envelope is built, so daemon and fallback emit byte-identical envelopes
+(`sort_diagnostics`, `validate_paths.rs:172-193`).
+
+### 4a.6 `ANVIL_WATCH_DAEMON` routing (DSV-021)
+
+Client-side posture lives in
+`crates/anvil-cli/src/commands/watch_save_time.rs:95-114`: unset =
+default-on-when-live (route only after an initial status probe finds a live
+daemon serving the save-time verbs); `0`/`false`/`off`/`no` = opt-out;
+`1`/`true`/`on`/`yes` = forced. There is no auto-start; daemon-absent folds to a
+scoped check reporting `unavailable{daemon-absent}`.
+
 ## 5. Authentication and trust boundary
 
 The daemon enforces a same-UID, local-IPC trust boundary. There are three
@@ -264,8 +358,18 @@ checks:
 - **Windows:** owner-only DACL on the named pipe + `reject_remote_clients(true)`
   rejects cross-host and cross-SID access in the kernel before the daemon ever
   sees the connection (`anvil-intercept-win32/src/lib.rs:50-63`).
+- **Windows, defence in depth (DSV-010b/ADR-070):** beyond the kernel DACL, the
+  accept loop runs an explicit peer-SID compare per connection —
+  `GetNamedPipeClientProcessId` → client token user SID vs the daemon's own SID
+  (`named_pipe_client_is_owner`, `anvil-intercept-win32/src/lib.rs:136-141`;
+  accept-loop gate `crates/anvil-intercept/src/ipc.rs:1100-1148`). Fails closed
+  on a non-owner SID, a validation error, or a task-join failure; runs on a
+  blocking thread so a slow same-UID peer cannot stall the reactor. The
+  **client** side still intentionally skips owner validation in v1
+  (`anvil-intercept-win32/src/lib.rs:206-210`) — the daemon-side DACL + SID gate
+  is the trust model.
 
-The driver-framework trust boundary adds two further layers, both daemon-side:
+Above that same-UID floor sit three further layers, all daemon-side:
 
 - **Driver allowlist** (DRVR-007, `crates/anvil-intercept/src/auth.rs`).
   `is_driver_allowed` (`auth.rs:227-267`) checks a driver binary's canonicalised
@@ -277,6 +381,15 @@ The driver-framework trust boundary adds two further layers, both daemon-side:
   requesting `Participating` without `anvil/enforcement/ack` in its advertised
   methods is downgraded to `Attached` with a structured `CapabilityDowngrade`
   event. `.anvil.yaml` cannot override this — the manifest is the floor.
+- **Workspace confinement / admission** (DSV-008, ADR-061 §7,
+  `crates/anvil-intercept/src/confinement.rs` + `workspace_admission.rs`). Each
+  save-time verb authorises its `workspace_root` against a per-connection
+  `AdmittedRoots` set; the default `Open` mode admits on first contact,
+  `Allowlist` confines to operator-listed roots (`confinement.rs:1-30`). The
+  confinement config is read owner-only from the daemon's own home prefix, never
+  from a repo `.anvil.yaml` — a checked-in file cannot widen the boundary
+  (`confinement.rs:11-14`); Windows verifies operator-config ownership at read
+  time (`read_trusted_config`, `anvil-intercept-win32/src/lib.rs:806`).
 
 Telemetry identity is daemon-minted, not driver-claimed.
 `correlation.originating_driver_id` is computed from peer credentials, never
@@ -477,11 +590,21 @@ The cross-session policy is sourced from
 (`config.rs:316-324`). See security note H2 for the unsalted-SHA-256 hash
 trade-off in the `Redact` arm.
 
-**INTD-015 wiring is partial in this release.** The fan-out, contract, and tests
-ship; the IPC subscribe surface that mints `SubscriberId` from peer credentials
-and routes broadcast envelopes through `Fanout::route` does **not yet exist**
-(`fanout.rs:72-99` documents this explicitly). The `TelemetryEmitter` continues
-to construct envelopes; nothing in v1 delivers them to a remote subscriber.
+**The subscriber/broadcast surface shipped (MLP2-071).** The IPC accept loop
+routes `subscribe-telemetry` / `unsubscribe-telemetry` frames ahead of the
+generic dispatcher (`ipc.rs:1251-1263` method matchers, routing
+`ipc.rs:1493-1623`) to a daemon-minted `SubscriberId` — never a wire-supplied
+field. On Unix the id is minted from `SO_PEERCRED` peer credentials
+(`mint_subscriber_id`, `ipc.rs:4211-4219`); the non-Unix mint is a fail-closed
+`None` stub until the `GetNamedPipeClientProcessId`-backed mint lands (MLP2-028
+follow-up, `ipc.rs:4221-4228`). Subscribers register via `TelemetryBroadcaster`
+(`crates/anvil-intercept/src/broadcaster.rs`), which wraps `Fanout::register`
+and owns the delivery half: per-subscriber bounded channels, non-blocking — a
+full channel drops-and-counts rather than stalling the producer (INTD-016).
+Dropping a connection unregisters via `Subscription`'s `Drop` impl
+(`ipc.rs:1225-1245`). The remaining slice is the **producer call sites** for
+real assurance/fence transition envelopes — DSV-044's territory
+(`broadcaster.rs` module doc).
 
 DoS budgets (§4.4) defend the daemon against same-UID peers attempting to starve
 the listener; they live in `dos.rs` and are configured per-connection (no global
@@ -528,6 +651,13 @@ unconditionally, which the caller maps to `DaemonStatus::NotWired`. This is
 recorded in the runbook (`docs/archive/runbooks/v0.6.0-beta-release-runbook.md`
 §2): on Windows `correlation.daemonStatus` in `validate_write` MCP responses is
 always `not-wired` in v1 — it cannot distinguish daemon-up from daemon-down.
+
+**The MCP pre-write path intentionally stays on `scan_buffer`** — not the
+save-time `validate_paths` verb (DSV-007,
+`crates/anvil-cli/src/mcp/validation.rs:99-103`): `validate_write` is a
+pre-write gate over **proposed** content the daemon has not read, whereas
+`validate_paths` re-reads written bytes under the guarded anchor.
+`validate_paths` is the save-time surface consumed by `anvil watch`; see §4a.
 
 ## 13. §4.4 redaction filter
 
@@ -676,26 +806,34 @@ documented in §16 gap 5.
 
 ### `crates/anvil-intercept/src/`
 
-| File              | Role                                                                                                                                                     |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lib.rs`          | INTD-001 entry point: `run_foreground`, PID-file guard, `Shutdown` channel, `wait_for_shutdown_signal`. The single-source-of-truth for daemon lifecycle. |
-| `main.rs`         | Standalone `anvil-intercept` binary entry; calls into `run_foreground`.                                                                                  |
-| `auth.rs`         | DRVR-007 / DRVR-008: `is_driver_allowed`, `DriverManifest::validate_workspace_roots`, `negotiate_capability`. The driver trust boundary.                 |
-| `config.rs`       | INTD-008: `Resolved` enforcement policy loader. Stricter-wins merge between project `.anvil.yaml` and user config; AD-3 ambiguous-ownership cap.         |
-| `dos.rs`          | INTD-016: `IpcLimits` + `RpsBucket`. Per-connection token bucket and frame-size cap.                                                                     |
-| `embedded.rs`     | INTD-009: synchronous `embedded_evaluate` API; correctness-equivalent fallback for the MCP shim and CI.                                                  |
-| `enforcement.rs`  | INTD-005: `EnforcementPipeline`, `EnforcementDecision`, `ProposedChange`. Pure rule evaluation.                                                          |
-| `fanout.rs`       | INTD-015: per-event telemetry filter with daemon-minted `SubscriberId`; `Delivery::{Allow, Redact, Deny}`.                                               |
-| `fence.rs`        | INTD-005 + INTD-007: `FenceStore` on-disk persistence, `FenceState` in-memory view, `FenceRecord` with aliases.                                          |
-| `interrupt.rs`    | INTD-006: `run_unix_ladder`, `run_windows_termination`, AD-7 fence-on-failure invariant, PID-reuse defence.                                              |
-| `ipc.rs`          | INTD-002: NDJSON IPC listener, owner-only socket permission ladder, peer-credential validation, `validate_socket_path_for_client`.                       |
-| `latency.rs`      | INTD-011: sliding-window aggregator for ADR-031 `validation.service` measurements (mid-edit p50/p95).                                                    |
-| `midedit.rs`      | INTD-005 mid-edit surface: `ScanBufferService`, `ScanBufferRequest`/`Response`, `MAX_CONCURRENT_SCAN_BUFFERS`.                                           |
-| `registry.rs`     | INTD-003: `SessionRegistry` (synchronous), `SessionDispatcher` trait, `Attribution`, `evict_stale`.                                                      |
-| `status.rs`       | INTD-011: `DaemonStatus` snapshot, `DaemonStatusProvider`, wire conversion to `DaemonStatusV1`.                                                          |
-| `telemetry.rs`    | `anvil.notification.v1` envelope construction, `TelemetryEmitter`, `TelemetryCorrelation` with INTD-015 scoping fields.                                  |
-| `unregistered.rs` | INTD-010: handler for changes that fall outside any registered session — AD-3 always-fence policy.                                                       |
-| `watcher.rs`      | INTD-004: kernel watcher integration; receives `ChangeBatch`, attributes paths, dispatches to per-session enforcement or `UnregisteredHandler`.          |
+| File                     | Role                                                                                                                                                     |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib.rs`                 | INTD-001 entry point: `run_foreground`, PID-file guard, `Shutdown` channel, `wait_for_shutdown_signal`. The single-source-of-truth for daemon lifecycle. |
+| `main.rs`                | Standalone `anvil-intercept` binary entry; calls into `run_foreground`.                                                                                  |
+| `assurance.rs`           | per-`WorktreeKey` `AssuranceMachine`; workspace-assurance state folded from graph certifiability.                                                        |
+| `auth.rs`                | DRVR-007 / DRVR-008: `is_driver_allowed`, `DriverManifest::validate_workspace_roots`, `negotiate_capability`. The driver trust boundary.                 |
+| `broadcaster.rs`         | MLP2-071 Phase 2: `TelemetryBroadcaster` delivery half of the fan-out.                                                                                   |
+| `config.rs`              | INTD-008: `Resolved` enforcement policy loader. Stricter-wins merge between project `.anvil.yaml` and user config; AD-3 ambiguous-ownership cap.         |
+| `confinement.rs`         | DSV-008: operator confinement config (open/allowlist), owner-only read from daemon home prefix.                                                          |
+| `dos.rs`                 | INTD-016: `IpcLimits` + `RpsBucket`. Per-connection token bucket and frame-size cap.                                                                     |
+| `embedded.rs`            | INTD-009: synchronous `embedded_evaluate` API; correctness-equivalent fallback for the MCP shim and CI.                                                  |
+| `enforcement.rs`         | INTD-005: `EnforcementPipeline`, `EnforcementDecision`, `ProposedChange`. Pure rule evaluation.                                                          |
+| `fanout.rs`              | INTD-015: per-event telemetry filter with daemon-minted `SubscriberId`; `Delivery::{Allow, Redact, Deny}`.                                               |
+| `fence.rs`               | INTD-005 + INTD-007: `FenceStore` on-disk persistence, `FenceState` in-memory view, `FenceRecord` with aliases.                                          |
+| `interrupt.rs`           | INTD-006: `run_unix_ladder`, `run_windows_termination`, AD-7 fence-on-failure invariant, PID-reuse defence.                                              |
+| `ipc.rs`                 | INTD-002: NDJSON IPC listener, owner-only socket permission ladder, peer-credential validation, `validate_socket_path_for_client`.                       |
+| `kernel_cache.rs`        | warm `(SymbolGraph, DependencyGraph)` cache (`KernelGraphCache`); `apply_delta`, `with_graphs`.                                                          |
+| `latency.rs`             | INTD-011: sliding-window aggregator for ADR-031 `validation.service` measurements (mid-edit p50/p95).                                                    |
+| `midedit.rs`             | INTD-005 mid-edit surface: `ScanBufferService`, `ScanBufferRequest`/`Response`, `MAX_CONCURRENT_SCAN_BUFFERS`.                                           |
+| `path_safety.rs`         | DSV-003/ADR-068: `openat2` `RESOLVE_NO_SYMLINKS \| RESOLVE_BENEATH` guarded read (Unix) / Windows anchor ladder.                                         |
+| `registry.rs`            | INTD-003: `SessionRegistry` (synchronous), `SessionDispatcher` trait, `Attribution`, `evict_stale`.                                                      |
+| `save_time.rs`           | DSV-005: per-connection save-time verb orchestration; `SaveTimeState`, `AdmittedRoots`, `SymbolParser` injection.                                        |
+| `status.rs`              | INTD-011: `DaemonStatus` snapshot, `DaemonStatusProvider`, wire conversion to `DaemonStatusV1`.                                                          |
+| `telemetry.rs`           | `anvil.notification.v1` envelope construction, `TelemetryEmitter`, `TelemetryCorrelation` with INTD-015 scoping fields.                                  |
+| `unregistered.rs`        | INTD-010: handler for changes that fall outside any registered session — AD-3 always-fence policy.                                                       |
+| `validate_paths.rs`      | DSV-004/-005: pure save-time verdict core; wire↔internal mappings; certify via GV2 hot-read; diagnostic sort-before-envelope.                            |
+| `watcher.rs`             | INTD-004: kernel watcher integration; receives `ChangeBatch`, attributes paths, dispatches to per-session enforcement or `UnregisteredHandler`.          |
+| `workspace_admission.rs` | per-connection `AdmittedRoots`; C2/C3 root-retarget defence.                                                                                             |
 
 ### `crates/anvil-intercept-proto/src/`
 

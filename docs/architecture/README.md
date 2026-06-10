@@ -16,11 +16,14 @@ when adding a new one.
   device-code / OTP flows, gaps register (current)
 - [Intercept daemon](intercept-as-built.md) — IPC surface (UDS + named pipe),
   peer-cred trust boundary, AD-7 fence-on-failure, fence persistence, interrupt
-  ladder, registry, win32 listener (current, against `v0.6.0-beta`)
+  ladder, registry, win32 listener, save-time `validate_paths` pipeline +
+  `ANVIL_WATCH_DAEMON` routing (current, delta-reviewed 2026-06-10 against main
+  `a1c41e284`)
 - [Activation orchestrator](activation-as-built.md) — `anvil start` flow,
   six-state protection vocabulary, language profile (LAUNCH-015/-016), MCP
-  install (LAUNCH-009), watch-fallback decision (LAUNCH-011) (current, against
-  `v0.6.0-beta`)
+  install (LAUNCH-009), watch-fallback decision (LAUNCH-011), DSV-021 save-time
+  daemon routing, UJ-001/-005/-006 threading, ADR-080 gate posture (current,
+  delta-reviewed 2026-06-10 against main `a1c41e284`)
 - [MCP shim](mcp-shim-as-built.md) — Rust MCP server, `anvil_validate_write`
   tool, daemon-backed vs embedded-fallback validation, correlation envelope,
   §4.4 redaction filter (current, against `v0.6.0-beta`)
@@ -29,16 +32,19 @@ when adding a new one.
   CLI surfaces (current, against `v0.6.0-beta`)
 - [Kernel](kernel-as-built.md) — watcher (notify + glob filter), tree-sitter
   parser, semantic graph (KERN-020..023), policy engine, embedded API, watch
-  loop. Supersedes `rust-kernel-spec.md` for "what shipped" (current, against
-  `v0.6.0-beta`)
+  loop, GV2 hot-read surface (sealed, ADR-077 depth-capped). Supersedes
+  `rust-kernel-spec.md` for "what shipped" (current, delta-reviewed 2026-06-10
+  against main `a1c41e284`)
 - [TUI surfaces](tui-as-built.md) — Ratatui surfaces (audit / browser / doctor /
   gate / init / onboarding / status / tutorial / watch / welcome / wizard),
   shared widget vocabulary, snapshot infrastructure, watch dashboard event
-  adapter (current, against `v0.6.0-beta`)
+  adapter, dashboard surface family (TUIDASH/TDASH) + plan_dashboard (current,
+  delta-reviewed 2026-06-10 against main `a1c41e284`)
 - [Driver framework + intercept-proto](driver-framework-as-built.md) — JSON-RPC
   wire protocol, driver registration + capability negotiation, TS / Rust driver
-  clients, Win32 named-pipe primitives, intercept-rules hot-path library
-  (current, against `v0.6.0-beta`; spec→code drift documented in §12)
+  clients, Win32 named-pipe primitives, intercept-rules hot-path library (full
+  INTR rule set + config) (current, delta-reviewed 2026-06-10 against main
+  `a1c41e284`; spec→code drift documented in §12)
 - [anvil-api service](api-as-built.md) — Hono on Vercel, non-auth admin
   surfaces, license / migration runner, middleware stack, Neon DB layer,
   apps/admin-cli retirement path (current, against `v0.6.0-beta`; auth flows

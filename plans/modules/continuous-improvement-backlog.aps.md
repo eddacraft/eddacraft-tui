@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 37/57    |
+| CIB | —     | In Progress | 38/58    |
 
 ## Purpose
 
@@ -1487,3 +1487,34 @@ archive.
   `docs/public/anvil/concepts/review-capsules.md`.
 - **Confidence:** high — documentation of already-merged, tested behaviour;
   every claim line-pinned against main `d6e7b4189`.
+
+### CIB-058: as-built delta refresh for the v0.8.0 window
+
+- **Status:** Merged 2026-06-10 via PR #2515
+- **Intent:** five internal as-builts (kernel, intercept, activation,
+  driver-framework, tui) are stamped 2026-05-07 against `v0.6.0-beta` and
+  predate the v0.8.0 window's architecture changes: the DSV save-time
+  validation arc (`validate_paths` via the GV2 hot-read certify, three new
+  IPC verbs, confinement/admission, Windows peer-SID accept gate), DSV-021
+  `ANVIL_WATCH_DAEMON` default-on routing, GV2-024 hot-read seal + ADR-077
+  depth cap (merged AFTER the 2026-06-08 kernel §7 re-verify), INTR-003..-007
+  rule set + config, the TUIDASH dashboard surface family, and ADR-080
+  welcome ungate. driver-framework-as-built also carries a factually
+  inverted panic-policy claim (says `panic="abort"`; workspace ships
+  `panic="unwind"` per ADR-051). The 2026-06-08 sweep (#2371) fixed source
+  paths only.
+- **Expected Outcome:** targeted delta updates to the five docs — stale
+  claims corrected, missing subsystems documented with verified file:line
+  pins, freshness stamps bumped with honest delta-review scoping —
+  plus matching `docs/architecture/README.md` blurb updates. Not a full
+  re-verification of untouched sections.
+- **Validation:** `pnpm docs:check` green; `pnpm run format:check` green;
+  `node scripts/aps/index-counts.mjs --check` green; adversarial pin
+  fact-check pass on the edited sections.
+- **Identified From:** 2026-06-10 internal-architecture-docs drift
+  assessment (same f5-dev-workflow session as CIB-057); five parallel
+  per-doc drift agents verified the deltas against source at `a1c41e284`.
+- **Coordinates with:** DSV/GV2/INTR/UJ module closeouts, ADR-077/-080,
+  the v0.8.0-beta release-cut readiness gate (NBI rank 1).
+- **Confidence:** high — documentation of already-merged behaviour;
+  every correction carries verified pins.

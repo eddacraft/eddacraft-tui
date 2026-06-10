@@ -1,19 +1,20 @@
 # Activation Orchestrator — As-Built
 
-| Type     | Authority | Owner  | Status | Freshness                                                             |
-| -------- | --------- | ------ | ------ | --------------------------------------------------------------------- |
-| As-built | Derived   | LAUNCH | Live   | Last reviewed 2026-05-07 against `v0.6.0-beta` and `crates/anvil-cli` |
+| Type     | Authority | Owner  | Status | Freshness                                                                                                                                                                                                                |
+| -------- | --------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| As-built | Derived   | LAUNCH | Live   | Last reviewed 2026-06-10 (targeted delta review: DSV-021 daemon routing, UJ-001/-005/-006 threading, ADR-080 gate posture) against main `a1c41e284`; full review 2026-05-07 against `v0.6.0-beta` and `crates/anvil-cli` |
 
 | Upstream                                                                  | Downstream                                                                                   |
 | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | `crates/anvil-cli`, `crates/anvil-kernel`, `crates/anvil-checks`, ADR-001 | anvil start / status / doctor / tutorial CLI surfaces, MCP install step, activation TUI path |
 
-> **Status:** Live (beta) **Last reviewed:** 2026-05-07 against `v0.6.0-beta`
-> slate (HEAD `8bbe65b9`) **Module:** `crates/anvil-cli/src/activation/`
-> **Module owner (APS):** LAUNCH (`launch-flow-readiness.aps.md`, 18/18
-> complete) **Used by:** `anvil start`, `anvil status --verify`,
-> `anvil tutorial` (ProtectionLoop default), `anvil doctor` (state-vocabulary
-> alignment)
+> **Status:** Live (beta) **Last reviewed:** 2026-06-10 (targeted delta review:
+> DSV-021 daemon routing, UJ-001/-005/-006 threading, ADR-080 gate posture)
+> against main `a1c41e284`; full review 2026-05-07 against `v0.6.0-beta` slate
+> (HEAD `8bbe65b9`) **Module:** `crates/anvil-cli/src/activation/` **Module
+> owner (APS):** LAUNCH (`launch-flow-readiness.aps.md`, 18/18 complete) **Used
+> by:** `anvil start`, `anvil status --verify`, `anvil tutorial` (ProtectionLoop
+> default), `anvil doctor` (state-vocabulary alignment)
 
 ## Overview
 
@@ -23,6 +24,9 @@ orchestrator (`crates/anvil-cli/src/activation/orchestrator/mod.rs:55`); the
 orchestrator composes only read-safe / idempotent primitives, then renders one
 `ActivationDiagnostic` ending in a single literal `state:` word from a fixed
 six-element vocabulary.
+
+Note the gate posture: `anvil start` is licence-gated; the ungated first-touch
+demo surface is `anvil welcome` (ADR-080).
 
 The honesty contract is the load-bearing invariant: surfaces never claim
 pre-write protection without evidence, and the printed `state:` literal is the
@@ -148,7 +152,12 @@ ordered steps:
    `activation::render_human_with_install(&diagnostic, &install_report)`
    (`commands/start.rs:158`) or `activation::render_json` under JSON mode
    (`commands/start.rs:153`). The block ends in a single `state: <literal>` line
-   plus a per-client `install:` summary (`render.rs:202-237`).
+   plus a per-client `install:` summary (`render.rs:202-237`). The plain ending
+   also prints a single UJ-001 next-step line (`start_next_step_line`,
+   `commands/start.rs:632-638`): at `LiveValidation` it points to `anvil status`
+   (watch would be redundant); otherwise it names `anvil watch`. The line is
+   suppressed under `--json` and `--verify` so those surfaces stay
+   byte-identical (`commands/start.rs:350-354`).
 
 After rendering, if any client install reported `Failed`, the CLI propagates a
 non-zero exit so `anvil start && next-step` shell pipelines do not silently
@@ -232,6 +241,35 @@ all-unsupported → spawn.
 (`commands/start.rs:101-110`): `--verify` is read-only and cannot spawn
 processes; `--json` requires a single document on stdout but the watcher streams
 event lines.
+
+## Save-time daemon routing (DSV-021)
+
+Distinct from the LAUNCH-011 in-process hand-off above, `anvil watch` (action
+`check`) is a thin client of the resident save-time daemon. The
+`ANVIL_WATCH_DAEMON` environment variable selects the posture
+(`commands/watch_save_time.rs:101-114`):
+
+| Value                        | Mode                | Behaviour                                                                                                                                                                                                                 |
+| ---------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| unset / unrecognised         | `DefaultOnWhenLive` | Route only when a live daemon answers an initial `workspace_status` probe; otherwise behave exactly as the pre-DSV subprocess-only path, no WARN. Presence guard: `build_save_time_client` (`commands/watch.rs:595-617`). |
+| `0` / `false` / `off` / `no` | `Disabled`          | Subprocess-only; the daemon is never queried.                                                                                                                                                                             |
+| `1` / `true` / `on` / `yes`  | `ForcedOn`          | Route even when no daemon answers; absence folds to the scoped fallback.                                                                                                                                                  |
+
+There is no auto-start — watch never spawns the daemon. A daemon verdict
+(`validate_paths`) skips the per-save subprocess entirely (ADR-061 §3). A
+daemon-absent start or a mid-session death folds to a `check` scoped to exactly
+the changed paths (never `--all`) and surfaces
+`workspace_assurance: unavailable{daemon-absent}` — never a truncated `clean`
+(`watch_save_time.rs:139-236`; routed at `watch.rs:847-891`). The first fallback
+of a disconnect WARNs once and is latched until reconnect
+(`watch_save_time.rs:212-223`).
+
+The surface teaches its own recovery (UJ-006): `anvil watch --help` carries a
+"Save-time daemon:" block explaining `ANVIL_WATCH_DAEMON`
+(`commands/watch.rs:16`), and the daemon-absent fallback prints an ASCII
+advisory naming `anvil start` (`fallback_advisory_line`, `watch.rs:431-438`,
+emitted at `watch.rs:882`; the JSON channel uses the structured `tracing::warn!`
+at `watch.rs:872-876` instead).
 
 ## Language profile (LAUNCH-015 / LAUNCH-016)
 
@@ -430,6 +468,16 @@ the same renderers (`render::render_human` / `render::render_json`). The mapping
 logic exists in exactly one place (`ActivationDiagnostic::protection_state`,
 `diagnostic.rs:211-264`).
 
+**Save-time posture (UJ-005).** `anvil status` always states the save-time
+posture. `gather_save_time` / `classify_save_time`
+(`commands/status.rs:668-714`) map the `ANVIL_WATCH_DAEMON` mode ×
+daemon-presence matrix onto three postures (`status.rs:642-652`): `Assurance`
+(the daemon answered, or `ForcedOn` absence folded to
+`unavailable{daemon-absent}`), `Off` (`DefaultOnWhenLive` with no live daemon —
+an explicit off-state line naming `anvil start`, not omission), and `Hidden`
+(the `=0` opt-out; no line at all). `--json` stays additive — `save_time` is
+emitted only for `Assurance` (`status.rs:654-664`).
+
 ### Council-locked exclusions
 
 What `anvil start` deliberately does **not** do
@@ -444,7 +492,12 @@ What `anvil start` deliberately does **not** do
 - No process auto-attach. anvil only knows what it wired itself; it does not
   "find the AI session running in this repo".
 - No no-args TUI theatre — `anvil start` is the activation surface;
-  `anvil welcome` remains the menu / tutorial surface.
+  `anvil welcome` remains the menu / tutorial surface. Per ADR-080 (UJ-004),
+  `anvil welcome` is now the **ungated** beta demo surface — it runs without
+  authentication so a new user sees real findings before the licence wall;
+  `anvil start` and the rest of `CLI_GATED_COMMANDS`
+  (`crates/anvil-cli/src/feature_flags.rs:46-65`) stay gated — the wall sits
+  where ongoing value begins.
 
 ## Tutorial integration (LAUNCH-014)
 
@@ -502,14 +555,15 @@ unsupported-language scanning is hand-off to a follow-up PR through
 place — downstream consumers compose the user-config decision before invoking
 `partition_for_language_specific_checks`.
 
-### G-02: Watch-liveness probing is unwired pending LAUNCH-011 (2026-05-07)
+### G-02: Activation watch-tier liveness is unwired (2026-05-07, updated 2026-06-10)
 
-The protection-loop tutorial step 5 only enumerates what `--verify` actually
-probes today — config, MCP entries on disk, baseline presence, language profile,
-watch tier offer-gate. Live watch-process probing (which would produce
-`WatchTier::Running` outside the `--watch` synthesis path) is not wired. The
-`WatchTier::Running` state is reachable today only through `anvil start --watch`
-synthesis (`commands/start.rs:148-150`).
+Activation's `WatchTier::Running` is still reachable only through
+`anvil start --watch` synthesis (`commands/start.rs:272-273`); the `--verify`
+offer-gate is not wired to live process state. Since DSV-021 this gap is
+distinct from save-time **daemon** liveness, which is now observable:
+`anvil status` queries the daemon's `workspace_status` and renders real
+assurance (`commands/status.rs:674`, `watch_save_time.rs:121-137`). The unwired
+item is specifically activation's `WatchTier`, not save-time liveness generally.
 
 ### G-03: Windows daemon validation reports `not-wired` (2026-05-07)
 
@@ -556,7 +610,16 @@ consumers needing a side-effecting JSON flow must run `anvil init --json` and
 `crates/anvil-cli/src/commands/`:
 
 - `start.rs` — `anvil start` CLI; `WatchDecision` enum; `--watch` hand-off and
-  skip copy; `--watch + --verify` / `--watch + --json` rejection.
+  skip copy; `--watch + --verify` / `--watch + --json` rejection; UJ-001
+  next-step line (`start_next_step_line`).
+- `watch.rs` — `anvil watch` CLI; daemon-routing seam (`build_save_time_client`
+  presence guard, the routed dispatch, `fallback_advisory_line`); the "Save-time
+  daemon:" `--help` block.
+- `watch_save_time.rs` — DSV-021 routing model: `DaemonRoutingMode` /
+  `daemon_routing_mode`, `WatchSaveTimeClient`, `SaveTimeDecision`,
+  `daemon_absent_assurance`, `query_workspace_status`.
+- `status.rs` — UJ-005 save-time posture (`gather_save_time` /
+  `classify_save_time`, `SaveTimePosture`).
 - `welcome.rs` — `anvil welcome` (the menu / tutorial surface; sole owner of the
   `.anvil/first-run` marker).
 - `init.rs` — `init::run_in` invoked by the orchestrator when `.anvilrc` is
@@ -572,6 +635,9 @@ consumers needing a side-effecting JSON flow must run `anvil init --json` and
   (intent + acceptance for every LAUNCH-NNN task).
 - `plans/specs/2026-05-04-launch-a1-execution.md` — Tier A1 execution plan with
   the council-locked hard constraints.
+- `plans/decisions/080-ungate-welcome-demo-surface.md` — ADR-080:
+  `anvil welcome` is the ungated beta demo surface; `anvil start` stays behind
+  the licence gate.
 - `docs/public/anvil/guides/wow-start-demo.md` — public-side narrative this doc
   backs up.
 - `docs/public/anvil/quickstart.md` — beta quickstart (full 10-minute install +

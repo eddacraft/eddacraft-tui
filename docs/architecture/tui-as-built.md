@@ -1,33 +1,40 @@
 # anvil-tui — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                     |
-| -------- | --------- | ----- | ------ | --------------------------------------------------------------------------------------------- |
-| As-built | Derived   | RATS  | Live   | Last reviewed 2026-05-07 against `v0.6.0-beta` and `crates/anvil-tui`, `crates/eddacraft-tui` |
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                |
+| -------- | --------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | RATS  | Live   | Last reviewed 2026-06-10 (targeted delta review: TUIDASH/TDASH dashboard family, plan_dashboard, snapshot counts) against main `a1c41e284`; full review 2026-05-07 against `v0.6.0-beta` |
 
 | Upstream                                   | Downstream                                                                                                       |
 | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
 | `crates/anvil-tui`, `crates/eddacraft-tui` | CLI commands (watch, status, audit, doctor, tutorial, welcome, init, gate), widget catalogue (RATS / TUIEXTRACT) |
 
-> **Status:** Live (beta) **Last reviewed:** 2026-05-07 against `v0.6.0-beta`
-> slate (HEAD `d223b8d9`) **Crate / location:** `crates/anvil-tui` **Module
-> owner (APS):** RATS (Ratatui surfaces — complete, archived to
+> **Status:** Live (beta) **Last reviewed:** 2026-06-10 (targeted delta review:
+> TUIDASH/TDASH dashboard family, plan_dashboard, snapshot counts) against main
+> `a1c41e284`; full review 2026-05-07 against `v0.6.0-beta` slate (HEAD
+> `d223b8d9`) **Crate / location:** `crates/anvil-tui` **Module owner (APS):**
+> RATS (Ratatui surfaces — complete, archived to
 > `plans/archive/modules/ratatui-tui.aps.md`), PORT (Ink-to-Ratatui port —
 > complete, archived to `plans/archive/modules/ink-to-ratatui-port.aps.md`),
-> TUIDASH (`plans/modules/tui-dashboard-render.aps.md`, Draft 0/12 — watch
-> dashboard json-render rollup, not in `v0.6.0-beta`) **Used by:** every
+> TUIDASH (`plans/modules/tui-dashboard-render.aps.md`, In Progress 13/13 merged
+> — json-render engine + dashboard surface family shipped 2026-06-02, rides
+> `v0.8.0-beta`), TDASH (native per-domain dashboards — complete, archived to
+> `plans/archive/modules/native-tui-dashboards.aps.md`), APSCAN
+> (`plan_dashboard` — complete, archived to
+> `plans/archive/modules/aps-canonical-alignment.aps.md`) **Used by:** every
 > interactive `anvil` CLI command that renders a TUI — `anvil watch`,
 > `anvil status`, `anvil audit`, `anvil doctor`, `anvil tutorial`,
 > `anvil welcome`, `anvil init` wizard, `anvil new` (template wizard),
-> `anvil gate` interactive mode
+> `anvil gate` interactive mode, `anvil dashboard` (picker + spec / native
+> dashboards), `anvil plan dashboard`
 
 ## Overview
 
 `anvil-tui` is the Ratatui-based terminal UI surface library that backs every
 interactive `anvil` command. It owns the surface inventory (status, audit,
-doctor, gate, watch, tutorial, welcome, wizard, init, browser, onboarding) and
-re-exports the `Surface` trait, terminal-compat helpers, and snapshot utilities
-that come from the upstream `eddacraft-tui` crate
-(`crates/anvil-tui/src/lib.rs:1-9`).
+doctor, gate, watch, tutorial, welcome, wizard, init, browser, onboarding,
+dashboard, plan_dashboard) and re-exports the `Surface` trait, terminal-compat
+helpers, and snapshot utilities that come from the upstream `eddacraft-tui`
+crate (`crates/anvil-tui/src/lib.rs:1-18`).
 
 The crate is intentionally narrow: rendering and state, no I/O. The terminal
 session, event poll loop, raw-mode setup, and shell chrome are owned by
@@ -73,6 +80,7 @@ pinned `.snap` (`crates/anvil-tui/src/test_utils.rs` →
    │ anvil-tui surfaces  (per-screen state + render)    │
    │   welcome / wizard / init / onboarding / tutorial  │
    │   watch / status / audit / doctor / gate / browser │
+   │   dashboard / plan_dashboard                       │
    └─────────────┬───────────────────────────────┬──────┘
                  │ widgets                       │
                  ▼                               │
@@ -110,11 +118,14 @@ dirty.
 crates/anvil-tui/
 ├── Cargo.toml                      # eddacraft-anvil-tui (lib name: anvil_tui)
 ├── src/
-│   ├── lib.rs                      # 9 lines; module root
+│   ├── lib.rs                      # 18 lines; module root + sanitize re-export
 │   ├── app.rs                      # TuiApp + TuiAppConfig (watch lifecycle)
 │   ├── shell.rs                    # render_shell, inset_content, OUTER_*_MARGIN
 │   ├── surface.rs                  # `pub use eddacraft_tui::surface::Surface;`
 │   ├── compat.rs                   # `pub use eddacraft_tui::compat::*;`
+│   ├── dashboard_catalog/          # domain components + GATE_SUMMARY_SPEC asset
+│   ├── dashboard_context.rs        # $data context from .anvil/ state (TUIDASH-008)
+│   ├── fileio.rs                   # read_capped bounded .anvil/ reads
 │   ├── migration.rs                # TuiBackend (Ink|Ratatui), select_backend
 │   ├── test_utils.rs               # `pub use eddacraft_tui::test_utils::snapshot;`
 │   ├── snapshots/                  # crate-level shell chrome snapshot
@@ -126,9 +137,10 @@ crates/anvil-tui/
 │       ├── mod.rs                  # surface module declarations
 │       ├── fix_request.rs          # FixRequest enum (cross-surface)
 │       ├── notifications.rs        # NotificationSource trait
-│       ├── audit/      browser/    doctor/    gate/    init/
-│       ├── onboarding/ status/     tutorial/  watch/   welcome/
-│       └── wizard/
+│       ├── update_hint.rs          # UpdateHint shared DTO (DISTRIB-002)
+│       ├── audit/      browser/    dashboard/  doctor/   gate/
+│       ├── init/       onboarding/ plan_dashboard/       status/
+│       └── tutorial/   watch/      welcome/    wizard/
 ```
 
 The surface modules use a consistent shape: `mod.rs` holds state types, the
@@ -181,7 +193,7 @@ terminal — the alt-screen stays alive across `run_surface_in` calls.
 
 ## Surfaces
 
-The eleven primary surfaces, grouped by lifecycle. Each subsection lists the
+The thirteen primary surfaces, grouped by lifecycle. Each subsection lists the
 purpose, the CLI command that mounts it, the key state type, and any notable
 invariants. Detail goes into the deep-dive sections below for watch, tutorial,
 welcome / wizard / onboarding, doctor, status, audit, gate.
@@ -207,6 +219,28 @@ Template browser for the `anvil new` flow. Three views — Categories → Templa
 search mode (`/`-to-search), and exits with `chosen: Option<String>` holding a
 template id. The post-template-selection path hands the chosen id to the wizard
 surface (`crates/anvil-cli/src/commands/new.rs:62`).
+
+### dashboard
+
+The `anvil dashboard` family
+(`crates/anvil-tui/src/surfaces/dashboard/mod.rs:13-17`). Five sub-surfaces:
+`list` — a two-pane picker, dashboards on the left and a live json-render
+mini-preview of the highlighted spec on the right; native dashboards show a
+description card instead, and `enter` records the chosen name for the CLI to
+open full-screen (`dashboard/list.rs:1-30`, TUIDASH-012). `spec` — renders a
+saved json-render dashboard spec (`.anvil/dashboards/<name>.json`) through the
+eddacraft-tui engine; the surface owns `$data` binding against `.anvil/` state
+and `r`-to-refresh re-binding without re-reading the spec
+(`dashboard/spec.rs:1-60`, TUIDASH-009). `architecture` / `drift` /
+`suppressions` — fixed native per-domain dashboards (TDASH). Spec rendering uses
+the Anvil-domain registry: the generic base components plus `GateResultCard` /
+`WarningList` / `DriftIndicator` / `PlanCard` / `SuppressionRequest` /
+`EvidenceEntry` (`crates/anvil-tui/src/dashboard_catalog/mod.rs:42-63`). The
+gate-summary spec ships as a crate asset — `GATE_SUMMARY_SPEC`
+(`dashboard_catalog/mod.rs:38-39`, an `include_str!` of
+`assets/dashboards/gate-summary.dashboard.json`) — seeded by `anvil init` and
+served as an embedded zero-write fallback when no saved spec shadows it
+(UJ-009).
 
 ### doctor
 
@@ -255,6 +289,15 @@ manager — Husky / Lefthook / pre-commit / Git config hooks detection,
 (`onboarding/mod.rs:31-35`) gates whether onboarding runs the init step or skips
 straight to the menu — zero-byte `.anvilrc` is treated as absent
 (`onboarding/mod.rs:56-65`).
+
+### plan_dashboard
+
+The APS / plan rollup surface (APSCAN — complete, archived), mounted by
+`anvil plan dashboard` (`crates/anvil-cli/src/commands/plan.rs:75`).
+`PlanDashboardSnapshot` carries module rows, work-item rows, and warning rows
+with branch / sha provenance; on top of the snapshot the surface adds a filter
+mode, detail and help toggles, and a rescan request flag
+(`crates/anvil-tui/src/surfaces/plan_dashboard/mod.rs:11-72`).
 
 ### status
 
@@ -327,13 +370,19 @@ subscribers consume notifications through a canonical `Notification` envelope
 `watch` and `tutorial` surfaces are the current implementers
 (`watch/mod.rs:344-369`, `tutorial/mod.rs` static-mode notice).
 
+`surfaces/update_hint.rs` — the DISTRIB-002 "update available" hint as a shared
+DTO, re-exported at `surfaces/mod.rs:18` and rendered identically by the status
+and watch surfaces (`UpdateHint::render_line` keeps the wording from drifting
+between the two).
+
 ## Watch dashboard (deep dive)
 
 The watch surface is the only one that consumes kernel events live. It sits
 behind `anvil watch --tui=ratatui` and the post-onboarding `Watch checks live`
 welcome option. The shape of the watch dashboard is the canonical TUIDASH-009
-inheritance seam — its `WatchStats` contract is the named contract that
-downstream json-render rollups will inherit.
+inheritance seam — its `WatchStats` contract is the named contract the
+json-render dashboard surface (now shipped — see the dashboard subsection above)
+inherits.
 
 ### Data model
 
@@ -628,7 +677,8 @@ The crate uses insta-style snapshot tests pinned per surface. The pattern is:
    keeps snapshots noise-free.
 4. `insta::assert_snapshot!(...)` against a pinned `.snap` file.
 
-The crate ships **38 snapshot files** across the surfaces:
+The crate ships **41 snapshot files** (40 surface + 1 shell chrome) across the
+surfaces:
 
 ```
 audit/snapshots/        5 .snap files (default, expanded scroll, issues expanded, issues focused, last item expanded)
@@ -644,6 +694,9 @@ welcome/snapshots/      2 .snap files (default, second item selected)
 wizard/snapshots/       4 .snap files (template, name, configure, summary steps)
 src/snapshots/          1 .snap file (shell chrome)
 ```
+
+The `dashboard` and `plan_dashboard` surfaces currently ship no snapshot
+coverage — see G-01.
 
 The tutorial surface specifically pins narrow (40x10) and tiny (20x10) terminal
 sizes alongside the default 80x24 to guard against narrow-terminal regressions
@@ -711,20 +764,21 @@ renderer collapses the multi-panel layout to the focused panel filling the area
 
 ## Known gaps
 
-### G-01: TUIDASH watch-dashboard json-render rollup not started
+### G-01: dashboard surfaces ship without snapshot coverage
 
-`plans/modules/tui-dashboard-render.aps.md` is Draft 0/12 as of 2026-04-26. The
-named `WatchStats` contract on the watch surface is declared as the inheritance
-seam for TUIDASH-009 (`watch/mod.rs:80-84`), but the json-render spec
-interpreter for Ratatui is not in `v0.6.0-beta`. CLI users can read the watch
-dashboard in the terminal and the web dashboard in a browser, but custom
-`.anvil/dashboards/*.json` specs do not render in the TUI yet.
+The json-render interpreter this gap originally tracked has shipped:
+TUIDASH-003..-013 merged 2026-06-02 via PRs #2229 / #2246, landing the engine
+(eddacraft-tui, feature-gated per ADR-054), the Anvil-domain catalogue, and the
+`anvil dashboard` surface family — see the dashboard subsection above. Custom
+`.anvil/dashboards/*.json` specs now render in the TUI. The remaining gap is
+snapshot coverage: the `dashboard` and `plan_dashboard` surfaces ship no `.snap`
+files, leaving the two newest surface families outside the style-aware snapshot
+net every other surface sits inside.
 
-**Risk:** Low for `v0.6.0-beta` — the existing watch dashboard covers the
-documented save-time fallback path. **Fix:** TUIDASH module promotion blocks on
-(a) DASHAI catalogue resolution and (b) re-confirming the json-render spec
-source location. See `plans/modules/tui-dashboard-render.aps.md` ll. 9-13 for
-the demotion-rationale pin.
+**Risk:** Low–Medium — rendering regressions in the dashboard family would not
+be caught by the snapshot suite. **Fix:** add insta snapshots for the list /
+spec / native dashboards and the plan dashboard, matching the per-surface
+`snapshots/` convention.
 
 ### G-02: Ink remains the default TUI backend
 
@@ -753,9 +807,12 @@ kernel emit a "cycle aborted" event.
 
 `WatchData.last_action` is `Option<ActionResultLine>` — only the most recent
 action is retained. Richer history (`Vec<ActionRun>`) is documented as deferred
-to LAUNCH-002b against the TUIDASH-009 inheritance seam (`watch/mod.rs:80-84`).
+to LAUNCH-002b against the TUIDASH-009 inheritance seam (`watch/mod.rs:80-84`);
+the TUIDASH-009 spec surface has since shipped, so the seam is live rather than
+pending.
 
-**Risk:** Low. **Fix:** tracked alongside TUIDASH dashboard rollup.
+**Risk:** Low. **Fix:** tracked as LAUNCH-002b; the TUIDASH dashboard surface it
+was deferred against has shipped.
 
 ### G-05: Watch fallback liveness not yet wired in tutorial step 5
 
@@ -794,60 +851,73 @@ decision.
 
 ## Source references
 
-| File                                                          | Role                                                                                                   |
-| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `crates/anvil-tui/Cargo.toml`                                 | Dependency surface (eddacraft-tui, ratatui, crossterm, animate, anvil-kernel-types, unicode-width)     |
-| `crates/anvil-tui/src/lib.rs`                                 | Module root; pub mod app/compat/migration/shell/surface/surfaces/widgets                               |
-| `crates/anvil-tui/src/app.rs`                                 | `TuiApp` (watch lifecycle wrapper); `TuiAppConfig`; `TuiError`                                         |
-| `crates/anvil-tui/src/shell.rs`                               | `render_shell` (header + footer); `inset_content`; `OUTER_H_MARGIN`/`OUTER_TOP_MARGIN`                 |
-| `crates/anvil-tui/src/surface.rs`                             | Re-exports `eddacraft_tui::surface::Surface`                                                           |
-| `crates/anvil-tui/src/compat.rs`                              | Re-exports `TerminalInfo`, `detect_terminal`, `validate_minimum_size`                                  |
-| `crates/anvil-tui/src/migration.rs`                           | `TuiBackend` enum (Ink default); `select_backend`                                                      |
-| `crates/anvil-tui/src/test_utils.rs`                          | Re-exports `snapshot::buffer_to_string`                                                                |
-| `crates/anvil-tui/src/widgets/quick_wins_panel.rs`            | `QuickWinsPanel` widget — batched suppressions                                                         |
-| `crates/anvil-tui/src/widgets/results_dashboard.rs`           | `ResultsDashboard` widget — post-init analysis                                                         |
-| `crates/anvil-tui/src/surfaces/mod.rs`                        | Surface module declarations                                                                            |
-| `crates/anvil-tui/src/surfaces/fix_request.rs`                | `FixRequest` enum (DoctorCheck / AntiPatternWarning / AuditConsoleStatement)                           |
-| `crates/anvil-tui/src/surfaces/notifications.rs`              | `NotificationSource` trait + `surface_notification` builder                                            |
-| `crates/anvil-tui/src/surfaces/audit/mod.rs`                  | `AuditState`, `AuditPanel`, `IssueSeverity`, `AuditFixKind`                                            |
-| `crates/anvil-tui/src/surfaces/audit/render.rs`               | Audit render                                                                                           |
-| `crates/anvil-tui/src/surfaces/browser/mod.rs`                | `BrowserState`, `BrowserView`, `TemplateCategory`, `TemplateEntry`                                     |
-| `crates/anvil-tui/src/surfaces/browser/render.rs`             | Browser render                                                                                         |
-| `crates/anvil-tui/src/surfaces/doctor/mod.rs`                 | `DoctorState`, `DiagnosticCheck`, `Remediation`, `FixOutcomeBanner`                                    |
-| `crates/anvil-tui/src/surfaces/doctor/render.rs`              | Doctor render                                                                                          |
-| `crates/anvil-tui/src/surfaces/gate/mod.rs`                   | `GateState`, `GateCheck`, `GateResult`, `FilterStatus`                                                 |
-| `crates/anvil-tui/src/surfaces/gate/event_adapter.rs`         | Gate event adapter                                                                                     |
-| `crates/anvil-tui/src/surfaces/gate/render.rs`                | Gate render                                                                                            |
-| `crates/anvil-tui/src/surfaces/init/mod.rs`                   | `InitState`, `InitStep`, `InitMode`, `ConfigFormat`, `AvailableCheck`                                  |
-| `crates/anvil-tui/src/surfaces/init/render.rs`                | Init wizard render                                                                                     |
-| `crates/anvil-tui/src/surfaces/onboarding/mod.rs`             | `config_exists_in`; module declarations                                                                |
-| `crates/anvil-tui/src/surfaces/onboarding/welcome.rs`         | First-run welcome (3 choices)                                                                          |
-| `crates/anvil-tui/src/surfaces/onboarding/welcome_render.rs`  | First-run welcome render                                                                               |
-| `crates/anvil-tui/src/surfaces/onboarding/hooks.rs`           | Hook installation surface (Husky / Lefthook / pre-commit / config)                                     |
-| `crates/anvil-tui/src/surfaces/onboarding/hooks_render.rs`    | Hook installation render                                                                               |
-| `crates/anvil-tui/src/surfaces/onboarding/init_complete.rs`   | Post-init summary state                                                                                |
-| `crates/anvil-tui/src/surfaces/onboarding/complete.rs`        | End-of-onboarding summary state                                                                        |
-| `crates/anvil-tui/src/surfaces/status/mod.rs`                 | `StatusState`, `StatusPanel`, `HookStatus`, `ProfileInfo`, `GateRunResult`                             |
-| `crates/anvil-tui/src/surfaces/status/render.rs`              | Status render                                                                                          |
-| `crates/anvil-tui/src/surfaces/tutorial/mod.rs`               | `TutorialState`, `TutorialPath`, `TutorialPhase`, `TutorialStep`, `STATIC_MODE_WATCHER_UNAVAILABLE`    |
-| `crates/anvil-tui/src/surfaces/tutorial/paths.rs`             | `protection_loop_steps`, `policy_steps`, `architecture_steps`, `drift_steps`, `ci_steps`               |
-| `crates/anvil-tui/src/surfaces/tutorial/discovery.rs`         | Tutorial discovery (scan results, finding severity)                                                    |
-| `crates/anvil-tui/src/surfaces/tutorial/discovery_render.rs`  | Discovery render                                                                                       |
-| `crates/anvil-tui/src/surfaces/tutorial/executor.rs`          | Tutorial command executor                                                                              |
-| `crates/anvil-tui/src/surfaces/tutorial/fix.rs`               | Tutorial in-step fix surface                                                                           |
-| `crates/anvil-tui/src/surfaces/tutorial/fix_render.rs`        | Fix render                                                                                             |
-| `crates/anvil-tui/src/surfaces/tutorial/render.rs`            | Tutorial main render (path select / running / complete phases)                                         |
-| `crates/anvil-tui/src/surfaces/tutorial/showcase.rs`          | Tutorial showcase content                                                                              |
-| `crates/anvil-tui/src/surfaces/tutorial/verify.rs`            | `Verify::FileExists`, `Verify::ExitCode`, `VerifyResult`                                               |
-| `crates/anvil-tui/src/surfaces/tutorial/watch_demo.rs`        | Watch demo surface (LAUNCH-014 / WELCOME-014)                                                          |
-| `crates/anvil-tui/src/surfaces/tutorial/watch_demo_render.rs` | Watch demo render                                                                                      |
-| `crates/anvil-tui/src/surfaces/watch/mod.rs`                  | `WatchState`, `WatchData`, `WatchStatus`, `WatchPanel`, `ActionResultLine`, `RunHistory`, `WatchStats` |
-| `crates/anvil-tui/src/surfaces/watch/event_adapter.rs`        | `WatchEventAdapter` (kernel events → WatchData)                                                        |
-| `crates/anvil-tui/src/surfaces/watch/render.rs`               | Watch 2x2 grid render + action footer                                                                  |
-| `crates/anvil-tui/src/surfaces/welcome/mod.rs`                | `WelcomeState`, `QuickStartOption`                                                                     |
-| `crates/anvil-tui/src/surfaces/welcome/render.rs`             | Welcome render                                                                                         |
-| `crates/anvil-tui/src/surfaces/wizard/mod.rs`                 | `WizardState`, `WizardStep`, `WizardConfig`, `Template`                                                |
-| `crates/anvil-tui/src/surfaces/wizard/render.rs`              | Wizard render                                                                                          |
+| File                                                            | Role                                                                                                                                                                  |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `crates/anvil-tui/Cargo.toml`                                   | Dependency surface (eddacraft-tui, ratatui, crossterm, animate, anvil-kernel-types, unicode-width)                                                                    |
+| `crates/anvil-tui/src/lib.rs`                                   | Module root; pub mod app/compat/dashboard_catalog/dashboard_context/fileio/migration/shell/surface/surfaces/widgets; re-exports `json_render::sanitize` (`lib.rs:15`) |
+| `crates/anvil-tui/src/app.rs`                                   | `TuiApp` (watch lifecycle wrapper); `TuiAppConfig`; `TuiError`                                                                                                        |
+| `crates/anvil-tui/src/shell.rs`                                 | `render_shell` (header + footer); `inset_content`; `OUTER_H_MARGIN`/`OUTER_TOP_MARGIN`                                                                                |
+| `crates/anvil-tui/src/surface.rs`                               | Re-exports `eddacraft_tui::surface::Surface`                                                                                                                          |
+| `crates/anvil-tui/src/compat.rs`                                | Re-exports `TerminalInfo`, `detect_terminal`, `validate_minimum_size`                                                                                                 |
+| `crates/anvil-tui/src/dashboard_catalog/mod.rs`                 | `anvil_registry` / `anvil_catalog` (base + domain components); `GATE_SUMMARY_SPEC` crate asset                                                                        |
+| `crates/anvil-tui/src/dashboard_context.rs`                     | `load_context` — json-render `DataContext` from `.anvil/` state (TUIDASH-008)                                                                                         |
+| `crates/anvil-tui/src/fileio.rs`                                | `read_capped` — bounded reads of untrusted `.anvil/` content                                                                                                          |
+| `crates/anvil-tui/src/migration.rs`                             | `TuiBackend` enum (Ink default); `select_backend`                                                                                                                     |
+| `crates/anvil-tui/src/test_utils.rs`                            | Re-exports `snapshot::buffer_to_string`                                                                                                                               |
+| `crates/anvil-tui/src/widgets/quick_wins_panel.rs`              | `QuickWinsPanel` widget — batched suppressions                                                                                                                        |
+| `crates/anvil-tui/src/widgets/results_dashboard.rs`             | `ResultsDashboard` widget — post-init analysis                                                                                                                        |
+| `crates/anvil-tui/src/surfaces/mod.rs`                          | Surface module declarations                                                                                                                                           |
+| `crates/anvil-tui/src/surfaces/fix_request.rs`                  | `FixRequest` enum (DoctorCheck / AntiPatternWarning / AuditConsoleStatement)                                                                                          |
+| `crates/anvil-tui/src/surfaces/notifications.rs`                | `NotificationSource` trait + `surface_notification` builder                                                                                                           |
+| `crates/anvil-tui/src/surfaces/audit/mod.rs`                    | `AuditState`, `AuditPanel`, `IssueSeverity`, `AuditFixKind`                                                                                                           |
+| `crates/anvil-tui/src/surfaces/audit/render.rs`                 | Audit render                                                                                                                                                          |
+| `crates/anvil-tui/src/surfaces/browser/mod.rs`                  | `BrowserState`, `BrowserView`, `TemplateCategory`, `TemplateEntry`                                                                                                    |
+| `crates/anvil-tui/src/surfaces/browser/render.rs`               | Browser render                                                                                                                                                        |
+| `crates/anvil-tui/src/surfaces/dashboard/mod.rs`                | Dashboard surface module declarations (list / spec / architecture / drift / suppressions)                                                                             |
+| `crates/anvil-tui/src/surfaces/dashboard/list.rs`               | `DashboardListState`, `ListEntry` — two-pane picker with live previews (TUIDASH-012)                                                                                  |
+| `crates/anvil-tui/src/surfaces/dashboard/spec.rs`               | `SpecDashboardState` — json-render spec surface, `$data` binding + refresh (TUIDASH-009)                                                                              |
+| `crates/anvil-tui/src/surfaces/dashboard/architecture.rs`       | Native architecture-health dashboard (TDASH-002)                                                                                                                      |
+| `crates/anvil-tui/src/surfaces/dashboard/drift.rs`              | Native drift-snapshots dashboard (TDASH-003)                                                                                                                          |
+| `crates/anvil-tui/src/surfaces/dashboard/suppressions.rs`       | Native suppressions-overview dashboard (TDASH-004)                                                                                                                    |
+| `crates/anvil-tui/src/surfaces/doctor/mod.rs`                   | `DoctorState`, `DiagnosticCheck`, `Remediation`, `FixOutcomeBanner`                                                                                                   |
+| `crates/anvil-tui/src/surfaces/doctor/render.rs`                | Doctor render                                                                                                                                                         |
+| `crates/anvil-tui/src/surfaces/gate/mod.rs`                     | `GateState`, `GateCheck`, `GateResult`, `FilterStatus`                                                                                                                |
+| `crates/anvil-tui/src/surfaces/gate/event_adapter.rs`           | Gate event adapter                                                                                                                                                    |
+| `crates/anvil-tui/src/surfaces/gate/render.rs`                  | Gate render                                                                                                                                                           |
+| `crates/anvil-tui/src/surfaces/init/mod.rs`                     | `InitState`, `InitStep`, `InitMode`, `ConfigFormat`, `AvailableCheck`                                                                                                 |
+| `crates/anvil-tui/src/surfaces/init/render.rs`                  | Init wizard render                                                                                                                                                    |
+| `crates/anvil-tui/src/surfaces/onboarding/mod.rs`               | `config_exists_in`; module declarations                                                                                                                               |
+| `crates/anvil-tui/src/surfaces/onboarding/welcome.rs`           | First-run welcome (3 choices)                                                                                                                                         |
+| `crates/anvil-tui/src/surfaces/onboarding/welcome_render.rs`    | First-run welcome render                                                                                                                                              |
+| `crates/anvil-tui/src/surfaces/onboarding/hooks.rs`             | Hook installation surface (Husky / Lefthook / pre-commit / config)                                                                                                    |
+| `crates/anvil-tui/src/surfaces/onboarding/hooks_render.rs`      | Hook installation render                                                                                                                                              |
+| `crates/anvil-tui/src/surfaces/onboarding/init_complete.rs`     | Post-init summary state                                                                                                                                               |
+| `crates/anvil-tui/src/surfaces/onboarding/complete.rs`          | End-of-onboarding summary state                                                                                                                                       |
+| `crates/anvil-tui/src/surfaces/plan_dashboard/mod.rs`           | `PlanDashboardState`, `PlanDashboardSnapshot`, module / work-item / warning rows (APSCAN)                                                                             |
+| `crates/anvil-tui/src/surfaces/plan_dashboard/event_adapter.rs` | Plan dashboard key/action handling (filter mode, toggles, rescan)                                                                                                     |
+| `crates/anvil-tui/src/surfaces/plan_dashboard/render.rs`        | Plan dashboard render                                                                                                                                                 |
+| `crates/anvil-tui/src/surfaces/status/mod.rs`                   | `StatusState`, `StatusPanel`, `HookStatus`, `ProfileInfo`, `GateRunResult`                                                                                            |
+| `crates/anvil-tui/src/surfaces/status/render.rs`                | Status render                                                                                                                                                         |
+| `crates/anvil-tui/src/surfaces/tutorial/mod.rs`                 | `TutorialState`, `TutorialPath`, `TutorialPhase`, `TutorialStep`, `STATIC_MODE_WATCHER_UNAVAILABLE`                                                                   |
+| `crates/anvil-tui/src/surfaces/tutorial/paths.rs`               | `protection_loop_steps`, `policy_steps`, `architecture_steps`, `drift_steps`, `ci_steps`                                                                              |
+| `crates/anvil-tui/src/surfaces/tutorial/discovery.rs`           | Tutorial discovery (scan results, finding severity)                                                                                                                   |
+| `crates/anvil-tui/src/surfaces/tutorial/discovery_render.rs`    | Discovery render                                                                                                                                                      |
+| `crates/anvil-tui/src/surfaces/tutorial/executor.rs`            | Tutorial command executor                                                                                                                                             |
+| `crates/anvil-tui/src/surfaces/tutorial/fix.rs`                 | Tutorial in-step fix surface                                                                                                                                          |
+| `crates/anvil-tui/src/surfaces/tutorial/fix_render.rs`          | Fix render                                                                                                                                                            |
+| `crates/anvil-tui/src/surfaces/tutorial/render.rs`              | Tutorial main render (path select / running / complete phases)                                                                                                        |
+| `crates/anvil-tui/src/surfaces/tutorial/showcase.rs`            | Tutorial showcase content                                                                                                                                             |
+| `crates/anvil-tui/src/surfaces/tutorial/verify.rs`              | `Verify::FileExists`, `Verify::ExitCode`, `VerifyResult`                                                                                                              |
+| `crates/anvil-tui/src/surfaces/tutorial/watch_demo.rs`          | Watch demo surface (LAUNCH-014 / WELCOME-014)                                                                                                                         |
+| `crates/anvil-tui/src/surfaces/tutorial/watch_demo_render.rs`   | Watch demo render                                                                                                                                                     |
+| `crates/anvil-tui/src/surfaces/update_hint.rs`                  | `UpdateHint` shared DTO (DISTRIB-002); re-exported at `surfaces/mod.rs:18`                                                                                            |
+| `crates/anvil-tui/src/surfaces/watch/mod.rs`                    | `WatchState`, `WatchData`, `WatchStatus`, `WatchPanel`, `ActionResultLine`, `RunHistory`, `WatchStats`                                                                |
+| `crates/anvil-tui/src/surfaces/watch/event_adapter.rs`          | `WatchEventAdapter` (kernel events → WatchData)                                                                                                                       |
+| `crates/anvil-tui/src/surfaces/watch/render.rs`                 | Watch 2x2 grid render + action footer                                                                                                                                 |
+| `crates/anvil-tui/src/surfaces/welcome/mod.rs`                  | `WelcomeState`, `QuickStartOption`                                                                                                                                    |
+| `crates/anvil-tui/src/surfaces/welcome/render.rs`               | Welcome render                                                                                                                                                        |
+| `crates/anvil-tui/src/surfaces/wizard/mod.rs`                   | `WizardState`, `WizardStep`, `WizardConfig`, `Template`                                                                                                               |
+| `crates/anvil-tui/src/surfaces/wizard/render.rs`                | Wizard render                                                                                                                                                         |
 
 External references (consumers in `anvil-cli`):
 
@@ -877,7 +947,10 @@ External references (consumers in `anvil-cli`):
 - `RELEASE-PLAN.md` — `v0.5.1-beta` zoom controls, `v0.6.0-beta` slate.
 - `CHANGELOG.md` ll. 134-168 — TUI hotfix history (zoom controls, doctor /
   tutorial papercuts, audit env-template filtering).
-- `plans/modules/tui-dashboard-render.aps.md` — TUIDASH (Draft 0/12).
+- `plans/modules/tui-dashboard-render.aps.md` — TUIDASH (In Progress 13/13
+  merged; rides `v0.8.0-beta`).
+- `plans/archive/modules/native-tui-dashboards.aps.md` — TDASH (Complete,
+  archived).
 - `plans/archive/modules/ratatui-tui.aps.md` — RATS (Complete, archived).
 - `plans/archive/modules/ink-to-ratatui-port.aps.md` — PORT (Complete,
   archived).

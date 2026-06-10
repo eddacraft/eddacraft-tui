@@ -185,10 +185,15 @@
 
 ## INTD
 
-| Document                                                                                   | Path                                         | Type     | Authority     | Owner | Status |
-| ------------------------------------------------------------------------------------------ | -------------------------------------------- | -------- | ------------- | ----- | ------ |
-| [INTD-012 — Windows Confidence Evidence](../../docs/runbooks/intd-012-windows-evidence.md) | `docs/runbooks/intd-012-windows-evidence.md` | Runbook  | Authoritative | INTD  | Live   |
-| [anvil-intercept — As-Built](../../docs/architecture/intercept-as-built.md)                | `docs/architecture/intercept-as-built.md`    | As-built | Derived       | INTD  | Live   |
+| Document                                                                                   | Path                                         | Type    | Authority     | Owner | Status |
+| ------------------------------------------------------------------------------------------ | -------------------------------------------- | ------- | ------------- | ----- | ------ |
+| [INTD-012 — Windows Confidence Evidence](../../docs/runbooks/intd-012-windows-evidence.md) | `docs/runbooks/intd-012-windows-evidence.md` | Runbook | Authoritative | INTD  | Live   |
+
+## INTD, DSV
+
+| Document                                                                    | Path                                      | Type     | Authority | Owner     | Status |
+| --------------------------------------------------------------------------- | ----------------------------------------- | -------- | --------- | --------- | ------ |
+| [anvil-intercept — As-Built](../../docs/architecture/intercept-as-built.md) | `docs/architecture/intercept-as-built.md` | As-built | Derived   | INTD, DSV | Live   |
 
 ## KERN
 

@@ -1,8 +1,8 @@
 # Driver Framework + intercept-proto — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                                                                         |
-| -------- | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | DRVR  | Live   | Last reviewed 2026-05-07 against `v0.6.0-beta` and `crates/anvil-intercept-proto`, `crates/anvil-intercept-rules`, `packages/anvil-driver-client` |
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                                                      |
+| -------- | --------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | DRVR  | Live   | Last reviewed 2026-06-10 (targeted delta review: INTR-003/-005/-007 rule set + config, §8.4 panic-policy correction) against main `a1c41e284`; full review 2026-05-07 against `v0.6.0-beta` and `crates/anvil-intercept-proto`, `crates/anvil-intercept-rules`, `packages/anvil-driver-client` |
 
 | Upstream                                                                                                                                         | Downstream                                                                                              |
 | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
@@ -10,16 +10,18 @@
 
 > **Status:** Live (beta) for the proto + driver-client TypeScript glue;
 > framework spec is partially shipped (DRVR Waves 1-3 active; Wave 4 deferred
-> per ADR-033). **Last reviewed:** 2026-05-07 against `v0.6.0-beta` slate (HEAD
+> per ADR-033). **Last reviewed:** 2026-06-10 (targeted delta review:
+> INTR-003/-005/-007 rule set + config, §8.4 panic-policy correction) against
+> main `a1c41e284`; full review 2026-05-07 against `v0.6.0-beta` slate (HEAD
 > `d223b8d9`). **Crates / locations:** `crates/anvil-intercept-proto`,
 > `crates/anvil-intercept-rules`, `packages/anvil-driver-client` (+ Win32
 > primitives in `crates/anvil-intercept-win32`). **Module owner (APS):** DRVR
 > (`plans/archive/modules/surface-drivers.aps.md`, 5/5 active — 2 superseded, 1
 > deferred under ADR-033), with downstream spec at
 > `plans/specs/anvil-driver-framework/`. Adjacent modules: INTR
-> (`plans/modules/intercept-rules.aps.md`, In Progress 4/8) for the hot-path
-> rule registry, and INTD (`plans/archive/modules/intercept-daemon.aps.md`,
-> Complete 16/16) for the daemon side that consumes the proto. **Used by:**
+> (`plans/modules/intercept-rules.aps.md`, Complete 8/8) for the hot-path rule
+> registry, and INTD (`plans/archive/modules/intercept-daemon.aps.md`, Complete
+> 16/16) for the daemon side that consumes the proto. **Used by:**
 > `anvil intercept status` CLI surface
 > (`crates/anvil-cli/src/commands/intercept.rs`); MCP shim's daemon-backed
 > validation client (`crates/anvil-cli/src/mcp/validation.rs`); the in-tree
@@ -548,8 +550,8 @@ demo-runbook §1.5 trust signal.
 ## 8. `anvil-intercept-rules`
 
 The hot-path rule registry. Owned by INTR
-(`plans/modules/intercept-rules.aps.md`, In Progress 4/8). The crate's brief is
-to keep rule code in one place, dep-light enough that the intercept daemon can
+(`plans/modules/intercept-rules.aps.md`, Complete 8/8). The crate's brief is to
+keep rule code in one place, dep-light enough that the intercept daemon can
 compose `Vec<Box<dyn InterceptRule>>` without pulling in the full kernel.
 
 ### 8.1 What it contains
@@ -572,16 +574,49 @@ compose `Vec<Box<dyn InterceptRule>>` without pulling in the full kernel.
 - `reasoning.rs` — `LaunchReasoningPatternRule` (INTR-008). Wraps
   `anvil_checks::reasoning::run_reasoning_check_with_limit` for
   appeal-to-authority detection (`reasoning.rs:1-40`).
+- `antipattern.rs` — `AntipatternScanRule` (INTR-003). Wraps
+  `anvil_checks::antipattern::scan_file` over borrowed content (no disk read, no
+  rayon pool) and interrupts on the first finding at or above the configured
+  `severity_threshold` that is not inline-suppressed (`@anvil-ignore`, ADR-029).
+  Extension-gated via `config.extensions`; `Removed` changes and below-threshold
+  / suppressed findings `Allow`. Rule id `antipattern-scan`
+  (`antipattern.rs:43, 81-151`).
+- `path_deny.rs` — `PathDenyListRule` (INTR-004). Glob-based (`globset`,
+  gitignore-flavoured `**`) deny list, and the only **path-only** rule
+  (`needs_content()` is `false`) — so the registry can skip content reads when
+  it is the sole rule. Globs compile once at construction; malformed patterns
+  surface as `PathDenyError::InvalidGlob`. `Removed` changes `Allow`. Rule id
+  `path-deny` (`path_deny.rs:22, 42-61`).
+- `regex_content.rs` — `RegexContentRule` (INTR-005). Per-line regex matcher,
+  the content counterpart to path-deny. Patterns compile eagerly; empty or
+  duplicate patterns are rejected at construction
+  (`RegexContentError::InvalidPattern`). **First registered pattern wins**;
+  lines are split with `str::lines` (CRLF-clean, unlike the antipattern
+  scanner's upstream `split('\n')`). Rule id `regex-content`
+  (`regex_content.rs:31, 88-119, 146-184`).
+- `config.rs` — INTR-007 rule configuration. Builds a populated `RuleRegistry`
+  from the `.anvil.<ext>` `enforcement.intercept-rules` block via
+  `registry_from_value` / `registry_from_workspace` (`config.rs:187-200`).
+  Defaults (absent file / block): secret detection on, antipattern off, no
+  path-deny / regex-content patterns (`config.rs:101-110`). Malformed config —
+  including unknown rule keys or a typo inside a per-rule object — is a typed
+  `RuleConfigError`, never a silent default (`config.rs:139-156, 212-250`).
+  Registration order is fixed: path-deny, secret-detection, antipattern,
+  regex-content (`config.rs:164-183`).
 
 ### 8.2 Role in the framework
 
 The rules crate is the **library** the daemon links against
-(`crates/anvil-intercept/src/enforcement.rs:6-12`, `default_rule_registry` at
-`enforcement.rs:96-97`); it is **not** a crate drivers link against. Drivers
+(`crates/anvil-intercept/src/enforcement.rs:5-12`, `default_rule_registry` at
+`enforcement.rs:95-102`); it is **not** a crate drivers link against. Drivers
 consume the daemon's `scan_buffer` / `validate_write` RPC surface and receive
 the diagnostics rules emit via `anvil/publishDiagnostics`. From a driver's
 perspective, the rule set is opaque — the daemon does composition,
-short-circuit, redaction, and emission.
+short-circuit, redaction, and emission. The daemon's `default_rule_registry`
+composes secret-detection and launch-reasoning today; the INTR-007 config path
+(`anvil_intercept_rules::config::registry_from_workspace`) assembles the
+antipattern, path-deny, and regex-content rules from `.anvil.<ext>` but is not
+yet wired into the daemon's default registry construction.
 
 The crate is therefore part of the framework only by virtue of being the source
 of the diagnostic envelopes drivers render. It is owned by the INTR module
@@ -591,18 +626,21 @@ of the diagnostic envelopes drivers render. It is owned by the INTR module
 
 The trait-level docstring pins **microseconds to hundreds of microseconds** as
 the latency envelope. No graph recomputation, no network calls, no expensive AST
-analysis (`lib.rs:154-157`). Out-of- scope items are listed in
+analysis (`lib.rs:170-173`). Out-of- scope items are listed in
 `plans/modules/intercept-rules.aps.md` — out-of-band rules ride on a different
 evaluator.
 
-### 8.4 Panic policy (release-build caveat)
+### 8.4 Panic policy
 
-The trait says rules MUST NOT panic. The registry wraps every `evaluate` call in
-`std::panic::catch_unwind` to enforce that under unwind builds — but the
-workspace's `[profile.release]` sets `panic="abort"`, so release-build rule
-panics still terminate the daemon. This is documented at `registry.rs:21-30`.
-The long-term answer is panic-free rules by construction; the trait doc is the
-contract surface.
+The trait says rules MUST NOT panic. The registry enforces that by wrapping
+every `evaluate` call in `std::panic::catch_unwind` and treating a panicking
+rule as `Allow`. This isolation holds in release builds too: the workspace's
+`[profile.release]` sets `panic = "unwind"` (ADR-051, chosen because `anvil`
+processes untrusted input and a panic must surface as a structured error rather
+than a `SIGABRT`), so `catch_unwind` is not a debug-only safeguard
+(`Cargo.toml:156-164`, `registry.rs:20-30`). The trait still asks for panic-free
+rules by construction as the long-term answer, but the registry no longer
+depends on it for crash-safety.
 
 ## 9. Windows path (Win32 named pipe)
 
@@ -843,12 +881,16 @@ and where they don't:
 
 ### `crates/anvil-intercept-rules/src/`
 
-| File           | Role                                                                                                                                                             |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lib.rs`       | `InterceptRule` trait, `RuleInput`, `RuleDecision`, `InterruptReason`, `ChangeKind`. Object-safe by construction.                                                |
-| `registry.rs`  | `RuleRegistry`, `RegistryDecision`, `RegistryError`, `RegistryMode`. First-interrupt short-circuit, panic isolation under unwind builds, duplicate-id rejection. |
-| `secret.rs`    | `SecretDetectionRule` — wraps `anvil_checks::secret`.                                                                                                            |
-| `reasoning.rs` | `LaunchReasoningPatternRule` — appeal-to-authority detector.                                                                                                     |
+| File               | Role                                                                                                                                                                                                                    |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib.rs`           | `InterceptRule` trait, `RuleInput`, `RuleDecision`, `InterruptReason`, `ChangeKind`. Object-safe by construction.                                                                                                       |
+| `registry.rs`      | `RuleRegistry`, `RegistryDecision`, `RegistryError`, `RegistryMode`. First-interrupt short-circuit, `catch_unwind` panic isolation (effective in release: workspace `panic="unwind"`, ADR-051), duplicate-id rejection. |
+| `secret.rs`        | `SecretDetectionRule` — wraps `anvil_checks::secret`.                                                                                                                                                                   |
+| `reasoning.rs`     | `LaunchReasoningPatternRule` — appeal-to-authority detector.                                                                                                                                                            |
+| `antipattern.rs`   | `AntipatternScanRule` (INTR-003) — wraps `anvil_checks::antipattern::scan_file`; severity threshold + `@anvil-ignore` suppression honoured.                                                                             |
+| `path_deny.rs`     | `PathDenyListRule` (INTR-004) — glob deny list; the only path-only rule (`needs_content()` is `false`).                                                                                                                 |
+| `regex_content.rs` | `RegexContentRule` (INTR-005) — per-line regex matcher; eager-compiled, CRLF-clean.                                                                                                                                     |
+| `config.rs`        | INTR-007 — `InterceptRulesConfig`, `registry_from_value`, `registry_from_workspace`; builds a registry from `enforcement.intercept-rules`.                                                                              |
 
 ### `packages/anvil-driver-client/src/`
 
