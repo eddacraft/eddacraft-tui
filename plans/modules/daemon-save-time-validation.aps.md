@@ -4,10 +4,10 @@
 | --- | ----- | ----------- |
 | DSV | Josh  | In Progress |
 
-**Last reviewed:** 2026-06-08 (DSV-044 Done — assurance and fence transitions
-now emit through the production broadcaster/fanout with registered-session /
-registered-worktree correlation; telemetry subscriber/drop counters reach
-`query_status`; intercept lib tests green locally.)
+**Last reviewed:** 2026-06-09 (A′ default-on routing complete — unset
+`ANVIL_WATCH_DAEMON` now routes `check` watches through a live save-time daemon,
+`ANVIL_WATCH_DAEMON=0` opts out, and explicit `=1` preserves the forced
+diagnostic path; focused CLI routing tests green locally.)
 
 ## Purpose
 
@@ -47,16 +47,16 @@ persistence) without consumers re-integrating.
   clients; closed 2/2 on green cross-matrix evidence, run 27102943706). Same
   frozen wire and interim backing as Sub-phase A — a *platform* axis, not a
   *backing* swap, so it is orthogonal to A′/B.
-- **Sub-phase A′ — GV2 hot-read swap.** Replace the interim cache with the GV2
-  resident warm-index slice under the unchanged wire. **Unblocked** — the
+- **Sub-phase A′ — GV2 hot-read swap + default-on routing.** Replace the interim
+  cache with the GV2 resident warm-index slice under the unchanged wire, then
+  make daemon routing the safe default for `check` watches. **Done** — the
   hot-/non-hot-path boundary gate is closed by
   [ADR-063](../decisions/063-gv2-hot-path-boundary.md) (Accepted 2026-06-01), and
   the swap is the **headline v0.8.0-beta payload** per
   [ADR-075](../decisions/075-v080-graph-product-scope.md) (Accepted via council).
-  The swap itself is GV2-027 (deps GV2-022/024/028/029); sequenced behind the
-  GV2-010 → 011 → 022 … chain. Carries a verdict-parity proof + the ADR-031
-  Criterion gate (GV2-025) + GV2-028 Done as hard cut gates, then the default-on
-  `ANVIL_WATCH_DAEMON` flip with rollout controls.
+  GV2-027 merged the backing swap with verdict parity, GV2-025 supplied the
+  ADR-031 Criterion gate, and DSV-021 flipped `ANVIL_WATCH_DAEMON` default-on
+  with the rollout controls required by ADR-075.
 - **Sub-phase B — warm-start persistence.** Add a default-off, per-uid,
   owner-only snapshot that restores graph indexes (never the verdict) on daemon
   restart, per the validation contract §9. Blocked on the GV2-021 persistence ADR.
@@ -155,7 +155,7 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
 - [x] Council review passed (do-not-start blockers resolved; holistic re-review GO-WITH-CONDITIONS)
 - [x] Sub-phase A action plan exists with concrete validation commands per task
 - [x] Crate-boundary predecessor identified and scoped (DSV-001 / Task 0)
-- [ ] (A′) GV2 hot-/non-hot-path boundary agreed with INTD and DRVR owners
+- [x] (A′) GV2 hot-/non-hot-path boundary agreed with INTD and DRVR owners
 - [ ] (B) GV2-021 persistence ADR accepted
 
 ## Work Items
@@ -403,9 +403,14 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
   `crates/anvil-cli/src/commands/watch_save_time.rs` is the daemon `validate_paths`
   client + connection-lifecycle state machine (warn-once-per-disconnect, reconnect
   re-issues `request_full_scan`, mid-session death ⇒ scoped fallback +
-  `unavailable{daemon-absent}`). Wired into `watch.rs`'s `run_one_action`, **opt-in via
-  `ANVIL_WATCH_DAEMON`** (default-off so the not-yet-auto-started daemon does not change
-  default watch behaviour — trunk-releasable, per the release-gating model).
+  `unavailable{daemon-absent}`). Initially wired into `watch.rs`'s `run_one_action`
+  as an **opt-in via `ANVIL_WATCH_DAEMON`** (default-off so the
+  not-yet-auto-started daemon did not change default watch behaviour —
+  trunk-releasable, per the release-gating model).
+- **Progress (2026-06-09):** the DSV-021 rollout flip reuses this client path as
+  the default when a live daemon serves `workspace_status`; explicit
+  `ANVIL_WATCH_DAEMON=1` preserves the old forced-on diagnostics path, and
+  `ANVIL_WATCH_DAEMON=0` opts out.
 - **Task 13 reconciliation (council-confirmed 2026-06-03):** the execution-plan wording
   "re-point the in-process scan to daemon `validate_paths`" is corrected to **the daemon's
   `scan_buffer` verb**. MCP `anvil_validate_write` is a *pre-write* gate over *proposed
@@ -654,8 +659,8 @@ flake on the Windows leg). Sub-phase A-W is closed 2/2.
   `WindowsPipeDaemonValidationClient`) backs the `cfg(not(unix))` stubs in
   `watch_save_time.rs` (`query_workspace_status`, `build_save_time_client`), so
   `watch` routes save-time validation and `anvil status` renders the assurance
-  surface on Windows — under the same opt-in (`ANVIL_WATCH_DAEMON`) gate and scoped
-  fallback as Unix.
+  surface on Windows — under the same default-on/opt-out
+  (`ANVIL_WATCH_DAEMON`) gate and scoped fallback as Unix.
 - **Validation:** the watch socket round-trip + status render tests extended to a
   Windows named-pipe fixture (mirroring the MLP2-075 Windows test pattern).
 - **Files:** `crates/anvil-cli/src/commands/{watch_save_time,watch,status}.rs`.
@@ -894,22 +899,52 @@ Merged item; each is an additive improvement under the frozen wire.
 
 #### DSV-020: Swap the GV2 hot-read slice under the frozen wire
 
-- **Status:** Blocked
+- **Status:** Merged 2026-06-08 via PR #2446
+- **Progress (2026-06-09 closeout):** the stale `Blocked` state is reconciled to
+  the already-merged GV2-027 stack: `validate_paths` now reads the resident GV2
+  hot-read index under the frozen DSV wire, with verdict parity and privilege
+  containment wired in the same stack. The user-facing default-on flip is tracked
+  separately as DSV-021.
 - **Intent:** Replace the interim `SymbolGraph` cache with GV2 resident warm indexes
   behind the unchanged `validate_paths` wire, so the verdict reads GV2's hot-path API
   instead of the rebuild-on-restart interim cache.
 - **Expected Outcome:** The daemon backing is the GV2 hot-read slice; the wire,
   `check_families` scoping, and parity gate are unchanged; latency stays within the
   ADR-031 budget.
-- **Validation:** the Sub-phase A parity + SLO gates stay green with the GV2 backing;
-  criterion hot-read benchmark meets ADR-031.
-- **Confidence:** low
+- **Validation:** GV2-027 verdict-parity property test and the Sub-phase A parity
+  gates; GV2-025 Criterion hot-read benchmark meets ADR-031.
+- **Confidence:** high
 - **Priority:** Medium
-- **Dependencies:** GV2-010, GV2-011, GV2-020, GV2-022; the GV2 hot-/non-hot-path
-  boundary gate; DSV-005
-- **Blocked reason:** the GV2 hot-/non-hot-path boundary gate is not yet agreed with
-  INTD/DRVR owners (GV2 Ready Checklist), and GV2-010/011/020/022 are not done.
+- **Dependencies:** GV2-010, GV2-011, GV2-022, GV2-028, GV2-029; the GV2
+  hot-/non-hot-path boundary gate; DSV-005
 - **Source:** ADR-061 sub-phase A′; ADR-063.
+
+---
+
+#### DSV-021: Default-on daemon routing with rollout controls
+
+- **Status:** Done 2026-06-09
+- **Intent:** Flip save-time daemon routing from preview opt-in to safe default-on
+  for `check` watches once the A′ backing is live, without producing
+  daemon-absent warning storms for users who do not run the daemon.
+- **Expected Outcome:** With `ANVIL_WATCH_DAEMON` unset, `anvil watch --action
+  check` builds the save-time client only after the daemon answers the served
+  `workspace_status` verb; no live daemon keeps the subprocess-only path and
+  default status output unchanged. `ANVIL_WATCH_DAEMON=0` / `false` / `off` /
+  `no` opts out. `ANVIL_WATCH_DAEMON=1` / `true` / `on` / `yes` preserves the
+  previous forced-on diagnostic mode, including scoped daemon-absent fallback.
+  Public docs describe all three states.
+- **Validation:** `cargo test -p eddacraft-anvil daemon_routing`; targeted watch
+  and status tests.
+- **Files:** `crates/anvil-cli/src/commands/{watch_save_time,watch,status}.rs`,
+  `docs/public/anvil/operations/config.md`,
+  `docs/public/anvil/guides/agent-harness.md`,
+  `docs/public/anvil/integrations/{watch-output,mcp}.md`
+- **Confidence:** high
+- **Priority:** High
+- **Dependencies:** DSV-020; GV2-025; ADR-075 rollout controls.
+- **Source:** ADR-075 default-on save-time daemon routing; v0.8.0-beta release
+  cut criteria.
 
 ---
 
@@ -953,6 +988,6 @@ Merged item; each is an additive improvement under the frozen wire.
 | A — Interim-cache `validate_paths` | 9 | 9/9 done | Done (all Merged; awaiting release) |
 | A-W — Windows + cross-platform parity | 2 | 2/2 done (DSV-010 Merged — verbs served on Windows + hardening; DSV-011 Merged — clients verified on the green cross matrix, run 27102943706) | Done (all Merged; awaiting release) |
 | A — deferred follow-ups | 5 | 5/5 done | Done |
-| A′ — GV2 hot-read swap | 1 | 0/1 done | Blocked |
+| A′ — GV2 hot-read swap + default-on routing | 2 | 2/2 done | Done |
 | B — Warm-start persistence | 1 | 0/1 done | Blocked |
-| **Total** | **18** | **16/18 done** | **In Progress** |
+| **Total** | **19** | **18/19 done** | **In Progress** |

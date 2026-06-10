@@ -1152,7 +1152,8 @@ archive.
 
 - **Status:** Ready
 - **Intent:** DSV-007 made `anvil watch` a thin save-time-daemon client with a
-  scoped fallback (opt-in behind `ANVIL_WATCH_DAEMON`). The "warn once per
+  scoped fallback (safe default-on via DSV-021, with `ANVIL_WATCH_DAEMON=0`
+  opt-out and `=1` forced diagnostics). The "warn once per
   disconnect" contract is honoured on the plain/non-TUI surface
   (`tracing::warn!` plus an advisory stderr line), but in TUI mode the warn is
   suppressed — the alt-screen owns stdout/stderr — so a TUI user gets a
@@ -1163,7 +1164,7 @@ archive.
   back (daemon absent / mid-session death), the watch action footer (or status
   strip) shows a once-per-disconnect indicator (e.g. `daemon: unavailable —
   scoped fallback`) that resets on reconnect. No change to the non-TUI surface
-  or to the default-off `ANVIL_WATCH_DAEMON` gate.
+  or to the DSV-021 default-on/opt-out routing gate.
 - **Validation:** a render/unit test that a TUI fallback cycle produces the
   footer indicator once per disconnect and clears on reconnect.
 - **Identified From:** DSV-007 (PR #2284) batch council — kernel-maintainer

@@ -27,6 +27,7 @@
 //!   so assurance re-establishes from `stale` rather than a pre-disconnect
 //!   `clean`.
 
+use std::ffi::OsStr;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
@@ -78,19 +79,38 @@ pub(crate) trait SaveTimeTransport: Send {
     ) -> Result<WorkspaceAssurance, SaveTimeClientError>;
 }
 
-/// True when the user-facing surfaces (`watch` routing, `status` assurance)
-/// should engage the resident save-time daemon (DSV-007). Opt-in and
-/// default-off: the save-time daemon is not auto-started in Sub-phase A, so
-/// enabling by default would change default `watch`/`status` output for every
-/// user against an absent daemon. Operators / CI running the daemon set
-/// `ANVIL_WATCH_DAEMON=1` (also `true`/`on`/`yes`).
-pub(crate) fn daemon_routing_enabled() -> bool {
-    std::env::var_os("ANVIL_WATCH_DAEMON").is_some_and(|value| {
-        matches!(
-            value.to_string_lossy().as_ref(),
-            "1" | "true" | "on" | "yes"
-        )
-    })
+/// Rollout posture for the user-facing save-time daemon surfaces.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum DaemonRoutingMode {
+    /// Explicit opt-out: keep the pre-DSV subprocess-only path.
+    Disabled,
+    /// Unset environment: use daemon routing only when the daemon is already live
+    /// and serving the save-time verbs, avoiding daemon-absent warning storms.
+    DefaultOnWhenLive,
+    /// Explicit opt-in: preserve the old preview behaviour, including scoped
+    /// daemon-absent fallback if the endpoint cannot answer.
+    ForcedOn,
+}
+
+/// Resolve the rollout posture controlled by `ANVIL_WATCH_DAEMON`.
+///
+/// The v0.8 default-on flip treats an unset variable as safe default-on: route
+/// only after a live save-time daemon answers an initial status probe. Explicit
+/// true values keep the old opt-in preview semantics; explicit false values are
+/// the documented rollout opt-out.
+pub(crate) fn daemon_routing_mode() -> DaemonRoutingMode {
+    daemon_routing_mode_from(std::env::var_os("ANVIL_WATCH_DAEMON").as_deref())
+}
+
+fn daemon_routing_mode_from(value: Option<&OsStr>) -> DaemonRoutingMode {
+    let Some(value) = value else {
+        return DaemonRoutingMode::DefaultOnWhenLive;
+    };
+    match value.to_string_lossy().to_ascii_lowercase().as_str() {
+        "0" | "false" | "off" | "no" => DaemonRoutingMode::Disabled,
+        "1" | "true" | "on" | "yes" => DaemonRoutingMode::ForcedOn,
+        _ => DaemonRoutingMode::DefaultOnWhenLive,
+    }
 }
 
 /// One-shot read of a worktree's [`WorkspaceAssurance`] from the daemon. `None`
@@ -707,6 +727,65 @@ mod tests {
     };
 
     use super::*;
+
+    #[test]
+    fn daemon_routing_unset_defaults_on_when_live() {
+        assert_eq!(
+            daemon_routing_mode_from(None),
+            DaemonRoutingMode::DefaultOnWhenLive,
+            "unset ANVIL_WATCH_DAEMON is the v0.8 safe default-on posture",
+        );
+    }
+
+    #[test]
+    fn daemon_routing_false_values_disable() {
+        for value in ["0", "false", "off", "no"] {
+            assert_eq!(
+                daemon_routing_mode_from(Some(std::ffi::OsStr::new(value))),
+                DaemonRoutingMode::Disabled,
+                "{value:?} must be the documented rollout opt-out",
+            );
+        }
+    }
+
+    #[test]
+    fn daemon_routing_true_values_force_on() {
+        for value in ["1", "true", "on", "yes"] {
+            assert_eq!(
+                daemon_routing_mode_from(Some(std::ffi::OsStr::new(value))),
+                DaemonRoutingMode::ForcedOn,
+                "{value:?} must preserve the old explicit opt-in behaviour",
+            );
+        }
+    }
+
+    #[test]
+    fn daemon_routing_unrecognized_values_fall_back_to_unset_default() {
+        // An empty value (`ANVIL_WATCH_DAEMON=`), whitespace, or any string that
+        // is neither a documented false nor true token carries no explicit
+        // opinion, so it resolves to the same posture as unset — the safe
+        // DefaultOnWhenLive default, never a silent disable. Operators opt out
+        // with an explicit false value, not by blanking.
+        for value in ["", "  ", "maybe", "default", "2"] {
+            assert_eq!(
+                daemon_routing_mode_from(Some(std::ffi::OsStr::new(value))),
+                DaemonRoutingMode::DefaultOnWhenLive,
+                "{value:?} carries no opt-out/force opinion → unset default",
+            );
+        }
+    }
+
+    #[test]
+    fn daemon_routing_value_matching_is_case_insensitive() {
+        assert_eq!(
+            daemon_routing_mode_from(Some(std::ffi::OsStr::new("FALSE"))),
+            DaemonRoutingMode::Disabled,
+        );
+        assert_eq!(
+            daemon_routing_mode_from(Some(std::ffi::OsStr::new("On"))),
+            DaemonRoutingMode::ForcedOn,
+        );
+    }
 
     /// Scripted fake: each `validate_paths` call pops the next outcome; if the
     /// script is exhausted it returns a clean verdict. Records the call counts so

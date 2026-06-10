@@ -561,12 +561,12 @@ struct DispatcherInner {
     /// it from another thread while the worker is polling `try_wait()`.
     in_flight: std::sync::Mutex<Option<std::process::Child>>,
     worker: std::sync::Mutex<Option<std::thread::JoinHandle<()>>>,
-    /// DSV-007 Task 12: the save-time daemon client. `Some` only when daemon
-    /// routing is opt-in-enabled (`ANVIL_WATCH_DAEMON`) for a `check` watch on a
-    /// unix host with a resolvable socket dir. `None` ⇒ the pre-DSV
-    /// subprocess-only path runs unchanged (no behaviour change, no
-    /// daemon-absent WARN). Held behind a `Mutex` because the worker thread owns
-    /// the connection-lifecycle latch across coalesced dispatches.
+    /// DSV-007 / v0.8: the save-time daemon client. `Some` only for a `check`
+    /// watch when routing is explicitly forced on, or when default-on routing
+    /// finds a live daemon serving the save-time status verb. `None` ⇒ the
+    /// subprocess-only path runs unchanged (no daemon-absent WARN). Held behind
+    /// a `Mutex` because the worker thread owns the connection-lifecycle latch
+    /// across coalesced dispatches.
     save_time: Option<std::sync::Mutex<crate::commands::watch_save_time::WatchSaveTimeClient>>,
     /// Test-only override for `current_exe()`.
     #[cfg(test)]
@@ -575,21 +575,29 @@ struct DispatcherInner {
 
 /// Build the save-time daemon client for a dispatcher, or `None` to keep the
 /// subprocess-only path. `None` when routing is disabled, the action is not
-/// `check`, or no daemon endpoint can be resolved (treated as "no daemon
-/// infrastructure" ⇒ behave exactly as pre-DSV, no WARN). Unix uses the socket
-/// transport; Windows the named-pipe transport (DSV-011).
+/// `check`, or default-on routing cannot prove a live daemon is serving the
+/// save-time status verb (treated as "no daemon infrastructure" ⇒ behave exactly
+/// as pre-DSV, no WARN). Unix uses the socket transport; Windows the named-pipe
+/// transport (DSV-011).
 #[cfg(unix)]
 fn build_save_time_client(
     action: &str,
     workspace_root: &std::path::Path,
 ) -> Option<std::sync::Mutex<crate::commands::watch_save_time::WatchSaveTimeClient>> {
     use crate::commands::watch_save_time::{
-        SocketSaveTimeTransport, WatchSaveTimeClient, daemon_routing_enabled,
+        DaemonRoutingMode, SaveTimeTransport, SocketSaveTimeTransport, WatchSaveTimeClient,
+        daemon_routing_mode,
     };
-    if action != "check" || !daemon_routing_enabled() {
+    let mode = daemon_routing_mode();
+    if action != "check" || mode == DaemonRoutingMode::Disabled {
         return None;
     }
     let transport = SocketSaveTimeTransport::resolve()?;
+    if mode == DaemonRoutingMode::DefaultOnWhenLive
+        && transport.workspace_status(workspace_root).is_err()
+    {
+        return None;
+    }
     Some(std::sync::Mutex::new(WatchSaveTimeClient::new(
         Box::new(transport),
         workspace_root.to_path_buf(),
@@ -602,12 +610,19 @@ fn build_save_time_client(
     workspace_root: &std::path::Path,
 ) -> Option<std::sync::Mutex<crate::commands::watch_save_time::WatchSaveTimeClient>> {
     use crate::commands::watch_save_time::{
-        WatchSaveTimeClient, WindowsPipeSaveTimeTransport, daemon_routing_enabled,
+        DaemonRoutingMode, SaveTimeTransport, WatchSaveTimeClient, WindowsPipeSaveTimeTransport,
+        daemon_routing_mode,
     };
-    if action != "check" || !daemon_routing_enabled() {
+    let mode = daemon_routing_mode();
+    if action != "check" || mode == DaemonRoutingMode::Disabled {
         return None;
     }
     let transport = WindowsPipeSaveTimeTransport::resolve()?;
+    if mode == DaemonRoutingMode::DefaultOnWhenLive
+        && transport.workspace_status(workspace_root).is_err()
+    {
+        return None;
+    }
     Some(std::sync::Mutex::new(WatchSaveTimeClient::new(
         Box::new(transport),
         workspace_root.to_path_buf(),

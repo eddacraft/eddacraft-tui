@@ -27,10 +27,11 @@ were **explicitly deferred** out of the window.
 A pre-cut honesty check of what that slice actually delivers to a default user
 surfaced the problem this ADR responds to:
 
-- The `watch` daemon-routing path is **opt-in behind `ANVIL_WATCH_DAEMON`**
-  (`crates/anvil-cli/src/commands/watch_save_time.rs` → `daemon_routing_enabled()`,
-  default off; called from `watch.rs`) and only for `check` watches. A stock
-  install sees **no change**.
+- Before DSV-021, the `watch` daemon-routing path was **opt-in behind
+  `ANVIL_WATCH_DAEMON`** (`crates/anvil-cli/src/commands/watch_save_time.rs` →
+  `daemon_routing_mode()`, default-off behaviour; called from `watch.rs`) and
+  only for `check` watches. DSV-021 implements this ADR's default-on flip with a
+  live-daemon guard and explicit opt-out.
 - The MCP `anvil_validate_write` path still defaults to `DaemonStatus::NotWired`
   with an embedded fallback and remains on `scan_buffer`, not the new wire.
 - Hot-path coverage is `check_families: ["antipattern"]` only, 1-hop, no

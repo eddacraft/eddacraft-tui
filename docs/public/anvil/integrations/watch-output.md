@@ -35,9 +35,9 @@ documented variants below stay stable. The full normative spec lives at
 [`docs/specs/watch-output-contract.md`](https://github.com/eddacraft/anvil-001/blob/main/docs/specs/watch-output-contract.md).
 
 The stream is identical whether `anvil watch` runs its own scoped `check` per
-save (the default) or routes save-time validation through the resident daemon
-(`ANVIL_WATCH_DAEMON=1`, preview). The backing changes; the event contract does
-not — so consumers never need to branch on it.
+save or routes save-time validation through the resident daemon (the default
+when the daemon is live; `ANVIL_WATCH_DAEMON=0` opts out). The backing changes;
+the event contract does not — so consumers never need to branch on it.
 
 :::
 

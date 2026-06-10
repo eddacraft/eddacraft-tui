@@ -130,10 +130,11 @@ The agent can then:
   resource surface today
 
 When you run both patterns together (a background `anvil watch` plus the MCP
-server), enable daemon-backed save-time routing with `ANVIL_WATCH_DAEMON=1`
-(preview) so watch and `anvil_validate_write` share one warm verdict path
+server), daemon-backed save-time routing is used automatically when the resident
+daemon is live, so watch and `anvil_validate_write` share one warm verdict path
 instead of each spinning up its own scan — useful when several agents are
-editing concurrently.
+editing concurrently. Set `ANVIL_WATCH_DAEMON=0` to opt out, or
+`ANVIL_WATCH_DAEMON=1` to force the daemon path while diagnosing routing.
 
 See [MCP Integration](/anvil/integrations/mcp) for full configuration and tool
 reference.

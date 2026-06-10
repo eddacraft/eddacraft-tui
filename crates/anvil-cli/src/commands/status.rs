@@ -42,8 +42,9 @@ pub fn run(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 
     let mut data = gather_status_data(".");
     let activation = activation::verify(Path::new("."));
-    // DSV-007 Task 17: best-effort save-time assurance + confinement (only when
-    // daemon routing is opt-in-enabled; `None` otherwise keeps output unchanged).
+    // DSV-007 / v0.8: best-effort save-time assurance + confinement. Under the
+    // default-on rollout this is shown only when a live daemon answers; explicit
+    // opt-in preserves the older daemon-absent fallback surface.
     let save_time = gather_save_time();
 
     // DISTRIB-002: surface an update-available hint when one is
@@ -588,8 +589,9 @@ fn print_plain(
 // ---------------------------------------------------------------------------
 
 /// The save-time assurance snapshot rendered by `anvil status`, plus the
-/// operator confinement size. Built only when daemon routing is opt-in-enabled
-/// (`ANVIL_WATCH_DAEMON`); `None` keeps default status output unchanged.
+/// operator confinement size. Built when daemon routing is explicitly forced on,
+/// or when default-on routing finds a live daemon; `None` keeps the default
+/// status output unchanged for non-daemon users.
 #[derive(Debug, Clone)]
 struct SaveTimeRender {
     /// The current assurance. A daemon-absent query is folded to
@@ -615,10 +617,11 @@ struct SaveTimeOutput {
 }
 
 /// Gather the save-time assurance + confinement surface, or `None` when daemon
-/// routing is not enabled (default). Read-only and best-effort: a daemon-absent
-/// query folds to `unavailable{daemon-absent}` rather than failing.
+/// routing is disabled or default-on routing cannot find a live daemon. Explicit
+/// opt-in still folds a daemon-absent query to `unavailable{daemon-absent}`.
 fn gather_save_time() -> Option<SaveTimeRender> {
-    if !watch_save_time::daemon_routing_enabled() {
+    let mode = watch_save_time::daemon_routing_mode();
+    if mode == watch_save_time::DaemonRoutingMode::Disabled {
         return None;
     }
     let workspace = crate::util::workspace_root().unwrap_or_else(|_| Path::new(".").to_path_buf());
@@ -629,13 +632,14 @@ fn gather_save_time() -> Option<SaveTimeRender> {
             assurance,
             confined: confinement_allow_count(),
         }),
-        // No daemon answered: report `unavailable{daemon-absent}` and omit the
-        // confined count — asserting a confinement size while the daemon is not
-        // running would be misleading (nothing is enforcing it).
-        None => Some(SaveTimeRender {
+        // No daemon answered: under the default-on rollout, keep non-daemon
+        // users on the pre-DSV status surface. Explicit opt-in keeps the preview
+        // fallback, because the operator asked to diagnose daemon routing.
+        None if mode == watch_save_time::DaemonRoutingMode::ForcedOn => Some(SaveTimeRender {
             assurance: watch_save_time::daemon_absent_assurance(),
             confined: None,
         }),
+        None => None,
     }
 }
 
@@ -1301,9 +1305,10 @@ struct StatusOutput {
     #[serde(skip_serializing_if = "Option::is_none")]
     project_writes_gated: Option<bool>,
 
-    /// DSV-007 Task 17: the save-time assurance + confinement snapshot. Present
-    /// only when daemon routing is enabled (`ANVIL_WATCH_DAEMON`); omitted under
-    /// the default so the v1 output is unchanged (`additionalProperties: true`).
+    /// DSV-007/021: the save-time assurance + confinement snapshot. Present when
+    /// routing is forced on, or when default-on routing finds a live daemon;
+    /// omitted for non-daemon users so v1 output stays unchanged
+    /// (`additionalProperties: true`).
     #[serde(skip_serializing_if = "Option::is_none")]
     save_time: Option<SaveTimeOutput>,
 }

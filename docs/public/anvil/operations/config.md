@@ -412,22 +412,30 @@ anvil watch --action none                # Architecture/dependency watch only, n
 Bare names match only that exact path. To exclude a directory's contents, use a
 glob such as `vendor/**` rather than `vendor`.
 
-### Save-time validation through the daemon (preview)
+### Save-time validation through the daemon
 
-By default each `anvil watch` change runs a scoped `check` over the files that
-changed. Set `ANVIL_WATCH_DAEMON=1` to route those save-time checks through the
-resident intercept daemon instead: the daemon validates the changed-path delta
-against one warm model rather than spawning a per-save subprocess, so
-`anvil watch` and the editor/agent MCP `validate_write` tool converge on the
-same verdict path. If the daemon is not running, watch falls back to a scoped
-`check` over exactly the changed paths and reports save-time assurance as
-`unavailable` rather than a misleading `clean`.
+By default `anvil watch` uses daemon-backed save-time validation when a resident
+intercept daemon is already live and serving the save-time verbs. The daemon
+validates the changed-path delta against one warm model rather than spawning a
+per-save subprocess, so `anvil watch` and the editor/agent MCP `validate_write`
+tool converge on the same verdict path.
 
-This routing is a preview in this release — it is off unless
-`ANVIL_WATCH_DAEMON` is set. When enabled, `anvil status` gains a `Save-time:`
-line reporting the current assurance state (`clean`, `stale`, `pending`,
-`running`, or `unavailable`) and, in confined mode, the size of the
-admitted-workspace allow-list.
+If no daemon is live, the default path stays quiet and runs a scoped `check`
+over exactly the changed files, never a whole-repository `--all` scan. Set
+`ANVIL_WATCH_DAEMON=0` (also `false`/`off`/`no`) to opt out of daemon routing.
+Set `ANVIL_WATCH_DAEMON=1` (also `true`/`on`/`yes`) to force daemon routing for
+diagnostics; in that forced mode, an absent daemon falls back to the same scoped
+`check` and reports save-time assurance as `unavailable` rather than a
+misleading `clean`. Value matching is case-insensitive. Any other value —
+including an empty `ANVIL_WATCH_DAEMON=` — carries no explicit opinion and is
+treated as unset (the safe default-on-when-live posture); opt out with an
+explicit false value, not by blanking.
+
+When daemon routing is active, `anvil status` gains a `Save-time:` line
+reporting the current assurance state (`clean`, `stale`, `pending`, `running`,
+or `unavailable`) and, in confined mode, the size of the admitted-workspace
+allow-list. With the variable unset and no daemon live, `anvil status` keeps the
+pre-daemon output unchanged.
 
 ## Workspace confinement
 
@@ -529,10 +537,10 @@ configuration, including:
 - `ANVIL_SCAN_THREADS` — cap on the parallel-scan thread pool used by first-run
   scans, `check`, `gate`, and `audit` (default `min(num_cpus, 4)`); raise this
   when running on a dedicated CI runner
-- `ANVIL_WATCH_DAEMON` — set to `1` (or `true`/`on`/`yes`) to route
-  `anvil watch` save-time validation through the resident intercept daemon
-  (preview; see
-  [Save-time validation through the daemon](#save-time-validation-through-the-daemon-preview))
+- `ANVIL_WATCH_DAEMON` — unset defaults to daemon-backed `anvil watch` routing
+  only when a live daemon answers; set `0` (or `false`/`off`/`no`) to opt out,
+  or `1` (or `true`/`on`/`yes`) to force routing for diagnostics. See
+  [Save-time validation through the daemon](#save-time-validation-through-the-daemon)
 
 Legacy Node.js environment variables (`ANVIL_CI`, `ANVIL_FAIL_ON_WARNINGS`) are
 not supported.
