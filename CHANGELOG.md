@@ -26,7 +26,9 @@ ships the next dashboard surface.
 - **`anvil status` surfaces save-time assurance and workspace confinement.**
   Status now reports whether save-time validation is being served by the
   persistent daemon and the workspace's confinement state, so the active
-  protection posture is observable (DSV-007).
+  protection posture is observable (DSV-007). The posture line is always
+  present: with daemon routing on but no live daemon, status prints an explicit
+  off-state line naming `anvil start` instead of omitting it (UJ-005).
 - **Opt-in workspace confinement mode.** A new opt-in mode confines the daemon's
   save-time validation to an admitted workspace root
   ([ADR-061](./plans/decisions/061-save-time-daemon-delta-validation.md) §7,
@@ -42,7 +44,10 @@ ships the next dashboard surface.
   ([#2237](https://github.com/eddacraft/anvil-001/issues/2237), TUIDASH-013).
   The underlying TUI dashboard renderer now supports spec-defined dashboards,
   data binding, charts, responsive layouts, live previews, and hardened handling
-  for malformed specs.
+  for malformed specs. Projects initialised before this release see the
+  dashboard too: when no saved gate-summary spec exists, `anvil dashboard`
+  serves the embedded spec as a zero-write built-in, and a saved spec —
+  init-seeded or user-customised — always shadows it (UJ-009).
 - **First-run adoption hint.** Anvil surfaces a first-week adoption signal hint
   to help new projects find their footing (INSIGHTS-004).
 - **Tracked exception-store foundation.** Policy exceptions now have a tracked
@@ -61,6 +66,16 @@ ships the next dashboard surface.
   Cloud. `inspect`, JSON CI output, tamper-test hardening, retention/prune
   policy, and applied-exception collection remain follow-up work
   (GITGOV-004/-005/-006/-007/-008/-009/-010).
+- **`anvil welcome` runs without logging in.** The discovery scan, tutorial, and
+  welcome hub are no longer auth-gated, so the demo path starts at value instead
+  of a login prompt; the licence wall now sits at `anvil start`, where ongoing
+  protection begins. Durable surfaces (`init`, `start`, `watch`, `check`,
+  `status`, `gate`, …) stay gated
+  ([ADR-080](./plans/decisions/080-ungate-welcome-demo-surface.md), UJ-004).
+- **Post-upgrade "what's new" pointer.** The first plain `anvil status` run
+  after a version change prints a one-line pointer to the changelog, exactly
+  once per version. A fresh install stays silent, and `ANVIL_DISABLE_WHATS_NEW`
+  suppresses the line entirely (UJ-010).
 
 ### Changed
 
@@ -74,7 +89,9 @@ ships the next dashboard surface.
   `v0.7.4-beta` addressed only with the RLB-007 stopgap. Daemon routing needs a
   live daemon: run `anvil start` first; without one, watch falls back to a
   scoped per-save check over just the changed paths. Set `ANVIL_WATCH_DAEMON=0`
-  to opt out of daemon routing entirely.
+  to opt out of daemon routing entirely. `anvil watch --help` now documents the
+  daemon prerequisite and the `ANVIL_WATCH_DAEMON` routing values, and the
+  daemon-absent fallback advisory names `anvil start` (UJ-006).
 - **MCP `validate_write` is daemon-backed.** MCP callers now exercise a
   daemon-backed validation lane instead of a separate cold path when a daemon is
   live (falling back to the embedded scanner otherwise), so editor/agent
@@ -85,6 +102,22 @@ ships the next dashboard surface.
   the real default watch path under churn, the intercept daemon, the MCP server,
   and concurrent multi-process use; the `resource-budgets` CI job records the
   SLO envelope for future regressions (RLB-002/-003/-004/-005/-008).
+- **Onboarding surfaces name the next step.** `install.sh`, `anvil init`,
+  `anvil start`, and `anvil welcome` each end by naming the next command for
+  their context — the installer points at both beta paths (`anvil start` for
+  daily protection, `anvil welcome` for discovery) — so install → first value
+  needs no docs lookup. JSON and `--verify` output are unchanged (UJ-001).
+- **Docs rebuilt around the two beta paths.** The
+  [quickstart](./docs/public/anvil/quickstart.md),
+  [beta testing guide](./docs/public/anvil/beta-testing-guide.md), and
+  [tutorials index](./docs/public/anvil/tutorials/index.md) now lead with the
+  daily-protection and discovery paths; new flagship
+  [Your First Save Caught](./docs/public/anvil/tutorials/first-save-caught.md)
+  and [Analyse a Rust Project](./docs/public/anvil/tutorials/rust-project.md)
+  tutorials land alongside a consolidated
+  [save-time validation guide](./docs/public/anvil/guides/save-time-validation.md),
+  and the CI and suppressions tutorials are folded into their owning guides
+  (UJ-003/-008/-012/-013/-014/-015).
 
 ### Fixed
 
