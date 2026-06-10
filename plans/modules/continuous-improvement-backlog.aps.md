@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 32/53    |
+| CIB | —     | In Progress | 33/53    |
 
 ## Purpose
 
@@ -1347,7 +1347,7 @@ archive.
 
 ### CIB-053: disposition the dogfood repo's tracked `.anvil/` paths
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-10 via PR #2481
 - **Intent:** the GITGOV-014 doctor `state-boundary` check (ADR-073) warns in
   this repo because four `.anvil/` runtime paths are git-tracked:
   `.anvil/baseline.json` (pre-boundary legacy — ADR-073 places the durable
