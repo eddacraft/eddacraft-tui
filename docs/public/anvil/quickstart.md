@@ -174,6 +174,10 @@ workspace assurance state you can read at any time with `anvil status`. Set
 `ANVIL_WATCH_DAEMON=0` to opt out, or `=1` to force daemon routing. See
 `anvil watch --help` for the routing details.
 
+To walk this path end to end — activation, a deliberately bad save, and reading
+the finding anvil raises in your own repo — follow
+[Your First Save Caught](tutorials/first-save-caught.md).
+
 ### The discovery path: `anvil welcome`
 
 If you would rather see what anvil finds before wiring protection, run:
