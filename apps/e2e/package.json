@@ -24,7 +24,7 @@
     "@eddacraft/anvil-aps": "workspace:*",
     "@eddacraft/anvil-adapters": "workspace:*",
     "@eddacraft/anvil-edda-stack": "workspace:*",
-    "hono": "^4.12.23",
+    "hono": "^4.12.25",
     "zod": "^4.4.3"
   },
   "devDependencies": {
