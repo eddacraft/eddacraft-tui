@@ -61,15 +61,20 @@ surface.
 ### Changed
 
 - **`anvil watch` routes save-time checks through the persistent intercept
-  daemon.** The shift from cold-spawning `check` on every save to daemon-served
-  delta validation lands behind the existing watch surface — the durable fix for
-  the watch-CPU report
+  daemon when one is running.** The shift from cold-spawning `check` on every
+  save to daemon-served delta validation lands behind the existing watch surface
+  — the durable fix for the watch-CPU report
   ([#2156](https://github.com/eddacraft/anvil-001/issues/2156)) that
-  `v0.7.4-beta` addressed only with a stopgap.
-- **MCP `validate_write` uses the same daemon save-time path.** MCP callers now
-  exercise the daemon-backed validation lane instead of a separate cold path, so
-  editor/agent integrations and `anvil watch` converge on the same verdict
-  assembly.
+  `v0.7.4-beta` addressed only with a stopgap. Daemon routing needs a live
+  daemon: run `anvil start` first; without one, watch falls back to a scoped
+  per-save check over just the changed paths. Set `ANVIL_WATCH_DAEMON=0` to opt
+  out of daemon routing entirely.
+- **MCP `validate_write` is daemon-backed.** MCP callers now exercise a
+  daemon-backed validation lane instead of a separate cold path when a daemon is
+  live (falling back to the embedded scanner otherwise), so editor/agent
+  integrations and `anvil watch` share the daemon's resident state. The MCP
+  pre-write lane uses the daemon's buffer-scan verb rather than watch's
+  path-validation verb — both daemon-served, each shaped to its caller.
 - **Resource budgets now cover the save-time path.** New CPU/RSS benches measure
   the real default watch path under churn, the intercept daemon, the MCP server,
   and concurrent multi-process use; the `resource-budgets` CI job records the
