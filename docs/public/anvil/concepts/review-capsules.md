@@ -102,12 +102,36 @@ The producer's anvil version and rule identity are written from the same binding
 the witness-writing hook uses, so a capsule's rule identity matches its
 witnessed lines by construction.
 
+## Retention and pruning
+
+Retention is **keep-until-explicitly-pruned**: nothing in anvil ever deletes a
+capsule automatically — no create-time rotation, no hooks, no age-based cleanup.
+External capsules (the default) are yours to manage. If your team opts into
+staging capsules in-repo under `anvil/evidence/capsules/`, they accumulate
+indefinitely by design; bounding the tree is an explicit act:
+
+```bash
+anvil capsule prune --keep-last 10          # dry run: prints what would go
+anvil capsule prune --keep-last 10 --apply  # stages the deletions
+```
+
+Prune is **dry-run by default**. Only directories whose `manifest.json` is a
+valid `anvil.capsule.v1` document are ever candidates; anything else in the
+staging root is skipped with a warning. Capsules are ordered by their head
+commit's committer date (resolved from your repository), and a capsule whose
+head commit your clone does not know is always kept. With `--apply`, deletions
+go through the git index — the same as `git rm -r` — so the prune shows up as
+staged deletions and committing it remains your decision. `--keep-last 0` is
+refused: deleting every capsule is a manual `git rm` call, not a prune. See
+[ADR-078](https://github.com/eddacraft/anvil-001/blob/main/plans/decisions/078-capsule-retention-and-prune.md)
+for the retention decision.
+
 :::caution v0 scope
 
-`anvil capsule create`, `verify`, and `explain` ship today, the last two with
-`--json` for CI consumption. The remaining subcommand — `anvil capsule inspect`
-— plus tamper-test hardening, retention/prune policy, and applied
-policy-exception collection are planned for follow-up work. See
+`anvil capsule create`, `verify`, `explain`, and `prune` ship today —
+`verify`/`explain` with `--json` for CI consumption. The remaining subcommand —
+`anvil capsule inspect` — and applied policy-exception collection are planned
+for follow-up work. See
 [ADR-074](https://github.com/eddacraft/anvil-001/blob/main/plans/decisions/074-review-capsule-v0-format.md)
 for the capsule format.
 
