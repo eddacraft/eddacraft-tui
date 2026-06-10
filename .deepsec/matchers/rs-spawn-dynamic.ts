@@ -30,11 +30,8 @@ export const rsSpawnDynamic: MatcherPlugin = {
 
     const lines = content.split('\n');
     const matches: CandidateMatch[] = [];
-    let inTestMod = false;
 
     for (let i = 0; i < lines.length; i++) {
-      if (/^\s*#\[cfg\(test\)\]/.test(lines[i])) inTestMod = true;
-      if (inTestMod) continue;
       if (/^\s*(?:\/\/|\*)/.test(lines[i])) continue;
       const shell = SHELL_WRAPPER_RE.test(lines[i]);
       const dynamic = !shell && DYNAMIC_PROGRAM_RE.test(lines[i]);

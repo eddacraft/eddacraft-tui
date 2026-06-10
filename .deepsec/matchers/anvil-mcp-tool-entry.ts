@@ -27,8 +27,6 @@ export const anvilMcpToolEntry: MatcherPlugin = {
     const matches: CandidateMatch[] = [];
 
     for (let i = 0; i < lines.length && matches.length < MAX_PER_FILE; i++) {
-      // Inline test modules sit at the bottom of the file by convention.
-      if (/^\s*#\[cfg\(test\)\]/.test(lines[i])) break;
       if (/^\s*(?:\/\/|\*)/.test(lines[i])) continue;
       if (!ENTRY_RE.test(lines[i])) continue;
       const start = Math.max(0, i - 1);

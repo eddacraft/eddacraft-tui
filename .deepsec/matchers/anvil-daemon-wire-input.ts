@@ -39,8 +39,6 @@ export const anvilDaemonWireInput: MatcherPlugin = {
     const matches: CandidateMatch[] = [];
 
     for (let i = 0; i < lines.length && matches.length < MAX_PER_FILE; i++) {
-      // Inline test modules sit at the bottom of the file by convention.
-      if (/^\s*#\[cfg\(test\)\]/.test(lines[i])) break;
       if (/^\s*(?:\/\/|\*)/.test(lines[i])) continue;
       if (/^\s*(?:pub(?:\([^)]*\))?\s+)?(?:mod|use)\s/.test(lines[i])) continue;
       if (!INGEST_RE.test(lines[i])) continue;
