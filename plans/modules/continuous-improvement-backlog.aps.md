@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 39/64    |
+| CIB | —     | In Progress | 42/64    |
 
 ## Purpose
 
@@ -1567,7 +1567,7 @@ archive.
 
 ### CIB-061: as-built delta refresh — remaining eight docs + runbook tail
 
-- **Status:** Done 2026-06-10; PR pending
+- **Status:** Merged 2026-06-10 via PR #2526
 - **Intent:** the eight as-builts not covered by CIB-058 (mcp-shim, checks,
   auth, api, tutorial, widgets, adapter-packages, observability) carry stale
   or inverted central claims: the MCP shim doc says "one tool" (registry now
@@ -1605,7 +1605,7 @@ archive.
 
 ### CIB-062: auth-gate tracing WARN leaks raw JSON onto golden-path stderr
 
-- **Status:** In Progress (2026-06-11)
+- **Status:** Merged 2026-06-11 via PR #2529
 - **Intent:** running a gated command unauthenticated (`anvil status`;
   `anvil welcome` too on pre-ADR-080 installed builds) prints a raw JSON
   tracing line — `{"timestamp":…,"level":"WARN","fields":{"message":"cli
@@ -1632,7 +1632,7 @@ archive.
 
 ### CIB-063: install.sh docs URL disagrees with the product surfaces
 
-- **Status:** In Progress (2026-06-11)
+- **Status:** Merged 2026-06-11 via PR #2528
 - **Intent:** `install.sh` closes with `https://eddacraft.dev/docs` while
   `README.md`, `anvil welcome`, and the what's-new banner all point at
   `https://docs.eddacraft.ai` — the first URL a new user sees disagrees
@@ -1640,17 +1640,18 @@ archive.
 - **Expected Outcome:** `install.sh` prints `https://docs.eddacraft.ai`,
   matching the canonical docs origin used by the product surfaces.
 - **Files:** `install.sh`
-- **Validation:** `grep -c "docs.eddacraft.ai" install.sh` ≥ 1 and
-  `grep -c "eddacraft.dev/docs" install.sh` = 0; `bash -n install.sh`.
+- **Validation:**
+  `grep -q "docs.eddacraft.ai" install.sh && ! grep -q "eddacraft.dev/docs" install.sh`;
+  `bash -n install.sh`.
 - **Identified From:** 2026-06-10/11 beta golden-path walkthrough
   (install → welcome transcript comparison).
 - **Coordinates with:** DISTRIB-002 (install surface), CIB-059
   (quickstart wording).
 - **Confidence:** high — one-line string change.
 
-### CIB-064: one planted secret reports under two SECRET rule ids
+### CIB-064: one planted secret reports under two SECRET rule IDs
 
-- **Status:** In Progress (2026-06-11)
+- **Status:** Merged 2026-06-11 via PR #2530
 - **Intent:** a planted `OPENAI_API_KEY = "sk-proj-…"` line reports twice
   — `SECRET-API-KEY` (low-confidence keyword pattern) and
   `SECRET-OPENAI-API-KEY` (high-confidence shape pattern) — on the same
@@ -1660,7 +1661,7 @@ archive.
   `crates/anvil-checks/src/secret/scanner.rs`, a low-confidence keyword
   match whose range overlaps a high-confidence shape match on the same
   line is suppressed — the same credential reports once, under the
-  precise provider rule id. Non-overlapping matches and lines with only
+  precise provider rule ID. Non-overlapping matches and lines with only
   low-confidence matches are unchanged; custom patterns (always
   low-confidence) follow the same rule.
 - **Files:** `crates/anvil-checks/src/secret/scanner.rs`
