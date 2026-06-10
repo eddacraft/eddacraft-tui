@@ -587,7 +587,8 @@ analyser) share one parallel walk pattern, rolled out in `0.5.0-beta`:
   order does not leak thread scheduling into user-visible output
   (`audit.rs:148-154`, `antipattern/scanner.rs:852-858`).
 
-ReDoS hardening (SCAN-002, `plans/archive/modules/scan-performance.aps.md` §82+):
+ReDoS hardening (SCAN-002, `plans/archive/modules/scan-performance.aps.md`
+§82+):
 
 - Secret scan: 4 KiB per-line guard (`SecretCheckConfig::max_line_bytes`,
   `secret/types.rs:36-43`); oversized lines are dropped before any regex runs
