@@ -42,9 +42,10 @@ pub fn run(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 
     let mut data = gather_status_data(".");
     let activation = activation::verify(Path::new("."));
-    // DSV-007 / v0.8: best-effort save-time assurance + confinement. Under the
-    // default-on rollout this is shown only when a live daemon answers; explicit
-    // opt-in preserves the older daemon-absent fallback surface.
+    // DSV-007 / UJ-005: best-effort save-time posture. A live daemon renders
+    // its assurance + confinement; default-on routing with no daemon states
+    // the off posture explicitly; explicit opt-in preserves the older
+    // daemon-absent fallback surface; operator opt-out hides the line.
     let save_time = gather_save_time();
 
     // DISTRIB-002: surface an update-available hint when one is
@@ -124,7 +125,7 @@ pub fn run(args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             &activation,
             daemon_snapshot.as_ref(),
             &worktree,
-            save_time.as_ref(),
+            save_time.assurance(),
         )?;
     } else if !global.no_tui && std::io::stdout().is_terminal() {
         let state = StatusState::new(data);
@@ -555,7 +556,7 @@ fn is_executable(path: &Path) -> bool {
 fn print_plain(
     data: &StatusData,
     activation_diag: &activation::ActivationDiagnostic,
-    save_time: Option<SaveTimeRender>,
+    save_time: SaveTimePosture,
 ) {
     // Resolve the repo root once so the witness chain at
     // `<repo-root>/anvil/witness/active.ndjson` is found even when
@@ -616,30 +617,81 @@ struct SaveTimeOutput {
     last_full_scan: Option<String>,
 }
 
-/// Gather the save-time assurance + confinement surface, or `None` when daemon
-/// routing is disabled or default-on routing cannot find a live daemon. Explicit
-/// opt-in still folds a daemon-absent query to `unavailable{daemon-absent}`.
-fn gather_save_time() -> Option<SaveTimeRender> {
+/// The save-time posture `anvil status` renders (UJ-005). Status is the home
+/// screen, so the posture is always stated — except under an explicit operator
+/// opt-out, which keeps the pre-DSV surface.
+#[derive(Debug, Clone)]
+enum SaveTimePosture {
+    /// A daemon assurance to render: the daemon answered, or routing is forced
+    /// on and absence folds to `unavailable{daemon-absent}`.
+    Assurance(SaveTimeRender),
+    /// Default-on routing with no live daemon: render an explicit off-state
+    /// line naming `anvil start` instead of omitting the line (UJ-005 revisits
+    /// the DSV-021 omission under the beta guide-users posture).
+    Off,
+    /// Operator opt-out (`ANVIL_WATCH_DAEMON=0`): no save-time line at all.
+    Hidden,
+}
+
+impl SaveTimePosture {
+    /// The assurance render when one exists. The `--json` surface stays
+    /// additive: `save_time` is emitted only for assurance postures, exactly
+    /// as before UJ-005.
+    fn assurance(&self) -> Option<&SaveTimeRender> {
+        match self {
+            SaveTimePosture::Assurance(render) => Some(render),
+            SaveTimePosture::Off | SaveTimePosture::Hidden => None,
+        }
+    }
+}
+
+/// Gather the save-time posture for the status surfaces. Queries the daemon
+/// unless routing is disabled, then classifies via [`classify_save_time`].
+fn gather_save_time() -> SaveTimePosture {
     let mode = watch_save_time::daemon_routing_mode();
     if mode == watch_save_time::DaemonRoutingMode::Disabled {
-        return None;
+        return SaveTimePosture::Hidden;
     }
     let workspace = crate::util::workspace_root().unwrap_or_else(|_| Path::new(".").to_path_buf());
-    match watch_save_time::query_workspace_status(&workspace) {
+    let queried = watch_save_time::query_workspace_status(&workspace);
+    let confined = if queried.is_some() {
+        confinement_allow_count()
+    } else {
+        None
+    };
+    classify_save_time(mode, queried, confined)
+}
+
+/// Pure classifier for the routing-mode × daemon-presence posture matrix.
+/// Total over the matrix: `Disabled` folds to `Hidden` here too, even though
+/// [`gather_save_time`] short-circuits it before querying. `confined` is the
+/// confinement allow-count to render alongside a live daemon's assurance
+/// (callers only gather it when the daemon answered).
+fn classify_save_time(
+    mode: watch_save_time::DaemonRoutingMode,
+    queried: Option<WorkspaceAssurance>,
+    confined: Option<usize>,
+) -> SaveTimePosture {
+    if mode == watch_save_time::DaemonRoutingMode::Disabled {
+        return SaveTimePosture::Hidden;
+    }
+    match queried {
         // Daemon answered: report assurance + the confinement size it is
         // enforcing.
-        Some(assurance) => Some(SaveTimeRender {
+        Some(assurance) => SaveTimePosture::Assurance(SaveTimeRender {
             assurance,
-            confined: confinement_allow_count(),
+            confined,
         }),
-        // No daemon answered: under the default-on rollout, keep non-daemon
-        // users on the pre-DSV status surface. Explicit opt-in keeps the preview
-        // fallback, because the operator asked to diagnose daemon routing.
-        None if mode == watch_save_time::DaemonRoutingMode::ForcedOn => Some(SaveTimeRender {
-            assurance: watch_save_time::daemon_absent_assurance(),
-            confined: None,
-        }),
-        None => None,
+        // Explicit opt-in with no daemon keeps the preview fallback, because
+        // the operator asked to diagnose daemon routing.
+        None if mode == watch_save_time::DaemonRoutingMode::ForcedOn => {
+            SaveTimePosture::Assurance(SaveTimeRender {
+                assurance: watch_save_time::daemon_absent_assurance(),
+                confined: None,
+            })
+        }
+        // Default-on routing with no live daemon: state the off posture.
+        None => SaveTimePosture::Off,
     }
 }
 
@@ -726,9 +778,10 @@ struct LegibleSnapshot {
     protection: WorktreeClaimState,
     layers: LayerSummary,
     daemon: DaemonSummary,
-    /// DSV-007 Task 17: the save-time assurance + confinement line. `None` keeps
-    /// the pre-DSV legible block unchanged (daemon routing not enabled).
-    save_time: Option<SaveTimeRender>,
+    /// DSV-007 Task 17 / UJ-005: the save-time posture line. `Hidden` keeps
+    /// the pre-DSV legible block unchanged (operator opt-out); `Off` states
+    /// the posture explicitly when default routing finds no live daemon.
+    save_time: SaveTimePosture,
     witness: WitnessSummary,
     next_action: String,
 }
@@ -818,8 +871,16 @@ fn render_plain_legible(s: &LegibleSnapshot) -> String {
             out.push_str("  Daemon: not running\n");
         }
     }
-    if let Some(save_time) = &s.save_time {
-        let _ = writeln!(out, "{}", render_save_time_line(save_time));
+    match &s.save_time {
+        SaveTimePosture::Assurance(save_time) => {
+            let _ = writeln!(out, "{}", render_save_time_line(save_time));
+        }
+        // UJ-005: state the off posture and how to change it, instead of
+        // hiding the flagship gap.
+        SaveTimePosture::Off => {
+            out.push_str("  Save-time: off (run `anvil start` to enable)\n");
+        }
+        SaveTimePosture::Hidden => {}
     }
     match &s.witness {
         WitnessSummary::Last {
@@ -872,7 +933,7 @@ fn build_legible_snapshot(
     data: &StatusData,
     diag: &activation::ActivationDiagnostic,
     root: &Path,
-    save_time: Option<SaveTimeRender>,
+    save_time: SaveTimePosture,
 ) -> LegibleSnapshot {
     let layers = derive_layers(data, diag);
     let protection = derive_protection(diag, &layers);
@@ -1975,6 +2036,116 @@ mod tests {
         );
     }
 
+    // --- UJ-005: status always states the save-time posture ---
+
+    #[test]
+    fn default_routing_with_no_daemon_classifies_off() {
+        let posture = classify_save_time(
+            watch_save_time::DaemonRoutingMode::DefaultOnWhenLive,
+            None,
+            None,
+        );
+        assert!(
+            matches!(posture, SaveTimePosture::Off),
+            "default routing with no live daemon must state the off posture, got: {posture:?}",
+        );
+    }
+
+    #[test]
+    fn opt_out_classifies_hidden() {
+        // Opt-out keeps the pre-DSV surface regardless of daemon presence.
+        for queried in [
+            None,
+            Some(WorkspaceAssurance {
+                state: AssuranceState::Clean,
+                reason: None,
+                generation: 1,
+                last_full_scan: None,
+            }),
+        ] {
+            let posture =
+                classify_save_time(watch_save_time::DaemonRoutingMode::Disabled, queried, None);
+            assert!(
+                matches!(posture, SaveTimePosture::Hidden),
+                "operator opt-out must keep the save-time line hidden, got: {posture:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn forced_on_with_no_daemon_classifies_unavailable_assurance() {
+        let posture = classify_save_time(watch_save_time::DaemonRoutingMode::ForcedOn, None, None);
+        match posture {
+            SaveTimePosture::Assurance(render) => {
+                assert_eq!(
+                    render.assurance.state,
+                    AssuranceState::Unavailable,
+                    "forced-on absence must keep its unavailable rendering",
+                );
+            }
+            other => panic!("forced-on absence must render an assurance, got: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn live_daemon_classifies_assurance() {
+        // A live daemon renders its assurance under both default-on and
+        // forced-on routing — the full live column of the posture matrix.
+        for mode in [
+            watch_save_time::DaemonRoutingMode::DefaultOnWhenLive,
+            watch_save_time::DaemonRoutingMode::ForcedOn,
+        ] {
+            let assurance = WorkspaceAssurance {
+                state: AssuranceState::Clean,
+                reason: None,
+                generation: 1,
+                last_full_scan: None,
+            };
+            let posture = classify_save_time(mode, Some(assurance), Some(3));
+            match posture {
+                SaveTimePosture::Assurance(render) => {
+                    assert_eq!(render.assurance.state, AssuranceState::Clean);
+                    assert_eq!(
+                        render.confined,
+                        Some(3),
+                        "a live daemon keeps its confinement rendering",
+                    );
+                }
+                other => panic!("a live daemon must render its assurance, got: {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn off_posture_renders_line_naming_anvil_start() {
+        let mut snap = legible_test_snapshot(WorktreeClaimState::Unprotected);
+        snap.save_time = SaveTimePosture::Off;
+        let rendered = render_plain_legible(&snap);
+        let line = rendered
+            .lines()
+            .find(|l| l.contains("Save-time:"))
+            .unwrap_or_else(|| panic!("off posture must render a save-time line:\n{rendered}"));
+        assert!(
+            line.contains("off"),
+            "off posture must say save-time is off, got: {line}",
+        );
+        assert!(
+            line.contains("anvil start"),
+            "off-state line must name `anvil start`, got: {line}",
+        );
+    }
+
+    #[test]
+    fn hidden_posture_renders_no_save_time_line() {
+        let mut snap = legible_test_snapshot(WorktreeClaimState::Unprotected);
+        snap.save_time = SaveTimePosture::Hidden;
+        let rendered = render_plain_legible(&snap);
+        assert!(
+            !rendered.contains("Save-time:"),
+            "opt-out must keep the pre-DSV surface (no save-time line):\n{rendered}",
+        );
+    }
+
     fn legible_test_snapshot(state: WorktreeClaimState) -> LegibleSnapshot {
         LegibleSnapshot {
             protection: state,
@@ -1987,7 +2158,7 @@ mod tests {
                 l5_audit: LayerState::Unknown,
             },
             daemon: DaemonSummary::NotRunning,
-            save_time: None,
+            save_time: SaveTimePosture::Hidden,
             witness: WitnessSummary::None,
             next_action: "run `anvil start`".to_string(),
         }
@@ -2020,8 +2191,14 @@ mod tests {
 
         let worst_action = longest_next_action();
         for &state in WorktreeClaimState::all() {
+            // UJ-005: the off posture adds a line over the hidden baseline,
+            // so the budget loop renders it explicitly alongside the
+            // worst-case assurance line.
+            let mut off_snapshot = legible_test_snapshot(state);
+            off_snapshot.save_time = SaveTimePosture::Off;
             for snap in [
                 legible_test_snapshot(state),
+                off_snapshot,
                 worst_case_snapshot(state, &worst_action),
             ] {
                 let rendered = render_plain_legible(&snap);
@@ -2052,7 +2229,7 @@ mod tests {
             },
             // Worst-case save-time line (longest reason + a wide confined count)
             // so the 24-row budget covers the DSV-007 Task 17 surface too.
-            save_time: Some(SaveTimeRender {
+            save_time: SaveTimePosture::Assurance(SaveTimeRender {
                 assurance: WorkspaceAssurance {
                     state: AssuranceState::Stale,
                     reason: Some(
