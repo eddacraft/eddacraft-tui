@@ -768,8 +768,7 @@ See [completed-index.aps.md](./completed-index.aps.md) for task tables.
 
 Reconcile divergent `main`/`dev` histories by porting release-critical fixes
 from `main` onto `dev`, validating as one integrated branch, then cutting over.
-See `docs/runbooks/branch-reconciliation.md` and the freeze notice in
-`RECONCILIATION-IN-PROGRESS.md`.
+See `docs/runbooks/branch-reconciliation.md`.
 
 | Module                                                                  | Scope  | Status   | Progress |
 | ----------------------------------------------------------------------- | ------ | -------- | -------- |
