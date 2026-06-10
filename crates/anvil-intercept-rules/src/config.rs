@@ -38,12 +38,12 @@ use std::path::Path;
 
 use serde_json::Value;
 
+use crate::InterceptRule;
 use crate::antipattern::AntipatternScanRule;
 use crate::path_deny::{PathDenyConfig, PathDenyError, PathDenyListRule};
 use crate::regex_content::{RegexContentConfig, RegexContentError, RegexContentRule};
 use crate::registry::{RegistryError, RuleRegistry};
 use crate::secret::SecretDetectionRule;
-use crate::InterceptRule;
 
 /// Error building a rule registry from configuration.
 #[derive(Debug, thiserror::Error)]

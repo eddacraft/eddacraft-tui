@@ -5,7 +5,7 @@
 //! Patterns are compiled eagerly at construction so malformed patterns
 //! surface as a typed [`RegexContentError::InvalidPattern`] rather than
 //! failing on the hot path (the INTR-004 eager-compile precedent). The
-//! `regex` crate's linear-time matching is the only ReDoS bound — no
+//! `regex` crate's linear-time matching is the only `ReDoS` bound — no
 //! additional execution budget is layered here.
 //!
 //! Determinism: "first registered pattern wins" — patterns are evaluated
@@ -212,9 +212,7 @@ fn match_to_diagnostic(path: &str, hit: &PatternMatch<'_>, mode: Mode) -> Diagno
         },
         mode,
     )
-    .with_remediation_hint(
-        "Remove the matching content, or adjust the configured regex patterns.",
-    )
+    .with_remediation_hint("Remove the matching content, or adjust the configured regex patterns.")
 }
 
 #[cfg(test)]
@@ -335,7 +333,11 @@ mod tests {
             RuleDecision::Allow
         );
         assert_eq!(
-            r.evaluate(&input(path, ChangeKind::Modified, Some(b"\xffFORBIDDEN_TOKEN"))),
+            r.evaluate(&input(
+                path,
+                ChangeKind::Modified,
+                Some(b"\xffFORBIDDEN_TOKEN")
+            )),
             RuleDecision::Allow
         );
     }

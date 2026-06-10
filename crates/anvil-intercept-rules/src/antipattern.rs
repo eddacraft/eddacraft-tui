@@ -168,7 +168,10 @@ fn build_message(warning: &Warning) -> String {
 }
 
 fn warning_to_diagnostic(warning: &Warning, mode: Mode) -> Diagnostic {
-    let pattern_id = warning.pattern.clone().unwrap_or_else(|| warning.id.clone());
+    let pattern_id = warning
+        .pattern
+        .clone()
+        .unwrap_or_else(|| warning.id.clone());
     let mut diagnostic = Diagnostic::new(
         format!(
             "diag_antipattern_{}_{}_{}_{}",
