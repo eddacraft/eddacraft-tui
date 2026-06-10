@@ -47,6 +47,12 @@ operations-reviewer, pragmatic-lead). Findings are deduplicated, sorted by
 severity, and synthesised into a unified verdict. Use for significant changes or
 release prep. For quick reviews, use `/review` instead.
 
+## Skills
+
+- **Fable model**: when running as the Fable model, prefer skills with the `f5`
+  prefix when an `f5`-prefixed equivalent exists; fall back to the standard
+  skill otherwise.
+
 ## Gotchas
 
 - This repo uses ESM (`"type": "module"` in package.json)
