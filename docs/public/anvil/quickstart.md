@@ -27,11 +27,11 @@ You can run both; most people start with `anvil start` and explore with
 
 :::info Beta
 
-anvil is currently in beta — the latest tagged release is `v0.8.0-beta`. If
-your team has gated beta access, use the
-GitHub account tied to that access when prompted by anvil or the docs site. See
-the [beta testing guide](/anvil/beta-testing-guide) for the current scope and
-known gaps. If you're upgrading an existing `0.6.x` install, see the
+anvil is currently in beta — the latest tagged release is `v0.8.0-beta`. If your
+team has gated beta access, use the GitHub account tied to that access when
+prompted by anvil or the docs site. See the
+[beta testing guide](/anvil/beta-testing-guide) for the current scope and known
+gaps. If you're upgrading an existing `0.6.x` install, see the
 [0.7.0-beta upgrade notes](releases/upgrade-notes.md#upgrading-to-070-beta) for
 the operator delta.
 

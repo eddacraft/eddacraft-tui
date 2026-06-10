@@ -23,13 +23,13 @@ pre-write attachment is not available.
 
 ## What's New to Focus Testing On
 
-The current tagged cut is `0.8.0-beta`. These are the highest-leverage flows.
-If you only have a short session, these are the right places to spend it.
+The current tagged cut is `0.8.0-beta`. These are the highest-leverage flows. If
+you only have a short session, these are the right places to spend it.
 
 ### New in `v0.8.0-beta` — the daemon-backed save path
 
-These are the freshest surfaces in the current cut and the right places to
-focus a testing session.
+These are the freshest surfaces in the current cut and the right places to focus
+a testing session.
 
 - **Daemon-backed save-time validation is default-on when live.** With a live
   daemon (started by `anvil start`), `anvil watch` routes each save through the
