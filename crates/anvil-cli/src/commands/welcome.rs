@@ -176,6 +176,10 @@ pub fn run(args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     // Prefer the app error over the teardown error.
     result.and(teardown_result)?;
 
+    // UJ-001: printed after terminal teardown so the next step lands in
+    // scrollback once the TUI session ends.
+    println!("{WELCOME_NEXT_STEP}");
+
     Ok(())
 }
 
@@ -1301,24 +1305,54 @@ fn open_docs_message() -> String {
     }
 }
 
+/// UJ-001: the single next-step line every welcome exit prints — the
+/// discovery path hands the user to the daily-value path.
+const WELCOME_NEXT_STEP: &str = "  Next: run `anvil start` for daily save-time protection.";
+
 fn print_plain_welcome() {
-    println!();
-    println!("  Welcome to Anvil");
-    println!("  Structural governance for AI-assisted development");
-    println!();
-    println!("  Available commands:");
-    println!("    anvil tutorial   Interactive tutorial");
-    println!("    anvil audit      Run project audit");
-    println!("    anvil doctor     Diagnose your environment");
-    println!("    anvil status     Show project status");
-    println!();
-    println!("  Visit: https://docs.eddacraft.ai");
-    println!();
+    print!("{}", plain_welcome_message());
+}
+
+fn plain_welcome_message() -> String {
+    use std::fmt::Write as _;
+    let mut out = String::new();
+    let _ = writeln!(out);
+    let _ = writeln!(out, "  Welcome to Anvil");
+    let _ = writeln!(out, "  Structural governance for AI-assisted development");
+    let _ = writeln!(out);
+    let _ = writeln!(out, "  Available commands:");
+    let _ = writeln!(out, "    anvil tutorial   Interactive tutorial");
+    let _ = writeln!(out, "    anvil audit      Run project audit");
+    let _ = writeln!(out, "    anvil doctor     Diagnose your environment");
+    let _ = writeln!(out, "    anvil status     Show project status");
+    let _ = writeln!(out);
+    let _ = writeln!(out, "  Visit: https://docs.eddacraft.ai");
+    let _ = writeln!(out);
+    let _ = writeln!(out, "{WELCOME_NEXT_STEP}");
+    out
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // UJ-001: every welcome exit carries the user to the daily-value path.
+    #[test]
+    fn welcome_next_step_names_anvil_start() {
+        assert!(
+            WELCOME_NEXT_STEP.contains("anvil start"),
+            "the welcome next step is `anvil start`, got: {WELCOME_NEXT_STEP}",
+        );
+    }
+
+    #[test]
+    fn plain_welcome_carries_the_next_step_line() {
+        let msg = plain_welcome_message();
+        assert!(
+            msg.contains(WELCOME_NEXT_STEP),
+            "the plain welcome surface must end with the next-step line:\n{msg}",
+        );
+    }
 
     #[test]
     fn open_docs_message_does_not_panic() {

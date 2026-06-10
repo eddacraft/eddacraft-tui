@@ -346,7 +346,14 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     // own copy so the user sees a state-specific explanation, not
     // a generic "watch declined" line.
     match watch_decision {
-        WatchDecision::NotRequested => Ok(()),
+        WatchDecision::NotRequested => {
+            // UJ-001: plain endings name the single next step; JSON and
+            // read-only (--verify) surfaces stay byte-identical.
+            if !global.json && !read_only {
+                println!("{}", start_next_step_line(&diagnostic));
+            }
+            Ok(())
+        }
         WatchDecision::Spawn => {
             // Print the explicit watch hand-off marker so subprocess
             // consumers (and humans reading the stream) see the
@@ -617,6 +624,19 @@ const RECIPE_LINES: &[&str] = &[
     "    3. rm .anvil-smoke-test.ts when done",
 ];
 
+/// UJ-001: the single next-step line for a plain `anvil start` ending. Honest
+/// about redundancy: when MCP pre-write is live, watch would be a no-op (the
+/// `NoOpRedundant` axis), so the next step is the status surface instead.
+/// Strictly `LiveValidation` — at `RestartRequired` the copy "is live" would
+/// contradict the restart instruction the diagnostic block just printed.
+fn start_next_step_line(diag: &activation::ActivationDiagnostic) -> &'static str {
+    if diag.mcp_pre_write_live() {
+        "  Next: MCP pre-write protection is live; run `anvil status` to see posture any time."
+    } else {
+        "  Next: run `anvil watch` to validate files as you save."
+    }
+}
+
 fn render_first_run_recipe(diag: &activation::ActivationDiagnostic) -> String {
     use std::fmt::Write as _;
 
@@ -683,6 +703,50 @@ mod tests {
             language_profile: activation::language_profile::RepoLanguageProfile::default(),
             daemon_attestation: activation::daemon_evidence::DaemonAttestation::NotProbed,
         }
+    }
+
+    // UJ-001: a plain `anvil start` ending names the single next step.
+
+    #[test]
+    fn next_step_names_watch_when_mcp_not_live() {
+        let diag = synth_diagnostic(activation::state::ProtectionState::Watching);
+        let line = start_next_step_line(&diag);
+        assert!(
+            line.contains("anvil watch"),
+            "without live MCP the next step is `anvil watch`, got: {line}",
+        );
+        assert!(
+            line.starts_with("  Next:"),
+            "a single next-step line, not a banner, got: {line}",
+        );
+    }
+
+    #[test]
+    fn next_step_names_watch_at_restart_required() {
+        use activation::diagnostic::{McpClientId, McpTier};
+        let mut diag = synth_diagnostic(activation::state::ProtectionState::Watching);
+        diag.mcp
+            .insert(McpClientId::ClaudeCode, McpTier::RestartRequired.into());
+        let line = start_next_step_line(&diag);
+        assert!(
+            line.contains("anvil watch"),
+            "at restart_required MCP is wired but not live; claiming live would \
+             contradict the restart instruction above, got: {line}",
+        );
+    }
+
+    #[test]
+    fn next_step_names_status_when_mcp_live() {
+        let diag = synth_diagnostic(activation::state::ProtectionState::Protecting);
+        let line = start_next_step_line(&diag);
+        assert!(
+            !line.contains("anvil watch"),
+            "with live MCP pre-write, watch is redundant (NoOpRedundant axis), got: {line}",
+        );
+        assert!(
+            line.contains("anvil status"),
+            "with live MCP the next step is checking posture via `anvil status`, got: {line}",
+        );
     }
 
     /// ADOPT-003 — `run_agent_detection` writes the cache when the

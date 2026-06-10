@@ -425,12 +425,22 @@ fn append_gitignore_entry(root: &Path) -> anyhow::Result<bool> {
 }
 
 fn print_success(planning_dir: &str, checks: &[String]) {
-    println!();
-    println!("Anvil initialised successfully.");
-    println!("  Config:    .anvilrc");
-    println!("  Plans:     {planning_dir}/");
-    println!("  Checks:    {}", checks.join(", "));
-    println!();
+    print!("{}", success_message(planning_dir, checks));
+}
+
+/// The init closing block. Ends with a single next-step line (UJ-001) so the
+/// onboarding path never dead-ends.
+fn success_message(planning_dir: &str, checks: &[String]) -> String {
+    use std::fmt::Write as _;
+    let mut out = String::new();
+    let _ = writeln!(out);
+    let _ = writeln!(out, "Anvil initialised successfully.");
+    let _ = writeln!(out, "  Config:    .anvilrc");
+    let _ = writeln!(out, "  Plans:     {planning_dir}/");
+    let _ = writeln!(out, "  Checks:    {}", checks.join(", "));
+    let _ = writeln!(out);
+    let _ = writeln!(out, "  Next: run `anvil start` to activate protection.");
+    out
 }
 
 /// Simple YAML serialisation (no external crate needed for this shape).
@@ -478,6 +488,20 @@ mod tests {
             verbose: false,
             ..Default::default()
         }
+    }
+
+    // UJ-001: the init ending must name the single next step.
+    #[test]
+    fn init_success_names_anvil_start_as_next_step() {
+        let msg = success_message("plans", &["secret-detection".to_string()]);
+        let next = msg
+            .lines()
+            .find(|l| l.contains("Next:"))
+            .unwrap_or_else(|| panic!("init success must print a next-step line:\n{msg}"));
+        assert!(
+            next.contains("anvil start"),
+            "the init next step is `anvil start`, got: {next}",
+        );
     }
 
     #[test]
