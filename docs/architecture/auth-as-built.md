@@ -1,22 +1,26 @@
 # Auth System — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                           |
-| -------- | --------- | ----- | ------ | ------------------------------------------------------------------- |
-| As-built | Derived   | BAUTH | Live   | Last reviewed 2026-04-23 against `v0.6.0-beta` and `apps/anvil-api` |
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                     |
+| -------- | --------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | BAUTH | Live   | Last reviewed 2026-06-10 (targeted delta review: GitHub OAuth flow GHCLIAUTH-003, identity/scopes claims, schema + env additions) against main `45dd1047a`; full review 2026-04-23 against `v0.6.0-beta` and `apps/anvil-api` |
 
 | Upstream                  | Downstream                                                                                       |
 | ------------------------- | ------------------------------------------------------------------------------------------------ |
 | `apps/anvil-api`, ADR-018 | anvil CLI (token verify, license refresh, device-code, OTP, GitHub OAuth), browser activate flow |
 
-> **Status:** Live (beta) **Last reviewed:** 2026-04-23 **Service:**
-> `apps/anvil-api` (Hono on Vercel) **Database:** Neon Postgres (`beta_users`,
-> `access_tokens`, `audit_log`)
+> **Status:** Live (beta) **Last reviewed:** 2026-06-10 (targeted delta review:
+> GitHub OAuth flow GHCLIAUTH-003, identity/scopes claims, schema + env
+> additions) against main `45dd1047a`; full review 2026-04-23 against
+> `v0.6.0-beta` **Service:** `apps/anvil-api` (Hono on Vercel) **Database:**
+> Neon Postgres (`beta_users`, `access_tokens`, `audit_log`)
 
 ## Overview
 
-The auth system manages beta access to Anvil. It supports three authentication
+The auth system manages beta access to Anvil. It supports four authentication
 flows: the original admin-invite token flow, a device code flow for CLI login,
-and an email OTP flow. All new flows issue JWT + refresh token pairs.
+an email OTP flow, and a GitHub OAuth flow (GHCLIAUTH-003). All interactive
+flows issue JWT + refresh token pairs minted through the shared `mintSession`
+helper (`apps/anvil-api/src/lib/session.ts`).
 
 ```text
 ┌─────────┐         ┌────────────┐         ┌──────────┐
@@ -118,6 +122,31 @@ created_at). Token hashes are not returned.
 4. CLI calls `POST /auth/otp/verify` with email + code — receives a JWT +
    refresh token pair
 
+### GitHub OAuth Flow
+
+1. The docs-site callback (`apps/docs-site/api/auth/callback.ts`) validates the
+   OAuth state parameter, then calls `POST /auth/github/callback`
+   server-to-server (`apps/anvil-api/src/routes/auth-github.ts:154`). CSRF/state
+   validation lives entirely in the docs-site layer — the API trusts the caller
+   to have validated the state (`auth-github.ts:142-153`)
+2. The API exchanges the code with GitHub, fetches the verified primary email
+   plus the full verified-email set, then immediately revokes the upstream
+   GitHub token
+3. `linkOrCreateGitHubUser` resolves the `beta_users` row: match on `github_id`;
+   else first-link an active invited row via any verified email (ADR-066); else
+   create a new row with `status = 'pending'`
+4. Re-binding a verified email already linked to a different `github_id` writes
+   a `github_oauth_link_conflict` audit event and returns the same generic 401
+   as other auth failures — no account enumeration. Non-active users get 403
+5. On success the API mints a JWT + refresh token pair via `mintSession`,
+   stamping identity `{ provider: "github", id: <github_id> }`
+   (`auth-github.ts:227`)
+
+Audit events: `github_oauth_signup`, `github_oauth_link`,
+`github_oauth_blocked`, `github_oauth_login`, `github_oauth_link_conflict`
+(`auth-github.ts:182-235`). The route is mounted at
+`apps/anvil-api/src/index.ts:140`.
+
 ### Admin Approval Flow
 
 1. Admin CLI calls `POST /admin/approve` with the waitlisted user's email
@@ -148,18 +177,30 @@ Signed with ES256 (ECDSA P-256) using `LICENSE_SIGNING_KEY` (PKCS#8 PEM).
 
 ### Claims
 
-| Claim      | Source                 | Description                          |
-| ---------- | ---------------------- | ------------------------------------ |
-| `sub`      | `beta_users.id`        | User UUID                            |
-| `email`    | `beta_users.email`     | User email                           |
-| `identity` | Hardcoded              | `{ provider: "github", id: null }`   |
-| `org`      | Hardcoded              | `null`                               |
-| `tier`     | Hardcoded              | `"pro"`                              |
-| `scopes`   | `access_tokens.scopes` | e.g. `["beta"]`                      |
-| `seats`    | Hardcoded              | `1`                                  |
-| `rcAfter`  | Computed               | `iat + 7 days` (refresh-check-after) |
-| `iat`      | Auto                   | Issued-at timestamp                  |
-| `exp`      | Computed               | `min(token.expires_at, iat + 90d)`   |
+| Claim      | Source             | Description                          |
+| ---------- | ------------------ | ------------------------------------ |
+| `sub`      | `beta_users.id`    | User UUID                            |
+| `email`    | `beta_users.email` | User email                           |
+| `identity` | Per-flow (caller)  | `email` or `github` — see below      |
+| `org`      | Hardcoded          | `null`                               |
+| `tier`     | Hardcoded          | `"pro"`                              |
+| `scopes`   | Active-token union | e.g. `["beta"]` — see below          |
+| `seats`    | Hardcoded          | `1`                                  |
+| `rcAfter`  | Computed           | `iat + 7 days` (refresh-check-after) |
+| `iat`      | Auto               | Issued-at timestamp                  |
+| `exp`      | Computed           | `min(token.expires_at, iat + 90d)`   |
+
+`identity` is resolved per flow (GHCLIAUTH-003): token verify and the OTP /
+device flows stamp `{ provider: "email", id: null }`
+(`apps/anvil-api/src/routes/auth.ts:76`, `auth.ts:127`); GitHub OAuth stamps
+`{ provider: "github", id: <github_id> }` (`auth-github.ts:227`). The shared
+`mintSession` helper takes identity from the caller
+(`apps/anvil-api/src/lib/session.ts:65`).
+
+`scopes` is resolved via `findActiveScopesForUser(sql, user.id)` — the union of
+the user's active `access_tokens.scopes` (`session.ts:60`). Graded scopes (e.g.
+`["preview"]`) are preserved through every flow; first-time GitHub sign-ups
+default to `["beta"]` (`auth-github.ts:222-224`).
 
 **Header:** `{ alg: "ES256", kid: "2026-03" }`
 
@@ -172,7 +213,7 @@ offline window short while avoiding verify calls on every invocation.
 ## Database Schema
 
 ```sql
-beta_users      (id uuid PK, email citext UNIQUE, name, status, notes, created_at, updated_at)
+beta_users      (id uuid PK, email citext UNIQUE, name, status, notes, github_id bigint UNIQUE, created_at, updated_at)
 access_tokens   (id uuid PK, user_id FK, token_hash UNIQUE, scopes text[], expires_at, revoked_at, created_at)
 audit_log       (id uuid PK, action, actor, auth_method, metadata jsonb, created_at)
 waitlist        (id serial PK, email citext UNIQUE, source, created_at, updated_at)
@@ -181,6 +222,11 @@ otp_codes       (id uuid PK, user_id FK, code_hash, attempts, expires_at, consum
 refresh_tokens  (id uuid PK, user_id FK, token_hash UNIQUE, family_id uuid, consumed_at, revoked_at, expires_at, created_at)
 admin_keys      (id uuid PK, hashed_key UNIQUE, actor_email, note, created_at, revoked_at)
 ```
+
+`beta_users.status` is constrained to `active | pending | suspended | banned`
+via a CHECK (`apps/anvil-api/src/db/schema.sql:12-13`). `github_id` is sparse
+and nullable, linked on first GitHub login; once set it is the authoritative
+match key for returning users (`schema.sql:18`).
 
 Extensions: `citext`, `pgcrypto`.
 
@@ -203,6 +249,18 @@ Indexes on: `access_tokens(user_id)`, `access_tokens(token_hash)`,
 | `RESEND_WAITLIST_AUDIENCE_ID` | No       | Audience management                     | Resend audience ID for waitlist                                  |
 | `RESEND_BETA_AUDIENCE_ID`     | No       | Audience management                     | Resend audience ID for beta users                                |
 | `ACTIVATE_URL`                | No       | Device code flow                        | Confirmation URL (default: `https://eddacraft.ai/auth/activate`) |
+| `GITHUB_CLIENT_ID`            | Yes      | `/auth/github/callback`                 | Docs-site GitHub OAuth app client ID                             |
+| `GITHUB_CLIENT_SECRET`        | Yes      | `/auth/github/callback`                 | Docs-site GitHub OAuth app client secret                         |
+| `GITHUB_CLI_CLIENT_ID`        | No       | Boot probe (CLI device flow)            | Dedicated "Anvil CLI" OAuth app client ID                        |
+| `GITHUB_CLI_CLIENT_SECRET`    | No       | Boot probe (CLI device flow)            | Dedicated "Anvil CLI" OAuth app client secret                    |
+
+The docs-site OAuth app pair is consumed in `auth-github.ts:44-45` and wired in
+`infra/src/vercel.ts:92-93`. The CLI pair backs the dedicated "Anvil CLI"
+device-flow OAuth app (kept separate so CLI login and docs auth do not share
+rate limits, consent branding, or audit trails); it is consumed in
+`apps/anvil-api/src/lib/github-cli-credentials.ts:21-22`, wired in
+`infra/src/vercel.ts:96-97`, and validated by the informational boot probe
+`verifyGitHubCliCredentials` (imported at `apps/anvil-api/src/index.ts:16`).
 
 `ANVIL_ADMIN_ACTOR` belongs to the separate `anvil-admin` operator CLI, not the
 API service itself.
@@ -253,18 +311,20 @@ or malformed, and `/health` reports `signingKey: unavailable` with HTTP 503 when
 the key can't load — so misconfiguration surfaces at deploy time rather than on
 the first `/device/poll` that reaches the licence-minting path.
 
-### G-02: Identity, org, tier, seats are hardcoded
+### G-02: org, tier, seats are hardcoded
 
 ```typescript
-identity: { provider: 'github', id: null },
 org: null,
 tier: 'pro',
 seats: 1,
 ```
 
-Every licence claims `pro` tier with GitHub identity even though no GitHub
-integration exists. This is fine for beta but will need to become dynamic before
-GA — particularly `tier` and `org`.
+`identity` is resolved per flow now (GHCLIAUTH-003) and `scopes` come from the
+user's active tokens, but every licence still claims `pro` tier with no org and
+a single seat — hardcoded in the shared claims block
+(`apps/anvil-api/src/lib/session.ts:66-69`) and in the token verify/refresh
+paths (`apps/anvil-api/src/routes/auth.ts:77-80`). This is fine for beta but
+will need to become dynamic before GA — particularly `tier` and `org`.
 
 **Risk:** Low for beta. High if external systems start consuming these claims.
 **Fix:** Derive from `beta_users` or a separate `organisations` table when
@@ -357,6 +417,7 @@ Track verification count and distinct IPs per token. Alert on anomalies.
 | `apps/anvil-api/src/routes/auth-device.ts`    | Device code flow endpoints      |
 | `apps/anvil-api/src/routes/auth-otp.ts`       | Email OTP flow endpoints        |
 | `apps/anvil-api/src/routes/auth-session.ts`   | Session refresh endpoint        |
+| `apps/anvil-api/src/routes/auth-github.ts`    | GitHub OAuth callback endpoint  |
 | `apps/anvil-api/src/routes/admin.ts`          | Invite, revoke, lookup, approve |
 | `apps/anvil-api/src/routes/waitlist.ts`       | Waitlist signup + resend        |
 | `apps/anvil-api/src/routes/cron.ts`           | Scheduled cleanup tasks         |
@@ -364,6 +425,7 @@ Track verification count and distinct IPs per token. Alert on anomalies.
 | `apps/anvil-api/src/middleware/rate-limit.ts` | In-memory rate limiter          |
 | `apps/anvil-api/src/lib/token.ts`             | Token generation + hashing      |
 | `apps/anvil-api/src/lib/licence.ts`           | JWT signing                     |
+| `apps/anvil-api/src/lib/session.ts`           | Shared session minting helper   |
 | `apps/anvil-api/src/lib/email.ts`             | Resend email sender             |
 | `apps/anvil-api/src/lib/audience.ts`          | Resend audience management      |
 | `apps/anvil-api/src/lib/audit.ts`             | Audit log helper                |

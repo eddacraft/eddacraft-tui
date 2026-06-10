@@ -1,35 +1,46 @@
 # anvil-observability — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                          |
-| -------- | --------- | ----- | ------ | ------------------------------------------------------------------ |
-| As-built | Derived   | TRACE | Live   | Last reviewed 2026-05-07 against `v0.6.0-beta` and HEAD `d223b8d9` |
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                          |
+| -------- | --------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | TRACE | Live   | Last reviewed 2026-06-10 (targeted delta review: live redaction layer, trace sink, TS mirror, TRACE-004 namespaces) against main `45dd1047a`; full content review 2026-05-07 against `v0.6.0-beta` |
 
 | Upstream                               | Downstream                                      |
 | -------------------------------------- | ----------------------------------------------- |
 | `crates/anvil-observability/`, ADR-035 | CLI tracing, intercept tracing, MCP correlation |
 
-> **Status:** Live (beta) **Last reviewed:** 2026-05-07 against `v0.6.0-beta`
-> slate (HEAD `d223b8d9`) **Crate / location:** `crates/anvil-observability`
-> (package `eddacraft-anvil-observability`, lib name `anvil_observability`)
-> **Module owner (APS):** TRACE
+> **Status:** Live (beta) **Last reviewed:** 2026-06-10 (targeted delta review:
+> live redaction layer, trace sink, TS mirror, TRACE-004 namespaces) against
+> main `45dd1047a`; full content review 2026-05-07 against `v0.6.0-beta` (HEAD
+> `d223b8d9`) **Crate / location:** `crates/anvil-observability` (package
+> `eddacraft-anvil-observability`, lib name `anvil_observability`) **Module
+> owner (APS):** TRACE
 > ([`plans/modules/tracing-foundation.aps.md`](../../plans/modules/tracing-foundation.aps.md),
-> In Progress 1/3 — TRACE-001 Complete, TRACE-002 / TRACE-003 deferred);
-> co-owned with OBS
+> In Progress 2/4 — TRACE-001 Complete, TRACE-004 Complete (2026-05-11,
+> call-path instrumentation + `anvil.cli.*` / `anvil.intercept.*` namespaces),
+> TRACE-002 / TRACE-003 Blocked after partial implementation — local slices
+> shipped; the dashboard-consumer / EXPORT-parity slices are blocked); co-owned
+> with OBS
 > ([`plans/modules/observability-foundation.aps.md`](../../plans/modules/observability-foundation.aps.md),
 > Draft 0/5 — OBS-006 migrated to TRACE-001 on 2026-04-30) **Used by:**
 > `anvil-cli` (subscriber init), `anvil-intercept` daemon (subscriber init,
 > JSON-RPC `traceparent` envelope, fanout cross-pipe correlation), MCP shim
-> (correlation traceparent round-trip via the daemon envelope). The OWASP-shaped
-> redaction deny-list is currently uncalled — see §"Known gaps".
+> (correlation traceparent round-trip via the daemon envelope). The redaction
+> deny-list is **live**: `init_tracing` installs `RedactingJsonFields` /
+> `RedactingJsonEventFormatter`, which replace any span/event value whose field
+> name matches `SENSITIVE_FIELDS` with the `REDACTED` marker before JSON output
+> (TRACE-003 partial slice, `crates/anvil-observability/src/lib.rs:146-147`).
+> The residual cross-binary / EXPORT-policy-parity slice is tracked in §"Known
+> gaps" G-02.
 
 ## 1. Overview
 
 The cross-cutting observability primitives shared across the Rust workspace: a
 W3C `traceparent` parser/generator, a per-binary `tracing-subscriber` JSON
-initialiser, and an advisory-only field-name deny-list intended for a future
-redaction layer. Small surface (three files, ~430 lines), load-bearing footprint
-— every binary entrypoint calls into it once, the JSON-RPC envelope validates
-traceparent on every request, and the namespace-registry contract documented at
+initialiser with a local trace-sink selector, and a live field-name redaction
+layer that replaces sensitive span/event values before JSON output. Modest
+surface (three files, ~1,270 lines), load-bearing footprint — every binary
+entrypoint calls into it once, the JSON-RPC envelope validates traceparent on
+every request, and the namespace-registry contract documented at
 `docs/observability/namespace-registry.md` cites this crate as the Rust producer
 of record.
 
@@ -43,7 +54,7 @@ facts go to Kindling and live state goes on the notification envelope.
 ```text
 ┌──────────────────────┐    ┌──────────────────────┐    ┌──────────────────────┐
 │  anvil-cli           │    │  anvil-intercept     │    │  MCP correlation     │
-│  main.rs:471         │    │  main.rs:49          │    │  envelope            │
+│  main.rs:985         │    │  main.rs:49          │    │  envelope            │
 │  init_tracing(Cli)   │    │  init_tracing(Daemon)│    │  ipc.rs:1769..2015   │
 └──────────┬───────────┘    └──────────┬───────────┘    └──────────┬───────────┘
            │                           │                           │
@@ -57,18 +68,23 @@ facts go to Kindling and live state goes on the notification envelope.
                 │   │  init_tracing   │  │  TraceContext   │ │
                 │   │  BinaryKind     │  │  parse / format │ │
                 │   │  EnvFilter      │  │  W3C v00 only   │ │
-                │   └─────────────────┘  └─────────────────┘ │
+                │   │  ANVIL_TRACE_   │  └─────────────────┘ │
+                │   │  SINK selector  │                      │
+                │   └─────────────────┘                      │
                 │                                            │
                 │   ┌─────────────────────────────────────┐  │
-                │   │  redaction.rs                       │  │
-                │   │  SENSITIVE_FIELDS  (advisory only)  │  │
-                │   │  is_sensitive_field()              │  │
-                │   │  REDACTED  (TRACE-003 marker stub)  │  │
+                │   │  redaction.rs  (live, TRACE-003)    │  │
+                │   │  SENSITIVE_FIELDS deny-list         │  │
+                │   │  RedactingJsonFields /              │  │
+                │   │  RedactingJsonEventFormatter        │  │
+                │   │  REDACTED  (replacement marker)     │  │
                 │   └─────────────────────────────────────┘  │
                 └────────────────────────────────────────────┘
                                      │
                               tracing pipe →
-                              (JSON-formatted to stderr,
+                              (redacting JSON formatter;
+                               CLI → stderr, daemon → stdout,
+                               or ANVIL_TRACE_SINK=file=<path>;
                                filtered by ANVIL_LOG / RUST_LOG)
 ```
 
@@ -82,58 +98,97 @@ Three source files, plus a thin `Cargo.toml`. Workspace-pinned dependency set
 (`serde`, `serde_json`, `thiserror`, `tracing`, `tracing-subscriber`); no crypto
 dependency, no external observability SDK.
 
-| File                                            | Lines | Role                                                                                                                                                                                    |
-| ----------------------------------------------- | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `crates/anvil-observability/Cargo.toml`         | 22    | Crate manifest. Description: "Cross-cutting tracing baseline: TraceContext, W3C traceparent propagation, subscriber init, redaction, and namespace registry hooks (TRACE-001, ADR-035)" |
-| `crates/anvil-observability/src/lib.rs`         | 130   | Module entry, `BinaryKind`, `init_tracing`, re-exports (`TraceContext`, `TraceContextError`)                                                                                            |
-| `crates/anvil-observability/src/traceparent.rs` | 333   | W3C Trace Context v00 parser + `TraceContext` value type                                                                                                                                |
-| `crates/anvil-observability/src/redaction.rs`   | 103   | Advisory field-name deny-list and the `REDACTED` marker constant                                                                                                                        |
+| File                                            | Lines | Role                                                                                                                                                                                                     |
+| ----------------------------------------------- | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `crates/anvil-observability/Cargo.toml`         | 21    | Crate manifest. Description: "Cross-cutting tracing baseline: TraceContext, W3C traceparent propagation, subscriber init, redaction, and namespace registry hooks (TRACE-001, ADR-035)"                  |
+| `crates/anvil-observability/src/lib.rs`         | 531   | Module entry, `BinaryKind`, `init_tracing`, trace-sink selection (`ANVIL_TRACE_SINK`), `bind_traceparent_to_current_span` / `bind_traceparent_to_span`, re-exports (`TraceContext`, `TraceContextError`) |
+| `crates/anvil-observability/src/traceparent.rs` | 333   | W3C Trace Context v00 parser + `TraceContext` value type                                                                                                                                                 |
+| `crates/anvil-observability/src/redaction.rs`   | 409   | Live TRACE-003 redaction layer: `SENSITIVE_FIELDS` deny-list, `is_sensitive_field`, `RedactingJsonFields` / `RedactingJsonEventFormatter`, and the `REDACTED` marker constant                            |
 
 `#![forbid(unsafe_code)]` is set at the crate root
-(`crates/anvil-observability/src/lib.rs:31`).
+(`crates/anvil-observability/src/lib.rs:27`).
 
 ## 4. Subscriber initialisation (`init_tracing`)
 
 `init_tracing(BinaryKind)` at
-[`crates/anvil-observability/src/lib.rs:104-130`](../../crates/anvil-observability/src/lib.rs)
+[`crates/anvil-observability/src/lib.rs:135-200`](../../crates/anvil-observability/src/lib.rs)
 is the **only** entry point that installs a global `tracing` subscriber for an
 Anvil Rust binary. Library crates emit through the global `tracing` macros and
 MUST NOT install their own subscriber
-(`crates/anvil-observability/src/lib.rs:27-29`).
+(`crates/anvil-observability/src/lib.rs:23-25`).
 
 ### Filter precedence
 
 1. `ANVIL_LOG` env var if set
 2. `RUST_LOG` env var if set
 3. `BinaryKind::default_filter()` — `Cli => "warn"`, `InterceptDaemon => "info"`
-   (`crates/anvil-observability/src/lib.rs:62-74`)
+   (`crates/anvil-observability/src/lib.rs:69-80`)
 
 ### Output format
 
-JSON formatter, ANSI off, `with_target(true)`, `with_level(true)`,
-`with_current_span(true)`, `with_span_list(false)`
-(`crates/anvil-observability/src/lib.rs:110-116`). The first emitted span on
+JSON formatter, ANSI off, `with_target(true)`, `with_level(true)`, with the
+TRACE-003 redaction pair installed as the field and event formatters —
+`fmt_fields(RedactingJsonFields)`,
+`event_format(RedactingJsonEventFormatter::default())`
+(`crates/anvil-observability/src/lib.rs:141-147`). The first emitted event on
 install is at `anvil_observability:::"tracing subscriber installed"` carrying
-`binary` and `filter` fields (`crates/anvil-observability/src/lib.rs:123-128`);
+`binary` and `filter` fields (`crates/anvil-observability/src/lib.rs:193-198`);
 operators rely on it as the boot-completed marker.
+
+**Stream routing (CIB-024):** on the default sink, `BinaryKind::Cli` routes the
+layer to **stderr** so stdout stays reserved for `--json` command output; the
+daemon keeps the default **stdout**, where its host captures it
+(`crates/anvil-observability/src/lib.rs:157-163`, rationale at `lib.rs:151-155`;
+regression-pinned by `crates/anvil-cli/tests/policy_eval.rs`).
+
+### Trace sink (`ANVIL_TRACE_SINK`)
+
+The `ANVIL_TRACE_SINK` env var (`crates/anvil-observability/src/lib.rs:45`)
+selects where the formatted JSON lands. Unset or empty means the default stream
+above (stderr for the CLI, stdout for the daemon).
+
+- `file=<path>` opens an append-mode local trace file
+  (`crates/anvil-observability/src/lib.rs:166-180`). On Unix the open path is
+  safety-validated: no symlinks, regular files only, mode `0600` (no group/other
+  access), and dev/ino comparison before and after open to close the TOCTOU
+  window (`crates/anvil-observability/src/lib.rs:202-327`).
+- `otlp` is **rejected** — exporter wiring is deferred to the EXPORT module; the
+  error message points operators at `file=<path>` for local use
+  (`crates/anvil-observability/src/lib.rs:181-185`).
+- Any other value is rejected as an unsupported sink.
+
+`InitTracingError` gained a `TraceSink(String)` variant for these rejection
+paths (`crates/anvil-observability/src/lib.rs:92-95`).
+
+### Traceparent span binding (TRACE-004)
+
+Two public helpers record a parsed `traceparent` onto span correlation fields
+(`trace_id`, `parent_id`, `trace_flags`, declared as `field::Empty`):
+`bind_traceparent_to_current_span` (`crates/anvil-observability/src/lib.rs:105`)
+and `bind_traceparent_to_span` (`crates/anvil-observability/src/lib.rs:112`).
+The latter is consumed by the daemon's JSON-RPC dispatch span at
+`crates/anvil-intercept/src/ipc.rs:3283` (TRACE-004 span correlation). They
+record correlation fields only — no OpenTelemetry parent relationship; true
+parent propagation is owned by the EXPORT module.
 
 ### Single-install discipline
 
-`set_global_default` is the sole atomic guard
-(`crates/anvil-observability/src/lib.rs:120-121`); a second call returns
-`InitTracingError::AlreadyInstalled`. Comment at
-`crates/anvil-observability/src/lib.rs:93-95` explains why a separate sentinel
+`set_global_default` is the sole atomic guard (called per sink branch,
+`crates/anvil-observability/src/lib.rs:157-164` and `lib.rs:178-179`); a second
+call returns `InitTracingError::AlreadyInstalled`. The doc comment at
+`crates/anvil-observability/src/lib.rs:124-126` explains why a separate sentinel
 flag is intentionally absent (TOCTOU window between guard check and install).
 
 ### Call sites
 
 | Site                                    | Use                                                                |
 | --------------------------------------- | ------------------------------------------------------------------ |
-| `crates/anvil-cli/src/main.rs:471`      | `init_tracing(BinaryKind::Cli)` once at CLI startup                |
+| `crates/anvil-cli/src/main.rs:985`      | `init_tracing(BinaryKind::Cli)` once at CLI startup                |
 | `crates/anvil-intercept/src/main.rs:49` | `init_tracing(BinaryKind::InterceptDaemon)` once at daemon startup |
 
-No other call sites. The TS API (`anvil-api`) does not consume this crate — the
-TypeScript-side mirror is deferred to TRACE-002.
+No other Rust call sites. The TS API (`anvil-api`) does not consume this crate —
+it consumes the shipped TypeScript mirror `@eddacraft/anvil-observability`
+instead (see §7).
 
 ## 5. Namespace registry (state in this repo)
 
@@ -141,52 +196,64 @@ There is **no Rust-side registry implementation** in this crate. The
 authoritative registry document is
 [`docs/observability/namespace-registry.md`](../../docs/observability/namespace-registry.md);
 this crate contributes nothing to it as code beyond the `TraceContext` parser
-cited as a "validation hook" at
-`docs/observability/namespace-registry.md:72-86`.
+and redaction deny-list cited as "validation hooks" at
+`docs/observability/namespace-registry.md:100-116`.
 
 ### What the registry currently records
 
-Three live namespace rows (`docs/observability/namespace-registry.md:26-30`):
+Five live namespace rows (`docs/observability/namespace-registry.md:34-40`):
 
-| Namespace       | Owner                                                                                | Pipe(s)                                                | Wired in code?                            |
-| --------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------ | ----------------------------------------- |
-| `anvil.flags.*` | FLAGS module / [ADR-019](../../plans/decisions/019-flags-observability-alignment.md) | Tracing (per-eval), Kindling (gate-affecting outcomes) | Yes — feature-flagging module is Complete |
-| `kindling.*`    | Kindling system (Edda Stack)                                                         | Kindling                                               | Out-of-tree (Edda Stack project)          |
-| `anvil.rtai.*`  | RTAI module (provisional)                                                            | Tracing                                                | Provisional — pending RTAI promotion      |
+| Namespace           | Owner                                                                                | Pipe(s)                                                | Wired in code?                            |
+| ------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------ | ----------------------------------------- |
+| `anvil.flags.*`     | FLAGS module / [ADR-019](../../plans/decisions/019-flags-observability-alignment.md) | Tracing (per-eval), Kindling (gate-affecting outcomes) | Yes — feature-flagging module is Complete |
+| `anvil.cli.*`       | CLI / TRACE-004                                                                      | Tracing                                                | Yes — TRACE-004 Complete (2026-05-11)     |
+| `anvil.intercept.*` | Intercept daemon / TRACE-004                                                         | Tracing                                                | Yes — TRACE-004 Complete (2026-05-11)     |
+| `kindling.*`        | Kindling system (Edda Stack)                                                         | Kindling                                               | Out-of-tree (Edda Stack project)          |
+| `anvil.rtai.*`      | RTAI module (provisional)                                                            | Tracing                                                | Provisional — pending RTAI promotion      |
 
 ### Stability contract
 
 The contract is enforced by **founder-reviewed PR**, not by code
-(`docs/observability/namespace-registry.md:62-67`). Field-naming rules (lower
+(`docs/observability/namespace-registry.md:92-98`). Field-naming rules (lower
 snake_case, singular nouns, two-segment hierarchy after the domain, units in the
-name) are documented at `docs/observability/namespace-registry.md:32-47` and
+name) are documented at `docs/observability/namespace-registry.md:62-77` and
 reviewed at the PR-to-add gate. Pipe allocation must comply with the ADR-035
-three-pipe matrix (`docs/observability/namespace-registry.md:49-60`).
+three-pipe matrix (`docs/observability/namespace-registry.md:79-90`).
 
 ### Known drift (registry vs. code)
 
-The advisory deny-list at `crates/anvil-observability/src/redaction.rs:28-45`
-exists for callers that want to consult `is_sensitive_field` before adding a new
-span attribute, but no producer in the workspace calls it (verified via grep for
-`is_sensitive_field` and `SENSITIVE_FIELDS`). Whether or not a new attribute
-name conflicts with the deny-list is reviewed visually at PR-to-merge time, not
-enforced by code. See §"Known gaps" G-02.
+The deny-list at `crates/anvil-observability/src/redaction.rs:35-55` is now
+consulted **at runtime**: the formatters `init_tracing` installs call
+`is_sensitive_field` on every span/event field and substitute `REDACTED` for
+matches (`crates/anvil-observability/src/redaction.rs:209-217`). The registry's
+"Validation hooks" bullet still describes the deny-list as **advisory-only / NOT
+enforced** (`docs/observability/namespace-registry.md:102-109`) — that wording
+lags the code. Whether a new attribute name conflicts with the deny-list
+semantically (vs. matching it exactly) is still reviewed visually at PR-to-merge
+time. See §"Known gaps" G-02 for the residual TRACE-003 slice.
 
 ## 6. Redaction primitive — what is and isn't here
 
-This crate ships an **advisory** field-name deny-list. It does **not** ship the
-SHA-256 hashing primitive that fan-out cross-session redaction relies on, and it
-does **not** install any subscriber-level redaction layer. The module-level note
-at `crates/anvil-observability/src/redaction.rs:1-16` calls this out explicitly:
-TRACE-003 wires the actual layer; today the constant table is the contract pin.
+This crate ships the **live** TRACE-003 local redaction layer. `init_tracing`
+installs `RedactingJsonFields` / `RedactingJsonEventFormatter`
+(`crates/anvil-observability/src/lib.rs:146-147`), which replace any span/event
+value whose field name matches `SENSITIVE_FIELDS` with the `REDACTED` marker
+before the JSON formatter writes it (consumption at
+`crates/anvil-observability/src/redaction.rs:209-217`; module doc at
+`redaction.rs:1-13`; behaviour pinned by the formatter tests at
+`redaction.rs:321-394`). It still does **not** ship the SHA-256 hashing
+primitive that fan-out cross-session redaction relies on — `hash_of_path`
+remains in `crates/anvil-intercept/src/fanout.rs` (below).
 
 ### What `redaction.rs` exposes
 
-| Symbol                                    | Kind        | Purpose                                                                                                                                                                                                                                                                                                                              |
-| ----------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `REDACTED: &str` (`= "<redacted>"`)       | `pub const` | Canonical replacement marker the future TRACE-003 layer will emit. Pinned by test (`crates/anvil-observability/src/redaction.rs:97-102`); changing the value is a contract break across binary boundaries.                                                                                                                           |
-| `SENSITIVE_FIELDS: &[&str]`               | `pub const` | 16-entry lower-case deny-list of sensitive field names (`api_key`, `apikey`, `access_key`, `auth`, `authorization`, `bearer`, `client_secret`, `credential`, `credentials`, `password`, `passwd`, `pwd`, `private_key`, `secret`, `session_token`, `token`). Sourced from the OWASP secret-name patterns and the INTD-013 deny-list. |
-| `is_sensitive_field(field: &str) -> bool` | `pub fn`    | Case-insensitive **exact-match** lookup. Substrings deliberately do not match (`token_type` is allowed).                                                                                                                                                                                                                             |
+| Symbol                                    | Kind         | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ----------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `REDACTED: &str` (`= "<redacted>"`)       | `pub const`  | Canonical replacement marker the live TRACE-003 layer emits. Pinned by test (`crates/anvil-observability/src/redaction.rs:314-319`); changing the value is a contract break across binary boundaries.                                                                                                                                                                                                                                                                                                        |
+| `SENSITIVE_FIELDS: &[&str]`               | `pub const`  | 19-entry lower-case deny-list of sensitive field names (`api_key`, `apikey`, `access_key`, `auth`, `authorization`, `bearer`, `client_secret`, `context`, `credential`, `credentials`, `notification.context`, `notification_context`, `password`, `passwd`, `pwd`, `private_key`, `secret`, `session_token`, `token`; `redaction.rs:35-55`). Sourced from the OWASP secret-name patterns plus the deny-list the INTD-013 reviewers flagged on `notification.context` (source comment `redaction.rs:33-34`). |
+| `is_sensitive_field(field: &str) -> bool` | `pub fn`     | Case-insensitive **exact-match** lookup. Substrings deliberately do not match (`token_type` is allowed). Consulted at runtime by both formatters via the shared visitor (`redaction.rs:209-217`).                                                                                                                                                                                                                                                                                                            |
+| `RedactingJsonFields`                     | `pub struct` | JSON `FormatFields` implementation that redacts sensitive span field values before subscriber output is formatted (`redaction.rs:75-76`).                                                                                                                                                                                                                                                                                                                                                                    |
+| `RedactingJsonEventFormatter`             | `pub struct` | JSON event formatter paired with `RedactingJsonFields` — the stock JSON event formatter bypasses the configured `FormatFields`, so this routes event fields through the same redaction visitor (`redaction.rs:84-87`).                                                                                                                                                                                                                                                                                       |
 
 ### What the SHA-256 redaction primitive actually is — and where it lives
 
@@ -267,10 +334,14 @@ into log streams, and the rejected bytes have no diagnostic value.
 | `crates/anvil-intercept/src/ipc.rs:1306-1340` | scan_buffer batch traceparent extraction; uses `TRACEPARENT_LEN` to bound input length                                                                                    |
 | `crates/anvil-intercept/src/ipc.rs:1769-2015` | The full envelope handler — `extract_traceparent` then echoes the validated header on every response shape (`jsonrpc_success`, `jsonrpc_error`, scan-buffer batch errors) |
 
-The TS-side mirror (parse / format on the dashboard side) is **deferred to
-TRACE-002**, so cross-binary trace joining via the dashboard is not yet possible
-(`docs/observability/namespace-registry.md:100-101`,
-`plans/modules/tracing-foundation.aps.md:60-95`).
+The TS-side mirror **shipped** as `@eddacraft/anvil-observability`
+(`packages/anvil/observability/src/traceparent.ts`, 210 lines), and `anvil-api`
+validates `traceparent` at ingress via the `traceContext` middleware
+(`apps/anvil-api/src/middleware/trace-context.ts:16`, mounted at
+`apps/anvil-api/src/index.ts:86`). The residual TRACE-002 slice — the dashboard
+live-feed consumer — is still missing, so cross-binary trace joining via the
+dashboard is not yet possible; TRACE-002 stays Blocked
+(`plans/modules/tracing-foundation.aps.md:256`).
 
 ## 8. Cross-cutting concerns
 
@@ -278,17 +349,17 @@ TRACE-002**, so cross-binary trace joining via the dashboard is not yet possible
 
 The namespace-registry stability contract requires lower snake_case, singular
 nouns, dotted hierarchy with the domain immediately after `anvil.`, and units in
-the name when ambiguous (`docs/observability/namespace-registry.md:32-47`). The
+the name when ambiguous (`docs/observability/namespace-registry.md:62-77`). The
 contract is reviewed by founder PR, not enforced by code.
 
 ### Determinism
 
 `TraceContext::parse → TraceContext::as_header` is byte-for-byte identical for
 every valid input — pinned by
-`crates/anvil-observability/src/traceparent.rs:222-225`. The TRACE-003 redaction
-marker `REDACTED = "<redacted>"` is a constant string with a contract-pinning
-unit test at `redaction.rs:97-102`. (Note again that the unsalted-SHA-256
-cross-session hash is **not** in this crate — it lives in
+`crates/anvil-observability/src/traceparent.rs:222-225`. The live TRACE-003
+redaction marker `REDACTED = "<redacted>"` is a constant string with a
+contract-pinning unit test at `redaction.rs:314-319`. (Note again that the
+unsalted-SHA-256 cross-session hash is **not** in this crate — it lives in
 `anvil-intercept/src/fanout.rs:436-441`.)
 
 ### Zero non-workspace dependencies
@@ -300,7 +371,7 @@ HTTP client. The kernel-style "zero deps where feasible" stance holds.
 
 ### `#![forbid(unsafe_code)]`
 
-Set at the crate root (`crates/anvil-observability/src/lib.rs:31`); also
+Set at the crate root (`crates/anvil-observability/src/lib.rs:27`); also
 inherited via `[lints] workspace = true`
 (`crates/anvil-observability/Cargo.toml:20-21`).
 
@@ -316,8 +387,9 @@ inherited via `[lints] workspace = true`
 
 ## 9. Known gaps
 
-Dated against `v0.6.0-beta` (HEAD `d223b8d9`). Each entry has the tracking work
-item that closes it.
+G-02 and G-03 re-assessed 2026-06-10 against main `45dd1047a`; G-01, G-04, and
+G-05 dated against `v0.6.0-beta` (HEAD `d223b8d9`). Each entry has the tracking
+work item that closes it.
 
 ### G-01: Cross-session telemetry redaction hash is unsalted SHA-256
 
@@ -335,32 +407,37 @@ operator-facing detail in
 [`docs/archive/runbooks/v0.6.0-beta-security-note.md`](../../docs/archive/runbooks/v0.6.0-beta-security-note.md)
 **H2** (the primary cross-link for this gap; do not duplicate the writeup here).
 
-### G-02: Redaction deny-list (`SENSITIVE_FIELDS`) has no consumers
+### G-02: TRACE-003 cross-binary / EXPORT-policy-parity slice outstanding
 
-A grep of the workspace finds zero call sites for `is_sensitive_field` or
-`SENSITIVE_FIELDS` outside this crate's own unit tests. The deny-list is
-contract-shaped (lower-case, exact-match) and ready for the TRACE-003 layer to
-plug into, but until that layer lands the table is dormant — span attributes
-named `password` / `token` / `api_key` will appear in JSON output unredacted
-(`crates/anvil-observability/src/redaction.rs:1-16`,
-`docs/observability/namespace-registry.md:93-103`). Producers MUST NOT emit
-secret-bearing values into spans before TRACE-003 ships; this is the DA-OBS-004
-risk acceptance documented under ADR-035 R1.
+The local-output half of TRACE-003 is **done**: `init_tracing` installs
+`RedactingJsonFields` / `RedactingJsonEventFormatter`
+(`crates/anvil-observability/src/lib.rs:146-147`), so span attributes named
+`password` / `token` / `api_key` are replaced with `REDACTED` before JSON output
+on every supported sink (consumption at
+`crates/anvil-observability/src/redaction.rs:209-217`; pinned by the formatter
+tests at `redaction.rs:321-394`). What remains is the cross-binary /
+EXPORT-policy-parity slice — redaction hardening across binary boundaries so the
+same deny-list semantics hold for exported spans and the notification pipe. That
+slice is **Blocked** on INTD-015 (`plans/modules/tracing-foundation.aps.md`,
+TRACE-003).
 
-**Risk:** Low while the daemon is same-UID local-IPC only. Becomes Medium when
-the spans are exported off-host (EXPORT module). **Fix:** TRACE-003 wires a
-`tracing-subscriber` layer that consults `SENSITIVE_FIELDS` and substitutes
-`REDACTED` for matching attribute values.
+**Risk:** Low while the daemon is same-UID local-IPC only and output stays on
+local sinks. Becomes Medium when spans are exported off-host (EXPORT module).
+**Fix:** the remaining TRACE-003 slice, unblocked by INTD-015.
 
-### G-03: TS-side `traceparent` parser missing
+### G-03: Dashboard live-feed trace consumer missing
 
-The dashboard cannot join traces across producers because the TS side has no
-`TraceContext` mirror. Daemon and CLI emit valid headers; the dashboard cannot
-parse them.
+The TS-side `traceparent` parser **shipped** as `@eddacraft/anvil-observability`
+(`packages/anvil/observability/src/traceparent.ts`, 210 lines), and `anvil-api`
+validates `traceparent` at ingress
+(`apps/anvil-api/src/middleware/trace-context.ts:16`, mounted at
+`apps/anvil-api/src/index.ts:86`). The residual gap is the dashboard live-feed
+consumer slice: no dashboard surface joins traces across producers yet, so
+TRACE-002 stays **Blocked** on concrete consumer ownership
+(`plans/modules/tracing-foundation.aps.md:256`).
 
-**Risk:** Low — operational, not security. **Fix:** TRACE-002 ships
-`@anvil/observability` for `anvil-api` and the dashboard parser
-(`plans/modules/tracing-foundation.aps.md:82-83`).
+**Risk:** Low — operational, not security. **Fix:** the remaining TRACE-002
+slice — a dashboard joined-view consumer.
 
 ### G-04: No registry-side validation hook in code
 
@@ -368,9 +445,9 @@ The `anvil.<domain>.*` namespace contract is reviewed by founder PR, not by a
 build-time check. A producer can emit `anvil.totally.new.namespace.*` in code
 and the binary will install and ship; the drift is caught (or not) at PR review.
 
-**Risk:** Low at current scale (three namespaces, founder-reviewed). **Fix:**
-Out of TRACE-001 scope. Tracked indirectly under TRACE R2 in
-`plans/index.aps.md` (namespace fragmentation risk).
+**Risk:** Low at current scale (five namespaces, founder-reviewed). **Fix:** Out
+of TRACE-001 scope. Tracked indirectly under TRACE R2 in `plans/index.aps.md`
+(namespace fragmentation risk).
 
 ### G-05: `anvil-observability` `REDACTED` constant not adopted by ad-hoc redactors
 
@@ -392,14 +469,17 @@ converge on the observability `REDACTED` constant.
   — manifest; workspace-pinned dependency set, `forbid_unsafe_code` via
   workspace lints.
 - [`crates/anvil-observability/src/lib.rs`](../../crates/anvil-observability/src/lib.rs)
-  — `BinaryKind`, `init_tracing`, the single subscriber-install path, and the
-  module-level ADR-035 framing comment (lines 1-29).
+  — `BinaryKind`, `init_tracing`, the single subscriber-install path, the
+  `ANVIL_TRACE_SINK` sink selection and file-safety validation, the traceparent
+  span-binding helpers, and the module-level ADR-035 framing comment (lines
+  1-25).
 - [`crates/anvil-observability/src/traceparent.rs`](../../crates/anvil-observability/src/traceparent.rs)
   — W3C v00 `traceparent` parser, the `TraceContext` value type, the
   `TraceContextError` taxonomy.
 - [`crates/anvil-observability/src/redaction.rs`](../../crates/anvil-observability/src/redaction.rs)
-  — advisory `SENSITIVE_FIELDS` deny-list, `REDACTED` marker, the
-  `is_sensitive_field` exact-match helper.
+  — live TRACE-003 redaction layer: `SENSITIVE_FIELDS` deny-list, `REDACTED`
+  marker, the `is_sensitive_field` exact-match helper, and the
+  `RedactingJsonFields` / `RedactingJsonEventFormatter` formatter pair.
 
 ## 11. Related docs
 
@@ -417,7 +497,8 @@ converge on the observability `REDACTED` constant.
   **H2** — operator-facing detail on the unsalted SHA-256 redaction-hash
   trade-off (G-01 above).
 - [`plans/modules/tracing-foundation.aps.md`](../../plans/modules/tracing-foundation.aps.md)
-  — TRACE module plan (TRACE-001 Complete; TRACE-002, TRACE-003 deferred).
+  — TRACE module plan (In Progress 2/4 — TRACE-001 Complete, TRACE-004 Complete
+  2026-05-11; TRACE-002 / TRACE-003 Blocked after partial implementation).
 - [`plans/modules/observability-foundation.aps.md`](../../plans/modules/observability-foundation.aps.md)
   — OBS module plan (Draft; OBS-006 superseded by TRACE-001 on 2026-04-30).
 - [ADR-035](../../plans/decisions/035-three-pipe-observability-rule.md) —

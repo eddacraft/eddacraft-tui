@@ -1,38 +1,47 @@
 # anvil MCP Shim — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                             |
-| -------- | --------- | ----- | ------ | --------------------------------------------------------------------- |
-| As-built | Derived   | RMCP  | Live   | Last reviewed 2026-05-07 against `v0.6.0-beta` and `crates/anvil-cli` |
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                    |
+| -------- | --------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | RMCP  | Live   | Last reviewed 2026-06-10 (targeted delta review: RMCPF-010..-012 tool registry, validate_write schema additions, gap register) against main `45dd1047a`; full review 2026-05-07 against `v0.6.0-beta` and `crates/anvil-cli` |
 
 | Upstream                                                                              | Downstream                                                                  |
 | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | `crates/anvil-cli`, `crates/anvil-intercept`, `crates/anvil-intercept-proto`, ADR-033 | Cursor MCP client, Claude Code MCP client, activation orchestrator (LAUNCH) |
 
-> **Status:** Live (beta) **Last reviewed:** 2026-05-07 against `v0.6.0-beta`
-> slate (HEAD `97b61fd0`) **Crate / location:** `crates/anvil-cli/src/mcp/` (+
+> **Status:** Live (beta) **Last reviewed:** 2026-06-10 (targeted delta review:
+> RMCPF-010..-012 tool registry, validate_write schema additions, gap register)
+> against main `45dd1047a`; full review 2026-05-07 against `v0.6.0-beta` slate
+> (HEAD `97b61fd0`) **Crate / location:** `crates/anvil-cli/src/mcp/` (+
 > `commands/mcp*.rs`) **Module owner (APS):** RMCP
 > (`plans/archive/modules/rust-mcp-launch-shim.aps.md`, 8/8 complete) **Used
-> by:** Cursor + Claude Code MCP clients (call `anvil_validate_write` over
-> stdio); the activation orchestrator
+> by:** Cursor + Claude Code MCP clients (call the shim's eight registry tools
+> over stdio; `anvil_validate_write` is the load-bearing pre-write gate); the
+> activation orchestrator
 > (`crates/anvil-cli/src/activation/orchestrator/mod.rs:112`) writes the MCP
 > entries during `anvil start`
 
 ## 1. Overview
 
 The MCP shim is the MCP server bundled with the `anvil` binary that exposes
-`anvil_validate_write` over stdio for Cursor and Claude Code, routing validation
-through the local intercept daemon when available and a correctness-equivalent
-embedded scanner when not. It is the validation-write surface that AI editors
-call **before** AI-generated writes hit disk; honouring a `block` decision is
-what turns the editor's write tool from "AI guesses" into "AI guesses that the
-daemon already vetted".
+Anvil's MCP tools (headlined by `anvil_validate_write`) over stdio for Cursor
+and Claude Code, routing validation through the local intercept daemon when
+available and a correctness-equivalent embedded scanner when not. It is the
+validation-write surface that AI editors call **before** AI-generated writes hit
+disk; honouring a `block` decision is what turns the editor's write tool from
+"AI guesses" into "AI guesses that the daemon already vetted".
 
-The shim is one of two MCP surfaces in the v1 cut. The other is the legacy Node
-MCP server (`@eddacraft/anvil-mcp-server`), which still ships `anvil_check`,
-`anvil_gate`, `anvil_fix`, `anvil_suppress`, `anvil_status`, and
-`anvil_query_boundary`. The Rust shim documented here exposes only
-`anvil_validate_write` (one tool, one purpose) — see
-`docs/public/anvil/integrations/mcp.md` for the comparison.
+The shim's registry ships **eight tools**
+(`crates/anvil-cli/src/mcp/tools/registry.rs:22-76`; the count is pinned by
+`assert_eq!(tools.len(), 8)` at `registry.rs:94`): `anvil_validate_write`,
+`anvil_apply_patch`, `anvil_status`, `anvil_check`, `anvil_gate`,
+`anvil_query_boundary`, `anvil_suppress`, and `anvil_fix` — the RMCPF-010 / -011
+/ -012 port of the catalogue whose prior home was the legacy Node MCP server
+(`@eddacraft/anvil-mcp-server`), now superseded in-shim. Auth is data-driven via
+`ToolDefinition.requires_auth` (`registry.rs:7`), gated at
+`commands/mcp.rs:365-367`; `anvil_suppress` and `anvil_fix` keep
+`requires_auth: false` for parity with the archived TS server pending the
+RMCPF-011 authority review (`registry.rs:59-63`). See
+`docs/public/anvil/integrations/mcp.md` for the public-side comparison.
 
 The shim sits at the trust boundary between the editor and the daemon:
 
@@ -136,12 +145,25 @@ envelope. Oversize lines are discarded with the rest of the line
 ## 4. Tool surface
 
 The shim exposes MCP tools through the registry at
-`crates/anvil-cli/src/mcp/tools/registry.rs`. Each tool supplies its descriptor,
-dispatch function, and auth policy. `anvil_validate_write` requires the MCP auth
-gate because it protects writes; read-only `anvil_status` does not.
+`crates/anvil-cli/src/mcp/tools/registry.rs` (`registry.rs:22-76`). Each tool
+supplies its descriptor, dispatch function, and auth policy
+(`ToolDefinition.requires_auth`, `registry.rs:7`). Pins below are relative to
+`crates/anvil-cli/src/mcp/tools/`:
 
-`anvil_validate_write` is defined at
-`crates/anvil-cli/src/mcp/tools/validate_write.rs:22-63`:
+| Tool                   | Pin                    | Auth | Purpose                                                                    |
+| ---------------------- | ---------------------- | ---- | -------------------------------------------------------------------------- |
+| `anvil_validate_write` | `validate_write.rs:19` | yes  | Pre-write validation gate over proposed content (deep-dive below)          |
+| `anvil_apply_patch`    | `apply_patch.rs:16`    | yes  | Validate a unified diff before applying it                                 |
+| `anvil_status`         | `status.rs:9`          | no   | Read-only workspace-health summary                                         |
+| `anvil_check`          | `check.rs:14`          | no   | Antipattern validation; architecture-check parity deferred (`check.rs:21`) |
+| `anvil_gate`           | `gate.rs:15`           | no   | Quality gate / planless antipattern scan                                   |
+| `anvil_query_boundary` | `query_boundary.rs:38` | no   | Can-file-import-file boundary query                                        |
+| `anvil_suppress`       | `suppress.rs:37`       | no   | Time-boxed suppression comment (default 30 days, max 365)                  |
+| `anvil_fix`            | `fix.rs:33`            | no   | Deterministic auto-fixes for AP-001 / AP-003 / AP-004                      |
+
+`anvil_validate_write` remains the load-bearing tool of this surface and is the
+deep-dive for the rest of this section. It is defined at
+`crates/anvil-cli/src/mcp/tools/validate_write.rs:19-79`:
 
 ```text
 name:        "anvil_validate_write"
@@ -149,7 +171,11 @@ schema:      "anvil.mcp.validate-write.v1"
 description: "Pre-write validation gate. Call this tool before EVERY file
               write … honour `block` decisions; do not write files the tool
               refuses."
+annotations: { readOnlyHint: true, destructiveHint: false,
+               idempotentHint: true, openWorldHint: false }
 ```
+
+The MCP tool annotations block is at `validate_write.rs:72-77`.
 
 `anvil_status` is defined at `crates/anvil-cli/src/mcp/tools/status.rs`. It
 returns a local, read-only workspace-health summary from a canonicalised
@@ -170,6 +196,8 @@ description: "Quick project health summary. Returns available checks,
 | `operation`       | enum: `create` / `update` / `delete` / `rename` | yes                                         | Only `create` and `update` consume post-image content; `delete` and `rename` ignore both `proposedContent` and `patch`. See `Operation::requires_content` in `validate_write.rs`.                                                                                                                                                                                                                                                                                                                       |
 | `proposedContent` | string (UTF-8)                                  | for `create` / `update` when `patch` absent | Full post-operation file content. Capped at 1 MiB. NUL bytes rejected. May be omitted when `patch` is supplied (CIB-005).                                                                                                                                                                                                                                                                                                                                                                               |
 | `patch`           | string                                          | optional                                    | Unified diff. When supplied without `proposedContent`, the validator reads the on-disk file at `workspaceRoot`+`path`, applies the patch in memory, and validates the post-image through the same pipeline as a full-content payload — the disk file is never written. Apply failures surface as `patch-apply-failed`; an unreadable target surfaces as `patch-target-unreadable`. When both fields are supplied `proposedContent` is authoritative and `patch` is correlation metadata only (CIB-005). |
+| `contentSha256`   | string (hex)                                    | optional                                    | SHA-256 of the full proposed content. Paired with `preview` to send a slim payload without `proposedContent`; the shim flags such requests with `correlation.partialScan` (`validate_write.rs:51-58`).                                                                                                                                                                                                                                                                                                  |
+| `preview`         | string                                          | optional                                    | First lines of the proposed content, used for partial validation when `proposedContent` is omitted (`validate_write.rs:51-58`).                                                                                                                                                                                                                                                                                                                                                                         |
 | `contentEncoding` | enum: `utf-8`                                   | optional                                    | Anything else rejected with `unsupported-encoding`. See `ValidateWriteRequest::parse` in `validate_write.rs`.                                                                                                                                                                                                                                                                                                                                                                                           |
 | `client`          | object                                          | optional                                    | Free-form passthrough.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 
@@ -188,16 +216,32 @@ description: "Quick project health summary. Returns available checks,
     "backend": "daemon" | "embedded",
     "daemonStatus": "available" | "not-wired" | "unavailable",
     "path": "<workspace-relative-path>",
-    "enforcementMode": "block" | "warn" | "off"
+    "enforcementMode": "block" | "warn" | "off",
+    "partialScan": true                // present iff slim preview payload
   },
-  "safeDefault": "do-not-write"        // present iff decision == "block"
+  "safeDefault": "do-not-write",       // present iff decision == "block"
+  "protection_claim": { /* … */ }      // present iff daemonStatus == "available"
 }
 ```
 
-Built at `validate_write.rs:305-349`. The `decision` enum is
-`anvil_kernel_types::diagnostics::ControlDecision`. The MCP transport wraps this
-payload in the standard `{ content: [{type: "text", text: <json>}], isError }`
-shell at `validate_write.rs:185-197`.
+Built by `validation_payload_with_decision` at `validate_write.rs:440-498`. Two
+additions landed after the v0.6.0-beta review:
+
+- `correlation.partialScan: true` is set when a slim `contentSha256` + `preview`
+  payload was validated without full `proposedContent`
+  (`validate_write.rs:473-475`); the field is omitted otherwise.
+- Top-level `protection_claim` (MLP2-051b) is present iff
+  `daemonStatus == "available"`. It is fetched via `query_protection_claim`
+  under a 500 ms budget (`MCP_PROTECTION_CLAIM_QUERY_TIMEOUT`,
+  `validation.rs:47-49`) and attached at `validate_write.rs:489-498`. The field
+  is wire-additive: the trait default returns `None` (`validation.rs:162`), so
+  embedded / no-daemon responses omit it entirely — pinned by the fixture test
+  at `validate_write.rs:1458-1467`.
+
+The `decision` enum is `anvil_kernel_types::diagnostics::ControlDecision`. The
+MCP transport wraps this payload in the standard
+`{ content: [{type: "text", text: <json>}], isError }` shell at
+`validate_write.rs:185-197`.
 
 ### 4.3 JSON-RPC method names (editor → shim)
 
@@ -241,10 +285,16 @@ intercept-as-built §4.3 captures the daemon-side view. The shim hard-pins the
 response correlation `id` to the request id (`validation.rs:300-313`); a
 mismatched id is treated as `OperationalFailure`, not silently demoted.
 
+The shim deliberately does not use the save-time `validate_paths` verb;
+`validate_write` is a pre-write gate over proposed content the daemon has not
+read (DSV-007, `validation.rs:99-103`). See
+`docs/architecture/intercept-as-built.md` for `validate_paths`.
+
 ## 5. Validation routing — daemon-backed vs embedded
 
-`LocalDaemonValidationClient` (`crates/anvil-cli/src/mcp/validation.rs:126-148`)
-is the routing primitive. `validate_pre_write` walks three branches:
+`LocalDaemonValidationClient` (routing impl at
+`crates/anvil-cli/src/mcp/validation.rs:210-230`) is the routing primitive.
+`validate_pre_write` (`validation.rs:555-578`) walks three branches:
 
 1. **Unix with daemon reachable** — `cfg(unix)` arm at `validation.rs:131-141`
    resolves the socket path via `ipc::resolve_socket_path()`, hands off to
@@ -261,7 +311,7 @@ is the routing primitive. `validate_pre_write` walks three branches:
    stub-default semantic: from the response's perspective, no daemon was
    consulted.
 3. **Windows (`cfg(not(unix))`)** — the `cfg(not(unix))` arm at
-   `validation.rs:142-148` always returns `DaemonValidationOutcome::Unavailable`
+   `validation.rs:226-230` always returns `DaemonValidationOutcome::Unavailable`
    unconditionally. The same demotion logic at `validation.rs:371-380` runs,
    producing `DaemonStatus::NotWired`. **MCP enforcement still happens** via the
    embedded scanner — only the correlation envelope's `daemonStatus` field is
@@ -323,15 +373,16 @@ What the embedded path does **not** carry:
 
 The response carries `correlation` at `validate_write.rs:325-333`:
 
-| Field             | Value                                           | Notes                                                                                                                      |
-| ----------------- | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `id`              | `corr_mcp_<sanitised-path>`                     | `correlation_id` at `validate_write.rs:451-453` calls `sanitise_id_part` (`validation.rs:407-426`).                        |
-| `surface`         | `"mcp"`                                         | Hardcoded.                                                                                                                 |
-| `mode`            | `"preWrite"`                                    | Hardcoded; matches the daemon-side `PRE_WRITE_MODE` (`validation.rs:13`).                                                  |
-| `backend`         | `"daemon"` / `"embedded"`                       | Drives the operator-visible "which path served this?" answer.                                                              |
-| `daemonStatus`    | `"available"` / `"not-wired"` / `"unavailable"` | The Council finding 3 demotion signal — distinguishes "embedded by design" from "daemon was expected and couldn't answer". |
-| `path`            | workspace-relative                              | Slash-normalised at `validate_write.rs:757-765`.                                                                           |
-| `enforcementMode` | `"block"` / `"warn"` / `"off"`                  | Resolved per-workspace (§ 8).                                                                                              |
+| Field             | Value                                           | Notes                                                                                                                              |
+| ----------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `id`              | `corr_mcp_<sanitised-path>`                     | `correlation_id` at `validate_write.rs:451-453` calls `sanitise_id_part` (`validation.rs:407-426`).                                |
+| `surface`         | `"mcp"`                                         | Hardcoded.                                                                                                                         |
+| `mode`            | `"preWrite"`                                    | Hardcoded; matches the daemon-side `PRE_WRITE_MODE` (`validation.rs:13`).                                                          |
+| `backend`         | `"daemon"` / `"embedded"`                       | Drives the operator-visible "which path served this?" answer.                                                                      |
+| `daemonStatus`    | `"available"` / `"not-wired"` / `"unavailable"` | The Council finding 3 demotion signal — distinguishes "embedded by design" from "daemon was expected and couldn't answer".         |
+| `path`            | workspace-relative                              | Slash-normalised at `validate_write.rs:757-765`.                                                                                   |
+| `enforcementMode` | `"block"` / `"warn"` / `"off"`                  | Resolved per-workspace (§ 8).                                                                                                      |
+| `partialScan`     | `true` (omitted otherwise)                      | Present iff a slim `contentSha256` + `preview` payload was validated without full `proposedContent` (`validate_write.rs:473-475`). |
 
 The fields are tool-local in v1. RTAI-007 / DRVR-002 may promote
 `enforcementMode` and `daemonStatus` to the canonical correlation envelope in
@@ -576,24 +627,26 @@ and the validation client write diagnostic context to **stderr** only (e.g.
 the JSON-RPC stream — the comment at `enforcement.rs:67-72` records this
 contract.
 
-## 14. Known gaps (dated 2026-05-07)
+## 14. Known gaps (dated 2026-05-07; G-01 and G-04 updated 2026-06-10)
 
 ### G-01: Windows `correlation.daemonStatus` always `not-wired`
 
-`crates/anvil-cli/src/mcp/validation.rs:142-148`'s `cfg(not(unix))` arm returns
-`DaemonValidationOutcome::Unavailable` unconditionally. The caller at
-`validation.rs:371-380` maps that to `DaemonStatus::NotWired`. The MCP
-`validate_write` correlation envelope cannot distinguish daemon-up from
-daemon-down on Windows in v1, regardless of whether `intercept status` itself
-works over the named pipe. The embedded scanner still runs and the enforcement
-decision is still computed; only the correlation field is wrong.
+`crates/anvil-cli/src/mcp/validation.rs:226-230`'s `cfg(not(unix))` arm returns
+`DaemonValidationOutcome::Unavailable` unconditionally. The caller maps that to
+`DaemonStatus::NotWired`. The MCP `validate_write` correlation envelope cannot
+distinguish daemon-up from daemon-down on Windows, regardless of whether
+`intercept status` itself works over the named pipe. The embedded scanner still
+runs and the enforcement decision is still computed; only the correlation field
+is wrong.
 
-**Risk:** Low for the v1 cut — the embedded path is correctness-equivalent to
-the daemon-backed path on the same fixture. **Fix:** Wire the validation client
-through `anvil-intercept-win32::connect_owner_only_pipe_client` (the same helper
-the `intercept status` Windows path uses, `intercept.rs:143-148`). Tracked
-alongside the `chore/windows-status` workstream that already shipped the
-`intercept status` Windows client. See
+**Risk:** Low — the embedded path is correctness-equivalent to the daemon-backed
+path on the same fixture. **Fix (partial, 2026-06-10):** Windows named-pipe IPC
+**was** plumbed for the separate `query_protection_claim` surface — the
+`#[cfg(windows)]` `WindowsPipeDaemonValidationClient` impl at
+`validation.rs:276-290` (MLP2-075) — but its `validate_pre_write` deliberately
+returns `Unavailable`; the validation-routing arm remains stubbed. Closing the
+gap means wiring pre-write validation itself over the pipe (the same helper the
+`intercept status` Windows path uses). See
 `docs/archive/runbooks/v0.6.0-beta-release-runbook.md` §2.
 
 ### G-02: §4.4 redaction filter spec-only outside `validate_write`
@@ -622,18 +675,12 @@ deployment's repository tree can rainbow-table `(rule_id, hashed_path)` pairs.
 broader fan-out path. **Fix:** Per-startup HMAC salt minted on daemon launch.
 See `docs/archive/runbooks/v0.6.0-beta-security-note.md` §H2 (108-139).
 
-### G-04: Tool surface limited to `anvil_validate_write`
+### G-04: Tool surface limited to `anvil_validate_write` (resolved)
 
-The Rust shim exposes one MCP tool. `anvil_check`, `anvil_gate`, `anvil_fix`,
-`anvil_suppress`, `anvil_status`, and `anvil_query_boundary` still live on the
-legacy Node MCP server (`@eddacraft/anvil-mcp-server`). Operators who need any
-of those tools must install the Node server alongside the Rust shim — see
-`docs/public/anvil/integrations/mcp.md:206-209` for the comparison and
-`docs/public/anvil/integrations/mcp.md:210-` for the legacy tool catalogue.
-
-**Risk:** Low — operators can run both surfaces. **Fix:** Tracked as the RMCPF
-(Rust MCP Full Port) tier-A candidate; see `RELEASE-PLAN.md` §A3 and
-`plans/modules/rust-mcp-full-port.aps.md`.
+**Resolved (RMCPF-010/011/012):** the six former Node-only tools were ported to
+the Rust shim (`registry.rs:22-76`; §4 registry table). **Residual:**
+`anvil_check` architecture-check parity is deferred (`check.rs:21`); the INTR
+MCP-path content cap remains deferred (not shipped).
 
 ### G-05: Install surface narrower than config surface
 

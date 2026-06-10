@@ -1,8 +1,8 @@
 # Adapter Packages — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                                                  |
-| -------- | --------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | APSMD | Live   | Last reviewed 2026-05-07 against `v0.6.0-beta` and `packages/adapters/`, `packages/aps/`, `packages/kindling-integration/` |
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                        |
+| -------- | --------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | APSMD | Live   | Last reviewed 2026-06-10 (targeted delta review: validator rules, resolved schema drift, version anchors) against main `45dd1047a`; full review 2026-05-07 against `v0.6.0-beta` |
 
 | Upstream                                                                                    | Downstream                                                                                                 |
 | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
@@ -11,11 +11,11 @@
 > **Status:** Live (beta) for all three packages. Specific adapters within
 > `packages/adapters/` have varying readiness (SpecKit, BMAD, APS Markdown, and
 > Generic are complete; Open-Spec and BMAD v4 backward-compat are still in
-> progress per public docs and `plans/modules/`). **Last reviewed:** 2026-05-07
-> against `v0.6.0-beta` slate (HEAD `cf7ca040`). **Locations:**
-> `packages/adapters/`, `packages/aps/`, `packages/kindling-integration/` — all
-> TypeScript packages built via `pnpm` / `nx`
-> (`packages/adapters/package.json:11`, `packages/aps/package.json:18`,
+> progress per public docs and `plans/modules/`). **Last reviewed:** 2026-06-10
+> (targeted delta) against main `45dd1047a`; full review 2026-05-07 against
+> `v0.6.0-beta` slate. **Locations:** `packages/adapters/`, `packages/aps/`,
+> `packages/kindling-integration/` — all TypeScript packages built via `pnpm` /
+> `nx` (`packages/adapters/package.json:11`, `packages/aps/package.json:18`,
 > `packages/kindling-integration/package.json:91`). **Module owners (APS):**
 >
 > - `packages/adapters/` — APSMD (Complete,
@@ -51,16 +51,16 @@ they're all secondary surfaces compared to the Rust core:
   path hints.
 - **`packages/aps/`** (`@eddacraft/anvil-aps`) — the APS library. Parser,
   loader, validator, filter, state manager, and template generator for `.aps.md`
-  planning documents. Eight-rule validator, Zod-backed schemas.
+  planning documents. Fifteen-rule validator, Zod-backed schemas.
 - **`packages/kindling-integration/`** (`@eddacraft/anvil-kindling-integration`)
   — the read-only-queryable, write-only-emit contract layer between Anvil and
   Kindling. Eleven observation kinds, four query scopes, malicious-AI test suite
   proving read-only enforcement.
 
-All three are `0.5.1-beta` package versions ahead of the `v0.6.0-beta` slate
-(`packages/adapters/package.json:3`, `packages/aps/package.json:3`,
-`packages/kindling-integration/package.json:3`). Versioning is package-local;
-none is gated to the Rust binary version.
+All three are `0.7.4-beta` package versions, matching the latest release tag
+`v0.7.4-beta` exactly (`packages/adapters/package.json:3`,
+`packages/aps/package.json:3`, `packages/kindling-integration/package.json:3`).
+Versioning is package-local; none is gated to the Rust binary version.
 
 ## 2. Architecture diagram
 
@@ -142,7 +142,7 @@ insertion order; precedence is by **detection confidence**, not registration.
 - Single export entry: `./dist/index.js`.
 - Dependencies: `@eddacraft/anvil-core`, `@eddacraft/anvil-aps` (both
   `workspace:*`).
-- Dev-dep: `vitest ^4.1.5`.
+- Dev-dep: `vitest ^4.1.8`.
 
 The package runs no scripts at build time beyond `tsc -p tsconfig.lib.json`;
 auto-registration happens on the **import side** (`src/index.ts:42-45`).
@@ -278,7 +278,7 @@ APSMD is Complete (`plans/archive/modules/aps-markdown-adapter.aps.md:1-7`).
 ### 6.3 Open-Spec adapter (in progress, Draft)
 
 `plans/modules/open-spec-adapter.aps.md` — OPENSPEC, Draft. Source code **not
-yet present in `packages/adapters/src/`** as of HEAD `cf7ca040`; the module's
+yet present in `packages/adapters/src/`** as of HEAD `45dd1047a`; the module's
 last review (2026-04-26) reaffirms it lives in the TS adapters layer rather than
 Rust. Will add `OpenSpecFormatAdapter` once implementation lands. Tracked in
 `plans/modules/open-spec-adapter.aps.md`.
@@ -368,7 +368,7 @@ LOC of source + tests):
 | ------------ | ---------- | -------- | ------------------------------------------------------------------------------------------- |
 | `parser/`    | 929        | 1 420    | remark / unified AST parser; `parseDocument`, `parseIndex`, `parseTask`                     |
 | `loader/`    | 448        | 294      | Load + recursively resolve plan graphs (index → leaf modules)                               |
-| `validator/` | 807        | 287      | Eight-rule validator (errors + warnings)                                                    |
+| `validator/` | 807        | 287      | Fifteen-rule validator (errors + warnings)                                                  |
 | `filter/`    | 561        | 317      | Task / module filtering + `ContextBundleJSON` for LLM consumption                           |
 | `state/`     | 1 007      | 821      | `.anvil/state.json` with first-lock-wins concurrency, execution-plan generation, provenance |
 | `templates/` | 781        | 378      | Template generator with three variants (minimal / standard / full)                          |
@@ -399,19 +399,31 @@ The validator is the load-bearing surface — `anvil validate` (Rust CLI) and
 - `formatValidationIssues(result)` — pretty-prints to a string for CLI
   consumption.
 
-**Eight built-in rules** (`packages/aps/AGENTS.md:38-51`, implementations in
+**Fifteen built-in rules** (`packages/aps/AGENTS.md:43-59`, implementations in
 `validator/index.ts`):
 
-| Rule                    | Severity | What it checks                                                         | Implementation                                              |
-| ----------------------- | -------- | ---------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `required-sections`     | error    | `## Modules` for index, `## Tasks` for leaf                            | `validateIndexStructure`, `validateLeafStructure`           |
-| `task-format`           | error    | `SCOPE-NNN` task ID pattern (1-10 upper alphanumeric, hyphen, 3-digit) | `validateTaskFormat`; regex `types/index.ts:30`             |
-| `task-intent`           | error    | Task must declare `**Intent:**`                                        | `validateTaskContent`                                       |
-| `broken-links`          | error    | Referenced module file must exist                                      | `validateModuleLinks`, `validateFileExists`                 |
-| `duplicate-ids`         | error    | No duplicate task IDs across loaded plan graph                         | `validateDuplicateTaskIds`                                  |
-| `circular-dependencies` | error    | Module dependency graph must be a DAG                                  | `validateCircularDependencies` (uses `loader/detectCycles`) |
-| `scope-mismatch`        | warning  | Task ID prefix matches module's declared scope                         | `validateScopeMismatches`                                   |
-| `orphan-modules`        | warning  | Modules must be referenced from an index                               | `validateOrphanModules`                                     |
+| Rule                       | Severity | What it checks                                                         | Implementation                                              |
+| -------------------------- | -------- | ---------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `file-readable`            | error    | Target file exists and is readable                                     | `validatePlanningDoc`; emits `validator/index.ts:121`       |
+| `plan-loadable`            | error    | Plan graph loads without error                                         | `validatePlanningDoc`; emits `validator/index.ts:182`       |
+| `required-sections`        | error    | `## Modules` for index, `## Tasks` for leaf                            | `validateIndexStructure`, `validateLeafStructure`           |
+| `task-format`              | error    | `SCOPE-NNN` task ID pattern (1-10 upper alphanumeric, hyphen, 3-digit) | `validateTaskFormat`; regex `types/index.ts:30`             |
+| `task-intent`              | error    | Task must declare `**Intent:**`                                        | `validateTaskContent`                                       |
+| `missing-expected-outcome` | warning  | Task should declare `**Expected Outcome:**` (alias `Outcome:`)         | `validateTaskContent`; emits `validator/index.ts:589`       |
+| `missing-validation`       | warning  | Task should declare `**Validation:**` (alias `Test:`)                  | `validateTaskContent`; emits `validator/index.ts:604`       |
+| `missing-confidence`       | warning  | Task should declare `**Confidence:**` (defaults to `medium`)           | `validateTaskContent`; emits `validator/index.ts:615`       |
+| `broken-links`             | error    | Referenced module file must exist                                      | `validateModuleLinks`, `validateFileExists`                 |
+| `path-containment`         | error    | Module link paths must stay inside the project directory               | `validateModuleLinks`; emits `validator/index.ts:416`       |
+| `duplicate-ids`            | error    | No duplicate task IDs across loaded plan graph                         | `validateDuplicateTaskIds`                                  |
+| `circular-dependencies`    | error    | Module dependency graph must be a DAG                                  | `validateCircularDependencies` (uses `loader/detectCycles`) |
+| `scope-mismatch`           | warning  | Task ID prefix matches module's declared scope                         | `validateScopeMismatches`                                   |
+| `orphan-modules`           | warning  | Modules must be referenced from an index                               | `validateOrphanModules`                                     |
+| `orphan-scan-depth`        | warning  | Orphan scan hit its depth cap (10); subtree skipped                    | `validateOrphanModules`; emits `validator/index.ts:731`     |
+
+The two readiness gates (`file-readable`, `plan-loadable`) run before the
+structural rules — if the file can't be read or the plan graph can't load,
+validation stops there. The three `missing-*` rules are warnings
+(recommended-field nudges), not errors.
 
 `ValidationResult` (`validator/index.ts:57-69`) splits issues into `issues` /
 `errors` / `warnings`; `valid` is true when there are zero errors (warnings are
@@ -493,7 +505,7 @@ The APS package is the **canonical home** for schemas. Zod schemas live in
 
 The public-docs JSON Schema reference at
 `docs/public/aps/schemas/json-schema.md` is **derived from these schemas** and
-at time of review carries a documented status drift — see Known Gaps G-05.
+now matches the canonical enum (aligned 2026-05-12, DOCGOV-003).
 
 ---
 
@@ -523,6 +535,7 @@ module, `plans/archive/modules/kindling-integration.aps.md:1-9`).
 | `adapter.ts`                                                                  | 117            | `AnvilKindlingAdapter` — bridges 11 Anvil kinds → kindling-core's 3 generic kinds                                                       |
 | `index.ts`                                                                    | 254            | Public barrel exports                                                                                                                   |
 | `malicious-ai.test.ts`                                                        | 949            | 60 tests proving read-only enforcement (no `write` / `update` / `delete` / `annotate` / `tag` / `learn` / `embed` / `infer` operations) |
+| `kindling-service.redaction.test.ts`                                          | 88             | Redaction-path guard — detected-sensitive observations must be persisted redacted (regression suite for #1826)                          |
 | `emitters/{session,gate,action,plan,human-input,constraint,error}-emitter.ts` | 671 (combined) | Fire-and-forget emitter helpers per observation kind                                                                                    |
 | `utils/debug.ts`                                                              | 65             | `createDebugger` namespace gate                                                                                                         |
 
@@ -717,13 +730,13 @@ port is not on the slate per
 
 ### 19.2 Versioning
 
-All three packages are at `0.5.1-beta` package version
+All three packages are at `0.7.4-beta` package version
 (`packages/adapters/package.json:3`, `packages/aps/package.json:3`,
-`packages/kindling-integration/package.json:3`) — they track the **most recent
-published anvil release**, not the `v0.6.0-beta` slate under construction. None
-is gated on a Rust-binary version pin. This matches the wider monorepo pattern:
-Rust crates and TS packages move together at release tags, but the in-flight
-branch can carry mismatched versions.
+`packages/kindling-integration/package.json:3`) — they match the **latest
+release tag** (`v0.7.4-beta`) exactly. None is gated on a Rust-binary version
+pin. This matches the wider monorepo pattern: Rust crates and TS packages move
+together at release tags, and the in-flight branch can carry mismatched versions
+between tags.
 
 `@eddacraft/kindling-core` is pinned at `0.1.1`
 (`packages/kindling-integration/package.json:98`), **not workspace**. A bump
@@ -731,13 +744,13 @@ there is a deliberate dep change rather than a co-build.
 
 ### 19.3 Test infrastructure
 
-All three packages use **`vitest ^4.1.5`** as the test runner
+All three packages use **`vitest ^4.1.8`** as the test runner
 (`packages/adapters/package.json:21`, `packages/aps/package.json:32`,
 `packages/kindling-integration/package.json:104`). Each carries its own
 `vitest.config.ts`. There are **no shared fixtures** across the three — fixtures
 live under each package's `__fixtures__/` or `__tests__/fixtures/`.
 
-Test surface at HEAD `cf7ca040`:
+Test surface at HEAD `45dd1047a`:
 
 - `packages/adapters/src/__tests__/`: 9 top-level test files, 5 022 LOC total.
   Per-feature `__tests__/` dirs in `base/`, `aps-markdown/`, `generic/` add
@@ -745,8 +758,10 @@ Test surface at HEAD `cf7ca040`:
 - `packages/aps/src/`: per-module `*.test.ts` next to source. Validator, parser,
   loader, filter, state, templates each have a dedicated test file totalling ~3
   600 LOC.
-- `packages/kindling-integration/src/malicious-ai.test.ts`: 949 LOC, 60 tests
-  (sole test file in the live codebase besides the bench).
+- `packages/kindling-integration/src/`: two live test files besides the bench —
+  `malicious-ai.test.ts` (949 LOC, 60 tests) and
+  `kindling-service.redaction.test.ts` (88 LOC, redaction-path guard added under
+  #1826).
 
 ### 19.4 Determinism
 
@@ -766,7 +781,8 @@ All three packages produce deterministic outputs for fixed inputs:
 
 ## 20. Known gaps
 
-Dated against `v0.6.0-beta` slate (HEAD `cf7ca040`).
+Dated against main `45dd1047a` (originally assessed against the `v0.6.0-beta`
+slate).
 
 ### G-01: Open-Spec adapter not yet shipped
 
@@ -807,21 +823,18 @@ also say 11; the test assertions count 11; the OpenAPI generator at
 kinds). The "9" comment is a stale carry-over from an earlier scoping pass.
 **Risk:** Low (documentation-only). **Fix:** one-line comment update.
 
-### G-05: APS module-status enum drift between live schema and public docs
+### G-05: APS module-status enum drift between live schema and public docs — Resolved 2026-05-12 via DOCGOV-003
 
-`packages/aps/src/types/index.ts:95` declares
+**Resolved 2026-05-12 via DOCGOV-003.** `packages/aps/src/types/index.ts:95`
+declares
 `ModuleStatusSchema = z.enum(['Proposed', 'Ready', 'In Progress', 'Done', 'Blocked'])`
 with a parser-side normalisation note that legacy values (`Draft`, `Complete`)
-are accepted on parse and normalised to the canonical `Proposed` / `Done`. The
-public APS schema doc at `docs/public/aps/schemas/json-schema.md` (around the
-`ModuleMetadata` section) declares the enum as
-`'Draft' | 'Ready' | 'In Progress' | 'Complete' | 'Blocked'` — the **legacy**
-values, not the canonical ones. New users of the public spec will write
-`Status: Draft` and the parser will normalise it silently, but agents that read
-the schema verbatim will produce non-canonical output. **Risk:** Medium for
-downstream agents that generate APS documents from the public schema. **Fix:**
-update `docs/public/aps/schemas/json-schema.md` to declare the canonical enum
-and document the legacy aliases as parser-side compatibility.
+are accepted on parse and normalised to the canonical `Proposed` / `Done`. At
+the 2026-05-07 review the public APS schema doc declared the **legacy** enum
+(`'Draft' | 'Ready' | 'In Progress' | 'Complete' | 'Blocked'`);
+`docs/public/aps/schemas/json-schema.md:77` now declares the canonical
+`'Proposed' | 'Ready' | 'In Progress' | 'Done' | 'Blocked'`, matching
+`packages/aps/src/types/index.ts:95`.
 
 ### G-06: APS package has no per-package CLI wrapper
 
@@ -897,7 +910,7 @@ guard the auto-registration block with a `has()` check.
 - `packages/aps/src/loader/index.ts` — `loadPlan`, `LoadedPlan`, `LoadedModule`,
   `detectCycles`, `resolvePath`.
 - `packages/aps/src/validator/index.ts` — `validatePlanningDoc`,
-  `formatValidationIssues`, eight rules.
+  `formatValidationIssues`, fifteen rules.
 - `packages/aps/src/filter/{index,context-bundle}.ts` — `FilterCriteria`,
   context-bundle generation for LLM consumption.
 - `packages/aps/src/state/index.ts` — `TaskLocker`, `StateFile`,
@@ -951,8 +964,7 @@ guard the auto-registration block with a `has()` check.
 - Public APS spec — [`docs/public/aps/spec/`](../public/aps/spec/)
   (`taxonomy.md`, `file-layout.md`, `determinism.md`).
 - Public APS schemas —
-  [`docs/public/aps/schemas/json-schema.md`](../public/aps/schemas/json-schema.md)
-  (note enum drift in G-05).
+  [`docs/public/aps/schemas/json-schema.md`](../public/aps/schemas/json-schema.md).
 - Public APS examples —
   [`docs/public/aps/schemas/examples.md`](../public/aps/schemas/examples.md).
 - Public Kindling docs — [`docs/public/kindling/`](../public/kindling/)
@@ -967,9 +979,10 @@ guard the auto-registration block with a `has()` check.
   as-built (apps/anvil-api). Shape reference for this document.
 - [`docs/architecture/auth-as-built.md`](auth-as-built.md) — reference
   implementation for the as-built shape.
-- [`RELEASE-PLAN.md`](../../RELEASE-PLAN.md) — adapter readiness shipping
-  context for `v0.6.0-beta` (SpecKit + BMAD complete, OPENSPEC + BMAD4 in
-  progress).
+- [`RELEASE-PLAN.md`](../../RELEASE-PLAN.md) — forward-looking only since the
+  2026-06-02 rewrite (active window: `v0.8.0-beta`); it no longer carries
+  per-adapter readiness. Adapter readiness lives in
+  `packages/adapters/README.md` and the APS module statuses.
 - [`CHANGELOG.md`](../../CHANGELOG.md) — `0.5.0-beta` Added: BMAD v6 YAML
   support, APS Markdown adapter, watch event adapter double-counting fix.
 - APS modules:

@@ -1,16 +1,18 @@
 # anvil-checks Pipeline — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                            |
-| -------- | --------- | ----- | ------ | ---------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | SCAN  | Live   | Last reviewed 2026-05-07 against `v0.6.0-beta` and `crates/anvil-checks`, `crates/anvil-checks-napi` |
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                                              |
+| -------- | --------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | SCAN  | Live   | Last reviewed 2026-06-10 (targeted delta) against main `45dd1047a`; full review 2026-05-07 against `v0.6.0-beta` and `crates/anvil-checks`, `crates/anvil-checks-napi` |
 
-| Upstream                                                                          | Downstream                                                                                                                                        |
-| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `crates/anvil-checks`, `crates/anvil-checks-napi`, `crates/anvil-intercept-rules` | anvil check / gate / audit / watch CLI, intercept daemon scan_buffer, MCP shim anvil_validate_write, activation baseline, welcome screen analyser |
+| Upstream                                                                                                     | Downstream                                                                                                                                        |
+| ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `crates/anvil-checks`, `crates/anvil-checks-ast`, `crates/anvil-checks-napi`, `crates/anvil-intercept-rules` | anvil check / gate / audit / watch CLI, intercept daemon scan_buffer, MCP shim anvil_validate_write, activation baseline, welcome screen analyser |
 
-> **Status:** Live (beta) **Last reviewed:** 2026-05-07 against `v0.6.0-beta`
-> slate (HEAD `97b61fd0`) **Crate / location:** `crates/anvil-checks` (+
-> `crates/anvil-checks-napi`, callers in
+> **Status:** Live (beta) **Last reviewed:** 2026-06-10 (targeted delta review:
+> registry growth, AST tier, secret patterns, `.rs` default set, INTR consumers)
+> against main `45dd1047a`; full review 2026-05-07 against `v0.6.0-beta` slate
+> (HEAD `97b61fd0`) **Crate / location:** `crates/anvil-checks` (+
+> `crates/anvil-checks-ast`, `crates/anvil-checks-napi`, callers in
 > `crates/anvil-cli/src/commands/check.rs`,
 > `crates/anvil-cli/src/commands/gate.rs`,
 > `crates/anvil-cli/src/commands/audit.rs`, `crates/anvil-intercept-rules/`)
@@ -40,9 +42,10 @@ single-source.
 The crate ships four check families plus a shared filter / suppression
 substrate:
 
-- **Antipattern (`AP-*`, `DD-*`, `GS-*`, `RL-*`)** — registry-backed regex rules
-  from `patterns/compiled/registry.json`
-  (`crates/anvil-checks/src/antipattern/`).
+- **Antipattern (`AP-*`, `DD-*`, `GS-*`, `RL-*`, `RS-*`)** — registry-backed
+  rules from `patterns/compiled/registry.json`
+  (`crates/anvil-checks/src/antipattern/`); `RS-001..004` evaluate in the
+  separate gate-time AST-tier crate (§4.7).
 - **Secret detection** — pattern + entropy + `.env` parsing
   (`crates/anvil-checks/src/secret/`).
 - **Reasoning (`AI-001`)** — comment-prose appeals to authority
@@ -84,7 +87,7 @@ It does NOT own:
        │            anvil-checks rule families             │
        │  ┌──────────────┐  ┌──────────────┐  ┌──────────┐│
        │  │ antipattern  │  │   secret     │  │reasoning ││
-       │  │ (registry-   │  │ (18 patterns │  │ (AI-001) ││
+       │  │ (registry-   │  │ (21 patterns │  │ (AI-001) ││
        │  │  backed)     │  │  + entropy)  │  │          ││
        │  └──────┬───────┘  └──────┬───────┘  └────┬─────┘│
        │         │ surface/env (parse + scan)      │      │
@@ -153,17 +156,29 @@ what's actually implemented in `v0.6.0-beta`. Cross-link notes:
 ### 4.1 Antipattern registry
 
 The compiled `.anvil` registry at `patterns/compiled/registry.json` is the
-single source of truth. Eighteen rules ship in `v0.6.0-beta` across five
-families (counts confirmed at `patterns/compiled/registry.json`, loaded by
+single source of truth. Twenty-seven rules ship as of main `45dd1047a` across
+seven families (counts confirmed at `patterns/compiled/registry.json`, loaded by
 `crates/anvil-checks/src/antipattern/registry_loader.rs`):
 
 | Family                    | IDs                                              | Default severity (sample) |
 | ------------------------- | ------------------------------------------------ | ------------------------- |
 | guardrail-suppression     | `AP-001`, `AP-002`, `AP-004`, `AP-005`, `GS-001` | warning / info / warning  |
-| type-system-evasion       | `AP-003`                                         | warning                   |
+| type-system-evasion       | `AP-003`, `AP-015`, `AP-016`                     | warning                   |
 | error-visibility          | `AP-006`, `AP-007`                               | warning / info            |
 | deferred-debt             | `DD-001`..`DD-004`                               | warning / info            |
 | responsibility-laundering | `RL-001`..`RL-006`                               | warning / error / info    |
+| dynamic-execution         | `AP-008`, `AP-009`                               | error                     |
+| rust-reliability          | `RS-001`..`RS-005`                               | info / warning            |
+
+Post-`v0.6.0-beta` growth: the dynamic-execution family is new (`AP-008`
+`eval()` with a dynamic argument, `AP-009` `new Function()` — both severity
+error); the rust-reliability family is new (`RS-001`/`RS-002`/`RS-003` info,
+`RS-004` info + opt-in, `RS-005` warning — the first `RS`-prefixed family);
+type-system-evasion gained `AP-015` and `AP-016` (TS Zod-creep, LANGTS-004;
+`AP-016` opt-in). Tier note: `RS-001..004` are AST-tier rules (`detection: ast`
+in the registry) evaluated by the separate `anvil-checks-ast` crate at gate-time
+only (§4.7); `RS-005` (`todo!()` / `unimplemented!()` shipped) is regex-tier
+like every other family.
 
 Notable rules (one-line summaries; full body in the registry):
 
@@ -207,11 +222,15 @@ rule surfaces as a configuration check.
 
 ### 4.2 Secret detection
 
-Eighteen built-in patterns (`crates/anvil-checks/src/secret/patterns.rs:12-85`)
-covering API keys, JWT, AWS, RSA / PGP private-key shape, database URLs, generic
-secret, credit card, GitHub, Slack, Stripe (live + test), Google API, Heroku,
-SendGrid, Twilio, NPM token. Plus user-supplied custom patterns
-(`SecretCheckConfig::custom_patterns`, `secret/types.rs:17`).
+Twenty-one built-in patterns (`crates/anvil-checks/src/secret/patterns.rs:27`,
+`SECRET_PATTERNS: [SecretPattern; 21]`) covering API keys, JWT, AWS access / STS
+/ secret keys, RSA / PGP private-key shape, database URLs, generic secret,
+credit card, GitHub, Slack, Stripe (live + test), Google API, Heroku, SendGrid,
+Twilio, NPM token, and Anthropic / OpenAI API keys. The four post-`v0.6.0-beta`
+additions: AWS STS key (`patterns.rs:47`), AWS secret key (`patterns.rs:52`),
+Anthropic API key (`patterns.rs:130`), OpenAI API key (`patterns.rs:139`). Plus
+user-supplied custom patterns (`SecretCheckConfig::custom_patterns`,
+`secret/types.rs:17`).
 
 Entropy detection (`secret/entropy.rs`) uses Shannon entropy with threshold
 `4.5` and `min_entropy_length = 16` (`secret/types.rs:48-50`). Quoted runs and
@@ -319,6 +338,32 @@ Two further check categories surface through `anvil gate` but are NOT owned by
   is treated as a host-tooling problem and does NOT elevate to a strict-mode
   block (`gate.rs:1180-1184`).
 
+### 4.7 AST tier (`anvil-checks-ast`, RS-001..004)
+
+The regex scanner is parser-free by design so the resident daemon can link
+`anvil-checks` without tree-sitter (ADR-064). The AST tier therefore lives in a
+separate terminal command-path crate, `crates/anvil-checks-ast` (ADR-071), that
+only `anvil-cli` and test crates may depend on — a `daemon_dep_boundary` guard
+verifies the daemon never reaches it. It runs at gate-time only.
+
+The crate consumes the registry's `Detection::Ast` rules — `RS-001` (`.unwrap()`
+/ `.expect()` outside tests), `RS-002` (`panic!` reached from non-test code),
+`RS-003` (`unsafe {}` without a `// SAFETY:` comment), `RS-004` (`Deserialize`
+struct missing `#[serde(deny_unknown_fields)]`) — each a tree-sitter `ast_query`
+paired with a Rust predicate keyed by rule id
+(`crates/anvil-checks-ast/src/predicates.rs:35-52`). Findings emit the same
+`anvil_checks::Warning` shape the regex scanner produces — identical `family` /
+`fingerprint` / `severity` / `definition_ref` provenance — so downstream output
+treats both tiers uniformly (`crates/anvil-checks-ast/src/lib.rs:11-16`).
+
+Failure posture (ADR-071 §8): a file that does not parse cleanly skips its AST
+rules and emits the fail-safe diagnostic `anvil-ast-parse-skip` (`lib.rs:34-36`)
+rather than blocking. Registry load failures and warnings fold into
+`AstScanOutput::init_errors` so a missing or malformed registry fails loudly
+instead of reporting a default clean scan with AST rules silently disabled
+(CIB-050, fixed via PR #2475 — `lib.rs:85-152`, the `init_errors` folds at
+`lib.rs:97` and `lib.rs:107`).
+
 ## 5. Finding model
 
 The antipattern family's `Warning` shape
@@ -411,10 +456,14 @@ scannable list and tallied in the ledger keyed by language name with
 
 The fallback for repos without a profile is the hardcoded extension allowlist on
 `AntipatternCheckConfig::default()`
-(`crates/anvil-checks/src/antipattern/types.rs:197-218`):
-`.ts .tsx .js .jsx .mjs .cjs .html .htm .css .scss .less`. The CLI's
-`commands/check.rs::resolve_extensions` honours `--extensions` first and falls
-back to that default (`crates/anvil-cli/src/commands/check.rs:629-645`).
+(`crates/anvil-checks/src/antipattern/types.rs:197-225`):
+`.ts .tsx .js .jsx .mjs .cjs .rs .html .htm .css .scss .less`. `.rs` joined the
+default set in RSTLAN-006 (`types.rs:209-215`): the language-agnostic
+deferred-debt rules (`DD-001..003`) fire on Rust the same as TS, while
+JS/TS-specific rules stay extension-restricted via per-pattern target gating.
+The CLI's `commands/check.rs::resolve_extensions` honours `--extensions` first
+and falls back to that default
+(`crates/anvil-cli/src/commands/check.rs:629-645`).
 
 LAUNCH-016 hand-off status (per
 `crates/anvil-cli/src/activation/language_profile.rs:280-282` and
@@ -549,12 +598,22 @@ not.
 
 The daemon-side rule registry the watch path dispatches into is
 `anvil_intercept::enforcement::default_rule_registry`
-(`crates/anvil-intercept/src/enforcement.rs:96-102`): two rules in v1 —
-`SecretDetectionRule` and `LaunchReasoningPatternRule` — both of which are thin
+(`crates/anvil-intercept/src/enforcement.rs:96-102`): two rules enabled by
+default — `SecretDetectionRule` and `LaunchReasoningPatternRule` — both thin
 adaptors over the `anvil-checks` family entry points
 (`crates/anvil-intercept-rules/src/secret.rs:1-5`,
-`crates/anvil-intercept-rules/src/reasoning.rs:1-8`). The same registry serves
-the daemon's `scan_buffer` JSON-RPC method and the embedded fallback path.
+`crates/anvil-intercept-rules/src/reasoning.rs:1-8`). Three further adaptors
+ship in `anvil-intercept-rules` and register only when opted in via config
+(`crates/anvil-intercept-rules/src/config.rs:175`): `AntipatternScanRule`
+(INTR-003, `crates/anvil-intercept-rules/src/antipattern.rs:1-44`), which scans
+the changed file's borrowed content through
+`anvil_checks::antipattern::scan_file`
+(`crates/anvil-checks/src/antipattern/scanner.rs:1006`) synchronously on the hot
+path — no disk reads, no rayon pool — plus `PathDenyListRule` and
+`RegexContentRule`. `scan_file` is therefore a save-time hot-path dependency,
+distinct from the disk-walking `run_antipattern_check` the CLI uses. The same
+registry serves the daemon's `scan_buffer` JSON-RPC method and the embedded
+fallback path.
 
 ### 9.5 MCP shim — `anvil_validate_write`
 
@@ -674,7 +733,7 @@ Registry-sourced patterns carry `family` / `definition_ref` /
 Legacy patterns without provenance keep the fields `None` rather than
 synthesising fake ones.
 
-## 12. Known gaps (dated 2026-05-07)
+## 12. Known gaps (dated 2026-05-07; G-04 updated 2026-06-10)
 
 ### G-01: LAUNCH-016 hand-off — `extensions:` user-config opt-in deferred
 
@@ -699,14 +758,15 @@ shipped. SQL files (`.sql`) are classified `partial` in `LANGUAGE_REGISTRY`
 Markdown (`.md .mdx`) is classified `partial` — secret checks ship; structural
 governance pending.
 
-### G-04: Python and Rust unsupported
+### G-04: Python unsupported; Rust partial (deferred-debt + AST tier)
 
-`PYLAN` (`plans/modules/lang-python.aps.md`) and `RSTLAN`
-(`plans/modules/lang-rust.aps.md`) anchors not yet shipped. `.py` and `.rs`
-files are filtered out by `AntipatternCheckConfig::default().extensions`; the
-language profile classifies them `unsupported`. Reasoning rule (`AI-001`) does
-fire on `.rs` source comments via the registry's source-only default, but the
-antipattern family does not.
+`PYLAN` (`plans/modules/lang-python.aps.md`) anchors not yet shipped: `.py`
+files are filtered out by `AntipatternCheckConfig::default().extensions` and the
+language profile classifies Python `unsupported`. Rust is now partial: `.rs` is
+in the default extension set (RSTLAN-006, §7), the deferred-debt rules
+(`DD-001..003`) and the reasoning rule (`AI-001`) fire on Rust, and the AST tier
+(`RS-001..004`) runs at gate-time (§4.7). JS/TS-specific rules do not fire on
+`.rs` — per-pattern target gating keeps them extension-restricted.
 
 ### G-05: Kernel-import incremental quirks fixed in `0.5.1-beta` — known-historically-fragile
 
@@ -766,7 +826,7 @@ daemon-down on Windows in v1. Cross-link
 | `antipattern/check.rs`                           | `run_antipattern_check` (rayon-parallelised file walk, severity scoring).                                                               |
 | `secret/mod.rs`                                  | Family surface — `run_secret_check`, `scan_content`, `scan_git_history`, pattern matchers.                                              |
 | `secret/types.rs`                                | `SecretFinding`, `SecretCheckConfig` (`max_line_bytes` SCAN-002 guard, skip extensions).                                                |
-| `secret/patterns.rs`                             | 18 built-in patterns + default allowlist + `compile_custom_patterns`.                                                                   |
+| `secret/patterns.rs`                             | 21 built-in patterns + default allowlist + `compile_custom_patterns`.                                                                   |
 | `secret/scanner.rs`                              | Per-rule false-positive carve-outs (UUID-credit-card, generic-secret-code-shape).                                                       |
 | `secret/entropy.rs`                              | Shannon entropy + quoted/assignment shape filter.                                                                                       |
 | `secret/check.rs`                                | `run_secret_check` (rayon walk, 1 MiB skip, dedupe, scoring).                                                                           |
@@ -791,9 +851,13 @@ Adjacent crates:
   acceleration path per ADR-030. Internal CLI seam, not published to npm.
 - `crates/anvil-kernel-types/src/diagnostics.rs` — canonical `Diagnostic` +
   `DiagnosticSource` + `Location` shapes that back `anvil.diagnostic.v1`.
-- `crates/anvil-intercept-rules/src/{secret,reasoning}.rs` — daemon- side
-  adaptors over `anvil_checks::secret::scan_content_with_limit` and
-  `anvil_checks::reasoning::run_reasoning_check_with_limit`.
+- `crates/anvil-checks-ast/src/{lib,predicates}.rs` — gate-time AST tier over
+  the registry's `Detection::Ast` rules (ADR-071); terminal command-path crate
+  the daemon must never link (§4.7).
+- `crates/anvil-intercept-rules/src/{secret,reasoning,antipattern}.rs` —
+  daemon-side adaptors over `anvil_checks::secret::scan_content_with_limit`,
+  `anvil_checks::reasoning::run_reasoning_check_with_limit`, and
+  `anvil_checks::antipattern::scan_file` (`AntipatternScanRule`, opt-in — §9.4).
 
 CLI seams (`crates/anvil-cli/src/`):
 

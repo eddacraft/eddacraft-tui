@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 38/60    |
+| CIB | —     | In Progress | 39/61    |
 
 ## Purpose
 
@@ -1564,3 +1564,41 @@ archive.
   (exit-0 posture).
 - **Confidence:** high — message-surface change with existing test
   coverage to extend.
+
+### CIB-061: as-built delta refresh — remaining eight docs + runbook tail
+
+- **Status:** Done 2026-06-10; PR pending
+- **Intent:** the eight as-builts not covered by CIB-058 (mcp-shim, checks,
+  auth, api, tutorial, widgets, adapter-packages, observability) carry stale
+  or inverted central claims: the MCP shim doc says "one tool" (registry now
+  ships 8, RMCPF-010..-012); the observability doc says the redaction
+  deny-list is uncalled (the redacting formatter is live in `init_tracing`,
+  TRACE-003); the widgets doc says eddacraft-tui is consumed from crates.io
+  v0.1.0 with 13 widgets (it is the in-monorepo path crate v0.3.0 per
+  ADR-047, 22 widgets); the auth doc omits the merged GitHub OAuth flow
+  (GHCLIAUTH-003) and claims a hardcoded identity claim; the api doc misses
+  `/admin/broadcast`, the trace-context + admin-rate-limit middleware, and
+  four migrations; the checks doc says 18 rules/5 families (27/7, plus the
+  undocumented `anvil-checks-ast` AST tier, ADR-071) and 18 secret patterns
+  (21); the tutorial doc claims showcase wiring "not yet connected" (wired
+  via welcome, G-04 resolved); the adapters doc says 8 validator rules (15)
+  and flags a resolved schema-drift gap (DOCGOV-003). Also: activation
+  as-built's watch-fallback section carries v0.6.0-era `start.rs` pins, and
+  `docs/runbooks/cli-surface.md` lacks the `anvil capsule prune` row
+  (capsule-as-built G-06).
+- **Expected Outcome:** targeted delta updates to the eight docs (stale
+  claims corrected, missing surfaces documented with verified pins, gaps
+  resolved/narrowed honestly, dual-date freshness stamps), the activation
+  pin fix, the runbook prune row, and matching `docs/architecture/README.md`
+  blurbs. Widgets gets corrections + a new-widget summary table, not 9
+  authored deep-dives (deep-dives recorded as a known gap).
+- **Validation:** `pnpm docs:check` green; `pnpm run format:check` green;
+  `node scripts/aps/index-counts.mjs --check` green; adversarial pin
+  fact-check on the diff.
+- **Identified From:** 2026-06-10 internal-architecture-docs drift run
+  (continuation of CIB-057/-058); eight parallel per-doc drift agents
+  verified deltas against source at `45dd1047a`.
+- **Coordinates with:** RMCPF/TRACE/GHCLIAUTH/EMAIL/RSTLAN/LANGTS/ADR-071
+  module closeouts; capsule-as-built G-06.
+- **Confidence:** high — documentation of already-merged behaviour; every
+  correction carries verified pins.

@@ -1,18 +1,23 @@
 # Tutorial Subsystem — As-Built
 
-| Type     | Authority | Owner  | Status | Freshness                                                             |
-| -------- | --------- | ------ | ------ | --------------------------------------------------------------------- |
-| As-built | Derived   | LAUNCH | Live   | Last reviewed 2026-05-07 against `v0.6.0-beta` and `crates/anvil-tui` |
+| Type     | Authority | Owner  | Status | Freshness                                                                                                                                                                |
+| -------- | --------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| As-built | Derived   | LAUNCH | Live   | Last reviewed 2026-06-10 (targeted delta review: showcase wiring, SCAN-004 provenance, pin sweep) against main `45dd1047a`; full review 2026-05-07 against `v0.6.0-beta` |
 
 | Upstream                               | Downstream                                                                              |
 | -------------------------------------- | --------------------------------------------------------------------------------------- |
 | `crates/anvil-tui`, `crates/anvil-cli` | anvil tutorial CLI command, welcome surface "Explore the tutorial" entry point (LAUNCH) |
 
-> **Status:** Live (beta) **Last reviewed:** 2026-05-07 against `v0.6.0-beta`
-> slate (HEAD `cf7ca040`) **Module / location:**
-> `crates/anvil-tui/src/surfaces/tutorial/` **Module owner (APS):** LAUNCH-014
-> (ProtectionLoop default reframe — Complete) **Used by:** `anvil tutorial` CLI
-> command (mounts the tutorial surface)
+> **Status:** Live (beta) **Last reviewed:** 2026-06-10 (targeted delta review:
+> showcase wiring, SCAN-004 provenance, pin sweep) against main `45dd1047a`;
+> full review 2026-05-07 against `v0.6.0-beta` slate (HEAD `cf7ca040`) **Module
+> / location:** `crates/anvil-tui/src/surfaces/tutorial/` **Module owner
+> (APS):** LAUNCH-014 (ProtectionLoop default reframe — Complete) **Used by:**
+> `anvil tutorial` CLI command (mounts the tutorial surface)
+
+The UJ-012..015 docs-site tutorials (`docs/public/anvil/tutorials/*`) are a
+separate artefact from this TUI engine and do not affect it — stated here
+explicitly so the next reviewer doesn't re-chase that lead.
 
 ## Overview
 
@@ -87,7 +92,7 @@ load-bearing: the tutorial does NOT claim pre-write protection — only
 
 ## Path inventory (`paths.rs`)
 
-The `TutorialPath` enum (`mod.rs:35-44`) declares five paths. The first slot is
+The `TutorialPath` enum (`mod.rs:36-44`) declares five paths. The first slot is
 the LAUNCH-014 value-first default; the remaining four are the deeper-learning
 track.
 
@@ -104,7 +109,7 @@ the path selector (`mod.rs:46-83`). `from_label` round-trips legacy labels
 ("Policy", "Architecture", "Drift", "CI Integration") so progress files written
 by older builds still resolve to the correct enum variant after the onboarding
 rename (`mod.rs:57-70`); a round-trip test for ProtectionLoop pins the new label
-(`mod.rs:957-965`).
+(`mod.rs:958-965`).
 
 The deep dive on the ProtectionLoop walk is in §6 below.
 
@@ -176,11 +181,11 @@ it never enters the TUI (`tutorial.rs:37-39, 162-168`). On normal launch,
 
 ## Discovery (`discovery.rs` + `discovery_render.rs`)
 
-The discovery subsurface is the scan-results-to-tutorial bridge. Combined ~1600
-lines: 913 in `discovery.rs` (state machine, finding types, filtering, ~30 unit
-tests) and 683 in `discovery_render.rs` (three-phase render).
+The discovery subsurface is the scan-results-to-tutorial bridge. Combined ~1714
+lines: 933 in `discovery.rs` (state machine, finding types, filtering, ~30 unit
+tests) and 781 in `discovery_render.rs` (three-phase render).
 
-### Domain types (`discovery.rs:13-95`)
+### Domain types (`discovery.rs:13-103`)
 
 - `FindingSeverity` — `Info | Warning | Error`, ordered ascending so derived
   `Ord` puts `Error` highest (`discovery.rs:20-25`).
@@ -191,28 +196,37 @@ tests) and 683 in `discovery_render.rs` (three-phase render).
   `AP-003`, `AP-004`) to a `FixRequest::AntiPatternWarning` envelope; everything
   else returns `None` (`discovery.rs:56-85`).
 - `ScanResults` — bag of findings + `files_scanned` + `duration_ms` +
-  `truncated` flag (`discovery.rs:88-95`).
+  `truncated` flag + `files_skipped_by_ignore: usize` (`discovery.rs:89-103`).
+  The fifth field is SCAN-004 gitignore provenance: the count of files that
+  matched the scan criteria but were skipped because `.gitignore` excluded them.
+  It is preserved across `filter_by_domain` (`discovery.rs:148`, pinned by the
+  test at `discovery.rs:868`) and surfaced as a "skipped by .gitignore — set
+  ANVIL_SCAN_ALL=1" advisory row on the continue screen
+  (`discovery_render.rs:361-390`).
 
-### Filtering (`discovery.rs:97-142`)
+### Filtering (`discovery.rs:125-150`)
 
 `ScanResults::filter_by_domain(path)` is the seam between scan output and the
 tutorial path:
 
 - `ProtectionLoop` — all findings (LAUNCH-014 v1 default; "downstream PRs may
   narrow this to a high-signal subset, but blanket inclusion is the honest v1
-  default", `discovery.rs:108-112`).
+  default", doc-comment at `discovery.rs:118-120`).
 - `Policy` — `AntiPattern + Secret` only.
 - `Architecture` — `Architecture` only.
 - `Drift` and `CI` — all findings (cross-cutting).
 
-### `DiscoveryState` (a separate surface, `discovery.rs:148-350`)
+The ProtectionLoop / Drift / CI cases are now a single collapsed match arm
+(`discovery.rs:139-141`) — semantics unchanged.
+
+### `DiscoveryState` (a separate surface, `discovery.rs:157-359`)
 
 `DiscoveryState` is its own `Surface` impl:
 `Scanning { files_scanned, spinner_tick }` → `Results { selected }` (or →
 `Continue` on no findings). Scanning is driven externally — the caller invokes
 `update_progress`, `tick`, and `set_results`. The `s` key skips the scan from
 the scanning phase; `set_results` is a no-op once results have been written (the
-"results are never overwritten" invariant, `discovery.rs:208-218`).
+"results are never overwritten" invariant, `discovery.rs:213-227`).
 
 ### Rendering split (`discovery_render.rs`)
 
@@ -225,7 +239,9 @@ Three render paths, dispatched on `DiscoveryPhase`:
   left, finding-detail on the right with viewport scrolling
   (`discovery_render.rs:87-310`).
 - `render_continue` — summary screen with severity counts
-  (`discovery_render.rs:311-405`).
+  (`discovery_render.rs:311-402`). When `files_skipped_by_ignore > 0`, an
+  advisory row ("N files skipped by .gitignore — set ANVIL_SCAN_ALL=1 …") is
+  appended below the summary line (`discovery_render.rs:361-390`).
 
 `TutorialState` consumes the discovery output via `set_scan_results` and
 `load_steps` (which calls `filter_by_domain`); the welcome / onboarding flows
@@ -317,7 +333,7 @@ and `tick` (`fix.rs:36-148`). The inline editor is gated on `editor_disabled`
 (set by callers that cannot drive the editor save/check loop, e.g. the welcome
 flow, `fix.rs:73-75`).
 
-`fix_render.rs` (441 lines) draws the file-context panel, finding detail, and
+`fix_render.rs` (440 lines) draws the file-context panel, finding detail, and
 phase-aware help footer.
 
 ## Verify step (`verify.rs`)
@@ -365,7 +381,7 @@ Enter-to-continue (`watch_demo.rs:88-130`). The overlay reveal is
 `animate::Once`-driven for smooth fade-in/out (`watch_demo.rs:14-21, 169-181`).
 
 Help text is overlay-aware (`watch_demo.rs:209-217`). `watch_demo_render.rs`
-(132 lines) overlays the panel on top of the watch grid.
+(135 lines) overlays the panel on top of the watch grid.
 
 The watch-demo handoff back to the tutorial: the tutorial loop exits with
 `wants_watch_demo = true`, the CLI command runs `run_watch_demo_for_tutorial`,
@@ -374,18 +390,22 @@ and on clean exit advances the tutorial step
 
 ## Showcase (`showcase.rs`)
 
-`showcase.rs` (146 lines) returns four curated example findings — one hard-coded
+`showcase.rs` (145 lines) returns four curated example findings — one hard-coded
 API key (`Secret`/`Error`), one TODO in production code
 (`AntiPattern`/`Warning`), one cross-layer import (`Architecture`/`Warning`),
 and one camelCase naming convention (`AntiPattern`/`Info`). Each title is
 prefixed with `[Example]` so the renderer can distinguish them from real
-findings (`showcase.rs:7-74`).
+findings (`showcase.rs:7-73`).
 
-The intended use is the "your repo is clean" case: when the discovery scan
-returns zero findings, showcase findings teach the user what Anvil can catch.
-**The wiring is not yet connected** — the source carries a
-`TODO(WELCOME-007): Wire into discovery flow — call when filtered scan returns zero findings.`
-(`showcase.rs:11`). See §16 G-04.
+The showcase is wired through the welcome discovery flow: when `scan_project()`
+returns zero findings, `crates/anvil-cli/src/commands/welcome.rs:340-353` swaps
+in `showcase::showcase_findings()` so a clean repo still teaches what Anvil can
+catch, and the same swap is the scan-error fallback (`welcome.rs:356-368`). The
+clean-repo swap deliberately preserves the real scan's `files_skipped_by_ignore`
+provenance (SCAN-004) rather than zeroing it — the skipped files were still
+skipped. The `TODO(WELCOME-007)` that used to sit at the top of the file is
+gone; the entry point is `showcase_findings()`
+(`crates/anvil-tui/src/surfaces/tutorial/showcase.rs:11`). G-04 is resolved.
 
 ## Render path (`render.rs`)
 
@@ -433,7 +453,7 @@ Two test-pinned copy invariants live in `tutorial::tests` (`mod.rs`):
 
 ### `protection_loop_copy_uses_activation_state_vocabulary`
 
-Location: `mod.rs:881-909`. Loads the ProtectionLoop steps, joins title +
+Location: `mod.rs:882-909`. Loads the ProtectionLoop steps, joins title +
 description + instruction across all five into a single body, and asserts the
 body contains every one of the five user-actionable activation-state literals:
 `protecting`, `ready_restart_required`, `watching`, `needs_action`,
@@ -446,7 +466,7 @@ tutorial. Renaming a state in either place breaks the pin.
 
 ### `protection_loop_copy_does_not_claim_pre_write_protection`
 
-Location: `mod.rs:911-955`. Lower-cases the joined body and asserts none of the
+Location: `mod.rs:912-955`. Lower-cases the joined body and asserts none of the
 following forbidden phrases appear:
 
 - `you are now protected`
@@ -464,12 +484,12 @@ protection claims about the user's repo.
 
 ### Other LAUNCH-014 pins
 
-- `protection_loop_path_is_default_first_path` (`mod.rs:871-879`) — pins the
+- `protection_loop_path_is_default_first_path` (`mod.rs:872-879`) — pins the
   load-bearing UX invariant that Enter on a fresh tutorial lands on
   ProtectionLoop, not Policy.
-- `path_selection_advances_to_running` (`mod.rs:739-751`) — pins the same
+- `path_selection_advances_to_running` (`mod.rs:740-751`) — pins the same
   property at the Action level.
-- `protection_loop_round_trips_through_label` (`mod.rs:957-965`) — pins the
+- `protection_loop_round_trips_through_label` (`mod.rs:958-965`) — pins the
   resumption seam for the new label.
 
 ## Snapshot pinning (`snapshots/`)
@@ -505,7 +525,7 @@ builds a `TutorialState`, renders into a `TestBackend`, and asserts via
 ### Determinism
 
 Same scan results → same `domain_findings` (filter is pure,
-`discovery.rs:117-141`) → same step body. The fix-request priority is
+`discovery.rs:125-150`) → same step body. The fix-request priority is
 deterministic: `next_fix_request` picks the highest-severity fixable finding
 (`mod.rs:246-260`). The progress-glyph choice is stable for a given
 `ANVIL_ASCII` value. Snapshot pins are the canonical determinism gate.
@@ -615,12 +635,7 @@ activation crate; tutorial copy auto-corrects when the verifier output changes.
 
 ### G-04: Showcase findings are not wired into the discovery flow
 
-`showcase.rs:11` carries
-`TODO(WELCOME-007): Wire into discovery flow — call when filtered scan returns zero findings.`
-The four curated example findings exist and have round-trip tests, but no caller
-invokes them. A "clean repo" run today produces an empty findings panel rather
-than the `[Example]` showcase set. **Risk:** Low. **Fix:** WELCOME-007
-follow-up.
+Resolved (welcome.rs wiring, 2026-06-10 review) — see §Showcase.
 
 ### G-05: Legacy-path copy is NOT under the LAUNCH-014 test-pin set
 

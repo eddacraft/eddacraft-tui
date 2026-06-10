@@ -1,17 +1,18 @@
 # Widget Catalogue — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                     |
-| -------- | --------- | ----- | ------ | --------------------------------------------------------------------------------------------- |
-| As-built | Derived   | RATS  | Live   | Last reviewed 2026-05-07 against `v0.6.0-beta` and `crates/anvil-tui`, `crates/eddacraft-tui` |
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                 |
+| -------- | --------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | RATS  | Live   | Last reviewed 2026-06-10 (targeted delta review: path-crate consumption, catalogue growth, theme contract, consumption inversions) against main `45dd1047a`; full review 2026-05-07 against `v0.6.0-beta` |
 
 | Upstream                                   | Downstream                                                                                                                           |
 | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
 | `crates/anvil-tui`, `crates/eddacraft-tui` | all surfaces in anvil-tui (audit, browser, doctor, gate, init, onboarding, status, tutorial, watch, welcome, wizard), CLI TUI runner |
 
-> **Status:** Live (beta) **Last reviewed:** 2026-05-07 against `v0.6.0-beta`
-> slate (HEAD `cf7ca040`) **Crates / locations:**
-> `crates/anvil-tui/src/widgets/` (anvil-specific) + `eddacraft-tui v0.1.0`
-> (upstream library — published on crates.io; see "Crate resolution") **Module
+> **Status:** Live (beta) **Last reviewed:** 2026-06-10 (targeted delta review)
+> against main `45dd1047a`; full review 2026-05-07 against `v0.6.0-beta` slate
+> (HEAD `cf7ca040`) **Crates / locations:** `crates/anvil-tui/src/widgets/`
+> (anvil-specific) + `crates/eddacraft-tui` v0.3.0 (in-monorepo path crate,
+> ADR-047; crates.io publication is a mirror — see "Crate resolution") **Module
 > owner (APS):** RATS (Ratatui surfaces — Complete 7/7,
 > `plans/archive/modules/ratatui-tui.aps.md`); the upstream extraction was
 > tracked under TUIEXTRACT (Complete 7/7,
@@ -41,35 +42,41 @@ surface inventory) see [`tui-as-built.md`](./tui-as-built.md). The "Shared
 widget vocabulary" section there is the high-level table; this doc is the deep
 dive.
 
+**Scope.** This doc covers the widget catalogue plus the theme / keyboard
+contracts and snapshot pinning. The `eddacraft-tui::json_render` engine — the
+TUIDASH spec→widget renderer at `crates/eddacraft-tui/src/json_render`, gated
+behind the `json-render` feature (`crates/eddacraft-tui/src/lib.rs:43`) — is a
+sibling module, not a widget. It is documented in
+[`tui-as-built.md`](./tui-as-built.md) and intentionally out of scope here.
+
 ## Crate resolution
 
-The live `eddacraft-tui` is the **published `0.1.0` crate on crates.io**, not a
-vendored path. Confirmed three ways:
+The live `eddacraft-tui` is the **in-monorepo path crate at
+`crates/eddacraft-tui`, version 0.3.0** (ADR-047 path consumption) — not the
+published crates.io artefact. Confirmed three ways:
 
-- `Cargo.toml:52` declares `eddacraft-tui = "0.1.0"` in
-  `[workspace.dependencies]` with no `path = …` or `git = …` override.
-- `Cargo.lock:1167-1176` resolves `eddacraft-tui v0.1.0` to
-  `source = "registry+https://github.com/rust-lang/crates.io-index"` with a
-  pinned checksum.
-- `crates/anvil-tui/Cargo.toml:14, 24` consumes it as
-  `eddacraft-tui = { workspace = true }` and
-  `eddacraft-tui = { workspace = true, features = ["test-utils"] }` for
-  dev-dependencies — the workspace inheritance keeps a single resolved source.
+- `Cargo.toml:74` declares `eddacraft-tui = { path = "crates/eddacraft-tui" }`
+  in `[workspace.dependencies]`.
+- `Cargo.lock:1597-1598` resolves `eddacraft-tui v0.3.0` with **no registry
+  source** — a path dependency, not a checksum-pinned download.
+- `crates/anvil-tui/Cargo.toml:16` consumes it as
+  `eddacraft-tui = { workspace = true, features = ["json-render"] }`; the
+  dev-dependency at `:27` adds the `test-utils` feature. Workspace inheritance
+  keeps a single resolved source.
 
-Local source (for reading, not building): the cargo registry source-cache
-extracts the crate to
-`~/.cargo/registry/src/index.crates.io-<hash>/eddacraft-tui-0.1.0/`. All file
-references in this doc to upstream code use a `eddacraft-tui:` crate-relative
-prefix (e.g. `eddacraft-tui:src/theme/traits.rs:NN`).
+crates.io publication exists (tags `eddacraft-tui-v0.2.x`, `-v0.3.0`) but is the
+**mirror**, not the consumed artefact — the workspace builds against the path
+crate. File references in this doc to upstream code use the
+`crates/eddacraft-tui/src/...` path prefix.
 
 `archive/eddacraft-tui-local/` is the **historical** local fork, kept read-only
-for diff-against-published reference. It was the in-monorepo crate before
-TUIEXTRACT moved the upstream out to a separate repository
-(`eddacraft/eddacraft`) and published it on crates.io
-(`plans/archive/modules/eddacraft-tui-shared.aps.md:10-12`). The archive
-diverges from published `0.1.0` — most notably it does **not** contain the
-`editor` widget, which was added after extraction. Treat the archive as a git
-fossil; the published crate is the source of truth.
+for reference. It was the pre-TUIEXTRACT in-monorepo crate before the upstream
+moved to a separate repository (`eddacraft/eddacraft`) and was first published
+on crates.io (`plans/archive/modules/eddacraft-tui-shared.aps.md:10-12`); the
+crate has since returned to the monorepo as a path crate (ADR-047). The archive
+diverges from the live crate — most notably it does **not** contain the `editor`
+widget, which was added after extraction. Treat the archive as a git fossil; the
+path crate is the source of truth.
 
 ## Architecture diagram
 
@@ -98,6 +105,8 @@ fossil; the published crate is the source of truth.
    └────────────────────────┘      │  progress_bar  select        │
                                    │  spinner    status_badge     │
                                    │  status_bar text_input       │
+                                   │  …+9 new (22 total; see      │
+                                   │   §Upstream widgets)         │
                                    └────────────┬────────────────┘
                                                 │
                           ┌─────────────────────▼──────────────────┐
@@ -114,8 +123,8 @@ fossil; the published crate is the source of truth.
                                               └─────────────────────────────┘
 
    Snapshot pinning layer wraps all rendering. Two snapshot dirs:
-   - eddacraft-tui:src/snapshots/                  (1 file: shell chrome)
-   - crates/anvil-tui/src/**/snapshots/            (~38 files across surfaces)
+   - crates/eddacraft-tui/src/snapshots/                  (1 file: shell chrome)
+   - crates/anvil-tui/src/**/snapshots/            (41 files across surfaces)
 ```
 
 The diagram matches the lifecycle: the CLI runner instantiates a theme, selects
@@ -128,16 +137,21 @@ cell-and-style-aware diffing.
 
 ## Theme contract (`eddacraft-tui::theme`)
 
-The theme contract is a single `Theme` trait with eight required colour hooks
-and seven default-implemented derived styles. The `EddaCraftTheme` struct
-provides the canonical brand-palette implementation. All widgets in both crates
-are generic over `T: Theme`, so a downstream product can swap in a different
-palette without forking the widget code.
+The theme contract is a single `Theme` trait with eight required colour hooks,
+ten default-implemented derived styles, and a `Role` enum with a
+`role_style(role) -> Style` dispatcher. The `EddaCraftTheme` struct provides the
+canonical brand-palette implementation. All widgets in both crates are generic
+over `T: Theme`, so a downstream product can swap in a different palette without
+forking the widget code.
 
 ### `Theme` trait
 
-`eddacraft-tui:src/theme/traits.rs:3-59` defines the trait. Required methods
-(each returning a `ratatui::style::Color`):
+`crates/eddacraft-tui/src/theme/traits.rs:38-46` declares the eight required
+colour hooks. The implementor contract doc-comment (`traits.rs:26-37`) requires
+every style method to return a `Style` with `fg` (and, where semantically
+meaningful, `bg`) explicitly populated — internal widget tests rely on e.g.
+`theme.status_error().fg.unwrap()`. Required methods (each returning a
+`ratatui::style::Color`):
 
 | Method      | Semantic role                                               |
 | ----------- | ----------------------------------------------------------- |
@@ -150,12 +164,14 @@ palette without forking the widget code.
 | `muted()`   | De-emphasised foreground (help text, hints)                 |
 | `border()`  | Default unfocused border                                    |
 
-Derived styles (default-implemented on the trait at
-`eddacraft-tui:src/theme/traits.rs:13-58` — never override unless the palette
-demands it):
+Derived styles (ten, default-implemented on the trait at
+`crates/eddacraft-tui/src/theme/traits.rs:48-100` — never override unless the
+palette demands it):
 
 - `base()` — `fg()` over `bg()`. The default span style.
 - `highlighted()` — `bg()` over `accent()`, BOLD. Selected list rows.
+- `highlight_inactive()` — `fg()` over `border()`, BOLD. Selected-but-unfocused
+  rows (`traits.rs:59`).
 - `title()` — `accent()` BOLD. Block titles and labels.
 - `border_focused()` — `accent()`. Focused panel borders.
 - `border_unfocused()` — `border()`. Unfocused panel borders.
@@ -164,10 +180,18 @@ demands it):
 - `status_warning()` — `warning()` BOLD.
 - `disabled()` — `muted()`. Help text, hints, placeholders.
 
+The `Role` enum (`traits.rs:13-24` — `Primary` / `Secondary` / `Accent` /
+`Highlight` / `HighlightInactive` / `Success` / `Warning` / `Error` /
+`BorderSubtle` / `BorderEmphasis`) plus the `role_style(role) -> Style`
+dispatcher (`traits.rs:102`) let widgets reference _what a colour means_
+centrally instead of binding to an individual style helper; built-in widgets
+still resolve styles directly, but new widgets are encouraged to go through
+`role_style` so downstream themes can override roles in one place.
+
 ### `EddaCraftTheme` palette
 
-`eddacraft-tui:src/theme/eddacraft.rs:12-55` ships the canonical palette with
-brand-vocabulary names:
+`crates/eddacraft-tui/src/theme/eddacraft.rs:12-55` ships the canonical palette
+with brand-vocabulary names:
 
 | Brand name  | Role      | RGB               |
 | ----------- | --------- | ----------------- |
@@ -181,10 +205,10 @@ brand-vocabulary names:
 | Structure   | `border`  | `(42, 42, 46)`    |
 
 The `theme_colours_are_distinct` test
-(`eddacraft-tui:src/theme/eddacraft.rs:62-82`) pins that all eight colours are
-pairwise distinct — this is a load-bearing invariant for snapshot diffing
-because two semantic roles collapsing to the same RGB would silently mask
-regressions.
+(`crates/eddacraft-tui/src/theme/eddacraft.rs:62-82`) pins that all eight
+colours are pairwise distinct — this is a load-bearing invariant for snapshot
+diffing because two semantic roles collapsing to the same RGB would silently
+mask regressions.
 
 ### How surfaces consume the theme
 
@@ -194,8 +218,8 @@ it into the render path:
 - `crates/anvil-cli/src/tui.rs:39, 41` — `let theme = EddaCraftTheme;` followed
   by `surface_loop(&mut terminal, &mut state, &theme)`.
 - `Surface::render` takes `theme: &T` where `T: Theme` defaults to
-  `EddaCraftTheme` (`eddacraft-tui:src/surface.rs:13, 32`). Surfaces forward the
-  borrow into widget constructors and inline styling.
+  `EddaCraftTheme` (`crates/eddacraft-tui/src/surface.rs:13, 32`). Surfaces
+  forward the borrow into widget constructors and inline styling.
 
 Convention: surfaces construct ad-hoc `Style`s only as
 `Style::default().fg(theme.<role>())` — the colour value always comes from the
@@ -210,7 +234,7 @@ function that translates a single `crossterm::event::KeyEvent` into one
 
 ### `Action` enum
 
-`eddacraft-tui:src/keyboard/handler.rs:3-21` — 15 variants:
+`crates/eddacraft-tui/src/keyboard/handler.rs:3-21` — 15 variants:
 `Up / Down / Left / Right / Select / Toggle / Back / Quit / Character(char) / Backspace / Delete / Home / End / PageUp / PageDown / None`.
 
 `None` is the explicit "key event the handler does not recognise" sentinel —
@@ -219,9 +243,14 @@ surfaces match against it as `_ => {}` (or ignore it implicitly). The enum is
 
 ### `KeyHandler::map` contract
 
-`eddacraft-tui:src/keyboard/handler.rs:23-52`. The mapping is fully static —
-there is no chord support, no rebinding, no stateful machine. The two hard-coded
-conventions are:
+`crates/eddacraft-tui/src/keyboard/handler.rs:23-52`. The mapping is fully
+static — there is no chord support, no rebinding, no stateful machine. The
+module now also exports a `Binding` descriptor alongside `Action` / `KeyHandler`
+(`crates/eddacraft-tui/src/keyboard/mod.rs:3`, prelude `lib.rs:64`): a
+`{ keys, action, label }` record that `KeyHandler::default_bindings()` exposes
+as the curated key-hint list consumed by `HelpBar`. `Binding` is display
+metadata for help text, **not** a rebinding surface — `map` does not consult it.
+The two hard-coded conventions are:
 
 1. **`Ctrl+C` is `Action::Quit`** unconditionally (`handler.rs:28-32`). Every
    other Control-modified key returns `Action::None`. This means surfaces cannot
@@ -240,10 +269,10 @@ only react to the mapped `Action`.
 There is no global / local split inside the handler — every surface gets the
 same `Action` for the same key. The split lives on the surface side:
 `Surface::handle_key(&mut self, action: Action)` is the only override point
-(`eddacraft-tui:src/surface.rs:19`). Surfaces that need character-level input
-(text inputs, search prompts) match on `Action::Character(c)` and forward into
-their own state (e.g. `TextInputState::insert` at
-`eddacraft-tui:src/widgets/text_input.rs:39-42`).
+(`crates/eddacraft-tui/src/surface.rs:19`). Surfaces that need character-level
+input (text inputs, search prompts) match on `Action::Character(c)` and forward
+into their own state (e.g. `TextInputState::insert` at
+`crates/eddacraft-tui/src/widgets/text_input.rs:39-42`).
 
 The "search mode" / "fix" / "zoom" affordances on surfaces like gate / audit /
 watch are implemented entirely in `handle_key` on the surface — the keyboard
@@ -252,16 +281,36 @@ library hands the surface a vocabulary, not a state machine.
 
 ## Upstream widgets (`eddacraft-tui::widgets`)
 
-The published `0.1.0` ships **13 widgets** declared in
-`eddacraft-tui:src/widgets/mod.rs:6-18`. The lib-level prelude
-(`eddacraft-tui:src/lib.rs:40-61`) re-exports them flat for downstream
-ergonomics. Listing each below; ordering is alphabetical.
+The live path crate (v0.3.0) ships **22 widgets** declared in
+`crates/eddacraft-tui/src/widgets/mod.rs:9-33`; `big_banner` and `image_pane`
+sit behind the `big-text` / `image` cargo features (`mod.rs:7-8, 17-18`). The
+lib-level prelude (`crates/eddacraft-tui/src/lib.rs:72-101`) re-exports them
+flat for downstream ergonomics. The `wrappers` module (`Hideable` /
+`Disableable` / `Padded`, `widgets/wrappers.rs:32`) ships composition
+combinators alongside the widgets and is not counted as a widget.
+
+The 13 original widgets each have a deep-dive subsection below (ordering is
+alphabetical). The 9 widgets added since the 2026-05-07 full review are
+summarised in the following table; their deep dives are owed to the next full
+review (Known gaps G-07). Pins are relative to `crates/eddacraft-tui/src/`.
+
+| Widget       | Public types                                                       | Pin                         |
+| ------------ | ------------------------------------------------------------------ | --------------------------- |
+| `big_banner` | `BigBanner`                                                        | `widgets/big_banner.rs:31`  |
+| `data_table` | `DataTable` / `DataTableState` / `SortDirection` / `SortIndicator` | `widgets/data_table.rs:142` |
+| `help_bar`   | `HelpBar`                                                          | `widgets/help_bar.rs:22`    |
+| `image_pane` | `ImagePane`                                                        | `widgets/image_pane.rs:44`  |
+| `modal`      | `Modal`                                                            | `widgets/modal.rs:44`       |
+| `overlay`    | `Layer` / `OverlayStack` / `Placement`                             | `widgets/overlay.rs:81`     |
+| `pretext`    | `PretextWidget` / `PretextState`                                   | `widgets/pretext.rs:17`     |
+| `toast`      | `Toast` / `ToastStack` / `ToastPlacement`                          | `widgets/toast.rs:43`       |
+| `tree`       | `Tree` / `TreeNode` / `TreeState`                                  | `widgets/tree.rs:158`       |
 
 ### `confirm`
 
 **Purpose.** Inline yes/no confirmation prompt. Single-line widget that draws
 `<message> Yes / No (y/n)` with the highlighted button styled by
-`title()`-with-bold. `eddacraft-tui:src/widgets/confirm.rs:9-104`.
+`title()`-with-bold. `crates/eddacraft-tui/src/widgets/confirm.rs:9-104`.
 
 **Constructor.** `Confirm::new(message, theme).block(block?)`. Stateful via
 `ConfirmState { selected: bool, confirmed: Option<bool> }` — `selected` defaults
@@ -275,7 +324,7 @@ nothing if `inner.height == 0` or `inner.width == 0` (`confirm.rs:80-82`). The
 **Notable invariants.** No allocation on the render path beyond the formatted
 message string. Pure single-frame paint — no animation.
 
-**Source.** `eddacraft-tui:src/widgets/confirm.rs`.
+**Source.** `crates/eddacraft-tui/src/widgets/confirm.rs`.
 
 **Anvil consumers.** `surfaces/onboarding/hooks.rs` uses `HooksPhase::Confirm`
 semantically — but it draws the confirm prompt itself rather than instantiating
@@ -288,7 +337,7 @@ consumed** in `anvil-tui`.
 **Purpose.** Themed `ratatui::Block` factory with three variants — `Primary`
 (double border, focused colour, title), `Secondary` (plain border, focused
 colour, title), `Subtle` (rounded border, unfocused colour, disabled title).
-`eddacraft-tui:src/widgets/container.rs:8-79`.
+`crates/eddacraft-tui/src/widgets/container.rs:8-79`.
 
 **Constructor.** `Container::new(theme).title(title?).variant(variant?)`.
 `to_block() -> Block<'a>` returns a configured `Block` for direct render;
@@ -301,27 +350,28 @@ extraction so callers can compose it into a stateful render.
 beyond the four pre-bound combinations (`container.rs:44-72`). `Primary` is the
 focused-with-emphasis case; `Subtle` is the de-emphasised background frame.
 
-**Source.** `eddacraft-tui:src/widgets/container.rs`.
+**Source.** `crates/eddacraft-tui/src/widgets/container.rs`.
 
-**Anvil consumers.** Not directly consumed in `anvil-tui`. Surfaces build their
-own `ratatui::widgets::Block` instances with theme-derived border styles (e.g.
-`surfaces/audit/render.rs:55-57`, `surfaces/watch/render.rs` `panel_block`
-helper). This is a **candidate upstream-widget for inlining into the per-surface
-render** — see Known gaps G-02.
+**Anvil consumers.** Now consumed at **21 sites** across the dashboard surface
+family (e.g. `crates/anvil-tui/src/surfaces/plan_dashboard/render.rs:105` —
+`Container::new(theme).title("Summary").variant(ContainerVariant::Primary)`).
+The 2026-05-07 review's "not directly consumed" status is obsolete — see the
+rewritten Known gaps G-02. Older surfaces (audit, watch) still build their own
+`ratatui::widgets::Block` instances with theme-derived border styles.
 
 ### `divider`
 
 **Purpose.** Single-line horizontal rule. Two variants — `Heavy` (`━`,
 `border_focused`) and `Light` (`─`, `border_unfocused`). Optional custom
 character override (`character: Option<char>`) replaces the variant glyph
-without affecting the style. `eddacraft-tui:src/widgets/divider.rs:8-58`.
+without affecting the style. `crates/eddacraft-tui/src/widgets/divider.rs:8-58`.
 
 **Constructor.** `Divider::new(theme).variant(variant?).character(c?)`.
 
 **Render.** `Widget`. Repeats the chosen character `area.width` times, renders
 into the first row only. No-ops when area is zero (`divider.rs:45-46`).
 
-**Source.** `eddacraft-tui:src/widgets/divider.rs`.
+**Source.** `crates/eddacraft-tui/src/widgets/divider.rs`.
 
 **Anvil consumers.** Not directly consumed in `anvil-tui`. Inlined as ad-hoc
 `Line::styled("─".repeat(width), theme.border_unfocused())` in several surfaces.
@@ -330,7 +380,8 @@ into the first row only. No-ops when area is zero (`divider.rs:45-46`).
 
 **Purpose.** Multi-line text editor with cursor, scroll, selectable editable
 region, dirty/saved flags, and read-only context windows. The heaviest widget in
-the catalogue at 1005 lines. `eddacraft-tui:src/widgets/editor.rs:1-1005`.
+the catalogue at 1005 lines.
+`crates/eddacraft-tui/src/widgets/editor.rs:1-1005`.
 
 **Constructor / config.** `Editor::new(theme).block(block?)`. Stateful via
 `EditorState`, which is the load-bearing type:
@@ -358,7 +409,7 @@ read-only lines silently reject `insert` / `backspace` / `delete`. The
 (`editor.rs:21`). `clamp_cursor_to_line` keeps the cursor byte offset on a char
 boundary after vertical movement (`editor.rs:156-161`).
 
-**Source.** `eddacraft-tui:src/widgets/editor.rs`.
+**Source.** `crates/eddacraft-tui/src/widgets/editor.rs`.
 
 **Anvil consumers.** `crates/anvil-tui/src/surfaces/tutorial/fix.rs:54` and
 `fix_render.rs:163` — the in-tutorial fix surface uses
@@ -371,7 +422,7 @@ is the **only** upstream widget that owns persistent multi-line state in
 
 **Purpose.** Three-row branded header — separator rule + uppercased title (with
 optional version suffix in `disabled` style) + optional subtitle in `disabled`
-style. `eddacraft-tui:src/widgets/header.rs:8-67`.
+style. `crates/eddacraft-tui/src/widgets/header.rs:8-67`.
 
 **Constructor.** `Header::new(title, theme).subtitle(subtitle?).version(v?)`.
 
@@ -379,7 +430,7 @@ style. `eddacraft-tui:src/widgets/header.rs:8-67`.
 the optional subtitle. Bails early if `area.height` is too small
 (`header.rs:48-50, 60-61`).
 
-**Source.** `eddacraft-tui:src/widgets/header.rs`.
+**Source.** `crates/eddacraft-tui/src/widgets/header.rs`.
 
 **Anvil consumers.** `crates/anvil-tui/src/widgets/results_dashboard.rs:7, 112`
 — the `ResultsDashboard` composite uses
@@ -391,7 +442,7 @@ as its top row. **Only consumer** at time of review.
 **Purpose.** Filterable log viewer with level checkboxes
 (`Error / Warn / Info / Debug`), text search, auto-scroll, and selection.
 Carries 561 lines of state machine — the second-heaviest widget after `editor`.
-`eddacraft-tui:src/widgets/log_panel.rs:1-561`.
+`crates/eddacraft-tui/src/widgets/log_panel.rs:1-561`.
 
 **Constructor.**
 `LogPanel::new(entries, theme) .block(block?).max_visible(N).title("…").show_filter(bool).show_search(bool).focused(bool)`.
@@ -404,7 +455,7 @@ optional search prompt row, and the entries list. Each entry renders as
 `status_*` styles. Auto-scroll snaps to the newest entry when `auto_scroll` is
 set and a new entry has arrived since the last paint.
 
-**Source.** `eddacraft-tui:src/widgets/log_panel.rs`.
+**Source.** `crates/eddacraft-tui/src/widgets/log_panel.rs`.
 
 **Anvil consumers.** Not directly consumed in `anvil-tui` at time of review. The
 watch surface's queue / history panels render their own notification rows rather
@@ -417,7 +468,7 @@ see Known gaps G-02.
 (`Pending / Running / Passed / Failed / Skipped / Cached`), per-task progress
 percent, ETA estimation, and overall aggregate. Uses unicode 1/8th block
 characters (`▏▎▍▌▋▊▉█`) for sub-cell progress fidelity.
-`eddacraft-tui:src/widgets/parallel_progress.rs:1-428`.
+`crates/eddacraft-tui/src/widgets/parallel_progress.rs:1-428`.
 
 **Constructor.** `ParallelProgress::new(theme).block(block?).title(title?)`.
 Stateful via
@@ -432,7 +483,7 @@ progress as a `u8` (`parallel_progress.rs:59-73`);
 aggregate. ETA returns `None` when progress is 0 or 100, so the UI never shows a
 meaningless "ETA: 0s" or "ETA: ∞".
 
-**Source.** `eddacraft-tui:src/widgets/parallel_progress.rs`.
+**Source.** `crates/eddacraft-tui/src/widgets/parallel_progress.rs`.
 
 **Anvil consumers.** Not directly consumed in `anvil-tui` at time of review. The
 gate surface renders its check list manually rather than going through
@@ -443,14 +494,15 @@ gaps G-02.
 
 **Purpose.** Single-line progress bar with `current / total` state and an
 optional label. Uses `█` / `░` block characters; renders as
-`<label>: ████░░░░ 50%`. `eddacraft-tui:src/widgets/progress_bar.rs:1-86`.
+`<label>: ████░░░░ 50%`.
+`crates/eddacraft-tui/src/widgets/progress_bar.rs:1-86`.
 
 **Constructor.** `ProgressBar::new(theme).block(block?).label(label?)`. Stateful
 via `ProgressBarState { current: u64, total: u64 }` with a `fraction()` helper
 that clamps to `[0.0, 1.0]` and returns `0.0` for zero totals
 (`progress_bar.rs:21-28`).
 
-**Source.** `eddacraft-tui:src/widgets/progress_bar.rs`.
+**Source.** `crates/eddacraft-tui/src/widgets/progress_bar.rs`.
 
 **Anvil consumers.** Not directly consumed. The `QuickWinsPanel`
 (`anvil-tui::widgets`) draws its own `[#---] N/M (X%)` ASCII progress line via
@@ -463,7 +515,7 @@ ASCII-only pin (cross-link `tui-as-built.md#G-06`).
 
 **Purpose.** Vertical list selector with optional per-item description.
 Wrap-around navigation, scroll offset, focused-row highlight via `highlighted()`
-style. `eddacraft-tui:src/widgets/select.rs:1-212`.
+style. `crates/eddacraft-tui/src/widgets/select.rs:1-212`.
 
 **Constructor.** `Select::new(items, theme).block(block?)` where
 `items: IntoIterator<Item: Into<SelectItem>>`.
@@ -476,7 +528,7 @@ Stateful via `SelectState { selected, offset }` with
 **Render.** `StatefulWidget`. Highlights the selected row; if the item has a
 description, renders the description on a second row in `disabled` style.
 
-**Source.** `eddacraft-tui:src/widgets/select.rs`.
+**Source.** `crates/eddacraft-tui/src/widgets/select.rs`.
 
 **Anvil consumers.** Not directly consumed at time of review. Surfaces like
 welcome / wizard / browser / init render their selectable lists inline, often
@@ -486,14 +538,16 @@ next refactored — see Known gaps G-02.
 
 ### `spinner`
 
-**Purpose.** Single-cell animated spinner with optional label. Ten frames of
-braille spinner glyphs (`⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏`), advanced via `SpinnerState::tick()`.
-`eddacraft-tui:src/widgets/spinner.rs:1-92`.
+**Purpose.** Single-cell animated spinner with optional label, advanced via
+`SpinnerState::tick()`. The frame set is no longer fixed: `SpinnerPreset`
+(`widgets/spinner.rs:69`) selects between the `eddacraft()` braille frame set
+(`spinner.rs:52`) and the `anvil()` frame set (`spinner.rs:60`), each a
+`FrameSet { frames, interval }`. `crates/eddacraft-tui/src/widgets/spinner.rs`.
 
 **Constructor.** `Spinner::new(theme).label(label?)`. Stateful via
 `SpinnerState { frame: usize }`. `tick()` advances and wraps.
 
-**Source.** `eddacraft-tui:src/widgets/spinner.rs`.
+**Source.** `crates/eddacraft-tui/src/widgets/spinner.rs`.
 
 **Anvil consumers.** Not directly consumed. The watch surface's `Running` status
 uses a static glyph rather than the upstream spinner. Candidate upstream-widget
@@ -505,7 +559,7 @@ for inventory tracking — see Known gaps G-02.
 `Success (◆ Passed)`, `Error (✖ Failed)`, `Warning (◈ Warning)`,
 `Info (◇ Info)`, `Running (● Running)`, `Skipped (○ Skipped)`. Each maps to a
 `status_*` or `disabled` style.
-`eddacraft-tui:src/widgets/status_badge.rs:9-68`.
+`crates/eddacraft-tui/src/widgets/status_badge.rs:9-68`.
 
 **Constructor.** `StatusBadge::new(status, theme).label(label?)`. The `label`
 override falls back to a status-specific default (`status_badge.rs:40-49`).
@@ -516,18 +570,20 @@ which renders cleanly on most terminals. The watch action footer
 instead because the watch dashboard is the demo path — `StatusBadge` is for the
 in-app contexts that aren't subject to that constraint.
 
-**Source.** `eddacraft-tui:src/widgets/status_badge.rs`.
+**Source.** `crates/eddacraft-tui/src/widgets/status_badge.rs`.
 
-**Anvil consumers.** Not directly consumed at time of review. Status glyphs in
-surfaces like gate / doctor / status are rendered inline with the surface's own
-icon helpers.
+**Anvil consumers.** Now consumed at **3 sites** in the dashboard surface family
+(e.g. `crates/anvil-tui/src/dashboard_catalog/gate_result.rs:56`; also
+`dashboard_catalog/suppression.rs` and `surfaces/plan_dashboard/render.rs`).
+Status glyphs in the older gate / doctor / status surfaces are still rendered
+inline with the surface's own icon helpers.
 
 ### `status_bar`
 
 **Purpose.** Two-section bottom-of-surface status strip — `left` items
 (left-aligned) and `right` items (right-aligned). Each item has a `StatusKind`
 (`Normal / Success / Error / Warning / Muted`) that selects the styling.
-`eddacraft-tui:src/widgets/status_bar.rs:8-88`.
+`crates/eddacraft-tui/src/widgets/status_bar.rs:8-88`.
 
 **Constructor.** `StatusBar::new(theme).left(items).right(items)` where items
 are `StatusItem { label, kind }`.
@@ -536,18 +592,19 @@ are `StatusItem { label, kind }`.
 section. Sets `theme.base()` over the entire area first so the bar has a solid
 background.
 
-**Source.** `eddacraft-tui:src/widgets/status_bar.rs`.
+**Source.** `crates/eddacraft-tui/src/widgets/status_bar.rs`.
 
 **Anvil consumers.** Not directly consumed at time of review. The shell chrome
 footer (`crates/anvil-tui/src/shell.rs` re-exports +
-`eddacraft-tui:src/shell.rs:42-71`) renders its own help-text + watermark layout
-rather than going through `StatusBar`. Candidate upstream-widget for inventory
-tracking — see Known gaps G-02.
+`crates/eddacraft-tui/src/shell.rs:42-71`) renders its own help-text + watermark
+layout rather than going through `StatusBar`. Candidate upstream-widget for
+inventory tracking — see Known gaps G-02.
 
 ### `text_input`
 
 **Purpose.** Single-line text input with cursor positioning, char-boundary
-safety, and placeholder text. `eddacraft-tui:src/widgets/text_input.rs:1-291`.
+safety, and placeholder text.
+`crates/eddacraft-tui/src/widgets/text_input.rs:1-291`.
 
 **Constructor.** `TextInput::new(theme).block(block?).placeholder(s)`. Stateful
 via `TextInputState { value: String, cursor: usize }` (cursor is private;
@@ -562,7 +619,7 @@ State exposes
 **Render.** `StatefulWidget`. Renders `value` (or `placeholder` in `disabled`
 style if empty), with the cursor cell styled `REVERSED`.
 
-**Source.** `eddacraft-tui:src/widgets/text_input.rs`.
+**Source.** `crates/eddacraft-tui/src/widgets/text_input.rs`.
 
 **Anvil consumers.** `crates/anvil-tui/src/surfaces/init/mod.rs:4, 142, 170` —
 init wizard "Directory" step uses `TextInputState` for the directory path field.
@@ -673,15 +730,15 @@ see `tui-as-built.md` snapshot inventory) doesn't drift on data changes.
 
 Two snapshot directories ship widget / chrome pins:
 
-### Upstream — `eddacraft-tui:src/snapshots/`
+### Upstream — `crates/eddacraft-tui/src/snapshots/`
 
 Exactly **one** pinned snapshot:
 `eddacraft_tui__shell__tests__snapshot_shell_chrome.snap` — 60x10 buffer of the
 shell chrome (`Anvil > Gate` header, `j/k navigate  enter expand  q quit`
 footer + `eddacraft v<VERSION>` watermark). Pinned by
-`eddacraft-tui:src/shell.rs:130-151`.
+`crates/eddacraft-tui/src/shell.rs:130-151`.
 
-Coverage gaps in upstream: the 13 widgets all have Rust unit tests
+Coverage gaps in upstream: the original 13 widgets all have Rust unit tests
 (`#[cfg(test)] mod tests`) but **none** are pinned with insta snapshots. The
 unit tests assert on individual cell symbols (e.g. `buf[(0, 0)].symbol() == "╔"`
 for `Container::Primary`) rather than the full buffer. This is by design at the
@@ -692,7 +749,7 @@ snapshots live downstream in `anvil-tui` instead.
 
 ### Downstream — `crates/anvil-tui/**/snapshots/`
 
-The TUI as-built (`tui-as-built.md#snapshot-infrastructure`) covers the 38
+The TUI as-built (`tui-as-built.md#snapshot-infrastructure`) covers the 41
 surface-level pins. Two are widget-specific:
 
 - `anvil_tui__widgets__results_dashboard__tests__renders_with_full_data` /
@@ -711,7 +768,7 @@ a cell or style would surface as a downstream snapshot diff. The canonical chain
 is:
 
 1. Surface uses `eddacraft_tui::test_utils::snapshot::buffer_to_string`
-   (`eddacraft-tui:src/test_utils.rs:54-66`, re-exported via
+   (`crates/eddacraft-tui/src/test_utils.rs:54-66`, re-exported via
    `crates/anvil-tui/src/test_utils.rs`) to serialise the rendered buffer.
 2. `buffer_to_string` includes both the cell symbol and a style annotation
    (`<symbol>[fg:…,bg:…,bold,…]`), so colour or modifier swaps are caught even
@@ -729,7 +786,7 @@ stability. Concrete consequences for widgets:
 
 - The `Theme` trait returns `Color` values directly — no env-var lookup, no
   time-of-day toggle, no random gradient. The `theme_colours_are_distinct` test
-  (`eddacraft-tui:src/theme/eddacraft.rs:62-82`) pins this.
+  (`crates/eddacraft-tui/src/theme/eddacraft.rs:62-82`) pins this.
 - `KeyHandler::map` is a `match` over `KeyEvent` — no internal state, no side
   effects. Same key → same action.
 - The `parallel_progress` widget uses `Instant::now()`-derived elapsed values
@@ -792,34 +849,38 @@ terminals — see Known gaps G-03.
 
 ### G-01: `editor` widget added post-extraction; no archive parity
 
-The published `eddacraft-tui v0.1.0` includes
-`eddacraft-tui:src/widgets/editor.rs` (1005 lines), but the
+The live `eddacraft-tui` (path crate, v0.3.0) includes
+`crates/eddacraft-tui/src/widgets/editor.rs` (1005 lines), but the
 `archive/eddacraft-tui-local/` fork does **not** contain an `editor.rs` file —
 confirmed via `find` over the archive tree. The TUIEXTRACT module is marked
 Complete (`plans/archive/modules/eddacraft-tui-shared.aps.md:10-12`), but the
 archive snapshot pre-dates the editor's introduction. Future readers diffing the
-archive against the published crate will see this as a real divergence, not just
+archive against the live crate will see this as a real divergence, not just
 whitespace drift.
 
-**Risk:** Low — the published crate is the source of truth; the archive is not
+**Risk:** Low — the live path crate is the source of truth; the archive is not
 built. **Fix:** when the archive is next pruned (it's read-only historical
 reference now), this gap closes naturally. No tracked work item.
 
 ### G-02: Several upstream widgets are unconsumed in `anvil-tui`
 
-A grep for direct widget instantiation (`Container::`, `Divider::`,
-`LogPanel::`, `ParallelProgress::`, `Select::`, `Spinner::`, `StatusBadge::`,
-`StatusBar::`, `Confirm::`, `ProgressBar::`) across `crates/anvil-tui/src`
-returns zero hits at time of review. The widgets that **are** consumed are:
-`Editor` / `EditorState` (tutorial fix), `TextInput` / `TextInputState` (init
-wizard, anvil-new wizard), `Header` (results dashboard).
+The consumption picture has partially inverted since the 2026-05-07 review: the
+dashboard surface family now consumes `Container` (21 sites, e.g.
+`crates/anvil-tui/src/surfaces/plan_dashboard/render.rs:105`), `DataTable` (4
+sites, e.g. `crates/anvil-tui/src/surfaces/dashboard/architecture.rs:217`), and
+`StatusBadge` (3 sites, e.g.
+`crates/anvil-tui/src/dashboard_catalog/gate_result.rs:56`), alongside the
+pre-existing consumers: `Editor` / `EditorState` (tutorial fix), `TextInput` /
+`TextInputState` (init wizard, anvil-new wizard), `Header` (results dashboard).
 
-The remaining 10 widgets are defined upstream but not consumed downstream. This
-is partly intentional (the upstream library targets `eddacraft/eddacraft`
-projects more broadly than just anvil) and partly opportunity — surfaces that
-build their own list / progress-bar / status-badge equivalents inline are
-candidates for refactor onto the upstream widget. None of the unused widgets are
-deprecated.
+The still-unconsumed set is `Divider`, `LogPanel`, `ParallelProgress`, `Select`,
+`Spinner`, `StatusBar`, `Confirm`, `ProgressBar`, plus the newer `Modal` /
+`Toast` / `Tree` / `HelpBar` / `Overlay` / `BigBanner` / `ImagePane` /
+`Pretext`. This is partly intentional (the upstream library targets
+`eddacraft/eddacraft` projects more broadly than just anvil) and partly
+opportunity — surfaces that build their own list / progress-bar / status-bar
+equivalents inline are candidates for refactor onto the upstream widget. None of
+the unused widgets are deprecated.
 
 **Risk:** Low — zero-cost in the binary because Rust dead-code-eliminates unused
 trait method calls per crate. **Fix:** when surfaces are next refactored (e.g.
@@ -838,7 +899,7 @@ the relevant unicode planes.
 
 There is no tested-terminals matrix, no fallback for Windows legacy console, and
 no automated graceful-degradation. The `compat::validate_minimum_size` function
-(`eddacraft-tui:src/compat.rs:27-50`) only checks dimensions, not unicode
+(`crates/eddacraft-tui/src/compat.rs:27-50`) only checks dimensions, not unicode
 capability.
 
 **Risk:** Medium for users on legacy Windows terminals or limited CI
@@ -897,47 +958,64 @@ inline confirm prompt has diverged from the widget contract, decide whether to
 inline-the-widget-back-into-the-surface or extend the widget to support the
 surface needs. No tracked work item.
 
+### G-07: new widgets lack deep dives; original pins predate the re-pin
+
+The 9 widgets added since the 2026-05-07 full review (`big_banner`,
+`data_table`, `help_bar`, `image_pane`, `modal`, `overlay`, `pretext`, `toast`,
+`tree`) are recorded only in the summary table in §Upstream widgets — the
+2026-06-10 targeted pass deliberately did not author deep-dive subsections for
+them. In addition, the line pins inside the original 13 deep-dive subsections
+were taken against the published `0.1.0` crate and predate the path-crate re-pin
+to `crates/eddacraft-tui` v0.3.0; they have not been re-verified line-by-line.
+Pins corrected in the targeted pass (crate resolution, catalogue declarations,
+prelude, theme contract, keyboard exports, spinner presets, snapshot counts,
+container / status_badge consumers) were verified against main `45dd1047a`.
+
+**Risk:** Low — the prose contracts still describe the live widgets; only
+line-number drift is at stake. **Fix:** both items are owed to the next full
+review.
+
 ## Source references
 
-### Upstream — `eddacraft-tui v0.1.0` (crates.io)
+### Upstream — `crates/eddacraft-tui` v0.3.0 (in-monorepo path crate)
 
-| File                                                                                  | Role                                                                       |
-| ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `eddacraft-tui:Cargo.toml`                                                            | Package manifest; depends on crossterm, ratatui, unicode-width             |
-| `eddacraft-tui:src/lib.rs`                                                            | Module root; `prelude` re-exports                                          |
-| `eddacraft-tui:src/compat.rs`                                                         | `TerminalInfo`, `detect_terminal`, `validate_minimum_size` (80x24 minimum) |
-| `eddacraft-tui:src/keyboard/mod.rs`                                                   | Re-exports `Action`, `KeyHandler`                                          |
-| `eddacraft-tui:src/keyboard/handler.rs`                                               | `Action` enum (15 variants), `KeyHandler::map`                             |
-| `eddacraft-tui:src/shell.rs`                                                          | `render_shell` chrome (header + footer + watermark)                        |
-| `eddacraft-tui:src/surface.rs`                                                        | `Surface` trait                                                            |
-| `eddacraft-tui:src/test_utils.rs`                                                     | `snapshot::buffer_to_string`, `style_annotation`                           |
-| `eddacraft-tui:src/theme/mod.rs`                                                      | Re-exports `Theme`, `EddaCraftTheme`                                       |
-| `eddacraft-tui:src/theme/traits.rs`                                                   | `Theme` trait (8 colour hooks + 9 derived styles)                          |
-| `eddacraft-tui:src/theme/eddacraft.rs`                                                | `EddaCraftTheme` brand palette                                             |
-| `eddacraft-tui:src/widgets/mod.rs`                                                    | Widget module declarations + internal `render_block` helper                |
-| `eddacraft-tui:src/widgets/confirm.rs`                                                | `Confirm`, `ConfirmState`                                                  |
-| `eddacraft-tui:src/widgets/container.rs`                                              | `Container`, `ContainerVariant`                                            |
-| `eddacraft-tui:src/widgets/divider.rs`                                                | `Divider`, `DividerVariant`                                                |
-| `eddacraft-tui:src/widgets/editor.rs`                                                 | `Editor`, `EditorState` (multi-line, read-only context)                    |
-| `eddacraft-tui:src/widgets/header.rs`                                                 | `Header` (separator + uppercase title + subtitle)                          |
-| `eddacraft-tui:src/widgets/log_panel.rs`                                              | `LogPanel`, `LogPanelState`, `LogEntry`, `LogLevel`, `LogFilter`           |
-| `eddacraft-tui:src/widgets/parallel_progress.rs`                                      | `ParallelProgress`, `CheckProgress`, `CheckStatus`, ETA helpers            |
-| `eddacraft-tui:src/widgets/progress_bar.rs`                                           | `ProgressBar`, `ProgressBarState`                                          |
-| `eddacraft-tui:src/widgets/select.rs`                                                 | `Select`, `SelectItem`, `SelectState`                                      |
-| `eddacraft-tui:src/widgets/spinner.rs`                                                | `Spinner`, `SpinnerState` (10-frame braille)                               |
-| `eddacraft-tui:src/widgets/status_badge.rs`                                           | `StatusBadge`, `BadgeStatus` (6 statuses)                                  |
-| `eddacraft-tui:src/widgets/status_bar.rs`                                             | `StatusBar`, `StatusItem`, `StatusKind`                                    |
-| `eddacraft-tui:src/widgets/text_input.rs`                                             | `TextInput`, `TextInputState` (UTF-8 cursor, char-boundary)                |
-| `eddacraft-tui:src/snapshots/eddacraft_tui__shell__tests__snapshot_shell_chrome.snap` | Shell chrome 60x10 pin                                                     |
+| File                                                                                         | Role                                                                       |
+| -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `crates/eddacraft-tui/Cargo.toml`                                                            | Package manifest; depends on crossterm, ratatui, unicode-width             |
+| `crates/eddacraft-tui/src/lib.rs`                                                            | Module root; `prelude` re-exports                                          |
+| `crates/eddacraft-tui/src/compat.rs`                                                         | `TerminalInfo`, `detect_terminal`, `validate_minimum_size` (80x24 minimum) |
+| `crates/eddacraft-tui/src/keyboard/mod.rs`                                                   | Re-exports `Action`, `Binding`, `KeyHandler`                               |
+| `crates/eddacraft-tui/src/keyboard/handler.rs`                                               | `Action` enum (15 variants), `KeyHandler::map`                             |
+| `crates/eddacraft-tui/src/shell.rs`                                                          | `render_shell` chrome (header + footer + watermark)                        |
+| `crates/eddacraft-tui/src/surface.rs`                                                        | `Surface` trait                                                            |
+| `crates/eddacraft-tui/src/test_utils.rs`                                                     | `snapshot::buffer_to_string`, `style_annotation`                           |
+| `crates/eddacraft-tui/src/theme/mod.rs`                                                      | Re-exports `Theme`, `EddaCraftTheme`                                       |
+| `crates/eddacraft-tui/src/theme/traits.rs`                                                   | `Theme` trait (8 colour hooks + 10 derived styles + `Role`/`role_style`)   |
+| `crates/eddacraft-tui/src/theme/eddacraft.rs`                                                | `EddaCraftTheme` brand palette                                             |
+| `crates/eddacraft-tui/src/widgets/mod.rs`                                                    | Widget module declarations + internal `render_block` helper                |
+| `crates/eddacraft-tui/src/widgets/confirm.rs`                                                | `Confirm`, `ConfirmState`                                                  |
+| `crates/eddacraft-tui/src/widgets/container.rs`                                              | `Container`, `ContainerVariant`                                            |
+| `crates/eddacraft-tui/src/widgets/divider.rs`                                                | `Divider`, `DividerVariant`                                                |
+| `crates/eddacraft-tui/src/widgets/editor.rs`                                                 | `Editor`, `EditorState` (multi-line, read-only context)                    |
+| `crates/eddacraft-tui/src/widgets/header.rs`                                                 | `Header` (separator + uppercase title + subtitle)                          |
+| `crates/eddacraft-tui/src/widgets/log_panel.rs`                                              | `LogPanel`, `LogPanelState`, `LogEntry`, `LogLevel`, `LogFilter`           |
+| `crates/eddacraft-tui/src/widgets/parallel_progress.rs`                                      | `ParallelProgress`, `CheckProgress`, `CheckStatus`, ETA helpers            |
+| `crates/eddacraft-tui/src/widgets/progress_bar.rs`                                           | `ProgressBar`, `ProgressBarState`                                          |
+| `crates/eddacraft-tui/src/widgets/select.rs`                                                 | `Select`, `SelectItem`, `SelectState`                                      |
+| `crates/eddacraft-tui/src/widgets/spinner.rs`                                                | `Spinner`, `SpinnerState` (10-frame braille)                               |
+| `crates/eddacraft-tui/src/widgets/status_badge.rs`                                           | `StatusBadge`, `BadgeStatus` (6 statuses)                                  |
+| `crates/eddacraft-tui/src/widgets/status_bar.rs`                                             | `StatusBar`, `StatusItem`, `StatusKind`                                    |
+| `crates/eddacraft-tui/src/widgets/text_input.rs`                                             | `TextInput`, `TextInputState` (UTF-8 cursor, char-boundary)                |
+| `crates/eddacraft-tui/src/snapshots/eddacraft_tui__shell__tests__snapshot_shell_chrome.snap` | Shell chrome 60x10 pin                                                     |
 
 ### Downstream — `crates/anvil-tui` widgets
 
-| File                                                | Role                                                                                       |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `crates/anvil-tui/Cargo.toml`                       | Declares dependency on `eddacraft-tui = { workspace = true }`                              |
-| `crates/anvil-tui/src/widgets/mod.rs`               | Module root (2 lines: re-exports `quick_wins_panel`, `results_dashboard`)                  |
-| `crates/anvil-tui/src/widgets/quick_wins_panel.rs`  | `QuickWinsPanel`, `QuickWinsPanelState`, `QuickWinsAnalysis`, `BatchGroup`, `QuickWinType` |
-| `crates/anvil-tui/src/widgets/results_dashboard.rs` | `ResultsDashboard`, `ResultsDashboardState`, `InitAnalysisResults`, `HistoricalAnalysis`   |
+| File                                                | Role                                                                                                                 |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `crates/anvil-tui/Cargo.toml`                       | Consumes `eddacraft-tui = { workspace = true, features = ["json-render"] }` (`:16`; dev-dep `:27` adds `test-utils`) |
+| `crates/anvil-tui/src/widgets/mod.rs`               | Module root (2 lines: re-exports `quick_wins_panel`, `results_dashboard`)                                            |
+| `crates/anvil-tui/src/widgets/quick_wins_panel.rs`  | `QuickWinsPanel`, `QuickWinsPanelState`, `QuickWinsAnalysis`, `BatchGroup`, `QuickWinType`                           |
+| `crates/anvil-tui/src/widgets/results_dashboard.rs` | `ResultsDashboard`, `ResultsDashboardState`, `InitAnalysisResults`, `HistoricalAnalysis`                             |
 
 ### Live-crate consumers (selected)
 
