@@ -483,7 +483,7 @@ pub async fn login_device_flow() -> Result<()> {
         sanitize_for_terminal(&start.user_code)
     );
     eprintln!();
-    eprintln!("Waiting for authorization...");
+    eprintln!("Waiting for authorisation...");
 
     let deadline = std::time::Instant::now() + deadline_window(start.expires_in);
     // Initial sleep between polls; slow_down responses raise it.
@@ -539,7 +539,7 @@ pub async fn login_device_flow() -> Result<()> {
         }
     }
 
-    bail!("Timed out waiting for authorization. Run `anvil auth login` to try again.");
+    bail!("Timed out waiting for authorisation. Run `anvil auth login` to try again.");
 }
 
 pub async fn login_otp_flow() -> Result<()> {
