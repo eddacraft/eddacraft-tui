@@ -351,3 +351,31 @@ never with feature work.
   fresh-context PASS, In Progress on PR #2553 (auto-merge armed).
   After 011: 008 waits for the next CLI tag (only externally-gated
   work remains); 010 depends on 008.
+
+## Cycle 18 — 2026-06-11
+
+- Item: GHCLIAUTH-011 — End-to-end headless smoke test
+- Outcome: done (five wiremock-backed integration tests in
+  crates/anvil-cli/tests/device_flow_e2e.rs drive the real anvil binary:
+  start→poll→confirmed asserts on-disk credential content and the whoami
+  identity round-trip body-matched on the exact minted licence;
+  slow_down proves back-off-not-bail with .expect() poll counts — fails
+  against the pre-006 fatal-bail; expired/declined assert failure AND
+  no persistence; --otp drives the real stdin prompt path. All poll
+  mocks body-match pollToken; temp ANVIL_HOME re-roots credentials on
+  every platform; ANVIL_DEV/ANVIL_LICENSE bypasses env_remove'd.
+  Validation: cargo test -p eddacraft-anvil -- device_flow_e2e 5 passed
+  in ~2s; workspace clippy -D warnings exit 0; cargo fmt --all --check
+  exit 0; format:check + index-counts exit 0; fresh-context
+  verification PASS on every clause including a could-this-green-a-
+  broken-flow audit; five Copilot threads fixed + resolved.) PR #2553.
+- Plan changes: GHCLIAUTH-011 → Merged 2026-06-11 via PR #2553; counts
+  9/11; cleanup slice 3/5; whoami drift correction recorded in the item
+  (resolves via live /api/v1/auth/verify, not offline). Lesson note
+  added: plans/execution/lessons/2026-06-11-ghcliauth-loop-run.md.
+- Checkpoints raised: none.
+- Next: stop — no locally-actionable work remains in GHCLIAUTH. 008
+  (confirm-endpoint removal) is sequenced after the next CLI tag ships
+  the new login (ADR-066 decision 5); 010 (docs sync) depends on 008.
+  The module stays In Progress at 9/11 until that external release
+  gate opens.

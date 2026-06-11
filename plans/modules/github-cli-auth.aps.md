@@ -5,23 +5,21 @@
 
 | ID        | Owner  | Status      | Progress |
 | --------- | ------ | ----------- | -------- |
-| GHCLIAUTH | @aneki | In Progress | 8/11     |
+| GHCLIAUTH | @aneki | In Progress | 9/11     |
 
-**Last reviewed:** 2026-06-11 (GHCLIAUTH-009 Merged via PR #2552: the
-device-flow login hot path is observable in production — ungated
-structured `console.info` lines (`createInfoLogger` in `lib/debug.ts`)
-at every upstream-call outcome, with a no-secrets contract, a
-mutation-verified log-hygiene test, and reserved-key/event-clamp
-hardening. RFC 8628 `authorization_pending` is deliberately absent from
-the info stream (per-poll spam); it stays on the gated debug stream.
-The `docs/runbooks/github-device-flow.md` runbook lands the pre-cutover
-"Device Flow enabled" smoke step. Drift recorded: `/health` lives
-inline in `apps/anvil-api/src/index.ts` (no `routes/health.ts`), and
-the info stream reuses the `auth-github-device` namespace as a distinct
-event stream rather than adding a `DebugNamespace` member. Remaining:
-011 (headless E2E smoke) is In Progress on PR #2553; 008
-(confirm-endpoint removal) waits for the next CLI tag per the Release
-wave; 010 (docs sync) depends on 008.)
+**Last reviewed:** 2026-06-11 (GHCLIAUTH-011 Merged via PR #2553: the
+acceptance test for the original un-completable-headless-login bug —
+five wiremock-backed integration tests drive the real `anvil` binary
+through start→poll→confirmed (on-disk credential content + `whoami`
+identity round-trip), `slow_down` back-off (fails against the pre-006
+fatal-bail), `expired`/`declined` (no credentials persisted), and the
+`--otp` stdin prompt path. All poll mocks body-match the `pollToken`;
+a temp `ANVIL_HOME` re-roots credentials on every platform. Drift
+recorded in the item: `whoami` resolves via a live `/api/v1/auth/verify`
+call, not offline from the saved licence. **No locally-actionable work
+remains**: 008 (confirm-endpoint removal) is sequenced after the next
+CLI tag ships the new login (ADR-066 decision 5), and 010 (docs sync)
+depends on 008 — both wait on that external release gate.)
 
 ## Purpose
 
@@ -431,12 +429,15 @@ Change status to **Ready** when:
 
 ### GHCLIAUTH-011: End-to-end headless smoke test
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-11 via PR #2553
 - **Intent:** Prove the original bug is closed — a headless login completes end
   to end — and keep it from regressing.
 - **Expected Outcome:** A wiremock-backed CLI integration test drives
   start→poll→confirmed and the `expired` / `declined` / `slow_down` branches,
-  asserts credentials are saved and `anvil auth whoami` resolves, and asserts
+  asserts credentials are saved and `anvil auth whoami` resolves (drift
+  correction 2026-06-11: `whoami` resolves via a live `/api/v1/auth/verify`
+  call with the saved licence — the offline fallback only fires on network
+  error and carries no email for device-flow logins), and asserts
   `--otp` still works. This is the acceptance test for the original
   un-completable-login bug.
 - **Validation:** `cargo test -p eddacraft-anvil -- device_flow_e2e` (or the
@@ -474,5 +475,5 @@ Change status to **Ready** when:
 | Slice | Items | Completion | Status |
 | ----- | ----- | ---------- | ------ |
 | MVP — headless login (001–006, gated on 002) | 6 | 6/6 done | Complete |
-| Correctness / cleanup / validation (007–011) | 5 | 2/5 done | In Progress |
-| **Total** | **11** | **8/11 done** | **In Progress** |
+| Correctness / cleanup / validation (007–011) | 5 | 3/5 done | In Progress |
+| **Total** | **11** | **9/11 done** | **In Progress** |
