@@ -407,7 +407,7 @@ Change status to **Ready** when:
 
 ### GHCLIAUTH-010: Docs sync — auth/activation/quickstart/beta guide
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** Bring the user and architecture docs in line with the new login
   flow.
 - **Expected Outcome:** `docs/architecture/auth-as-built.md`,
