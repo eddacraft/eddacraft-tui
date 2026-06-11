@@ -5,19 +5,23 @@
 
 | ID        | Owner  | Status      | Progress |
 | --------- | ------ | ----------- | -------- |
-| GHCLIAUTH | @aneki | In Progress | 7/11     |
+| GHCLIAUTH | @aneki | In Progress | 8/11     |
 
-**Last reviewed:** 2026-06-11 (GHCLIAUTH-007 Merged via PR #2549: the
-activation page is a tombstone, the invite email directs to
-`anvil auth login` (`--otp` fallback), and the interactive device-code
-generation is gone from **both** `/admin/invite` and `/admin/approve` —
-the approve path was newly discovered scope, recorded as a drift correction in
-the item; its `access_tokens` scope-record insert is kept. Admin-invited
-activation works again via first-login GitHub linking or OTP.
-Remaining: GHCLIAUTH-009 (observability + runbook) and 011 (headless E2E
-smoke) are unblocked — 009 is picked up, its In Progress flip lands with
-its PR; 008 (confirm-endpoint removal) waits for the next CLI tag per the
-Release wave; 010 (docs sync) depends on 008.)
+**Last reviewed:** 2026-06-11 (GHCLIAUTH-009 Merged via PR #2552: the
+device-flow login hot path is observable in production — ungated
+structured `console.info` lines (`createInfoLogger` in `lib/debug.ts`)
+at every upstream-call outcome, with a no-secrets contract, a
+mutation-verified log-hygiene test, and reserved-key/event-clamp
+hardening. RFC 8628 `authorization_pending` is deliberately absent from
+the info stream (per-poll spam); it stays on the gated debug stream.
+The `docs/runbooks/github-device-flow.md` runbook lands the pre-cutover
+"Device Flow enabled" smoke step. Drift recorded: `/health` lives
+inline in `apps/anvil-api/src/index.ts` (no `routes/health.ts`), and
+the info stream reuses the `auth-github-device` namespace as a distinct
+event stream rather than adding a `DebugNamespace` member. Remaining:
+011 (headless E2E smoke) is In Progress on PR #2553; 008
+(confirm-endpoint removal) waits for the next CLI tag per the Release
+wave; 010 (docs sync) depends on 008.)
 
 ## Purpose
 
@@ -378,7 +382,7 @@ Change status to **Ready** when:
 
 ### GHCLIAUTH-009: Observability + ops hardening + runbook
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-11 via PR #2552
 - **Intent:** Make the login hot path observable and operable without leaking
   secrets, and document the cutover gate.
 - **Expected Outcome:** Structured `console.info` (not gated `console.debug`)
@@ -470,5 +474,5 @@ Change status to **Ready** when:
 | Slice | Items | Completion | Status |
 | ----- | ----- | ---------- | ------ |
 | MVP — headless login (001–006, gated on 002) | 6 | 6/6 done | Complete |
-| Correctness / cleanup / validation (007–011) | 5 | 1/5 done | In Progress |
-| **Total** | **11** | **7/11 done** | **In Progress** |
+| Correctness / cleanup / validation (007–011) | 5 | 2/5 done | In Progress |
+| **Total** | **11** | **8/11 done** | **In Progress** |

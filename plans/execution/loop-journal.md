@@ -320,3 +320,34 @@ never with feature work.
 - Next: GHCLIAUTH-009 (observability + runbook) review → PR; then 011
   (headless E2E smoke). 008 waits for the next CLI tag; 010 depends
   on 008.
+
+## Cycle 17 — 2026-06-11
+
+- Item: GHCLIAUTH-009 — Observability + ops hardening + runbook
+- Outcome: done (ungated structured console.info — createInfoLogger in
+  lib/debug.ts — at every device-flow upstream-call outcome: latency,
+  outcome, error class, HTTP status; no-secrets contract with
+  sanitizeForLog defence-in-depth and reserved-key/event-clamp
+  hardening; authorization_pending deliberately suppressed from the
+  info stream as per-poll spam, kept on the gated debug stream;
+  log-hygiene tests assert real mock secret values absent and no
+  [REDACTED] ever appears, mutation-verified by the fresh-context
+  reviewer; docs/runbooks/github-device-flow.md lands topology, creds
+  wiring, /health degraded gating, the pre-cutover "Device Flow
+  enabled" smoke step, rate limits, mint semantics, log taxonomy,
+  troubleshooting including the mint-race slow_down loser path, --otp
+  fallback. Validation: pnpm nx test @eddacraft/anvil-api 490 passed,
+  docs:check 8/8, docs:index clean, format:check exit 0, index-counts
+  exit 0.) PR #2552; review fixes: per-poll pending suppression
+  (major), identity.upstream ms measured on the fetch only, clamped
+  upstream error string, strengthened hygiene assertions, Copilot
+  reserved-key hardening.
+- Plan changes: GHCLIAUTH-009 → Merged 2026-06-11 via PR #2552; counts
+  8/11; cleanup slice 2/5. Drift recorded in the module note: /health
+  inline in index.ts (no routes/health.ts); info stream reuses the
+  auth-github-device namespace as a distinct event stream.
+- Checkpoints raised: none.
+- Next: GHCLIAUTH-011 (headless E2E smoke) — implemented, verified
+  fresh-context PASS, In Progress on PR #2553 (auto-merge armed).
+  After 011: 008 waits for the next CLI tag (only externally-gated
+  work remains); 010 depends on 008.
