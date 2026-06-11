@@ -5,22 +5,20 @@
 
 | ID        | Owner  | Status      | Progress |
 | --------- | ------ | ----------- | -------- |
-| GHCLIAUTH | @aneki | In Progress | 9/11     |
+| GHCLIAUTH | @aneki | In Progress | 10/11    |
 
-**Last reviewed:** 2026-06-11 (GHCLIAUTH-011 Merged via PR #2553: the
-acceptance test for the original un-completable-headless-login bug —
-five wiremock-backed integration tests drive the real `anvil` binary
-through start→poll→confirmed (on-disk credential content + `whoami`
-identity round-trip), `slow_down` back-off (fails against the pre-006
-fatal-bail), `expired`/`declined` (no credentials persisted), and the
-`--otp` stdin prompt path. All poll mocks body-match the `pollToken`;
-a temp `ANVIL_HOME` re-roots credentials on every platform. Drift
-recorded in the item: `whoami` resolves via a live `/api/v1/auth/verify`
-call, not offline from the saved licence. Sequencing override
-2026-06-11: the owner authorised 008 (confirm-endpoint removal) ahead
-of the next CLI tag — no active users, and the confirm path has been
-un-completable since #1779 — so 008 is In Progress and 010 (docs sync)
-follows it; the next CLI tag remains the user-facing cutover.)
+**Last reviewed:** 2026-06-11 (GHCLIAUTH-008 Merged via PR #2556 under
+the recorded owner sequencing override — the dead `/auth/device/confirm`
+endpoint, its #1779 attempt-counter/anti-enumeration machinery, the
+confirm-only `device_codes` queries, and the orphaned `requireAuth`
+middleware are removed (−530 lines). Kept deliberately: `/auth/device/`
+`start`+`poll` (shipped CLIs still call them; retirement is a future
+pass — poll's unreachable mint branch is annotated), the F-C-003
+dummy-row insertion (now guarding `/poll` anti-enumeration), applied
+migrations, and the OTP flow. Old-CLI observable behaviour unchanged:
+pending until expiry, as since #1779. Remaining: 010 (docs sync) is the
+last item — picked up immediately, its In Progress flip rides its PR;
+the next CLI tag remains the user-facing cutover.)
 
 ## Purpose
 
@@ -362,7 +360,7 @@ Change status to **Ready** when:
 
 ### GHCLIAUTH-008: Remove `POST /auth/device/confirm` + #1779 dead code
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-11 via PR #2556
 - **Intent:** Retire the broken confirm path once no shipped CLI needs it.
 - **Expected Outcome:** `POST /auth/device/confirm` and its #1779
   attempt-counter / anti-enumeration dead code (and tests) are removed; orphaned
@@ -480,5 +478,5 @@ Change status to **Ready** when:
 | Slice | Items | Completion | Status |
 | ----- | ----- | ---------- | ------ |
 | MVP — headless login (001–006, gated on 002) | 6 | 6/6 done | Complete |
-| Correctness / cleanup / validation (007–011) | 5 | 3/5 done | In Progress |
-| **Total** | **11** | **9/11 done** | **In Progress** |
+| Correctness / cleanup / validation (007–011) | 5 | 4/5 done | In Progress |
+| **Total** | **11** | **10/11 done** | **In Progress** |

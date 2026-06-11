@@ -379,3 +379,36 @@ never with feature work.
   the new login (ADR-066 decision 5); 010 (docs sync) depends on 008.
   The module stays In Progress at 9/11 until that external release
   gate opens.
+
+## Cycle 19 — 2026-06-11
+
+- Item: GHCLIAUTH-008 — Remove `POST /auth/device/confirm` + #1779
+  dead code
+- Outcome: done, under a recorded owner sequencing override (ADR-066
+  decision 5 sequenced this after the next CLI tag; the owner
+  authorised early removal — no active users, and the path has been
+  un-completable since #1779, so shipped CLIs lose nothing that
+  worked). Removed: the /confirm handler + schema + brute-force
+  ceiling + attempt-counter/lockout, three confirm-only queries.ts
+  functions, 24 confirm tests, and the orphaned requireAuth middleware
+  (#1779 hardening whose only consumer was the deleted route;
+  verifyLicence stays as the library surface, /health still probes the
+  verifying key). Kept: /auth/device/start+poll (shipped CLIs; future
+  retirement pass — poll's unreachable mint branch annotated), the
+  F-C-003 dummy-row insertion (now guarding /poll anti-enumeration,
+  comments repointed), applied migrations, OTP (0-line diff).
+  Validation: pnpm nx test @eddacraft/anvil-api 476 passed; rg
+  "device/confirm|confirmDeviceCode" clean except the immutable
+  migration comment; rg requireAuth zero hits; typecheck/lint/format/
+  index-counts exit 0; fresh-context verification PASS per clause with
+  a no-breakage audit of start/poll/OTP.) PR #2556.
+- Plan changes: GHCLIAUTH-008 → Merged 2026-06-11 via PR #2556; counts
+  10/11; cleanup slice 4/5. Drift recorded: migration 012 keeps its
+  historical /device/confirm comment; generic orphaned finders
+  (findDeviceCodeByUserCode/findDeviceCodeByPollToken) predate the item
+  and are left for a separate cleanup.
+- Checkpoints raised: sequencing override requested and granted by the
+  owner in-session ("noone can use the app right now"); recorded in the
+  item, module prose, and Release wave section.
+- Next: GHCLIAUTH-010 (docs sync) — the last item, now unblocked;
+  dispatched immediately, In Progress flip rides its PR.
