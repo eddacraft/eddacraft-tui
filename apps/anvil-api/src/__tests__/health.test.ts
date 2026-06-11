@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
+// Factory implementations must exist at import time — index.ts fires the
+// signing/verifying-key boot probes when the module loads.
 vi.mock('../db/client.js', () => ({
   getClient: vi.fn(() => vi.fn(async () => [{ '?column?': 1 }])),
 }));
@@ -14,16 +16,23 @@ vi.mock('../lib/licence.js', async (importOriginal) => {
 });
 
 import app from '../index.js';
+import { getClient } from '../db/client.js';
+import { verifySigningKey, verifyVerifyingKey } from '../lib/licence.js';
 
 const ORIGINAL_CLIENT_ID = process.env['GITHUB_CLI_CLIENT_ID'];
 const ORIGINAL_CLIENT_SECRET = process.env['GITHUB_CLI_CLIENT_SECRET'];
 
 beforeEach(() => {
+  // Re-establish per test: the afterEach restore wipes the factory impls.
+  vi.mocked(getClient).mockReturnValue(vi.fn(async () => [{ '?column?': 1 }]) as never);
+  vi.mocked(verifySigningKey).mockResolvedValue({ ok: true });
+  vi.mocked(verifyVerifyingKey).mockResolvedValue({ ok: true });
   process.env['GITHUB_CLI_CLIENT_ID'] = 'test-cli-client-id';
   process.env['GITHUB_CLI_CLIENT_SECRET'] = 'test-cli-client-secret';
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   if (ORIGINAL_CLIENT_ID === undefined) delete process.env['GITHUB_CLI_CLIENT_ID'];
   else process.env['GITHUB_CLI_CLIENT_ID'] = ORIGINAL_CLIENT_ID;
   if (ORIGINAL_CLIENT_SECRET === undefined) delete process.env['GITHUB_CLI_CLIENT_SECRET'];
