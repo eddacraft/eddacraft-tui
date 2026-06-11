@@ -251,16 +251,41 @@ jobs:
         with:
           tool: cargo-nextest@${{ env.CARGO_NEXTEST_VERSION }}
 
-      # Coverage is observability, not a gate. `cargo llvm-cov` has
-      # intermittently failed `llvm-profdata merge` under nextest
-      # unwinding from panic-recovery tests; mark continue-on-error so
-      # a merge failure does not break the nightly run.
+      # Coverage is observability, not a gate. Keep this step explicitly
+      # non-fatal and emit periodic output so a silent coverage pass cannot
+      # fail the nightly run before the summary/artifact steps execute.
       - name: Collect coverage (nextest)
-        continue-on-error: true
+        shell: bash
         run: |
+          set +e
+          (
+            while true; do
+              sleep 60
+              echo "::notice::Rust coverage collection still running"
+            done
+          ) &
+          keepalive_pid=$!
+          trap 'kill "$keepalive_pid" 2>/dev/null || true' EXIT
+
           cargo llvm-cov nextest --workspace --json --output-path coverage-rust.json
+          coverage_status=$?
+          if [ "$coverage_status" -ne 0 ]; then
+            echo "::warning::cargo llvm-cov nextest failed with status $coverage_status; nightly coverage is advisory"
+          fi
+
           cargo llvm-cov report --html --output-dir target/llvm-cov
+          html_status=$?
+          if [ "$html_status" -ne 0 ]; then
+            echo "::warning::cargo llvm-cov html report failed with status $html_status"
+          fi
+
           cargo llvm-cov report --summary-only | tee coverage-rust-summary.txt
+          summary_status=${PIPESTATUS[0]}
+          if [ "$summary_status" -ne 0 ]; then
+            echo "::warning::cargo llvm-cov summary failed with status $summary_status"
+          fi
+
+          exit 0
 
       - name: Rust coverage summary
         if: always()
