@@ -320,7 +320,7 @@ Change status to **Ready** when:
 
 ### GHCLIAUTH-007: Tombstone the activation page + rebuild admin-invite activation
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** Stop the dead activation page from 404-ing outstanding invite
   links and rebuild admin-invite activation around the email-keyed model
   (ADR-066 decision 7).
@@ -328,18 +328,26 @@ Change status to **Ready** when:
   redirect/tombstone (no 404 for outstanding ~48h invite-email links); the
   `sendBetaInvite` email is rewritten to **drop** the `ACTIVATE_URL`/`userCode`
   and direct the recipient to `anvil auth login` (GitHub device flow) with
-  `--otp` to the invited address as the fallback; `/admin/invite`'s now-vestigial
-  interactive device-code generation is removed (the `tokenOnly`
-  CI/service-account path is **unaffected**); admin-invited-user activation works
+  `--otp` to the invited address as the fallback; the now-vestigial interactive
+  device-code generation is removed from **both** `/admin/invite` and
+  `/admin/approve` (drift correction 2026-06-11: the approve path writes the
+  same `device_codes` row and sends the same activate email — the item
+  originally named only `/admin/invite`); the `tokenOnly` CI/service-account
+  path is **unaffected**, and `/admin/approve` keeps its `access_tokens`
+  insert — that row is the scope record `findActiveScopesForUser` reads at
+  mint time, not a usable bearer token; admin-invited-user activation works
   again (it is currently broken by #1779) via first-login GitHub linking or OTP.
 - **Validation:** `pnpm nx test @eddacraft/anvil-api` + the website build/test —
   a freshly invited user logs in via `anvil auth login` (links `github_id`) and
-  via `--otp` to the invited email; `/admin/invite` no longer writes a
-  `device_codes` row on the interactive path while `tokenOnly` still mints a
-  token; an old `ACTIVATE_URL?code=` link resolves to the tombstone (not a 404).
+  via `--otp` to the invited email; neither `/admin/invite` nor `/admin/approve`
+  writes a `device_codes` row on the interactive path while `tokenOnly` still
+  mints a token; an old `ACTIVATE_URL?code=` link resolves to the tombstone
+  (not a 404).
 - **Files:** `apps/website/app/auth/activate/page.tsx`,
   `apps/anvil-api/src/routes/admin.ts`, `apps/anvil-api/src/lib/email.ts`
-  (`sendBetaInvite` + `BetaInvite` template)
+  (`sendBetaInvite`), `apps/anvil-api/src/lib/email-registry.ts`
+  (`betaInvitePropsSchema`), `packages/transactional/emails/beta-invite.tsx`
+  (`BetaInvite` template)
 - **Dependencies:** GHCLIAUTH-006
 - **Confidence:** medium
 - **Size:** M

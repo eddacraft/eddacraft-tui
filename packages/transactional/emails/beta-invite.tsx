@@ -3,15 +3,11 @@ import * as React from 'react';
 
 interface BetaInviteProps {
   email: string;
-  userCode: string;
-  activateUrl: string;
   unsubscribeMailto: string;
 }
 
 export function BetaInvite({
   email = 'you@example.com',
-  userCode = 'ANVIL-7F3A',
-  activateUrl = 'https://eddacraft.ai/auth/activate?code=ANVIL-7F3A',
   unsubscribeMailto = 'mailto:anvil@updates.eddacraft.ai',
 }: BetaInviteProps) {
   return (
@@ -39,22 +35,20 @@ export function BetaInvite({
               Anvil beta.
             </Text>
 
-            <Text style={sectionLabel}>Activate in your browser:</Text>
-            <Text style={linkBlock}>
-              <Link href={activateUrl} style={activateLink}>
-                {activateUrl}
-              </Link>
-            </Text>
-
-            <Text style={sectionLabel}>Or run in your terminal:</Text>
+            <Text style={sectionLabel}>Sign in from your terminal:</Text>
             <Section style={codeBlock}>
               <Text style={codeText}>$ anvil auth login</Text>
             </Section>
+            <Text style={muted}>
+              You&apos;ll be shown a short code and a github.com link &mdash; open it on any device
+              and approve to finish signing in with GitHub.
+            </Text>
 
-            <Text style={activationCode}>{userCode}</Text>
-            <Text style={codeLabel}>Your activation code</Text>
-
-            <Text style={muted}>This code expires in 48 hours.</Text>
+            <Text style={sectionLabel}>No GitHub account? Use a one-time email code instead:</Text>
+            <Section style={codeBlock}>
+              <Text style={codeText}>$ anvil auth login --otp</Text>
+            </Section>
+            <Text style={muted}>The one-time code is sent to this email address.</Text>
           </Section>
 
           <Hr style={divider} />
@@ -145,22 +139,12 @@ const sectionLabel: React.CSSProperties = {
   color: '#737373',
 };
 
-const linkBlock: React.CSSProperties = {
-  margin: '0 0 24px',
-  fontSize: '14px',
-};
-
-const activateLink: React.CSSProperties = {
-  color: '#CC5500',
-  textDecoration: 'underline',
-};
-
 const codeBlock: React.CSSProperties = {
   backgroundColor: '#1a1a1a',
   border: '1px solid #2A2A2E',
   borderRadius: '0px',
   padding: '12px 16px',
-  marginBottom: '24px',
+  marginBottom: '12px',
 };
 
 const codeText: React.CSSProperties = {
@@ -170,25 +154,8 @@ const codeText: React.CSSProperties = {
   fontFamily: fontMono,
 };
 
-const activationCode: React.CSSProperties = {
-  margin: '0 0 4px',
-  fontSize: '24px',
-  fontWeight: 'bold',
-  fontFamily: fontMono,
-  color: '#ffffff',
-  letterSpacing: '2px',
-  textAlign: 'center' as const,
-};
-
-const codeLabel: React.CSSProperties = {
-  margin: '0 0 16px',
-  fontSize: '12px',
-  color: '#737373',
-  textAlign: 'center' as const,
-};
-
 const muted: React.CSSProperties = {
-  margin: '0 0 8px',
+  margin: '0 0 24px',
   fontSize: '13px',
   color: '#a3a3a3',
 };

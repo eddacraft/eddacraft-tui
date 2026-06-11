@@ -232,11 +232,7 @@ To unsubscribe, reply with "unsubscribe" or visit: ${unsubscribeMailto}`,
   }
 }
 
-export async function sendBetaInvite(
-  email: string,
-  userCode: string,
-  activateUrl: string
-): Promise<EmailDeliveryResult> {
+export async function sendBetaInvite(email: string): Promise<EmailDeliveryResult> {
   const resend = getResendClient();
   if (!resend) {
     console.warn('RESEND_API_KEY not configured — skipping invite email');
@@ -251,8 +247,8 @@ export async function sendBetaInvite(
       replyTo: REPLY_TO,
       to: email,
       subject: "You're in — Anvil early access",
-      react: BetaInvite({ email, userCode, activateUrl, unsubscribeMailto }),
-      text: `You're in — Anvil early access\n\nYour email ${email} has been approved for Anvil early access.\n\nActivate in your browser:\n${activateUrl}\n\nOr run in your terminal:\n$ anvil auth login\n\nYour activation code: ${userCode}\nThis code expires in 48 hours.\n\n—\nanvil :: eddacraft.ai`,
+      react: BetaInvite({ email, unsubscribeMailto }),
+      text: `You're in — Anvil early access\n\nYour email ${email} has been approved for Anvil early access.\n\nSign in from your terminal:\n$ anvil auth login\n\nYou'll be shown a short code and a github.com link — open it on any device and approve to finish signing in with GitHub.\n\nNo GitHub account? Use a one-time email code instead:\n$ anvil auth login --otp\n\nThe one-time code is sent to this email address.\n\n—\nanvil :: eddacraft.ai`,
       tags: [{ name: 'category', value: 'beta-invite' }],
     });
 

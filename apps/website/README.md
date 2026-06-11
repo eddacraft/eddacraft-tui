@@ -17,12 +17,12 @@ Active
 
 ## Routes
 
-| Route            | Description          |
-| ---------------- | -------------------- |
-| `/`              | Landing page         |
-| `/auth/activate` | Beta activation flow |
-| `/privacy`       | Privacy policy       |
-| `/security`      | Security policy      |
+| Route            | Description                                        |
+| ---------------- | -------------------------------------------------- |
+| `/`              | Landing page                                       |
+| `/auth/activate` | Tombstone — activation moved to `anvil auth login` |
+| `/privacy`       | Privacy policy                                     |
+| `/security`      | Security policy                                    |
 
 OG images are generated dynamically via `next/og`.
 

@@ -108,12 +108,9 @@ export const releaseAnnouncementPropsSchema = z
 
 export const otpCodePropsSchema = z.object({ code: z.string() }).strict();
 
-export const betaInvitePropsSchema = z
-  .object({
-    userCode: z.string(),
-    activateUrl: z.string(),
-  })
-  .strict();
+// The invite email carries no per-invite props since GHCLIAUTH-007: it
+// directs the recipient to `anvil auth login` instead of an activation URL.
+export const betaInvitePropsSchema = z.object({}).strict();
 
 export type BroadcastTemplateKey = 'release-announcement' | 'waitlist-migration';
 export type TransactionalTemplateKey = 'beta-invite' | 'otp-code' | 'waitlist-confirmation';

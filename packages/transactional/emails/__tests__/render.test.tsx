@@ -18,20 +18,16 @@ describe('transactional templates render to valid HTML', () => {
     expect(html).toMatch(/^<!DOCTYPE html/i);
   });
 
-  it('BetaInvite includes the email, activation URL, and user code', async () => {
-    const activateUrl = 'https://eddacraft.ai/auth/activate?code=ANVIL-7F3A';
+  it('BetaInvite includes the email and CLI login instructions, no activation code', async () => {
     const html = await render(
-      <BetaInvite
-        email="tester@example.com"
-        userCode="ANVIL-7F3A"
-        activateUrl={activateUrl}
-        unsubscribeMailto={UNSUBSCRIBE}
-      />
+      <BetaInvite email="tester@example.com" unsubscribeMailto={UNSUBSCRIBE} />
     );
 
     expect(html).toContain('tester@example.com');
-    expect(html).toContain('ANVIL-7F3A');
-    expect(html).toContain(`href="${activateUrl}"`);
+    expect(html).toContain('anvil auth login');
+    expect(html).toContain('--otp');
+    expect(html).not.toContain('auth/activate');
+    expect(html).not.toContain('activation code');
     expect(html).toContain(`href="${UNSUBSCRIBE}"`);
     expect(html).not.toContain('undefined');
     expect(html).toMatch(/^<!DOCTYPE html/i);

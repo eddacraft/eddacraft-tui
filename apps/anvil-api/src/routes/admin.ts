@@ -45,7 +45,7 @@ import {
   resolveAudience,
 } from '../lib/broadcast-audiences.js';
 import { EMAIL_REGISTRY, type TemplateKey } from '../lib/email-registry.js';
-import { isUniqueViolation, isUserCodeCollision, withUserCodeRetry } from '../lib/device-code.js';
+import { isUniqueViolation } from '../lib/device-code.js';
 
 const debug = createDebugger('api');
 
@@ -112,7 +112,9 @@ function resolveAuthMethod(c: {
  * Invite a user to the beta. Two modes:
  *
  * Default (tokenOnly=false): insert into waitlist with source 'manual',
- * then run the full approve flow (upsert user, device code, invite email).
+ * then run the full approve flow (upsert user, invite email). Activation
+ * happens on the user's first `anvil auth login` (GitHub device flow or
+ * --otp) — no per-invite device code is generated (GHCLIAUTH-007).
  *
  * tokenOnly=true: upsert user + waitlist entry, generate a raw access
  * token returned exactly once. For CI/service accounts.
@@ -188,36 +190,21 @@ admin.post('/invite', zValidator('json', inviteSchema), async (c) => {
     );
   }
 
-  // Default flow — approve via device code + invite email
-  const ACTIVATE_BASE = process.env.ACTIVATE_URL ?? 'https://eddacraft.ai/auth/activate';
-
-  const pollToken = randomBytes(32).toString('hex');
-  const pollTokenHash = hashToken(pollToken);
-  const deviceExpiry = new Date(Date.now() + 48 * 60 * 60 * 1000);
-
-  // Retry on user_code collision (23505). Entire transaction is re-run with
-  // a fresh code because the INSERT is part of an atomic batch.
-  const { userCode, txResult } = await withUserCodeRetry(async (code) => {
-    const result = await sql.transaction([
-      sql`INSERT INTO beta_users (email, name, notes, status)
-          VALUES (${normalizedEmail}, ${name ?? null}, ${notes ?? null}, ${'active'})
-          ON CONFLICT (email) DO UPDATE SET
-            name = COALESCE(${name ?? null}, beta_users.name),
-            notes = COALESCE(${notes ?? null}, beta_users.notes),
-            status = ${'active'}
-          RETURNING *`,
-      sql`INSERT INTO device_codes (user_id, user_code, poll_token, expires_at)
-          VALUES (
-            (SELECT id FROM beta_users WHERE email = ${normalizedEmail}),
-            ${code}, ${pollTokenHash}, ${deviceExpiry.toISOString()}
-          )
-          RETURNING *`,
-      sql`INSERT INTO audit_log (action, actor, metadata, auth_method)
-          VALUES (${'user.invited'}, ${actor}, ${JSON.stringify({ email: normalizedEmail, scopes, days })}, ${authMethod})
-          RETURNING *`,
-    ]);
-    return { userCode: code, txResult: result };
-  });
+  // Default flow — mark the user active and send the invite email. The user
+  // activates on first `anvil auth login` (GitHub device flow links
+  // github_id, or --otp proves the invited email) — ADR-066 decision 7.
+  const txResult = await sql.transaction([
+    sql`INSERT INTO beta_users (email, name, notes, status)
+        VALUES (${normalizedEmail}, ${name ?? null}, ${notes ?? null}, ${'active'})
+        ON CONFLICT (email) DO UPDATE SET
+          name = COALESCE(${name ?? null}, beta_users.name),
+          notes = COALESCE(${notes ?? null}, beta_users.notes),
+          status = ${'active'}
+        RETURNING *`,
+    sql`INSERT INTO audit_log (action, actor, metadata, auth_method)
+        VALUES (${'user.invited'}, ${actor}, ${JSON.stringify({ email: normalizedEmail, scopes, days })}, ${authMethod})
+        RETURNING *`,
+  ]);
 
   const user = (txResult as unknown[][])[0]?.[0] as { email: string; id: string };
 
@@ -225,8 +212,7 @@ admin.post('/invite', zValidator('json', inviteSchema), async (c) => {
     console.error('Failed to move audience (non-fatal):', err);
   });
 
-  const activateUrl = `${ACTIVATE_BASE}?code=${userCode}`;
-  await sendBetaInvite(normalizedEmail, userCode, activateUrl).catch((err) => {
+  await sendBetaInvite(normalizedEmail).catch((err) => {
     console.error('Failed to send invite email (non-fatal):', err);
   });
 
@@ -340,7 +326,9 @@ admin.post('/revoke', zValidator('json', revokeSchema), async (c) => {
  * POST /admin/approve
  *
  * Approve a waitlisted email or batch of oldest unapproved entries.
- * Generates access token + device code, sends invite email.
+ * Records the scope grant and sends the invite email; activation happens
+ * on the user's first `anvil auth login` (GHCLIAUTH-007 — no per-invite
+ * device code).
  */
 admin.post('/approve', zValidator('json', approveSchema), async (c) => {
   const body = c.req.valid('json');
@@ -348,8 +336,6 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
   const sql = getClient();
   const actor = resolveAdminActor(c);
   const authMethod = resolveAuthMethod(c);
-
-  const ACTIVATE_BASE = process.env.ACTIVATE_URL ?? 'https://eddacraft.ai/auth/activate';
 
   async function approveOne(email: string): Promise<{ email: string; expiresAt: string }> {
     const normalizedEmail = email.toLowerCase().trim();
@@ -401,51 +387,39 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
       throw new Error(`no_scopes:${normalizedEmail}`);
     }
 
-    // Generate access token (90-day expiry)
+    // Record the scope grant (90-day expiry). The raw token is discarded —
+    // this access_tokens row is the scope record findActiveScopesForUser
+    // reads when the licence is minted at first login, not a usable bearer
+    // token.
     const rawToken = generateToken();
     const hash = hashToken(rawToken);
     const tokenExpiry = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
 
-    const pollToken = randomBytes(32).toString('hex');
-    const pollTokenHash = hashToken(pollToken);
-    const deviceExpiry = new Date(Date.now() + 48 * 60 * 60 * 1000);
-
-    // Retry on user_code collision (23505). Entire transaction is re-run
-    // with a fresh code because the INSERT is part of an atomic batch.
-    const { userCode } = await withUserCodeRetry(async (code) => {
-      const statements = [
-        sql`INSERT INTO beta_users (email, status)
-            VALUES (${normalizedEmail}, ${'active'})
-            ON CONFLICT (email) DO UPDATE SET status = ${'active'}
-            RETURNING *`,
-        sql`INSERT INTO access_tokens (user_id, token_hash, scopes, expires_at)
-            VALUES (
-              (SELECT id FROM beta_users WHERE email = ${normalizedEmail}),
-              ${hash}, ${grantedScopes}, ${tokenExpiry.toISOString()}
-            )
-            RETURNING *`,
-        sql`INSERT INTO device_codes (user_id, user_code, poll_token, expires_at)
-            VALUES (
-              (SELECT id FROM beta_users WHERE email = ${normalizedEmail}),
-              ${code}, ${pollTokenHash}, ${deviceExpiry.toISOString()}
-            )
-            RETURNING *`,
-        sql`INSERT INTO audit_log (action, actor, metadata, auth_method)
-            VALUES (${'user.approved'}, ${actor}, ${JSON.stringify({ email: normalizedEmail })}, ${authMethod})
-            RETURNING *`,
-      ];
-      if (droppedScopes.length > 0) {
-        statements.push(sql`INSERT INTO audit_log (action, actor, metadata, auth_method)
-            VALUES (
-              ${'user.approve.scopes_dropped'}, ${actor},
-              ${JSON.stringify({ email: normalizedEmail, droppedScopes, grantedScopes })},
-              ${authMethod}
-            )
-            RETURNING *`);
-      }
-      await sql.transaction(statements);
-      return { userCode: code };
-    });
+    const statements = [
+      sql`INSERT INTO beta_users (email, status)
+          VALUES (${normalizedEmail}, ${'active'})
+          ON CONFLICT (email) DO UPDATE SET status = ${'active'}
+          RETURNING *`,
+      sql`INSERT INTO access_tokens (user_id, token_hash, scopes, expires_at)
+          VALUES (
+            (SELECT id FROM beta_users WHERE email = ${normalizedEmail}),
+            ${hash}, ${grantedScopes}, ${tokenExpiry.toISOString()}
+          )
+          RETURNING *`,
+      sql`INSERT INTO audit_log (action, actor, metadata, auth_method)
+          VALUES (${'user.approved'}, ${actor}, ${JSON.stringify({ email: normalizedEmail })}, ${authMethod})
+          RETURNING *`,
+    ];
+    if (droppedScopes.length > 0) {
+      statements.push(sql`INSERT INTO audit_log (action, actor, metadata, auth_method)
+          VALUES (
+            ${'user.approve.scopes_dropped'}, ${actor},
+            ${JSON.stringify({ email: normalizedEmail, droppedScopes, grantedScopes })},
+            ${authMethod}
+          )
+          RETURNING *`);
+    }
+    await sql.transaction(statements);
 
     // Move from waitlist to beta audience (best-effort)
     moveToApprovedAudience(normalizedEmail).catch((err) => {
@@ -453,28 +427,18 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
     });
 
     // Best-effort email — don't fail the approval if email fails
-    const activateUrl = `${ACTIVATE_BASE}?code=${userCode}`;
-    await sendBetaInvite(normalizedEmail, userCode, activateUrl).catch((err) => {
+    await sendBetaInvite(normalizedEmail).catch((err) => {
       console.error('Failed to send invite email (non-fatal):', err);
     });
 
     return { email: normalizedEmail, expiresAt: tokenExpiry.toISOString() };
   }
 
-  type SkipReason = 'not_found' | 'collision' | 'no_scopes' | 'error';
-
-  async function recordCollision(email: string): Promise<void> {
-    await insertAuditLog(sql, 'user.approve.collision', actor, { email }, authMethod).catch(
-      (err) => {
-        console.error('Failed to record collision audit (non-fatal):', err);
-      }
-    );
-  }
+  type SkipReason = 'not_found' | 'no_scopes' | 'error';
 
   function classifySkip(err: unknown): SkipReason {
     if (err instanceof Error && err.message.startsWith('not_found:')) return 'not_found';
     if (err instanceof Error && err.message.startsWith('no_scopes:')) return 'no_scopes';
-    if (isUserCodeCollision(err)) return 'collision';
     return 'error';
   }
 
@@ -486,10 +450,6 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
       const reason = classifySkip(err);
       if (reason === 'not_found') {
         return c.json({ error: 'Email not found on waitlist' }, 404);
-      }
-      if (reason === 'collision') {
-        await recordCollision(body.email.toLowerCase().trim());
-        return c.json({ error: 'user_code collision after retries, try again' }, 503);
       }
       if (reason === 'no_scopes') {
         return c.json({ error: 'No enabled API scopes available for approval' }, 409);
@@ -512,9 +472,6 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
       const reason = classifySkip(err);
       const message = err instanceof Error ? err.message : String(err);
       debug('Batch approve skip', { email: row.email, reason, error: message });
-      if (reason === 'collision') {
-        await recordCollision(row.email.toLowerCase().trim());
-      }
       skipped.push({ email: row.email, reason, message });
     }
   }

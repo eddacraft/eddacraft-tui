@@ -103,7 +103,7 @@ import {
   findAdminKeyByHash,
   findActiveScopesForUser,
 } from '../db/queries.js';
-import { sendWaitlistMigration } from '../lib/email.js';
+import { sendBetaInvite, sendWaitlistMigration } from '../lib/email.js';
 import { resolveApiScope } from '../lib/feature-flags.js';
 
 const app = new Hono();
@@ -201,10 +201,9 @@ describe('admin endpoints', () => {
     it('default flow sends invite email and does not return token', async () => {
       // Mock waitlist insert (tagged template call)
       mockSql.mockResolvedValueOnce([]);
-      // Mock transaction: [0] = upsert user, [1] = insert device code, [2] = audit
+      // Mock transaction: [0] = upsert user, [1] = audit
       mockSql.transaction.mockResolvedValue([
         [{ id: 'user-1', email: 'alice@example.com' }],
-        [{ id: 'device-1' }],
         [{ id: 'audit-1' }],
       ]);
 
@@ -226,6 +225,25 @@ describe('admin endpoints', () => {
         null,
         'manual'
       );
+      expect(vi.mocked(sendBetaInvite)).toHaveBeenCalledWith('alice@example.com');
+    });
+
+    it('default flow writes no device_codes row (GHCLIAUTH-007)', async () => {
+      mockSql.mockResolvedValueOnce([]);
+      mockSql.transaction.mockResolvedValue([
+        [{ id: 'user-1', email: 'alice@example.com' }],
+        [{ id: 'audit-1' }],
+      ]);
+
+      const res = await request('POST', '/admin/invite', { email: 'alice@example.com' }, ADMIN_KEY);
+
+      expect(res.status).toBe(201);
+      const deviceCodeCall = mockSql.mock.calls.find((call) =>
+        (call[0] as TemplateStringsArray).some((chunk) =>
+          chunk.includes('INSERT INTO device_codes')
+        )
+      );
+      expect(deviceCodeCall).toBeUndefined();
     });
 
     it('tokenOnly mode creates user and returns token', async () => {
@@ -774,19 +792,11 @@ describe('admin endpoints', () => {
   });
 
   describe('POST /admin/approve', () => {
-    function collisionError(): Error {
-      return Object.assign(new Error('duplicate key value violates unique constraint'), {
-        code: '23505',
-        constraint: 'device_codes_user_code_key',
-      });
-    }
-
     it('single-email mode succeeds and returns approved entry', async () => {
       vi.mocked(findWaitlistEntryByEmail).mockResolvedValue({ id: 'wl-1' });
       mockSql.transaction.mockResolvedValue([
         [{ id: 'user-1', email: 'alice@example.com' }],
         [{ id: 'token-1' }],
-        [{ id: 'device-1' }],
         [{ id: 'audit-1' }],
       ]);
 
@@ -800,6 +810,37 @@ describe('admin endpoints', () => {
       const body = await res.json();
       expect(body.approved).toHaveLength(1);
       expect(body.approved[0].email).toBe('alice@example.com');
+      expect(vi.mocked(sendBetaInvite)).toHaveBeenCalledWith('alice@example.com');
+    });
+
+    it('writes no device_codes row but keeps the scope-record token insert (GHCLIAUTH-007)', async () => {
+      vi.mocked(findWaitlistEntryByEmail).mockResolvedValue({ id: 'wl-1' });
+      mockSql.transaction.mockResolvedValue([
+        [{ id: 'user-1', email: 'alice@example.com' }],
+        [{ id: 'token-1' }],
+        [{ id: 'audit-1' }],
+      ]);
+
+      const res = await request(
+        'POST',
+        '/admin/approve',
+        { email: 'alice@example.com' },
+        ADMIN_KEY
+      );
+
+      expect(res.status).toBe(200);
+      const deviceCodeCall = mockSql.mock.calls.find((call) =>
+        (call[0] as TemplateStringsArray).some((chunk) =>
+          chunk.includes('INSERT INTO device_codes')
+        )
+      );
+      expect(deviceCodeCall).toBeUndefined();
+      const accessTokenCall = mockSql.mock.calls.find((call) =>
+        (call[0] as TemplateStringsArray).some((chunk) =>
+          chunk.includes('INSERT INTO access_tokens')
+        )
+      );
+      expect(accessTokenCall).toBeDefined();
     });
 
     it('preserves existing graded scopes when approving a waitlisted user', async () => {
@@ -817,7 +858,6 @@ describe('admin endpoints', () => {
       mockSql.transaction.mockResolvedValue([
         [{ id: 'user-1', email: 'alice@example.com' }],
         [{ id: 'token-1' }],
-        [{ id: 'device-1' }],
         [{ id: 'audit-1' }],
       ]);
 
@@ -861,7 +901,6 @@ describe('admin endpoints', () => {
       mockSql.transaction.mockResolvedValue([
         [{ id: 'user-1', email: 'alice@example.com' }],
         [{ id: 'token-1' }],
-        [{ id: 'device-1' }],
         [{ id: 'audit-1' }],
       ]);
 
@@ -887,7 +926,7 @@ describe('admin endpoints', () => {
         expect.anything()
       );
       const transactionStatements = mockSql.transaction.mock.calls[0][0] as unknown[][];
-      expect(transactionStatements).toHaveLength(5);
+      expect(transactionStatements).toHaveLength(4);
       const droppedAuditCall = mockSql.mock.calls.find(
         (call) => call[1] === 'user.approve.scopes_dropped'
       );
@@ -979,51 +1018,6 @@ describe('admin endpoints', () => {
       expect(await res.json()).toEqual({ error: 'No enabled API scopes available for approval' });
     });
 
-    it('retries on user_code collision then succeeds', async () => {
-      vi.mocked(findWaitlistEntryByEmail).mockResolvedValue({ id: 'wl-1' });
-      mockSql.transaction
-        .mockRejectedValueOnce(collisionError())
-        .mockResolvedValueOnce([
-          [{ id: 'user-1', email: 'alice@example.com' }],
-          [{ id: 'token-1' }],
-          [{ id: 'device-1' }],
-          [{ id: 'audit-1' }],
-        ]);
-
-      const res = await request(
-        'POST',
-        '/admin/approve',
-        { email: 'alice@example.com' },
-        ADMIN_KEY
-      );
-      expect(res.status).toBe(200);
-      expect(mockSql.transaction).toHaveBeenCalledTimes(2);
-    });
-
-    it('returns 503 and records collision audit after max retries exhausted', async () => {
-      vi.mocked(findWaitlistEntryByEmail).mockResolvedValue({ id: 'wl-1' });
-      mockSql.transaction
-        .mockRejectedValueOnce(collisionError())
-        .mockRejectedValueOnce(collisionError())
-        .mockRejectedValueOnce(collisionError());
-
-      const res = await request(
-        'POST',
-        '/admin/approve',
-        { email: 'alice@example.com' },
-        ADMIN_KEY
-      );
-      expect(res.status).toBe(503);
-      expect(mockSql.transaction).toHaveBeenCalledTimes(3);
-      expect(vi.mocked(insertAuditLog)).toHaveBeenCalledWith(
-        expect.anything(),
-        'user.approve.collision',
-        expect.any(String),
-        { email: 'alice@example.com' },
-        'shared'
-      );
-    });
-
     it('returns 404 when email not on waitlist', async () => {
       vi.mocked(findWaitlistEntryByEmail).mockResolvedValue(null);
 
@@ -1037,17 +1031,14 @@ describe('admin endpoints', () => {
         { email: 'bob@example.com' },
       ]);
       vi.mocked(findWaitlistEntryByEmail).mockResolvedValue({ id: 'wl-x' });
-      // First email succeeds, second hits collision on all retries
+      // First email succeeds, second fails on a database error
       mockSql.transaction
         .mockResolvedValueOnce([
           [{ id: 'user-1', email: 'alice@example.com' }],
           [{ id: 'token-1' }],
-          [{ id: 'device-1' }],
           [{ id: 'audit-1' }],
         ])
-        .mockRejectedValueOnce(collisionError())
-        .mockRejectedValueOnce(collisionError())
-        .mockRejectedValueOnce(collisionError());
+        .mockRejectedValueOnce(new Error('connection reset'));
 
       const res = await request('POST', '/admin/approve', { batch: 2 }, ADMIN_KEY);
       expect(res.status).toBe(200);
@@ -1057,15 +1048,8 @@ describe('admin endpoints', () => {
       expect(body.skipped).toHaveLength(1);
       expect(body.skipped[0]).toMatchObject({
         email: 'bob@example.com',
-        reason: 'collision',
+        reason: 'error',
       });
-      expect(vi.mocked(insertAuditLog)).toHaveBeenCalledWith(
-        expect.anything(),
-        'user.approve.collision',
-        expect.any(String),
-        { email: 'bob@example.com' },
-        'shared'
-      );
     });
 
     it('batch mode reports fully dropped scopes as skipped and audits the drop', async () => {

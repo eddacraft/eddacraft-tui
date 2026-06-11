@@ -170,12 +170,11 @@ describe('propsSchema — waitlist-migration', () => {
 describe('propsSchema — beta-invite', () => {
   const schema = EMAIL_REGISTRY['beta-invite'].propsSchema;
 
-  it('requires userCode and activateUrl', () => {
-    expect(schema.safeParse({}).success).toBe(false);
-    expect(schema.safeParse({ userCode: 'ANVIL-12345678' }).success).toBe(false);
+  it('is empty: the invite directs to anvil auth login, no per-invite props', () => {
+    expect(schema.safeParse({}).success).toBe(true);
     expect(
       schema.safeParse({ userCode: 'ANVIL-12345678', activateUrl: 'https://example.com' }).success
-    ).toBe(true);
+    ).toBe(false);
   });
 });
 
