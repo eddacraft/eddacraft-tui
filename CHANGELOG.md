@@ -15,7 +15,7 @@ engineering maintenance are recorded in the
 ### Changed
 
 - **`anvil auth login` now signs in via GitHub by default.** The CLI drives the
-  GitHub Device Authorization Grant brokered by the Anvil API
+  GitHub Device Authorisation Grant brokered by the Anvil API
   ([ADR-066](./plans/decisions/066-github-device-flow-cli-auth.md),
   GHCLIAUTH-006): open the shown URL on any device and enter the code — no email
   prompt, no local browser, works headless over SSH/tmux. The previous

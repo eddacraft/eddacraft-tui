@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use super::credentials::{self, Credentials};
 
 /// Response from `POST /api/v1/auth/github-device/start` — the server-side
-/// broker for GitHub's Device Authorization Grant (RFC 8628, ADR-066).
+/// broker for GitHub's Device Authorisation Grant (RFC 8628, ADR-066).
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct DeviceStartResponse {
@@ -183,7 +183,7 @@ fn prompt_input(label: &str) -> Result<String> {
 
 /// Begin a brokered GitHub device-flow session. The endpoint takes a strict
 /// empty body — no email, no user reference; the signed-in user is derived
-/// solely from the GitHub authorization when the device code is approved
+/// solely from the GitHub authorisation when the device code is approved
 /// (ADR-066).
 async fn device_start(client: &reqwest::Client, url: &str) -> Result<DeviceStartResponse> {
     let resp = client
