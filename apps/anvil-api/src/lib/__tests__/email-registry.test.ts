@@ -175,6 +175,8 @@ describe('propsSchema — beta-invite', () => {
     expect(
       schema.safeParse({ userCode: 'ANVIL-12345678', activateUrl: 'https://example.com' }).success
     ).toBe(false);
+    // email/unsubscribeMailto are derived server-side, never operator props
+    expect(schema.safeParse({ email: 'a@example.com' }).success).toBe(false);
   });
 });
 

@@ -26,8 +26,8 @@ export default function ActivatePage() {
         <div className="space-y-6">
           <p className="text-sm text-edda">Activation has moved into the CLI.</p>
           <p className="text-xs text-text-muted">
-            This page and emailed activation codes are no longer used. Sign in from your terminal
-            instead:
+            If you received an activation code by email, it is no longer valid &mdash; sign in from
+            your terminal instead:
           </p>
 
           <div className="border border-structure bg-surface px-3 py-2">

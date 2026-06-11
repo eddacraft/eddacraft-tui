@@ -238,6 +238,8 @@ describe('admin endpoints', () => {
       const res = await request('POST', '/admin/invite', { email: 'alice@example.com' }, ADMIN_KEY);
 
       expect(res.status).toBe(201);
+      const body = await res.json();
+      expect(body.user.email).toBe('alice@example.com');
       const deviceCodeCall = mockSql.mock.calls.find((call) =>
         (call[0] as TemplateStringsArray).some((chunk) =>
           chunk.includes('INSERT INTO device_codes')
@@ -902,6 +904,7 @@ describe('admin endpoints', () => {
         [{ id: 'user-1', email: 'alice@example.com' }],
         [{ id: 'token-1' }],
         [{ id: 'audit-1' }],
+        [{ id: 'scopes-audit-1' }],
       ]);
 
       const res = await request(
@@ -918,6 +921,9 @@ describe('admin endpoints', () => {
         )
       );
       expect(accessTokenCall).toContainEqual(['beta']);
+      // The dropped-scopes audit is recorded inside the transaction (as the
+      // 4th statement, asserted below) — NOT via the standalone insertAuditLog
+      // helper, which is reserved for the zero-granted-scopes rejection path.
       expect(vi.mocked(insertAuditLog)).not.toHaveBeenCalledWith(
         expect.anything(),
         'user.approve.scopes_dropped',
