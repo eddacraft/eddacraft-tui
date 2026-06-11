@@ -16,7 +16,7 @@ middleware are removed (−530 lines). Kept deliberately: `/auth/device/`
 pass — poll's unreachable mint branch is annotated), the F-C-003
 dummy-row insertion (now guarding `/poll` anti-enumeration), applied
 migrations, and the OTP flow. Old-CLI observable behaviour unchanged:
-pending until expiry, as since #1779. Remaining: 010 (docs sync) is the
+pending until expiry, as it has been since #1779. Remaining: 010 (docs sync) is the
 last item — picked up immediately, its In Progress flip rides its PR;
 the next CLI tag remains the user-facing cutover.)
 
