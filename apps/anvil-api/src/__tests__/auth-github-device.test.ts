@@ -807,6 +807,9 @@ describe('POST /auth/github-device/poll', () => {
 
 describe('structured-log hygiene (GHCLIAUTH-009)', () => {
   const MINTED_LICENCE = 'lic-secret-do-not-log';
+  // Realistic length so the substring assertion has teeth (a short value
+  // like 'rt-1' could never meaningfully match a serialised log line).
+  const MINTED_REFRESH_TOKEN = 'rt-secret-do-not-log-zq8VwY3kP1mN6cD4';
 
   beforeEach(() => {
     vi.mocked(findGithubDeviceSessionByPollTokenHash).mockResolvedValue(sessionRow() as never);
@@ -821,6 +824,7 @@ describe('structured-log hygiene (GHCLIAUTH-009)', () => {
     vi.mocked(mintSession).mockResolvedValue({
       ...MINTED_SESSION,
       license: MINTED_LICENCE,
+      refreshToken: MINTED_REFRESH_TOKEN,
     });
   });
 
@@ -838,7 +842,7 @@ describe('structured-log hygiene (GHCLIAUTH-009)', () => {
     GITHUB_DEVICE_CODE, // device_code (start payload + poll exchange)
     GITHUB_ACCESS_TOKEN, // GitHub access token from the exchange
     MINTED_LICENCE, // minted Anvil licence string
-    MINTED_SESSION.refreshToken, // minted refresh token
+    MINTED_REFRESH_TOKEN, // minted refresh token
     'test-cli-client-secret', // OAuth client secret
   ];
 
@@ -865,6 +869,7 @@ describe('structured-log hygiene (GHCLIAUTH-009)', () => {
     // The flow must have produced operational info logs at all (not a no-op).
     expect(serialised).toContain('"event":"device_code.upstream"');
     expect(serialised).toContain('"event":"token_exchange.upstream"');
+    expect(serialised).toContain('"event":"identity.upstream"');
     expect(serialised).toContain('"event":"login.outcome"');
     expect(serialised).toContain('"outcome":"minted"');
 
@@ -872,17 +877,23 @@ describe('structured-log hygiene (GHCLIAUTH-009)', () => {
     // The live per-session poll token from /start must not leak either.
     expect(serialised).not.toContain(pollToken);
     expect(serialised).not.toContain(POLL_TOKEN);
+    // Hex-shaped secrets (device_code, poll token) would be masked by
+    // sanitizeForLog rather than fail the substring checks above — so also
+    // assert no legitimate info field ever triggers the redaction filter.
+    expect(serialised).not.toContain('[REDACTED]');
   });
 
-  it('keeps secrets out of the info log on the RFC 8628 pending poll state', async () => {
+  it('suppresses the per-poll pending state from the info stream entirely', async () => {
     const dumpInfo = captureInfo();
     mockGithubPollUpstream({ error: 'authorization_pending' });
 
     const res = await poll({ pollToken: POLL_TOKEN });
     expect(res.status).toBe(200);
 
+    // Pending fires every ~5s per session — it stays on the gated debug
+    // stream only, so the info stream carries terminal outcomes, not spam.
     const serialised = dumpInfo();
-    expect(serialised).toContain('"outcome":"pending"');
+    expect(serialised).not.toContain('"outcome":"pending"');
     expectNoSecrets(serialised);
     expect(serialised).not.toContain(POLL_TOKEN);
   });

@@ -313,8 +313,10 @@ authGithubDevice.post(
       const ms = Date.now() - startedAt;
       switch (body.error) {
         case 'authorization_pending':
+          // Deliberately NOT in the info stream: pending is the normal state
+          // every ~5s per session and would drown terminal-outcome signal.
+          // Per-poll granularity stays on the gated debug stream.
           debug('poll: authorization pending');
-          info('token_exchange.upstream', { outcome: 'pending', errorClass: body.error, ms });
           return c.json({ status: 'pending' });
         case 'slow_down': {
           // Clamp the upstream value — a hostile/broken interval must not
@@ -345,7 +347,9 @@ authGithubDevice.post(
           debug('poll: unrecognised upstream error', { ms });
           info('token_exchange.upstream', {
             outcome: 'unrecognised_error',
-            errorClass: body.error,
+            // Uncontrolled upstream string — clamp so a hostile value cannot
+            // bloat the log line or masquerade as taxonomy.
+            errorClass: String(body.error).slice(0, 64),
             ms,
           });
           return c.json({ error: 'github_unavailable' }, 502);
@@ -383,8 +387,8 @@ authGithubDevice.post(
       await revokeGitHubCliToken(parsedToken.data.access_token);
       return c.json({ error: 'github_authentication_failed' }, 401);
     }
-    await revokeGitHubCliToken(parsedToken.data.access_token);
     info('identity.upstream', { outcome: 'ok', ms: Date.now() - identityStartedAt });
+    await revokeGitHubCliToken(parsedToken.data.access_token);
 
     // github_id linking per GHCLIAUTH-003: returning users match on github_id;
     // first-link matches any verified email; conflicts fail closed.

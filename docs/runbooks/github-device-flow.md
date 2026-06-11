@@ -163,15 +163,21 @@ Event names and their outcomes:
   - `outcome: "malformed_body"` — response failed schema validation
 - `token_exchange.upstream` (the `/poll` exchange to GitHub):
   - `outcome: "ok"` — token obtained
-  - `outcome: "pending"` — RFC 8628 `authorization_pending`
   - `outcome: "slow_down"` — RFC 8628 `slow_down` (with `retryAfter`)
   - `outcome: "expired"` — RFC 8628 `expired_token`
   - `outcome: "declined"` — RFC 8628 `access_denied`
   - `outcome: "unrecognised_error"` — an unmapped RFC error body
   - `outcome: "fetch_error"` / `"non_ok"` / `"malformed_body"` — transport,
     HTTP, or schema failure
-- `identity.upstream` (the `api.github.com/user` identity fetch):
+- `identity.upstream` (the `api.github.com/user` identity fetch — `ms` covers
+  the fetch only, not the subsequent token revocation):
   - `outcome: "ok"` or `outcome: "fetch_error"`
+
+RFC 8628 `authorization_pending` is deliberately **absent** from the info
+stream: it is the normal state every ~5 s per session and would drown the
+terminal-outcome signal. Per-poll pending granularity is on the gated debug
+stream (`ANVIL_DEBUG=1`).
+
 - `login.outcome` (the terminal `/poll` result):
   - `outcome: "minted"` — licence issued (with `isNewPending`, `didFirstLink`)
   - `outcome: "blocked"` — non-active user gated (with `userStatus`)
@@ -211,6 +217,11 @@ output as well — the info logs above are always on regardless.
 - **Repeated 429 `slow_down`.** Expected back-off — the CLI honours `retryAfter`
   automatically. Sustained 429s with no progress indicate either the
   cross-instance gate firing under heavy concurrency or a misbehaving poller.
+- **Repeated 429 `slow_down` with no `login.outcome` info line ever appearing.**
+  The mint-race loser path: an instance lost the store-mint race and the re-read
+  found no winner yet. Harmless if it resolves within a poll interval;
+  persistent occurrences point at a stuck winner row — inspect the
+  `github_device_sessions` row for the session's `minted_*` columns.
 
 ## `--otp` fallback
 
