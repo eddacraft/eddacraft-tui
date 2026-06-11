@@ -147,6 +147,12 @@
 | [Feature Flag Inventory](../../docs/guides/feature-flag-inventory.md)   | `docs/guides/feature-flag-inventory.md`  | Guide | Derived       | FLAGCAT | Live   |
 | [Feature Flag Reference](../../docs/guides/feature-flag-reference.md)   | `docs/guides/feature-flag-reference.md`  | Guide | Authoritative | FLAGCAT | Live   |
 
+## GHCLIAUTH
+
+| Document                                                                               | Path                                  | Type    | Authority     | Owner     | Status |
+| -------------------------------------------------------------------------------------- | ------------------------------------- | ------- | ------------- | --------- | ------ |
+| [GitHub Device-Flow Login Operator Runbook](../../docs/runbooks/github-device-flow.md) | `docs/runbooks/github-device-flow.md` | Runbook | Authoritative | GHCLIAUTH | Live   |
+
 ## GHOOK
 
 | Document                                                                     | Path                                    | Type  | Authority     | Owner | Status |

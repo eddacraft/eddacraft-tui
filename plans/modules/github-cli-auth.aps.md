@@ -378,7 +378,7 @@ Change status to **Ready** when:
 
 ### GHCLIAUTH-009: Observability + ops hardening + runbook
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** Make the login hot path observable and operable without leaking
   secrets, and document the cutover gate.
 - **Expected Outcome:** Structured `console.info` (not gated `console.debug`)

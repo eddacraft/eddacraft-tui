@@ -795,3 +795,107 @@ describe('POST /auth/github-device/poll', () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Structured-log hygiene (GHCLIAUTH-009)
+//
+// The ungated console.info operational logs must carry latency / outcome /
+// error-class metadata ONLY — never a secret value. This drives a real start +
+// poll exchange with GitHub mocked, captures every console.info line, and
+// asserts none of the secrets in play leak into the serialised output.
+// ---------------------------------------------------------------------------
+
+describe('structured-log hygiene (GHCLIAUTH-009)', () => {
+  const MINTED_LICENCE = 'lic-secret-do-not-log';
+
+  beforeEach(() => {
+    vi.mocked(findGithubDeviceSessionByPollTokenHash).mockResolvedValue(sessionRow() as never);
+    vi.mocked(claimGithubDevicePoll).mockResolvedValue(sessionRow() as never);
+    vi.mocked(storeGithubDeviceMint).mockResolvedValue(true);
+    vi.mocked(linkOrCreateGitHubUser).mockResolvedValue({
+      user: { id: 'user-1', email: 'dev@example.com', status: 'active' },
+      isNewPending: false,
+      didFirstLink: false,
+    } as never);
+    vi.mocked(insertAuditLog).mockResolvedValue({} as never);
+    vi.mocked(mintSession).mockResolvedValue({
+      ...MINTED_SESSION,
+      license: MINTED_LICENCE,
+    });
+  });
+
+  /** All console.info output, joined, for substring leak assertions. */
+  function captureInfo() {
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+    return () => infoSpy.mock.calls.map((args) => args.map((a) => String(a)).join(' ')).join('\n');
+  }
+
+  /**
+   * Every secret value in play across the start + poll flow. None of these may
+   * ever appear in an ungated info log line.
+   */
+  const SECRETS = [
+    GITHUB_DEVICE_CODE, // device_code (start payload + poll exchange)
+    GITHUB_ACCESS_TOKEN, // GitHub access token from the exchange
+    MINTED_LICENCE, // minted Anvil licence string
+    MINTED_SESSION.refreshToken, // minted refresh token
+    'test-cli-client-secret', // OAuth client secret
+  ];
+
+  function expectNoSecrets(serialised: string) {
+    for (const secret of SECRETS) {
+      expect(serialised).not.toContain(secret);
+    }
+  }
+
+  it('emits info logs on a happy-path start + poll that carry no secret values', async () => {
+    const dumpInfo = captureInfo();
+    mockGithubUpstream();
+
+    const startRes = await start({});
+    expect(startRes.status).toBe(200);
+    // The poll token returned by /start is a per-session secret too — capture it.
+    const { pollToken } = (await startRes.json()) as { pollToken: string };
+
+    mockGithubPollUpstream();
+    const pollRes = await poll({ pollToken: POLL_TOKEN });
+    expect(pollRes.status).toBe(200);
+
+    const serialised = dumpInfo();
+    // The flow must have produced operational info logs at all (not a no-op).
+    expect(serialised).toContain('"event":"device_code.upstream"');
+    expect(serialised).toContain('"event":"token_exchange.upstream"');
+    expect(serialised).toContain('"event":"login.outcome"');
+    expect(serialised).toContain('"outcome":"minted"');
+
+    expectNoSecrets(serialised);
+    // The live per-session poll token from /start must not leak either.
+    expect(serialised).not.toContain(pollToken);
+    expect(serialised).not.toContain(POLL_TOKEN);
+  });
+
+  it('keeps secrets out of the info log on the RFC 8628 pending poll state', async () => {
+    const dumpInfo = captureInfo();
+    mockGithubPollUpstream({ error: 'authorization_pending' });
+
+    const res = await poll({ pollToken: POLL_TOKEN });
+    expect(res.status).toBe(200);
+
+    const serialised = dumpInfo();
+    expect(serialised).toContain('"outcome":"pending"');
+    expectNoSecrets(serialised);
+    expect(serialised).not.toContain(POLL_TOKEN);
+  });
+
+  it('keeps secrets out of the info log on an upstream non-OK device/code', async () => {
+    const dumpInfo = captureInfo();
+    mockGithubUpstream({ status: 503, json: { message: 'down' } });
+
+    const res = await start({});
+    expect(res.status).toBe(502);
+
+    const serialised = dumpInfo();
+    expect(serialised).toContain('"outcome":"non_ok"');
+    expectNoSecrets(serialised);
+  });
+});

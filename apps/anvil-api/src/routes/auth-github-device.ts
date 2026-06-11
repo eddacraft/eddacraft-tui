@@ -13,7 +13,7 @@ import {
   GitHubAccountLinkConflictError,
   type GithubDeviceSession,
 } from '../db/queries.js';
-import { createDebugger } from '../lib/debug.js';
+import { createDebugger, createInfoLogger } from '../lib/debug.js';
 import { getGitHubCliCredentials } from '../lib/github-cli-credentials.js';
 import { encryptDeviceCode, decryptDeviceCode } from '../lib/github-device-crypto.js';
 import { fetchGitHubUser, type GitHubIdentity } from '../lib/github-user.js';
@@ -22,6 +22,11 @@ import { hashToken } from '../lib/token.js';
 import { globalRateLimiter, rateLimiter } from '../middleware/rate-limit.js';
 
 const debug = createDebugger('auth-github-device');
+// Ungated structured operational logger (GHCLIAUTH-009): records upstream-call
+// outcomes — latency, outcome, error class, HTTP status — so production can be
+// triaged without ANVIL_DEBUG. NEVER pass a secret (access_token, device_code,
+// poll_token, licence, email, Authorization) as a field; log class/latency only.
+const info = createInfoLogger('auth-github-device');
 
 const GITHUB_DEVICE_CODE_URL = 'https://github.com/login/device/code';
 const GITHUB_TOKEN_URL = 'https://github.com/login/oauth/access_token';
@@ -98,18 +103,17 @@ authGithubDevice.post(
         signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
       });
     } catch (err: unknown) {
-      debug('device/code upstream fetch failed', {
-        errorClass: err instanceof Error ? err.name : typeof err,
-        ms: Date.now() - startedAt,
-      });
+      const errorClass = err instanceof Error ? err.name : typeof err;
+      const ms = Date.now() - startedAt;
+      debug('device/code upstream fetch failed', { errorClass, ms });
+      info('device_code.upstream', { outcome: 'fetch_error', errorClass, ms });
       return c.json({ error: 'github_unavailable' }, 502);
     }
 
     if (!upstream.ok) {
-      debug('device/code upstream non-OK', {
-        status: upstream.status,
-        ms: Date.now() - startedAt,
-      });
+      const ms = Date.now() - startedAt;
+      debug('device/code upstream non-OK', { status: upstream.status, ms });
+      info('device_code.upstream', { outcome: 'non_ok', httpStatus: upstream.status, ms });
       return c.json({ error: 'github_unavailable' }, 502);
     }
 
@@ -117,7 +121,9 @@ authGithubDevice.post(
       await upstream.json().catch(() => null)
     );
     if (!parsed.success) {
-      debug('device/code upstream body malformed', { ms: Date.now() - startedAt });
+      const ms = Date.now() - startedAt;
+      debug('device/code upstream body malformed', { ms });
+      info('device_code.upstream', { outcome: 'malformed_body', httpStatus: upstream.status, ms });
       return c.json({ error: 'github_unavailable' }, 502);
     }
 
@@ -133,10 +139,18 @@ authGithubDevice.post(
       expiresAt: new Date(Date.now() + gh.expires_in * 1000),
     });
 
+    const ms = Date.now() - startedAt;
     debug('github device session created', {
       intervalS,
       expiresIn: gh.expires_in,
-      ms: Date.now() - startedAt,
+      ms,
+    });
+    info('device_code.upstream', {
+      outcome: 'ok',
+      httpStatus: upstream.status,
+      intervalS,
+      expiresIn: gh.expires_in,
+      ms,
     });
 
     return c.json({
@@ -279,10 +293,10 @@ authGithubDevice.post(
         signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
       });
     } catch (err: unknown) {
-      debug('device token exchange fetch failed', {
-        errorClass: err instanceof Error ? err.name : typeof err,
-        ms: Date.now() - startedAt,
-      });
+      const errorClass = err instanceof Error ? err.name : typeof err;
+      const ms = Date.now() - startedAt;
+      debug('device token exchange fetch failed', { errorClass, ms });
+      info('token_exchange.upstream', { outcome: 'fetch_error', errorClass, ms });
       return c.json({ error: 'github_unavailable' }, 502);
     }
 
@@ -294,9 +308,13 @@ authGithubDevice.post(
     // outage and must surface as 502, not as a polling state the CLI would
     // retry against forever.
     if (upstream.ok && body && typeof body.error === 'string') {
+      // RFC 8628 state name is a non-secret protocol token — safe to log as the
+      // error class. The device_code/access_token are never in `fields`.
+      const ms = Date.now() - startedAt;
       switch (body.error) {
         case 'authorization_pending':
           debug('poll: authorization pending');
+          info('token_exchange.upstream', { outcome: 'pending', errorClass: body.error, ms });
           return c.json({ status: 'pending' });
         case 'slow_down': {
           // Clamp the upstream value — a hostile/broken interval must not
@@ -307,42 +325,66 @@ authGithubDevice.post(
               : null;
           const retryAfter = upstreamInterval ?? claimed.interval_s + 5;
           debug('poll: upstream slow_down', { retryAfter });
+          info('token_exchange.upstream', {
+            outcome: 'slow_down',
+            errorClass: body.error,
+            retryAfter,
+            ms,
+          });
           return c.json({ error: 'slow_down', retryAfter }, 429);
         }
         case 'expired_token':
           debug('poll: device code expired upstream');
+          info('token_exchange.upstream', { outcome: 'expired', errorClass: body.error, ms });
           return c.json({ status: 'expired' });
         case 'access_denied':
           debug('poll: user declined authorization');
+          info('token_exchange.upstream', { outcome: 'declined', errorClass: body.error, ms });
           return c.json({ status: 'declined' });
         default:
-          debug('poll: unrecognised upstream error', { ms: Date.now() - startedAt });
+          debug('poll: unrecognised upstream error', { ms });
+          info('token_exchange.upstream', {
+            outcome: 'unrecognised_error',
+            errorClass: body.error,
+            ms,
+          });
           return c.json({ error: 'github_unavailable' }, 502);
       }
     }
 
     const parsedToken = githubDeviceTokenResponseSchema.safeParse(body);
     if (!upstream.ok || !parsedToken.success) {
-      debug('device token exchange malformed/non-OK', {
-        status: upstream.status,
-        ms: Date.now() - startedAt,
+      const ms = Date.now() - startedAt;
+      debug('device token exchange malformed/non-OK', { status: upstream.status, ms });
+      info('token_exchange.upstream', {
+        outcome: upstream.ok ? 'malformed_body' : 'non_ok',
+        httpStatus: upstream.status,
+        ms,
       });
       return c.json({ error: 'github_unavailable' }, 502);
     }
 
+    const exchangeMs = Date.now() - startedAt;
+    info('token_exchange.upstream', { outcome: 'ok', httpStatus: upstream.status, ms: exchangeMs });
+
     // Identity comes solely from the token (ADR-066 security invariant); the
     // GitHub token is revoked immediately after, before any licence leaves.
+    const identityStartedAt = Date.now();
     let ghUser: GitHubIdentity;
     try {
       ghUser = await fetchGitHubUser(parsedToken.data.access_token);
     } catch (err) {
+      const errorClass = err instanceof Error ? err.name : typeof err;
+      const ms = Date.now() - identityStartedAt;
       debug('github identity fetch failed', {
         error: err instanceof Error ? err.message : String(err),
       });
+      info('identity.upstream', { outcome: 'fetch_error', errorClass, ms });
       await revokeGitHubCliToken(parsedToken.data.access_token);
       return c.json({ error: 'github_authentication_failed' }, 401);
     }
     await revokeGitHubCliToken(parsedToken.data.access_token);
+    info('identity.upstream', { outcome: 'ok', ms: Date.now() - identityStartedAt });
 
     // github_id linking per GHCLIAUTH-003: returning users match on github_id;
     // first-link matches any verified email; conflicts fail closed.
@@ -357,10 +399,12 @@ authGithubDevice.post(
           method: 'device_flow',
         });
         debug('poll: github link conflict — rejected', { githubId: ghUser.id });
+        info('login.outcome', { outcome: 'link_conflict' });
       } else {
         debug('poll: github account linking failed', {
           error: err instanceof Error ? err.message : String(err),
         });
+        info('login.outcome', { outcome: 'link_error' });
       }
       return c.json({ error: 'github_authentication_failed' }, 401);
     }
@@ -391,6 +435,7 @@ authGithubDevice.post(
         method: 'device_flow',
       });
       debug('poll: non-active user blocked', { status: user.status });
+      info('login.outcome', { outcome: 'blocked', userStatus: user.status });
       return c.json({ status: 'awaiting_approval' });
     }
 
@@ -422,6 +467,7 @@ authGithubDevice.post(
     });
 
     debug('poll: licence minted', { githubId: ghUser.id });
+    info('login.outcome', { outcome: 'minted', isNewPending, didFirstLink });
     return c.json({ status: 'confirmed', ...mintResult });
   }
 );

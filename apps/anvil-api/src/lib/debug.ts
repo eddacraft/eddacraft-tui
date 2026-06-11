@@ -68,3 +68,56 @@ export function createDebugger(
 ): (message: string, data?: unknown) => void {
   return (message: string, data?: unknown) => debugLog(namespace, message, data);
 }
+
+/**
+ * A flat field bag for a structured info log. Values are scalars only —
+ * operational metadata (latency, outcome, error class, HTTP status), never
+ * payloads. The caller is responsible for never passing a secret here; see
+ * `infoLog` for the contract.
+ */
+export type InfoFields = Record<string, string | number | boolean | null | undefined>;
+
+/**
+ * Emit a single ungated structured operational log line via `console.info`.
+ *
+ * Unlike `debugLog` (gated behind ANVIL_DEBUG/DEBUG and meant for local
+ * diagnosis), `infoLog` always runs so production can observe upstream-call
+ * outcomes — latency, outcome, error class, HTTP status — without enabling
+ * debug. It is the operator-facing signal for the device-flow login.
+ *
+ * SECURITY CONTRACT: `fields` carries operational metadata ONLY. Never pass a
+ * secret value — no `access_token`, `device_code`, `poll_token`, licence
+ * payload, user email, or `Authorization` header. Log presence, latency, and
+ * class, never the value. Field values are scalars; a string value is still
+ * passed through the same redaction filter as the debug path as a defence in
+ * depth, but the primary guarantee is the caller's discipline.
+ */
+function infoLog(namespace: DebugNamespace, event: string, fields?: InfoFields): void {
+  const entry: Record<string, unknown> = {
+    ts: new Date().toISOString(),
+    ns: `anvil:${namespace}`,
+    event,
+  };
+  if (fields) {
+    for (const [key, value] of Object.entries(fields)) {
+      if (value === undefined) {
+        continue;
+      }
+      entry[key] = typeof value === 'string' ? sanitizeForLog(value) : value;
+    }
+  }
+
+  /* eslint-disable-next-line no-console -- ungated operational log */
+  console.info(JSON.stringify(entry));
+}
+
+/**
+ * Build an ungated structured info logger bound to a namespace. Use for
+ * operational upstream-call outcomes that must be visible in production
+ * without ANVIL_DEBUG. See `infoLog` for the no-secrets contract.
+ */
+export function createInfoLogger(
+  namespace: DebugNamespace
+): (event: string, fields?: InfoFields) => void {
+  return (event: string, fields?: InfoFields) => infoLog(namespace, event, fields);
+}
