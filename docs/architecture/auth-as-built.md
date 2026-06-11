@@ -120,8 +120,9 @@ credentialed upstream calls (ADR-066). Route
 `apps/anvil-api/src/index.ts`; CLI client
 `crates/anvil-cli/src/auth/device_flow.rs`.
 
-1. CLI calls `POST /api/v1/auth/github-device/start` (strict empty body — no
-   email, no user reference). The API requests a device/user code pair from
+1. CLI calls `POST /api/v1/auth/github-device/start` with an empty JSON object
+   (`{}`) — the schema is strict-empty, so no email and no user reference are
+   accepted. The API requests a device/user code pair from
    `github.com/login/device/code`, persists a session (hashed `pollToken`,
    encrypted `device_code`, no user binding), and returns `userCode`,
    `verificationUri`, `interval`, `expiresIn`, and an opaque `pollToken`
@@ -159,7 +160,7 @@ Operator topology, health signals, and incident triage for this flow live in the
 ### GitHub OAuth Flow
 
 1. The docs-site callback (`apps/docs-site/api/auth/callback.ts`) validates the
-   OAuth state parameter, then calls `POST /auth/github/callback`
+   OAuth state parameter, then calls `POST /api/v1/auth/github/callback`
    server-to-server (`apps/anvil-api/src/routes/auth-github.ts:99`). CSRF/state
    validation lives entirely in the docs-site layer — the API trusts the caller
    to have validated the state (`auth-github.ts:92-98`)
@@ -184,20 +185,20 @@ flow with `method: "device_flow"`. The route is mounted at
 
 ### Legacy Device Code Flow (shipped-CLI compatibility)
 
-`POST /auth/device/start` + `/poll` (`apps/anvil-api/src/routes/auth-device.ts`)
-predate the GitHub device flow and remain live only for already-shipped CLIs:
-`/start` takes an email and returns a `verificationUrl` (the
-`ACTIVATE_URL`-configured page), `/poll` returns the session once the code is
-confirmed. The matching `POST /auth/device/confirm` browser-confirmation
-endpoint was **removed** in GHCLIAUTH-008 (along with its `requireAuth`), so the
-legacy session can no longer be confirmed via the website — outstanding sessions
-stay pending until they expire. Retiring `/start` + `/poll` and the
-`device_codes` table is a future pass; new logins use the GitHub device flow or
-`--otp`.
+`POST /api/v1/auth/device/start` + `/poll`
+(`apps/anvil-api/src/routes/auth-device.ts`) predate the GitHub device flow and
+remain live only for already-shipped CLIs: `/start` takes an email and returns a
+`verificationUrl` (the `ACTIVATE_URL`-configured page), `/poll` returns the
+session once the code is confirmed. The matching
+`POST /api/v1/auth/device/confirm` browser-confirmation endpoint was **removed**
+in GHCLIAUTH-008 (along with its `requireAuth`), so the legacy session can no
+longer be confirmed via the website — outstanding sessions stay pending until
+they expire. Retiring `/start` + `/poll` and the `device_codes` table is a
+future pass; new logins use the GitHub device flow or `--otp`.
 
 ### Admin Approval Flow
 
-1. Admin CLI calls `POST /admin/approve` with the waitlisted user's email
+1. Admin CLI calls `POST /api/v1/admin/approve` with the waitlisted user's email
 2. API activates the user and sends a beta invite email; the invite points the
    user at `anvil auth login` (no per-invite device code is generated —
    GHCLIAUTH-007)

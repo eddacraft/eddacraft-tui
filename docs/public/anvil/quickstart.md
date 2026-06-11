@@ -102,6 +102,10 @@ anvil prints a short code and a `github.com/login/device` URL. Open the URL on
 any device, enter the code to approve with GitHub, and the CLI finishes the
 login automatically — there is no email prompt and no website activation page.
 
+:::note The GitHub device flow ships with the next tagged beta. On
+`v0.8.0-beta`, `anvil auth login` still shows the previous verification-URL
+prompt — use `--otp` below until you upgrade. :::
+
 If you need email OTP instead, run:
 
 ```bash
