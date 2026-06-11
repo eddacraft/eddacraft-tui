@@ -633,7 +633,7 @@ activation orchestrator, not this crate. The tutorial reader sees the gap
 honestly. **Risk:** Low (UX honesty is preserved). **Fix:** Tracked in the
 activation crate; tutorial copy auto-corrects when the verifier output changes.
 
-### G-04: Showcase findings are not wired into the discovery flow
+### G-04: Showcase wiring into the discovery flow (resolved)
 
 Resolved (welcome.rs wiring, 2026-06-10 review) — see §Showcase.
 
@@ -663,18 +663,18 @@ just isn't fluid). **Fix:** Not planned; flagged for completeness.
 
 | File                                                          | Lines    | Role                                                                                                                                       |
 | ------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `crates/anvil-tui/src/surfaces/tutorial/mod.rs`               | 1845     | Module surface — `TutorialState`, `TutorialPath`, `TutorialPhase`, `TutorialStep`, `STATIC_MODE_WATCHER_UNAVAILABLE`, copy-invariant tests |
-| `crates/anvil-tui/src/surfaces/tutorial/paths.rs`             | 587      | Path definitions — `protection_loop_steps`, `policy_steps`, `architecture_steps`, `drift_steps`, `ci_steps`                                |
-| `crates/anvil-tui/src/surfaces/tutorial/discovery.rs`         | 913      | Discovery state machine, `Finding`, `FindingSeverity`, `FindingSource`, `ScanResults`, domain filtering                                    |
-| `crates/anvil-tui/src/surfaces/tutorial/discovery_render.rs`  | 683      | Discovery scanning / results / continue render paths                                                                                       |
+| `crates/anvil-tui/src/surfaces/tutorial/mod.rs`               | 1846     | Module surface — `TutorialState`, `TutorialPath`, `TutorialPhase`, `TutorialStep`, `STATIC_MODE_WATCHER_UNAVAILABLE`, copy-invariant tests |
+| `crates/anvil-tui/src/surfaces/tutorial/paths.rs`             | 584      | Path definitions — `protection_loop_steps`, `policy_steps`, `architecture_steps`, `drift_steps`, `ci_steps`                                |
+| `crates/anvil-tui/src/surfaces/tutorial/discovery.rs`         | 933      | Discovery state machine, `Finding`, `FindingSeverity`, `FindingSource`, `ScanResults`, domain filtering                                    |
+| `crates/anvil-tui/src/surfaces/tutorial/discovery_render.rs`  | 781      | Discovery scanning / results / continue render paths                                                                                       |
 | `crates/anvil-tui/src/surfaces/tutorial/executor.rs`          | 109      | `execute_command` shell wrapper (allow-listed by `pub(crate)`)                                                                             |
 | `crates/anvil-tui/src/surfaces/tutorial/fix.rs`               | 976      | `FixState` finding-fix surface (Watching / Editing / Resolved / TimedOut)                                                                  |
-| `crates/anvil-tui/src/surfaces/tutorial/fix_render.rs`        | 441      | Fix render — file context + finding detail + phase-aware footer                                                                            |
+| `crates/anvil-tui/src/surfaces/tutorial/fix_render.rs`        | 440      | Fix render — file context + finding detail + phase-aware footer                                                                            |
 | `crates/anvil-tui/src/surfaces/tutorial/render.rs`            | 1201     | Main tutorial render — path-select, step-progress, step-content, complete + 10 snapshot tests                                              |
-| `crates/anvil-tui/src/surfaces/tutorial/showcase.rs`          | 146      | Curated `[Example]` findings for the zero-findings case (not yet wired — G-04)                                                             |
+| `crates/anvil-tui/src/surfaces/tutorial/showcase.rs`          | 145      | Curated `[Example]` findings for the zero-findings case (wired via the welcome discovery flow — see §Showcase)                             |
 | `crates/anvil-tui/src/surfaces/tutorial/verify.rs`            | 174      | `Verify::FileExists`, `Verify::ExitCode`, `Verify::OutputContains`, `VerifyResult`                                                         |
-| `crates/anvil-tui/src/surfaces/tutorial/watch_demo.rs`        | 316      | `WatchDemoState` — overlay-on-watch-grid demo with auto-advancing hints                                                                    |
-| `crates/anvil-tui/src/surfaces/tutorial/watch_demo_render.rs` | 132      | Watch demo render — overlay panel composited on the watch grid                                                                             |
+| `crates/anvil-tui/src/surfaces/tutorial/watch_demo.rs`        | 319      | `WatchDemoState` — overlay-on-watch-grid demo with auto-advancing hints                                                                    |
+| `crates/anvil-tui/src/surfaces/tutorial/watch_demo_render.rs` | 135      | Watch demo render — overlay panel composited on the watch grid                                                                             |
 | `crates/anvil-tui/src/surfaces/tutorial/snapshots/`           | 10 files | Insta snapshot pins (path-select / running / complete at default / narrow / tiny + static-mode)                                            |
 | `crates/anvil-cli/src/commands/tutorial.rs`                   | ~450     | CLI entry — progress file IO, watcher startup, watch-demo handoff, `--reset`                                                               |
 
