@@ -5,12 +5,15 @@
 
 | ID        | Owner  | Status      | Progress |
 | --------- | ------ | ----------- | -------- |
-| GHCLIAUTH | @aneki | In Progress | 2/11     |
+| GHCLIAUTH | @aneki | In Progress | 3/11     |
 
-**Last reviewed:** 2026-06-04 (ADR-066 Accepted; GHCLIAUTH-001 — the dependency-free
-`mintSession` helper extraction — started since it needs neither the OAuth app nor
-live testing. The live items GHCLIAUTH-004/-005/-006 remain gated on GHCLIAUTH-002
-(OAuth app provisioning) and the security/ops invariant sign-off per ADR-066.)
+**Last reviewed:** 2026-06-11 (GHCLIAUTH-002 reconciled to Merged: the code half
+landed via PR #2318 and the operator gate is verified live —
+`/api/v1/health` reports `"githubCliCreds":"ok"`, so the "Anvil CLI" OAuth app
+and Key Vault secrets exist. The ADR-066 security/ops invariants were signed off
+by the owner 2026-06-11; with both gates cleared, GHCLIAUTH-004 is flipped Ready.
+GHCLIAUTH-005 stays Proposed until 004 merges; GHCLIAUTH-006 stays Proposed
+pending the 005 endpoint contract.)
 
 ## Purpose
 
@@ -122,13 +125,15 @@ retires the dead path.
 
 Change status to **Ready** when:
 
-- [ ] The "Anvil CLI" GitHub OAuth app is registered with Device Flow enabled
-      and `github-cli-client-id` / `github-cli-client-secret` are provisioned (GHCLIAUTH-002)
-- [ ] The security invariants in ADR-066 are signed off (no email on `/start`,
+- [x] The "Anvil CLI" GitHub OAuth app is registered with Device Flow enabled
+      and `github-cli-client-id` / `github-cli-client-secret` are provisioned (GHCLIAUTH-002 —
+      verified live via `/api/v1/health` `"githubCliCreds":"ok"`, 2026-06-11)
+- [x] The security invariants in ADR-066 are signed off (no email on `/start`,
       identity from `fetchGitHubUser` only, fail-closed verified-email, gate
-      parity, single-use hashed-at-rest mint)
-- [ ] The ops preconditions in ADR-066 are signed off (timeouts, rate limits,
-      cross-instance poll gate, boot probe, `slow_down` back-off)
+      parity, single-use hashed-at-rest mint) — owner sign-off 2026-06-11
+- [x] The ops preconditions in ADR-066 are signed off (timeouts, rate limits,
+      cross-instance poll gate, boot probe, `slow_down` back-off) — owner
+      sign-off 2026-06-11
 
 ## Work Items
 
@@ -159,13 +164,11 @@ Change status to **Ready** when:
 
 ### GHCLIAUTH-002: Provision the "Anvil CLI" GitHub OAuth app + Key Vault + boot probe
 
-- **Status:** In Progress
-- **Operator gate:** The code half (infra wiring + boot probe + `/health` field)
-  is implemented and merge-gated: `infra.yml` runs `pulumi up` on push to `main`
-  and `getSecret` throws on a missing secret, so the wiring must not merge until
-  the operator has (a) registered the "Anvil CLI" GitHub OAuth app with Device
-  Flow enabled and (b) created the `github-cli-client-id`/`-secret` Key Vault
-  secrets. See the GHCLIAUTH-009 runbook for the exact steps.
+- **Status:** Merged 2026-06-08 via PR #2318
+- **Operator gate:** Cleared. The OAuth app is registered (Device Flow enabled)
+  and the `github-cli-client-id`/`-secret` Key Vault secrets are provisioned —
+  verified live 2026-06-11: `/api/v1/health` reports `"githubCliCreds":"ok"`.
+  The formal runbook still lands in GHCLIAUTH-009.
 - **Intent:** Stand up the dedicated CLI OAuth app and its credentials so the
   device flow has an isolated, Device-Flow-enabled identity provider.
 - **Expected Outcome:** A new "Anvil CLI" GitHub OAuth app exists with **Device
@@ -219,7 +222,7 @@ Change status to **Ready** when:
 
 ### GHCLIAUTH-004: `github_device_sessions` table + `/github-device/start` broker
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Intent:** Begin a device-flow session by brokering GitHub's device-code
   request server-side and persisting the session for cross-instance polling.
 - **Expected Outcome:** A new `github_device_sessions` table keyed by
@@ -447,6 +450,6 @@ Change status to **Ready** when:
 
 | Slice | Items | Completion | Status |
 | ----- | ----- | ---------- | ------ |
-| MVP — headless login (001–006, gated on 002) | 6 | 1/6 done | In Progress |
+| MVP — headless login (001–006, gated on 002) | 6 | 3/6 done | In Progress |
 | Correctness / cleanup / validation (007–011) | 5 | 0/5 done | Proposed |
-| **Total** | **11** | **1/11 done** | **In Progress** |
+| **Total** | **11** | **3/11 done** | **In Progress** |
