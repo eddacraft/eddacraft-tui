@@ -108,7 +108,7 @@ Report the current in-chat or local review session state if one exists: target,
 tier, open findings, resolved findings, evidence, and publish status. The
 workflow session/event schema landed under OPMODEL-009
 (`plans/specs/2026-05-10-workflow-session-and-event-schema.md`,
-`schemas/workflow-session-event.schema.json`), but the durable session store
+`schemas/workflow-session-event.v1.schema.json`), but the durable session store
 that would back `status` is still owned downstream by CGBDG and is not yet
 wired up — `status` must not imply a repository-backed session store. If no
 current session exists, report that explicitly.

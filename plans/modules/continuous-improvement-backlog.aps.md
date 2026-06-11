@@ -1678,7 +1678,10 @@ archive.
 
 ### CIB-065: schema `$id` URIs still use the retired eddacraft.dev domain
 
-- **Status:** Draft
+- **Status:** In Progress (2026-06-11; owner decision: target domain is
+  `https://docs.eddacraft.ai`; filename mismatch reconciled by renaming
+  the file to `workflow-session-event.v1.schema.json` to match the `$id`
+  and the siblings' v1-in-filename convention)
 - **Intent:** the three published JSON Schemas declare `$id` URIs under
   `https://eddacraft.dev/anvil/schemas/…` while every product surface
   (README, `anvil welcome`, what's-new, install.sh as of CIB-063) uses
@@ -1697,7 +1700,9 @@ archive.
   disk vs `…v1.schema.json` in the `$id`).
 - **Files:** `schemas/anvil-status.v1.json`,
   `schemas/anvil-insights.v1.json`,
-  `schemas/workflow-session-event.schema.json`
+  `schemas/workflow-session-event.v1.schema.json` (renamed from
+  `…schema.json` to match the `$id`), `.claude/commands/council.md`
+  (path reference)
 - **Validation:** `git grep -c "eddacraft.dev" -- schemas/` = 0;
   `cargo test -p eddacraft-anvil --test status_json_contract` green
   (schema still parses and validates the emitted payload).

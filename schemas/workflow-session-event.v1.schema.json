@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://eddacraft.dev/anvil/schemas/workflow-session-event.v1.schema.json",
+  "$id": "https://docs.eddacraft.ai/anvil/schemas/workflow-session-event.v1.schema.json",
   "title": "Anvil workflow session and event schema",
   "type": "object",
   "oneOf": [{ "$ref": "#/$defs/workflowSession" }, { "$ref": "#/$defs/workflowEvent" }],

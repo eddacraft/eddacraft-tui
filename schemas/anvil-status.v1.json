@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://eddacraft.dev/anvil/schemas/anvil-status.v1.json",
+  "$id": "https://docs.eddacraft.ai/anvil/schemas/anvil-status.v1.json",
   "title": "Anvil status JSON output (v1)",
   "description": "Wire shape emitted by `anvil status --json`. ADTRUST-005 pins this contract so editor extensions, CI hooks, and downstream tooling can consume the surface without pattern-matching against human-rendered output. Patch releases keep `schema_version` stable; minor releases bump it explicitly with a migration. Top-level objects accept additive optional fields (`additionalProperties: true`) so v1 stays compatible across patch versions; renamed or removed fields require a schema-version bump.",
   "type": "object",
