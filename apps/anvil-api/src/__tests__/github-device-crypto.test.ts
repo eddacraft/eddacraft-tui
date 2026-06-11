@@ -26,8 +26,12 @@ describe('github-device-crypto', () => {
   it('fails closed on a tampered payload', () => {
     const payload = encryptDeviceCode(POLL_TOKEN, DEVICE_CODE);
     const parts = payload.split('.');
-    const lastChar = parts[3]!.slice(-1);
-    parts[3] = parts[3]!.slice(0, -1) + (lastChar === 'A' ? 'B' : 'A');
+    // Tamper at the byte level, not the base64url text level: the final
+    // encoded character of a partial group carries ignored trailing bits, so
+    // a character swap there can decode to identical bytes and slip past GCM.
+    const ciphertext = Buffer.from(parts[3]!, 'base64url');
+    ciphertext[0] = ciphertext[0]! ^ 0xff;
+    parts[3] = ciphertext.toString('base64url');
     expect(decryptDeviceCode(POLL_TOKEN, parts.join('.'))).toBeNull();
   });
 
