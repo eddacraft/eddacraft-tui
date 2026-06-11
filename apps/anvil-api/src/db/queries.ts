@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { NeonClient } from './client.js';
 import { hashToken } from '../lib/token.js';
+import type { GitHubIdentity } from '../lib/github-user.js';
 
 const IdSchema = z.union([z.string(), z.number(), z.bigint()]).transform((v) => String(v));
 
@@ -318,8 +319,90 @@ export async function confirmDeviceCode(sql: NeonClient, id: string): Promise<bo
 }
 
 // ---------------------------------------------------------------------------
-// GitHub device-flow sessions (GHCLIAUTH-004, ADR-066)
+// GitHub device-flow sessions (GHCLIAUTH-004/-005, ADR-066)
 // ---------------------------------------------------------------------------
+
+const GithubDeviceSessionSchema = z.object({
+  id: IdSchema,
+  poll_token_hash: z.string(),
+  // Encrypted (AES-256-GCM keyed off the client-held poll_token), not hashed:
+  // the poll broker must recover the plaintext device_code for the RFC 8628
+  // token exchange. See `lib/github-device-crypto.ts`.
+  github_device_code_enc: z.string(),
+  interval_s: z.coerce.number(),
+  expires_at: DateStringSchema,
+  last_polled_at: z.union([DateStringSchema, z.null()]),
+  minted_at: z.union([DateStringSchema, z.null()]),
+  minted_session_enc: z.union([z.string(), z.null()]),
+  created_at: DateStringSchema,
+});
+
+export type GithubDeviceSession = z.infer<typeof GithubDeviceSessionSchema>;
+
+export async function findGithubDeviceSessionByPollTokenHash(
+  sql: NeonClient,
+  pollTokenHash: string
+): Promise<GithubDeviceSession | null> {
+  const r = rows(
+    await sql`
+    SELECT * FROM github_device_sessions
+    WHERE poll_token_hash = ${pollTokenHash}
+    LIMIT 1
+  `
+  );
+  if (!r[0]) return null;
+  return GithubDeviceSessionSchema.parse(r[0]);
+}
+
+/**
+ * Cross-instance poll gate (ADR-066 ops precondition): atomically claim the
+ * right to exchange this session's device_code with GitHub for the current
+ * interval window. At most one caller — across all Vercel instances — wins per
+ * `interval_s`; losers are rate-limited by the route. Minted and expired
+ * sessions are never claimable.
+ */
+export async function claimGithubDevicePoll(
+  sql: NeonClient,
+  pollTokenHash: string
+): Promise<GithubDeviceSession | null> {
+  const r = rows(
+    await sql`
+    UPDATE github_device_sessions
+    SET last_polled_at = now()
+    WHERE poll_token_hash = ${pollTokenHash}
+      AND minted_at IS NULL
+      AND expires_at > now()
+      AND (last_polled_at IS NULL OR last_polled_at <= now() - make_interval(secs => interval_s))
+    RETURNING *
+  `
+  );
+  if (!r[0]) return null;
+  return GithubDeviceSessionSchema.parse(r[0]);
+}
+
+/**
+ * Single-use mint claim (reuses the `consumeDeviceCode` atomicity model with
+ * UPDATE-where-unminted instead of DELETE, so the minted session stays
+ * re-returnable within TTL): records the encrypted minted session exactly
+ * once. Returns false when a concurrent caller already minted — the loser
+ * must re-read and re-return the winner's stored session.
+ */
+export async function storeGithubDeviceMint(
+  sql: NeonClient,
+  pollTokenHash: string,
+  mintedSessionEnc: string
+): Promise<boolean> {
+  const r = rows(
+    await sql`
+    UPDATE github_device_sessions
+    SET minted_at = now(), minted_session_enc = ${mintedSessionEnc}
+    WHERE poll_token_hash = ${pollTokenHash}
+      AND minted_at IS NULL
+    RETURNING id
+  `
+  );
+  return r.length > 0;
+}
 
 /**
  * Persist a brokered GitHub device-flow session. Deliberately binds NO user —
@@ -756,15 +839,9 @@ export async function linkGitHubIdToUser(
   return BetaUserSchema.parse(r[0]);
 }
 
-/** A verified GitHub identity, as resolved from the token by the auth route. */
-export interface GitHubIdentity {
-  id: number;
-  login: string;
-  /** Primary verified email — the address a brand-new user is created under. */
-  email: string;
-  /** All verified emails (lowercased) — the first-link match surface. */
-  verifiedEmails: string[];
-}
+// Canonical definition lives with the fetch that produces it; re-exported so
+// linking callers and tests share one nominal type.
+export type { GitHubIdentity } from '../lib/github-user.js';
 
 /**
  * A verified GitHub email resolved to an **active row already linked to a

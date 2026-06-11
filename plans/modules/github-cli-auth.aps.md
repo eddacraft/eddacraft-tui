@@ -250,7 +250,7 @@ Change status to **Ready** when:
 
 ### GHCLIAUTH-005: `/github-device/poll` broker — exchange, gate, single-use mint
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Complete a device-flow session by exchanging the device code,
   deriving identity from GitHub, enforcing the access gate, and minting the
   Anvil licence exactly once.
@@ -263,8 +263,10 @@ Change status to **Ready** when:
   active-status gate parity (`status === 'active'`, `github_oauth_blocked` audit
   on non-active, scopes via `findActiveScopesForUser`) and returns a clear
   terminal "awaiting approval" poll status for non-active/uninvited users (not a
-  generic timeout); mints **single-use** via atomic
-  `DELETE … RETURNING` (reuse the `consumeDeviceCode` pattern), keyed strictly on
+  generic timeout); mints **single-use** via an atomic UPDATE-where-unminted
+  (the `consumeDeviceCode` atomicity model — UPDATE, not `DELETE … RETURNING`,
+  because deleting the row would make the mint un-re-returnable; corrected
+  during implementation), keyed strictly on
   `poll_token_hash = $hash`; mints **exactly once, re-returnable within TTL**;
   revokes the GitHub token immediately after `fetchGitHubUser`; a cross-instance
   DB gate ensures at most one instance polls GitHub per `device_code` per
@@ -296,7 +298,10 @@ Change status to **Ready** when:
   429 bail in `check_status` → `friendly_http_error(429)` → `bail` becomes a
   back-off+retry); terminal states (`expired`, `declined`, errors) map to clear
   messages; `--otp` and `--edict` are untouched; `auth login --help` and prompts
-  are updated.
+  are updated. Once the device flow is live by default, `/health` should treat
+  missing `GITHUB_CLI_*` credentials as `degraded` (today the field is
+  informational only — GHCLIAUTH-002 left it non-gating because the flow
+  wasn't user-facing yet).
 - **Validation:** `cargo test -p eddacraft-anvil -- auth` — device-flow unit
   tests cover the new endpoints, the `interval` field round-trip, `slow_down`
   back-off (no fatal bail), and terminal-state messages; `--otp` tests unchanged.
