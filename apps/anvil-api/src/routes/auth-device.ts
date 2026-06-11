@@ -146,6 +146,7 @@ authDevice.post('/poll', zValidator('json', pollSchema), async (c) => {
   // the mint path below is unreachable-but-harmless. It is retained until the
   // /start + /poll endpoints retire together (the legacy CLIs still poll), at
   // which point the whole handler goes.
+
   // Confirmed — atomically consume the device code so concurrent polls
   // cannot both mint sessions (DELETE ... RETURNING ensures single-use)
   const consumed = await consumeDeviceCode(sql, pollTokenHash);

@@ -16,10 +16,11 @@ fatal-bail), `expired`/`declined` (no credentials persisted), and the
 `--otp` stdin prompt path. All poll mocks body-match the `pollToken`;
 a temp `ANVIL_HOME` re-roots credentials on every platform. Drift
 recorded in the item: `whoami` resolves via a live `/api/v1/auth/verify`
-call, not offline from the saved licence. **No locally-actionable work
-remains**: 008 (confirm-endpoint removal) is sequenced after the next
-CLI tag ships the new login (ADR-066 decision 5), and 010 (docs sync)
-depends on 008 — both wait on that external release gate.)
+call, not offline from the saved licence. Sequencing override
+2026-06-11: the owner authorised 008 (confirm-endpoint removal) ahead
+of the next CLI tag — no active users, and the confirm path has been
+un-completable since #1779 — so 008 is In Progress and 010 (docs sync)
+follows it; the next CLI tag remains the user-facing cutover.)
 
 ## Purpose
 
@@ -124,8 +125,9 @@ retires the dead path.
 - The **TS API slice** (GHCLIAUTH-001/-003/-004/-005, the server endpoints) is
   continuous-deploy and can land on `main` before any tag.
 - The **Rust CLI slice** (GHCLIAUTH-006) gates on the next CLI tag.
-- The confirm-endpoint removal (GHCLIAUTH-008) is sequenced after the new CLI
-  ships, per ADR-066.
+- The confirm-endpoint removal (GHCLIAUTH-008) was sequenced after the new
+  CLI ships, per ADR-066; the owner overrode that sequencing on 2026-06-11
+  (no active users; the path was already un-completable per #1779).
 
 ## Ready Checklist
 

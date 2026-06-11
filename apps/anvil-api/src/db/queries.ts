@@ -595,7 +595,9 @@ export async function findUserById(sql: NeonClient, id: string): Promise<BetaUse
 
 /**
  * Insert a device code with no user_id (anti-enumeration dummy row).
- * The null user_id ensures JOINs in /confirm never match.
+ * The null user_id means the row is never backed by an active user, and
+ * consumeDeviceCode's `confirmed_at IS NOT NULL` guard makes it unmintable —
+ * it exists purely so /poll behaves identically for unknown emails (F-C-003).
  */
 export async function insertDummyDeviceCode(
   sql: NeonClient,

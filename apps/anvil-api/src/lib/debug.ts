@@ -4,12 +4,7 @@
  * Self-contained to avoid dependency on @eddacraft/anvil-core
  */
 
-type DebugNamespace =
-  | 'api'
-  | 'auth-device'
-  | 'auth-github-device'
-  | 'auth-session'
-  | 'require-auth';
+type DebugNamespace = 'api' | 'auth-device' | 'auth-github-device' | 'auth-session';
 
 function isDebugEnabled(): boolean {
   const anvilDebug = process.env.ANVIL_DEBUG;
