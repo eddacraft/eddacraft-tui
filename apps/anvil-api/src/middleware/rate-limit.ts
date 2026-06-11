@@ -52,3 +52,38 @@ export function rateLimiter(opts?: { windowMs?: number; max?: number }): Middlew
     return await next();
   };
 }
+
+/**
+ * Process-wide fixed-window limiter: one budget shared by ALL callers, for
+ * endpoints that proxy a credentialed upstream call (e.g. the GitHub
+ * device-flow broker, ADR-066 ops precondition). Layer it behind `rateLimiter`
+ * so a single IP exhausts its own budget before it can drain the shared one.
+ * Best-effort per instance, like `rateLimiter`.
+ *
+ * NOTE: each call mints an independent budget — mount the SAME returned
+ * middleware on every route that should share one, or they fork silently.
+ */
+export function globalRateLimiter(opts?: { windowMs?: number; max?: number }): MiddlewareHandler {
+  const windowMs = opts?.windowMs ?? 60_000;
+  const max = opts?.max ?? 60;
+  debug('global rate limiter initialized', { windowMs, max });
+  let count = 0;
+  let resetAt = 0;
+
+  return async (c: Context, next: Next) => {
+    const now = Date.now();
+    if (now >= resetAt) {
+      count = 0;
+      resetAt = now + windowMs;
+    }
+    count++;
+
+    if (count > max) {
+      debug('global rate limit exceeded', { count, max });
+      c.res.headers.set('Retry-After', String(Math.max(1, Math.ceil((resetAt - now) / 1000))));
+      return c.json({ error: 'Too many requests, please try again later' }, 429);
+    }
+
+    return await next();
+  };
+}

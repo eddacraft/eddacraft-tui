@@ -72,6 +72,22 @@ CREATE TABLE device_codes (
   created_at    timestamptz NOT NULL DEFAULT now()
 );
 
+-- Brokered GitHub device-flow session state (GHCLIAUTH-004, ADR-066).
+-- poll_token stored hashed; device_code stored encrypted under a key derived
+-- from the client-held poll_token (see lib/github-device-crypto.ts). No user
+-- column by design — the bound user comes from the GitHub token at poll time.
+CREATE TABLE github_device_sessions (
+  id                       uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  poll_token_hash          text UNIQUE NOT NULL,
+  github_device_code_enc   text NOT NULL,
+  interval_s               int NOT NULL,
+  expires_at               timestamptz NOT NULL,
+  last_polled_at           timestamptz,
+  minted_at                timestamptz,
+  minted_session_enc       text,
+  created_at               timestamptz NOT NULL DEFAULT now()
+);
+
 -- Email OTP state (BAUTH-001)
 CREATE TABLE otp_codes (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -142,6 +158,7 @@ CREATE INDEX idx_device_codes_user_code ON device_codes(user_code);
 CREATE INDEX idx_device_codes_poll_token ON device_codes(poll_token);
 CREATE INDEX idx_device_codes_user_id ON device_codes(user_id);
 CREATE INDEX idx_device_codes_expires_at ON device_codes(expires_at);
+CREATE INDEX idx_github_device_sessions_expires_at ON github_device_sessions(expires_at);
 CREATE INDEX idx_otp_codes_user_id ON otp_codes(user_id);
 CREATE INDEX idx_otp_codes_expires_at ON otp_codes(expires_at);
 CREATE INDEX idx_refresh_tokens_token_hash ON refresh_tokens(token_hash);

@@ -200,10 +200,17 @@ GitHub email matches.
     strictly on `poll_token_hash = $hash` (never "latest confirmed"); the mint is
     gated by an atomic `DELETE … RETURNING` (reuse the `consumeDeviceCode`
     pattern). The 256-bit `poll_token` is hashed at rest with the existing
-    pepper; the GitHub `device_code` is also hashed at rest.
+    pepper; the GitHub `device_code` is stored **encrypted, not hashed**
+    (corrected during GHCLIAUTH-004): the poll broker must recover the
+    plaintext for the RFC 8628 token exchange, so a one-way hash is
+    unimplementable. The key is derived from the client-held `poll_token`
+    (HKDF-SHA256, pepper as salt → AES-256-GCM;
+    `apps/anvil-api/src/lib/github-device-crypto.ts`), preserving the
+    invariant's intent — a DB dump alone recovers neither value, since the
+    `poll_token` itself is stored only as a hash.
   - **DB-backed** session state (Vercel serverless — in-memory maps do not
     survive across instances). A new `github_device_sessions` table keyed by
-    `poll_token_hash` → `(github_device_code_hash, interval_s, expires_at,
+    `poll_token_hash` → `(github_device_code_enc, interval_s, expires_at,
     last_polled_at, minted_*)` — cleaner than overloading `device_codes`, whose
     `user_code UNIQUE NOT NULL` + start-time `user_id` invariants the GitHub
     flow structurally breaks.

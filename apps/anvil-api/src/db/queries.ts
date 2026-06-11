@@ -318,6 +318,36 @@ export async function confirmDeviceCode(sql: NeonClient, id: string): Promise<bo
 }
 
 // ---------------------------------------------------------------------------
+// GitHub device-flow sessions (GHCLIAUTH-004, ADR-066)
+// ---------------------------------------------------------------------------
+
+/**
+ * Persist a brokered GitHub device-flow session. Deliberately binds NO user —
+ * the bound user is derived solely from the GitHub token at poll-confirmation
+ * time (ADR-066 security invariant). The device_code is stored encrypted
+ * (AES-256-GCM keyed off the client-held poll_token), not hashed: the poll
+ * broker must recover the plaintext for the RFC 8628 token exchange. See
+ * `lib/github-device-crypto.ts`.
+ */
+export async function insertGithubDeviceSession(
+  sql: NeonClient,
+  session: {
+    pollTokenHash: string;
+    deviceCodeEnc: string;
+    intervalS: number;
+    expiresAt: Date;
+  }
+): Promise<void> {
+  await sql`
+    INSERT INTO github_device_sessions
+      (poll_token_hash, github_device_code_enc, interval_s, expires_at)
+    VALUES
+      (${session.pollTokenHash}, ${session.deviceCodeEnc}, ${session.intervalS},
+       ${session.expiresAt.toISOString()})
+  `;
+}
+
+// ---------------------------------------------------------------------------
 // OTP codes
 // ---------------------------------------------------------------------------
 
@@ -1327,6 +1357,18 @@ export async function cleanupExpiredDeviceCodes(sql: NeonClient): Promise<number
   const r = rows(
     await sql`
     DELETE FROM device_codes
+    WHERE expires_at < now() - interval '1 hour'
+    RETURNING id
+  `
+  );
+  return r.length;
+}
+
+/** Delete GitHub device-flow sessions expired more than 1 hour ago. */
+export async function cleanupExpiredGithubDeviceSessions(sql: NeonClient): Promise<number> {
+  const r = rows(
+    await sql`
+    DELETE FROM github_device_sessions
     WHERE expires_at < now() - interval '1 hour'
     RETURNING id
   `

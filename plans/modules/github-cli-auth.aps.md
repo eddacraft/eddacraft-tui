@@ -222,14 +222,16 @@ Change status to **Ready** when:
 
 ### GHCLIAUTH-004: `github_device_sessions` table + `/github-device/start` broker
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Begin a device-flow session by brokering GitHub's device-code
   request server-side and persisting the session for cross-instance polling.
 - **Expected Outcome:** A new `github_device_sessions` table keyed by
-  `poll_token_hash` holds `(github_device_code_hash, interval_s, expires_at,
+  `poll_token_hash` holds `(github_device_code_enc, interval_s, expires_at,
   last_polled_at, minted_*)`; `POST /api/v1/auth/github-device/start` calls
   `github.com/login/device/code` (scope `read:user user:email`), persists the
-  hashed `device_code` + interval/expiry, and returns the RFC 8628 fields
+  encrypted `device_code` (keyed off the client-held `poll_token` — a one-way
+  hash cannot support the poll-time exchange; see the corrected ADR-066
+  invariant) + interval/expiry, and returns the RFC 8628 fields
   (`user_code`, `verification_uri`, `interval`, `expires_in`) plus the
   256-bit `poll_token`; the endpoint accepts **no** email and binds **no**
   user; it is rate-limited (per-IP + global) and uses an ~8s upstream timeout.

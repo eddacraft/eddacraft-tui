@@ -4,6 +4,7 @@ import { getClient } from '../db/client.js';
 import {
   cleanupExpiredBroadcastSnapshots,
   cleanupExpiredDeviceCodes,
+  cleanupExpiredGithubDeviceSessions,
   cleanupExpiredOtpCodes,
   cleanupExpiredRefreshTokens,
 } from '../db/queries.js';
@@ -43,12 +44,14 @@ cron.get('/cleanup', async (c) => {
   const sql = getClient();
 
   const deviceCount = await cleanupExpiredDeviceCodes(sql);
+  const githubDeviceSessionCount = await cleanupExpiredGithubDeviceSessions(sql);
   const otpCount = await cleanupExpiredOtpCodes(sql);
   const refreshCount = await cleanupExpiredRefreshTokens(sql);
   const broadcastSnapshotCount = await cleanupExpiredBroadcastSnapshots(sql);
 
   debug('cleanup complete', {
     deviceCodes: deviceCount,
+    githubDeviceSessions: githubDeviceSessionCount,
     otpCodes: otpCount,
     refreshTokens: refreshCount,
     broadcastSnapshots: broadcastSnapshotCount,
@@ -57,6 +60,7 @@ cron.get('/cleanup', async (c) => {
   return c.json({
     cleaned: {
       deviceCodes: deviceCount,
+      githubDeviceSessions: githubDeviceSessionCount,
       otpCodes: otpCount,
       refreshTokens: refreshCount,
       broadcastSnapshots: broadcastSnapshotCount,
