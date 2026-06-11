@@ -95,7 +95,7 @@ Change status to **Ready** when:
 - [ ] ILGOV rescope item 2 (Rust `IntentLedgerRecord`) landed or co-designed
       so CONF-002 extends rather than forks it
 
-## Tasks
+## Work Items
 
 ### CONF-001: Product-decision ADR for conformance gating
 
