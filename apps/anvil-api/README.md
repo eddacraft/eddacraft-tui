@@ -13,7 +13,6 @@ REST API for Anvil beta access management. Hono on Vercel with Neon Postgres.
 | POST   | `/api/v1/waitlist/resend`      | Token | Force re-send confirmation         |
 | POST   | `/api/v1/auth/verify`          | None  | Validate beta token                |
 | POST   | `/api/v1/auth/device/start`    | None  | Start device code flow             |
-| POST   | `/api/v1/auth/device/confirm`  | None  | Confirm device code                |
 | POST   | `/api/v1/auth/device/poll`     | None  | Poll for confirmation              |
 | POST   | `/api/v1/auth/otp/request`     | None  | Request OTP email                  |
 | POST   | `/api/v1/auth/otp/verify`      | None  | Verify OTP for JWT                 |

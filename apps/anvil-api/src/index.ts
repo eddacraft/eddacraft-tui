@@ -18,8 +18,9 @@ import { verifyGitHubCliCredentials } from './lib/github-cli-credentials.js';
 
 // Cold-start probe: validate both the signing-key PEM (for /device/poll and
 // the OTP / GitHub / session paths) and the verifying-key PEM (for the
-// requireAuth middleware on /device/confirm) parse at boot so misconfiguration
-// surfaces at deploy time rather than on the first authenticated call.
+// requireAuth middleware on the licence-authenticated routes) parse at boot so
+// misconfiguration surfaces at deploy time rather than on the first
+// authenticated call.
 // Fire-and-forget — /health reports the result; the keys are cached via the
 // module-level promises in lib/licence.ts, so this does not block request
 // handling.

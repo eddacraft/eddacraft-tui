@@ -51,8 +51,8 @@ export async function verifySigningKey(): Promise<{ ok: true } | { ok: false; er
 
 /**
  * Probe `LICENSE_PUBLIC_KEY` so a missing or invalid SPKI is caught at boot
- * / `/health` rather than at the first authenticated `/device/confirm` call.
- * Mirrors [`verifySigningKey`] for the verification half of the keypair.
+ * / `/health` rather than at the first authenticated request. Mirrors
+ * [`verifySigningKey`] for the verification half of the keypair.
  */
 export async function verifyVerifyingKey(): Promise<{ ok: true } | { ok: false; error: string }> {
   try {

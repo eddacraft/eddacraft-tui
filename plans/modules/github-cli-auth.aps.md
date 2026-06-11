@@ -360,12 +360,15 @@ Change status to **Ready** when:
 
 ### GHCLIAUTH-008: Remove `POST /auth/device/confirm` + #1779 dead code
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** Retire the broken confirm path once no shipped CLI needs it.
 - **Expected Outcome:** `POST /auth/device/confirm` and its #1779
   attempt-counter / anti-enumeration dead code (and tests) are removed; orphaned
   `device_codes` confirm-only queries are inventoried and deleted; this lands
-  **only after** the new CLI ships.
+  **only after** the new CLI ships. (sequencing override 2026-06-11: owner
+  authorised removal ahead of the next CLI tag — no active users, and the
+  confirm path has been un-completable since #1779, so old CLIs lose nothing
+  that worked)
 - **Validation:** `pnpm nx test @eddacraft/anvil-api` passes with the route and
   its tests removed; `rg "device/confirm|confirmDeviceCode"` (or equivalent)
   returns no live references.

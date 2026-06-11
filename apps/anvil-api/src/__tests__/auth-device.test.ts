@@ -3,7 +3,7 @@ import { generateKeyPair, exportPKCS8, exportSPKI } from 'jose';
 import { Hono } from 'hono';
 import { authDevice } from '../routes/auth-device.js';
 import { USER_CODE_CONSTRAINT } from '../lib/device-code.js';
-import { signLicence, _resetSigningKeyCacheForTests, type LicenceClaims } from '../lib/licence.js';
+import { _resetSigningKeyCacheForTests } from '../lib/licence.js';
 
 vi.mock('../db/client.js', () => ({
   getClient: vi.fn(() => vi.fn()),
@@ -14,9 +14,6 @@ vi.mock('../db/queries.js', () => ({
   findUserById: vi.fn(),
   insertDeviceCode: vi.fn(),
   insertDummyDeviceCode: vi.fn(),
-  findPendingDeviceCodeWithUserId: vi.fn(),
-  confirmDeviceCode: vi.fn(),
-  incrementDeviceCodeAttempts: vi.fn(),
   pollDeviceCode: vi.fn(),
   deviceCodeExistsByPollToken: vi.fn(),
   consumeDeviceCode: vi.fn(),
@@ -33,13 +30,10 @@ vi.mock('../lib/token.js', async (importOriginal) => {
 });
 
 import {
-  confirmDeviceCode,
   consumeDeviceCode,
   deviceCodeExistsByPollToken,
-  findPendingDeviceCodeWithUserId,
   findUserByEmail,
   findUserById,
-  incrementDeviceCodeAttempts,
   insertDeviceCode,
   insertDummyDeviceCode,
   insertRefreshToken,
@@ -76,9 +70,6 @@ beforeEach(() => {
   // Restore default mock implementations after reset.
   vi.mocked(insertDeviceCode).mockResolvedValue(undefined as never);
   vi.mocked(insertDummyDeviceCode).mockResolvedValue(undefined);
-  vi.mocked(findPendingDeviceCodeWithUserId).mockResolvedValue(null);
-  vi.mocked(confirmDeviceCode).mockResolvedValue(true);
-  vi.mocked(incrementDeviceCodeAttempts).mockResolvedValue(1);
   vi.mocked(pollDeviceCode).mockResolvedValue(null);
   vi.mocked(deviceCodeExistsByPollToken).mockResolvedValue(false);
   vi.mocked(consumeDeviceCode).mockResolvedValue(null);
@@ -138,24 +129,6 @@ function post(path: string, body: unknown, extraHeaders: Record<string, string> 
     headers: { 'Content-Type': 'application/json', ...extraHeaders },
     body: JSON.stringify(body),
   });
-}
-
-function makeClaims(overrides: Partial<LicenceClaims> = {}): LicenceClaims {
-  return {
-    sub: 'user-1',
-    email: 'active@example.com',
-    identity: { provider: 'email', id: null },
-    org: null,
-    tier: 'pro',
-    scopes: ['beta'],
-    seats: 1,
-    ...overrides,
-  };
-}
-
-async function bearerFor(claims: Partial<LicenceClaims> = {}): Promise<string> {
-  const jwt = await signLicence(makeClaims(claims), undefined, 7);
-  return `Bearer ${jwt}`;
 }
 
 describe('POST /auth/device/start', () => {
@@ -267,258 +240,6 @@ describe('POST /auth/device/start', () => {
     const missing = await post('/auth/device/start', {});
     expect(missing.status).toBe(400);
     expect(vi.mocked(findUserByEmail)).not.toHaveBeenCalled();
-  });
-});
-
-describe('POST /auth/device/confirm', () => {
-  const INVALID_CODE_ERROR = { error: 'Invalid or expired code' };
-
-  describe('authentication gate (issue #1779)', () => {
-    it('returns 401 when Authorization header is missing', async () => {
-      const res = await post('/auth/device/confirm', { userCode: 'ANVIL-AAAAAAAA' });
-
-      expect(res.status).toBe(401);
-      expect(vi.mocked(findPendingDeviceCodeWithUserId)).not.toHaveBeenCalled();
-      expect(vi.mocked(confirmDeviceCode)).not.toHaveBeenCalled();
-    });
-
-    it('returns 401 on a malformed Authorization header', async () => {
-      const res = await post(
-        '/auth/device/confirm',
-        { userCode: 'ANVIL-AAAAAAAA' },
-        { Authorization: 'Token abc' }
-      );
-
-      expect(res.status).toBe(401);
-      expect(vi.mocked(findPendingDeviceCodeWithUserId)).not.toHaveBeenCalled();
-    });
-
-    it('returns 401 on an invalid licence (bogus JWT)', async () => {
-      const res = await post(
-        '/auth/device/confirm',
-        { userCode: 'ANVIL-AAAAAAAA' },
-        { Authorization: 'Bearer not.a.valid.jwt' }
-      );
-
-      expect(res.status).toBe(401);
-      expect(vi.mocked(findPendingDeviceCodeWithUserId)).not.toHaveBeenCalled();
-    });
-
-    it('rejects the body-supplied email vector that was the original CLAWP critical', async () => {
-      // The pre-fix bug: caller passes any active user's email in the body
-      // and the server confirms. The new shape has no `email` field on the
-      // confirm schema, and the bound user is taken from the verified
-      // licence's `sub`. A request carrying `email` is simply ignored.
-      vi.mocked(findPendingDeviceCodeWithUserId).mockResolvedValue({
-        id: 'dc-victim',
-        user_id: 'user-victim',
-        attempts: 0,
-      });
-
-      const res = await post(
-        '/auth/device/confirm',
-        // Attacker authenticates as user-attacker but tries to confirm a
-        // code bound to user-victim by name-dropping the victim's email.
-        { userCode: 'ANVIL-VICTIMCD', email: 'victim@example.com' },
-        { Authorization: await bearerFor({ sub: 'user-attacker' }) }
-      );
-
-      expect(res.status).toBe(400);
-      expect(await res.json()).toEqual(INVALID_CODE_ERROR);
-      expect(vi.mocked(confirmDeviceCode)).not.toHaveBeenCalled();
-      // The bug-class signature: attempts on the victim's row are bumped
-      // (anti-enum + brute-force lockout) rather than the confirm landing.
-      expect(vi.mocked(incrementDeviceCodeAttempts)).toHaveBeenCalledWith(
-        expect.anything(),
-        'dc-victim',
-        5
-      );
-    });
-  });
-
-  it('returns the anti-enumeration error when the code is unknown', async () => {
-    vi.mocked(findPendingDeviceCodeWithUserId).mockResolvedValue(null);
-
-    const res = await post(
-      '/auth/device/confirm',
-      { userCode: 'ANVIL-AAAAAAAA' },
-      { Authorization: await bearerFor() }
-    );
-
-    expect(res.status).toBe(400);
-    expect(await res.json()).toEqual(INVALID_CODE_ERROR);
-    expect(vi.mocked(confirmDeviceCode)).not.toHaveBeenCalled();
-  });
-
-  it('returns the same error when the code is bound to a different user_id', async () => {
-    vi.mocked(findPendingDeviceCodeWithUserId).mockResolvedValue({
-      id: 'dc-1',
-      user_id: 'user-someone-else',
-      attempts: 0,
-    });
-
-    const res = await post(
-      '/auth/device/confirm',
-      { userCode: 'ANVIL-AAAAAAAA' },
-      { Authorization: await bearerFor({ sub: 'user-1' }) }
-    );
-
-    expect(res.status).toBe(400);
-    expect(await res.json()).toEqual(INVALID_CODE_ERROR);
-    expect(vi.mocked(confirmDeviceCode)).not.toHaveBeenCalled();
-  });
-
-  it('returns the same error when the code row is an anti-enum dummy (user_id IS NULL)', async () => {
-    // /start inserts user_id=null rows for inactive/unknown emails. The
-    // authenticated /confirm caller must never see those mature into a
-    // confirmation regardless of who they are.
-    vi.mocked(findPendingDeviceCodeWithUserId).mockResolvedValue({
-      id: 'dc-dummy',
-      user_id: null,
-      attempts: 0,
-    });
-
-    const res = await post(
-      '/auth/device/confirm',
-      { userCode: 'ANVIL-AAAAAAAA' },
-      { Authorization: await bearerFor() }
-    );
-
-    expect(res.status).toBe(400);
-    expect(await res.json()).toEqual(INVALID_CODE_ERROR);
-    expect(vi.mocked(incrementDeviceCodeAttempts)).toHaveBeenCalledWith(
-      expect.anything(),
-      'dc-dummy',
-      5
-    );
-    expect(vi.mocked(confirmDeviceCode)).not.toHaveBeenCalled();
-  });
-
-  it('increments the per-code attempts counter on a user_id mismatch', async () => {
-    vi.mocked(findPendingDeviceCodeWithUserId).mockResolvedValue({
-      id: 'dc-7',
-      user_id: 'user-someone-else',
-      attempts: 2,
-    });
-    vi.mocked(incrementDeviceCodeAttempts).mockResolvedValue(3);
-
-    const res = await post(
-      '/auth/device/confirm',
-      { userCode: 'ANVIL-AAAAAAAA' },
-      { Authorization: await bearerFor({ sub: 'user-1' }) }
-    );
-
-    expect(res.status).toBe(400);
-    expect(await res.json()).toEqual(INVALID_CODE_ERROR);
-    expect(vi.mocked(incrementDeviceCodeAttempts)).toHaveBeenCalledWith(
-      expect.anything(),
-      'dc-7',
-      5
-    );
-    expect(vi.mocked(confirmDeviceCode)).not.toHaveBeenCalled();
-  });
-
-  it('still returns the anti-enum error when the increment finds the row already locked', async () => {
-    // Race: callers A and B both read attempts=4, both pass the pre-check,
-    // A's UPDATE lands first and pushes the row to attempts=5; B's UPDATE
-    // sees attempts >= max via the `WHERE attempts < ${max}` guard and is
-    // a no-op, returning null. The route must still respond with the same
-    // anti-enum 400 — the row is already locked.
-    vi.mocked(findPendingDeviceCodeWithUserId).mockResolvedValue({
-      id: 'dc-race',
-      user_id: 'user-someone-else',
-      attempts: 4,
-    });
-    vi.mocked(incrementDeviceCodeAttempts).mockResolvedValue(null);
-
-    const res = await post(
-      '/auth/device/confirm',
-      { userCode: 'ANVIL-AAAAAAAA' },
-      { Authorization: await bearerFor({ sub: 'user-1' }) }
-    );
-
-    expect(res.status).toBe(400);
-    expect(await res.json()).toEqual(INVALID_CODE_ERROR);
-    expect(vi.mocked(confirmDeviceCode)).not.toHaveBeenCalled();
-  });
-
-  it('does not increment attempts when the user_code is unknown', async () => {
-    vi.mocked(findPendingDeviceCodeWithUserId).mockResolvedValue(null);
-
-    const res = await post(
-      '/auth/device/confirm',
-      { userCode: 'ANVIL-AAAAAAAA' },
-      { Authorization: await bearerFor() }
-    );
-
-    expect(res.status).toBe(400);
-    expect(vi.mocked(incrementDeviceCodeAttempts)).not.toHaveBeenCalled();
-  });
-
-  it('rejects even a matching user_id once attempts is at the cap', async () => {
-    vi.mocked(findPendingDeviceCodeWithUserId).mockResolvedValue({
-      id: 'dc-locked',
-      user_id: 'user-1',
-      attempts: 5,
-    });
-
-    const res = await post(
-      '/auth/device/confirm',
-      { userCode: 'ANVIL-AAAAAAAA' },
-      { Authorization: await bearerFor({ sub: 'user-1' }) }
-    );
-
-    expect(res.status).toBe(400);
-    expect(await res.json()).toEqual(INVALID_CODE_ERROR);
-    // Locked rows are not re-incremented — the row is already at the ceiling
-    // and the attacker shouldn't be able to drive attempts arbitrarily high.
-    expect(vi.mocked(incrementDeviceCodeAttempts)).not.toHaveBeenCalled();
-    expect(vi.mocked(confirmDeviceCode)).not.toHaveBeenCalled();
-  });
-
-  it('uppercases and trims the user code before lookup', async () => {
-    vi.mocked(findPendingDeviceCodeWithUserId).mockResolvedValue({
-      id: 'dc-1',
-      user_id: 'user-1',
-      attempts: 0,
-    });
-
-    const res = await post(
-      '/auth/device/confirm',
-      { userCode: '  anvil-deadbeef  ' },
-      { Authorization: await bearerFor({ sub: 'user-1' }) }
-    );
-
-    expect(res.status).toBe(200);
-    expect(vi.mocked(findPendingDeviceCodeWithUserId)).toHaveBeenCalledWith(
-      expect.anything(),
-      'ANVIL-DEADBEEF'
-    );
-    expect(vi.mocked(confirmDeviceCode)).toHaveBeenCalledWith(expect.anything(), 'dc-1');
-  });
-
-  it('confirms the device code on a successful authenticated match', async () => {
-    vi.mocked(findPendingDeviceCodeWithUserId).mockResolvedValue({
-      id: 'dc-42',
-      user_id: 'user-1',
-      attempts: 0,
-    });
-
-    const res = await post(
-      '/auth/device/confirm',
-      { userCode: 'ANVIL-DEADBEEF' },
-      { Authorization: await bearerFor({ sub: 'user-1' }) }
-    );
-
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ confirmed: true });
-    expect(vi.mocked(confirmDeviceCode)).toHaveBeenCalledWith(expect.anything(), 'dc-42');
-    expect(vi.mocked(incrementDeviceCodeAttempts)).not.toHaveBeenCalled();
-  });
-
-  it('rejects missing userCode via Zod', async () => {
-    const res = await post('/auth/device/confirm', {}, { Authorization: await bearerFor() });
-    expect(res.status).toBe(400);
   });
 });
 

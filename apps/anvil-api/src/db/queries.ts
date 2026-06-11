@@ -306,18 +306,6 @@ export async function findDeviceCodeByPollToken(
   return DeviceCodeSchema.parse(r[0]);
 }
 
-export async function confirmDeviceCode(sql: NeonClient, id: string): Promise<boolean> {
-  const r = rows(
-    await sql`
-    UPDATE device_codes SET confirmed_at = now()
-    WHERE id = ${id}
-      AND confirmed_at IS NULL
-    RETURNING id
-  `
-  );
-  return r.length > 0;
-}
-
 // ---------------------------------------------------------------------------
 // GitHub device-flow sessions (GHCLIAUTH-004/-005, ADR-066)
 // ---------------------------------------------------------------------------
@@ -619,71 +607,6 @@ export async function insertDummyDeviceCode(
     INSERT INTO device_codes (user_code, poll_token, expires_at)
     VALUES (${userCode}, ${pollTokenHash}, ${expiresAt.toISOString()})
   `;
-}
-
-/**
- * Find a pending (unconfirmed, unexpired) device code and its bound user_id.
- * Used by the /confirm endpoint to verify the code belongs to the
- * authenticated caller. `attempts` is returned so the caller can enforce
- * the per-code brute-force lockout (see auth-device.ts MAX_ATTEMPTS).
- *
- * Returns `user_id` from the device_codes row directly rather than joining
- * to beta_users.email — the consumer asserts the row's user_id matches the
- * caller's authenticated identity. Anti-enumeration dummy rows inserted by
- * /start for inactive users carry `user_id IS NULL`: this query will
- * **still return them when the user_code matches**, but the consuming
- * route's `user_id === null || user_id !== authed.sub` check ensures they
- * cannot be confirmed under any authenticated identity. The check belongs
- * in the route layer because the same lookup feeds the attempts-counter
- * increment that bounds brute-force guessing — a dummy-row match should
- * still cost the attacker an attempt rather than silently disappearing.
- */
-export async function findPendingDeviceCodeWithUserId(
-  sql: NeonClient,
-  userCode: string
-): Promise<{ id: string; user_id: string | null; attempts: number } | null> {
-  const r = rows(
-    await sql`
-    SELECT dc.id, dc.attempts, dc.user_id
-    FROM device_codes dc
-    WHERE dc.user_code = ${userCode}
-      AND dc.expires_at > now()
-      AND dc.confirmed_at IS NULL
-    LIMIT 1
-  `
-  );
-  if (!r[0]) return null;
-  return {
-    id: String(r[0].id),
-    user_id: r[0].user_id == null ? null : String(r[0].user_id),
-    attempts: z.coerce.number().parse(r[0].attempts),
-  };
-}
-
-/**
- * Atomically increment the attempts counter on a device_code row, bounded
- * by `max`. Returns the new counter value, or `null` if the row was already
- * at or above the cap and no UPDATE fired. The `WHERE attempts < ${max}`
- * guard is what bounds the counter under concurrent /device/confirm bursts —
- * without it, parallel requests can all pass the route-level pre-check
- * (read attempts < max, decide to increment) and drive the counter
- * arbitrarily above the intended cap. With it, the DB enforces the ceiling
- * regardless of how many parallel callers race to increment.
- */
-export async function incrementDeviceCodeAttempts(
-  sql: NeonClient,
-  id: string,
-  max: number
-): Promise<number | null> {
-  const r = rows(
-    await sql`
-    UPDATE device_codes SET attempts = attempts + 1
-    WHERE id = ${id} AND attempts < ${max}
-    RETURNING attempts
-  `
-  );
-  if (!r[0]) return null;
-  return z.coerce.number().parse(r[0].attempts);
 }
 
 /**

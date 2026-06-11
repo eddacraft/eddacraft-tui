@@ -25,9 +25,9 @@ const debug = createDebugger('require-auth');
  * Callers downstream read the authed identity via `c.get('authed')` and
  * MUST NOT trust any caller-supplied email or user identifier in the
  * request body when an authenticated identity is available — that was the
- * exact CLAWP-2026-05-20 critical (issue #1779) where /device/confirm
- * trusted a body-supplied email and let any caller mint tokens for any
- * active user.
+ * exact CLAWP-2026-05-20 critical (issue #1779), where a device-flow
+ * confirm route trusted a body-supplied email and let any caller mint
+ * tokens for any active user.
  */
 export function requireAuth(): MiddlewareHandler<{
   Variables: { authed: LicenceClaims };
