@@ -5,15 +5,17 @@
 
 | ID        | Owner  | Status      | Progress |
 | --------- | ------ | ----------- | -------- |
-| GHCLIAUTH | @aneki | In Progress | 4/11     |
+| GHCLIAUTH | @aneki | In Progress | 5/11     |
 
-**Last reviewed:** 2026-06-11 (GHCLIAUTH-004 Merged via PR #2540: the
-`/github-device/start` broker + `github_device_sessions` table are live, with
-the device_code stored encrypted under the client-held poll_token — the
-ADR-066 invariant text was corrected accordingly in the same PR. With 004 on
-main, GHCLIAUTH-005 is flipped Ready (deps 003 + 004 cleared; the
-security/ops sign-off was recorded 2026-06-11). GHCLIAUTH-006 stays Proposed
-pending the 005 endpoint contract.)
+**Last reviewed:** 2026-06-11 (GHCLIAUTH-005 Merged via PR #2543: the
+`/github-device/poll` broker is live — exchange, gate parity, exactly-once
+mint re-returnable within TTL (UPDATE-where-unminted; module text corrected
+from the spec's literal `DELETE … RETURNING`), cross-instance claim gate, and
+timeouts added to the shared `fetchGitHubUser`. The server side of the device
+flow is complete. GHCLIAUTH-006 (the CLI rewrite, last MVP item) is flipped
+Ready — its dep 005 is on main and the endpoint contract is fixed. Note for
+006: the spec'd `mintLicenceForGitHubUser` helper exists as the
+`mintSession` + `linkOrCreateGitHubUser` pair.)
 
 ## Purpose
 
@@ -250,7 +252,7 @@ Change status to **Ready** when:
 
 ### GHCLIAUTH-005: `/github-device/poll` broker — exchange, gate, single-use mint
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-11 via PR #2543
 - **Intent:** Complete a device-flow session by exchanging the device code,
   deriving identity from GitHub, enforcing the access gate, and minting the
   Anvil licence exactly once.
@@ -288,7 +290,7 @@ Change status to **Ready** when:
 
 ### GHCLIAUTH-006: CLI default login on the new endpoints + back-off
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Intent:** Make the default `anvil auth login` drive the brokered device flow
   and survive GitHub's polling back-off instead of bailing.
 - **Expected Outcome:** The default `login_device_flow` calls the new
@@ -457,6 +459,6 @@ Change status to **Ready** when:
 
 | Slice | Items | Completion | Status |
 | ----- | ----- | ---------- | ------ |
-| MVP — headless login (001–006, gated on 002) | 6 | 4/6 done | In Progress |
+| MVP — headless login (001–006, gated on 002) | 6 | 5/6 done | In Progress |
 | Correctness / cleanup / validation (007–011) | 5 | 0/5 done | Proposed |
-| **Total** | **11** | **4/11 done** | **In Progress** |
+| **Total** | **11** | **5/11 done** | **In Progress** |
