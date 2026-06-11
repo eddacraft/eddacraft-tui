@@ -146,7 +146,7 @@ Change status to **Ready** when:
 ### CONF-005: Tier-0 claim extraction — PR bodies
 
 - **Status:** Proposed
-- **Intent:** Extract deterministic claim patterns ("test-only", "no behavior
+- **Intent:** Extract deterministic claim patterns ("test-only", "no behaviour
   change", "refactor only") from PR descriptions as weak-graded claims.
 - **Expected Outcome:** PR-body claims enter the contract with low evidence
   grade; unrecognised prose yields no claim.
