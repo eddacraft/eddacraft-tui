@@ -265,8 +265,8 @@ Change status to **Ready** when:
   terminal "awaiting approval" poll status for non-active/uninvited users (not a
   generic timeout); mints **single-use** via an atomic UPDATE-where-unminted
   (the `consumeDeviceCode` atomicity model — UPDATE, not `DELETE … RETURNING`,
-  because deleting the row would make the mint un-re-returnable; corrected
-  during implementation), keyed strictly on
+  because deleting the row would make re-returning the minted session
+  impossible; corrected during implementation), keyed strictly on
   `poll_token_hash = $hash`; mints **exactly once, re-returnable within TTL**;
   revokes the GitHub token immediately after `fetchGitHubUser`; a cross-instance
   DB gate ensures at most one instance polls GitHub per `device_code` per

@@ -63,7 +63,7 @@ function githubStartPayload(overrides: Record<string, unknown> = {}) {
 }
 
 /** Mock the GitHub device/code upstream with a fixed response for every call. */
-function mockGithubUpstream(spec: { ok?: boolean; status?: number; json?: unknown } = {}) {
+function mockGithubUpstream(spec: { status?: number; json?: unknown } = {}) {
   const status = spec.status ?? 200;
   const body = JSON.stringify(spec.json ?? githubStartPayload());
   return vi.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
@@ -355,7 +355,9 @@ function sessionRow(overrides: Record<string, unknown> = {}) {
   };
 }
 
-type FetchSpec = { ok?: boolean; status?: number; json?: unknown };
+// No `ok` field: Response.ok derives from `status`, so status is the only
+// control surface the mock honours.
+type FetchSpec = { status?: number; json?: unknown };
 
 /**
  * URL-prefix-keyed fetch mock (longest prefix wins). Unmocked URLs throw so a
