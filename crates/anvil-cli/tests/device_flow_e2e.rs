@@ -69,6 +69,7 @@ impl TestEnv {
             .env("ANVIL_LOG", "off")
             // No dev bypass, no ambient licence — exercise the real flow.
             .env_remove("ANVIL_DEV")
+            .env_remove("ANVIL_HOME")
             .env_remove("ANVIL_LICENSE")
             .env_remove("RUST_LOG");
         cmd
@@ -339,7 +340,7 @@ async fn device_flow_e2e_declined_fails_without_saving_credentials() {
 // ── --otp flow still works end to end ─────────────────────────────────────
 
 #[tokio::test]
-async fn otp_flow_e2e_request_verify_saves_credentials() {
+async fn device_flow_e2e_otp_request_verify_saves_credentials() {
     let env = TestEnv::new();
     let server = MockServer::start().await;
 
