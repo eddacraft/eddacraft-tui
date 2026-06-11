@@ -5,14 +5,14 @@
 
 | ID        | Owner  | Status      | Progress |
 | --------- | ------ | ----------- | -------- |
-| GHCLIAUTH | @aneki | In Progress | 3/11     |
+| GHCLIAUTH | @aneki | In Progress | 4/11     |
 
-**Last reviewed:** 2026-06-11 (GHCLIAUTH-002 reconciled to Merged: the code half
-landed via PR #2318 and the operator gate is verified live —
-`/api/v1/health` reports `"githubCliCreds":"ok"`, so the "Anvil CLI" OAuth app
-and Key Vault secrets exist. The ADR-066 security/ops invariants were signed off
-by the owner 2026-06-11; with both gates cleared, GHCLIAUTH-004 is flipped Ready.
-GHCLIAUTH-005 stays Proposed until 004 merges; GHCLIAUTH-006 stays Proposed
+**Last reviewed:** 2026-06-11 (GHCLIAUTH-004 Merged via PR #2540: the
+`/github-device/start` broker + `github_device_sessions` table are live, with
+the device_code stored encrypted under the client-held poll_token — the
+ADR-066 invariant text was corrected accordingly in the same PR. With 004 on
+main, GHCLIAUTH-005 is flipped Ready (deps 003 + 004 cleared; the
+security/ops sign-off was recorded 2026-06-11). GHCLIAUTH-006 stays Proposed
 pending the 005 endpoint contract.)
 
 ## Purpose
@@ -222,7 +222,7 @@ Change status to **Ready** when:
 
 ### GHCLIAUTH-004: `github_device_sessions` table + `/github-device/start` broker
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-11 via PR #2540
 - **Intent:** Begin a device-flow session by brokering GitHub's device-code
   request server-side and persisting the session for cross-instance polling.
 - **Expected Outcome:** A new `github_device_sessions` table keyed by
@@ -250,7 +250,7 @@ Change status to **Ready** when:
 
 ### GHCLIAUTH-005: `/github-device/poll` broker — exchange, gate, single-use mint
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Intent:** Complete a device-flow session by exchanging the device code,
   deriving identity from GitHub, enforcing the access gate, and minting the
   Anvil licence exactly once.
@@ -452,6 +452,6 @@ Change status to **Ready** when:
 
 | Slice | Items | Completion | Status |
 | ----- | ----- | ---------- | ------ |
-| MVP — headless login (001–006, gated on 002) | 6 | 3/6 done | In Progress |
+| MVP — headless login (001–006, gated on 002) | 6 | 4/6 done | In Progress |
 | Correctness / cleanup / validation (007–011) | 5 | 0/5 done | Proposed |
-| **Total** | **11** | **3/11 done** | **In Progress** |
+| **Total** | **11** | **4/11 done** | **In Progress** |
