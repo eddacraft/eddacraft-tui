@@ -160,9 +160,9 @@ Operator topology, health signals, and incident triage for this flow live in the
 
 1. The docs-site callback (`apps/docs-site/api/auth/callback.ts`) validates the
    OAuth state parameter, then calls `POST /auth/github/callback`
-   server-to-server (`apps/anvil-api/src/routes/auth-github.ts:154`). CSRF/state
+   server-to-server (`apps/anvil-api/src/routes/auth-github.ts:99`). CSRF/state
    validation lives entirely in the docs-site layer — the API trusts the caller
-   to have validated the state (`auth-github.ts:142-153`)
+   to have validated the state (`auth-github.ts:92-98`)
 2. The API exchanges the code with GitHub, fetches the verified primary email
    plus the full verified-email set, then immediately revokes the upstream
    GitHub token
@@ -174,13 +174,13 @@ Operator topology, health signals, and incident triage for this flow live in the
    as other auth failures — no account enumeration. Non-active users get 403
 5. On success the API mints a JWT + refresh token pair via `mintSession`,
    stamping identity `{ provider: "github", id: <github_id> }`
-   (`auth-github.ts:227`)
+   (`auth-github.ts:172`)
 
 Audit events: `github_oauth_signup`, `github_oauth_link`,
 `github_oauth_blocked`, `github_oauth_login`, `github_oauth_link_conflict`
-(`auth-github.ts:182-235`). The same audit events are written by the CLI device
+(`auth-github.ts:127-175`). The same audit events are written by the CLI device
 flow with `method: "device_flow"`. The route is mounted at
-`apps/anvil-api/src/index.ts:140`.
+`apps/anvil-api/src/index.ts:144`.
 
 ### Legacy Device Code Flow (shipped-CLI compatibility)
 
@@ -244,14 +244,14 @@ Signed with ES256 (ECDSA P-256) using `LICENSE_SIGNING_KEY` (PKCS#8 PEM).
 legacy device flows stamp `{ provider: "email", id: null }`
 (`apps/anvil-api/src/routes/auth.ts:76`, `auth.ts:127`); both GitHub paths — the
 docs-site OAuth callback and the CLI GitHub device flow — stamp
-`{ provider: "github", id: <github_id> }` (`auth-github.ts:227`,
+`{ provider: "github", id: <github_id> }` (`auth-github.ts:172`,
 `auth-github-device.ts`). The shared `mintSession` helper takes identity from
 the caller (`apps/anvil-api/src/lib/session.ts:65`).
 
 `scopes` is resolved via `findActiveScopesForUser(sql, user.id)` — the union of
 the user's active `access_tokens.scopes` (`session.ts:60`). Graded scopes (e.g.
 `["preview"]`) are preserved through every flow; first-time GitHub sign-ups
-default to `["beta"]` (`auth-github.ts:222-224`).
+default to `["beta"]` (`auth-github.ts:167-170`).
 
 **Header:** `{ alg: "ES256", kid: "2026-03" }`
 
@@ -305,7 +305,7 @@ Indexes on: `access_tokens(user_id)`, `access_tokens(token_hash)`,
 | `GITHUB_CLI_CLIENT_ID`        | Yes      | CLI device flow (`/auth/github-device`) | Dedicated "Anvil CLI" OAuth app client ID                                                                          |
 | `GITHUB_CLI_CLIENT_SECRET`    | Yes      | CLI device flow (`/auth/github-device`) | Dedicated "Anvil CLI" OAuth app client secret                                                                      |
 
-The docs-site OAuth app pair is consumed in `auth-github.ts:44-45` and wired in
+The docs-site OAuth app pair is consumed in `auth-github.ts:28-29` and wired in
 `infra/src/vercel.ts:92-93`. The CLI pair backs the dedicated "Anvil CLI"
 device-flow OAuth app (kept separate so CLI login and docs auth do not share
 rate limits, consent branding, or audit trails); it is consumed in
