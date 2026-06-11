@@ -93,11 +93,7 @@ export type InfoFields = Record<string, string | number | boolean | null | undef
  * depth, but the primary guarantee is the caller's discipline.
  */
 function infoLog(namespace: DebugNamespace, event: string, fields?: InfoFields): void {
-  const entry: Record<string, unknown> = {
-    ts: new Date().toISOString(),
-    ns: `anvil:${namespace}`,
-    event,
-  };
+  const entry: Record<string, unknown> = {};
   if (fields) {
     for (const [key, value] of Object.entries(fields)) {
       if (value === undefined) {
@@ -106,6 +102,12 @@ function infoLog(namespace: DebugNamespace, event: string, fields?: InfoFields):
       entry[key] = typeof value === 'string' ? sanitizeForLog(value) : value;
     }
   }
+  // Reserved keys are written last so a caller-supplied field can never
+  // override them; the event name is sanitised and clamped in case a caller
+  // ever passes a dynamic value despite the static-literal convention.
+  entry.ts = new Date().toISOString();
+  entry.ns = `anvil:${namespace}`;
+  entry.event = sanitizeForLog(event).slice(0, 64);
 
   /* eslint-disable-next-line no-console -- ungated operational log */
   console.info(JSON.stringify(entry));
