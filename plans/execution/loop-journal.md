@@ -292,3 +292,31 @@ never with feature work.
 - Checkpoints raised: none.
 - Next: stop — the UJ module is fully dispositioned; no Ready items
   remain in the UJ-012..015 scope this run was invoked for.
+
+## Cycle 16 — 2026-06-11
+
+- Item: GHCLIAUTH-007 — Tombstone the activation page + rebuild
+  admin-invite activation
+- Outcome: done (activation page is a static tombstone — no 404 for
+  outstanding invite links or shipped-CLI verification URLs; invite
+  email rewritten around `anvil auth login` + `--otp`, dropping
+  ACTIVATE_URL/userCode across sendBetaInvite, the BetaInvite template,
+  and betaInvitePropsSchema; interactive device-code generation removed
+  from BOTH /admin/invite and /admin/approve — the approve path was
+  discovered scope, drift-corrected into the item; the tokenOnly path
+  and approve's access_tokens scope-record insert are untouched.
+  Validation: pnpm nx test @eddacraft/anvil-api 487 passed,
+  @eddacraft/transactional tests, nx build website, typecheck + lint,
+  format:check, index-counts --check; fresh-context verification PASS
+  on all six Expected Outcome bullets, invited-user activation wiring
+  traced end-to-end through linkOrCreateGitHubUser/OTP mint.) PR #2549.
+- Plan changes: GHCLIAUTH-007 → Merged 2026-06-11 via PR #2549; counts
+  7/11; cleanup slice 1/5 In Progress; drift correction recorded
+  (approve path + access_tokens rationale + email-registry file added
+  to Files). GHCLIAUTH-009 dispatched in parallel (worktree
+  wt/ghcliauth-009, implementation complete pending parent review);
+  its In Progress flip rides its own PR.
+- Checkpoints raised: none.
+- Next: GHCLIAUTH-009 (observability + runbook) review → PR; then 011
+  (headless E2E smoke). 008 waits for the next CLI tag; 010 depends
+  on 008.

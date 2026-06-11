@@ -5,18 +5,19 @@
 
 | ID        | Owner  | Status      | Progress |
 | --------- | ------ | ----------- | -------- |
-| GHCLIAUTH | @aneki | In Progress | 6/11     |
+| GHCLIAUTH | @aneki | In Progress | 7/11     |
 
-**Last reviewed:** 2026-06-11 (GHCLIAUTH-006 Merged via PR #2545, with the
-`/health` degraded gate on missing CLI credentials landing via PR #2546 —
-**the MVP slice is complete**: headless `anvil auth login` drives the
-brokered GitHub device flow end-to-end (no email prompt, interval +
-`slow_down` back-off instead of the fatal 429 bail, clear terminal states).
-Users get the new login with the **next CLI tag** (the Rust slice gates on
-tags, per Release wave); the old `/auth/device/*` endpoints stay live for
-shipped CLIs until GHCLIAUTH-008, which is sequenced after that tag ships.
-Remaining: the correctness/cleanup slice 007–011, all Proposed —
-007 (tombstone + admin-invite rebuild) is next by dependency order.)
+**Last reviewed:** 2026-06-11 (GHCLIAUTH-007 Merged via PR #2549: the
+activation page is a tombstone, the invite email directs to
+`anvil auth login` (`--otp` fallback), and the interactive device-code
+generation is gone from **both** `/admin/invite` and `/admin/approve` —
+the approve path was discovered scope, recorded as a drift correction in
+the item; its `access_tokens` scope-record insert is kept. Admin-invited
+activation works again via first-login GitHub linking or OTP.
+Remaining: GHCLIAUTH-009 (observability + runbook) and 011 (headless E2E
+smoke) are unblocked — 009 is picked up, its In Progress flip lands with
+its PR; 008 (confirm-endpoint removal) waits for the next CLI tag per the
+Release wave; 010 (docs sync) depends on 008.)
 
 ## Purpose
 
@@ -320,7 +321,7 @@ Change status to **Ready** when:
 
 ### GHCLIAUTH-007: Tombstone the activation page + rebuild admin-invite activation
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-11 via PR #2549
 - **Intent:** Stop the dead activation page from 404-ing outstanding invite
   links and rebuild admin-invite activation around the email-keyed model
   (ADR-066 decision 7).
@@ -469,5 +470,5 @@ Change status to **Ready** when:
 | Slice | Items | Completion | Status |
 | ----- | ----- | ---------- | ------ |
 | MVP — headless login (001–006, gated on 002) | 6 | 6/6 done | Complete |
-| Correctness / cleanup / validation (007–011) | 5 | 0/5 done | Proposed |
-| **Total** | **11** | **6/11 done** | **In Progress** |
+| Correctness / cleanup / validation (007–011) | 5 | 1/5 done | In Progress |
+| **Total** | **11** | **7/11 done** | **In Progress** |
