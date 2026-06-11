@@ -9,6 +9,37 @@ minor version bump indicates a breaking change.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-06-11
+
+### Added
+
+- **`lifecycle` feature** (off by default): terminal session lifecycle
+  helpers. `TerminalGuard::enter` enables raw mode and the alternate screen
+  and restores both on `Drop` — including during unwinding panics via an
+  installed panic hook — with `TerminalGuard::leave` for callers that want
+  restoration errors surfaced, and `restore_terminal` for manual best-effort
+  cleanup. Both are re-exported through the prelude.
+- **`runner` feature** (off by default, implies `lifecycle`): a small
+  fallback CLI shell for consumers without their own argument parser. Parses
+  the global envelope only (`--help`/`-h`, `--version`/`-V`, `--theme`,
+  `--no-tui`, `--config`) plus first-level command selection via the
+  zero-dependency `lexopt`, handing command-specific arguments to the
+  consumer's `TerminalCli::parse_command` verbatim. `launch_cli` drives the
+  fallback path; `launch_with` / `launch_with_args` support
+  bring-your-own-parser consumers (clap, argh, hand-rolled) that still want
+  the runner's lifecycle/theme integration. Ships with
+  `examples/runner_shell.rs`.
+
+### Changed
+
+- README feature table now documents the `lifecycle`, `runner`, and
+  `json-render` rows, and the runner module rustdoc covers the
+  bring-your-own-parser escape hatch.
+
+> **Note:** these features were briefly visible in repository docs and the
+> public mirror under the `0.3.0` version number, but were never part of the
+> published `0.3.0` crate on crates.io. `0.4.0` is their first release.
+
 ## [0.3.0] - 2026-06-08
 
 ### Breaking
@@ -321,7 +352,8 @@ contains breaking changes — see **Breaking** below.
 - `vyfor/animate` powers the new animation runtime — credited in README.
 - `pretext-tui` provides the layout engine integrated as the `pretext` module.
 
-[Unreleased]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.3.0...HEAD
+[Unreleased]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.4.0...HEAD
+[0.4.0]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.3.0...eddacraft-tui-v0.4.0
 [0.3.0]: https://github.com/eddacraft/eddacraft-tui/compare/eddacraft-tui-v0.2.4...eddacraft-tui-v0.3.0
 [0.2.1]: https://github.com/eddacraft/eddacraft-tui/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/eddacraft/eddacraft-tui/compare/v0.1.0...v0.2.0
