@@ -33,9 +33,10 @@ verifyVerifyingKey().then((result) => {
     console.error('[boot] licence verifying key unavailable:', result.error);
   }
 });
-// GHCLIAUTH-002: surface the Anvil CLI OAuth credentials at boot. Informational
-// only — the CLI device-flow login (GHCLIAUTH-005/-006) is not live yet, so
-// absent creds must not fail boot or degrade /health before provisioning.
+// GHCLIAUTH-002/-006: surface the Anvil CLI OAuth credentials at boot. The
+// device-flow login is the CLI default now, so absent creds are user-impacting
+// — /health reports degraded below; boot itself still completes so the
+// remaining surfaces stay up.
 {
   const result = verifyGitHubCliCredentials();
   if (!result.ok) {
@@ -102,12 +103,13 @@ app.get('/health', async (c) => {
     verifyVerifyingKey(),
   ]);
 
-  // GHCLIAUTH-002: report CLI OAuth credential presence for monitors, but do
-  // NOT gate overall health on it — the device-flow login is not live yet, so a
-  // missing credential is expected before provisioning and must not 503.
+  // GHCLIAUTH-006: the device-flow login is the CLI default, so missing CLI
+  // OAuth credentials are user-impacting and gate overall health (degraded
+  // 503), giving ops a pre-user-impact signal. (They were informational-only
+  // under GHCLIAUTH-002, before the flow was live.)
   const githubCliCreds = verifyGitHubCliCredentials().ok ? 'ok' : 'unavailable';
 
-  if (dbResult.ok && signingKeyResult.ok && verifyingKeyResult.ok) {
+  if (dbResult.ok && signingKeyResult.ok && verifyingKeyResult.ok && githubCliCreds === 'ok') {
     return c.json({
       status: 'ok',
       db: 'ok',

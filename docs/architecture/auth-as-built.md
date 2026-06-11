@@ -251,16 +251,19 @@ Indexes on: `access_tokens(user_id)`, `access_tokens(token_hash)`,
 | `ACTIVATE_URL`                | No       | Device code flow                        | Confirmation URL (default: `https://eddacraft.ai/auth/activate`) |
 | `GITHUB_CLIENT_ID`            | Yes      | `/auth/github/callback`                 | Docs-site GitHub OAuth app client ID                             |
 | `GITHUB_CLIENT_SECRET`        | Yes      | `/auth/github/callback`                 | Docs-site GitHub OAuth app client secret                         |
-| `GITHUB_CLI_CLIENT_ID`        | No       | Boot probe (CLI device flow)            | Dedicated "Anvil CLI" OAuth app client ID                        |
-| `GITHUB_CLI_CLIENT_SECRET`    | No       | Boot probe (CLI device flow)            | Dedicated "Anvil CLI" OAuth app client secret                    |
+| `GITHUB_CLI_CLIENT_ID`        | Yes      | CLI device flow (`/auth/github-device`) | Dedicated "Anvil CLI" OAuth app client ID                        |
+| `GITHUB_CLI_CLIENT_SECRET`    | Yes      | CLI device flow (`/auth/github-device`) | Dedicated "Anvil CLI" OAuth app client secret                    |
 
 The docs-site OAuth app pair is consumed in `auth-github.ts:44-45` and wired in
 `infra/src/vercel.ts:92-93`. The CLI pair backs the dedicated "Anvil CLI"
 device-flow OAuth app (kept separate so CLI login and docs auth do not share
 rate limits, consent branding, or audit trails); it is consumed in
 `apps/anvil-api/src/lib/github-cli-credentials.ts:21-22`, wired in
-`infra/src/vercel.ts:96-97`, and validated by the informational boot probe
-`verifyGitHubCliCredentials` (imported at `apps/anvil-api/src/index.ts:16`).
+`infra/src/vercel.ts:96-97`, and validated by the `verifyGitHubCliCredentials`
+boot probe (imported at `apps/anvil-api/src/index.ts:16`). Since the device flow
+became the CLI's default login (GHCLIAUTH-006), missing CLI credentials degrade
+`/health` to 503 — boot still completes, and a fresh environment can be deployed
+first and provisioned after (the env vars are read per-request).
 
 `ANVIL_ADMIN_ACTOR` belongs to the separate `anvil-admin` operator CLI, not the
 API service itself.

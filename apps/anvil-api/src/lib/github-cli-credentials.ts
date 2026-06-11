@@ -33,9 +33,9 @@ export function getGitHubCliCredentials(): GitHubCliCredentials {
 
 /**
  * Boot/health probe: report whether the CLI OAuth credentials are present,
- * without throwing. Absence is **informational** — the device-flow login is not
- * live until GHCLIAUTH-005/-006, so a missing credential must not degrade
- * overall service health or block a deploy before the secrets are provisioned.
+ * without throwing. The device-flow login is the CLI default (GHCLIAUTH-006),
+ * so absence now degrades `/health` (503) — but boot itself still completes so
+ * the non-auth surfaces stay up.
  */
 export function verifyGitHubCliCredentials(): { ok: true } | { ok: false; error: string } {
   try {
