@@ -431,7 +431,7 @@ Change status to **Ready** when:
 
 ### GHCLIAUTH-011: End-to-end headless smoke test
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** Prove the original bug is closed — a headless login completes end
   to end — and keep it from regressing.
 - **Expected Outcome:** A wiremock-backed CLI integration test drives
