@@ -302,7 +302,7 @@ never with feature work.
   email rewritten around `anvil auth login` + `--otp`, dropping
   ACTIVATE_URL/userCode across sendBetaInvite, the BetaInvite template,
   and betaInvitePropsSchema; interactive device-code generation removed
-  from BOTH /admin/invite and /admin/approve — the approve path was
+  from BOTH /admin/invite and /admin/approve — the approve path was newly
   discovered scope, drift-corrected into the item; the tokenOnly path
   and approve's access_tokens scope-record insert are untouched.
   Validation: pnpm nx test @eddacraft/anvil-api 487 passed,

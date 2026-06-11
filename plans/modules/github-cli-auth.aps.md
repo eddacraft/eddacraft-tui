@@ -11,7 +11,7 @@
 activation page is a tombstone, the invite email directs to
 `anvil auth login` (`--otp` fallback), and the interactive device-code
 generation is gone from **both** `/admin/invite` and `/admin/approve` —
-the approve path was discovered scope, recorded as a drift correction in
+the approve path was newly discovered scope, recorded as a drift correction in
 the item; its `access_tokens` scope-record insert is kept. Admin-invited
 activation works again via first-login GitHub linking or OTP.
 Remaining: GHCLIAUTH-009 (observability + runbook) and 011 (headless E2E
