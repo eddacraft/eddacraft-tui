@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 42/65    |
+| CIB | —     | In Progress | 43/65    |
 
 ## Purpose
 
@@ -1678,10 +1678,10 @@ archive.
 
 ### CIB-065: schema `$id` URIs still use the retired eddacraft.dev domain
 
-- **Status:** In Progress (2026-06-11; owner decision: target domain is
-  `https://docs.eddacraft.ai`; filename mismatch reconciled by renaming
-  the file to `workflow-session-event.v1.schema.json` to match the `$id`
-  and the siblings' v1-in-filename convention)
+- **Status:** Merged 2026-06-11 via PR #2539 (owner decision: target
+  domain is `https://docs.eddacraft.ai`; filename mismatch reconciled by
+  renaming the file to `workflow-session-event.v1.schema.json` to match
+  the `$id` and the siblings' v1-in-filename convention)
 - **Intent:** the three published JSON Schemas declare `$id` URIs under
   `https://eddacraft.dev/anvil/schemas/…` while every product surface
   (README, `anvil welcome`, what's-new, install.sh as of CIB-063) uses
