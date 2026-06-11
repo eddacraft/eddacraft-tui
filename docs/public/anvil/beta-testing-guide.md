@@ -207,14 +207,25 @@ For per-release upgrade notes, see [Upgrade Notes](./releases/upgrade-notes.md).
 
 ## Sign In
 
-Start the default device-code login flow:
+Start the default login flow:
 
 ```bash
 anvil auth login
 ```
 
-anvil prints a short code and a verification URL. Open the URL, enter the code,
-and return to the terminal.
+anvil prints a short code and a `github.com/login/device` URL. Open the URL on
+any device, enter the code to approve with GitHub, and return to the terminal —
+there is no email prompt and no website activation page.
+
+:::note GitHub device-flow login lands in the next beta
+
+The brokered GitHub device flow described here is the new default for
+`anvil auth login` and ships with the next tagged beta. If you are on
+`v0.8.0-beta`, `anvil auth login` still uses the previous prompt — upgrade once
+the next tag is out to exercise the device flow. The `--otp` fallback below is
+available either way.
+
+:::
 
 If you need email OTP instead, run:
 

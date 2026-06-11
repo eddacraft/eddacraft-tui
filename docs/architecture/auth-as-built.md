@@ -1,37 +1,43 @@
 # Auth System — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                     |
-| -------- | --------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | BAUTH | Live   | Last reviewed 2026-06-10 (targeted delta review: GitHub OAuth flow GHCLIAUTH-003, identity/scopes claims, schema + env additions) against main `45dd1047a`; full review 2026-04-23 against `v0.6.0-beta` and `apps/anvil-api` |
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                       |
+| -------- | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | BAUTH | Live   | Last reviewed 2026-06-11 against `apps/anvil-api/src/routes/auth-github-device.ts`, `apps/anvil-api/src/routes/auth-device.ts`, `apps/anvil-api/src/db/queries.ts`, `apps/website/app/auth/activate/page.tsx` (GHCLIAUTH-010 device-flow cutover); GHCLIAUTH-003 GitHub OAuth delta against main `45dd1047a`; full review 2026-04-23 against `v0.6.0-beta` and `apps/anvil-api` |
 
-| Upstream                  | Downstream                                                                                       |
-| ------------------------- | ------------------------------------------------------------------------------------------------ |
-| `apps/anvil-api`, ADR-018 | anvil CLI (token verify, license refresh, device-code, OTP, GitHub OAuth), browser activate flow |
+| Upstream                  | Downstream                                                                                          |
+| ------------------------- | --------------------------------------------------------------------------------------------------- |
+| `apps/anvil-api`, ADR-018 | anvil CLI (token verify, license refresh, GitHub device flow, OTP, docs-site GitHub OAuth callback) |
 
-> **Status:** Live (beta) **Last reviewed:** 2026-06-10 (targeted delta review:
-> GitHub OAuth flow GHCLIAUTH-003, identity/scopes claims, schema + env
-> additions) against main `45dd1047a`; full review 2026-04-23 against
-> `v0.6.0-beta` **Service:** `apps/anvil-api` (Hono on Vercel) **Database:**
-> Neon Postgres (`beta_users`, `access_tokens`, `audit_log`)
+> **Status:** Live (beta) **Last reviewed:** 2026-06-11 against the device-flow
+> cutover (GHCLIAUTH-010); GitHub OAuth delta (GHCLIAUTH-003) against main
+> `45dd1047a`; full review 2026-04-23 against `v0.6.0-beta` **Service:**
+> `apps/anvil-api` (Hono on Vercel) **Database:** Neon Postgres (`beta_users`,
+> `access_tokens`, `audit_log`)
 
 ## Overview
 
-The auth system manages beta access to Anvil. It supports four authentication
-flows: the original admin-invite token flow, a device code flow for CLI login,
-an email OTP flow, and a GitHub OAuth flow (GHCLIAUTH-003). All interactive
-flows issue JWT + refresh token pairs minted through the shared `mintSession`
-helper (`apps/anvil-api/src/lib/session.ts`).
+The auth system manages beta access to Anvil. The CLI's default
+`anvil auth login` is the brokered GitHub Device Authorisation Grant (RFC 8628,
+GHCLIAUTH-005/006): the CLI prints a short user code and the
+`github.com/login/device` URL — opened on any device, no email prompt and no
+website activation page — then polls the broker until the user authorises.
+`anvil auth login --otp` is the retained no-GitHub fallback, emailing a one-time
+code to the invited address. Alongside the CLI login the system also exposes the
+original admin-invite token flow and the docs-site GitHub OAuth callback
+(GHCLIAUTH-003). All interactive flows issue JWT + refresh token pairs minted
+through the shared `mintSession` helper (`apps/anvil-api/src/lib/session.ts`).
 
 ```text
 ┌─────────┐         ┌────────────┐         ┌──────────┐
 │  Admin   │─invite─▶│  Anvil API │◀─verify─│ Anvil CLI│
 │ (curl)   │◀─token──│  (Hono)    │─licence─▶│          │
-└─────────┘         └─────┬──────┘         └──────────┘
+└─────────┘         └─────┬──────┘         └─────┬────┘
                           │                      │
-                     ┌────▼────┐          ┌──────▼──────┐
-                     │  Neon   │          │   Browser   │
-                     │ Postgres│          │  (activate) │
-                     └─────────┘          └─────────────┘
+                     ┌────▼────┐          ┌───────▼────────┐
+                     │  Neon   │          │ github.com/    │
+                     │ Postgres│          │ login/device   │
+                     └─────────┘          │ (any device)   │
+                                          └────────────────┘
 ```
 
 ## Token Lifecycle
@@ -105,14 +111,42 @@ created_at). Token hashes are not returned.
 
 ## Authentication Flows (BAUTH)
 
-### Device Code Flow
+### GitHub Device Flow (default `anvil auth login`)
 
-1. CLI calls `POST /auth/device/start` — receives `userCode`, `verificationUrl`,
-   `pollToken`, `expiresIn`, and `interval`
-2. User opens `verificationUrl` in a browser and enters `userCode` to confirm
-3. CLI polls `POST /auth/device/poll` with `pollToken` until the user confirms
-   or the code expires
-4. On confirmation, the poll response returns a JWT + refresh token pair
+The CLI's default login is a brokered GitHub Device Authorisation Grant (RFC
+8628). The CLI never holds a GitHub client secret — the API brokers the
+credentialed upstream calls (ADR-066). Route
+`apps/anvil-api/src/routes/auth-github-device.ts`, mounted at
+`apps/anvil-api/src/index.ts`; CLI client
+`crates/anvil-cli/src/auth/device_flow.rs`.
+
+1. CLI calls `POST /api/v1/auth/github-device/start` (strict empty body — no
+   email, no user reference). The API requests a device/user code pair from
+   `github.com/login/device/code`, persists a session (hashed `pollToken`,
+   encrypted `device_code`, no user binding), and returns `userCode`,
+   `verificationUri`, `interval`, `expiresIn`, and an opaque `pollToken`
+2. The CLI prints the short user code plus the `github.com/login/device` URL —
+   opened **on any device**; there is no email prompt and no website activation
+   page
+3. CLI polls `POST /api/v1/auth/github-device/poll` with `pollToken`, honouring
+   `interval` and the upstream `slow_down` back-off
+4. The poll exchanges the stored `device_code` with GitHub, derives the user
+   **solely** from the resulting token (`fetchGitHubUser` → `github_id` linking,
+   GHCLIAUTH-003), revokes the GitHub token immediately, runs the active-status
+   gate, and mints the Anvil licence exactly once (re-returnable within TTL)
+5. Terminal poll states: `confirmed` (returns a JWT + refresh token pair),
+   `expired`, `declined`, and `awaiting_approval` — the last for a non-active
+   Anvil user, whose CLI message points at `anvil auth login --otp`
+
+Account linking (`linkOrCreateGitHubUser`, `queries.ts`): returning users match
+on `github_id` (authoritative once set); a first link matches **any** verified
+GitHub email against an active invited row and fails closed on a verified email
+already bound to a different `github_id`; otherwise a `pending` row is created
+and the active-status gate rejects it. The invitation stays email-keyed — GitHub
+is a linked auth method (ADR-066 decision 7).
+
+Operator topology, health signals, and incident triage for this flow live in the
+[GitHub device-flow login runbook](../runbooks/github-device-flow.md).
 
 ### Email OTP Flow
 
@@ -144,15 +178,31 @@ created_at). Token hashes are not returned.
 
 Audit events: `github_oauth_signup`, `github_oauth_link`,
 `github_oauth_blocked`, `github_oauth_login`, `github_oauth_link_conflict`
-(`auth-github.ts:182-235`). The route is mounted at
+(`auth-github.ts:182-235`). The same audit events are written by the CLI device
+flow with `method: "device_flow"`. The route is mounted at
 `apps/anvil-api/src/index.ts:140`.
+
+### Legacy Device Code Flow (shipped-CLI compatibility)
+
+`POST /auth/device/start` + `/poll` (`apps/anvil-api/src/routes/auth-device.ts`)
+predate the GitHub device flow and remain live only for already-shipped CLIs:
+`/start` takes an email and returns a `verificationUrl` (the
+`ACTIVATE_URL`-configured page), `/poll` returns the session once the code is
+confirmed. The matching `POST /auth/device/confirm` browser-confirmation
+endpoint was **removed** in GHCLIAUTH-008 (along with its `requireAuth`), so the
+legacy session can no longer be confirmed via the website — outstanding sessions
+stay pending until they expire. Retiring `/start` + `/poll` and the
+`device_codes` table is a future pass; new logins use the GitHub device flow or
+`--otp`.
 
 ### Admin Approval Flow
 
 1. Admin CLI calls `POST /admin/approve` with the waitlisted user's email
-2. API activates the user and sends a beta invite email
-3. The user then completes device-code or OTP login through the standard auth
-   surfaces
+2. API activates the user and sends a beta invite email; the invite points the
+   user at `anvil auth login` (no per-invite device code is generated —
+   GHCLIAUTH-007)
+3. The user then completes login on their first `anvil auth login` — the GitHub
+   device flow, or `--otp` for the no-GitHub fallback
 
 ### JWT Session Refresh
 
@@ -191,11 +241,12 @@ Signed with ES256 (ECDSA P-256) using `LICENSE_SIGNING_KEY` (PKCS#8 PEM).
 | `exp`      | Computed           | `min(token.expires_at, iat + 90d)`   |
 
 `identity` is resolved per flow (GHCLIAUTH-003): token verify and the OTP /
-device flows stamp `{ provider: "email", id: null }`
-(`apps/anvil-api/src/routes/auth.ts:76`, `auth.ts:127`); GitHub OAuth stamps
-`{ provider: "github", id: <github_id> }` (`auth-github.ts:227`). The shared
-`mintSession` helper takes identity from the caller
-(`apps/anvil-api/src/lib/session.ts:65`).
+legacy device flows stamp `{ provider: "email", id: null }`
+(`apps/anvil-api/src/routes/auth.ts:76`, `auth.ts:127`); both GitHub paths — the
+docs-site OAuth callback and the CLI GitHub device flow — stamp
+`{ provider: "github", id: <github_id> }` (`auth-github.ts:227`,
+`auth-github-device.ts`). The shared `mintSession` helper takes identity from
+the caller (`apps/anvil-api/src/lib/session.ts:65`).
 
 `scopes` is resolved via `findActiveScopesForUser(sql, user.id)` — the union of
 the user's active `access_tokens.scopes` (`session.ts:60`). Graded scopes (e.g.
@@ -235,24 +286,24 @@ Indexes on: `access_tokens(user_id)`, `access_tokens(token_hash)`,
 
 ## Environment Variables
 
-| Variable                      | Required | Used by                                 | Description                                                      |
-| ----------------------------- | -------- | --------------------------------------- | ---------------------------------------------------------------- |
-| `DATABASE_URL`                | Yes      | All routes                              | Neon Postgres connection string                                  |
-| `ADMIN_KEY`                   | Yes      | `adminAuth` middleware (`/admin/*`)     | Bearer token for admin endpoints; unset fails closed with `500`  |
-| `ADMIN_PER_OPERATOR_KEYS`     | No       | `adminAuth` middleware                  | Enables per-operator admin-key lookup                            |
-| `ADMIN_KEY_PEPPER`            | No       | `adminAuth` middleware                  | HMAC secret used to hash per-operator admin keys                 |
-| `LICENSE_SIGNING_KEY`         | Yes      | `/auth/verify`, `/auth/license/refresh` | ES256 private key (PKCS#8 PEM)                                   |
-| `RESEND_API_KEY`              | Yes      | Waitlist routes                         | Resend email API key                                             |
-| `WAITLIST_RESEND_ADMIN_TOKEN` | Yes      | `/waitlist/resend`                      | Token for admin resend endpoint                                  |
-| `ANVIL_CORS_ORIGINS`          | Yes      | CORS middleware                         | Comma-separated allowed origins                                  |
-| `TOKEN_PEPPER`                | No       | Token hashing                           | Extra secret mixed into SHA-256                                  |
-| `RESEND_WAITLIST_AUDIENCE_ID` | No       | Audience management                     | Resend audience ID for waitlist                                  |
-| `RESEND_BETA_AUDIENCE_ID`     | No       | Audience management                     | Resend audience ID for beta users                                |
-| `ACTIVATE_URL`                | No       | Device code flow                        | Confirmation URL (default: `https://eddacraft.ai/auth/activate`) |
-| `GITHUB_CLIENT_ID`            | Yes      | `/auth/github/callback`                 | Docs-site GitHub OAuth app client ID                             |
-| `GITHUB_CLIENT_SECRET`        | Yes      | `/auth/github/callback`                 | Docs-site GitHub OAuth app client secret                         |
-| `GITHUB_CLI_CLIENT_ID`        | Yes      | CLI device flow (`/auth/github-device`) | Dedicated "Anvil CLI" OAuth app client ID                        |
-| `GITHUB_CLI_CLIENT_SECRET`    | Yes      | CLI device flow (`/auth/github-device`) | Dedicated "Anvil CLI" OAuth app client secret                    |
+| Variable                      | Required | Used by                                 | Description                                                                                                        |
+| ----------------------------- | -------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `DATABASE_URL`                | Yes      | All routes                              | Neon Postgres connection string                                                                                    |
+| `ADMIN_KEY`                   | Yes      | `adminAuth` middleware (`/admin/*`)     | Bearer token for admin endpoints; unset fails closed with `500`                                                    |
+| `ADMIN_PER_OPERATOR_KEYS`     | No       | `adminAuth` middleware                  | Enables per-operator admin-key lookup                                                                              |
+| `ADMIN_KEY_PEPPER`            | No       | `adminAuth` middleware                  | HMAC secret used to hash per-operator admin keys                                                                   |
+| `LICENSE_SIGNING_KEY`         | Yes      | `/auth/verify`, `/auth/license/refresh` | ES256 private key (PKCS#8 PEM)                                                                                     |
+| `RESEND_API_KEY`              | Yes      | Waitlist routes                         | Resend email API key                                                                                               |
+| `WAITLIST_RESEND_ADMIN_TOKEN` | Yes      | `/waitlist/resend`                      | Token for admin resend endpoint                                                                                    |
+| `ANVIL_CORS_ORIGINS`          | Yes      | CORS middleware                         | Comma-separated allowed origins                                                                                    |
+| `TOKEN_PEPPER`                | No       | Token hashing                           | Extra secret mixed into SHA-256                                                                                    |
+| `RESEND_WAITLIST_AUDIENCE_ID` | No       | Audience management                     | Resend audience ID for waitlist                                                                                    |
+| `RESEND_BETA_AUDIENCE_ID`     | No       | Audience management                     | Resend audience ID for beta users                                                                                  |
+| `ACTIVATE_URL`                | No       | Legacy device code flow                 | Verification URL returned by `/auth/device/start` (default: `https://eddacraft.ai/auth/activate`, now a tombstone) |
+| `GITHUB_CLIENT_ID`            | Yes      | `/auth/github/callback`                 | Docs-site GitHub OAuth app client ID                                                                               |
+| `GITHUB_CLIENT_SECRET`        | Yes      | `/auth/github/callback`                 | Docs-site GitHub OAuth app client secret                                                                           |
+| `GITHUB_CLI_CLIENT_ID`        | Yes      | CLI device flow (`/auth/github-device`) | Dedicated "Anvil CLI" OAuth app client ID                                                                          |
+| `GITHUB_CLI_CLIENT_SECRET`    | Yes      | CLI device flow (`/auth/github-device`) | Dedicated "Anvil CLI" OAuth app client secret                                                                      |
 
 The docs-site OAuth app pair is consumed in `auth-github.ts:44-45` and wired in
 `infra/src/vercel.ts:92-93`. The CLI pair backs the dedicated "Anvil CLI"
@@ -413,26 +464,27 @@ Track verification count and distinct IPs per token. Alert on anomalies.
 
 ## Source Files
 
-| File                                          | Role                            |
-| --------------------------------------------- | ------------------------------- |
-| `apps/anvil-api/src/index.ts`                 | App entry, routing, middleware  |
-| `apps/anvil-api/src/routes/auth.ts`           | Verify + refresh endpoints      |
-| `apps/anvil-api/src/routes/auth-device.ts`    | Device code flow endpoints      |
-| `apps/anvil-api/src/routes/auth-otp.ts`       | Email OTP flow endpoints        |
-| `apps/anvil-api/src/routes/auth-session.ts`   | Session refresh endpoint        |
-| `apps/anvil-api/src/routes/auth-github.ts`    | GitHub OAuth callback endpoint  |
-| `apps/anvil-api/src/routes/admin.ts`          | Invite, revoke, lookup, approve |
-| `apps/anvil-api/src/routes/waitlist.ts`       | Waitlist signup + resend        |
-| `apps/anvil-api/src/routes/cron.ts`           | Scheduled cleanup tasks         |
-| `apps/anvil-api/src/middleware/admin-auth.ts` | Admin bearer auth               |
-| `apps/anvil-api/src/middleware/rate-limit.ts` | In-memory rate limiter          |
-| `apps/anvil-api/src/lib/token.ts`             | Token generation + hashing      |
-| `apps/anvil-api/src/lib/licence.ts`           | JWT signing                     |
-| `apps/anvil-api/src/lib/session.ts`           | Shared session minting helper   |
-| `apps/anvil-api/src/lib/email.ts`             | Resend email sender             |
-| `apps/anvil-api/src/lib/audience.ts`          | Resend audience management      |
-| `apps/anvil-api/src/lib/audit.ts`             | Audit log helper                |
-| `apps/anvil-api/src/db/client.ts`             | Neon client singleton           |
-| `apps/anvil-api/src/db/queries.ts`            | All SQL queries + Zod schemas   |
-| `apps/anvil-api/src/db/schema.sql`            | DDL for all tables              |
-| `infra/src/vercel.ts`                         | Deployment config + env vars    |
+| File                                              | Role                                          |
+| ------------------------------------------------- | --------------------------------------------- |
+| `apps/anvil-api/src/index.ts`                     | App entry, routing, middleware                |
+| `apps/anvil-api/src/routes/auth.ts`               | Verify + refresh endpoints                    |
+| `apps/anvil-api/src/routes/auth-github-device.ts` | CLI GitHub device-flow broker (default login) |
+| `apps/anvil-api/src/routes/auth-device.ts`        | Legacy device code flow endpoints             |
+| `apps/anvil-api/src/routes/auth-otp.ts`           | Email OTP flow endpoints                      |
+| `apps/anvil-api/src/routes/auth-session.ts`       | Session refresh endpoint                      |
+| `apps/anvil-api/src/routes/auth-github.ts`        | Docs-site GitHub OAuth callback endpoint      |
+| `apps/anvil-api/src/routes/admin.ts`              | Invite, revoke, lookup, approve               |
+| `apps/anvil-api/src/routes/waitlist.ts`           | Waitlist signup + resend                      |
+| `apps/anvil-api/src/routes/cron.ts`               | Scheduled cleanup tasks                       |
+| `apps/anvil-api/src/middleware/admin-auth.ts`     | Admin bearer auth                             |
+| `apps/anvil-api/src/middleware/rate-limit.ts`     | In-memory rate limiter                        |
+| `apps/anvil-api/src/lib/token.ts`                 | Token generation + hashing                    |
+| `apps/anvil-api/src/lib/licence.ts`               | JWT signing                                   |
+| `apps/anvil-api/src/lib/session.ts`               | Shared session minting helper                 |
+| `apps/anvil-api/src/lib/email.ts`                 | Resend email sender                           |
+| `apps/anvil-api/src/lib/audience.ts`              | Resend audience management                    |
+| `apps/anvil-api/src/lib/audit.ts`                 | Audit log helper                              |
+| `apps/anvil-api/src/db/client.ts`                 | Neon client singleton                         |
+| `apps/anvil-api/src/db/queries.ts`                | All SQL queries + Zod schemas                 |
+| `apps/anvil-api/src/db/schema.sql`                | DDL for all tables                            |
+| `infra/src/vercel.ts`                             | Deployment config + env vars                  |

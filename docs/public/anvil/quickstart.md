@@ -98,8 +98,9 @@ Start the default device-code login flow:
 anvil auth login
 ```
 
-anvil prints a short code and verification URL. Open the URL in your browser,
-enter the code, and the CLI will finish the login automatically.
+anvil prints a short code and a `github.com/login/device` URL. Open the URL on
+any device, enter the code to approve with GitHub, and the CLI finishes the
+login automatically — there is no email prompt and no website activation page.
 
 If you need email OTP instead, run:
 
