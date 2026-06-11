@@ -1,8 +1,8 @@
 # Anvil Release Plan
 
-| Type         | Authority | Owner       | Status | Freshness                                                                                |
-| ------------ | --------- | ----------- | ------ | ---------------------------------------------------------------------------------------- |
-| Release plan | Derived   | APS modules | Live   | Pruned 2026-06-11 at the `v0.8.0-beta` closeout; active window: `v0.9.0-beta` (scoping). |
+| Type         | Authority | Owner       | Status | Freshness                                                                                 |
+| ------------ | --------- | ----------- | ------ | ----------------------------------------------------------------------------------------- |
+| Release plan | Derived   | APS modules | Live   | Updated 2026-06-11 at the `v0.8.1-beta` closeout; active window: `v0.9.0-beta` (scoping). |
 
 | Upstream                                                                                                                                                        | Downstream                                                  |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -32,12 +32,14 @@ nothing else.
 
 ## Current state
 
-- **Latest tag:** `v0.8.0-beta` "The Save-Time Daemon" (shipped 2026-06-11) —
-  daemon-served save-time validation on the GV2 hot-read backing, default-on
-  routing with controls (DSV-021), Rust analysis (RSTLAN), gate-summary
-  dashboard, review capsules, ungated `anvil welcome`, and the user-journey
-  golden-path wave. Record:
-  [`plans/releases/v0.8.0-beta.md`](./plans/releases/v0.8.0-beta.md).
+- **Latest tag:** `v0.8.1-beta` "Headless GitHub Login" (shipped 2026-06-11) —
+  the brokered GitHub device-flow `anvil auth login` (GHCLIAUTH 11/11, ADR-066):
+  headless SSH/tmux login works end-to-end, activation page retired, `--otp`
+  fallback retained; plus the eddacraft-tui 0.4.0 bump and a joi security
+  override. Record:
+  [`plans/releases/v0.8.1-beta.md`](./plans/releases/v0.8.1-beta.md).
+  (`v0.8.0-beta` "The Save-Time Daemon" record:
+  [`plans/releases/v0.8.0-beta.md`](./plans/releases/v0.8.0-beta.md).)
 - **Cadence:** minors cut when ready + gates green, not on a calendar. See the
   [release-cadence policy](./docs/policies/release-cadence.md).
 - **Active window:** `v0.9.0-beta` (below, **scoping** — carried from the
