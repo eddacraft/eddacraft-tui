@@ -5,20 +5,23 @@
 
 | ID        | Owner  | Status      | Progress |
 | --------- | ------ | ----------- | -------- |
-| GHCLIAUTH | @aneki | In Progress | 10/11    |
+| GHCLIAUTH | @aneki | Complete | 11/11    |
 
-**Last reviewed:** 2026-06-11 (GHCLIAUTH-008 Merged via PR #2556 under
-the recorded owner sequencing override — the dead `/auth/device/confirm`
-endpoint, its #1779 attempt-counter/anti-enumeration machinery, the
-confirm-only `device_codes` queries, and the orphaned `requireAuth`
-middleware are removed (−530 lines). Kept deliberately: `/auth/device/`
-`start`+`poll` (shipped CLIs still call them; retirement is a future
-pass — poll's unreachable mint branch is annotated), the F-C-003
-dummy-row insertion (now guarding `/poll` anti-enumeration), applied
-migrations, and the OTP flow. Old-CLI observable behaviour unchanged:
-pending until expiry, as it has been since #1779. Remaining: 010 (docs sync) is the
-last item — picked up immediately, its In Progress flip rides its PR;
-the next CLI tag remains the user-facing cutover.)
+**Last reviewed:** 2026-06-11 (GHCLIAUTH-010 Merged via PR #2558 —
+**all 11 items are Merged; module Complete.** The docs now teach the
+device flow everywhere: auth-as-built rewritten (device-flow default,
+legacy `start`+`poll` documented honestly, `/api/v1` prefixes
+throughout, line pins refreshed), quickstart and beta-testing-guide
+carry the open-on-any-device narrative plus a next-beta caveat
+(`v0.8.0-beta` predates the new login). Drift recorded: the item's
+file list included `activation-as-built.md` on a name-match — it is
+exclusively the `anvil start` product-activation orchestrator and
+needed no changes. User-facing cutover completes when the next CLI tag
+ships GHCLIAUTH-006; archiving to `plans/archive/modules/` waits for
+that release-tag inclusion per the archiving rules. The future
+retirement of legacy `/auth/device/start`+`/poll` and the `device_codes`
+table is deliberately out of scope — track it as new intake when the
+old CLIs age out.)
 
 ## Purpose
 
@@ -407,7 +410,8 @@ Change status to **Ready** when:
 
 ### GHCLIAUTH-010: Docs sync — auth/activation/quickstart/beta guide
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-11 via PR #2558 (drift: `activation-as-built.md`
+  is `anvil start` product activation, not auth — no changes needed)
 - **Intent:** Bring the user and architecture docs in line with the new login
   flow.
 - **Expected Outcome:** `docs/architecture/auth-as-built.md`,
@@ -478,5 +482,5 @@ Change status to **Ready** when:
 | Slice | Items | Completion | Status |
 | ----- | ----- | ---------- | ------ |
 | MVP — headless login (001–006, gated on 002) | 6 | 6/6 done | Complete |
-| Correctness / cleanup / validation (007–011) | 5 | 4/5 done | In Progress |
-| **Total** | **11** | **10/11 done** | **In Progress** |
+| Correctness / cleanup / validation (007–011) | 5 | 5/5 done | Complete |
+| **Total** | **11** | **11/11 done** | **Complete** |

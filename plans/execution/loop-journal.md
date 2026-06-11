@@ -412,3 +412,29 @@ never with feature work.
   item, module prose, and Release wave section.
 - Next: GHCLIAUTH-010 (docs sync) — the last item, now unblocked;
   dispatched immediately, In Progress flip rides its PR.
+
+## Cycle 20 — 2026-06-11
+
+- Item: GHCLIAUTH-010 — Docs sync (auth/activation/quickstart/beta
+  guide)
+- Outcome: done (auth-as-built.md rewritten to the device-flow default:
+  RFC 8628 broker narrative, github_id-first linking precedence, a
+  Legacy Device Code Flow section documenting start+poll as still-live
+  shipped-CLI compatibility with /confirm recorded as removed,
+  /api/v1 prefixes made consistent, stale auth-github.ts line pins
+  refreshed against current code; quickstart auth step + beta guide
+  Sign In aligned to open-on-any-device with a next-beta caveat,
+  tag-ancestry-verified. Validation: docs:check 8/8, docs:index clean,
+  format:check + index-counts exit 0; fresh-context verification PASS
+  with every technical claim fact-checked against route/CLI/linking
+  code; six Copilot accuracy threads fixed + resolved.) PR #2558.
+- Plan changes: GHCLIAUTH-010 → Merged 2026-06-11 via PR #2558; counts
+  11/11; cleanup slice 5/5 Complete; MODULE → Complete. Drift recorded:
+  activation-as-built.md was a name-match false positive in the item's
+  file list (anvil start product activation, no auth content). Archive
+  deferred to release-tag inclusion per archiving rules; legacy
+  start+poll retirement noted as future intake, not a module item.
+- Checkpoints raised: none.
+- Next: stop — GHCLIAUTH is fully dispositioned (11/11 Complete). The
+  only follow-on is operational, not plan work: cut the next CLI tag so
+  release-channel users receive the device-flow login.
