@@ -47,7 +47,7 @@ record, a PR, or another durable artefact.
 
 Initial repository-local schema:
 
-- `schemas/workflow-session-event.schema.json` defines workflow sessions and
+- `schemas/workflow-session-event.v1.schema.json` defines workflow sessions and
   workflow events.
 - Council/review sessions may write durable summaries under `plans/reviews/`.
 - Future implementations may move session/event storage, but must preserve the

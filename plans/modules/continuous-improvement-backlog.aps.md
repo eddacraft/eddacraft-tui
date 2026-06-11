@@ -1689,15 +1689,15 @@ archive.
   at a domain the product no longer presents.
 - **Expected Outcome:** the `$id` values in `schemas/anvil-status.v1.json`,
   `schemas/anvil-insights.v1.json`, and
-  `schemas/workflow-session-event.schema.json` move to the canonical
-  domain (owner decision: `https://eddacraft.ai/anvil/schemas/…` vs
-  `https://docs.eddacraft.ai/anvil/schemas/…`). Blast radius is the three
-  files: all in-repo consumers (`status.rs` doc comment,
-  `status_json_contract.rs`) reference the schemas by file path, and no
-  code constructs or resolves the `$id` URLs (verified by grep,
-  2026-06-11). While editing, also reconcile the
-  `workflow-session-event` filename/`$id` mismatch (`…schema.json` on
-  disk vs `…v1.schema.json` in the `$id`).
+  `schemas/workflow-session-event.v1.schema.json` move to the canonical
+  domain `https://docs.eddacraft.ai/anvil/schemas/…` (owner decision
+  2026-06-11; `eddacraft.ai` was the considered alternative). Blast
+  radius is the three files plus prose path references: all in-repo
+  consumers (`status.rs` doc comment, `status_json_contract.rs`)
+  reference the schemas by file path, and no code constructs or resolves
+  the `$id` URLs (verified by grep, 2026-06-11). The
+  `workflow-session-event` filename/`$id` mismatch is reconciled by
+  renaming the file to `…v1.schema.json` to match the `$id`.
 - **Files:** `schemas/anvil-status.v1.json`,
   `schemas/anvil-insights.v1.json`,
   `schemas/workflow-session-event.v1.schema.json` (renamed from
