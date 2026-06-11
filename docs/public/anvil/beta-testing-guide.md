@@ -13,7 +13,7 @@ Welcome to the anvil beta. Thank you for putting real projects through the tool:
 the best feedback comes from normal development work, not from perfect demo
 repos.
 
-**Current version:** 0.8.0-beta
+**Current version:** 0.8.1-beta
 
 anvil is a single native binary that analyses your codebase for architectural
 drift, AI-generated anti-patterns, and project convention violations. It is
@@ -23,7 +23,7 @@ pre-write attachment is not available.
 
 ## What's New to Focus Testing On
 
-The current tagged cut is `0.8.0-beta`. These are the highest-leverage flows. If
+The current tagged cut is `0.8.1-beta`. These are the highest-leverage flows. If
 you only have a short session, these are the right places to spend it.
 
 ### New in `v0.8.0-beta` — the daemon-backed save path
@@ -216,16 +216,6 @@ anvil auth login
 anvil prints a short code and a `github.com/login/device` URL. Open the URL on
 any device, enter the code to approve with GitHub, and return to the terminal —
 there is no email prompt and no website activation page.
-
-:::note GitHub device-flow login lands in the next beta
-
-The brokered GitHub device flow described here is the new default for
-`anvil auth login` and ships with the next tagged beta. If you are on
-`v0.8.0-beta`, `anvil auth login` still uses the previous prompt — upgrade once
-the next tag is out to exercise the device flow. The `--otp` fallback below is
-available either way.
-
-:::
 
 If you need email OTP instead, run:
 

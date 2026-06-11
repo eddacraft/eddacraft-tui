@@ -183,7 +183,7 @@ For the full explanation of checks, findings, and gates, see
 
 **Ready to start?** [Go to the quickstart →](/anvil/quickstart)
 
-anvil is currently in beta — the latest tagged release is `v0.7.2-beta`. See the
+anvil is currently in beta — the latest tagged release is `v0.8.1-beta`. See the
 [beta testing guide](/anvil/beta-testing-guide) for what to expect. If you're
 upgrading from `0.6.x`, read the
 [0.7.0-beta upgrade notes](releases/upgrade-notes.md#upgrading-to-070-beta)

@@ -27,7 +27,7 @@ You can run both; most people start with `anvil start` and explore with
 
 :::info Beta
 
-anvil is currently in beta — the latest tagged release is `v0.8.0-beta`. If your
+anvil is currently in beta — the latest tagged release is `v0.8.1-beta`. If your
 team has gated beta access, use the GitHub account tied to that access when
 prompted by anvil or the docs site. See the
 [beta testing guide](/anvil/beta-testing-guide) for the current scope and known
@@ -101,10 +101,6 @@ anvil auth login
 anvil prints a short code and a `github.com/login/device` URL. Open the URL on
 any device, enter the code to approve with GitHub, and the CLI finishes the
 login automatically — there is no email prompt and no website activation page.
-
-:::note The GitHub device flow ships with the next tagged beta. On
-`v0.8.0-beta`, `anvil auth login` still shows the previous verification-URL
-prompt — use `--otp` below until you upgrade. :::
 
 If you need email OTP instead, run:
 
