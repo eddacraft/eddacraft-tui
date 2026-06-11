@@ -290,7 +290,7 @@ Change status to **Ready** when:
 
 ### GHCLIAUTH-006: CLI default login on the new endpoints + back-off
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Make the default `anvil auth login` drive the brokered device flow
   and survive GitHub's polling back-off instead of bailing.
 - **Expected Outcome:** The default `login_device_flow` calls the new

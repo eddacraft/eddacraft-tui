@@ -6,6 +6,24 @@ This changelog contains customer-relevant changes only. Internal refactors and
 engineering maintenance are recorded in the
 [Engineering History](./ENGINEERING-HISTORY.md).
 
+## [Unreleased]
+
+> **Draft.** This section accumulates customer-relevant changes landed on `main`
+> since `v0.8.0-beta`; the version, date, and final scope are set at the next
+> release.
+
+### Changed
+
+- **`anvil auth login` now signs in via GitHub by default.** The CLI drives the
+  GitHub Device Authorization Grant brokered by the Anvil API
+  ([ADR-066](./plans/decisions/066-github-device-flow-cli-auth.md),
+  GHCLIAUTH-006): open the shown URL on any device and enter the code — no email
+  prompt, no local browser, works headless over SSH/tmux. The previous
+  email-prompt device flow had been un-completable since the activation-page
+  hardening and always timed out. `--otp` remains the email fallback; any script
+  that piped an email into `anvil auth login` should switch to
+  `anvil auth login --otp`.
+
 ## [0.8.0-beta] — 2026-06-11 — The Save-Time Daemon
 
 The first minor since `v0.7.0-beta`, earned on architecture: Anvil starts moving

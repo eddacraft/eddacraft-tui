@@ -5,13 +5,18 @@ use serde::{Deserialize, Serialize};
 
 use super::credentials::{self, Credentials};
 
+/// Response from `POST /api/v1/auth/github-device/start` — the server-side
+/// broker for GitHub's Device Authorization Grant (RFC 8628, ADR-066).
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct DeviceStartResponse {
     poll_token: String,
     user_code: String,
-    verification_url: String,
+    verification_uri: String,
     expires_in: u64,
+    /// Server-relayed GitHub poll interval (RFC 8628 §3.2) — the initial
+    /// sleep between polls; `slow_down` responses raise it.
+    interval: u64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -70,15 +75,33 @@ struct EdictUser {
     email: String,
 }
 
+/// Strict empty start body — the endpoint rejects any field, by design
+/// (no caller-supplied identity, ADR-066). An empty braced struct
+/// serialises to `{}`; a unit struct would serialise to `null`.
 #[derive(Debug, Serialize)]
-struct DeviceStartRequest<'a> {
-    email: &'a str,
-}
+struct DeviceStartRequest {}
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct DevicePollRequest<'a> {
     poll_token: &'a str,
+}
+
+/// Body of a 429 from `/github-device/poll` — both the broker's own
+/// cross-instance gate and GitHub's relayed `slow_down` use this shape.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SlowDownBody {
+    retry_after: Option<u64>,
+}
+
+/// Outcome of one poll round-trip. `SlowDown` is a back-off instruction, not
+/// an error — the pre-ADR-066 flow treated every 429 as fatal, which made the
+/// CLI bail the moment the broker asked it to slow down.
+#[derive(Debug)]
+enum DevicePoll {
+    Status(DevicePollResponse),
+    SlowDown { retry_after: Option<u64> },
 }
 
 #[derive(Debug, Serialize)]
@@ -158,14 +181,14 @@ fn prompt_input(label: &str) -> Result<String> {
 
 // ── HTTP helpers (extracted for testability) ──────────────────────────
 
-async fn device_start(
-    client: &reqwest::Client,
-    url: &str,
-    email: &str,
-) -> Result<DeviceStartResponse> {
+/// Begin a brokered GitHub device-flow session. The endpoint takes a strict
+/// empty body — no email, no user reference; the signed-in user is derived
+/// solely from the GitHub authorization when the device code is approved
+/// (ADR-066).
+async fn device_start(client: &reqwest::Client, url: &str) -> Result<DeviceStartResponse> {
     let resp = client
-        .post(format!("{url}/api/v1/auth/device/start"))
-        .json(&DeviceStartRequest { email })
+        .post(format!("{url}/api/v1/auth/github-device/start"))
+        .json(&DeviceStartRequest {})
         .send()
         .await
         .map_err(|e| {
@@ -180,13 +203,9 @@ async fn device_start(
         .context("Login failed: unexpected response from the auth server.")
 }
 
-async fn device_poll(
-    client: &reqwest::Client,
-    url: &str,
-    poll_token: &str,
-) -> Result<DevicePollResponse> {
+async fn device_poll(client: &reqwest::Client, url: &str, poll_token: &str) -> Result<DevicePoll> {
     let resp = client
-        .post(format!("{url}/api/v1/auth/device/poll"))
+        .post(format!("{url}/api/v1/auth/github-device/poll"))
         .json(&DevicePollRequest { poll_token })
         .send()
         .await
@@ -196,10 +215,42 @@ async fn device_poll(
                 friendly_network_error(&e)
             )
         })?;
+    // 429 is a back-off instruction (RFC 8628 slow_down / the broker's poll
+    // gate), never fatal. Anything else non-2xx is a real failure.
+    if resp.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+        let retry_after = resp
+            .json::<SlowDownBody>()
+            .await
+            .ok()
+            .and_then(|b| b.retry_after);
+        return Ok(DevicePoll::SlowDown { retry_after });
+    }
+    if resp.status() == reqwest::StatusCode::UNAUTHORIZED {
+        bail!("GitHub sign-in failed. Run `anvil auth login` to try again.");
+    }
     check_status(resp, "Login check failed")?
         .json()
         .await
+        .map(DevicePoll::Status)
         .context("Login check failed: unexpected response from the auth server.")
+}
+
+/// Terminal poll states and their user-facing messages. `None` means the
+/// state is non-terminal (pending / unknown) and the CLI keeps waiting.
+fn poll_failure_message(status: &str) -> Option<&'static str> {
+    match status {
+        "expired" => Some(
+            "The sign-in request expired before it was approved. Run `anvil auth login` to start \
+             again.",
+        ),
+        "declined" => Some("GitHub sign-in was declined. Run `anvil auth login` to try again."),
+        "awaiting_approval" => Some(
+            "Signed in to GitHub, but your Anvil account is awaiting approval — you'll receive an \
+             email when it's ready. If you were invited by email, run `anvil auth login --otp` \
+             instead.",
+        ),
+        _ => None,
+    }
 }
 
 async fn otp_request(
@@ -393,62 +444,102 @@ pub async fn refresh_command() -> Result<Credentials> {
 
 // ── Public entry points (thin wrappers adding I/O) ────────────────────
 
+/// Clamp the server-relayed poll interval (RFC 8628 §3.5) so a broken value
+/// can neither spin-loop (0) nor stall the terminal (huge).
+fn clamp_interval(seconds: u64) -> u64 {
+    seconds.clamp(1, 3_600)
+}
+
+/// Bound the device-code lifetime to a sane window. Without the upper bound a
+/// hostile `expiresIn` (e.g. `u64::MAX`) panics in `Instant + Duration`.
+fn deadline_window(expires_in: u64) -> Duration {
+    Duration::from_secs(expires_in.clamp(1, 86_400))
+}
+
+/// Strip control characters from a server-supplied string before printing it
+/// to the terminal — ANSI/OSC sequences in a hostile response must not be
+/// able to forge hyperlinks, clear the screen, or retitle the window.
+fn sanitize_for_terminal(s: &str) -> String {
+    s.chars().filter(|c| !c.is_control()).collect()
+}
+
+/// Sign in via the brokered GitHub device flow (ADR-066). Headless-friendly:
+/// no email prompt, no local browser required — the verification URL can be
+/// opened on any device.
 pub async fn login_device_flow() -> Result<()> {
     let url = api_url()?;
-    let email = prompt_input("Email: ")?;
-    if email.is_empty() {
-        bail!("Email is required");
-    }
-
-    eprintln!("Starting device code flow...");
-
     let client = build_client()?;
-    let start = device_start(&client, &url, &email).await?;
+
+    eprintln!("Starting GitHub sign-in...");
+
+    let start = device_start(&client, &url).await?;
 
     eprintln!();
-    eprintln!("To authenticate, open this URL:");
-    eprintln!("  {}", start.verification_url);
+    eprintln!("To sign in, open this URL on any device:");
+    eprintln!("  {}", sanitize_for_terminal(&start.verification_uri));
     eprintln!();
-    eprintln!("And enter code: {}", start.user_code);
+    eprintln!(
+        "And enter code: {}",
+        sanitize_for_terminal(&start.user_code)
+    );
     eprintln!();
-    eprintln!("Waiting for confirmation...");
+    eprintln!("Waiting for authorization...");
 
-    let poll_interval = std::time::Duration::from_secs(5);
-    let max_attempts = (start.expires_in / poll_interval.as_secs()).max(1);
+    let deadline = std::time::Instant::now() + deadline_window(start.expires_in);
+    // Initial sleep between polls; slow_down responses raise it.
+    let mut interval = clamp_interval(start.interval);
 
-    for _ in 0..max_attempts {
-        tokio::time::sleep(poll_interval).await;
+    loop {
+        // Never sleep past the deadline — a late slow_down must not stall
+        // the terminal for its full interval before the timeout message.
+        let remaining = deadline.saturating_duration_since(std::time::Instant::now());
+        if remaining.is_zero() {
+            break;
+        }
+        tokio::time::sleep(remaining.min(Duration::from_secs(interval))).await;
 
-        let poll = device_poll(&client, &url, &start.poll_token).await?;
-
-        match poll.status.as_str() {
-            "confirmed" => {
-                let license = poll.license.context("server returned no licence")?;
-                let refresh = poll
-                    .refresh_token
-                    .context("server returned no refresh token")?;
-                let expires = poll.expires_at.context("server returned no expiry")?;
-
-                credentials::save(&Credentials {
-                    license,
-                    refresh_token: Some(refresh),
-                    email: Some(email.clone()),
-                    expires_at: Some(expires),
-                    is_edict: Some(false),
-                })?;
-
-                eprintln!();
-                eprintln!("✓ Authenticated as {email}");
-                let path = credentials::credentials_path()?;
-                eprintln!("  Credentials saved to {}", path.display());
-                return Ok(());
+        match device_poll(&client, &url, &start.poll_token).await? {
+            DevicePoll::SlowDown { retry_after } => {
+                interval = clamp_interval(retry_after.unwrap_or(interval + 5));
+                eprint!(".");
             }
-            "expired" => bail!("Device code has expired. Please try again."),
-            _ => eprint!("."),
+            DevicePoll::Status(poll) => match poll.status.as_str() {
+                "confirmed" => {
+                    let license = poll.license.context("server returned no licence")?;
+                    let refresh = poll
+                        .refresh_token
+                        .context("server returned no refresh token")?;
+                    let expires = poll.expires_at.context("server returned no expiry")?;
+
+                    // No email at mint time by design — identity came from
+                    // GitHub server-side; `anvil auth whoami` resolves the
+                    // account email from the server.
+                    credentials::save(&Credentials {
+                        license,
+                        refresh_token: Some(refresh),
+                        email: None,
+                        expires_at: Some(expires),
+                        is_edict: Some(false),
+                    })?;
+
+                    eprintln!();
+                    eprintln!("✓ Authenticated via GitHub");
+                    let path = credentials::credentials_path()?;
+                    eprintln!("  Credentials saved to {}", path.display());
+                    eprintln!("  Run `anvil auth whoami` to see your account.");
+                    return Ok(());
+                }
+                status => {
+                    if let Some(message) = poll_failure_message(status) {
+                        bail!(message);
+                    }
+                    eprint!(".");
+                }
+            },
         }
     }
 
-    bail!("Timed out waiting for confirmation. Please try again.");
+    bail!("Timed out waiting for authorization. Run `anvil auth login` to try again.");
 }
 
 pub async fn login_otp_flow() -> Result<()> {
@@ -561,15 +652,64 @@ mod tests {
     fn deserialise_device_start_response() {
         let json = r#"{
             "pollToken": "tok-abc",
-            "userCode": "ABCD-1234",
-            "verificationUrl": "https://example.com/activate",
-            "expiresIn": 300
+            "userCode": "WDJB-MJHT",
+            "verificationUri": "https://github.com/login/device",
+            "expiresIn": 899,
+            "interval": 5
         }"#;
         let resp: DeviceStartResponse = serde_json::from_str(json).unwrap();
         assert_eq!(resp.poll_token, "tok-abc");
-        assert_eq!(resp.user_code, "ABCD-1234");
-        assert_eq!(resp.verification_url, "https://example.com/activate");
-        assert_eq!(resp.expires_in, 300);
+        assert_eq!(resp.user_code, "WDJB-MJHT");
+        assert_eq!(resp.verification_uri, "https://github.com/login/device");
+        assert_eq!(resp.expires_in, 899);
+        assert_eq!(resp.interval, 5);
+    }
+
+    #[test]
+    fn deserialise_device_poll_declined_and_awaiting_approval() {
+        for status in ["declined", "awaiting_approval"] {
+            let json = format!(r#"{{"status": "{status}"}}"#);
+            let resp: DevicePollResponse = serde_json::from_str(&json).unwrap();
+            assert_eq!(resp.status, status);
+            assert!(resp.license.is_none());
+        }
+    }
+
+    #[test]
+    fn deserialise_slow_down_body_with_and_without_retry_after() {
+        let with: SlowDownBody =
+            serde_json::from_str(r#"{"error": "slow_down", "retryAfter": 10}"#).unwrap();
+        assert_eq!(with.retry_after, Some(10));
+
+        let without: SlowDownBody =
+            serde_json::from_str(r#"{"error": "Too many requests"}"#).unwrap();
+        assert_eq!(without.retry_after, None);
+    }
+
+    // ── Terminal-state messages ───────────────────────────────────────
+
+    #[test]
+    fn poll_failure_message_maps_terminal_states() {
+        let expired = poll_failure_message("expired").unwrap();
+        assert!(expired.contains("expired"), "got: {expired}");
+        assert!(expired.contains("anvil auth login"), "got: {expired}");
+
+        let declined = poll_failure_message("declined").unwrap();
+        assert!(declined.contains("declined"), "got: {declined}");
+
+        let awaiting = poll_failure_message("awaiting_approval").unwrap();
+        assert!(awaiting.contains("awaiting approval"), "got: {awaiting}");
+        assert!(
+            awaiting.contains("--otp"),
+            "awaiting-approval should point at the OTP fallback, got: {awaiting}"
+        );
+    }
+
+    #[test]
+    fn poll_failure_message_keeps_waiting_on_non_terminal_states() {
+        assert!(poll_failure_message("pending").is_none());
+        assert!(poll_failure_message("confirmed").is_none());
+        assert!(poll_failure_message("something_new").is_none());
     }
 
     #[test]
@@ -634,15 +774,6 @@ mod tests {
     // ── Serde: request serialisation ──────────────────────────────────
 
     #[test]
-    fn serialise_device_start_request() {
-        let req = DeviceStartRequest {
-            email: "user@example.com",
-        };
-        let json = serde_json::to_value(&req).unwrap();
-        assert_eq!(json["email"], "user@example.com");
-    }
-
-    #[test]
     fn serialise_device_poll_request_uses_camel_case() {
         let req = DevicePollRequest {
             poll_token: "tok-abc",
@@ -680,34 +811,34 @@ mod tests {
         assert!(build_client().is_ok());
     }
 
-    // ── Wiremock: device_start ────────────────────────────────────────
+    // ── Wiremock: device_start (brokered GitHub device flow) ──────────
 
     #[tokio::test]
-    async fn device_start_sends_correct_request() {
+    async fn device_start_sends_strict_empty_body_to_github_device_endpoint() {
         let server = MockServer::start().await;
 
         Mock::given(method("POST"))
-            .and(path("/api/v1/auth/device/start"))
-            .and(body_json(serde_json::json!({"email": "dev@example.com"})))
+            .and(path("/api/v1/auth/github-device/start"))
+            .and(body_json(serde_json::json!({})))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "pollToken": "poll-xyz",
                 "userCode": "TEST-9999",
-                "verificationUrl": "https://example.com/verify",
-                "expiresIn": 600
+                "verificationUri": "https://github.com/login/device",
+                "expiresIn": 600,
+                "interval": 7
             })))
             .expect(1)
             .mount(&server)
             .await;
 
         let client = build_client().unwrap();
-        let resp = device_start(&client, &server.uri(), "dev@example.com")
-            .await
-            .unwrap();
+        let resp = device_start(&client, &server.uri()).await.unwrap();
 
         assert_eq!(resp.poll_token, "poll-xyz");
         assert_eq!(resp.user_code, "TEST-9999");
-        assert_eq!(resp.verification_url, "https://example.com/verify");
+        assert_eq!(resp.verification_uri, "https://github.com/login/device");
         assert_eq!(resp.expires_in, 600);
+        assert_eq!(resp.interval, 7, "interval must round-trip from the server");
     }
 
     #[tokio::test]
@@ -715,15 +846,13 @@ mod tests {
         let server = MockServer::start().await;
 
         Mock::given(method("POST"))
-            .and(path("/api/v1/auth/device/start"))
+            .and(path("/api/v1/auth/github-device/start"))
             .respond_with(ResponseTemplate::new(500))
             .mount(&server)
             .await;
 
         let client = build_client().unwrap();
-        let err = device_start(&client, &server.uri(), "dev@example.com")
-            .await
-            .unwrap_err();
+        let err = device_start(&client, &server.uri()).await.unwrap_err();
 
         assert!(
             err.to_string().contains("Login failed"),
@@ -738,7 +867,7 @@ mod tests {
         let server = MockServer::start().await;
 
         Mock::given(method("POST"))
-            .and(path("/api/v1/auth/device/poll"))
+            .and(path("/api/v1/auth/github-device/poll"))
             .and(body_json(serde_json::json!({"pollToken": "tok-1"})))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "status": "confirmed",
@@ -751,8 +880,11 @@ mod tests {
             .await;
 
         let client = build_client().unwrap();
-        let resp = device_poll(&client, &server.uri(), "tok-1").await.unwrap();
+        let poll = device_poll(&client, &server.uri(), "tok-1").await.unwrap();
 
+        let DevicePoll::Status(resp) = poll else {
+            panic!("expected Status, got slow_down");
+        };
         assert_eq!(resp.status, "confirmed");
         assert_eq!(resp.license.as_deref(), Some("lic-confirmed"));
         assert_eq!(resp.refresh_token.as_deref(), Some("rt-confirmed"));
@@ -763,7 +895,7 @@ mod tests {
         let server = MockServer::start().await;
 
         Mock::given(method("POST"))
-            .and(path("/api/v1/auth/device/poll"))
+            .and(path("/api/v1/auth/github-device/poll"))
             .respond_with(
                 ResponseTemplate::new(200).set_body_json(serde_json::json!({"status": "pending"})),
             )
@@ -771,37 +903,117 @@ mod tests {
             .await;
 
         let client = build_client().unwrap();
-        let resp = device_poll(&client, &server.uri(), "tok-1").await.unwrap();
+        let poll = device_poll(&client, &server.uri(), "tok-1").await.unwrap();
 
+        let DevicePoll::Status(resp) = poll else {
+            panic!("expected Status, got slow_down");
+        };
         assert_eq!(resp.status, "pending");
         assert!(resp.license.is_none());
     }
 
     #[tokio::test]
-    async fn device_poll_expired_status() {
+    async fn device_poll_terminal_statuses_deserialise() {
+        for status in ["expired", "declined", "awaiting_approval"] {
+            let server = MockServer::start().await;
+
+            Mock::given(method("POST"))
+                .and(path("/api/v1/auth/github-device/poll"))
+                .respond_with(
+                    ResponseTemplate::new(200).set_body_json(serde_json::json!({"status": status})),
+                )
+                .mount(&server)
+                .await;
+
+            let client = build_client().unwrap();
+            let poll = device_poll(&client, &server.uri(), "tok-1").await.unwrap();
+
+            let DevicePoll::Status(resp) = poll else {
+                panic!("expected Status for {status}, got slow_down");
+            };
+            assert_eq!(resp.status, status);
+        }
+    }
+
+    #[tokio::test]
+    async fn device_poll_429_is_back_off_not_fatal() {
+        // The pre-ADR-066 flow bailed on any 429 (`friendly_http_error(429)`),
+        // killing the login the moment GitHub said slow_down. A 429 must come
+        // back as a SlowDown instruction carrying the server's retryAfter.
         let server = MockServer::start().await;
 
         Mock::given(method("POST"))
-            .and(path("/api/v1/auth/device/poll"))
-            .respond_with(
-                ResponseTemplate::new(200).set_body_json(serde_json::json!({"status": "expired"})),
-            )
+            .and(path("/api/v1/auth/github-device/poll"))
+            .respond_with(ResponseTemplate::new(429).set_body_json(serde_json::json!({
+                "error": "slow_down",
+                "retryAfter": 10
+            })))
             .mount(&server)
             .await;
 
         let client = build_client().unwrap();
-        let resp = device_poll(&client, &server.uri(), "tok-1").await.unwrap();
+        let poll = device_poll(&client, &server.uri(), "tok-1").await.unwrap();
 
-        assert_eq!(resp.status, "expired");
+        let DevicePoll::SlowDown { retry_after } = poll else {
+            panic!("expected SlowDown, got status");
+        };
+        assert_eq!(retry_after, Some(10));
+    }
+
+    #[tokio::test]
+    async fn device_poll_429_without_retry_after_still_backs_off() {
+        // A bare 429 (e.g. the per-IP limiter, no retryAfter field) must also
+        // be a back-off, with the caller choosing the fallback interval.
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/v1/auth/github-device/poll"))
+            .respond_with(ResponseTemplate::new(429).set_body_json(serde_json::json!({
+                "error": "Too many requests, please try again later"
+            })))
+            .mount(&server)
+            .await;
+
+        let client = build_client().unwrap();
+        let poll = device_poll(&client, &server.uri(), "tok-1").await.unwrap();
+
+        let DevicePoll::SlowDown { retry_after } = poll else {
+            panic!("expected SlowDown, got status");
+        };
+        assert_eq!(retry_after, None);
+    }
+
+    #[tokio::test]
+    async fn device_poll_401_maps_to_clear_github_failure() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/v1/auth/github-device/poll"))
+            .respond_with(ResponseTemplate::new(401).set_body_json(serde_json::json!({
+                "error": "github_authentication_failed"
+            })))
+            .mount(&server)
+            .await;
+
+        let client = build_client().unwrap();
+        let err = device_poll(&client, &server.uri(), "tok-1")
+            .await
+            .unwrap_err();
+        let msg = err.to_string();
+
+        assert!(msg.contains("GitHub sign-in failed"), "got: {msg}");
+        assert!(msg.contains("anvil auth login"), "got: {msg}");
     }
 
     #[tokio::test]
     async fn device_poll_propagates_server_error() {
         let server = MockServer::start().await;
 
+        // 503 (not 403/401/429): those statuses now have dedicated branches;
+        // this exercises the generic check_status error path.
         Mock::given(method("POST"))
-            .and(path("/api/v1/auth/device/poll"))
-            .respond_with(ResponseTemplate::new(403))
+            .and(path("/api/v1/auth/github-device/poll"))
+            .respond_with(ResponseTemplate::new(503))
             .mount(&server)
             .await;
 
@@ -1233,17 +1445,19 @@ mod tests {
             expires_at: Some("2099-01-01T00:00:00Z".to_string()),
         };
 
+        // The GitHub device flow stores no email — identity was derived
+        // server-side from the GitHub token; whoami resolves it on demand.
         let creds = Credentials {
             license: poll.license.unwrap(),
             refresh_token: poll.refresh_token,
-            email: Some("dev@example.com".to_string()),
+            email: None,
             expires_at: poll.expires_at,
             is_edict: Some(false),
         };
 
         assert_eq!(creds.license, "lic-dev");
         assert_eq!(creds.refresh_token.as_deref(), Some("rt-dev"));
-        assert_eq!(creds.email.as_deref(), Some("dev@example.com"));
+        assert!(creds.email.is_none());
         assert_eq!(creds.expires_at.as_deref(), Some("2099-01-01T00:00:00Z"));
     }
 
@@ -1321,21 +1535,52 @@ mod tests {
         assert_eq!(msg, "Login: unexpected error (HTTP 409 Conflict).");
     }
 
-    // ── Boundary: expires_in zero ─────────────────────────────────────
+    // ── Boundary: hostile/broken server values are clamped ────────────
+
+    #[test]
+    fn clamp_interval_bounds_hostile_values() {
+        assert_eq!(clamp_interval(0), 1, "zero must not spin-loop");
+        assert_eq!(clamp_interval(5), 5);
+        assert_eq!(clamp_interval(u64::MAX), 3_600, "huge must not stall");
+    }
+
+    #[test]
+    fn deadline_window_bounds_hostile_expires_in() {
+        // u64::MAX seconds would panic in `Instant + Duration`; the window
+        // must be bounded on both ends.
+        assert_eq!(deadline_window(0), Duration::from_secs(1));
+        assert_eq!(deadline_window(899), Duration::from_secs(899));
+        assert_eq!(deadline_window(u64::MAX), Duration::from_hours(24));
+    }
+
+    #[test]
+    fn sanitize_for_terminal_strips_control_sequences() {
+        // OSC 8 hyperlink forgery, screen clear, and window retitle must all
+        // come out inert; plain URLs and codes pass through unchanged.
+        assert_eq!(
+            sanitize_for_terminal("\x1b]8;;https://evil.example\x07click\x1b]8;;\x07"),
+            "]8;;https://evil.exampleclick]8;;"
+        );
+        assert_eq!(sanitize_for_terminal("\x1b[2J\x1b[Hcode"), "[2J[Hcode");
+        assert_eq!(
+            sanitize_for_terminal("https://github.com/login/device"),
+            "https://github.com/login/device"
+        );
+        assert_eq!(sanitize_for_terminal("WDJB-MJHT"), "WDJB-MJHT");
+    }
 
     #[test]
     fn deserialise_device_start_expires_in_zero() {
         let json = r#"{
             "pollToken": "tok-zero",
             "userCode": "ZERO-0000",
-            "verificationUrl": "https://example.com/activate",
-            "expiresIn": 0
+            "verificationUri": "https://github.com/login/device",
+            "expiresIn": 0,
+            "interval": 5
         }"#;
         let resp: DeviceStartResponse = serde_json::from_str(json).unwrap();
         assert_eq!(resp.expires_in, 0);
-        // login_device_flow clamps: (0 / 5).max(1) == 1
-        let max_attempts = (resp.expires_in / 5).max(1);
-        assert_eq!(max_attempts, 1, "zero expires_in should clamp to 1 attempt");
+        assert_eq!(deadline_window(resp.expires_in), Duration::from_secs(1));
     }
 
     // ── Malformed JSON response paths ─────────────────────────────────
@@ -1345,7 +1590,7 @@ mod tests {
         let server = MockServer::start().await;
 
         Mock::given(method("POST"))
-            .and(path("/api/v1/auth/device/start"))
+            .and(path("/api/v1/auth/github-device/start"))
             .respond_with(
                 ResponseTemplate::new(200)
                     .set_body_json(serde_json::json!({"unexpected": "shape"})),
@@ -1354,9 +1599,7 @@ mod tests {
             .await;
 
         let client = build_client().unwrap();
-        let err = device_start(&client, &server.uri(), "dev@example.com")
-            .await
-            .unwrap_err();
+        let err = device_start(&client, &server.uri()).await.unwrap_err();
 
         assert!(
             err.to_string()

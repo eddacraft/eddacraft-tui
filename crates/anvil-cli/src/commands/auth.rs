@@ -14,9 +14,11 @@ pub struct AuthArgs {
 
 #[derive(Debug, Subcommand)]
 pub enum AuthCommand {
-    /// Authenticate with the Anvil service
+    /// Sign in via GitHub (default) — open the shown URL on any device and
+    /// enter the code; works headless over SSH/tmux. No GitHub account?
+    /// Use --otp.
     Login {
-        /// Use email OTP instead of device code flow
+        /// Use an email verification code instead of GitHub sign-in
         #[arg(long)]
         otp: bool,
 
@@ -203,7 +205,7 @@ fn is_network_error(err: &anyhow::Error) -> bool {
 
 #[derive(Debug, Args)]
 pub struct LoginArgs {
-    /// Use email OTP instead of device code flow
+    /// Use an email verification code instead of GitHub sign-in
     #[arg(long)]
     otp: bool,
 
