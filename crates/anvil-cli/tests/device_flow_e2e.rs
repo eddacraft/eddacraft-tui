@@ -30,9 +30,12 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 
 const ANVIL_BIN: &str = env!("CARGO_BIN_EXE_anvil");
 
-/// A per-test isolated environment: a tempdir that doubles as `HOME` and
-/// `XDG_CONFIG_HOME`, so credentials land under `<home>/anvil/credentials.json`
-/// and nothing on the developer's machine is read or written.
+/// A per-test isolated environment: a tempdir that doubles as `HOME`,
+/// `XDG_CONFIG_HOME`, and `ANVIL_HOME`. The explicit `ANVIL_HOME` re-roots
+/// credentials to `<home>/anvil-home/user/credentials.json` (DISTRIB-006) on
+/// every platform — without it the Windows build writes under %APPDATA% and
+/// would escape the tempdir. Nothing on the developer's machine is read or
+/// written.
 struct TestEnv {
     home: tempfile::TempDir,
     workdir: tempfile::TempDir,
@@ -46,9 +49,13 @@ impl TestEnv {
         }
     }
 
-    /// Path the CLI writes credentials to under this env's `XDG_CONFIG_HOME`.
+    /// Path the CLI writes credentials to under this env's `ANVIL_HOME`.
     fn credentials_path(&self) -> std::path::PathBuf {
-        self.home.path().join("anvil").join("credentials.json")
+        self.home
+            .path()
+            .join("anvil-home")
+            .join("user")
+            .join("credentials.json")
     }
 
     /// Base `anvil` command pointed at the mock broker, fully isolated and
@@ -60,8 +67,11 @@ impl TestEnv {
             .current_dir(self.workdir.path())
             .env("HOME", self.home.path())
             .env("USERPROFILE", self.home.path())
-            // XDG path == HOME so credentials_dir() resolves under the tempdir.
+            // XDG path == HOME so config reads resolve under the tempdir.
             .env("XDG_CONFIG_HOME", self.home.path())
+            // Re-root credentials deterministically on ALL platforms — the
+            // Windows fallback otherwise writes under %APPDATA%.
+            .env("ANVIL_HOME", self.home.path().join("anvil-home"))
             // wiremock binds 127.0.0.1; api_url() allows http for localhost.
             .env("ANVIL_API_URL", api_base)
             .env("ANVIL_SKIP_WELCOME", "1")
@@ -69,7 +79,6 @@ impl TestEnv {
             .env("ANVIL_LOG", "off")
             // No dev bypass, no ambient licence — exercise the real flow.
             .env_remove("ANVIL_DEV")
-            .env_remove("ANVIL_HOME")
             .env_remove("ANVIL_LICENSE")
             .env_remove("RUST_LOG");
         cmd
@@ -226,6 +235,7 @@ async fn device_flow_e2e_slow_down_backs_off_then_confirms() {
     // off and keeps polling rather than bailing.
     Mock::given(method("POST"))
         .and(path("/api/v1/auth/github-device/poll"))
+        .and(body_json(serde_json::json!({"pollToken": "tok-slow"})))
         .respond_with(ResponseTemplate::new(429).set_body_json(serde_json::json!({
             "error": "slow_down",
             "retryAfter": 1
@@ -236,6 +246,7 @@ async fn device_flow_e2e_slow_down_backs_off_then_confirms() {
         .await;
     Mock::given(method("POST"))
         .and(path("/api/v1/auth/github-device/poll"))
+        .and(body_json(serde_json::json!({"pollToken": "tok-slow"})))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
             "status": "confirmed",
             "license": "lic-slow",
@@ -273,9 +284,11 @@ async fn device_flow_e2e_expired_fails_without_saving_credentials() {
     mount_device_start(&server, "tok-expired").await;
     Mock::given(method("POST"))
         .and(path("/api/v1/auth/github-device/poll"))
+        .and(body_json(serde_json::json!({"pollToken": "tok-expired"})))
         .respond_with(
             ResponseTemplate::new(200).set_body_json(serde_json::json!({"status": "expired"})),
         )
+        .expect(1)
         .mount(&server)
         .await;
 
@@ -310,9 +323,11 @@ async fn device_flow_e2e_declined_fails_without_saving_credentials() {
     mount_device_start(&server, "tok-declined").await;
     Mock::given(method("POST"))
         .and(path("/api/v1/auth/github-device/poll"))
+        .and(body_json(serde_json::json!({"pollToken": "tok-declined"})))
         .respond_with(
             ResponseTemplate::new(200).set_body_json(serde_json::json!({"status": "declined"})),
         )
+        .expect(1)
         .mount(&server)
         .await;
 
