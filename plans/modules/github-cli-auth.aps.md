@@ -5,17 +5,18 @@
 
 | ID        | Owner  | Status      | Progress |
 | --------- | ------ | ----------- | -------- |
-| GHCLIAUTH | @aneki | In Progress | 5/11     |
+| GHCLIAUTH | @aneki | In Progress | 6/11     |
 
-**Last reviewed:** 2026-06-11 (GHCLIAUTH-005 Merged via PR #2543: the
-`/github-device/poll` broker is live — exchange, gate parity, exactly-once
-mint re-returnable within TTL (UPDATE-where-unminted; module text corrected
-from the spec's literal `DELETE … RETURNING`), cross-instance claim gate, and
-timeouts added to the shared `fetchGitHubUser`. The server side of the device
-flow is complete. GHCLIAUTH-006 (the CLI rewrite, last MVP item) is flipped
-Ready — its dep 005 is on main and the endpoint contract is fixed. Note for
-006: the spec'd `mintLicenceForGitHubUser` helper exists as the
-`mintSession` + `linkOrCreateGitHubUser` pair.)
+**Last reviewed:** 2026-06-11 (GHCLIAUTH-006 Merged via PR #2545, with the
+`/health` degraded gate on missing CLI credentials landing via PR #2546 —
+**the MVP slice is complete**: headless `anvil auth login` drives the
+brokered GitHub device flow end-to-end (no email prompt, interval +
+`slow_down` back-off instead of the fatal 429 bail, clear terminal states).
+Users get the new login with the **next CLI tag** (the Rust slice gates on
+tags, per Release wave); the old `/auth/device/*` endpoints stay live for
+shipped CLIs until GHCLIAUTH-008, which is sequenced after that tag ships.
+Remaining: the correctness/cleanup slice 007–011, all Proposed —
+007 (tombstone + admin-invite rebuild) is next by dependency order.)
 
 ## Purpose
 
@@ -290,7 +291,7 @@ Change status to **Ready** when:
 
 ### GHCLIAUTH-006: CLI default login on the new endpoints + back-off
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-11 via PR #2545 (+ PR #2546, `/health` gate)
 - **Intent:** Make the default `anvil auth login` drive the brokered device flow
   and survive GitHub's polling back-off instead of bailing.
 - **Expected Outcome:** The default `login_device_flow` calls the new
@@ -459,6 +460,6 @@ Change status to **Ready** when:
 
 | Slice | Items | Completion | Status |
 | ----- | ----- | ---------- | ------ |
-| MVP — headless login (001–006, gated on 002) | 6 | 5/6 done | In Progress |
+| MVP — headless login (001–006, gated on 002) | 6 | 6/6 done | Complete |
 | Correctness / cleanup / validation (007–011) | 5 | 0/5 done | Proposed |
-| **Total** | **11** | **5/11 done** | **In Progress** |
+| **Total** | **11** | **6/11 done** | **In Progress** |
