@@ -14,6 +14,7 @@ RELEASE.md
 SECURITY.md
 docs/README.md
 docs/animations.md
+examples/runner_shell.rs
 src/animation.rs
 src/compat.rs
 src/json_render/binding.rs
@@ -45,12 +46,14 @@ src/json_render/spec.rs
 src/keyboard/handler.rs
 src/keyboard/mod.rs
 src/lib.rs
+src/lifecycle.rs
 src/pretext/exclusion.rs
 src/pretext/layout.rs
 src/pretext/mod.rs
 src/pretext/prepare.rs
 src/pretext/segment.rs
 src/pretext/types.rs
+src/runner.rs
 src/shell.rs
 src/snapshots/eddacraft_tui__shell__tests__snapshot_shell_chrome.snap
 src/surface.rs
