@@ -9,8 +9,9 @@ use std::process::Command;
 
 const ANVIL_BIN: &str = env!("CARGO_BIN_EXE_anvil");
 
-/// Build an unauthenticated `anvil status` invocation: empty HOME/XDG so
-/// no credentials resolve, no dev bypass, no log-filter overrides.
+/// Build an unauthenticated `anvil status` invocation: empty HOME/XDG plus an
+/// isolated `ANVIL_HOME` so no credentials resolve on Windows either, no dev
+/// bypass, no log-filter overrides.
 fn unauthenticated_status(home: &std::path::Path, cwd: &std::path::Path) -> Command {
     let mut cmd = Command::new(ANVIL_BIN);
     cmd.arg("--no-tui")
@@ -20,6 +21,10 @@ fn unauthenticated_status(home: &std::path::Path, cwd: &std::path::Path) -> Comm
         .env("USERPROFILE", home)
         // Point XDG at an empty dir so no credentials resolve.
         .env("XDG_CONFIG_HOME", home.join("xdg"))
+        // Windows credentials use the platform config dir rather than XDG.
+        // ANVIL_HOME re-roots user state to this temp tree on every platform.
+        .env("ANVIL_HOME", home.join("anvil-home"))
+        .env_remove("ANVIL_TOUCH_PROJECT_STATE")
         .env_remove("ANVIL_DEV")
         .env_remove("ANVIL_LICENSE")
         .env_remove("ANVIL_LOG")
