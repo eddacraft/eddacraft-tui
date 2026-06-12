@@ -31,11 +31,17 @@ let inFlight: Promise<ResendKeyStatus> | null = null;
  */
 export async function verifyResendKey(): Promise<ResendKeyStatus> {
   if (cached) {
-    if (Date.now() - cached.at >= CACHE_TTL_MS && !inFlight) {
-      void refresh().catch(() => {});
+    if (Date.now() - cached.at >= CACHE_TTL_MS) {
+      // Background refresh shares the same in-flight slot as cold misses,
+      // so concurrent stale hits cannot stampede Resend either.
+      void startRefresh().catch(() => {});
     }
     return cached.status;
   }
+  return startRefresh();
+}
+
+function startRefresh(): Promise<ResendKeyStatus> {
   if (!inFlight) {
     inFlight = refresh().finally(() => {
       inFlight = null;

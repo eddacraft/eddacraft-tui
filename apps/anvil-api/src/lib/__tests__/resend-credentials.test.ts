@@ -100,6 +100,33 @@ describe('verifyResendKey (CIB-067)', () => {
     expect(spy).toHaveBeenCalledTimes(1);
   });
 
+  it('deduplicates concurrent STALE hits into one background refresh', async () => {
+    vi.useFakeTimers();
+    try {
+      mockFetchResponse(200, { data: [] });
+      expect(await verifyResendKey()).toBe('ok');
+      vi.advanceTimersByTime(6 * 60 * 1_000);
+      vi.restoreAllMocks();
+      let release!: (v: Response) => void;
+      const gate = new Promise<Response>((r) => {
+        release = r;
+      });
+      const spy = vi.spyOn(globalThis, 'fetch').mockReturnValue(gate as Promise<Response>);
+      // Three concurrent calls against an expired cache: all serve stale,
+      // and exactly one background refresh goes upstream.
+      expect(await Promise.all([verifyResendKey(), verifyResendKey(), verifyResendKey()])).toEqual([
+        'ok',
+        'ok',
+        'ok',
+      ]);
+      expect(spy).toHaveBeenCalledTimes(1);
+      release({ ok: true, status: 200, json: async () => ({ data: [] }) } as Response);
+      await vi.runAllTimersAsync();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('serves a stale cached status immediately while refreshing in the background', async () => {
     vi.useFakeTimers();
     try {
