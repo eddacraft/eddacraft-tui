@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::sync::{Mutex, OnceLock};
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Deserializer, Serialize};
@@ -393,6 +394,9 @@ impl ExceptionStore {
         body: impl FnOnce() -> Result<T, ExceptionError>,
     ) -> Result<T, ExceptionError> {
         use fs2::FileExt;
+        let _process_guard = exception_store_process_lock().lock().map_err(|_| {
+            ExceptionError::Io(std::io::Error::other("exception store lock poisoned"))
+        })?;
         let dir = workspace_root.join(EXCEPTIONS_FILE);
         let dir = dir.parent().expect("EXCEPTIONS_FILE has a parent");
         std::fs::create_dir_all(dir)?;
@@ -441,6 +445,11 @@ impl ExceptionStore {
     pub fn remove_by_policy(&mut self, policy_id: &str) {
         self.exceptions.retain(|e| e.policy_id != policy_id);
     }
+}
+
+fn exception_store_process_lock() -> &'static Mutex<()> {
+    static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+    LOCK.get_or_init(|| Mutex::new(()))
 }
 
 impl PolicyException {
