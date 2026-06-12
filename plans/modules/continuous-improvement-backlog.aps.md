@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 44/66    |
+| CIB | —     | In Progress | 44/67    |
 
 ## Purpose
 
@@ -1762,3 +1762,42 @@ archive.
   (the E2E that needs a follow-up contract leg), DOCSAUTH (existing
   `LICENSE_PUBLIC_KEY` consumers).
 - **Confidence:** high — bounded route change with end-to-end-keyed tests.
+
+---
+
+### CIB-067: production email failures are silent — Resend key probe on /health
+
+- **Status:** In Progress
+- **Intent:** a revoked Resend API key produced a ~15-day production email
+  outage (no invites, no OTP codes, no waitlist confirmations) that no
+  surface reported — email senders are best-effort by design and
+  `/auth/otp/request` reports success regardless for anti-enumeration.
+  Discovered 2026-06-12 by the pre-signup invite/OTP smoke: the CLI said
+  "code sent", Resend's dashboard showed nothing sent in 15 days, and the
+  Key Vault key answered 401 `validation_error` to a direct send.
+- **Expected Outcome:** the GHCLIAUTH-002 credential-probe pattern extends
+  to email: `verifyResendKey()` validates the key with a cheap
+  authenticated read (`GET /domains`, 5s timeout, result cached 5 minutes
+  so health polling cannot hammer Resend), distinguishing `ok`
+  (including sending-only keys, whose distinct `restricted_api_key`
+  rejection proves the key is alive), `invalid` (dead key), `unconfigured`
+  (missing env), and `unverifiable` (Resend/network failure). Boot logs a
+  non-ok status; `/health` carries a `resendKey` field and gates
+  `degraded` (503) on `invalid`/`unconfigured` only — `unverifiable` is
+  reported without gating since it is not our misconfiguration.
+- **Files:** `apps/anvil-api/src/lib/resend-credentials.ts` (new),
+  `apps/anvil-api/src/lib/__tests__/resend-credentials.test.ts` (new),
+  `apps/anvil-api/src/index.ts`,
+  `apps/anvil-api/src/__tests__/health.test.ts`
+- **Validation:** `pnpm nx test @eddacraft/anvil-api` — probe tests cover
+  accepted/restricted/dead keys, Resend 5xx, network failure,
+  missing-env (no network touch, not cached), and cache behaviour; health
+  tests cover the three gating outcomes. After the key replacement
+  deploys: `curl https://api.eddacraft.ai/api/v1/health` shows
+  `resendKey: "ok"` and the invite + OTP smokes deliver real email.
+- **Identified From:** invite/OTP production smoke, 2026-06-12 (operator
+  report: "resend has sent no emails in the past 15 days").
+- **Coordinates with:** CIB-066 (same pre-signup sweep), GHCLIAUTH-002
+  (the probe pattern), EMAIL (the sender surfaces).
+- **Confidence:** high — mirrors an established pattern with real-key
+  failure modes captured in tests.

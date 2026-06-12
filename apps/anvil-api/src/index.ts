@@ -15,6 +15,7 @@ import { traceContext } from './middleware/trace-context.js';
 import { getClient } from './db/client.js';
 import { verifySigningKey, verifyVerifyingKey } from './lib/licence.js';
 import { verifyGitHubCliCredentials } from './lib/github-cli-credentials.js';
+import { verifyResendKey } from './lib/resend-credentials.js';
 
 // Cold-start probe: validate both the signing-key PEM (for /device/poll and
 // the OTP / GitHub / session paths) and the verifying-key PEM (for
@@ -44,6 +45,15 @@ verifyVerifyingKey().then((result) => {
     console.error('[boot] github cli credentials unavailable:', result.error);
   }
 }
+// CIB-067: surface a dead/missing Resend key at boot. Email senders are
+// best-effort by design (and OTP request hides failures for
+// anti-enumeration), so without this probe a revoked key is a silent
+// production email outage — it cost 15 days once.
+verifyResendKey().then((status) => {
+  if (status !== 'ok') {
+    console.error('[boot] resend api key not healthy:', status);
+  }
+});
 
 const app = new Hono().basePath('/api/v1');
 
@@ -90,7 +100,7 @@ app.use('*', traceContext);
 app.use('*', rateLimiter());
 
 app.get('/health', async (c) => {
-  const [dbResult, signingKeyResult, verifyingKeyResult] = await Promise.all([
+  const [dbResult, signingKeyResult, verifyingKeyResult, resendKey] = await Promise.all([
     (async () => {
       try {
         const sql = getClient();
@@ -102,6 +112,7 @@ app.get('/health', async (c) => {
     })(),
     verifySigningKey(),
     verifyVerifyingKey(),
+    verifyResendKey(),
   ]);
 
   // GHCLIAUTH-006: the device-flow login is the CLI default, so missing CLI
@@ -110,13 +121,27 @@ app.get('/health', async (c) => {
   // under GHCLIAUTH-002, before the flow was live.)
   const githubCliCreds = verifyGitHubCliCredentials().ok ? 'ok' : 'unavailable';
 
-  if (dbResult.ok && signingKeyResult.ok && verifyingKeyResult.ok && githubCliCreds === 'ok') {
+  // CIB-067: a dead ('invalid') or missing ('unconfigured') Resend key means
+  // invites, OTP codes, and waitlist confirmations are silently failing —
+  // user-impacting, so it gates degraded. 'unverifiable' (Resend outage or
+  // network failure on the probe) is reported without gating: our service is
+  // not misconfigured and may recover without operator action.
+  const resendGatePass = resendKey === 'ok' || resendKey === 'unverifiable';
+
+  if (
+    dbResult.ok &&
+    signingKeyResult.ok &&
+    verifyingKeyResult.ok &&
+    githubCliCreds === 'ok' &&
+    resendGatePass
+  ) {
     return c.json({
       status: 'ok',
       db: 'ok',
       signingKey: 'ok',
       verifyingKey: 'ok',
       githubCliCreds,
+      resendKey,
     });
   }
 
@@ -127,6 +152,7 @@ app.get('/health', async (c) => {
       signingKey: signingKeyResult.ok ? 'ok' : 'unavailable',
       verifyingKey: verifyingKeyResult.ok ? 'ok' : 'unavailable',
       githubCliCreds,
+      resendKey,
     },
     503
   );
