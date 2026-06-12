@@ -248,7 +248,49 @@ export async function sendBetaInvite(email: string): Promise<EmailDeliveryResult
       to: email,
       subject: "You're in — the anvil beta",
       react: BetaInvite({ email, unsubscribeMailto }),
-      text: `You're in — the anvil beta\n\nYour email ${email} has been approved for the anvil beta.\n\nFirst, install anvil (macOS / Linux):\n$ curl -fsSL https://install.eddacraft.ai | sh\n\nOn Windows:\nirm https://install.eddacraft.ai/windows | iex\n\nThen sign in from your terminal:\n$ anvil auth login\n\nYou'll be shown a short code and a github.com link — open it on any device and approve to finish signing in with GitHub.\n\nNo GitHub account? Use a one-time email code instead:\n$ anvil auth login --otp\n\nThe one-time code is sent to this email address.\n\n—\nanvil :: eddacraft.ai`,
+      text: `You're in — the anvil beta
+
+$ anvil :: beta invite
+
+[ OK ] Your beta access is ready
+
+Your email ${email} has been granted access to the anvil beta.
+
+Start here
+
+Before installing, we recommend reviewing the beta guide:
+https://docs.eddacraft.ai/anvil/beta-testing-guide
+
+Installation options for macOS, Linux, and Windows are available at:
+https://install.eddacraft.ai
+
+Quick install
+
+macOS / Linux:
+curl -fsSL https://install.eddacraft.ai | sh
+
+Windows:
+irm https://install.eddacraft.ai/windows | iex
+
+Sign in
+
+Once installed:
+anvil auth login
+
+You'll be shown a short code and a GitHub verification link. Open the link on any device and approve access to complete sign-in.
+
+No GitHub account?
+anvil auth login --otp
+
+A one-time verification code will be sent to this email address.
+
+Documentation
+
+Full documentation is available at:
+https://docs.eddacraft.ai
+
+—
+anvil :: eddacraft.ai`,
       tags: [{ name: 'category', value: 'beta-invite' }],
     });
 

@@ -29,35 +29,61 @@ export function BetaInvite({
           <Hr style={divider} />
 
           <Section style={content}>
-            <Text style={okBadge}>[ OK ] Beta access approved</Text>
+            <Text style={okBadge}>[ OK ] Your beta access is ready</Text>
             <Text style={bodyText}>
-              Your email <strong style={emailHighlight}>{email}</strong> has been approved for the
-              anvil beta.
+              Your email <strong style={emailHighlight}>{email}</strong> has been granted access to
+              the anvil beta.
             </Text>
 
-            <Text style={sectionLabel}>First, install anvil (macOS / Linux):</Text>
+            <Text style={sectionHeading}>Start here</Text>
+            <Text style={bodyText}>
+              Before installing, we recommend reviewing the{' '}
+              <Link href="https://docs.eddacraft.ai/anvil/beta-testing-guide" style={inlineLink}>
+                beta guide
+              </Link>
+              . Installation options for macOS, Linux, and Windows are available at{' '}
+              <Link href="https://install.eddacraft.ai" style={inlineLink}>
+                install.eddacraft.ai
+              </Link>
+              .
+            </Text>
+
+            <Text style={sectionHeading}>Quick install</Text>
+            <Text style={sectionLabel}>macOS / Linux</Text>
             <Section style={codeBlock}>
-              <Text style={codeText}>$ curl -fsSL https://install.eddacraft.ai | sh</Text>
+              <Text style={codeText}>curl -fsSL https://install.eddacraft.ai | sh</Text>
+            </Section>
+            <Text style={sectionLabel}>Windows</Text>
+            <Section style={codeBlock}>
+              <Text style={codeText}>irm https://install.eddacraft.ai/windows | iex</Text>
+            </Section>
+
+            <Text style={sectionHeading}>Sign in</Text>
+            <Text style={sectionLabel}>Once installed:</Text>
+            <Section style={codeBlock}>
+              <Text style={codeText}>anvil auth login</Text>
             </Section>
             <Text style={muted}>
-              On Windows:{' '}
-              <span style={codeInline}>irm https://install.eddacraft.ai/windows | iex</span>
+              You&apos;ll be shown a short code and a GitHub verification link. Open the link on any
+              device and approve access to complete sign-in.
             </Text>
 
-            <Text style={sectionLabel}>Then sign in from your terminal:</Text>
+            <Text style={sectionHeading}>No GitHub account?</Text>
             <Section style={codeBlock}>
-              <Text style={codeText}>$ anvil auth login</Text>
+              <Text style={codeText}>anvil auth login --otp</Text>
             </Section>
             <Text style={muted}>
-              You&apos;ll be shown a short code and a github.com link &mdash; open it on any device
-              and approve to finish signing in with GitHub.
+              A one-time verification code will be sent to this email address.
             </Text>
 
-            <Text style={sectionLabel}>No GitHub account? Use a one-time email code instead:</Text>
-            <Section style={codeBlock}>
-              <Text style={codeText}>$ anvil auth login --otp</Text>
-            </Section>
-            <Text style={muted}>The one-time code is sent to this email address.</Text>
+            <Text style={sectionHeading}>Documentation</Text>
+            <Text style={bodyText}>
+              Full documentation is available at{' '}
+              <Link href="https://docs.eddacraft.ai" style={inlineLink}>
+                docs.eddacraft.ai
+              </Link>
+              .
+            </Text>
           </Section>
 
           <Hr style={divider} />
@@ -142,6 +168,18 @@ const emailHighlight: React.CSSProperties = {
   color: '#f5f5f5',
 };
 
+const sectionHeading: React.CSSProperties = {
+  margin: '8px 0 8px',
+  fontSize: '15px',
+  fontWeight: 'bold',
+  color: '#EBEBEB',
+};
+
+const inlineLink: React.CSSProperties = {
+  color: '#CC5500',
+  textDecoration: 'underline',
+};
+
 const sectionLabel: React.CSSProperties = {
   margin: '0 0 8px',
   fontSize: '14px',
@@ -161,11 +199,6 @@ const codeText: React.CSSProperties = {
   fontSize: '15px',
   color: '#EBEBEB',
   fontFamily: fontMono,
-};
-
-const codeInline: React.CSSProperties = {
-  fontFamily: fontMono,
-  color: '#EBEBEB',
 };
 
 const muted: React.CSSProperties = {

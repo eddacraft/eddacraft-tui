@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 44/68    |
+| CIB | —     | In Progress | 44/69    |
 
 ## Purpose
 
@@ -1829,3 +1829,30 @@ archive.
 - **Coordinates with:** CIB-067 (the smoke that produced the emails),
   GHCLIAUTH-007 (the invite rewrite this amends).
 - **Confidence:** high — copy and style only.
+
+---
+
+### CIB-069: invite email copy v2 — operator-supplied structure
+
+- **Status:** In Progress
+- **Intent:** the operator reviewed the live CIB-068 invite and supplied a
+  restructured body (2026-06-12): lead with the beta guide and an install
+  options page, then quick-install commands per platform, then sign-in,
+  then a documentation pointer.
+- **Expected Outcome:** the BetaInvite template and plain-text body carry
+  the operator's structure verbatim, with the beta-guide link corrected to
+  the live path `https://docs.eddacraft.ai/anvil/beta-testing-guide`
+  (the draft's `/beta-testing-guide` 404s; the `/anvil/` path serves the
+  docs auth wall a freshly-invited user can pass); section headings,
+  inline links, and per-platform code blocks render in the existing
+  template idiom; the render test asserts both install commands and all
+  three links.
+- **Files:** `packages/transactional/emails/beta-invite.tsx`,
+  `packages/transactional/emails/__tests__/render.test.tsx`,
+  `apps/anvil-api/src/lib/email.ts`
+- **Validation:** `pnpm nx test @eddacraft/transactional` +
+  `pnpm nx test @eddacraft/anvil-api`; a real invite send shows the new
+  structure.
+- **Identified From:** operator copy review, 2026-06-12.
+- **Coordinates with:** CIB-068 (the copy iteration this supersedes).
+- **Confidence:** high — operator-specified copy.
