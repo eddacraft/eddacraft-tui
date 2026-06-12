@@ -2,12 +2,15 @@
 
 | ID | Owner | Status |
 |----|-------|--------|
-| GITGOV | @josh | In Progress |
+| GITGOV | @josh | Complete |
 
 **Last reviewed:** 2026-06-10 (GITGOV-013 Merged via PR #2487 — ADR-078
 retention decision Accepted via council + `anvil capsule prune` shipped. With
 GITGOV-014 (#2479) this closes the module's open frontier: GITGOV-001..014
-are all terminal. Module stays In Progress pending release evidence.)
+are all terminal. Module stayed In Progress pending release evidence —
+resolved 2026-06-12, see note below.)
+
+2026-06-12: capsule wedge confirmed in the v0.8.0-beta tag (record: plans/releases/v0.8.0-beta.md); Merged items advanced to Released/Shipped; module Complete — archive per the archive cascade.
 
 > **Decision gate cleared (2026-06-08).** [ADR-072](../decisions/072-git-native-governance-substrate.md)
 > (Git substrate) and [ADR-074](../decisions/074-review-capsule-v0-format.md)
@@ -73,7 +76,7 @@ release seals (RELEASE-SEAL); supplier bundles (SUPPLIER). Sealed Edda context
 - **Expected Outcome:** Versioned, round-trippable manifest types in `anvil-capsule`.
 - **Validation:** `cargo test -p eddacraft-anvil-capsule`
 - **Dependencies:** GITGOV-001
-- **Status:** Merged 2026-06-08 via PR #2353
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-08 via PR #2353
 
 ### GITGOV-004: Capsule create command
 - **Intent:** `anvil capsule create --range <base>..<head> --out <dir>` writes the capsule directory.
@@ -82,7 +85,7 @@ release seals (RELEASE-SEAL); supplier bundles (SUPPLIER). Sealed Edda context
   package is `eddacraft-anvil`; earlier text named a nonexistent
   `eddacraft-anvil-cli`)
 - **Dependencies:** GITGOV-003, GITGOV-005, GITGOV-006
-- **Status:** Merged 2026-06-08 via PR #2385. Also closed the GITGOV-006 review
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-08 via PR #2385. Also closed the GITGOV-006 review
   follow-up: `anvil_rules::OPA_RUNTIME_VERSION` is the shared constant (hook
   aliases it) and the CLI fills `ToolIdentity`/`Producer` from a single
   binding. Witness/diagnostics capsule entries are structural placeholders
@@ -93,49 +96,49 @@ release seals (RELEASE-SEAL); supplier bundles (SUPPLIER). Sealed Edda context
 - **Expected Outcome:** `commits.json` reflects the range deterministically.
 - **Validation:** `cargo test -p eddacraft-anvil-capsule -- collect_commits`
 - **Dependencies:** GITGOV-003
-- **Status:** Merged 2026-06-08 via PR #2378 (parallel PR #2377 closed as superseded)
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-08 via PR #2378 (parallel PR #2377 closed as superseded)
 
 ### GITGOV-006: Policy/baseline/rules digest collector
 - **Intent:** Capture effective policy digest, `rules_sha` (via `anvil_rules::rules_sha`), and baseline cutoff/digest (from `anvil/baseline.json`).
 - **Expected Outcome:** `policy.json`/`rules.json`/`baseline.json` match the witnessed identity by construction.
 - **Validation:** `cargo test -p eddacraft-anvil-capsule -- collect_digests`
 - **Dependencies:** GITGOV-003
-- **Status:** Merged 2026-06-08 via PR #2379
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-08 via PR #2379
 
 ### GITGOV-007: Witness collector
 - **Intent:** Collect the **complete witness chain** — every rollover archive segment plus the active file, in walk order — verbatim into `witness.ndjson`; the manifest's `witness_seq_start`/`witness_seq_end` mark the PR-relevant range (ADR-074: `verify_chain_dag` is genesis-anchored with a gap-free `seq` walk and cannot verify a mid-chain subset).
 - **Expected Outcome:** Capsule witness verification reuses `verify_chain_dag` with no re-modelled extract and no partial-chain special-casing.
 - **Validation:** `cargo test -p eddacraft-anvil-capsule -- collect_witness`
 - **Dependencies:** GITGOV-005
-- **Status:** Merged 2026-06-08 via PR #2390
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-08 via PR #2390
 
 ### GITGOV-008: Diagnostics collector
 - **Intent:** Include a SARIF 2.1.0 diagnostics summary via the ADR-058 shared emitter.
 - **Expected Outcome:** `diagnostics.sarif` present (empty when none), no unified finding model introduced.
 - **Validation:** `cargo test -p eddacraft-anvil-capsule -- collect_diagnostics`
 - **Dependencies:** GITGOV-004
-- **Status:** Merged 2026-06-08 via PR #2405
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-08 via PR #2405
 
 ### GITGOV-009: Verification engine
 - **Intent:** Verify manifest digests, witness chain, digests, and applied exception scope/expiry; emit `pass`/`warn`/`degraded`/`block`/`error` with the ADR-074 exit-code contract (`0` pass/warn, `1` block, `2` degraded, `3` error). v0 contract per ADR-074: verification requires the repository present; metadata-only detached verification is deferred to `v1`.
 - **Expected Outcome:** `anvil capsule verify` returns honest verdicts; missing evidence is `degraded`, never `pass`.
 - **Validation:** `cargo test -p eddacraft-anvil-capsule -- verify`
 - **Dependencies:** GITGOV-004, GITGOV-007, EXCEPT-005 (exception scope/expiry logic; capsule *collection* of exceptions is EXCEPT-009, which depends back on this engine — kept acyclic)
-- **Status:** Merged 2026-06-08 via PR #2420
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-08 via PR #2420
 
 ### GITGOV-010: Capsule explain UX
 - **Intent:** Human-readable `anvil capsule explain` (range, commits, policy/rules/baseline, witness coverage, diagnostics counts, exceptions, verdict).
 - **Expected Outcome:** Golden-output tests for pass/warn/degraded/block.
 - **Validation:** `cargo test -p eddacraft-anvil capsule_explain`
 - **Dependencies:** GITGOV-009
-- **Status:** Merged 2026-06-08 via PR #2427
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-08 via PR #2427
 
 ### GITGOV-011: JSON output
 - **Intent:** `--json` on `verify` and `explain` (the inspect surface, GITGOV-010) for CI consumption.
 - **Expected Outcome:** Stable machine-readable verdict (`verify --json` emits the `anvil.capsule-verification.v1` document, exit codes preserved) + manifest summary (`explain --json` emits an `anvil.capsule-explain.v1` summary).
 - **Validation:** `cargo test -p eddacraft-anvil capsule_json`
 - **Dependencies:** GITGOV-009
-- **Status:** Merged 2026-06-09 via PR #2460
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-09 via PR #2460
 
 ### GITGOV-012: Tamper tests
 - **Intent:** Prove digest-mismatch and witness-break detection, missing-evidence → `degraded`, and the ADR-072 §3 scan-on-write line: a planted secret in any evidence file fails capsule creation.
@@ -143,18 +146,18 @@ release seals (RELEASE-SEAL); supplier bundles (SUPPLIER). Sealed Edda context
 - **Validation:** `cargo test -p eddacraft-anvil-capsule -- tamper`
 - **Dependencies:** GITGOV-009
 - **Note (scan-on-write coverage):** v0 scans the ten tracked evidence files with entropy **off** (digest-dense evidence would false-positive), so free-text coverage is limited to prefix-anchored secret shapes. The free-text fields ADR-072 §3 names — applied-exception `reason` strings (EXCEPT-009) and Edda prose (EDDA-SEAL) — are inert placeholders today (`exceptions.json` = `[]`, `edda-context.json` = `{}`); when those collectors land real prose they must scan with entropy enabled. `manifest.json` is not scanned directly (structurally non-free-text; `producer.anvil_version` is already covered via the README).
-- **Status:** Merged 2026-06-09 via PR #2465
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-09 via PR #2465
 
 ### GITGOV-013: Capsule retention + prune policy
 - **Intent:** Decide retention for in-repo staged capsules (`anvil/evidence/capsules/`) and ship a prune surface before `v1`; document that the v0 default is on-demand/external (`--out` outside the repo) with in-repo staging explicitly opt-in and unpruned.
 - **Expected Outcome:** Stated retention policy (ADR-074 amendment or sub-decision) plus `anvil capsule prune` or a documented manual path; indefinite accumulation is a stated choice, not an accident.
 - **Validation:** `pnpm adr:check`
 - **Dependencies:** GITGOV-004
-- **Status:** Merged 2026-06-10 via PR #2487
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-10 via PR #2487
 
 ### GITGOV-014: State-boundary enforcement (ADR-073)
 - **Intent:** Make the `anvil/` vs `.anvil/` boundary enforced, not asserted: (a) `anvil init`/`welcome` seed `.anvil/` wholesale into consumer `.gitignore` (today only `.anvil/cache/` + `.anvil/gates.json` — `crates/anvil-cli/src/commands/init.rs`); (b) a check warns when `.anvil/` paths are tracked or `anvil/` paths are ignored (`git check-ignore` sweep); (c) reconcile this repo's dogfood deviation — `anvil/witness/` + `anvil/kindling/` gitignored, and the bare `memory.json` ignore pattern would silently swallow a future `anvil/edda/memory.json` — by un-ignoring or recording the justification in ADR-072/073, and anchoring loose patterns (`/memory.json`).
 - **Expected Outcome:** Consumer repos cannot accidentally commit runtime state or ignore durable evidence; the dogfood repo stops falsifying the ADR-072 premise.
 - **Validation:** `cargo test -p eddacraft-anvil init_gitignore`
 - **Dependencies:** GITGOV-002
-- **Status:** Merged 2026-06-10 via PR #2479
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-10 via PR #2479

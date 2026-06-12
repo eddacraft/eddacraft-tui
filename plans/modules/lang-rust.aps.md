@@ -5,9 +5,11 @@
 
 | ID     | Owner   | Status | Done |
 | ------ | ------- | ------ | ---- |
-| RSTLAN | @aneki | In Progress | 8/8  |
+| RSTLAN | @aneki | Complete | 8/8  |
 
-**Last reviewed:** 2026-06-07 — RSTLAN-006 (drift baseline default-on for `.rs`) reconciled to Merged (PR #2324, 2026-06-04); all 8 work items now Merged (8/8). Module stays In Progress pending a release tag (all items merged; not yet Released/Shipped). Earlier (2026-06-05): RSTLAN-003 (AST anti-pattern catalogue, ADR-071), RSTLAN-007 (`architecture-validate` surface for Rust), and RSTLAN-008 (T3 dogfood) Merged via PR #2329 — Rust passes the T3 checklist and the §16.5 #9 FP bar on Anvil's own crates (571 files, 0 panics, 0 parse-skips, 0% FP). `.clone()`-in-hot-loop and serde flatten/secret-field shapes deferred to a follow-on (RSTLAN-003b). Earlier (2026-06-03): NBI re-eval completed; ADR-065 Accepted; anchor re-scoring snapshot recorded; module promoted to Ready.
+2026-06-12: all eight Merged items confirmed in the v0.8.0-beta tag (record: plans/releases/v0.8.0-beta.md) and advanced to Released/Shipped; module Complete — archive per the archive cascade.
+
+**Last reviewed:** 2026-06-07 — RSTLAN-006 (drift baseline default-on for `.rs`) reconciled to Merged (PR #2324, 2026-06-04); all 8 work items now Merged (8/8). Module stayed In Progress pending a release tag (resolved 2026-06-12 — see note above). Earlier (2026-06-05): RSTLAN-003 (AST anti-pattern catalogue, ADR-071), RSTLAN-007 (`architecture-validate` surface for Rust), and RSTLAN-008 (T3 dogfood) Merged via PR #2329 — Rust passes the T3 checklist and the §16.5 #9 FP bar on Anvil's own crates (571 files, 0 panics, 0 parse-skips, 0% FP). `.clone()`-in-hot-loop and serde flatten/secret-field shapes deferred to a follow-on (RSTLAN-003b). Earlier (2026-06-03): NBI re-eval completed; ADR-065 Accepted; anchor re-scoring snapshot recorded; module promoted to Ready.
 
 > **Priority update (2026-05-14, reaffirmed 2026-06-03):** RSTLAN is the first Language &
 > Coverage Track 1 anchor after TS because Anvil's primary implementation surface (kernel, daemon, intercept, witness, CLI, graph) is Rust. Self-governance of the shipped substrate is a credibility requirement before wider pack expansion. The module is now Ready; implementation authorised.
@@ -108,7 +110,7 @@ All items are Ready (module promoted 2026-06-03 after NBI re-eval, ADR-065, re-s
 
 ### RSTLAN-001: Wire tree-sitter-rust grammar and Language variant — Merged
 
-- **Status:** Merged 2026-06-04 via PR #2303
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-04 via PR #2303
 - **Intent:** Add `tree-sitter-rust` support to the kernel parser so `.rs` files are recognised and produce a tree-sitter AST under the unified `LanguageExtractor` contract (K1 from LANGTS-005).
 - **Expected Outcome:** `Language` enum gains `Rust` variant; `from_path` returns it for `.rs`; `ts_language()` binds the grammar; `grammar_version()` produces a stable discriminator; `cargo test -p eddacraft-anvil-kernel -- parser::languages` and new Rust-specific tests pass; Cargo.toml pins the grammar crate.
 - **Scope:** `crates/anvil-kernel/Cargo.toml` (add tree-sitter-rust dep), `crates/anvil-kernel/src/parser/languages.rs` (enum + match arms + tests), parser mod re-exports if needed.
@@ -120,7 +122,7 @@ All items are Ready (module promoted 2026-06-03 after NBI re-eval, ADR-065, re-s
 
 ### RSTLAN-002: Implement Rust symbol and import extraction (mod/use shapes) — Merged
 
-- **Status:** Merged 2026-06-04 via PR #2303
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-04 via PR #2303
 - **Intent:** Provide a `rust.rs` extractor (implementing `LanguageExtractor`) that walks the tree-sitter-rust AST and emits `SymbolNode`s + `ImportEdge`s for Rust module shapes so the symbol graph and downstream consumers (architecture, drift, checks) see Rust crates.
 - **Expected Outcome:** `FileSymbols` for `.rs` files contains module symbols, use/import edges (relative crate:: super:: self::, pub use, namespaced uses, #[path] re-exports resolved at least to the declaring file), extern crate; dispatch arm in `extract_symbols` routes Language::Rust to the new extractor; existing TS paths unaffected; round-trip tests on representative Rust idioms pass.
 - **Scope:** New `crates/anvil-kernel/src/parser/extract/rust.rs` (or query-driven), update `extract/mod.rs` dispatch + Language match, `FileSymbols`/`ImportEdge` if Rust needs additive fields (keep minimal), tests/fixtures under parser/extract or integration.
@@ -132,7 +134,7 @@ All items are Ready (module promoted 2026-06-03 after NBI re-eval, ADR-065, re-s
 
 ### RSTLAN-003: Rust T2 anti-pattern catalogue (unwrap, unsafe, serde, etc) — Merged
 
-- **Status:** Merged 2026-06-05 via PR #2329
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-05 via PR #2329
 - **Intent:** Add the language-level T2 anti-pattern rules from the design spec so Rust code triggers the same governance surface as TS `any` / `as any`.
 - **Expected Outcome:** New patterns under `patterns/` (or Rust family) for `unwrap()`/`expect()` (non-test), `unsafe` without safety comment, `todo!`/`unimplemented!` shipped, `panic!` in lib, `.clone()` in hot (flag), and Serde hygiene rules; rules appear in compiled registry; scanner detects them on `.rs` files; suppression via `// @anvil-ignore` works.
 - **Scope:** Pattern sources (new `rust-*.anvil` or equivalent), family registration, `crates/anvil-checks` scanner or registry loader updates if language dispatch needed, build.rs / snapshot tests.
@@ -165,7 +167,7 @@ All items are Ready (module promoted 2026-06-03 after NBI re-eval, ADR-065, re-s
 
 ### RSTLAN-004: Entry-point detection for Rust binaries and workspaces — Merged
 
-- **Status:** Merged 2026-06-04 via PR #2319
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-04 via PR #2319
 - **Delivery note:** `anvil_architecture::detect_rust_entry_points` shipped as the detection primitive (Cargo.toml `[[bin]]`/`[lib]`/`src/main.rs`/auto `src/bin/*.rs`/`[[example]]` across workspace members, `exclude`/`autobins`-aware, deterministic). Consumption into a created baseline awaits an architecture-baseline-creation CLI path (none exists yet — only test helpers build baselines); the primitive lands ahead of that consumer. Council-hardened (kernel + adversarial).
 - **Intent:** Ensure `anvil` knows the entry points of a Rust workspace (bins, lib roots, [[bin]] targets) so baseline + layer assignment + "what to protect" are correct for multi-crate Rust projects.
 - **Expected Outcome:** Entry-point detector (or kernel equivalent) surfaces `src/main.rs` `fn main`, `Cargo.toml` [[bin]]/[[example]], workspace member roots; these appear in architecture baselines and `anvil architecture` surfaces for mixed or pure-Rust repos.
@@ -178,7 +180,7 @@ All items are Ready (module promoted 2026-06-03 after NBI re-eval, ADR-065, re-s
 
 ### RSTLAN-005: Layer/boundary enforcement reaches Rust crates and modules (per ADR-065) — Merged
 
-- **Status:** Merged 2026-06-04 via PR #2321
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-04 via PR #2321
 - **Intent:** Make `anvil architecture validate`, `anvil gate`, baseline diff, and new-edge classification work for cross-crate Rust imports and Rust↔TS boundaries inside a mixed workspace, using the Rust-native path.
 - **Expected Outcome:** `collect_source_files` already includes .rs; `extract_import_edges` (gate) and architecture validator consume kernel-supplied Rust edges (from RSTLAN-002); Rust `use` / `mod` resolved to actual files for layer matching; violations emitted for new cross-layer Rust edges; baseline round-trips include .rs files; "new edges only" contract holds for Rust changes.
 - **Scope:** Updates to `crates/anvil-cli/src/commands/gate.rs` (remove JS/TS hard filter, use kernel for .rs or all when available), `crates/anvil-architecture` resolver extensions if ImportEdge shape insufficient for Rust, any TS analyser parity notes (legacy), integration tests, Anvil monorepo architecture.yaml if needed for dogfood.
@@ -190,7 +192,7 @@ All items are Ready (module promoted 2026-06-03 after NBI re-eval, ADR-065, re-s
 
 ### RSTLAN-006: Drift baseline default-on for `.rs` files — Merged
 
-- **Status:** Merged 2026-06-04 via PR #2324
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-04 via PR #2324
 - **Delivery note:** Two halves. **Architecture/edge drift** for `.rs` was already enabled by RSTLAN-005 (`collect_source_files` + gate `extract_import_edges` include `.rs`; `find_new_violations` diffs Rust edges). **Antipattern/debt drift**: `.rs` added to `AntipatternCheckConfig::default().extensions`, activating the already-`.rs`-scoped deferred-debt rules (DD-001/-002/-003 — un-ticketed TODO/FIXME/HACK/temporary) on Rust across `anvil check`/`gate`/drift **and** the DSV save-time daemon (operator-confirmed, warnings-only). JS/TS-specific rules stay extension-restricted; DSV-009 parity unaffected (corpus is `.ts`-only). Rust antipattern *catalogue* (unwrap/unsafe/serde) delivered by RSTLAN-003 (ADR-071, PR #2329).
 - **Intent:** Ensure that once a workspace has a baseline, `.rs` files participate in drift detection by default (no opt-in per-language flag).
 - **Expected Outcome:** `anvil drift` and baseline machinery include .rs files in the scanned set and edge set when the grammar+extractor are present; a pure-Rust or mixed workspace gets drift coverage for Rust without extra config.
@@ -203,7 +205,7 @@ All items are Ready (module promoted 2026-06-03 after NBI re-eval, ADR-065, re-s
 
 ### RSTLAN-007: `architecture-validate` surface includes Rust crates/modules — Merged
 
-- **Status:** Merged 2026-06-05 via PR #2329
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-05 via PR #2329
 - **Intent:** The `anvil architecture validate`, `anvil gate` (architecture mode), dashboard architecture views, and MCP query tools all report Rust layer assignments and boundary findings when Rust support is active.
 - **Expected Outcome:** Running the surfaces on Anvil's own source (or a test Rust workspace) produces layer assignments for .rs files and boundary violations where rules are breached; output (text/JSON/SARIF) contains Rust paths; no "Rust ignored" silent paths.
 - **Scope:** CLI command surfaces, TUI dashboard architecture widget, any MCP tools, docs examples; ensure they go through the Rust `anvil-architecture` path for .rs.
@@ -215,7 +217,7 @@ All items are Ready (module promoted 2026-06-03 after NBI re-eval, ADR-065, re-s
 
 ### RSTLAN-008: Dogfood T3 acceptance on Anvil's own kernel (validate + FP bar) — Merged
 
-- **Status:** Merged 2026-06-05 via PR #2329
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-05 via PR #2329
 - **Intent:** Run the full T3 bar (grammar, extraction, anti-patterns, suppression, entry, layer/boundary, drift baseline, `architecture-validate`) against Anvil's Rust crates as the primary acceptance evidence; demonstrate FP rate acceptable per council §16.5 #9 and at least the spirit of "≥1 external codebase".
 - **Expected Outcome:** Anvil monorepo baseline created + validated with Rust paths included; zero panics during parse/extract on the kernel; new Rust-originated boundary violations are either pre-existing (baselined) or intentionally introduced+suppressed with reason; FP classification matches the revised acceptance bar; evidence captured (baseline diff, run output, count of findings).
 - **Scope:** Running the tools on the live repo, capturing artefacts under plans/ or a review note, updating any self-architecture.yaml if gaps found, closing the item with explicit "passes T3 checklist + bar" statement.

@@ -22,6 +22,10 @@
 > integration items stay Proposed pending next-work authorisation. Brainstorm:
 > [`../brainstorms/git-native-governance/`](../brainstorms/git-native-governance/).
 
+2026-06-12: items confirmed in the v0.8.0-beta tag (record:
+plans/releases/v0.8.0-beta.md) advanced to Released/Shipped; enforcement
+integration remains future work.
+
 ## Purpose
 
 Make intentional policy deviations **scoped, expiring, attributed, reviewable,
@@ -100,7 +104,7 @@ Enforcement of unrelated policy classes; the inline `@anvil-ignore` path
 - **Expected Outcome:** The first CLI wiring inherits a safe store: no silent legacy promotion, no concurrent lost writes, no read-only blocking, no symlink escape.
 - **Validation:** `cargo test -p eddacraft-anvil-policy exceptions` (incl. new provenance/lock/read-only/symlink tests)
 - **Dependencies:** EXCEPT-001, EXCEPT-002
-- **Status:** Merged 2026-06-08 via PR #2366
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-08 via PR #2366
 
 ### EXCEPT-008: Operator write semantics + guidance
 - **Intent:** Document the operator contract for the tracked store: `anvil/exceptions/store.json` is committed like `anvil/baseline.json`; writes happen only via explicit grant/revoke (EXCEPT-004), so checks never dirty a worktree; evaluate `.gitattributes` (`merge=union`) for concurrent-branch grant conflicts; an upgrade note covers the legacy→tracked migration step.

@@ -6,6 +6,11 @@
 
 **Last reviewed:** 2026-06-09
 
+> 2026-06-12: the A′ slice (hot-read backing swap + seal + ADR-031 latency
+> gate) confirmed in the v0.8.0-beta tag (record:
+> plans/releases/v0.8.0-beta.md); Merged items advanced to Released/Shipped.
+> GCTX/registry/persistence remain deferred to v0.9 per ADR-075.
+
 > **A′ slice in the `v0.8.0-beta` window (2026-06-08, [ADR-075](../decisions/075-v080-graph-product-scope.md),
 > Accepted via council).** In-window = the **GV2-027 critical-path closure**:
 > GV2-010, 011, 012, 022, 024, 025, 028, 029, then the A→A′ swap (027).
@@ -197,7 +202,7 @@ Change status to **Ready** when:
 
 #### GV2-001: Graph v2 architecture spine spec and taxonomy
 
-- **Status:** Merged — spec shipped 2026-06-07 via PR #2350; **taxonomy ratified
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged — spec shipped 2026-06-07 via PR #2350; **taxonomy ratified
   2026-06-08** (council `plan-ec495f8b`, RATIFY-WITH-FIXES; conditions C-1..C-6
   folded, spec now `Live`).
 - **Intent:** State the joined-graph model once: the five graphs, cross-graph
@@ -217,7 +222,7 @@ Change status to **Ready** when:
 
 #### GV2-002: Stable graph identity + export-diff primitive
 
-- **Status:** Merged 2026-06-08 via PR #2387 — privacy-review gate cleared the
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-08 via PR #2387 — privacy-review gate cleared the
   same day ([verdict](../reviews/2026-06-08-gv2-privacy-review-verdict.md));
   full-pack council `council-f33ee5ef` converged pre-merge
 - **Intent:** Replace the position-conflated `symbol_baseline_key`
@@ -262,7 +267,7 @@ Change status to **Ready** when:
 
 #### GV2-003: Complete graph delta and event contract
 
-- **Status:** Merged 2026-06-08 via PR #2391 — full-pack council `council-be812df9`
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-08 via PR #2391 — full-pack council `council-be812df9`
   converged pre-merge; dependency GV2-002 Merged (PR #2387)
 - **Intent:** Make graph changes observable as complete, deterministic deltas.
   Today `GraphDelta.removed_edges` is permanently empty and a modify is modelled
@@ -300,7 +305,7 @@ Change status to **Ready** when:
 
 #### GV2-010: Semantic code graph v2 schema
 
-- **Status:** Merged 2026-06-08 via PR #2419 — shipped the `Reexports`
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-08 via PR #2419 — shipped the `Reexports`
   first-class edge + `ReexportEdge` carrier + extraction (TS/JS + Rust, A′-critical)
   and the GCTX-projection **schema type** (no-text `ByteRange`), with
   `schema_fixtures`. Council `council-66cb4833` (accept-with-changes applied:
@@ -332,7 +337,7 @@ Change status to **Ready** when:
 
 #### GV2-011: Dependency/impact graph and incremental hot indexes
 
-- **Status:** Merged 2026-06-08 via PR #2428 — incremental dependency-graph
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-08 via PR #2428 — incremental dependency-graph
   maintenance landed (the O(edges) `derive_dependency_graph` re-derive retired on
   the save-time hot path); the Criterion budget gate stays GV2-025.
 - **Intent:** Maintain the dependency/impact indexes incrementally so the daemon
@@ -387,7 +392,7 @@ Change status to **Ready** when:
 
 #### GV2-012: Trust and policy graph contract
 
-- **Status:** Merged 2026-06-08 via PR #2436
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-08 via PR #2436
 - **Intent:** Separate trust/policy semantics from the raw semantic graph while
   preserving deterministic joins back to code evidence.
 - **Expected Outcome:** Contract represents trust level, side-effect surfaces,
@@ -478,7 +483,7 @@ Change status to **Ready** when:
 
 #### GV2-021: ADR — graph persistence and snapshot strategy
 
-- **Status:** Merged 2026-06-04 via PR #2301
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-04 via PR #2301
 - **Intent:** Record the persistence decision for Graph v2, reconciling the
   current GCTX rkyv/SQLite assumptions with daemon, hot-read, privacy, and
   schema-version requirements.
@@ -502,7 +507,7 @@ Change status to **Ready** when:
 
 #### GV2-022: Hot-path read API and latency guardrails
 
-- **Status:** Merged 2026-06-08 via PR #2442 — `hot_index.rs` hot-read API
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-08 via PR #2442 — `hot_index.rs` hot-read API
   (the four ADR-063 allowlist reads behind `HotRead`/`HotReadMiss`, hard-capped
   cycle-terminating `reverse_impact`, miss-degrades-to-fallback; `HotReadMiss`
   kept graph-cache-local per ADR-064 §2). Council `council-0a9fac6d` converged
@@ -552,7 +557,7 @@ Change status to **Ready** when:
 
 #### GV2-024: Hot-read type split + hot-path debug assertion
 
-- **Status:** Merged 2026-06-09 via PR #2470 — depth-capped `certify`'s closure
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-09 via PR #2470 — depth-capped `certify`'s closure
   (ADR-077 path A) and sealed the hot-read surface: `BackgroundReadApi` denylist
   home, `HotPathSurface` sealed marker, `debug_assert` depth guard, two
   `compile_fail` proofs. [ADR-077](../decisions/077-cert-closure-depth-cap.md)
@@ -585,7 +590,7 @@ Change status to **Ready** when:
 
 #### GV2-025: Criterion hot-read benchmark + ADR-031 CI gate
 
-- **Status:** Merged 2026-06-09 via PR #2459
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-09 via PR #2459
 - **Intent:** Land the missing latency gate ADR-063 names — a `cargo bench`
   harness that fails CI when hot-read p95 exceeds the ADR-031 save-time budget.
   (Implemented as a `harness = false` bench with a hand-rolled percentile +
@@ -629,7 +634,7 @@ Change status to **Ready** when:
 
 #### GV2-027: A→A′ backing swap behind `validate_paths`, with verdict parity
 
-- **Status:** Merged 2026-06-08 via PR #2446 — `validate_paths` now certifies
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-08 via PR #2446 — `validate_paths` now certifies
   through the resident GV2 hot-read index (`HotReadApi::certify`, GV2-022) rather
   than the raw graph pair; `KernelGraphCache::backing_schema_version()` records
   `gv2-hotindex-v1` (surfaced via a startup `tracing` event); the
@@ -662,7 +667,7 @@ Change status to **Ready** when:
 
 #### GV2-028: Production parser feed for certified verdicts
 
-- **Status:** Merged 2026-06-08 via PR #2438 — the kernel-side parser feed
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-08 via PR #2438 — the kernel-side parser feed
   itself shipped under DSV-005 (PR #2282, ADR-067): `KernelSymbolParser`
   (`crates/anvil-cli/src/intercept_symbol_parser.rs`) is injected into the daemon
   via `ForegroundOpts::with_symbol_parser` on the `intercept start` path
@@ -697,7 +702,7 @@ Change status to **Ready** when:
 
 #### GV2-029: Wire privilege containment on the daemon certify path
 
-- **Status:** Merged 2026-06-08 via PR #2446 — `annotate_trust` now runs after
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-08 via PR #2446 — `annotate_trust` now runs after
   every `apply_delta` on the daemon path, so the `certify` privilege dimension
   is live (a `node:fs`-importing privilege-expanding change no longer
   false-certifies). Landed in the GV2-027 stack.

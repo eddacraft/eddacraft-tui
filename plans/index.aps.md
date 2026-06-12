@@ -3,23 +3,24 @@
 
 # Anvil — Save-time Trust
 
-> **Latest release tag: `v0.7.4-beta`** (shipped 2026-06-01) — Side-by-Side
-> Installs patch (`ANVIL_HOME` / `--anvil-home` install-root override, RLB-007
-> watch-CPU stopgap, Windows named-pipe hardening; record at
-> [`plans/releases/v0.7.4-beta.md`](./releases/v0.7.4-beta.md)) on top of
-> `v0.7.3-beta` (2026-05-31, "Surfacing the Signal" — native TUI dashboards,
-> SARIF export, new `anvil insights` views; record at
-> [`plans/releases/v0.7.3-beta.md`](./releases/v0.7.3-beta.md)). Those two
-> patches close the `v0.7.x` Boring Week window that shipped `v0.7.0-beta`
-> (2026-05-21, daemon-working product slate: MLP v1 18/18, `anvil-run`
-> launcher INTL 9/9, MLP2 integration surface) plus the `v0.7.1-beta` /
-> `v0.7.2-beta` honesty patches. The next active window is **`v0.8.0-beta`**
-> ("The Graph-Backed Save-Time Daemon" — the interim-cache slice is Merged;
-> [ADR-075](./decisions/075-v080-graph-product-scope.md) (Accepted via council)
-> scopes the window to the GV2 **A′ slice** + the A→A′ swap + default-on daemon
-> routing. The assistant graph product — GCTX + multi-graph registry — and
-> persistence are deferred to v0.9). See [`RELEASE-PLAN.md`](../RELEASE-PLAN.md)
-> for the cut detail and [`ROADMAP.md`](../ROADMAP.md) for thematic context.
+> **Latest release tag: `v0.8.1-beta`** (shipped 2026-06-11) — "Headless
+> GitHub Login" patch (brokered GitHub Device Authorisation Grant login,
+> GHCLIAUTH 11/11, ADR-066; record at
+> [`plans/releases/v0.8.1-beta.md`](./releases/v0.8.1-beta.md)) cut one tag
+> after **`v0.8.0-beta`** (2026-06-11, "The Save-Time Daemon" — daemon-served
+> delta validation default-on (DSV-021), the GV2 A→A′ hot-read backing swap
+> with the ADR-031 latency CI gate, Rust project analysis (RSTLAN), the live
+> gate-summary dashboard (TUIDASH), portable review capsules (GITGOV,
+> ADR-074), and the ungated `anvil welcome` path (ADR-080); record at
+> [`plans/releases/v0.8.0-beta.md`](./releases/v0.8.0-beta.md)), which missed
+> the final GHCLIAUTH merges by ~5 hours. Together they close the `v0.8.0`
+> window scoped by
+> [ADR-075](./decisions/075-v080-graph-product-scope.md) (Accepted via
+> council). The next window is not yet declared: ADR-075 defers the assistant
+> graph product — GCTX + multi-graph registry — and persistence (ADR-061
+> Sub-phase B warm-start) to v0.9. See
+> [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) for the cut detail and
+> [`ROADMAP.md`](../ROADMAP.md) for thematic context.
 
 ## Contents
 
@@ -105,51 +106,46 @@ Selection rules:
 
 | Rank | NBI | Mode | Source | Why now | Next action |
 | ---- | --- | ---- | ------ | ------- | ----------- |
-| 1 | `v0.8.0-beta` — user-journey gate, then the cut | Schedule | [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) + [ADR-075](./decisions/075-v080-graph-product-scope.md) + [user-journey](./modules/user-journey.aps.md) | The ADR-075 v0.8.0 implementation slice is **complete**: the GV2 A′ hot-path hardening (GV2-024 #2470 + GV2-025 #2459, on the #2442/#2446 swap wave) **and** default-on save-time daemon routing (**DSV-021 #2473**). Pre-tag honesty fixes landed 2026-06-10: CIB-054 (changelog daemon wording, #2493) + CIB-055 (release-plan reconcile, #2496). **Operator decision 2026-06-10: the user-journey module (UJ, 0/11) is required before the cut** — both beta golden paths (`anvil welcome`, `anvil start`) strong and self-guiding. | UJ is 15/15 (2026-06-10): all items dispositioned (UJ-012..015 via #2510/#2511/#2513/#2514); then audit the §8 base correctness bar (full `Cross` matrix incl. Windows green, `release-readiness.yml` on the source SHA, fresh `ACKNOWLEDGEMENTS`) and confirm the remaining ADR-075 rollout controls (named revert signal + staged beta→GA), then cut `v0.8.0-beta`. |
-| 2 | GITGOV module closeout — release evidence | Schedule | [`git-native-governance`](./modules/git-native-governance.aps.md) | **GITGOV-013 Merged 2026-06-10 via PR #2487** (ADR-078 capsule retention decision + `anvil capsule prune`), closing the module's open frontier — GITGOV-001..014 are all terminal. The capsule wedge (create/collect/verify/explain/prune) rides the next release window; the module advances past In Progress only on release evidence (tag inclusion). (EXCEPT-003 Done #2401; CIB-053 dispositioned via #2481.) | No execution work left in GITGOV; pick the next NBI from the broad Ready pool, and let the cleanup agent advance statuses on release evidence. |
+| 1 | Post-release closeout hygiene — archive cascades | Schedule | [`v0.8.0-beta` record](./releases/v0.8.0-beta.md) post-tag notes + [`aps-rules.md`](./aps-rules.md) archive rules | `v0.8.0-beta` and `v0.8.1-beta` both shipped 2026-06-11; statuses are reconciled onto the tag evidence (this pass), but the tag-complete modules — UJ, TUIDASH, RSTLAN, GITGOV, GHCLIAUTH (and the already-Complete INTR) — still live under `plans/modules/`. The v0.8.0 record's closeout note directs: advance + archive per the cascade, **own PRs**. | Run the archive cascade per module (git mv to `plans/archive/modules/`, repoint inbound links, regen indexes — one PR each); confirm the WinGet upstream submission ([microsoft/winget-pkgs#386426](https://github.com/microsoft/winget-pkgs/pull/386426)) merged on the next pass. |
+| 2 | v0.9 window shaping — ADR-075 deferrals | Schedule | [ADR-075](./decisions/075-v080-graph-product-scope.md) + [graph-v2-foundation](./modules/graph-v2-foundation.aps.md) + [graph-context-delivery](./modules/graph-context-delivery.aps.md) | The v0.8.0 window is closed; ADR-075 explicitly defers the assistant graph product (GCTX context delivery + egress-privacy review, multi-graph registry GV2-020, consumer query contract GV2-023, reverse-impact GV2-026, control/session GV2-013, plan/provenance GV2-014) and ADR-061 Sub-phase B persistence (GV2-030, ADR-069) to v0.9. None of it is execution-ready. | Declare the v0.9 window theme and scope (owner call), then promote the chosen GV2/GCTX items from Draft with a readiness pass. |
+| 3 | USAGE-001 — `command.invoked` Kindling observations | Ready | [usage-analytics](./modules/usage-analytics.aps.md) | Highest-value unblocked `Ready` item while the next window is shaped: founder-requested (2026-05-10) durable "who is using what" evidence for dev-investment decisions; promoted Ready 2026-05-30 with the OQ1 observation-kind decision folded in. The broad Ready pool (EDGE, DASH*, OPAG, EVAL, CPOL, IORISK, GATE, ATC, PATT, TRUST, ILGOV, LAC) remains behind it. | Pick up USAGE-001 through dev-workflow (branch, TDD, council, PR). |
 
-NBI review note (2026-06-10, sixth pass): the entire ADR-075 v0.8.0
-implementation slice is now **complete**. The GV2 A′ hot-path hardening landed —
-**GV2-024** (hot-read type split + seal + ADR-077 depth cap, #2470) and
-**GV2-025** (Criterion p95 / ADR-031 CI gate, #2459), on the #2442/#2446 wave
-(GV2-022/027/028/029) — and **DSV-021** (#2473) flipped `ANVIL_WATCH_DAEMON`
-default-on with the ADR-075 rollout controls (live-daemon presence guard, explicit
-opt-out/force). `validate_paths` certifies through the resident GV2 hot-read index
-with verdict parity, the hot path is sealed, the latency gate is green, and the
-save-time fix now reaches every user on a live daemon. The remaining v0.8.0 work
-is the **release cut** itself (rank 1): the §8 base correctness bar + confirming
-the named revert signal / staged beta→GA rollout controls.
-Governance frontier advanced — GITGOV-003..010 all Merged 2026-06-08 (capsule
-complete through PR #2427; -008 diagnostics via PR #2405), GITGOV-011 (#2460)
-and GITGOV-012 (#2465) Merged 2026-06-09, then GITGOV-014 Merged 2026-06-10
-via PR #2479 (ADR-073 state-boundary enforcement), and GITGOV-013 Merged
-2026-06-10 via PR #2487 (ADR-078 retention decision + `anvil capsule prune`);
-EXCEPT-003 Done (#2401). GITGOV-001..014 are all terminal — no open GITGOV
-execution work remains.
-The broad Ready pool (USAGE, EDGE, DASH*, OPAG, EVAL, CPOL, IORISK, GATE, ATC,
-PATT, TRUST, ILGOV, LAC) remains available but does not outrank the v0.8.0
-payload.
+NBI review note (2026-06-12, seventh pass): **`v0.8.0-beta` ("The Save-Time
+Daemon") and `v0.8.1-beta` ("Headless GitHub Login") were both cut and
+published 2026-06-11** — records at
+[`plans/releases/v0.8.0-beta.md`](./releases/v0.8.0-beta.md) and
+[`plans/releases/v0.8.1-beta.md`](./releases/v0.8.1-beta.md). This pass
+reconciled APS state onto that tag evidence: Merged items in DSV (A/A-W/A′
+arc), GV2 (A′ slice + earlier merged foundation items), UJ, RSTLAN, TUIDASH,
+GITGOV, RLB (-002..-005/-008), EXCEPT-007 and INSIGHTS-004 advanced to
+Released/Shipped via `v0.8.0-beta`; GHCLIAUTH (11/11) via `v0.8.1-beta`;
+TUIDASH, RSTLAN and GITGOV module statuses advanced to Complete. Remaining
+post-release hygiene is rank 1: the archive cascades (own PRs per the v0.8.0
+record's closeout note) plus the WinGet upstream confirmation. The v0.9
+window (rank 2) inherits the ADR-075 deferrals and needs an owner-declared
+theme before promotion. With no release payload in flight, the Ready pool is
+live again — USAGE-001 leads it (rank 3).
 
 ## Release Plan
 
 Releases are themed by what they deliver, not sequenced by version number.
 Individual packages still use semantic versioning for npm/cargo publishes.
 
-**Shipped release windows** — `v0.5.0-beta` (2026-05-01) through `v0.7.4-beta`
-(2026-06-01), including the daemon-working `v0.7.0-beta` slate (MLP / INTL /
-N1–N9 picks) and the `v0.6.x` operating-model windows — are fully shipped.
-Their per-window tables and slice records have moved to
-[`completed-index.aps.md`](./completed-index.aps.md#release-plan) to keep this
-index focused on current work. The active planning window is the **`v0.8.0-beta`**
-candidate — see the header above, [`RELEASE-PLAN.md`](../RELEASE-PLAN.md), and the
-active module tables below.
+**Shipped release windows** — `v0.5.0-beta` (2026-05-01) through
+`v0.8.1-beta` (2026-06-11) are fully shipped. Windows through `v0.7.4-beta`
+have their per-window tables and slice records in
+[`completed-index.aps.md`](./completed-index.aps.md#release-plan); the
+`v0.8.0-beta` / `v0.8.1-beta` records live under
+[`plans/releases/`](./releases/). The next planning window (**v0.9**
+candidate — the ADR-075 deferrals) is not yet declared — see the header
+above, [`RELEASE-PLAN.md`](../RELEASE-PLAN.md), and the NBI table.
 
-**Active work below leads with the current `v0.8.0-beta` window** — Graph
-Substrate (GV2 A′ slice, the now-landed v0.8.0 payload; the NBI rank-1 item is
-verifying the release-cut criteria), Hardening & Maintenance (the
-A→A′ daemon save-time swap, DSV), and Intercept Loop (MLP2 enforcement
-substrate) — then the rest of the active modules, then the
-[Dormant](#dormant-not-yet-scheduled) band.
+**Active work below still leads with the just-shipped `v0.8.0` window's
+module family** — Graph Substrate (GV2, now 13/20 with the A′ slice shipped
+and the v0.9 deferrals Draft), Hardening & Maintenance (DSV, Sub-phase B
+Blocked), and Intercept Loop (MLP2 enforcement substrate) — then the rest of
+the active modules, then the [Dormant](#dormant-not-yet-scheduled) band.
+Tag-complete modules below are pending the archive cascade (NBI rank 1).
 
 ### Graph Substrate
 
@@ -179,8 +175,8 @@ Codebase cleanup, .anvil file format, and BMAD v4 compatibility.
 | [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md)             | BMAD4  | Proposed    | 0/8                                                                                                                                                                                                                                                                                                                                                                                         |
 | [dev-environment-hardening](./modules/dev-environment-hardening.aps.md)         | DEVENV | In Progress | 6/8 (ADR-057 worktree/dev-env hardening; DEVENV-001..-006 Merged — debug line-tables, per-worktree CARGO_TARGET_DIR, target eviction, Node 24 standardise, wt.toml bootstrap; DEVENV-003 Blocked on upstream nxrust cache; -007 (wt/CI classifier parity) Merged 2026-06-10 via PR #2516; -008 (reproducible-base spike) Ready; per-item detail in the module file) |
 | [scan-performance](./archive/modules/scan-performance.aps.md)                   | SCAN   | Complete    | 6/6 (SCAN-001/-002/-003 landed as one slice — parallel-scan rollout, ReDoS line-length guard, first-run rayon pool cap; SCAN-004 Merged 2026-05-27 via PR #2021 — welcome `files_skipped_by_ignore` provenance; SCAN-005 Merged 2026-05-28 via PR #2034 — `WalkParallel` benchmark spike (4.5–6.3× walk speedup, ~10–17% end-to-end); SCAN-006 Merged 2026-05-28 via PR #2041 — parallelised the uncapped Phase 1a discovery walk; module all-merged, Released/Shipped in v0.7.3-beta (tag 8bfd48c4d, 2026-05-31) — Complete)                                                                                                                                                                                                         |
-| [resource-load-benchmarking](./modules/resource-load-benchmarking.aps.md)       | RLB    | In Progress | 7/8 (filed 2026-05-30 from the beta-tester high-CPU report, GH #2156. RLB-001 + RLB-007 Released/Shipped via v0.7.4-beta — PR #2184 at `72f2de98` confirmed in tag; the load-ramp harness + per-save `anvil check` scoped to the changed file (1 agent 6.55 → 0.08 cores). RLB-002/-003/-004/-005/-008 Merged 2026-06-02 via PR #2228 — process-tree sampler + per-process CPU/RSS budgets (watch churn, intercept daemon, MCP server) + concurrent aggregate + SLO docs/CI. RLB-006 (cross-platform) Proposed.)                                                                                                |
-| [daemon-save-time-validation](./modules/daemon-save-time-validation.aps.md)     | DSV    | In Progress | 18/19 (v0.8.0-beta daemon save-time arc; Sub-phase A 9/9 + A-W 2/2 Merged, deferred follow-ups Done, A′ 2/2 Done — GV2 backing swap reconciled from #2446 and DSV-021 #2473 flipped `ANVIL_WATCH_DAEMON` default-on with live-daemon guard + opt-out/force; Sub-phase B warm-start persistence remains Blocked; sub-phase + PR detail in the module file) |
+| [resource-load-benchmarking](./modules/resource-load-benchmarking.aps.md)       | RLB    | In Progress | 7/8 (filed 2026-05-30 from the beta-tester high-CPU report, GH #2156. RLB-001 + RLB-007 Released/Shipped via v0.7.4-beta — PR #2184 at `72f2de98` confirmed in tag; the load-ramp harness + per-save `anvil check` scoped to the changed file (1 agent 6.55 → 0.08 cores). RLB-002/-003/-004/-005/-008 Released/Shipped via v0.8.0-beta (Merged 2026-06-02 via PR #2228) — process-tree sampler + per-process CPU/RSS budgets (watch churn, intercept daemon, MCP server) + concurrent aggregate + SLO docs/CI. RLB-006 (cross-platform) Proposed.)                                                                                                |
+| [daemon-save-time-validation](./modules/daemon-save-time-validation.aps.md)     | DSV    | In Progress | 18/19 (daemon save-time arc Released/Shipped via v0.8.0-beta, 2026-06-11; Sub-phase A 9/9 + A-W 2/2 Merged, deferred follow-ups Done, A′ 2/2 Done — GV2 backing swap reconciled from #2446 and DSV-021 #2473 flipped `ANVIL_WATCH_DAEMON` default-on with live-daemon guard + opt-out/force; Sub-phase B warm-start persistence remains Blocked; sub-phase + PR detail in the module file) |
 | [nx-rust-plugin](./archive/modules/nx-rust-plugin.aps.md)                       | NXRUST | Complete    | 8/8 (plugin now consumed from npm as `@eddacraft/nxrust`; NXRUST-005/-006 superseded by `cargo metadata` inference — zero per-crate `project.json` needed)                                                                                                                                                                                                                                  |
 | [rust-nx-migration](./archive/modules/rust-nx-migration.aps.md)                 | RUSTNX | Complete    | 9/9                                                                                                                                                                                                                                                                                                                                                                                         |
 | [v050-release-followups](./modules/v050-release-followups.aps.md)               | V050F  | In Progress | 15/16 (16 hardening items deferred from `v0.5.0-beta` release work: 10 from the council rounds, 1 from the copilot PR #1081 review, 3 from the v0.4.0-beta tag run + post-tag deploy — scoop PAT scope, winget gh arg regression, missing migration runner — 1 from the copilot PR #1090 review tracking the svix>uuid override exception, and 1 private-release Latest promotion fix; 15 done; 1 outstanding — V050F-008 (bench baselines on CI hardware). V050F-015 (svix>uuid override removal) closed 2026-05-31 when `resend@6.12.4` dropped svix. V050F-006 + V050F-011 closed via `fix/v050f-scanner-hotpath` (#1323); V050F-007 closed via `fix/v050f-rayon-init` (#1330).) |
@@ -273,8 +269,8 @@ the live release sequencing is in
 | [adoption-trust-surface](./archive/modules/adoption-trust-surface.aps.md) | ADTRUST  | Complete    | 6/6      | All six shipped 2026-05-14 (PRs #1531, #1532, #1533, #1534, #1536, #1537). Cross-crate wire-ups for -002 + -004 tracked under MLP2 group J. Archived.                                                                                                                                                  |
 | [adoption-friction](./archive/modules/adoption-friction.aps.md)                 | ADOPT    | Complete | 6/6 | First-week friction removal. **ADOPT-005 `anvil uninstall` merged 2026-05-14 (PR #1521), Released/Shipped via [`v0.6.3-beta`](./releases/v0.6.3-beta.md) on 2026-05-15; ADOPT-001 hook coexistence Done 2026-05-15** (runbook at `docs/runbooks/anvil-hook-coexistence.md`); **resource budget (-002 Done 2026-05-16)**, **shared ignore policy (-004 Merged 2026-05-16 via PR #1658)**, **editor coexistence (-006 Merged 2026-05-17 via PR #1682)**, **AI auto-detect (-003 Merged 2026-05-18 via PR #1700** — primitive in PR #1543). All six items Released/Shipped (ADOPT-005 via `v0.6.3-beta`; the rest via `v0.7.0-beta` on 2026-05-21); module **Complete**; archived. Wave 3A. |
 | [distribution-and-update](./archive/modules/distribution-and-update.aps.md)     | DISTRIB  | Complete | 6/6      | Harden `anvil update` + Homebrew + cadence policy so hotfix iteration reaches users. **DISTRIB-001 Merged via PR #1562** (minisign verification + ADR-045). **DISTRIB-002 Merged via PR #1569** (`anvil version --check` advisory surface + watch/status hint). **DISTRIB-003 Merged via PR #1652** (Homebrew formula auto-bump extracted into tested script + workflow + runbook + macOS smoke matrix). **DISTRIB-004 Done 2026-05-16** (`docs/policies/release-cadence.md`). **DISTRIB-005 Released/Shipped via v0.7.3-beta** (PR #1984 at `8ae65b10` confirmed in tag; `anvil migrate schema`). **DISTRIB-006 Released/Shipped via v0.7.4-beta** (PR #2185 at `c5ee305b` confirmed in tag) — `ANVIL_HOME` / `--anvil-home` install-root override for side-by-side candidate installs, ADR-060 gate Accepted 2026-05-31. Module advanced to **Complete** 2026-06-08 per the v0.7.4-beta release-record post-tag note. ADR-044 §9 makes DISTRIB-001 / -002 load-bearing for the MCP-backend swap discovery gap. Wave 3A. |
-| [usage-insights](./modules/usage-insights.aps.md)                       | INSIGHTS | In Progress | 3/5      | Local-only periodic value signal (`anvil insights`); INSIGHTS-001 Done 2026-05-17; -002 (#1996) + -003 (#2111) Released/Shipped via v0.7.3-beta 2026-05-31; -004 implemented + PR #2226 (first-week nudge surfaces in `status` + watch; `anvil insights` run suppresses; tests pass; path recon applied); -005 filed 2026-06-10 (nudge on the `welcome` surface, from the user-journey review). No telemetry.                                            |
-| [user-journey](./modules/user-journey.aps.md)                           | UJ       | Complete | 15/15 | Two beta golden paths — `anvil welcome` (discovery wow) and `anvil start` → watch/MCP (daily value) — made strong and self-guiding. Created 2026-06-10 from the v0.8.0-beta user-journey completeness review (operator-directed: beta posture permits explicit "run `anvil start` or `anvil welcome`" guidance; out-of-the-box usefulness ranks above tutorials). Eight items Merged + UJ-002 verified-no-change on 2026-06-10 (PRs #2500..#2507); UJ-007 resolved guidance-only (ADR-079); UJ-011 shaping approved → UJ-012..015 filed (tutorial execution set); UJ-004 (ungate `welcome`, ADR-080) Merged via #2509; UJ-012 (flagship save-caught tutorial) Merged via #2510; UJ-013 (Rust tutorial) Merged via #2511; UJ-014 (refresh + index rewrite) Merged via #2513; UJ-015 (retire ci/suppressions into guides) Merged via #2514 — all 15 items dispositioned; module Complete 2026-06-10 (archive after release-tag inclusion per archiving rules). Coordinates with CIB-047/-054/-055, INSIGHTS-005, DISTRIB-002, DSV-021/ADR-075. |
+| [usage-insights](./modules/usage-insights.aps.md)                       | INSIGHTS | In Progress | 4/5      | Local-only periodic value signal (`anvil insights`); INSIGHTS-001 Done 2026-05-17; -002 (#1996) + -003 (#2111) Released/Shipped via v0.7.3-beta 2026-05-31; -004 Released/Shipped via v0.8.0-beta (Merged 2026-06-02 via PR #2226 — first-week nudge in `status` + watch, suppressed after an `anvil insights` run; merge recorded retroactively 2026-06-12); -005 filed 2026-06-10 (nudge on the `welcome` surface, from the user-journey review). No telemetry.                                            |
+| [user-journey](./modules/user-journey.aps.md)                           | UJ       | Complete | 15/15 | Two beta golden paths — `anvil welcome` (discovery wow) and `anvil start` → watch/MCP (daily value) — made strong and self-guiding. Created 2026-06-10 from the v0.8.0-beta user-journey completeness review (operator-directed: beta posture permits explicit "run `anvil start` or `anvil welcome`" guidance; out-of-the-box usefulness ranks above tutorials). Eight items Merged + UJ-002 verified-no-change on 2026-06-10 (PRs #2500..#2507); UJ-007 resolved guidance-only (ADR-079); UJ-011 shaping approved → UJ-012..015 filed (tutorial execution set); UJ-004 (ungate `welcome`, ADR-080) Merged via #2509; UJ-012 (flagship save-caught tutorial) Merged via #2510; UJ-013 (Rust tutorial) Merged via #2511; UJ-014 (refresh + index rewrite) Merged via #2513; UJ-015 (retire ci/suppressions into guides) Merged via #2514 — all 15 items dispositioned; module Complete 2026-06-10; Released/Shipped via v0.8.0-beta (2026-06-11) — archive cascade pending (NBI rank 1). Coordinates with CIB-047/-054/-055, INSIGHTS-005, DISTRIB-002, DSV-021/ADR-075. |
 
 ### Rust Engine
 
@@ -294,7 +290,7 @@ RENG is complete, RCLI is complete.
 | [ink-to-ratatui-port](./archive/modules/ink-to-ratatui-port.aps.md)       | PORT    | Complete    | 15/15                                                                                                             | RATS-001 (complete)                                                                                                                                                                                                                                                                |
 | [rust-cli](./archive/modules/rust-cli.aps.md)                             | RCLI    | Complete    | 64/64                                                                                                             | KERN, RATS, PORT                                                                                                                                                                                                                                                                   |
 | [kernel-benchmarking](./archive/modules/kernel-benchmarking.aps.md)       | BENCH   | Complete    | 16/16                                                                                                             | KERN Phases 1-2                                                                                                                                                                                                                                                                    |
-| [tui-dashboard-render](./modules/tui-dashboard-render.aps.md)             | TUIDASH | In Progress | 13/13 (TUIDASH-001/-002 Released/Shipped via v0.7.3-beta — PRs #2068/#2097 confirmed in tag; TUIDASH-003..-012 engine/components/charts/binding/surface+CLI/parity/responsive/previews Merged 2026-06-02 via PR #2229; TUIDASH-013 ship example gate-summary spec + gate-result persistence Merged 2026-06-02 via PR #2246 — GH #2237/#2242; -003..-013 post-date the v0.7.4-beta tag and ride `v0.8.0-beta`) | eddacraft-tui (engine, feature-gated) + anvil-tui (catalogue/surface) per ADR-054; spec contract `@eddacraft/render` (`packages/libs/render/`); extends TDASH `anvil dashboard`. DASHAI parallel, not blocking                                                                      |
+| [tui-dashboard-render](./modules/tui-dashboard-render.aps.md)             | TUIDASH | Complete | 13/13 (TUIDASH-001/-002 Released/Shipped via v0.7.3-beta — PRs #2068/#2097 confirmed in tag; TUIDASH-003..-012 engine/components/charts/binding/surface+CLI/parity/responsive/previews Merged 2026-06-02 via PR #2229; TUIDASH-013 ship example gate-summary spec + gate-result persistence Merged 2026-06-02 via PR #2246 — GH #2237/#2242; -003..-013 Released/Shipped via v0.8.0-beta, 2026-06-11; archive cascade pending) | eddacraft-tui (engine, feature-gated) + anvil-tui (catalogue/surface) per ADR-054; spec contract `@eddacraft/render` (`packages/libs/render/`); extends TDASH `anvil dashboard`. DASHAI parallel, not blocking                                                                      |
 | [native-tui-dashboards](./archive/modules/native-tui-dashboards.aps.md)   | TDASH   | Complete    | 4/4                                                                                                               | anvil-tui (`plan_dashboard` precedent), eddacraft-tui, RCLI; reads persisted `.anvil/` state. Parallel to TUIDASH (json-render); neither blocks the other. Gate-summary/watch-session deferred until their data persists.                                                          |
 | [launch-flow-readiness](./archive/modules/launch-flow-readiness.aps.md)   | LAUNCH  | Complete    | 18/18                                                                                                             | RCLI, KERN; coordinates with TUIDASH, DRVR, RMCP, RTAI, INTD; supersedes RTVS in part; adds upgrade/version UX, tutorial polish, repo language profile + filter                                                                                                                    |
 | [realtime-ai-validation](./modules/realtime-ai-validation.aps.md)         | RTAI    | In Progress | 8/9                                                                                                               | A1 launch slice complete: RTAI-001 (spike), -002 (PR #1186), -003 (PR #1189), -006 (PR #1190), -008 (PR #1188) merged 2026-04-29/30. A2 Wave 3: RTAI-004 (PR #1311) merged 2026-05-06. RTAI-007 (mid-edit telemetry mirror — `mirror.path = "midEdit"` discriminator) + RTAI-009 (architecture docs + RTVF supersession) **Merged 2026-06-02 via PR #2227**. Only RTAI-005 remains — reframed 2026-06-02 from a VS Code extension to a generic **LSP-server surface** (`anvil lsp`), still **parked under ADR-033**.                                                              |
@@ -325,7 +321,7 @@ and gates `/anvil` docs behind it via Vercel Edge.
 | [admin-cli](./archive/modules/admin-cli.aps.md)                       | ADMINCLI  | Complete | 13/13    | BAUTH        |
 | [admin-cli-hardening](./archive/modules/admin-cli-hardening.aps.md)   | ADMINCLIH | Complete | 4/4      | ADMINCLI     |
 | [email-broadcast](./archive/modules/email-broadcast.aps.md)           | EMAIL     | Complete    | 10/10    | ADMINCLIH    |
-| [github-cli-auth](./modules/github-cli-auth.aps.md)                   | GHCLIAUTH | Complete | 11/11    | BAUTH, DOCSAUTH |
+| [github-cli-auth](./modules/github-cli-auth.aps.md)                   | GHCLIAUTH | Complete | 11/11 (Released/Shipped via v0.8.1-beta, 2026-06-11; archive cascade pending) | BAUTH, DOCSAUTH |
 
 **Design specs:**
 
@@ -442,8 +438,8 @@ implementation targets.
 | [compliance-policy-packs](./modules/compliance-policy-packs.aps.md)               | CPACKS  | Draft    | opa-enhancements, policy-pack-validation                                                                                                            |
 | [policy-action-taxonomy](./modules/policy-action-taxonomy.aps.md)                 | ACTAX   | Proposed | ADR-040, IORISK, AGOV, POLENG, CPOL (schema coordination) — action taxonomy + YAML policy DSL compiling to Rego; risk-score fusion into existing intercept routing                 |
 | [policy-capability-discovery](./modules/policy-capability-discovery.aps.md)       | POLCAP  | Proposed | ACTAX-001, AGOV-007, IORISK, POLENG-001, INTD, MLP/MLP2 witness chain, DRVR; ADRs 001/002/037/040; pending Planning Council + ADR-051 — agent-facing signed capability view (`anvil policy capabilities`); advisory for planning, load-bearing for audit via cap_id binding to witness rows |
-| [git-native-governance](./modules/git-native-governance.aps.md)                   | GITGOV  | In Progress | ADR-072/-073/-074 (Accepted 2026-06-08, full council); crates/anvil-witness (`WitnessLine`/`verify_chain_dag`), anvil-baseline, anvil-rules (`rules_sha`), anvil-policy (exceptions), anvil-cli SARIF (ADR-058) — Review Capsules wedge: file-first portable governance evidence, offline-verifiable. Decision gate cleared; capsule impl (GITGOV-003+) authorised; GITGOV-001/002 Done |
-| [git-native-exceptions](./modules/git-native-exceptions.aps.md)                   | EXCEPT  | In Progress | ADR-073 (Accepted 2026-06-08, full council), crates/anvil-policy — move exceptions from gitignored `.anvil/exceptions.json` to tracked `anvil/exceptions/` so they travel with the repo + are PR-reviewable; sibling of `@anvil-ignore` (ADR-004). EXCEPT-001/002/003 Done; EXCEPT-007 write-path hardening gates the CLI write surface; CLI/L3-L4/capsule integration Proposed |
+| [git-native-governance](./modules/git-native-governance.aps.md)                   | GITGOV  | Complete | ADR-072/-073/-074 (Accepted 2026-06-08, full council); crates/anvil-witness (`WitnessLine`/`verify_chain_dag`), anvil-baseline, anvil-rules (`rules_sha`), anvil-policy (exceptions), anvil-cli SARIF (ADR-058) — Review Capsules wedge: file-first portable governance evidence, offline-verifiable. GITGOV-001/002 Done; capsule wedge (create/collect/verify/explain/prune) Released/Shipped via v0.8.0-beta (2026-06-11); archive cascade pending |
+| [git-native-exceptions](./modules/git-native-exceptions.aps.md)                   | EXCEPT  | In Progress | ADR-073 (Accepted 2026-06-08, full council), crates/anvil-policy — move exceptions from gitignored `.anvil/exceptions.json` to tracked `anvil/exceptions/` so they travel with the repo + are PR-reviewable; sibling of `@anvil-ignore` (ADR-004). EXCEPT-001/002/003 Done; EXCEPT-007 write-path hardening Released/Shipped via v0.8.0-beta (#2366); CLI/L3-L4/capsule integration Proposed |
 
 **Why Policy:** Builds on the single-repo OPA infrastructure from 0.1.0.
 Requires multi-repo awareness, hierarchy resolution, and fleet-level aggregation
@@ -522,7 +518,7 @@ shared operational prerequisites for Track 3 surfaces and Track 4 packs; it does
 not duplicate their rule-catalogue work.
 
 **Next target set:** Phase 1 stays the first cut unless re-scored:
-`LANGTS` (complete 6/6), `RSTLAN` (In Progress 8/8, all items merged — pending release tag), `SURFSQL`, `PACKPUL`, and `PACKLLM`, with the
+`LANGTS` (complete 6/6), `RSTLAN` (Complete 8/8, Released/Shipped via v0.8.0-beta), `SURFSQL`, `PACKPUL`, and `PACKLLM`, with the
 needed OPSUP slices and FLAGCAT catalogue-bootstrap slice completed first or
 cited as `Blocks on:` callouts in the owning tasks. Modules still marked
 `Proposed` must be promoted to `Ready` with executable tasks before
@@ -549,7 +545,7 @@ Python must hit. Spec §7, §8.1.
 | Module                                          | Scope  | Status | Phase | Spec ref                                                                                                                                                   |
 | ----------------------------------------------- | ------ | ------ | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [lang-ts-audit](./archive/modules/lang-ts-audit.aps.md) | LANGTS | Complete | 1     | §7.3, §8.1 — 6/6 (**Complete 2026-06-08** — LANGTS-002/-004/-005/-006 merge commits confirmed in the v0.7.3-beta tag, advanced to Released/Shipped; -001/-003 are Done audit/checklist artefacts); promoted to Ready 2026-04-26 after anchor re-scoring gate (TS still anchor zero; Rust catching up — flagged for separate RSTLAN re-eval); LANGTS-006 dynamic-eval antipattern Merged 2026-05-21 via PR #1820 `bcb96175` (AP-008 + AP-009 in new `dynamic-execution` family; `Function.prototype.constructor` deferred pending AST-aware filter); 2026-05-28 — two bounded OQs resolved inline (single module, no `lang-ts-prereq` split; K1 extractor-trait ADR deferred to RSTLAN per audit §8), so LANGTS-002/-004/-005 promoted from anticipated bullets to Ready work items; LANGTS-005 kernel-prereq refactor (K1–K4: extractor trait, grammar-versioned cache key, per-worker parser, non-panicking parse path) Merged 2026-05-29 via PR #2096 — unblocks the RSTLAN extractor wiring; LANGTS-002 TS extraction gaps (TS-G1 interface/type/enum + TS-G2 class-method symbols) Merged 2026-05-29 via PR #2106, advancing to 5/6; LANGTS-004 Zod-creep rules Merged 2026-05-30 via PR #2125 (AP-015 `z.any()`/`.passthrough()` on by default + AP-016 `z.unknown()` opt-in; renumbered off the retired AP-010..AP-013 range), advancing to 6/6 |
-| [lang-rust](./modules/lang-rust.aps.md)         | RSTLAN | In Progress | 1     | §8.1 — RSTLAN-001/-002 (#2303) + -004 (#2319) + -005 (Rust boundary enforcement, #2321) Merged; RSTLAN-003 (AST antipattern catalogue — new gate-time `anvil-checks-ast` crate per ADR-071, `rust-reliability` RS-001..005), -007 (`architecture-validate` surface for Rust), and -008 (T3 dogfood: 571 files, 0 panics/parse-skips, 0% FP) Merged 2026-06-05 via PR #2329. Rust passes the T3 checklist + §16.5 #9 FP bar. RSTLAN-006 (`.rs` in default antipattern/drift scan set) Merged 2026-06-04 via PR #2324, reconciled 2026-06-07 — all 8 items now Merged (8/8), module In Progress pending release tag. `.clone()`-hot-loop + serde flatten/secret-field deferred to RSTLAN-003b. NBI re-eval complete 2026-06-03; ADR-065 (Rust-native) Accepted. Owner @aneki. (8/8) |
+| [lang-rust](./modules/lang-rust.aps.md)         | RSTLAN | Complete | 1     | §8.1 — RSTLAN-001/-002 (#2303) + -004 (#2319) + -005 (Rust boundary enforcement, #2321) Merged; RSTLAN-003 (AST antipattern catalogue — new gate-time `anvil-checks-ast` crate per ADR-071, `rust-reliability` RS-001..005), -007 (`architecture-validate` surface for Rust), and -008 (T3 dogfood: 571 files, 0 panics/parse-skips, 0% FP) Merged 2026-06-05 via PR #2329. Rust passes the T3 checklist + §16.5 #9 FP bar. RSTLAN-006 (`.rs` in default antipattern/drift scan set) Merged 2026-06-04 via PR #2324, reconciled 2026-06-07 — all 8 items Released/Shipped via v0.8.0-beta (2026-06-11), module Complete; archive cascade pending. `.clone()`-hot-loop + serde flatten/secret-field deferred to RSTLAN-003b. NBI re-eval complete 2026-06-03; ADR-065 (Rust-native) Accepted. Owner @aneki. (8/8) |
 | [lang-python](./modules/lang-python.aps.md)     | PYLAN  | Draft  | 2     | §8.1                                                                                                                                                       |
 
 #### Track 2 — Tail T1 wave (single batched sprint)

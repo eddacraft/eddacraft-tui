@@ -17,6 +17,10 @@ completeness review. Operator direction: beta posture permits explicit guidance
 both paths must be strong. Out-of-the-box usefulness ranks above tutorial-led
 onboarding; the tutorials overhaul (UJ-011) is deliberately last.)
 
+2026-06-12: all Merged items confirmed in the v0.8.0-beta tag (record:
+plans/releases/v0.8.0-beta.md) and advanced to Released/Shipped; module ready
+to archive per the archive cascade.
+
 ## Purpose
 
 Every user who installs or upgrades Anvil should reach something genuinely
@@ -74,7 +78,7 @@ carry the user to the next step without a docs lookup.
 
 ### UJ-001: Golden-path next-step threading in CLI and install output
 
-- **Status:** Merged 2026-06-10 via PR #2502
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-10 via PR #2502
 - **Intent:** A new user should never need docs to know what to type next;
   every onboarding-path command names the single next step.
 - **Expected Outcome:** `install.sh` closing output and the endings of
@@ -124,7 +128,7 @@ carry the user to the next step without a docs lookup.
 
 ### UJ-003: Quickstart and beta guide rewritten around the two paths
 
-- **Status:** Merged 2026-06-10 via PR #2503
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-10 via PR #2503
 - **Intent:** Entry docs sell and guide the two-path journey and stop trailing
   the product by two releases.
 - **Expected Outcome:** The quickstart leads with install then "run
@@ -147,7 +151,7 @@ carry the user to the next step without a docs lookup.
 
 ### UJ-004: Auth-wall placement vs first wow
 
-- **Status:** Merged 2026-06-10 via PR #2509
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-10 via PR #2509
 - **Disposition:** Operator decision 2026-06-10 — ungate read-only
   `anvil welcome` as the beta demo surface, recorded in
   [ADR-080](../decisions/080-ungate-welcome-demo-surface.md) (Accepted).
@@ -173,7 +177,7 @@ carry the user to the next step without a docs lookup.
 
 ### UJ-005: `anvil status` always states the save-time posture
 
-- **Status:** Merged 2026-06-10 via PR #2500
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-10 via PR #2500
 - **Intent:** Status is the home screen; it must state the save-time posture
   even when the daemon is off, instead of omitting the line and hiding the
   flagship gap.
@@ -199,7 +203,7 @@ carry the user to the next step without a docs lookup.
 
 ### UJ-006: Daemon guidance on the watch surface and help
 
-- **Status:** Merged 2026-06-10 via PR #2501
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-10 via PR #2501
 - **Intent:** A user must be able to learn from the CLI itself that save-time
   validation is daemon-served and how to enable it.
 - **Expected Outcome:** `anvil watch --help` long help names the daemon, the
@@ -247,7 +251,7 @@ carry the user to the next step without a docs lookup.
 
 ### UJ-008: Consolidated save-time validation guide
 
-- **Status:** Merged 2026-06-10 via PR #2504
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-10 via PR #2504
 - **Intent:** The daily-driver value proposition deserves one page; today the
   daemon/save-time story is split across config.md, mcp.md, and
   agent-harness.md.
@@ -267,7 +271,7 @@ carry the user to the next step without a docs lookup.
 
 ### UJ-009: Gate-summary dashboard reaches existing projects
 
-- **Status:** Merged 2026-06-10 via PR #2505
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-10 via PR #2505
 - **Intent:** Upgraders get the v0.8.0 gate-summary dashboard — today only
   fresh `anvil init` runs seed it, so existing projects never see it.
 - **Expected Outcome:** Existing projects gain the gate-summary dashboard via
@@ -293,7 +297,7 @@ carry the user to the next step without a docs lookup.
 
 ### UJ-010: Post-upgrade what's-new one-liner
 
-- **Status:** Merged 2026-06-10 via PR #2506
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-10 via PR #2506
 - **Intent:** An upgrade should announce its headline once — today new
   capability is invisible and the daemon stays cold (compounds UJ-006/-007).
 - **Expected Outcome:** The first run after a version change prints one line
@@ -335,7 +339,7 @@ carry the user to the next step without a docs lookup.
 
 ### UJ-012: "Your first save caught" tutorial
 
-- **Status:** Merged 2026-06-10 via PR #2510
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-10 via PR #2510
 - **Intent:** The daily-value path deserves the flagship tutorial: a user who
   follows it ends with daemon-backed save-time validation catching a real
   mistake in their own repo.
@@ -360,7 +364,7 @@ carry the user to the next step without a docs lookup.
 
 ### UJ-013: "Analyse a Rust project" tutorial
 
-- **Status:** Merged 2026-06-10 via PR #2511
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-10 via PR #2511
 - **Intent:** Rust is a supported v0.8.0 analysis language with no tutorial;
   the discovery-wow path needs a Rust walkthrough.
 - **Expected Outcome:** A new web tutorial walks a real Rust repo through
@@ -381,7 +385,7 @@ carry the user to the next step without a docs lookup.
 
 ### UJ-014: Refresh surviving tutorials + journey-aligned index
 
-- **Status:** Merged 2026-06-10 via PR #2513
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-10 via PR #2513
 - **Intent:** The surviving tutorials should reflect the two-path journey and
   current language coverage instead of trailing the product.
 - **Expected Outcome:** `architecture.md` gains a Rust example beside the
@@ -402,7 +406,7 @@ carry the user to the next step without a docs lookup.
 
 ### UJ-015: Retire ci and suppressions tutorials into their guides
 
-- **Status:** Merged 2026-06-10 via PR #2514
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-10 via PR #2514
 - **Intent:** Two tutorials duplicate guide content; per the approved shaping
   (operator decision: fold `ci.md`), they retire into the pages that own the
   material.

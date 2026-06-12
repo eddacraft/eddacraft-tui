@@ -2,9 +2,11 @@
 
 | ID      | Owner | Status | Progress |
 | ------- | ----- | ------ | -------- |
-| TUIDASH | —     | In Progress | 13/13 |
+| TUIDASH | —     | Complete | 13/13 |
 
 **Last reviewed:** 2026-06-02
+
+> 2026-06-12: TUIDASH-003..-013 confirmed in the v0.8.0-beta tag (record: plans/releases/v0.8.0-beta.md) and advanced to Released/Shipped; module Complete — archive per the archive cascade.
 
 > **Re-scope 2026-05-27 ([ADR-054](../decisions/054-json-render-tui-engine-home.md)):**
 > Promoted Draft → Ready. The 2026-04-26 demotion blockers are resolved — the
@@ -231,7 +233,7 @@ rendering `.anvil/dashboards/*.json`) to the existing surface.
 
 ### TUIDASH-003: Tree renderer (spec walker)
 
-- **Status:** Merged 2026-06-02 via PR #2229
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-02 via PR #2229
 - **Intent:** Walk the spec element tree depth-first, resolve layouts, and
   delegate rendering to registered components
 - **Expected Outcome:** Given a `RenderSpec` and `TuiRegistry`, renders the
@@ -251,7 +253,7 @@ rendering `.anvil/dashboards/*.json`) to the existing surface.
 
 ### TUIDASH-004: Layout components (GridLayout, Section, TabGroup)
 
-- **Status:** Merged 2026-06-02 via PR #2229
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-02 via PR #2229
 - **Intent:** Implement TUI equivalents for json-render layout components
 - **Expected Outcome:**
   - `GridLayout` → Ratatui `Layout` with percentage-based constraints, falling
@@ -270,7 +272,7 @@ rendering `.anvil/dashboards/*.json`) to the existing surface.
 
 ### TUIDASH-005: Data display components (MetricCard, DataTable, StatusBadge, CodeBlock)
 
-- **Status:** Merged 2026-06-02 via PR #2229
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-02 via PR #2229
 - **Intent:** Map the core data display catalogue to eddacraft-tui widgets
 - **Expected Outcome:**
   - `MetricCard` → `Container` with large styled value + label + trend arrow
@@ -290,7 +292,7 @@ rendering `.anvil/dashboards/*.json`) to the existing surface.
 
 ### TUIDASH-006: Chart components (LineChart, BarChart, SparklineChart)
 
-- **Status:** Merged 2026-06-02 via PR #2229
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-02 via PR #2229
 - **Intent:** Map chart catalogue components to Ratatui's built-in charting
 - **Expected Outcome:**
   - `LineChart` → Ratatui `Chart` with `Dataset` and `Axis`
@@ -309,7 +311,7 @@ rendering `.anvil/dashboards/*.json`) to the existing surface.
 
 ### TUIDASH-007: Anvil domain components (GateResultCard, WarningList, DriftIndicator, PlanCard)
 
-- **Status:** Merged 2026-06-02 via PR #2229
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-02 via PR #2229
 - **Intent:** Implement Anvil-specific composite components that combine
   primitives into domain-meaningful widgets
 - **Expected Outcome:**
@@ -339,7 +341,7 @@ rendering `.anvil/dashboards/*.json`) to the existing surface.
 
 ### TUIDASH-008: Data context binding
 
-- **Status:** Merged 2026-06-02 via PR #2229
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-02 via PR #2229
 - **Intent:** Resolve data path references in spec props against live
   `.anvil/` storage data
 - **Expected Outcome:** Props containing `{ "$data": "gates.passRate" }` are
@@ -357,7 +359,7 @@ rendering `.anvil/dashboards/*.json`) to the existing surface.
 
 ### TUIDASH-009: Dashboard surface and CLI command
 
-- **Status:** Merged 2026-06-02 via PR #2229
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-02 via PR #2229
 - **Intent:** Add a `dashboard` surface to `anvil-tui` and wire it to the
   `anvil dashboard` CLI subcommand
 - **Expected Outcome:** `anvil dashboard` lists saved dashboards from
@@ -375,7 +377,7 @@ rendering `.anvil/dashboards/*.json`) to the existing surface.
 
 ### TUIDASH-010: Catalogue schema sync
 
-- **Status:** Merged 2026-06-02 via PR #2229
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-02 via PR #2229
 - **Intent:** Ensure the Rust component registry stays in sync with the
   TypeScript catalogue definition from DASHAI-002
 - **Expected Outcome:** A build-time check (or CI step) that compares the
@@ -397,7 +399,7 @@ rendering `.anvil/dashboards/*.json`) to the existing surface.
 
 ### TUIDASH-011: Responsive layout adaptation
 
-- **Status:** Merged 2026-06-02 via PR #2229
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-02 via PR #2229
 - **Intent:** Adapt dashboard layouts to different terminal sizes gracefully
 - **Expected Outcome:** GridLayout columns collapse to vertical stacking below
   configurable breakpoints. MetricCards show abbreviated values in narrow
@@ -412,7 +414,7 @@ rendering `.anvil/dashboards/*.json`) to the existing surface.
 
 ### TUIDASH-012: Dashboard template previews
 
-- **Status:** Merged 2026-06-02 via PR #2229
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-02 via PR #2229
 - **Intent:** Render dashboard template thumbnails in the dashboard list view
 - **Expected Outcome:** `anvil dashboard` (no args) shows a list of saved
   dashboards with a mini-preview pane (half-width render of the selected
@@ -427,7 +429,7 @@ rendering `.anvil/dashboards/*.json`) to the existing surface.
 
 ### TUIDASH-013: Ship an example dashboard spec
 
-- **Status:** Merged 2026-06-02 via PR #2246
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-02 via PR #2246
 - **Intent:** Ship at least one example json-render dashboard spec so
   `anvil dashboard` has a real end-to-end consumer and operators have a spec to
   copy. The engine (TUIDASH-003..-012) is complete but runtime-idle: nothing

@@ -4,7 +4,7 @@
 
 | ID       | Owner  | Status | Progress |
 | -------- | ------ | ------ | -------- |
-| INSIGHTS | @aneki | In Progress | 3/5 |
+| INSIGHTS | @aneki | In Progress | 4/5 |
 
 **Last reviewed:** 2026-06-10 (INSIGHTS-005 filed from the v0.8.0-beta
 user-journey completeness review — extend the INSIGHTS-004 first-week nudge
@@ -266,7 +266,10 @@ number visible to the user, not just to a future post-release survey.
 - **Validation:**
   - `cargo test -p eddacraft-anvil commands::status::tests::first_week_hint_shown_once`
   - `cargo test -p eddacraft-anvil commands::status::tests::hint_suppressed_after_use`
-- **Status:** In Progress (promoted 2026-06-02 — both dependencies satisfied:
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-02
+  via PR #2226 (merge commit `231a0e46f` confirmed in tag; status recorded
+  retroactively 2026-06-12 — the post-merge flip was missed at land time).
+  Earlier history: In Progress (promoted 2026-06-02 — both dependencies satisfied:
   INSIGHTS-001 Released/Shipped, MLP-001 Done; the prior Draft was a v0.7.0
   tag-time scope-cut, not a technical block. Per this module's Sequencing,
   -002/-003/-004 are parallel after -001, and -002/-003 already shipped.

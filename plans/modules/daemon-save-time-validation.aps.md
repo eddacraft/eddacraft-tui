@@ -9,6 +9,11 @@
 `ANVIL_WATCH_DAEMON=0` opts out, and explicit `=1` preserves the forced
 diagnostic path; focused CLI routing tests green locally.)
 
+2026-06-12: the shipped sub-phase A/A-W/A′ arc (incl. DSV-021 default-on
+routing) confirmed in the v0.8.0-beta tag (record:
+plans/releases/v0.8.0-beta.md); Merged items advanced to Released/Shipped.
+Sub-phase B remains Blocked.
+
 ## Purpose
 
 Deliver Anvil's save-time validation as a daemon-mediated service across its
@@ -164,7 +169,7 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
 
 #### DSV-001: Extract `eddacraft-anvil-graph-cache` (ADR-064 / B5)
 
-- **Status:** Merged 2026-06-03 via PR #2254
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-03 via PR #2254
 - **Intent:** Give the daemon a parser-free crate that owns the graph state and
   algorithms so the certify/cache work can compile without dragging tree-sitter
   into the resident daemon.
@@ -187,7 +192,7 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
 
 #### DSV-002: Freeze the `validate_paths` verdict wire
 
-- **Status:** Merged 2026-06-03 via PR #2252
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-03 via PR #2252
 - **Intent:** Pin the forward-compatible verdict-shaped wire (method constants,
   request/response types, `coverage`, `check_families`, `StaleReason`,
   `WorkspaceAssurance`) so all four surfaces integrate against a stable contract.
@@ -207,7 +212,7 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
 
 #### DSV-003: Daemon ingest spine — auth, read-safety, change classification, taxonomy
 
-- **Status:** Merged 2026-06-03 via PR #2264
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-03 via PR #2264
 - **Scope note (2026-06-03):** the ingest-spine *components* landed in PR #2264 —
   `path_safety` (Task 3, openat2 dirfd read-safety), `change_class` (Task 4,
   inode classification), `assurance` taxonomy half (Task 5), and a standalone,
@@ -237,7 +242,7 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
 
 #### DSV-004: Certifiability + interim graph cache + `FileSymbols` feed
 
-- **Status:** Merged 2026-06-03 via PR #2273
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-03 via PR #2273
 - **Progress:** Task 6 (certifiability) delivered — `certify` + `export_surface_changed`
   in `anvil-graph-cache` (`certify.rs`), conservative export-surface default (B4),
   importer discovery via `dependents_of` only (B1), `errors`-guard + precondition doc
@@ -282,7 +287,7 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
 
 #### DSV-005: `validate_paths` orchestration + assurance lifecycle
 
-- **Status:** Merged 2026-06-03 via PR #2282
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-03 via PR #2282
 - **Progress (2026-06-03):** delivered across the DSV-005 PR set (#2276 B7
   predecessor, #2278 Task 9 state machine, #2279/#2280 Task 8, #2282 the
   capstone ipc wiring + envelopes + symbol feed) as three council-reviewed
@@ -334,7 +339,7 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
 
 #### DSV-006: Resource model — two-pool scheduler, DoS caps, SLO gate
 
-- **Status:** Merged 2026-06-03 via PR #2283
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-03 via PR #2283
 - **Intent:** Keep the interactive verdict path responsive under concurrent agents +
   background scans, and gate latency in CI.
 - **Progress:** 10a (spine) delivered via PR #2253 — `crates/anvil-intercept/src/workspace_pool.rs`
@@ -391,7 +396,7 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
 
 #### DSV-007: `watch` + MCP clients + status surface
 
-- **Status:** Merged 2026-06-03 via PR #2284
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-03 via PR #2284
 - **Intent:** Make the user-facing surfaces thin daemon clients with a safe fallback.
 - **Expected Outcome:** `watch` routes save-time validation to the daemon and falls
   back to a *scoped* (never `--all`) check on daemon absence/mid-session death,
@@ -434,7 +439,7 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
 
 #### DSV-008: Confinement mode + `anvil workspace` CLI
 
-- **Status:** Merged 2026-06-03 via PR #2275
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-03 via PR #2275
 - **Intent:** Give operators an opt-in confinement boundary above the same-uid trust
   model.
 - **Expected Outcome:** Operator-level config (`ANVIL_HOME`/XDG, owner-only) with
@@ -455,7 +460,7 @@ Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B 
 
 #### DSV-009: Cross-path diagnostic parity gate
 
-- **Status:** Merged 2026-06-04 via PR #2294
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-04 via PR #2294
 - **Intent:** Prove the antipattern-family delivery paths return identical finding sets.
   **Scope reconciled (2026-06-04):** the antipattern family runs on the save-time
   `validate_paths` surfaces — **`watch+daemon` and `watch+fallback`** — so the gate
@@ -497,7 +502,7 @@ flake on the Windows leg). Sub-phase A-W is closed 2/2.
 
 #### DSV-010: Windows named-pipe save-time daemon
 
-- **Status:** Merged 2026-06-05 via PR #2328
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-05 via PR #2328
 - **Progress (2026-06-04):** increment 1 — the ADR-068 read-safety **guard** —
   delivered as `crates/anvil-intercept-win32/src/read_safety.rs`: `WorkspaceDir`
   held-handle anchor (C2), the per-component `NtCreateFile` + `OBJ_DONT_REPARSE`
@@ -620,7 +625,7 @@ flake on the Windows leg). Sub-phase A-W is closed 2/2.
 
 #### DSV-011: Windows `watch` + `status` save-time clients
 
-- **Status:** Merged 2026-06-05 via PRs #2317 (client) + #2327 (hardening)
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-05 via PRs #2317 (client) + #2327 (hardening)
 - **Progress (2026-06-07, closure):** with DSV-010b serving the verbs (PR
   #2328), the full `rust.yml` cross matrix ran green on dispatch run
   [27102943706](https://github.com/eddacraft/anvil-001/actions/runs/27102943706)
@@ -680,7 +685,7 @@ Merged item; each is an additive improvement under the frozen wire.
 
 #### DSV-040: Registry unregister-hook warm-state reclamation
 
-- **Status:** Merged 2026-06-04 via PR #2296
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-04 via PR #2296
 - **Intent:** Reclaim a worktree's warm `SaveTimeState` (graph cache + assurance
   machine) when its last session leaves the registry, so an unregister/evict
   does not leave warm state resident until LRU pressure or process exit.
@@ -707,7 +712,7 @@ Merged item; each is an additive improvement under the frozen wire.
 
 #### DSV-041: Operator antipattern-config surface
 
-- **Status:** Merged 2026-06-04 via PR #2296
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-04 via PR #2296
 - **Progress (2026-06-04):** delivered — `crates/anvil-intercept/src/antipattern_config.rs`
   loads an owner-only `antipattern.yaml` (a local `deny_unknown_fields` file
   struct overlays the named fields onto `AntipatternCheckConfig::default`),
@@ -748,7 +753,7 @@ Merged item; each is an additive improvement under the frozen wire.
 
 #### DSV-042: Interactive-pool offload of the synchronous parse
 
-- **Status:** Merged 2026-06-04 via PR #2296
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-04 via PR #2296
 - **Progress (2026-06-04):** delivered — the `fed_symbols` parse closure in
   `save_time.rs` now runs `p.parse(..)` via `state.scheduler.interactive().install(..)`
   instead of inline on the IPC connection thread, so the verdict's CPU work
@@ -783,7 +788,7 @@ Merged item; each is an additive improvement under the frozen wire.
 
 #### DSV-043: `validation.roundtrip` transport bench for `validate_paths`
 
-- **Status:** Merged 2026-06-04 via PR #2296
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-04 via PR #2296
 - **Progress (2026-06-04):** delivered — `benches/ipc_roundtrip.rs` gains
   `roundtrip_validate_paths()`, a report-only transport case that drives a warm
   `validate_paths` over the daemon socket (a listener with `with_save_time_state`
@@ -899,7 +904,7 @@ Merged item; each is an additive improvement under the frozen wire.
 
 #### DSV-020: Swap the GV2 hot-read slice under the frozen wire
 
-- **Status:** Merged 2026-06-08 via PR #2446
+- **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-08 via PR #2446
 - **Progress (2026-06-09 closeout):** the stale `Blocked` state is reconciled to
   the already-merged GV2-027 stack: `validate_paths` now reads the resident GV2
   hot-read index under the frozen DSV wire, with verdict parity and privilege

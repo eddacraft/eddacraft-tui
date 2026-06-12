@@ -23,6 +23,10 @@ retirement of legacy `/auth/device/start`+`/poll` and the `device_codes`
 table is deliberately out of scope — track it as new intake when the
 old CLIs age out.)
 
+2026-06-12: module confirmed complete in the v0.8.1-beta tag (record:
+plans/releases/v0.8.1-beta.md); all Merged items advanced to
+Released/Shipped; module ready to archive per the archive cascade.
+
 ## Purpose
 
 Make `anvil auth login` work from a headless SSH/tmux session by replacing the
@@ -148,7 +152,7 @@ Change status to **Ready** when:
 
 ### GHCLIAUTH-001: Extract shared GitHub-user licence-mint helper
 
-- **Status:** Merged 2026-06-04 via PR #2302
+- **Status:** Released/Shipped via v0.8.1-beta (2026-06-11). Merged 2026-06-04 via PR #2302
 - **Intent:** Give the GitHub-identity licence mint a single home so the new
   device-poll path and the existing callback path mint identically.
 - **Expected Outcome:** A `mintLicenceForGitHubUser(sql, ghUser)` (a.k.a.
@@ -173,7 +177,7 @@ Change status to **Ready** when:
 
 ### GHCLIAUTH-002: Provision the "Anvil CLI" GitHub OAuth app + Key Vault + boot probe
 
-- **Status:** Merged 2026-06-08 via PR #2318
+- **Status:** Released/Shipped via v0.8.1-beta (2026-06-11). Merged 2026-06-08 via PR #2318
 - **Operator gate:** Cleared. The OAuth app is registered (Device Flow enabled)
   and the `github-cli-client-id`/`-secret` Key Vault secrets are provisioned —
   verified live 2026-06-11: `/api/v1/health` reports `"githubCliCreds":"ok"`.
@@ -202,7 +206,7 @@ Change status to **Ready** when:
 
 ### GHCLIAUTH-003: `beta_users.github_id` migration + first-login linking
 
-- **Status:** Merged 2026-06-04 via PR #2322
+- **Status:** Released/Shipped via v0.8.1-beta (2026-06-11). Merged 2026-06-04 via PR #2322
 - **Intent:** Link GitHub identities on the stable numeric id so returning users
   match deterministically and the email-change/takeover vector is closed, while
   binding an email-keyed invite to the authenticating GitHub account on first
@@ -231,7 +235,7 @@ Change status to **Ready** when:
 
 ### GHCLIAUTH-004: `github_device_sessions` table + `/github-device/start` broker
 
-- **Status:** Merged 2026-06-11 via PR #2540
+- **Status:** Released/Shipped via v0.8.1-beta (2026-06-11). Merged 2026-06-11 via PR #2540
 - **Intent:** Begin a device-flow session by brokering GitHub's device-code
   request server-side and persisting the session for cross-instance polling.
 - **Expected Outcome:** A new `github_device_sessions` table keyed by
@@ -259,7 +263,7 @@ Change status to **Ready** when:
 
 ### GHCLIAUTH-005: `/github-device/poll` broker — exchange, gate, single-use mint
 
-- **Status:** Merged 2026-06-11 via PR #2543
+- **Status:** Released/Shipped via v0.8.1-beta (2026-06-11). Merged 2026-06-11 via PR #2543
 - **Intent:** Complete a device-flow session by exchanging the device code,
   deriving identity from GitHub, enforcing the access gate, and minting the
   Anvil licence exactly once.
@@ -297,7 +301,7 @@ Change status to **Ready** when:
 
 ### GHCLIAUTH-006: CLI default login on the new endpoints + back-off
 
-- **Status:** Merged 2026-06-11 via PR #2545 (+ PR #2546, `/health` gate)
+- **Status:** Released/Shipped via v0.8.1-beta (2026-06-11). Merged 2026-06-11 via PR #2545 (+ PR #2546, `/health` gate)
 - **Intent:** Make the default `anvil auth login` drive the brokered device flow
   and survive GitHub's polling back-off instead of bailing.
 - **Expected Outcome:** The default `login_device_flow` calls the new
@@ -326,7 +330,7 @@ Change status to **Ready** when:
 
 ### GHCLIAUTH-007: Tombstone the activation page + rebuild admin-invite activation
 
-- **Status:** Merged 2026-06-11 via PR #2549
+- **Status:** Released/Shipped via v0.8.1-beta (2026-06-11). Merged 2026-06-11 via PR #2549
 - **Intent:** Stop the dead activation page from 404-ing outstanding invite
   links and rebuild admin-invite activation around the email-keyed model
   (ADR-066 decision 7).
@@ -363,7 +367,7 @@ Change status to **Ready** when:
 
 ### GHCLIAUTH-008: Remove `POST /auth/device/confirm` + #1779 dead code
 
-- **Status:** Merged 2026-06-11 via PR #2556
+- **Status:** Released/Shipped via v0.8.1-beta (2026-06-11). Merged 2026-06-11 via PR #2556
 - **Intent:** Retire the broken confirm path once no shipped CLI needs it.
 - **Expected Outcome:** `POST /auth/device/confirm` and its #1779
   attempt-counter / anti-enumeration dead code (and tests) are removed; orphaned
@@ -386,7 +390,7 @@ Change status to **Ready** when:
 
 ### GHCLIAUTH-009: Observability + ops hardening + runbook
 
-- **Status:** Merged 2026-06-11 via PR #2552
+- **Status:** Released/Shipped via v0.8.1-beta (2026-06-11). Merged 2026-06-11 via PR #2552
 - **Intent:** Make the login hot path observable and operable without leaking
   secrets, and document the cutover gate.
 - **Expected Outcome:** Structured `console.info` (not gated `console.debug`)
@@ -410,7 +414,8 @@ Change status to **Ready** when:
 
 ### GHCLIAUTH-010: Docs sync — auth/activation/quickstart/beta guide
 
-- **Status:** Merged 2026-06-11 via PR #2558 (drift: `activation-as-built.md`
+- **Status:** Released/Shipped via v0.8.1-beta (2026-06-11). Merged 2026-06-11
+  via PR #2558 (drift: `activation-as-built.md`
   is `anvil start` product activation, not auth — no changes needed)
 - **Intent:** Bring the user and architecture docs in line with the new login
   flow.
@@ -436,7 +441,7 @@ Change status to **Ready** when:
 
 ### GHCLIAUTH-011: End-to-end headless smoke test
 
-- **Status:** Merged 2026-06-11 via PR #2553
+- **Status:** Released/Shipped via v0.8.1-beta (2026-06-11). Merged 2026-06-11 via PR #2553
 - **Intent:** Prove the original bug is closed — a headless login completes end
   to end — and keep it from regressing.
 - **Expected Outcome:** A wiremock-backed CLI integration test drives
