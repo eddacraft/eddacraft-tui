@@ -14,7 +14,7 @@
     "caveats": [
       "Not a full pnpm bench artifact set because scripts/bench/run.sh failed while piping cargo test -p anvil-bench through tee.",
       "antipattern_scan and secret_scan_parallel timings are not quiet-box comparable because they overlapped.",
-      "Resource budget benches used ANVIL_BENCH_ANVIL_BIN=/home/aneki/.cache/anvil-targets/anvil-001/release/anvil because CARGO_TARGET_DIR redirects release artifacts away from target/release/anvil."
+      "Resource budget benches used ANVIL_BENCH_ANVIL_BIN pointing at the cached release binary under the active CARGO_TARGET_DIR because this worktree redirects release artifacts away from target/release/anvil."
     ]
   },
   "benches": {
