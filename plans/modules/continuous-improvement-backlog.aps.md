@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 44/67    |
+| CIB | —     | In Progress | 44/68    |
 
 ## Purpose
 
@@ -1801,3 +1801,31 @@ archive.
   (the probe pattern), EMAIL (the sender surfaces).
 - **Confidence:** high — mirrors an established pattern with real-key
   failure modes captured in tests.
+
+---
+
+### CIB-068: invite/OTP email copy — install step, lowercase brand, larger prose
+
+- **Status:** In Progress
+- **Intent:** operator review of the first real invite + OTP sends
+  (2026-06-12, after the CIB-067 key replacement) found the invite assumes
+  anvil is already installed, both subjects capitalise the brand
+  ("Anvil" — the product name is lowercase everywhere user-facing), and
+  the prose sizes read small.
+- **Expected Outcome:** the invite gains a "First, install anvil" step
+  (the quickstart's curl one-liner + the Windows variant) ahead of the
+  sign-in instructions, in both the React template and the plain-text
+  body; both subjects and body prose use lowercase "anvil"; prose font
+  sizes in both templates step up (14→15 body/code, 13→14 labels/muted).
+- **Files:** `packages/transactional/emails/beta-invite.tsx`,
+  `packages/transactional/emails/otp-code.tsx`,
+  `packages/transactional/emails/__tests__/render.test.tsx`,
+  `apps/anvil-api/src/lib/email.ts`
+- **Validation:** `pnpm nx test @eddacraft/transactional` (render test
+  asserts the install line) and `pnpm nx test @eddacraft/anvil-api`; a
+  real invite + OTP send shows the new copy.
+- **Identified From:** operator copy review of the live smoke emails,
+  2026-06-12.
+- **Coordinates with:** CIB-067 (the smoke that produced the emails),
+  GHCLIAUTH-007 (the invite rewrite this amends).
+- **Confidence:** high — copy and style only.

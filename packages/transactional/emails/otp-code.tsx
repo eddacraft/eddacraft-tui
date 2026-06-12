@@ -13,7 +13,7 @@ export function OtpCode({
   return (
     <Html>
       <Head />
-      <Preview>Your Anvil verification code</Preview>
+      <Preview>Your anvil verification code</Preview>
       <Body style={body}>
         <Container style={container}>
           <Section style={header}>
@@ -113,7 +113,7 @@ const codeDisplay: React.CSSProperties = {
 
 const muted: React.CSSProperties = {
   margin: '0 0 8px',
-  fontSize: '13px',
+  fontSize: '14px',
   color: '#a3a3a3',
   textAlign: 'center',
 };

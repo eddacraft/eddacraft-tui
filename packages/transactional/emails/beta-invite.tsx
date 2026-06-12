@@ -13,7 +13,7 @@ export function BetaInvite({
   return (
     <Html>
       <Head />
-      <Preview>You&apos;re in &mdash; Anvil beta access</Preview>
+      <Preview>You&apos;re in &mdash; anvil beta access</Preview>
       <Body style={body}>
         <Container style={container}>
           <Section style={header}>
@@ -32,10 +32,19 @@ export function BetaInvite({
             <Text style={okBadge}>[ OK ] Beta access approved</Text>
             <Text style={bodyText}>
               Your email <strong style={emailHighlight}>{email}</strong> has been approved for the
-              Anvil beta.
+              anvil beta.
             </Text>
 
-            <Text style={sectionLabel}>Sign in from your terminal:</Text>
+            <Text style={sectionLabel}>First, install anvil (macOS / Linux):</Text>
+            <Section style={codeBlock}>
+              <Text style={codeText}>$ curl -fsSL https://install.eddacraft.ai | sh</Text>
+            </Section>
+            <Text style={muted}>
+              On Windows:{' '}
+              <span style={codeInline}>irm https://install.eddacraft.ai/windows | iex</span>
+            </Text>
+
+            <Text style={sectionLabel}>Then sign in from your terminal:</Text>
             <Section style={codeBlock}>
               <Text style={codeText}>$ anvil auth login</Text>
             </Section>
@@ -125,7 +134,7 @@ const okBadge: React.CSSProperties = {
 
 const bodyText: React.CSSProperties = {
   margin: '0 0 24px',
-  fontSize: '14px',
+  fontSize: '15px',
   color: '#EBEBEB',
 };
 
@@ -135,7 +144,7 @@ const emailHighlight: React.CSSProperties = {
 
 const sectionLabel: React.CSSProperties = {
   margin: '0 0 8px',
-  fontSize: '13px',
+  fontSize: '14px',
   color: '#737373',
 };
 
@@ -149,14 +158,19 @@ const codeBlock: React.CSSProperties = {
 
 const codeText: React.CSSProperties = {
   margin: 0,
-  fontSize: '14px',
+  fontSize: '15px',
   color: '#EBEBEB',
   fontFamily: fontMono,
 };
 
+const codeInline: React.CSSProperties = {
+  fontFamily: fontMono,
+  color: '#EBEBEB',
+};
+
 const muted: React.CSSProperties = {
   margin: '0 0 24px',
-  fontSize: '13px',
+  fontSize: '14px',
   color: '#a3a3a3',
 };
 

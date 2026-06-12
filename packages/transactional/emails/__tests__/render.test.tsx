@@ -24,6 +24,7 @@ describe('transactional templates render to valid HTML', () => {
     );
 
     expect(html).toContain('tester@example.com');
+    expect(html).toContain('install.eddacraft.ai');
     expect(html).toContain('anvil auth login');
     expect(html).toContain('--otp');
     expect(html).not.toContain('auth/activate');

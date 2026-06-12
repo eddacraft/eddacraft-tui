@@ -149,9 +149,9 @@ export async function sendOtpCode(email: string, code: string): Promise<EmailDel
       from: FROM_ADDRESS,
       replyTo: REPLY_TO,
       to: email,
-      subject: 'Your Anvil verification code',
+      subject: 'Your anvil verification code',
       react: OtpCode({ code, unsubscribeMailto }),
-      text: `Your Anvil verification code is: ${code}\n\nThis code expires in 10 minutes.\nIf you didn't request this, you can safely ignore it.\n\n—\nanvil :: eddacraft.ai`,
+      text: `Your anvil verification code is: ${code}\n\nThis code expires in 10 minutes.\nIf you didn't request this, you can safely ignore it.\n\n—\nanvil :: eddacraft.ai`,
       tags: [{ name: 'category', value: 'otp-code' }],
     });
 
@@ -246,9 +246,9 @@ export async function sendBetaInvite(email: string): Promise<EmailDeliveryResult
       from: FROM_ADDRESS,
       replyTo: REPLY_TO,
       to: email,
-      subject: "You're in — Anvil early access",
+      subject: "You're in — anvil early access",
       react: BetaInvite({ email, unsubscribeMailto }),
-      text: `You're in — Anvil early access\n\nYour email ${email} has been approved for Anvil early access.\n\nSign in from your terminal:\n$ anvil auth login\n\nYou'll be shown a short code and a github.com link — open it on any device and approve to finish signing in with GitHub.\n\nNo GitHub account? Use a one-time email code instead:\n$ anvil auth login --otp\n\nThe one-time code is sent to this email address.\n\n—\nanvil :: eddacraft.ai`,
+      text: `You're in — anvil early access\n\nYour email ${email} has been approved for the anvil beta.\n\nFirst, install anvil (macOS / Linux):\n$ curl -fsSL https://install.eddacraft.ai | sh\n\nOn Windows:\nirm https://install.eddacraft.ai/windows | iex\n\nThen sign in from your terminal:\n$ anvil auth login\n\nYou'll be shown a short code and a github.com link — open it on any device and approve to finish signing in with GitHub.\n\nNo GitHub account? Use a one-time email code instead:\n$ anvil auth login --otp\n\nThe one-time code is sent to this email address.\n\n—\nanvil :: eddacraft.ai`,
       tags: [{ name: 'category', value: 'beta-invite' }],
     });
 
