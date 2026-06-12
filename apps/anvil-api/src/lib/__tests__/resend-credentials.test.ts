@@ -42,6 +42,27 @@ describe('verifyResendKey (CIB-067)', () => {
     expect(await verifyResendKey()).toBe('invalid');
   });
 
+  it('reports invalid for a dead key on 403', async () => {
+    mockFetchResponse(403, { statusCode: 403, name: 'invalid_api_key' });
+    expect(await verifyResendKey()).toBe('invalid');
+  });
+
+  it('reports unverifiable for an unrecognised 401 body (schema drift must not 503)', async () => {
+    mockFetchResponse(401, { statusCode: 401, name: 'expired_api_key_or_whatever_is_next' });
+    expect(await verifyResendKey()).toBe('unverifiable');
+  });
+
+  it('reports unverifiable when the 401 body is unparseable', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: false,
+      status: 401,
+      json: async () => {
+        throw new Error('not json');
+      },
+    } as unknown as Response);
+    expect(await verifyResendKey()).toBe('unverifiable');
+  });
+
   it('reports unverifiable on Resend-side failure', async () => {
     mockFetchResponse(500, {});
     expect(await verifyResendKey()).toBe('unverifiable');
@@ -65,6 +86,37 @@ describe('verifyResendKey (CIB-067)', () => {
     await verifyResendKey();
     await verifyResendKey();
     expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it('deduplicates concurrent cache misses into one upstream request', async () => {
+    let release!: (v: Response) => void;
+    const gate = new Promise<Response>((r) => {
+      release = r;
+    });
+    const spy = vi.spyOn(globalThis, 'fetch').mockReturnValue(gate as Promise<Response>);
+    const calls = [verifyResendKey(), verifyResendKey(), verifyResendKey()];
+    release({ ok: true, status: 200, json: async () => ({ data: [] }) } as Response);
+    expect(await Promise.all(calls)).toEqual(['ok', 'ok', 'ok']);
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it('serves a stale cached status immediately while refreshing in the background', async () => {
+    vi.useFakeTimers();
+    try {
+      mockFetchResponse(200, { data: [] });
+      expect(await verifyResendKey()).toBe('ok');
+      // Past the TTL: the key dies, but the stale 'ok' is served without
+      // blocking; the background refresh picks up the new state for the
+      // NEXT caller.
+      vi.advanceTimersByTime(6 * 60 * 1_000);
+      vi.restoreAllMocks();
+      mockFetchResponse(401, { statusCode: 401, name: 'validation_error' });
+      expect(await verifyResendKey()).toBe('ok'); // stale serve, no inline wait
+      await vi.runAllTimersAsync(); // let the background refresh land
+      expect(await verifyResendKey()).toBe('invalid');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('does not cache the unconfigured state (mid-flight provisioning shows up)', async () => {

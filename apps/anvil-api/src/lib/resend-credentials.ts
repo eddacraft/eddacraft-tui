@@ -20,16 +20,31 @@ const PROBE_TIMEOUT_MS = 5_000;
 const CACHE_TTL_MS = 5 * 60 * 1_000;
 
 let cached: { status: ResendKeyStatus; at: number } | null = null;
+let inFlight: Promise<ResendKeyStatus> | null = null;
 
 /**
  * Validate the configured Resend API key with a cheap authenticated read
- * (`GET /domains` — no email is sent). Results are cached for CACHE_TTL_MS.
+ * (`GET /domains` — no email is sent). Stale-while-revalidate: an expired
+ * cache entry is served immediately while a background refresh runs, so
+ * /health never pays the upstream round-trip after the boot probe has
+ * primed the cache. Concurrent cache misses share one in-flight request.
  */
 export async function verifyResendKey(): Promise<ResendKeyStatus> {
-  if (cached && Date.now() - cached.at < CACHE_TTL_MS) {
+  if (cached) {
+    if (Date.now() - cached.at >= CACHE_TTL_MS && !inFlight) {
+      void refresh().catch(() => {});
+    }
     return cached.status;
   }
+  if (!inFlight) {
+    inFlight = refresh().finally(() => {
+      inFlight = null;
+    });
+  }
+  return inFlight;
+}
 
+async function refresh(): Promise<ResendKeyStatus> {
   const key = process.env['RESEND_API_KEY'];
   if (!key) {
     // Deliberately not cached: provisioning the env mid-flight should be
@@ -46,12 +61,23 @@ export async function verifyResendKey(): Promise<ResendKeyStatus> {
     if (res.ok) {
       status = 'ok';
     } else if (res.status === 401 || res.status === 403) {
-      // A sending-only key is rejected by read endpoints with a
-      // DISTINGUISHABLE error (name: "restricted_api_key") — the key is
-      // alive and can send, which is all production needs. Only a true
-      // validation_error means the key is dead.
+      // Resend's 401/403 bodies carry a discriminating `name`:
+      // - restricted_api_key: a sending-only key rejected by a read
+      //   endpoint — the key is ALIVE and can send, which is all
+      //   production email needs → ok.
+      // - validation_error / invalid_api_key: the key is dead → invalid.
+      // - anything unrecognised (schema change, parse failure): the probe
+      //   cannot conclude — report unverifiable rather than gate a 503 on
+      //   a guess. (This module exists because of a Resend key surprise;
+      //   don't let a renamed error field cause the next one.)
       const body = (await res.json().catch(() => null)) as { name?: string } | null;
-      status = body?.name === 'restricted_api_key' ? 'ok' : 'invalid';
+      if (body?.name === 'restricted_api_key') {
+        status = 'ok';
+      } else if (body?.name === 'validation_error' || body?.name === 'invalid_api_key') {
+        status = 'invalid';
+      } else {
+        status = 'unverifiable';
+      }
     } else {
       status = 'unverifiable';
     }
@@ -66,4 +92,5 @@ export async function verifyResendKey(): Promise<ResendKeyStatus> {
 // Test-only: clears the probe cache so env-var changes take effect.
 export function _resetResendKeyCacheForTests(): void {
   cached = null;
+  inFlight = null;
 }
