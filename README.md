@@ -1,8 +1,8 @@
 # anvil
 
-| Type   | Authority | Owner  | Status | Freshness                                                                                                                        |
-| ------ | --------- | ------ | ------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| README | Advisory  | DOCGOV | Live   | Last reviewed 2026-05-27 against `plans/releases/v0.7.2-beta.md`, `plans/index.aps.md`, `package.json`, and `.github/workflows/` |
+| Type   | Authority | Owner  | Status | Freshness                                                                                                                             |
+| ------ | --------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| README | Advisory  | DOCGOV | Live   | Last reviewed 2026-06-12 against `benchmarks/history/2026-06-12.json`, `plans/index.aps.md`, `package.json`, and `.github/workflows/` |
 
 | Upstream                                               | Downstream                        |
 | ------------------------------------------------------ | --------------------------------- |
@@ -41,11 +41,24 @@ Criterion (release build). Previously measured 2026-04-28 and 2026-04-03.
 Governance overhead is effectively zero — anvil is in a different category from
 SAST, not a faster scanner.
 
-Latest standard benchmark snapshot from `cargo bench -p anvil-bench` on deus:
+Latest `anvil-bench` spot-check snapshot on deus (2026-06-12, partial run; see
+[`benchmarks/history/2026-06-12.json`](./benchmarks/history/2026-06-12.json) for
+caveats and raw values):
 
-- **Parallel anti-pattern scan** — ~842K–877K elements/sec
-- **Secret scan parallel rollout** — ~3.60K–3.79K elements/sec (~7x faster than
-  serial)
+- **Watch resource budget** — pass at 9.7% CPU / 33.0 MiB RSS, against a 50% CPU
+  / 300 MiB budget.
+- **MCP resource budget** — pass at 82.9% CPU / 10.2 MiB RSS, driving 87,085
+  `tools/call` requests against a 200% CPU / 96 MiB budget.
+- **Intercept daemon budget** — pass at 0.0% CPU idle and 101.0% CPU burst; both
+  stayed around 11.4 MiB RSS.
+- **Concurrent watch + MCP + intercept budget** — pass at 193.1% CPU / 54.4 MiB
+  RSS, against an 800% CPU / 700 MiB aggregate budget.
+- **Parallel anti-pattern scan** — indicative ~647K artifacts/sec on the
+  320-artifact mixed corpus. This timing overlapped another bench, so use it as
+  a health check rather than a quiet-box baseline.
+- **Secret scan parallel rollout** — indicative ~3.69K elements/sec, about 7.1x
+  faster than serial. This timing overlapped another bench, so use it as a
+  health check rather than a quiet-box baseline.
 
 See [`crates/anvil-bench/`](./crates/anvil-bench/) for the harness and
 [the GTM benchmark report](https://github.com/eddacraft/eddacraft-gtm/blob/main/competitive/anvil-benchmarks-2026-04-03.md)

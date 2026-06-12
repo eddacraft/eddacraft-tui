@@ -1,0 +1,119 @@
+{
+  "schema_version": 1,
+  "run": {
+    "date": "2026-06-12",
+    "commit": "86c86981962f36192f566fba4dd81d2612ab2117",
+    "rustc": "1.95.0",
+    "trigger": "manual anvil-bench spot check",
+    "host": {
+      "cpus": 16,
+      "note": "local dev box; partial run. antipattern_scan and secret_scan_parallel were launched concurrently, so those timings are indicative rather than quiet-box comparable. pnpm bench aborted at cargo-test-anvil-bench when cargo test output was piped through tee; direct cargo test passed."
+    },
+    "source": "direct cargo bench invocations after pnpm bench capture-mode failure",
+    "partial": true,
+    "caveats": [
+      "Not a full pnpm bench artifact set because scripts/bench/run.sh failed while piping cargo test -p anvil-bench through tee.",
+      "antipattern_scan and secret_scan_parallel timings are not quiet-box comparable because they overlapped.",
+      "Resource budget benches used ANVIL_BENCH_ANVIL_BIN=/home/aneki/.cache/anvil-targets/anvil-001/release/anvil because CARGO_TARGET_DIR redirects release artifacts away from target/release/anvil."
+    ]
+  },
+  "benches": {
+    "stress": [
+      {
+        "case": "watcher_saturation/small_burst",
+        "ns_per_iter": 37967954,
+        "variance_ns": 57777
+      },
+      {
+        "case": "graph_memory/small_graph",
+        "ns_per_iter": 301349,
+        "variance_ns": 4065
+      },
+      {
+        "case": "incremental_throughput/sustained_edits",
+        "ns_per_iter": 100124771,
+        "variance_ns": 7811
+      },
+      {
+        "case": "policy_scaling/rule_scaling",
+        "ns_per_iter": 113739,
+        "variance_ns": 1463
+      },
+      {
+        "case": "cold_start/scaling",
+        "ns_per_iter": 3474710,
+        "variance_ns": 38975
+      }
+    ],
+    "antipattern_scan": [
+      {
+        "case": "antipattern_scan/parallel_mixed_corpus",
+        "ns_per_iter": 494287,
+        "variance_ns": 21036,
+        "note": "Indicative only; launched concurrently with secret_scan_parallel."
+      }
+    ],
+    "secret_scan_parallel": [
+      {
+        "case": "scan/serial_baseline",
+        "ns_per_iter": 5788613817,
+        "variance_ns": 19029332,
+        "note": "Indicative only; launched concurrently with antipattern_scan. Criterion warned 10 samples could not complete in 15s."
+      },
+      {
+        "case": "scan/parallel_rollout",
+        "ns_per_iter": 812095137,
+        "variance_ns": 10742898,
+        "note": "Indicative only; launched concurrently with antipattern_scan."
+      }
+    ]
+  },
+  "watch_resource_budget": {
+    "status": "pass",
+    "steady_state_cpu_pct": 9.744447098160974,
+    "peak_rss_mib": 32.9609375,
+    "budget": {
+      "steady_state_cpu_pct": 50.0,
+      "peak_rss_mib": 300.0
+    }
+  },
+  "mcp_resource_budget": {
+    "status": "pass",
+    "steady_state_cpu_pct": 82.85500374344896,
+    "peak_rss_mib": 10.1875,
+    "budget": {
+      "steady_state_cpu_pct": 200.0,
+      "peak_rss_mib": 96.0
+    },
+    "requests": 87085
+  },
+  "intercept_resource_budget": {
+    "idle": {
+      "status": "pass",
+      "steady_state_cpu_pct": 0.0,
+      "peak_rss_mib": 11.359375,
+      "budget": {
+        "steady_state_cpu_pct": 5.0,
+        "peak_rss_mib": 96.0
+      }
+    },
+    "burst": {
+      "status": "pass",
+      "steady_state_cpu_pct": 101.0204081632653,
+      "peak_rss_mib": 11.359375,
+      "budget": {
+        "steady_state_cpu_pct": 250.0,
+        "peak_rss_mib": 128.0
+      }
+    }
+  },
+  "concurrent_resource_budget": {
+    "status": "pass",
+    "steady_state_cpu_pct": 193.12436804853388,
+    "peak_rss_mib": 54.390625,
+    "budget": {
+      "steady_state_cpu_pct": 800.0,
+      "peak_rss_mib": 700.0
+    }
+  }
+}

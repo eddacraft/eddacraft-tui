@@ -1443,3 +1443,20 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Friction:** `format:check` required one oxfmt wrap fix in the public changelog.
 - **Improvement:** Keep release changelog updates in the same PR that flips late-stage feature work to `Merged`.
 - **Follow-up:** None.
+
+### 2026-06-12 — opencode
+
+- **Task:** Run due `anvil-bench` benchmark spot checks.
+- **Outcome:** Resource budgets passed and a partial benchmark history record was
+  added for 2026-06-12; `pnpm bench` did not complete because the harness-piped
+  `cargo test -p anvil-bench` returned 101 while the direct command passed.
+- **Worked:** Direct, unpiped `cargo test` and `cargo bench` commands isolated the
+  product benchmarks from the harness capture issue.
+- **Failed:** Initial `pnpm bench` runs stopped before benchmark execution.
+- **Friction:** `scripts/bench/run.sh` assumes `target/release/anvil`, but this
+  worktree uses the per-worktree `CARGO_TARGET_DIR` cache.
+- **Improvement:** Benchmark harness logging should be robust to piped cargo-test
+  output and should resolve the release binary from Cargo target metadata or the
+  active `CARGO_TARGET_DIR`.
+- **Follow-up:** Promote a CIB item if the tee/cargo-test failure recurs on the
+  next benchmark run.
