@@ -43,6 +43,14 @@ auth.post('/verify', zValidator('json', verifySchema), async (c) => {
   const { token } = c.req.valid('json');
 
   if (!isValidTokenFormat(token)) {
+    // Only structurally JWT-shaped credentials reach the verifying key:
+    // arbitrary garbage stays {valid: false} and must not surface the 503
+    // misconfiguration signal below — the caller didn't cause it, and the
+    // key never needs loading to reject a string that cannot be a licence.
+    if (!/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token)) {
+      debug('not a valid access token or licence-shaped JWT');
+      return c.json({ valid: false });
+    }
     let claims;
     try {
       claims = await verifyLicence(token);

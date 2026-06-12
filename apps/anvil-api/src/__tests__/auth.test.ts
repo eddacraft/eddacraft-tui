@@ -288,6 +288,20 @@ describe('POST /auth/verify — licence JWT credential (CIB-066)', () => {
     expect(await res.json()).toEqual({ valid: false });
   });
 
+  it('rejects non-JWT garbage without touching the verifying key (no spurious 503)', async () => {
+    const saved = process.env['LICENSE_PUBLIC_KEY'];
+    delete process.env['LICENSE_PUBLIC_KEY'];
+    _resetSigningKeyCacheForTests();
+    try {
+      const res = await post('/auth/verify', { token: 'not-a-real-token' });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ valid: false });
+    } finally {
+      process.env['LICENSE_PUBLIC_KEY'] = saved;
+      _resetSigningKeyCacheForTests();
+    }
+  });
+
   it('returns 503 when the verifying key is unavailable (misconfiguration, not invalid creds)', async () => {
     const saved = process.env['LICENSE_PUBLIC_KEY'];
     delete process.env['LICENSE_PUBLIC_KEY'];
