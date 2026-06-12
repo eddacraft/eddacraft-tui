@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 43/66    |
+| CIB | —     | In Progress | 44/66    |
 
 ## Purpose
 
@@ -1718,7 +1718,11 @@ archive.
 
 ### CIB-066: `/auth/verify` rejects the licence-JWT credential interactive logins store
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-11 via PR #2566 (deployed + verified live
+  2026-06-12: `/health` 200 `verifyingKey: "ok"`; real production smoke on
+  the released v0.8.1-beta binary — device-flow `anvil auth login` →
+  `anvil auth whoami` returns the authenticated identity with plan `pro`
+  served by the new licence path)
 - **Intent:** a freshly logged-in user's first `anvil auth whoami` fails with
   "Stored credentials are invalid or expired" — interactive logins (GitHub
   device flow and OTP) store the ES256 licence JWT as the credential and the
