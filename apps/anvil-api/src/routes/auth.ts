@@ -32,11 +32,13 @@ const auth = new Hono();
  *   which fails the check — grant-level token revocation does not apply to
  *   licence credentials, which expire on their own 7-day TTL).
  *
- * Always returns 200 — {valid: false} on any failure (no reason leakage) —
- * except 503 when the verifying key is unavailable (server misconfiguration,
- * not a caller failure). The licence-path response omits `license` and
- * `expiresAt` — those are access-token-path fields (the caller already
- * holds the licence; its expiry is inside the JWT).
+ * Returns 200 — {valid: false} on any credential failure (no reason
+ * leakage), with two exceptions: 400 when the request body fails schema
+ * validation (zValidator), and 503 when the verifying key is unavailable
+ * (server misconfiguration, not a caller failure). The licence-path
+ * response omits `license` and `expiresAt` — those are access-token-path
+ * fields (the caller already holds the licence; its expiry is inside the
+ * JWT).
  */
 auth.post('/verify', zValidator('json', verifySchema), async (c) => {
   debug('POST /auth/verify');
