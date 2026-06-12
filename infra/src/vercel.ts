@@ -88,6 +88,12 @@ export const api = new VercelApp('anvil-api', {
     TOKEN_PEPPER: getSecret('token-pepper'),
     // BAUTH: ES256 private key (PKCS#8 PEM) for signing licence JWTs
     LICENSE_SIGNING_KEY: licenseSigningKey,
+    // CIB-066: ES256 public key (SPKI PEM) so the API can VERIFY the
+    // licences it signs — /auth/verify accepts the licence JWT credential
+    // that interactive logins store (whoami path), and the /health
+    // verifying-key probe stops reporting degraded. Previously only the
+    // docs apps received this key.
+    LICENSE_PUBLIC_KEY: licensePublicKey,
     // DOCSAUTH: GitHub OAuth for docs auth gating
     GITHUB_CLIENT_ID: githubClientId,
     GITHUB_CLIENT_SECRET: githubClientSecret,

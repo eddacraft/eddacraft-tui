@@ -2,15 +2,18 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import { getClient } from '../db/client.js';
-import { findTokenByHash, findActiveScopesForUser } from '../db/queries.js';
+import { findTokenByHash, findActiveScopesForUser, findUserById } from '../db/queries.js';
 import { hashToken, isValidTokenFormat } from '../lib/token.js';
 import { createDebugger } from '../lib/debug.js';
-import { signLicence } from '../lib/licence.js';
+import { signLicence, verifyLicence } from '../lib/licence.js';
 
 const debug = createDebugger('api');
 
+// Generous enough for an ES256 licence JWT (~700-900 chars), which /verify
+// accepts since CIB-066; the old max(200) rejected licences at the schema
+// boundary with a 400 before any verification ran.
 const verifySchema = z.object({
-  token: z.string().max(200),
+  token: z.string().max(4096),
 });
 
 const auth = new Hono();
@@ -18,16 +21,57 @@ const auth = new Hono();
 /**
  * POST /auth/verify
  *
- * Validates a beta access token.
- * Always returns 200 — {valid: false} on any failure (no reason leakage).
+ * Validates a credential and reports the identity behind it. Two forms:
+ *
+ * - `anvil_beta_…` access token: hashed DB lookup (revocation, expiry, and
+ *   user-status checks) — returns a freshly signed licence.
+ * - ES256 licence JWT (CIB-066): interactive logins (GitHub device flow /
+ *   OTP) store the licence as the credential and the CLI's `whoami` sends it
+ *   here. Verified via the licence verifying key; revocation parity comes
+ *   from the account-status gate (an account-level revoke suspends the user,
+ *   which fails the check — grant-level token revocation does not apply to
+ *   licence credentials, which expire on their own 7-day TTL).
+ *
+ * Always returns 200 — {valid: false} on any failure (no reason leakage) —
+ * except 503 when the verifying key is unavailable (server misconfiguration,
+ * not a caller failure).
  */
 auth.post('/verify', zValidator('json', verifySchema), async (c) => {
   debug('POST /auth/verify');
   const { token } = c.req.valid('json');
 
   if (!isValidTokenFormat(token)) {
-    debug('invalid token format');
-    return c.json({ valid: false });
+    let claims;
+    try {
+      claims = await verifyLicence(token);
+    } catch (err) {
+      // loadVerifyingKey throws when LICENSE_PUBLIC_KEY is missing or
+      // malformed — surface as server misconfiguration, never as
+      // "your credentials are invalid".
+      debug('licence verification unavailable', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return c.json({ error: 'verification_unavailable' }, 503);
+    }
+    if (!claims) {
+      debug('not a valid access token or licence');
+      return c.json({ valid: false });
+    }
+
+    const sql = getClient();
+    const user = await findUserById(sql, claims.sub);
+    if (!user || user.status !== 'active') {
+      debug('licence subject not active', { status: user?.status });
+      return c.json({ valid: false });
+    }
+
+    debug('licence verified successfully');
+    return c.json({
+      valid: true,
+      isEdict: false,
+      user: { email: claims.email, plan: claims.tier },
+      scopes: claims.scopes,
+    });
   }
 
   const sql = getClient();

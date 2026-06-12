@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 43/65    |
+| CIB | —     | In Progress | 43/66    |
 
 ## Purpose
 
@@ -1713,3 +1713,44 @@ archive.
 - **Confidence:** medium — mechanical edit, but the target domain (and
   whether `$id` stability matters to any external consumer) is an owner
   call before execution.
+
+---
+
+### CIB-066: `/auth/verify` rejects the licence-JWT credential interactive logins store
+
+- **Status:** In Progress
+- **Intent:** a freshly logged-in user's first `anvil auth whoami` fails with
+  "Stored credentials are invalid or expired" — interactive logins (GitHub
+  device flow and OTP) store the ES256 licence JWT as the credential and the
+  CLI posts it to `/api/v1/auth/verify`, but that endpoint only accepted
+  `anvil_beta_…` access tokens (and its zod schema capped `token` at 200
+  chars, rejecting any JWT with a 400 before verification ran). Found during
+  the pre-signup production sweep after v0.8.1-beta; the GHCLIAUTH-011 E2E
+  could not catch it because it mocks the server (cross-boundary contract
+  gap). Related root cause: `LICENSE_PUBLIC_KEY` was wired to the docs apps
+  only, never anvil-api, so the API could sign licences but not verify them —
+  also why prod `/health` 503s with `verifyingKey: "unavailable"`.
+- **Expected Outcome:** `/auth/verify` accepts both credential forms: the
+  access-token path is unchanged, and a non-`anvil_beta_` token is verified
+  as a licence via `verifyLicence` with an account-status gate
+  (`findUserById`, `status === 'active'`) for revocation parity — returning
+  `{valid, isEdict: false, user: {email, plan: tier}, scopes}`; a
+  verifying-key load failure returns 503 `verification_unavailable` (server
+  misconfiguration, never "your credentials are invalid"); the schema cap
+  rises to 4096; `infra/src/vercel.ts` wires `LICENSE_PUBLIC_KEY` into the
+  anvil-api env (fixing the `/health` degraded 503 on deploy).
+- **Files:** `apps/anvil-api/src/routes/auth.ts`,
+  `apps/anvil-api/src/__tests__/auth.test.ts`, `infra/src/vercel.ts`
+- **Validation:** `pnpm nx test @eddacraft/anvil-api` — licence-path tests
+  cover valid/active, suspended, unknown subject, expired, tampered
+  signature, non-credential string, and key-unavailable→503, signed and
+  verified through real ES256 keys; after deploy + Pulumi apply:
+  `curl https://api.eddacraft.ai/api/v1/health` returns 200 with
+  `verifyingKey: "ok"`, and a real `anvil auth login` → `anvil auth whoami`
+  round-trip succeeds on the released v0.8.1-beta binary.
+- **Identified From:** pre-signup production sweep, 2026-06-12 (operator
+  question "anything before people start signing up?").
+- **Coordinates with:** GHCLIAUTH (the flow that surfaces it), GHCLIAUTH-011
+  (the E2E that needs a follow-up contract leg), DOCSAUTH (existing
+  `LICENSE_PUBLIC_KEY` consumers).
+- **Confidence:** high — bounded route change with end-to-end-keyed tests.
