@@ -1741,7 +1741,11 @@ archive.
   anvil-api env (fixing the `/health` degraded 503 on deploy).
 - **Files:** `apps/anvil-api/src/routes/auth.ts`,
   `apps/anvil-api/src/__tests__/auth.test.ts`, `infra/src/vercel.ts`
-- **Validation:** `pnpm nx test @eddacraft/anvil-api` — licence-path tests
+- **Validation:** deploy order — `LICENSE_PUBLIC_KEY` must reach the
+  anvil-api Vercel env (pulumi up or UI) **before or with** the code deploy,
+  else the licence path 503s in the window (loud and distinguishable from
+  "invalid credentials", but avoidable). `pnpm nx test @eddacraft/anvil-api`
+  — licence-path tests
   cover valid/active, suspended, unknown subject, expired, tampered
   signature, non-credential string, and key-unavailable→503, signed and
   verified through real ES256 keys; after deploy + Pulumi apply:

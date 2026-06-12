@@ -92,7 +92,9 @@ export const api = new VercelApp('anvil-api', {
     // licences it signs — /auth/verify accepts the licence JWT credential
     // that interactive logins store (whoami path), and the /health
     // verifying-key probe stops reporting degraded. Previously only the
-    // docs apps received this key.
+    // docs apps received this key. DEPLOY ORDER: apply this (pulumi up or
+    // set the var in the Vercel UI) BEFORE or with the code deploy — the
+    // licence path 503s without it.
     LICENSE_PUBLIC_KEY: licensePublicKey,
     // DOCSAUTH: GitHub OAuth for docs auth gating
     GITHUB_CLIENT_ID: githubClientId,

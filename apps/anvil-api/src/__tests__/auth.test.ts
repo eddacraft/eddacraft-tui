@@ -198,6 +198,10 @@ describe('POST /auth/verify', () => {
 describe('POST /auth/verify — licence JWT credential (CIB-066)', () => {
   const mockedFindUser = vi.mocked(findUserById);
 
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   function activeUser() {
     return {
       id: 'user-1',
@@ -257,7 +261,6 @@ describe('POST /auth/verify — licence JWT credential (CIB-066)', () => {
   });
 
   it('rejects an expired licence', async () => {
-    mockedFindUser.mockClear();
     mockedFindUser.mockResolvedValue(activeUser() as never);
     const expired = await mintLicence(new Date(Date.now() - 60_000).toISOString());
     const res = await post('/auth/verify', { token: expired });
@@ -266,10 +269,14 @@ describe('POST /auth/verify — licence JWT credential (CIB-066)', () => {
   });
 
   it('rejects a tampered licence', async () => {
-    mockedFindUser.mockClear();
     mockedFindUser.mockResolvedValue(activeUser() as never);
     const licence = await mintLicence();
-    const sigFlip = licence.slice(0, -1) + (licence.endsWith('A') ? 'B' : 'A');
+    // Flip a char WELL INSIDE the signature: the final base64url char of an
+    // ES256 signature carries 2 data bits + 4 discarded padding bits, so a
+    // last-char flip can decode to the identical signature (~25% flake).
+    const i = licence.length - 10;
+    const flipped = licence[i] === 'A' ? 'B' : 'A';
+    const sigFlip = licence.slice(0, i) + flipped + licence.slice(i + 1);
     const res = await post('/auth/verify', { token: sigFlip });
     expect(await res.json()).toEqual({ valid: false });
     expect(mockedFindUser).not.toHaveBeenCalled();
