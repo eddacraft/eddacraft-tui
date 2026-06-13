@@ -604,7 +604,20 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-007: MCP shim mirror of mid-edit Kindling observations
 
-- **Status:** Draft
+- **Status:** Blocked
+- **Blocked rationale (2026-06-14):** Premised on the MCP shim making
+  **mid-edit** `scan_buffer` calls — but it has no mid-edit surface.
+  Every MCP tool (`validate_write`, `gate`, `check`, …) sends
+  `"mode": "preWrite"` (or `planless`/`full`); the shim is a pre-write
+  gate by design (DSV-007 keeps it on the `scan_buffer` pre-write
+  path). The daemon's `gate_evaluated` emission (MLP2-006) deliberately
+  **skips pre-write** because, per **ADR-031**, pre-write samples are a
+  separate budget class and mixing them would conflate observation
+  kinds. So there are no mid-edit MCP calls to mirror, and emitting
+  `gate_evaluated` on the MCP pre-write path would contradict ADR-031.
+  Unblocking requires an owner/architect decision: either give the MCP
+  shim a mid-edit observation surface, or redefine this item against
+  the pre-write budget class. Not an implementation task as written.
 - **Intent:** The MCP shim (`crates/anvil-cli/src/mcp/validation.rs`)
   must produce bit-identical `gate_evaluated` rows for its
   mid-edit calls so MCP and direct-driver observations are
