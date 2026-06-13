@@ -1,8 +1,66 @@
+use std::sync::LazyLock;
+
+use regex::Regex;
+
 use crate::secret::entropy::detect_high_entropy_strings_with_line_filter_and_limit;
 use crate::secret::patterns::{
     CompiledPattern, DEFAULT_COMPILED_PATTERNS, PatternMatcher, compile_custom_patterns,
 };
 use crate::secret::types::{FindingType, SecretCheckConfig, SecretFinding};
+
+/// Matches a credential embedded in a URL's userinfo: `scheme://user:secret@host`.
+///
+/// The colon between `user` and `secret` is the load-bearing signal — it
+/// matches basic-auth credentials (`https://user:token@registry`) without
+/// matching a bare username like `git@github.com` (no colon), which appears
+/// throughout lockfiles and would otherwise be a false positive. A token-only
+/// userinfo (`https://TOKEN@host`, no colon) is intentionally not matched for
+/// the same reason; npm keeps such tokens in `.npmrc`, which is scanned in full.
+static CREDENTIAL_URL_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"[a-zA-Z][a-zA-Z0-9+.\-]*://[^/\s:@]+:[^/\s@]+@")
+        .expect("credential URL pattern is valid")
+});
+
+/// Scan a dependency lockfile for credentials embedded in URLs, and nothing
+/// else (GH #2584).
+///
+/// Lockfiles pin resolved dependencies and carry integrity hashes that are
+/// high-entropy by construction; running them through the full secret scan —
+/// especially the entropy detector — produces only false positives. The one
+/// real secret class that legitimately appears in a lockfile is a credential in
+/// a `resolved`/source URL (`https://user:token@registry/…`), so this scans for
+/// exactly that: no entropy pass, no other patterns.
+#[must_use]
+pub fn scan_lockfile_url_credentials(
+    content: &str,
+    file_path: &str,
+    limit: usize,
+) -> Vec<SecretFinding> {
+    if limit == 0 {
+        return Vec::new();
+    }
+    // No custom allowlist: the pattern only fires on `user:pass@` userinfo,
+    // which has no benign lockfile form that would need allowlisting.
+    let matcher = PatternMatcher::new(&[]);
+    let mut findings = Vec::new();
+    for (index, line) in content.lines().enumerate() {
+        for matched in CREDENTIAL_URL_PATTERN.find_iter(line) {
+            let range = matched.range();
+            findings.push(SecretFinding {
+                file: file_path.to_string(),
+                line: index + 1,
+                finding_type: FindingType::Pattern,
+                pattern_name: "Credential URL".to_string(),
+                redacted_match: matcher.redact_secret(&line[range.clone()]),
+                redacted_line: matcher.redact_range_in_line(line, range.start, range.end),
+            });
+            if findings.len() == limit {
+                return findings;
+            }
+        }
+    }
+    findings
+}
 
 /// Reject Credit Card matches that are actually a fragment of a
 /// UUID (`xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`). The Credit Card
@@ -263,6 +321,18 @@ pub fn scan_content_with_compiled_patterns(
 
     if limit == 0 {
         return (findings, stats);
+    }
+
+    // Lockfiles get a restricted scan: only credentials embedded in URLs, never
+    // the entropy detector (their integrity hashes are entropy false positives,
+    // GH #2584). Centralised here so every scan surface — discovery, `anvil
+    // check`/`gate`/`audit`, and the save-time intercept — treats lockfiles
+    // identically without each having to special-case them.
+    if crate::filter::is_lockfile(std::path::Path::new(file_path)) {
+        return (
+            scan_lockfile_url_credentials(content, file_path, limit),
+            stats,
+        );
     }
 
     let patterns_iter = || default_patterns.iter().chain(custom_patterns.iter());

@@ -480,11 +480,10 @@ fn candidate_path(
     if anvil_checks::filter::is_binary_path(path) {
         return None;
     }
-    // Dependency lockfiles carry high-entropy integrity hashes that are secret-
-    // scan false positives, and hold nothing else worth flagging (GH #2584).
-    if anvil_checks::filter::is_lockfile(path) {
-        return None;
-    }
+    // Lockfiles are NOT excluded here: `scan_one` runs them through the
+    // restricted URL-credential-only secret scan (GH #2584). Excluding them
+    // would also drop the chance to flag a credential committed to a `resolved`
+    // URL.
     // `.env*` files are the designated place to keep local secrets, so
     // reporting their contents as findings is noise the user cannot action
     // (GH #2584). They are almost always gitignored — and frequently by a
@@ -601,6 +600,13 @@ fn scan_one(
             suggestion: "Move the value to an environment variable or secrets manager.".to_string(),
             warning_id: None,
         });
+    }
+
+    // Lockfiles get the secret scan (URL-credential-only, handled inside
+    // `scan_content`) but no antipattern pass — generated dependency metadata
+    // has no meaningful antipatterns, and scanning it is pure noise (GH #2584).
+    if anvil_checks::filter::is_lockfile(path) {
+        return Some(local);
     }
 
     let ap_result = anvil_checks::antipattern::scanner::scan_file(rel_path, &content, None);
@@ -1729,6 +1735,31 @@ mod tests {
                 !has_secret_finding_for(&results, "package-lock.json"),
                 "lockfile integrity hashes must not be flagged (GH #2584):\n{:#?}",
                 results.findings,
+            );
+        }
+
+        #[test]
+        fn package_lock_url_credential_is_flagged() {
+            // A credential embedded in a lockfile `resolved` URL is a real
+            // secret and must still surface, even though integrity hashes are
+            // ignored.
+            let tmp = tempfile::tempdir().unwrap();
+            let root = tmp.path();
+            let lock = "{\n  \"integrity\": \"sha512-XI5MPzVNApjAyhQzphX8BkmKsKUxD4LdyK24iZeQGinB\",\n  \"resolved\": \"https://deployer:s3cr3tT0ken@npm.private.example/x/-/x-1.0.0.tgz\"\n}\n";
+            fs::write(root.join("package-lock.json"), lock).unwrap();
+
+            let results = scan_project_at(root, false);
+            assert!(
+                has_secret_finding_for(&results, "package-lock.json"),
+                "a credential in a lockfile resolved URL must be flagged:\n{:#?}",
+                results.findings,
+            );
+            assert!(
+                !results
+                    .findings
+                    .iter()
+                    .any(|f| f.message.contains("s3cr3tT0ken")),
+                "the credential must be redacted in the finding",
             );
         }
     }

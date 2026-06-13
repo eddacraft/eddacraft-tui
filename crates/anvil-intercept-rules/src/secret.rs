@@ -58,14 +58,13 @@ impl SecretDetectionRule {
     }
 
     fn should_skip_path(&self, input: &RuleInput<'_>) -> bool {
-        // Dependency-lockfile integrity hashes are high-entropy false positives
-        // (GH #2584); skip lockfiles save-time too, matching by basename so the
-        // non-`.lock` ones (`package-lock.json`, `pnpm-lock.yaml`, `go.sum`, …)
-        // are caught. `.env` files are intentionally NOT skipped here: the
-        // save-time intercept is the one surface that should still catch a
-        // secret the moment it is written into a tracked file.
+        // Lockfiles are NOT skipped: `scan_content_with_limit` gives them a
+        // restricted URL-credential-only scan (GH #2584), so an integrity hash
+        // never trips the rule but a credential written into a `resolved` URL
+        // still does. Returning `false` forces them past the `.lock` entry in
+        // `skip_extensions` so `Cargo.lock`/`yarn.lock` get that scan too.
         if anvil_checks::filter::is_lockfile(input.path) {
-            return true;
+            return false;
         }
         let path = input.path.to_string_lossy();
         self.config
@@ -191,11 +190,9 @@ mod tests {
     }
 
     #[test]
-    fn secret_rule_skips_lockfile_integrity_hashes() {
+    fn secret_rule_allows_lockfile_integrity_hash() {
         // GH #2584: a lockfile's high-entropy integrity hash is a false
-        // positive — the save-time intercept must not interrupt on it. Note
-        // `package-lock.json` does not end in `.lock`, so it is only caught by
-        // the basename check, not `skip_extensions`.
+        // positive — the restricted URL-only scan must not interrupt on it.
         let path = Path::new("package-lock.json");
         let body = b"{\"integrity\":\"sha512-XI5MPzVNApjAyhQzphX8BkmKsKUxD4LdyK24iZeQGinB\"}\n";
 
@@ -206,6 +203,25 @@ mod tests {
             RuleDecision::Allow,
             "lockfile integrity hashes must not trip the save-time secret rule",
         );
+    }
+
+    #[test]
+    fn secret_rule_interrupts_on_lockfile_url_credential() {
+        // A credential embedded in a lockfile `resolved` URL IS a real secret
+        // and must still interrupt, even though the integrity hashes around it
+        // are ignored.
+        let path = Path::new("package-lock.json");
+        let body = b"{\n  \"resolved\": \"https://deployer:s3cr3tT0ken@npm.private.example/x/-/x-1.0.0.tgz\"\n}\n";
+
+        let decision = SecretDetectionRule::default().evaluate(&input(path, Some(body)));
+
+        match decision {
+            RuleDecision::Interrupt(reason) => {
+                assert_eq!(reason.rule_id, SECRET_RULE_ID);
+                assert!(!reason.message.contains("s3cr3tT0ken"));
+            }
+            RuleDecision::Allow => panic!("a credential URL in a lockfile must interrupt"),
+        }
     }
 
     #[test]

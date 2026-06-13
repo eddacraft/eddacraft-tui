@@ -204,7 +204,7 @@ function buildPayloadForArchitecture(id: string): string {
 }
 
 #[test]
-fn does_not_flag_hex_hashes_in_lockfile() {
+fn does_not_flag_hex_hashes_via_shape_allowlist() {
     // CLAWP-063: exercise the entropy path AND the hex-shape allowlist
     // (`^[a-f0-9]{64}$`) this test protects. Two subtleties the prior
     // form missed: (1) the hash must sit in a quoted/assignment position
@@ -212,20 +212,25 @@ fn does_not_flag_hex_hashes_in_lockfile() {
     // `sha512-<hash>` token is invisible to the scanner, so scoring it was
     // vacuous regardless of threshold); (2) suppression must be proven to
     // come from the shape allowlist, not from filename/extension handling.
+    //
+    // Uses a regular source filename, NOT a lockfile name: lockfiles now get a
+    // URL-credential-only scan with no entropy pass (GH #2584), so a lockfile
+    // filename would make this test vacuous. Lockfile hex-hash silence is
+    // covered separately in `secret::check` / `welcome` tests.
     let hex64 = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
     let entropy_count = |body: &str| -> usize {
-        scan_content(body, "yarn.lock", &config_with_entropy(3.0))
+        scan_content(body, "src/integrity.ts", &config_with_entropy(3.0))
             .iter()
             .filter(|f| f.pattern_name == "High Entropy String")
             .count()
     };
 
-    // The 64-char hex integrity hash is extracted (quoted assignment) and
-    // must be suppressed by the shape allowlist.
+    // The 64-char hex hash is extracted (quoted assignment) and must be
+    // suppressed by the shape allowlist.
     assert_eq!(
-        entropy_count(&format!("integrity = '{hex64}'\n")),
+        entropy_count(&format!("const integrity = '{hex64}'\n")),
         0,
-        "a 64-char hex lockfile hash must be allowlisted even with entropy enabled"
+        "a 64-char hex hash must be allowlisted even with entropy enabled"
     );
 
     // Control (non-vacuity): the SAME length, SAME position, SAME
@@ -235,7 +240,7 @@ fn does_not_flag_hex_hashes_in_lockfile() {
     // scanner being silent (extension-skip / non-extraction).
     let not_hex = format!("z{}", &hex64[1..]);
     assert!(
-        entropy_count(&format!("integrity = '{not_hex}'\n")) >= 1,
+        entropy_count(&format!("const integrity = '{not_hex}'\n")) >= 1,
         "a same-length non-hex high-entropy value must fire (else this test is vacuous)"
     );
 }
