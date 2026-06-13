@@ -1,8 +1,8 @@
 # Anvil Release Plan
 
-| Type         | Authority | Owner       | Status | Freshness                                                                                 |
-| ------------ | --------- | ----------- | ------ | ----------------------------------------------------------------------------------------- |
-| Release plan | Derived   | APS modules | Live   | Updated 2026-06-11 at the `v0.8.1-beta` closeout; active window: `v0.9.0-beta` (scoping). |
+| Type         | Authority | Owner       | Status | Freshness                                                                                                                                                                              |
+| ------------ | --------- | ----------- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Release plan | Derived   | APS modules | Live   | Updated 2026-06-13: operator confirmed the `v0.9.0-beta` direction + added USAGE as additive scope (prior: 2026-06-11 `v0.8.1-beta` closeout). Active window: `v0.9.0-beta` (scoping). |
 
 | Upstream                                                                                                                                                        | Downstream                                                  |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -42,9 +42,10 @@ nothing else.
   [`plans/releases/v0.8.0-beta.md`](./plans/releases/v0.8.0-beta.md).)
 - **Cadence:** minors cut when ready + gates green, not on a calendar. See the
   [release-cadence policy](./docs/policies/release-cadence.md).
-- **Active window:** `v0.9.0-beta` (below, **scoping** — carried from the
-  ADR-075 deferral list; the operator confirms or re-scopes before coding
-  starts). Records for `v0.6.x`–`v0.8.x` are in
+- **Active window:** `v0.9.0-beta` (below, **scoping**). Direction confirmed by
+  the operator 2026-06-13 — assistant-facing graph (ADR-075 deferrals) +
+  bug-fixing, with USAGE added as additive, start-deferred scope. Stays
+  `scoping` until the entry decisions land. Records for `v0.6.x`–`v0.8.x` are in
   [`plans/releases/`](./plans/releases/).
 
 ---
@@ -54,22 +55,37 @@ nothing else.
 Carried forward from the
 [ADR-075](./plans/decisions/075-v080-graph-product-scope.md) deferral list:
 `v0.8.0-beta` shipped the graph-backed save-time daemon to every user;
-`v0.9.0-beta` is provisionally the window where the **resident graph becomes an
+`v0.9.0-beta` is the window where the **resident graph becomes an
 assistant-facing product** — context delivery to MCP/agent callers — plus the
-daemon's warm-start persistence. **This scope is not yet operator-confirmed**;
-it derives from Accepted ADR deferrals, and the gated entry decisions below must
-land before any phase starts coding.
+daemon's warm-start persistence. The operator confirmed this direction on
+2026-06-13 (see **Operator priorities** below). The ADR-075 entry gate (GCTX-002
+ADR, context-egress privacy review) applies specifically to the **GCTX
+assistant-facing egress surface** — it must land before GCTX coding and is a cut
+prerequisite. The **internal GV2 substrate items** are deferred to v0.9 by
+_scope_, not entry-gated (ADR-075), so those with their dependencies Merged are
+execution-ready now; the window stays `scoping` only until the GCTX entry
+decisions land.
+
+**Operator priorities (2026-06-13):** the assistant-facing graph (above) and
+ongoing **bug-fixing / beta-signal quality** are the headline for this window;
+the `v0.8.x` patch lane and the v0.8 follow-through phase carry the latter.
+**Usage analytics (USAGE,
+[`usage-analytics`](./plans/modules/usage-analytics.aps.md))** is additionally
+scoped into this window as founder-requested additive work; USAGE-001 is `Ready`
+and unblocked (independent of the graph gates) — available to pick up when
+scheduled. See the phase plan.
 
 ### Phase plan (provisional)
 
-| Phase                                    | Scope                                                                                                                                                             | State                                                          |
-| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| **Entry decisions** (gate)               | GCTX-002 architectural decision; context-egress privacy review (council condition from ADR-075); v0.9 scope confirmation by the operator.                         | **pending** — blocks everything below                          |
-| **Assistant graph product** (GCTX)       | `graph-context-delivery` module (0/13): context delivery to assistant callers over the existing MCP surface.                                                      | gated on entry decisions                                       |
-| **Graph consumer surface** (GV2 balance) | GV2-020 (multi-graph registry), GV2-023 (consumer query contract), GV2-026 (reverse-impact lever), GV2-013 (control/session), GV2-014 (plan/provenance).          | gated on entry decisions                                       |
-| **Persistence / warm-start**             | ADR-061 Sub-phase B: GV2-030 sealed-DTO no-leak guard + [ADR-069](./plans/decisions/069-graph-v2-persistence.md) warm-start.                                      | pending                                                        |
-| **v0.8 follow-through** (parallel)       | Post-tag fixes from beta signal on the default-on daemon path (UJ-005/-007 + CIB-054 tracked fixes); WinGet publication confirm; CIB candidates from the cut log. | open — `v0.8.x` patches remain the vehicle for anything urgent |
-| **Closeout hygiene**                     | All-Merged modules included in the `v0.8.0-beta` tag advance to `Complete` + archive (own PRs, per the APS archive cascade).                                      | pending                                                        |
+| Phase                                    | Scope                                                                                                                                                                                                                                                             | State                                                                                                                                                                            |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Entry decisions** (gate)               | GCTX-002 architectural decision; context-egress privacy review (council condition from ADR-075); v0.9 scope confirmation by the operator (done 2026-06-13).                                                                                                       | **pending** — gates the GCTX egress surface + the cut; does **not** block the internal GV2 substrate items                                                                       |
+| **Assistant graph product** (GCTX)       | `graph-context-delivery` module (0/13): context delivery to assistant callers over the existing MCP surface.                                                                                                                                                      | gated on entry decisions (GCTX-002 + egress review)                                                                                                                              |
+| **Graph consumer surface** (GV2 balance) | GV2-013 (control/session), GV2-014 (plan/provenance), GV2-026 (reverse-impact lever) — internal substrate, deps Merged; GV2-020 (multi-graph registry) + GV2-023 (consumer query contract) layer on top.                                                          | GV2-013 / -014 / -026 **Ready** (promoted 2026-06-13 — deps Merged, not entry-gated); GV2-020 gated on GV2-013/-014, GV2-023 on GV2-020 + the egress review (MCP/weave consumer) |
+| **Persistence / warm-start**             | ADR-061 Sub-phase B: GV2-030 sealed-DTO no-leak guard + [ADR-069](./plans/decisions/069-graph-v2-persistence.md) warm-start.                                                                                                                                      | GV2-030 **Ready** (promoted 2026-06-13 — ADR-069 Accepted, persistence privacy verdict PV-6..12 done, deps Merged); warm-start wiring follows it                                 |
+| **Usage analytics** (USAGE, additive)    | [`usage-analytics`](./plans/modules/usage-analytics.aps.md) (0/3): USAGE-001 `command.invoked` Kindling observation kind + CLI/JSON-RPC producer (privacy contract, conformance fixture); USAGE-002/-003 (flag-context join + dev-investment query views) follow. | USAGE-001 **Ready** + unblocked (independent of the graph gates); additive operator-requested scope (2026-06-13)                                                                 |
+| **v0.8 follow-through** (parallel)       | Post-tag fixes from beta signal on the default-on daemon path (UJ-005/-007 + CIB-054 tracked fixes); WinGet publication confirm; CIB candidates from the cut log.                                                                                                 | open — `v0.8.x` patches remain the vehicle for anything urgent                                                                                                                   |
+| **Closeout hygiene**                     | All-Merged modules included in the `v0.8.0-beta` tag advance to `Complete` + archive (own PRs, per the APS archive cascade).                                                                                                                                      | **done** — reconcile PR #2573 + archive cascade PR #2575 merged 2026-06-13                                                                                                       |
 
 ### Cut criteria (provisional)
 

@@ -413,7 +413,7 @@ Change status to **Ready** when:
 
 #### GV2-013: Control and session graph contract
 
-- **Status:** Draft — dep GV2-001 Merged (unblocked), but **v0.9 scope** per ADR-075 (non-critical-path)
+- **Status:** Ready — promoted 2026-06-13 (v0.9 active window). Dep GV2-001 Merged; internal control/session substrate, not entry-gated by ADR-075 (the GCTX-002 / egress-privacy gate covers the assistant-facing surface only)
 - **Intent:** Model execution hosts, drivers, sessions, leases, fences,
   worktrees, and attribution as a graph that joins to code changes without
   making MCP the control plane.
@@ -437,7 +437,7 @@ Change status to **Ready** when:
 
 #### GV2-014: Plan and provenance graph contract
 
-- **Status:** Draft — deps GV2-002/003 Merged (unblocked), but **v0.9 scope** per ADR-075 (non-critical-path)
+- **Status:** Ready — promoted 2026-06-13 (v0.9 active window). Deps GV2-002/003 Merged; internal plan/provenance substrate, not entry-gated by ADR-075
 - **Intent:** Join APS intent, git history, Edda provenance, graph deltas, and
   trust posture changes so Anvil can explain why a structural change was allowed
   or challenged.
@@ -615,7 +615,7 @@ Change status to **Ready** when:
 
 #### GV2-026: Reverse-impact hop-depth lever
 
-- **Status:** Draft
+- **Status:** Ready — promoted 2026-06-13 (v0.9 active window). Dep GV2-011 Merged; internal impact-depth lever, not entry-gated by ADR-075
 - **Intent:** Implement the ADR-063 configurable, hard-capped reverse-impact
   depth (default 1 hop) — today `impact_closure` has only a file-count budget
   with unbounded depth.
@@ -770,7 +770,7 @@ Change status to **Ready** when:
 
 #### GV2-030: Sealed-DTO snapshot serialisation + structural no-leak guard
 
-- **Status:** Draft
+- **Status:** Ready — promoted 2026-06-13 (v0.9 active window). Deps GV2-002/003 Merged, ADR-069 Accepted, persistence privacy verdict (PV-6..12) done; implement under those conditions. Machine-local persistence, not the egress surface
 - **Intent:** Enforce the ADR-069 privacy line in code (today it is a convention
   — no `SnapshotPayload` DTO, codec, or no-leak test exists). Sub-phase B
   persistence prerequisite.

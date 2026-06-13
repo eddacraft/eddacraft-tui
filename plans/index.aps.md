@@ -107,8 +107,23 @@ Selection rules:
 
 | Rank | NBI | Mode | Source | Why now | Next action |
 | ---- | --- | ---- | ------ | ------- | ----------- |
-| 1 | `v0.9.0-beta` window shaping — ADR-075 deferrals | Schedule | [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) (window declared) + [ADR-075](./decisions/075-v080-graph-product-scope.md) + [graph-v2-foundation](./modules/graph-v2-foundation.aps.md) + [graph-context-delivery](./modules/graph-context-delivery.aps.md) | The v0.8.0 window is closed and its tag-complete modules are archived (this pass). `RELEASE-PLAN.md` already declares **`v0.9.0-beta`** as the next window. ADR-075 defers the assistant graph product (GCTX context delivery + egress-privacy review, multi-graph registry GV2-020, consumer query contract GV2-023, reverse-impact GV2-026, control/session GV2-013, plan/provenance GV2-014) and ADR-061 Sub-phase B persistence (GV2-030, ADR-069) to it — all still Draft, none execution-ready. | Confirm the v0.9.0-beta theme/scope (owner call), then promote the chosen GV2/GCTX items from Draft with a readiness pass. |
-| 2 | USAGE-001 — `command.invoked` Kindling observations | Ready | [usage-analytics](./modules/usage-analytics.aps.md) | Highest-value unblocked `Ready` item while the next window is shaped: founder-requested (2026-05-10) durable "who is using what" evidence for dev-investment decisions; promoted Ready 2026-05-30 with the OQ1 observation-kind decision folded in. The broad Ready pool (EDGE, DASH*, OPAG, EVAL, CPOL, IORISK, GATE, ATC, PATT, TRUST, ILGOV, LAC) remains behind it. | Pick up USAGE-001 through dev-workflow (branch, TDD, council, PR). |
+| 1 | v0.9 graph substrate — GV2-013 / -014 / -026 / -030 (Ready) | Ready | [graph-v2-foundation](./modules/graph-v2-foundation.aps.md) + [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) | The assistant-facing-graph window's internal substrate is unblocked: GV2-013 (control/session contract), GV2-014 (plan/provenance contract), GV2-026 (reverse-impact depth lever), GV2-030 (sealed-DTO no-leak guard) — deps Merged, execution-ready, and **not** behind the ADR-075 GCTX entry gate (that covers the assistant-facing egress surface only). Promoted Ready 2026-06-13 (operator readiness pass). | Pick up the GV2 substrate items through dev-workflow — GV2-013/-014 are contract/design; GV2-026/-030 code against concrete `cargo test` targets. |
+| 2 | GCTX entry decisions — unblock the assistant-facing surface | Schedule | [ADR-075](./decisions/075-v080-graph-product-scope.md) + [graph-context-delivery](./modules/graph-context-delivery.aps.md) | The GCTX product (0/13) and the GV2 consumer surface (GV2-020 → GV2-023, MCP/weave-facing) stay gated on the two ADR-075 entry decisions: the GCTX-002 architectural decision (which MCP target) and the context-egress privacy review (PV-9, distinct from the persistence verdict). | Land GCTX-002 (ADR) and run the context-egress privacy review; then promote GCTX + GV2-020/-023 with a readiness pass. |
+| 3 | USAGE-001 — `command.invoked` Kindling observations | Ready | [usage-analytics](./modules/usage-analytics.aps.md) + [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) | Founder-requested (2026-05-10) durable "who is using what" evidence; `Ready` + unblocked (independent of the graph gates). Scoped into the `v0.9.0-beta` window as additive work (operator, 2026-06-13). | Pick up USAGE-001 through dev-workflow (branch, TDD, council, PR) when scheduled. |
+
+NBI review note (2026-06-13, ninth pass): operator set the `v0.9.0-beta`
+direction (assistant-facing graph + bug-fixing) and asked that everything
+in-scope that can be marked Ready, be. Acted on it: **USAGE** scoped into the
+window as additive work (USAGE-001 stays `Ready`, unblocked); and a readiness
+pass promoted four GV2 substrate items — **GV2-013, GV2-014, GV2-026,
+GV2-030** — from Draft to **Ready** (deps Merged, execution-ready detail, and
+per [ADR-075](./decisions/075-v080-graph-product-scope.md) **not** behind the
+GCTX entry gate, which covers only the assistant-facing egress surface).
+Deliberately left Draft: GCTX-001..013 (gated on the unresolved GCTX-002 ADR +
+the unmet context-egress privacy review), GV2-020/-023 (unmet deps; GV2-023 is
+also MCP/weave-egress-adjacent), and USAGE-002/-003 (depend on USAGE-001
+landing). RELEASE-PLAN phase plan + NBI reordered accordingly. Bug-fixing
+rides the standing `v0.8.x` patch lane.
 
 NBI review note (2026-06-13, eighth pass): the v0.8.0/v0.8.1 post-release
 closeout is **complete**. The previous (seventh) pass reconciled statuses onto
@@ -167,7 +182,7 @@ trusted model.
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
-| [graph-v2-foundation](./modules/graph-v2-foundation.aps.md) | GV2 | In Progress | 13/20 | KERN, anvil-graph-cache, ADR-061/063/064/067/069, ADR-031, INTD, GCTX, EDDA |
+| [graph-v2-foundation](./modules/graph-v2-foundation.aps.md) | GV2 | In Progress | 13/20 (A′ slice shipped in v0.8.0-beta; v0.9 readiness pass 2026-06-13 promoted GV2-013/-014/-026/-030 to **Ready** — internal substrate, deps Merged, not behind the ADR-075 GCTX egress gate; GV2-020/-023 + GCTX stay Draft pending their deps / the entry decisions) | KERN, anvil-graph-cache, ADR-061/063/064/067/069, ADR-031, INTD, GCTX, EDDA |
 | [graph-context-delivery](./modules/graph-context-delivery.aps.md) | GCTX | Draft | 0/13 | GV2 |
 
 ### Hardening & Maintenance

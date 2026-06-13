@@ -209,7 +209,10 @@ requires founder review. The contract doc lives in
 > Draft-readiness review — the founder OQ1 observation-kind decision is
 > folded into the task's scope (Expected Outcome records reuse-vs-new
 > inline). USAGE-002 and USAGE-003 remain Draft and follow once
-> invocations land.
+> invocations land. Scoped into the `v0.9.0-beta` release window as
+> additive scope (operator, 2026-06-13); USAGE-001 stays `Ready` and
+> unblocked — independent of the graph entry gates, so it can be picked
+> up whenever it is scheduled.
 
 ### USAGE-001: Command-invocation observation kind and producer
 
