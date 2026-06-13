@@ -437,10 +437,12 @@ where
         }
         _ => match load_admin_credential_config(config_path)? {
             Some(config) if config.source == "key" => {
-                if config.reference.is_empty() {
+                // trim()-empty (whitespace-only, e.g. a hand-edited config)
+                // is rejected too, matching save_admin_credential_config.
+                if config.reference.trim().is_empty() {
                     print_auth_required(
                         json,
-                        "the stored admin key is empty; run `anvil admin auth set key <key>` again or `anvil admin auth unset`.",
+                        "the stored admin key is empty; run `anvil admin auth set key -` again or `anvil admin auth unset`.",
                     );
                     Err(AuthRequired.into())
                 } else {
@@ -480,7 +482,7 @@ where
             None => {
                 print_auth_required(
                     json,
-                    "no admin credential configured. Run `anvil admin auth set key <key>` to store it once, or `anvil admin auth set 1password <op://reference>`, or set ANVIL_ADMIN_KEY.",
+                    "no admin credential configured. Run `anvil admin auth set key -` to store it once (paste the key on stdin), or `anvil admin auth set 1password <op://reference>`, or set ANVIL_ADMIN_KEY.",
                 );
                 Err(AuthRequired.into())
             }
@@ -506,10 +508,19 @@ fn run_admin_auth(command: &AdminAuthCommand, global: &GlobalArgs) -> Result<()>
                     // shell history and the process list.
                     let value = if reference == "-" {
                         let mut buf = String::new();
-                        io::stdin()
+                        let read = io::stdin()
                             .read_line(&mut buf)
                             .context("failed to read admin key from stdin")?;
-                        buf.trim().to_string()
+                        if read == 0 {
+                            bail!(
+                                "no admin key on stdin (EOF). Run `anvil admin auth set key -` and paste the key, or pipe it: `printf %s \"$KEY\" | anvil admin auth set key -`."
+                            );
+                        }
+                        let trimmed = buf.trim().to_string();
+                        if trimmed.is_empty() {
+                            bail!("admin key read from stdin was empty; nothing stored.");
+                        }
+                        trimmed
                     } else {
                         reference.clone()
                     };
@@ -556,8 +567,13 @@ fn run_admin_auth(command: &AdminAuthCommand, global: &GlobalArgs) -> Result<()>
             } else {
                 println!("No admin credential source configured");
                 println!("Run one of:");
-                println!("  anvil admin auth set key <your-admin-key>   # stored locally (0600)");
+                println!(
+                    "  anvil admin auth set key -                  # paste the key on stdin, stored locally (0600)"
+                );
                 println!("  anvil admin auth set 1password op://<vault>/<item>/<field>");
+                println!(
+                    "(or `set key <your-admin-key>` directly, though that puts the key in shell history)"
+                );
             }
         }
         AdminAuthCommand::Unset => {
@@ -1576,6 +1592,28 @@ mod tests {
             false,
             &path,
             |_| panic!("empty stored key must not reach 1Password"),
+        )
+        .unwrap_err();
+
+        assert!(
+            err.is::<AuthRequired>(),
+            "expected AuthRequired, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn resolve_admin_key_rejects_whitespace_only_stored_key() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("admin-auth.json");
+        // A hand-edited config with a whitespace-only key must be rejected,
+        // not handed to the server to fail opaquely later.
+        std::fs::write(&path, "{\"source\":\"key\",\"reference\":\"   \\n\"}").unwrap();
+
+        let err = resolve_admin_key_with_config(
+            Err(std::env::VarError::NotPresent),
+            false,
+            &path,
+            |_| panic!("whitespace-only stored key must not reach 1Password"),
         )
         .unwrap_err();
 
