@@ -6090,6 +6090,7 @@ dependencies = [
  "libc",
  "lru",
  "memchr",
+ "miniz_oxide",
  "mio",
  "nix 0.30.1",
  "num-traits",
@@ -6110,6 +6111,7 @@ dependencies = [
  "slab",
  "smallvec",
  "syn 2.0.117",
+ "textwrap",
  "thiserror 2.0.18",
  "tokio",
  "tokio-rustls",
@@ -6117,6 +6119,7 @@ dependencies = [
  "tracing",
  "tracing-core",
  "winapi",
+ "windows-sys 0.59.0",
  "windows-sys 0.61.2",
  "zerocopy",
 ]
