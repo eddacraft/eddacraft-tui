@@ -346,13 +346,16 @@ mod tests {
 
     #[test]
     fn anonymise_principal_is_anonymous_without_email() {
-        assert_eq!(anonymise_principal(None, b"salt"), ANONYMOUS_PRINCIPAL);
+        assert_eq!(
+            anonymise_principal(None, Uuid::new_v4().as_bytes()),
+            ANONYMOUS_PRINCIPAL
+        );
     }
 
     #[test]
     fn anonymise_principal_hashes_email_and_never_returns_it() {
-        let salt = b"per-deployment-salt";
-        let principal = anonymise_principal(Some("josh@arkahna.io"), salt);
+        let salt = Uuid::new_v4();
+        let principal = anonymise_principal(Some("josh@arkahna.io"), salt.as_bytes());
         // 32-byte SHA-256 digest rendered as hex.
         assert_eq!(principal.len(), 64);
         assert!(principal.chars().all(|c| c.is_ascii_hexdigit()));
@@ -363,9 +366,11 @@ mod tests {
 
     #[test]
     fn anonymise_principal_is_deterministic_per_salt() {
-        let a = anonymise_principal(Some("user@example.com"), b"salt-a");
-        let again = anonymise_principal(Some("user@example.com"), b"salt-a");
-        let other_salt = anonymise_principal(Some("user@example.com"), b"salt-b");
+        let salt = Uuid::new_v4();
+        let other_salt = Uuid::new_v4();
+        let a = anonymise_principal(Some("user@example.com"), salt.as_bytes());
+        let again = anonymise_principal(Some("user@example.com"), salt.as_bytes());
+        let other_salt = anonymise_principal(Some("user@example.com"), other_salt.as_bytes());
         assert_eq!(a, again, "same salt + email must be stable");
         assert_ne!(a, other_salt, "rotating the salt must change the hash");
     }
@@ -446,8 +451,8 @@ mod tests {
         let dir = tempdir().expect("tempdir");
         let path = usage_log_path(dir.path());
 
-        let salt = b"salt";
-        let principal = anonymise_principal(Some("user@example.com"), salt);
+        let salt = Uuid::new_v4();
+        let principal = anonymise_principal(Some("user@example.com"), salt.as_bytes());
         let args = arg_shapes_from_argv(
             &[
                 "anvil",
