@@ -1,8 +1,8 @@
 # Admin CLI Operator Runbook
 
-| Type    | Authority     | Owner | Status | Freshness                                                                                |
-| ------- | ------------- | ----- | ------ | ---------------------------------------------------------------------------------------- |
-| Runbook | Authoritative | CIB   | Live   | Last reviewed 2026-05-16 against `crates/anvil-cli/src/commands/admin.rs` and issue #952 |
+| Type    | Authority     | Owner | Status | Freshness                                                                                                            |
+| ------- | ------------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------- |
+| Runbook | Authoritative | CIB   | Live   | Last reviewed 2026-06-13 against `crates/anvil-cli/src/commands/admin.rs` (CIB-070 stored-key source) and issue #952 |
 
 | Upstream                                                                                                                                                                                                                                                                                 | Downstream                                                                |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
@@ -48,15 +48,42 @@ flags.
 | API base URL  | `ANVIL_API_URL`   | `https://api.eddacraft.ai` |
 | Admin API key | `ANVIL_ADMIN_KEY` | _(required — no default)_  |
 
+Resolution order, highest priority first:
+
+1. `ANVIL_ADMIN_KEY` env var (CI, scoped child processes).
+2. The configured credential source in `admin-auth.json` (`1password` or `key`).
+
+So set the source **once** and you never `export` again — env still wins when
+present, so CI is unaffected.
+
 - `ANVIL_ADMIN_KEY` is sent as `Authorization: Bearer <key>`.
-- `ANVIL_ADMIN_KEY` wins over any configured admin credential source.
 - Per-operator keys determine the audit actor server-side. Shared-key requests
   are attributed to the sentinel actor `shared-key@anvil`.
+
+### Quick start — set the key once, no more `export`
+
+Pick one of these and you're done; subsequent `anvil admin …` commands resolve
+the key automatically.
+
+```bash
+# A. Store the key in Anvil's local config (mode 0600). Simplest.
+#    Use `-` to read from stdin so the key never hits your shell history:
+anvil admin auth set key -        # then paste the key + Enter
+#    …or, if you don't mind it in history, pass it directly:
+anvil admin auth set key <your-admin-key>
+
+# B. Or point at a 1Password item (no plaintext at rest; needs the `op` CLI):
+anvil admin auth set 1password op://Anvil/admin-key/credential
+
+# Verify (the key is shown masked, never in full):
+anvil admin auth status
+anvil admin list
+```
 
 Missing or invalid admin credentials exit `3` (see **Exit codes** below):
 
 ```
-Authentication required: set ANVIL_ADMIN_KEY or run `anvil admin auth set 1password <op-reference>` before running admin commands.
+Authentication required: no admin credential configured. Run `anvil admin auth set key <key>` to store it once, or `anvil admin auth set 1password <op://reference>`, or set ANVIL_ADMIN_KEY.
 ```
 
 ### Example shell setup
@@ -93,8 +120,8 @@ rotation, audit, and device unlock policy.
   lands in `.zsh_history` / `.bash_history` and is inherited by every child
   process. If you've done this, rotate the key and scrub shell history.
 
-- **Preferred — configure the 1Password source once.** Store the 1Password item
-  reference in Anvil's owner-only local config:
+- **Preferred (no plaintext at rest) — configure the 1Password source once.**
+  Store the 1Password item reference in Anvil's owner-only local config:
 
   ```bash
   anvil admin auth set 1password op://Anvil/admin-key/credential
@@ -112,6 +139,26 @@ rotation, audit, and device unlock policy.
   ```bash
   anvil admin auth unset
   ```
+
+- **Simplest (convenience, plaintext at rest) — store the key in local config.**
+  When you don't have `op` set up, or you just want the key to work without any
+  per-shell ceremony, store it directly. Pass `-` to read from stdin so the key
+  never reaches argv or shell history:
+
+  ```bash
+  anvil admin auth set key -        # paste the key, press Enter
+  anvil admin auth status           # shows e.g. "****1234" — never the full key
+  ```
+
+  The key is written to `admin-auth.json` (mode `0600`, owner-only) and resolved
+  automatically on every `anvil admin` call. **Tradeoff:** unlike the 1Password
+  source, this keeps the plaintext key on disk — the same posture as `gh`,
+  `npm`, and `aws` CLIs. It's appropriate for a single trusted operator
+  workstation with full-disk encryption; prefer the 1Password source on shared
+  hosts, and never use it on CI (use the `ANVIL_ADMIN_KEY` env var there). The
+  status output and the JSON form both mask the key to a trailing fingerprint;
+  the raw value lives only in the `0600` file. `anvil admin auth unset` removes
+  it.
 
 - **Alternative — 1Password CLI, scoped child process.** Keep a private
   `admin.env` file outside the repo (or in a directory covered by your global

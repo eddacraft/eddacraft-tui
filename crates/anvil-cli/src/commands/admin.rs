@@ -155,13 +155,15 @@ enum AdminCommand {
 
 #[derive(Debug, clap::Subcommand)]
 enum AdminAuthCommand {
-    /// Store a credential-source reference for future admin commands
+    /// Store an admin credential for future admin commands
     Set {
         /// Credential source backend
         #[arg(value_enum)]
         source: AdminCredentialSourceKind,
 
-        /// Source-specific reference, for example `<op://Vault/item/field>`
+        /// For `1password`: an `op://Vault/item/field` reference (not secret).
+        /// For `key`: the admin key itself, or `-` to read it from stdin so it
+        /// never lands in your shell history.
         reference: String,
     },
 
@@ -174,8 +176,13 @@ enum AdminAuthCommand {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 enum AdminCredentialSourceKind {
+    /// Resolve the key from a 1Password reference via the `op` CLI
     #[value(name = "1password")]
     OnePassword,
+    /// Store the admin key directly in the local config (mode 0600), so no
+    /// per-shell `export ANVIL_ADMIN_KEY` is needed
+    #[value(name = "key")]
+    Key,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -191,14 +198,47 @@ impl AdminCredentialConfig {
             reference: reference.into(),
         }
     }
+
+    fn key(value: impl Into<String>) -> Self {
+        Self {
+            source: "key".to_string(),
+            reference: value.into(),
+        }
+    }
+}
+
+/// Render a credential reference for display without leaking a secret.
+///
+/// A 1Password reference (`op://…`) is not itself a secret, so it is shown
+/// verbatim. For the `key` source the `reference` field IS the admin key, so
+/// it is masked to a trailing fingerprint (`****` + last 4) — enough to tell
+/// which key is configured, never enough to use it.
+fn redact_admin_reference(source: &str, reference: &str) -> String {
+    if source == "key" {
+        let tail: String = reference
+            .chars()
+            .rev()
+            .take(4)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect();
+        if reference.chars().count() > 4 {
+            format!("****{tail}")
+        } else {
+            "****".to_string()
+        }
+    } else {
+        reference.to_string()
+    }
 }
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct AdminAuthStatus<'a> {
+struct AdminAuthStatus {
     configured: bool,
-    source: Option<&'a str>,
-    reference: Option<&'a str>,
+    source: Option<String>,
+    reference: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -396,6 +436,17 @@ where
             Err(AuthRequired.into())
         }
         _ => match load_admin_credential_config(config_path)? {
+            Some(config) if config.source == "key" => {
+                if config.reference.is_empty() {
+                    print_auth_required(
+                        json,
+                        "the stored admin key is empty; run `anvil admin auth set key <key>` again or `anvil admin auth unset`.",
+                    );
+                    Err(AuthRequired.into())
+                } else {
+                    Ok(config.reference)
+                }
+            }
             Some(config) if config.source == "1password" => match read_1password(&config.reference)
             {
                 Ok(value) if !value.is_empty() => Ok(value),
@@ -429,7 +480,7 @@ where
             None => {
                 print_auth_required(
                     json,
-                    "set ANVIL_ADMIN_KEY or run `anvil admin auth set 1password <op-reference>` before running admin commands.",
+                    "no admin credential configured. Run `anvil admin auth set key <key>` to store it once, or `anvil admin auth set 1password <op://reference>`, or set ANVIL_ADMIN_KEY.",
                 );
                 Err(AuthRequired.into())
             }
@@ -450,19 +501,34 @@ fn run_admin_auth(command: &AdminAuthCommand, global: &GlobalArgs) -> Result<()>
                 AdminCredentialSourceKind::OnePassword => {
                     AdminCredentialConfig::one_password(reference)
                 }
+                AdminCredentialSourceKind::Key => {
+                    // `-` reads the key from stdin so the secret stays out of
+                    // shell history and the process list.
+                    let value = if reference == "-" {
+                        let mut buf = String::new();
+                        io::stdin()
+                            .read_line(&mut buf)
+                            .context("failed to read admin key from stdin")?;
+                        buf.trim().to_string()
+                    } else {
+                        reference.clone()
+                    };
+                    AdminCredentialConfig::key(value)
+                }
             };
             save_admin_credential_config(&path, &config)?;
+            let shown = redact_admin_reference(&config.source, &config.reference);
             if global.json {
                 crate::output::json::print(&serde_json::json!({
                     "configured": true,
                     "source": config.source,
-                    "reference": config.reference,
+                    "reference": shown,
                     "path": path,
                 }))?;
             } else {
                 println!("Admin credential source configured");
                 println!("  Source:    {}", config.source);
-                println!("  Reference: {}", config.reference);
+                println!("  Reference: {shown}");
                 println!("  Path:      {}", path.display());
             }
         }
@@ -470,18 +536,28 @@ fn run_admin_auth(command: &AdminAuthCommand, global: &GlobalArgs) -> Result<()>
             let config = load_admin_credential_config(&path)?;
             let status = AdminAuthStatus {
                 configured: config.is_some(),
-                source: config.as_ref().map(|config| config.source.as_str()),
-                reference: config.as_ref().map(|config| config.reference.as_str()),
+                source: config.as_ref().map(|config| config.source.clone()),
+                reference: config
+                    .as_ref()
+                    .map(|config| redact_admin_reference(&config.source, &config.reference)),
             };
             if global.json {
                 crate::output::json::print(&status)?;
             } else if status.configured {
                 println!("Admin credential source configured");
-                println!("  Source:    {}", status.source.unwrap_or("unknown"));
-                println!("  Reference: {}", status.reference.unwrap_or("unknown"));
+                println!(
+                    "  Source:    {}",
+                    status.source.as_deref().unwrap_or("unknown")
+                );
+                println!(
+                    "  Reference: {}",
+                    status.reference.as_deref().unwrap_or("unknown")
+                );
             } else {
                 println!("No admin credential source configured");
-                println!("Run: anvil admin auth set 1password op://<vault>/<item>/<field>");
+                println!("Run one of:");
+                println!("  anvil admin auth set key <your-admin-key>   # stored locally (0600)");
+                println!("  anvil admin auth set 1password op://<vault>/<item>/<field>");
             }
         }
         AdminAuthCommand::Unset => {
@@ -1437,6 +1513,105 @@ mod tests {
         .unwrap();
 
         assert_eq!(key, "env-token");
+    }
+
+    #[test]
+    fn args_parses_admin_auth_set_key() {
+        let w =
+            Wrapper::try_parse_from(["test", "auth", "set", "key", "anvil_admin_abc123"]).unwrap();
+        match w.inner.command {
+            AdminCommand::Auth {
+                command: AdminAuthCommand::Set { source, reference },
+            } => {
+                assert_eq!(source, AdminCredentialSourceKind::Key);
+                assert_eq!(reference, "anvil_admin_abc123");
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn resolve_admin_key_reads_configured_key_source() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("admin-auth.json");
+        save_admin_credential_config(&path, &AdminCredentialConfig::key("stored-admin-token"))
+            .unwrap();
+
+        let key = resolve_admin_key_with_config(
+            Err(std::env::VarError::NotPresent),
+            false,
+            &path,
+            |_| panic!("the key source must not shell out to 1Password"),
+        )
+        .unwrap();
+
+        assert_eq!(key, "stored-admin-token");
+    }
+
+    #[test]
+    fn resolve_admin_key_prefers_env_over_stored_key_source() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("admin-auth.json");
+        save_admin_credential_config(&path, &AdminCredentialConfig::key("stored-admin-token"))
+            .unwrap();
+
+        let key = resolve_admin_key_with_config(Ok("env-token".to_string()), false, &path, |_| {
+            panic!("stored key must not be used when env is set")
+        })
+        .unwrap();
+
+        assert_eq!(key, "env-token");
+    }
+
+    #[test]
+    fn resolve_admin_key_rejects_empty_stored_key() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("admin-auth.json");
+        save_admin_credential_config(&path, &AdminCredentialConfig::key("placeholder")).unwrap();
+        // Hand-write an empty stored key (save_ rejects empty references).
+        std::fs::write(&path, r#"{"source":"key","reference":""}"#).unwrap();
+
+        let err = resolve_admin_key_with_config(
+            Err(std::env::VarError::NotPresent),
+            false,
+            &path,
+            |_| panic!("empty stored key must not reach 1Password"),
+        )
+        .unwrap_err();
+
+        assert!(
+            err.is::<AuthRequired>(),
+            "expected AuthRequired, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn redact_admin_reference_masks_key_but_not_1password() {
+        // A 1Password reference is not a secret — shown verbatim.
+        assert_eq!(
+            redact_admin_reference("1password", "op://Anvil/admin-key/credential"),
+            "op://Anvil/admin-key/credential"
+        );
+        // The key source's reference IS the secret — only a trailing fingerprint.
+        assert_eq!(
+            redact_admin_reference("key", "anvil_admin_abcdef1234"),
+            "****1234"
+        );
+        assert_eq!(redact_admin_reference("key", "abcd"), "****");
+        assert_eq!(redact_admin_reference("key", "xy"), "****");
+    }
+
+    #[test]
+    fn reads_admin_auth_status_does_not_serialise_the_raw_key() {
+        // Guard: the status JSON must carry the masked reference, never the key.
+        let status = AdminAuthStatus {
+            configured: true,
+            source: Some("key".to_string()),
+            reference: Some(redact_admin_reference("key", "anvil_admin_topsecret9999")),
+        };
+        let json = serde_json::to_string(&status).unwrap();
+        assert!(json.contains("****9999"), "json: {json}");
+        assert!(!json.contains("topsecret"), "raw key leaked: {json}");
     }
 
     #[test]

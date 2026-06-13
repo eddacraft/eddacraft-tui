@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 44/69    |
+| CIB | —     | In Progress | 44/70    |
 
 ## Purpose
 
@@ -1856,3 +1856,37 @@ archive.
 - **Identified From:** operator copy review, 2026-06-12.
 - **Coordinates with:** CIB-068 (the copy iteration this supersedes).
 - **Confidence:** high — operator-specified copy.
+
+---
+
+### CIB-070: `anvil admin auth set key` — store the admin key without per-shell export
+
+- **Status:** In Progress
+- **Intent:** the admin key has only two resolution paths today — the
+  `ANVIL_ADMIN_KEY` env var or a 1Password reference (`anvil admin auth set
+  1password`). Operators without the 1Password CLI must `export
+  ANVIL_ADMIN_KEY` in every shell and routinely forget how (operator report,
+  2026-06-13). There is no "store the key once" option.
+- **Expected Outcome:** `anvil admin auth set key <key>` (and `set key -` to
+  read from stdin so the secret avoids argv/shell history) persists the admin
+  key in the existing owner-only `admin-auth.json` (mode 0600) under a new
+  `key` source; `resolve_admin_key` returns it directly with `ANVIL_ADMIN_KEY`
+  still taking precedence (CI unaffected); the key is redacted to a trailing
+  fingerprint (`****` + last 4) in `auth status`, the `set` confirmation, and
+  the JSON form — the raw value lives only in the 0600 file; all
+  authentication-required hints name the new option; the admin-cli runbook
+  documents all three patterns (env / stored key / 1Password) with a
+  copy-paste quick start and the plaintext-at-rest tradeoff stated honestly.
+- **Files:** `crates/anvil-cli/src/commands/admin.rs`,
+  `docs/runbooks/admin-cli.md`
+- **Validation:** `cargo test -p eddacraft-anvil -- admin` (parse, resolve,
+  env-precedence, empty-key rejection, redaction, no-raw-key-in-status-JSON);
+  manual: `anvil admin auth set key -` then `anvil admin auth status` shows a
+  masked fingerprint and `anvil admin list` authenticates.
+- **Identified From:** operator request, 2026-06-13 ("I need to remember how
+  to export it and I always forget").
+- **Coordinates with:** CIB-004 (the credential-source config this extends),
+  ADMINCLIH (per-operator key model). A future `anvil admin login` over the
+  GitHub device flow (admin-scoped licence, staff allowlist) would unify admin
+  onto the GitHub identity — ADR-territory, deliberately out of scope here.
+- **Confidence:** high — additive CLI source reusing existing config plumbing.
