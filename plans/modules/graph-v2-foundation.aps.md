@@ -413,7 +413,7 @@ Change status to **Ready** when:
 
 #### GV2-013: Control and session graph contract
 
-- **Status:** Ready — promoted 2026-06-13 (v0.9 active window). Dep GV2-001 Merged; internal control/session substrate, not entry-gated by ADR-075 (the GCTX-002 / egress-privacy gate covers the assistant-facing surface only)
+- **Status:** In Progress — started 2026-06-13 (v0.9 active window). Dep GV2-001 Merged; internal control/session substrate, not entry-gated by ADR-075 (the GCTX-002 / egress-privacy gate covers the assistant-facing surface only)
 - **Intent:** Model execution hosts, drivers, sessions, leases, fences,
   worktrees, and attribution as a graph that joins to code changes without
   making MCP the control plane.

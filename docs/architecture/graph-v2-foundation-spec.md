@@ -1,12 +1,12 @@
 # Graph v2 Foundation — Architecture Spec
 
-| Type | Authority | Owner                                                                                              | Status | Freshness                                                                                                                                                          |
-| ---- | --------- | -------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Spec | Derived   | GV2 ([`plans/modules/graph-v2-foundation.aps.md`](../../plans/modules/graph-v2-foundation.aps.md)) | Live   | Taxonomy **ratified 2026-06-08** by council `plan-ec495f8b` (RATIFY-WITH-FIXES; conditions C-1..C-6 folded). Synthesis of ADR-061/063/064/067/069 + the GV2 module |
+| Type | Authority | Owner                                                                                              | Status | Freshness                                                                                                                                                                                                                                            |
+| ---- | --------- | -------------------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Spec | Derived   | GV2 ([`plans/modules/graph-v2-foundation.aps.md`](../../plans/modules/graph-v2-foundation.aps.md)) | Live   | Taxonomy **ratified 2026-06-08** by council `plan-ec495f8b` (RATIFY-WITH-FIXES; conditions C-1..C-6 folded). Control/session graph contract added 2026-06-13 (GV2-013; G-05 contract-defined). Synthesis of ADR-061/063/064/067/069 + the GV2 module |
 
-| Upstream                                                                                                                                                                                              | Downstream                                                                                                                                              |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ADR-061, ADR-063, ADR-064, ADR-067, ADR-069, ADR-031, `crates/anvil-kernel-types`, `crates/anvil-graph-cache`, [`intercept-as-built.md`](./intercept-as-built.md), [`edda-stack.md`](./edda-stack.md) | `graph-context-delivery` (GCTX), `surface-drivers` (DRVR), `multilayer-protection-v2` (INTD), `weave` (WEAVE), the daemon save-time validation contract |
+| Upstream                                                                                                                                                                                                                                                                                                                         | Downstream                                                                                                                                              |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ADR-061, ADR-063, ADR-064, ADR-067, ADR-069, ADR-031, `crates/anvil-kernel-types`, `crates/anvil-graph-cache`, [`intercept-as-built.md`](./intercept-as-built.md), [`edda-stack.md`](./edda-stack.md), [`anvil-driver-framework-design-spec.md`](../../plans/specs/anvil-driver-framework/anvil-driver-framework-design-spec.md) | `graph-context-delivery` (GCTX), `surface-drivers` (DRVR), `multilayer-protection-v2` (INTD), `weave` (WEAVE), the daemon save-time validation contract |
 
 ## Purpose and scope
 
@@ -53,14 +53,14 @@ Sub-phase A backing and lives in `crates/anvil-graph-cache/` (ADR-064). This
 spec describes the target end-state; the table below marks how far each piece is
 from it so a reader knows what is design vs reality.
 
-| Layer                                   | Where it lives today                                                                                                                       | State                                                                 |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- |
-| Semantic code graph                     | `crates/anvil-graph-cache/src/symbol_graph.rs`, `crates/anvil-kernel-types/src/graph.rs`                                                   | Shipped (Sub-phase A); schema additions pending (GV2-010)             |
-| Dependency/impact graph + reverse index | `crates/anvil-graph-cache/src/dependency.rs`                                                                                               | Shipped; incremental maintenance + hot-read API pending (GV2-011/022) |
-| Trust/policy graph                      | `PolicyProfile`/`TrustGraph` keyed on `SymbolIdentity` (`crates/anvil-kernel-types/src/trust.rs`, `crates/anvil-graph-cache/src/trust.rs`) | Contract defined (GV2-012); daemon wiring pending (GV2-029)           |
-| Control/session graph                   | shipped **in INTD** as `SessionRecord`/`Attribution` ([`intercept-as-built.md`](./intercept-as-built.md) §10); graph-shaped join Draft     | Partial (GV2-013)                                                     |
-| Plan/provenance graph                   | provenance shipped **in TS** ([`edda-stack.md`](./edda-stack.md)); Rust join Draft                                                         | Open seam (GV2-014)                                                   |
-| Registry + query traits                 | none yet — consumers call `certify()`/`with_graphs()` directly                                                                             | Draft (GV2-020/023)                                                   |
+| Layer                                   | Where it lives today                                                                                                                                 | State                                                                       |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Semantic code graph                     | `crates/anvil-graph-cache/src/symbol_graph.rs`, `crates/anvil-kernel-types/src/graph.rs`                                                             | Shipped (Sub-phase A); schema additions pending (GV2-010)                   |
+| Dependency/impact graph + reverse index | `crates/anvil-graph-cache/src/dependency.rs`                                                                                                         | Shipped; incremental maintenance + hot-read API pending (GV2-011/022)       |
+| Trust/policy graph                      | `PolicyProfile`/`TrustGraph` keyed on `SymbolIdentity` (`crates/anvil-kernel-types/src/trust.rs`, `crates/anvil-graph-cache/src/trust.rs`)           | Contract defined (GV2-012); daemon wiring pending (GV2-029)                 |
+| Control/session graph                   | shipped **in INTD** as `SessionRecord`/`Attribution` ([`intercept-as-built.md`](./intercept-as-built.md) §10); join contract defined below (GV2-013) | Contract defined (GV2-013); bridge type + registry wiring pending (GV2-020) |
+| Plan/provenance graph                   | provenance shipped **in TS** ([`edda-stack.md`](./edda-stack.md)); Rust join Draft                                                                   | Open seam (GV2-014)                                                         |
+| Registry + query traits                 | none yet — consumers call `certify()`/`with_graphs()` directly                                                                                       | Draft (GV2-020/023)                                                         |
 
 ## Principles
 
@@ -127,13 +127,13 @@ persistence (ratification condition C-4).
 
 ### The identity keys that cross graph boundaries
 
-| Identity                                                               | Authoritative graph   | Stable across restart today?                                         | Crosses into                  |
-| ---------------------------------------------------------------------- | --------------------- | -------------------------------------------------------------------- | ----------------------------- |
-| File identity (path + content hash)                                    | Semantic              | path yes / content-hash yes                                          | dependency, trust, provenance |
-| Symbol identity (stable, position-independent, overload-disambiguated) | Semantic (GV2-002)    | yes — `SymbolIdentity` `(file, kind, name, ordinal)` (GV2-002)       | trust, provenance             |
-| Edge identity (typed `from → to` over symbol/file identity)            | Semantic / dependency | derived                                                              | dependency, provenance        |
-| Session / worktree identity (`SessionId`, `WorktreeKey`)               | Control/session       | yes — but `WorktreeKey` is crate-private to `anvil-intercept` (G-05) | provenance, attribution       |
-| Plan / commit / memory anchors (APS id, commit SHA, Edda ref)          | Plan/provenance       | external                                                             | provenance joins              |
+| Identity                                                               | Authoritative graph   | Stable across restart today?                                                                                                        | Crosses into                  |
+| ---------------------------------------------------------------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------------- |
+| File identity (path + content hash)                                    | Semantic              | path yes / content-hash yes                                                                                                         | dependency, trust, provenance |
+| Symbol identity (stable, position-independent, overload-disambiguated) | Semantic (GV2-002)    | yes — `SymbolIdentity` `(file, kind, name, ordinal)` (GV2-002)                                                                      | trust, provenance             |
+| Edge identity (typed `from → to` over symbol/file identity)            | Semantic / dependency | derived                                                                                                                             | dependency, provenance        |
+| Session / worktree identity (`SessionId`, `WorktreeKey`)               | Control/session       | yes — `WorktreeKey` stays internal to `anvil-intercept`; the cross-graph join uses the shared `WorkspaceRoot` relativiser (GV2-013) | provenance, attribution       |
+| Plan / commit / memory anchors (APS id, commit SHA, Edda ref)          | Plan/provenance       | external                                                                                                                            | provenance joins              |
 
 **Rule:** every graph references foreign nodes **only** through the identity
 owned by the foreign graph — never by storing a copy of the foreign node. A join
@@ -152,7 +152,7 @@ named explicitly.
 | semantic ↔ dependency      | file identity (symbol-granular is a freeze-target — GV2-011 symbol edges + GV2-002) | "what imports file F?" (`dependents_of`, file-keyed today)       |
 | semantic ↔ trust           | symbol identity                                                                     | "what is the trust level / side-effect surface of S?"            |
 | dependency ↔ trust         | file/edge identity                                                                  | "does this new edge cross a trust boundary?"                     |
-| control/session ↔ semantic | worktree → file (**bridge undesigned — G-05**)                                      | "which session authored the change to F?" (`Attribution::Owned`) |
+| control/session ↔ semantic | worktree → file via `WorkspaceRoot::relativise` (**bridge defined — GV2-013**)      | "which session authored the change to F?" (`Attribution::Owned`) |
 | plan/provenance ↔ all      | symbol/file/commit/session anchors                                                  | "why was this structural change allowed or challenged?"          |
 
 ### Worked join trace (the spec's proof)
@@ -169,13 +169,14 @@ edit src/pay.ts ──semantic──▶ symbol `chargeCard` (Boundary trust)
  dependency join ──▶ dependents_of(file of chargeCard = src/pay.ts) = [checkout.ts]
    │                  (file-keyed today; symbol-granular needs GV2-011 edges + GV2-002)
  control/session join ──▶ Attribution::Owned(SessionRecord{id})
-   │                  (who saved it — worktree→file bridge undesigned, G-05)
+   │                  (who saved it — worktree→file bridge via `WorkspaceRoot`, GV2-013)
  plan/provenance join ──▶ APS item PAY-007 · commit <sha> · policy: allowed · Edda memory <ref>
 ```
 
 If any single join in that chain cannot be followed by a defined identity key,
-the trace breaks — which is why GV2-002 gates GV2-014 and why G-05 (the
-worktree→file bridge) gates the control/session join.
+the trace breaks — which is why GV2-002 gates GV2-014, and why the
+control/session join needs the worktree→file bridge now defined by GV2-013 (the
+`WorkspaceRoot` relativiser, see "The control/session graph contract" below).
 
 ## The trust/policy graph contract (GV2-012)
 
@@ -226,6 +227,154 @@ that diff to the symbols a semantic `GraphDelta` actually touched, so a
 save-time update emits exactly the trust posture changes for the symbols that
 moved. `TrustPostureChange::is_privilege_escalation()` flags a move onto
 `Privileged` — the signal the daemon trust-annotation wiring (GV2-029) acts on.
+
+## The control/session graph contract (GV2-013)
+
+The control/session graph is a **separate graph keyed on session and worktree
+identity**, not a bag of fields on the semantic node. It owns execution hosts,
+drivers, sessions, leases, fences, worktrees, and the attribution of _changes_
+to sessions; it **must not** model code structure (the taxonomy anti-scope
+above). It joins to the semantic graph in one direction only — worktree-root →
+file — to answer "which session authored the change to F?", and never embeds a
+semantic node, so a session can end without rewriting the code graph and a code
+edit re-keys without losing its attribution. The contract **cites the shipped
+INTD session model rather than inventing one**: `SessionRecord`, `SessionId`,
+`SessionStatus`, and the `Attribution` enum (`Owned { session: SessionRecord }`
+/ `Unknown`) are the authoritative types
+([`intercept-as-built.md`](./intercept-as-built.md) §10;
+`crates/anvil-intercept-proto/src/lib.rs`,
+`crates/anvil-intercept/src/registry.rs`), with the session-key vocabulary
+(`AgentTag`, `LineageAnchor`, `OperatorContext`) in
+`crates/anvil-intercept-proto/src/session.rs`. The control plane that mints and
+governs these is specified by the driver framework
+([`anvil-driver-framework-design-spec.md`](../../plans/specs/anvil-driver-framework/anvil-driver-framework-design-spec.md));
+this graph is the queryable projection of that runtime state, **not** a second
+control authority.
+
+### What the control/session graph carries
+
+- **Execution hosts** — where a session runs (local, remote/SSH, hosted/web),
+  from the driver framework's execution-host registry. The host bounds what
+  enforcement the session's driver can offer.
+- **Drivers** — the `DriverType` that launched a session (shell-local,
+  shell-remote, process, tmux, editor, web-session, mcp, other) and its reported
+  `EnforcementCapabilities`. The driver, not the graph, decides what control is
+  possible; the graph records which driver owns a session so attribution
+  confidence is legible.
+- **Sessions** — `SessionRecord` keyed by `SessionId`, with `SessionStatus`
+  (`Active`/`Ended`) and the `agent_tag` / `daemon_issued_tag` attribution
+  identity.
+- **Leases and fences** — the lease a session holds over a worktree/repo and the
+  fence state that gates enforcement; control-plane state the graph references
+  by session/worktree identity, not state it authors.
+- **Worktrees** — the worktree root a session is bound to. The cross-graph join
+  key is derived from this (the bridge below); the daemon's `WorktreeKey` (fence
+  keying, internal to `anvil-intercept`) is **not** exposed here.
+- **Attribution edges** — `Attribution::Owned { session }` links a changed _file
+  identity_ to the session that authored it; `Attribution::Unknown` is the
+  explicit no-owner case.
+
+### Field classification: hot-path, telemetry, provenance
+
+The join's hot-path obligation (ADR-063) is narrow: answering "which active
+session owns this path?" must be `O(1)` from warm control-plane state with no
+parse and no I/O. Each field has one primary role (a secondary role is noted in
+the reason):
+
+| Field                                                         | Role                         | Why                                                                                                  |
+| ------------------------------------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `SessionId`, `SessionStatus`                                  | **hot-path**                 | attribution lookup + active/ended gate                                                               |
+| worktree-root → file key (relativised; see bridge)            | **hot-path**                 | the join key for `Attribution::Owned`                                                                |
+| `pid` / `pgid`                                                | **hot-path**                 | process-group fencing/control (also provenance for audit)                                            |
+| `AgentTag.pid_starttime`, `LineageAnchor`                     | **hot-path**                 | PID-reuse defence on the lineage cross-check                                                         |
+| `started_at_unix`                                             | **hot-path**                 | deterministic tiebreaker in `attribute_path` (registry.rs); also registration-time PID-reuse defence |
+| `last_heartbeat_unix`                                         | **telemetry-only**           | liveness/TTL refresh; observability, not a verdict input                                             |
+| `OperatorContext` (`uid`/`pid`/`hostname`)                    | **persisted-for-provenance** | audit record on a cascade clear (server-populated, never client-trusted)                             |
+| `agent_tag.driver_id`/`claimed_agent_id`, `daemon_issued_tag` | **persisted-for-provenance** | the _who / which-driver_ the plan/provenance join (GV2-014) reads                                    |
+| `SessionRecord.worktree` (absolute `PathBuf`)                 | **never persisted**          | absolute path is home-dir/PII; only its relativised key crosses the join (C-6)                       |
+
+Telemetry-only and provenance fields are **off the hot path**: they feed the
+diagnostic/projection API tier, not the enforcement read. A warm miss on the
+attribution lookup degrades to `Attribution::Unknown` — never a parse, rebuild,
+or I/O.
+
+### The worktree-root → file join bridge (closes G-05 / ratification C-1)
+
+C-1's undesigned seam: `SessionRecord.worktree` is an absolute, canonicalised
+`PathBuf`, the relativisation logic lives in `anvil-intercept`'s `WorktreeKey`
+(`rule_cache.rs`, kept there for fence keying and not consumed cross-crate), and
+the semantic/dependency graphs key files by relative `String` — so the
+attribution hop had no shared key. The fix is not to expose `WorktreeKey`: the
+graph layer (`anvil-graph-cache`) must not depend on the control layer
+(`anvil-intercept`) at all, which is exactly the ADR-064 inversion. The contract
+instead defines a shared relativiser in **`anvil-kernel-types`** — the crate
+both `anvil-intercept` (Cargo.toml) and `anvil-graph-cache` (Cargo.toml) already
+depend on, so neither takes a dependency on the other:
+
+- **`WorkspaceRoot`** — a newtype over a canonical, absolute worktree root
+  (constructed by the control layer from `SessionRecord.worktree`). It exposes
+  one join operation: `relativise(&self, abs: &Path) -> Option<RelPath>`.
+- **`RelPath`** — the workspace-root-relative, **forward-slash-normalised** key
+  (the same `String` the semantic graph already uses for `SymbolNode.file` /
+  `SourceLocation`, optionally newtyped for type-safety), so the relativised
+  result looks up directly with no second keyspace.
+
+Contract invariants (named, not frozen — the type lands in code with the
+registry build, GV2-020):
+
+1. **Deterministic and platform-stable** — canonicalisation happens once at
+   construction; output is forward-slash-normalised so the key is identical on
+   Unix and Windows (graph keys are portable `String`s).
+2. **Total, never panicking** — a path outside the root returns `None`, which
+   the attribution join maps to `Attribution::Unknown`; it never errors on the
+   hot path.
+3. **No PII retained** — the relative key strips the absolute root, so no
+   home-dir prefix or username survives into the join or any persisted
+   projection (C-6).
+4. **Boundary-preserving** — it consolidates _cross-graph_ relativisation only;
+   `WorktreeKey` stays internal to `anvil-intercept` for fence-cache keying. The
+   two are distinct concerns, and the graph layer reaches neither — it depends
+   only on `anvil-kernel-types`.
+
+This makes the worked-trace `control/session join → Attribution::Owned` hop
+followable by a defined key.
+
+### Driver coverage: shell, editor, MCP
+
+Attribution confidence is a function of the driver's `EnforcementCapabilities`,
+and the graph records the `DriverType` so a consumer can read how strong an
+`Attribution::Owned` edge is:
+
+- **Shell** (shell-local/-remote, tmux, process) — strongest. The launcher wraps
+  the process, so the session carries `pid`/`pgid` and a `LineageAnchor`;
+  attribution is by process-group lineage _and_ worktree containment, and
+  fencing is enforceable on the hot path.
+- **Editor** — medium. An editor save may not run under a wrapped process group,
+  so attribution is by **worktree containment** (the saved path relativises
+  under a registered session's `WorkspaceRoot`) rather than pgid lineage. The
+  edge is still `Attribution::Owned`, but the graph marks the driver so
+  consumers know lineage is path-derived.
+- **MCP** — weakest / best-effort (driver framework §6.2 `mcp-driver`: soft
+  control, non-primary fallback; hosted/web sessions are §14). An MCP session
+  may have no local pgid and only an _advisory_ `AgentTag` (`claimed_agent_id`),
+  not a `daemon_issued_tag`. Attribution falls back to worktree containment
+  where a root is known, and to `Attribution::Unknown` otherwise — the graph
+  never fabricates a stronger edge than the driver can support. The
+  `web-session` driver shares this tier (best-effort, frequently no local pgid).
+
+In all three cases the graph models the **same** session/attribution types; only
+the confidence and the available identity fields differ. The control plane stays
+in the driver framework; the graph is its read projection.
+
+### Privacy and persistence scope (ratification C-6)
+
+The control/session graph does **not** inherit ADR-069's same-uid persistence
+acceptance (proven only for the daemon semantic/dependency snapshot).
+`SessionRecord.worktree` is absolute (home-dir/PII), so the relative-path /
+no-home-prefix / no-PII rules bind this graph _before_ any persistence, and it
+needs its **own** privacy ADR before it becomes persistable. Until then the
+control/session graph is **resident control-plane state projected on demand**,
+not a persisted snapshot.
 
 ## The query / registry API shape
 
@@ -291,15 +440,17 @@ The crux of "is the system designed": for each seam, where is it pinned?
 - **graph ↔ drivers (DRVR)** — **pinned by reference.** ADR-063 binds DRVR
   mid-edit reads to the _same_ hot-read allowlist; a second admission policy is
   explicitly rejected.
-- **graph ↔ control/session** — **types shipped; join contract undesigned**
-  (C-5). The session model is shipped in INTD (`SessionRecord` / `SessionId` /
-  `Attribution::Owned(SessionRecord)`,
+- **graph ↔ control/session** — **types shipped; join contract defined
+  (GV2-013).** The session model is shipped in INTD (`SessionRecord` /
+  `SessionId` / `Attribution::Owned { session }`,
   [`intercept-as-built.md`](./intercept-as-built.md) §10), and GV2-013 cites
-  those types rather than reinventing them — but the **worktree→file join key
-  bridge is undesigned** (G-05): `SessionRecord.worktree` is an absolute
-  `PathBuf` and `WorktreeKey` is crate-private to `anvil-intercept`, so
-  relativising it to the graph's relative file keys needs a shared type GV2-013
-  must define (not an `anvil-intercept` dependency, which would invert ADR-064).
+  those types rather than reinventing them. The **worktree→file join key
+  bridge** that C-5/G-05 flagged as undesigned is now specified as a shared
+  `WorkspaceRoot` relativiser in `anvil-kernel-types` (see "The control/session
+  graph contract" above), so neither the graph layer nor the control layer
+  depends on the other (ADR-064 preserved) and `WorktreeKey` stays internal to
+  `anvil-intercept` for fence keying. The remaining work is landing that type
+  with the registry build (GV2-020), not the contract.
 - **graph ↔ MCP/context (GCTX)** — **pinned.** GCTX consumes projections, must
   not define GV2 schemas, and GV2 wins on conflict; mutually acknowledged in
   both module specs. GCTX-002 (which server hosts it) is a sequencing decision,
@@ -399,15 +550,20 @@ symbol-feed seam is pinned. **Risk:** Low. **Fix:** a one-paragraph pointer in
 `rust-architecture-endstate.md`, and an `intercept-as-built.md` refresh covering
 ADR-067.
 
-### G-05: The control/session → file join bridge is undesigned
+### G-05: The control/session → file join bridge — contract defined
 
-`SessionRecord.worktree` is an absolute, canonicalised `PathBuf`; `WorktreeKey`
-is crate-private to `anvil-intercept` (`rule_cache.rs`); the semantic/dependency
-graphs key files by relative `String`. Relativising worktree-root → file
-identity is undesigned and untyped, and importing `WorktreeKey` into the graph
-layer would invert the ADR-064 boundary. Gates the control/session join in the
-worked trace. **Risk:** Medium. **Fix:** GV2-013 defines a shared
-root-relativisation type in `anvil-kernel-types`.
+**Contract defined by GV2-013 (named, not frozen).** The worktree→file bridge is
+now a defined join key: the shared `WorkspaceRoot` relativiser in
+`anvil-kernel-types` turns `SessionRecord.worktree` (absolute, canonicalised
+`PathBuf`) plus a changed file's absolute path into the same
+workspace-root-relative key the semantic/dependency graphs use, returning `None`
+(→ `Attribution::Unknown`) rather than panicking on a path outside the root.
+`WorktreeKey` stays internal to `anvil-intercept` (`rule_cache.rs`) for fence
+keying; the graph layer reaches neither it nor `anvil-intercept`, so the ADR-064
+boundary is not inverted (both layers depend only on `anvil-kernel-types`). See
+"The control/session graph contract" above. **Residual:** the type is
+named-not-frozen here; it lands in code with the registry build (GV2-020).
+**Risk:** Low (design risk retired; the landing is mechanical).
 
 ### G-06: `TrustLevel::Boundary` is excluded from the privileged-surface baseline — closed
 
