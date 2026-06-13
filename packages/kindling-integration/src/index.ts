@@ -46,6 +46,9 @@ export {
   ConstraintAppliedObservationSchema,
   HumanInputObservationSchema,
   ErrorObservationSchema,
+  CommandInvokedObservationSchema,
+  ArgShapeSchema,
+  FlagSetEntrySchema,
 
   // Schema (union)
   ObservationSchema,
@@ -62,6 +65,9 @@ export {
   type ConstraintAppliedObservation,
   type HumanInputObservation,
   type ErrorObservation,
+  type CommandInvokedObservation,
+  type ArgShape,
+  type FlagSetEntry,
   type Observation,
 
   // Utilities

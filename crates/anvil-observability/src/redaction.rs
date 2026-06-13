@@ -16,6 +16,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 use serde::ser::{SerializeMap, Serializer};
+use serde::{Deserialize, Serialize};
 use tracing::{Event, Subscriber, field, span};
 use tracing_subscriber::field::RecordFields;
 use tracing_subscriber::fmt::format::{FormatFields, Writer};
@@ -68,6 +69,145 @@ pub fn is_sensitive_field(field: &str) -> bool {
     SENSITIVE_FIELDS
         .iter()
         .any(|candidate| candidate.eq_ignore_ascii_case(field))
+}
+
+/// Coarse classification of an argument value's *shape*, recorded
+/// without the value itself.
+///
+/// Captured for usage analytics (USAGE-001) so the founder can ask
+/// "which commands take which kinds of arguments" without any raw
+/// value ever landing in a Kindling row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ArgValueType {
+    /// A value that parses as a signed integer.
+    Integer,
+    /// A value equal to `true`/`false` (case-insensitive).
+    Boolean,
+    /// Any other supplied value.
+    String,
+    /// A bare flag with no attached value (e.g. `--json`).
+    Flag,
+}
+
+/// Coarse length bucket for an argument value.
+///
+/// Deliberately *not* the exact character count: an exact length lets a
+/// reader confirm a fixed-length secret (a 40-char token, a 64-hex
+/// digest, a JWT of known size) passed under a non-sensitive flag name.
+/// Buckets keep the analytics signal ("are these short flags or long
+/// paths?") without disclosing a value-confirming measurement.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ArgLength {
+    /// Empty value (`""`).
+    Empty,
+    /// 1–8 characters.
+    Short,
+    /// 9–32 characters.
+    Medium,
+    /// 33 or more characters.
+    Long,
+}
+
+#[must_use]
+fn length_bucket(len: usize) -> ArgLength {
+    match len {
+        0 => ArgLength::Empty,
+        1..=8 => ArgLength::Short,
+        9..=32 => ArgLength::Medium,
+        _ => ArgLength::Long,
+    }
+}
+
+/// Redacted, value-free description of a single command-line argument.
+///
+/// Records the argument *name* and the *shape* of its value (type,
+/// coarse length bucket, presence) but never the value itself. For
+/// arguments whose name matches [`SENSITIVE_FIELDS`], even the shape is
+/// elided: `shape`/`length` are `None` and `redacted` carries the
+/// [`REDACTED`] marker, so a sensitive argument's existence stays
+/// visible while nothing about its value leaks. This type is the
+/// USAGE-001 privacy contract expressed in code.
+///
+/// Note: redaction keys off the argument *name* only. A secret passed
+/// under a non-sensitive flag name (e.g. `--output <token>`) or as a
+/// positional is **not** name-redacted; the [`ArgLength`] bucket is the
+/// backstop that keeps its exact length from leaking.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ArgShape {
+    /// The argument name as typed (e.g. `path`, `json`), without the
+    /// leading dashes. Never a value.
+    pub name: String,
+    /// Redaction marker. `Some(REDACTED)` when the name is sensitive,
+    /// `None` otherwise. When set, `shape`/`length`/`present` are
+    /// suppressed. Owned (not `&'static str`) so the type stays
+    /// `Deserialize`-clean when nested in observation rows.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub redacted: Option<String>,
+    /// The value's coarse type, when not redacted.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub shape: Option<ArgValueType>,
+    /// The value's coarse length bucket, when not redacted and a value
+    /// was supplied. Never the exact length (see [`ArgLength`]).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub length: Option<ArgLength>,
+    /// Whether a value was supplied (`true`) versus a bare flag
+    /// (`false`).
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub present: bool,
+}
+
+#[allow(clippy::trivially_copy_pass_by_ref)]
+const fn is_false(b: &bool) -> bool {
+    !*b
+}
+
+/// Build a redacted [`ArgShape`] for one argument.
+///
+/// `value` is `None` for a bare flag and `Some(_)` for an option that
+/// carried a value. The raw `value` is consumed only to measure its
+/// shape (coarse length bucket + coarse type) and is never stored. If
+/// `name` matches [`SENSITIVE_FIELDS`], the shape is elided and the
+/// [`REDACTED`] marker is set instead — a sensitive argument
+/// contributes only its name plus the marker.
+#[must_use]
+pub fn redact_arg(name: &str, value: Option<&str>) -> ArgShape {
+    if is_sensitive_field(name) {
+        return ArgShape {
+            name: name.to_owned(),
+            redacted: Some(REDACTED.to_owned()),
+            shape: None,
+            length: None,
+            present: false,
+        };
+    }
+    match value {
+        None => ArgShape {
+            name: name.to_owned(),
+            redacted: None,
+            shape: Some(ArgValueType::Flag),
+            length: None,
+            present: false,
+        },
+        Some(v) => ArgShape {
+            name: name.to_owned(),
+            redacted: None,
+            shape: Some(classify_value(v)),
+            length: Some(length_bucket(v.chars().count())),
+            present: true,
+        },
+    }
+}
+
+fn classify_value(value: &str) -> ArgValueType {
+    if value.parse::<i64>().is_ok() {
+        ArgValueType::Integer
+    } else if value.eq_ignore_ascii_case("true") || value.eq_ignore_ascii_case("false") {
+        ArgValueType::Boolean
+    } else {
+        ArgValueType::String
+    }
 }
 
 /// JSON [`FormatFields`] implementation that redacts sensitive span
@@ -291,6 +431,95 @@ mod tests {
         assert!(is_sensitive_field("API_KEY"));
         assert!(is_sensitive_field("Authorization"));
         assert!(is_sensitive_field("Password"));
+    }
+
+    #[test]
+    fn redact_arg_records_string_shape_not_value() {
+        let shape = redact_arg("path", Some("/home/secret/repo"));
+        assert_eq!(shape.name, "path");
+        assert_eq!(shape.redacted, None);
+        assert_eq!(shape.shape, Some(ArgValueType::String));
+        // 17 chars → Medium bucket (coarse, not the exact length).
+        assert_eq!(shape.length, Some(ArgLength::Medium));
+        assert!(shape.present);
+        // The raw value must never appear in the serialised row.
+        let json = serde_json::to_string(&shape).expect("serialise");
+        assert!(
+            !json.contains("/home/secret/repo"),
+            "raw value leaked into arg shape: {json}"
+        );
+    }
+
+    #[test]
+    fn redact_arg_classifies_integer_and_boolean() {
+        assert_eq!(
+            redact_arg("threshold", Some("42")).shape,
+            Some(ArgValueType::Integer)
+        );
+        assert_eq!(
+            redact_arg("rescan", Some("true")).shape,
+            Some(ArgValueType::Boolean)
+        );
+        assert_eq!(
+            redact_arg("rescan", Some("FALSE")).shape,
+            Some(ArgValueType::Boolean)
+        );
+    }
+
+    #[test]
+    fn redact_arg_marks_bare_flag() {
+        let shape = redact_arg("json", None);
+        assert_eq!(shape.shape, Some(ArgValueType::Flag));
+        assert_eq!(shape.length, None);
+        assert!(!shape.present);
+    }
+
+    #[test]
+    fn redact_arg_buckets_length_not_exact() {
+        assert_eq!(redact_arg("a", Some("")).length, Some(ArgLength::Empty));
+        assert_eq!(redact_arg("a", Some("abcd")).length, Some(ArgLength::Short));
+        assert_eq!(
+            redact_arg("a", Some(&"x".repeat(20))).length,
+            Some(ArgLength::Medium)
+        );
+        assert_eq!(
+            redact_arg("a", Some(&"x".repeat(64))).length,
+            Some(ArgLength::Long)
+        );
+    }
+
+    #[test]
+    fn redact_arg_elides_sensitive_named_argument() {
+        // A sensitive name redacts the shape entirely, even when a
+        // value (and its length) was supplied.
+        let shape = redact_arg("token", Some("super-secret-value"));
+        assert_eq!(shape.name, "token");
+        assert_eq!(shape.redacted.as_deref(), Some(REDACTED));
+        assert_eq!(shape.shape, None);
+        // Length is elided entirely for a sensitive-named argument
+        // (structural assertion — no exact length is computed at all).
+        assert_eq!(shape.length, None);
+        assert!(!shape.present);
+        let json = serde_json::to_string(&shape).expect("serialise");
+        assert!(json.contains(REDACTED), "redaction marker missing: {json}");
+        assert!(
+            !json.contains("super-secret-value"),
+            "sensitive value leaked: {json}"
+        );
+    }
+
+    #[test]
+    fn redact_arg_sensitive_check_is_case_insensitive() {
+        assert_eq!(
+            redact_arg("Authorization", Some("Bearer x"))
+                .redacted
+                .as_deref(),
+            Some(REDACTED)
+        );
+        assert_eq!(
+            redact_arg("PASSWORD", Some("hunter2")).redacted.as_deref(),
+            Some(REDACTED)
+        );
     }
 
     #[test]

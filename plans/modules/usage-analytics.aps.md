@@ -14,9 +14,9 @@ Cross-cutting convention: see plans/aps-rules.md#cross-cutting-modules.
 
 | ID    | Owner      | Status | Progress |
 | ----- | ---------- | ------ | -------- |
-| USAGE | @eddacraft | Ready  | 0/3      |
+| USAGE | @eddacraft | In Progress | 0/4 |
 
-**Last reviewed:** 2026-05-11
+**Last reviewed:** 2026-06-14
 
 > **Provenance:** Founder request 2026-05-10. Current observability story
 > (TRACE-001 + JSON logs) gives a debug surface but no durable answer to
@@ -156,9 +156,10 @@ This module is **Ready** when:
       says USAGE stores resolved flag context inline on the usage row,
       joins by manifest `key`, and ADR-019 stays gate-affecting-only for
       standalone Kindling flag facts.
-- [ ] OQ1 resolved: reuse-existing vs new `command.invoked` kind
-      (founder lean 2026-05-10 → new kind; OQ5 now resolved).
-- [ ] At least one task approved for execution.
+- [x] OQ1 resolved 2026-06-14: **new kind** `command.invoked` (founder
+      lean confirmed in execution; reuse rejected — the existing kinds
+      carry gate/plan/action semantics that do not fit a bare invocation).
+- [x] At least one task approved for execution (USAGE-001 In Progress).
 
 ## Privacy contract
 
@@ -205,14 +206,15 @@ requires founder review. The contract doc lives in
 
 ## Work Items
 
-> Status: Ready. USAGE-001 authorised Ready 2026-05-30 via operator
-> Draft-readiness review — the founder OQ1 observation-kind decision is
-> folded into the task's scope (Expected Outcome records reuse-vs-new
-> inline). USAGE-002 and USAGE-003 remain Draft and follow once
-> invocations land. Scoped into the `v0.9.0-beta` release window as
-> additive scope (operator, 2026-06-13); USAGE-001 stays `Ready` and
-> unblocked — independent of the graph entry gates, so it can be picked
-> up whenever it is scheduled.
+> Status: In Progress. USAGE-001 In Progress 2026-06-14 (CLI producer +
+> `command.invoked` kind + privacy contract). OQ1 resolved → **new kind**
+> `command.invoked`. The JSON-RPC producer is descoped to a follow-up
+> (USAGE-004) per the module's out-of-scope clause: the daemon dispatch
+> boundary carries no user principal and no flag resolver, so an
+> IPC-side row would be principal-less and asymmetric. USAGE-002 and
+> USAGE-003 remain Draft and follow once invocations land. Scoped into
+> the `v0.9.0-beta` release window as additive scope (operator,
+> 2026-06-13).
 
 ### USAGE-001: Command-invocation observation kind and producer
 
@@ -275,7 +277,26 @@ requires founder review. The contract doc lives in
 - **Confidence:** medium — OQ2 and OQ5 are resolved; OQ1 (reuse vs new
   observation kind) is folded into this task's scope per the 2026-05-30
   operator authorisation and is decided as the first step of execution.
-- **Status:** Ready
+- **As-built (2026-06-14):** OQ1 → **new kind** `command.invoked`.
+  CLI producer wired once in `crates/anvil-cli/src/main.rs` above the
+  command dispatch (uniform for every command — no per-command wiring to
+  forget). Observation shape in `anvil-intercept`
+  (`kindling_observation.rs`: `CommandInvokedObservation`,
+  `from_command_invocation`), arg-shape redaction in
+  `anvil-observability::redaction` (`ArgShape`/`redact_arg`, reusing
+  `SENSITIVE_FIELDS`/`REDACTED`), TS Zod mirror in
+  `packages/kindling-integration/src/observation-contract.ts`. Principal =
+  SHA-256(salt‖email) with a per-deployment salt at
+  `<credentials_dir>/usage.salt` (0600); `anonymous` when
+  unauthenticated. Rows append to the **user-scoped**
+  `<credentials_dir>/kindling/usage.ndjson` (cross-cutting signal, not
+  per-repo; `ANVIL_HOME`-aware) — the proven audit-chain NDJSON sidecar
+  pattern; the Rust→TS SQLite bridge stays a stack-wide deferred
+  follow-up. `flag_set` emitted empty (USAGE-002 populates it). OQ2's
+  "existing secrets store" resolved to the per-deployment config dir
+  where credentials already live. **JSON-RPC producer descoped to
+  USAGE-004** (no principal/resolver on the daemon path).
+- **Status:** In Progress
 
 ---
 
@@ -348,6 +369,47 @@ requires founder review. The contract doc lives in
 - **Confidence:** medium-low — depends on USAGE-001/-002 shapes.
 - **Status:** Draft
 
+---
+
+### USAGE-004: JSON-RPC command-invocation producer
+
+- **Intent:** Extend the `command.invoked` producer to the JSON-RPC
+  daemon dispatch so user-initiated method calls land as usage rows too,
+  with the same privacy contract as the CLI path.
+- **Concrete failure mode (today):** USAGE-001 records CLI invocations
+  only. Method calls dispatched through `anvil-intercept::ipc` are
+  invisible to the "who is using what" view.
+- **Blocker (the surfaced gap from USAGE-001):** the JSON-RPC dispatch
+  boundary (`crates/anvil-intercept/src/ipc.rs`, `command_from_jsonrpc` /
+  `dispatch_command`) carries **no user principal** and **no flag
+  resolver** on the call path. Emitting a row there today would be
+  principal-less and asymmetric to CLI rows. Per the module's
+  out-of-scope clause, USAGE-001 surfaces this rather than minting a
+  principal. Unblocking needs either a per-call principal field on the
+  JSON-RPC envelope (protocol change) or a documented decision to record
+  the daemon `session_id` as the correlation key with a distinct,
+  weaker privacy note.
+- **Expected Outcome:**
+  - A decision recorded on the principal question above.
+  - A producer at the JSON-RPC dispatcher emitting one `command.invoked`
+    row per user-initiated method call, reusing the USAGE-001 shape
+    (`CommandInvokedObservation`) and arg/param redaction.
+  - The conformance test extended to iterate the registered method list.
+- **Coordinates with:** USAGE-001 (reuses the row shape and producer
+  helpers), TRACE-004 (incoming `traceparent` on the envelope).
+- **Files (best-effort):** `crates/anvil-intercept/src/ipc.rs`,
+  `crates/anvil-intercept/src/kindling_observation.rs`, tests in the same
+  crate, `docs/observability/usage-analytics.md` (lift the scope note).
+- **Validation:** TBD when picked up — at minimum (a) a test that a
+  user-initiated JSON-RPC method call produces exactly one
+  `command.invoked` row carrying the matching `traceparent`; (b) the
+  conformance fixture extended to iterate the registered method list so a
+  new method without an observation fails; (c) a test asserting the
+  agreed principal decision (raw principal / session_id never leaks per
+  the recorded choice).
+- **Confidence:** medium-low — gated on the principal decision.
+- **Status:** Draft
+
 ## Risks
 
 - **R1 (privacy):** Recording who ran which command is itself
@@ -375,13 +437,18 @@ requires founder review. The contract doc lives in
 
 ## Open questions
 
-- **OQ1 (founder lean 2026-05-10 → new kind; OQ5 resolved):**
-  Introduce a new `command.invoked` Kindling observation kind. Final
-  decision recorded in USAGE-001; ADR-041 confirms FLAGS does not
-  already publish a row shape that covers USAGE-002.
-- **OQ2 (resolved 2026-05-11):** Principal anonymised via one-way
-  hash with a per-deployment salt held in the existing secrets
-  store. Salt rotation is a deliberate privacy reset, not routine.
+- **OQ1 (resolved 2026-06-14 — new kind):** Introduced the new
+  `command.invoked` Kindling observation kind in USAGE-001. Reuse was
+  rejected: the existing kinds (`gate_evaluated`, `action_executed`, …)
+  carry gate/plan/action semantics that do not fit a bare invocation.
+  ADR-041 confirms FLAGS does not already publish a row shape that
+  covers USAGE-002.
+- **OQ2 (resolved 2026-05-11; as-built 2026-06-14):** Principal
+  anonymised via one-way SHA-256 hash with a per-deployment salt. The
+  "existing secrets store" resolved in build to the per-deployment
+  config dir where credentials already live: the salt is at
+  `<credentials_dir>/usage.salt` (mode `0600`, generated once from OS
+  entropy). Salt rotation is a deliberate privacy reset, not routine.
   Same-person → same hash within a deployment; no cross-deployment
   join; distinct-user counts remain answerable; raw IDs never land
   in logs. Codified in the Privacy Contract section above.

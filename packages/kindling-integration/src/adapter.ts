@@ -32,6 +32,7 @@ const KIND_MAP: Record<AnvilObservation['kind'], string> = {
   constraint_applied: 'message',
   human_input: 'message',
   error: 'error',
+  'command.invoked': 'command',
 };
 
 export interface AnvilKindlingAdapterConfig {

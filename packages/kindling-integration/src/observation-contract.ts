@@ -351,6 +351,78 @@ export const ErrorObservationSchema = z.object({
 export type ErrorObservation = z.infer<typeof ErrorObservationSchema>;
 
 // =============================================================================
+// 9. Usage Analytics (USAGE-001)
+// =============================================================================
+
+/**
+ * Argument shape (USAGE-001 privacy contract).
+ *
+ * Records an argument's NAME and the SHAPE of its value (coarse type,
+ * length, presence) but never the value itself. For arguments whose
+ * name matches the `SENSITIVE_FIELDS` deny-list, the shape is elided
+ * and `redacted` carries the `<redacted>` marker instead — only the
+ * name remains visible. Mirrors `anvil_observability::redaction::ArgShape`.
+ */
+export const ArgShapeSchema = z.object({
+  name: z.string().describe('Argument name as typed (no leading dashes); never a value'),
+  redacted: z
+    .literal('<redacted>')
+    .optional()
+    .describe('Set for sensitive-named args; shape fields are then absent'),
+  shape: z
+    .enum(['integer', 'boolean', 'string', 'flag'])
+    .optional()
+    .describe('Coarse value type when not redacted'),
+  length: z
+    .enum(['empty', 'short', 'medium', 'long'])
+    .optional()
+    .describe('Coarse length bucket when not redacted and a value was supplied (never exact)'),
+  present: z.boolean().optional().describe('Whether a value was supplied vs a bare flag'),
+});
+
+export type ArgShape = z.infer<typeof ArgShapeSchema>;
+
+/**
+ * One inline resolved feature-flag entry on a usage row (ADR-041).
+ * USAGE-001 emits an empty `flag_set`; USAGE-002 populates it.
+ */
+export const FlagSetEntrySchema = z.object({
+  key: z.string().describe('Canonical manifest key — the stable join key (ADR-041 D-2)'),
+  variant: z.string().describe('Resolved variant for this invocation'),
+  source: z.enum(['snapshot', 'override', 'default']).describe('Where the value came from'),
+  gate_affecting: z.boolean().describe('Whether the flag is gate-affecting (ADR-019 boundary)'),
+});
+
+export type FlagSetEntry = z.infer<typeof FlagSetEntrySchema>;
+
+/**
+ * Command Invoked: one row per user-initiated CLI command or JSON-RPC
+ * method call. Records THAT a command ran and the redacted shape of its
+ * arguments — never argument values, results, or output. See the
+ * privacy contract at `docs/observability/usage-analytics.md`.
+ *
+ * Mirrors `CommandInvokedObservation` in
+ * `crates/anvil-intercept/src/kindling_observation.rs`.
+ */
+export const CommandInvokedObservationSchema = z.object({
+  kind: z.literal('command.invoked'),
+  session_id: z.string().uuid(),
+  timestamp: z.string().datetime(),
+
+  command: z.string().describe('Canonical command or method name (e.g. "check", "session.list")'),
+  principal: z
+    .string()
+    .describe('Anonymised principal — one-way hash, or "anonymous"; never the raw identity'),
+  args: z.array(ArgShapeSchema).describe('Redacted per-argument shapes (no values)'),
+  flag_set: z
+    .array(FlagSetEntrySchema)
+    .describe('Inline resolved flag context (ADR-041); empty for USAGE-001, always present'),
+  traceparent: z.string().optional().describe('W3C traceparent for cross-pipe correlation'),
+});
+
+export type CommandInvokedObservation = z.infer<typeof CommandInvokedObservationSchema>;
+
+// =============================================================================
 // Observation (Union Type)
 // =============================================================================
 
@@ -369,6 +441,7 @@ export const ObservationSchema = z.discriminatedUnion('kind', [
   ConstraintAppliedObservationSchema,
   HumanInputObservationSchema,
   ErrorObservationSchema,
+  CommandInvokedObservationSchema,
 ]);
 
 export type Observation =
@@ -382,7 +455,8 @@ export type Observation =
   | GateEvaluatedObservation
   | ConstraintAppliedObservation
   | HumanInputObservation
-  | ErrorObservation;
+  | ErrorObservation
+  | CommandInvokedObservation;
 
 // =============================================================================
 // Observation Emission Contract

@@ -394,6 +394,12 @@
 | ------------------------------------------------------------------------------ | -------------------------------------------------- | ----------- | ------------- | ---------------------------------------------- | ------ |
 | [Save-Time Validation](../../docs/public/anvil/guides/save-time-validation.md) | `docs/public/anvil/guides/save-time-validation.md` | Public docs | Authoritative | UJ (plans/archive/modules/user-journey.aps.md) | Live   |
 
+## USAGE
+
+| Document                                                                        | Path                                    | Type  | Authority     | Owner | Status |
+| ------------------------------------------------------------------------------- | --------------------------------------- | ----- | ------------- | ----- | ------ |
+| [Usage Analytics Privacy Contract](../../docs/observability/usage-analytics.md) | `docs/observability/usage-analytics.md` | Guide | Authoritative | USAGE | Live   |
+
 ## VISION
 
 | Document                                                                                                                | Path                                           | Type  | Authority     | Owner  | Status |
