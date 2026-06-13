@@ -107,7 +107,7 @@ Selection rules:
 
 | Rank | NBI | Mode | Source | Why now | Next action |
 | ---- | --- | ---- | ------ | ------- | ----------- |
-| 1 | v0.9 graph substrate — GV2-026 / -030 (contracts GV2-013/-014 Merged) | Ready | [graph-v2-foundation](./modules/graph-v2-foundation.aps.md) + [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) | The assistant-facing-graph window's internal substrate: GV2-013 (control/session contract) **Merged 2026-06-13 via #2578** and GV2-014 (plan/provenance contract) **Merged 2026-06-13 via #2579** complete Phase 1; GV2-026 (reverse-impact depth lever) and GV2-030 (sealed-DTO no-leak guard) remain Ready — deps Merged, execution-ready, and **not** behind the ADR-075 GCTX entry gate (that covers the assistant-facing egress surface only). | Pick up GV2-026/-030 through dev-workflow — they code against concrete `cargo test` targets. |
+| 1 | v0.9 graph substrate — cohort Merged; GV2-031 the Draft remainder | Draft | [graph-v2-foundation](./modules/graph-v2-foundation.aps.md) + [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) | The v0.9 internal-substrate cohort is **fully Merged**: GV2-013/014 contracts (#2578/#2579), GV2-026 reverse-impact depth lever (#2594), GV2-030 sealed-DTO no-leak guard (#2595). Remaining GV2 substrate: **GV2-031** (lift re-export edges so transitive privilege is visible) is **Draft** and needs a readiness pass; GV2-020/-023 + GCTX stay gated on the ADR-075 entry decisions (rank 2). | Run a readiness pass on GV2-031, or take the GCTX entry decisions to unblock GV2-020/-023. |
 | 2 | GCTX entry decisions — unblock the assistant-facing surface | Schedule | [ADR-075](./decisions/075-v080-graph-product-scope.md) + [graph-context-delivery](./modules/graph-context-delivery.aps.md) | The GCTX product (0/13) and the GV2 consumer surface (GV2-020 → GV2-023, MCP/weave-facing) stay gated on the two ADR-075 entry decisions: the GCTX-002 architectural decision (which MCP target) and the context-egress privacy review (PV-9, distinct from the persistence verdict). | Land GCTX-002 (ADR) and run the context-egress privacy review; then promote GCTX + GV2-020/-023 with a readiness pass. |
 | 3 | USAGE-001 — `command.invoked` Kindling observations | Merged | [usage-analytics](./modules/usage-analytics.aps.md) + [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) | Founder-requested (2026-05-10) durable "who is using what" evidence; Merged 2026-06-13 via PR #2603 — CLI producer + new `command.invoked` kind + privacy contract; JSON-RPC producer descoped to USAGE-004. Scoped into the `v0.9.0-beta` window as additive work (operator, 2026-06-13). | USAGE-002/003/004 follow; cleanup agent advances Merged → Released on the v0.9.0-beta tag. |
 
@@ -165,8 +165,9 @@ have their per-window tables and slice records in
 table.
 
 **Active work below still leads with the just-shipped `v0.8.0` window's
-module family** — Graph Substrate (GV2, now 15/20 with the A′ slice shipped
-and the v0.9 control/session + plan/provenance contracts Merged — Phase 1 complete), Hardening & Maintenance (DSV, Sub-phase B
+module family** — Graph Substrate (GV2, now 17/20 with the A′ slice shipped, the
+v0.9 contracts Merged — Phase 1 complete — and the GV2-026 depth lever + GV2-030
+sealed-snapshot no-leak guard Merged), Hardening & Maintenance (DSV, Sub-phase B
 Blocked), and Intercept Loop (MLP2 enforcement substrate) — then the rest of
 the active modules, then the [Dormant](#dormant-not-yet-scheduled) band. The
 v0.8.0/v0.8.1 tag-complete modules (UJ, TUIDASH, RSTLAN, GITGOV, GHCLIAUTH,
@@ -182,7 +183,7 @@ trusted model.
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
-| [graph-v2-foundation](./modules/graph-v2-foundation.aps.md) | GV2 | In Progress | 15/20 (A′ slice shipped in v0.8.0-beta; Phase 1 complete — GV2-013 control/session contract Merged 2026-06-13 via #2578 and GV2-014 plan/provenance contract Merged 2026-06-13 via #2579; GV2-026/-030 Ready; GV2-020/-023 + GCTX stay Draft pending their deps / the entry decisions) | KERN, anvil-graph-cache, ADR-061/063/064/067/069, ADR-031, INTD, GCTX, EDDA |
+| [graph-v2-foundation](./modules/graph-v2-foundation.aps.md) | GV2 | In Progress | 17/20 (A′ slice shipped in v0.8.0-beta; Phase 1 complete — GV2-013/014 contracts Merged 2026-06-13 via #2578/#2579; GV2-026 reverse-impact depth lever Merged 2026-06-14 via #2594 and GV2-030 sealed-DTO no-leak guard Merged 2026-06-14 via #2595; remaining: GV2-031 Draft re-export follow-up, GV2-020/-023 + GCTX Draft pending their deps / the entry decisions) | KERN, anvil-graph-cache, ADR-061/063/064/067/069, ADR-031, INTD, GCTX, EDDA |
 | [graph-context-delivery](./modules/graph-context-delivery.aps.md) | GCTX | Draft | 0/13 | GV2 |
 
 ### Hardening & Maintenance

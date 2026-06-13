@@ -26,11 +26,12 @@
 > critical path is fully Merged.
 > **Deferred to v0.9** (council, off the critical path): GV2-013, 014, 020, 023,
 > 026 (registry/contracts) and GV2-030 (sealed-DTO snapshot, with Sub-phase B
-> persistence). v0.9 active: GV2-013 Merged 2026-06-13 (PR #2578); GV2-014 Merged
-> 2026-06-13 (PR #2579). Count is
-> **15/20** (001/002/003/010/011/012/013/014/021/022/024/025/027/028/029 Merged —
+> persistence). v0.9 active: GV2-013/014 Merged 2026-06-13 (PR #2578/#2579);
+> GV2-026/030 Merged 2026-06-14 (PR #2594/#2595). Count is
+> **17/20** (001/002/003/010/011/012/013/014/021/022/024/025/026/027/028/029/030 Merged —
 > GV2-013 #2578 + GV2-014 #2579 added the control/session and plan/provenance
-> contracts (Phase 1 complete); GV2-024 #2470 + GV2-025 #2459 closed the A′
+> contracts (Phase 1 complete); GV2-026 #2594 (reverse-impact depth lever) +
+> GV2-030 #2595 (sealed-DTO snapshot no-leak guard); GV2-024 #2470 + GV2-025 #2459 closed the A′
 > hot-path hardening; GV2-031 is a Draft follow-up for the re-export privilege
 > blind spot found in #2453).
 
@@ -619,7 +620,7 @@ Change status to **Ready** when:
 
 #### GV2-026: Reverse-impact hop-depth lever
 
-- **Status:** Ready — promoted 2026-06-13 (v0.9 active window). Dep GV2-011 Merged; internal impact-depth lever, not entry-gated by ADR-075
+- **Status:** Merged 2026-06-14 via PR #2594 — dep GV2-011 Merged; internal impact-depth lever, not entry-gated by ADR-075
 - **Intent:** Implement the ADR-063 configurable, hard-capped reverse-impact
   depth (default 1 hop) — today `impact_closure` has only a file-count budget
   with unbounded depth.
@@ -774,7 +775,7 @@ Change status to **Ready** when:
 
 #### GV2-030: Sealed-DTO snapshot serialisation + structural no-leak guard
 
-- **Status:** Ready — promoted 2026-06-13 (v0.9 active window). Deps GV2-002/003 Merged, ADR-069 Accepted, persistence privacy verdict (PV-6..12) done; implement under those conditions. Machine-local persistence, not the egress surface
+- **Status:** Merged 2026-06-14 via PR #2595 — deps GV2-002/003 Merged, ADR-069 Accepted, persistence privacy verdict (PV-6..12) done. Machine-local persistence, not the egress surface
 - **Intent:** Enforce the ADR-069 privacy line in code (today it is a convention
   — no `SnapshotPayload` DTO, codec, or no-leak test exists). Sub-phase B
   persistence prerequisite.
@@ -884,5 +885,5 @@ Change status to **Ready** when:
 | 0 — Architecture and Contracts | 3 | 3/3 done | Complete |
 | 1 — Graph Schemas | 5 | 5/5 done | Complete |
 | 2 — Runtime Substrate | 4 | 2/4 done | In Progress |
-| 3 — Enforcement, Wiring, and the A′ Swap | 8 | 5/8 done | In Progress |
-| **Total** | **20** | **15/20 done** | **In Progress** |
+| 3 — Enforcement, Wiring, and the A′ Swap | 8 | 7/8 done | In Progress |
+| **Total** | **20** | **17/20 done** | **In Progress** |
