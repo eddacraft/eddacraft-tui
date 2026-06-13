@@ -165,8 +165,12 @@ today's static key, not larger.
   linking; ADMINCLIH (per-operator key model)
 - Code: `apps/anvil-api/src/middleware/admin-auth.ts`,
   `apps/anvil-api/src/routes/auth-github-device.ts`,
-  `apps/anvil-api/src/lib/licence.ts`, `apps/anvil-api/src/db/schema.sql`
-  (`admin_keys`, `beta_users.github_id`), `infra/src/admin-keys.ts`,
+  `apps/anvil-api/src/lib/licence.ts`,
+  `apps/anvil-api/src/db/migrations/007-admin-keys.sql` +
+  `008-admin-keys-audit.sql` (the `admin_keys` / `admin_keys_audit` tables —
+  defined in migrations, not `schema.sql`; the `github_id` column this ADR adds
+  lands as a new migration), `apps/anvil-api/src/db/schema.sql`
+  (`beta_users.github_id`), `infra/src/admin-keys.ts`,
   `crates/anvil-cli/src/commands/admin.rs`
 - External: [RFC 8628](https://www.rfc-editor.org/rfc/rfc8628) (Device
   Authorization Grant)
