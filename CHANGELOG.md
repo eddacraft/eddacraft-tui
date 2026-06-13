@@ -6,11 +6,13 @@ This changelog contains customer-relevant changes only. Internal refactors and
 engineering maintenance are recorded in the
 [Engineering History](./ENGINEERING-HISTORY.md).
 
-## [Unreleased]
+## [0.8.1-beta] — 2026-06-11 — Headless GitHub Login
 
-> **Draft.** This section accumulates customer-relevant changes landed on `main`
-> since `v0.8.0-beta`; the version, date, and final scope are set at the next
-> release.
+A patch cut hours after `v0.8.0-beta`, landing the GitHub device-flow login that
+missed the daemon release. `anvil auth login` now works from a headless SSH or
+tmux session — show a code, open the URL on any device, no email prompt and no
+local browser — and the old email-prompt flow that had been timing out is
+retired (email OTP stays available with `--otp`).
 
 ### Changed
 
