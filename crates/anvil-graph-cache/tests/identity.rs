@@ -120,7 +120,14 @@ fn identity_file_rename_changes_identity_and_stays_partial() {
     let new_ids = SymbolIdentity::for_file_symbols(&g.symbols_in_file("new.ts"));
 
     assert_ne!(old_ids, new_ids, "path is part of identity");
-    let v = certify(&g, &DependencyGraph::new(), &ChangeKind::Rename, &delta, 64);
+    let v = certify(
+        &g,
+        &DependencyGraph::new(),
+        &ChangeKind::Rename,
+        &delta,
+        64,
+        1,
+    );
     assert_eq!(
         v,
         Certifiability::Partial {
@@ -164,6 +171,7 @@ fn identity_overload_added_to_public_symbol_does_not_certify_clean() {
         &ChangeKind::ContentModify,
         &delta,
         64,
+        1,
     );
     assert!(
         matches!(v, Certifiability::Partial { .. }),
@@ -304,6 +312,7 @@ fn identity_body_only_edit_still_certifies() {
         &ChangeKind::ContentModify,
         &delta,
         64,
+        1,
     );
     assert!(matches!(v, Certifiability::Certified { .. }));
 }

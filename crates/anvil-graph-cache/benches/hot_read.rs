@@ -148,6 +148,7 @@ fn main() {
             black_box(&ChangeKind::ContentModify),
             black_box(&delta),
             IMPACT_BUDGET,
+            MAX_REVERSE_IMPACT_DEPTH,
         ));
     });
 
@@ -161,6 +162,7 @@ fn main() {
             black_box(&ChangeKind::ContentModify),
             black_box(&delta),
             IMPACT_BUDGET,
+            MAX_REVERSE_IMPACT_DEPTH,
         ));
     });
 

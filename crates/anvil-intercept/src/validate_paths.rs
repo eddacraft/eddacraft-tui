@@ -251,6 +251,11 @@ pub struct ValidateEnv<'a> {
     pub pool: &'a rayon::ThreadPool,
     /// Reverse-impact closure budget passed to `certify`.
     pub budget: usize,
+    /// The reverse-impact hop depth passed to `certify` — the GV2-026 runtime
+    /// lever (ADR-063 §3). Resolved once per run by the config layer
+    /// (`save_time`) and clamped into `1..=MAX_REVERSE_IMPACT_DEPTH`; the hot
+    /// path never re-resolves it.
+    pub reverse_impact_depth: u32,
     /// Per-workspace `DoS` caps (DSV-006 / Task 11). The parse-size cap is
     /// applied per path here; the walk-depth cap governs the background scan
     /// executor (cf. [`walk_capped`](crate::workspace_pool::walk_capped)).
@@ -328,15 +333,7 @@ where
         .iter()
         .map(|path| {
             let desc = last[path];
-            per_path_outcome(
-                desc,
-                &key,
-                cache,
-                &read_guarded,
-                &fed_symbols,
-                env.budget,
-                env.caps,
-            )
+            per_path_outcome(desc, &key, cache, &read_guarded, &fed_symbols, env)
         })
         .collect();
 
@@ -402,13 +399,15 @@ fn per_path_outcome<R, F>(
     cache: &KernelGraphCache,
     read_guarded: &R,
     fed_symbols: &F,
-    budget: usize,
-    caps: &DosCaps,
+    env: &ValidateEnv<'_>,
 ) -> PathOutcome
 where
     R: Fn(&str) -> std::io::Result<Vec<u8>>,
     F: Fn(&str, &[u8]) -> Option<FileSymbols>,
 {
+    let budget = env.budget;
+    let reverse_impact_depth = env.reverse_impact_depth;
+    let caps = env.caps;
     let canonical = canonical_change(&desc.change);
     let ctx = ChangeCtx::for_path(&desc.path, false);
     let taxonomy = taxonomy_reason(&canonical, &ctx);
@@ -500,7 +499,12 @@ where
     // over arbitrary delta sequences by `backing_parity`).
     let verdict = cache
         .with_graphs(key, |sym, dep| {
-            HotReadApi::new(sym, dep).certify(&ChangeKind::ContentModify, &outcome.delta, budget)
+            HotReadApi::new(sym, dep).certify(
+                &ChangeKind::ContentModify,
+                &outcome.delta,
+                budget,
+                reverse_impact_depth,
+            )
         })
         .unwrap_or(Certifiability::Partial {
             reason: CertifyStale::CrossFileResolutionNeeded,
@@ -761,6 +765,7 @@ mod tests {
                 config: &AntipatternCheckConfig::default(),
                 pool: &pool(),
                 budget: 64,
+                reverse_impact_depth: 1,
                 caps: &DosCaps::default(),
             },
         );
@@ -807,6 +812,7 @@ mod tests {
                 config: &AntipatternCheckConfig::default(),
                 pool: &pool(),
                 budget: 64,
+                reverse_impact_depth: 1,
                 caps: &DosCaps::default(),
             },
         );
@@ -841,6 +847,7 @@ mod tests {
                 config: &AntipatternCheckConfig::default(),
                 pool: &pool(),
                 budget: 64,
+                reverse_impact_depth: 1,
                 caps: &DosCaps::default(),
             },
         );
@@ -885,6 +892,7 @@ mod tests {
                 config: &AntipatternCheckConfig::default(),
                 pool: &pool(),
                 budget: 64,
+                reverse_impact_depth: 1,
                 caps: &DosCaps::default(),
             },
         );
@@ -936,6 +944,7 @@ mod tests {
                 config: &AntipatternCheckConfig::default(),
                 pool: &pool(),
                 budget: 0, // budget 0 ⇒ any importer overflows
+                reverse_impact_depth: 1,
                 caps: &DosCaps::default(),
             },
         );
@@ -981,6 +990,7 @@ mod tests {
                 config: &AntipatternCheckConfig::default(),
                 pool: &pool(),
                 budget: 64,
+                reverse_impact_depth: 1,
                 caps: &caps,
             },
         );
@@ -1046,6 +1056,7 @@ mod tests {
                 config: &AntipatternCheckConfig::default(),
                 pool: &pool(),
                 budget: 64,
+                reverse_impact_depth: 1,
                 caps: &caps,
             },
         );
@@ -1074,6 +1085,7 @@ mod tests {
                 config: &AntipatternCheckConfig::default(),
                 pool: &pool(),
                 budget: 64,
+                reverse_impact_depth: 1,
                 caps: &DosCaps::default(),
             },
         );

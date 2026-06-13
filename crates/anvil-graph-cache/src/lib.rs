@@ -15,8 +15,8 @@ pub mod symbol_graph;
 pub mod trust;
 
 pub use certify::{
-    Certifiability, CertifyStale, ChangeKind, ExportSurfaceDiff, certify, export_surface_changed,
-    export_surface_diff,
+    Certifiability, CertifyStale, ChangeKind, ExportSurfaceDiff, certify,
+    clamp_reverse_impact_depth, export_surface_changed, export_surface_diff,
 };
 pub use dependency::DependencyGraph;
 pub use hot_index::{

@@ -90,6 +90,22 @@
       "primaryGroup": "docs"
     },
     {
+      "key": "gv2.reverse-impact-depth",
+      "owner": "GV2",
+      "intent": "Save-time reverse-impact closure hop depth (env ANVIL_REVERSE_IMPACT_DEPTH): 1 hop by default, hard-capped at 2; an over-cap setting is clamped, not honoured (ADR-063 §3)",
+      "class": "entitlement",
+      "valueType": "number",
+      "variants": [
+        { "key": "one-hop", "value": 1 },
+        { "key": "two-hop", "value": 2 }
+      ],
+      "defaultVariant": "one-hop",
+      "status": "active",
+      "createdFor": "GV2-026",
+      "description": "Runtime lever for the daemon save-time certify reverse-impact depth. Default 1 hop (the ADR-061 §6 certifiability closure); the latency-coverage trade can move 1 to 2 hops without re-coding via the ANVIL_REVERSE_IMPACT_DEPTH env var. Hard-capped at MAX_REVERSE_IMPACT_DEPTH (2): an over-cap value is clamped, not honoured.",
+      "primaryGroup": "gv2"
+    },
+    {
       "key": "tui-dashboard.aps-dashboard",
       "owner": "CIB",
       "intent": "Gate the read-only APS plan dashboard (`anvil plan dashboard`) to internal developers",
