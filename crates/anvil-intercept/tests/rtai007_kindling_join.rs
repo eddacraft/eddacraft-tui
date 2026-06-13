@@ -72,8 +72,12 @@ fn midedit_envelope(traceparent: Option<&str>) -> anvil_intercept::telemetry::No
 #[test]
 fn shared_extractor_yields_parent_id_or_none() {
     // The single source of the join key: parent-id on a valid
-    // traceparent, None when absent or unparseable (so neither surface
-    // ever invents a non-matching key from a bad input).
+    // traceparent, None when absent or unparseable. On None the two
+    // surfaces diverge by design — the envelope omits the field, while
+    // the Kindling row applies a UUID-v4 fallback (see
+    // ipc::derive_gate_eval_id). That row UUID is deliberately
+    // unjoinable: a malformed traceparent yields no shared key, so the
+    // surfaces never agree on a *wrong* key — they simply don't join.
     assert_eq!(
         gate_eval_id_from_traceparent(Some(TRACEPARENT)).as_deref(),
         Some(PARENT_ID),
