@@ -119,8 +119,9 @@ can tap the same deterministic model Anvil already trusts.
 - `anvil-intercept` / INTD — daemon control authority, `validate_paths` wire,
   `SessionRecord`/`Attribution` session model ([`intercept-as-built.md`](../../docs/architecture/intercept-as-built.md) §10)
 - `surface-drivers` / DRVR — editor and MCP driver contracts
-- `edda-stack` — provenance and evolution concepts (TS today; Rust counterpart
-  proposed — the open seam for GV2-014)
+- `edda-stack` — provenance and evolution concepts (TS today; join contract
+  defined by GV2-014 via ref-only anchors; Rust read surface `eddacraft-kindling`
+  proposed)
 - APS modules — plan/work-item metadata for plan/provenance joins
 - ADR-031 (latency), ADR-061 (save-time wire), ADR-063 (hot-path boundary),
   ADR-064 (crate boundary), ADR-067 (parse feed), ADR-069 (persistence)
@@ -437,7 +438,7 @@ Change status to **Ready** when:
 
 #### GV2-014: Plan and provenance graph contract
 
-- **Status:** Ready — promoted 2026-06-13 (v0.9 active window). Deps GV2-002/003 Merged; internal plan/provenance substrate, not entry-gated by ADR-075
+- **Status:** In Progress — started 2026-06-13 (v0.9 active window). Deps GV2-002/003 Merged; internal plan/provenance substrate, not entry-gated by ADR-075
 - **Intent:** Join APS intent, git history, Edda provenance, graph deltas, and
   trust posture changes so Anvil can explain why a structural change was allowed
   or challenged.

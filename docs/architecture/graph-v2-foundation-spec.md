@@ -1,8 +1,8 @@
 # Graph v2 Foundation — Architecture Spec
 
-| Type | Authority | Owner                                                                                              | Status | Freshness                                                                                                                                                                                                                                            |
-| ---- | --------- | -------------------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Spec | Derived   | GV2 ([`plans/modules/graph-v2-foundation.aps.md`](../../plans/modules/graph-v2-foundation.aps.md)) | Live   | Taxonomy **ratified 2026-06-08** by council `plan-ec495f8b` (RATIFY-WITH-FIXES; conditions C-1..C-6 folded). Control/session graph contract added 2026-06-13 (GV2-013; G-05 contract-defined). Synthesis of ADR-061/063/064/067/069 + the GV2 module |
+| Type | Authority | Owner                                                                                              | Status | Freshness                                                                                                                                                                                                                                                                            |
+| ---- | --------- | -------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Spec | Derived   | GV2 ([`plans/modules/graph-v2-foundation.aps.md`](../../plans/modules/graph-v2-foundation.aps.md)) | Live   | Taxonomy **ratified 2026-06-08** by council `plan-ec495f8b` (RATIFY-WITH-FIXES; conditions C-1..C-6 folded). Control/session + plan/provenance graph contracts added 2026-06-13 (GV2-013/GV2-014; G-05/G-02 contract-defined). Synthesis of ADR-061/063/064/067/069 + the GV2 module |
 
 | Upstream                                                                                                                                                                                                                                                                                                                         | Downstream                                                                                                                                              |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -53,14 +53,14 @@ Sub-phase A backing and lives in `crates/anvil-graph-cache/` (ADR-064). This
 spec describes the target end-state; the table below marks how far each piece is
 from it so a reader knows what is design vs reality.
 
-| Layer                                   | Where it lives today                                                                                                                                 | State                                                                       |
-| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| Semantic code graph                     | `crates/anvil-graph-cache/src/symbol_graph.rs`, `crates/anvil-kernel-types/src/graph.rs`                                                             | Shipped (Sub-phase A); schema additions pending (GV2-010)                   |
-| Dependency/impact graph + reverse index | `crates/anvil-graph-cache/src/dependency.rs`                                                                                                         | Shipped; incremental maintenance + hot-read API pending (GV2-011/022)       |
-| Trust/policy graph                      | `PolicyProfile`/`TrustGraph` keyed on `SymbolIdentity` (`crates/anvil-kernel-types/src/trust.rs`, `crates/anvil-graph-cache/src/trust.rs`)           | Contract defined (GV2-012); daemon wiring pending (GV2-029)                 |
-| Control/session graph                   | shipped **in INTD** as `SessionRecord`/`Attribution` ([`intercept-as-built.md`](./intercept-as-built.md) §10); join contract defined below (GV2-013) | Contract defined (GV2-013); bridge type + registry wiring pending (GV2-020) |
-| Plan/provenance graph                   | provenance shipped **in TS** ([`edda-stack.md`](./edda-stack.md)); Rust join Draft                                                                   | Open seam (GV2-014)                                                         |
-| Registry + query traits                 | none yet — consumers call `certify()`/`with_graphs()` directly                                                                                       | Draft (GV2-020/023)                                                         |
+| Layer                                   | Where it lives today                                                                                                                                 | State                                                                         |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Semantic code graph                     | `crates/anvil-graph-cache/src/symbol_graph.rs`, `crates/anvil-kernel-types/src/graph.rs`                                                             | Shipped (Sub-phase A); schema additions pending (GV2-010)                     |
+| Dependency/impact graph + reverse index | `crates/anvil-graph-cache/src/dependency.rs`                                                                                                         | Shipped; incremental maintenance + hot-read API pending (GV2-011/022)         |
+| Trust/policy graph                      | `PolicyProfile`/`TrustGraph` keyed on `SymbolIdentity` (`crates/anvil-kernel-types/src/trust.rs`, `crates/anvil-graph-cache/src/trust.rs`)           | Contract defined (GV2-012); daemon wiring pending (GV2-029)                   |
+| Control/session graph                   | shipped **in INTD** as `SessionRecord`/`Attribution` ([`intercept-as-built.md`](./intercept-as-built.md) §10); join contract defined below (GV2-013) | Contract defined (GV2-013); bridge type + registry wiring pending (GV2-020)   |
+| Plan/provenance graph                   | provenance shipped **in TS** ([`edda-stack.md`](./edda-stack.md)); join contract defined below (GV2-014)                                             | Contract defined (GV2-014); Rust read surface (`eddacraft-kindling`) proposed |
+| Registry + query traits                 | none yet — consumers call `certify()`/`with_graphs()` directly                                                                                       | Draft (GV2-020/023)                                                           |
 
 ## Principles
 
@@ -153,7 +153,7 @@ named explicitly.
 | semantic ↔ trust           | symbol identity                                                                     | "what is the trust level / side-effect surface of S?"            |
 | dependency ↔ trust         | file/edge identity                                                                  | "does this new edge cross a trust boundary?"                     |
 | control/session ↔ semantic | worktree → file via `WorkspaceRoot::relativise` (**bridge defined — GV2-013**)      | "which session authored the change to F?" (`Attribution::Owned`) |
-| plan/provenance ↔ all      | symbol/file/commit/session anchors                                                  | "why was this structural change allowed or challenged?"          |
+| plan/provenance ↔ all      | symbol/file/commit/session anchors (**ref-only — GV2-014**)                         | "why was this structural change allowed or challenged?"          |
 
 ### Worked join trace (the spec's proof)
 
@@ -171,6 +171,7 @@ edit src/pay.ts ──semantic──▶ symbol `chargeCard` (Boundary trust)
  control/session join ──▶ Attribution::Owned { session: SessionRecord{id} }
    │                  (who saved it — worktree→file bridge via `WorkspaceRoot`, GV2-013)
  plan/provenance join ──▶ APS item PAY-007 · commit <sha> · policy: allowed · Edda memory <ref>
+                      (ref-only anchors, APS optional — GV2-014; see "The plan/provenance graph contract")
 ```
 
 If any single join in that chain cannot be followed by a defined identity key,
@@ -376,6 +377,91 @@ needs its **own** privacy ADR before it becomes persistable. Until then the
 control/session graph is **resident control-plane state projected on demand**,
 not a persisted snapshot.
 
+## The plan/provenance graph contract (GV2-014)
+
+The plan/provenance graph is the **join layer that explains a structural
+change**: it ties a code change to the APS work item, commit, graph delta,
+policy decision, trust-posture change, and Edda memory that surround it, so
+Anvil can answer "why was this allowed or challenged?". It is **keyed entirely
+on external anchors** — APS id, commit SHA, `SymbolIdentity` / file identity
+(GV2-002), and Edda memory ref — and **references** every foreign record rather
+than embedding it (the identity rule above). Two principles bind it harder than
+any other graph:
+
+- **Planless-first (principle 5).** APS anchors are _optional enrichment_. The
+  join works from source + git + Edda alone; a present APS item enriches the
+  trace, but the contract must **never make APS a runtime prerequisite** (the
+  taxonomy anti-scope).
+- **One provenance contract, shared with EDDA-SEAL — not a second.** Provenance
+  is authoritatively modelled in TypeScript by the edda-stack contracts
+  (`packages/edda-stack/src/contracts/provenance.ts`: `ProvenanceChain`,
+  `KindlingRef`, `EmberRef`, `Attribution`; memories in `edda-memory.ts`), and
+  the **proposed** EDDA-SEAL module
+  ([roadmap](../../plans/brainstorms/git-native-governance/roadmap.md),
+  EDDA-SEAL-002/003) would seal that same chain into a git-committed
+  `anvil.edda-provenance.v1` bundle at promotion time. GV2-014 **reuses that
+  contract by reference**; it does not define a graph-layer provenance type.
+
+### What the plan/provenance graph carries (all by reference)
+
+| Anchor               | Owned by                | Reference key                                                  |
+| -------------------- | ----------------------- | -------------------------------------------------------------- |
+| APS work item        | Anvil plan (optional)   | APS id (e.g. `PAY-007`) → `ProvenanceChain.related_plans`      |
+| Commit               | git                     | commit SHA                                                     |
+| Change / graph-state | semantic (GV2-003)      | `GraphDelta` ref (`schema_version` + touched `SymbolIdentity`) |
+| Policy decision      | trust / certify         | certify verdict (`allow` / `warn` / `block`) + evidence ref    |
+| Trust-posture change | trust/policy (GV2-012)  | `TrustPostureChange` (identity-anchored)                       |
+| Memory / provenance  | Edda (TS-authoritative) | Edda memory ref (`MemoryId`) → `ProvenanceChain`               |
+
+None of these is stored as a copied body in the graph layer; each row is an
+identity lookup into the owning authority.
+
+### Resolving the Rust↔TS provenance boundary (closes G-02)
+
+G-02 was real: provenance is authoritative in TS and the Rust counterpart
+(`eddacraft-kindling`) is still proposed, so a Rust graph join "to a surface
+that does not exist in Rust" looked undesigned. The contract resolves it by
+making the join **ref-only across the language boundary**:
+
+1. **Anchors cross the boundary; bodies do not.** The Rust graph layer holds
+   only the anchor keys above (APS id, commit SHA, `SymbolIdentity`,
+   `MemoryId`). The provenance body — the `ProvenanceChain` and its memory —
+   stays in the TS-authoritative Edda store (and, once the proposed EDDA-SEAL
+   lands, durably in its git-committed `anvil.edda-provenance.v1` bundle).
+2. **Resolution is a projection-tier read, off the hot path.** Following a
+   `MemoryId` to the full chain is a diagnostic/projection query (ADR-063
+   non-hot), so the join never blocks enforcement and never requires the Rust
+   provenance surface to be resident.
+3. **The contract does not wait on `eddacraft-kindling`.** Because the anchors
+   are sufficient to _express_ the join, the contract is followable today
+   against the **shipped** TS contracts (the `ProvenanceChain` the fixture
+   validates); the git-committed sealed bundle is the target durable form once
+   EDDA-SEAL lands, and the proposed Rust `eddacraft-kindling` read surface is
+   an _implementation_ of step 2 — neither is a prerequisite of the contract.
+
+This is the same move as the control/session bridge: identify the shared key,
+keep each body with its owning authority, and forbid the cross-layer dependency.
+
+### Privacy scope (ratification C-6)
+
+The Edda store is **git-committed and shareable — outside** the same-uid
+boundary the daemon snapshot relies on, so this graph does **not** inherit
+ADR-069's persistence acceptance and needs its **own** privacy ADR before any
+graph-side persistence. The join is **ref-only by contract**: memory / commit /
+session refs plus structural anchors only — **never** inline memory bodies,
+rationale prose, or secret-shaped literals cross into the graph layer or any
+projection.
+
+### Worked trace and fixture
+
+The spine's worked join trace ("Worked join trace" above) is GV2-014's
+validation scenario. It is realised as an executable fixture in
+`packages/edda-stack/src/contracts/provenance-join.test.ts`, which links one
+code change (`src/pay.ts` → `chargeCard`) to its APS item (`PAY-007`,
+_optional_), commit, `GraphDelta`, trust-posture change, policy verdict, and a
+`ProvenanceChain`-validated Edda record — plus a **planless variant** with no
+APS anchor that still resolves, proving APS is not a prerequisite.
+
 ## The query / registry API shape
 
 Consumers (INTD, DRVR, GCTX, WEAVE) must depend on **traits over joined state**,
@@ -462,15 +548,20 @@ The crux of "is the system designed": for each seam, where is it pinned?
   separate `SymbolIdentity`-keyed graph (GV2-012, see "The trust/policy graph
   contract" above). The remaining work is wiring `annotate_trust` onto the
   daemon certify path (GV2-029), not the contract.
-- **graph ↔ provenance/edda-stack** — **the open seam.** Provenance is
-  authoritatively specified in **TypeScript** (Kindling → Ember → Edda,
-  [`edda-stack.md`](./edda-stack.md)); the Rust-side counterpart
-  (`eddacraft-kindling`) is still proposed. GV2-014's join therefore bridges a
-  **language boundary to a surface that does not yet exist in Rust**, and the
+- **graph ↔ provenance/edda-stack** — **join contract defined (GV2-014); Rust
+  read surface still proposed.** Provenance is authoritatively specified in
+  **TypeScript** (Kindling → Ember → Edda, [`edda-stack.md`](./edda-stack.md));
+  the Rust-side counterpart (`eddacraft-kindling`) is still proposed. GV2-014
+  resolves the language boundary by making the join **ref-only** — anchors (APS
+  id, commit SHA, `SymbolIdentity`, `MemoryId`) cross it, provenance bodies stay
+  in the TS-authoritative Edda store (and, once the proposed EDDA-SEAL lands, in
+  its git-committed `anvil.edda-provenance.v1` bundle), and resolution is a
+  projection-tier read (see "The plan/provenance graph contract" above). The
   durable Edda store is git-committed and shareable — **outside** the same-uid
   boundary the daemon snapshot relies on (see the per-graph privacy scope
-  below). This is the one seam where "not designed yet" is genuinely true, and
-  it is a provenance/kindling question, not a graph-layer one.
+  below). What remains open is the proposed Rust read surface
+  (`eddacraft-kindling`) — an _implementation_ of the resolution step, not a
+  contract gap.
 
 ## Persistence and derivability invariants
 
@@ -521,12 +612,21 @@ with position. Blocks **precise export diffing** (overload collapse) and the
 comparability (ADR-069's DTO persists the ids and reconciles by content hash).
 **Risk:** High. **Fix:** GV2-002 — gates GV2-014, not Sub-phase B persistence.
 
-### G-02: Rust-side provenance surface does not exist
+### G-02: Plan/provenance join contract — contract defined
 
-GV2-014 joins to `edda-stack`, which is authoritative in TS; the Rust
-counterpart is proposed only. **Risk:** Medium (only the provenance join, not
-the A′ swap). **Fix:** a provenance/kindling design stage; tracked as the open
-seam above.
+**Contract defined by GV2-014.** The join no longer depends on a Rust provenance
+surface existing: GV2-014 makes the plan/provenance join **ref-only** (anchors
+cross the language boundary, provenance bodies stay in the TS-authoritative Edda
+store — and, once the proposed EDDA-SEAL lands, its git-committed
+`anvil.edda-provenance.v1` bundle — and resolution is a projection-tier read),
+reusing the shipped `ProvenanceChain` contract rather than designing a second.
+The contract is followable today against the **shipped** TS contracts
+(executable fixture:
+`packages/edda-stack/src/contracts/provenance-join.test.ts`). **Residual:** the
+Rust read surface (`eddacraft-kindling`) and the EDDA-SEAL sealed bundle are
+both still proposed — _implementations_ of the resolution step, not contract
+gaps. **Risk:** Low (contract risk retired; the Rust read surface is a later
+build).
 
 ### G-03: Trust/policy graph contract is documented — partially closed
 
