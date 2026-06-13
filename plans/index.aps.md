@@ -16,9 +16,10 @@
 > the final GHCLIAUTH merges by ~5 hours. Together they close the `v0.8.0`
 > window scoped by
 > [ADR-075](./decisions/075-v080-graph-product-scope.md) (Accepted via
-> council). The next window is not yet declared: ADR-075 defers the assistant
-> graph product — GCTX + multi-graph registry — and persistence (ADR-061
-> Sub-phase B warm-start) to v0.9. See
+> council). The next window is **`v0.9.0-beta`** ("The Assistant-Facing
+> Graph", scoping in [`RELEASE-PLAN.md`](../RELEASE-PLAN.md)): ADR-075 defers
+> the assistant graph product — GCTX + multi-graph registry — and persistence
+> (ADR-061 Sub-phase B warm-start) to it. See
 > [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) for the cut detail and
 > [`ROADMAP.md`](../ROADMAP.md) for thematic context.
 
@@ -143,16 +144,19 @@ Individual packages still use semantic versioning for npm/cargo publishes.
 have their per-window tables and slice records in
 [`completed-index.aps.md`](./completed-index.aps.md#release-plan); the
 `v0.8.0-beta` / `v0.8.1-beta` records live under
-[`plans/releases/`](./releases/). The next planning window (**v0.9**
-candidate — the ADR-075 deferrals) is not yet declared — see the header
-above, [`RELEASE-PLAN.md`](../RELEASE-PLAN.md), and the NBI table.
+[`plans/releases/`](./releases/). The next planning window is
+**`v0.9.0-beta`** (scoping — the ADR-075 deferrals), declared in
+[`RELEASE-PLAN.md`](../RELEASE-PLAN.md); see also the header above and the NBI
+table.
 
 **Active work below still leads with the just-shipped `v0.8.0` window's
 module family** — Graph Substrate (GV2, now 13/20 with the A′ slice shipped
 and the v0.9 deferrals Draft), Hardening & Maintenance (DSV, Sub-phase B
 Blocked), and Intercept Loop (MLP2 enforcement substrate) — then the rest of
-the active modules, then the [Dormant](#dormant-not-yet-scheduled) band.
-Tag-complete modules below are pending the archive cascade (NBI rank 1).
+the active modules, then the [Dormant](#dormant-not-yet-scheduled) band. The
+v0.8.0/v0.8.1 tag-complete modules (UJ, TUIDASH, RSTLAN, GITGOV, GHCLIAUTH,
+INTR) have been archived to `plans/archive/modules/`; their index rows below
+are frozen pointing at the archive.
 
 ### Graph Substrate
 

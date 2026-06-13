@@ -15,9 +15,9 @@
 > RATS (Ratatui surfaces — complete, archived to
 > `plans/archive/modules/ratatui-tui.aps.md`), PORT (Ink-to-Ratatui port —
 > complete, archived to `plans/archive/modules/ink-to-ratatui-port.aps.md`),
-> TUIDASH (`plans/archive/modules/tui-dashboard-render.aps.md`, In Progress
-> 13/13 merged — json-render engine + dashboard surface family shipped
-> 2026-06-02, rides `v0.8.0-beta`), TDASH (native per-domain dashboards —
+> TUIDASH (`plans/archive/modules/tui-dashboard-render.aps.md`, Complete 13/13 —
+> json-render engine + dashboard surface family shipped 2026-06-02,
+> Released/Shipped in `v0.8.0-beta`), TDASH (native per-domain dashboards —
 > complete, archived to `plans/archive/modules/native-tui-dashboards.aps.md`),
 > APSCAN (`plan_dashboard` — complete, archived to
 > `plans/archive/modules/aps-canonical-alignment.aps.md`) **Used by:** every
@@ -947,8 +947,8 @@ External references (consumers in `anvil-cli`):
 - `RELEASE-PLAN.md` — `v0.5.1-beta` zoom controls, `v0.6.0-beta` slate.
 - `CHANGELOG.md` ll. 134-168 — TUI hotfix history (zoom controls, doctor /
   tutorial papercuts, audit env-template filtering).
-- `plans/archive/modules/tui-dashboard-render.aps.md` — TUIDASH (In Progress
-  13/13 merged; rides `v0.8.0-beta`).
+- `plans/archive/modules/tui-dashboard-render.aps.md` — TUIDASH (Complete 13/13;
+  Released/Shipped in `v0.8.0-beta`).
 - `plans/archive/modules/native-tui-dashboards.aps.md` — TDASH (Complete,
   archived).
 - `plans/archive/modules/ratatui-tui.aps.md` — RATS (Complete, archived).
