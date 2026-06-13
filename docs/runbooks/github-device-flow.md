@@ -91,7 +91,8 @@ screen on their next login. No re-onboarding is required.
 3. **Generate a client secret** and copy the **client ID** + secret.
 4. **Rotate the Key Vault secrets** to the new app's values (see
    [Rotating the credentials](#rotating-the-credentials) below).
-5. **Redeploy `anvil-api`** so it picks up the new env values, then run the
+5. **Run the infra apply** that syncs Key Vault into the managed Vercel env,
+   then redeploy `anvil-api` and run the
    [pre-cutover smoke step](#pre-cutover-smoke-step) against the target
    environment.
 6. **Delete the old personally owned app** only after the smoke login confirms
@@ -99,18 +100,19 @@ screen on their next login. No re-onboarding is required.
 
 ### Rotating the credentials
 
-The client ID and secret are env vars sourced from Azure Key Vault — nothing is
-hardcoded in the CLI or the broker, so a rotation is a Key Vault update plus a
-redeploy, with no code change:
+The client ID and secret are Vercel env vars populated from Azure Key Vault by
+Pulumi (`infra/src/vercel.ts` via `infra/src/keyvault.ts`) — nothing is
+hardcoded in the CLI or the broker, so a rotation is a Key Vault update plus an
+infra apply/redeploy, with no code change:
 
 ```sh
 az keyvault secret set --vault-name <vault> --name github-cli-client-id     --value <new-client-id>
 az keyvault secret set --vault-name <vault> --name github-cli-client-secret --value <new-client-secret>
 ```
 
-Then redeploy `anvil-api` (the secrets are read at request time, but a redeploy
-re-pulls them into the Vercel env) and confirm `/health` reports
-`"githubCliCreds":"ok"` before completing cutover.
+Then run the appropriate `pulumi up` for the target stack so the managed Vercel
+env vars are updated from Key Vault. Redeploy `anvil-api` after the env sync and
+confirm `/health` reports `"githubCliCreds":"ok"` before completing cutover.
 
 ## Health and boot signals
 
