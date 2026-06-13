@@ -11,6 +11,7 @@ pub mod certify;
 pub mod dependency;
 pub mod hot_index;
 pub mod incremental;
+pub mod snapshot;
 pub mod symbol_graph;
 pub mod trust;
 
@@ -24,6 +25,11 @@ pub use hot_index::{
 };
 pub use incremental::{
     GraphDelta, re_resolve_imports, re_resolve_imports_tracked, remove_file, update_file,
+};
+pub use snapshot::{
+    MAX_SNAPSHOT_BYTES, SNAPSHOT_BACKING_SCHEMA_VERSION, SNAPSHOT_FORMAT_VERSION, SNAPSHOT_MAGIC,
+    SnapshotBuildError, SnapshotLoadError, SnapshotPayload, is_workspace_root_relative,
+    persist_graph_enabled, snapshot_filename,
 };
 pub use symbol_graph::{GraphError, GraphStats, SymbolGraph};
 pub use trust::{TrustGraph, TrustPostureChange, annotate_trust, policy_profiles};

@@ -27,7 +27,17 @@ petgraph = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
+# GV2-030 sealed-DTO snapshot codec (ADR-069 §1) — stable, versioned wire format.
+postcard = { workspace = true }
+# GV2-030 snapshot-filename derivation (ADR-069 §2 / PV-8): a named, stable,
+# one-way hash of the canonical workspace root. Matches the version
+# `anvil-intercept` already pins; this crate must NOT depend on anvil-intercept
+# (ADR-064), so it takes a `&Path` rather than a `WorktreeKey`.
+sha2 = "0.11"
 workspace-hack.workspace = true
+
+[dev-dependencies]
+serde_json = { workspace = true }
 
 [lints]
 workspace = true

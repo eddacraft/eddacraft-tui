@@ -138,7 +138,7 @@ used under the terms of its respective licence, reproduced in full below.
 
 ## Licence: MIT License
 
-Used by 312 crates. See the inventory table at the bottom of this file for the complete list.
+Used by 318 crates. See the inventory table at the bottom of this file for the complete list.
 
 <details>
 <summary>Licence text</summary>
@@ -1079,6 +1079,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `unicode-segmentation` | 1.13.2 | MIT License | https://github.com/unicode-rs/unicode-segmentation |
 | `unicode-width` | 0.1.14 | MIT License | https://github.com/unicode-rs/unicode-width |
 | `unicode-width` | 0.2.2 | MIT License | https://github.com/unicode-rs/unicode-width |
+| `cobs` | 0.3.0 | MIT License | https://github.com/jamesmunns/cobs.rs |
 | `which` | 8.0.2 | MIT License | https://github.com/harryfei/which-rs.git |
 | `png` | 0.18.1 | MIT License | https://github.com/image-rs/image-png |
 | `schannel` | 0.1.29 | MIT License | https://github.com/steffengy/schannel-rs |
@@ -1113,6 +1114,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `sha2` | 0.11.0 | MIT License | https://github.com/RustCrypto/hashes |
 | `fnv` | 1.0.7 | MIT License | https://github.com/servo/rust-fnv |
 | `memoffset` | 0.9.1 | MIT License | https://github.com/Gilnaa/memoffset |
+| `heapless` | 0.7.17 | MIT License | https://github.com/japaric/heapless |
 | `stable_deref_trait` | 1.2.1 | MIT License | https://github.com/storyyeller/stable_deref_trait |
 | `bytecount` | 0.6.9 | MIT License | https://github.com/llogiq/bytecount |
 | `h2` | 0.4.14 | MIT License | https://github.com/hyperium/h2 |
@@ -1124,6 +1126,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `signal-hook` | 0.4.4 | MIT License | https://github.com/vorner/signal-hook |
 | `digest` | 0.11.3 | MIT License | https://github.com/RustCrypto/traits |
 | `bytes` | 1.11.1 | MIT License | https://github.com/tokio-rs/bytes |
+| `hash32` | 0.2.1 | MIT License | https://github.com/japaric/hash32 |
 | `smallvec` | 1.15.1 | MIT License | https://github.com/servo/rust-smallvec |
 | `ahash` | 0.8.12 | MIT License | https://github.com/tkaitchuck/ahash |
 | `want` | 0.3.1 | MIT License | https://github.com/seanmonstar/want |
@@ -1135,6 +1138,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `rand_core` | 0.10.1 | MIT License | https://github.com/rust-random/rand_core |
 | `getrandom` | 0.4.2 | MIT License | https://github.com/rust-random/getrandom |
 | `unicode-truncate` | 2.0.1 | MIT License | https://github.com/Aetf/unicode-truncate |
+| `postcard` | 1.1.3 | MIT License | https://github.com/jamesmunns/postcard |
 | `slab` | 0.4.12 | MIT License | https://github.com/tokio-rs/slab |
 | `sharded-slab` | 0.1.7 | MIT License | https://github.com/hawkw/sharded-slab |
 | `matchers` | 0.2.0 | MIT License | https://github.com/hawkw/matchers |
@@ -1314,11 +1318,13 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `encode_unicode` | 1.0.0 | MIT License | https://github.com/tormol/encode_unicode |
 | `fancy-regex` | 0.17.0 | MIT License | https://github.com/fancy-regex/fancy-regex |
 | `spin` | 0.10.0 | MIT License | https://github.com/mvdnes/spin-rs.git |
+| `spin` | 0.9.8 | MIT License | https://github.com/mvdnes/spin-rs.git |
 | `tree-sitter-javascript` | 0.25.0 | MIT License | https://github.com/tree-sitter/tree-sitter-javascript |
 | `typenum` | 1.20.1 | MIT License | https://github.com/paholg/typenum |
 | `base64` | 0.22.1 | MIT License | https://github.com/marshallpierce/rust-base64 |
 | `aho-corasick` | 1.1.4 | MIT License | https://github.com/BurntSushi/aho-corasick |
 | `byteorder-lite` | 0.1.0 | MIT License | https://github.com/image-rs/byteorder-lite |
+| `byteorder` | 1.5.0 | MIT License | https://github.com/BurntSushi/byteorder |
 | `globset` | 0.4.18 | MIT License | https://github.com/BurntSushi/ripgrep/tree/master/crates/globset |
 | `ignore` | 0.4.25 | MIT License | https://github.com/BurntSushi/ripgrep/tree/master/crates/ignore |
 | `memchr` | 2.8.1 | MIT License | https://github.com/BurntSushi/memchr |

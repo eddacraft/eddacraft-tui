@@ -63,6 +63,23 @@
       "primaryGroup": "cli"
     },
     {
+      "key": "daemon.persist-graph",
+      "owner": "GV2",
+      "intent": "Enable warm-start persistence of the daemon graph cache (ADR-069 sealed-DTO snapshots)",
+      "class": "rollout",
+      "valueType": "boolean",
+      "variants": [
+        { "key": "enabled", "value": true },
+        { "key": "disabled", "value": false }
+      ],
+      "defaultVariant": "disabled",
+      "status": "active",
+      "createdFor": "GV2-030",
+      "expiryOrReviewDate": "2026-12-31T00:00:00Z",
+      "description": "Default-off (ADR-069 §7); the unset default is byte-for-byte today's rebuild-on-restart behaviour. Operator opt-in via ANVIL_PERSIST_GRAPH; graduation to default-on is gated on the §7 criteria (privacy/round-trip soak, zero Corrupt events, write-latency SLO, owner sign-off).",
+      "primaryGroup": "daemon"
+    },
+    {
       "key": "docs.access",
       "owner": "DOCSAUTH",
       "intent": "Gate /anvil docs access for authenticated beta users",

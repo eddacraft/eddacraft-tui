@@ -63,6 +63,17 @@ impl SymbolGraph {
         self.next_id
     }
 
+    /// Raise the `next_id` high-water mark to at least `floor` (never lowers it).
+    ///
+    /// Used by snapshot restore (GV2-030): a session that inserted then removed
+    /// high ids has a `next_id` above any surviving node, so replaying only the
+    /// survivors would under-restore the mark and re-issue removed ids. The
+    /// persisted `next_id` is replayed through this floor so post-load synthetic
+    /// allocation cannot collide with an id the original session already spent.
+    pub fn set_next_id_floor(&mut self, floor: u64) {
+        self.next_id = self.next_id.max(floor);
+    }
+
     pub fn add_edge(&mut self, edge: SymbolEdge) -> Result<(), GraphError> {
         let from_idx = self
             .index
