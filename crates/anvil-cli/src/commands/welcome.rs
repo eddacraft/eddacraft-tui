@@ -693,9 +693,10 @@ fn scan_project_at(
     // filters so leaked credential files (`id_rsa`, `credentials.json`, …) in
     // gitignored locations are still caught — precisely the class of secret the
     // first-run scan exists to flag — and builds `all_candidates` for the
-    // SCAN-004 skip count. `.env*` files are intentionally excluded from this
-    // allowlist (GH #2584): a gitignored `.env` is the user's local secret
-    // store, not a leak. A committed `.env` is still scanned by Phase 1b.
+    // SCAN-004 skip count. `.env*` files are intentionally excluded from the
+    // first-run scan entirely (GH #2584) — `candidate_path` drops them, so
+    // neither phase scans them. A secret committed to a tracked `.env` is
+    // caught by `anvil gate`/`audit` and the save-time intercept, not here.
     //
     // SCAN-006: the walk runs in parallel (`collect_blind_candidates_parallel`)
     // because it is uncapped and order-free; the sequential post-pass below
@@ -1639,11 +1640,18 @@ mod tests {
             assert!(ok, "git init failed in test fixture");
             // Neutralise any developer/CI global gitignore (which commonly
             // lists `.env`) so this fixture's gitignore state is exactly what
-            // the test writes — not the ambient environment's.
-            let _ = Command::new("git")
-                .args(["config", "core.excludesfile", "/dev/null"])
+            // the test writes — not the ambient environment's. Point
+            // `core.excludesfile` at an empty file inside the repo rather than
+            // `/dev/null`, which does not exist on Windows.
+            let empty = dir.join(".empty-global-excludes");
+            fs::write(&empty, "").expect("write empty excludes file");
+            let configured = Command::new("git")
+                .args(["config", "core.excludesfile"])
+                .arg(&empty)
                 .current_dir(dir)
-                .status();
+                .status()
+                .is_ok_and(|s| s.success());
+            assert!(configured, "git config core.excludesfile failed");
         }
 
         fn github_token() -> String {

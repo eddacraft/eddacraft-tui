@@ -53,12 +53,13 @@ const BINARY_EXTENSIONS: &[&str] = &[
 /// gitignore-aware walker misses them.
 ///
 /// `.env*` files are deliberately **not** here. A `.env` file is the designated
-/// place to keep local secrets, so force-scanning a gitignored `.env.local`
-/// reports the user's own secret store back to them as a high-severity issue —
-/// noise they cannot action (GH #2584). A `.env` that is *committed* (tracked,
-/// not gitignored) is still a real leak and is still scanned: it is picked up
-/// by the ordinary gitignore-respecting walk. `ANVIL_SCAN_ALL` also restores
-/// scanning of every gitignored file, including `.env*`.
+/// place to keep local secrets, so reporting one back to the user as a
+/// high-severity finding is noise they cannot action (GH #2584). The first-run
+/// discovery scan therefore excludes `.env*` outright in `welcome::candidate_path`
+/// (even under `ANVIL_SCAN_ALL`). A secret committed to a tracked `.env` is not
+/// ignored, though: it is still caught by `anvil gate` (the `secret-detection`
+/// guardrail), `anvil audit`, and the save-time intercept — surfaces whose job
+/// is to catch committed secrets.
 pub const ALWAYS_SCAN_FILENAMES: &[&str] = &[
     "credentials.json",
     "secrets.yml",
@@ -76,8 +77,11 @@ pub const ALWAYS_SCAN_FILENAMES: &[&str] = &[
 /// and carry integrity hashes (e.g. `sha512-…` in `package-lock.json`,
 /// base64 module hashes in `go.sum`); those hashes are high-entropy by
 /// construction and trip the secret scanner's entropy detector as false
-/// positives (GH #2584). Lockfiles never hold first-party secrets, so they are
-/// skipped wholesale by secret scanning.
+/// positives (GH #2584). Lockfiles are generated dependency metadata, not a
+/// place first-party secrets are authored, so they are not run through the full
+/// secret scan. They are *not* ignored entirely: a credential embedded in a
+/// `resolved`/source URL can still leak, so lockfiles get a restricted
+/// URL-credential-only scan (see [`crate::secret::scan_lockfile_url_credentials`]).
 ///
 /// Matched by exact basename rather than extension because most lockfiles do
 /// not end in `.lock` — `package-lock.json`, `pnpm-lock.yaml`, `go.sum`, and
