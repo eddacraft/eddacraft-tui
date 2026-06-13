@@ -49,8 +49,14 @@ route is `apps/anvil-api/src/routes/auth-github-device.ts`.
 ## Credentials and configuration
 
 The flow runs against a dedicated **Anvil CLI** GitHub OAuth app — distinct from
-the website OAuth app used by the browser sign-in path. Its credentials are held
-in Azure Key Vault and wired into the Vercel deployment by
+the website OAuth app used by the browser sign-in path. The app **must be owned
+by the `eddacraft` GitHub organisation, not a personal account**: the device
+authorisation consent screen GitHub shows the user is branded with the app
+owner's name, so a personally owned app makes CLI login look like it belongs to
+an individual rather than to eddacraft. See
+[Migrating the app to the eddacraft organisation](#migrating-the-app-to-the-eddacraft-organisation)
+below if the live app is still under a personal account. Its credentials are
+held in Azure Key Vault and wired into the Vercel deployment by
 `infra/src/vercel.ts`:
 
 - Key Vault secret `github-cli-client-id` → env `GITHUB_CLI_CLIENT_ID`
@@ -63,6 +69,48 @@ GitHub's device or token endpoints.
 
 When either credential is absent, both `/start` and `/poll` fail closed with
 HTTP 503 `github_device_flow_unavailable` and never call GitHub.
+
+## Migrating the app to the eddacraft organisation
+
+GitHub **OAuth Apps cannot be transferred** between a personal account and an
+organisation (only the newer GitHub Apps can be transferred). Re-homing the
+Anvil CLI app under `eddacraft` therefore means registering a fresh app under
+the org and rotating the Key Vault secrets to it. Because the broker revokes the
+GitHub access token immediately after deriving identity (no standing user
+authorisation is retained) and minted Anvil licences are independent of the
+OAuth app, this is a clean swap — users simply see the eddacraft-branded consent
+screen on their next login. No re-onboarding is required.
+
+1. **Register the new app under the org.** GitHub → `eddacraft` org → Settings →
+   Developer settings → OAuth Apps → **New OAuth App**. Name it **Anvil CLI**.
+   Set the homepage/callback URLs to match the retiring app (the callback is
+   unused by the device grant but is required by the form).
+2. **Tick "Enable Device Flow"** on the new app — without it GitHub rejects
+   `/login/device/code` and `/start` returns 502 `github_unavailable`. This is
+   the same one-checkbox gate the pre-cutover smoke step guards.
+3. **Generate a client secret** and copy the **client ID** + secret.
+4. **Rotate the Key Vault secrets** to the new app's values (see
+   [Rotating the credentials](#rotating-the-credentials) below).
+5. **Redeploy `anvil-api`** so it picks up the new env values, then run the
+   [pre-cutover smoke step](#pre-cutover-smoke-step) against the target
+   environment.
+6. **Delete the old personally owned app** only after the smoke login confirms
+   end-to-end against the new org-owned app.
+
+### Rotating the credentials
+
+The client ID and secret are env vars sourced from Azure Key Vault — nothing is
+hardcoded in the CLI or the broker, so a rotation is a Key Vault update plus a
+redeploy, with no code change:
+
+```sh
+az keyvault secret set --vault-name <vault> --name github-cli-client-id     --value <new-client-id>
+az keyvault secret set --vault-name <vault> --name github-cli-client-secret --value <new-client-secret>
+```
+
+Then redeploy `anvil-api` (the secrets are read at request time, but a redeploy
+re-pulls them into the Vercel env) and confirm `/health` reports
+`"githubCliCreds":"ok"` before completing cutover.
 
 ## Health and boot signals
 
@@ -98,6 +146,9 @@ rotation of the Anvil CLI OAuth app credentials.
    Device Flow** option is ticked. Without it, GitHub rejects the
    `/login/device/code` request and `/start` returns 502 `github_unavailable` —
    a failure that looks like an outage but is a one-checkbox configuration miss.
+   While there, confirm the app is **owned by the `eddacraft` organisation**
+   (not a personal account) so the consent screen is correctly branded — see
+   [Migrating the app to the eddacraft organisation](#migrating-the-app-to-the-eddacraft-organisation).
 2. **Confirm the health signal is green:**
 
    ```sh
