@@ -32,7 +32,7 @@ Released/Shipped; module ready to archive per the archive cascade.
 Make `anvil auth login` work from a headless SSH/tmux session by replacing the
 broken homegrown device-code browser-confirm flow with the **GitHub Device
 Authorization Grant** (RFC 8628), brokered server-side through `anvil-api`
-([ADR-066](../decisions/066-github-device-flow-cli-auth.md)). The user opens
+([ADR-066](../../decisions/066-github-device-flow-cli-auth.md)). The user opens
 `github.com/login/device` on any device and the CLI polls `anvil-api` for the
 minted Anvil licence. Email OTP (`anvil auth login --otp`) is retained as the
 no-GitHub fallback.
@@ -92,7 +92,7 @@ retires the dead path.
 
 **Depends on:**
 
-- [ADR-066](../decisions/066-github-device-flow-cli-auth.md) — the topology,
+- [ADR-066](../../decisions/066-github-device-flow-cli-auth.md) — the topology,
   account-linking model, security invariants, and cutover sequence
 - `apps/anvil-api/src/routes/auth-github.ts` — the GitHub code→token exchange,
   `fetchGitHubUser`, active-status gate, `signLicence`, refresh token, and audit
@@ -111,13 +111,13 @@ retires the dead path.
 ## Cross-references
 
 - **Supersedes** the device-confirm sub-flow of **BAUTH**
-  ([`beta-auth-streamline`](../archive/modules/beta-auth-streamline.aps.md),
+  ([`beta-auth-streamline`](./beta-auth-streamline.aps.md),
   archived Complete).
 - **Reuses** the GitHub OAuth path from **DOCSAUTH**
-  ([`docs-auth-gating`](../archive/modules/docs-auth-gating.aps.md), archived
+  ([`docs-auth-gating`](./docs-auth-gating.aps.md), archived
   Complete).
 - Shares the SSH-first motivation with **SSHREMOTE**
-  ([`ssh-remote-host-daemon`](ssh-remote-host-daemon.aps.md), Proposed,
+  ([`ssh-remote-host-daemon`](../../modules/ssh-remote-host-daemon.aps.md), Proposed,
   ADR-043) — cross-reference only, no dependency.
 
 ## Release wave
@@ -125,7 +125,7 @@ retires the dead path.
 - **Latest tag:** `v0.7.4-beta` (shipped 2026-05-31). **Active window:**
   `v0.8.0-beta` "The Save-Time Daemon" (six-week cadence retired; minors cut
   when ready + gates green) — see
-  [`RELEASE-PLAN.md`](../../RELEASE-PLAN.md). (The `plans/index.aps.md` prose
+  [`RELEASE-PLAN.md`](../../../RELEASE-PLAN.md). (The `plans/index.aps.md` prose
   is stale at `v0.7.2-beta`/the `v0.7.3-beta` candidate.)
 - The **TS API slice** (GHCLIAUTH-001/-003/-004/-005, the server endpoints) is
   continuous-deploy and can land on `main` before any tag.

@@ -305,7 +305,7 @@ number visible to the user, not just to a future post-release survey.
     shared with status/watch)
 - **Dependencies:** INSIGHTS-004 (hint mechanism; PR #2226)
 - **Identified From:** 2026-06-10 v0.8.0-beta user-journey completeness
-  review; coordinates with [`UJ-001`](./user-journey.aps.md) (welcome
+  review; coordinates with [`UJ-001`](../archive/modules/user-journey.aps.md) (welcome
   closing-output threading).
 - **Confidence:** high
 - **changeType:** feature

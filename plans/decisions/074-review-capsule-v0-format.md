@@ -13,7 +13,7 @@ accepting commit)
 
 ## Context
 
-The GITGOV wedge (`plans/modules/git-native-governance.aps.md`) packages
+The GITGOV wedge (`plans/archive/modules/git-native-governance.aps.md`) packages
 change-level governance into a portable artefact — a **review capsule** — that a
 reviewer, auditor, or supplier can verify locally without trusting Anvil Cloud
 (ADR-072). Before writing the collector/verifier, the capsule's on-disk format
@@ -161,7 +161,7 @@ tested code paths instead of a second, drift-prone model.
   + `verify_chain_dag`), ADR-039 (baseline), ADR-042 (closeout-enforcement exit
   codes carve-out), ADR-058 (shared SARIF emitter, no unified finding model),
   ADR-072 (Git substrate), ADR-073 (state boundary)
-- APS module: GITGOV (`plans/modules/git-native-governance.aps.md`)
+- APS module: GITGOV (`plans/archive/modules/git-native-governance.aps.md`)
 - Code anchors: `crates/anvil-witness/src/line.rs`,
   `crates/anvil-baseline/src/lib.rs`, `crates/anvil-rules` (`rules_sha`),
   `crates/anvil-cli/src/output/sarif.rs`

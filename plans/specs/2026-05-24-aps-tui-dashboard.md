@@ -6,7 +6,7 @@
 
 | Upstream | Downstream |
 | -------- | ---------- |
-| `plans/index.aps.md`, `plans/modules/*.aps.md`, `plans/aps-rules.md`, `plans/modules/tui-dashboard-render.aps.md` | Future APS implementation plan, `crates/anvil-cli`, `crates/anvil-tui`, `crates/eddacraft-tui` |
+| `plans/index.aps.md`, `plans/modules/*.aps.md`, `plans/aps-rules.md`, `plans/archive/modules/tui-dashboard-render.aps.md` | Future APS implementation plan, `crates/anvil-cli`, `crates/anvil-tui`, `crates/eddacraft-tui` |
 
 ## Purpose
 

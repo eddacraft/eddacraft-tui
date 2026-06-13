@@ -10,7 +10,7 @@ Proposed
 
 ## Context
 
-[`tui-dashboard-render`](../modules/tui-dashboard-render.aps.md) (TUIDASH) plans
+[`tui-dashboard-render`](../archive/modules/tui-dashboard-render.aps.md) (TUIDASH) plans
 a Rust-native [json-render](https://github.com/vercel-labs/json-render)
 interpreter for Ratatui: parse the same flat-element JSON spec the web dashboard
 uses (`@json-render/core` v0.19, via the web-side `@eddacraft/render` package at

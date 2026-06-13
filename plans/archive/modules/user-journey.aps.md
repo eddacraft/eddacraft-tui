@@ -154,7 +154,7 @@ carry the user to the next step without a docs lookup.
 - **Status:** Released/Shipped via v0.8.0-beta (2026-06-11). Merged 2026-06-10 via PR #2509
 - **Disposition:** Operator decision 2026-06-10 — ungate read-only
   `anvil welcome` as the beta demo surface, recorded in
-  [ADR-080](../decisions/080-ungate-welcome-demo-surface.md) (Accepted).
+  [ADR-080](../../decisions/080-ungate-welcome-demo-surface.md) (Accepted).
   `welcome` removed from `CLI_GATED_COMMANDS`; durable surfaces stay gated;
   the welcome ending hands off to the gated `anvil start`, so the licence
   wall sits where ongoing value begins.
@@ -225,7 +225,7 @@ carry the user to the next step without a docs lookup.
 
 - **Status:** Done 2026-06-10 (decision: guidance-only, ADR-079)
 - **Disposition:** Operator decision 2026-06-10 — guidance-only affirmed via
-  [ADR-079](../decisions/079-watch-daemon-guidance-only.md): no offer-to-start
+  [ADR-079](../../decisions/079-watch-daemon-guidance-only.md): no offer-to-start
   prompt, no auto-start. The guidance surface shipped via UJ-001/-005/-006
   made the prompt redundant; the item itself named this an acceptable
   outcome. Zero code. The Expected Outcome's conditional branch ("if
@@ -453,11 +453,11 @@ that ships them.
 - Source review: 2026-06-10 v0.8.0-beta user-journey completeness review
   (operator session; actions A1–E18).
 - Coordinates with:
-  [`CIB-047`](./continuous-improvement-backlog.aps.md) (watch TUI fallback
-  indicator), [`CIB-054`](./continuous-improvement-backlog.aps.md) /
-  [`CIB-055`](./continuous-improvement-backlog.aps.md) (pre-tag wording +
-  release-plan reconcile), [`INSIGHTS-005`](./usage-insights.aps.md)
+  [`CIB-047`](../../modules/continuous-improvement-backlog.aps.md) (watch TUI fallback
+  indicator), [`CIB-054`](../../modules/continuous-improvement-backlog.aps.md) /
+  [`CIB-055`](../../modules/continuous-improvement-backlog.aps.md) (pre-tag wording +
+  release-plan reconcile), [`INSIGHTS-005`](../../modules/usage-insights.aps.md)
   (first-week nudge on welcome),
-  [`DISTRIB-002`](../archive/modules/distribution-and-update.aps.md)
-  (update advisory), [`DSV-021`](./daemon-save-time-validation.aps.md)
+  [`DISTRIB-002`](./distribution-and-update.aps.md)
+  (update advisory), [`DSV-021`](../../modules/daemon-save-time-validation.aps.md)
   (routing modes), ADR-075 (rollout controls).

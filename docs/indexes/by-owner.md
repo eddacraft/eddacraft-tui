@@ -388,11 +388,11 @@
 | -------------------------------------------------------------------------------------------------- | --------------------------------------- | ----- | ------------- | ------------------------------------------------------------------- | ------ |
 | [eddacraft-tui Mirror, CI Gates, and Backport Policy](../../docs/policies/eddacraft-tui-mirror.md) | `docs/policies/eddacraft-tui-mirror.md` | Guide | Authoritative | TUIR (plans/modules/tui-reintegration.aps.md) and ADR-047 / ADR-050 | Live   |
 
-## UJ (plans/modules/user-journey.aps.md)
+## UJ (plans/archive/modules/user-journey.aps.md)
 
-| Document                                                                       | Path                                               | Type        | Authority     | Owner                                  | Status |
-| ------------------------------------------------------------------------------ | -------------------------------------------------- | ----------- | ------------- | -------------------------------------- | ------ |
-| [Save-Time Validation](../../docs/public/anvil/guides/save-time-validation.md) | `docs/public/anvil/guides/save-time-validation.md` | Public docs | Authoritative | UJ (plans/modules/user-journey.aps.md) | Live   |
+| Document                                                                       | Path                                               | Type        | Authority     | Owner                                          | Status |
+| ------------------------------------------------------------------------------ | -------------------------------------------------- | ----------- | ------------- | ---------------------------------------------- | ------ |
+| [Save-Time Validation](../../docs/public/anvil/guides/save-time-validation.md) | `docs/public/anvil/guides/save-time-validation.md` | Public docs | Authoritative | UJ (plans/archive/modules/user-journey.aps.md) | Live   |
 
 ## VISION
 

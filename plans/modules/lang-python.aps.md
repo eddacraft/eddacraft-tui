@@ -70,7 +70,7 @@ implementation shape entirely.
 **Depends on:**
 
 - [`lang-ts-audit`](../archive/modules/lang-ts-audit.aps.md) — T3 acceptance checklist.
-- [`lang-rust`](./lang-rust.aps.md) — sequenced after; reuses
+- [`lang-rust`](../archive/modules/lang-rust.aps.md) — sequenced after; reuses
   architecture-enforcement-location decision.
 - Existing kernel parser, architecture analysis, policy pipeline, drift
   baseline, suppression parser.

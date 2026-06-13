@@ -314,7 +314,7 @@ which scanner consumers exist.
     (RMCPF — re-pointed: starts from "TS MCP server is paused"
     rather than "actively migrating from")
   - [intercept-daemon](../archive/modules/intercept-daemon.aps.md) /
-    [intercept-rules](../modules/intercept-rules.aps.md) /
+    [intercept-rules](../archive/modules/intercept-rules.aps.md) /
     [intercept-launcher](../archive/modules/intercept-launcher.aps.md)
     (INTD/INTR/INTL — unaffected)
 - Code (archived under this ADR — surface packages):

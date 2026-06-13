@@ -17,7 +17,7 @@
 ## Purpose
 
 Bring Rust to **T3 (Governed)** per
-[2026-04-08 Language and Coverage Design](../specs/2026-04-08-language-and-coverage-design.md)
+[2026-04-08 Language and Coverage Design](../../specs/2026-04-08-language-and-coverage-design.md)
 §5.1, §8.1. Rust is the credibility test for "Anvil governs systems code" —
 two confirmed demand points (Anvil's own kernel + User B), and Anvil currently
 cannot see its own primary implementation language. T3 means: tree-sitter
@@ -71,7 +71,7 @@ shape entirely.
 
 **Depends on:**
 
-- [`lang-ts-audit`](../archive/modules/lang-ts-audit.aps.md) — T3 acceptance checklist + kernel
+- [`lang-ts-audit`](./lang-ts-audit.aps.md) — T3 acceptance checklist + kernel
   prerequisites (LANGTS-005) — satisfied (6/6, checklist published, extractor
   trait + grammar_version live).
 - Kernel prerequisite work from `lang-ts-audit` (extractor trait, grammar
@@ -92,7 +92,7 @@ shape entirely.
 - `lang-ts-audit` complete (T3 acceptance checklist exists) — satisfied.
 - ADR recorded for council §16.5 #5 (T3 architecture enforcement location) — satisfied (ADR-065 Accepted 2026-06-03).
 - Re-scoring gate run per
-  [docs/guides/anchor-rescoring-process.md](../../docs/guides/anchor-rescoring-process.md)
+  [docs/guides/anchor-rescoring-process.md](../../../docs/guides/anchor-rescoring-process.md)
   before this module starts — satisfied (snapshot 2026-06-03 recorded; sequence unchanged).
 
 ## Ready Checklist

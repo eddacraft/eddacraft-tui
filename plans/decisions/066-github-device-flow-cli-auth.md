@@ -276,7 +276,7 @@ GitHub email matches.
   ([`docs-auth-gating`](../archive/modules/docs-auth-gating.aps.md), archived
   Complete).
 - APS module: GHCLIAUTH
-  ([`github-cli-auth`](../modules/github-cli-auth.aps.md)).
+  ([`github-cli-auth`](../archive/modules/github-cli-auth.aps.md)).
 - External: [RFC 8628 — OAuth 2.0 Device Authorization Grant](https://datatracker.ietf.org/doc/html/rfc8628)
   (§3.5 `slow_down`/`interval` polling).
 - Evidence: `apps/anvil-api/src/routes/auth-device.ts` (`/device/confirm`,

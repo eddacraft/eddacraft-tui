@@ -114,7 +114,7 @@ mass-rename now — the map is the cheap fix; renames are churn.
   [073](../decisions/073-durable-vs-local-anvil-state.md),
   [074](../decisions/074-review-capsule-v0-format.md),
   [028](../decisions/028-markdown-governance-crate.md)
-- Modules: [GITGOV](../modules/git-native-governance.aps.md),
+- Modules: [GITGOV](../archive/modules/git-native-governance.aps.md),
   [EXCEPT](../modules/git-native-exceptions.aps.md),
   [AGOV](../modules/agent-governance-patterns.aps.md),
   [ILGOV](../modules/intent-ledger-governance.aps.md),

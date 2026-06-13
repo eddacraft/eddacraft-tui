@@ -12,12 +12,12 @@ resolved 2026-06-12, see note below.)
 
 2026-06-12: capsule wedge confirmed in the v0.8.0-beta tag (record: plans/releases/v0.8.0-beta.md); Merged items advanced to Released/Shipped; module Complete — archive per the archive cascade.
 
-> **Decision gate cleared (2026-06-08).** [ADR-072](../decisions/072-git-native-governance-substrate.md)
-> (Git substrate) and [ADR-074](../decisions/074-review-capsule-v0-format.md)
+> **Decision gate cleared (2026-06-08).** [ADR-072](../../decisions/072-git-native-governance-substrate.md)
+> (Git substrate) and [ADR-074](../../decisions/074-review-capsule-v0-format.md)
 > (capsule v0 format) were Accepted via full council review
 > (accept-with-changes; changes applied). Capsule implementation items
 > (GITGOV-003+) are authorised. Brainstorm:
-> [`../brainstorms/git-native-governance/`](../brainstorms/git-native-governance/).
+> [`../brainstorms/git-native-governance/`](../../brainstorms/git-native-governance/).
 
 ## Purpose
 
@@ -61,13 +61,13 @@ release seals (RELEASE-SEAL); supplier bundles (SUPPLIER). Sealed Edda context
 
 ### GITGOV-001: ADR — Git-native governance substrate
 - **Intent:** State that Git is Anvil's durable trust substrate.
-- **Expected Outcome:** [ADR-072](../decisions/072-git-native-governance-substrate.md) reviewed and Accepted.
+- **Expected Outcome:** [ADR-072](../../decisions/072-git-native-governance-substrate.md) reviewed and Accepted.
 - **Validation:** `pnpm adr:check`
 - **Status:** Done 2026-06-08 (Accepted via full council review, accept-with-changes applied)
 
 ### GITGOV-002: ADR — state boundary
 - **Intent:** Ratify `anvil/` durable vs `.anvil/` local; record reconciliations.
-- **Expected Outcome:** [ADR-073](../decisions/073-durable-vs-local-anvil-state.md) reviewed and Accepted.
+- **Expected Outcome:** [ADR-073](../../decisions/073-durable-vs-local-anvil-state.md) reviewed and Accepted.
 - **Validation:** `pnpm adr:check`
 - **Status:** Done 2026-06-08 (Accepted via full council review, accept-with-changes applied)
 

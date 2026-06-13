@@ -17,7 +17,7 @@ directly in the terminal, following the `anvil plan dashboard` precedent
 (APSCAN-011 / `crates/anvil-tui/src/surfaces/plan_dashboard/`).
 
 This module delivers the "see Anvil state in the terminal" value that
-[`tui-dashboard-render`](../../modules/tui-dashboard-render.aps.md) (TUIDASH) was meant to
+[`tui-dashboard-render`](./tui-dashboard-render.aps.md) (TUIDASH) was meant to
 provide, but **without** the json-render spec interpreter (spec parser →
 component registry → tree walker) or the AI spec-generation path
 ([`dashboard-ai-builder`](../../modules/dashboard-ai-builder.aps.md), DASHAI). Each

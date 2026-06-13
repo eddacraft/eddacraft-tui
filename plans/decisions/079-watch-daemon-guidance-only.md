@@ -73,5 +73,5 @@ guidance-only as an acceptable outcome once the beta messaging landed.
 ## References
 
 - Related ADRs: ADR-075 (rollout controls amended here)
-- APS modules: UJ-007 (`plans/modules/user-journey.aps.md`), DSV-021
+- APS modules: UJ-007 (`plans/archive/modules/user-journey.aps.md`), DSV-021
 - Shipped guidance: PRs #2500, #2501, #2502, #2503, #2504

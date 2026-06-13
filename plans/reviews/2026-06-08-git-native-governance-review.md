@@ -6,7 +6,7 @@
 `origin/main` — `plans/brainstorms/git-native-governance/`
 (README/context/solution/architecture/roadmap/agent-handoff), ADR-072 (Git
 substrate), ADR-073 (durable/local state boundary), ADR-074 (capsule v0 format),
-and modules GITGOV (`plans/modules/git-native-governance.aps.md`) + EXCEPT
+and modules GITGOV (`plans/archive/modules/git-native-governance.aps.md`) + EXCEPT
 (`plans/modules/git-native-exceptions.aps.md`).
 **Method:** read the full pack; spot-checked the load-bearing claims against
 actual code on `origin/main`.
@@ -166,7 +166,7 @@ Checked specifically, since GV2 is the adjacent active stream:
 - ADRs: [072](../decisions/072-git-native-governance-substrate.md),
   [073](../decisions/073-durable-vs-local-anvil-state.md),
   [074](../decisions/074-review-capsule-v0-format.md)
-- Modules: [GITGOV](../modules/git-native-governance.aps.md),
+- Modules: [GITGOV](../archive/modules/git-native-governance.aps.md),
   [EXCEPT](../modules/git-native-exceptions.aps.md)
 - Adjacent stream: the GV2 foundation spine spec
   `docs/architecture/graph-v2-foundation-spec.md` (PR #2350 — not on

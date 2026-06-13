@@ -10,9 +10,9 @@ sidebar_position: 6
 
 # Save-Time Validation
 
-| Type        | Authority     | Owner                                                                                                                          | Status | Freshness                                                                 |
-| ----------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------ | ------------------------------------------------------------------------- |
-| Public docs | Authoritative | UJ ([`plans/modules/user-journey.aps.md`](https://github.com/eddacraft/anvil-001/blob/main/plans/modules/user-journey.aps.md)) | Live   | Last reviewed 2026-06-10 against `main` for the v0.8.0-beta save-time arc |
+| Type        | Authority     | Owner                                                                                                                                          | Status | Freshness                                                                 |
+| ----------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------- |
+| Public docs | Authoritative | UJ ([`plans/archive/modules/user-journey.aps.md`](https://github.com/eddacraft/anvil-001/blob/main/plans/archive/modules/user-journey.aps.md)) | Live   | Last reviewed 2026-06-10 against `main` for the v0.8.0-beta save-time arc |
 
 | Upstream                                                                 | Downstream                                                            |
 | ------------------------------------------------------------------------ | --------------------------------------------------------------------- |

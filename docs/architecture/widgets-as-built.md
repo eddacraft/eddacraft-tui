@@ -885,8 +885,8 @@ the unused widgets are deprecated.
 **Risk:** Low — zero-cost in the binary because Rust dead-code-eliminates unused
 trait method calls per crate. **Fix:** when surfaces are next refactored (e.g.
 as part of TUIDASH json-render rollup,
-`plans/modules/tui-dashboard-render.aps.md`), reach for the upstream widget
-first. No tracked work item.
+`plans/archive/modules/tui-dashboard-render.aps.md`), reach for the upstream
+widget first. No tracked work item.
 
 ### G-03: No documented unicode / terminal-compat matrix for widgets
 

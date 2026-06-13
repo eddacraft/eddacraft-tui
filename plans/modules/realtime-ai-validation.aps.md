@@ -235,7 +235,7 @@ convention" section). Concretely:
   Question 3) holds rule implementations the daemon evaluates. The
   reasoning-pattern catalogue from the archived RTVS module belongs
   there, not here.
-- **Coordinates with:** [INTR](./intercept-rules.aps.md) — rules
+- **Coordinates with:** [INTR](../archive/modules/intercept-rules.aps.md) — rules
   registered in INTR are what the mid-edit pipeline evaluates.
 - **References:** [ADR-030](../decisions/030-surface-drivers-supersede-napi-cutover.md)
   (drivers-on-daemon architecture authority).

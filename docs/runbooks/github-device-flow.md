@@ -4,9 +4,9 @@
 | ------- | ------------- | --------- | ------ | ---------------------------------------------------------------------------------- |
 | Runbook | Authoritative | GHCLIAUTH | Live   | Last reviewed 2026-06-11 against `apps/anvil-api/src/routes/auth-github-device.ts` |
 
-| Upstream                                                                                                                                                                                                                                          | Downstream                                                  |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `apps/anvil-api/src/routes/auth-github-device.ts`, `apps/anvil-api/src/index.ts`, `infra/src/vercel.ts`, `crates/anvil-cli/src/auth/device_flow.rs`, `plans/modules/github-cli-auth.aps.md`, `plans/decisions/066-github-device-flow-cli-auth.md` | Operator cutover and incident triage for `anvil auth login` |
+| Upstream                                                                                                                                                                                                                                                  | Downstream                                                  |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `apps/anvil-api/src/routes/auth-github-device.ts`, `apps/anvil-api/src/index.ts`, `infra/src/vercel.ts`, `crates/anvil-cli/src/auth/device_flow.rs`, `plans/archive/modules/github-cli-auth.aps.md`, `plans/decisions/066-github-device-flow-cli-auth.md` | Operator cutover and incident triage for `anvil auth login` |
 
 `anvil auth login` is the headless GitHub Device Authorisation Grant (RFC 8628)
 flow for the Anvil CLI. The CLI never holds a GitHub client secret: it talks
@@ -240,7 +240,7 @@ Vault secrets — so it remains available even when `githubCliCreds` is
 
 ## Related
 
-- Module plan: `plans/modules/github-cli-auth.aps.md`
+- Module plan: `plans/archive/modules/github-cli-auth.aps.md`
 - Decision record: `plans/decisions/066-github-device-flow-cli-auth.md`
 - [Observability triage](./observability-triage.md)
 - [Admin CLI operator runbook](./admin-cli.md)

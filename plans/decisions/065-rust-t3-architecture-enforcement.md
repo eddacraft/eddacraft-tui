@@ -91,7 +91,7 @@ Alternatives table below captures the trade-off analysis.
 ## References
 
 - Related ADRs: [ADR-012](012-rust-cli-replacement.md), [ADR-026](026-rust-scanner-authoritative.md), [ADR-033](033-park-ide-mcp-retire-ts-scanner.md), [ADR-040](040-rust-policy-engine-regorus.md), [ADR-061](061-save-time-daemon-delta-validation.md), [ADR-064](064-intercept-graph-cache-crate-boundary.md), [ADR-014](014-language-allocation-tree-ts-vs-rust.md) (directional)
-- APS modules: [lang-rust](../modules/lang-rust.aps.md) (RSTLAN), [lang-ts-audit](../archive/modules/lang-ts-audit.aps.md) (LANGTS), [multilayer-protection-v2](../modules/multilayer-protection-v2.aps.md) (context for enforcement surfaces)
+- APS modules: [lang-rust](../archive/modules/lang-rust.aps.md) (RSTLAN), [lang-ts-audit](../archive/modules/lang-ts-audit.aps.md) (LANGTS), [multilayer-protection-v2](../modules/multilayer-protection-v2.aps.md) (context for enforcement surfaces)
 - Specs: [2026-04-08 Language and Coverage Design](../specs/2026-04-08-language-and-coverage-design.md) §8.1, §16.5 #5 (C-019), T3 checklist
 - Code: `crates/anvil-architecture/src/validator.rs` (collect + edges), `crates/anvil-cli/src/commands/gate.rs` (the `extract_import_edges` function, `include_extensions` list and `if !include_extensions.contains(&ext)` guard in the JS/TS filter), `packages/anvil/core/src/architecture/`
 - Process: NBI row in `plans/index.aps.md`; anchor re-scoring snapshot 2026-06-03

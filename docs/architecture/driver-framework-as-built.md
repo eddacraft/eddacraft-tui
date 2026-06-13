@@ -19,16 +19,16 @@
 > (`plans/archive/modules/surface-drivers.aps.md`, 5/5 active — 2 superseded, 1
 > deferred under ADR-033), with downstream spec at
 > `plans/specs/anvil-driver-framework/`. Adjacent modules: INTR
-> (`plans/modules/intercept-rules.aps.md`, Complete 8/8) for the hot-path rule
-> registry, and INTD (`plans/archive/modules/intercept-daemon.aps.md`, Complete
-> 16/16) for the daemon side that consumes the proto. **Used by:**
-> `anvil intercept status` CLI surface
-> (`crates/anvil-cli/src/commands/intercept.rs`); MCP shim's daemon-backed
-> validation client (`crates/anvil-cli/src/mcp/validation.rs`); the in-tree
-> daemon-side capability negotiator (`crates/anvil-intercept/src/auth.rs`);
-> future editor / CI driver integrations consuming
-> `@eddacraft/anvil-driver-client`; the Win32 named-pipe synchronous client
-> (`crates/anvil-intercept-win32::connect_owner_only_pipe_client`).
+> (`plans/archive/modules/intercept-rules.aps.md`, Complete 8/8) for the
+> hot-path rule registry, and INTD
+> (`plans/archive/modules/intercept-daemon.aps.md`, Complete 16/16) for the
+> daemon side that consumes the proto. **Used by:** `anvil intercept status` CLI
+> surface (`crates/anvil-cli/src/commands/intercept.rs`); MCP shim's
+> daemon-backed validation client (`crates/anvil-cli/src/mcp/validation.rs`);
+> the in-tree daemon-side capability negotiator
+> (`crates/anvil-intercept/src/auth.rs`); future editor / CI driver integrations
+> consuming `@eddacraft/anvil-driver-client`; the Win32 named-pipe synchronous
+> client (`crates/anvil-intercept-win32::connect_owner_only_pipe_client`).
 
 ## 1. Overview
 
@@ -550,9 +550,10 @@ demo-runbook §1.5 trust signal.
 ## 8. `anvil-intercept-rules`
 
 The hot-path rule registry. Owned by INTR
-(`plans/modules/intercept-rules.aps.md`, Complete 8/8). The crate's brief is to
-keep rule code in one place, dep-light enough that the intercept daemon can
-compose `Vec<Box<dyn InterceptRule>>` without pulling in the full kernel.
+(`plans/archive/modules/intercept-rules.aps.md`, Complete 8/8). The crate's
+brief is to keep rule code in one place, dep-light enough that the intercept
+daemon can compose `Vec<Box<dyn InterceptRule>>` without pulling in the full
+kernel.
 
 ### 8.1 What it contains
 
@@ -620,15 +621,15 @@ yet wired into the daemon's default registry construction.
 
 The crate is therefore part of the framework only by virtue of being the source
 of the diagnostic envelopes drivers render. It is owned by the INTR module
-(`plans/modules/intercept-rules.aps.md`), separate from DRVR.
+(`plans/archive/modules/intercept-rules.aps.md`), separate from DRVR.
 
 ### 8.3 Latency contract
 
 The trait-level docstring pins **microseconds to hundreds of microseconds** as
 the latency envelope. No graph recomputation, no network calls, no expensive AST
 analysis (`lib.rs:170-173`). Out-of- scope items are listed in
-`plans/modules/intercept-rules.aps.md` — out-of-band rules ride on a different
-evaluator.
+`plans/archive/modules/intercept-rules.aps.md` — out-of-band rules ride on a
+different evaluator.
 
 ### 8.4 Panic policy
 
@@ -941,8 +942,8 @@ and where they don't:
   redaction spec-only), H4 (PID-reuse + macOS fence-first).
 - `plans/archive/modules/surface-drivers.aps.md` — DRVR module plan; Wave 1-3
   task records and Wave 4 deferral.
-- `plans/modules/intercept-rules.aps.md` — INTR module plan; the rules crate's
-  task list.
+- `plans/archive/modules/intercept-rules.aps.md` — INTR module plan; the rules
+  crate's task list.
 - `plans/decisions/030-surface-drivers-supersede-napi-cutover.md` — ADR-030, the
   authority that made surfaces drivers rather than napi consumers.
 - `plans/decisions/033-park-ide-mcp-retire-ts-scanner.md` — ADR-033, the

@@ -179,7 +179,7 @@ and digests (ADR-074), not in prune ordering.
   ADR-073 (state boundary — `anvil/evidence/capsules/`), ADR-074 (capsule v0
   format, frozen manifest, repo-present verification; this is its retention
   sub-decision)
-- APS modules: GITGOV-013 (`plans/modules/git-native-governance.aps.md`)
+- APS modules: GITGOV-013 (`plans/archive/modules/git-native-governance.aps.md`)
 - Code anchors: `crates/anvil-cli/src/commands/capsule.rs`
   (`refuse_out_inside_git_dir` — the guard `--root` mirrors),
   `crates/anvil-capsule/src/manifest.rs` (`CAPSULE_SCHEMA`,

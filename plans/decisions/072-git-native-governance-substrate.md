@@ -134,6 +134,6 @@ chain and drift ledger; this ADR ratifies the pattern rather than inventing one.
   ADR-039 (baseline policy), ADR-052 (drift edge-delta ledger), ADR-069 (GV2
   persistence privacy line), ADR-073 (durable vs local state), ADR-074 (capsule
   v0 format)
-- APS modules: GITGOV (`plans/modules/git-native-governance.aps.md`), EXCEPT
+- APS modules: GITGOV (`plans/archive/modules/git-native-governance.aps.md`), EXCEPT
   (`plans/modules/git-native-exceptions.aps.md`)
 - Brainstorm: `plans/brainstorms/git-native-governance/`

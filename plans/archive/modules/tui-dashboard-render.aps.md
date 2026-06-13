@@ -8,7 +8,7 @@
 
 > 2026-06-12: TUIDASH-003..-013 confirmed in the v0.8.0-beta tag (record: plans/releases/v0.8.0-beta.md) and advanced to Released/Shipped; module Complete — archive per the archive cascade.
 
-> **Re-scope 2026-05-27 ([ADR-054](../decisions/054-json-render-tui-engine-home.md)):**
+> **Re-scope 2026-05-27 ([ADR-054](../../decisions/054-json-render-tui-engine-home.md)):**
 > Promoted Draft → Ready. The 2026-04-26 demotion blockers are resolved — the
 > catalogue and spec pin live web-side in `@eddacraft/render`
 > (`packages/libs/render/`: `src/catalog-registry.ts`, `@json-render/core
@@ -31,7 +31,7 @@ custom dashboards. A Rust-side spec interpreter lets `anvil dashboard` render
 the same `.anvil/dashboards/*.json` files directly in the terminal — same data,
 same spec, different surface.
 
-**Spec:** Extends [json-render brainstorm](../brainstorms/json-render-dashboard.md)
+**Spec:** Extends [json-render brainstorm](../../brainstorms/json-render-dashboard.md)
 and builds on the Ratatui surface architecture from RATS and PORT modules.
 
 ## In Scope
@@ -54,7 +54,7 @@ and builds on the Ratatui surface architecture from RATS and PORT modules.
 
 ## Interfaces
 
-Per [ADR-054](../decisions/054-json-render-tui-engine-home.md), work splits along
+Per [ADR-054](../../decisions/054-json-render-tui-engine-home.md), work splits along
 the generic/specific boundary: a generic **engine** in `eddacraft-tui` and the
 Anvil **catalogue + surface** in `anvil-tui`.
 
@@ -126,7 +126,7 @@ Anvil **catalogue + surface** in `anvil-tui`.
   catalogue in `anvil-tui`, (b) standalone Anvil-owned `anvil-tui-render` crate
   (the original plan), (c) engine + Anvil catalogue both in `eddacraft-tui`
 - **Resolution:** Option (a), per
-  [ADR-054](../decisions/054-json-render-tui-engine-home.md). The engine is
+  [ADR-054](../../decisions/054-json-render-tui-engine-home.md). The engine is
   generic render-anywhere infrastructure and belongs in the shared library
   (behind a `json-render` feature to contain the `serde` cost); Anvil domain
   components must not leak into the generic family library. Drops the standalone
@@ -170,7 +170,7 @@ the TUI consumes the same specs independently.
 
 ## Re-homing (ADR-054)
 
-The work-item `Files:` paths below predate [ADR-054](../decisions/054-json-render-tui-engine-home.md)
+The work-item `Files:` paths below predate [ADR-054](../../decisions/054-json-render-tui-engine-home.md)
 and reference the dropped `crates/anvil-tui-render/` crate. This mapping is
 authoritative; per-file paths are finalized at execution:
 

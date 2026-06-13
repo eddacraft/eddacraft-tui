@@ -1,8 +1,8 @@
 # Review Capsules â€” As-Built
 
-| Type     | Authority | Owner                                                      | Status | Freshness                                                                                                            |
-| -------- | --------- | ---------------------------------------------------------- | ------ | -------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | [GITGOV](../../plans/modules/git-native-governance.aps.md) | Live   | Last reviewed 2026-06-10 against main `d6e7b4189` and source paths listed in [Source references](#source-references) |
+| Type     | Authority | Owner                                                              | Status | Freshness                                                                                                            |
+| -------- | --------- | ------------------------------------------------------------------ | ------ | -------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | [GITGOV](../../plans/archive/modules/git-native-governance.aps.md) | Live   | Last reviewed 2026-06-10 against main `d6e7b4189` and source paths listed in [Source references](#source-references) |
 
 | Upstream                                                                                                                                                                                                                                                                                                                      | Downstream                                                                                                                                                                             |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -217,8 +217,8 @@ written file (`crates/anvil-capsule/src/format.rs:272-273`, pinned by
 Exception verification is deliberately acyclic: the verify engine reuses
 EXCEPT-005's scope/expiry logic, while capsule _collection_ of applied
 exceptions (EXCEPT-009) depends back on this engine
-(`plans/modules/git-native-governance.aps.md`). Today `exceptions.json` is an
-inert `[]` placeholder (`crates/anvil-capsule/src/format.rs:102`).
+(`plans/archive/modules/git-native-governance.aps.md`). Today `exceptions.json`
+is an inert `[]` placeholder (`crates/anvil-capsule/src/format.rs:102`).
 
 ## Known gaps
 
@@ -311,7 +311,7 @@ before any write (`crates/anvil-capsule/src/format.rs:579-606`), digest tamper â
   [ADR-078](../../plans/decisions/078-capsule-retention-and-prune.md)
   (retention + prune)
 - Module plan:
-  [git-native-governance.aps.md](../../plans/modules/git-native-governance.aps.md)
+  [git-native-governance.aps.md](../../plans/archive/modules/git-native-governance.aps.md)
   (GITGOV-001..014, all terminal)
 - Runbook: [cli-surface.md](../runbooks/cli-surface.md) (`anvil capsule` rows)
 - Public docs: [review-capsules.md](../public/anvil/concepts/review-capsules.md)

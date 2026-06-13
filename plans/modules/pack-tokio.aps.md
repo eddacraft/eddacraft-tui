@@ -51,7 +51,7 @@ T2+ (i.e. anti-pattern catalogue + suppression — does not need full T3).
 
 **Depends on:**
 
-- [`lang-rust`](./lang-rust.aps.md) — Rust at T2+ (does not require full
+- [`lang-rust`](../archive/modules/lang-rust.aps.md) — Rust at T2+ (does not require full
   T3).
 - [`pack-pulumi`](./pack-pulumi.aps.md) — first consumer of the pack
   architecture; PACKPUL-001 lands the crate registry.

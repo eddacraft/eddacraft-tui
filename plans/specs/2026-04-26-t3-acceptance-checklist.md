@@ -9,7 +9,7 @@
 > The bar a programming language must clear before Anvil claims it as a
 > **T3 anchor**. Calibrated against the TypeScript implementation that
 > exists today plus the kernel-prereq gaps that close inside LANGTS;
-> referenced from [lang-rust](../modules/lang-rust.aps.md) (RSTLAN),
+> referenced from [lang-rust](../archive/modules/lang-rust.aps.md) (RSTLAN),
 > [lang-python](../modules/lang-python.aps.md) (PYLAN), every Track 4
 > pack module, and the pack registry per
 > [ADR-027](../decisions/027-pack-architecture.md).

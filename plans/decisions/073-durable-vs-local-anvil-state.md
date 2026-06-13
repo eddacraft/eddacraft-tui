@@ -155,6 +155,6 @@ first-class exceptions at all.
   `anvil/`), ADR-039 (baseline), ADR-052 (drift ledger), ADR-069 (runtime cache
   privacy line), ADR-072 (Git substrate)
 - APS modules: EXCEPT (`plans/modules/git-native-exceptions.aps.md`),
-  EDDA-SEAL (future), GITGOV (`plans/modules/git-native-governance.aps.md`)
+  EDDA-SEAL (future), GITGOV (`plans/archive/modules/git-native-governance.aps.md`)
 - Code: `crates/anvil-policy/src/exceptions.rs`,
   `packages/edda-stack/src/edda/config.ts`

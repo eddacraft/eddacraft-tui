@@ -77,5 +77,5 @@ one-line-of-metadata cost.
 
 - Related ADRs: ADR-080 complements ADR-079 (the other UJ design decision);
   flag host model per FLAGS-008 / FLAGCAT-005.
-- APS modules: UJ-004 (`plans/modules/user-journey.aps.md`).
+- APS modules: UJ-004 (`plans/archive/modules/user-journey.aps.md`).
 - Shipped path context: UJ-001/-002/-003 (welcome path threading), PR #2500+.
