@@ -32,6 +32,9 @@ pub fn render_human(d: &ActivationDiagnostic) -> String {
     out.push_str("ACTIVATION\n");
     let _ = writeln!(out, "  state: {}", state.label());
     let _ = writeln!(out, "  {}", state.headline());
+    if let Some(explanation) = state_explanation(state, d) {
+        let _ = writeln!(out, "  meaning: {explanation}");
+    }
     let _ = writeln!(out, "  config: {}", d.config.label());
 
     if d.mcp.is_empty() {
@@ -515,6 +518,39 @@ fn why_summary_for_attestation(att: super::daemon_evidence::DaemonAttestation) -
             "daemon is starting up — wait briefly and re-run `anvil start --verify`"
         }
         DaemonAttestation::Promoted => "no missing piece — daemon attests this worktree",
+    }
+}
+
+/// Plain-language explanation for lifecycle labels whose terse `snake_case`
+/// value is necessary for machine consumers but too opaque on its own.
+fn state_explanation(state: ProtectionState, d: &ActivationDiagnostic) -> Option<&'static str> {
+    use super::daemon_evidence::DaemonAttestation;
+
+    match state {
+        ProtectionState::ReadyRestartRequired => Some(match d.daemon_attestation {
+            DaemonAttestation::NotProbed => {
+                "Anvil has written the MCP config, but the editor or agent has not attached to it yet. Restart that editor or agent, then run `anvil start --verify` again; restarting the whole machine is not required."
+            }
+            DaemonAttestation::Unreachable => {
+                "The editor or agent has seen Anvil's MCP config, but the local intercept daemon is not reachable. Start it with `anvil intercept start --foreground`, then run `anvil start --verify` again."
+            }
+            DaemonAttestation::Unenforced | DaemonAttestation::NoParticipatingSurface => {
+                "The intercept daemon is running, but this worktree is not attached to an enforcing session yet. Check `anvil intercept status`, then run `anvil start --verify` again after the editor issues an MCP request."
+            }
+            DaemonAttestation::StaleHeartbeat => {
+                "The intercept daemon was reachable before, but its heartbeat is stale. Stop that daemon process, start it again with `anvil intercept start --foreground`, then run `anvil start --verify` again."
+            }
+            DaemonAttestation::AllSurfacesQuarantined => {
+                "The intercept daemon fenced every session for this worktree. Stop that daemon process, start it again with `anvil intercept start --foreground`, then run `anvil start --verify` again."
+            }
+            DaemonAttestation::Warming => {
+                "The intercept daemon is starting or settling. Wait a few seconds, then run `anvil start --verify` again."
+            }
+            DaemonAttestation::Promoted => {
+                "Anvil has enough evidence to protect this worktree, but this view has not refreshed yet. Run `anvil start --verify` again to refresh the state."
+            }
+        }),
+        _ => None,
     }
 }
 
@@ -1080,6 +1116,26 @@ mod tests {
         assert!(
             !h.contains("anvil intercept"),
             "NotProbed hint must NOT mention `anvil intercept` (the user has not even restarted yet): {h}"
+        );
+        assert!(
+            h.contains("meaning:")
+                && h.contains("restarting the whole machine is not required")
+                && h.contains("anvil start --verify"),
+            "NotProbed render must explain the label and give the exact verification command: {h}"
+        );
+    }
+
+    #[test]
+    fn ready_restart_required_with_daemon_unreachable_explains_exact_recovery() {
+        let d =
+            handshake_verified_diag(super::super::daemon_evidence::DaemonAttestation::Unreachable);
+        let h = render_human(&d);
+        assert!(
+            h.contains("meaning:")
+                && h.contains("local intercept daemon is not reachable")
+                && h.contains("anvil intercept start --foreground")
+                && h.contains("anvil start --verify"),
+            "Unreachable render must explain the label and give copy-ready commands: {h}"
         );
     }
 
