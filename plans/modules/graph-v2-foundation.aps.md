@@ -26,10 +26,12 @@
 > critical path is fully Merged.
 > **Deferred to v0.9** (council, off the critical path): GV2-013, 014, 020, 023,
 > 026 (registry/contracts) and GV2-030 (sealed-DTO snapshot, with Sub-phase B
-> persistence). 013/014 are dep-unblocked but stay Draft as v0.9 scope. Count is
-> **13/20** (001/002/003/010/011/012/021/022/024/025/027/028/029 Merged — GV2-024
-> #2470 + GV2-025 #2459 closed the A′ hot-path hardening; GV2-031 is a Draft
-> follow-up for the re-export privilege blind spot found in #2453).
+> persistence). v0.9 active: GV2-013 Merged 2026-06-13 (PR #2578); GV2-014 In
+> Progress (PR #2579). Count is
+> **14/20** (001/002/003/010/011/012/013/021/022/024/025/027/028/029 Merged —
+> GV2-013 #2578 added the control/session contract; GV2-024 #2470 + GV2-025 #2459
+> closed the A′ hot-path hardening; GV2-031 is a Draft follow-up for the
+> re-export privilege blind spot found in #2453).
 
 > **Reshaped 2026-06-08** around the now-landed spine spec
 > [`docs/architecture/graph-v2-foundation-spec.md`](../../docs/architecture/graph-v2-foundation-spec.md)
@@ -414,7 +416,7 @@ Change status to **Ready** when:
 
 #### GV2-013: Control and session graph contract
 
-- **Status:** In Progress — started 2026-06-13 (v0.9 active window). Dep GV2-001 Merged; internal control/session substrate, not entry-gated by ADR-075 (the GCTX-002 / egress-privacy gate covers the assistant-facing surface only)
+- **Status:** Merged 2026-06-13 via PR #2578 — dep GV2-001 Merged; internal control/session substrate, not entry-gated by ADR-075 (the GCTX-002 / egress-privacy gate covers the assistant-facing surface only)
 - **Intent:** Model execution hosts, drivers, sessions, leases, fences,
   worktrees, and attribution as a graph that joins to code changes without
   making MCP the control plane.
@@ -879,7 +881,7 @@ Change status to **Ready** when:
 | Phase | Items | Completion | Status |
 | ----- | ----- | ---------- | ------ |
 | 0 — Architecture and Contracts | 3 | 3/3 done | Complete |
-| 1 — Graph Schemas | 5 | 3/5 done | In Progress |
+| 1 — Graph Schemas | 5 | 4/5 done | In Progress |
 | 2 — Runtime Substrate | 4 | 2/4 done | In Progress |
 | 3 — Enforcement, Wiring, and the A′ Swap | 8 | 5/8 done | In Progress |
-| **Total** | **20** | **13/20 done** | **In Progress** |
+| **Total** | **20** | **14/20 done** | **In Progress** |

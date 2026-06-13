@@ -107,7 +107,7 @@ Selection rules:
 
 | Rank | NBI | Mode | Source | Why now | Next action |
 | ---- | --- | ---- | ------ | ------- | ----------- |
-| 1 | v0.9 graph substrate — GV2-013 / -014 / -026 / -030 (Ready) | Ready | [graph-v2-foundation](./modules/graph-v2-foundation.aps.md) + [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) | The assistant-facing-graph window's internal substrate is unblocked: GV2-013 (control/session contract), GV2-014 (plan/provenance contract), GV2-026 (reverse-impact depth lever), GV2-030 (sealed-DTO no-leak guard) — deps Merged, execution-ready, and **not** behind the ADR-075 GCTX entry gate (that covers the assistant-facing egress surface only). Promoted Ready 2026-06-13 (operator readiness pass). | Pick up the GV2 substrate items through dev-workflow — GV2-013/-014 are contract/design; GV2-026/-030 code against concrete `cargo test` targets. |
+| 1 | v0.9 graph substrate — GV2-026 / -030 (GV2-013 Merged, GV2-014 in progress) | In Progress | [graph-v2-foundation](./modules/graph-v2-foundation.aps.md) + [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) | The assistant-facing-graph window's internal substrate: GV2-013 (control/session contract) **Merged 2026-06-13 via #2578**; GV2-014 (plan/provenance contract) **In Progress (#2579)**; GV2-026 (reverse-impact depth lever) and GV2-030 (sealed-DTO no-leak guard) remain Ready — deps Merged, execution-ready, and **not** behind the ADR-075 GCTX entry gate (that covers the assistant-facing egress surface only). | Land GV2-014 (#2579), then pick up GV2-026/-030 through dev-workflow — they code against concrete `cargo test` targets. |
 | 2 | GCTX entry decisions — unblock the assistant-facing surface | Schedule | [ADR-075](./decisions/075-v080-graph-product-scope.md) + [graph-context-delivery](./modules/graph-context-delivery.aps.md) | The GCTX product (0/13) and the GV2 consumer surface (GV2-020 → GV2-023, MCP/weave-facing) stay gated on the two ADR-075 entry decisions: the GCTX-002 architectural decision (which MCP target) and the context-egress privacy review (PV-9, distinct from the persistence verdict). | Land GCTX-002 (ADR) and run the context-egress privacy review; then promote GCTX + GV2-020/-023 with a readiness pass. |
 | 3 | USAGE-001 — `command.invoked` Kindling observations | Ready | [usage-analytics](./modules/usage-analytics.aps.md) + [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) | Founder-requested (2026-05-10) durable "who is using what" evidence; `Ready` + unblocked (independent of the graph gates). Scoped into the `v0.9.0-beta` window as additive work (operator, 2026-06-13). | Pick up USAGE-001 through dev-workflow (branch, TDD, council, PR) when scheduled. |
 
@@ -165,8 +165,8 @@ have their per-window tables and slice records in
 table.
 
 **Active work below still leads with the just-shipped `v0.8.0` window's
-module family** — Graph Substrate (GV2, now 13/20 with the A′ slice shipped
-and the v0.9 deferrals Draft), Hardening & Maintenance (DSV, Sub-phase B
+module family** — Graph Substrate (GV2, now 14/20 with the A′ slice shipped
+and the v0.9 control/session contract Merged; GV2-014 in progress), Hardening & Maintenance (DSV, Sub-phase B
 Blocked), and Intercept Loop (MLP2 enforcement substrate) — then the rest of
 the active modules, then the [Dormant](#dormant-not-yet-scheduled) band. The
 v0.8.0/v0.8.1 tag-complete modules (UJ, TUIDASH, RSTLAN, GITGOV, GHCLIAUTH,
@@ -182,7 +182,7 @@ trusted model.
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
-| [graph-v2-foundation](./modules/graph-v2-foundation.aps.md) | GV2 | In Progress | 13/20 (A′ slice shipped in v0.8.0-beta; v0.9 readiness pass 2026-06-13 promoted GV2-013/-014/-026/-030 to **Ready** — internal substrate, deps Merged, not behind the ADR-075 GCTX egress gate; GV2-020/-023 + GCTX stay Draft pending their deps / the entry decisions) | KERN, anvil-graph-cache, ADR-061/063/064/067/069, ADR-031, INTD, GCTX, EDDA |
+| [graph-v2-foundation](./modules/graph-v2-foundation.aps.md) | GV2 | In Progress | 14/20 (A′ slice shipped in v0.8.0-beta; v0.9 readiness pass 2026-06-13 promoted GV2-013/-014/-026/-030 to Ready — GV2-013 control/session contract Merged 2026-06-13 via #2578, GV2-014 In Progress #2579, GV2-026/-030 Ready; GV2-020/-023 + GCTX stay Draft pending their deps / the entry decisions) | KERN, anvil-graph-cache, ADR-061/063/064/067/069, ADR-031, INTD, GCTX, EDDA |
 | [graph-context-delivery](./modules/graph-context-delivery.aps.md) | GCTX | Draft | 0/13 | GV2 |
 
 ### Hardening & Maintenance
