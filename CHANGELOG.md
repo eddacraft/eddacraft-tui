@@ -6,6 +6,12 @@ This changelog contains customer-relevant changes only. Internal refactors and
 engineering maintenance are recorded in the
 [Engineering History](./ENGINEERING-HISTORY.md).
 
+## [Unreleased]
+
+> **Draft.** This section accumulates customer-relevant changes landed on `main`
+> since `v0.8.1-beta`; the version, date, and final scope are set at the next
+> release.
+
 ## [0.8.1-beta] — 2026-06-11 — Headless GitHub Login
 
 A patch cut hours after `v0.8.0-beta`, landing the GitHub device-flow login that
