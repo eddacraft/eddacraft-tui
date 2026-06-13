@@ -5,9 +5,10 @@
 //! spec and hands it here; the surface owns binding (`$data` → `.anvil/` values)
 //! and re-binding on refresh.
 //!
-//! Keys: `q`/`esc` quit, `r` refresh (re-read `.anvil/` data and re-bind). The
-//! spec itself is not re-read on refresh — only its data — so a running
-//! dashboard reflects fresh gate/drift state without restarting.
+//! Keys: `q` quits, `esc` returns to the dashboard picker (GH #2585), `r`
+//! refreshes (re-read `.anvil/` data and re-bind). The spec itself is not
+//! re-read on refresh — only its data — so a running dashboard reflects fresh
+//! gate/drift state without restarting.
 
 use std::fs;
 use std::path::{Path, PathBuf};
