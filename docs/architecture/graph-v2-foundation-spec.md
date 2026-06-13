@@ -168,7 +168,7 @@ edit src/pay.ts ──semantic──▶ symbol `chargeCard` (Boundary trust)
    │
  dependency join ──▶ dependents_of(file of chargeCard = src/pay.ts) = [checkout.ts]
    │                  (file-keyed today; symbol-granular needs GV2-011 edges + GV2-002)
- control/session join ──▶ Attribution::Owned(SessionRecord{id})
+ control/session join ──▶ Attribution::Owned { session: SessionRecord{id} }
    │                  (who saved it — worktree→file bridge via `WorkspaceRoot`, GV2-013)
  plan/provenance join ──▶ APS item PAY-007 · commit <sha> · policy: allowed · Edda memory <ref>
 ```
