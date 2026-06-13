@@ -107,7 +107,7 @@ fn load_or_create_salt_in(dir: &Path) -> Result<Vec<u8>> {
     if let Some(bytes) = read_salt(&path) {
         return Ok(bytes);
     }
-    fs::create_dir_all(dir).with_context(|| format!("create salt dir {}", dir.display()))?;
+    create_private_dir(dir).with_context(|| format!("create salt dir {}", dir.display()))?;
     let mut salt = Vec::with_capacity(32);
     salt.extend_from_slice(Uuid::new_v4().as_bytes());
     salt.extend_from_slice(Uuid::new_v4().as_bytes());
@@ -159,8 +159,11 @@ fn next_is_value(next: Option<&&String>) -> bool {
 }
 
 fn is_value_token(tok: &str) -> bool {
+    // A bare token is a value; a `-`-prefixed token is a value only when
+    // the remainder parses as a number (so `-5`/`-3.14` are values but
+    // `-.`, `-x`, and `--flag` are not).
     tok.strip_prefix('-')
-        .is_none_or(|rest| !rest.is_empty() && rest.chars().all(|c| c.is_ascii_digit() || c == '.'))
+        .is_none_or(|rest| rest.parse::<f64>().is_ok())
 }
 
 /// Derive redacted argument shapes from a raw `argv` vector.
@@ -259,6 +262,14 @@ fn append_usage_observation_to(path: &Path, obs: &CommandInvokedObservation) -> 
     let mut f = opts
         .open(path)
         .with_context(|| format!("open usage sidecar {}", path.display()))?;
+    // `OpenOptions::mode` only applies when the file is *created*. Enforce
+    // `0600` on an already-existing sidecar too (best-effort), so a file
+    // left world-readable by a previous run/version is tightened.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = f.set_permissions(fs::Permissions::from_mode(0o600));
+    }
     writeln!(f, "{serialised}")
         .with_context(|| format!("append usage row to {}", path.display()))?;
     Ok(())

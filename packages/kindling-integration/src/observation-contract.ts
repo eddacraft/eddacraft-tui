@@ -363,22 +363,27 @@ export type ErrorObservation = z.infer<typeof ErrorObservationSchema>;
  * and `redacted` carries the `<redacted>` marker instead — only the
  * name remains visible. Mirrors `anvil_observability::redaction::ArgShape`.
  */
-export const ArgShapeSchema = z.object({
-  name: z.string().describe('Argument name as typed (no leading dashes); never a value'),
-  redacted: z
-    .literal('<redacted>')
-    .optional()
-    .describe('Set for sensitive-named args; shape fields are then absent'),
-  shape: z
-    .enum(['integer', 'boolean', 'string', 'flag'])
-    .optional()
-    .describe('Coarse value type when not redacted'),
-  length: z
-    .enum(['empty', 'short', 'medium', 'long'])
-    .optional()
-    .describe('Coarse length bucket when not redacted and a value was supplied (never exact)'),
-  present: z.boolean().optional().describe('Whether a value was supplied vs a bare flag'),
-});
+export const ArgShapeSchema = z
+  .object({
+    name: z.string().describe('Argument name as typed (no leading dashes); never a value'),
+    redacted: z
+      .literal('<redacted>')
+      .optional()
+      .describe('Set for sensitive-named args; shape fields are then absent'),
+    shape: z
+      .enum(['integer', 'boolean', 'string', 'flag'])
+      .optional()
+      .describe('Coarse value type when not redacted'),
+    length: z
+      .enum(['empty', 'short', 'medium', 'long'])
+      .optional()
+      .describe('Coarse length bucket when not redacted and a value was supplied (never exact)'),
+    present: z.boolean().optional().describe('Whether a value was supplied vs a bare flag'),
+  })
+  // Reject unknown keys so a producer that accidentally adds a raw
+  // `value`/`value_len` field fails the contract instead of silently
+  // stripping it — the privacy guardrail.
+  .strict();
 
 export type ArgShape = z.infer<typeof ArgShapeSchema>;
 
@@ -404,21 +409,25 @@ export type FlagSetEntry = z.infer<typeof FlagSetEntrySchema>;
  * Mirrors `CommandInvokedObservation` in
  * `crates/anvil-intercept/src/kindling_observation.rs`.
  */
-export const CommandInvokedObservationSchema = z.object({
-  kind: z.literal('command.invoked'),
-  session_id: z.string().uuid(),
-  timestamp: z.string().datetime(),
+export const CommandInvokedObservationSchema = z
+  .object({
+    kind: z.literal('command.invoked'),
+    session_id: z.string().uuid(),
+    timestamp: z.string().datetime(),
 
-  command: z.string().describe('Canonical command or method name (e.g. "check", "session.list")'),
-  principal: z
-    .string()
-    .describe('Anonymised principal — one-way hash, or "anonymous"; never the raw identity'),
-  args: z.array(ArgShapeSchema).describe('Redacted per-argument shapes (no values)'),
-  flag_set: z
-    .array(FlagSetEntrySchema)
-    .describe('Inline resolved flag context (ADR-041); empty for USAGE-001, always present'),
-  traceparent: z.string().optional().describe('W3C traceparent for cross-pipe correlation'),
-});
+    command: z.string().describe('Canonical command or method name (e.g. "check", "session.list")'),
+    principal: z
+      .string()
+      .describe('Anonymised principal — one-way hash, or "anonymous"; never the raw identity'),
+    args: z.array(ArgShapeSchema).describe('Redacted per-argument shapes (no values)'),
+    flag_set: z
+      .array(FlagSetEntrySchema)
+      .describe('Inline resolved flag context (ADR-041); empty for USAGE-001, always present'),
+    traceparent: z.string().optional().describe('W3C traceparent for cross-pipe correlation'),
+  })
+  // Reject unknown keys so a future producer that accidentally adds a
+  // raw argv/value field fails validation instead of silently passing.
+  .strict();
 
 export type CommandInvokedObservation = z.infer<typeof CommandInvokedObservationSchema>;
 

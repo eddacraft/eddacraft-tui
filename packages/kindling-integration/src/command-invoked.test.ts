@@ -41,6 +41,19 @@ describe('CommandInvokedObservationSchema', () => {
     expect(CommandInvokedObservationSchema.safeParse(row).success).toBe(false);
   });
 
+  it('rejects an unexpected top-level field (strict guardrail)', () => {
+    const row = { ...sampleRow(), raw_args: ['--token', 'super-secret'] };
+    expect(CommandInvokedObservationSchema.safeParse(row).success).toBe(false);
+  });
+
+  it('rejects an unexpected field inside an arg shape (strict guardrail)', () => {
+    const row = sampleRow();
+    row.args = [
+      { name: 'path', shape: 'string', length: 'medium', present: true, value: '/secret' },
+    ] as never;
+    expect(CommandInvokedObservationSchema.safeParse(row).success).toBe(false);
+  });
+
   it('requires flag_set to be present (never omitted)', () => {
     const { flag_set: _omit, ...withoutFlagSet } = sampleRow();
     expect(CommandInvokedObservationSchema.safeParse(withoutFlagSet).success).toBe(false);
