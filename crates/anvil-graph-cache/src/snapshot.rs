@@ -353,8 +353,11 @@ impl SnapshotPayload {
         nodes.sort_by_key(|n| n.id);
 
         // --- edges (projected, sorted by (from, to, edge discriminant)) ---
-        let mut edges: Vec<SnapshotEdge> =
-            sym.inner().edge_weights().map(SnapshotEdge::project).collect();
+        let mut edges: Vec<SnapshotEdge> = sym
+            .inner()
+            .edge_weights()
+            .map(SnapshotEdge::project)
+            .collect();
         edges.sort_by_key(|e| (e.from, e.to, edge_sort_key(e)));
 
         // --- per-file id ordering (sorted by file; ids keep parse order) ---
@@ -449,7 +452,8 @@ impl SnapshotPayload {
         }
         let found_format = u32::from_le_bytes([header[8], header[9], header[10], header[11]]);
         let found_backing = u32::from_le_bytes([header[12], header[13], header[14], header[15]]);
-        if found_format != SNAPSHOT_FORMAT_VERSION || found_backing != SNAPSHOT_BACKING_SCHEMA_VERSION
+        if found_format != SNAPSHOT_FORMAT_VERSION
+            || found_backing != SNAPSHOT_BACKING_SCHEMA_VERSION
         {
             return Err(SnapshotLoadError::VersionMismatch {
                 found_format,
@@ -782,7 +786,10 @@ mod tests {
             "previously_boundary",
             "previously_imported",
         ] {
-            assert!(!obj.contains_key(absent), "delta-shaped field leaked: {absent}");
+            assert!(
+                !obj.contains_key(absent),
+                "delta-shaped field leaked: {absent}"
+            );
         }
     }
 
