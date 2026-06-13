@@ -39,6 +39,9 @@ verifyVerifyingKey().then((result) => {
 // device-flow login is the CLI default now, so absent creds are user-impacting
 // — /health reports degraded below; boot itself still completes so the
 // remaining surfaces stay up.
+// 2026-06-13: redeploy to pick up the Anvil CLI OAuth app re-homed under the
+// eddacraft org (rotated github-cli-client-id/-secret in Key Vault); see
+// docs/runbooks/github-device-flow.md.
 {
   const result = verifyGitHubCliCredentials();
   if (!result.ok) {
