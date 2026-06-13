@@ -49,7 +49,10 @@ struct ArchitectureJson {
     snapshot: Option<ArchitectureSnapshot>,
 }
 
-pub fn run(global: &GlobalArgs) -> anyhow::Result<()> {
+/// Run the architecture dashboard. Returns how the surface exited so the
+/// picker can return to itself on [`SurfaceExit::Back`]. Non-interactive
+/// branches (`--json`, no-TTY) print and report `Quit`.
+pub fn run(global: &GlobalArgs) -> anyhow::Result<tui::SurfaceExit> {
     let root = util::workspace_root()?;
     // Propagate load errors (corrupt/unreadable baseline); `Ok(None)` is the
     // legitimate no-baseline empty state, not a failure.
@@ -64,17 +67,17 @@ pub fn run(global: &GlobalArgs) -> anyhow::Result<()> {
             snapshot,
         };
         println!("{}", serde_json::to_string_pretty(&payload)?);
-        return Ok(());
+        return Ok(tui::SurfaceExit::Quit);
     }
 
     if global.no_tui || !std::io::stdout().is_terminal() || !std::io::stdin().is_terminal() {
         print_summary(baseline.as_ref().map(snapshot_from).as_ref());
-        return Ok(());
+        return Ok(tui::SurfaceExit::Quit);
     }
 
     let view = baseline.as_ref().map(view_from);
-    let _ = tui::run_surface(ArchitectureDashboardState::new(view))?;
-    Ok(())
+    let (_, exit) = tui::run_surface_with_exit(ArchitectureDashboardState::new(view))?;
+    Ok(exit)
 }
 
 fn snapshot_from(baseline: &ArchitectureBaseline) -> ArchitectureSnapshot {

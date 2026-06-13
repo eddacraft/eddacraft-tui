@@ -79,6 +79,7 @@ pub struct DriftView {
 pub struct DriftDashboardState {
     pub view: Option<DriftView>,
     pub should_quit: bool,
+    pub should_back: bool,
 }
 
 impl DriftDashboardState {
@@ -87,6 +88,7 @@ impl DriftDashboardState {
         Self {
             view,
             should_quit: false,
+            should_back: false,
         }
     }
 }
@@ -97,17 +99,23 @@ impl Surface for DriftDashboardState {
     }
 
     fn help_text(&self) -> &'static str {
-        "esc/q back/quit"
+        "esc back  q quit"
     }
 
     fn handle_key(&mut self, action: Action) {
-        if matches!(action, Action::Back | Action::Quit) {
-            self.should_quit = true;
+        match action {
+            Action::Back => self.should_back = true,
+            Action::Quit => self.should_quit = true,
+            _ => {}
         }
     }
 
     fn should_quit(&self) -> bool {
         self.should_quit
+    }
+
+    fn should_back(&self) -> bool {
+        self.should_back
     }
 
     fn render(&self, frame: &mut Frame, area: Rect, theme: &EddaCraftTheme) {
@@ -416,10 +424,20 @@ mod tests {
     }
 
     #[test]
-    fn quit_action_sets_should_quit() {
+    fn quit_action_sets_should_quit_not_back() {
         let mut state = DriftDashboardState::new(None);
         state.handle_key(Action::Quit);
         assert!(state.should_quit);
+        assert!(!state.should_back, "q must quit, not navigate back");
+    }
+
+    #[test]
+    fn back_action_sets_should_back_not_quit() {
+        // GH #2585: esc returns to the dashboard picker, not the shell.
+        let mut state = DriftDashboardState::new(None);
+        state.handle_key(Action::Back);
+        assert!(state.should_back);
+        assert!(!state.should_quit, "esc must navigate back, not quit");
     }
 
     #[test]

@@ -23,7 +23,10 @@ struct SuppressionsJson {
     suppressions: Vec<SuppressionEntry>,
 }
 
-pub fn run(global: &GlobalArgs) -> anyhow::Result<()> {
+/// Run the suppressions dashboard. Returns how the surface exited so the
+/// picker can return to itself on [`SurfaceExit::Back`]. Non-interactive
+/// branches (`--json`, no-TTY) print and report `Quit`.
+pub fn run(global: &GlobalArgs) -> anyhow::Result<tui::SurfaceExit> {
     let root = util::workspace_root()?;
     let entries = load_suppressions(&root);
 
@@ -33,17 +36,17 @@ pub fn run(global: &GlobalArgs) -> anyhow::Result<()> {
             suppressions: entries,
         };
         println!("{}", serde_json::to_string_pretty(&payload)?);
-        return Ok(());
+        return Ok(tui::SurfaceExit::Quit);
     }
 
     if global.no_tui || !std::io::stdout().is_terminal() || !std::io::stdin().is_terminal() {
         print_summary(&entries);
-        return Ok(());
+        return Ok(tui::SurfaceExit::Quit);
     }
 
     let view = view_from(&entries);
-    let _ = tui::run_surface(SuppressionsDashboardState::new(view))?;
-    Ok(())
+    let (_, exit) = tui::run_surface_with_exit(SuppressionsDashboardState::new(view))?;
+    Ok(exit)
 }
 
 fn view_from(entries: &[SuppressionEntry]) -> SuppressionsView {

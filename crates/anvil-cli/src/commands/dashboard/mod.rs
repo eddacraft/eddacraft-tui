@@ -151,7 +151,9 @@ pub fn run(args: &DashboardArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             if let (Some(saved), Some(root)) =
                 (specs.iter().find(|s| s.name == name), root.as_deref())
             {
-                return launch_spec(saved, root, global);
+                // Direct launch has no parent picker to return to, so a Back
+                // exit just leaves the dashboard, same as Quit.
+                return launch_spec(saved, root, global).map(|_| ());
             }
             // UJ-009: `gate-summary` routes to the saved spec that owns the
             // name (the seeded stem is `gate-summary.dashboard`), else to
@@ -160,9 +162,9 @@ pub fn run(args: &DashboardArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                 && let Some(root) = root.as_deref()
             {
                 if let Some(saved) = gate_summary_saved(&specs) {
-                    return launch_spec(saved, root, global);
+                    return launch_spec(saved, root, global).map(|_| ());
                 }
-                return launch_embedded_gate_summary(root, global);
+                return launch_embedded_gate_summary(root, global).map(|_| ());
             }
             anyhow::bail!(
                 "unknown dashboard '{}'. Valid dashboards: {}",
@@ -178,7 +180,7 @@ pub fn run(args: &DashboardArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             }
             Ok(())
         }
-        Resolution::Launch(name) => launch(&name, global),
+        Resolution::Launch(name) => launch(&name, global).map(|_| ()),
         Resolution::Picker => run_picker(&catalog, &specs, root.as_deref(), global),
     }
 }
@@ -224,8 +226,32 @@ fn run_picker(
         return Ok(());
     }
 
-    // Two-pane list with live previews (TUIDASH-012): native dashboards show a
-    // description card; saved specs render a mini-preview through the engine.
+    // Picker → subview → picker loop (GH #2585): a subview that exits via
+    // `esc` (Back) returns here to re-display the picker; one that exits via
+    // `q` (Quit), or the picker itself being dismissed, leaves the dashboard.
+    // Entries are rebuilt each pass so re-entry also refreshes spec previews.
+    loop {
+        let items = build_list_entries(catalog, specs, root);
+        let state = tui::run_surface(DashboardListState::new(items))?;
+        // Picking a dashboard sets `chosen`; dismissing the picker (esc/q)
+        // leaves it `None`, which exits.
+        let Some(name) = state.chosen else {
+            return Ok(());
+        };
+        if launch_chosen(&name, specs, root, global)? == tui::SurfaceExit::Quit {
+            return Ok(());
+        }
+    }
+}
+
+/// Build the picker's list entries (TUIDASH-012): native dashboards show a
+/// description card; saved specs render a mini-preview through the engine.
+/// Rebuilt on each picker entry so previews reflect current `.anvil/` data.
+fn build_list_entries(
+    catalog: &[CatalogEntry],
+    specs: &[SavedDashboard],
+    root: Option<&Path>,
+) -> Vec<ListEntry> {
     let mut items: Vec<ListEntry> = catalog
         .iter()
         .map(|e| ListEntry::native(e.name, e.title, e.description, e.available))
@@ -267,38 +293,44 @@ fn run_picker(
             }
         }
     }
+    items
+}
 
-    let state = tui::run_surface(DashboardListState::new(items))?;
-    // `run_surface` collapses quit vs back into the returned state; we act only
-    // on an explicit choice. Picking a dashboard sets `chosen`, which launches
-    // it; quitting leaves it `None`.
-    match state.chosen {
-        Some(name) => {
-            if let (Some(saved), Some(root)) = (specs.iter().find(|s| s.name == name), root) {
-                return launch_spec(saved, root, global);
-            }
-            if name == GATE_SUMMARY_NAME
-                && let Some(root) = root
-            {
-                if let Some(saved) = gate_summary_saved(specs) {
-                    return launch_spec(saved, root, global);
-                }
-                return launch_embedded_gate_summary(root, global);
-            }
-            launch(&name, global)
-        }
-        None => Ok(()),
+/// Launch the dashboard the picker user chose, reporting how its surface
+/// exited. The chosen name is always a live entry (a saved spec, the
+/// `gate-summary` alias, or a native dashboard), so — unlike the direct-launch
+/// path in [`run`] — this never has to bail on an unknown name.
+fn launch_chosen(
+    name: &str,
+    specs: &[SavedDashboard],
+    root: Option<&Path>,
+    global: &GlobalArgs,
+) -> anyhow::Result<tui::SurfaceExit> {
+    if let (Some(saved), Some(root)) = (specs.iter().find(|s| s.name == name), root) {
+        return launch_spec(saved, root, global);
     }
+    if name == GATE_SUMMARY_NAME
+        && let Some(root) = root
+    {
+        if let Some(saved) = gate_summary_saved(specs) {
+            return launch_spec(saved, root, global);
+        }
+        return launch_embedded_gate_summary(root, global);
+    }
+    launch(name, global)
 }
 
 /// Launch the embedded gate-summary dashboard (UJ-009). Mirrors
 /// [`launch_spec`]'s surface contract: `--json` emits the spec verbatim,
 /// non-interactive prints a one-line note, a TTY runs the spec surface.
-fn launch_embedded_gate_summary(root: &Path, global: &GlobalArgs) -> anyhow::Result<()> {
+fn launch_embedded_gate_summary(
+    root: &Path,
+    global: &GlobalArgs,
+) -> anyhow::Result<tui::SurfaceExit> {
     let text = anvil_tui::dashboard_catalog::GATE_SUMMARY_SPEC;
     if global.json {
         println!("{text}");
-        return Ok(());
+        return Ok(tui::SurfaceExit::Quit);
     }
 
     let state = spec::load_str(text, root.to_path_buf())?;
@@ -308,24 +340,28 @@ fn launch_embedded_gate_summary(root: &Path, global: &GlobalArgs) -> anyhow::Res
             "Dashboard '{GATE_SUMMARY_NAME}' ({}) — run in an interactive terminal to view.",
             state.title()
         );
-        return Ok(());
+        return Ok(tui::SurfaceExit::Quit);
     }
 
-    tui::run_surface(state)?;
-    Ok(())
+    let (_, exit) = tui::run_surface_with_exit(state)?;
+    Ok(exit)
 }
 
 /// Launch a saved spec dashboard: parse it and render it through the json-render
 /// engine. `--json` emits the raw spec; non-interactive prints a one-line note;
 /// a TTY runs the spec surface.
-fn launch_spec(saved: &SavedDashboard, root: &Path, global: &GlobalArgs) -> anyhow::Result<()> {
+fn launch_spec(
+    saved: &SavedDashboard,
+    root: &Path,
+    global: &GlobalArgs,
+) -> anyhow::Result<tui::SurfaceExit> {
     if global.json {
         // Emit the spec verbatim so `--json` stays machine-readable. `read_raw`
         // applies the same no-follow + bounded-read guards as `spec::load`, so
         // the verbatim path can't follow a symlink to a device/out-of-tree file.
         let text = spec::read_raw(&saved.path)?;
         println!("{text}");
-        return Ok(());
+        return Ok(tui::SurfaceExit::Quit);
     }
 
     let state = spec::load(&saved.path, root.to_path_buf())?;
@@ -346,17 +382,17 @@ fn launch_spec(saved: &SavedDashboard, root: &Path, global: &GlobalArgs) -> anyh
             sanitize(&saved.name),
             state.title()
         );
-        return Ok(());
+        return Ok(tui::SurfaceExit::Quit);
     }
 
-    tui::run_surface(state)?;
-    Ok(())
+    let (_, exit) = tui::run_surface_with_exit(state)?;
+    Ok(exit)
 }
 
 /// Launch a wired dashboard surface. The seam per-domain dashboards extend:
 /// each `available` catalogue entry needs a matching arm here. An `available`
 /// entry without an arm bails loudly rather than silently no-opping.
-fn launch(name: &str, global: &GlobalArgs) -> anyhow::Result<()> {
+fn launch(name: &str, global: &GlobalArgs) -> anyhow::Result<tui::SurfaceExit> {
     match name {
         "architecture" => architecture::run(global),
         "drift" => drift::run(global),

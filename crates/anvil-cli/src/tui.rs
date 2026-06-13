@@ -108,7 +108,15 @@ pub enum SurfaceExit {
 /// Run an interactive TUI surface inside the branded shell chrome.
 /// Returns the state after the surface exits, so callers can inspect
 /// final state (e.g. which menu option was chosen).
-pub fn run_surface<S: Surface>(mut state: S) -> anyhow::Result<S> {
+pub fn run_surface<S: Surface>(state: S) -> anyhow::Result<S> {
+    run_surface_with_exit(state).map(|(state, _)| state)
+}
+
+/// Like [`run_surface`], but also reports how the surface exited
+/// ([`SurfaceExit::Quit`] vs [`SurfaceExit::Back`]). Callers that nest a
+/// surface under a parent (e.g. the dashboard picker launching a subview) use
+/// the exit reason to decide between returning to the parent and exiting.
+pub fn run_surface_with_exit<S: Surface>(mut state: S) -> anyhow::Result<(S, SurfaceExit)> {
     let guard = TerminalGuard::enter()?;
     let backend = CrosstermBackend::new(io::stdout());
     let mut terminal = Terminal::new(backend)?;
@@ -118,7 +126,7 @@ pub fn run_surface<S: Surface>(mut state: S) -> anyhow::Result<S> {
 
     guard.leave()?;
 
-    result.map(|_| state)
+    result.map(|exit| (state, exit))
 }
 
 /// Run a surface within an already-initialised terminal session.

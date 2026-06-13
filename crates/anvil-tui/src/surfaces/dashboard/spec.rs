@@ -36,6 +36,7 @@ pub struct SpecDashboardState {
     /// refresh.
     bound: RenderSpec,
     should_quit: bool,
+    should_back: bool,
 }
 
 impl SpecDashboardState {
@@ -52,6 +53,7 @@ impl SpecDashboardState {
             registry,
             bound,
             should_quit: false,
+            should_back: false,
         }
     }
 
@@ -241,12 +243,13 @@ impl Surface for SpecDashboardState {
     }
 
     fn help_text(&self) -> &'static str {
-        "r refresh  esc/q quit"
+        "r refresh  esc back  q quit"
     }
 
     fn handle_key(&mut self, action: Action) {
         match action {
-            Action::Quit | Action::Back => self.should_quit = true,
+            Action::Back => self.should_back = true,
+            Action::Quit => self.should_quit = true,
             Action::Character('r') => self.refresh(),
             _ => {}
         }
@@ -254,6 +257,10 @@ impl Surface for SpecDashboardState {
 
     fn should_quit(&self) -> bool {
         self.should_quit
+    }
+
+    fn should_back(&self) -> bool {
+        self.should_back
     }
 
     fn render(&self, frame: &mut Frame, area: Rect, _theme: &EddaCraftTheme) {
@@ -297,13 +304,25 @@ mod tests {
     }
 
     #[test]
-    fn quit_action_sets_should_quit() {
+    fn quit_action_sets_should_quit_not_back() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let mut state =
             SpecDashboardState::new(parse(SPEC).expect("parse"), tmp.path().to_path_buf());
         assert!(!state.should_quit());
         state.handle_key(Action::Quit);
         assert!(state.should_quit());
+        assert!(!state.should_back(), "q must quit, not navigate back");
+    }
+
+    #[test]
+    fn back_action_sets_should_back_not_quit() {
+        // GH #2585: esc returns to the dashboard picker, not the shell.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let mut state =
+            SpecDashboardState::new(parse(SPEC).expect("parse"), tmp.path().to_path_buf());
+        state.handle_key(Action::Back);
+        assert!(state.should_back());
+        assert!(!state.should_quit(), "esc must navigate back, not quit");
     }
 
     #[test]

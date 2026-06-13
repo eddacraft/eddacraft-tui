@@ -66,7 +66,10 @@ struct DriftJson {
     snapshots: Vec<SnapshotRecord>,
 }
 
-pub fn run(global: &GlobalArgs) -> anyhow::Result<()> {
+/// Run the drift dashboard. Returns how the surface exited so the picker can
+/// return to itself on [`SurfaceExit::Back`]. Non-interactive branches
+/// (`--json`, no-TTY) print and report `Quit`.
+pub fn run(global: &GlobalArgs) -> anyhow::Result<tui::SurfaceExit> {
     let root = util::workspace_root()?;
     let snapshots = load_all_snapshots(&root)?;
     // Propagate load errors (corrupt/unreadable baseline); `Ok(None)` is the
@@ -76,17 +79,17 @@ pub fn run(global: &GlobalArgs) -> anyhow::Result<()> {
     if global.json {
         let payload = build_json(&snapshots, baseline.as_ref());
         println!("{}", serde_json::to_string_pretty(&payload)?);
-        return Ok(());
+        return Ok(tui::SurfaceExit::Quit);
     }
 
     if global.no_tui || !std::io::stdout().is_terminal() || !std::io::stdin().is_terminal() {
         print_summary(&snapshots, baseline.as_ref());
-        return Ok(());
+        return Ok(tui::SurfaceExit::Quit);
     }
 
     let view = build_view(&snapshots, baseline.as_ref());
-    let _ = tui::run_surface(DriftDashboardState::new(view))?;
-    Ok(())
+    let (_, exit) = tui::run_surface_with_exit(DriftDashboardState::new(view))?;
+    Ok(exit)
 }
 
 /// Load every snapshot newest-first, skipping (with a warning) any that fail to

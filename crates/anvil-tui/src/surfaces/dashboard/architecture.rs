@@ -42,6 +42,7 @@ pub struct ArchitectureView {
 pub struct ArchitectureDashboardState {
     pub view: Option<ArchitectureView>,
     pub should_quit: bool,
+    pub should_back: bool,
 }
 
 impl ArchitectureDashboardState {
@@ -50,6 +51,7 @@ impl ArchitectureDashboardState {
         Self {
             view,
             should_quit: false,
+            should_back: false,
         }
     }
 }
@@ -60,17 +62,23 @@ impl Surface for ArchitectureDashboardState {
     }
 
     fn help_text(&self) -> &'static str {
-        "esc/q back/quit"
+        "esc back  q quit"
     }
 
     fn handle_key(&mut self, action: Action) {
-        if matches!(action, Action::Back | Action::Quit) {
-            self.should_quit = true;
+        match action {
+            Action::Back => self.should_back = true,
+            Action::Quit => self.should_quit = true,
+            _ => {}
         }
     }
 
     fn should_quit(&self) -> bool {
         self.should_quit
+    }
+
+    fn should_back(&self) -> bool {
+        self.should_back
     }
 
     fn render(&self, frame: &mut Frame, area: Rect, theme: &EddaCraftTheme) {
@@ -324,10 +332,21 @@ mod tests {
     }
 
     #[test]
-    fn quit_action_sets_should_quit() {
+    fn quit_action_sets_should_quit_not_back() {
         let mut state = ArchitectureDashboardState::new(None);
         state.handle_key(Action::Quit);
         assert!(state.should_quit);
+        assert!(!state.should_back, "q must quit, not navigate back");
+    }
+
+    #[test]
+    fn back_action_sets_should_back_not_quit() {
+        // GH #2585: esc inside a dashboard subview returns to the picker, not
+        // straight to the shell. The surface signals Back, not Quit.
+        let mut state = ArchitectureDashboardState::new(None);
+        state.handle_key(Action::Back);
+        assert!(state.should_back);
+        assert!(!state.should_quit, "esc must navigate back, not quit");
     }
 
     #[test]
