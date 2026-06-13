@@ -1890,3 +1890,34 @@ archive.
   GitHub device flow (admin-scoped licence, staff allowlist) would unify admin
   onto the GitHub identity — ADR-territory, deliberately out of scope here.
 - **Confidence:** high — additive CLI source reusing existing config plumbing.
+
+### CIB-071: migrate user-facing diagnostics from `anyhow` to `miette`
+
+- **Status:** In Progress
+- **Intent:** Anvil reports violations with file path and line number
+  (`from_file`, `to_file`, `import_line` in `anvil-architecture`; file +
+  line in AST check findings) but renders them as plain prose strings. As a
+  static analyser, Anvil's primary output _is_ per-location diagnostics;
+  `miette` provides source-span context, labels, and help text at the
+  terminal — the same rendering model as `cargo`/`clippy`. `anyhow` stays
+  appropriate for internal/infrastructure errors (`?`-propagation, config
+  parse, IO); `miette` replaces it on the user-facing diagnostic surface.
+- **Expected Outcome:** `miette` added to the workspace; violation/finding
+  output types (`BoundaryViolation`, AST findings, etc.) implement
+  `miette::Diagnostic` with source spans and labels; the CLI renders them
+  via `miette`'s reporter rather than hand-formatted strings; `anyhow`
+  retained for internal error propagation; no behaviour change for
+  machine-readable (`--json`) output.
+- **Files:** `Cargo.toml` (workspace dep), `crates/anvil-architecture/src/`,
+  `crates/anvil-checks-ast/src/`, `crates/anvil-cli/src/` (output
+  formatting paths).
+- **Validation:** `cargo test --workspace`; golden-path `anvil check` on a
+  repo with a known violation shows a source-span block (file, line,
+  offending import highlighted); `--json` output unchanged.
+- **Identified From:** conversation 2026-06-14 — `anyhow` was the default
+  choice at project inception; Anvil now reports per-location findings that
+  benefit from rich terminal diagnostic rendering.
+- **Coordinates with:** CIB-062 (stderr cleanliness on the golden path).
+- **Confidence:** medium — `miette` composing with `anyhow` across crate
+  boundaries needs care; machine-readable output path must be audited to
+  stay unaffected.
