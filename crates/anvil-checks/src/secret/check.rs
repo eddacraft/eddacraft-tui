@@ -124,6 +124,20 @@ pub fn run_secret_check(
 }
 
 fn should_skip_file(file: &str, config: &SecretCheckConfig) -> bool {
+    // Dependency lockfiles carry high-entropy integrity hashes that are false
+    // positives for secret detection (GH #2584). Most are not caught by the
+    // `.lock` suffix in `skip_extensions` (e.g. `package-lock.json`,
+    // `pnpm-lock.yaml`, `go.sum`), so match them by basename too.
+    //
+    // `.env*` files are deliberately NOT skipped here. `run_secret_check` also
+    // backs `anvil gate` (the `secret-detection` guardrail) and `anvil audit`,
+    // whose job is to catch a *committed* secret — including one in a tracked
+    // `.env`. The `.env` noise that GH #2584 reports is from the first-run
+    // discovery scan, so that exemption lives there (`welcome::candidate_path`)
+    // and must not blind the gate/audit secret check.
+    if crate::filter::is_lockfile(Path::new(file)) {
+        return true;
+    }
     config
         .skip_extensions
         .iter()
@@ -325,6 +339,44 @@ mod tests {
 
         assert!(!result.passed, "small files with secrets should be flagged");
         assert!(!result.findings.is_empty());
+
+        let _ = fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn skips_lockfiles_but_still_scans_committed_env() {
+        // GH #2584: a lockfile's integrity hashes are false positives, so
+        // `run_secret_check` skips lockfiles. A `.env` is NOT skipped here —
+        // `run_secret_check` backs `anvil gate`/`anvil audit`, whose job is to
+        // catch a committed secret (incl. one in a tracked `.env`). The
+        // discovery-scan `.env` noise exemption lives in welcome, not here.
+        let temp_dir = create_temp_dir("exempt");
+        let lock = temp_dir.join("package-lock.json");
+        let env = temp_dir.join(".env");
+        fs::write(
+            &lock,
+            "{\"integrity\":\"sha512-XI5MPzVNApjAyhQzphX8BkmKsKUxD4LdyK24iZeQGinB\"}",
+        )
+        .unwrap();
+        fs::write(&env, format!("GITHUB_TOKEN=ghp_{}", "a".repeat(36))).unwrap();
+
+        let lock_string = lock.to_string_lossy().to_string();
+        let env_string = env.to_string_lossy().to_string();
+        let files = [lock_string.as_str(), env_string.as_str()];
+        let result = run_secret_check(&files, &SecretCheckConfig::default(), None);
+
+        // The lockfile contributes nothing; the committed .env secret is flagged.
+        assert_eq!(
+            result.findings.len(),
+            1,
+            "lockfile skipped, committed .env still scanned: {:#?}",
+            result.findings,
+        );
+        assert_eq!(
+            std::path::Path::new(&result.findings[0].file).file_name(),
+            Some(std::ffi::OsStr::new(".env")),
+            "the surviving finding is the committed .env secret, not the lockfile",
+        );
 
         let _ = fs::remove_dir_all(temp_dir);
     }

@@ -58,6 +58,15 @@ impl SecretDetectionRule {
     }
 
     fn should_skip_path(&self, input: &RuleInput<'_>) -> bool {
+        // Dependency-lockfile integrity hashes are high-entropy false positives
+        // (GH #2584); skip lockfiles save-time too, matching by basename so the
+        // non-`.lock` ones (`package-lock.json`, `pnpm-lock.yaml`, `go.sum`, …)
+        // are caught. `.env` files are intentionally NOT skipped here: the
+        // save-time intercept is the one surface that should still catch a
+        // secret the moment it is written into a tracked file.
+        if anvil_checks::filter::is_lockfile(input.path) {
+            return true;
+        }
         let path = input.path.to_string_lossy();
         self.config
             .skip_extensions
@@ -179,6 +188,24 @@ mod tests {
         let decision = SecretDetectionRule::default().evaluate(&input(path, Some(body)));
 
         assert_eq!(decision, RuleDecision::Allow);
+    }
+
+    #[test]
+    fn secret_rule_skips_lockfile_integrity_hashes() {
+        // GH #2584: a lockfile's high-entropy integrity hash is a false
+        // positive — the save-time intercept must not interrupt on it. Note
+        // `package-lock.json` does not end in `.lock`, so it is only caught by
+        // the basename check, not `skip_extensions`.
+        let path = Path::new("package-lock.json");
+        let body = b"{\"integrity\":\"sha512-XI5MPzVNApjAyhQzphX8BkmKsKUxD4LdyK24iZeQGinB\"}\n";
+
+        let decision = SecretDetectionRule::default().evaluate(&input(path, Some(body)));
+
+        assert_eq!(
+            decision,
+            RuleDecision::Allow,
+            "lockfile integrity hashes must not trip the save-time secret rule",
+        );
     }
 
     #[test]
