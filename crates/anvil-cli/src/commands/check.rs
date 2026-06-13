@@ -12,8 +12,8 @@ use clap::Args;
 use serde::Serialize;
 
 use anvil_checks::antipattern::{
-    AntipatternCheckConfig, Artifact, ArtifactKind, ScanOptions, Warning, WarningSeverity,
-    WarningSummary, create_warning_result, run_antipattern_check, scan_artifacts,
+    AntipatternCheckConfig, Artifact, ArtifactKind, ScanOptions, Warning, WarningReport,
+    WarningSeverity, WarningSummary, create_warning_result, run_antipattern_check, scan_artifacts,
 };
 use anvil_checks::secret::{SecretCheckConfig, SecretFinding, run_secret_check};
 
@@ -1327,24 +1327,17 @@ fn print_human(
 }
 
 fn print_warning(w: &Warning, verbose: bool) {
-    let icon = match w.severity {
-        WarningSeverity::Error => "\u{2717}",
-        WarningSeverity::Warning => "\u{26a0}",
-        WarningSeverity::Info => "\u{2139}",
-    };
-
-    output::plain::item(icon, &format!("[{}] {}", w.id, w.title));
-    output::plain::dim(&format!("{}:{}", w.location.file, w.location.line));
-    output::plain::dim(&w.message);
+    let diag = WarningReport(w);
+    let mut buf = String::new();
+    let _ = miette::GraphicalReportHandler::new().render_report(&mut buf, &diag);
+    print!("{buf}");
 
     if verbose {
         if let Some(nudge) = &w.nudge {
             output::plain::dim(&format!("\u{2192} {nudge}"));
         }
         output::plain::dim(&format!("Why: {}", w.explanation));
-        output::plain::dim(&format!("Fix: {}", w.suggestion));
     }
-    output::plain::blank();
 }
 
 // ── Tests ───────────────────────────────────────────────────────────

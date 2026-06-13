@@ -93,6 +93,7 @@ tempfile = "3"
 
 # Error handling
 thiserror = "2"
+miette = { version = "7", features = ["derive", "fancy"] }
 
 # Observability (TRACE-001 / ADR-035)
 tracing = "0.1"

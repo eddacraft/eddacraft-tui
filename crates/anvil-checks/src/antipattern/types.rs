@@ -1,3 +1,5 @@
+use std::fmt;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
@@ -117,6 +119,52 @@ pub struct Warning {
     pub definition_ref: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub spectrum_position: Option<u32>,
+}
+
+/// Newtype wrapper that makes a `Warning` renderable via `miette`.
+///
+/// Phase A: severity + code + help + location in message; no source excerpt
+/// (file content loading deferred to Phase B).
+pub struct WarningReport<'a>(pub &'a Warning);
+
+impl fmt::Display for WarningReport<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}:{}: {}",
+            self.0.location.file, self.0.location.line, self.0.title
+        )
+    }
+}
+
+impl fmt::Debug for WarningReport<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+
+impl std::error::Error for WarningReport<'_> {}
+
+impl miette::Diagnostic for WarningReport<'_> {
+    fn code<'a>(&'a self) -> Option<Box<dyn fmt::Display + 'a>> {
+        Some(Box::new(self.0.id.as_str()))
+    }
+
+    fn severity(&self) -> Option<miette::Severity> {
+        Some(match self.0.severity {
+            WarningSeverity::Error => miette::Severity::Error,
+            WarningSeverity::Warning => miette::Severity::Warning,
+            WarningSeverity::Info => miette::Severity::Advice,
+        })
+    }
+
+    fn help<'a>(&'a self) -> Option<Box<dyn fmt::Display + 'a>> {
+        if self.0.suggestion.is_empty() {
+            None
+        } else {
+            Some(Box::new(self.0.suggestion.as_str()))
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
