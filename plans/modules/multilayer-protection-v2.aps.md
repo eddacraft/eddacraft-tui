@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 72/87 |
+| MLP2 | @aneki | In Progress | 73/87 |
 
 **Current work:** Post-`v0.7.1-beta` cleanup-agent sweep on
 2026-05-23 advanced MLP2-051f / MLP2-051h / MLP2-069 from
@@ -639,7 +639,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-008: RTAI-007 telemetry-contract join
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-14 via PR #2602
 - **Intent:** Explicit field map between RTAI-007's mid-edit
   envelope and the `gate_evaluated` Kindling row, so a row can
   be joined back to its originating telemetry envelope by
