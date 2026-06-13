@@ -137,10 +137,11 @@ impl DependencyGraph {
     }
 
     /// Iterate the forward dependency edges as `(source, &targets)` pairs, in
-    /// arbitrary order. The sole reader is GV2-030 snapshot serialisation, which
-    /// sorts deterministically before encoding; the reverse index is omitted by
-    /// design (it is rebuilt from `edges` on load — ADR-069 §1).
-    pub fn forward_edges(&self) -> impl Iterator<Item = (&str, &HashSet<String>)> {
+    /// arbitrary order. The sole reader is GV2-030 snapshot serialisation (in this
+    /// crate), which sorts deterministically before encoding; the reverse index is
+    /// omitted by design (it is rebuilt from `edges` on load — ADR-069 §1).
+    /// `pub(crate)`: no external consumer, so the API surface stays minimal.
+    pub(crate) fn forward_edges(&self) -> impl Iterator<Item = (&str, &HashSet<String>)> {
         self.edges.iter().map(|(k, v)| (k.as_str(), v))
     }
 

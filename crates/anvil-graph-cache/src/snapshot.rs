@@ -262,11 +262,13 @@ struct SnapshotEdge {
 
 impl SnapshotEdge {
     fn project(edge: &SymbolEdge) -> Self {
+        // Clone (not `*edge`) so the exhaustive destructure holds even if a future
+        // `SymbolEdge` field stops being `Copy` — and to mirror `SnapshotNode::project`.
         let SymbolEdge {
             from,
             to,
             edge_type,
-        } = *edge;
+        } = edge.clone();
         Self {
             from,
             to,
