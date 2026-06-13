@@ -1164,14 +1164,39 @@ session.
 
 **Subcommands:**
 
-| Subcommand | Description                                                                                   |
-| ---------- | --------------------------------------------------------------------------------------------- |
-| `login`    | Authenticate with the Anvil service. Use `--otp` for email OTP or `--edict` for early-access. |
-| `logout`   | Remove stored credentials.                                                                    |
-| `whoami`   | Show the current authenticated user.                                                          |
-| `refresh`  | Exchange the stored refresh token for a fresh licence without a full re-login.                |
+| Subcommand | Description                                                                                                 |
+| ---------- | ----------------------------------------------------------------------------------------------------------- |
+| `login`    | Authenticate with the Anvil service. Use `--otp` for email OTP or `--edict` for early-access.               |
+| `logout`   | Remove stored credentials.                                                                                  |
+| `whoami`   | Show the current authenticated identity, naming the credential source and whether it was verified this run. |
+| `refresh`  | Exchange the stored refresh token for a fresh licence without a full re-login.                              |
 
 **Exit codes:** 0 (success), 1 (login failed), 3 (auth required — for `whoami`)
+
+**`whoami` auth states (GH #2587):** the auth gate that runs before every gated
+command reports the two failure states and exits 3 before `whoami`'s own output
+is produced:
+
+- **Not authenticated** — no stored credential found:
+  `Authentication required. Run \`anvil auth login\`` (exit 3).
+- **Session expired** — a stored credential exists but has lapsed:
+  `Session expired. Run \`anvil auth login\` to re-authenticate` (exit 3). A
+  valid refresh token is exchanged silently first, so this only shows when
+  refresh is not possible.
+
+When a present, valid credential lets the gate through, `whoami` then reports
+the identity — and, crucially, **where it came from** (GH #2587), so an identity
+known without an explicit login this session is no longer surprising:
+
+- **Authenticated** — the server verified the identity on this run; the
+  `Source:` line names the credential (`stored credentials (<path>)` from a
+  previous login, or the `ANVIL_LICENSE` environment variable).
+- **Authenticated (offline …)** — the server was unreachable, so a cached
+  credential is reported `verified: false` (not checked this run).
+
+Agents probing auth should read `anvil auth whoami --json` (the `verified` and
+`source` fields) or the exit code rather than assuming a login is needed — a
+valid cached credential means no `anvil auth login` is required.
 
 **Common errors:**
 
@@ -1184,6 +1209,7 @@ session.
 ```
 $ anvil auth login
 $ anvil auth whoami
+$ anvil auth whoami --json   # { ..., "source": "...", "verified": true }
 $ anvil auth refresh
 $ anvil auth logout
 ```

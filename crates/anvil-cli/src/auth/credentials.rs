@@ -94,6 +94,39 @@ pub fn credentials_path() -> Result<PathBuf> {
     Ok(primary)
 }
 
+/// Where a loaded credential came from. Surfaced so commands can explain *why*
+/// an identity is known without an explicit login this session — the recurring
+/// confusion behind GH #2587, where `anvil auth whoami` succeeded from a
+/// previously-stored credential.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CredentialSource {
+    /// Read from the on-disk credentials file at this path (a prior login).
+    StoredFile(PathBuf),
+    /// Supplied via the `ANVIL_LICENSE` environment variable (CI/automation).
+    Environment,
+}
+
+impl CredentialSource {
+    /// A short human phrase naming the source, e.g.
+    /// `stored credentials (~/.config/anvil/credentials.json)`.
+    #[must_use]
+    pub fn describe(&self) -> String {
+        match self {
+            Self::StoredFile(path) => format!("stored credentials ({})", path.display()),
+            Self::Environment => "ANVIL_LICENSE environment variable".to_string(),
+        }
+    }
+
+    /// Stable machine token for `--json` output (`file` | `env`).
+    #[must_use]
+    pub fn kind(&self) -> &'static str {
+        match self {
+            Self::StoredFile(_) => "file",
+            Self::Environment => "env",
+        }
+    }
+}
+
 /// Load credentials from the canonical path, with env var fallback.
 ///
 /// Search order:
@@ -102,13 +135,19 @@ pub fn credentials_path() -> Result<PathBuf> {
 ///
 /// Env var credentials are returned directly and never persisted to disk.
 pub fn load() -> Result<Option<Credentials>> {
+    Ok(load_with_source()?.map(|(creds, _)| creds))
+}
+
+/// Like [`load`], but also reports the [`CredentialSource`]. Use this when the
+/// caller needs to tell the user *where* an identity came from (GH #2587).
+pub fn load_with_source() -> Result<Option<(Credentials, CredentialSource)>> {
     let path = credentials_path()?;
     if path.exists() {
         let content = std::fs::read_to_string(&path)
             .with_context(|| format!("reading {}", path.display()))?;
         let creds: Credentials = serde_json::from_str(&content)
             .with_context(|| format!("parsing {}", path.display()))?;
-        return Ok(Some(creds));
+        return Ok(Some((creds, CredentialSource::StoredFile(path))));
     }
 
     // ANVIL_LICENSE env var — returned directly, never persisted to disk.
@@ -116,13 +155,16 @@ pub fn load() -> Result<Option<Credentials>> {
     if let Ok(token) = std::env::var("ANVIL_LICENSE") {
         let token = token.trim();
         if !token.is_empty() {
-            return Ok(Some(Credentials {
-                license: token.to_string(),
-                refresh_token: None,
-                email: None,
-                expires_at: None,
-                is_edict: None,
-            }));
+            return Ok(Some((
+                Credentials {
+                    license: token.to_string(),
+                    refresh_token: None,
+                    email: None,
+                    expires_at: None,
+                    is_edict: None,
+                },
+                CredentialSource::Environment,
+            )));
         }
     }
 
@@ -409,6 +451,58 @@ mod tests {
                 assert_eq!(loaded.license, "file-token");
             },
         );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn load_with_source_reports_file_vs_env_vs_none() {
+        // GH #2587: callers need to know *where* a credential came from so they
+        // can explain why an identity is known without an explicit login.
+        let dir = tempfile::tempdir().unwrap();
+        temp_env::with_vars(
+            [
+                ("XDG_CONFIG_HOME", Some(dir.path().to_str().unwrap())),
+                ("ANVIL_LICENSE", None),
+            ],
+            || {
+                // None when nothing is present.
+                assert!(load_with_source().unwrap().is_none());
+
+                // A stored file reports `StoredFile(path)`.
+                save(&make_creds("file-token")).unwrap();
+                let (creds, source) = load_with_source().unwrap().expect("stored creds");
+                assert_eq!(creds.license, "file-token");
+                assert!(matches!(source, CredentialSource::StoredFile(_)));
+                assert_eq!(source.kind(), "file");
+            },
+        );
+
+        // With no file, the env var reports `Environment`.
+        let empty = tempfile::tempdir().unwrap();
+        temp_env::with_vars(
+            [
+                ("XDG_CONFIG_HOME", Some(empty.path().to_str().unwrap())),
+                ("ANVIL_LICENSE", Some("env-token")),
+            ],
+            || {
+                let (creds, source) = load_with_source().unwrap().expect("env creds");
+                assert_eq!(creds.license, "env-token");
+                assert_eq!(source, CredentialSource::Environment);
+                assert_eq!(source.kind(), "env");
+            },
+        );
+    }
+
+    #[test]
+    fn credential_source_describe_is_human_readable() {
+        assert_eq!(
+            CredentialSource::Environment.describe(),
+            "ANVIL_LICENSE environment variable"
+        );
+        let file =
+            CredentialSource::StoredFile(PathBuf::from("/home/u/.config/anvil/credentials.json"));
+        assert!(file.describe().starts_with("stored credentials ("));
+        assert!(file.describe().contains("credentials.json"));
     }
 
     #[test]

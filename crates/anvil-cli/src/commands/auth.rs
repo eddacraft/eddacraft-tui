@@ -48,6 +48,49 @@ struct WhoamiData {
     /// FLAGS-008: shared licence-gate resolution for this session (enabled|disabled).
     #[serde(skip_serializing_if = "Option::is_none")]
     licence_gate: Option<String>,
+    /// GH #2587: human description of where the credential came from
+    /// (e.g. `stored credentials (<path>)`), so the output explains why an
+    /// identity is known without an explicit login this session.
+    source: String,
+    /// GH #2587: stable machine token for the credential source (`file` |
+    /// `env`) so agents can branch on it without parsing `source`.
+    source_kind: String,
+    /// GH #2587: `true` when the server confirmed the identity on this run;
+    /// `false` when it is reported from a cached credential without a live
+    /// verification (offline).
+    verified: bool,
+}
+
+/// Render the human-readable lines for `anvil auth whoami`.
+///
+/// Split out from the command body so the state-clarity wording (GH #2587) is
+/// unit-testable without a network round-trip. Distinguishes a server-`verified`
+/// identity from one reported offline from a cached credential, and always names
+/// the credential `source` so a user who never logged in *this session*
+/// understands why an identity is known.
+fn format_whoami_human(data: &WhoamiData) -> String {
+    use std::fmt::Write as _;
+    let mut out = String::from("\n");
+    if data.verified {
+        let _ = writeln!(out, "Authenticated");
+    } else {
+        let _ = writeln!(
+            out,
+            "Authenticated (offline — reported from a cached credential, not verified this run)"
+        );
+    }
+    let _ = writeln!(out, "  Email:   {}", data.email);
+    if let Some(plan) = &data.plan {
+        let _ = writeln!(out, "  Plan:    {plan}");
+    }
+    if let Some(expires) = &data.expires_at {
+        let _ = writeln!(out, "  Expires: {expires}");
+    }
+    if let Some(gate) = &data.licence_gate {
+        let _ = writeln!(out, "  Gate:    cli.licence-gate = {gate}");
+    }
+    let _ = writeln!(out, "  Source:  {}", data.source);
+    out
 }
 
 /// The licence model issues short-lived access tokens (JWTs) backed by a
@@ -132,11 +175,26 @@ pub fn run(args: &AuthArgs, global: &GlobalArgs) -> Result<()> {
             Ok(())
         }
         AuthCommand::Whoami => {
-            let creds = credentials::load()?.context("Not authenticated. Run: anvil auth login")?;
+            // The not-authenticated and expired states are reported by the
+            // pre-dispatch auth gate (`requires_auth` → `check_auth`), which
+            // exits 3 with "Authentication required" / "Session expired" before
+            // this body runs — so `whoami` is only reached with a present,
+            // valid credential. This `else` is a defensive fallback for the
+            // case where that gate is bypassed; it should not normally fire.
+            let Some((creds, source)) = credentials::load_with_source()? else {
+                anyhow::bail!(
+                    "Not authenticated — no stored credentials found. Run: anvil auth login"
+                );
+            };
 
+            // GH #2587: a credential IS present — minted by an earlier login,
+            // or injected via ANVIL_LICENSE — which is why an identity is known
+            // even though the user did not log in this session. The output
+            // below names that `source` so the result is no longer surprising.
             let client = crate::auth::client::AnvilClient::with_token(creds.license.clone())?;
 
             match rt.block_on(client.whoami()) {
+                // Identity known and VERIFIED with the server this run.
                 Ok(whoami) => {
                     let gate =
                         evaluate_cli_licence_gate(whoami.email.as_str(), whoami.plan.as_deref());
@@ -145,41 +203,39 @@ pub fn run(args: &AuthArgs, global: &GlobalArgs) -> Result<()> {
                         plan: whoami.plan,
                         expires_at: creds.expires_at,
                         licence_gate: Some(gate.variant),
+                        source: source.describe(),
+                        source_kind: source.kind().to_string(),
+                        verified: true,
                     };
                     if global.json {
                         crate::output::json::print(&data)?;
                     } else {
-                        println!();
-                        println!("Authenticated");
-                        println!("  Email:   {}", data.email);
-                        if let Some(plan) = &data.plan {
-                            println!("  Plan:    {plan}");
-                        }
-                        if let Some(expires) = &data.expires_at {
-                            println!("  Expires: {expires}");
-                        }
-                        if let Some(gate) = &data.licence_gate {
-                            println!("  Gate:    cli.licence-gate = {gate}");
-                        }
+                        print!("{}", format_whoami_human(&data));
                     }
                     Ok(())
                 }
+                // CACHED CREDENTIAL, server unreachable: report the cached
+                // identity but make clear it was not verified this run.
                 Err(e) if is_network_error(&e) => {
                     let data = WhoamiData {
                         email: creds.email.unwrap_or_else(|| "unknown".to_string()),
                         plan: None,
                         expires_at: creds.expires_at,
                         licence_gate: None,
+                        source: source.describe(),
+                        source_kind: source.kind().to_string(),
+                        verified: false,
                     };
                     if global.json {
                         crate::output::json::print(&data)?;
                     } else {
-                        println!();
-                        println!("Authenticated (offline)");
-                        println!("  Email: {}", data.email);
+                        print!("{}", format_whoami_human(&data));
                     }
                     Ok(())
                 }
+                // Server reachable but rejected the token. Expiry is handled by
+                // the pre-dispatch gate, so a rejection here is a genuine
+                // server-side error (e.g. a revoked token); surface it as-is.
                 Err(e) => Err(e),
             }
         }
@@ -360,6 +416,64 @@ mod tests {
         assert!(
             out.contains(&REFRESH_WINDOW_DAYS.to_string()),
             "refresh window line must still render, got: {out}"
+        );
+    }
+
+    // --- whoami state-clarity (GH #2587) ---
+
+    #[test]
+    fn whoami_human_verified_names_the_credential_source() {
+        // The recurring confusion: whoami succeeds though the user did not log
+        // in this session. The output must name the stored-credential source so
+        // that is no longer surprising, and not claim "offline" when verified.
+        let data = WhoamiData {
+            email: "user@example.com".to_string(),
+            plan: Some("beta".to_string()),
+            expires_at: Some("2099-01-01T00:00:00Z".to_string()),
+            licence_gate: Some("enabled".to_string()),
+            source: "stored credentials (/home/u/.config/anvil/credentials.json)".to_string(),
+            source_kind: "file".to_string(),
+            verified: true,
+        };
+        let out = format_whoami_human(&data);
+        assert!(out.contains("Authenticated"), "got: {out}");
+        assert!(
+            !out.contains("offline"),
+            "verified must not say offline: {out}"
+        );
+        assert!(out.contains("user@example.com"), "got: {out}");
+        assert!(
+            out.contains("Source:") && out.contains("stored credentials ("),
+            "the credential source must be named: {out}"
+        );
+        assert!(
+            out.contains("cli.licence-gate = enabled"),
+            "the licence gate (additional-authorisation signal) must show: {out}"
+        );
+    }
+
+    #[test]
+    fn whoami_human_offline_is_marked_unverified() {
+        // A cached identity reported without a live check must be clearly
+        // distinguished from a server-verified one.
+        let data = WhoamiData {
+            email: "user@example.com".to_string(),
+            plan: None,
+            expires_at: None,
+            licence_gate: None,
+            source: "ANVIL_LICENSE environment variable".to_string(),
+            source_kind: "env".to_string(),
+            verified: false,
+        };
+        let out = format_whoami_human(&data);
+        assert!(out.contains("offline"), "offline must be marked: {out}");
+        assert!(
+            out.to_lowercase().contains("not verified"),
+            "must say the identity was not verified this run: {out}"
+        );
+        assert!(
+            out.contains("ANVIL_LICENSE environment variable"),
+            "the env source must be named: {out}"
         );
     }
 
