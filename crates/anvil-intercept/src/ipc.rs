@@ -3641,13 +3641,15 @@ async fn scan_buffer_from_jsonrpc(
 /// what consumers join against. Falls back to a fresh UUID v4 when
 /// the producer omitted `traceparent` so the row is never emitted
 /// with a placeholder id.
+///
+/// MLP2-008: the parent-id extraction itself lives in
+/// [`crate::kindling_observation::gate_eval_id_from_traceparent`] — the
+/// single source shared with the RTAI-007 telemetry envelope — so a
+/// Kindling row and its mid-edit telemetry envelope carry identical
+/// join keys. This wrapper only adds the row-side UUID-v4 fallback.
 fn derive_gate_eval_id(traceparent: Option<&str>) -> String {
-    if let Some(raw) = traceparent
-        && let Ok(ctx) = TraceContext::parse(raw)
-    {
-        return ctx.parent_id().to_string();
-    }
-    uuid::Uuid::new_v4().to_string()
+    crate::kindling_observation::gate_eval_id_from_traceparent(traceparent)
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string())
 }
 
 fn scan_buffer_path_basename(path: &Path) -> &str {

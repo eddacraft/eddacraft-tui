@@ -72,6 +72,18 @@ pub struct TelemetryCorrelation {
     /// `driverName`. The fanout uses this for telemetry rate-limiting
     /// and quarantine; subscribers see it for diagnostic purposes.
     pub originating_driver_id: Option<String>,
+    /// MLP2-008: the W3C `traceparent` of the mid-edit `scan_buffer`
+    /// call this envelope mirrors. On the mid-edit path it is the
+    /// source of the envelope's `mirror.gate_eval_id` join key —
+    /// extracted via
+    /// [`crate::kindling_observation::gate_eval_id_from_traceparent`],
+    /// the same extractor the Kindling `gate_evaluated` row uses — so a
+    /// row and its telemetry envelope join exactly when this field
+    /// carries a valid `traceparent`. `None` on the save-time path
+    /// (which emits no `gate_evaluated` row) and when the producer
+    /// supplied no (or an unparseable) `traceparent`, in which case the
+    /// envelope's `mirror.gate_eval_id` is omitted rather than guessed.
+    pub traceparent: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -250,6 +262,7 @@ impl TelemetryEmitter {
             control_correlation_id: correlation.control_correlation_id,
             originating_session_id,
             originating_driver_id: correlation.originating_driver_id,
+            traceparent: correlation.traceparent,
         }
     }
 
@@ -278,6 +291,7 @@ pub(crate) struct TelemetryContext {
     control_correlation_id: Option<String>,
     originating_session_id: Option<String>,
     originating_driver_id: Option<String>,
+    traceparent: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -374,6 +388,17 @@ pub struct NotificationMirror {
     /// in-flight from save-time without seeing the redacted payload.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub path: Option<MirrorPath>,
+    /// MLP2-008: the `gate_eval_id` join key for the mid-edit path —
+    /// the `traceparent` parent-id, extracted via
+    /// [`crate::kindling_observation::gate_eval_id_from_traceparent`]
+    /// (the single source shared with the Kindling `gate_evaluated`
+    /// row). A subscriber joins this envelope to its row with
+    /// `mirror.gate_eval_id == row.gate_eval_id`. Additive
+    /// forward-compat: `None` on the save-time path and when no
+    /// `traceparent` was supplied, so the field is omitted from the
+    /// wire and pre-MLP2-008 consumers are byte-unaffected.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gate_eval_id: Option<String>,
 }
 
 #[must_use]
@@ -693,6 +718,16 @@ fn envelope_with_path(
     grouping: Option<NotificationGrouping>,
     mirror_path: Option<MirrorPath>,
 ) -> NotificationEnvelope {
+    // MLP2-008: stamp the `gate_eval_id` join key on the mid-edit path
+    // only. The save-time path emits no `gate_evaluated` Kindling row,
+    // so there is nothing to join against and the field stays absent.
+    // Derived from the same extractor the row uses, so the keys match.
+    let gate_eval_id = match mirror_path {
+        Some(MirrorPath::MidEdit) => crate::kindling_observation::gate_eval_id_from_traceparent(
+            context.traceparent.as_deref(),
+        ),
+        _ => None,
+    };
     let mirror = decision.map(|decision| NotificationMirror {
         decision,
         driver: INTERCEPT_DRIVER_ID.to_string(),
@@ -703,6 +738,7 @@ fn envelope_with_path(
         ack_required: mirror_path.is_none() && ack_required(decision),
         control_correlation_id: context.control_correlation_id.clone(),
         path: mirror_path,
+        gate_eval_id,
     });
 
     NotificationEnvelope {
@@ -1066,6 +1102,7 @@ mod tests {
             control_correlation_id: Some("ctrl-1".to_string()),
             originating_session_id: Some("sess-1".to_string()),
             originating_driver_id: Some("intercept-daemon-v1".to_string()),
+            traceparent: None,
         }
     }
 

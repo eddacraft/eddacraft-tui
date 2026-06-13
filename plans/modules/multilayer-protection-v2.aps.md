@@ -639,7 +639,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-008: RTAI-007 telemetry-contract join
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Explicit field map between RTAI-007's mid-edit
   envelope and the `gate_evaluated` Kindling row, so a row can
   be joined back to its originating telemetry envelope by
@@ -659,6 +659,23 @@ task's `Source:` line cites the Council finding IDs.
 - **Priority:** Medium
 - **Dependencies:** MLP-016, RTAI-007
 - **Source:** MLP-016 footnote 4.
+- **Implementation note (2026-06-14):** Join **contract** landed.
+  Single shared key source: `kindling_observation::gate_eval_id_from_traceparent`
+  (the `traceparent` parent-id) — `ipc::derive_gate_eval_id` now
+  delegates to it, so the Kindling `gate_evaluated` row and the
+  RTAI-007 mid-edit telemetry envelope derive the join key from one
+  definition. Added additive forward-compat `mirror.gate_eval_id` to
+  `NotificationMirror` (mid-edit path only; omitted on the wire when
+  absent, so save-time + pre-MLP2-008 consumers are byte-unaffected)
+  and `traceparent` to `TelemetryCorrelation`/`TelemetryContext`. The
+  explicit field map (envelope ↔ row) is documented on
+  `gate_eval_id_from_traceparent`. Join-back integration test:
+  `crates/anvil-intercept/tests/rtai007_kindling_join.rs`. **Deferred
+  (out of scope; mirrors the MLP2-006 deferred-wiring pattern):**
+  threading the live `traceparent` from the daemon `scan_buffer` call
+  site onto `TelemetryCorrelation` (no production call site sets it
+  yet, so the field is dormant on the wire), and the TS driver-client
+  mirror of `mirror.gate_eval_id`.
 
 #### MLP2-009: Volume-bounded burst rate-shaping for observations
 

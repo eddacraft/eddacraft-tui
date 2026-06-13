@@ -61,6 +61,7 @@ use std::time::{Duration, Instant};
 
 use anvil_kernel_types::Diagnostic;
 use anvil_kernel_types::diagnostics::Severity;
+use anvil_observability::TraceContext;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -76,6 +77,61 @@ pub const KIND_GATE_EVALUATED: &str = "gate_evaluated";
 /// rows from save-time / pre-commit / pre-push / audit rows that
 /// share the `gate_evaluated` kind but live at different layers.
 pub const MIDEDIT_GATE_ID: &str = "midEdit";
+
+/// MLP2-008: the canonical `gate_eval_id` join key, extracted from a
+/// W3C `traceparent`.
+///
+/// This is the **single source** for the join key shared by the two
+/// mid-edit surfaces that need to correlate downstream:
+///
+/// - the Kindling `gate_evaluated` row (this module), and
+/// - the RTAI-007 mid-edit telemetry envelope
+///   (`crate::telemetry::NotificationMirror::gate_eval_id`).
+///
+/// Both call this extractor so a row and its originating telemetry
+/// envelope carry **byte-identical** `gate_eval_id` values whenever a
+/// valid `traceparent` is in scope, making the join
+/// `envelope.mirror.gate_eval_id == row.gate_eval_id` exact. The
+/// daemon IPC handler's `derive_gate_eval_id` also delegates here (then
+/// applies its own UUID-v4 fallback), so there is exactly one
+/// definition of "what the join key is".
+///
+/// Returns the W3C **parent-id** (the 16 lower-hex-char upstream span
+/// id) — the field consumers join against — or `None` when the
+/// `traceparent` is absent or unparseable. Callers that must always
+/// emit an id (the Kindling row) apply their own fallback; callers for
+/// which an unjoinable random id would be worse than absence (the
+/// telemetry envelope) leave the field unset on `None`.
+///
+/// ## Field map: RTAI-007 mid-edit envelope → `gate_evaluated` row
+///
+/// The explicit contract a subscriber uses to join an
+/// `anvil.notification.v1` mid-edit envelope back to its Kindling row:
+///
+/// | RTAI-007 envelope field                | `gate_evaluated` row field   | Relationship |
+/// |----------------------------------------|------------------------------|--------------|
+/// | `mirror.gate_eval_id`                  | `gate_eval_id`               | **join key** — both = `traceparent` parent-id via this fn |
+/// | `correlation.session_id`               | `session_id`                 | same daemon/edit session |
+/// | `notification.context.file`            | `inputs.changed_files[0]`    | the file evaluated (paths-only) |
+/// | `mirror.decision` (`warn`/`block`)     | `enforcement`                | same advisory severity class |
+/// | `timestamp`                            | `timestamp`                  | producer wall-clock at emit |
+///
+/// Note: a row exists only for a finding-bearing scan — an `allow`
+/// (no-finding) decision emits **no** `gate_evaluated` row (see
+/// [`from_midedit_response`]), so there is nothing to join for `allow`.
+/// The row's `outcome` is always `Fail` on the mid-edit path (a row
+/// only exists when there is a finding); the severity distinction
+/// (`warn` vs `block`) lives in `enforcement`, not `outcome`.
+///
+/// `gate_id` on the row is pinned to [`MIDEDIT_GATE_ID`] (`"midEdit"`),
+/// matching the envelope's `mirror.path = midEdit` discriminator, so a
+/// joined pair is provably the same mid-edit evaluation.
+#[must_use]
+pub fn gate_eval_id_from_traceparent(traceparent: Option<&str>) -> Option<String> {
+    traceparent
+        .and_then(|raw| TraceContext::parse(raw).ok())
+        .map(|ctx| ctx.parent_id().to_string())
+}
 
 /// Kindling `enforcement` field values. Closed three-value enum
 /// shared with the TS Zod schema; deliberately not derived from
