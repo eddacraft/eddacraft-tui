@@ -1,0 +1,7 @@
+# deepsec is a standalone security-scanning workspace, not part of the Nx
+# build graph. It ships its own package.json / pnpm-workspace.yaml plus a
+# gitignored data/<project>/project.json that has no `name`, which makes Nx
+# fail project-graph processing ("projects in the following directories have
+# no name provided: .deepsec") and breaks every `nx build` on Vercel.
+# Excluding it keeps deepsec out of the Nx graph entirely.
+.deepsec
