@@ -471,7 +471,7 @@ Change status to **Ready** when:
 
 #### GV2-020: Multi-graph registry and typed query traits
 
-- **Status:** Ready — promoted Draft → Ready 2026-06-15 (deps GV2-010/011/012/013/014 all **Merged**; execution-authorised). Unblocked alongside the ADR-075 entry decisions ([ADR-083](../decisions/083-gctx-mcp-delivery-target.md) Accepted + [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md) filed).
+- **Status:** In Progress — started 2026-06-15 on `feat/gv2-020`. Building `GraphRegistry` + typed query traits over the real graphs (semantic/dependency/trust) with **trait-stub** surfaces for the contract-only control/session and plan/provenance graphs (GV2-013/014 are named-not-frozen contracts; their backing lands with consumers, ADR-064). Promoted Draft → Ready 2026-06-15 (deps GV2-010/011/012/013/014 all **Merged**; execution-authorised) alongside the ADR-075 entry decisions ([ADR-083](../decisions/083-gctx-mcp-delivery-target.md) Accepted + [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md) filed).
 - **Intent:** Provide one typed in-process entry point for querying joined graph
   state without coupling consumers to storage or `petgraph` internals.
 - **Expected Outcome:** Registry exposes graph handles and join queries for
