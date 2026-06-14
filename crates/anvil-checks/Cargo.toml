@@ -11,6 +11,7 @@ name = "anvil_checks"
 
 [dependencies]
 anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }
+miette = { workspace = true }
 rayon = { workspace = true }
 regex = "1"
 serde = { workspace = true }

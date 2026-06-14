@@ -22,7 +22,7 @@ pub use scanner::{
 };
 pub use types::{
     AntiPattern, AntiPatternCategory, AntipatternCheckConfig, AntipatternCheckResult, ArtifactKind,
-    Confidence, Location, Suppression, SuppressionScope, Warning, WarningCategory, WarningResult,
-    WarningSeverity, WarningSummary, count_by_severity, create_warning_fingerprint,
+    Confidence, Location, Suppression, SuppressionScope, Warning, WarningCategory, WarningReport,
+    WarningResult, WarningSeverity, WarningSummary, count_by_severity, create_warning_fingerprint,
     create_warning_result, validate_warning_result_consistency,
 };

@@ -138,7 +138,7 @@ used under the terms of its respective licence, reproduced in full below.
 
 ## Licence: MIT License
 
-Used by 318 crates. See the inventory table at the bottom of this file for the complete list.
+Used by 327 crates. See the inventory table at the bottom of this file for the complete list.
 
 <details>
 <summary>Licence text</summary>
@@ -224,7 +224,7 @@ authorization of the copyright holder.
 
 ## Licence: Apache License 2.0
 
-Used by 12 crates. See the inventory table at the bottom of this file for the complete list.
+Used by 15 crates. See the inventory table at the bottom of this file for the complete list.
 
 <details>
 <summary>Licence text</summary>
@@ -439,7 +439,7 @@ Used by 12 crates. See the inventory table at the bottom of this file for the co
 
 ## Licence: ISC License
 
-Used by 6 crates. See the inventory table at the bottom of this file for the complete list.
+Used by 7 crates. See the inventory table at the bottom of this file for the complete list.
 
 <details>
 <summary>Licence text</summary>
@@ -1021,6 +1021,9 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `self-replace` | 1.5.0 | Apache License 2.0 | https://github.com/mitsuhiko/self-replace |
 | `regorus` | 0.10.0 | Apache License 2.0 | https://github.com/microsoft/regorus |
 | `miette-derive` | 7.6.0 | Apache License 2.0 | https://github.com/zkat/miette |
+| `supports-color` | 3.0.2 | Apache License 2.0 | https://github.com/zkat/supports-color |
+| `supports-hyperlinks` | 3.2.0 | Apache License 2.0 | https://github.com/zkat/supports-hyperlinks |
+| `supports-unicode` | 3.0.0 | Apache License 2.0 | https://github.com/zkat/supports-unicode |
 | `aws-lc-sys` | 0.41.0 | Apache License 2.0 | https://github.com/aws/aws-lc-rs |
 | `ryu` | 1.0.23 | Apache License 2.0 | https://github.com/dtolnay/ryu |
 | `sync_wrapper` | 1.0.2 | Apache License 2.0 | https://github.com/Actyx/sync_wrapper |
@@ -1034,6 +1037,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `rustls-webpki` | 0.103.13 | ISC License | https://github.com/rustls/webpki |
 | `aws-lc-rs` | 1.17.0 | ISC License | https://github.com/aws/aws-lc-rs |
 | `aws-lc-sys` | 0.41.0 | ISC License | https://github.com/aws/aws-lc-rs |
+| `is_ci` | 1.2.0 | ISC License | https://github.com/zkat/is_ci |
 | `msvc_spectre_libs` | 0.1.3 | MIT License | https://github.com/microsoft/rust_msvc_spectre_libs |
 | `instability` | 0.3.12 | MIT License | https://github.com/ratatui/instability |
 | `lazy_static` | 1.5.0 | MIT License | https://github.com/rust-lang-nursery/lazy-static.rs |
@@ -1046,8 +1050,10 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `idna` | 1.1.0 | MIT License | https://github.com/servo/rust-url/ |
 | `percent-encoding` | 2.3.2 | MIT License | https://github.com/servo/rust-url/ |
 | `url` | 2.5.8 | MIT License | https://github.com/servo/rust-url |
+| `backtrace` | 0.3.76 | MIT License | https://github.com/rust-lang/backtrace-rs |
 | `cfg-if` | 1.0.4 | MIT License | https://github.com/rust-lang/cfg-if |
 | `openssl-probe` | 0.2.1 | MIT License | https://github.com/rustls/openssl-probe |
+| `rustc-demangle` | 0.1.27 | MIT License | https://github.com/rust-lang/rustc-demangle |
 | `socket2` | 0.6.4 | MIT License | https://github.com/rust-lang/socket2 |
 | `wait-timeout` | 0.2.1 | MIT License | https://github.com/alexcrichton/wait-timeout |
 | `mio` | 1.2.1 | MIT License | https://github.com/tokio-rs/mio |
@@ -1074,12 +1080,15 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `itertools` | 0.14.0 | MIT License | https://github.com/rust-itertools/itertools |
 | `petgraph` | 0.8.3 | MIT License | https://github.com/petgraph/petgraph |
 | `tempfile` | 3.27.0 | MIT License | https://github.com/Stebalien/tempfile |
+| `object` | 0.37.3 | MIT License | https://github.com/gimli-rs/object |
 | `fs2` | 0.4.3 | MIT License | https://github.com/danburkert/fs2-rs |
+| `gimli` | 0.32.3 | MIT License | https://github.com/gimli-rs/gimli |
 | `heck` | 0.5.0 | MIT License | https://github.com/withoutboats/heck |
 | `unicode-segmentation` | 1.13.2 | MIT License | https://github.com/unicode-rs/unicode-segmentation |
 | `unicode-width` | 0.1.14 | MIT License | https://github.com/unicode-rs/unicode-width |
 | `unicode-width` | 0.2.2 | MIT License | https://github.com/unicode-rs/unicode-width |
 | `cobs` | 0.3.0 | MIT License | https://github.com/jamesmunns/cobs.rs |
+| `terminal_size` | 0.4.4 | MIT License | https://github.com/eminence/terminal-size |
 | `which` | 8.0.2 | MIT License | https://github.com/harryfei/which-rs.git |
 | `png` | 0.18.1 | MIT License | https://github.com/image-rs/image-png |
 | `schannel` | 0.1.29 | MIT License | https://github.com/steffengy/schannel-rs |
@@ -1109,6 +1118,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `thread_local` | 1.1.9 | MIT License | https://github.com/Amanieu/thread_local-rs |
 | `indexmap` | 2.14.0 | MIT License | https://github.com/indexmap-rs/indexmap |
 | `equivalent` | 1.0.2 | MIT License | https://github.com/indexmap-rs/equivalent |
+| `addr2line` | 0.25.1 | MIT License | https://github.com/gimli-rs/addr2line |
 | `scopeguard` | 1.2.0 | MIT License | https://github.com/bluss/scopeguard |
 | `reqwest` | 0.13.4 | MIT License | https://github.com/seanmonstar/reqwest |
 | `sha2` | 0.11.0 | MIT License | https://github.com/RustCrypto/hashes |
@@ -1216,6 +1226,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `strum_macros` | 0.27.2 | MIT License | https://github.com/Peternator7/strum |
 | `email_address` | 0.2.9 | MIT License | https://github.com/johnstonskj/rust-email_address.git |
 | `tokio-macros` | 2.7.0 | MIT License | https://github.com/tokio-rs/tokio |
+| `owo-colors` | 4.3.0 | MIT License | https://github.com/owo-colors/owo-colors |
 | `jsonschema` | 0.45.1 | MIT License | https://github.com/Stranger6667/jsonschema |
 | `referencing` | 0.45.1 | MIT License | https://github.com/Stranger6667/jsonschema |
 | `compact_str` | 0.9.1 | MIT License | https://github.com/ParkMyCar/compact_str |
@@ -1231,6 +1242,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `animate-macros` | 0.3.0 | MIT License | https://github.com/vyfor/animate |
 | `animate` | 0.3.0 | MIT License | https://github.com/vyfor/animate |
 | `axoupdater` | 0.10.0 | MIT License | https://github.com/axodotdev/axoupdater |
+| `backtrace-ext` | 0.2.1 | MIT License | https://github.com/gankra/backtrace-ext |
 | `block2` | 0.6.2 | MIT License | https://github.com/madsmtm/objc2 |
 | `chrono` | 0.4.44 | MIT License | https://github.com/chronotope/chrono |
 | `dispatch2` | 0.3.1 | MIT License | https://github.com/madsmtm/objc2 |
@@ -1261,6 +1273,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `windows-strings` | 0.4.2 | MIT License | https://github.com/microsoft/windows-rs |
 | `windows-strings` | 0.5.1 | MIT License | https://github.com/microsoft/windows-rs |
 | `windows-sys` | 0.52.0 | MIT License | https://github.com/microsoft/windows-rs |
+| `windows-sys` | 0.59.0 | MIT License | https://github.com/microsoft/windows-rs |
 | `windows-sys` | 0.60.2 | MIT License | https://github.com/microsoft/windows-rs |
 | `windows-sys` | 0.61.2 | MIT License | https://github.com/microsoft/windows-rs |
 | `windows-targets` | 0.52.6 | MIT License | https://github.com/microsoft/windows-rs |
