@@ -121,15 +121,103 @@ pub struct Warning {
     pub spectrum_position: Option<u32>,
 }
 
-/// Newtype wrapper that makes a `Warning` renderable via `miette`.
+/// Wrapper that makes a `Warning` renderable via `miette`.
 ///
-/// Phase A: severity + code + help + location in message; no source excerpt
-/// (file content loading deferred to Phase B).
-pub struct WarningReport<'a>(pub &'a Warning);
+/// Phase B: loads the source file at construction time so miette can render
+/// an inline code excerpt with a span underline. Falls back to Phase A
+/// (message-only) when the file is missing, binary, or unreadable.
+pub struct WarningReport<'a> {
+    warning: &'a Warning,
+    source: Option<miette::NamedSource<String>>,
+    span: Option<miette::SourceSpan>,
+}
+
+impl<'a> WarningReport<'a> {
+    pub fn new(warning: &'a Warning) -> Self {
+        let (source, span) = load_source_and_span(warning);
+        Self {
+            warning,
+            source,
+            span,
+        }
+    }
+}
+
+/// Read the source file and compute the byte span for `warning.location`.
+/// Returns `(None, None)` on any I/O or parse error so the caller degrades
+/// gracefully to Phase A rendering.
+fn load_source_and_span(
+    warning: &Warning,
+) -> (
+    Option<miette::NamedSource<String>>,
+    Option<miette::SourceSpan>,
+) {
+    // Require a known byte column before loading source. Without it we cannot
+    // place a meaningful underline, and secret findings deliberately omit the
+    // column so the raw file content is never exposed (the `message` field is
+    // already redacted by the scanner).
+    if warning.location.column.is_none() {
+        return (None, None);
+    }
+    let path = std::path::Path::new(&warning.location.file);
+    let Ok(content) = std::fs::read_to_string(path) else {
+        return (None, None);
+    };
+    let span = compute_span(&content, &warning.location);
+    let named = miette::NamedSource::new(&warning.location.file, content);
+    (Some(named), span)
+}
+
+/// Convert a `Location` to a byte `SourceSpan` inside `content`.
+///
+/// Lines are 1-based; `column` is a 0-based byte offset within the line
+/// (from `regex::Match::start()`). Returns `None` when `column` is absent or
+/// the offset falls outside the line's byte range so diagnostics degrade
+/// gracefully rather than showing a misleading or out-of-bounds excerpt.
+fn compute_span(content: &str, loc: &Location) -> Option<miette::SourceSpan> {
+    if loc.line == 0 {
+        return None;
+    }
+    let col = loc.column?;
+    // Walk lines to find the byte offset of `loc.line` (1-based).
+    // `split('\n')` keeps any trailing `\r` on Windows files, which is
+    // correct: the scanner's column offsets are relative to the raw line bytes.
+    let mut line_start: usize = 0;
+    for (i, line) in content.split('\n').enumerate() {
+        if i + 1 == loc.line {
+            // Reject column offsets that fall at or past the end of this
+            // line — the byte position does not exist in the line content.
+            if col >= line.len() {
+                return None;
+            }
+            let offset = line_start + col;
+            let length = if let (Some(el), Some(ec)) = (loc.end_line, loc.end_column) {
+                // Explicit end span (not currently populated by the scanner,
+                // but honoured when present for future callers).
+                let end_start: usize = content
+                    .split('\n')
+                    .take(el.saturating_sub(1))
+                    .map(|l| l.len() + 1)
+                    .sum();
+                let end_offset = end_start + ec;
+                end_offset.saturating_sub(offset).max(1)
+            } else {
+                // col < line.len() is guaranteed above, so this is >= 1.
+                line.len() - col
+            };
+            // Clamp to actual content length so a malformed explicit end span
+            // cannot produce a SourceSpan that exceeds the source buffer.
+            let length = length.min(content.len().saturating_sub(offset)).max(1);
+            return Some(miette::SourceSpan::new(offset.into(), length));
+        }
+        line_start += line.len() + 1; // +1 for the '\n' byte
+    }
+    None
+}
 
 impl fmt::Display for WarningReport<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let w = self.0;
+        let w = self.warning;
         write!(f, "{}:{}: {}", w.location.file, w.location.line, w.title)?;
         // Preserve the scanner's `message` detail (e.g. "Found … at line …"),
         // which the `title` headline alone drops — but only when it adds
@@ -151,11 +239,11 @@ impl std::error::Error for WarningReport<'_> {}
 
 impl miette::Diagnostic for WarningReport<'_> {
     fn code<'a>(&'a self) -> Option<Box<dyn fmt::Display + 'a>> {
-        Some(Box::new(self.0.id.as_str()))
+        Some(Box::new(self.warning.id.as_str()))
     }
 
     fn severity(&self) -> Option<miette::Severity> {
-        Some(match self.0.severity {
+        Some(match self.warning.severity {
             WarningSeverity::Error => miette::Severity::Error,
             WarningSeverity::Warning => miette::Severity::Warning,
             WarningSeverity::Info => miette::Severity::Advice,
@@ -163,11 +251,22 @@ impl miette::Diagnostic for WarningReport<'_> {
     }
 
     fn help<'a>(&'a self) -> Option<Box<dyn fmt::Display + 'a>> {
-        if self.0.suggestion.is_empty() {
+        if self.warning.suggestion.is_empty() {
             None
         } else {
-            Some(Box::new(self.0.suggestion.as_str()))
+            Some(Box::new(self.warning.suggestion.as_str()))
         }
+    }
+
+    fn source_code(&self) -> Option<&dyn miette::SourceCode> {
+        self.source.as_ref().map(|s| s as &dyn miette::SourceCode)
+    }
+
+    fn labels(&self) -> Option<Box<dyn Iterator<Item = miette::LabeledSpan> + '_>> {
+        let span = self.span?;
+        Some(Box::new(std::iter::once(
+            miette::LabeledSpan::new_with_span(None, span),
+        )))
     }
 }
 
@@ -418,7 +517,7 @@ mod tests {
         let mut w = sample_warning("AP-010", WarningSeverity::Warning, None);
         w.title = "Anti-pattern detected".to_string();
         w.message = "Found `eslint-disable` at line 2".to_string();
-        let shown = WarningReport(&w).to_string();
+        let shown = WarningReport::new(&w).to_string();
         assert!(
             shown.starts_with("src/a.ts:2: Anti-pattern detected"),
             "{shown}"
@@ -434,15 +533,14 @@ mod tests {
         let mut w = sample_warning("AP-011", WarningSeverity::Warning, None);
         w.title = "Same text".to_string();
         w.message = "Same text".to_string();
-        // No " — " suffix when the message only repeats the title.
-        assert_eq!(WarningReport(&w).to_string(), "src/a.ts:2: Same text");
+        assert_eq!(WarningReport::new(&w).to_string(), "src/a.ts:2: Same text");
     }
 
     #[test]
     fn warning_report_diagnostic_maps_code_and_help() {
         use miette::Diagnostic;
         let w = sample_warning("AP-012", WarningSeverity::Warning, None);
-        let report = WarningReport(&w);
+        let report = WarningReport::new(&w);
         assert_eq!(
             report.code().map(|c| c.to_string()).as_deref(),
             Some("AP-012")
@@ -458,7 +556,7 @@ mod tests {
         use miette::Diagnostic;
         let mut w = sample_warning("AP-013", WarningSeverity::Info, None);
         w.suggestion = String::new();
-        assert!(WarningReport(&w).help().is_none());
+        assert!(WarningReport::new(&w).help().is_none());
     }
 
     #[test]
@@ -471,9 +569,143 @@ mod tests {
         ] {
             let w = sample_warning("AP-014", sev, None);
             assert!(
-                matches!(WarningReport(&w).severity(), Some(s) if s == want),
+                matches!(WarningReport::new(&w).severity(), Some(s) if s == want),
                 "severity {sev:?} should map to {want:?}"
             );
         }
+    }
+
+    #[test]
+    fn warning_report_source_code_none_for_missing_file() {
+        use miette::Diagnostic;
+        let w = sample_warning("AP-015", WarningSeverity::Warning, None);
+        // sample_warning uses "src/a.ts" which doesn't exist on disk.
+        assert!(
+            WarningReport::new(&w).source_code().is_none(),
+            "missing file must not panic, source_code() must be None"
+        );
+    }
+
+    #[test]
+    fn warning_report_labels_none_for_missing_file() {
+        use miette::Diagnostic;
+        let w = sample_warning("AP-016", WarningSeverity::Warning, None);
+        assert!(WarningReport::new(&w).labels().is_none());
+    }
+
+    #[test]
+    fn compute_span_finds_correct_byte_offset() {
+        let content = "line one\nline two\nline three\n";
+        // Line 2, column 5 → "two"
+        let loc = Location {
+            file: String::new(),
+            line: 2,
+            column: Some(5),
+            end_line: None,
+            end_column: None,
+        };
+        let span = super::compute_span(content, &loc).expect("span must be computed");
+        assert_eq!(span.offset(), 14, "byte offset of 'two' in line 2");
+        // length = "two".len() = 3 (rest of line from column 5)
+        assert_eq!(span.len(), 3);
+    }
+
+    #[test]
+    fn compute_span_explicit_end_column() {
+        let content = "hello world\n";
+        let loc = Location {
+            file: String::new(),
+            line: 1,
+            column: Some(6),
+            end_line: Some(1),
+            end_column: Some(11),
+        };
+        let span = super::compute_span(content, &loc).expect("span must be computed");
+        assert_eq!(span.offset(), 6);
+        assert_eq!(span.len(), 5); // "world"
+    }
+
+    #[test]
+    fn compute_span_returns_none_for_line_zero() {
+        let content = "foo\n";
+        let loc = Location {
+            file: String::new(),
+            line: 0,
+            column: None,
+            end_line: None,
+            end_column: None,
+        };
+        assert!(super::compute_span(content, &loc).is_none());
+    }
+
+    #[test]
+    fn compute_span_returns_none_for_missing_column() {
+        let content = "foo\nbar\n";
+        let loc = Location {
+            file: String::new(),
+            line: 1,
+            column: None,
+            end_line: None,
+            end_column: None,
+        };
+        assert!(super::compute_span(content, &loc).is_none());
+    }
+
+    #[test]
+    fn compute_span_returns_none_for_column_past_end_of_line() {
+        let content = "hi\n";
+        let loc = Location {
+            file: String::new(),
+            line: 1,
+            column: Some(100),
+            end_line: None,
+            end_column: None,
+        };
+        assert!(super::compute_span(content, &loc).is_none());
+    }
+
+    #[test]
+    fn warning_report_source_none_when_column_is_none() {
+        use miette::Diagnostic;
+        use std::io::Write;
+        let mut tmp = tempfile::NamedTempFile::new().unwrap();
+        writeln!(tmp, "first line").unwrap();
+
+        let mut w = sample_warning("AP-018", WarningSeverity::Warning, None);
+        w.location.file = tmp.path().to_string_lossy().into_owned();
+        w.location.line = 1;
+        w.location.column = None;
+
+        let report = WarningReport::new(&w);
+        assert!(
+            report.source_code().is_none(),
+            "source must not load when column is unknown (prevents secret exposure)"
+        );
+        assert!(report.labels().is_none());
+    }
+
+    #[test]
+    fn warning_report_source_code_and_labels_with_real_file() {
+        use miette::Diagnostic;
+        use std::io::Write;
+        let mut tmp = tempfile::NamedTempFile::new().unwrap();
+        writeln!(tmp, "first line").unwrap();
+        writeln!(tmp, "second line with SECRET_KEY = \"abc123\"").unwrap();
+        writeln!(tmp, "third line").unwrap();
+
+        let mut w = sample_warning("AP-017", WarningSeverity::Error, None);
+        w.location.file = tmp.path().to_string_lossy().into_owned();
+        w.location.line = 2;
+        w.location.column = Some(12); // points at 'w' in "with"
+
+        let report = WarningReport::new(&w);
+        assert!(
+            report.source_code().is_some(),
+            "source must load from real file"
+        );
+        let labels: Vec<_> = report.labels().expect("labels must be Some").collect();
+        assert_eq!(labels.len(), 1);
+        // Span starts at byte 12 within line 2 (line 1 = "first line\n" = 11 bytes)
+        assert_eq!(labels[0].offset(), 11 + 12);
     }
 }

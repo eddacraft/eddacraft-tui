@@ -1327,7 +1327,7 @@ fn print_human(
 }
 
 fn print_warning(w: &Warning, verbose: bool) {
-    let diag = WarningReport(w);
+    let diag = WarningReport::new(w);
     let mut buf = String::new();
     let _ = miette::GraphicalReportHandler::new().render_report(&mut buf, &diag);
     print!("{buf}");
