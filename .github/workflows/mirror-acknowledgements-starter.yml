@@ -35,7 +35,11 @@
 # `MIRROR_PUSH_TOKEN`. Deploy keys are disabled at the eddacraft org
 # level, so SSH is not an option; HTTPS + token is the supported path.
 #
-# See plans/execution/ATTRIB-011.steps.md for the design.
+# PAT rotation: see docs/runbooks/acknowledgements-starter-release.md
+# (the "Token rotation" section — the same secret backs this rolling
+# mirror and the release workflow).
+#
+# See plans/archive/execution/ATTRIB-011.steps.md for the design.
 
 name: Mirror — acknowledgements starter kit
 
@@ -51,6 +55,13 @@ on:
         description: 'Why are you force-resyncing? (logged on the mirror commit)'
         required: false
         default: 'manual resync'
+      dry_run:
+        description:
+          'Preflight only: validate auth + refspec + tree shape via `git push --force --dry-run`
+          without mutating the public mirror.'
+        type: boolean
+        required: false
+        default: false
 
 concurrency:
   group: mirror-acknowledgements-starter
@@ -109,6 +120,21 @@ jobs:
             echo "::error::${KIT_DIR}/MIRROR-README.md missing — the public framing header is required"
             exit 1
           fi
+          # Banner double-prepend sentinel. The read-only-mirror banner lives
+          # ONLY in MIRROR-README.md; the canonical README must never carry it.
+          # If it does, a contributor committed the post-swap state by mistake
+          # — prepending again would publish a doubled banner. Hard-fail rather
+          # than push it. Sentinel is derived from MIRROR-README.md so the check
+          # tracks the banner wording automatically.
+          sentinel='> **This repository is a read-only mirror.**'
+          if ! grep -Fq -- "${sentinel}" "${KIT_DIR}/MIRROR-README.md"; then
+            echo "::error::expected banner sentinel not found in ${KIT_DIR}/MIRROR-README.md — update the double-prepend guard"
+            exit 1
+          fi
+          if grep -Fq -- "${sentinel}" "${KIT_DIR}/README.md"; then
+            echo "::error::${KIT_DIR}/README.md already carries the read-only-mirror banner — refusing to double-prepend (revert the post-swap state committed to the canonical README)"
+            exit 1
+          fi
           tmp="$(mktemp)"
           cat "${KIT_DIR}/MIRROR-README.md" "${KIT_DIR}/README.md" > "${tmp}"
           mv "${tmp}" "${KIT_DIR}/README.md"
@@ -123,6 +149,13 @@ jobs:
       - name: Subtree split
         run: |
           set -euo pipefail
+          # Pre-delete guard. `git subtree split -b _mirror_split` aborts with
+          # "fatal: A branch named '_mirror_split' already exists" if the ref
+          # is already present in the workspace. GitHub-hosted runners are
+          # ephemeral per job so this is theoretical today, but a self-hosted
+          # runner or any runner-reuse model would surface it. One-line
+          # idempotent guard.
+          git branch -D _mirror_split 2>/dev/null || true
           git subtree split \
             --prefix=tools/starters/acknowledgements \
             -b _mirror_split
@@ -130,6 +163,7 @@ jobs:
       - name: Force-push to mirror repo
         env:
           MIRROR_PUSH_TOKEN: ${{ secrets.MIRROR_PUSH_TOKEN }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
         run: |
           set -euo pipefail
           # Authenticate via an HTTP Basic header instead of embedding the
@@ -138,9 +172,20 @@ jobs:
           # libcurl reject the entire URL with "Malformed input to a URL
           # function" before it can even talk to GitHub. Sending an explicit
           # Authorization header sidesteps URL parsing entirely.
+          #
+          # Dry-run preflight: the first workflow_dispatch run after a PAT
+          # rotation is a live force-push to a public repo with no pre-flight.
+          # Set the `dry_run` input to add `--dry-run` so an operator can
+          # validate the auth + refspec + tree shape without mutating the
+          # public mirror history.
+          push_opts=(--force)
+          if [ "${DRY_RUN:-false}" = 'true' ]; then
+            push_opts+=(--dry-run)
+            echo '::notice::dry_run=true — git push --force --dry-run (mirror NOT mutated)'
+          fi
           basic=$(printf '%s' "x-access-token:${MIRROR_PUSH_TOKEN}" | base64 -w0)
           git -c "http.https://github.com/.extraheader=Authorization: Basic ${basic}" \
-              push --force \
+              push "${push_opts[@]}" \
               https://github.com/eddacraft/acknowledgements-starter.git \
               _mirror_split:main
 

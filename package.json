@@ -49,6 +49,7 @@
     "test:ci-matrix-targeting": "bash scripts/ci/matrix-targeting.test.sh",
     "test:ci-drift-integration": "bash scripts/ci/drift-check-integration.test.sh",
     "test:ci-workflow-contracts": "bash scripts/ci/workflow-contracts.test.sh",
+    "test:ci-mirror-hardening": "bash scripts/ci/mirror-workflow-hardening.test.sh",
     "test:ci-security-targeting": "bash scripts/ci/security-targeting.test.sh",
     "test:ci-cutover-readiness": "bash scripts/ci/cutover-readiness.test.sh",
     "test:aps-active-lint": "bash scripts/aps/_test/active-lint.test.sh",

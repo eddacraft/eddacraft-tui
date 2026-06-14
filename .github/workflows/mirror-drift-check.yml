@@ -152,6 +152,26 @@ jobs:
             echo "::error::${CRATE_DIR}/README.md missing — cannot prepend banner without a README"
             exit 1
           fi
+          # Banner double-prepend sentinel (kept aligned with the push-side
+          # mirror workflow). The guard only short-circuits on the post-swap
+          # state committed to the canonical README by mistake; it does NOT
+          # alter the produced tree, so tree parity with the mirror is
+          # preserved. If the canonical README already carries the banner the
+          # reconstruction would be wrong, so fail loudly here too.
+          sentinel='> **This repository is a read-only mirror.**'
+          # Assert the sentinel still describes the actual banner (kept aligned
+          # with the push-side guard in mirror-eddacraft-tui.yml). If the banner
+          # wording in MIRROR-README.md changes, this hard-codes stale text and
+          # the double-prepend check below would silently stop firing — fail
+          # loudly so the guard gets updated rather than rotting unnoticed.
+          if ! grep -Fq -- "${sentinel}" "${CRATE_DIR}/MIRROR-README.md"; then
+            echo "::error::expected banner sentinel not found in ${CRATE_DIR}/MIRROR-README.md — update the double-prepend guard"
+            exit 1
+          fi
+          if grep -Fq -- "${sentinel}" "${CRATE_DIR}/README.md"; then
+            echo "::error::${CRATE_DIR}/README.md already carries the read-only-mirror banner — cannot reconstruct the expected mirror tree (double-prepend; revert the post-swap state on the canonical README)"
+            exit 1
+          fi
           tmp="$(mktemp)"
           cat "${CRATE_DIR}/MIRROR-README.md" "${CRATE_DIR}/README.md" > "${tmp}"
           mv "${tmp}" "${CRATE_DIR}/README.md"
