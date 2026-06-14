@@ -4,7 +4,7 @@
 | --- | ----- | ------ |
 | GV2 | —     | In Progress |
 
-**Last reviewed:** 2026-06-15 (GV2-031 promoted Ready per NBI readiness pass; **GV2-020 + GV2-023 promoted Draft → Ready** once the ADR-075 entry decisions landed — [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) Accepted + the [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md) filed. GV2-020 deps GV2-010..014 are all Merged; GV2-023 is the MCP/weave-egress-adjacent consumer contract.)
+**Last reviewed:** 2026-06-15 (GV2-031 promoted Ready per NBI readiness pass; **GV2-020 + GV2-023 promoted Draft → Ready** once the ADR-075 entry decisions landed — [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) Accepted + the [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md) filed. GV2-020 deps GV2-010..014 are all Merged. **GV2-023 consumer query contract authored** in the foundation spec ("The consumer query contract (GV2-023)") — four read classes with one mapped scenario each for INTD/DRVR (live), GCTX (in flight), and WEAVE (planned, Draft 0/21); the registry impl (GV2-020) and assistant projection rules (GCTX-001) remain downstream.)
 
 > 2026-06-12: the A′ slice (hot-read backing swap + seal + ADR-031 latency
 > gate) confirmed in the v0.8.0-beta tag (record:
@@ -28,9 +28,12 @@
 > 026 (registry/contracts) and GV2-030 (sealed-DTO snapshot, with Sub-phase B
 > persistence). v0.9 active: GV2-013/014 Merged 2026-06-13 (PR #2578/#2579);
 > GV2-026/030 Merged 2026-06-14 (PR #2594/#2595). Count is
-> **17/20** (001/002/003/010/011/012/013/014/021/022/024/025/026/027/028/029/030 Merged —
+> **18/20** (001/002/003/010/011/012/013/014/021/022/023/024/025/026/027/028/029/030 Merged —
 > GV2-013 #2578 + GV2-014 #2579 added the control/session and plan/provenance
-> contracts (Phase 1 complete); GV2-026 #2594 (reverse-impact depth lever) +
+> contracts (Phase 1 complete); GV2-023 #2621 added the consumer query contract
+> (four read classes, one mapped scenario each for INTD/DRVR/GCTX/WEAVE — the
+> consumer-facing face of the GV2-020 registry, authored ahead of the impl);
+> GV2-026 #2594 (reverse-impact depth lever) +
 > GV2-030 #2595 (sealed-DTO snapshot no-leak guard); GV2-024 #2470 + GV2-025 #2459 closed the A′
 > hot-path hardening; GV2-031 is a Draft follow-up for the re-export privilege
 > blind spot found in #2453).
@@ -542,7 +545,7 @@ Change status to **Ready** when:
 
 #### GV2-023: Consumer query contract for daemon, drivers, MCP, and weave
 
-- **Status:** Ready — promoted Draft → Ready 2026-06-15 (dep GV2-022 Merged; dep GV2-020 now Ready). The MCP/assistant projection path it defines is governed by the [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md): assistant queries are projections over the same trusted substrate, identity-only by default.
+- **Status:** Merged 2026-06-15 via PR #2621 — contract authored in the GV2 foundation spec ("The consumer query contract (GV2-023)"): four read classes (enforcement / diagnostic / provenance / context projection) with one mapped query scenario each for INTD (live), DRVR (wired by design, not yet built), GCTX (in flight), and WEAVE (planned, Draft 0/21). This contract is the consumer-facing face of the GV2-020 registry, authored ahead of the registry impl like the GV2-013/014 contracts (deps GV2-022 Merged; GV2-020 Ready). The MCP/assistant projection path it defines is governed by the [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md): assistant queries are projections over the same trusted substrate, identity-only by default.
 - **Intent:** Define the graph query boundary downstream consumers use so GCTX,
   DRVR, INTD, and WEAVE do not grow incompatible graph adapters.
 - **Expected Outcome:** Query contract separates enforcement reads, diagnostic
@@ -550,10 +553,12 @@ Change status to **Ready** when:
   are explicitly projections over the same trusted substrate.
 - **Validation:** Contract review with GCTX, DRVR, INTD, and WEAVE plan owners;
   each consumer has at least one mapped query scenario.
-- **Files:** `docs/architecture/graph-v2-foundation-spec.md`,
+- **Files:** `docs/architecture/graph-v2-foundation-spec.md` (contract home),
   `plans/modules/graph-context-delivery.aps.md`,
-  `plans/modules/surface-drivers.aps.md`,
   `plans/modules/weave.aps.md`
+  (DRVR's mapped scenario lives in the spec contract table — the DRVR module is
+  Complete and archived at `plans/archive/modules/surface-drivers.aps.md`; INTD's
+  enforcement scenario is the shipped save-time `certify` path)
 - **Confidence:** high
 - **Priority:** High
 - **Dependencies:** GV2-020, GV2-022
@@ -886,6 +891,6 @@ Change status to **Ready** when:
 | ----- | ----- | ---------- | ------ |
 | 0 — Architecture and Contracts | 3 | 3/3 done | Complete |
 | 1 — Graph Schemas | 5 | 5/5 done | Complete |
-| 2 — Runtime Substrate | 4 | 2/4 done | In Progress |
+| 2 — Runtime Substrate | 4 | 3/4 done | In Progress |
 | 3 — Enforcement, Wiring, and the A′ Swap | 8 | 7/8 done | In Progress |
-| **Total** | **20** | **17/20 done** | **In Progress** |
+| **Total** | **20** | **18/20 done** | **In Progress** |

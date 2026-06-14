@@ -53,14 +53,14 @@ Sub-phase A backing and lives in `crates/anvil-graph-cache/` (ADR-064). This
 spec describes the target end-state; the table below marks how far each piece is
 from it so a reader knows what is design vs reality.
 
-| Layer                                   | Where it lives today                                                                                                                                 | State                                                                         |
-| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Semantic code graph                     | `crates/anvil-graph-cache/src/symbol_graph.rs`, `crates/anvil-kernel-types/src/graph.rs`                                                             | Shipped (Sub-phase A); schema additions pending (GV2-010)                     |
-| Dependency/impact graph + reverse index | `crates/anvil-graph-cache/src/dependency.rs`                                                                                                         | Shipped; incremental maintenance + hot-read API pending (GV2-011/022)         |
-| Trust/policy graph                      | `PolicyProfile`/`TrustGraph` keyed on `SymbolIdentity` (`crates/anvil-kernel-types/src/trust.rs`, `crates/anvil-graph-cache/src/trust.rs`)           | Contract defined (GV2-012); daemon wiring pending (GV2-029)                   |
-| Control/session graph                   | shipped **in INTD** as `SessionRecord`/`Attribution` ([`intercept-as-built.md`](./intercept-as-built.md) §10); join contract defined below (GV2-013) | Contract defined (GV2-013); bridge type + registry wiring pending (GV2-020)   |
-| Plan/provenance graph                   | provenance shipped **in TS** ([`edda-stack.md`](./edda-stack.md)); join contract defined below (GV2-014)                                             | Contract defined (GV2-014); Rust read surface (`eddacraft-kindling`) proposed |
-| Registry + query traits                 | none yet — consumers call `certify()`/`with_graphs()` directly                                                                                       | Draft (GV2-020/023)                                                           |
+| Layer                                   | Where it lives today                                                                                                                                 | State                                                                           |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Semantic code graph                     | `crates/anvil-graph-cache/src/symbol_graph.rs`, `crates/anvil-kernel-types/src/graph.rs`                                                             | Shipped (Sub-phase A); schema additions pending (GV2-010)                       |
+| Dependency/impact graph + reverse index | `crates/anvil-graph-cache/src/dependency.rs`                                                                                                         | Shipped; incremental maintenance + hot-read API pending (GV2-011/022)           |
+| Trust/policy graph                      | `PolicyProfile`/`TrustGraph` keyed on `SymbolIdentity` (`crates/anvil-kernel-types/src/trust.rs`, `crates/anvil-graph-cache/src/trust.rs`)           | Contract defined (GV2-012); daemon wiring pending (GV2-029)                     |
+| Control/session graph                   | shipped **in INTD** as `SessionRecord`/`Attribution` ([`intercept-as-built.md`](./intercept-as-built.md) §10); join contract defined below (GV2-013) | Contract defined (GV2-013); bridge type + registry wiring pending (GV2-020)     |
+| Plan/provenance graph                   | provenance shipped **in TS** ([`edda-stack.md`](./edda-stack.md)); join contract defined below (GV2-014)                                             | Contract defined (GV2-014); Rust read surface (`eddacraft-kindling`) proposed   |
+| Registry + query traits                 | none yet — consumers call `certify()`/`with_graphs()` directly                                                                                       | Consumer contract defined (GV2-023, see below); registry impl pending (GV2-020) |
 
 ## Principles
 
@@ -502,10 +502,90 @@ budget.
 - **Enforcement / hot-read API** (GV2-022) — the allowlist above; consumed by
   the daemon `validate_paths` path and by driver mid-edit reads. One allowlist,
   one admission rule, no surface-local "cheap" reads.
-- **Diagnostic / projection API** (GV2-020 registry → GV2-023 consumer contract)
-  — join queries, provenance reads, and context projections; runs off the hot
-  path. GCTX/MCP queries are explicitly projections over this trusted substrate,
-  never a second schema.
+- **Background query API** (GV2-020 registry → GV2-023 consumer contract) — the
+  diagnostic, provenance, and context-projection classes (see "The consumer
+  query contract (GV2-023)" below); join queries, provenance reads, and context
+  projections, all off the hot path. GCTX/MCP queries are explicitly projections
+  over this trusted substrate, never a second schema.
+
+## The consumer query contract (GV2-023)
+
+The two API tiers above answer _where_ a read runs (hot vs. background). This
+contract answers _what kind of read each consumer is allowed to ask for_, so
+INTD, DRVR, GCTX, and WEAVE depend on one shared boundary and do not grow
+incompatible graph adapters. It is the consumer-facing face of the GV2-020
+registry; GV2-020 implements the registry and hot-read traits, this contract
+fixes how downstream subsystems consume them.
+
+The contract is **read-shape, not storage**: every consumer depends on traits
+over joined state (the GV2-020 registry handle and the GV2-022 hot-read API),
+never on `petgraph` internals, snapshot layout, or a consumer-local schema. On
+any contract-vs-implementation conflict GV2 wins (see the GCTX seam below).
+
+### Four read classes
+
+A consumer query falls into exactly one of four classes, ordered by how far it
+sits from the enforcement hot path:
+
+| Read class             | Tier / surface                      | Admissibility | `warm`/`stale` marker | Returns                                                                                                            |
+| ---------------------- | ----------------------------------- | ------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| **Enforcement**        | hot-read API (GV2-022)              | hot           | yes                   | allowlist ops only — per-file lookup, edge existence, bounded reverse impact, architectural-index check            |
+| **Diagnostic**         | registry join queries (GV2-020)     | non-hot       | n/a (background)      | structural join reads across semantic/dependency/trust/control state                                               |
+| **Provenance**         | registry → ref-only Edda resolution | non-hot       | n/a (background)      | anchors (APS id, commit SHA, `SymbolIdentity`, `MemoryId`) resolved into the TS-authoritative Edda store (GV2-014) |
+| **Context projection** | `GctxProjector` over the substrate  | non-hot       | n/a (background)      | identity-only projections by default; source-text egress only behind `gctx.egress` (PV-9 CE-1)                     |
+
+The classes share one substrate. A context projection is a _projection over_
+diagnostic and provenance reads, never a parallel schema — the same trusted
+graph state, re-shaped and redacted for an untrusted reader. Enforcement reads
+keep the explicit `warm`/`stale` marker and the degrade-never-escalate rule from
+the hot-read split; the three non-hot classes run on the background pool and may
+perform joins, but never re-enter the hot path.
+
+### One mapped scenario per consumer
+
+The contract is satisfied when each downstream owner has at least one query
+scenario mapped onto a class above:
+
+| Consumer            | Class              | Mapped query scenario                                                                                                                                                                                                                                                                          |
+| ------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **INTD** (daemon)   | Enforcement        | save-time `certify(delta)` over resident warm indexes returns a `Certifiability` verdict on the hot path (GV2-022, ADR-061 wire)                                                                                                                                                               |
+| **DRVR** (drivers)  | Enforcement        | mid-edit "is this new edge admissible?" — known-edge existence + bounded reverse impact through the _same_ allowlist (ADR-063 binds DRVR to one admission rule; no second policy). _Forward-looking: the driver call site lands with the GV2-020 registry; not wired today._                   |
+| **GCTX** (MCP)      | Context projection | an assistant asks for a file's impact set; served from the **background** registry (not the hot-path bounded-reverse-impact op, which language it shares) as an identity-only projection through the single `GctxProjector` choke point (PV-9 CE-5), snippets only if `gctx.egress` is enabled |
+| **WEAVE** (harness) | Diagnostic         | the agent harness's `GraphQueryTool` asks a structural question — "what imports this symbol", "what are the transitive callers", "what layer is this" — as a registry join read. _Also in-class for WEAVE: Provenance (APS id → ref-only GV2-014 anchors) for task grounding._                 |
+
+These four scenarios discharge the GV2-023 validation (one mapped scenario per
+GCTX, DRVR, INTD, and WEAVE owner). The consumers sit at different maturity
+levels, and the contract is deliberately mapped **ahead of** the consumers that
+do not exist yet — that is the point of a consumer contract (the Intent: stop
+each consumer growing an incompatible graph adapter):
+
+- **INTD — live.** The enforcement read path ships today: `validate_paths`
+  certify reads the resident warm index on the save-time hot path.
+- **DRVR — wired by design, not yet built.** ADR-063 binds driver mid-edit reads
+  to the _same_ hot-read allowlist (no second admission policy), and the DRVR
+  module is Complete, but its GV2 graph-read call site was explicitly deferred —
+  it lands with the GV2-020 registry, not today. The "live" claim here is the
+  admission _rule_, not a shipped driver→GV2-022 call.
+- **GCTX — in flight.** The `graph-context-delivery` module is Ready (0/13);
+  GCTX-001 builds the projection rules onto this contract.
+- **WEAVE — planned.** `weave`/`anvil-weave` is a Draft module (0/21, no crate
+  yet) — a greenfield import of the standalone `eddacraft/weave-rs` runtime.
+  Mapping its `GraphQueryTool` onto the diagnostic (and provenance) tier now is
+  exactly what keeps it from being built as a bespoke `petgraph` adapter later.
+
+INTD and DRVR share the enforcement class by design — ADR-063's single admission
+rule is the point. GCTX (context projection) and WEAVE (diagnostic/provenance)
+both read the non-hot background tier; the privacy boundary that governs GCTX's
+egress is specified in the
+[context-egress privacy review (PV-9)](../../plans/reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
+and absorbed by GCTX-001 (conditions CE-1..CE-12), not re-specified here.
+
+> Scope: this contract fixes the consumer read boundary only. The registry and
+> trait _implementation_ is GV2-020; the assistant projection _rules_
+> (redaction, pagination, warming) are GCTX-001. `GctxProjector` is named here
+> as the GCTX-001 implementation target required by PV-9 CE-5, not a type this
+> section freezes. This section deliberately does not freeze either — see "What
+> this spec deliberately does not freeze".
 
 ## Seams to other subsystems
 

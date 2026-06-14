@@ -129,7 +129,11 @@ enforcement/provenance requirements conflict, GV2 wins and this module adapts.
 Module promoted to **Ready** 2026-06-15 (both ADR-075 entry gates landed):
 
 - [x] GV2 query contract exposes the graph reads this module needs — GV2-023
-      promoted Ready 2026-06-15 (deps GV2-020/-022 cleared)
+      consumer query contract authored 2026-06-15 in
+      [`graph-v2-foundation-spec.md`](../../docs/architecture/graph-v2-foundation-spec.md)
+      ("The consumer query contract (GV2-023)"); GCTX's mapped scenario is the
+      identity-only impact-set projection through the `GctxProjector` choke point
+      (PV-9 CE-5), with source-text egress gated behind `gctx.egress` (CE-1)
 - [x] MCP delivery target decided: interim TS server, Rust RMCPF server, or both —
       [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) Accepted (Rust RMCPF
       `anvil mcp serve`)

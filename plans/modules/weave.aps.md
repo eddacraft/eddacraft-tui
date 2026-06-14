@@ -354,15 +354,28 @@ Spike work happens in the `eddacraft/weave-rs` standalone repo, not in
 
 #### WEAVE-031: GraphQueryTool — semantic graph queries
 
-- **Intent:** Implement a Tool that queries the kernel's petgraph semantic graph
-  with zero-copy access, supporting queries like "what imports this symbol",
-  "what are the transitive callers", "what layer does this belong to"
+- **Intent:** Implement a Tool that queries the kernel's semantic graph through
+  the GV2 registry traits (zero-copy, in-process), supporting queries like "what
+  imports this symbol", "what are the transitive callers", "what layer does this
+  belong to" — without depending on `petgraph` internals directly
 - **Expected Outcome:** Agent can reason about codebase structure by querying
   the live graph rather than parsing text
+- **Contract note:** `GraphQueryTool` is a GV2-023 consumer in the **Diagnostic**
+  read class — structural join reads (semantic/dependency) through the GV2
+  consumer query contract (the GV2-020 registry handle / traits over joined
+  state), not a bespoke `petgraph` adapter. (Task-grounding reads that resolve an
+  APS id → ref-only GV2-014 anchors are the **Provenance** class, also in-class
+  for the harness.) "Zero-copy" describes the in-process read path, not direct
+  storage coupling; the registry boundary is what keeps anvil-weave from growing
+  an incompatible graph adapter — and only `anvil-weave` consumes it, never the
+  zero-`anvil-*`-dependency standalone `weave` crate. See "The consumer query
+  contract (GV2-023)" in
+  [`graph-v2-foundation-spec.md`](../../docs/architecture/graph-v2-foundation-spec.md).
 - **Validation:** `cargo test -p eddacraft-anvil-weave graph_query`
 - **Confidence:** medium
 - **Priority:** Critical
-- **Dependencies:** WEAVE-030, KERN Phase 2 (semantic graph)
+- **Dependencies:** WEAVE-030, KERN Phase 2 (semantic graph), GV2-023 (consumer
+  query contract), GV2-020 (registry impl)
 
 ---
 
