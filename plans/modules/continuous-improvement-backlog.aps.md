@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 44/77    |
+| CIB | —     | In Progress | 45/77    |
 
 ## Purpose
 
@@ -1893,7 +1893,7 @@ archive.
 
 ### CIB-071: migrate user-facing diagnostics from `anyhow` to `miette`
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-14 via PR #2597 (Phase A) + PR #2611 (Phase B)
 - **Intent:** Anvil reports violations with file path and line number
   (`from_file`, `to_file`, `import_line` in `anvil-architecture`; file +
   line in AST check findings) but renders them as plain prose strings. As a
