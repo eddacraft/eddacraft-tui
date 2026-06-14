@@ -1177,12 +1177,13 @@ session.
 command reports the two failure states and exits 3 before `whoami`'s own output
 is produced:
 
-- **Not authenticated** — no stored credential found:
-  `Authentication required. Run \`anvil auth login\`` (exit 3).
-- **Session expired** — a stored credential exists but has lapsed:
-  `Session expired. Run \`anvil auth login\` to re-authenticate` (exit 3). A
-  valid refresh token is exchanged silently first, so this only shows when
-  refresh is not possible.
+- **Not authenticated** — no stored credential found. The gate prints
+  "Authentication required. Run `anvil auth login` to authenticate." (exit 3).
+- **Session expired** — a stored credential exists but has lapsed. The gate
+  prints "Session expired. Run `anvil auth login` to re-authenticate." (exit 3).
+  When a refresh token is present the gate first attempts a silent refresh, so
+  this appears only if no refresh token is available or the refresh did not
+  succeed.
 
 When a present, valid credential lets the gate through, `whoami` then reports
 the identity — and, crucially, **where it came from** (GH #2587), so an identity

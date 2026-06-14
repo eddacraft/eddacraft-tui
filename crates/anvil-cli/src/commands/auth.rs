@@ -180,11 +180,18 @@ pub fn run(args: &AuthArgs, global: &GlobalArgs) -> Result<()> {
             // exits 3 with "Authentication required" / "Session expired" before
             // this body runs — so `whoami` is only reached with a present,
             // valid credential. This `else` is a defensive fallback for the
-            // case where that gate is bypassed; it should not normally fire.
+            // case where that gate is bypassed; it should not normally fire,
+            // and it honours the same auth-required contract (exit 3) rather
+            // than falling through to a generic exit-1 error.
             let Some((creds, source)) = credentials::load_with_source()? else {
-                anyhow::bail!(
-                    "Not authenticated — no stored credentials found. Run: anvil auth login"
-                );
+                if global.json {
+                    crate::output::json::print(
+                        &serde_json::json!({ "error": "authentication_required" }),
+                    )?;
+                } else {
+                    eprintln!("Authentication required. Run `anvil auth login` to authenticate.");
+                }
+                return Err(crate::output::AuthRequired.into());
             };
 
             // GH #2587: a credential IS present — minted by an earlier login,
