@@ -288,8 +288,9 @@ impl<'a> HotReadApi<'a> {
         change: &ChangeKind,
         delta: &GraphDelta,
         budget: usize,
+        max_depth: u32,
     ) -> Certifiability {
-        certify(self.sym, self.dep, change, delta, budget)
+        certify(self.sym, self.dep, change, delta, budget, max_depth)
     }
 }
 

@@ -480,6 +480,18 @@ fn candidate_path(
     if anvil_checks::filter::is_binary_path(path) {
         return None;
     }
+    // Lockfiles are NOT excluded here: `scan_one` runs them through the
+    // restricted URL-credential-only secret scan (GH #2584). Excluding them
+    // would also drop the chance to flag a credential committed to a `resolved`
+    // URL.
+    // `.env*` files are the designated place to keep local secrets, so
+    // reporting their contents as findings is noise the user cannot action
+    // (GH #2584). They are almost always gitignored — and frequently by a
+    // *global* gitignore — so a gitignore-respecting walk cannot reliably tell
+    // a committed `.env` from a local one; exempt them unconditionally.
+    if anvil_checks::surface::env::is_env_file(path) {
+        return None;
+    }
     // Size check is repeated at read-time (scan_one) because the file can
     // grow between Phase 1 and Phase 2. This pre-check is an early-exit so
     // the rayon pool doesn't even see huge files.
@@ -590,6 +602,13 @@ fn scan_one(
         });
     }
 
+    // Lockfiles get the secret scan (URL-credential-only, handled inside
+    // `scan_content`) but no antipattern pass — generated dependency metadata
+    // has no meaningful antipatterns, and scanning it is pure noise (GH #2584).
+    if anvil_checks::filter::is_lockfile(path) {
+        return Some(local);
+    }
+
     let ap_result = anvil_checks::antipattern::scanner::scan_file(rel_path, &content, None);
     for warning in &ap_result.warnings {
         if warning.suppressed.is_some() {
@@ -671,9 +690,13 @@ fn scan_project_at(
     let mut all_candidates: HashSet<std::path::PathBuf> = HashSet::new();
 
     // Phase 1a: always-scan allowlist pass. Bypasses standard gitignore
-    // filters so leaked `.env` or `id_rsa` files in gitignored locations are
-    // still caught — precisely the class of secret the first-run scan exists to
-    // flag — and builds `all_candidates` for the SCAN-004 skip count.
+    // filters so leaked credential files (`id_rsa`, `credentials.json`, …) in
+    // gitignored locations are still caught — precisely the class of secret the
+    // first-run scan exists to flag — and builds `all_candidates` for the
+    // SCAN-004 skip count. `.env*` files are intentionally excluded from the
+    // first-run scan entirely (GH #2584) — `candidate_path` drops them, so
+    // neither phase scans them. A secret committed to a tracked `.env` is
+    // caught by `anvil gate`/`audit` and the save-time intercept, not here.
     //
     // SCAN-006: the walk runs in parallel (`collect_blind_candidates_parallel`)
     // because it is uncapped and order-free; the sequential post-pass below
@@ -691,8 +714,9 @@ fn scan_project_at(
             // axis that differs between the two sets is gitignore.
             all_candidates.insert(candidate.0.clone());
             // No cap on the allowlist pass: ALWAYS_SCAN_FILENAMES is a small,
-            // rare-filename set. These are force-scanned even when gitignored —
-            // exactly the class of leak the first-run scan exists to flag.
+            // rare-filename set of credential files force-scanned even when
+            // gitignored — exactly the class of leak the first-run scan exists
+            // to flag.
             if is_always_scan_filename(&candidate.0) && seen.insert(candidate.0.clone()) {
                 candidates.push(candidate);
             }
@@ -1594,6 +1618,156 @@ mod tests {
             assert_eq!(
                 results.files_skipped_by_ignore, 0,
                 "truncated scan must suppress the gitignore-skip count"
+            );
+        }
+    }
+
+    // ── GH #2584: dotenv + lockfile noise reduction ─────────────────
+    //
+    // Drives the real two-phase walk in `scan_project_at` against a temp git
+    // repo so the noise-reduction behaviour reflects production, not a stub.
+    mod noise_reduction {
+        use super::super::scan_project_at;
+        use std::fs;
+        use std::process::Command;
+
+        fn git_init(dir: &std::path::Path) {
+            let ok = Command::new("git")
+                .args(["init", "-q"])
+                .current_dir(dir)
+                .status()
+                .is_ok_and(|s| s.success());
+            assert!(ok, "git init failed in test fixture");
+            // Neutralise any developer/CI global gitignore (which commonly
+            // lists `.env`) so this fixture's gitignore state is exactly what
+            // the test writes — not the ambient environment's. Point
+            // `core.excludesfile` at an empty file inside the repo rather than
+            // `/dev/null`, which does not exist on Windows.
+            let empty = dir.join(".empty-global-excludes");
+            fs::write(&empty, "").expect("write empty excludes file");
+            let configured = Command::new("git")
+                .args(["config", "core.excludesfile"])
+                .arg(&empty)
+                .current_dir(dir)
+                .status()
+                .is_ok_and(|s| s.success());
+            assert!(configured, "git config core.excludesfile failed");
+        }
+
+        fn github_token() -> String {
+            // A high-confidence GitHub token pattern — flagged regardless of the
+            // keyword allowlist (issue #1800).
+            format!("ghp_{}", "a".repeat(36))
+        }
+
+        fn has_secret_finding_for(
+            results: &anvil_tui::surfaces::tutorial::discovery::ScanResults,
+            file_substr: &str,
+        ) -> bool {
+            use anvil_tui::surfaces::tutorial::discovery::FindingSource;
+            results
+                .findings
+                .iter()
+                .any(|f| f.source == FindingSource::Secret && f.file.contains(file_substr))
+        }
+
+        #[test]
+        fn gitignored_dotenv_local_is_not_scanned() {
+            // A gitignored `.env.local` is the user's local secret store; its
+            // contents must not be reported back as high-severity findings.
+            let tmp = tempfile::tempdir().unwrap();
+            let root = tmp.path();
+            git_init(root);
+            fs::write(
+                root.join(".env.local"),
+                format!("GITHUB_TOKEN={}\n", github_token()),
+            )
+            .unwrap();
+            fs::write(root.join(".gitignore"), ".env.local\n").unwrap();
+
+            let results = scan_project_at(root, false);
+            assert!(
+                !has_secret_finding_for(&results, ".env.local"),
+                "a gitignored .env.local must not be force-scanned (GH #2584):\n{:#?}",
+                results.findings,
+            );
+        }
+
+        #[test]
+        fn dotenv_is_exempt_even_when_not_gitignored() {
+            // `.env` files are the designated local secret store, so they are
+            // exempt from secret scanning regardless of gitignore state — a
+            // gitignore-respecting walk can't reliably tell a committed `.env`
+            // from a local one (global gitignores commonly hide `.env`), so the
+            // exemption is unconditional rather than gitignore-dependent.
+            let tmp = tempfile::tempdir().unwrap();
+            let root = tmp.path();
+            git_init(root); // also points core.excludesfile at /dev/null
+            fs::write(
+                root.join(".env"),
+                format!("GITHUB_TOKEN={}\n", github_token()),
+            )
+            .unwrap();
+            // No .gitignore — the .env is a tracked, non-ignored file here.
+
+            let results = scan_project_at(root, false);
+            assert!(
+                !has_secret_finding_for(&results, ".env"),
+                "a .env file must not be secret-scanned (GH #2584):\n{:#?}",
+                results.findings,
+            );
+        }
+
+        #[test]
+        fn package_lock_integrity_hashes_are_not_flagged() {
+            // npm lockfile integrity hashes are high-entropy by construction;
+            // they must not surface as entropy/secret findings.
+            let tmp = tempfile::tempdir().unwrap();
+            let root = tmp.path();
+            let lock = r#"{
+  "name": "demo",
+  "lockfileVersion": 3,
+  "packages": {
+    "node_modules/left-pad": {
+      "version": "1.3.0",
+      "resolved": "https://registry.npmjs.org/left-pad/-/left-pad-1.3.0.tgz",
+      "integrity": "sha512-XI5MPzVNApjAyhQzphX8BkmKsKUxD4LdyK24iZeQGinBN9yTQT3bFlCBy/aVx2HrNcqQGsdot8ghrjyrvMCoEA=="
+    }
+  }
+}
+"#;
+            fs::write(root.join("package-lock.json"), lock).unwrap();
+
+            let results = scan_project_at(root, false);
+            assert!(
+                !has_secret_finding_for(&results, "package-lock.json"),
+                "lockfile integrity hashes must not be flagged (GH #2584):\n{:#?}",
+                results.findings,
+            );
+        }
+
+        #[test]
+        fn package_lock_url_credential_is_flagged() {
+            // A credential embedded in a lockfile `resolved` URL is a real
+            // secret and must still surface, even though integrity hashes are
+            // ignored.
+            let tmp = tempfile::tempdir().unwrap();
+            let root = tmp.path();
+            let lock = "{\n  \"integrity\": \"sha512-XI5MPzVNApjAyhQzphX8BkmKsKUxD4LdyK24iZeQGinB\",\n  \"resolved\": \"https://deployer:s3cr3tT0ken@npm.private.example/x/-/x-1.0.0.tgz\"\n}\n";
+            fs::write(root.join("package-lock.json"), lock).unwrap();
+
+            let results = scan_project_at(root, false);
+            assert!(
+                has_secret_finding_for(&results, "package-lock.json"),
+                "a credential in a lockfile resolved URL must be flagged:\n{:#?}",
+                results.findings,
+            );
+            assert!(
+                !results
+                    .findings
+                    .iter()
+                    .any(|f| f.message.contains("s3cr3tT0ken")),
+                "the credential must be redacted in the finding",
             );
         }
     }

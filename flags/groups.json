@@ -56,6 +56,13 @@
       "defaultClass": "rollout",
       "defaultAudiences": ["channel-general"],
       "defaultStatus": "active"
+    },
+    {
+      "id": "gv2",
+      "name": "GV2 graph-cache hot path (internal)",
+      "defaultClass": "entitlement",
+      "defaultAudiences": ["staff-anvil-internal"],
+      "defaultStatus": "active"
     }
   ]
 }

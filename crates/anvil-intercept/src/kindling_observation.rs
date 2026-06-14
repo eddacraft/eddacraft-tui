@@ -61,6 +61,8 @@ use std::time::{Duration, Instant};
 
 use anvil_kernel_types::Diagnostic;
 use anvil_kernel_types::diagnostics::Severity;
+use anvil_observability::TraceContext;
+use anvil_observability::redaction::ArgShape;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -76,6 +78,61 @@ pub const KIND_GATE_EVALUATED: &str = "gate_evaluated";
 /// rows from save-time / pre-commit / pre-push / audit rows that
 /// share the `gate_evaluated` kind but live at different layers.
 pub const MIDEDIT_GATE_ID: &str = "midEdit";
+
+/// MLP2-008: the canonical `gate_eval_id` join key, extracted from a
+/// W3C `traceparent`.
+///
+/// This is the **single source** for the join key shared by the two
+/// mid-edit surfaces that need to correlate downstream:
+///
+/// - the Kindling `gate_evaluated` row (this module), and
+/// - the RTAI-007 mid-edit telemetry envelope
+///   (`crate::telemetry::NotificationMirror::gate_eval_id`).
+///
+/// Both call this extractor so a row and its originating telemetry
+/// envelope carry **byte-identical** `gate_eval_id` values whenever a
+/// valid `traceparent` is in scope, making the join
+/// `envelope.mirror.gate_eval_id == row.gate_eval_id` exact. The
+/// daemon IPC handler's `derive_gate_eval_id` also delegates here (then
+/// applies its own UUID-v4 fallback), so there is exactly one
+/// definition of "what the join key is".
+///
+/// Returns the W3C **parent-id** (the 16 lower-hex-char upstream span
+/// id) — the field consumers join against — or `None` when the
+/// `traceparent` is absent or unparseable. Callers that must always
+/// emit an id (the Kindling row) apply their own fallback; callers for
+/// which an unjoinable random id would be worse than absence (the
+/// telemetry envelope) leave the field unset on `None`.
+///
+/// ## Field map: RTAI-007 mid-edit envelope → `gate_evaluated` row
+///
+/// The explicit contract a subscriber uses to join an
+/// `anvil.notification.v1` mid-edit envelope back to its Kindling row:
+///
+/// | RTAI-007 envelope field                | `gate_evaluated` row field   | Relationship |
+/// |----------------------------------------|------------------------------|--------------|
+/// | `mirror.gate_eval_id`                  | `gate_eval_id`               | **join key** — both = `traceparent` parent-id via this fn |
+/// | `correlation.session_id`               | `session_id`                 | same daemon/edit session |
+/// | `notification.context.file`            | `inputs.changed_files[0]`    | the file evaluated (paths-only) |
+/// | `mirror.decision` (`warn`/`block`)     | `enforcement`                | same advisory severity class |
+/// | `timestamp`                            | `timestamp`                  | producer wall-clock at emit |
+///
+/// Note: a row exists only for a finding-bearing scan — an `allow`
+/// (no-finding) decision emits **no** `gate_evaluated` row (see
+/// [`from_midedit_response`]), so there is nothing to join for `allow`.
+/// The row's `outcome` is always `Fail` on the mid-edit path (a row
+/// only exists when there is a finding); the severity distinction
+/// (`warn` vs `block`) lives in `enforcement`, not `outcome`.
+///
+/// `gate_id` on the row is pinned to [`MIDEDIT_GATE_ID`] (`"midEdit"`),
+/// matching the envelope's `mirror.path = midEdit` discriminator, so a
+/// joined pair is provably the same mid-edit evaluation.
+#[must_use]
+pub fn gate_eval_id_from_traceparent(traceparent: Option<&str>) -> Option<String> {
+    traceparent
+        .and_then(|raw| TraceContext::parse(raw).ok())
+        .map(|ctx| ctx.parent_id().to_string())
+}
 
 /// Kindling `enforcement` field values. Closed three-value enum
 /// shared with the TS Zod schema; deliberately not derived from
@@ -181,6 +238,103 @@ pub struct ObservationInputs {
     pub changed_files: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub baseline_hash: Option<String>,
+}
+
+// ---------------------------------------------------------------------
+// USAGE-001: command-invocation observations
+// ---------------------------------------------------------------------
+
+/// Pinned Kindling observation kind for a user-initiated command (CLI)
+/// or JSON-RPC method invocation. Schema-matches
+/// `CommandInvokedObservationSchema.kind` in
+/// `packages/kindling-integration/src/observation-contract.ts`.
+pub const KIND_COMMAND_INVOKED: &str = "command.invoked";
+
+/// One resolved feature-flag entry captured inline on a usage row, per
+/// ADR-041 (`plans/decisions/041-flag-snapshot-usage-join-contract.md`).
+///
+/// USAGE-001 emits the row with an **empty** `flag_set`; USAGE-002 owns
+/// populating it from the resolver at the invocation boundary. The
+/// shape is pinned here so the wire contract is stable before the
+/// producer fills it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FlagSetEntry {
+    /// Canonical manifest `key` — the stable join key (ADR-041 D-2).
+    pub key: String,
+    /// Resolved variant for this invocation.
+    pub variant: String,
+    /// Where the value came from: `snapshot` | `override` | `default`.
+    pub source: String,
+    /// Whether this flag is gate-affecting (ADR-019 boundary).
+    pub gate_affecting: bool,
+}
+
+/// Per-invocation identity the caller supplies so this module stays a
+/// pure converter (no clock, UUID source, or secrets access of its
+/// own).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommandInvocationContext<'a> {
+    /// Per-invocation UUID v4 string (base-shape `session_id`).
+    pub session_id: &'a str,
+    /// RFC 3339 / ISO 8601 datetime when the invocation was observed.
+    pub timestamp: &'a str,
+    /// Canonical command or method name (e.g. `check`, `session.list`).
+    pub command: &'a str,
+    /// Anonymised principal — a one-way hash, or `anonymous` when no
+    /// identity is on the call path. The raw principal MUST NOT appear.
+    pub principal: &'a str,
+    /// W3C `traceparent` for cross-pipe correlation when one was bound
+    /// on the invocation; `None` otherwise (ADR-035).
+    pub traceparent: Option<&'a str>,
+}
+
+/// Kindling `command.invoked` observation payload (USAGE-001). Records
+/// *that* a command ran and the redacted *shape* of its arguments —
+/// never argument values, results, or output. See the privacy contract
+/// at `docs/observability/usage-analytics.md`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CommandInvokedObservation {
+    pub kind: String,
+    pub session_id: String,
+    pub timestamp: String,
+    pub command: String,
+    pub principal: String,
+    /// Redacted per-argument shapes (names + value shape, no values).
+    pub args: Vec<ArgShape>,
+    /// Inline resolved flag context (ADR-041). Empty for USAGE-001;
+    /// always present (never omitted) so consumers can distinguish
+    /// "no flags resolved" from "field missing". Do NOT add
+    /// `skip_serializing_if = "Vec::is_empty"` here — the always-present
+    /// `flag_set: []` invariant is the contract.
+    #[serde(default)]
+    pub flag_set: Vec<FlagSetEntry>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub traceparent: Option<String>,
+}
+
+/// Build a [`CommandInvokedObservation`] from per-invocation context,
+/// already-redacted argument shapes, and the inline flag set.
+///
+/// Pure: the caller owns identity minting, argument redaction (via
+/// [`anvil_observability::redaction::redact_arg`]), and flag
+/// resolution, so this helper is testable without a clock, a secrets
+/// store, or a resolver.
+#[must_use]
+pub fn from_command_invocation(
+    ctx: &CommandInvocationContext<'_>,
+    args: Vec<ArgShape>,
+    flag_set: Vec<FlagSetEntry>,
+) -> CommandInvokedObservation {
+    CommandInvokedObservation {
+        kind: KIND_COMMAND_INVOKED.to_string(),
+        session_id: ctx.session_id.to_string(),
+        timestamp: ctx.timestamp.to_string(),
+        command: ctx.command.to_string(),
+        principal: ctx.principal.to_string(),
+        args,
+        flag_set,
+        traceparent: ctx.traceparent.map(ToString::to_string),
+    }
 }
 
 /// Convert a mid-edit [`ScanBufferResponse`] into a Kindling
@@ -1127,6 +1281,52 @@ mod tests {
             file_path: "src/lib.rs",
             duration_ms: 42,
         }
+    }
+
+    #[test]
+    fn command_invoked_observation_round_trips_and_pins_kind() {
+        use anvil_observability::redaction::redact_arg;
+
+        let ctx = CommandInvocationContext {
+            session_id: "22222222-2222-4222-8222-222222222222",
+            timestamp: "2026-06-14T09:30:00Z",
+            command: "check",
+            principal: "deadbeef0123",
+            traceparent: Some("00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"),
+        };
+        let args = vec![
+            redact_arg("path", Some("/home/me/repo")),
+            redact_arg("json", None),
+            redact_arg("token", Some("super-secret")),
+        ];
+        let obs = from_command_invocation(&ctx, args, Vec::new());
+
+        assert_eq!(obs.kind, KIND_COMMAND_INVOKED);
+        assert_eq!(obs.kind, "command.invoked");
+        assert_eq!(obs.command, "check");
+        assert_eq!(obs.principal, "deadbeef0123");
+        // USAGE-001 emits an empty flag_set; USAGE-002 populates it.
+        assert!(obs.flag_set.is_empty());
+
+        let json = serde_json::to_string(&obs).expect("serialise");
+        // Privacy contract: no raw argument values, ever.
+        assert!(!json.contains("/home/me/repo"), "raw value leaked: {json}");
+        assert!(
+            !json.contains("super-secret"),
+            "sensitive value leaked: {json}"
+        );
+        assert!(
+            json.contains("<redacted>"),
+            "redaction marker missing: {json}"
+        );
+        // flag_set is always present (never omitted), even when empty.
+        assert!(
+            json.contains("\"flag_set\":[]"),
+            "flag_set must be present: {json}"
+        );
+
+        let back: CommandInvokedObservation = serde_json::from_str(&json).expect("round-trip");
+        assert_eq!(back, obs);
     }
 
     fn make_diag(rule_id: &str, severity: Severity) -> Diagnostic {

@@ -58,6 +58,14 @@ impl SecretDetectionRule {
     }
 
     fn should_skip_path(&self, input: &RuleInput<'_>) -> bool {
+        // Lockfiles are NOT skipped: `scan_content_with_limit` gives them a
+        // restricted URL-credential-only scan (GH #2584), so an integrity hash
+        // never trips the rule but a credential written into a `resolved` URL
+        // still does. Returning `false` forces them past the `.lock` entry in
+        // `skip_extensions` so `Cargo.lock`/`yarn.lock` get that scan too.
+        if anvil_checks::filter::is_lockfile(input.path) {
+            return false;
+        }
         let path = input.path.to_string_lossy();
         self.config
             .skip_extensions
@@ -179,6 +187,41 @@ mod tests {
         let decision = SecretDetectionRule::default().evaluate(&input(path, Some(body)));
 
         assert_eq!(decision, RuleDecision::Allow);
+    }
+
+    #[test]
+    fn secret_rule_allows_lockfile_integrity_hash() {
+        // GH #2584: a lockfile's high-entropy integrity hash is a false
+        // positive — the restricted URL-only scan must not interrupt on it.
+        let path = Path::new("package-lock.json");
+        let body = b"{\"integrity\":\"sha512-XI5MPzVNApjAyhQzphX8BkmKsKUxD4LdyK24iZeQGinB\"}\n";
+
+        let decision = SecretDetectionRule::default().evaluate(&input(path, Some(body)));
+
+        assert_eq!(
+            decision,
+            RuleDecision::Allow,
+            "lockfile integrity hashes must not trip the save-time secret rule",
+        );
+    }
+
+    #[test]
+    fn secret_rule_interrupts_on_lockfile_url_credential() {
+        // A credential embedded in a lockfile `resolved` URL IS a real secret
+        // and must still interrupt, even though the integrity hashes around it
+        // are ignored.
+        let path = Path::new("package-lock.json");
+        let body = b"{\n  \"resolved\": \"https://deployer:s3cr3tT0ken@npm.private.example/x/-/x-1.0.0.tgz\"\n}\n";
+
+        let decision = SecretDetectionRule::default().evaluate(&input(path, Some(body)));
+
+        match decision {
+            RuleDecision::Interrupt(reason) => {
+                assert_eq!(reason.rule_id, SECRET_RULE_ID);
+                assert!(!reason.message.contains("s3cr3tT0ken"));
+            }
+            RuleDecision::Allow => panic!("a credential URL in a lockfile must interrupt"),
+        }
     }
 
     #[test]

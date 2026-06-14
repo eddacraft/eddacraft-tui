@@ -612,7 +612,7 @@ mod tests {
 
         let verdict = cache
             .with_graphs(&k, |sym, dep| {
-                certify(sym, dep, &ChangeKind::ContentModify, &outcome.delta, 64)
+                certify(sym, dep, &ChangeKind::ContentModify, &outcome.delta, 64, 1)
             })
             .expect("warm key present after apply");
 
@@ -648,7 +648,7 @@ mod tests {
 
         let verdict = cache
             .with_graphs(&k, |sym, dep| {
-                certify(sym, dep, &ChangeKind::ContentModify, &outcome.delta, 64)
+                certify(sym, dep, &ChangeKind::ContentModify, &outcome.delta, 64, 1)
             })
             .expect("warm key present after apply");
 
@@ -695,7 +695,7 @@ mod tests {
 
         let verdict = cache
             .with_graphs(&k, |sym, dep| {
-                certify(sym, dep, &ChangeKind::ContentModify, &outcome.delta, 64)
+                certify(sym, dep, &ChangeKind::ContentModify, &outcome.delta, 64, 1)
             })
             .expect("warm key present after apply");
 
@@ -1036,6 +1036,7 @@ mod tests {
     #[allow(clippy::too_many_lines)]
     fn backing_parity_warm_matches_cold_rebuild_over_arbitrary_sequence() {
         use anvil_graph_cache::HotReadApi;
+        use anvil_graph_cache::MAX_REVERSE_IMPACT_DEPTH;
         use anvil_graph_cache::certify::{Certifiability, CertifyStale, certify};
 
         let files: [(&str, &str); 4] = [
@@ -1123,11 +1124,15 @@ mod tests {
                     // (sym, dep) reads. The warm arm goes through `HotReadApi` —
                     // the live A′ backing.
                     let dep_eq = cache.with_graphs(&k, |_, dep| *dep == cold_dep);
+                    // GV2-026: both arms use the same reverse-impact hop depth so
+                    // the backing-parity invariant isolates the (sym, dep) reads.
+                    let depth = MAX_REVERSE_IMPACT_DEPTH;
                     let v_warm = cache.with_graphs(&k, |sym, dep| {
                         HotReadApi::new(sym, dep).certify(
                             &ChangeKind::ContentModify,
                             &outcome.delta,
                             budget,
+                            depth,
                         )
                     });
                     let v_cold = certify(
@@ -1136,6 +1141,7 @@ mod tests {
                         &ChangeKind::ContentModify,
                         &outcome.delta,
                         budget,
+                        depth,
                     );
 
                     match v_warm {

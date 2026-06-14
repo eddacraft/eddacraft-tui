@@ -18,6 +18,7 @@ mod services;
 mod test_support;
 mod tui;
 mod update_hint;
+mod usage;
 mod util;
 mod warmup_cache;
 mod whats_new;
@@ -997,6 +998,19 @@ fn main() -> ExitCode {
     );
     let _cli_span_guard = cli_span.enter();
     tracing::info!(target: "anvil_cli", "cli command parsed");
+
+    // USAGE-001: record one durable `command.invoked` row per
+    // user-initiated invocation. Placed above dispatch so it fires
+    // uniformly for every command — no per-command wiring to forget.
+    // Strictly best-effort: a usage-write failure is logged and dropped
+    // so it never changes the command's behaviour or exit code.
+    if let Err(err) = usage::record_invocation(command_name) {
+        tracing::warn!(
+            target: "anvil_cli",
+            error = %err,
+            "usage: failed to record command-invocation observation; continuing",
+        );
+    }
 
     let wants_json = cli.global.json || command_requests_structured_output(&cli.command);
     if requires_auth(&cli.command)

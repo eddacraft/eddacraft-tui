@@ -645,6 +645,14 @@ impl Fanout {
             // `control_correlation_id` is dropped.
             mirror: envelope.mirror.clone().map(|mut m| {
                 m.control_correlation_id = None;
+                // MLP2-008: drop the `gate_eval_id` join key for the same
+                // reason `run_id` is dropped above — it is the W3C
+                // traceparent parent-id, so a cross-session subscriber
+                // could use it to join a redacted mid-edit envelope back
+                // to the originating session's `gate_evaluated` Kindling
+                // rows. The intra-session join (envelope ↔ row) the key
+                // exists for never crosses a redaction boundary.
+                m.gate_eval_id = None;
                 m
             }),
         }
@@ -994,6 +1002,55 @@ mod tests {
         assert_eq!(
             redacted.correlation.originating_session_id.as_deref(),
             Some("sess-A"),
+        );
+    }
+
+    #[test]
+    fn redaction_drops_mirror_gate_eval_id_for_cross_session_subscriber() {
+        // MLP2-008: the mid-edit `mirror.gate_eval_id` join key is the
+        // W3C traceparent parent-id. It must not survive cross-session
+        // redaction — same threat as `run_id` (joining external traces
+        // back to another session's activity).
+        let mut emitter = TelemetryEmitter::for_tests("p", "2026-05-06T00:00:00Z");
+        let resolver = StubResolver::new();
+        let foreign = SubscriberId::new("subscriber-foreign");
+
+        let fanout =
+            Fanout::with_cross_session_policy(Box::new(resolver), CrossSessionPolicy::Redact);
+        fanout.register(foreign.clone());
+
+        let correlation = TelemetryCorrelation {
+            session_id: Some("sess-A".to_string()),
+            originating_session_id: Some("sess-A".to_string()),
+            traceparent: Some(
+                "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01".to_string(),
+            ),
+            ..TelemetryCorrelation::default()
+        };
+        // Empty diagnostics → advisory `allow`, but the mirror is still
+        // emitted with `path = midEdit` and the join key populated.
+        let envelope = emitter.midedit_envelope_for_decision(correlation, &[]);
+        assert_eq!(
+            envelope
+                .mirror
+                .as_ref()
+                .and_then(|m| m.gate_eval_id.as_deref()),
+            Some("b7ad6b7169203331"),
+            "pre-redaction mid-edit envelope carries the join key",
+        );
+
+        let routed = fanout.route(&envelope);
+        assert_eq!(routed.len(), 1);
+        let Delivery::Redact(redacted) = &routed[0].delivery else {
+            panic!("expected redacted delivery, got {:?}", routed[0].delivery);
+        };
+        assert_eq!(
+            redacted
+                .mirror
+                .as_ref()
+                .and_then(|m| m.gate_eval_id.as_ref()),
+            None,
+            "redacted mirror must drop the gate_eval_id cross-trace join key",
         );
     }
 

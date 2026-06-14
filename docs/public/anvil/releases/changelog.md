@@ -9,6 +9,21 @@ sidebar_position: 1
 
 All notable changes to anvil are documented here.
 
+## [0.8.1-beta] — 2026-06-11 — Headless GitHub Login
+
+A patch cut hours after `v0.8.0-beta`, landing the GitHub device-flow login that
+missed the daemon release.
+
+### Changed
+
+- **`anvil auth login` now signs in via GitHub by default.** The CLI drives the
+  GitHub Device Authorisation Grant: it shows a short code and a
+  `github.com/login/device` URL you open on any device — no email prompt, no
+  local browser, so it works headless over SSH or tmux. The previous
+  email-prompt flow had been timing out and is retired. `--otp` remains the
+  email one-time-code fallback; any script that piped an email into
+  `anvil auth login` should switch to `anvil auth login --otp`.
+
 ## [0.8.0-beta] — 2026-06-11 — The Save-Time Daemon
 
 The first minor since `v0.7.0-beta`, earned on architecture: Anvil starts moving

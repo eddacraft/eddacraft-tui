@@ -26,14 +26,16 @@ describe('flags catalogue manifest', () => {
     expect(FeatureFlagManifestSchema.safeParse(featureFlagManifest()).success).toBe(true);
   });
 
-  it('contains exactly the six shipped flags', () => {
+  it('contains exactly the eight shipped flags', () => {
     const keys = featureFlagManifest().flags.map((f) => f.key);
     expect(keys).toEqual([
       'api.scope.beta',
       'api.scope.internal',
       'api.scope.preview',
       'cli.licence-gate',
+      'daemon.persist-graph',
       'docs.access',
+      'gv2.reverse-impact-depth',
       'tui-dashboard.aps-dashboard',
     ]);
   });
@@ -93,7 +95,7 @@ describe('typed accessors', () => {
 });
 
 describe('gating-model inventories', () => {
-  it('groups.json validates and carries the eight primary groups', () => {
+  it('groups.json validates and carries the nine primary groups', () => {
     expect(FlagGroupManifestSchema.safeParse(flagGroups()).success).toBe(true);
     expect(flagGroups().groups.map((g) => g.id)).toEqual([
       'cli',
@@ -104,6 +106,7 @@ describe('gating-model inventories', () => {
       'ide',
       'daemon',
       'hook',
+      'gv2',
     ]);
   });
 

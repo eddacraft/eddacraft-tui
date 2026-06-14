@@ -17,7 +17,7 @@ pub use patterns::{
 pub use scanner::{
     ScanStats, scan_content, scan_content_with_compiled_patterns, scan_content_with_limit,
     scan_content_with_limit_and_stats, scan_content_with_pattern_errors_and_stats,
-    scan_content_with_stats,
+    scan_content_with_stats, scan_lockfile_url_credentials,
 };
 pub use types::{
     EntropyFinding, FindingType, SecretCheckConfig, SecretCheckResult, SecretFinding,

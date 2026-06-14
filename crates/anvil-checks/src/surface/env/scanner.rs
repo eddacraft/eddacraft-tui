@@ -44,10 +44,16 @@ pub struct EnvFinding {
 
 /// Filenames that route through the `.env` scanner.
 ///
-/// Mirrors the `.env*` portion of `crate::filter::ALWAYS_SCAN_FILENAMES`
-/// plus the open-ended `.env.<environment>` case. Discovery callers
-/// (anvil-cli / anvil-architecture) should consult this before falling
-/// back to extension-based routing.
+/// Recognises `.env`, `.envrc`, and the open-ended `.env.<environment>` case
+/// (`.env.local`, `.env.production.local`, team-specific suffixes, …).
+/// Discovery callers (anvil-cli / anvil-architecture) should consult this
+/// before falling back to extension-based routing.
+///
+/// Note: `.env*` files are no longer in `crate::filter::ALWAYS_SCAN_FILENAMES`
+/// (GH #2584) — a gitignored `.env` is the user's local secret store and is
+/// not force-scanned. This predicate classifies `.env` files for callers that
+/// scan them deliberately; it does not itself force a gitignored file to be
+/// read.
 #[must_use]
 pub fn is_env_file(path: &Path) -> bool {
     let Some(name) = path.file_name().and_then(|n| n.to_str()) else {

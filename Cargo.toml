@@ -62,6 +62,10 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.9"
 toml = "1"
+# Binary snapshot codec (ADR-069 §1 — sealed-DTO graph-cache snapshots).
+# Chosen over bincode for a formally stable, versioned wire format (no v1/v2
+# wire-incompatibility footgun); pure-Rust, no native build step.
+postcard = { version = "1", features = ["use-std"] }
 
 # Policy engine (ADR-040 — pinned at a committed minor version)
 # default-features off so the sole consumer (anvil-policy-engine) opts into a

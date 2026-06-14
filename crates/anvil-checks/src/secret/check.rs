@@ -124,6 +124,20 @@ pub fn run_secret_check(
 }
 
 fn should_skip_file(file: &str, config: &SecretCheckConfig) -> bool {
+    // Lockfiles are NOT skipped: they get a restricted URL-credential-only scan
+    // in `scan_content_with_compiled_patterns` (GH #2584). Returning `false`
+    // here forces them past the `.lock` entry in `skip_extensions`, so
+    // `Cargo.lock`/`yarn.lock` reach that scan too — not just the non-`.lock`
+    // lockfiles like `package-lock.json`.
+    //
+    // `.env*` files are likewise not skipped: `run_secret_check` backs `anvil
+    // gate` (the `secret-detection` guardrail) and `anvil audit`, whose job is
+    // to catch a *committed* secret, including one in a tracked `.env`. The
+    // `.env` first-run noise that GH #2584 reports is suppressed in the
+    // discovery scan only (`welcome::candidate_path`), not here.
+    if crate::filter::is_lockfile(Path::new(file)) {
+        return false;
+    }
     config
         .skip_extensions
         .iter()
@@ -325,6 +339,60 @@ mod tests {
 
         assert!(!result.passed, "small files with secrets should be flagged");
         assert!(!result.findings.is_empty());
+
+        let _ = fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn lockfile_url_credential_is_flagged_but_integrity_hash_is_not() {
+        // GH #2584: a lockfile is scanned for URL-embedded credentials only —
+        // its high-entropy integrity hash is a false positive and must not be
+        // flagged, but a credential in a `resolved` URL must be.
+        let temp_dir = create_temp_dir("lockfile-url");
+        let lock = temp_dir.join("package-lock.json");
+        fs::write(
+            &lock,
+            "{\n  \"integrity\": \"sha512-XI5MPzVNApjAyhQzphX8BkmKsKUxD4LdyK24iZeQGinB\",\n  \
+             \"resolved\": \"https://deployer:s3cr3tT0ken@npm.private.example/left-pad/-/left-pad-1.3.0.tgz\"\n}",
+        )
+        .unwrap();
+
+        let lock_string = lock.to_string_lossy().to_string();
+        let files = [lock_string.as_str()];
+        let result = run_secret_check(&files, &SecretCheckConfig::default(), None);
+
+        assert_eq!(
+            result.findings.len(),
+            1,
+            "exactly the URL credential is flagged, not the integrity hash: {:#?}",
+            result.findings,
+        );
+        assert_eq!(result.findings[0].pattern_name, "Credential URL");
+        assert!(
+            !result.findings[0].redacted_line.contains("s3cr3tT0ken"),
+            "the credential must be redacted in the finding",
+        );
+
+        let _ = fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn committed_env_secret_is_still_scanned_by_run_secret_check() {
+        // The `.env` noise exemption is discovery-only. `run_secret_check`
+        // backs `anvil gate`/`anvil audit`, which must still catch a secret in
+        // a tracked `.env`.
+        let temp_dir = create_temp_dir("env-gate");
+        let env = temp_dir.join(".env");
+        fs::write(&env, format!("GITHUB_TOKEN=ghp_{}", "a".repeat(36))).unwrap();
+
+        let env_string = env.to_string_lossy().to_string();
+        let files = [env_string.as_str()];
+        let result = run_secret_check(&files, &SecretCheckConfig::default(), None);
+
+        assert!(
+            !result.passed && !result.findings.is_empty(),
+            "a committed .env secret must still be flagged by the gate/audit path",
+        );
 
         let _ = fs::remove_dir_all(temp_dir);
     }

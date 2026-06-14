@@ -2,7 +2,7 @@
 
 | ID   | Owner  | Status      | Progress   |
 | ---- | ------ | ----------- | ---------- |
-| MLP2 | @aneki | In Progress | 72/87 |
+| MLP2 | @aneki | In Progress | 73/87 |
 
 **Current work:** Post-`v0.7.1-beta` cleanup-agent sweep on
 2026-05-23 advanced MLP2-051f / MLP2-051h / MLP2-069 from
@@ -604,7 +604,20 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-007: MCP shim mirror of mid-edit Kindling observations
 
-- **Status:** Draft
+- **Status:** Blocked
+- **Blocked rationale (2026-06-14):** Premised on the MCP shim making
+  **mid-edit** `scan_buffer` calls — but it has no mid-edit surface.
+  Every MCP tool (`validate_write`, `gate`, `check`, …) sends
+  `"mode": "preWrite"` (or `planless`/`full`); the shim is a pre-write
+  gate by design (DSV-007 keeps it on the `scan_buffer` pre-write
+  path). The daemon's `gate_evaluated` emission (MLP2-006) deliberately
+  **skips pre-write** because, per **ADR-031**, pre-write samples are a
+  separate budget class and mixing them would conflate observation
+  kinds. So there are no mid-edit MCP calls to mirror, and emitting
+  `gate_evaluated` on the MCP pre-write path would contradict ADR-031.
+  Unblocking requires an owner/architect decision: either give the MCP
+  shim a mid-edit observation surface, or redefine this item against
+  the pre-write budget class. Not an implementation task as written.
 - **Intent:** The MCP shim (`crates/anvil-cli/src/mcp/validation.rs`)
   must produce bit-identical `gate_evaluated` rows for its
   mid-edit calls so MCP and direct-driver observations are
@@ -626,7 +639,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-008: RTAI-007 telemetry-contract join
 
-- **Status:** Draft
+- **Status:** Merged 2026-06-14 via PR #2602
 - **Intent:** Explicit field map between RTAI-007's mid-edit
   envelope and the `gate_evaluated` Kindling row, so a row can
   be joined back to its originating telemetry envelope by
@@ -646,6 +659,23 @@ task's `Source:` line cites the Council finding IDs.
 - **Priority:** Medium
 - **Dependencies:** MLP-016, RTAI-007
 - **Source:** MLP-016 footnote 4.
+- **Implementation note (2026-06-14):** Join **contract** landed.
+  Single shared key source: `kindling_observation::gate_eval_id_from_traceparent`
+  (the `traceparent` parent-id) — `ipc::derive_gate_eval_id` now
+  delegates to it, so the Kindling `gate_evaluated` row and the
+  RTAI-007 mid-edit telemetry envelope derive the join key from one
+  definition. Added additive forward-compat `mirror.gate_eval_id` to
+  `NotificationMirror` (mid-edit path only; omitted on the wire when
+  absent, so save-time + pre-MLP2-008 consumers are byte-unaffected)
+  and `traceparent` to `TelemetryCorrelation`/`TelemetryContext`. The
+  explicit field map (envelope ↔ row) is documented on
+  `gate_eval_id_from_traceparent`. Join-back integration test:
+  `crates/anvil-intercept/tests/rtai007_kindling_join.rs`. **Deferred
+  (out of scope; mirrors the MLP2-006 deferred-wiring pattern):**
+  threading the live `traceparent` from the daemon `scan_buffer` call
+  site onto `TelemetryCorrelation` (no production call site sets it
+  yet, so the field is dormant on the wire), and the TS driver-client
+  mirror of `mirror.gate_eval_id`.
 
 #### MLP2-009: Volume-bounded burst rate-shaping for observations
 

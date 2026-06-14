@@ -115,6 +115,7 @@ fn daemon_path_in_order(
             config: &AntipatternCheckConfig::default(),
             pool: &pool(),
             budget: 64,
+            reverse_impact_depth: 1,
             caps: &DosCaps::default(),
         },
     );

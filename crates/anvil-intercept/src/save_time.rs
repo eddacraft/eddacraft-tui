@@ -46,6 +46,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use anvil_checks::antipattern::types::AntipatternCheckConfig;
+use anvil_graph_cache::clamp_reverse_impact_depth;
 use anvil_intercept_proto::protocol::{
     AssuranceState, RequestFullScanRequest, RequestFullScanResponse, StaleReason,
     ValidatePathsRequest, ValidatePathsResponse, WorkspaceAssurance, WorkspaceStatusRequest,
@@ -70,6 +71,31 @@ use crate::workspace_pool::{DosCaps, WorkScheduler};
 /// the interactive pool; an overflow degrades to `Partial(ImpactSetOverflow)`,
 /// which is safe. The `DoS` parse-size / walk-depth caps are DSV-006 (Task 11).
 const SAVE_TIME_CERTIFY_BUDGET: usize = 256;
+
+/// Environment variable exposing the GV2-026 reverse-impact hop-depth lever
+/// (ADR-063 §3). Parsed to a `u32` and clamped into `1..=MAX_REVERSE_IMPACT_DEPTH`;
+/// unset or unparseable folds to the 1-hop default.
+const REVERSE_IMPACT_DEPTH_ENV: &str = "ANVIL_REVERSE_IMPACT_DEPTH";
+
+/// The default reverse-impact hop depth when the lever is unset (ADR-063 §3:
+/// "Default 1 hop", the ADR-061 §6 certifiability closure).
+const DEFAULT_REVERSE_IMPACT_DEPTH: u32 = 1;
+
+/// Resolve the reverse-impact hop-depth lever from a raw env value (ADR-063 §3).
+///
+/// Pure so the resolution is unit-testable without mutating process env: an
+/// unset (`None`) or unparseable value yields the 1-hop default, and the parsed
+/// value is clamped into `1..=MAX_REVERSE_IMPACT_DEPTH` via
+/// [`clamp_reverse_impact_depth`] — an over-cap setting is clamped, not honoured.
+/// Resolved once per save where the budget is resolved; never re-read on the hot
+/// loop.
+#[must_use]
+fn resolve_reverse_impact_depth(raw: Option<&str>) -> u32 {
+    let requested = raw
+        .and_then(|s| s.trim().parse::<u32>().ok())
+        .unwrap_or(DEFAULT_REVERSE_IMPACT_DEPTH);
+    clamp_reverse_impact_depth(requested)
+}
 
 /// Turns a file's bytes into [`FileSymbols`]. Injected (dependency-inverted) so
 /// the daemon obtains parsed symbols WITHOUT linking a parser (ADR-064): this
@@ -485,10 +511,17 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
         // refuse-don't-truncate over the ceiling) on whichever platform.
         let read_guarded = move |rel: &str| -> io::Result<Vec<u8>> { anchor.read_rel(rel) };
 
+        // Resolve the GV2-026 reverse-impact hop-depth lever once per save, here
+        // beside the budget (config layer) — never on the hot per-path loop. An
+        // over-cap or unparseable `ANVIL_REVERSE_IMPACT_DEPTH` is clamped to the
+        // 1-hop default..=hard cap envelope (ADR-063 §3).
+        let reverse_impact_depth =
+            resolve_reverse_impact_depth(std::env::var(REVERSE_IMPACT_DEPTH_ENV).ok().as_deref());
         let env = ValidateEnv {
             config: &state.config,
             pool: state.scheduler.interactive(),
             budget: SAVE_TIME_CERTIFY_BUDGET,
+            reverse_impact_depth,
             caps: &state.caps,
         };
         // Parse the EXACT guarded bytes the daemon read (handed in by
@@ -603,12 +636,59 @@ fn authorise_root<'f>(
 mod tests {
     use super::*;
     use crate::fanout::{CrossSessionPolicy, Fanout, OwnershipResolver, SubscriberId};
+    use anvil_graph_cache::MAX_REVERSE_IMPACT_DEPTH;
     use anvil_graph_cache::certify::ChangeKind;
     use anvil_intercept_proto::protocol::{
         AssuranceState, ChangeDescriptor, ChangeKindWire, Coverage, StaleReason,
     };
     use anvil_kernel_types::{SymbolKind, SymbolNode, TrustLevel, Visibility};
     use std::fs;
+
+    // ---- GV2-026: reverse-impact hop-depth lever resolution (ADR-063 §3) ----
+
+    #[test]
+    fn resolve_reverse_impact_depth_unset_defaults_to_one_hop() {
+        assert_eq!(resolve_reverse_impact_depth(None), 1);
+    }
+
+    #[test]
+    fn resolve_reverse_impact_depth_parses_in_range() {
+        assert_eq!(resolve_reverse_impact_depth(Some("1")), 1);
+        assert_eq!(resolve_reverse_impact_depth(Some("2")), 2);
+        assert_eq!(resolve_reverse_impact_depth(Some(" 2 ")), 2);
+    }
+
+    #[test]
+    fn resolve_reverse_impact_depth_over_cap_is_clamped_not_honoured() {
+        assert_eq!(
+            resolve_reverse_impact_depth(Some("5")),
+            MAX_REVERSE_IMPACT_DEPTH
+        );
+        assert_eq!(
+            resolve_reverse_impact_depth(Some("4294967295")),
+            MAX_REVERSE_IMPACT_DEPTH
+        );
+    }
+
+    #[test]
+    fn resolve_reverse_impact_depth_zero_or_garbage_folds_to_default() {
+        assert_eq!(
+            resolve_reverse_impact_depth(Some("0")),
+            1,
+            "0 → 1-hop floor"
+        );
+        assert_eq!(resolve_reverse_impact_depth(Some("")), 1, "empty → default");
+        assert_eq!(
+            resolve_reverse_impact_depth(Some("two")),
+            1,
+            "garbage → default"
+        );
+        assert_eq!(
+            resolve_reverse_impact_depth(Some("-1")),
+            1,
+            "negative → default"
+        );
+    }
 
     fn state() -> SaveTimeState {
         SaveTimeState::new(

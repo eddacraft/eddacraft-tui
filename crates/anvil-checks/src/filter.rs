@@ -49,19 +49,18 @@ const BINARY_EXTENSIONS: &[&str] = &[
 
 /// Filenames that secret scanners should read regardless of `.gitignore`
 /// status. These are the canonical locations where developers keep
-/// environment-specific credentials, and they are almost always gitignored —
-/// which is exactly why a gitignore-aware walker misses them.
+/// credentials, and they are almost always gitignored — which is exactly why a
+/// gitignore-aware walker misses them.
+///
+/// `.env*` files are deliberately **not** here. A `.env` file is the designated
+/// place to keep local secrets, so reporting one back to the user as a
+/// high-severity finding is noise they cannot action (GH #2584). The first-run
+/// discovery scan therefore excludes `.env*` outright in `welcome::candidate_path`
+/// (even under `ANVIL_SCAN_ALL`). A secret committed to a tracked `.env` is not
+/// ignored, though: it is still caught by `anvil gate` (the `secret-detection`
+/// guardrail), `anvil audit`, and the save-time intercept — surfaces whose job
+/// is to catch committed secrets.
 pub const ALWAYS_SCAN_FILENAMES: &[&str] = &[
-    ".env",
-    ".env.local",
-    ".env.development",
-    ".env.development.local",
-    ".env.production",
-    ".env.production.local",
-    ".env.staging",
-    ".env.test",
-    ".env.test.local",
-    ".envrc",
     "credentials.json",
     "secrets.yml",
     "secrets.yaml",
@@ -72,6 +71,40 @@ pub const ALWAYS_SCAN_FILENAMES: &[&str] = &[
     "id_ed25519",
     "id_ecdsa",
     "id_dsa",
+];
+
+/// Dependency lockfile basenames. Lockfiles pin resolved dependency versions
+/// and carry integrity hashes (e.g. `sha512-…` in `package-lock.json`,
+/// base64 module hashes in `go.sum`); those hashes are high-entropy by
+/// construction and trip the secret scanner's entropy detector as false
+/// positives (GH #2584). Lockfiles are generated dependency metadata, not a
+/// place first-party secrets are authored, so they are not run through the full
+/// secret scan. They are *not* ignored entirely: a credential embedded in a
+/// `resolved`/source URL can still leak, so lockfiles get a restricted
+/// URL-credential-only scan (see [`crate::secret::scan_lockfile_url_credentials`]).
+///
+/// Matched by exact basename rather than extension because most lockfiles do
+/// not end in `.lock` — `package-lock.json`, `pnpm-lock.yaml`, `go.sum`, and
+/// `npm-shrinkwrap.json` would otherwise slip past a `.lock` suffix filter.
+pub const LOCKFILE_FILENAMES: &[&str] = &[
+    "package-lock.json",
+    "npm-shrinkwrap.json",
+    "yarn.lock",
+    "pnpm-lock.yaml",
+    "bun.lock",
+    "bun.lockb",
+    "Cargo.lock",
+    "composer.lock",
+    "Gemfile.lock",
+    "poetry.lock",
+    "Pipfile.lock",
+    "go.sum",
+    "packages.lock.json",
+    "pubspec.lock",
+    "mix.lock",
+    "flake.lock",
+    "Podfile.lock",
+    "gradle.lockfile",
 ];
 
 /// Return `true` if the file extension indicates a binary asset that secret
@@ -103,6 +136,16 @@ pub fn is_always_scan_filename(path: &Path) -> bool {
     path.file_name()
         .and_then(|n| n.to_str())
         .is_some_and(|name| ALWAYS_SCAN_FILENAMES.contains(&name))
+}
+
+/// Return `true` if the path is a dependency lockfile (see
+/// [`LOCKFILE_FILENAMES`]). Secret scanning skips these because their integrity
+/// hashes are high-entropy by construction and produce only false positives.
+#[must_use]
+pub fn is_lockfile(path: &Path) -> bool {
+    path.file_name()
+        .and_then(|n| n.to_str())
+        .is_some_and(|name| LOCKFILE_FILENAMES.contains(&name))
 }
 
 /// Categorised exclusion pattern — either a directory segment match or a file
@@ -556,11 +599,14 @@ mod tests {
     // ── is_always_scan_filename ──────────────────────────────────
 
     #[test]
-    fn always_scan_matches_dotenv_variants() {
+    fn always_scan_does_not_force_scan_dotenv_variants() {
         use super::is_always_scan_filename;
-        assert!(is_always_scan_filename(Path::new(".env")));
-        assert!(is_always_scan_filename(Path::new("src/.env.local")));
-        assert!(is_always_scan_filename(Path::new(
+        // GH #2584: `.env*` files are the designated local secret store, so a
+        // gitignored one must NOT be force-scanned. (A committed `.env` is
+        // still caught by the ordinary gitignore-respecting walk.)
+        assert!(!is_always_scan_filename(Path::new(".env")));
+        assert!(!is_always_scan_filename(Path::new("src/.env.local")));
+        assert!(!is_always_scan_filename(Path::new(
             "packages/app/.env.production"
         )));
     }
@@ -580,5 +626,36 @@ mod tests {
         assert!(!is_always_scan_filename(Path::new("config.env.example")));
         assert!(!is_always_scan_filename(Path::new("id_rsa.pub")));
         assert!(!is_always_scan_filename(Path::new("env.ts")));
+    }
+
+    // ── is_lockfile (GH #2584) ───────────────────────────────────
+
+    #[test]
+    fn is_lockfile_matches_non_dot_lock_lockfiles() {
+        use super::is_lockfile;
+        // These are the ones a `.lock` suffix filter misses.
+        assert!(is_lockfile(Path::new("package-lock.json")));
+        assert!(is_lockfile(Path::new("frontend/pnpm-lock.yaml")));
+        assert!(is_lockfile(Path::new("npm-shrinkwrap.json")));
+        assert!(is_lockfile(Path::new("services/api/go.sum")));
+    }
+
+    #[test]
+    fn is_lockfile_matches_dot_lock_lockfiles() {
+        use super::is_lockfile;
+        assert!(is_lockfile(Path::new("Cargo.lock")));
+        assert!(is_lockfile(Path::new("app/yarn.lock")));
+        assert!(is_lockfile(Path::new("composer.lock")));
+        assert!(is_lockfile(Path::new("Gemfile.lock")));
+    }
+
+    #[test]
+    fn is_lockfile_ignores_non_lockfiles() {
+        use super::is_lockfile;
+        assert!(!is_lockfile(Path::new("package.json")));
+        assert!(!is_lockfile(Path::new("src/main.rs")));
+        // A bespoke `*.lock` (e.g. an app's own lockfile) is not a dependency
+        // lockfile and is not silently skipped by basename.
+        assert!(!is_lockfile(Path::new("my-app.lock")));
     }
 }

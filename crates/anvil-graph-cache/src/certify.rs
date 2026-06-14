@@ -435,6 +435,20 @@ pub fn export_surface_changed(sym: &SymbolGraph, delta: &GraphDelta) -> bool {
     !export_surface_diff(sym, delta).is_empty()
 }
 
+/// Clamp a requested reverse-impact hop depth into the ADR-063 §3 envelope: the
+/// 1-hop default floor and the [`MAX_REVERSE_IMPACT_DEPTH`] hard-cap ceiling.
+///
+/// This is the **runtime lever** GV2-026 exposes (ADR-063 §3): the
+/// latency↔coverage trade can move 1 → 2 hops "without re-coding", but an
+/// over-cap setting is **clamped, not honoured** — `clamp(1, 2)` folds 0/unset
+/// up to the 1-hop default and any over-cap request down to the hard cap. Pure
+/// and deterministic, so the config layer can resolve the lever once and the hot
+/// path stays free of policy.
+#[must_use]
+pub fn clamp_reverse_impact_depth(requested: u32) -> u32 {
+    requested.clamp(1, MAX_REVERSE_IMPACT_DEPTH)
+}
+
 /// The save-time (hot-path) certifiability closure: a breadth-first reverse-impact
 /// walk of `file` hard-capped at the ADR-063 ceiling [`MAX_REVERSE_IMPACT_DEPTH`]
 /// (ADR-077, path A). `certify` calls this directly.
@@ -561,6 +575,17 @@ pub(crate) fn impact_closure_unbounded(
 /// invariant deliberately stays `Privileged`-only against the
 /// `Privileged`-only `previously_privileged` baseline — see
 /// `incremental::GraphDelta::previously_boundary` for the split's rationale.
+///
+/// # Reverse-impact depth (GV2-026)
+///
+/// `max_depth` is the runtime reverse-impact hop lever (ADR-063 §3). It is
+/// clamped via [`clamp_reverse_impact_depth`] into `1..=MAX_REVERSE_IMPACT_DEPTH`
+/// before the closure walk — the 1-hop default holds when unset/0, and an
+/// over-cap request is clamped, not honoured. Because the impacted set is only
+/// used to distinguish overflow from a bounded impact set (the verdict is
+/// `Partial` either way once the surface changed), the lever only moves overflow
+/// sensitivity; it never flips a clean (`Certified`) verdict to `Partial` or
+/// vice versa.
 #[must_use]
 pub fn certify(
     sym: &SymbolGraph,
@@ -568,6 +593,7 @@ pub fn certify(
     change: &ChangeKind,
     delta: &GraphDelta,
     budget: usize,
+    max_depth: u32,
 ) -> Certifiability {
     match change {
         ChangeKind::Delete => Certifiability::Partial {
@@ -612,9 +638,12 @@ pub fn certify(
             }
             // The closure is computed only to distinguish overflow from a
             // bounded impact set; the impacted paths themselves are unused in
-            // Sub-phase A (every surface change is `Partial` regardless). Hard
-            // depth-capped at MAX_REVERSE_IMPACT_DEPTH per ADR-077 (path A).
-            match bounded_impact_closure(dep, &delta.file, MAX_REVERSE_IMPACT_DEPTH, budget) {
+            // Sub-phase A (every surface change is `Partial` regardless). The
+            // hop depth is the GV2-026 runtime lever, clamped into the ADR-063
+            // §3 envelope (1-hop default, hard-capped at MAX_REVERSE_IMPACT_DEPTH
+            // per ADR-077 path A) — an over-cap request is clamped, not honoured.
+            let depth = clamp_reverse_impact_depth(max_depth);
+            match bounded_impact_closure(dep, &delta.file, depth, budget) {
                 None => Certifiability::Partial {
                     reason: CertifyStale::ImpactSetOverflow,
                 },
@@ -703,6 +732,7 @@ mod tests {
             &ChangeKind::ContentModify,
             &delta,
             64,
+            1,
         );
         assert_eq!(
             v,
@@ -860,6 +890,7 @@ mod tests {
             &ChangeKind::ContentModify,
             &delta,
             64,
+            1,
         );
         assert!(matches!(v, Certifiability::Certified { .. }));
     }
@@ -876,6 +907,7 @@ mod tests {
             &ChangeKind::ContentModify,
             &delta,
             64,
+            1,
         );
         assert_eq!(
             v,
@@ -895,6 +927,7 @@ mod tests {
             &ChangeKind::Delete,
             &delta,
             64,
+            1,
         );
         assert_eq!(
             v,
@@ -914,6 +947,7 @@ mod tests {
             &ChangeKind::Rename,
             &delta,
             64,
+            1,
         );
         assert_eq!(
             v,
@@ -933,6 +967,7 @@ mod tests {
             &ChangeKind::Create,
             &delta,
             64,
+            1,
         );
         assert_eq!(
             v,
@@ -954,7 +989,7 @@ mod tests {
         let mut dep = DependencyGraph::new();
         dep.add_dependency("b.ts".to_string(), "a.ts".to_string());
 
-        let v = certify(&sym, &dep, &ChangeKind::ContentModify, &delta, 64);
+        let v = certify(&sym, &dep, &ChangeKind::ContentModify, &delta, 64, 1);
         assert_eq!(
             v,
             Certifiability::Partial {
@@ -979,7 +1014,7 @@ mod tests {
         let mut dep = DependencyGraph::new();
         dep.add_dependency("importer.ts".to_string(), "a.ts".to_string());
 
-        let v = certify(&sym, &dep, &ChangeKind::ContentModify, &delta, 64);
+        let v = certify(&sym, &dep, &ChangeKind::ContentModify, &delta, 64, 1);
         assert!(
             !matches!(v, Certifiability::Certified { .. }),
             "a surface-expanding change must not be certified clean"
@@ -997,7 +1032,7 @@ mod tests {
         dep.add_dependency("b.ts".to_string(), "a.ts".to_string());
         dep.add_dependency("c.ts".to_string(), "b.ts".to_string());
 
-        let v = certify(&sym, &dep, &ChangeKind::ContentModify, &delta, 64);
+        let v = certify(&sym, &dep, &ChangeKind::ContentModify, &delta, 64, 1);
         assert_eq!(
             v,
             Certifiability::Partial {
@@ -1015,7 +1050,7 @@ mod tests {
         dep.add_dependency("b.ts".to_string(), "a.ts".to_string());
         dep.add_dependency("c.ts".to_string(), "a.ts".to_string());
 
-        let v = certify(&sym, &dep, &ChangeKind::ContentModify, &delta, 1);
+        let v = certify(&sym, &dep, &ChangeKind::ContentModify, &delta, 1, 1);
         assert_eq!(
             v,
             Certifiability::Partial {
@@ -1062,7 +1097,7 @@ mod tests {
         for importer in ["d.ts", "e.ts", "f.ts"] {
             dep.add_dependency(importer.to_string(), "c.ts".to_string());
         }
-        let v = certify(&sym, &dep, &ChangeKind::ContentModify, &delta, 3);
+        let v = certify(&sym, &dep, &ChangeKind::ContentModify, &delta, 3, 1);
         assert_eq!(
             v,
             Certifiability::Partial {
@@ -1096,7 +1131,7 @@ mod tests {
 
         let mut dep = DependencyGraph::new();
         dep.add_dependency("b.ts".to_string(), "a.ts".to_string());
-        let v = certify(&sym, &dep, &ChangeKind::ContentModify, &delta, 0);
+        let v = certify(&sym, &dep, &ChangeKind::ContentModify, &delta, 0, 1);
         assert_eq!(
             v,
             Certifiability::Partial {
@@ -1112,6 +1147,7 @@ mod tests {
             &ChangeKind::ContentModify,
             &delta,
             0,
+            1,
         );
         assert_eq!(
             v_empty,
@@ -1136,6 +1172,7 @@ mod tests {
             &ChangeKind::ContentModify,
             &delta,
             64,
+            1,
         );
         assert_eq!(
             v,
@@ -1169,8 +1206,122 @@ mod tests {
             &ChangeKind::ContentModify,
             &delta,
             64,
+            1,
         );
         assert!(matches!(v, Certifiability::Partial { .. }));
+    }
+
+    // ---- GV2-026: reverse-impact hop-depth lever (ADR-063 §3) ----
+
+    /// `clamp_reverse_impact_depth` honours the ADR-063 envelope: 0/unset folds
+    /// up to the 1-hop default, an in-range request passes through, and an
+    /// over-cap request is **clamped, not honoured** to `MAX_REVERSE_IMPACT_DEPTH`.
+    #[test]
+    fn clamp_reverse_impact_depth_respects_adr063_envelope() {
+        assert_eq!(clamp_reverse_impact_depth(0), 1, "0/unset → 1-hop default");
+        assert_eq!(
+            clamp_reverse_impact_depth(1),
+            1,
+            "in-range 1 passes through"
+        );
+        assert_eq!(
+            clamp_reverse_impact_depth(2),
+            2,
+            "in-range 2 passes through"
+        );
+        assert_eq!(
+            clamp_reverse_impact_depth(2),
+            MAX_REVERSE_IMPACT_DEPTH,
+            "2 == the hard cap"
+        );
+        assert_eq!(
+            clamp_reverse_impact_depth(5),
+            MAX_REVERSE_IMPACT_DEPTH,
+            "over-cap 5 clamps to the hard cap"
+        );
+        assert_eq!(
+            clamp_reverse_impact_depth(u32::MAX),
+            MAX_REVERSE_IMPACT_DEPTH,
+            "an extreme over-cap request is clamped, never honoured"
+        );
+    }
+
+    /// The resolved default lever is 1 hop (ADR-063: "Default 1 hop").
+    #[test]
+    fn default_reverse_impact_depth_is_one_hop() {
+        assert_eq!(clamp_reverse_impact_depth(0), 1);
+    }
+
+    /// a.ts ← b.ts ← c.ts ← d.ts. At depth 1 the bounded closure reaches only
+    /// the direct importer of the edited file; at depth 2 it reaches the second
+    /// hop too — the runtime lever moves coverage 1 → 2 hops without re-coding.
+    #[test]
+    fn bounded_closure_reverse_impact_depth_lever_widens_one_to_two_hops() {
+        let mut dep = DependencyGraph::new();
+        dep.add_dependency("b.ts".to_string(), "a.ts".to_string()); // hop 1
+        dep.add_dependency("c.ts".to_string(), "b.ts".to_string()); // hop 2
+        dep.add_dependency("d.ts".to_string(), "c.ts".to_string()); // hop 3 (> cap)
+
+        let depth1 = bounded_impact_closure(&dep, "a.ts", 1, 64).expect("within budget");
+        let mut got1: Vec<&str> = depth1.iter().map(String::as_str).collect();
+        got1.sort_unstable();
+        assert_eq!(got1, vec!["b.ts"], "depth 1 stops at the direct importer");
+
+        let depth2 = bounded_impact_closure(&dep, "a.ts", 2, 64).expect("within budget");
+        let mut got2: Vec<&str> = depth2.iter().map(String::as_str).collect();
+        got2.sort_unstable();
+        assert_eq!(got2, vec!["b.ts", "c.ts"], "depth 2 reaches two hops");
+    }
+
+    /// An over-cap `max_depth` through the public `certify` entry behaves
+    /// identically to `max_depth = MAX_REVERSE_IMPACT_DEPTH` — clamped, never a
+    /// panic. budget = 1 with the 3-hop chain over-caps to 2 (closure `{b,c}`,
+    /// size 2) → `ImpactSetOverflow`, the same as requesting exactly the cap.
+    #[test]
+    fn certify_over_cap_reverse_impact_depth_is_clamped_not_honoured() {
+        let sym = sym_with("a.ts", &[("baz", Visibility::Public, TrustLevel::Unknown)]);
+        let delta = delta_for("a.ts", &["foo"], &[]);
+        let mut dep = DependencyGraph::new();
+        dep.add_dependency("b.ts".to_string(), "a.ts".to_string());
+        dep.add_dependency("c.ts".to_string(), "b.ts".to_string());
+        dep.add_dependency("d.ts".to_string(), "c.ts".to_string());
+
+        let over_cap = certify(&sym, &dep, &ChangeKind::ContentModify, &delta, 1, 99);
+        let at_cap = certify(
+            &sym,
+            &dep,
+            &ChangeKind::ContentModify,
+            &delta,
+            1,
+            MAX_REVERSE_IMPACT_DEPTH,
+        );
+        assert_eq!(over_cap, at_cap, "over-cap depth clamps to the hard cap");
+        assert_eq!(
+            over_cap,
+            Certifiability::Partial {
+                reason: CertifyStale::ImpactSetOverflow
+            }
+        );
+    }
+
+    /// The depth lever is verdict-neutral on the certified/partial axis: depth 1
+    /// vs depth 2 only changes overflow sensitivity, never a clean verdict. A
+    /// body-only edit certifies clean at either depth.
+    #[test]
+    fn certify_reverse_impact_depth_does_not_change_clean_verdict() {
+        let sym = sym_with("a.ts", &[("foo", Visibility::Public, TrustLevel::Unknown)]);
+        let delta = delta_for("a.ts", &["foo"], &[]);
+        let dep = DependencyGraph::new();
+        for depth in [1, 2] {
+            let v = certify(&sym, &dep, &ChangeKind::ContentModify, &delta, 64, depth);
+            assert_eq!(
+                v,
+                Certifiability::Certified {
+                    paths: vec![PathBuf::from("a.ts")]
+                },
+                "body-only edit certifies clean at depth {depth}"
+            );
+        }
     }
 
     #[test]
@@ -1190,6 +1341,7 @@ mod tests {
             &ChangeKind::ContentModify,
             &delta,
             64,
+            1,
         );
         assert_eq!(
             v,
