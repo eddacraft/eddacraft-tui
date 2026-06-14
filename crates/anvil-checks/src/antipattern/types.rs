@@ -129,11 +129,15 @@ pub struct WarningReport<'a>(pub &'a Warning);
 
 impl fmt::Display for WarningReport<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}:{}: {}",
-            self.0.location.file, self.0.location.line, self.0.title
-        )
+        let w = self.0;
+        write!(f, "{}:{}: {}", w.location.file, w.location.line, w.title)?;
+        // Preserve the scanner's `message` detail (e.g. "Found … at line …"),
+        // which the `title` headline alone drops — but only when it adds
+        // information beyond the title.
+        if !w.message.is_empty() && w.message != w.title {
+            write!(f, " — {}", w.message)?;
+        }
+        Ok(())
     }
 }
 
@@ -336,8 +340,8 @@ pub fn validate_warning_result_consistency(result: &WarningResult) -> bool {
 mod tests {
     use crate::antipattern::types::{
         Confidence, Location, Suppression, SuppressionScope, Warning, WarningCategory,
-        WarningSeverity, count_by_severity, create_warning_fingerprint, create_warning_result,
-        validate_warning_result_consistency,
+        WarningReport, WarningSeverity, count_by_severity, create_warning_fingerprint,
+        create_warning_result, validate_warning_result_consistency,
     };
 
     fn sample_warning(
@@ -407,5 +411,69 @@ mod tests {
         let warnings = vec![sample_warning("AP-006", WarningSeverity::Warning, None)];
         let result = create_warning_result(warnings, vec!["AP-006".to_string()]);
         assert!(validate_warning_result_consistency(&result));
+    }
+
+    #[test]
+    fn warning_report_display_preserves_message_detail() {
+        let mut w = sample_warning("AP-010", WarningSeverity::Warning, None);
+        w.title = "Anti-pattern detected".to_string();
+        w.message = "Found `eslint-disable` at line 2".to_string();
+        let shown = WarningReport(&w).to_string();
+        assert!(
+            shown.starts_with("src/a.ts:2: Anti-pattern detected"),
+            "{shown}"
+        );
+        assert!(
+            shown.contains("Found `eslint-disable` at line 2"),
+            "message detail must survive Display: {shown}"
+        );
+    }
+
+    #[test]
+    fn warning_report_display_omits_redundant_message() {
+        let mut w = sample_warning("AP-011", WarningSeverity::Warning, None);
+        w.title = "Same text".to_string();
+        w.message = "Same text".to_string();
+        // No " — " suffix when the message only repeats the title.
+        assert_eq!(WarningReport(&w).to_string(), "src/a.ts:2: Same text");
+    }
+
+    #[test]
+    fn warning_report_diagnostic_maps_code_and_help() {
+        use miette::Diagnostic;
+        let w = sample_warning("AP-012", WarningSeverity::Warning, None);
+        let report = WarningReport(&w);
+        assert_eq!(
+            report.code().map(|c| c.to_string()).as_deref(),
+            Some("AP-012")
+        );
+        assert_eq!(
+            report.help().map(|h| h.to_string()).as_deref(),
+            Some("Sample suggestion")
+        );
+    }
+
+    #[test]
+    fn warning_report_help_is_none_without_suggestion() {
+        use miette::Diagnostic;
+        let mut w = sample_warning("AP-013", WarningSeverity::Info, None);
+        w.suggestion = String::new();
+        assert!(WarningReport(&w).help().is_none());
+    }
+
+    #[test]
+    fn warning_report_severity_maps_each_level() {
+        use miette::{Diagnostic, Severity};
+        for (sev, want) in [
+            (WarningSeverity::Error, Severity::Error),
+            (WarningSeverity::Warning, Severity::Warning),
+            (WarningSeverity::Info, Severity::Advice),
+        ] {
+            let w = sample_warning("AP-014", sev, None);
+            assert!(
+                matches!(WarningReport(&w).severity(), Some(s) if s == want),
+                "severity {sev:?} should map to {want:?}"
+            );
+        }
     }
 }

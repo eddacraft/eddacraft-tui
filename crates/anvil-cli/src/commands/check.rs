@@ -1338,6 +1338,10 @@ fn print_warning(w: &Warning, verbose: bool) {
         }
         output::plain::dim(&format!("Why: {}", w.explanation));
     }
+
+    // Blank line between consecutive warnings (restores the spacing dropped when
+    // the miette renderer replaced the per-field plain output).
+    output::plain::blank();
 }
 
 // ── Tests ───────────────────────────────────────────────────────────
