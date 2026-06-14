@@ -14,7 +14,7 @@ Cross-cutting convention: see plans/aps-rules.md#cross-cutting-modules.
 
 | ID    | Owner      | Status | Progress |
 | ----- | ---------- | ------ | -------- |
-| USAGE | @eddacraft | In Progress | 1/5 |
+| USAGE | @eddacraft | In Progress | 2/5 |
 
 **Last reviewed:** 2026-06-14
 
@@ -211,10 +211,11 @@ requires founder review. The contract doc lives in
 > `command.invoked`. The JSON-RPC producer is descoped to a follow-up
 > (USAGE-004) per the module's out-of-scope clause: the daemon dispatch
 > boundary carries no user principal and no flag resolver, so an
-> IPC-side row would be principal-less and asymmetric. USAGE-002 In
-> Progress 2026-06-14 (inline `flag_set` populated from auth/routing flag
-> resolutions; v1 scope = auth/routing only, founder-confirmed).
-> USAGE-003 remains Draft and follows once invocations land. Scoped into
+> IPC-side row would be principal-less and asymmetric. USAGE-002 Merged
+> 2026-06-14 via PR #2607 (inline `flag_set` populated from auth/routing
+> flag resolutions; v1 scope = auth/routing only, founder-confirmed;
+> flag-driven enforcement filed as USAGE-005). USAGE-003 remains Draft
+> and follows once invocations land. Scoped into
 > the `v0.9.0-beta` release window as additive scope (operator,
 > 2026-06-13).
 
@@ -363,7 +364,7 @@ requires founder review. The contract doc lives in
   (`status`) carries `cli.licence-gate` in `flag_set` and a non-gated
   command (`version`) has an empty `flag_set`.
 - **Confidence:** medium
-- **Status:** In Progress
+- **Status:** Merged 2026-06-14 via PR #2607
 
 ---
 
