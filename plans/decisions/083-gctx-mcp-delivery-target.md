@@ -18,9 +18,9 @@ The council explicitly flagged two entry gates for that surface:
 
 The GCTX module (see [`graph-context-delivery.aps.md`](../modules/graph-context-delivery.aps.md)) scopes assistant-facing query tools (`anvil_search_symbols`, `anvil_find_callers`, `anvil_impact_of_change`, `anvil_affected_tests`, etc.), MCP resources (`graph://*`), and context-slicing / token-reduction utilities over the GV2 query contract. It is deliberately framed as a *projection* — Graph v2 remains Anvil-first for enforcement/provenance/trust; assistant use is secondary and must not distort the substrate.
 
-Per ADR-033 (Park IDE/MCP Surfaces; Retire TS Scanner Now, Proposed/Accepted direction), the original TypeScript MCP server lives in `archive/anvil-mcp-server/` (frozen reference). The Rust full-port effort (`rust-mcp-full-port` / RMCPF module, currently 6/10) owns the `anvil mcp serve --stdio` path, the tool/resource/prompt capability surface, and the driver integration. RMCPF already exposes a small set of tools and has the registry + composition story for daemon-backed `anvil_check` / `anvil_gate`.
+Per ADR-033 (Park IDE/MCP Surfaces; Retire TS Scanner Now, Proposed), the original TypeScript MCP server lives in `archive/anvil-mcp-server/` (frozen reference). The Rust full-port effort (`rust-mcp-full-port` / RMCPF module, currently 6/10) owns the `anvil mcp serve --stdio` path, the tool/resource/prompt capability surface, and the driver integration. RMCPF already exposes a small set of tools and has the registry + composition story for daemon-backed `anvil_check` / `anvil_gate`.
 
-GCTX-002 must be resolved before any GCTX implementation work begins (the item itself is still Draft in the module) and before the GCTX + gated GV2-020/023 items can be promoted to Ready.
+GCTX-002 must be resolved before any GCTX implementation work begins (this PR updates the item to Proposed in the module) and before the GCTX + gated GV2-020/023 items can be promoted to Ready.
 
 ## Decision
 
