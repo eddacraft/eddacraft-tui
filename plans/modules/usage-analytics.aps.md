@@ -14,7 +14,7 @@ Cross-cutting convention: see plans/aps-rules.md#cross-cutting-modules.
 
 | ID    | Owner      | Status | Progress |
 | ----- | ---------- | ------ | -------- |
-| USAGE | @eddacraft | In Progress | 0/4 |
+| USAGE | @eddacraft | In Progress | 1/4 |
 
 **Last reviewed:** 2026-06-14
 
@@ -206,8 +206,8 @@ requires founder review. The contract doc lives in
 
 ## Work Items
 
-> Status: In Progress. USAGE-001 In Progress 2026-06-14 (CLI producer +
-> `command.invoked` kind + privacy contract). OQ1 resolved → **new kind**
+> Status: In Progress. USAGE-001 Merged 2026-06-13 via PR #2603 (CLI
+> producer + `command.invoked` kind + privacy contract). OQ1 resolved → **new kind**
 > `command.invoked`. The JSON-RPC producer is descoped to a follow-up
 > (USAGE-004) per the module's out-of-scope clause: the daemon dispatch
 > boundary carries no user principal and no flag resolver, so an
@@ -296,7 +296,7 @@ requires founder review. The contract doc lives in
   "existing secrets store" resolved to the per-deployment config dir
   where credentials already live. **JSON-RPC producer descoped to
   USAGE-004** (no principal/resolver on the daemon path).
-- **Status:** In Progress
+- **Status:** Merged 2026-06-13 via PR #2603
 
 ---
 
