@@ -749,11 +749,18 @@ fn check_auth(global: &GlobalArgs, allow_interactive: bool, wants_json: bool) ->
     //   - This only bypasses the local credential pre-check.
     //   - Commands that call the API will fail with a 401 anyway.
     //   - Intended for CLI UX testing without a live token.
-    if let Some(details) = feature_flags::cli_dev_bypass_active() {
+    // USAGE-002: resolve `cli.licence-gate` once here so the gating policy
+    // is consulted — and recorded as auth context on the usage row via the
+    // open capture window — on every gated invocation, in production as
+    // well as under `ANVIL_DEV`. The resolution drives the existing
+    // dev-bypass decision; it does not otherwise change the auth outcome
+    // (making enforcement flag-driven is tracked as USAGE-005).
+    let licence_gate = feature_flags::resolve_cli_licence_gate();
+    if feature_flags::is_dev_bypass(&licence_gate) {
         if !json_mode {
             eprintln!(
                 "[dev] ANVIL_DEV=1: local override {}={} (reason={:?}) — skipping local auth check",
-                details.flag_key, details.variant, details.reason
+                licence_gate.flag_key, licence_gate.variant, licence_gate.reason
             );
         }
         return Ok(());
@@ -999,11 +1006,31 @@ fn main() -> ExitCode {
     let _cli_span_guard = cli_span.enter();
     tracing::info!(target: "anvil_cli", "cli command parsed");
 
-    // USAGE-001: record one durable `command.invoked` row per
-    // user-initiated invocation. Placed above dispatch so it fires
-    // uniformly for every command — no per-command wiring to forget.
-    // Strictly best-effort: a usage-write failure is logged and dropped
-    // so it never changes the command's behaviour or exit code.
+    // USAGE-002: open the flag-capture window before the auth/routing
+    // phase so the usage row records the flags resolved while authorising
+    // (e.g. `cli.licence-gate`). The daemon never opens a window, so this
+    // is a no-op off the CLI path.
+    anvil_kernel::feature_flags::begin_flag_capture();
+
+    let wants_json = cli.global.json || command_requests_structured_output(&cli.command);
+    let auth_outcome = if requires_auth(&cli.command) && !skips_auth_for_local_probe(&cli.command) {
+        check_auth(
+            &cli.global,
+            allows_interactive_auth_prompt(&cli.command),
+            wants_json,
+        )
+    } else {
+        Ok(())
+    };
+
+    // USAGE-001/-002: record one durable `command.invoked` row per
+    // user-initiated invocation, AFTER the auth/routing phase so
+    // `flag_set` carries the flags resolved while authorising. Emitted on
+    // both the auth-pass and auth-fail paths so every invocation gets
+    // exactly one row, and before dispatch so the command's own
+    // `process::exit` paths cannot drop it. Strictly best-effort: a
+    // usage-write failure is logged and dropped so it never changes the
+    // command's behaviour or exit code.
     if let Err(err) = usage::record_invocation(command_name) {
         tracing::warn!(
             target: "anvil_cli",
@@ -1012,15 +1039,7 @@ fn main() -> ExitCode {
         );
     }
 
-    let wants_json = cli.global.json || command_requests_structured_output(&cli.command);
-    if requires_auth(&cli.command)
-        && !skips_auth_for_local_probe(&cli.command)
-        && let Err(code) = check_auth(
-            &cli.global,
-            allows_interactive_auth_prompt(&cli.command),
-            wants_json,
-        )
-    {
+    if let Err(code) = auth_outcome {
         // CIB-061: `info`, not `warn` — auth-required is an expected
         // state (issue #1822) and `check_auth` already put the human
         // message on stderr; at `warn` the event passed the CLI's

@@ -15,9 +15,10 @@
 //!
 //! ## R2 mitigation (adding a command without an observation)
 //!
-//! The producer is wired once in `main`, above the command dispatch, so
-//! it fires uniformly for every command — no per-command wiring exists to
-//! forget. [`every_sampled_command_emits_exactly_one_row`] exercises a
+//! The producer is wired once in `main`, after the auth/routing phase but
+//! before command dispatch, so it fires uniformly for every command (on
+//! both the auth-pass and auth-fail paths) — no per-command wiring exists
+//! to forget. [`every_sampled_command_emits_exactly_one_row`] exercises a
 //! representative spread of the registered command surface and asserts
 //! each invocation yields exactly one well-formed row, locking that
 //! structural guarantee.
@@ -51,6 +52,28 @@ fn run_anvil(home: &Path, args: &[&str]) -> String {
         .env("USERPROFILE", home)
         .env("ANVIL_DEV", "1")
         .env("ANVIL_SKIP_WELCOME", "1");
+    cmd.env_remove("ANVIL_TOUCH_PROJECT_STATE");
+    cmd.env_remove("TRACEPARENT");
+    let out = cmd.output().expect("spawn anvil");
+    let mut combined = String::from_utf8_lossy(&out.stdout).into_owned();
+    combined.push_str(&String::from_utf8_lossy(&out.stderr));
+    combined
+}
+
+/// Like [`run_anvil`] but without the `ANVIL_DEV` local override, so a
+/// gated command takes the production auth path. The command itself will
+/// fail auth (no credentials), but the usage row is still emitted (after
+/// the auth phase) with the licence-gate resolved via its manifest
+/// default.
+fn run_anvil_no_dev(home: &Path, args: &[&str]) -> String {
+    let mut cmd = Command::new(ANVIL_BIN);
+    cmd.args(args)
+        .current_dir(home)
+        .env("ANVIL_HOME", home)
+        .env("HOME", home)
+        .env("USERPROFILE", home)
+        .env("ANVIL_SKIP_WELCOME", "1");
+    cmd.env_remove("ANVIL_DEV");
     cmd.env_remove("ANVIL_TOUCH_PROJECT_STATE");
     cmd.env_remove("TRACEPARENT");
     let out = cmd.output().expect("spawn anvil");
@@ -124,6 +147,65 @@ fn argument_shape_is_recorded_without_raw_value() {
         args.iter().any(|a| a["name"] == "json"),
         "the --json flag must be recorded as an arg shape: {row}"
     );
+}
+
+fn licence_gate_entry(row: &serde_json::Value) -> serde_json::Value {
+    row["flag_set"]
+        .as_array()
+        .expect("flag_set array")
+        .iter()
+        .find(|f| f["key"] == "cli.licence-gate")
+        .unwrap_or_else(|| panic!("cli.licence-gate must be in flag_set: {row}"))
+        .clone()
+}
+
+#[test]
+fn gated_command_under_dev_records_override_source() {
+    // USAGE-002: a licence-gated command (`status`) resolves
+    // `cli.licence-gate` during the auth/routing phase. The harness sets
+    // ANVIL_DEV=1, a local override on that flag → source "override"; it
+    // is an entitlement (gate-affecting) flag.
+    let home = tempdir().expect("anvil home");
+    run_anvil(home.path(), &["status"]);
+    let rows = read_rows(home.path());
+    assert_eq!(rows.len(), 1);
+    let gate = licence_gate_entry(&rows[0]);
+    assert_eq!(gate["gate_affecting"], true);
+    assert_eq!(
+        gate["source"], "override",
+        "ANVIL_DEV=1 sets a local override which maps to 'override': {gate}"
+    );
+    assert_eq!(gate["variant"], "enabled");
+}
+
+#[test]
+fn gated_command_in_production_records_default_source() {
+    // Without ANVIL_DEV, `status` takes the production auth path: the
+    // licence-gate is resolved via its manifest default (source
+    // "default") and captured even though the command then fails auth —
+    // the row is emitted after the auth phase on both branches. This is
+    // the path that exercises real production capture (not just dev).
+    let home = tempdir().expect("anvil home");
+    run_anvil_no_dev(home.path(), &["status"]);
+    let rows = read_rows(home.path());
+    assert_eq!(rows.len(), 1);
+    let gate = licence_gate_entry(&rows[0]);
+    assert_eq!(
+        gate["source"], "default",
+        "production path resolves the manifest default: {gate}"
+    );
+    assert_eq!(gate["gate_affecting"], true);
+}
+
+#[test]
+fn non_gated_command_has_empty_flag_set() {
+    // `version` does not require auth, so no auth/routing flag resolves
+    // and flag_set stays empty (but present).
+    let home = tempdir().expect("anvil home");
+    run_anvil(home.path(), &["version"]);
+    let rows = read_rows(home.path());
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0]["flag_set"].as_array().expect("array").len(), 0);
 }
 
 #[test]

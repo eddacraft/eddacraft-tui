@@ -46,9 +46,16 @@ Per invocation, the `command.invoked` row carries:
   elided and replaced with the literal `<redacted>` marker (the value of the
   `REDACTED` constant). A sensitive argument's _existence_ (its name) stays
   visible; nothing about its value or length leaks.
-- **Inline flag set** — the `flag_set` field defined by ADR-041. USAGE-001
-  always emits it as an empty array (never omitted); USAGE-002 owns populating
-  it from the resolver at the invocation boundary.
+- **Inline flag set** — the `flag_set` field defined by ADR-041. Each entry is
+  `{ key, variant, source, gate_affecting }`, sorted by canonical manifest
+  `key`. USAGE-002 populates it with the feature flags resolved **while
+  authorising/routing the command** (today principally `cli.licence-gate`) — the
+  observed invocation context, never a re-evaluation or a full manifest dump.
+  `source` is the ADR-041 vocabulary (`override` / `snapshot` / `default`),
+  mapped from the resolver's reason; `gate_affecting` is `true` for fail-closed
+  classes (entitlement / ops-kill-switch) per ADR-019. **Scope (v1):** a flag
+  resolved _inside_ a command (after routing) is **not** captured — see the
+  scope note below.
 - **`traceparent`** — the W3C cross-pipe correlation context (ADR-035) when one
   is bound on the invocation; omitted otherwise.
 
@@ -112,8 +119,19 @@ against `<credentials_dir>/kindling/usage.ndjson`):
 - **Top-N commands:** count rows grouped by `.command`, sort descending.
 - **Commands never invoked:** diff the registered command set against the
   distinct `.command` values present.
-- **Flag-dependent paths exercised vs not:** once USAGE-002 populates
-  `flag_set`, group rows by `.flag_set[].key`.
+- **Which flag set was active for command X this week (USAGE-002):** filter rows
+  to `.command == "X"` and the week's timestamps, then group by `.flag_set` (or
+  by `.flag_set[].key` + `.flag_set[].variant`) to see the resolved flag context
+  across those invocations. Example with `jq`:
+
+  ```sh
+  jq -c 'select(.command=="check") | {ts:.timestamp, flags:.flag_set}' usage.ndjson
+  ```
+
+- **Which gates fired for whom:** join `.flag_set[]` entries where
+  `gate_affecting == true` to ADR-019 `flags_consulted` data by canonical `key`.
+  Non-gate-affecting flags are inline invocation context only — not a standalone
+  join row (ADR-019 / ADR-041 D-3).
 
 A richer first-class query surface (`anvil`-native canned views) is tracked by
 USAGE-003.
@@ -122,6 +140,28 @@ USAGE-003.
 
 Any change to the captured / not-captured lists requires founder review. This
 contract doc lives outside the code so a PR diff is always visible.
+
+## Scope note: flag capture (USAGE-002 v1)
+
+`flag_set` captures flags resolved **while authorising/routing** the command.
+The CLI opens a thread-local capture window before the auth gate and the
+resolver records each resolution into it; the usage row is emitted right after
+that phase (on both the auth-pass and auth-fail branches, so every invocation
+still gets exactly one row).
+
+For a gated command, `check_auth` resolves `cli.licence-gate` once on **both**
+the production path (manifest default → `source: default`) and the `ANVIL_DEV`
+local-override path (`source: override`), so production gated invocations carry
+the gate, not just developer sessions. This resolution is **observe-only** in v1
+— it drives the existing dev-bypass decision and is otherwise not consulted for
+enforcement; making the gate genuinely flag-driven (a `disabled` gate skips the
+credential pre-check) is tracked as **USAGE-005**.
+
+A flag resolved **inside** a command — after routing, deep in execution — is
+intentionally **not** captured in v1: several command paths exit via
+`process::exit`, which would bypass an end-of-run emission and drop the row.
+Widening capture to command-internal flags is deferred until those exit paths
+are cleaned up, so row coverage is never traded for flag completeness.
 
 ## Scope note: JSON-RPC producer
 

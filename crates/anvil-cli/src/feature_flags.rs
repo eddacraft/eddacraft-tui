@@ -208,14 +208,33 @@ pub fn cli_dev_bypass_active() -> Option<ResolutionDetails> {
     if overrides.local.is_empty() {
         return None;
     }
+    let details = resolve_cli_licence_gate();
+    is_dev_bypass(&details).then_some(details)
+}
+
+/// Resolve `cli.licence-gate` for the current session, honouring any
+/// env-derived overrides.
+///
+/// Unlike [`cli_dev_bypass_active`], this always calls the resolver (even
+/// with no override present), so the gating policy is consulted — and, via
+/// the capture sink, recorded as USAGE-002 auth context — on every gated
+/// invocation, in production as well as under `ANVIL_DEV`. The auth
+/// decision is unchanged by this resolution today; making enforcement
+/// flag-driven (so a `disabled` gate skips the credential check) is
+/// tracked as USAGE-005.
+#[must_use]
+pub fn resolve_cli_licence_gate() -> ResolutionDetails {
+    let overrides = local_overrides_from_env();
     let flag = cli_licence_gate_flag();
     let context = cli_evaluation_context("cli-session", None);
-    let details = resolve_flag(&flag.definition, &context, Some(&overrides));
-    if details.reason == ResolutionReason::LocalOverride && details.variant == "enabled" {
-        Some(details)
-    } else {
-        None
-    }
+    resolve_flag(&flag.definition, &context, Some(&overrides))
+}
+
+/// Whether a resolved `cli.licence-gate` represents an active local-override
+/// developer bypass (`ANVIL_DEV=1` forcing `enabled`).
+#[must_use]
+pub fn is_dev_bypass(details: &ResolutionDetails) -> bool {
+    details.reason == ResolutionReason::LocalOverride && details.variant == "enabled"
 }
 
 // ── CIB-046: internal-developer gate for `anvil plan dashboard` ──────

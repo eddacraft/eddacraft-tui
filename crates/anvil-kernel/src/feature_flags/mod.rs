@@ -3,7 +3,8 @@ mod snapshot;
 mod telemetry;
 
 pub use resolver::{
-    FlagOverrides, ResolutionDetails, ResolutionReason, evaluate_percentage, resolve_flag,
+    CapturedResolution, FlagOverrides, ResolutionDetails, ResolutionReason, begin_flag_capture,
+    evaluate_percentage, resolve_flag, take_captured_flags,
 };
 
 pub use snapshot::{

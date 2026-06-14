@@ -36,11 +36,14 @@
 //!
 //! ## Producer wiring
 //!
-//! [`record_invocation`] is called once from `main`, above the command
-//! dispatch, so it fires uniformly for *every* command. There is no
-//! per-command wiring to forget — adding a new subcommand cannot bypass
-//! the producer (R2 mitigation). Emission is strictly best-effort: a
-//! failure is logged and dropped, never surfaced to the exit code.
+//! [`record_invocation`] is called once from `main`, **after the
+//! auth/routing phase** (so `flag_set` carries the flags resolved while
+//! authorising — USAGE-002) but **before command dispatch**, on both the
+//! auth-pass and auth-fail paths. It fires uniformly for *every* command:
+//! there is no per-command wiring to forget — adding a new subcommand
+//! cannot bypass the producer (R2 mitigation). Emission is strictly
+//! best-effort: a failure is logged and dropped, never surfaced to the
+//! exit code.
 //!
 //! ## Surfaced blocker (per the module's out-of-scope clause)
 //!
@@ -55,8 +58,9 @@ use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
 
 use anvil_intercept::kindling_observation::{
-    CommandInvocationContext, CommandInvokedObservation, from_command_invocation,
+    CommandInvocationContext, CommandInvokedObservation, FlagSetEntry, from_command_invocation,
 };
+use anvil_kernel::feature_flags::{CapturedResolution, ResolutionReason, take_captured_flags};
 use anvil_observability::TraceContext;
 use anvil_observability::redaction::{ArgShape, redact_arg};
 use anyhow::{Context, Result};
@@ -338,11 +342,53 @@ pub fn record_invocation(command_name: &str) -> Result<()> {
         principal: &principal,
         traceparent: traceparent.as_deref(),
     };
-    // USAGE-001 emits an empty flag_set; USAGE-002 owns populating it.
-    let obs = from_command_invocation(&ctx, arg_shapes, Vec::new());
+    // USAGE-002: populate `flag_set` from the flags resolved during the
+    // auth/routing phase (the capture window opened by `main` before the
+    // auth gate). Drains the kernel sink; empty when no flags resolved.
+    let flag_set = flag_set_from_captured(take_captured_flags());
+    let obs = from_command_invocation(&ctx, arg_shapes, flag_set);
 
     let path = usage_log_path(&state_dir);
     append_usage_observation_to(&path, &obs)
+}
+
+/// Build the inline `flag_set` (ADR-041) from the flags captured during
+/// the auth/routing phase (USAGE-002).
+///
+/// Maps each capture's resolution reason to the ADR-041 `source`
+/// vocabulary (`override` / `snapshot` / `default`), drops errored
+/// resolutions (not a clean context fact), deduplicates by canonical
+/// `key` (last write wins), and sorts by `key` so query fixtures and
+/// diffs are stable.
+fn flag_set_from_captured(captured: Vec<CapturedResolution>) -> Vec<FlagSetEntry> {
+    let mut by_key: std::collections::BTreeMap<String, FlagSetEntry> =
+        std::collections::BTreeMap::new();
+    for cap in captured {
+        let Some(source) = adr041_source(&cap.reason) else {
+            continue;
+        };
+        by_key.insert(
+            cap.key.clone(),
+            FlagSetEntry {
+                key: cap.key,
+                variant: cap.variant,
+                source: source.to_owned(),
+                gate_affecting: cap.gate_affecting,
+            },
+        );
+    }
+    by_key.into_values().collect()
+}
+
+/// Map a resolver reason to the ADR-041 `source` vocabulary, or `None`
+/// for an errored resolution (not recorded as context).
+fn adr041_source(reason: &ResolutionReason) -> Option<&'static str> {
+    match reason {
+        ResolutionReason::EmergencyOverride | ResolutionReason::LocalOverride => Some("override"),
+        ResolutionReason::TargetingMatch => Some("snapshot"),
+        ResolutionReason::Default | ResolutionReason::Disabled => Some("default"),
+        ResolutionReason::Error => None,
+    }
 }
 
 /// Resolve the usage NDJSON path under the user-scoped state directory.
@@ -578,5 +624,80 @@ mod tests {
             winner, loser,
             "must adopt the existing salt, not regenerate"
         );
+    }
+
+    // --- USAGE-002 flag_set population ---
+
+    fn cap(key: &str, variant: &str, reason: ResolutionReason, gate: bool) -> CapturedResolution {
+        CapturedResolution {
+            key: key.to_owned(),
+            variant: variant.to_owned(),
+            reason,
+            gate_affecting: gate,
+        }
+    }
+
+    #[test]
+    fn flag_set_maps_sources_and_sorts_by_key() {
+        let captured = vec![
+            cap("z.rollout", "on", ResolutionReason::TargetingMatch, false),
+            cap("a.gate", "enabled", ResolutionReason::Default, true),
+            cap("m.over", "x", ResolutionReason::LocalOverride, true),
+        ];
+        let fs = flag_set_from_captured(captured);
+        // Sorted by key.
+        assert_eq!(
+            fs.iter().map(|e| e.key.as_str()).collect::<Vec<_>>(),
+            ["a.gate", "m.over", "z.rollout"]
+        );
+        let by = |k: &str| fs.iter().find(|e| e.key == k).cloned().unwrap();
+        assert_eq!(by("a.gate").source, "default");
+        assert!(by("a.gate").gate_affecting);
+        assert_eq!(by("m.over").source, "override");
+        assert_eq!(by("z.rollout").source, "snapshot");
+        assert!(!by("z.rollout").gate_affecting);
+    }
+
+    #[test]
+    fn flag_set_skips_errored_resolution() {
+        let fs = flag_set_from_captured(vec![
+            cap("good", "v", ResolutionReason::Default, true),
+            cap("bad", "__fail_closed", ResolutionReason::Error, true),
+        ]);
+        assert_eq!(fs.len(), 1);
+        assert_eq!(fs[0].key, "good");
+    }
+
+    #[test]
+    fn flag_set_dedups_by_key_last_wins() {
+        let fs = flag_set_from_captured(vec![
+            cap("dup", "first", ResolutionReason::Default, true),
+            cap("dup", "second", ResolutionReason::LocalOverride, true),
+        ]);
+        assert_eq!(fs.len(), 1);
+        assert_eq!(fs[0].variant, "second");
+        assert_eq!(fs[0].source, "override");
+    }
+
+    #[test]
+    fn flag_set_empty_when_nothing_captured() {
+        assert!(flag_set_from_captured(Vec::new()).is_empty());
+    }
+
+    #[test]
+    fn disabled_reason_maps_to_default_source() {
+        let fs = flag_set_from_captured(vec![cap("d", "off", ResolutionReason::Disabled, false)]);
+        assert_eq!(fs[0].source, "default");
+    }
+
+    #[test]
+    fn emergency_override_maps_to_override_source() {
+        let fs = flag_set_from_captured(vec![cap(
+            "e",
+            "on",
+            ResolutionReason::EmergencyOverride,
+            true,
+        )]);
+        assert_eq!(fs[0].source, "override");
     }
 }

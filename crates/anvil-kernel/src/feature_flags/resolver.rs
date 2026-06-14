@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
 
 use anvil_kernel_types::{
@@ -41,10 +42,97 @@ pub struct FlagOverrides {
 }
 
 // -------------------------------------------------------------------------
+// Flag capture sink (USAGE-002)
+// -------------------------------------------------------------------------
+
+/// A single flag resolution captured during an opt-in capture window.
+///
+/// Recorded by [`resolve_flag`] only while [`begin_flag_capture`] is
+/// active on the current thread. The CLI installs the sink for the
+/// auth/routing phase so usage rows can carry the flags resolved while
+/// authorising the command (USAGE-002); the daemon never installs it, so
+/// off that path capture is a no-op — a single thread-local check with no
+/// allocation and no accumulation. Carries the canonical flag `key`, the
+/// resolved `variant`, the resolution `reason`, and whether the flag is
+/// gate-affecting (its class fails closed — entitlement / ops-kill-switch
+/// — per ADR-019).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CapturedResolution {
+    pub key: String,
+    pub variant: String,
+    pub reason: ResolutionReason,
+    pub gate_affecting: bool,
+}
+
+thread_local! {
+    /// Opt-in per-thread capture sink. `None` = not capturing (default,
+    /// e.g. the daemon); `Some` = recording resolutions for the current
+    /// invocation.
+    static FLAG_CAPTURE: RefCell<Option<Vec<CapturedResolution>>> =
+        const { RefCell::new(None) };
+}
+
+/// Defensive cap so a pathological resolve loop can't grow the sink
+/// without bound (real invocations resolve a handful of flags).
+const FLAG_CAPTURE_CAP: usize = 256;
+
+/// Begin capturing flag resolutions on the current thread, discarding any
+/// prior window. The CLI calls this before the auth/routing phase;
+/// [`take_captured_flags`] drains it afterwards.
+pub fn begin_flag_capture() {
+    FLAG_CAPTURE.with(|sink| *sink.borrow_mut() = Some(Vec::new()));
+}
+
+/// Drain and return the flags captured since [`begin_flag_capture`],
+/// ending the capture window. Returns empty when no window is active.
+#[must_use]
+pub fn take_captured_flags() -> Vec<CapturedResolution> {
+    FLAG_CAPTURE.with(|sink| sink.borrow_mut().take().unwrap_or_default())
+}
+
+fn capture_resolution(flag: &FeatureFlagDefinition, details: &ResolutionDetails) {
+    // Invariant: this closure must not transitively call `resolve_flag`
+    // while the `borrow_mut` is held — doing so would re-enter the
+    // `RefCell` and panic. It only clones owned data and pushes, so the
+    // non-re-entrancy guarantee holds.
+    FLAG_CAPTURE.with(|sink| {
+        if let Some(captured) = sink.borrow_mut().as_mut()
+            && captured.len() < FLAG_CAPTURE_CAP
+        {
+            // Past the cap, resolutions are silently dropped. The cap
+            // (256) is far above any real invocation's flag count, so a
+            // hit only happens under a pathological resolve loop — bound
+            // the sink rather than grow it without limit. `anvil-kernel`
+            // has no logging dependency, so the drop is intentionally
+            // quiet.
+            captured.push(CapturedResolution {
+                key: details.flag_key.clone(),
+                variant: details.variant.clone(),
+                reason: details.reason.clone(),
+                gate_affecting: flag.class.fail_closed(),
+            });
+        }
+    });
+}
+
+// -------------------------------------------------------------------------
 // Resolver
 // -------------------------------------------------------------------------
 
+/// Resolve a feature flag. When a capture window is active on the current
+/// thread (see [`begin_flag_capture`]), the resolution is also recorded
+/// into the thread-local sink for USAGE-002.
 pub fn resolve_flag(
+    flag: &FeatureFlagDefinition,
+    context: &EvaluationContext,
+    overrides: Option<&FlagOverrides>,
+) -> ResolutionDetails {
+    let details = resolve_flag_inner(flag, context, overrides);
+    capture_resolution(flag, &details);
+    details
+}
+
+fn resolve_flag_inner(
     flag: &FeatureFlagDefinition,
     context: &EvaluationContext,
     overrides: Option<&FlagOverrides>,
@@ -333,6 +421,79 @@ mod tests {
             class: FlagClass::Rollout,
             ..boolean_flag()
         }
+    }
+
+    // --- USAGE-002 flag capture sink ---
+
+    #[test]
+    fn capture_off_by_default_records_nothing() {
+        // No begin_flag_capture: resolution must not be recorded.
+        let _ = resolve_flag(&boolean_flag(), &dev_context(), None);
+        assert!(take_captured_flags().is_empty());
+    }
+
+    #[test]
+    fn capture_records_key_variant_reason_and_gate_affecting() {
+        begin_flag_capture();
+        let _ = resolve_flag(&boolean_flag(), &dev_context(), None);
+        let captured = take_captured_flags();
+        assert_eq!(captured.len(), 1);
+        let entry = &captured[0];
+        assert_eq!(entry.key, "test.flag");
+        assert_eq!(entry.variant, "disabled"); // default_variant
+        assert_eq!(entry.reason, ResolutionReason::Default);
+        // Entitlement class fails closed → gate-affecting.
+        assert!(entry.gate_affecting);
+    }
+
+    #[test]
+    fn capture_marks_rollout_class_not_gate_affecting() {
+        begin_flag_capture();
+        let _ = resolve_flag(&rollout_flag(), &dev_context(), None);
+        let captured = take_captured_flags();
+        assert_eq!(captured.len(), 1);
+        assert!(
+            !captured[0].gate_affecting,
+            "rollout flags are not gate-affecting"
+        );
+    }
+
+    #[test]
+    fn capture_records_local_override_reason() {
+        let mut overrides = FlagOverrides::default();
+        overrides.local.insert("test.flag".into(), "enabled".into());
+        begin_flag_capture();
+        let _ = resolve_flag(&boolean_flag(), &dev_context(), Some(&overrides));
+        let captured = take_captured_flags();
+        assert_eq!(captured.len(), 1);
+        assert_eq!(captured[0].variant, "enabled");
+        assert_eq!(captured[0].reason, ResolutionReason::LocalOverride);
+    }
+
+    #[test]
+    fn capture_is_bounded_by_the_cap() {
+        begin_flag_capture();
+        for _ in 0..(FLAG_CAPTURE_CAP + 10) {
+            let _ = resolve_flag(&boolean_flag(), &dev_context(), None);
+        }
+        assert_eq!(take_captured_flags().len(), FLAG_CAPTURE_CAP);
+    }
+
+    #[test]
+    fn take_ends_the_capture_window() {
+        begin_flag_capture();
+        let _ = resolve_flag(&boolean_flag(), &dev_context(), None);
+        assert_eq!(
+            take_captured_flags().len(),
+            1,
+            "first drain returns the row"
+        );
+        // Window ended: a later resolution is not captured until a new begin.
+        let _ = resolve_flag(&boolean_flag(), &dev_context(), None);
+        assert!(
+            take_captured_flags().is_empty(),
+            "no window active after drain"
+        );
     }
 
     fn dev_context() -> EvaluationContext {

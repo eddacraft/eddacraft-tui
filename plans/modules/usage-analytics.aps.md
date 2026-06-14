@@ -14,7 +14,7 @@ Cross-cutting convention: see plans/aps-rules.md#cross-cutting-modules.
 
 | ID    | Owner      | Status | Progress |
 | ----- | ---------- | ------ | -------- |
-| USAGE | @eddacraft | In Progress | 1/4 |
+| USAGE | @eddacraft | In Progress | 1/5 |
 
 **Last reviewed:** 2026-06-14
 
@@ -211,8 +211,10 @@ requires founder review. The contract doc lives in
 > `command.invoked`. The JSON-RPC producer is descoped to a follow-up
 > (USAGE-004) per the module's out-of-scope clause: the daemon dispatch
 > boundary carries no user principal and no flag resolver, so an
-> IPC-side row would be principal-less and asymmetric. USAGE-002 and
-> USAGE-003 remain Draft and follow once invocations land. Scoped into
+> IPC-side row would be principal-less and asymmetric. USAGE-002 In
+> Progress 2026-06-14 (inline `flag_set` populated from auth/routing flag
+> resolutions; v1 scope = auth/routing only, founder-confirmed).
+> USAGE-003 remains Draft and follows once invocations land. Scoped into
 > the `v0.9.0-beta` release window as additive scope (operator,
 > 2026-06-13).
 
@@ -327,16 +329,41 @@ requires founder review. The contract doc lives in
   values at the invocation boundary; does not re-evaluate or require a
   separate FLAGS-published snapshot row).
 - **Files (best-effort):**
-  `crates/<kindling-crate>/src/<observation-module>`,
+  `crates/anvil-kernel/src/feature_flags/resolver.rs` (capture sink),
+  `crates/anvil-cli/src/usage.rs` (flag_set builder),
+  `crates/anvil-cli/src/main.rs` (capture window + emit-after-auth),
   `docs/observability/usage-analytics.md`,
   `plans/decisions/019-flags-observability-alignment.md`
   (cross-link only),
   `plans/decisions/041-flag-snapshot-usage-join-contract.md`.
-- **Validation:** TBD when picked up — at minimum a query test that
-  joins a known invocation to its known flag set and returns the
-  expected pairing.
+- **As-built (2026-06-14):** **v1 scope = auth/routing flags only**
+  (founder-confirmed) — flags resolved while authorising/routing the
+  command (principally `cli.licence-gate`); command-internal flags are
+  deferred (a true end-of-run emission would be dropped by the ~13
+  `process::exit` paths). Uniform capture (auth not special-cased): an
+  opt-in thread-local sink in the kernel resolver (`begin_flag_capture` /
+  `take_captured_flags`, `CapturedResolution`) records each resolution;
+  the daemon never opens a window (capture is then a no-op — one
+  thread-local check, no allocation). `main` opens the
+  window before the auth gate and emits the usage row **after** the
+  auth/routing phase on both the auth-pass and auth-fail branches, so
+  every invocation still gets exactly one row. `check_auth` resolves
+  `cli.licence-gate` once (via `resolve_cli_licence_gate`) on both the
+  production and `ANVIL_DEV` paths — observe-only (drives the existing
+  dev-bypass decision, no enforcement change), so production gated
+  invocations carry the gate at `source: default` and dev sessions at
+  `override`. Flag-driven enforcement is deferred to **USAGE-005**.
+  `flag_set` builder maps reason→`source` (`override`/`snapshot`/`default`),
+  drops errored resolutions, dedups by `key`, sorts by `key`;
+  `gate_affecting` = `class.fail_closed()` (entitlement / ops-kill-switch
+  per ADR-019).
+- **Validation:** unit tests (kernel: capture on/off, reason + gate-
+  affecting mapping, window drained-once; CLI: source mapping, dedup,
+  sort, error-skip) + an integration test asserting a gated command
+  (`status`) carries `cli.licence-gate` in `flag_set` and a non-gated
+  command (`version`) has an empty `flag_set`.
 - **Confidence:** medium
-- **Status:** Draft
+- **Status:** In Progress
 
 ---
 
@@ -408,6 +435,40 @@ requires founder review. The contract doc lives in
   agreed principal decision (raw principal / session_id never leaks per
   the recorded choice).
 - **Confidence:** medium-low — gated on the principal decision.
+- **Status:** Draft
+
+---
+
+### USAGE-005: Flag-driven licence-gate enforcement
+
+- **Intent:** Make the CLI licence gate genuinely flag-controlled — the
+  auth decision branches on the resolved `cli.licence-gate` value, so a
+  `disabled` gate lets a gated command run without the local credential
+  pre-check, and an `enabled` gate enforces it.
+- **Context (the USAGE-002 deferral):** USAGE-002 made the auth path
+  *resolve* `cli.licence-gate` (so it is recorded as usage context in
+  production), but the resolution is **observe-only** — it drives the
+  existing `ANVIL_DEV` dev-bypass decision and is otherwise not consulted
+  for enforcement. Founder-confirmed 2026-06-14 to plan flag-driven
+  enforcement as a separate item because it changes auth semantics and
+  needs its own review.
+- **Expected Outcome:**
+  - `check_auth` enforces the credential pre-check based on the resolved
+    `cli.licence-gate` variant (not the hardcoded "gated command →
+    require credentials" rule), with the server-side token requirement
+    unchanged as the real backstop.
+  - A decision recorded on the precedence between the gate variant, the
+    `ANVIL_DEV` override, and `CLI_GATED_COMMANDS`.
+- **Coordinates with:** USAGE-002 (reuses `resolve_cli_licence_gate`),
+  FLAGS / BAUTH (the licence-gate owner).
+- **Files (best-effort):** `crates/anvil-cli/src/main.rs` (`check_auth`),
+  `crates/anvil-cli/src/feature_flags.rs`, auth tests.
+- **Validation:** TBD when picked up — at minimum tests that a
+  `disabled`-variant gate skips the local credential pre-check for a
+  gated command while an `enabled` variant enforces it, and that the
+  server-side requirement is unaffected.
+- **Confidence:** medium-low — auth-semantics change; needs its own
+  Council/security review.
 - **Status:** Draft
 
 ## Risks
