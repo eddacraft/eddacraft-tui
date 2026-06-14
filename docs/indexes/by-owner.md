@@ -357,10 +357,11 @@
 
 ## STRATEGY
 
-| Document                                                                       | Path                                         | Type  | Authority | Owner    | Status |
-| ------------------------------------------------------------------------------ | -------------------------------------------- | ----- | --------- | -------- | ------ |
-| [Borrow / Adopt Candidates](../../docs/strategy/borrow-adopt-candidates.md)    | `docs/strategy/borrow-adopt-candidates.md`   | Guide | Advisory  | STRATEGY | Live   |
-| [Competitor Tier 2 Tracking](../../docs/strategy/competitor-tier2-tracking.md) | `docs/strategy/competitor-tier2-tracking.md` | Guide | Advisory  | STRATEGY | Live   |
+| Document                                                                           | Path                                         | Type  | Authority | Owner    | Status |
+| ---------------------------------------------------------------------------------- | -------------------------------------------- | ----- | --------- | -------- | ------ |
+| [Beta Demo Script (Mac Screen Recording)](../../docs/strategy/beta-demo-script.md) | `docs/strategy/beta-demo-script.md`          | Guide | Advisory  | STRATEGY | Live   |
+| [Borrow / Adopt Candidates](../../docs/strategy/borrow-adopt-candidates.md)        | `docs/strategy/borrow-adopt-candidates.md`   | Guide | Advisory  | STRATEGY | Live   |
+| [Competitor Tier 2 Tracking](../../docs/strategy/competitor-tier2-tracking.md)     | `docs/strategy/competitor-tier2-tracking.md` | Guide | Advisory  | STRATEGY | Live   |
 
 ## TDASH (plans/archive/modules/native-tui-dashboards.aps.md)
 

@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 44/72    |
+| CIB | —     | In Progress | 44/76    |
 
 ## Purpose
 
@@ -1922,6 +1922,132 @@ archive.
   boundaries needs care; machine-readable output path must be audited to
   stay unaffected.
 
+### CIB-073: cumulative "value caught" scoreboard and shareable scorecard
+
+- **Status:** Draft
+- **Intent:** Anvil has no surface that answers "what has Anvil saved me?" —
+  `anvil insights` reports a rolling 7-day window (witness events, saves,
+  findings, suppressions) plus a Unicode sparkline, but there is no cumulative
+  count of risky writes blocked and nothing a user can share. That number is
+  the single most compelling artifact for the beta waitlist and the
+  fundraise, and the underlying data already lives in the witness chain.
+- **Expected Outcome:** a cumulative aggregate (e.g. "writes blocked",
+  "secrets caught", "boundary violations prevented" since first run, plus
+  rolling 30/90-day) surfaced in `anvil insights`; a `anvil insights --share`
+  (or `--format card`) that emits a clean, self-contained shareable artifact
+  (PNG or single-file HTML) of the headline numbers with no PII and no repo
+  internals leaked; `--json` schema extended (versioned, e.g.
+  `anvil.insights.v2`) with the cumulative fields; existing rolling-window
+  output unchanged by default.
+- **Files:** `crates/anvil-cli/src/commands/insights.rs` (and the insights
+  schema), witness-chain aggregation source.
+- **Validation:** `cargo test -p eddacraft-anvil -- insights` (cumulative
+  aggregation, schema version, redaction); manual: run against a repo with
+  recorded blocks and confirm `anvil insights` shows a cumulative total and
+  `anvil insights --share` writes a leak-safe card.
+- **Identified From:** demo-readiness review 2026-06-14 (beta waitlist +
+  fundraise) — `docs/strategy/beta-demo-script.md`; gap: no cumulative or
+  shareable value surface.
+- **Coordinates with:** witness-chain / provenance surface; CIB-074 (the
+  human-readable audit report shares the redaction + rendering concern).
+- **Confidence:** high — additive surface over data Anvil already records;
+  the only real care item is leak-safe redaction in the shareable artifact.
+
+### CIB-074: human-readable provenance / audit report export
+
+- **Status:** Draft
+- **Intent:** the compliance story ("every block is recorded, with the rule
+  and the reason, auditable for the EU AI Act") has no on-screen proof today.
+  `anvil audit` emits text / JSON / SARIF and `anvil export` emits
+  llms.txt / markdown / MCP-resource, but nothing renders the decision
+  history as a document a CISO buyer or an auditor could read or hand over.
+- **Expected Outcome:** an `anvil audit --format html` (and/or a
+  markdown-to-PDF path) that produces a self-contained, human-readable
+  provenance report — each enforcement decision with rule id, severity,
+  file/line, the reason, and timestamp, grouped and summarised — sourced from
+  the witness chain; redaction so secret _values_ never appear in the report
+  (only the fact that a secret was caught); existing `--format json|sarif`
+  output unchanged.
+- **Files:** `crates/anvil-cli/src/commands/audit.rs` (format dispatch),
+  witness-chain read path, a report template asset.
+- **Validation:** `cargo test -p eddacraft-anvil -- audit` (html/markdown
+  rendering, redaction, deterministic output); manual: `anvil audit
+  --format html` on a repo with recorded decisions opens a readable report
+  with no secret values present.
+- **Identified From:** demo-readiness review 2026-06-14 — Scene 6
+  (compliance) of `docs/strategy/beta-demo-script.md` has no artifact to
+  show; ties to the EU AI Act enforcement positioning.
+- **Coordinates with:** CIB-073 (shared redaction + rendering), witness-chain
+  / capsule export surface.
+- **Confidence:** medium — rendering and redaction are tractable, but the
+  report's audit-grade claims should be checked against the witness chain's
+  actual integrity guarantees before the compliance framing is published.
+
+### CIB-075: surface a visible always-on protection indicator (macOS menubar)
+
+- **Status:** Draft
+- **Intent:** Anvil is purely terminal-based — no menubar, tray, or GUI
+  presence. Protection is invisible between commands, and a block lives only
+  in the editor's chat until it scrolls away. A persistent visible indicator
+  ("Anvil · protecting · N sessions · M blocked today", flashing on a block)
+  would make always-on protection tangible — the biggest single lift for the
+  fundraise demo, where a visible artifact lands far harder than CLI text.
+- **Expected Outcome:** triage + a thin spike: decide the surface (native
+  macOS menubar item reading existing daemon/intercept status over the local
+  socket vs. a heavier app shell), confirm it can render live session count
+  and a today's-blocked count from data the daemon already exposes, and scope
+  the smallest shippable version. Likely graduates to a dedicated APS module
+  and an ADR (net-new product surface, packaging, and platform story) — this
+  CIB item is the triage gate, not the build.
+- **Files:** TBD by triage; reads from `anvil intercept` status surface
+  (`crates/anvil-intercept`), daemon socket at `$ANVIL_HOME/intercept.sock`.
+- **Validation:** spike acceptance — a menubar item that reflects live daemon
+  state and increments on a real block; promotion decision recorded.
+- **Identified From:** demo-readiness review 2026-06-14 — biggest demo gap is
+  the absence of any visible artifact (`docs/strategy/beta-demo-script.md`).
+- **Coordinates with:** `anvil intercept status` surface; CIB-073 (the
+  today's-blocked count it would display).
+- **Promotion note:** likely **Superseded by** a dedicated module + ADR once
+  triaged — net-new GUI surface exceeds CIB sizing; filed here for triage per
+  the intake rules.
+- **Confidence:** low — net-new surface; platform, packaging, signing
+  (cf. eddacraft Windows-signing precedent), and maintenance cost are
+  unscoped until the spike.
+
+### CIB-076: zero-config architecture/boundary rule so the differentiated feature demos without setup
+
+- **Status:** Draft
+- **Intent:** secret detection fires zero-config, but the capability that
+  makes Anvil a _category_ rather than a secret scanner — architecture /
+  boundary enforcement — only runs through the live daemon against a
+  configured baseline, and silently does nothing in a fresh repo. The easy
+  demo is the commodity feature and the moat feature is the fragile one,
+  which is backwards for the fundraise and for first-run user value.
+- **Expected Outcome:** at least one boundary/architecture rule that fires
+  from a sensible zero-config default (e.g. an obvious cross-layer import
+  detectable without a hand-authored baseline), routed through the same MCP
+  `validate_write` path with a `remediation_hint` so an agent can
+  self-correct; clear documentation of what is caught with no config vs. what
+  needs a baseline; no false-positive regressions on the embedded validator's
+  existing default rules.
+- **Files:** `crates/anvil-intercept/src/enforcement.rs`
+  (`default_rule_registry`), `crates/anvil-architecture/`, the
+  `validate_write` response path.
+- **Validation:** `cargo test -p eddacraft-anvil` + architecture-crate tests;
+  manual: in a fresh repo with no baseline, an obvious cross-layer import via
+  the agent returns a `block` with a remediation hint.
+- **Identified From:** demo-readiness review 2026-06-14 — the architecture
+  block in `docs/strategy/beta-demo-script.md` Scene 4 does not fire
+  out-of-the-box (embedded validator runs secret-detection +
+  reasoning-pattern only).
+- **Coordinates with:** CIB-005 (pre-write validator), the embedded-validator
+  rule registry; may need an ADR for the default-on rule set.
+- **Promotion note:** the zero-config-defaults question may be ADR territory
+  (which rules are safe to run with no baseline) — raise an ADR if triage
+  finds the default-rule-set decision contentious.
+- **Confidence:** low — picking a default-on architecture rule that is
+  genuinely low-false-positive without a baseline is the hard part and may
+  need an ADR before implementation.
 ### CIB-077: resolve `preflight.sh` version-gate vs `prepare.sh` bump ordering
 
 - **Status:** Draft
