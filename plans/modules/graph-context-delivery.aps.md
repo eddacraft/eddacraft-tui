@@ -2,9 +2,9 @@
 
 | ID   | Owner | Status | Progress |
 | ---- | ----- | ------ | -------- |
-| GCTX | —     | Draft  | 0/13     |
+| GCTX | —     | Ready  | 0/13     |
 
-**Last reviewed:** 2026-06-15 (GCTX-002 ADR authored as 083-gctx-mcp-delivery-target.md (Proposed) to satisfy the ADR-075 entry gate; see updated item below. Module remains Draft 0/13 pending full entry decisions + privacy review.)
+**Last reviewed:** 2026-06-15 (both ADR-075 entry gates landed — [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) **Accepted** (GCTX-002 → Ready) and the [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md) filed (APPROVE-WITH-CONDITIONS, 4/4). Module promoted **Draft → Ready, 0/13**: execution is authorised; GCTX-001..013 stay Draft pending the GCTX-001 contract that folds the egress conditions CE-1..CE-12.)
 
 > **Scoped to v0.9, not v0.8.0-beta (2026-06-08, [ADR-075](../decisions/075-v080-graph-product-scope.md),
 > Accepted via council).** GCTX was considered for the v0.8.0 window but the
@@ -14,6 +14,17 @@
 > reserves export surfaces for a separate review). GCTX opens the **v0.9** window
 > alongside the non-critical-path GV2 items (registry/contracts); the egress
 > privacy review is a v0.9 cut prerequisite.
+
+> **Entry gates landed (2026-06-15).** Both ADR-075 entry decisions are now
+> resolved: [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) (Accepted)
+> fixes the MCP delivery target as the Rust `anvil mcp serve` (RMCPF) surface,
+> and the [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
+> (APPROVE-WITH-CONDITIONS, 4/4) discharges the egress-privacy prerequisite. Its
+> conditions **CE-1..CE-12** fold into GCTX-001 (contract) and the named per-item
+> targets; **CE-1** (snippet egress opt-in, identity-only default) and **CE-5**
+> (sealed egress DTO + single redaction choke point + structural no-leak test)
+> are hard gates that must be written into item text before the snippet/Phase-1
+> items flip to Ready.
 
 ## Purpose
 
@@ -88,9 +99,18 @@ enforcement/provenance requirements conflict, GV2 wins and this module adapts.
 
 - UK English spelling in all plan text and user-facing docs
 - Context slices must be deterministic for identical graph state and query input
-- Context delivery must degrade gracefully when the graph is warming or disabled
-- Sensitive diagnostics, secret content, and private provenance fields must be
-  redacted by default before crossing MCP boundaries
+- Context delivery must degrade gracefully when the graph is warming or disabled,
+  and must **never** fall back to direct file reads outside the graph → redaction
+  → token-budget pipeline (PV-9 review CE-7)
+- The default egress surface is **identity-only** (symbol names, kinds,
+  workspace-root-relative paths, edges, structural summaries); returning source
+  **text** (snippets) is opt-in, default-off behind the `gctx.egress` flag, and
+  emitted only through a single sealed-DTO redaction choke point that runs
+  deny-by-default secret scanning and sensitive-path filtering (PV-9 review
+  CE-1/CE-2/CE-3/CE-5). Sensitive diagnostics, secret content, and private
+  provenance fields are redacted by default before crossing MCP boundaries; the
+  full conditions are recorded in the
+  [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
 - MCP tools are additive and must not break existing tool contracts
 - This module must not introduce schema requirements that belong in GV2
 - Benchmarks must be reproducible and checked in before marketing claims are made
@@ -106,14 +126,19 @@ enforcement/provenance requirements conflict, GV2 wins and this module adapts.
 
 ## Ready Checklist
 
-Change status to **Ready** when:
+Module promoted to **Ready** 2026-06-15 (both ADR-075 entry gates landed):
 
-- [ ] GV2 query contract exposes the graph reads this module needs
-- [ ] MCP delivery target decided: interim TS server, Rust RMCPF server, or both
-- [ ] Redaction rules for graph context are reviewed by security
-- [ ] Token-budget strategy agreed with MCP/server owner
-- [ ] Benchmark baseline fixture set selected
-- [ ] User-guide outline agreed with docs owner
+- [x] GV2 query contract exposes the graph reads this module needs — GV2-023
+      promoted Ready 2026-06-15 (deps GV2-020/-022 cleared)
+- [x] MCP delivery target decided: interim TS server, Rust RMCPF server, or both —
+      [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) Accepted (Rust RMCPF
+      `anvil mcp serve`)
+- [x] Redaction rules for graph context are reviewed by security —
+      [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md),
+      APPROVE-WITH-CONDITIONS (CE-1..CE-12 fold into GCTX-001)
+- [ ] Token-budget strategy agreed with MCP/server owner — GCTX-020/022 detail
+- [ ] Benchmark baseline fixture set selected — GCTX-031 detail
+- [ ] User-guide outline agreed with docs owner — GCTX-032 detail
 
 ---
 
@@ -128,9 +153,23 @@ Change status to **Ready** when:
   assistants.
 - **Expected Outcome:** Contract maps assistant tasks to graph projections,
   redaction rules, warming/stale-state behaviour, pagination, and deterministic
-  ordering.
+  ordering. It **must absorb the egress conditions CE-1..CE-12** from the
+  [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md):
+  identity-only default with opt-in source-text egress behind `gctx.egress`
+  (CE-1); deny-by-default secret scanning (CE-2) and sensitive-path / gitignore
+  filtering (CE-3) on snippets; an egress field allowlist + named residual table
+  that excludes GV2-013/014 fields until their own ADRs land (CE-4); a sealed
+  egress DTO with a single `GctxProjector` choke point and a structural no-leak
+  test (CE-5); volume bounds — quotas, opaque server-minted pagination cursors,
+  per-session snippet byte ceiling, and query-param validation (CE-6); stale-graph
+  snippet guard with no whole-file fallback (CE-7); session-pinned workspace root
+  and stdio-only transport boundary (CE-8); enum-only telemetry (CE-10);
+  kill-switch + per-response redaction summary (CE-11); and surfaced consent
+  (CE-12).
 - **Validation:** Review confirms no GV2 schema or hot-path enforcement contract
-  is defined in this module
+  is defined in this module; the contract spec includes the egress allowlist /
+  residual table and the sealed-DTO + no-leak-test requirement (CE-5), which gates
+  the Phase 1 tool items
 - **Files:** `docs/architecture/graph-context-delivery-spec.md`,
   `docs/architecture/graph-v2-foundation-spec.md`
 - **Confidence:** high
@@ -141,7 +180,7 @@ Change status to **Ready** when:
 
 #### GCTX-002: MCP delivery target decision
 
-- **Status:** Proposed (ADR-083 authored 2026-06-15; decision: primary target is Rust RMCPF `anvil mcp serve` surface per RMCPF + ADR-033 parking of TS MCP. Additive registration of GCTX tools/resources. See ADR-083 for full context/alternatives/consequences. Once Accepted + egress privacy review (PV-9) complete, promote to Ready and begin GCTX implementation.)
+- **Status:** Ready — [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) **Accepted 2026-06-15** (Josh): primary target is the Rust RMCPF `anvil mcp serve` surface per RMCPF + ADR-033 parking of TS MCP; additive registration of GCTX tools/resources. Both ADR-075 entry gates are now landed (this decision + the [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)), so the item is execution-authorised. Acceptance criteria CE-8 (session-pinned root; stdio-only — a networked RMCPF transport needs a new egress review before GCTX registers there) carry into implementation.
 - **Intent:** Decide whether graph context tools first land on the interim TS MCP
   server, the Rust RMCPF server, or both.
 - **Expected Outcome:** Decision records the target server, compatibility stance,

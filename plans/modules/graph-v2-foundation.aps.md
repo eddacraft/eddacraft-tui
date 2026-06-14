@@ -4,7 +4,7 @@
 | --- | ----- | ------ |
 | GV2 | —     | In Progress |
 
-**Last reviewed:** 2026-06-15 (GV2-031 promoted Ready per NBI readiness pass — see below; internal substrate, not gated by GCTX/ADR-075 egress decisions)
+**Last reviewed:** 2026-06-15 (GV2-031 promoted Ready per NBI readiness pass; **GV2-020 + GV2-023 promoted Draft → Ready** once the ADR-075 entry decisions landed — [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) Accepted + the [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md) filed. GV2-020 deps GV2-010..014 are all Merged; GV2-023 is the MCP/weave-egress-adjacent consumer contract.)
 
 > 2026-06-12: the A′ slice (hot-read backing swap + seal + ADR-031 latency
 > gate) confirmed in the v0.8.0-beta tag (record:
@@ -468,7 +468,7 @@ Change status to **Ready** when:
 
 #### GV2-020: Multi-graph registry and typed query traits
 
-- **Status:** Draft — now buildable (012/013/014 are in-wave).
+- **Status:** Ready — promoted Draft → Ready 2026-06-15 (deps GV2-010/011/012/013/014 all **Merged**; execution-authorised). Unblocked alongside the ADR-075 entry decisions ([ADR-083](../decisions/083-gctx-mcp-delivery-target.md) Accepted + [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md) filed).
 - **Intent:** Provide one typed in-process entry point for querying joined graph
   state without coupling consumers to storage or `petgraph` internals.
 - **Expected Outcome:** Registry exposes graph handles and join queries for
@@ -542,7 +542,7 @@ Change status to **Ready** when:
 
 #### GV2-023: Consumer query contract for daemon, drivers, MCP, and weave
 
-- **Status:** Draft
+- **Status:** Ready — promoted Draft → Ready 2026-06-15 (dep GV2-022 Merged; dep GV2-020 now Ready). The MCP/assistant projection path it defines is governed by the [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md): assistant queries are projections over the same trusted substrate, identity-only by default.
 - **Intent:** Define the graph query boundary downstream consumers use so GCTX,
   DRVR, INTD, and WEAVE do not grow incompatible graph adapters.
 - **Expected Outcome:** Query contract separates enforcement reads, diagnostic

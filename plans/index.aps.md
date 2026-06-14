@@ -108,7 +108,7 @@ Selection rules:
 | Rank | NBI | Mode | Source | Why now | Next action |
 | ---- | --- | ---- | ------ | ------- | ----------- |
 | 1 | GV2-031 — lift re-export edges for transitive privilege | Ready | [graph-v2-foundation](./modules/graph-v2-foundation.aps.md) + [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) | The v0.9 internal-substrate cohort is **fully Merged** (GV2-013/014 contracts #2578/#2579, GV2-026 depth lever #2594, GV2-030 sealed-DTO no-leak guard #2595). GV2-031 (lift re-export edges so transitive privilege is visible) promoted to Ready 2026-06-15 (readiness pass; internal substrate per ADR-075 — the GCTX-002/egress-privacy gate covers only the assistant-facing surface). | Pick up through dev-workflow (feat/gv2-031 branch created; TDD on re-export lift in anvil-graph-cache + intercept certify). |
-| 2 | GCTX entry decisions — unblock the assistant-facing surface | Schedule | [ADR-075](./decisions/075-v080-graph-product-scope.md) + [graph-context-delivery](./modules/graph-context-delivery.aps.md) | The GCTX product (0/13) and the GV2 consumer surface (GV2-020 → GV2-023, MCP/weave-facing) stay gated on the two ADR-075 entry decisions: the GCTX-002 architectural decision (which MCP target) and the context-egress privacy review (PV-9, distinct from the persistence verdict). | Land GCTX-002 (ADR) and run the context-egress privacy review; then promote GCTX + GV2-020/-023 with a readiness pass. |
+| 2 | GV2-020 multi-graph registry → GV2-023 consumer contract — the assistant-facing graph substrate | Ready | [graph-v2-foundation](./modules/graph-v2-foundation.aps.md) + [graph-context-delivery](./modules/graph-context-delivery.aps.md) | Both ADR-075 entry decisions landed 2026-06-15 — [ADR-083](./decisions/083-gctx-mcp-delivery-target.md) Accepted (MCP target = Rust RMCPF) and the [context-egress privacy review (PV-9)](./reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md) filed (APPROVE-WITH-CONDITIONS, 4/4). **GV2-020/-023 promoted Draft → Ready** (GV2-020 deps GV2-010..014 all Merged), **GCTX-002 → Ready** and the **GCTX module → Ready** (0/13). | Pick up GV2-020 (registry/typed query traits) through dev-workflow, then GV2-023 (consumer contract); GCTX-001 then folds the egress conditions CE-1..CE-12 (CE-1 + CE-5 are hard gates). |
 | 3 | USAGE-001 — `command.invoked` Kindling observations | Merged | [usage-analytics](./modules/usage-analytics.aps.md) + [`RELEASE-PLAN.md`](../RELEASE-PLAN.md) | Founder-requested (2026-05-10) durable "who is using what" evidence; Merged 2026-06-13 via PR #2603 — CLI producer + new `command.invoked` kind + privacy contract; JSON-RPC producer descoped to USAGE-004. Scoped into the `v0.9.0-beta` window as additive work (operator, 2026-06-13). | USAGE-002/003/004 follow; cleanup agent advances Merged → Released on the v0.9.0-beta tag. |
 
 NBI review note (2026-06-13, ninth pass): operator set the `v0.9.0-beta`
@@ -134,6 +134,24 @@ decision) as Proposed. Updated GCTX module, RELEASE-PLAN, DECISION-LOG, and
 NBI rank 2 note. Rank 1 now actionable; rank 2 advances with the new ADR +
 pending egress privacy review (PV-9). All plan edits are bookkeeping (single-purpose
 per dev-workflow rule 14). Next validation + PR.
+
+NBI review note (2026-06-15, entry-gate close): per direct operator request,
+**landed both ADR-075 entry decisions** and the dependent readiness pass.
+(1) [ADR-083](./decisions/083-gctx-mcp-delivery-target.md) flipped Proposed →
+**Accepted** (Josh) + DECISION-LOG updated. (2) Ran the **context-egress privacy
+review (PV-9)** — a four-reviewer council (security-analyst lead, adversarial,
+operations, kernel; verdict
+[2026-06-15-gctx-context-egress-privacy-review-verdict.md](./reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md),
+APPROVE-WITH-CONDITIONS 4/4, no BLOCKs). The load-bearing finding: the default
+egress surface is identity-only; source-text snippet egress is opt-in/default-off
+through a single sealed-DTO redaction choke point (CE-1 + CE-5 are hard gates;
+CE-1..CE-12 fold into GCTX-001). (3) Promoted to **Ready**: **GV2-020** (deps
+GV2-010..014 all Merged), **GV2-023** (MCP/weave consumer contract), **GCTX-002**
+(both its gate conditions met), and the **GCTX module** (Draft → Ready, 0/13 —
+GCTX-001..013 stay Draft pending the GCTX-001 contract). The `flags/manifest.json`
+`gctx.egress` entry (CE-9) is deferred to first GCTX implementation to avoid a
+FLAGCAT orphan-flag drift failure. All edits are plan/decision bookkeeping
+(single-purpose). Next validation + PR.
 
 NBI review note (2026-06-13, eighth pass): the v0.8.0/v0.8.1 post-release
 closeout is **complete**. The previous (seventh) pass reconciled statuses onto
@@ -193,8 +211,8 @@ trusted model.
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
-| [graph-v2-foundation](./modules/graph-v2-foundation.aps.md) | GV2 | In Progress | 17/20 (A′ slice shipped in v0.8.0-beta; Phase 1 complete — GV2-013/014 contracts Merged 2026-06-13 via #2578/#2579; GV2-026 reverse-impact depth lever Merged 2026-06-14 via #2594 and GV2-030 sealed-DTO no-leak guard Merged 2026-06-14 via #2595; GV2-031 promoted Ready 2026-06-15 (internal substrate, not GCTX-gated); remaining: GV2-020/-023 + GCTX Draft pending their deps / the ADR-075 entry decisions) | KERN, anvil-graph-cache, ADR-061/063/064/067/069, ADR-031, INTD, GCTX, EDDA |
-| [graph-context-delivery](./modules/graph-context-delivery.aps.md) | GCTX | Draft | 0/13 | GV2 |
+| [graph-v2-foundation](./modules/graph-v2-foundation.aps.md) | GV2 | In Progress | 17/20 (A′ slice shipped in v0.8.0-beta; Phase 1 complete — GV2-013/014 contracts Merged 2026-06-13 via #2578/#2579; GV2-026 reverse-impact depth lever Merged 2026-06-14 via #2594 and GV2-030 sealed-DTO no-leak guard Merged 2026-06-14 via #2595; GV2-031 promoted Ready 2026-06-15 (internal substrate, not GCTX-gated); GV2-020 + GV2-023 promoted Ready 2026-06-15 once the ADR-075 entry decisions landed (ADR-083 Accepted + PV-9 egress review filed)) | KERN, anvil-graph-cache, ADR-061/063/064/067/069, ADR-031, INTD, GCTX, EDDA |
+| [graph-context-delivery](./modules/graph-context-delivery.aps.md) | GCTX | Ready | 0/13 (entry gates landed 2026-06-15 — ADR-083 Accepted + PV-9 egress review filed; GCTX-002 Ready; GCTX-001..013 stay Draft pending the GCTX-001 contract folding CE-1..CE-12) | GV2 |
 
 ### Hardening & Maintenance
 
