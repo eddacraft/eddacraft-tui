@@ -6,6 +6,7 @@ mod graph;
 pub mod hooks;
 mod notifications;
 pub mod protection_claim;
+pub mod session;
 pub mod trust;
 pub mod watch_event;
 
@@ -31,6 +32,7 @@ pub use protection_claim::{
     PROTECTION_CLAIM_SCHEMA_VERSION, ProtectionClaim, SurfaceClaim, SurfaceClaimState,
     WorktreeClaimState,
 };
+pub use session::WorkspaceRoot;
 pub use trust::{
     DataClassification, EvidenceKind, InvariantGuard, OverrideSource, PolicyEvidence,
     PolicyProfile, SideEffectSurface, SourceLocation, TrustLevel,
