@@ -2,7 +2,7 @@
 
 | Type  | Authority     | Owner | Status | Freshness                         |
 | ----- | ------------- | ----- | ------ | --------------------------------- |
-| Guide | Authoritative | USAGE | Live   | Live as of 2026-06-14 (USAGE-003) |
+| Guide | Authoritative | USAGE | Live   | Live as of 2026-06-14 (USAGE-005) |
 
 | Upstream                                | Downstream                              |
 | --------------------------------------- | --------------------------------------- |
@@ -197,10 +197,20 @@ still gets exactly one row).
 For a gated command, `check_auth` resolves `cli.licence-gate` once on **both**
 the production path (manifest default → `source: default`) and the `ANVIL_DEV`
 local-override path (`source: override`), so production gated invocations carry
-the gate, not just developer sessions. This resolution is **observe-only** in v1
-— it drives the existing dev-bypass decision and is otherwise not consulted for
-enforcement; making the gate genuinely flag-driven (a `disabled` gate skips the
-credential pre-check) is tracked as **USAGE-005**.
+the gate, not just developer sessions.
+
+**USAGE-005 — flag-driven enforcement (landed).** The resolution is no longer
+observe-only: `check_auth` now branches on the resolved variant via
+`feature_flags::local_auth_precheck`. A `disabled` gate **skips** the local
+credential pre-check; an `enabled` gate (including the manifest default)
+**enforces** it. Precedence: the `ANVIL_DEV=1` developer bypass takes priority,
+then the variant decides; `CLI_GATED_COMMANDS` stays orthogonal (it selects
+which commands consult the gate at all). Because most gated commands run locally
+and never call the server, for them the local pre-check _is_ the licence
+enforcement — a `disabled` gate runs them ungated, which is the intended
+operator control; the network-touching commands (`auth`, `mcp`) still require a
+valid server token. The manifest default is `enabled`, so production enforcement
+is unchanged unless an operator/targeting rule disables the gate.
 
 A flag resolved **inside** a command — after routing, deep in execution — is
 intentionally **not** captured in v1: several command paths exit via

@@ -237,6 +237,76 @@ pub fn is_dev_bypass(details: &ResolutionDetails) -> bool {
     details.reason == ResolutionReason::LocalOverride && details.variant == "enabled"
 }
 
+/// The `cli.licence-gate` variant that means the gate is **off**. Mirrors
+/// the `disabled` variant in `flags/manifest.json`; the sibling `enabled`
+/// variant (the manifest default) means the gate is enforced. Kept as a
+/// literal to match the existing `"enabled"` checks in this module;
+/// [`tests::manifest_variants_match_gate_constants`] pins it against the
+/// generated catalogue so it cannot drift.
+const GATE_DISABLED_VARIANT: &str = "disabled";
+
+/// USAGE-005: the local credential pre-check decision for a gated command.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LocalAuthPrecheck {
+    /// Run the local credential pre-check — the gate is enforced.
+    Enforce,
+    /// Skip the local pre-check; carries why, for the operator note.
+    ///
+    /// **What this actually relaxes:** most gated commands (`check`,
+    /// `audit`, `export`, `status`, …) run entirely locally and never call
+    /// the server, so the local pre-check *is* their only licence
+    /// enforcement — skipping it runs them ungated. That is the intended
+    /// operator control (a `disabled` gate turns licence enforcement off),
+    /// not a "UX-only" relaxation. Only the network-touching commands
+    /// (`auth`, `mcp`) additionally fail closed server-side without a valid
+    /// token, so for those the server remains an independent backstop.
+    Skip(LocalAuthSkipReason),
+}
+
+/// Why the local credential pre-check was skipped (USAGE-005).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LocalAuthSkipReason {
+    /// `ANVIL_DEV=1` local override — the developer bypass.
+    DevBypass,
+    /// The licence gate resolved to its `disabled` variant — the gate is off.
+    GateDisabled,
+}
+
+/// USAGE-005: decide whether a gated command must run the local credential
+/// pre-check, from the resolved `cli.licence-gate` alone.
+///
+/// **Precedence (the recorded decision):**
+/// 1. **Developer bypass** — `ANVIL_DEV=1` (a `LocalOverride` forcing
+///    `enabled`) skips the local pre-check, exactly as before USAGE-005.
+/// 2. **Flag variant** — otherwise the resolved variant decides: the
+///    `disabled` variant (the gate is off, from a targeting rule, operator
+///    config, or emergency override) skips the local pre-check; `enabled`
+///    (including the manifest default) enforces it.
+///
+/// [`CLI_GATED_COMMANDS`] is orthogonal and unchanged: it selects *which*
+/// commands consult the gate at all ([`command_needs_licence_gate`] →
+/// `main::requires_auth`). This function governs only what happens once a
+/// gated command has already entered `check_auth`.
+///
+/// **Scope of a `Skip` (security contract):** skipping the pre-check runs
+/// the gated command without a local credential check. For the local-only
+/// commands (the majority — `check`, `audit`, `export`, `status`, …) that
+/// never contact the server, the local check *is* the licence enforcement,
+/// so a `Skip` runs them fully ungated. This is the intended meaning of a
+/// `disabled` licence gate, not an oversight. The network-touching commands
+/// (`auth`, `mcp`) independently require a valid server token, so for those
+/// the server remains a backstop even when this pre-check is skipped.
+#[must_use]
+pub fn local_auth_precheck(licence_gate: &ResolutionDetails) -> LocalAuthPrecheck {
+    if is_dev_bypass(licence_gate) {
+        return LocalAuthPrecheck::Skip(LocalAuthSkipReason::DevBypass);
+    }
+    if licence_gate.variant == GATE_DISABLED_VARIANT {
+        return LocalAuthPrecheck::Skip(LocalAuthSkipReason::GateDisabled);
+    }
+    LocalAuthPrecheck::Enforce
+}
+
 // ── CIB-046: internal-developer gate for `anvil plan dashboard` ──────
 
 /// The `tui-dashboard.aps-dashboard` flag key, sourced from the generated
@@ -559,5 +629,106 @@ mod tests {
                 },
             );
         }
+    }
+
+    // ── USAGE-005: flag-driven licence-gate enforcement ─────────────────
+
+    /// Build a `cli.licence-gate` resolution with a given variant + reason.
+    fn gate(variant: &str, reason: ResolutionReason) -> ResolutionDetails {
+        ResolutionDetails {
+            value: serde_json::Value::Bool(variant == "enabled"),
+            variant: variant.to_owned(),
+            reason,
+            flag_key: CLI_LICENCE_GATE_KEY.to_owned(),
+            error_code: None,
+            error_message: None,
+        }
+    }
+
+    #[test]
+    fn manifest_variants_match_gate_constants() {
+        // Pin the literal `disabled` variant against the catalogue so the
+        // enforcement decision cannot silently drift from the manifest.
+        let flag = cli_licence_gate_flag();
+        let variants: Vec<&str> = flag
+            .definition
+            .variants
+            .iter()
+            .map(|v| v.key.as_str())
+            .collect();
+        assert!(
+            variants.contains(&GATE_DISABLED_VARIANT),
+            "manifest must define the `{GATE_DISABLED_VARIANT}` variant: {variants:?}"
+        );
+        assert!(
+            variants.contains(&"enabled"),
+            "manifest must define the `enabled` variant: {variants:?}"
+        );
+        assert_eq!(
+            flag.definition.default_variant, "enabled",
+            "default must stay `enabled` so production enforcement is unchanged"
+        );
+    }
+
+    #[test]
+    fn local_auth_precheck_enforces_enabled_default() {
+        // The production path: manifest default `enabled` → enforce the
+        // local credential pre-check exactly as before USAGE-005.
+        assert_eq!(
+            local_auth_precheck(&gate("enabled", ResolutionReason::Default)),
+            LocalAuthPrecheck::Enforce
+        );
+    }
+
+    #[test]
+    fn local_auth_precheck_skips_when_gate_disabled() {
+        // An operator/targeting rule turning the gate off → skip the local
+        // pre-check. For local-only commands that means they run ungated
+        // (the intended effect of a `disabled` gate); only the
+        // network-touching commands still require a server token.
+        assert_eq!(
+            local_auth_precheck(&gate(
+                GATE_DISABLED_VARIANT,
+                ResolutionReason::TargetingMatch
+            )),
+            LocalAuthPrecheck::Skip(LocalAuthSkipReason::GateDisabled)
+        );
+        // Same outcome whatever the (non-dev) source that produced `disabled`.
+        assert_eq!(
+            local_auth_precheck(&gate(GATE_DISABLED_VARIANT, ResolutionReason::Default)),
+            LocalAuthPrecheck::Skip(LocalAuthSkipReason::GateDisabled)
+        );
+    }
+
+    #[test]
+    fn local_auth_precheck_skips_for_dev_bypass() {
+        // ANVIL_DEV=1 → LocalOverride forcing `enabled` is the developer
+        // bypass; it skips with the DevBypass rationale (not GateDisabled).
+        assert_eq!(
+            local_auth_precheck(&gate("enabled", ResolutionReason::LocalOverride)),
+            LocalAuthPrecheck::Skip(LocalAuthSkipReason::DevBypass)
+        );
+    }
+
+    #[test]
+    fn local_auth_precheck_dev_bypass_does_not_mask_a_disabled_override() {
+        // A LocalOverride that resolved to `disabled` is not the dev bypass
+        // (which forces `enabled`); it still skips, but as GateDisabled.
+        assert_eq!(
+            local_auth_precheck(&gate(
+                GATE_DISABLED_VARIANT,
+                ResolutionReason::LocalOverride
+            )),
+            LocalAuthPrecheck::Skip(LocalAuthSkipReason::GateDisabled)
+        );
+    }
+
+    #[test]
+    fn local_auth_precheck_enforces_emergency_enabled() {
+        // An emergency override re-enabling the gate enforces the pre-check.
+        assert_eq!(
+            local_auth_precheck(&gate("enabled", ResolutionReason::EmergencyOverride)),
+            LocalAuthPrecheck::Enforce
+        );
     }
 }

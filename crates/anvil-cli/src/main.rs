@@ -784,14 +784,30 @@ fn check_auth(global: &GlobalArgs, allow_interactive: bool, wants_json: bool) ->
     // USAGE-002: resolve `cli.licence-gate` once here so the gating policy
     // is consulted — and recorded as auth context on the usage row via the
     // open capture window — on every gated invocation, in production as
-    // well as under `ANVIL_DEV`. The resolution drives the existing
-    // dev-bypass decision; it does not otherwise change the auth outcome
-    // (making enforcement flag-driven is tracked as USAGE-005).
+    // well as under `ANVIL_DEV`.
+    //
+    // USAGE-005: the resolved gate now *drives* the local credential
+    // pre-check. The decision table lives in
+    // `feature_flags::local_auth_precheck` (dev-bypass → Skip; `disabled`
+    // variant → Skip; `enabled` → Enforce). A Skip runs the command without
+    // a local credential check; for the local-only gated commands (which
+    // never call the server) that means they run fully ungated — the
+    // intended meaning of a `disabled` licence gate. The network-touching
+    // commands (`auth`, `mcp`) still require a valid server token, so the
+    // server backstops those even on a Skip. The manifest default is
+    // `enabled`, so production behaviour is unchanged unless an
+    // operator/targeting rule disables the gate.
     let licence_gate = feature_flags::resolve_cli_licence_gate();
-    if feature_flags::is_dev_bypass(&licence_gate) {
+    if let feature_flags::LocalAuthPrecheck::Skip(reason) =
+        feature_flags::local_auth_precheck(&licence_gate)
+    {
         if !json_mode {
+            let note = match reason {
+                feature_flags::LocalAuthSkipReason::DevBypass => "ANVIL_DEV=1 local override",
+                feature_flags::LocalAuthSkipReason::GateDisabled => "licence gate disabled",
+            };
             eprintln!(
-                "[dev] ANVIL_DEV=1: local override {}={} (reason={:?}) — skipping local auth check",
+                "[licence-gate] {note}: {}={} (reason={:?}) — skipping local auth pre-check",
                 licence_gate.flag_key, licence_gate.variant, licence_gate.reason
             );
         }

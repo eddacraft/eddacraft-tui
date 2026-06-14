@@ -14,7 +14,7 @@ Cross-cutting convention: see plans/aps-rules.md#cross-cutting-modules.
 
 | ID    | Owner      | Status | Progress |
 | ----- | ---------- | ------ | -------- |
-| USAGE | @eddacraft | In Progress | 3/5 |
+| USAGE | @eddacraft | In Progress | 4/5 |
 
 **Last reviewed:** 2026-06-14
 
@@ -214,9 +214,15 @@ requires founder review. The contract doc lives in
 > IPC-side row would be principal-less and asymmetric. USAGE-002 Merged
 > 2026-06-14 via PR #2607 (inline `flag_set` populated from auth/routing
 > flag resolutions; v1 scope = auth/routing only, founder-confirmed;
-> flag-driven enforcement filed as USAGE-005). USAGE-003 remains Draft
-> and follows once invocations land. Scoped into
-> the `v0.9.0-beta` release window as additive scope (operator,
+> flag-driven enforcement filed as USAGE-005). USAGE-003 Merged 2026-06-14
+> via PR #2612 (`anvil kindling usage <view>` dev-investment query views +
+> runbook; OQ3 → both CLI surface and docs). USAGE-005 Merged 2026-06-14
+> via PR #2614 (flag-driven licence-gate enforcement; `check_auth`
+> branches on the resolved `cli.licence-gate` variant, default `enabled`
+> so production unchanged). USAGE-004 (JSON-RPC producer) remains Draft —
+> it needs a founder decision on the principal model and on which daemon
+> methods count as user-initiated (most are internal machinery). Scoped
+> into the `v0.9.0-beta` release window as additive scope (operator,
 > 2026-06-13).
 
 ### USAGE-001: Command-invocation observation kind and producer
@@ -482,13 +488,41 @@ requires founder review. The contract doc lives in
   FLAGS / BAUTH (the licence-gate owner).
 - **Files (best-effort):** `crates/anvil-cli/src/main.rs` (`check_auth`),
   `crates/anvil-cli/src/feature_flags.rs`, auth tests.
-- **Validation:** TBD when picked up — at minimum tests that a
-  `disabled`-variant gate skips the local credential pre-check for a
-  gated command while an `enabled` variant enforces it, and that the
-  server-side requirement is unaffected.
-- **Confidence:** medium-low — auth-semantics change; needs its own
-  Council/security review.
-- **Status:** Draft
+- **As-built (2026-06-14):** `check_auth` now branches on a pure,
+  fully-unit-tested decision helper `feature_flags::local_auth_precheck`
+  (`LocalAuthPrecheck::{Enforce, Skip(LocalAuthSkipReason::{DevBypass,
+  GateDisabled})}`). **Precedence decision (recorded):** (1) the
+  `ANVIL_DEV=1` developer bypass (`LocalOverride` forcing `enabled`) takes
+  priority and skips; (2) otherwise the resolved variant decides —
+  `disabled` skips the local pre-check, `enabled` (incl. the manifest
+  default) enforces it. `CLI_GATED_COMMANDS` stays **orthogonal**: it
+  selects *which* commands consult the gate (`requires_auth`); the variant
+  decides whether the gate is open. **Security finding folded in
+  (review):** a Skip runs the command without the local credential check,
+  and because most gated commands are local-only (never call the server),
+  for them the local check *is* the licence enforcement — a `disabled`
+  gate runs them ungated, which is the *intended* operator control, not a
+  "UX-only" relaxation. Only the network-touching commands (`auth`,
+  `mcp`) retain an independent server-token backstop on a Skip. The
+  `disabled` variant is unreachable via env today (env only forces
+  `enabled` via `ANVIL_DEV`); it resolves from manifest targeting /
+  operator config, so this adds **no** new local-attacker vector beyond
+  the pre-existing `ANVIL_DEV` bypass. Resolution errors fail closed to
+  `Enforce`. The manifest default is `enabled` (CI-pinned by
+  `manifest_variants_match_gate_constants`), so production is unchanged.
+- **Validation:** unit tests in `feature_flags.rs`
+  (`local_auth_precheck_*`: enabled→Enforce, disabled→Skip(GateDisabled),
+  dev-bypass→Skip(DevBypass), disabled-override→GateDisabled,
+  emergency-enabled→Enforce; `manifest_variants_match_gate_constants`
+  pins the variants + default). The dev-bypass behaviour and one-row-per
+  invocation stay covered end-to-end by the existing `usage_observation`
+  suite. Forcing a live `disabled` resolution end-to-end needs a manifest
+  targeting fixture; the decision table is the right granularity and is
+  exhaustively unit-tested.
+- **Confidence:** medium — auth-semantics change; security-reviewed
+  (code correct, fail-closed, no regression, no new vector; the single
+  finding was a doc-framing correction, applied).
+- **Status:** Merged 2026-06-14 via PR #2614
 
 ## Risks
 
