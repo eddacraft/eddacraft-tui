@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 44/71    |
+| CIB | —     | In Progress | 44/72    |
 
 ## Purpose
 
@@ -1921,3 +1921,37 @@ archive.
 - **Confidence:** medium — `miette` composing with `anyhow` across crate
   boundaries needs care; machine-readable output path must be audited to
   stay unaffected.
+
+### CIB-077: resolve `preflight.sh` version-gate vs `prepare.sh` bump ordering
+
+- **Status:** Draft
+- **Intent:** the release flow's `preflight.sh` runs a `cargo-version` gate
+  (`require_workspace_version_match`) that fails when the workspace version
+  equals the latest release tag — treating it as "the engineer forgot to
+  bump". But `prepare.sh`, which performs the version bump, runs _after_
+  `preflight.sh`. On a hotfix cut from a tagged release the workspace version
+  legitimately still equals the latest tag at preflight time, so the gate
+  aborts the release before `prepare` ever gets to bump it — a chicken-and-egg
+  ordering wall.
+- **Expected Outcome:** `preflight.sh` gains a deferred/skip mode (e.g.
+  `SKIP_VERSION_GATE=1` or a `--pre-prepare` flag) that bypasses the
+  workspace-equals-latest-tag check when the bump is intentionally deferred to
+  `prepare.sh`; default behaviour and gate ordering are unchanged so a genuine
+  forgotten bump on a normal cut still fails; the release runbook documents
+  when the skip is appropriate and the hotfix-from-tag flow it unblocks.
+- **Files:** `scripts/release/preflight.sh` (cargo-version gate, ~L195–325),
+  `scripts/release/prepare.sh` (bump stage — ordering reference),
+  `docs/runbooks/release-runbook.md`.
+- **Validation:** manual — re-run a hotfix-from-tag flow with the skip mode and
+  confirm `preflight` passes, `prepare` bumps the version, and `promote`/`tag`
+  proceed; confirm a normal cut with a genuinely missing bump still fails the
+  gate.
+- **Identified From:** release attempt 2026-06-14 — v0.8.2-beta hotfix (from
+  v0.8.1-beta) aborted twice on the `cargo-version` preflight gate (workspace
+  `0.8.1-beta` == latest tag); recovered from a release-attempt log note that
+  was lost when a sibling branch switch discarded the uncommitted entry.
+- **Coordinates with:** the `scripts/release/*` flow
+  (preflight/prepare/promote/tag); release runbook.
+- **Confidence:** medium — the ordering tension is clearly diagnosed, but the
+  right fix shape (skip flag vs. reordering the gate vs. moving the check into
+  `prepare`) is a release-owner call.
