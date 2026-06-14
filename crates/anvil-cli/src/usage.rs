@@ -396,6 +396,16 @@ fn usage_log_path(state_dir: &Path) -> PathBuf {
     state_dir.join("kindling").join(USAGE_NDJSON)
 }
 
+/// Default path to the usage NDJSON sidecar under the user-scoped state
+/// directory — the read-side counterpart used by the USAGE-003 query
+/// views (`anvil kindling usage <view>`). Resolves the same
+/// `credentials_dir` (honouring a gated `ANVIL_HOME`) as the producer, so
+/// the views read exactly what [`record_invocation`] wrote.
+pub fn default_usage_log_path() -> Result<PathBuf> {
+    let state_dir = credentials::credentials_dir().context("resolve usage state directory")?;
+    Ok(usage_log_path(&state_dir))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

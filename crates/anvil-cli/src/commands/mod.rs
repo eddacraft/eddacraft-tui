@@ -23,6 +23,7 @@ pub mod hooks;
 pub mod init;
 pub mod insights;
 pub mod intercept;
+pub mod kindling;
 pub mod l4_validate;
 pub mod licenses;
 pub mod mcp;

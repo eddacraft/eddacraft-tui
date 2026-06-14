@@ -19,6 +19,7 @@ mod test_support;
 mod tui;
 mod update_hint;
 mod usage;
+mod usage_views;
 mod util;
 mod warmup_cache;
 mod whats_new;
@@ -182,6 +183,13 @@ enum Commands {
     Init(commands::init::InitArgs),
     /// Show local-only weekly activity insights.
     Insights(commands::insights::InsightsArgs),
+    /// Query the local command-invocation usage log (dev-investment views).
+    ///
+    /// `anvil kindling usage <view>` answers "what is being used and what
+    /// is not" over the user-scoped usage sidecar — top commands, never
+    /// invoked, flag-dependent paths, principals by activity. Local-only;
+    /// no authentication required. The views are signal, not evidence.
+    Kindling(commands::kindling::KindlingArgs),
     /// Migrate Anvil config to a new format or schema version.
     ///
     /// `format` converts a legacy `.anvilrc` to the multi-format
@@ -288,6 +296,7 @@ fn command_canonical_name(cmd: &Commands) -> &'static str {
         Commands::Welcome(_) => "welcome",
         Commands::Init(_) => "init",
         Commands::Insights(_) => "insights",
+        Commands::Kindling(_) => "kindling",
         Commands::Migrate(_) => "migrate",
         Commands::Intercept(_) => "intercept",
         Commands::Workspace(_) => "workspace",
@@ -324,6 +333,29 @@ fn command_canonical_name(cmd: &Commands) -> &'static str {
             AuthCommand::Refresh => "auth-refresh",
         },
     }
+}
+
+/// The canonical, user-visible top-level command names, derived from
+/// clap's own subcommand registry.
+///
+/// Used by the USAGE-003 `kindling usage unused` view to compute
+/// "registered minus seen" without a hand-maintained list that could
+/// drift. Hidden aliases (`login` / `logout` / `whoami`) are excluded so
+/// the view reports canonical surfaces only. Sorted for a stable view.
+///
+/// Caveat (documented in the runbook): a command recorded under a
+/// finer-grained canonical name than its clap name — `auth` runs as
+/// `auth-login` — can still appear here even though a subcommand ran.
+pub fn registered_command_names() -> Vec<String> {
+    use clap::CommandFactory;
+    let mut names: Vec<String> = Cli::command()
+        .get_subcommands()
+        .filter(|sub| !sub.is_hide_set())
+        .map(|sub| sub.get_name().to_owned())
+        .collect();
+    names.sort();
+    names.dedup();
+    names
 }
 
 /// Returns `true` for commands that require a valid auth session.
@@ -1105,6 +1137,7 @@ fn main() -> ExitCode {
         Commands::Welcome(args) => commands::welcome::run(args, &cli.global),
         Commands::Init(args) => commands::init::run(args, &cli.global),
         Commands::Insights(args) => commands::insights::run(args, &cli.global),
+        Commands::Kindling(args) => commands::kindling::run(args, &cli.global),
         Commands::Migrate(args) => commands::migrate::run(args, &cli.global),
         Commands::Intercept(args) => commands::intercept::run(args, &cli.global),
         Commands::Workspace(args) => commands::workspace::run(args, &cli.global),
@@ -1334,6 +1367,17 @@ mod tests {
         // witness evidence, so users can check value signals without
         // a network/auth dependency.
         assert!(!requires_auth(&parse_command(&["insights"])));
+    }
+
+    #[test]
+    fn bypass_auth_kindling() {
+        // USAGE-003: `anvil kindling usage <view>` is local-only and reads
+        // only the user-scoped usage sidecar, like `insights`. It must not
+        // be gated; this pins the regression if a future flag-config
+        // change accidentally enrols `kindling` in the licence-gate list.
+        assert!(!requires_auth(&parse_command(&[
+            "kindling", "usage", "top"
+        ])));
     }
 
     #[test]

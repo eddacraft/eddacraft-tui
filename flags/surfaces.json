@@ -161,6 +161,7 @@
     { "key": "edda", "name": "anvil edda", "category": "tools" },
     { "key": "capsule", "name": "anvil capsule", "category": "tools" },
     { "key": "insights", "name": "anvil insights", "category": "tools" },
+    { "key": "kindling", "name": "anvil kindling", "category": "tools" },
 
     { "key": "init", "name": "anvil init", "category": "setup" },
     { "key": "start", "name": "anvil start", "category": "setup" },

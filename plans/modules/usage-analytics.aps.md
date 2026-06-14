@@ -14,7 +14,7 @@ Cross-cutting convention: see plans/aps-rules.md#cross-cutting-modules.
 
 | ID    | Owner      | Status | Progress |
 | ----- | ---------- | ------ | -------- |
-| USAGE | @eddacraft | In Progress | 2/5 |
+| USAGE | @eddacraft | In Progress | 3/5 |
 
 **Last reviewed:** 2026-06-14
 
@@ -391,11 +391,29 @@ requires founder review. The contract doc lives in
   `docs/observability/usage-analytics.md`,
   `crates/anvil-cli/src/...` (only if CLI subcommand is the chosen
   shape).
-- **Validation:** TBD when picked up — at minimum a smoke test for
-  each canned view returning a non-empty result against a fixture
-  Kindling state.
+- **As-built (2026-06-14):** OQ3 → **both** — a first-class CLI surface
+  `anvil kindling usage <view>` *and* the formalised runbook. New top-level
+  `kindling` command group (`crates/anvil-cli/src/commands/kindling.rs`,
+  registered in `main.rs`), local-only and unauthenticated like `insights`
+  (not added to the licence-gate list). Pure view logic in
+  `crates/anvil-cli/src/usage_views.rs` (`top_commands` with
+  `--period week|month|all` + `--limit`, `never_invoked`, `flag_usage`,
+  `principals_by_activity`) over a lean forward-compatible `UsageRow` reader
+  that skips torn/malformed NDJSON lines. `unused` derives the registered
+  surface from clap introspection (`registered_command_names` in `main.rs`)
+  so it cannot drift; the `auth`→`auth-login` naming caveat and the
+  flag-complement (manifest-only) limitation are documented as
+  signal-not-evidence. Runbook rewritten in
+  `docs/observability/usage-analytics.md` (CLI views table + raw `jq`
+  fallback + reading caveats).
+- **Validation:** unit tests in `usage_views.rs` (ranking, window filter,
+  unparseable-timestamp handling, registered-minus-seen, flag grouping,
+  principal ranking, malformed/blank-line + missing-file load) +
+  end-to-end `tests/usage_views.rs` running the built binary for each view
+  against a seeded fixture sidecar (the module's non-empty-result
+  contract).
 - **Confidence:** medium-low — depends on USAGE-001/-002 shapes.
-- **Status:** Draft
+- **Status:** Merged 2026-06-14 via PR #2612
 
 ---
 

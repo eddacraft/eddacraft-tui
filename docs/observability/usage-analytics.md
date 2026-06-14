@@ -2,7 +2,7 @@
 
 | Type  | Authority     | Owner | Status | Freshness                         |
 | ----- | ------------- | ----- | ------ | --------------------------------- |
-| Guide | Authoritative | USAGE | Live   | Live as of 2026-06-14 (USAGE-001) |
+| Guide | Authoritative | USAGE | Live   | Live as of 2026-06-14 (USAGE-003) |
 
 | Upstream                                | Downstream                              |
 | --------------------------------------- | --------------------------------------- |
@@ -110,11 +110,59 @@ policy is acceptable for usage rows specifically, and add a size/line cap or
 rotation if heavy CLI use makes unbounded growth a concern (tracked as a
 follow-up)._
 
-## Querying the usage log (dev-investment views)
+## Dev-investment query views (USAGE-003)
 
-The sidecar is newline-delimited JSON. The canned dev-investment views USAGE-003
-will formalise can be answered today with standard tooling. Examples (read-only,
-against `<credentials_dir>/kindling/usage.ndjson`):
+`anvil kindling usage <view>` is the first-class surface for the founder's
+standing questions — "what is being used and what is not" — over the local usage
+sidecar. It is local-only and needs no authentication (like `anvil insights`);
+it reads only `<credentials_dir>/kindling/usage.ndjson`. Pass `--json` for
+machine-readable output; the default is a small human table.
+
+| View         | Command                           | Answers                                                                                                                            |
+| ------------ | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Top commands | `anvil kindling usage top`        | Most-invoked commands. `--period week\|month\|all` (default `all`), `--limit N` (default 10, `0` = no cap).                        |
+| Never used   | `anvil kindling usage unused`     | Registered commands with zero recorded invocations.                                                                                |
+| Flag paths   | `anvil kindling usage flags`      | Flag-dependent paths _exercised_: each flag key seen in `flag_set`, its invocation count, variant breakdown, and whether it gates. |
+| Principals   | `anvil kindling usage principals` | Anonymised principals by activity level (per the OQ2 contract — never a raw identity).                                             |
+
+> **OQ3 decision (USAGE-003):** ship **both** a first-class CLI surface and this
+> runbook. The CLI views are the supported path (tested end-to-end); the raw
+> `jq` recipes below remain available for ad-hoc questions the views do not yet
+> cover.
+
+### Reading these views: signal, not evidence
+
+These views inform **direction, not decisions in isolation**. Small populations,
+flag bias (a path only runs when its gate is open), and survivorship effects all
+distort the raw counts. Treat a "never invoked" command as a prompt to ask
+_why_, not as proof it is dead. Known fidelity caveats:
+
+- **Self-observation.** Running a view is itself a `kindling` invocation, and
+  the producer records it _before_ the view reads the log. So `top` includes
+  (and is inflated by) `kindling`; the running user's own principal appears in
+  (and is inflated by) `principals`; and after the first `kindling usage unused`
+  run, `kindling` permanently leaves the unused set. Discount your own analytics
+  activity when reading the views.
+- **`unused` is all-time.** It reports commands with _zero_ recorded invocations
+  ever, not "unused lately" — a command run once long ago never appears, even if
+  it has been idle for months. There is no `--period` on `unused`; use `top`'s
+  window to reason about recent activity.
+- **Sub-command naming.** `unused` compares clap's top-level command names
+  against recorded canonical names. A command recorded under a finer-grained
+  name than its clap name — `auth` runs as `auth-login` / `auth-logout` — can
+  show as unused even though a sub-command ran.
+- **`flags` reports "ever".** A flag's invocation count is the number of rows
+  that carried it; its `[gate]` marker is `true` if it was gate-affecting in
+  _any_ row, which reflects "ever gated", not the flag's current configuration.
+- **Flag complement.** `flags` reports only the _exercised_ side (flags actually
+  observed). The complement — manifest flags never observed ("not exercised") —
+  needs the flag catalogue and is intentionally not computed by the read
+  surface; cross-reference `flags/manifest.json` for the full set.
+
+### Raw access (`jq` fallback)
+
+The sidecar is newline-delimited JSON; any of the views can also be answered
+ad-hoc (read-only, against `<credentials_dir>/kindling/usage.ndjson`):
 
 - **Top-N commands:** count rows grouped by `.command`, sort descending.
 - **Commands never invoked:** diff the registered command set against the
@@ -132,9 +180,6 @@ against `<credentials_dir>/kindling/usage.ndjson`):
   `gate_affecting == true` to ADR-019 `flags_consulted` data by canonical `key`.
   Non-gate-affecting flags are inline invocation context only — not a standalone
   join row (ADR-019 / ADR-041 D-3).
-
-A richer first-class query surface (`anvil`-native canned views) is tracked by
-USAGE-003.
 
 ## Change control
 
