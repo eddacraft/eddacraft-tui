@@ -62,6 +62,7 @@ SHARED_ROOT_PATHS=(
   "pnpm-lock.yaml"
   "pnpm-workspace.yaml"
   "nx.json"
+  ".nxignore"
   "tsconfig.base.json"
   ".npmrc"
   "tools/scripts/vercel-ignore-build.sh"
