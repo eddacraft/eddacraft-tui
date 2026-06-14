@@ -136,9 +136,14 @@ Module promoted to **Ready** 2026-06-15 (both ADR-075 entry gates landed):
 - [x] Redaction rules for graph context are reviewed by security —
       [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md),
       APPROVE-WITH-CONDITIONS (CE-1..CE-12 fold into GCTX-001)
-- [ ] Token-budget strategy agreed with MCP/server owner — GCTX-020/022 detail
-- [ ] Benchmark baseline fixture set selected — GCTX-031 detail
-- [ ] User-guide outline agreed with docs owner — GCTX-032 detail
+
+All entry-gate readiness criteria are satisfied. The items below are
+implementation-phase details owned by their named work items, **not** readiness
+blockers — they are resolved during execution, not before promotion:
+
+- Token-budget strategy agreed with MCP/server owner — GCTX-020/022 detail
+- Benchmark baseline fixture set selected — GCTX-031 detail
+- User-guide outline agreed with docs owner — GCTX-032 detail
 
 ---
 

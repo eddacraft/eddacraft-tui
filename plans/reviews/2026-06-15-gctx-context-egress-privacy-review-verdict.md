@@ -13,7 +13,8 @@ defined by the [`graph-context-delivery`](../modules/graph-context-delivery.aps.
 resources, and the context-slicing / snippet-extraction utilities — reviewed
 against [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) (delivery target),
 the [2026-06-08 GV2 persistence privacy verdict](2026-06-08-gv2-privacy-review-verdict.md)
-(PV-9), and the live graph types in `crates/anvil-kernel-types` /
+(specifically condition PV-9 *within* that verdict — this document is the review
+PV-9 reserves, not PV-9 itself), and the live graph types in `crates/anvil-kernel-types` /
 `crates/anvil-graph-cache` / `crates/anvil-cli/src/mcp`.
 **Gate:** the ADR-075 entry gate — *"context-egress privacy review (PV-9,
 distinct from the persistence verdict)"* — a hard `v0.9` cut prerequisite for
