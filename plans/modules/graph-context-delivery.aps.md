@@ -4,7 +4,7 @@
 | ---- | ----- | ------ | -------- |
 | GCTX | —     | Draft  | 0/13     |
 
-**Last reviewed:** 2026-06-08
+**Last reviewed:** 2026-06-15 (GCTX-002 ADR authored as 083-gctx-mcp-delivery-target.md (Proposed) to satisfy the ADR-075 entry gate; see updated item below. Module remains Draft 0/13 pending full entry decisions + privacy review.)
 
 > **Scoped to v0.9, not v0.8.0-beta (2026-06-08, [ADR-075](../decisions/075-v080-graph-product-scope.md),
 > Accepted via council).** GCTX was considered for the v0.8.0 window but the
@@ -141,7 +141,7 @@ Change status to **Ready** when:
 
 #### GCTX-002: MCP delivery target decision
 
-- **Status:** Draft
+- **Status:** Proposed (ADR-083 authored 2026-06-15; decision: primary target is Rust RMCPF `anvil mcp serve` surface per RMCPF + ADR-033 parking of TS MCP. Additive registration of GCTX tools/resources. See ADR-083 for full context/alternatives/consequences. Once Accepted + egress privacy review (PV-9) complete, promote to Ready and begin GCTX implementation.)
 - **Intent:** Decide whether graph context tools first land on the interim TS MCP
   server, the Rust RMCPF server, or both.
 - **Expected Outcome:** Decision records the target server, compatibility stance,

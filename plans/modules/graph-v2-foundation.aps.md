@@ -4,7 +4,7 @@
 | --- | ----- | ------ |
 | GV2 | —     | In Progress |
 
-**Last reviewed:** 2026-06-09
+**Last reviewed:** 2026-06-15 (GV2-031 promoted Ready per NBI readiness pass — see below; internal substrate, not gated by GCTX/ADR-075 egress decisions)
 
 > 2026-06-12: the A′ slice (hot-read backing swap + seal + ADR-031 latency
 > gate) confirmed in the v0.8.0-beta tag (record:
@@ -48,6 +48,8 @@
 > the old `crates/anvil-kernel/src/graph/` tree no longer exists. Several Phase 0/1
 > items are reframed from "build" to "ratify what shipped under Sub-phase A +
 > close the named residual gaps".
+>
+> **2026-06-15 readiness pass:** GV2-031 promoted from Draft to Ready (deps GV2-029 Merged; re-export blind spot is internal substrate per ADR-075 note — the GCTX-002 + egress-privacy gate applies only to the assistant-facing surface). NBI rank 1 item now execution-authorised.
 
 ## Purpose
 
@@ -813,7 +815,7 @@ Change status to **Ready** when:
 
 #### GV2-031: Lift re-export edges so transitive privilege is visible
 
-- **Status:** Draft
+- **Status:** Ready (promoted 2026-06-15 — NBI rank 1 readiness pass; internal substrate, GV2-029 dep Merged, not behind ADR-075 GCTX egress gate)
 - **Intent:** `FileSymbols.reexports` is never lifted into the `SymbolGraph` —
   `update_file` inserts `Imports` edges only, so the `EdgeType::Reexports`
   variant is modelled but never produced. A privileged capability reached via

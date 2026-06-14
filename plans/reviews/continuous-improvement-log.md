@@ -247,6 +247,16 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Worked:** Keeping Task 1 as a sign-off gate prevented metadata backfill from
   starting before owner defaults were explicit.
 - **Failed:** Nothing substantive.
+
+### 2026-06-15 — grok
+
+- **Task:** Promote GV2-031 to Ready (per NBI from /plan-status) and start on ADR-075 entry decisions (author GCTX-002 as ADR-083).
+- **Outcome:** GV2-031 Status: Ready in module + index (deps already met, internal substrate not GCTX-gated). Created feat/gv2-031 worktree. Authored plans/decisions/083-gctx-mcp-delivery-target.md (Proposed; Rust RMCPF primary target). Updated GCTX module (GCTX-002 to Proposed), RELEASE-PLAN (entry gate "in progress"), DECISION-LOG, and NBI notes. All validations green (adr:check 84/OK/next-084, drift 0, docs-check 8/8).
+- **Worked:** Followed dev-workflow (APS truth from index NBI + plan-status, Worktrunk branch first, single-purpose bookkeeping change, validation runs before/after, compact CI note). Precise search_replace on worktree paths. ADR used real constraints from GCTX/RMCPF/ADR-033/ADR-075.
+- **Failed:** None for the planning pass itself.
+- **Friction:** Worktree creation noted "shell requires restart" for integration (cosmetic; cd to .feat-gv2-031 worked for commands). Using full worktree paths for every search_replace/write was required to keep edits on the task branch.
+- **Improvement:** none (process followed cleanly; the readiness pass was exactly the NBI-prescribed action).
+- **Follow-up:** User can now pick GV2-031 for TDD implementation (re-exports in graph-cache + certify/trust paths; use test-driven-development skill). Next for the gate: complete the context-egress privacy review (PV-9) + Accept ADR-083, then promote GCTX items + run readiness for GV2-020/023. Offer `wt remove` only after PR or explicit user direction. Add any CIB follow-ups if friction recurs.
 - **Friction:** Worktree setup happened after initial APS reads because the
   operator clarified the workspace requirement mid-task.
 - **Improvement:** For APS execution prompts that imply implementation, confirm
