@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 44/76    |
+| CIB | —     | In Progress | 44/77    |
 
 ## Purpose
 
@@ -1921,6 +1921,42 @@ archive.
 - **Confidence:** medium — `miette` composing with `anyhow` across crate
   boundaries needs care; machine-readable output path must be audited to
   stay unaffected.
+
+### CIB-072: clear `ready_restart_required` on Windows when daemon attestation is Unreachable
+
+- **Status:** Proposed
+- **Intent:** the same Windows/Scoop/PowerShell beta user who raised #1831
+  still hits a stuck `ready_restart_required` on Anvil 0.8.1 (#2583). #1840
+  (MLP2-051f) added the daemon-evidence promotion path that graduates a
+  handshake-verified MCP client `RestartRequired -> LiveValidation`, which
+  cleared the loop on Linux/macOS. On the affected Windows box the daemon
+  attestation comes back `Unreachable`, so there is no promotion path and the
+  state parks permanently. #2583 was closed by #2590 with copy only - the
+  "explain why it cannot clear" half of its acceptance criteria - leaving the
+  "clear the state when possible" half open.
+- **Expected Outcome:** on Windows native (Scoop, PowerShell) with the MCP
+  client installed and the editor restarted, `anvil start --verify` either
+  reports `Protecting` (daemon attests live enforcement and the state
+  graduates to `LiveValidation`) or gives an actionable, terminating reason
+  the daemon is unreachable rather than an open-ended restart instruction;
+  daemon attestation succeeds - or fails diagnosably - over Windows
+  named-pipe IPC for a genuinely attached client.
+- **Files:** `crates/anvil-cli/src/activation/diagnostic.rs` (state
+  computation, ~L230-258), `crates/anvil-cli/src/activation/daemon_evidence.rs`
+  (attestation variants / promotion path),
+  `crates/anvil-cli/src/activation/render.rs` (#2590 copy - reference only).
+- **Validation:** `cargo test -p eddacraft-anvil -- activation`; regression
+  coverage for the Windows attachment -> `LiveValidation` path; manual on
+  Windows/Scoop/PowerShell: install MCP client, restart editor, confirm
+  `anvil start --verify` no longer parks at `ready_restart_required`.
+- **Identified From:** issue #2609 (filed 2026-06-14), recurrence of #1831
+  via beta feedback #2583; #2590 fixed the copy half only.
+- **Coordinates with:** #1831 / #1840 (MLP2-051f, the Linux/macOS promotion
+  path this extends to Windows), #2583 / #2590 (copy half), CIB-056
+  (driver-client Windows pipe SID gate - same Windows named-pipe IPC surface).
+- **Confidence:** medium - root cause is understood, but Windows named-pipe
+  IPC reachability needs reproduction on a real Windows box before the fix
+  shape is certain; may surface a deeper attachment-detection gap.
 
 ### CIB-073: cumulative "value caught" scoreboard and shareable scorecard
 
