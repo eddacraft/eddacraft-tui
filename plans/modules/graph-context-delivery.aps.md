@@ -246,8 +246,8 @@ blockers — they are resolved during execution, not before promotion:
 - **Expected Outcome:** `anvil_search_symbols` returns paginated, deterministic,
   **identity-only** symbol summaries (`SymbolIdentity` + kind +
   workspace-root-relative path + visibility — no source text) projected
-  **daemon-side** through the single `GctxProjector` over
-  `GraphRegistry::background_read()`, served to `anvil mcp serve` over the new
+  **daemon-side** through the single `GctxProjector` over a
+  `registry.background_read()` snapshot, served to `anvil mcp serve` over the new
   read-only `anvil/gctx/search_symbols` RPC on its own `GctxDispatch` (not the
   save-time path). Lands the spine: `anvil-gctx-types` (graph-free sealed DTOs +
   no-leak test) and `anvil-gctx-egress`, opaque pagination, and the CE-3 deny-list
