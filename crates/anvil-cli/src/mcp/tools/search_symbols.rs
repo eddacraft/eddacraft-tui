@@ -168,8 +168,11 @@ fn tool_result(payload: &Value) -> Value {
 /// Why a daemon GCTX request could not complete. `Unavailable` (socket absent /
 /// `Method not found`) degrades to a structured `unavailable` outcome; `Failure`
 /// (a malformed reply, an IO error mid-exchange) is a tool error.
+#[cfg_attr(not(unix), allow(dead_code))]
 enum GctxDaemonError {
     Unavailable,
+    // Constructed by the Unix socket client; non-Unix builds currently degrade
+    // before opening a daemon transport.
     Failure,
 }
 
