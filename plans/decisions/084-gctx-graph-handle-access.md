@@ -62,9 +62,10 @@ Four parts:
    fallback** (CE-7).
 
 2. **Projector home = daemon-side. The RPC response *is* the sealed egress DTO.**
-   The single `GctxProjector` choke point (CE-5) runs in the daemon, where the
-   live `GraphRegistry`, the resident source, and the `anvil-intercept-rules`
-   secret detector already are. This keeps redaction **upstream of the wire**: for
+   The single `GctxProjector` choke point (CE-5) runs in the daemon, which already
+   holds the live `GraphRegistry`, the resident source, and the
+   `anvil-intercept-rules` secret detector. This keeps redaction **upstream of the
+   wire**: for
    the Phase-2 snippet surface, secret-scanning/path-filtering must happen before
    any source text leaves the daemon, so the choke point cannot live in the
    consumer. The MCP crate receives already-sealed DTOs and **never links graph
