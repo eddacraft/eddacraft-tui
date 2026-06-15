@@ -2,7 +2,7 @@
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| DLIFE | Josh  | In Progress | 1/6      |
+| DLIFE | Josh  | In Progress | 2/6      |
 
 **Last reviewed:** 2026-06-15 (DLIFE-001 Done — ADR-082 Accepted by operator with
 the **tiered** startup mode: `anvil start` auto-starts the daemon; `anvil watch`
@@ -10,8 +10,9 @@ prompts in TTY and falls back in headless. ADR-079 superseded. DLIFE-002/-003/-0
 unblocked to Proposed; **DLIFE-002 now flipped to Ready** — ensure-primitive design
 pinned (probe → same-user lock → re-probe → detached spawn → bound-wait), cross-platform
 risk split Unix-first (Windows background-launch follows DSV-010/011), and module
-validation commands agreed, closing the last two Ready Checklist boxes. DLIFE-006
-remains independently shippable. Module created
+validation commands agreed, closing the last two Ready Checklist boxes. **DLIFE-006
+Merged via #2639** — the terminating `--verify` diagnostic for the daemon-unreachable
+case ships, module 2/6. Module created
 2026-06-14 from operator direction that `anvil start` and `anvil watch` should make
 daemon-backed protection the normal path, with an explicit opt-out.)
 
@@ -150,7 +151,7 @@ operator/debugging surface.
 
 ### DLIFE-006: Make `--verify` give a terminating reason when the daemon is unreachable
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-15 via PR #2639
 - **Intent:** When daemon attestation is `Unreachable`, `anvil start --verify` and `anvil status --verify` must give a terminating, actionable reason rather than silently parking at `ready_restart_required` as if another editor restart would help (recurring symptom: #2609, #2583, #1831).
 - **Expected Outcome:** On `DaemonAttestation::Unreachable`, the rendered repair hint names *why* protection cannot graduate (no daemon answering the worktree) and the concrete next step to obtain a live daemon, and reads as an end state rather than a transient "restart again" loop. The `ReadyRestartRequired` headline is also made attestation-aware (via a shared `headline_for` selector routed through by both the human and `--json` surfaces) so the prominent first line no longer tells the user to "restart your editor" when no daemon is answering; the existing `state_explanation()` meaning line (#2590) is reused unchanged. `--verify` stays read-only and starts no daemon; `--json` keeps its stable key set (the `headline` value varies by attestation, as the schema already permits).
 - **Validation:** Activation render tests cover the `Unreachable` repair-hint wording for `ReadyRestartRequired`, the `--verify` read-only contract (no daemon spawned), and `--json` shape stability; UK spelling check.
