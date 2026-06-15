@@ -66,26 +66,33 @@ pub struct SearchSymbolsQuery {
     /// absent uses [`DEFAULT_PAGE_LIMIT`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub limit: Option<u32>,
-    /// Opaque server-minted pagination cursor (CE-6). **Reserved**: Phase-1 is
-    /// single-page and always returns `next_cursor: None`, so this is currently
-    /// ignored. Carried now so Phase-2 pagination needs no wire change.
+    /// Opaque server-minted pagination cursor (CE-6). Echo a previous response's
+    /// `next_cursor` here to fetch the next page; the projector resumes the
+    /// keyset walk strictly after the cursor's position. A cursor is valid only
+    /// for the filter set it was minted against (a mismatch is rejected).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cursor: Option<OpaqueCursor>,
 }
 
 impl SearchSymbolsQuery {
-    /// The clamped page size to apply: the client `limit` capped at
-    /// [`MAX_PAGE_LIMIT`], or [`DEFAULT_PAGE_LIMIT`] when absent.
+    /// The page size to apply: the client `limit` clamped to
+    /// `1..=`[`MAX_PAGE_LIMIT`], or [`DEFAULT_PAGE_LIMIT`] when absent. The lower
+    /// bound of 1 rejects a `limit: 0`, which would otherwise yield a
+    /// contradictory empty-but-more-remain page.
     #[must_use]
     pub fn effective_limit(&self) -> usize {
-        self.limit.unwrap_or(DEFAULT_PAGE_LIMIT).min(MAX_PAGE_LIMIT) as usize
+        self.limit
+            .unwrap_or(DEFAULT_PAGE_LIMIT)
+            .clamp(1, MAX_PAGE_LIMIT) as usize
     }
 }
 
 /// An opaque, server-minted pagination cursor (CE-6).
 ///
-/// The client MUST treat it as a meaningless token and echo it back verbatim.
-/// **Reserved**: Phase-1 never mints one; cursor pagination is Phase-2.
+/// The client MUST treat it as a meaningless token and echo it back verbatim —
+/// it is never a client-supplied offset. The daemon mints it (the projector
+/// encodes the keyset seek position + a fingerprint of the query filters) and is
+/// the only party that interprets it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct OpaqueCursor(String);
@@ -114,7 +121,9 @@ pub struct RedactionSummary {
     pub matched: usize,
     /// Summaries actually returned in this page.
     pub returned: usize,
-    /// Whether the page was truncated (more matched than returned).
+    /// Whether more pages follow this one (equivalently,
+    /// [`SearchSymbolsProjection::next_cursor`] is `Some`). `false` on the final
+    /// page of a multi-page walk, even though `matched` still exceeds `returned`.
     pub truncated: bool,
 }
 
@@ -123,8 +132,8 @@ pub struct RedactionSummary {
 pub struct SearchSymbolsProjection {
     /// Identity summaries, ordered deterministically by [`SymbolIdentity`].
     pub symbols: Vec<SymbolSummary>,
-    /// Opaque next-page cursor, or `None` when the page is complete. Phase-1 is
-    /// single-page, so always `None`.
+    /// Opaque next-page cursor when more matches remain, or `None` when this is
+    /// the final page. Echo it back in [`SearchSymbolsQuery::cursor`] to continue.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub next_cursor: Option<OpaqueCursor>,
     /// Counts-only elision summary (CE-11).
@@ -325,6 +334,15 @@ mod tests {
             }
             .effective_limit(),
             MAX_PAGE_LIMIT as usize
+        );
+        // `limit: 0` floors to 1 (never a contradictory empty page).
+        assert_eq!(
+            SearchSymbolsQuery {
+                limit: Some(0),
+                ..Default::default()
+            }
+            .effective_limit(),
+            1
         );
     }
 

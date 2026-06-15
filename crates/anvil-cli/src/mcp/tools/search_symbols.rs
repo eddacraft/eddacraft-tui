@@ -62,6 +62,10 @@ pub fn descriptor() -> Value {
                     "type": "integer",
                     "description": "Maximum summaries to return (clamped server-side)",
                     "minimum": 1
+                },
+                "cursor": {
+                    "type": "string",
+                    "description": "Opaque pagination cursor from a previous response's `next_cursor`. Echo it back verbatim to fetch the next page; treat it as an opaque token (never construct one)."
                 }
             },
             "required": ["workspaceRoot"],
@@ -116,7 +120,15 @@ fn search_payload(arguments: &Value) -> Result<Value, String> {
 /// unparseable filter (e.g. an unknown `kind`) is a tool error.
 fn parse_query(arguments: &Value) -> Result<anvil_gctx_types::SearchSymbolsQuery, String> {
     let mut fields = serde_json::Map::new();
-    for key in ["name", "kind", "file", "language", "visibility", "limit"] {
+    for key in [
+        "name",
+        "kind",
+        "file",
+        "language",
+        "visibility",
+        "limit",
+        "cursor",
+    ] {
         if let Some(value) = arguments.get(key)
             && !value.is_null()
         {
@@ -367,5 +379,20 @@ mod tests {
         assert_eq!(payload["workspace_assurance"]["state"], "unavailable");
         // The redacted relative workspace root is echoed.
         assert!(payload.get("workspaceRoot").is_some());
+    }
+
+    #[test]
+    fn accepts_an_opaque_cursor_argument() {
+        // A `cursor` string must parse through to the query (not be dropped or
+        // rejected). Without a daemon it still degrades to `unavailable`, but the
+        // key assertion is that it is NOT a parse error.
+        let cwd = std::env::current_dir().expect("cwd");
+        let workspace = tempfile::tempdir_in(&cwd).expect("workspace");
+        let result = call(&json!({
+            "workspaceRoot": workspace.path(),
+            "cursor": "deadbeef"
+        }));
+        assert_eq!(result["isError"], false);
+        assert_eq!(payload_of(&result)["outcome"]["status"], "unavailable");
     }
 }

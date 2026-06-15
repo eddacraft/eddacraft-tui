@@ -673,9 +673,12 @@ fn gctx_search_outcome(
                 GctxProjector::collect_candidates(sym, query)
             });
             match candidates {
-                Some(candidates) => {
-                    SearchSymbolsOutcome::Ready(GctxProjector::project(candidates, query))
-                }
+                // A malformed / cross-query pagination cursor surfaces here as a
+                // structured `InvalidQuery` (CE-6).
+                Some(candidates) => match GctxProjector::project(candidates, query) {
+                    Ok(projection) => SearchSymbolsOutcome::Ready(projection),
+                    Err(reason) => SearchSymbolsOutcome::InvalidQuery { reason },
+                },
                 None => SearchSymbolsOutcome::NotReady {
                     recovery_hint: concat!(
                         "the workspace graph is not yet populated; ",
@@ -688,28 +691,38 @@ fn gctx_search_outcome(
     }
 }
 
-/// CE-6 query hygiene.
+/// Per-param byte cap (GCTX-001 spec, CE-6: "≤ 512 bytes/param").
+const MAX_FILTER_BYTES: usize = 512;
+
+/// CE-6 query hygiene. Rejects malformed input with a structured reason
+/// **before** the graph is queried (GCTX-001 spec "Input validation").
 ///
-/// The `file` filter is a **pure in-memory substring match** against
-/// already-relative graph paths ([`anvil_gctx_egress`]); it never opens a file,
-/// so the absolute / `..` rejection below is input hygiene and a forward guard
-/// for any future filesystem-touching filter — not a live traversal defence for
-/// Phase 1. Filter lengths are capped to bound per-node match work independently
-/// of the IPC frame cap. `limit` is clamped (not rejected). Returns the
-/// rejection reason, or `None` when the query is acceptable.
+/// Every string filter is capped at [`MAX_FILTER_BYTES`] and must contain no NUL
+/// (defends downstream consumers and bounds per-node match work independently of
+/// the IPC frame cap). The path-like `file` filter additionally rejects absolute
+/// paths (Unix or Windows-drive), `..` traversal components, and scheme-prefixed
+/// inputs (`npm:`, `https:`, `data:`, …). The `file` filter is a pure in-memory
+/// substring match against already-relative graph paths — it never opens a file
+/// — so these path checks are input hygiene and a forward guard, not a live
+/// traversal defence. `limit` is clamped (not rejected); `cursor` validity is
+/// checked in the projector. Returns the rejection reason, or `None` when
+/// acceptable.
 fn invalid_query_reason(query: &SearchSymbolsQuery) -> Option<String> {
-    const MAX_FILTER_BYTES: usize = 1024;
-    if query
-        .name
-        .as_deref()
-        .is_some_and(|n| n.len() > MAX_FILTER_BYTES)
-    {
-        return Some("name filter is too long".to_string());
+    for (label, value) in [
+        ("name", query.name.as_deref()),
+        ("language", query.language.as_deref()),
+        ("file", query.file.as_deref()),
+    ] {
+        if let Some(value) = value {
+            if value.len() > MAX_FILTER_BYTES {
+                return Some(format!("{label} filter exceeds {MAX_FILTER_BYTES} bytes"));
+            }
+            if value.contains('\0') {
+                return Some(format!("{label} filter must not contain a NUL byte"));
+            }
+        }
     }
     if let Some(file) = query.file.as_deref() {
-        if file.len() > MAX_FILTER_BYTES {
-            return Some("file filter is too long".to_string());
-        }
         if Path::new(file).is_absolute() || has_windows_drive_absolute_prefix(file) {
             return Some("file filter must be a workspace-relative path".to_string());
         }
@@ -718,6 +731,9 @@ fn invalid_query_reason(query: &SearchSymbolsQuery) -> Option<String> {
             .any(|c| matches!(c, std::path::Component::ParentDir))
         {
             return Some("file filter must not contain a `..` component".to_string());
+        }
+        if has_uri_scheme_prefix(file) {
+            return Some("file filter must not be scheme-prefixed (e.g. npm:, https:)".to_string());
         }
     }
     None
@@ -729,6 +745,22 @@ fn has_windows_drive_absolute_prefix(path: &str) -> bool {
         && bytes[0].is_ascii_alphabetic()
         && bytes[1] == b':'
         && (bytes[2] == b'\\' || bytes[2] == b'/')
+}
+
+/// Whether `value` begins with a URI scheme (`scheme:` where `scheme` is ≥2
+/// chars, alpha-led, `[A-Za-z0-9+.-]`). The ≥2 length excludes a single-letter
+/// Windows drive (`C:`), which [`has_windows_drive_absolute_prefix`] handles.
+fn has_uri_scheme_prefix(value: &str) -> bool {
+    let value = value.trim_start();
+    let Some(colon) = value.find(':') else {
+        return false;
+    };
+    let scheme = &value[..colon];
+    scheme.len() >= 2
+        && scheme.starts_with(|c: char| c.is_ascii_alphabetic())
+        && scheme
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'+' | b'-' | b'.'))
 }
 
 /// Canonicalise an already-admitted root for use as the assurance/cache key.
@@ -1391,6 +1423,134 @@ mod tests {
             "a Windows absolute file filter must be rejected: {:?}",
             resp.outcome
         );
+    }
+
+    fn gctx_invalid_query(root: &Path, query: SearchSymbolsQuery) -> SearchSymbolsOutcome {
+        let state = state();
+        let mut conn = SaveTimeConn::new(&state);
+        conn.search_symbols(&GctxSearchSymbolsRequest {
+            workspace_root: root.to_string_lossy().into_owned(),
+            query,
+        })
+        .expect("admitted")
+        .outcome
+    }
+
+    /// CE-6: a search that pages through the daemon mints an opaque `next_cursor`
+    /// and the echoed cursor resumes the walk with no overlap or gap.
+    #[test]
+    fn gctx_search_paginates_with_opaque_cursor() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = state();
+        warm(&state, tmp.path(), "src/a.ts", &["a"], 0);
+        warm(&state, tmp.path(), "src/b.ts", &["b"], 100);
+        warm(&state, tmp.path(), "src/c.ts", &["c"], 200);
+        let mut conn = SaveTimeConn::new(&state);
+
+        let page1 = conn
+            .search_symbols(&GctxSearchSymbolsRequest {
+                workspace_root: tmp.path().to_string_lossy().into_owned(),
+                query: SearchSymbolsQuery {
+                    limit: Some(2),
+                    ..Default::default()
+                },
+            })
+            .expect("admitted");
+        let (first, cursor) = match page1.outcome {
+            SearchSymbolsOutcome::Ready(p) => {
+                assert_eq!(p.symbols.len(), 2);
+                assert_eq!(p.redaction_summary.matched, 3);
+                (
+                    p.symbols
+                        .iter()
+                        .map(|s| s.identity.file.clone())
+                        .collect::<Vec<_>>(),
+                    p.next_cursor.expect("a second page remains"),
+                )
+            }
+            other => panic!("expected Ready, got {other:?}"),
+        };
+
+        let page2 = conn
+            .search_symbols(&GctxSearchSymbolsRequest {
+                workspace_root: tmp.path().to_string_lossy().into_owned(),
+                query: SearchSymbolsQuery {
+                    limit: Some(2),
+                    cursor: Some(cursor),
+                    ..Default::default()
+                },
+            })
+            .expect("admitted");
+        match page2.outcome {
+            SearchSymbolsOutcome::Ready(p) => {
+                assert_eq!(p.symbols.len(), 1, "last page holds the remainder");
+                assert!(p.next_cursor.is_none(), "no further pages");
+                let mut all = first;
+                all.extend(p.symbols.iter().map(|s| s.identity.file.clone()));
+                assert_eq!(all, ["src/a.ts", "src/b.ts", "src/c.ts"]);
+            }
+            other => panic!("expected Ready, got {other:?}"),
+        }
+    }
+
+    /// CE-6: a malformed pagination cursor is a structured `InvalidQuery`, not a
+    /// panic or a silently-empty page.
+    #[test]
+    fn gctx_search_rejects_malformed_cursor() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = state();
+        warm(&state, tmp.path(), "src/a.ts", &["a"], 0);
+        let mut conn = SaveTimeConn::new(&state);
+        let resp = conn
+            .search_symbols(&GctxSearchSymbolsRequest {
+                workspace_root: tmp.path().to_string_lossy().into_owned(),
+                query: SearchSymbolsQuery {
+                    cursor: Some(anvil_gctx_types::OpaqueCursor::new("garbage".into())),
+                    ..Default::default()
+                },
+            })
+            .expect("admitted");
+        assert!(
+            matches!(resp.outcome, SearchSymbolsOutcome::InvalidQuery { .. }),
+            "a malformed cursor must be rejected: {:?}",
+            resp.outcome
+        );
+    }
+
+    /// CE-6 input validation (rejected before the graph is queried).
+    #[test]
+    fn gctx_search_rejects_oversized_nul_and_scheme_filters() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+
+        let oversized = gctx_invalid_query(
+            tmp.path(),
+            SearchSymbolsQuery {
+                name: Some("x".repeat(513)),
+                ..Default::default()
+            },
+        );
+        assert!(matches!(
+            oversized,
+            SearchSymbolsOutcome::InvalidQuery { .. }
+        ));
+
+        let nul = gctx_invalid_query(
+            tmp.path(),
+            SearchSymbolsQuery {
+                name: Some("ab\0cd".to_string()),
+                ..Default::default()
+            },
+        );
+        assert!(matches!(nul, SearchSymbolsOutcome::InvalidQuery { .. }));
+
+        let scheme = gctx_invalid_query(
+            tmp.path(),
+            SearchSymbolsQuery {
+                file: Some("https://evil/x".to_string()),
+                ..Default::default()
+            },
+        );
+        assert!(matches!(scheme, SearchSymbolsOutcome::InvalidQuery { .. }));
     }
 
     fn assurance(state: AssuranceState, reason: Option<StaleReason>) -> WorkspaceAssurance {

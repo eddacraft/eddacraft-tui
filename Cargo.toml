@@ -94,6 +94,9 @@ uuid = { version = "1", features = ["v4", "v7"] }
 # Semver parsing (anvil-rules required-version floor, anvil-l4 version-floor evaluation)
 semver = "1"
 
+# Hex encoding (opaque GCTX pagination cursors; CLI artefact hashing)
+hex = "0.4"
+
 # Filesystem test fixtures
 tempfile = "3"
 

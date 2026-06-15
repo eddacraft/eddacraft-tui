@@ -19,10 +19,11 @@
 use std::path::Path;
 
 use anvil_gctx_types::{
-    RedactionSummary, SearchSymbolsProjection, SearchSymbolsQuery, SymbolSummary,
+    OpaqueCursor, RedactionSummary, SearchSymbolsProjection, SearchSymbolsQuery, SymbolSummary,
 };
 use anvil_graph_cache::SymbolGraph;
-use anvil_kernel_types::{SymbolIdentity, SymbolNode};
+use anvil_kernel_types::{SymbolIdentity, SymbolKind, SymbolNode, Visibility};
+use serde::{Deserialize, Serialize};
 
 /// The single CE-5 egress choke point: builds sealed identity-only DTOs from the
 /// daemon's warm [`SymbolGraph`].
@@ -91,28 +92,146 @@ impl GctxProjector {
     ///
     /// **Call this after releasing the cache lock** (ADR-084 C2). Ordering is a
     /// deterministic total order on [`SymbolIdentity`] (`file`, `kind`, `name`,
-    /// `ordinal`). Phase-1 is single-page: `next_cursor` is always `None` and
-    /// over-limit matches are truncated (recorded in the counts-only
-    /// [`RedactionSummary`]).
-    #[must_use]
+    /// `ordinal`).
+    ///
+    /// # Pagination (CE-6)
+    ///
+    /// Keyset (seek) pagination: when more matches remain than fit in one page,
+    /// the projection carries a **server-minted opaque** `next_cursor` encoding
+    /// the last returned identity plus a fingerprint of the query filters. A
+    /// follow-up call echoes that cursor back in [`SearchSymbolsQuery::cursor`]
+    /// and resumes strictly after that identity. Keyset (not offset) so the walk
+    /// stays deterministic and robust if the graph mutates between pages, and the
+    /// cursor is never a client-supplied offset.
+    ///
+    /// # Errors
+    ///
+    /// Returns the rejection reason (for an `InvalidQuery` outcome) when the
+    /// supplied `cursor` is malformed or was minted for a different query — a
+    /// cursor is only valid for the filter set it was issued against.
     pub fn project(
         mut candidates: Vec<SymbolSummary>,
         query: &SearchSymbolsQuery,
-    ) -> SearchSymbolsProjection {
+    ) -> Result<SearchSymbolsProjection, String> {
         candidates.sort_by(|a, b| a.identity.cmp(&b.identity));
         let matched = candidates.len();
-        candidates.truncate(query.effective_limit());
-        let returned = candidates.len();
-        SearchSymbolsProjection {
-            symbols: candidates,
-            next_cursor: None,
+        let fingerprint = query_fingerprint(query);
+
+        // Resolve the seek start from an echoed cursor (keyset, not offset).
+        let start = match &query.cursor {
+            None => 0,
+            Some(cursor) => {
+                if cursor.as_str().len() > MAX_CURSOR_BYTES {
+                    return Err("pagination cursor is too long".to_string());
+                }
+                let payload = decode_cursor(cursor)
+                    .ok_or_else(|| "malformed pagination cursor".to_string())?;
+                if payload.fingerprint != fingerprint {
+                    return Err("pagination cursor does not match this query's filters".to_string());
+                }
+                // First index strictly after the cursor's last identity. Robust
+                // if that identity was removed between pages.
+                candidates.partition_point(|s| s.identity <= payload.last)
+            }
+        };
+
+        let limit = query.effective_limit();
+        let mut page = if start >= candidates.len() {
+            Vec::new()
+        } else {
+            candidates.split_off(start)
+        };
+        let has_more = page.len() > limit;
+        page.truncate(limit);
+
+        let next_cursor = has_more.then(|| {
+            // `page` is non-empty here: it held `> limit` (`>= 1`) rows before
+            // the truncate, so `last()` is always `Some`.
+            let last = page.last().expect("a page with more rows is non-empty");
+            encode_cursor(&CursorPayload {
+                fingerprint,
+                last: last.identity.clone(),
+            })
+        });
+
+        let returned = page.len();
+        Ok(SearchSymbolsProjection {
+            // `truncated` is the authoritative "more pages follow" signal — it is
+            // `false` on the final page of a multi-page walk (where `matched`
+            // still exceeds this page's `returned`).
             redaction_summary: RedactionSummary {
                 matched,
                 returned,
-                truncated: matched > returned,
+                truncated: next_cursor.is_some(),
             },
-        }
+            symbols: page,
+            next_cursor,
+        })
     }
+}
+
+/// Cap on an echoed cursor's encoded length (CE-6). A genuine server-minted
+/// cursor is a few hundred bytes; this bounds hex-decode work on a hostile
+/// oversized token, independent of the larger IPC frame cap.
+const MAX_CURSOR_BYTES: usize = 8 * 1024;
+
+/// The decoded contents of an [`OpaqueCursor`]: the keyset seek position plus a
+/// fingerprint binding it to the query filters it was minted for.
+#[derive(Serialize, Deserialize)]
+struct CursorPayload {
+    /// Fingerprint of the query *filters* (not the page size) — see
+    /// [`query_fingerprint`].
+    #[serde(rename = "q")]
+    fingerprint: u64,
+    /// The last [`SymbolIdentity`] returned on the previous page; the next page
+    /// resumes strictly after it.
+    #[serde(rename = "k")]
+    last: SymbolIdentity,
+}
+
+fn encode_cursor(payload: &CursorPayload) -> OpaqueCursor {
+    let bytes = serde_json::to_vec(payload).expect("cursor payload serialises");
+    OpaqueCursor::new(hex::encode(bytes))
+}
+
+fn decode_cursor(cursor: &OpaqueCursor) -> Option<CursorPayload> {
+    let bytes = hex::decode(cursor.as_str()).ok()?;
+    serde_json::from_slice(&bytes).ok()
+}
+
+/// A deterministic fingerprint of the query's **filter** fields (name, kind,
+/// file, language, visibility) — deliberately **not** the page size or cursor,
+/// so changing `limit` mid-walk is allowed but changing a filter invalidates a
+/// cursor. Uses FNV-1a over the canonical serialised filters rather than
+/// `std::hash` (whose default hasher is randomly seeded and not reproducible —
+/// privacy verdict PV-2).
+fn query_fingerprint(query: &SearchSymbolsQuery) -> u64 {
+    // Normalise to the same case-insensitive semantics the match uses, so a
+    // cursor stays valid when only the *case* of a filter changes between pages.
+    // `None` serialises as `null` (not skipped) — intentional: this is the
+    // fingerprint's own internal encoding, never the query's wire format.
+    #[derive(Serialize)]
+    struct Filters {
+        name: Option<String>,
+        kind: Option<SymbolKind>,
+        file: Option<String>,
+        language: Option<String>,
+        visibility: Option<Visibility>,
+    }
+    let filters = Filters {
+        name: query.name.as_deref().map(str::to_lowercase),
+        kind: query.kind,
+        file: query.file.as_deref().map(str::to_lowercase),
+        language: query.language.as_deref().map(str::to_ascii_lowercase),
+        visibility: query.visibility,
+    };
+    let bytes = serde_json::to_vec(&filters).expect("query filters serialise");
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for byte in bytes {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    hash
 }
 
 /// `name_lc` is the already-lower-cased name filter (lowered once by the
@@ -193,7 +312,7 @@ mod tests {
         // Mirror the daemon call sequence: collect under (a notional) lock, then
         // project after release.
         let candidates = GctxProjector::collect_candidates(graph, query);
-        GctxProjector::project(candidates, query)
+        GctxProjector::project(candidates, query).expect("valid query")
     }
 
     #[test]
@@ -425,5 +544,185 @@ mod tests {
                 .all(|s| !is_absolute_path_like(&s.identity.file)),
             "no absolute path may reach the projection"
         );
+    }
+
+    // --- CE-6 opaque pagination cursors ---
+
+    fn five_symbol_graph() -> SymbolGraph {
+        graph_of(vec![
+            node(1, "a", "src/a.ts", SymbolKind::Function, Visibility::Public),
+            node(2, "b", "src/b.ts", SymbolKind::Function, Visibility::Public),
+            node(3, "c", "src/c.ts", SymbolKind::Function, Visibility::Public),
+            node(4, "d", "src/d.ts", SymbolKind::Function, Visibility::Public),
+            node(5, "e", "src/e.ts", SymbolKind::Function, Visibility::Public),
+        ])
+    }
+
+    #[test]
+    fn pagination_walks_all_pages_without_overlap_or_gap() {
+        let g = five_symbol_graph();
+        let mut seen: Vec<String> = Vec::new();
+        let mut cursor = None;
+        let mut pages = 0;
+        loop {
+            let query = SearchSymbolsQuery {
+                limit: Some(2),
+                cursor: cursor.clone(),
+                ..Default::default()
+            };
+            let p = run(&g, &query);
+            assert!(p.symbols.len() <= 2);
+            assert_eq!(p.redaction_summary.matched, 5);
+            // `truncated` tracks `next_cursor` exactly — true on pages 1-2,
+            // false on the final page 3 (never a "stuck truncated" last page).
+            assert_eq!(p.redaction_summary.truncated, p.next_cursor.is_some());
+            seen.extend(p.symbols.iter().map(|s| s.identity.file.clone()));
+            pages += 1;
+            assert!(pages <= 5, "pagination must terminate");
+            match p.next_cursor {
+                Some(c) => cursor = Some(c),
+                None => break,
+            }
+        }
+        assert_eq!(pages, 3, "5 items at page size 2 → 3 pages");
+        assert_eq!(
+            seen,
+            ["src/a.ts", "src/b.ts", "src/c.ts", "src/d.ts", "src/e.ts"],
+            "every item exactly once, in identity order"
+        );
+    }
+
+    #[test]
+    fn cursor_from_a_different_query_is_rejected() {
+        let g = five_symbol_graph();
+        let cursor = run(
+            &g,
+            &SearchSymbolsQuery {
+                limit: Some(2),
+                ..Default::default()
+            },
+        )
+        .next_cursor
+        .expect("more pages remain");
+
+        // Echo the default-query cursor back with a *different* filter set.
+        let mismatched = SearchSymbolsQuery {
+            name: Some("a".into()),
+            limit: Some(2),
+            cursor: Some(cursor),
+            ..Default::default()
+        };
+        let candidates = GctxProjector::collect_candidates(&g, &mismatched);
+        let result = GctxProjector::project(candidates, &mismatched);
+        assert!(result.is_err(), "a cursor is only valid for its own query");
+    }
+
+    #[test]
+    fn malformed_cursor_is_rejected() {
+        let g = five_symbol_graph();
+        let candidates = GctxProjector::collect_candidates(&g, &SearchSymbolsQuery::default());
+        let result = GctxProjector::project(
+            candidates,
+            &SearchSymbolsQuery {
+                cursor: Some(OpaqueCursor::new("not-hex-zzzz".into())),
+                ..Default::default()
+            },
+        );
+        assert!(result.is_err(), "a malformed cursor must be rejected");
+    }
+
+    #[test]
+    fn pagination_is_robust_to_deletion_between_pages() {
+        let mut g = five_symbol_graph();
+        let page1 = run(
+            &g,
+            &SearchSymbolsQuery {
+                limit: Some(2),
+                ..Default::default()
+            },
+        );
+        assert_eq!(page1.symbols[1].identity.file, "src/b.ts");
+        let cursor = page1.next_cursor.expect("more pages remain");
+
+        // Remove the cursor's own last item (b.ts) between pages. Keyset resume
+        // must still continue strictly after b — no gap, no re-yield.
+        g.remove_file("src/b.ts");
+        let page2 = run(
+            &g,
+            &SearchSymbolsQuery {
+                limit: Some(2),
+                cursor: Some(cursor),
+                ..Default::default()
+            },
+        );
+        let files: Vec<&str> = page2
+            .symbols
+            .iter()
+            .map(|s| s.identity.file.as_str())
+            .collect();
+        assert_eq!(
+            files,
+            ["src/c.ts", "src/d.ts"],
+            "resumes after b, not before"
+        );
+    }
+
+    #[test]
+    fn cursor_survives_a_filter_case_change_between_pages() {
+        // Two symbols both match a case-insensitive name filter "x".
+        let g = graph_of(vec![
+            node(
+                1,
+                "Xavier",
+                "src/a.ts",
+                SymbolKind::Function,
+                Visibility::Public,
+            ),
+            node(
+                2,
+                "xenon",
+                "src/b.ts",
+                SymbolKind::Function,
+                Visibility::Public,
+            ),
+        ]);
+        let cursor = run(
+            &g,
+            &SearchSymbolsQuery {
+                name: Some("X".into()),
+                limit: Some(1),
+                ..Default::default()
+            },
+        )
+        .next_cursor
+        .expect("a second page remains");
+
+        // Resume with the *lower-case* filter — same results, so the cursor must
+        // still be accepted (fingerprint normalises case).
+        let resumed = SearchSymbolsQuery {
+            name: Some("x".into()),
+            limit: Some(1),
+            cursor: Some(cursor),
+            ..Default::default()
+        };
+        let candidates = GctxProjector::collect_candidates(&g, &resumed);
+        let page2 = GctxProjector::project(candidates, &resumed)
+            .expect("a case-only filter change keeps the cursor valid");
+        assert_eq!(page2.symbols.len(), 1);
+        assert_eq!(page2.symbols[0].identity.file, "src/b.ts");
+    }
+
+    #[test]
+    fn oversized_cursor_is_rejected() {
+        let g = five_symbol_graph();
+        let candidates = GctxProjector::collect_candidates(&g, &SearchSymbolsQuery::default());
+        let result = GctxProjector::project(
+            candidates,
+            &SearchSymbolsQuery {
+                cursor: Some(OpaqueCursor::new("a".repeat(MAX_CURSOR_BYTES + 1))),
+                ..Default::default()
+            },
+        );
+        assert!(result.is_err(), "an oversized cursor must be rejected");
     }
 }

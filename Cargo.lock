@@ -1388,6 +1388,9 @@ dependencies = [
  "eddacraft-anvil-gctx-types",
  "eddacraft-anvil-graph-cache",
  "eddacraft-anvil-kernel-types",
+ "hex",
+ "serde",
+ "serde_json",
  "workspace-hack",
 ]
 

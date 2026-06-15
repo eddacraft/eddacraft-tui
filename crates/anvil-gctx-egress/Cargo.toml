@@ -14,6 +14,11 @@ name = "anvil_gctx_egress"
 anvil-gctx-types = { path = "../anvil-gctx-types", package = "eddacraft-anvil-gctx-types" }
 anvil-graph-cache = { path = "../anvil-graph-cache", package = "eddacraft-anvil-graph-cache" }
 anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }
+# CE-6 opaque pagination cursors: serialise + hex-encode the server-minted seek
+# token so the client treats it as an opaque blob (never a client-supplied offset).
+serde = { workspace = true }
+serde_json = { workspace = true }
+hex = { workspace = true }
 workspace-hack = { workspace = true }
 
 [lints]
