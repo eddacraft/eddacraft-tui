@@ -11,8 +11,8 @@ unblocked to Proposed; **DLIFE-002 now flipped to Ready** — ensure-primitive d
 pinned (probe → same-user lock → re-probe → detached spawn → bound-wait), cross-platform
 risk split Unix-first (Windows background-launch follows DSV-010/011), and module
 validation commands agreed, closing the last two Ready Checklist boxes. **DLIFE-006
-Merged via #2639** — the terminating `--verify` diagnostic for the daemon-unreachable
-case ships, module 2/6. Module created
+Merged 2026-06-15 via PR #2639** — the terminating `--verify` diagnostic for the
+daemon-unreachable case landed, module 2/6. Module created
 2026-06-14 from operator direction that `anvil start` and `anvil watch` should make
 daemon-backed protection the normal path, with an explicit opt-out.)
 
