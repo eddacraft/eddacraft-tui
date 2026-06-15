@@ -2,9 +2,9 @@
 
 | ID   | Owner | Status | Progress |
 | ---- | ----- | ------ | -------- |
-| GCTX | —     | Ready  | 0/13     |
+| GCTX | —     | In Progress | 2/13 |
 
-**Last reviewed:** 2026-06-15 (both ADR-075 entry gates landed — [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) **Accepted** (GCTX-002 → Ready) and the [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md) filed (APPROVE-WITH-CONDITIONS, 4/4). Module promoted **Draft → Ready, 0/13**: execution is authorised. **GCTX-001 (contract) flipped Draft → Ready 2026-06-15** — its sole dependency GV2-023 is Merged 2026-06-15 via #2621 and both entry gates landed; GCTX-002 already Ready. GCTX-003..013 stay Draft pending the GCTX-001 contract that folds the egress conditions CE-1..CE-12.)
+**Last reviewed:** 2026-06-15 (Phase 0 — Delivery Contract — complete. **GCTX-001 (projection contract) Merged 2026-06-15 via #2628** — the spec [`graph-context-delivery-spec.md`](../../docs/architecture/graph-context-delivery-spec.md) folds the context-egress privacy review (PV-9) conditions CE-1..CE-12 onto the GV2-023 consumer query contract. **GCTX-002 (MCP delivery target) Merged 2026-06-15 via #2619** — discharged by [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) **Accepted** (Rust RMCPF `anvil mcp serve` surface); RMCPF defers GCTX work by design, so no edit to rust-mcp-full-port. Module **In Progress, 2/13**. The Phase 1 tool items (GCTX-010..013, 021..023, 030) stay Draft: they build the CE-5 sealed egress DTO + `GctxProjector` + structural no-leak test in Rust, which does not yet exist, and depend on a path for `anvil mcp serve` to obtain a graph handle — an open design question (fresh construction vs daemon-RPC) that wants a plan/ADR before implementation.)
 
 > **Scoped to v0.9, not v0.8.0-beta (2026-06-08, [ADR-075](../decisions/075-v080-graph-product-scope.md),
 > Accepted via council).** GCTX was considered for the v0.8.0 window but the
@@ -157,9 +157,10 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-001: Assistant graph projection contract
 
-- **Status:** In Progress — sole dependency GV2-023 **Merged 2026-06-15 via #2621**,
-  and both ADR-075 entry gates landed ([ADR-083](../decisions/083-gctx-mcp-delivery-target.md)
-  Accepted + [PV-9 egress review](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
+- **Status:** Merged 2026-06-15 via #2628 — sole dependency GV2-023 **Merged
+  2026-06-15 via #2621**, and both ADR-075 entry gates landed
+  ([ADR-083](../decisions/083-gctx-mcp-delivery-target.md) Accepted +
+  [PV-9 egress review](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
   filed). The contract spec is authored in
   [`graph-context-delivery-spec.md`](../../docs/architecture/graph-context-delivery-spec.md)
   (identity-only default, sealed egress DTO + single `GctxProjector` choke point,
@@ -197,7 +198,7 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-002: MCP delivery target decision
 
-- **Status:** Ready — [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) **Accepted 2026-06-15** (Josh): primary target is the Rust RMCPF `anvil mcp serve` surface per RMCPF + ADR-033 parking of TS MCP; additive registration of GCTX tools/resources. Both ADR-075 entry gates are now landed (this decision + the [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)), so the item is execution-authorised. Acceptance criteria CE-8 (session-pinned root; stdio-only — a networked RMCPF transport needs a new egress review before GCTX registers there) carry into implementation.
+- **Status:** Merged 2026-06-15 via #2619 — discharged by [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) **Accepted 2026-06-15** (Josh): primary target is the Rust RMCPF `anvil mcp serve` surface per RMCPF + ADR-033 parking of TS MCP; additive registration of GCTX tools/resources. Both ADR-075 entry gates are now landed (this decision + the [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)). RMCPF defers GCTX work by design (rust-mcp-full-port Out of Scope: "Creating new graph-context tools beyond what GCTX explicitly owns"), so the decision needs no edit there. Acceptance criteria CE-8 (session-pinned root; stdio-only — a networked RMCPF transport needs a new egress review before GCTX registers there) carry into implementation.
 - **Intent:** Decide whether graph context tools first land on the interim TS MCP
   server, the Rust RMCPF server, or both.
 - **Expected Outcome:** Decision records the target server, compatibility stance,
@@ -412,8 +413,8 @@ blockers — they are resolved during execution, not before promotion:
 
 | Phase | Items | Status |
 | ----- | ----- | ------ |
-| 0 — Delivery Contract | 2 | In Progress (GCTX-001 contract spec authored; GCTX-002 Ready) |
+| 0 — Delivery Contract | 2 | Complete (GCTX-001 Merged #2628, GCTX-002 Merged #2619) |
 | 1 — Graph Query Tools | 4 | Draft |
 | 2 — Context Slicing | 4 | Draft |
 | 3 — Resources, Benchmarks, Docs | 3 | Draft |
-| **Total** | **13** | **0/13** |
+| **Total** | **13** | **2/13** |
