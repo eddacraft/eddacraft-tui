@@ -2,7 +2,7 @@
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| DLIFE | Josh  | In Progress | 2/6      |
+| DLIFE | Josh  | In Progress | 3/6      |
 
 **Last reviewed:** 2026-06-15 (DLIFE-001 Done — ADR-082 Accepted by operator with
 the **tiered** startup mode: `anvil start` auto-starts the daemon; `anvil watch`
@@ -10,9 +10,12 @@ prompts in TTY and falls back in headless. ADR-079 superseded. DLIFE-002/-003/-0
 unblocked to Proposed; **DLIFE-002 now flipped to Ready** — ensure-primitive design
 pinned (probe → same-user lock → re-probe → detached spawn → bound-wait), cross-platform
 risk split Unix-first (Windows background-launch follows DSV-010/011), and module
-validation commands agreed, closing the last two Ready Checklist boxes. **DLIFE-006
-Merged 2026-06-15 via PR #2639** — the terminating `--verify` diagnostic for the
-daemon-unreachable case landed, module 2/6. Module created
+validation commands agreed, closing the last two Ready Checklist boxes. **DLIFE-002
+Merged 2026-06-15 via PR #2644** — the idempotent `ensure_daemon` primitive (probe →
+same-user lock → re-probe → detached spawn → bound-wait, Unix-first) landed in
+`anvil-intercept` with the thin CLI entry point; `start`/`watch` UX wiring follows in
+DLIFE-003/-004. **DLIFE-006 Merged 2026-06-15 via PR #2639** — the terminating
+`--verify` diagnostic for the daemon-unreachable case landed, module 3/6. Module created
 2026-06-14 from operator direction that `anvil start` and `anvil watch` should make
 daemon-backed protection the normal path, with an explicit opt-out.)
 
@@ -92,7 +95,7 @@ operator/debugging surface.
 
 ### DLIFE-002: Add idempotent daemon ensure primitive
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-15 via PR #2644
 - **Intent:** Provide a safe internal `ensure_daemon` primitive that user-facing CLI commands (`start`, `watch`) call to bring up the per-user daemon, reusing a live one and never double-starting under concurrency.
 - **Expected Outcome:** A typed ensure primitive returns one of `Reused` (a live daemon already answers the per-user endpoint), `Started` (exactly one daemon was launched and now answers), `NoStart{reason}` where `reason` is a **typed enum** with at least `OptOut`, `NonInteractive`, and `PlatformUnsupported` arms (so `start`/`watch` can render a platform-specific advisory distinct from a deliberate opt-out — a Windows user must not see the opt-out hint), or `Failed{recovery}` (launch or bind failed, with an actionable recovery hint). Repeated and concurrent calls across `start` and `watch` converge on exactly one daemon; stale sockets/PIDs are detected (endpoint present but no status answer) and recovered from **without unlinking a live-but-slow daemon's endpoint**; every non-`Started` path preserves the existing ADR-061 scoped fallback for watch and the activation honesty contract for start (no `Protecting` claim before the daemon attests).
 - **Design:** The primitive lives in the `anvil-intercept` library (testable without the CLI) with a thin entry point in `intercept.rs`; `start.rs`/`watch.rs` consume the typed outcome only. Flow: **probe** the per-user save-time endpoint for a live status answer → if live, `Reused`; else acquire a same-user advisory lock around the spawn critical section so concurrent callers serialise (reuse the existing cross-platform `fs2` file-lock pattern at `lib.rs:620` — `flock` on Unix, `LockFileEx` on Windows — and scope the lock path **per-`ANVIL_HOME`**, not per-uid, so ADR-060 re-rooted instances of the same user do not share a lock) → re-probe under the lock (a racing caller may have started one → `Reused`) → otherwise spawn a detached background child running the existing `run_foreground` loop **with stdout/stderr redirected to a log file in the runtime/PID directory before exec** (the parent surface owns the terminal; `main.rs:46-53` flags DLIFE as owner of this capture story), then bound-wait — to a **named timeout constant**, not an implicit duration — for it to bind and answer the status verb → `Started`; a spawn that never binds within the timeout → `Failed{recovery}` naming the log path. Stale detection must distinguish a **dead** endpoint (connect fails fast) from a **live-but-slow** one (connect succeeds but no status answer within the probe timeout): only the former is unlinked and re-spawned, so a daemon under graph/GC load is never torn out from under its own listener. Startup is gated by an explicit caller capability flag, so headless/JSON/CI/MCP/hook/`--verify` callers get `NoStart` deterministically and never spawn or prompt. This retires the current `anvil intercept start` foreground-only bail (`intercept.rs` ~L974) for internal callers; the pinned `run_start_without_foreground_bails_with_actionable_message` test is updated to reflect that backgrounded launch now flows through `ensure_daemon` while the operator `--foreground` surface stays available.
