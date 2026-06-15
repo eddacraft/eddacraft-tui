@@ -75,7 +75,7 @@ anvil-001 maintains a sophisticated, mandatory routing layer (much of it vendore
 - Dedicated `anvil-plan-spec` agent for non-trivial module/task authoring, status sync, wave planning, and reconciliation.
 - Commands / local harness entry points: `/plan`, `/plan-status` (NBI-aware),
   `/council`. These are local/private harness references in anvil-001 today;
-  upstream examples should use sanitized, checked-in skill/playbook excerpts
+  upstream examples should use sanitised, checked-in skill/playbook excerpts
   rather than requiring these exact paths or commands.
 - Fable-5 tuned variants (`f5-planning-workflow`, `f5-aps-loop`, `f5-dev-workflow`).
 
@@ -171,7 +171,7 @@ CLI. The divergence in anvil-001 is mostly specialisation and enforcement.
 
 2. **Stronger "project-context.md" reference content.** Ship example fragments or a richer default for the update discipline, reconciliation expectations, CI log, and docs closeout. This is the natural place for "how to not let your plans rot."
 
-3. **CLI affordances that support the discipline, after the shape stabilizes.**
+3. **CLI affordances that support the discipline, after the shape stabilises.**
    Start with documented optional NBI markdown and JSON-friendly conventions.
    Defer `aps next --with-reasons` or `aps nbi` until the data contract has more
    than one adopter. Better JSON output from existing commands may be the safer
@@ -241,7 +241,7 @@ governance scripts as optional extras, they should follow these guardrails:
 - Agent surface: local/private harness skills and commands for
   `aps-planning`, `planning-workflow`, `planning-council`, `dev-workflow`,
   Fable-5 variants, `anvil-plan-spec`, `/plan`, `/plan-status`, and `/council`.
-  Upstreamable examples should use sanitized excerpts or checked-in optional
+  Upstreamable examples should use sanitised excerpts or checked-in optional
   extras rather than relying on these exact local paths.
 - Mechanical support: `scripts/aps/{drift-check,active-lint,index-counts,advance-released}.mjs` + `lib/modules.mjs`; `.claude/workflows/aps-reconciliation-sweep.js`
 - Continuous improvement: `plans/reviews/continuous-improvement-log.md`; standing CIB module
