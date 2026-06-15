@@ -8,7 +8,7 @@
 //!   stable field shape so dashboards and tooling can consume it.
 //!
 //! Both renderers go through [`headline_for`] (which delegates to
-//! [`super::ProtectionState::headline`]) so the headline copy never
+//! [`ProtectionState::headline`]) so the headline copy never
 //! drifts between surfaces.
 
 use std::fmt::Write as _;
@@ -525,9 +525,9 @@ fn why_summary_for_attestation(att: super::daemon_evidence::DaemonAttestation) -
 /// One-line headline for the human and JSON surfaces. Delegates to
 /// [`ProtectionState::headline`] except when the state is
 /// `ReadyRestartRequired` and the daemon attestation is
-/// [`DaemonAttestation::Unreachable`]: there the generic "restart your
-/// editor or agent" headline is misleading, because no daemon is
-/// answering this worktree and another restart cannot change that.
+/// [`super::daemon_evidence::DaemonAttestation::Unreachable`]: there the
+/// generic "restart your editor or agent" headline is misleading, because no
+/// daemon is answering this worktree and another restart cannot change that.
 /// DLIFE-006 (#2609, #2583, #1831) replaces it with a terminating
 /// diagnosis. Both renderers route through this so the headline copy
 /// never drifts between surfaces.
