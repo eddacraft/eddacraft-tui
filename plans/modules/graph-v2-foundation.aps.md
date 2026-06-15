@@ -822,7 +822,7 @@ Change status to **Ready** when:
 
 #### GV2-031: Lift re-export edges so transitive privilege is visible
 
-- **Status:** In Progress (picked up 2026-06-15 via dev-workflow on `feat/gv2-031-reexport`; promoted Ready earlier same day — NBI rank 1 readiness pass; internal substrate, GV2-029 dep Merged, not behind ADR-075 GCTX egress gate)
+- **Status:** Merged 2026-06-15 via PR #2627 — re-exports lifted into `Reexports` edges (`update_file` + `re_resolve_reexports`); `annotate_trust` and `certify::export_surface_diff` follow them transitively to a privileged module, with a `previously_reexported_privileged` baseline keeping the diff monotone; daemon/watcher maintain an `all_reexports` accumulator and the backing-parity property test now covers re-export chains. Internal substrate, not behind the ADR-075 GCTX egress gate. Awaits the v0.9.0-beta release tag for Released/Shipped.
 - **Intent:** `FileSymbols.reexports` is never lifted into the `SymbolGraph` —
   `update_file` inserts `Imports` edges only, so the `EdgeType::Reexports`
   variant is modelled but never produced. A privileged capability reached via
@@ -893,6 +893,6 @@ Change status to **Ready** when:
 | ----- | ----- | ---------- | ------ |
 | 0 — Architecture and Contracts | 3 | 3/3 done | Complete |
 | 1 — Graph Schemas | 5 | 5/5 done | Complete |
-| 2 — Runtime Substrate | 4 | 3/4 done | In Progress |
-| 3 — Enforcement, Wiring, and the A′ Swap | 8 | 7/8 done | In Progress |
-| **Total** | **20** | **18/20 done** | **In Progress** |
+| 2 — Runtime Substrate | 4 | 4/4 done | Complete |
+| 3 — Enforcement, Wiring, and the A′ Swap | 8 | 8/8 done | Complete |
+| **Total** | **20** | **20/20 done** | **In Progress** |
