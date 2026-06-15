@@ -51,6 +51,7 @@ pub mod confinement;
 pub mod dos;
 pub mod embedded;
 pub mod enforcement;
+pub mod ensure;
 pub mod fanout;
 pub mod fence;
 pub mod interrupt;
@@ -653,7 +654,7 @@ impl Drop for PidFileGuard {
     }
 }
 
-fn ensure_secure_runtime_dir(path: &Path) -> Result<()> {
+pub(crate) fn ensure_secure_runtime_dir(path: &Path) -> Result<()> {
     #[cfg(unix)]
     {
         ensure_secure_runtime_dir_unix(path)

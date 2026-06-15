@@ -973,7 +973,7 @@ fn round_to_int(value: f64) -> u64 {
 fn run_start(args: &StartArgs) -> Result<()> {
     if !args.foreground {
         anyhow::bail!(
-            "`anvil intercept start` currently requires --foreground; backgrounded launch lands with INTD-002"
+            "`anvil intercept start` requires --foreground; this is the low-level operator/debugging daemon surface. Backgrounded daemon launch is provided to `anvil start` / `anvil watch` via the daemon-lifecycle ensure primitive (DLIFE, ADR-082)."
         );
     }
 
@@ -1043,10 +1043,13 @@ mod tests {
     use super::*;
 
     /// Pin the contract: `anvil intercept start` without `--foreground`
-    /// exits with a clear error directing the user at the missing
-    /// flag, not a silent no-op or a confusing panic. Future flag
-    /// changes that drop the bail (e.g. flipping the default to
-    /// foreground) must update this test.
+    /// exits with a clear error directing the user at the missing flag,
+    /// not a silent no-op or a confusing panic. `anvil intercept start`
+    /// is the low-level operator surface (module Purpose); backgrounded
+    /// launch is reached through `anvil start` / `anvil watch` via the
+    /// DLIFE-002 ensure primitive (`commands::daemon_lifecycle`), so this
+    /// bail stays. A future change that wires backgrounding into this
+    /// operator command must update this test.
     #[test]
     fn run_start_without_foreground_bails_with_actionable_message() {
         let args = StartArgs { foreground: false };
@@ -1057,8 +1060,8 @@ mod tests {
             "bail message must mention --foreground, got: {msg}",
         );
         assert!(
-            msg.contains("INTD-002"),
-            "bail message must point at the future backgrounded path (INTD-002), got: {msg}",
+            msg.contains("DLIFE"),
+            "bail message must point at the daemon-lifecycle backgrounded path (DLIFE), got: {msg}",
         );
     }
 
