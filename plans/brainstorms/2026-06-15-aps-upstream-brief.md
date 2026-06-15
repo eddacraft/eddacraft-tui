@@ -1,10 +1,10 @@
 # APS Upstream Brief: Production Governance Patterns from anvil-001
 
-**Date:** 2026-06-15  
-**Type:** Consumer feedback / patterns brief for the canonical APS project  
-**Status:** Draft — for review and potential seeding into `eddacraft/anvil-plan-spec` (ROADMAP, docs, or new reference guidance)  
-**Author:** Synthesised from anvil-001 operational experience (NBI, agent harness, reconciliation discipline)  
-**Audience:** Maintainers and contributors to https://github.com/eddacraft/anvil-plan-spec
+- **Date:** 2026-06-15
+- **Type:** Consumer feedback / patterns brief for the canonical APS project
+- **Status:** Draft — for review and potential seeding into `eddacraft/anvil-plan-spec` (ROADMAP, docs, or new reference guidance)
+- **Author:** Synthesised from anvil-001 operational experience (NBI, agent harness, reconciliation discipline)
+- **Audience:** Maintainers and contributors to https://github.com/eddacraft/anvil-plan-spec
 
 | Upstream (APS repo)                          | Downstream (anvil-001 heavy use)                          |
 | -------------------------------------------- | --------------------------------------------------------- |
