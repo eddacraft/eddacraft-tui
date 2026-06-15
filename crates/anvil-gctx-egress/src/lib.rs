@@ -60,7 +60,7 @@ impl GctxProjector {
             // workspace-root-relative paths. The parser feed supplies relative
             // paths, so an absolute path should never be resident — but if one
             // is, drop it rather than leak an absolute filesystem location.
-            if Path::new(file).is_absolute() {
+            if is_absolute_path_like(file) {
                 continue;
             }
             if let Some(filter) = file_lc.as_deref()
@@ -138,6 +138,19 @@ fn symbol_matches(node: &SymbolNode, name_lc: Option<&str>, query: &SearchSymbol
 
 fn language_matches(file: &str, lang: &str) -> bool {
     language_of(file).is_some_and(|known| known.eq_ignore_ascii_case(lang))
+}
+
+fn is_absolute_path_like(file: &str) -> bool {
+    if Path::new(file).is_absolute() {
+        return true;
+    }
+
+    let bytes = file.as_bytes();
+    if bytes.first().is_some_and(|b| *b == b'/' || *b == b'\\') {
+        return true;
+    }
+
+    bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':'
 }
 
 /// Map a file extension to a coarse language token. `None` for unknown
@@ -383,8 +396,22 @@ mod tests {
             ),
             node(
                 2,
-                "leaked",
+                "leaked_unix",
                 "/etc/passwd",
+                SymbolKind::Function,
+                Visibility::Public,
+            ),
+            node(
+                3,
+                "leaked_windows",
+                "C:\\Users\\runneradmin\\secret.ts",
+                SymbolKind::Function,
+                Visibility::Public,
+            ),
+            node(
+                4,
+                "leaked_unc",
+                "\\\\server\\share\\secret.ts",
                 SymbolKind::Function,
                 Visibility::Public,
             ),
@@ -393,7 +420,9 @@ mod tests {
         assert_eq!(p.symbols.len(), 1);
         assert_eq!(p.symbols[0].identity.file, "src/a.ts");
         assert!(
-            p.symbols.iter().all(|s| !s.identity.file.starts_with('/')),
+            p.symbols
+                .iter()
+                .all(|s| !is_absolute_path_like(&s.identity.file)),
             "no absolute path may reach the projection"
         );
     }
