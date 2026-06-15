@@ -7,7 +7,11 @@
 **Last reviewed:** 2026-06-15 (DLIFE-001 Done — ADR-082 Accepted by operator with
 the **tiered** startup mode: `anvil start` auto-starts the daemon; `anvil watch`
 prompts in TTY and falls back in headless. ADR-079 superseded. DLIFE-002/-003/-004
-unblocked to Proposed. DLIFE-006 remains independently shippable. Module created
+unblocked to Proposed; **DLIFE-002 now flipped to Ready** — ensure-primitive design
+pinned (probe → same-user lock → re-probe → detached spawn → bound-wait), cross-platform
+risk split Unix-first (Windows background-launch follows DSV-010/011), and module
+validation commands agreed, closing the last two Ready Checklist boxes. DLIFE-006
+remains independently shippable. Module created
 2026-06-14 from operator direction that `anvil start` and `anvil watch` should make
 daemon-backed protection the normal path, with an explicit opt-out.)
 
@@ -65,8 +69,8 @@ operator/debugging surface.
 - [x] ADR-082 accepted or replaced by an accepted lifecycle decision (Accepted 2026-06-15)
 - [x] Startup posture selected for TTY, headless, JSON, and CI-like contexts (tiered: `start` auto-starts; `watch` prompts in TTY, falls back headless/JSON/CI/MCP/hook)
 - [x] Opt-out surface named and documented (`--no-daemon` + `ANVIL_WATCH_DAEMON=0`)
-- [ ] Cross-platform lifecycle risks accepted or split
-- [ ] Validation commands agreed for CLI, docs, and APS checks
+- [x] Cross-platform lifecycle risks accepted or split (Unix-first: Linux + macOS background launch in v0.8; Windows background-launch split to follow the existing save-time Windows gap DSV-010/011 — on Windows the ensure primitive returns a deterministic no-start and the scoped fallback is preserved until that path lands)
+- [x] Validation commands agreed for CLI, docs, and APS checks (`cargo test -p eddacraft-anvil-intercept` for the ensure primitive; `cargo test -p eddacraft-anvil` for CLI wiring; `cargo clippy --workspace --all-targets -- -D warnings`; `cargo fmt --all --check`; `pnpm docs:check` + `pnpm docs:index:check` for DLIFE-005; `pnpm aps:index:check` for APS bookkeeping)
 
 ## Work Items
 
@@ -87,14 +91,17 @@ operator/debugging surface.
 
 ### DLIFE-002: Add idempotent daemon ensure primitive
 
-- **Status:** Proposed
-- **Intent:** Provide a safe internal way for user-facing CLI commands to ensure the per-user daemon is running.
-- **Expected Outcome:** Repeated and concurrent ensure calls reuse the live daemon or start one daemon; stale sockets/PIDs produce actionable recovery; failures preserve the existing scoped fallback path for watch.
-- **Validation:** Targeted Rust tests cover live reuse, absent start, concurrent ensure, stale endpoint recovery, and no-start contexts.
-- **Files:** `crates/anvil-cli/src/commands/intercept.rs`, `crates/anvil-cli/src/commands/start.rs`, `crates/anvil-cli/src/commands/watch.rs`, daemon lifecycle helper modules as introduced by implementation, related CLI tests
-- **Dependencies:** DLIFE-001
+- **Status:** Ready
+- **Intent:** Provide a safe internal `ensure_daemon` primitive that user-facing CLI commands (`start`, `watch`) call to bring up the per-user daemon, reusing a live one and never double-starting under concurrency.
+- **Expected Outcome:** A typed ensure primitive returns one of `Reused` (a live daemon already answers the per-user endpoint), `Started` (exactly one daemon was launched and now answers), `NoStart{reason}` (caller disallowed startup — opt-out / non-interactive / `--json` / CI / MCP / hook / `--verify`), or `Failed{recovery}` (launch or bind failed, with an actionable recovery hint). Repeated and concurrent calls across `start` and `watch` converge on exactly one daemon; stale sockets/PIDs are detected (endpoint present but no status answer), cleaned up, and recovered from; every non-`Started` path preserves the existing ADR-061 scoped fallback for watch and the activation honesty contract for start (no `Protecting` claim before the daemon attests).
+- **Design:** The primitive lives in the `anvil-intercept` library (testable without the CLI) with a thin entry point in `intercept.rs`; `start.rs`/`watch.rs` consume the typed outcome only. Flow: **probe** the per-user save-time endpoint for a live status answer → if live, `Reused`; else acquire a same-user OS advisory lock (flock on Unix) around the spawn critical section so concurrent callers serialise → re-probe under the lock (a racing caller may have started one → `Reused`) → otherwise spawn a detached background child running the existing `run_foreground` loop, then bound-wait for it to bind and answer the status verb → `Started`. A present-but-dead endpoint (no status answer) is treated as stale: remove the dead socket/PID and re-spawn, surfacing the recovery in the outcome. Startup is gated by an explicit caller capability flag, so headless/JSON/CI/MCP/hook/`--verify` callers get `NoStart` deterministically and never spawn or prompt. This retires the current `anvil intercept start` foreground-only bail (`intercept.rs` ~L974) for internal callers; the pinned `run_start_without_foreground_bails_with_actionable_message` test is updated to reflect that backgrounded launch now flows through `ensure_daemon` while the operator `--foreground` surface stays available.
+- **Validation:** `cargo test -p eddacraft-anvil-intercept` (primitive: live reuse, absent→start, concurrent ensure converges on one daemon, stale endpoint recovery, no-start contexts, bind-timeout→`Failed`), then `cargo test -p eddacraft-anvil` (CLI entry wiring + updated bail/foreground contract); `cargo clippy --workspace --all-targets -- -D warnings`; `cargo fmt --all --check`.
+- **Files:** `crates/anvil-intercept/src/**` (the `ensure_daemon` primitive, outcome type, same-user lock, stale-endpoint recovery, background spawn), `crates/anvil-cli/src/commands/intercept.rs` (thin CLI entry point; update the foreground-only bail + pinned test), `crates/anvil-cli/src/commands/start.rs` and `crates/anvil-cli/src/commands/watch.rs` (call sites consuming the typed outcome — full wiring lands in DLIFE-003/-004), related Rust tests
+- **Scopes:** The internal ensure/launch primitive and its same-user lock, stale-endpoint recovery, and outcome type; the CLI entry point that exposes it.
+- **Non-scope:** `anvil start`/`anvil watch` UX wiring and copy (DLIFE-003/-004); the `--no-daemon` CLI qualifier (DLIFE-004); Windows background launch (split — see Risks); any change to verdict semantics, graph backing, or the save-time wire.
+- **Dependencies:** DLIFE-001 (Done)
 - **Confidence:** medium
-- **Risks:** Foreground-only daemon launch is the current validated low-level mode; background lifecycle semantics need explicit design and tests.
+- **Risks:** First background daemon lifecycle in the codebase — the approach is now pinned (probe → same-user lock → re-probe → detached spawn → bound-wait), Unix-first. Background launch on a new platform must prove the bind-timeout and stale-recovery paths under concurrency. Windows background-launch is **split** to follow the existing save-time Windows gap (DSV-010/011): on Windows the primitive returns `NoStart` and the scoped fallback is preserved until that path lands. Non-interactive contexts must never spawn or hang — pinned by the no-start tests.
 - **changeType:** feature
 - **releaseIntent:** candidate
 - **releaseScope:** minor

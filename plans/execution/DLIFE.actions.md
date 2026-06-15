@@ -53,8 +53,8 @@ the scoped fallback.
 
 - **Work Item:** DLIFE-002
 - **Depends on:** 1
-- **Checkpoint:** CLI can idempotently ensure one daemon per user scope
-- **Validate:** targeted Rust daemon lifecycle tests, then `cargo test -p eddacraft-anvil-intercept`
+- **Checkpoint:** Concurrent ensure converges on one daemon; no-start contexts never spawn
+- **Validate:** `cargo test -p eddacraft-anvil-intercept && cargo test -p eddacraft-anvil`
 
 ### 3. Wire `anvil start`
 
