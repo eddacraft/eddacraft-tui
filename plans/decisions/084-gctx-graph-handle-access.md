@@ -163,6 +163,14 @@ same process. Two new crates. The lock-free read snapshot adds a per-delta publi
 cost on the save path (an `Arc` swap of an immutable snapshot) — cheap, and off
 the critical-section hold.
 
+Because GCTX is daemon-required, its usefulness depends on the daemon actually
+running. Today the save-time daemon has no auto-start and falls back silently
+(DSV-021), so the Phase-1 slice leans on
+[daemon-lifecycle (DLIFE)](../modules/daemon-lifecycle.aps.md) making
+daemon-backed protection the normal user path. Sequence GCTX-010's rollout
+against DLIFE so the slice does not ship into an environment where the daemon is
+still opt-in (where every GCTX query returns `GraphUnavailable`).
+
 **Binding conditions on GCTX-010 before it flips to Ready** (the council's
 critical findings — these gate the Phase-1 item, not this ADR):
 
@@ -185,7 +193,11 @@ critical findings — these gate the Phase-1 item, not this ADR):
   pilot before that snapshot exists, the projector MUST take a cheap copy of the
   matched entries under the cache lock and release it *before* filtering/
   pagination — holding the inner `Mutex` across the whole projection is prohibited
-  (ADR-031 80ms p95 gate).
+  (ADR-031 80ms p95 gate). The Phase-2 per-delta snapshot publish is itself
+  net-new cost on the save hot path (`arc-swap` is not yet a workspace
+  dependency): it MUST be bench-gated against the ADR-031 80ms p95 budget, and
+  `GraphSnapshot` MUST publish via `Arc`-shared sub-structures (no full deep clone
+  of the graph per delta). The "cheap" claim is unproven until measured.
 - **C3 — Daemon-side root admission (CE-8).** The daemon MUST validate the
   client-supplied `workspace_root` against the connection's admitted-root set
   (reuse the `SaveTimeConn` admission gate) before projecting — a hostile MCP
@@ -195,10 +207,14 @@ critical findings — these gate the Phase-1 item, not this ADR):
   manifest entry MUST land in the PR that adds its Rust consumer gate *and* a TS
   consumer reader, or the FLAGCAT orphan-flag drift gate fails. (Phase 1 is
   identity-only, so the flag gates the Phase-2 snippet path; sequence accordingly.)
-- **C5 — Snippet secret-scan completeness (Phase 2).** The `SecretDetectionRule`
-  line-length guard (SCAN-002, 4 KiB) silently skips long lines; for snippet
-  egress a skipped line MUST be treated as a detector error and redacted
-  (CE-2 fail-closed), and byte ranges expanded to line boundaries before scanning.
+- **C5 — Snippet secret-scan completeness (Phase 2).** The SCAN-002 per-line
+  length guard (4 KiB) silently skips long lines. Note this guard lives in the
+  `anvil-checks` secret scanner (`crates/anvil-checks/src/secret/types.rs`), *not*
+  on `SecretDetectionRule` (`anvil-intercept-rules`); GCTX-010's snippet phase
+  MUST first confirm which secret-scan path the daemon-side projector invokes and
+  that the guard is in force on it. On that path, a skipped line MUST be treated
+  as a detector error and redacted (CE-2 fail-closed), and byte ranges expanded to
+  line boundaries before scanning.
 
 **Open / deferred.** MCP↔daemon connection liveness vs the 60s idle timeout, and
 whether CE-6 per-session credits are connection- or session-token-scoped
@@ -237,4 +253,5 @@ no new transitive parser deps.
 - [PV-9 context-egress privacy review](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
 - [graph-v2-foundation-spec.md](../../docs/architecture/graph-v2-foundation-spec.md) — GV2-020 registry + GV2-023 consumer query contract
 - [`graph-context-delivery.aps.md`](../modules/graph-context-delivery.aps.md) — GCTX module + work items
+- [daemon-lifecycle (DLIFE)](../modules/daemon-lifecycle.aps.md) — makes daemon-backed protection the normal user path; GCTX's daemon-required posture depends on it
 - Planning council session: `plan-f211c211`
