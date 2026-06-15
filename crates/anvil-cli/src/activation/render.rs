@@ -7,8 +7,9 @@
 //! - [`render_json`] — structured JSON block for `--json` output, with a
 //!   stable field shape so dashboards and tooling can consume it.
 //!
-//! Both renderers go through [`super::ProtectionState::headline`] so
-//! the headline copy never drifts between surfaces.
+//! Both renderers go through [`headline_for`] (which delegates to
+//! [`super::ProtectionState::headline`]) so the headline copy never
+//! drifts between surfaces.
 
 use std::fmt::Write as _;
 
@@ -31,7 +32,7 @@ pub fn render_human(d: &ActivationDiagnostic) -> String {
     let mut out = String::new();
     out.push_str("ACTIVATION\n");
     let _ = writeln!(out, "  state: {}", state.label());
-    let _ = writeln!(out, "  {}", state.headline());
+    let _ = writeln!(out, "  {}", headline_for(state, d));
     if let Some(explanation) = state_explanation(state, d) {
         let _ = writeln!(out, "  meaning: {explanation}");
     }
@@ -521,6 +522,26 @@ fn why_summary_for_attestation(att: super::daemon_evidence::DaemonAttestation) -
     }
 }
 
+/// One-line headline for the human and JSON surfaces. Delegates to
+/// [`ProtectionState::headline`] except when the state is
+/// `ReadyRestartRequired` and the daemon attestation is
+/// [`DaemonAttestation::Unreachable`]: there the generic "restart your
+/// editor or agent" headline is misleading, because no daemon is
+/// answering this worktree and another restart cannot change that.
+/// DLIFE-006 (#2609, #2583, #1831) replaces it with a terminating
+/// diagnosis. Both renderers route through this so the headline copy
+/// never drifts between surfaces.
+fn headline_for(state: ProtectionState, d: &ActivationDiagnostic) -> &'static str {
+    use super::daemon_evidence::DaemonAttestation;
+
+    match (state, d.daemon_attestation) {
+        (ProtectionState::ReadyRestartRequired, DaemonAttestation::Unreachable) => {
+            "Daemon not reachable — protection cannot graduate until the intercept daemon answers this worktree."
+        }
+        _ => state.headline(),
+    }
+}
+
 /// Plain-language explanation for lifecycle labels whose terse `snake_case`
 /// value is necessary for machine consumers but too opaque on its own.
 fn state_explanation(state: ProtectionState, d: &ActivationDiagnostic) -> Option<&'static str> {
@@ -655,7 +676,7 @@ pub fn render_json(d: &ActivationDiagnostic) -> Value {
     });
     json!({
         "state": state.label(),
-        "headline": state.headline(),
+        "headline": headline_for(state, d),
         "config": d.config.label(),
         "mcp": mcp,
         "watch": d.watch.label(),
@@ -683,7 +704,7 @@ fn repair_hint(state: ProtectionState, d: &ActivationDiagnostic) -> Option<&'sta
             // is the intercept daemon, not another restart. Each
             // attestation branch points at its concrete remediation.
             DaemonAttestation::Unreachable => {
-                "start the intercept daemon with `anvil intercept start --foreground` so pre-write validation can attach; otherwise restart your editor again and re-run `anvil start --verify`."
+                "no intercept daemon is answering for this worktree, so another editor restart will not help; start the intercept daemon with `anvil intercept start --foreground` (or wait for it to finish starting), then re-run `anvil start --verify`."
             }
             DaemonAttestation::Unenforced | DaemonAttestation::NoParticipatingSurface => {
                 "the intercept daemon is running but is not enforcing this worktree yet; check `anvil intercept status` for the registered worktree set and re-run `anvil start --verify` after your editor has issued an MCP request."
@@ -990,6 +1011,44 @@ mod tests {
         );
     }
 
+    /// DLIFE-006 (#2609, #2583, #1831) — when the daemon is `Unreachable`
+    /// the repair hint must read as a terminating end state: it must name
+    /// *why* protection cannot graduate (no daemon answering the worktree),
+    /// must say that another editor restart will not help, and must NOT
+    /// hedge by suggesting "restart your editor again". The only path
+    /// forward is starting the daemon, then re-running `--verify`.
+    #[test]
+    fn ready_restart_required_with_daemon_unreachable_is_terminating_not_a_restart_loop() {
+        let d =
+            handshake_verified_diag(super::super::daemon_evidence::DaemonAttestation::Unreachable);
+        let h = render_human(&d);
+        let lower = h.to_lowercase();
+        // No restart-again loop: the daemon is down, so restarting the
+        // editor cannot change the outcome.
+        assert!(
+            !lower.contains("restart your editor"),
+            "Unreachable hint must not tell the user to restart their editor again: {h}"
+        );
+        assert!(
+            !lower.contains("otherwise"),
+            "Unreachable hint must not hedge with an `otherwise restart` clause: {h}"
+        );
+        // Names why protection cannot graduate, and that restart won't help.
+        assert!(
+            h.contains("no intercept daemon is answering for this worktree"),
+            "Unreachable hint must name why protection cannot graduate: {h}"
+        );
+        assert!(
+            h.contains("will not help"),
+            "Unreachable hint must state that another restart will not help: {h}"
+        );
+        // Still actionable and copy-ready.
+        assert!(
+            h.contains("anvil intercept start --foreground") && h.contains("anvil start --verify"),
+            "Unreachable hint must give the daemon-start command and the re-run command: {h}"
+        );
+    }
+
     /// MLP2-051f §"Failure modes" — daemon running but the worktree
     /// has no participating surfaces. The hint must NOT tell the user
     /// to start the daemon (it's already running). Points the operator
@@ -1289,10 +1348,12 @@ mod tests {
              partial-protection note — the headline already \
              communicates the restart-required state, got:\n{h}"
         );
-        // Belt-and-braces: the headline must carry the partial-state
-        // language. If a future copy edit drops it, the absence of
-        // the note plus a "fully protected"-style headline would be
-        // a regression.
+        // Belt-and-braces: for this fixture (NotProbed attestation) the
+        // headline must carry the partial-state language. If a future
+        // copy edit drops it, the absence of the note plus a "fully
+        // protected"-style headline would be a regression. (The
+        // `Unreachable` sub-case deliberately uses a different,
+        // terminating headline — see `headline_for` and DLIFE-006.)
         let lower = h.to_lowercase();
         assert!(
             lower.contains("restart") && (lower.contains("attach") || lower.contains("mcp server")),
