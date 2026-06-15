@@ -481,7 +481,9 @@ fn status_query_round_trip(stream: &std::os::unix::net::UnixStream) -> Result<()
 /// Spawns the daemon as a detached background child by re-executing the anvil
 /// binary (the CLI builds this from `current_exe()` +
 /// `intercept start --foreground`), with stdout/stderr redirected to the daemon
-/// log and a fresh session so a parent Ctrl-C never reaches it.
+/// log and its own process group (not a new session — the crate forbids
+/// `unsafe_code`, so `setsid` is unavailable) so a parent Ctrl-C delivered to the
+/// terminal's foreground process group never reaches it.
 #[cfg(unix)]
 pub struct DetachedCommandLauncher {
     program: PathBuf,

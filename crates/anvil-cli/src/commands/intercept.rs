@@ -1047,9 +1047,10 @@ mod tests {
     /// not a silent no-op or a confusing panic. `anvil intercept start`
     /// is the low-level operator surface (module Purpose); backgrounded
     /// launch is reached through `anvil start` / `anvil watch` via the
-    /// DLIFE-002 ensure primitive (`commands::daemon_lifecycle`), so this
-    /// bail stays. A future change that wires backgrounding into this
-    /// operator command must update this test.
+    /// DLIFE-002 ensure primitive (`anvil_intercept::ensure::ensure_daemon`;
+    /// the `start`/`watch` wiring lands in DLIFE-003/-004), so this bail
+    /// stays. A future change that wires backgrounding into this operator
+    /// command must update this test.
     #[test]
     fn run_start_without_foreground_bails_with_actionable_message() {
         let args = StartArgs { foreground: false };
