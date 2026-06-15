@@ -2,9 +2,14 @@
 
 ## Status
 
-**Accepted** — 2026-06-10, Josh (operator decision closing UJ-007). Amends the
-[ADR-075](075-v080-graph-product-scope.md) rollout posture for default-on
-save-time daemon routing; does not change any Accepted architecture.
+**Superseded** by [ADR-082](082-daemon-lifecycle-user-startup.md) — 2026-06-15.
+Beta testing met the GA-revisit condition this ADR set (users persistently on
+the fallback path because the daemon-backed path was harder than the fallback),
+so the guidance-only posture is replaced by a tiered daemon lifecycle.
+
+Originally **Accepted** — 2026-06-10, Josh (operator decision closing UJ-007).
+Amended the [ADR-075](075-v080-graph-product-scope.md) rollout posture for
+default-on save-time daemon routing; did not change any Accepted architecture.
 
 ## Date
 

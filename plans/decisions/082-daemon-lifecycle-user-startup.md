@@ -2,17 +2,16 @@
 
 ## Status
 
-Proposed — 2026-06-14, shaped from operator feedback that `anvil start` and
-`anvil watch` should make daemon-backed protection the normal path while keeping
-an explicit opt-out.
-
-If accepted, this ADR supersedes
-[ADR-079](079-watch-daemon-guidance-only.md). Until then, ADR-079 remains the
-live decision and `anvil watch` stays guidance-only when no daemon answers.
+**Accepted** — 2026-06-15, Josh (operator decision). Beta testing showed the
+guidance-only posture leaves normal users learning the raw foreground daemon
+command, which pulls forward the GA-revisit condition ADR-079 itself set. The
+tiered startup mode is settled (see Decision). This supersedes
+[ADR-079](079-watch-daemon-guidance-only.md) and narrows the ADR-075
+no-auto-start rollout invariant for the `anvil start` activation moment.
 
 ## Date
 
-2026-06-14
+2026-06-15
 
 ## Context
 
@@ -35,11 +34,11 @@ The intercept daemon remains the implementation detail.
 
 ## Decision
 
-If accepted, Anvil will add a user-facing daemon lifecycle layer:
+Anvil will add a user-facing daemon lifecycle layer:
 
 1. `anvil start` becomes the canonical daily protection command. It configures
-   protection, ensures or offers to ensure the per-user daemon is running, and
-   reports the resulting protection state.
+   protection, ensures the per-user daemon is running, and reports the resulting
+   protection state.
 2. `anvil watch` uses daemon-backed validation by default. When no daemon
    answers, it follows the accepted startup posture from this ADR rather than
    only advising the user to run another command.
@@ -55,16 +54,22 @@ If accepted, Anvil will add a user-facing daemon lifecycle layer:
 5. The low-level foreground command remains available for operators and service
    managers, but normal users are not expected to learn it.
 
-The concrete startup mode remains the main product choice this ADR must settle
-before acceptance:
+### Settled startup mode
 
-- **Prompt in TTY, no prompt in headless** — strongest consent posture, more
-  ceremony in watch.
-- **Auto-start by default, explicit opt-out** — best daily-user path, larger
-  consent and operations surface.
-- **`anvil start` auto-starts; `anvil watch` prompts in TTY and falls back in
-  headless** — recommended compromise unless beta evidence demands a stronger
-  default.
+The startup mode is the **tiered posture**:
+
+- `anvil start` **auto-starts** the per-user daemon (explicit opt-out via
+  `--no-daemon`), because activation is the least-surprising moment to take
+  daemon lifecycle responsibility.
+- `anvil watch` **prompts in an interactive TTY** when no daemon answers, and
+  **falls back to the scoped check in headless / `--json` / CI-like / MCP / hook
+  contexts** — never prompting or hanging automation.
+
+Considered and not chosen: *prompt in TTY for both* (most ceremony in watch for
+no daily-path gain at the activation moment) and *auto-start both* (largest
+consent and operations surface, strongest reversal of ADR-079 — kept in reserve
+if beta evidence later shows the TTY prompt is still leaving watch users on the
+fallback path).
 
 ## Rationale
 

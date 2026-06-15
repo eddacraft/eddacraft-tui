@@ -1,14 +1,15 @@
 # Daemon Lifecycle
 
-| ID    | Owner | Status   | Progress |
-| ----- | ----- | -------- | -------- |
-| DLIFE | Josh  | Proposed | 0/6      |
+| ID    | Owner | Status      | Progress |
+| ----- | ----- | ----------- | -------- |
+| DLIFE | Josh  | In Progress | 1/6      |
 
-**Last reviewed:** 2026-06-15 (DLIFE-006 added from #2609 triage — a terminating
-`--verify` diagnostic for the daemon-unreachable case; the one item independent of
-ADR-082. Module created 2026-06-14 from operator direction that `anvil start` and
-`anvil watch` should make daemon-backed protection the normal path, with an
-explicit opt-out for users who do not want daemon startup.)
+**Last reviewed:** 2026-06-15 (DLIFE-001 Done — ADR-082 Accepted by operator with
+the **tiered** startup mode: `anvil start` auto-starts the daemon; `anvil watch`
+prompts in TTY and falls back in headless. ADR-079 superseded. DLIFE-002/-003/-004
+unblocked to Proposed. DLIFE-006 remains independently shippable. Module created
+2026-06-14 from operator direction that `anvil start` and `anvil watch` should make
+daemon-backed protection the normal path, with an explicit opt-out.)
 
 ## Purpose
 
@@ -61,9 +62,9 @@ operator/debugging surface.
 
 ## Ready Checklist
 
-- [ ] ADR-082 accepted or replaced by an accepted lifecycle decision
-- [ ] Startup posture selected for TTY, headless, JSON, and CI-like contexts
-- [ ] Opt-out surface named and documented
+- [x] ADR-082 accepted or replaced by an accepted lifecycle decision (Accepted 2026-06-15)
+- [x] Startup posture selected for TTY, headless, JSON, and CI-like contexts (tiered: `start` auto-starts; `watch` prompts in TTY, falls back headless/JSON/CI/MCP/hook)
+- [x] Opt-out surface named and documented (`--no-daemon` + `ANVIL_WATCH_DAEMON=0`)
 - [ ] Cross-platform lifecycle risks accepted or split
 - [ ] Validation commands agreed for CLI, docs, and APS checks
 
@@ -71,7 +72,7 @@ operator/debugging surface.
 
 ### DLIFE-001: Accept daemon lifecycle startup decision
 
-- **Status:** Proposed
+- **Status:** Done
 - **Intent:** Supersede ADR-079 with an accepted user-facing daemon lifecycle posture.
 - **Expected Outcome:** ADR-082 is accepted or replaced by an accepted ADR; ADR-079 is marked superseded; the decision log states the new `start`/`watch` posture and the opt-out semantics.
 - **Validation:** `pnpm adr:check`; `pnpm aps:index:check`; review confirms ADR-079 status and decision-log row are consistent.
@@ -86,7 +87,7 @@ operator/debugging surface.
 
 ### DLIFE-002: Add idempotent daemon ensure primitive
 
-- **Status:** Blocked
+- **Status:** Proposed
 - **Intent:** Provide a safe internal way for user-facing CLI commands to ensure the per-user daemon is running.
 - **Expected Outcome:** Repeated and concurrent ensure calls reuse the live daemon or start one daemon; stale sockets/PIDs produce actionable recovery; failures preserve the existing scoped fallback path for watch.
 - **Validation:** Targeted Rust tests cover live reuse, absent start, concurrent ensure, stale endpoint recovery, and no-start contexts.
@@ -100,9 +101,9 @@ operator/debugging surface.
 
 ### DLIFE-003: Make `anvil start` manage daemon lifecycle
 
-- **Status:** Blocked
+- **Status:** Proposed
 - **Intent:** Make `anvil start` the canonical command that brings a normal user to daemon-backed protection when the accepted lifecycle posture allows it.
-- **Expected Outcome:** `anvil start` configures protection, ensures or offers daemon startup, reports daemon-backed posture, and keeps `--verify` / `--json` non-mutating and non-interactive.
+- **Expected Outcome:** `anvil start` configures protection, ensures the per-user daemon by default (tiered auto-start with explicit `--no-daemon` opt-out per the accepted ADR-082 posture), reports the resulting daemon-backed posture, and keeps `--verify` / `--json` non-mutating and non-interactive.
 - **Validation:** Activation tests cover daemon absent, daemon live, daemon ensure failure, `--verify`, `--json`, and repair-hint rendering.
 - **Files:** `crates/anvil-cli/src/commands/start.rs`, `crates/anvil-cli/src/activation/**`, `crates/anvil-cli/src/commands/status*.rs`, related start/status tests
 - **Dependencies:** DLIFE-001, DLIFE-002
@@ -114,7 +115,7 @@ operator/debugging surface.
 
 ### DLIFE-004: Make `anvil watch` start or offer daemon startup by default
 
-- **Status:** Blocked
+- **Status:** Proposed
 - **Intent:** Close the fallback-only gap for bare `anvil watch` while preserving explicit opt-out and machine-readable behaviour.
 - **Expected Outcome:** Bare `anvil watch` follows the accepted lifecycle posture when no daemon answers; `--no-daemon` and `ANVIL_WATCH_DAEMON=0` never start or prompt; `--json` and headless modes are deterministic and parse-safe.
 - **Validation:** Watch routing tests cover live daemon, absent daemon with startup allowed, absent daemon with startup disabled, daemon startup failure, JSON mode, non-TTY mode, and forced/disabled environment values.
