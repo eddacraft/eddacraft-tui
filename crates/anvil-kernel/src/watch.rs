@@ -7,9 +7,11 @@ use std::thread;
 use anvil_kernel_types::{EngineEvent, EngineId, ErrorCode};
 use rayon::prelude::*;
 
-use crate::graph::{SymbolGraph, annotate_trust, re_resolve_imports, update_file};
+use crate::graph::{
+    SymbolGraph, annotate_trust, re_resolve_imports, re_resolve_reexports, update_file,
+};
 use crate::parser::Parser;
-use crate::parser::extract::{FileSymbols, ImportEdge, extract_symbols};
+use crate::parser::extract::{FileSymbols, ImportEdge, ReexportEdge, extract_symbols};
 use crate::policy::config::ArchitectureConfig;
 use crate::policy::engine::PolicyEngine;
 use crate::policy::invariants::cross_layer::CrossLayerViolation;
@@ -80,6 +82,11 @@ struct WatchState {
     parser: Parser,
     graph: SymbolGraph,
     all_imports: Vec<ImportEdge>,
+    /// Live re-export edges keyed by `from_file` (GV2-031) — the re-export
+    /// analogue of `all_imports`, retried by `re_resolve_reexports` so a
+    /// forward-referenced re-export chain resolves and the certify privilege
+    /// diff sees a re-exported privileged module.
+    all_reexports: Vec<ReexportEdge>,
     /// Monotonic ID counter. Previously this was recomputed by scanning
     /// every node in the graph on every file-change event
     /// (`node_weights().map(|s| s.id).max()`), which is O(|symbols|) per
@@ -105,6 +112,7 @@ impl WatchState {
             parser: Parser::new(),
             graph: SymbolGraph::new(),
             all_imports: Vec::new(),
+            all_reexports: Vec::new(),
             next_id: 0,
             engine,
             file_count: 0,
@@ -259,6 +267,7 @@ fn build_initial_graph(
         }
         let rel_str = rel_path.to_string_lossy().to_string();
         state.all_imports.extend(file_symbols.imports.clone());
+        state.all_reexports.extend(file_symbols.reexports.clone());
         update_file(&mut state.graph, file_symbols);
         // update_file may create synthetic external/module nodes when
         // resolving bare imports (axios, node:fs) or side-effect-only
@@ -271,6 +280,7 @@ fn build_initial_graph(
     }
 
     re_resolve_imports(&mut state.graph, &state.all_imports);
+    re_resolve_reexports(&mut state.graph, &state.all_reexports);
     annotate_trust(&mut state.graph, &state.all_imports);
 
     // Initial-scan snapshot: no single changed file — the CLI skips dispatch
@@ -396,6 +406,7 @@ fn process_change(
                 state.file_count = state.file_count.saturating_sub(1);
                 // Remove stale imports for the deleted file
                 state.all_imports.retain(|i| i.from_file != rel_str);
+                state.all_reexports.retain(|r| r.from_file != rel_str);
                 annotate_trust(&mut state.graph, &state.all_imports);
                 // Delete-driven snapshot (only emitted when the deleted file
                 // had tracked symbols): `None` so the CLI re-walks with `--all`
@@ -424,6 +435,7 @@ fn process_change(
                     if !removed.removed_symbols.is_empty() {
                         state.file_count = state.file_count.saturating_sub(1);
                         state.all_imports.retain(|i| i.from_file != rel_str);
+                        state.all_reexports.retain(|r| r.from_file != rel_str);
                         annotate_trust(&mut state.graph, &state.all_imports);
                         // Rename-away (old path vanished): `None` re-walk, same
                         // rationale as a delete.
@@ -456,6 +468,7 @@ fn process_change(
                 extract_symbols(&parse_result.tree, &content, rel_path, state.next_id);
             let symbol_count = file_symbols.symbols.len() as u64;
             let new_imports = file_symbols.imports.clone();
+            let new_reexports = file_symbols.reexports.clone();
             let was_tracked = state.tracked_files.contains(&rel_str);
             let base_id = state.next_id;
             let delta = update_file(&mut state.graph, file_symbols);
@@ -464,6 +477,11 @@ fn process_change(
             state.all_imports.retain(|i| i.from_file != rel_str);
             state.all_imports.extend(new_imports);
             re_resolve_imports(&mut state.graph, &state.all_imports);
+            // GV2-031: same maintenance for re-export edges so a re-exported
+            // privileged module stays visible to the certify privilege diff.
+            state.all_reexports.retain(|r| r.from_file != rel_str);
+            state.all_reexports.extend(new_reexports);
+            re_resolve_reexports(&mut state.graph, &state.all_reexports);
             // Sync after update_file AND re_resolve_imports — both may have
             // added synthetic external nodes via graph.next_id(). Without this,
             // the next change event re-uses ids already claimed by externals

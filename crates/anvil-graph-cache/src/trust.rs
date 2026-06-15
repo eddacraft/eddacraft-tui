@@ -1,10 +1,10 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
 use anvil_kernel_types::{
-    EvidenceKind, ImportEdge, OverrideSource, PolicyEvidence, PolicyProfile, SideEffectSurface,
-    SymbolIdentity, SymbolKind, TrustLevel, Visibility,
+    EdgeType, EvidenceKind, ImportEdge, OverrideSource, PolicyEvidence, PolicyProfile,
+    SideEffectSurface, SymbolIdentity, SymbolKind, TrustLevel, Visibility,
 };
 
 use super::incremental::{GraphDelta, NodeChange};
@@ -35,6 +35,115 @@ pub(crate) fn is_privileged_import(source: &str) -> bool {
     PRIVILEGED_MODULES.contains(&token)
 }
 
+/// Collect the privileged external module specifiers a file reaches through
+/// re-export edges, transitively (GV2-031).
+///
+/// Walks `EdgeType::Reexports` edges starting from `file`'s symbols. A target
+/// that is a synthetic external privileged module node (`node:fs`, …, the kind
+/// [`resolve_import`](crate::incremental) stamps for a bare specifier) is
+/// collected; a target in another *project* file is followed, so a chain
+/// `a → b → node:fs` (`b` re-exports `node:fs`, `a` re-exports `b`) attributes
+/// the privileged surface to `a` as well as `b`. A wildcard re-export
+/// (`export * from …`) carries through unchanged — the carrier is a file→module
+/// edge regardless of `exported_name`. The result is a [`BTreeSet`] for
+/// deterministic ordering, and a visited-file set bounds re-export cycles.
+///
+/// Both `annotate_trust` (to stamp the re-exporting file `Privileged`) and
+/// `certify::export_surface_diff` (to add the module to the privileged-surface
+/// diff) use this, so the trust pass and the certify diff stay consistent — the
+/// same shared blind spot the GV2-029 review found in the import path.
+pub(crate) fn reexported_privileged_modules(graph: &SymbolGraph, file: &str) -> BTreeSet<String> {
+    let mut found: BTreeSet<String> = BTreeSet::new();
+    let mut visited: BTreeSet<String> = BTreeSet::new();
+    let mut queue: Vec<String> = vec![file.to_string()];
+
+    while let Some(current) = queue.pop() {
+        if !visited.insert(current.clone()) {
+            continue;
+        }
+        for symbol in graph.symbols_in_file(&current) {
+            for edge in graph.outgoing_edges(symbol.id) {
+                if edge.edge_type != EdgeType::Reexports {
+                    continue;
+                }
+                let Some(target) = graph.get_symbol(edge.to) else {
+                    continue;
+                };
+                if target.kind == SymbolKind::Module
+                    && target.trust_level == TrustLevel::External
+                    && is_privileged_import(&target.file)
+                {
+                    found.insert(target.file.clone());
+                } else if !visited.contains(&target.file) {
+                    queue.push(target.file.clone());
+                }
+            }
+        }
+    }
+    found
+}
+
+/// The set of files that reach a privileged external module through re-export
+/// edges, transitively (GV2-031) — computed in a single graph pass.
+///
+/// This is the whole-graph companion to [`reexported_privileged_modules`] (which
+/// answers the same question for *one* file). `annotate_trust` runs on every
+/// save over the whole warm graph, so calling the per-file walk once per file
+/// would be O(files²) on a re-export-heavy graph (barrel files). Instead this
+/// scans every `Reexports` edge once to build the file-level re-export graph,
+/// seeds the files that re-export a privileged module directly, then propagates
+/// privilege backwards along re-export edges to a fixpoint — O(nodes + re-export
+/// edges). A `from_file == to_file` self-edge is ignored (it cannot widen reach).
+fn reexport_privileged_files(graph: &SymbolGraph) -> HashSet<String> {
+    let mut privileged: HashSet<String> = HashSet::new();
+    // `re_exported_by[t]` = files that re-export file `t` (reverse edges).
+    let mut re_exported_by: HashMap<String, Vec<String>> = HashMap::new();
+    let mut worklist: Vec<String> = Vec::new();
+
+    for node in graph.inner().node_weights() {
+        for edge in graph.outgoing_edges(node.id) {
+            if edge.edge_type != EdgeType::Reexports {
+                continue;
+            }
+            let Some(target) = graph.get_symbol(edge.to) else {
+                continue;
+            };
+            if target.file == node.file {
+                continue;
+            }
+            if target.kind == SymbolKind::Module
+                && target.trust_level == TrustLevel::External
+                && is_privileged_import(&target.file)
+            {
+                if privileged.insert(node.file.clone()) {
+                    worklist.push(node.file.clone());
+                }
+            } else {
+                re_exported_by
+                    .entry(target.file.clone())
+                    .or_default()
+                    .push(node.file.clone());
+            }
+        }
+    }
+
+    // Backward propagation: a file that re-exports a privileged file is itself
+    // privileged. The visited guard (`insert` returns false on revisit) bounds
+    // re-export cycles.
+    while let Some(file) = worklist.pop() {
+        if let Some(sources) = re_exported_by.get(&file) {
+            for source in sources {
+                if !privileged.contains(source) {
+                    let source = source.clone();
+                    privileged.insert(source.clone());
+                    worklist.push(source);
+                }
+            }
+        }
+    }
+    privileged
+}
+
 /// Annotate trust levels on all symbols in the graph based on heuristics.
 ///
 /// This is a best-effort pass -- heuristics can be overridden by configuration.
@@ -59,6 +168,14 @@ pub fn annotate_trust(graph: &mut SymbolGraph, imports: &[ImportEdge]) {
             .collect()
     };
 
+    // GV2-031: a file that re-exports a privileged module (directly or through a
+    // re-export chain) is privileged too, even though no `ImportEdge` names it.
+    // Read off the lifted `Reexports` edges, which `update_file`/
+    // `re_resolve_reexports` have already placed in the graph by the time the
+    // certify path calls `annotate_trust`. One whole-graph pass, not a per-file
+    // walk (see `reexport_privileged_files`).
+    let reexport_privileged = reexport_privileged_files(graph);
+
     for (id, file, visibility) in symbol_info {
         // Preserve TrustLevel::External on synthetic external module nodes created
         // by resolve_import — re-classifying them as Boundary would disable the
@@ -73,7 +190,9 @@ pub fn annotate_trust(graph: &mut SymbolGraph, imports: &[ImportEdge]) {
             continue;
         }
 
-        let trust = if privileged_files.contains(file.as_str()) {
+        let trust = if privileged_files.contains(file.as_str())
+            || reexport_privileged.contains(file.as_str())
+        {
             TrustLevel::Privileged
         } else if visibility == Visibility::Public {
             TrustLevel::Boundary
@@ -861,5 +980,106 @@ mod tests {
             2,
             "posture_delta sees the config-driven change too"
         );
+    }
+
+    // --- GV2-031: re-export privilege ---
+
+    fn external_module(id: u64, spec: &str) -> SymbolNode {
+        SymbolNode {
+            id,
+            kind: SymbolKind::Module,
+            name: spec.to_string(),
+            visibility: Visibility::Public,
+            file: spec.to_string(),
+            trust_level: TrustLevel::External,
+        }
+    }
+
+    fn add_reexport(g: &mut SymbolGraph, from: u64, to: u64) {
+        g.add_edge(anvil_kernel_types::SymbolEdge {
+            from,
+            to,
+            edge_type: EdgeType::Reexports,
+        })
+        .unwrap();
+    }
+
+    #[test]
+    fn direct_reexport_of_privileged_module_marks_file_privileged() {
+        let mut g = SymbolGraph::new();
+        g.add_symbol(make_symbol(1, "api", "barrel.ts", Visibility::Public))
+            .unwrap();
+        g.add_symbol(external_module(2, "node:fs")).unwrap();
+        add_reexport(&mut g, 1, 2);
+
+        // No ImportEdge names node:fs — the privilege is reachable only via the
+        // re-export edge.
+        annotate_trust(&mut g, &[]);
+
+        assert_eq!(
+            g.get_symbol(1).unwrap().trust_level,
+            TrustLevel::Privileged,
+            "a file re-exporting node:fs must be classified Privileged"
+        );
+    }
+
+    #[test]
+    fn transitive_reexport_chain_marks_file_privileged() {
+        let mut g = SymbolGraph::new();
+        // barrel.ts re-exports mid.ts; mid.ts re-exports node:fs.
+        g.add_symbol(make_symbol(1, "api", "barrel.ts", Visibility::Public))
+            .unwrap();
+        g.add_symbol(make_symbol(2, "mid", "mid.ts", Visibility::Public))
+            .unwrap();
+        g.add_symbol(external_module(3, "node:fs")).unwrap();
+        add_reexport(&mut g, 1, 2);
+        add_reexport(&mut g, 2, 3);
+
+        annotate_trust(&mut g, &[]);
+
+        assert_eq!(
+            g.get_symbol(1).unwrap().trust_level,
+            TrustLevel::Privileged,
+            "barrel re-exporting an intermediary that re-exports node:fs is Privileged"
+        );
+        assert_eq!(
+            g.get_symbol(2).unwrap().trust_level,
+            TrustLevel::Privileged,
+            "the intermediary itself is Privileged"
+        );
+    }
+
+    #[test]
+    fn benign_local_reexport_does_not_mark_file_privileged() {
+        let mut g = SymbolGraph::new();
+        g.add_symbol(make_symbol(1, "api", "barrel.ts", Visibility::Public))
+            .unwrap();
+        g.add_symbol(make_symbol(2, "helper", "local.ts", Visibility::Public))
+            .unwrap();
+        add_reexport(&mut g, 1, 2);
+
+        annotate_trust(&mut g, &[]);
+
+        // A public symbol with no privileged reach is Boundary, never Privileged.
+        assert_eq!(
+            g.get_symbol(1).unwrap().trust_level,
+            TrustLevel::Boundary,
+            "a benign local re-export must not escalate to Privileged"
+        );
+    }
+
+    #[test]
+    fn reexport_cycle_terminates() {
+        // a.ts ⇄ b.ts re-export each other (no privileged target): the walk must
+        // terminate via the visited-file guard rather than loop forever.
+        let mut g = SymbolGraph::new();
+        g.add_symbol(make_symbol(1, "a", "a.ts", Visibility::Public))
+            .unwrap();
+        g.add_symbol(make_symbol(2, "b", "b.ts", Visibility::Public))
+            .unwrap();
+        add_reexport(&mut g, 1, 2);
+        add_reexport(&mut g, 2, 1);
+
+        assert!(reexported_privileged_modules(&g, "a.ts").is_empty());
     }
 }

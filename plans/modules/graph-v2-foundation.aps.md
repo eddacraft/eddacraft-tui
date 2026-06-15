@@ -822,7 +822,7 @@ Change status to **Ready** when:
 
 #### GV2-031: Lift re-export edges so transitive privilege is visible
 
-- **Status:** Ready (promoted 2026-06-15 — NBI rank 1 readiness pass; internal substrate, GV2-029 dep Merged, not behind ADR-075 GCTX egress gate)
+- **Status:** In Progress (picked up 2026-06-15 via dev-workflow on `feat/gv2-031-reexport`; promoted Ready earlier same day — NBI rank 1 readiness pass; internal substrate, GV2-029 dep Merged, not behind ADR-075 GCTX egress gate)
 - **Intent:** `FileSymbols.reexports` is never lifted into the `SymbolGraph` —
   `update_file` inserts `Imports` edges only, so the `EdgeType::Reexports`
   variant is modelled but never produced. A privileged capability reached via

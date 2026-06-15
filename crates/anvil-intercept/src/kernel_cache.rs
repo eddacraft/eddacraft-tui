@@ -56,10 +56,10 @@ use std::sync::Mutex;
 use anvil_graph_cache::certify::ChangeKind;
 use anvil_graph_cache::{
     DependencyGraph, GraphDelta, GraphRegistry, SymbolGraph, TrustGraph, annotate_trust,
-    re_resolve_imports_tracked, remove_file, update_file,
+    re_resolve_imports_tracked, re_resolve_reexports, remove_file, update_file,
 };
 use anvil_intercept_proto::protocol::StaleReason;
-use anvil_kernel_types::{EdgeType, FileSymbols, ImportEdge};
+use anvil_kernel_types::{EdgeType, FileSymbols, ImportEdge, ReexportEdge};
 
 use crate::rule_cache::WorktreeKey;
 
@@ -93,6 +93,15 @@ struct Entry {
     /// miss cross-file edges the cold rebuild resolves, and `dependents_of`
     /// would under-report importers (a false-clean certify hazard).
     all_imports: Vec<ImportEdge>,
+    /// Every live re-export edge in the worktree, keyed by `from_file` (GV2-031).
+    /// The re-export analogue of `all_imports`: `update_file` lifts a re-export
+    /// into a `Reexports` edge only when its target file is already in the graph,
+    /// so a forward reference (`export * from './intermediary'` saved before the
+    /// intermediary) leaves the edge unresolved. Re-running `re_resolve_reexports`
+    /// against this accumulator after each delta retries those, so a privileged
+    /// capability reached through a re-export chain stays visible to the certify
+    /// privilege diff regardless of save order.
+    all_reexports: Vec<ReexportEdge>,
     /// Generation at this entry's most recent access; the lowest in the map is
     /// the LRU victim.
     last_used: u64,
@@ -314,6 +323,7 @@ impl KernelGraphCache {
             sym: SymbolGraph::new(),
             dep: DependencyGraph::new(),
             all_imports: Vec::new(),
+            all_reexports: Vec::new(),
             last_used: recency,
         });
         entry.last_used = recency;
@@ -322,6 +332,7 @@ impl KernelGraphCache {
         let delta = if change == ChangeKind::Delete {
             let delta = remove_file(&mut entry.sym, &file);
             entry.all_imports.retain(|i| i.from_file != file);
+            entry.all_reexports.retain(|r| r.from_file != file);
             // GV2-011: a delete drops the file in both directions; no re-derive.
             // `remove_file` clears the reverse index, so dependents that imported
             // it correctly lose the edge.
@@ -348,6 +359,7 @@ impl KernelGraphCache {
             //    files that re-bind to a new target (e.g. the file a specifier
             //    resolved to was deleted, so a different candidate now wins).
             let new_imports = symbols.imports.clone();
+            let new_reexports = symbols.reexports.clone();
             let mut affected: BTreeSet<String> = entry
                 .dep
                 .dependents_of(&file)
@@ -358,6 +370,14 @@ impl KernelGraphCache {
             let delta = update_file(&mut entry.sym, symbols);
             entry.all_imports.retain(|i| i.from_file != file);
             entry.all_imports.extend(new_imports);
+            // GV2-031: maintain the re-export accumulator in lockstep with
+            // imports and retry forward-referenced re-exports, so the warm
+            // graph's `Reexports` edges match a cold rebuild. Re-exports feed
+            // only the certify privilege diff, never the `Imports`-only
+            // dependency graph, so no `refresh_file_dependencies` follow-up.
+            entry.all_reexports.retain(|r| r.from_file != file);
+            entry.all_reexports.extend(new_reexports);
+            re_resolve_reexports(&mut entry.sym, &entry.all_reexports);
             let readded = re_resolve_imports_tracked(&mut entry.sym, &entry.all_imports);
             for (from, _to, _ty) in &readded {
                 if let Some(symbol) = entry.sym.get_symbol(*from) {
@@ -426,13 +446,16 @@ fn evict_lru(inner: &mut Inner) {
 /// edges) — the local neighbourhood, never the whole graph. Intra-file edges
 /// are skipped, matching the cold rebuild.
 ///
-/// The dependency graph today is built from `EdgeType::Imports` edges only —
-/// consistent with the cold oracle [`derive_dependency_graph`] and the symbol
-/// graph, which carries only `Imports` edges (`FileSymbols.reexports` is not yet
-/// lifted into the graph). If a future change lifts another dependency-bearing
-/// edge kind (e.g. `EdgeType::Reexports`) into the symbol graph, this filter,
-/// `derive_dependency_graph`, and `re_resolve_imports` must be updated in
-/// lockstep or the incremental graph will diverge from the cold rebuild.
+/// The dependency graph is built from `EdgeType::Imports` edges only —
+/// consistent with the cold oracle [`derive_dependency_graph`]. The symbol graph
+/// now also carries `EdgeType::Reexports` edges (GV2-031), but those are
+/// deliberately excluded here: a re-export widens the *privilege* surface, which
+/// the certify diff reads directly off the symbol graph, and is not a module
+/// dependency for impact-closure purposes. This filter and
+/// `derive_dependency_graph` must stay `Imports`-only in lockstep, and the
+/// re-export edge maintenance (`update_file` lift + `re_resolve_reexports` over
+/// the `all_reexports` accumulator) must mirror the import path, or the
+/// incremental graph will diverge from the cold rebuild.
 fn refresh_file_dependencies(dep: &mut DependencyGraph, sym: &SymbolGraph, file: &str) {
     let mut targets: Vec<String> = Vec::new();
     for symbol in sym.symbols_in_file(file) {
@@ -818,6 +841,162 @@ mod tests {
         );
     }
 
+    /// A `FileSymbols` carrying both imports and `(exported_name, to_source)`
+    /// re-exports — the GV2-031 re-export fixtures. One public function so the
+    /// file has a representative node for its outgoing edges.
+    fn file_symbols_reexporting(
+        file: &str,
+        names: &[&str],
+        imports: &[&str],
+        reexports: &[(&str, &str)],
+        base: u64,
+    ) -> FileSymbols {
+        let mut fs = file_symbols(file, names, imports, base);
+        fs.reexports = reexports
+            .iter()
+            .map(|(name, source)| anvil_kernel_types::ReexportEdge {
+                from_file: file.to_string(),
+                exported_name: (*name).to_string(),
+                to_source: (*source).to_string(),
+                line: 0,
+            })
+            .collect();
+        fs
+    }
+
+    /// GV2-031: a file that newly re-exports a privileged module
+    /// (`export * from 'node:fs'`) must not certify clean — the same transitive
+    /// privilege bypass `annotate_trust`/certify missed for direct imports
+    /// before, now closed for re-exports. The re-export lifts to a `Reexports`
+    /// edge that `export_surface_diff` follows to `node:fs`.
+    #[test]
+    fn reexport_privilege_withholds_clean_on_direct_node_fs_reexport() {
+        use anvil_graph_cache::certify::{Certifiability, CertifyStale, certify};
+
+        let cache = KernelGraphCache::new();
+        let k = key("reexport-direct");
+
+        // Baseline: a plain barrel file, no re-export of anything privileged.
+        cache.apply_delta(
+            &k,
+            ChangeKind::Create,
+            file_symbols_reexporting("barrel.ts", &["api"], &[], &[], 0),
+        );
+        // The edit adds `export * from 'node:fs'`.
+        let outcome = cache.apply_delta(
+            &k,
+            ChangeKind::ContentModify,
+            file_symbols_reexporting("barrel.ts", &["api"], &[], &[("*", "node:fs")], 10),
+        );
+
+        let verdict = cache
+            .with_graphs(&k, |sym, dep| {
+                certify(sym, dep, &ChangeKind::ContentModify, &outcome.delta, 64, 1)
+            })
+            .expect("warm key present after apply");
+
+        assert!(
+            matches!(
+                verdict,
+                Certifiability::Partial {
+                    reason: CertifyStale::ExportSurfaceChange
+                }
+            ),
+            "a file newly re-exporting node:fs must not certify clean, got {verdict:?}"
+        );
+    }
+
+    /// GV2-031: privilege reached through a re-export *chain*
+    /// (`barrel → intermediary → node:fs`) must not certify clean. The transitive
+    /// walk in `reexported_privileged_modules` attributes `node:fs` to `barrel`
+    /// even though `barrel` only re-exports a local intermediary.
+    #[test]
+    fn reexport_privilege_withholds_clean_via_intermediary_reexport() {
+        use anvil_graph_cache::certify::{Certifiability, CertifyStale, certify};
+
+        let cache = KernelGraphCache::new();
+        let k = key("reexport-chain");
+
+        // The intermediary re-exports node:fs; present before the barrel edit so
+        // the relative re-export resolves (re_resolve_reexports also covers the
+        // reverse order).
+        cache.apply_delta(
+            &k,
+            ChangeKind::Create,
+            file_symbols_reexporting("intermediary.ts", &["mid"], &[], &[("*", "node:fs")], 0),
+        );
+        // Baseline barrel: no re-export yet.
+        cache.apply_delta(
+            &k,
+            ChangeKind::Create,
+            file_symbols_reexporting("barrel.ts", &["api"], &[], &[], 100),
+        );
+        // The edit: barrel re-exports the intermediary — a relative re-export
+        // that reaches node:fs only transitively.
+        let outcome = cache.apply_delta(
+            &k,
+            ChangeKind::ContentModify,
+            file_symbols_reexporting("barrel.ts", &["api"], &[], &[("*", "./intermediary")], 200),
+        );
+
+        let verdict = cache
+            .with_graphs(&k, |sym, dep| {
+                certify(sym, dep, &ChangeKind::ContentModify, &outcome.delta, 64, 1)
+            })
+            .expect("warm key present after apply");
+
+        assert!(
+            matches!(
+                verdict,
+                Certifiability::Partial {
+                    reason: CertifyStale::ExportSurfaceChange
+                }
+            ),
+            "a file re-exporting an intermediary that re-exports node:fs must not \
+             certify clean, got {verdict:?}"
+        );
+    }
+
+    /// GV2-031: the negative control — a benign re-export of a local module
+    /// (`export * from './local'`) widens no privileged surface and still
+    /// certifies clean. Guards against over-firing on every re-export.
+    #[test]
+    fn reexport_privilege_certifies_clean_on_benign_local_reexport() {
+        use anvil_graph_cache::certify::{Certifiability, certify};
+
+        let cache = KernelGraphCache::new();
+        let k = key("reexport-benign");
+
+        // A plain local module with no privileged access.
+        cache.apply_delta(
+            &k,
+            ChangeKind::Create,
+            file_symbols_reexporting("local.ts", &["helper"], &[], &[], 0),
+        );
+        cache.apply_delta(
+            &k,
+            ChangeKind::Create,
+            file_symbols_reexporting("barrel.ts", &["api"], &[], &[], 100),
+        );
+        // The edit: barrel re-exports the benign local module.
+        let outcome = cache.apply_delta(
+            &k,
+            ChangeKind::ContentModify,
+            file_symbols_reexporting("barrel.ts", &["api"], &[], &[("*", "./local")], 200),
+        );
+
+        let verdict = cache
+            .with_graphs(&k, |sym, dep| {
+                certify(sym, dep, &ChangeKind::ContentModify, &outcome.delta, 64, 1)
+            })
+            .expect("warm key present after apply");
+
+        assert!(
+            matches!(verdict, Certifiability::Certified { .. }),
+            "a benign local re-export must certify clean, got {verdict:?}"
+        );
+    }
+
     #[test]
     fn apply_delta_consumes_fed_file_symbols_not_a_daemon_parse() {
         // The contract: apply_delta takes already-parsed FileSymbols and builds
@@ -1187,13 +1366,28 @@ mod tests {
                         if rng.below(4) == 0 {
                             imports.push("node:fs");
                         }
+                        // GV2-031: 1-in-4 re-export a privileged module directly
+                        // and 1-in-4 re-export the *other* local file, so direct
+                        // and transitive (`a → b → node:fs`) re-export chains —
+                        // including forward references retried by
+                        // `re_resolve_reexports` — are on the parity surface.
+                        let mut reexports: Vec<(&str, &str)> = Vec::new();
+                        if rng.below(4) == 0 {
+                            reexports.push(("*", "node:fs"));
+                        }
+                        if rng.below(4) == 0 {
+                            reexports.push(("*", if base == "a" { "./b" } else { "./a" }));
+                        }
                         let syms: &[&str] = if rng.below(4) == 0 { &[] } else { &["sym"] };
                         let kind = if rng.below(2) == 0 {
                             ChangeKind::Create
                         } else {
                             ChangeKind::ContentModify
                         };
-                        (kind, file_symbols(file, syms, &imports, id_base))
+                        (
+                            kind,
+                            file_symbols_reexporting(file, syms, &imports, &reexports, id_base),
+                        )
                     };
                     id_base += 100;
 
@@ -1206,14 +1400,23 @@ mod tests {
                     // it computed, would see the same `previously_*` baselines).
                     let mut cold = SymbolGraph::new();
                     let mut cold_imports: Vec<ImportEdge> = Vec::new();
+                    let mut cold_reexports: Vec<anvil_kernel_types::ReexportEdge> = Vec::new();
                     for (change, syms) in &steps {
                         let f = syms.file.clone();
                         if *change == ChangeKind::Delete {
                             remove_file(&mut cold, &f);
                             cold_imports.retain(|i| i.from_file != f);
+                            cold_reexports.retain(|r| r.from_file != f);
                         } else {
                             let new_imports = syms.imports.clone();
+                            let new_reexports = syms.reexports.clone();
                             update_file(&mut cold, syms.clone());
+                            // GV2-031: mirror the warm path exactly — re-export
+                            // accumulator + re_resolve_reexports before imports —
+                            // so the parity proof covers `Reexports` edges.
+                            cold_reexports.retain(|r| r.from_file != f);
+                            cold_reexports.extend(new_reexports);
+                            re_resolve_reexports(&mut cold, &cold_reexports);
                             cold_imports.retain(|i| i.from_file != f);
                             cold_imports.extend(new_imports);
                             re_resolve_imports(&mut cold, &cold_imports);

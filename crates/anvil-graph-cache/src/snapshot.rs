@@ -787,6 +787,7 @@ mod tests {
             "previously_privileged",
             "previously_boundary",
             "previously_imported",
+            "previously_reexported_privileged",
         ] {
             assert!(
                 !obj.contains_key(absent),

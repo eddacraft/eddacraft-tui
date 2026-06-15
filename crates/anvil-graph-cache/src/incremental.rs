@@ -2,8 +2,8 @@ use std::collections::{BTreeSet, HashSet};
 use std::path::Path;
 
 use anvil_kernel_types::{
-    EdgeType, FileSymbols, ImportEdge, SymbolIdentity, SymbolKind, SymbolNode, TrustLevel,
-    Visibility,
+    EdgeType, FileSymbols, ImportEdge, ReexportEdge, SymbolIdentity, SymbolKind, SymbolNode,
+    TrustLevel, Visibility,
 };
 
 use super::symbol_graph::SymbolGraph;
@@ -105,6 +105,14 @@ pub struct GraphDelta {
     pub errors: Vec<String>,
     /// Import sources that existed before this update (for new-dep detection).
     pub previously_imported: HashSet<String>,
+    /// Privileged external module specifiers (`node:fs`, …) this file already
+    /// reached through re-export edges before the update — transitively, via
+    /// [`crate::trust::reexported_privileged_modules`] (GV2-031). The certify
+    /// privileged-surface diff subtracts this baseline so a pre-existing
+    /// privileged re-export does not re-trip on an unrelated edit, keeping the
+    /// `newly_privileged_imports` channel monotone for re-exports exactly as it
+    /// already is for direct imports (`previously_imported`).
+    pub previously_reexported_privileged: HashSet<String>,
     /// Stable identities that were already public before this update (for
     /// API-expansion detection). Keyed by [`SymbolIdentity`] (GV2-002), so
     /// same-`(kind, name)` overloads stay distinct via their ordinal instead
@@ -140,6 +148,7 @@ impl Default for GraphDelta {
             node_changes: Vec::new(),
             errors: Vec::new(),
             previously_imported: HashSet::new(),
+            previously_reexported_privileged: HashSet::new(),
             previously_public: HashSet::new(),
             previously_privileged: HashSet::new(),
             previously_boundary: HashSet::new(),
@@ -182,6 +191,9 @@ struct PriorState {
     previously_privileged: HashSet<SymbolIdentity>,
     previously_boundary: HashSet<SymbolIdentity>,
     previously_imported: HashSet<String>,
+    /// Privileged external modules this file re-exported before the update
+    /// (GV2-031 baseline; see [`GraphDelta::previously_reexported_privileged`]).
+    previously_reexported_privileged: HashSet<String>,
     /// The file's stable identities before the update — for the
     /// changed/removed node-change classification after re-add.
     old_identity_set: HashSet<SymbolIdentity>,
@@ -230,6 +242,14 @@ impl PriorState {
             .filter_map(|e| graph.get_symbol(e.to).map(|s| s.file.clone()))
             .collect();
 
+        // GV2-031: the privileged modules this file already reached via
+        // re-export edges (transitively), captured from the pre-update graph so
+        // the certify diff can stay monotone for re-exports.
+        let previously_reexported_privileged =
+            crate::trust::reexported_privileged_modules(graph, file)
+                .into_iter()
+                .collect();
+
         let mut edge_set: HashSet<(u64, u64, EdgeType)> = HashSet::new();
         for &id in &old_ids {
             for e in graph.outgoing_edges(id) {
@@ -244,10 +264,52 @@ impl PriorState {
             previously_privileged,
             previously_boundary,
             previously_imported,
+            previously_reexported_privileged,
             old_identity_set,
             removed_edges,
         }
     }
+}
+
+/// Lift a file's import and re-export edges from `from` into the graph,
+/// returning the `(from, to, EdgeType)` tuples actually added.
+///
+/// Imports become `Imports` edges; re-exports become `Reexports` edges
+/// (GV2-031). Both resolve their specifier the same way (`resolve_import`): a
+/// bare specifier (`node:fs`) becomes a synthetic external module node, a
+/// relative one resolves to a known file. The `Reexports` tag is what lets
+/// `annotate_trust` and `certify::export_surface_diff` follow a re-export to a
+/// privileged module — a capability reached via `export * from 'node:fs'` is no
+/// longer invisible. Forward references (target file not yet parsed) are retried
+/// by [`re_resolve_imports`]/[`re_resolve_reexports`].
+fn lift_file_edges(
+    graph: &mut SymbolGraph,
+    from: u64,
+    file: &str,
+    imports: Vec<ImportEdge>,
+    reexports: Vec<ReexportEdge>,
+    known_files: &[String],
+) -> Vec<(u64, u64, EdgeType)> {
+    let mut added = Vec::new();
+    let mut lift = |graph: &mut SymbolGraph, to_source: &str, edge_type: EdgeType| {
+        if let Some(to) = resolve_import(to_source, file, known_files, graph) {
+            let edge = anvil_kernel_types::SymbolEdge {
+                from,
+                to,
+                edge_type,
+            };
+            if graph.add_edge(edge).is_ok() {
+                added.push((from, to, edge_type));
+            }
+        }
+    };
+    for import in imports {
+        lift(graph, &import.to_source, EdgeType::Imports);
+    }
+    for reexport in reexports {
+        lift(graph, &reexport.to_source, EdgeType::Reexports);
+    }
+    added
 }
 
 /// Apply an incremental update to the graph for a single file.
@@ -266,6 +328,7 @@ pub fn update_file(graph: &mut SymbolGraph, new_symbols: FileSymbols) -> GraphDe
         previously_privileged,
         previously_boundary,
         previously_imported,
+        previously_reexported_privileged,
         old_identity_set,
         removed_edges,
     } = before;
@@ -303,7 +366,7 @@ pub fn update_file(graph: &mut SymbolGraph, new_symbols: FileSymbols) -> GraphDe
     // as a sentinel here.
     let from_id: Option<u64> = if let Some(&id) = added_ids.first() {
         Some(id)
-    } else if !new_symbols.imports.is_empty() {
+    } else if !new_symbols.imports.is_empty() || !new_symbols.reexports.is_empty() {
         let synthetic_id = graph.next_id();
         let synthetic = SymbolNode {
             id: synthetic_id,
@@ -323,24 +386,17 @@ pub fn update_file(graph: &mut SymbolGraph, new_symbols: FileSymbols) -> GraphDe
         None
     };
 
-    let mut added_edges = Vec::new();
-    if let Some(from) = from_id {
-        for import in new_symbols.imports {
-            // Resolve the import specifier to a known file path
-            let to_id = resolve_import(&import.to_source, &file, &known_files, graph);
-
-            if let Some(to) = to_id {
-                let edge = anvil_kernel_types::SymbolEdge {
-                    from,
-                    to,
-                    edge_type: EdgeType::Imports,
-                };
-                if graph.add_edge(edge).is_ok() {
-                    added_edges.push((from, to, EdgeType::Imports));
-                }
-            }
-        }
-    }
+    let added_edges = match from_id {
+        Some(from) => lift_file_edges(
+            graph,
+            from,
+            &file,
+            new_symbols.imports,
+            new_symbols.reexports,
+            &known_files,
+        ),
+        None => Vec::new(),
+    };
 
     // GV2-003: classify the file's nodes against their prior identities.
     // `update_file` removes-then-re-adds, so a body edit re-inserts the same
@@ -370,6 +426,7 @@ pub fn update_file(graph: &mut SymbolGraph, new_symbols: FileSymbols) -> GraphDe
         node_changes,
         errors,
         previously_imported,
+        previously_reexported_privileged,
         previously_public,
         previously_privileged,
         previously_boundary,
@@ -584,6 +641,65 @@ fn re_resolve_imports_inner(
     }
 }
 
+/// Re-resolve re-export edges whose target file had not been parsed when the
+/// re-exporting file was first processed (GV2-031).
+///
+/// Mirrors [`re_resolve_imports`] for `EdgeType::Reexports`: a relative
+/// re-export (`export * from './intermediary'`) to a forward-referenced file
+/// resolves once that file lands, so a privileged capability reached through a
+/// re-export chain (`a → b → node:fs`) becomes visible regardless of the order
+/// the files were saved. Bare re-exports (`export * from 'node:fs'`) already
+/// resolve eagerly in [`update_file`] via a synthetic external node, so this is
+/// load-bearing only for the relative-intermediary chain. Like
+/// [`re_resolve_imports`], it only ever *adds* edges (a re-export that ceased to
+/// resolve is dropped by `remove_file`/`update_file` removing the incident
+/// symbols, not here) and never feeds the `Imports`-only dependency graph.
+///
+/// There is deliberately no `re_resolve_reexports_tracked`: the tracked import
+/// variant exists to refresh the dependency graph on re-bound edges, and
+/// re-exports never feed that graph. A future re-export-driven feature that
+/// needs the added-edge list should add the tracked variant then.
+pub fn re_resolve_reexports(graph: &mut SymbolGraph, reexports: &[ReexportEdge]) {
+    let known_files: Vec<String> = graph
+        .inner()
+        .node_weights()
+        .map(|s| s.file.clone())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+
+    for reexport in reexports {
+        let from_id = graph
+            .symbols_in_file(&reexport.from_file)
+            .first()
+            .map(|s| s.id);
+        let Some(from) = from_id else { continue };
+
+        let to_id = resolve_import(
+            &reexport.to_source,
+            &reexport.from_file,
+            &known_files,
+            graph,
+        );
+        let Some(to) = to_id else { continue };
+
+        let already_exists = graph
+            .outgoing_edges(from)
+            .iter()
+            .any(|e| e.to == to && e.edge_type == EdgeType::Reexports);
+        if already_exists {
+            continue;
+        }
+
+        let edge = anvil_kernel_types::SymbolEdge {
+            from,
+            to,
+            edge_type: EdgeType::Reexports,
+        };
+        let _ = graph.add_edge(edge);
+    }
+}
+
 /// Remove a deleted file from the graph entirely.
 ///
 /// GV2-003: reports the removal honestly — `removed_edges` carries the file's
@@ -628,7 +744,9 @@ pub fn remove_file(graph: &mut SymbolGraph, file: &str) -> GraphDelta {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use anvil_kernel_types::{ImportEdge, SymbolKind, SymbolNode, TrustLevel, Visibility};
+    use anvil_kernel_types::{
+        ImportEdge, ReexportEdge, SymbolKind, SymbolNode, TrustLevel, Visibility,
+    };
 
     fn make_file_symbols(file: &str, symbols: Vec<(u64, &str, SymbolKind)>) -> FileSymbols {
         FileSymbols {
@@ -647,6 +765,63 @@ mod tests {
             imports: Vec::new(),
             reexports: Vec::new(),
         }
+    }
+
+    fn reexport(from_file: &str, exported_name: &str, to_source: &str) -> ReexportEdge {
+        ReexportEdge {
+            from_file: from_file.to_string(),
+            exported_name: exported_name.to_string(),
+            to_source: to_source.to_string(),
+            line: 0,
+        }
+    }
+
+    /// GV2-031: `update_file` lifts `FileSymbols.reexports` into `Reexports`
+    /// edges. A bare specifier (`node:fs`) resolves to a synthetic external
+    /// module node, mirroring an import.
+    #[test]
+    fn update_file_lifts_reexports_into_reexport_edges() {
+        let mut g = SymbolGraph::new();
+        let mut syms = make_file_symbols("barrel.ts", vec![(1, "api", SymbolKind::Function)]);
+        syms.reexports = vec![reexport("barrel.ts", "*", "node:fs")];
+
+        let delta = update_file(&mut g, syms);
+
+        let reexport_edges: Vec<_> = delta
+            .added_edges
+            .iter()
+            .filter(|(_, _, ty)| *ty == EdgeType::Reexports)
+            .collect();
+        assert_eq!(
+            reexport_edges.len(),
+            1,
+            "a re-export must lift to exactly one Reexports edge, got {:?}",
+            delta.added_edges
+        );
+        let (_, to, _) = reexport_edges[0];
+        let target = g.get_symbol(*to).expect("re-export target node exists");
+        assert_eq!(target.file, "node:fs");
+        assert_eq!(target.kind, SymbolKind::Module);
+        assert_eq!(target.trust_level, TrustLevel::External);
+    }
+
+    /// GV2-031: a re-export-only module (no symbols, no imports) still gets a
+    /// synthetic source node so the `Reexports` edge is recorded.
+    #[test]
+    fn update_file_lifts_reexports_for_symbolless_module() {
+        let mut g = SymbolGraph::new();
+        let mut syms = make_file_symbols("barrel.ts", vec![]);
+        syms.reexports = vec![reexport("barrel.ts", "*", "node:fs")];
+
+        let delta = update_file(&mut g, syms);
+
+        assert!(
+            delta
+                .added_edges
+                .iter()
+                .any(|(_, _, ty)| *ty == EdgeType::Reexports),
+            "a symbol-less re-export module must still record a Reexports edge"
+        );
     }
 
     #[test]

@@ -293,12 +293,13 @@ pub fn export_surface_diff(sym: &SymbolGraph, delta: &GraphDelta) -> ExportSurfa
     // `is_privileged_import` and falsely withhold. Resolved relative imports
     // never produce an `External` `Module` node, so the guard excludes them.
     //
-    // Known limitation (shared with `annotate_trust` and the kernel
-    // `PrivilegeExpansion` invariant): `FileSymbols.reexports` is not yet lifted
-    // into the graph, so a privileged capability reached via
-    // `export * from 'node:fs'` produces no `Imports` edge and is invisible here.
-    // Closing it needs the graph to carry re-export edges — a separate follow-up.
-    let current_privileged_imports: HashSet<String> = current
+    // GV2-031: re-exports are now lifted into `EdgeType::Reexports` edges, so a
+    // privileged capability reached via `export * from 'node:fs'` (directly or
+    // through a re-export chain) is no longer invisible. `current_privileged`
+    // is the union of two surfaces: privileged modules the file *imports*
+    // (direct `Imports` edges) and privileged modules it *re-exports*
+    // (`reexported_privileged_modules` follows `Reexports` edges transitively).
+    let mut current_privileged: HashSet<String> = current
         .iter()
         .flat_map(|s| sym.outgoing_edges(s.id))
         .filter(|e| e.edge_type == EdgeType::Imports)
@@ -310,9 +311,22 @@ pub fn export_surface_diff(sym: &SymbolGraph, delta: &GraphDelta) -> ExportSurfa
         })
         .map(|t| t.file.clone())
         .collect();
-    let mut newly_privileged_imports: Vec<String> = current_privileged_imports
+    current_privileged.extend(crate::trust::reexported_privileged_modules(
+        sym,
+        &delta.file,
+    ));
+
+    // Monotone add-only diff: a privileged module the file did not reach before
+    // — by import (`previously_imported`) or by re-export
+    // (`previously_reexported_privileged`) — is the escalation. Subtracting both
+    // baselines keeps a pre-existing privileged re-export from re-tripping on an
+    // unrelated edit, matching the import dimension's behaviour.
+    let mut newly_privileged_imports: Vec<String> = current_privileged
         .iter()
-        .filter(|src| !delta.previously_imported.contains(*src))
+        .filter(|src| {
+            !delta.previously_imported.contains(*src)
+                && !delta.previously_reexported_privileged.contains(*src)
+        })
         .cloned()
         .collect();
     newly_privileged_imports.sort();
@@ -872,6 +886,76 @@ mod tests {
         assert!(
             diff.newly_privileged_imports.is_empty(),
             "a relative import to a project file named 'net' must not read as a privileged module"
+        );
+    }
+
+    /// GV2-031: a re-export of a privileged module surfaces in the
+    /// privileged-module diff just like a direct import. `a.ts` re-exports
+    /// `node:fs` via a `Reexports` edge with `node:fs` absent from
+    /// `previously_imported`/`previously_reexported_privileged`.
+    #[test]
+    fn newly_privileged_module_reexport_is_surface_change() {
+        use anvil_kernel_types::{EdgeType, SymbolEdge};
+        let mut sym = sym_with(
+            "a.ts",
+            &[("entry", Visibility::Public, TrustLevel::Unknown)],
+        );
+        sym.add_symbol(SymbolNode {
+            id: 100,
+            kind: SymbolKind::Module,
+            name: "node:fs".to_string(),
+            visibility: Visibility::Public,
+            file: "node:fs".to_string(),
+            trust_level: TrustLevel::External,
+        })
+        .unwrap();
+        sym.add_edge(SymbolEdge {
+            from: 0,
+            to: 100,
+            edge_type: EdgeType::Reexports,
+        })
+        .unwrap();
+
+        let diff = export_surface_diff(&sym, &delta_for("a.ts", &["entry"], &[]));
+        assert_eq!(diff.newly_privileged_imports, vec!["node:fs".to_string()]);
+    }
+
+    /// GV2-031 monotonicity: a privileged module the file *already* re-exported
+    /// (recorded in `previously_reexported_privileged`) does not re-fire on an
+    /// unrelated edit, matching the direct-import baseline behaviour.
+    #[test]
+    fn preexisting_privileged_reexport_does_not_refire() {
+        use anvil_kernel_types::{EdgeType, SymbolEdge};
+        let mut sym = sym_with(
+            "a.ts",
+            &[("entry", Visibility::Public, TrustLevel::Unknown)],
+        );
+        sym.add_symbol(SymbolNode {
+            id: 100,
+            kind: SymbolKind::Module,
+            name: "node:fs".to_string(),
+            visibility: Visibility::Public,
+            file: "node:fs".to_string(),
+            trust_level: TrustLevel::External,
+        })
+        .unwrap();
+        sym.add_edge(SymbolEdge {
+            from: 0,
+            to: 100,
+            edge_type: EdgeType::Reexports,
+        })
+        .unwrap();
+
+        let mut delta = delta_for("a.ts", &["entry"], &[]);
+        delta
+            .previously_reexported_privileged
+            .insert("node:fs".to_string());
+
+        let diff = export_surface_diff(&sym, &delta);
+        assert!(
+            diff.newly_privileged_imports.is_empty(),
+            "a pre-existing privileged re-export must not re-fire, got {:?}",
+            diff.newly_privileged_imports
         );
     }
 
