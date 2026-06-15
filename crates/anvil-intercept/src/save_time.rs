@@ -677,9 +677,11 @@ fn gctx_search_outcome(
                     SearchSymbolsOutcome::Ready(GctxProjector::project(candidates, query))
                 }
                 None => SearchSymbolsOutcome::NotReady {
-                    recovery_hint: "the workspace graph is not yet populated; save a file or \
-                                    request a full scan to warm it"
-                        .to_string(),
+                    recovery_hint: concat!(
+                        "the workspace graph is not yet populated; ",
+                        "save a file or request a full scan to warm it"
+                    )
+                    .to_string(),
                 },
             }
         }
@@ -708,7 +710,7 @@ fn invalid_query_reason(query: &SearchSymbolsQuery) -> Option<String> {
         if file.len() > MAX_FILTER_BYTES {
             return Some("file filter is too long".to_string());
         }
-        if Path::new(file).is_absolute() {
+        if Path::new(file).is_absolute() || has_windows_drive_absolute_prefix(file) {
             return Some("file filter must be a workspace-relative path".to_string());
         }
         if Path::new(file)
@@ -719,6 +721,14 @@ fn invalid_query_reason(query: &SearchSymbolsQuery) -> Option<String> {
         }
     }
     None
+}
+
+fn has_windows_drive_absolute_prefix(path: &str) -> bool {
+    let bytes = path.as_bytes();
+    bytes.len() >= 3
+        && bytes[0].is_ascii_alphabetic()
+        && bytes[1] == b':'
+        && (bytes[2] == b'\\' || bytes[2] == b'/')
 }
 
 /// Canonicalise an already-admitted root for use as the assurance/cache key.
@@ -1357,6 +1367,28 @@ mod tests {
         assert!(
             matches!(resp.outcome, SearchSymbolsOutcome::InvalidQuery { .. }),
             "a `..` file filter must be rejected: {:?}",
+            resp.outcome
+        );
+    }
+
+    /// CE-6: reject Windows drive absolute paths even on Unix runners, because
+    /// the filter contract is workspace-relative across supported platforms.
+    #[test]
+    fn gctx_search_rejects_windows_drive_file_filter() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = state();
+        let mut conn = SaveTimeConn::new(&state);
+        let request = GctxSearchSymbolsRequest {
+            workspace_root: tmp.path().to_string_lossy().into_owned(),
+            query: SearchSymbolsQuery {
+                file: Some("C:/escape/src/lib.rs".to_string()),
+                ..Default::default()
+            },
+        };
+        let resp = conn.search_symbols(&request).expect("admitted");
+        assert!(
+            matches!(resp.outcome, SearchSymbolsOutcome::InvalidQuery { .. }),
+            "a Windows absolute file filter must be rejected: {:?}",
             resp.outcome
         );
     }

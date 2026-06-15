@@ -218,11 +218,30 @@ mod tests {
     /// `trust` would be privilege posture.
     #[test]
     fn symbol_summary_names_no_forbidden_concepts() {
-        let s = serde_json::to_string(&sample_summary()).unwrap();
-        for forbidden in [
-            "span", "byte", "\"text\"", "\"body\"", "snippet", "trust", "content", "\"id\"",
-        ] {
-            assert!(!s.contains(forbidden), "leaked `{forbidden}` in `{s}`");
+        assert_no_forbidden_keys(
+            &serde_json::to_value(sample_summary()).unwrap(),
+            &[
+                "span", "byte", "text", "body", "snippet", "trust", "content", "id",
+            ],
+        );
+    }
+
+    fn assert_no_forbidden_keys(value: &Value, forbidden: &[&str]) {
+        match value {
+            Value::Object(map) => {
+                for key in map.keys() {
+                    assert!(
+                        !forbidden.contains(&key.as_str()),
+                        "leaked forbidden key `{key}` in `{value}`"
+                    );
+                }
+                map.values()
+                    .for_each(|nested| assert_no_forbidden_keys(nested, forbidden));
+            }
+            Value::Array(items) => items
+                .iter()
+                .for_each(|nested| assert_no_forbidden_keys(nested, forbidden)),
+            _ => {}
         }
     }
 
@@ -255,19 +274,12 @@ mod tests {
     /// The full projection wire shape is also closed to the forbidden concepts.
     #[test]
     fn projection_names_no_forbidden_concepts() {
-        let s = serde_json::to_string(&sample_projection()).unwrap();
-        for forbidden in [
-            "span",
-            "byte",
-            "\"text\"",
-            "\"body\"",
-            "snippet",
-            "trust",
-            "\"content\"",
-            "\"id\"",
-        ] {
-            assert!(!s.contains(forbidden), "leaked `{forbidden}` in `{s}`");
-        }
+        assert_no_forbidden_keys(
+            &serde_json::to_value(sample_projection()).unwrap(),
+            &[
+                "span", "byte", "text", "body", "snippet", "trust", "content", "id",
+            ],
+        );
     }
 
     // --- round-trips ---
