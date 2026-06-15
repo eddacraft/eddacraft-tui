@@ -214,18 +214,46 @@ blockers — they are resolved during execution, not before promotion:
 
 ### Phase 1 — Graph Query Tools
 
+> **Graph-handle access fixed by [ADR-084](../decisions/084-gctx-graph-handle-access.md)
+> (Proposed 2026-06-15, planning council `plan-f211c211`).** GCTX tools query the
+> running `anvil-intercept` daemon over a new read-only `anvil/gctx/*` RPC
+> (daemon-required; degrade via the existing `WorkspaceAssurance`/CE-7 signal — no
+> per-call construction, no whole-file fallback). The CE-5 `GctxProjector` runs
+> **daemon-side** (the RPC response *is* the sealed egress DTO) across two new
+> crates: `anvil-gctx-types` (graph-free value DTOs + the no-leak test, shared by
+> proto + MCP) and `anvil-gctx-egress` (daemon-only projector). GCTX uses its own
+> `GctxDispatch`, not the save-time path. **Thin vertical slice first**:
+> GCTX-010 builds this spine end-to-end. Phase 2 = a lazily-spawned dedicated
+> assistant graph daemon as a pluggable provider behind the same RPC contract,
+> plus the snippet surfaces. The items below stay **Draft** until ADR-084 is
+> Accepted and GCTX-010's binding conditions C1–C5 are written into item text.
+
 #### GCTX-010: `anvil_search_symbols` tool
 
-- **Status:** Draft
+- **Status:** Draft — unblocked in architecture by
+  [ADR-084](../decisions/084-gctx-graph-handle-access.md) (daemon-RPC +
+  daemon-side projection); flips to Ready once ADR-084 is Accepted and the
+  binding conditions are folded into this item: **C1** warm-up trigger on MCP
+  session init (`anvil/request_full_scan`) so a cold session is not empty; **C2**
+  projector snapshots under the cache lock then releases before
+  filtering/pagination (no hot-path latency coupling); **C3** daemon-side
+  `workspace_root` admission against the connection's admitted-root set (CE-8);
+  **C4** `gctx.egress` flag lands with both a Rust gate and a TS consumer
+  (FLAGCAT); **C5** snippet secret-scan completeness (Phase 2). This is the CE-5
+  hard-gate item — it builds the sealed egress DTO crate + `GctxProjector` +
+  structural no-leak test the rest of Phase 1 inherits.
 - **Intent:** Let assistants find symbols by name, kind, file, language, and
   visibility using GV2's semantic graph projection.
 - **Expected Outcome:** Tool returns paginated, deterministic symbol summaries
   with source locations and redacted metadata.
 - **Validation:** Integration test queries a fixture and asserts stable ordering
-- **Files:** MCP server target decided by GCTX-002
+- **Files:** `crates/anvil-gctx-types/`, `crates/anvil-gctx-egress/`,
+  `crates/anvil-intercept-proto/src/protocol.rs`,
+  `crates/anvil-intercept/src/ipc.rs`, `crates/anvil-cli/src/mcp/tools/`
+  (per ADR-084)
 - **Confidence:** high
 - **Priority:** Critical
-- **Dependencies:** GCTX-001, GCTX-002, GV2-020
+- **Dependencies:** GCTX-001, GCTX-002, GV2-020, ADR-084
 
 ---
 
