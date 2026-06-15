@@ -27,7 +27,7 @@ pub const TOOL_NAME: &str = "anvil_search_symbols";
 pub fn descriptor() -> Value {
     json!({
         "name": TOOL_NAME,
-        "description": "Search the workspace's semantic graph for symbols by name, kind, file, language, or visibility. Returns paginated, deterministic, identity-only summaries (symbol identity + visibility — no source text). Requires the anvil daemon to be running; returns a structured `unavailable`/`not_ready` outcome while the graph is absent or warming.",
+        "description": "Search the workspace's semantic graph for symbols by name, kind, file, language, or visibility. Returns paginated, deterministic, identity-only summaries (symbol identity + visibility — no source text). Requires the anvil daemon to be running; returns a structured `unavailable`/`not_ready`/`disabled` outcome while the graph is absent, warming, or an operator has switched the surface off (`ANVIL_GCTX_EGRESS=0`).",
         "inputSchema": {
             "type": "object",
             "properties": {

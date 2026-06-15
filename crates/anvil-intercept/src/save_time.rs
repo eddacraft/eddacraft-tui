@@ -633,12 +633,56 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let workspace_assurance =
             state.with_machine(&key, correlation, |machine| machine.snapshot());
 
-        let outcome = gctx_search_outcome(state, &key, &workspace_assurance, &request.query);
+        let outcome = gctx_search_outcome(
+            state,
+            &key,
+            &workspace_assurance,
+            &request.query,
+            gctx_egress_disabled(),
+        );
+
+        // CE-10: bind telemetry to the exhaustive PII-free outcome enum plus
+        // response-aggregate counts only — never symbol names, paths, or query
+        // text. Rides the ADR-035 tracing pipe (the `dispatch_span` set in
+        // `ipc.rs` carries the traceparent).
+        let (matched, returned) = match &outcome {
+            SearchSymbolsOutcome::Ready(projection) => (
+                projection.redaction_summary.matched,
+                projection.redaction_summary.returned,
+            ),
+            _ => (0, 0),
+        };
+        tracing::info!(
+            target: "anvil_intercept::gctx",
+            outcome = outcome.telemetry_outcome().as_str(),
+            matched,
+            returned,
+            "gctx search served",
+        );
+
         Ok(GctxSearchSymbolsResponse {
             workspace_assurance,
             outcome,
         })
     }
+}
+
+/// CE-11 kill-switch. `ANVIL_GCTX_EGRESS` is re-read **per call** (never cached
+/// at start-up): `0` disables egress on the next call; unset or any other value
+/// (incl. the `1` that additionally opts into Phase-2 snippets) leaves the
+/// identity surface on. The owner-confirmed default is identity-on.
+const GCTX_EGRESS_ENV: &str = "ANVIL_GCTX_EGRESS";
+
+fn gctx_egress_disabled() -> bool {
+    gctx_egress_disabled_from(std::env::var(GCTX_EGRESS_ENV).ok().as_deref())
+}
+
+/// Pure kill-switch resolution (CE-11), testable without mutating process env:
+/// the (whitespace-trimmed) value `0` disables; unset or any other value (incl.
+/// the snippet opt-in `1`) leaves identity egress on. Trimming avoids a silent
+/// fail-open when an operator sets `" 0"` or a trailing-newline `"0\n"`.
+fn gctx_egress_disabled_from(raw: Option<&str>) -> bool {
+    raw.map(str::trim) == Some("0")
 }
 
 /// Compute the GCTX search outcome for an admitted root (GCTX-010 / ADR-084).
@@ -656,7 +700,15 @@ fn gctx_search_outcome(
     key: &WorktreeKey,
     assurance: &WorkspaceAssurance,
     query: &SearchSymbolsQuery,
+    egress_disabled: bool,
 ) -> SearchSymbolsOutcome {
+    // CE-11 kill-switch (resolved per call by the caller): an operator-disabled
+    // surface egresses nothing — no query validation, no graph read — and
+    // self-reports `Disabled`.
+    if egress_disabled {
+        return SearchSymbolsOutcome::Disabled;
+    }
+
     // CE-6: reject a hostile or malformed query before touching the graph.
     if let Some(reason) = invalid_query_reason(query) {
         return SearchSymbolsOutcome::InvalidQuery { reason };
@@ -1551,6 +1603,82 @@ mod tests {
             },
         );
         assert!(matches!(scheme, SearchSymbolsOutcome::InvalidQuery { .. }));
+    }
+
+    /// CE-11 kill-switch: a disabled surface egresses nothing even with a warm,
+    /// `Clean` graph, and self-reports `Disabled` (distinct from `Unavailable`).
+    #[test]
+    fn gctx_kill_switch_disables_egress_even_when_warm() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = state();
+        warm(&state, tmp.path(), "src/a.ts", &["a"], 0);
+        let key =
+            WorktreeKey::from_canonical(std::fs::canonicalize(tmp.path()).expect("canonical"));
+        let clean = assurance(AssuranceState::Clean, None);
+
+        let disabled =
+            gctx_search_outcome(&state, &key, &clean, &SearchSymbolsQuery::default(), true);
+        assert!(
+            matches!(disabled, SearchSymbolsOutcome::Disabled),
+            "kill-switch must disable a warm graph: {disabled:?}",
+        );
+
+        let enabled =
+            gctx_search_outcome(&state, &key, &clean, &SearchSymbolsQuery::default(), false);
+        assert!(
+            matches!(enabled, SearchSymbolsOutcome::Ready(_)),
+            "an enabled surface serves the warm graph: {enabled:?}",
+        );
+    }
+
+    #[test]
+    fn gctx_egress_disabled_only_on_trimmed_zero() {
+        assert!(gctx_egress_disabled_from(Some("0")));
+        // Whitespace / trailing newline must still disable (no silent fail-open).
+        assert!(gctx_egress_disabled_from(Some(" 0")));
+        assert!(gctx_egress_disabled_from(Some("0 ")));
+        assert!(gctx_egress_disabled_from(Some("0\n")));
+        assert!(!gctx_egress_disabled_from(None)); // unset → on (default)
+        assert!(!gctx_egress_disabled_from(Some("1"))); // snippet opt-in → on
+        assert!(!gctx_egress_disabled_from(Some(""))); // empty → on
+        assert!(!gctx_egress_disabled_from(Some("false")));
+        assert!(!gctx_egress_disabled_from(Some("00")));
+    }
+
+    /// CE-10: a readable result classifies `hit`/`miss` by content; the daemon
+    /// telemetry binds to that PII-free enum.
+    #[test]
+    fn gctx_telemetry_outcome_splits_hit_and_miss() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = state();
+        warm(&state, tmp.path(), "src/a.ts", &["alpha"], 0);
+        let key =
+            WorktreeKey::from_canonical(std::fs::canonicalize(tmp.path()).expect("canonical"));
+        let clean = assurance(AssuranceState::Clean, None);
+
+        let hit = gctx_search_outcome(
+            &state,
+            &key,
+            &clean,
+            &SearchSymbolsQuery {
+                name: Some("alpha".into()),
+                ..Default::default()
+            },
+            false,
+        );
+        assert_eq!(hit.telemetry_outcome().as_str(), "hit");
+
+        let miss = gctx_search_outcome(
+            &state,
+            &key,
+            &clean,
+            &SearchSymbolsQuery {
+                name: Some("nonexistent".into()),
+                ..Default::default()
+            },
+            false,
+        );
+        assert_eq!(miss.telemetry_outcome().as_str(), "miss");
     }
 
     fn assurance(state: AssuranceState, reason: Option<StaleReason>) -> WorkspaceAssurance {

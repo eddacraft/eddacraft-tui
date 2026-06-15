@@ -958,6 +958,7 @@ mod tests {
                 recovery_hint: "warming".into(),
             },
             SearchSymbolsOutcome::Unavailable,
+            SearchSymbolsOutcome::Disabled,
         ] {
             let response = GctxSearchSymbolsResponse {
                 workspace_assurance: WorkspaceAssurance {

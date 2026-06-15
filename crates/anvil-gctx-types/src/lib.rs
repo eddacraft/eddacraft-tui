@@ -162,11 +162,78 @@ pub enum SearchSymbolsOutcome {
     },
     /// Daemon or graph unavailable; no fallback was attempted (CE-7).
     Unavailable,
+    /// The egress surface is switched off by the operator
+    /// (`ANVIL_GCTX_EGRESS=0`, re-read per call — CE-11 kill-switch). Distinct
+    /// from `Unavailable` (which is an absent daemon/graph, not a deliberate
+    /// disable).
+    Disabled,
     /// The query was rejected before any read (CE-6 validation).
     InvalidQuery {
         /// Why the query was rejected.
         reason: String,
     },
+}
+
+impl SearchSymbolsOutcome {
+    /// Classify this outcome into the exhaustive, PII-free [`GctxOutcome`]
+    /// telemetry enum (CE-10). A readable result splits into `Hit` (≥1 symbol)
+    /// and `Miss` (empty) by the page contents — the only place response counts
+    /// influence the label.
+    #[must_use]
+    pub fn telemetry_outcome(&self) -> GctxOutcome {
+        match self {
+            Self::Ready(projection) if projection.symbols.is_empty() => GctxOutcome::Miss,
+            Self::Ready(_) => GctxOutcome::Hit,
+            Self::NotReady { .. } => GctxOutcome::Warming,
+            Self::Unavailable => GctxOutcome::Unavailable,
+            Self::Disabled => GctxOutcome::GraphDisabled,
+            Self::InvalidQuery { .. } => GctxOutcome::InvalidQuery,
+        }
+    }
+}
+
+/// The exhaustive, PII-free classification of a GCTX response (CE-10).
+///
+/// Every counter, span attribute, and notification binds to **this enum** — and
+/// nothing else: no symbol names, paths, query text, or per-symbol token counts
+/// may appear in a telemetry label (only response-aggregate totals, in spans).
+/// `Hit`/`Miss` split a readable result by whether it returned any symbol. The
+/// labels match the GCTX-001 spec's outcome vocabulary
+/// (`hit`/`miss`/`warming`/`graph_disabled`/…). `#[non_exhaustive]` because
+/// Phase-2 adds `redacted`/`budget_exceeded` as snippet/credit surfaces land.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum GctxOutcome {
+    /// Readable, ≥1 symbol returned.
+    Hit,
+    /// Readable, zero matches.
+    Miss,
+    /// Graph warming / not yet populated.
+    Warming,
+    /// Daemon or graph absent.
+    Unavailable,
+    /// Operator kill-switch engaged (`ANVIL_GCTX_EGRESS=0`). Emits the spec label
+    /// `graph_disabled`.
+    GraphDisabled,
+    /// Query/cursor rejected before any read.
+    InvalidQuery,
+}
+
+impl GctxOutcome {
+    /// Stable `snake_case` label for telemetry emission (the GCTX-001 spec
+    /// outcome vocabulary).
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Hit => "hit",
+            Self::Miss => "miss",
+            Self::Warming => "warming",
+            Self::Unavailable => "unavailable",
+            Self::GraphDisabled => "graph_disabled",
+            Self::InvalidQuery => "invalid_query",
+        }
+    }
 }
 
 #[cfg(test)]
@@ -372,6 +439,58 @@ mod tests {
     }
 
     #[test]
+    fn outcome_disabled_is_unit_tagged() {
+        let v = serde_json::to_value(SearchSymbolsOutcome::Disabled).unwrap();
+        assert_eq!(v["status"], Value::String("disabled".into()));
+    }
+
+    #[test]
+    fn telemetry_outcome_classifies_every_variant() {
+        let cases = [
+            (
+                SearchSymbolsOutcome::Ready(sample_projection()),
+                GctxOutcome::Hit,
+                "hit",
+            ),
+            (
+                SearchSymbolsOutcome::Ready(SearchSymbolsProjection {
+                    symbols: Vec::new(),
+                    next_cursor: None,
+                    redaction_summary: RedactionSummary::default(),
+                }),
+                GctxOutcome::Miss,
+                "miss",
+            ),
+            (
+                SearchSymbolsOutcome::NotReady {
+                    recovery_hint: "warming".into(),
+                },
+                GctxOutcome::Warming,
+                "warming",
+            ),
+            (
+                SearchSymbolsOutcome::Unavailable,
+                GctxOutcome::Unavailable,
+                "unavailable",
+            ),
+            (
+                SearchSymbolsOutcome::Disabled,
+                GctxOutcome::GraphDisabled,
+                "graph_disabled",
+            ),
+            (
+                SearchSymbolsOutcome::InvalidQuery { reason: "x".into() },
+                GctxOutcome::InvalidQuery,
+                "invalid_query",
+            ),
+        ];
+        for (outcome, expected, label) in cases {
+            assert_eq!(outcome.telemetry_outcome(), expected);
+            assert_eq!(expected.as_str(), label);
+        }
+    }
+
+    #[test]
     fn outcome_round_trips() {
         for outcome in [
             SearchSymbolsOutcome::Ready(sample_projection()),
@@ -379,6 +498,7 @@ mod tests {
                 recovery_hint: "save a file".into(),
             },
             SearchSymbolsOutcome::Unavailable,
+            SearchSymbolsOutcome::Disabled,
             SearchSymbolsOutcome::InvalidQuery {
                 reason: "bad file filter".into(),
             },
