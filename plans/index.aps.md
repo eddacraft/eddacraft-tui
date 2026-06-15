@@ -174,7 +174,7 @@ and a new **DSV-045 (full-scan executor, Ready)** that owns the loop on the DSV
 track and **merges before** GCTX-010. GCTX-010's remaining work narrows to the
 warm-up *triggers* (session-init + on-demand `request_full_scan` + `NotReady`
 hint), now depending on DSV-045 + ADR-085. DSV total 19 → 20; DECISION-LOG +
-GCTX module + DSV module updated. All edits are plan/decision bookkeeping.
+DSV module updated. All edits are plan/decision bookkeeping.
 
 NBI review note (2026-06-13, eighth pass): the v0.8.0/v0.8.1 post-release
 closeout is **complete**. The previous (seventh) pass reconciled statuses onto
