@@ -6,16 +6,14 @@
 
 **Last reviewed:** 2026-06-15 (DLIFE-001 Done — ADR-082 Accepted by operator with
 the **tiered** startup mode: `anvil start` auto-starts the daemon; `anvil watch`
-prompts in TTY and falls back in headless. ADR-079 superseded. DLIFE-002/-003/-004
-unblocked to Proposed; **DLIFE-002 now flipped to Ready** — ensure-primitive design
-pinned (probe → same-user lock → re-probe → detached spawn → bound-wait), cross-platform
-risk split Unix-first (Windows background-launch follows DSV-010/011), and module
-validation commands agreed, closing the last two Ready Checklist boxes. **DLIFE-002
-Merged 2026-06-15 via PR #2644** — the idempotent `ensure_daemon` primitive (probe →
-same-user lock → re-probe → detached spawn → bound-wait, Unix-first) landed in
-`anvil-intercept` with the thin CLI entry point; `start`/`watch` UX wiring follows in
-DLIFE-003/-004. **DLIFE-006 Merged 2026-06-15 via PR #2639** — the terminating
-`--verify` diagnostic for the daemon-unreachable case landed, module 3/6. Module created
+prompts in TTY and falls back in headless. ADR-079 superseded. DLIFE-003/-004
+unblocked to Proposed. **DLIFE-002 Merged 2026-06-15 via PR #2644** — the idempotent
+`ensure_daemon` primitive (probe → same-user lock → re-probe → detached spawn →
+bound-wait), cross-platform risk split Unix-first (Windows background-launch follows
+DSV-010/011), landed in `anvil-intercept` with the thin CLI entry point; `start`/`watch`
+UX wiring follows in DLIFE-003/-004. **DLIFE-006 Merged 2026-06-15 via PR #2639** — the
+terminating `--verify` diagnostic for the daemon-unreachable case landed, module 3/6.
+Module created
 2026-06-14 from operator direction that `anvil start` and `anvil watch` should make
 daemon-backed protection the normal path, with an explicit opt-out.)
 
