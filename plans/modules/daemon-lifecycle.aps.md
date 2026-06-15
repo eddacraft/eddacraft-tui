@@ -2,10 +2,12 @@
 
 | ID    | Owner | Status   | Progress |
 | ----- | ----- | -------- | -------- |
-| DLIFE | Josh  | Proposed | 0/5      |
+| DLIFE | Josh  | Proposed | 0/6      |
 
-**Last reviewed:** 2026-06-14 (created from operator direction that `anvil start`
-and `anvil watch` should make daemon-backed protection the normal path, with an
+**Last reviewed:** 2026-06-15 (DLIFE-006 added from #2609 triage — a terminating
+`--verify` diagnostic for the daemon-unreachable case; the one item independent of
+ADR-082. Module created 2026-06-14 from operator direction that `anvil start` and
+`anvil watch` should make daemon-backed protection the normal path, with an
 explicit opt-out for users who do not want daemon startup.)
 
 ## Purpose
@@ -21,6 +23,7 @@ operator/debugging surface.
 - A race-safe, same-user daemon ensure/startup primitive for CLI surfaces
 - `anvil start` daemon lifecycle integration
 - `anvil watch` daemon lifecycle integration and explicit opt-out
+- An honest, terminating `--verify` diagnostic when no daemon is reachable
 - User-facing docs, help text, release notes, and runbook alignment
 
 ## Out of Scope
@@ -134,6 +137,20 @@ operator/debugging surface.
 - **Confidence:** high
 - **Risks:** Several docs currently state no auto-start; partial updates would create user-facing drift.
 - **changeType:** docs
+- **releaseIntent:** candidate
+- **releaseScope:** minor
+
+### DLIFE-006: Make `--verify` give a terminating reason when the daemon is unreachable
+
+- **Status:** Proposed
+- **Intent:** When daemon attestation is `Unreachable`, `anvil start --verify` and `anvil status --verify` must give a terminating, actionable reason rather than silently parking at `ready_restart_required` as if another editor restart would help (recurring symptom: #2609, #2583, #1831).
+- **Expected Outcome:** On `DaemonAttestation::Unreachable`, the rendered repair hint names *why* protection cannot graduate (no daemon answering the worktree) and the concrete next step to obtain a live daemon, and reads as an end state rather than a transient "restart again" loop. `--verify` stays read-only and starts no daemon; `--json` stays machine-readable; copy reuses the existing `state_explanation()` surface (#2590) rather than adding a parallel path.
+- **Validation:** Activation render tests cover the `Unreachable` repair-hint wording for `ReadyRestartRequired`, the `--verify` read-only contract (no daemon spawned), and `--json` shape stability; UK spelling check.
+- **Files:** `crates/anvil-cli/src/activation/daemon_evidence.rs`, `crates/anvil-cli/src/activation/render.rs`, `crates/anvil-cli/src/activation/diagnostic.rs`, related activation tests
+- **Dependencies:** None
+- **Confidence:** high
+- **Risks:** Activation honesty contracts are strict — the message must not imply protection is active, nor over-promise that starting a daemon is automatic. While DLIFE-003 is unshipped the actionable step is the operator surface (`anvil intercept start --foreground`); once DLIFE-003 lands the copy should re-point at `anvil start`. Independent of ADR-082 — this is honest diagnostics, not a posture change, so it can land ahead of the rest of the module.
+- **changeType:** feature
 - **releaseIntent:** candidate
 - **releaseScope:** minor
 
