@@ -118,7 +118,7 @@ pub enum EnsureOutcome {
 
 /// The liveness of the per-user daemon endpoint as seen by a single probe.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Liveness {
+pub(crate) enum Liveness {
     /// Connected and received a valid status answer — a healthy daemon.
     Answered,
     /// Connected, but no valid answer within the probe budget. A listener is
@@ -132,8 +132,9 @@ pub enum Liveness {
 }
 
 /// Reads the liveness of the per-user daemon endpoint. Abstracted so the ensure
-/// state machine is tested without real sockets.
-pub trait DaemonProbe {
+/// state machine is tested without real sockets. Internal — callers consume the
+/// typed [`EnsureOutcome`], not the probe.
+pub(crate) trait DaemonProbe {
     /// Perform one liveness probe of the endpoint.
     fn probe(&self) -> Liveness;
 }
@@ -158,19 +159,20 @@ pub fn platform_unsupported_outcome() -> EnsureOutcome {
     }
 }
 
-/// Bring up the per-user save-time daemon for `workspace_root`, honouring the
-/// caller's `capability`. See the module docs for the full state machine.
+/// Bring up the per-user save-time daemon, honouring the caller's `capability`.
+/// See the module docs for the full state machine.
+///
+/// The daemon is per-user and serves every worktree, so bring-up takes no
+/// workspace argument: liveness is the workspace-independent `anvil/status/query`
+/// verb, not a per-workspace admission check (a daemon that is up but has not yet
+/// admitted the caller's worktree is still a live daemon to reuse).
 ///
 /// `launcher` is how a detached daemon is spawned; the CLI passes a
 /// [`DetachedCommandLauncher`] built from `current_exe()` and
 /// `intercept start --foreground`. On Windows this returns
 /// [`NoStartReason::PlatformUnsupported`] without touching `launcher`.
 #[cfg(unix)]
-pub fn ensure_daemon(
-    workspace_root: PathBuf,
-    capability: StartCapability,
-    launcher: &dyn DaemonLauncher,
-) -> EnsureOutcome {
+pub fn ensure_daemon(capability: StartCapability, launcher: &dyn DaemonLauncher) -> EnsureOutcome {
     let Ok(socket_path) = crate::ipc::resolve_socket_path() else {
         return EnsureOutcome::Failed {
             recovery: "could not resolve the per-user daemon socket path; \
@@ -192,7 +194,7 @@ pub fn ensure_daemon(
     let lock_path = runtime_dir.join("intercept.ensure.lock");
     let log_path = runtime_dir.join("intercept.daemon.log");
 
-    let probe = SocketProbe::new(socket_path, workspace_root);
+    let probe = SocketProbe::new(socket_path);
     let params = EnsureParams {
         probe: &probe,
         launcher,
@@ -209,7 +211,6 @@ pub fn ensure_daemon(
 /// caller's own status probe, independent of this primitive.
 #[cfg(not(unix))]
 pub fn ensure_daemon(
-    _workspace_root: PathBuf,
     _capability: StartCapability,
     _launcher: &dyn DaemonLauncher,
 ) -> EnsureOutcome {
@@ -299,14 +300,19 @@ fn reuse_if_live(probe: &dyn DaemonProbe) -> bool {
 /// Poll the probe until a daemon answers or the deadline passes. A
 /// `ConnectedNoAnswer` during start-up (the daemon has bound but not finished
 /// loading) is treated as still-coming-up and keeps polling.
+///
+/// The deadline is checked *before* each probe so we never start a fresh probe
+/// once the budget is spent; a probe already in flight when the deadline passes
+/// can still overrun by at most one `PROBE_TIMEOUT` (the in-flight socket read),
+/// so the effective wall-clock ceiling is `timeout + PROBE_TIMEOUT`.
 fn wait_until_answered(probe: &dyn DaemonProbe, timeout: Duration, interval: Duration) -> bool {
     let deadline = Instant::now() + timeout;
     loop {
-        if matches!(probe.probe(), Liveness::Answered) {
-            return true;
-        }
         if Instant::now() >= deadline {
             return false;
+        }
+        if matches!(probe.probe(), Liveness::Answered) {
+            return true;
         }
         std::thread::sleep(interval);
     }
@@ -341,35 +347,40 @@ fn acquire_ensure_lock(lock_path: &Path) -> io::Result<std::fs::File> {
 // Real Unix probe + launcher
 // ---------------------------------------------------------------------------
 
-/// Probes the per-user Unix save-time socket with a status round-trip,
-/// distinguishing an absent/stale endpoint (connect fails) from a present
-/// listener (connect succeeds), per the stale-detection contract.
+/// Probes the per-user Unix save-time socket with a workspace-independent
+/// `anvil/status/query` round-trip, distinguishing an absent/stale endpoint
+/// (connect fails) from a present listener (connect succeeds), per the
+/// stale-detection contract.
+///
+/// Liveness deliberately uses the workspace-independent status verb, not
+/// `anvil/workspace_status`: the latter would return a JSON-RPC error for a
+/// daemon that is up but has not admitted this worktree, which the probe would
+/// misread as "present but not answering" and the bound-wait would never accept
+/// as `Answered`.
 #[cfg(unix)]
-pub struct SocketProbe {
+pub(crate) struct SocketProbe {
     socket_path: PathBuf,
-    workspace_root: PathBuf,
     timeout: Duration,
 }
 
 #[cfg(unix)]
 impl SocketProbe {
-    /// Probe `socket_path`, asking the daemon for `workspace_root`'s status.
+    /// Probe `socket_path` for a live, answering daemon.
     #[must_use]
-    pub fn new(socket_path: PathBuf, workspace_root: PathBuf) -> Self {
+    pub(crate) fn new(socket_path: PathBuf) -> Self {
         Self {
             socket_path,
-            workspace_root,
             timeout: PROBE_TIMEOUT,
         }
     }
 
     /// Probe with an explicit per-request timeout (tests use a short budget to
     /// exercise the `ConnectedNoAnswer` path quickly).
+    #[cfg(test)]
     #[must_use]
-    pub fn with_timeout(socket_path: PathBuf, workspace_root: PathBuf, timeout: Duration) -> Self {
+    pub(crate) fn with_timeout(socket_path: PathBuf, timeout: Duration) -> Self {
         Self {
             socket_path,
-            workspace_root,
             timeout,
         }
     }
@@ -401,39 +412,41 @@ impl DaemonProbe for SocketProbe {
             return Liveness::ConnectedNoAnswer;
         }
 
-        match workspace_status_round_trip(&stream, &self.workspace_root) {
+        match status_query_round_trip(&stream) {
             Ok(()) => Liveness::Answered,
             Err(()) => Liveness::ConnectedNoAnswer,
         }
     }
 }
 
-/// Send one NDJSON JSON-RPC `anvil/workspace_status` request and confirm a
-/// well-formed, id-matched `result` came back. Mirrors the save-time client wire
-/// (`watch_save_time::framing`); a valid result of any state means the daemon is
-/// answering. Errors collapse to `Err(())` — "connected but did not answer".
+/// Send one NDJSON JSON-RPC `anvil/status/query` request and confirm a
+/// well-formed, id-matched `result` came back. A valid result means the daemon
+/// is up and answering — this is a workspace-independent liveness check, so a
+/// daemon that has not yet admitted any particular worktree still answers.
+///
+/// The NDJSON framing intentionally mirrors the save-time client wire
+/// (`anvil-cli`'s `watch_save_time::framing::round_trip_over` and the status
+/// frame in `commands::intercept::build_query_status_frame_bytes`). It is
+/// duplicated here, not shared, because `anvil-cli` depends on `anvil-intercept`
+/// (not the reverse) so the framing helper cannot be imported upward; a change
+/// to the wire must update both. Errors collapse to `Err(())` — "connected but
+/// did not answer".
 #[cfg(unix)]
-fn workspace_status_round_trip(
-    stream: &std::os::unix::net::UnixStream,
-    workspace_root: &Path,
-) -> Result<(), ()> {
+fn status_query_round_trip(stream: &std::os::unix::net::UnixStream) -> Result<(), ()> {
     use std::io::{BufRead, BufReader, Read, Write};
 
-    use anvil_intercept_proto::protocol::{ANVIL_WORKSPACE_STATUS, WorkspaceStatusRequest};
+    use anvil_intercept_proto::protocol::ANVIL_STATUS_QUERY;
 
     /// Cap the single NDJSON response line so a buggy/hostile daemon cannot make
     /// the probe buffer unboundedly. Matches the save-time client cap.
     const RESPONSE_LINE_BYTES: u64 = 1 << 20;
     const PROBE_ID: &str = "anvil-ensure-probe";
 
-    let request = WorkspaceStatusRequest {
-        workspace_root: workspace_root.to_string_lossy().into_owned(),
-    };
-    let params = serde_json::to_value(&request).map_err(|_| ())?;
+    // `anvil/status/query` takes no params (matches
+    // `build_query_status_frame_bytes`).
     let frame = serde_json::json!({
         "jsonrpc": "2.0",
-        "method": ANVIL_WORKSPACE_STATUS,
-        "params": params,
+        "method": ANVIL_STATUS_QUERY,
         "id": PROBE_ID,
     });
 
@@ -496,6 +509,18 @@ impl DaemonLauncher for DetachedCommandLauncher {
             crate::ensure_secure_runtime_dir(parent)
                 .map_err(|err| io::Error::other(format!("{err:#}")))?;
         }
+        // Rotate the previous run's log out of the way before a fresh spawn so the
+        // file does not grow without bound across daemon restarts. A single
+        // generation (`<log>.1`) is kept — the daemon is a singleton, so a respawn
+        // only happens after the previous instance exited and its log was
+        // available to inspect. (Within-lifetime rotation on a size cap is a
+        // daemon-side concern, tracked separately.) `append` is retained so the
+        // shared stdout/stderr descriptors interleave correctly.
+        if log_path.exists() {
+            let mut rotated = log_path.as_os_str().to_owned();
+            rotated.push(".1");
+            let _ = std::fs::rename(log_path, PathBuf::from(rotated));
+        }
         let log = OpenOptions::new()
             .create(true)
             .append(true)
@@ -557,6 +582,23 @@ mod tests {
             if self.ready.load(Ordering::SeqCst) {
                 Liveness::Answered
             } else if self.connected_no_answer {
+                Liveness::ConnectedNoAnswer
+            } else {
+                Liveness::Unreachable
+            }
+        }
+    }
+
+    /// Models a daemon that binds (accepts connections) but never answers the
+    /// status verb: `Unreachable` until the `bound` flag flips, then
+    /// `ConnectedNoAnswer` forever — never `Answered`.
+    struct BindsButSilentProbe {
+        bound: Arc<AtomicBool>,
+    }
+
+    impl DaemonProbe for BindsButSilentProbe {
+        fn probe(&self) -> Liveness {
+            if self.bound.load(Ordering::SeqCst) {
                 Liveness::ConnectedNoAnswer
             } else {
                 Liveness::Unreachable
@@ -783,15 +825,38 @@ mod tests {
     }
 
     #[test]
+    fn spawn_that_binds_but_never_answers_times_out_to_failed() {
+        // A daemon that binds (accepts) but never answers the status verb must
+        // not be mistaken for `Started`: every bound-wait probe returns
+        // `ConnectedNoAnswer`, so the wait must time out to `Failed`.
+        let fx = fixture();
+        let bound = Arc::new(AtomicBool::new(false));
+        let probe = BindsButSilentProbe {
+            bound: Arc::clone(&bound),
+        };
+        let launcher = FakeLauncher::that_starts(&bound);
+        let p = EnsureParams {
+            bind_timeout: Duration::from_millis(80),
+            ..params(&probe, &launcher, &fx.lock, &fx.log)
+        };
+
+        match ensure_with(&p, StartCapability::MaySpawn) {
+            EnsureOutcome::Failed { .. } => {}
+            other => panic!("expected Failed when the daemon never answers, got {other:?}"),
+        }
+        assert_eq!(launcher.spawns(), 1, "spawned once, then timed out waiting");
+    }
+
+    #[test]
     fn concurrent_ensure_converges_on_one_daemon() {
-        // Two callers race on the same lock file. The lock holder spawns; the
-        // other re-probes under the lock and reuses. Exactly one spawn.
+        // Four callers race on the same lock file. The lock holder spawns; the
+        // rest re-probe under the lock and reuse. Exactly one spawn.
         let fx = fixture();
         let ready = Arc::new(AtomicBool::new(false));
         let count = Arc::new(AtomicUsize::new(0));
 
         let outcomes: Vec<EnsureOutcome> = std::thread::scope(|scope| {
-            let handles: Vec<_> = (0..2)
+            let handles: Vec<_> = (0..4)
                 .map(|_| {
                     let ready = Arc::clone(&ready);
                     let count = Arc::clone(&count);
@@ -858,7 +923,7 @@ mod tests {
     fn socket_probe_unreachable_when_no_endpoint() {
         let dir = tempfile::tempdir().unwrap();
         let socket = dir.path().join("absent.sock");
-        let probe = SocketProbe::new(socket, dir.path().to_path_buf());
+        let probe = SocketProbe::new(socket);
         assert_eq!(probe.probe(), Liveness::Unreachable);
     }
 
@@ -874,7 +939,7 @@ mod tests {
         let listener = UnixListener::bind(&socket).unwrap();
         drop(listener);
         assert!(socket.exists(), "stale socket file should remain");
-        let probe = SocketProbe::new(socket, dir.path().to_path_buf());
+        let probe = SocketProbe::new(socket);
         assert_eq!(probe.probe(), Liveness::Unreachable);
     }
 
@@ -894,8 +959,7 @@ mod tests {
                 drop(stream);
             }
         });
-        let probe =
-            SocketProbe::with_timeout(socket, dir.path().to_path_buf(), Duration::from_millis(150));
+        let probe = SocketProbe::with_timeout(socket, Duration::from_millis(150));
         assert_eq!(
             probe.probe(),
             Liveness::ConnectedNoAnswer,
@@ -916,8 +980,6 @@ mod tests {
         let pid_file = rt.join("intercept.pid");
         let socket = rt.join("intercept.sock");
         let fence_store = rt.join("state/intercept-fences.json");
-        let worktree = dir.path().join("worktree");
-        std::fs::create_dir(&worktree).unwrap();
 
         let (shutdown, token) = Shutdown::new();
         let handle = tokio::spawn(run_foreground(
@@ -929,11 +991,10 @@ mod tests {
         // Wait for the daemon to bind, then probe from a blocking thread so the
         // synchronous socket I/O does not sit on a runtime worker.
         let probe_socket = socket.clone();
-        let probe_worktree = worktree.clone();
         let liveness = tokio::task::spawn_blocking(move || {
             let deadline = Instant::now() + Duration::from_secs(5);
             loop {
-                let probe = SocketProbe::new(probe_socket.clone(), probe_worktree.clone());
+                let probe = SocketProbe::new(probe_socket.clone());
                 match probe.probe() {
                     Liveness::Answered => return Liveness::Answered,
                     other => {
