@@ -1207,6 +1207,7 @@ dependencies = [
  "eddacraft-anvil-checks",
  "eddacraft-anvil-checks-ast",
  "eddacraft-anvil-config",
+ "eddacraft-anvil-gctx-types",
  "eddacraft-anvil-hook",
  "eddacraft-anvil-intercept",
  "eddacraft-anvil-intercept-proto",
@@ -1381,6 +1382,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "eddacraft-anvil-gctx-egress"
+version = "0.8.1-beta"
+dependencies = [
+ "eddacraft-anvil-gctx-types",
+ "eddacraft-anvil-graph-cache",
+ "eddacraft-anvil-kernel-types",
+ "workspace-hack",
+]
+
+[[package]]
+name = "eddacraft-anvil-gctx-types"
+version = "0.8.1-beta"
+dependencies = [
+ "eddacraft-anvil-kernel-types",
+ "serde",
+ "serde_json",
+ "workspace-hack",
+]
+
+[[package]]
 name = "eddacraft-anvil-graph-cache"
 version = "0.8.1-beta"
 dependencies = [
@@ -1416,6 +1437,8 @@ dependencies = [
  "eddacraft-anvil-attribution",
  "eddacraft-anvil-checks",
  "eddacraft-anvil-config",
+ "eddacraft-anvil-gctx-egress",
+ "eddacraft-anvil-gctx-types",
  "eddacraft-anvil-graph-cache",
  "eddacraft-anvil-intercept-proto",
  "eddacraft-anvil-intercept-rules",
@@ -1443,6 +1466,7 @@ dependencies = [
 name = "eddacraft-anvil-intercept-proto"
 version = "0.8.1-beta"
 dependencies = [
+ "eddacraft-anvil-gctx-types",
  "eddacraft-anvil-kernel-types",
  "serde",
  "serde_json",

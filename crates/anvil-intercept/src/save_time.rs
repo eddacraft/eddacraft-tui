@@ -46,18 +46,20 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use anvil_checks::antipattern::types::AntipatternCheckConfig;
+use anvil_gctx_egress::GctxProjector;
+use anvil_gctx_types::{SearchSymbolsOutcome, SearchSymbolsQuery};
 use anvil_graph_cache::clamp_reverse_impact_depth;
 use anvil_intercept_proto::protocol::{
-    AssuranceState, RequestFullScanRequest, RequestFullScanResponse, StaleReason,
-    ValidatePathsRequest, ValidatePathsResponse, WorkspaceAssurance, WorkspaceStatusRequest,
-    WorkspaceStatusResponse,
+    AssuranceState, GctxSearchSymbolsRequest, GctxSearchSymbolsResponse, RequestFullScanRequest,
+    RequestFullScanResponse, StaleReason, ValidatePathsRequest, ValidatePathsResponse,
+    WorkspaceAssurance, WorkspaceStatusRequest, WorkspaceStatusResponse,
 };
 use anvil_kernel_types::FileSymbols;
 
 use crate::assurance::{AssuranceMachine, ScanPriority};
 use crate::broadcaster::TelemetryBroadcaster;
 use crate::confinement::Confinement;
-use crate::ipc::{SaveTimeDispatch, SaveTimeError};
+use crate::ipc::{GctxDispatch, SaveTimeDispatch, SaveTimeError};
 use crate::kernel_cache::KernelGraphCache;
 use crate::rule_cache::WorktreeKey;
 use crate::telemetry::{TelemetryCorrelation, TelemetryEmitter};
@@ -609,6 +611,116 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
     }
 }
 
+impl GctxDispatch for SaveTimeConn<'_> {
+    fn search_symbols(
+        &mut self,
+        request: &GctxSearchSymbolsRequest,
+    ) -> Result<GctxSearchSymbolsResponse, SaveTimeError> {
+        let root = PathBuf::from(&request.workspace_root);
+        let originating_session = self.originating_session.clone();
+        let state = self.state;
+        // ADR-084 C3 / CE-8: admit the client-supplied root against this
+        // connection's admitted-root set before any read. A hostile MCP client
+        // can send an arbitrary or sibling-worktree root; this is the same gate
+        // the save-time verbs use, and a refusal blocks the projection.
+        authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        let canonical = canonical_root(&root)?;
+        let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
+        let key = WorktreeKey::from_canonical(canonical);
+
+        // CE-7: the assurance snapshot always rides along, whether or not the
+        // graph is readable.
+        let workspace_assurance =
+            state.with_machine(&key, correlation, |machine| machine.snapshot());
+
+        let outcome = gctx_search_outcome(state, &key, &workspace_assurance, &request.query);
+        Ok(GctxSearchSymbolsResponse {
+            workspace_assurance,
+            outcome,
+        })
+    }
+}
+
+/// Compute the GCTX search outcome for an admitted root (GCTX-010 / ADR-084).
+///
+/// CE-7 degradation, by assurance state: `Unavailable` → `Unavailable`;
+/// `Pending`/`Running` (warming) → `NotReady`; `Clean`/`Stale` → read the warm
+/// graph. A `Clean`/`Stale` worktree with no resident warm pair (a fresh session
+/// not yet save-populated — the cache and the assurance machine are non-atomic
+/// by design) also degrades to `NotReady`: there is **no whole-file fallback**.
+///
+/// ADR-084 C2: the matched candidates are collected **under** the cache lock
+/// (inside `with_graphs`) and sorted/paginated/sealed **after** it releases.
+fn gctx_search_outcome(
+    state: &SaveTimeState,
+    key: &WorktreeKey,
+    assurance: &WorkspaceAssurance,
+    query: &SearchSymbolsQuery,
+) -> SearchSymbolsOutcome {
+    // CE-6: reject a hostile or malformed query before touching the graph.
+    if let Some(reason) = invalid_query_reason(query) {
+        return SearchSymbolsOutcome::InvalidQuery { reason };
+    }
+
+    match assurance.state {
+        AssuranceState::Unavailable => SearchSymbolsOutcome::Unavailable,
+        AssuranceState::Pending | AssuranceState::Running => SearchSymbolsOutcome::NotReady {
+            recovery_hint: "the workspace graph is warming; retry the search shortly".to_string(),
+        },
+        AssuranceState::Clean | AssuranceState::Stale => {
+            // C2: collect under the lock, project after release.
+            let candidates = state.cache.with_graphs(key, |sym, _dep| {
+                GctxProjector::collect_candidates(sym, query)
+            });
+            match candidates {
+                Some(candidates) => {
+                    SearchSymbolsOutcome::Ready(GctxProjector::project(candidates, query))
+                }
+                None => SearchSymbolsOutcome::NotReady {
+                    recovery_hint: "the workspace graph is not yet populated; save a file or \
+                                    request a full scan to warm it"
+                        .to_string(),
+                },
+            }
+        }
+    }
+}
+
+/// CE-6 query hygiene.
+///
+/// The `file` filter is a **pure in-memory substring match** against
+/// already-relative graph paths ([`anvil_gctx_egress`]); it never opens a file,
+/// so the absolute / `..` rejection below is input hygiene and a forward guard
+/// for any future filesystem-touching filter — not a live traversal defence for
+/// Phase 1. Filter lengths are capped to bound per-node match work independently
+/// of the IPC frame cap. `limit` is clamped (not rejected). Returns the
+/// rejection reason, or `None` when the query is acceptable.
+fn invalid_query_reason(query: &SearchSymbolsQuery) -> Option<String> {
+    const MAX_FILTER_BYTES: usize = 1024;
+    if query
+        .name
+        .as_deref()
+        .is_some_and(|n| n.len() > MAX_FILTER_BYTES)
+    {
+        return Some("name filter is too long".to_string());
+    }
+    if let Some(file) = query.file.as_deref() {
+        if file.len() > MAX_FILTER_BYTES {
+            return Some("file filter is too long".to_string());
+        }
+        if Path::new(file).is_absolute() {
+            return Some("file filter must be a workspace-relative path".to_string());
+        }
+        if Path::new(file)
+            .components()
+            .any(|c| matches!(c, std::path::Component::ParentDir))
+        {
+            return Some("file filter must not contain a `..` component".to_string());
+        }
+    }
+    None
+}
+
 /// Canonicalise an already-admitted root for use as the assurance/cache key.
 /// The root resolved at admission, so a failure here is an internal error
 /// (a race that removed the root between admission and keying).
@@ -1110,6 +1222,142 @@ mod tests {
         assert!(
             matches!(refused, Err(SaveTimeError::NotAdmitted)),
             "an unlisted, non-primary root must be refused: {refused:?}",
+        );
+    }
+
+    // ---- GCTX-010 / ADR-084: identity-only graph context search ----
+
+    fn gctx_request(root: &Path) -> GctxSearchSymbolsRequest {
+        GctxSearchSymbolsRequest {
+            workspace_root: root.to_string_lossy().into_owned(),
+            query: SearchSymbolsQuery::default(),
+        }
+    }
+
+    fn warm(state: &SaveTimeState, root: &Path, file: &str, names: &[&str], base: u64) {
+        let key = WorktreeKey::from_canonical(std::fs::canonicalize(root).expect("canonical"));
+        state
+            .cache
+            .apply_delta(&key, ChangeKind::Create, file_symbols(file, names, base));
+    }
+
+    /// A warm worktree yields a `Ready` projection with identities in a stable
+    /// total order (by `SymbolIdentity`), regardless of save/insertion order.
+    #[test]
+    fn gctx_search_ready_orders_identities_when_warm() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = state();
+        // Warm two files out of sorted order; output must be ordered a, b.
+        warm(&state, tmp.path(), "src/b.ts", &["beta"], 100);
+        warm(&state, tmp.path(), "src/a.ts", &["alpha"], 0);
+
+        let mut conn = SaveTimeConn::new(&state);
+        let resp = conn
+            .search_symbols(&gctx_request(tmp.path()))
+            .expect("admitted");
+
+        match resp.outcome {
+            SearchSymbolsOutcome::Ready(projection) => {
+                let files: Vec<&str> = projection
+                    .symbols
+                    .iter()
+                    .map(|s| s.identity.file.as_str())
+                    .collect();
+                assert_eq!(files, ["src/a.ts", "src/b.ts"]);
+                assert_eq!(projection.redaction_summary.matched, 2);
+            }
+            other => panic!("expected Ready, got {other:?}"),
+        }
+    }
+
+    /// CE-7: a cold worktree (no resident warm pair) degrades to `NotReady` with
+    /// a recovery hint — never an empty `Ready`, never a file read.
+    #[test]
+    fn gctx_search_not_ready_on_cold_worktree() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = state();
+        let mut conn = SaveTimeConn::new(&state);
+        let resp = conn
+            .search_symbols(&gctx_request(tmp.path()))
+            .expect("admitted");
+        assert!(
+            matches!(resp.outcome, SearchSymbolsOutcome::NotReady { .. }),
+            "cold worktree must degrade to NotReady: {:?}",
+            resp.outcome
+        );
+    }
+
+    /// CE-7: while a scan is queued (`Pending`), results are suppressed as
+    /// `NotReady` even though the cache already holds a warm pair.
+    #[test]
+    fn gctx_search_not_ready_while_scan_pending() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = state();
+        warm(&state, tmp.path(), "src/a.ts", &["alpha"], 0);
+
+        let mut conn = SaveTimeConn::new(&state);
+        conn.request_full_scan(&RequestFullScanRequest {
+            workspace_root: tmp.path().to_string_lossy().into_owned(),
+        })
+        .expect("admitted");
+
+        let resp = conn
+            .search_symbols(&gctx_request(tmp.path()))
+            .expect("admitted");
+        assert!(
+            matches!(resp.outcome, SearchSymbolsOutcome::NotReady { .. }),
+            "a pending scan must suppress results: {:?}",
+            resp.outcome
+        );
+    }
+
+    /// C3 / CE-8: an unadmitted (cross-worktree / unlisted) root is refused
+    /// daemon-side before any projection.
+    #[test]
+    fn gctx_search_rejects_unadmitted_root() {
+        let primary = tempfile::tempdir().expect("tempdir");
+        let unlisted = tempfile::tempdir().expect("tempdir");
+        let confinement = Confinement::from_file(crate::confinement::ConfinementConfigFile {
+            admission: crate::confinement::AdmissionModeFile::Allowlist,
+            allow: Vec::new(),
+        });
+        let state = SaveTimeState::new(
+            WorkScheduler::new().expect("scheduler"),
+            AntipatternCheckConfig::default(),
+            confinement,
+        );
+        let mut conn = SaveTimeConn::new(&state);
+
+        // The first verb's root is the implicitly-admitted primary.
+        conn.search_symbols(&gctx_request(primary.path()))
+            .expect("primary root is implicitly admitted");
+        // A different, unlisted root is refused.
+        let refused = conn.search_symbols(&gctx_request(unlisted.path()));
+        assert!(
+            matches!(refused, Err(SaveTimeError::NotAdmitted)),
+            "an unadmitted root must be refused: {refused:?}",
+        );
+    }
+
+    /// CE-6: a `file` filter that escapes the workspace is rejected as
+    /// `InvalidQuery` before any read.
+    #[test]
+    fn gctx_search_rejects_file_filter_escape() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = state();
+        let mut conn = SaveTimeConn::new(&state);
+        let request = GctxSearchSymbolsRequest {
+            workspace_root: tmp.path().to_string_lossy().into_owned(),
+            query: SearchSymbolsQuery {
+                file: Some("../escape".to_string()),
+                ..Default::default()
+            },
+        };
+        let resp = conn.search_symbols(&request).expect("admitted");
+        assert!(
+            matches!(resp.outcome, SearchSymbolsOutcome::InvalidQuery { .. }),
+            "a `..` file filter must be rejected: {:?}",
+            resp.outcome
         );
     }
 

@@ -4,6 +4,8 @@ members = [
   "crates/spike",
   "crates/anvil-kernel-types",
   "crates/anvil-graph-cache",
+  "crates/anvil-gctx-types",
+  "crates/anvil-gctx-egress",
   "crates/anvil-kernel",
   "crates/anvil-rayon-init",
   "crates/anvil-tui",

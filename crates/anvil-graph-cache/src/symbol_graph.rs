@@ -108,6 +108,17 @@ impl SymbolGraph {
         self.index.get(&id).map(|idx| &mut self.graph[*idx])
     }
 
+    /// The distinct files with at least one resident symbol, in arbitrary order.
+    ///
+    /// O(files), not O(symbols): iterates the per-file index keys rather than
+    /// every node. A GCTX-style enumeration that needs per-file parse order
+    /// (for `SymbolIdentity::for_file_symbols` ordinals) iterates this and calls
+    /// [`Self::symbols_in_file`] per file, avoiding a full `node_weights()` scan
+    /// to rediscover the file set.
+    pub fn file_names(&self) -> impl Iterator<Item = &str> {
+        self.files.keys().map(String::as_str)
+    }
+
     /// Symbols of `file` in insertion order — which equals parse (source)
     /// order because `update_file` inserts `FileSymbols.symbols` in parser
     /// emission order. `SymbolIdentity::for_file_symbols` ordinals depend on
@@ -282,6 +293,21 @@ mod tests {
         let names: Vec<&str> = syms.iter().map(|s| s.name.as_str()).collect();
         assert!(names.contains(&"foo"));
         assert!(names.contains(&"bar"));
+    }
+
+    #[test]
+    fn file_names_lists_distinct_resident_files() {
+        let mut g = SymbolGraph::new();
+        g.add_symbol(make_symbol(1, "foo", "a.ts", SymbolKind::Function))
+            .unwrap();
+        g.add_symbol(make_symbol(2, "bar", "a.ts", SymbolKind::Function))
+            .unwrap();
+        g.add_symbol(make_symbol(3, "baz", "b.ts", SymbolKind::Function))
+            .unwrap();
+
+        let mut files: Vec<&str> = g.file_names().collect();
+        files.sort_unstable();
+        assert_eq!(files, ["a.ts", "b.ts"]);
     }
 
     #[test]

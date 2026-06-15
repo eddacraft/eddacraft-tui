@@ -4,6 +4,7 @@ pub mod fix;
 pub mod gate;
 pub mod query_boundary;
 pub mod registry;
+pub mod search_symbols;
 pub mod shared;
 pub mod status;
 pub mod suppress;

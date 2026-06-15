@@ -1,23 +1,22 @@
 [package]
-name = "eddacraft-anvil-intercept-proto"
+name = "eddacraft-anvil-gctx-types"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+repository.workspace = true
 publish = false
-description = "Wire types shared by the Anvil intercept daemon, launcher, and drivers"
+description = "Sealed, graph-free egress value types for Graph Context Delivery (GCTX) — ADR-084 CE-5"
 
 [lib]
-name = "anvil_intercept_proto"
+name = "anvil_gctx_types"
 
 [dependencies]
 anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }
-anvil-gctx-types = { path = "../anvil-gctx-types", package = "eddacraft-anvil-gctx-types" }
 serde = { workspace = true }
-workspace-hack.workspace = true
+workspace-hack = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }
-serde_yaml = { workspace = true }
 
 [lints]
 workspace = true

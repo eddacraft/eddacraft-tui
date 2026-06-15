@@ -1,0 +1,20 @@
+[package]
+name = "eddacraft-anvil-gctx-egress"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+description = "Daemon-side GCTX egress projector — the single CE-5 GctxProjector choke point (ADR-084)"
+
+[lib]
+name = "anvil_gctx_egress"
+
+[dependencies]
+anvil-gctx-types = { path = "../anvil-gctx-types", package = "eddacraft-anvil-gctx-types" }
+anvil-graph-cache = { path = "../anvil-graph-cache", package = "eddacraft-anvil-graph-cache" }
+anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }
+workspace-hack = { workspace = true }
+
+[lints]
+workspace = true

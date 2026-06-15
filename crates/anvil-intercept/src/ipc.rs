@@ -38,8 +38,9 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use anvil_intercept_proto::protocol::{
-    RequestFullScanRequest, RequestFullScanResponse, ValidatePathsRequest, ValidatePathsResponse,
-    WorkspaceStatusRequest, WorkspaceStatusResponse,
+    GctxSearchSymbolsRequest, GctxSearchSymbolsResponse, RequestFullScanRequest,
+    RequestFullScanResponse, ValidatePathsRequest, ValidatePathsResponse, WorkspaceStatusRequest,
+    WorkspaceStatusResponse,
 };
 use anvil_intercept_proto::{IpcCommand, IpcEnvelope};
 use anvil_observability::{TraceContext, bind_traceparent_to_span};
@@ -63,6 +64,34 @@ pub enum SaveTimeError {
     Io(std::io::Error),
 }
 
+/// GCTX-010 / ADR-084: the read-only assistant-context verb surface, kept a
+/// **separate trait** from [`SaveTimeDispatch`] so GCTX queries never sit on the
+/// enforcement (`validate_paths`) hot path. It is a supertrait of
+/// `SaveTimeDispatch` purely as a wiring convenience: the same per-connection
+/// [`SaveTimeConn`] answers both, so the existing `&mut dyn SaveTimeDispatch`
+/// the dispatch loop holds can serve a GCTX read without a second threaded
+/// trait object. (Re-evaluate this coupling in Phase 2, when GCTX gains its own
+/// service surface.) A listener with no save-time state (no admitted roots / no
+/// warm cache) replies `Method not found`, which the MCP consumer treats as
+/// `Unavailable`.
+pub trait GctxDispatch: Send {
+    /// Project an identity-only symbol search from the warm graph (daemon-side
+    /// CE-5 projection). The `workspace_root` is admitted against this
+    /// connection's admitted-root set (ADR-084 C3) before any read.
+    ///
+    /// Degradation (warming / cold / absent graph) is carried **in-band** in the
+    /// response's `outcome` alongside the assurance snapshot (CE-7), so the only
+    /// `Err` returns are connection-level: a refused root or an anchor IO error.
+    ///
+    /// # Errors
+    /// [`SaveTimeError::NotAdmitted`] when the root is refused;
+    /// [`SaveTimeError::Io`] when an admissible root cannot be opened.
+    fn search_symbols(
+        &mut self,
+        request: &GctxSearchSymbolsRequest,
+    ) -> Result<GctxSearchSymbolsResponse, SaveTimeError>;
+}
+
 /// DSV-005: the save-time verb surface the JSON-RPC dispatch arm routes to.
 /// Implemented by [`crate::save_time::SaveTimeConn`] on both Unix and Windows
 /// (DSV-010b); a listener without a wired [`SaveTimeState`] still replies
@@ -72,7 +101,7 @@ pub enum SaveTimeError {
 /// handler's `.await` points (the handler future is spawned on a tokio
 /// `JoinSet`, which requires `Send`). `SaveTimeConn` satisfies this: its shared
 /// state is `Sync` and its admitted-root set is `Send`.
-pub trait SaveTimeDispatch: Send {
+pub trait SaveTimeDispatch: GctxDispatch + Send {
     /// Record the session/worktree pair that this authenticated connection
     /// registered. DSV-044 producers use it as `originating_session_id` only
     /// when the transition root matches the registered worktree.
@@ -2629,6 +2658,17 @@ async fn handle_jsonrpc_request<D: SessionDispatcher>(
         });
     }
 
+    // GCTX read verb (GCTX-010 / ADR-084): identity-only symbol search. Routed
+    // on its own arm — separate from the save-time verbs above — but reuses the
+    // same per-connection `SaveTimeConn` (admitted-root set + warm cache) via the
+    // `GctxDispatch` supertrait. Never touches `validate_paths` / the enforcement
+    // hot path.
+    if method == anvil_intercept_proto::protocol::ANVIL_GCTX_SEARCH_SYMBOLS {
+        return dispatch_span.in_scope(|| {
+            handle_gctx_jsonrpc(params, response_id, traceparent, is_notification, save_time)
+        });
+    }
+
     dispatch_span.in_scope(|| {
         dispatch_session_jsonrpc(
             method,
@@ -2762,6 +2802,46 @@ fn handle_save_time_jsonrpc(
             ),
             Err(err) => save_time_invalid_params(response_id, traceparent, &err),
         }
+    }
+}
+
+/// Route the GCTX read verb (GCTX-010 / ADR-084) to the per-connection
+/// dispatcher. Mirrors [`handle_save_time_jsonrpc`]: request-shaped (a
+/// notification cannot carry results back), and a listener with no save-time
+/// state replies `Method not found` (which the MCP consumer maps to
+/// `Unavailable`). Graph degradation (warming / cold) is **not** an error here —
+/// it rides in-band in the response `outcome` (CE-7); only a refused root or an
+/// anchor IO error surfaces as a JSON-RPC error, via the shared
+/// [`save_time_result`].
+fn handle_gctx_jsonrpc(
+    params: &Value,
+    response_id: Option<Value>,
+    traceparent: Option<&str>,
+    is_notification: bool,
+    save_time: Option<&mut (dyn SaveTimeDispatch + '_)>,
+) -> Option<Value> {
+    if is_notification {
+        tracing::warn!(
+            target: "anvil_intercept::gctx",
+            "ignoring gctx verb sent as a notification: request id required",
+        );
+        return None;
+    }
+    let Some(dispatch) = save_time else {
+        return jsonrpc_request_error(
+            response_id,
+            traceparent,
+            false,
+            -32601,
+            "Method not found",
+            json!({"reason": "graph-context delivery is not enabled on this daemon"}),
+        );
+    };
+    match serde_json::from_value::<GctxSearchSymbolsRequest>(params.clone()) {
+        Ok(request) => {
+            save_time_result(dispatch.search_symbols(&request), response_id, traceparent)
+        }
+        Err(err) => save_time_invalid_params(response_id, traceparent, &err),
     }
 }
 
@@ -5380,6 +5460,83 @@ mod tests {
                 "method": anvil_intercept_proto::protocol::ANVIL_VALIDATE_PATHS,
                 "id": "vp-2",
                 "params": {"workspace_root": "/tmp/x", "paths": []},
+            }),
+            &dispatcher,
+            &scan_buffer,
+            &status,
+            None,
+            None,
+            None,
+        )
+        .await
+        .expect("response");
+
+        assert_eq!(response["error"]["code"], -32601);
+    }
+
+    /// GCTX-010 / ADR-084: an `anvil/gctx/search_symbols` frame routes to the
+    /// dedicated GCTX arm (not the session dispatcher) and is answered with a
+    /// sealed, assurance-bearing result. A cold worktree degrades in-band to
+    /// `not_ready` — a success envelope, not a JSON-RPC error.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn dispatch_arm_routes_gctx_search_symbols() {
+        use crate::confinement::Confinement;
+        use crate::save_time::{SaveTimeConn, SaveTimeState};
+        use crate::workspace_pool::WorkScheduler;
+        use anvil_checks::antipattern::types::AntipatternCheckConfig;
+
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = SaveTimeState::new(
+            WorkScheduler::new().expect("scheduler"),
+            AntipatternCheckConfig::default(),
+            Confinement::open_default(),
+        );
+        let mut conn = SaveTimeConn::new(&state);
+        let dispatcher = Arc::new(NoopDispatcher);
+        let scan_buffer = ScanBufferService::default();
+        let status: Arc<dyn StatusProvider> = Arc::new(NoopStatusProvider);
+
+        let response = handle_jsonrpc_value(
+            json!({
+                "jsonrpc": "2.0",
+                "method": anvil_intercept_proto::protocol::ANVIL_GCTX_SEARCH_SYMBOLS,
+                "id": "gctx-1",
+                "params": {"workspace_root": tmp.path().to_string_lossy(), "query": {}},
+            }),
+            &dispatcher,
+            &scan_buffer,
+            &status,
+            None,
+            None,
+            Some(&mut conn as &mut dyn SaveTimeDispatch),
+        )
+        .await
+        .expect("a gctx search request returns a response");
+
+        assert_eq!(response["id"], "gctx-1");
+        assert!(
+            response.get("error").is_none(),
+            "gctx search must route to the gctx arm, not error: {response}",
+        );
+        assert_eq!(response["result"]["outcome"]["status"], "not_ready");
+        assert_eq!(response["result"]["workspace_assurance"]["state"], "stale");
+    }
+
+    /// Without save-time state wired, the GCTX verb replies `Method not found`
+    /// (which the MCP consumer maps to `unavailable`).
+    #[tokio::test]
+    async fn gctx_search_method_not_found_without_save_time_state() {
+        let dispatcher = Arc::new(NoopDispatcher);
+        let scan_buffer = ScanBufferService::default();
+        let status: Arc<dyn StatusProvider> = Arc::new(NoopStatusProvider);
+
+        let response = handle_jsonrpc_value(
+            json!({
+                "jsonrpc": "2.0",
+                "method": anvil_intercept_proto::protocol::ANVIL_GCTX_SEARCH_SYMBOLS,
+                "id": "gctx-2",
+                "params": {"workspace_root": "/tmp/x", "query": {}},
             }),
             &dispatcher,
             &scan_buffer,

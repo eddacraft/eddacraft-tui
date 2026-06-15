@@ -74,6 +74,7 @@
 //! languages over the same transport; the daemon routes by method
 //! name at the JSON-RPC layer.
 
+use anvil_gctx_types::{SearchSymbolsOutcome, SearchSymbolsQuery};
 use serde::{Deserialize, Serialize};
 
 /// Shared wire envelope for the set of diagnostics a scan response
@@ -163,6 +164,13 @@ pub const ANVIL_WORKSPACE_STATUS: &str = "anvil/workspace_status";
 /// [`WorkspaceAssurance`] (typically `running`/`pending`).
 pub const ANVIL_REQUEST_FULL_SCAN: &str = "anvil/request_full_scan";
 
+/// Client → server: a read-only, identity-only GCTX symbol search (GCTX-010,
+/// ADR-084). The daemon performs the egress projection and returns sealed DTOs
+/// ([`GctxSearchSymbolsResponse`]); the MCP server never holds a graph. This is
+/// the assistant-facing context surface, dispatched on its own read-only
+/// [`crate`]-side arm — never the save-time `validate_paths` path.
+pub const ANVIL_GCTX_SEARCH_SYMBOLS: &str = "anvil/gctx/search_symbols";
+
 /// Capability lattice for the §3.3 state machine.
 ///
 /// `Attached` is the read-only floor: every successfully-handshaken
@@ -219,6 +227,7 @@ pub const ALL_ANVIL_METHODS: &[&str] = &[
     ANVIL_VALIDATE_PATHS,
     ANVIL_WORKSPACE_STATUS,
     ANVIL_REQUEST_FULL_SCAN,
+    ANVIL_GCTX_SEARCH_SYMBOLS,
 ];
 
 // ============================================================================
@@ -473,6 +482,36 @@ pub struct RequestFullScanRequest {
 pub struct RequestFullScanResponse {
     /// The assurance snapshot after the scan was requested.
     pub workspace_assurance: WorkspaceAssurance,
+}
+
+/// Request body for [`ANVIL_GCTX_SEARCH_SYMBOLS`] (GCTX-010, ADR-084).
+///
+/// The query is the sealed, graph-free [`SearchSymbolsQuery`] value type; the
+/// `workspace_root` is validated daemon-side against the connection's
+/// admitted-root set (ADR-084 C3 / CE-8) before any projection runs.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GctxSearchSymbolsRequest {
+    /// Canonical, admitted workspace root to project from.
+    pub workspace_root: String,
+    /// The identity-only search filters.
+    #[serde(default)]
+    pub query: SearchSymbolsQuery,
+}
+
+/// Response to [`ANVIL_GCTX_SEARCH_SYMBOLS`]: the daemon-projected sealed egress
+/// DTO.
+///
+/// The daemon performs the CE-5 [`anvil_gctx_types`] projection itself, so this
+/// response **is** the sealed DTO — the MCP consumer deserialises it without
+/// ever linking graph internals. `workspace_assurance` always rides along (the
+/// CE-7 degradation signal); `outcome` is `ready` with identity results when the
+/// graph is readable, and a named non-`ready` variant otherwise.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GctxSearchSymbolsResponse {
+    /// Workspace assurance at projection time (CE-7).
+    pub workspace_assurance: WorkspaceAssurance,
+    /// The status-tagged search outcome (sealed, identity-only).
+    pub outcome: SearchSymbolsOutcome,
 }
 
 #[cfg(test)]
@@ -861,6 +900,7 @@ mod tests {
             ANVIL_VALIDATE_PATHS,
             ANVIL_WORKSPACE_STATUS,
             ANVIL_REQUEST_FULL_SCAN,
+            ANVIL_GCTX_SEARCH_SYMBOLS,
         ]
         .into_iter()
         .collect();
@@ -869,7 +909,7 @@ mod tests {
         // Count pin: no silent additions, no silent drops.
         assert_eq!(
             ALL_ANVIL_METHODS.len(),
-            9,
+            10,
             "ALL_ANVIL_METHODS count changed — pin and the named set must move together"
         );
         // Forward: every named const is listed.
@@ -882,6 +922,56 @@ mod tests {
             listed.is_subset(&named),
             "ALL_ANVIL_METHODS carries an entry with no backing named constant"
         );
+    }
+
+    /// GCTX-010 / ADR-084: the search RPC method name is frozen and the
+    /// request/response envelopes round-trip, including the named non-`ready`
+    /// degradation outcome that rides alongside the assurance snapshot.
+    #[test]
+    fn gctx_search_symbols_wire_round_trips() {
+        assert_eq!(ANVIL_GCTX_SEARCH_SYMBOLS, "anvil/gctx/search_symbols");
+
+        let request = GctxSearchSymbolsRequest {
+            workspace_root: "/home/me/proj".into(),
+            query: SearchSymbolsQuery {
+                name: Some("handle".into()),
+                ..Default::default()
+            },
+        };
+        let back: GctxSearchSymbolsRequest =
+            serde_json::from_str(&serde_json::to_string(&request).unwrap()).unwrap();
+        assert_eq!(request, back);
+
+        // A request may omit `query` entirely (serde default).
+        let bare: GctxSearchSymbolsRequest =
+            serde_json::from_str(r#"{"workspace_root":"/p"}"#).unwrap();
+        assert_eq!(bare.query, SearchSymbolsQuery::default());
+
+        // Ready response with an empty projection + a degraded response.
+        for outcome in [
+            SearchSymbolsOutcome::Ready(anvil_gctx_types::SearchSymbolsProjection {
+                symbols: Vec::new(),
+                next_cursor: None,
+                redaction_summary: anvil_gctx_types::RedactionSummary::default(),
+            }),
+            SearchSymbolsOutcome::NotReady {
+                recovery_hint: "warming".into(),
+            },
+            SearchSymbolsOutcome::Unavailable,
+        ] {
+            let response = GctxSearchSymbolsResponse {
+                workspace_assurance: WorkspaceAssurance {
+                    state: AssuranceState::Stale,
+                    reason: Some(StaleReason::CrossFileResolutionNeeded),
+                    generation: 3,
+                    last_full_scan: None,
+                },
+                outcome,
+            };
+            let back: GctxSearchSymbolsResponse =
+                serde_json::from_str(&serde_json::to_string(&response).unwrap()).unwrap();
+            assert_eq!(response, back);
+        }
     }
 
     // ---- DSV-002 council follow-ups (2026-06-03 batch review) ----

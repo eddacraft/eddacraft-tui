@@ -1,6 +1,8 @@
 use serde_json::Value;
 
-use super::{apply_patch, check, fix, gate, query_boundary, status, suppress, validate_write};
+use super::{
+    apply_patch, check, fix, gate, query_boundary, search_symbols, status, suppress, validate_write,
+};
 
 pub struct ToolDefinition {
     pub name: &'static str,
@@ -73,6 +75,16 @@ static TOOLS: &[ToolDefinition] = &[
         descriptor: fix::descriptor,
         call: fix::call,
     },
+    // GCTX-010 / ADR-084: read-only identity-only symbol search. `requires_auth`
+    // is `false` for parity with the other read-only context tools (status /
+    // check / query_boundary); the real authority gate is the daemon-side
+    // workspace-root admission (C3 / CE-8), not the MCP auth cache.
+    ToolDefinition {
+        name: search_symbols::TOOL_NAME,
+        requires_auth: false,
+        descriptor: search_symbols::descriptor,
+        call: search_symbols::call,
+    },
 ];
 
 pub fn all() -> &'static [ToolDefinition] {
@@ -91,7 +103,7 @@ mod tests {
     fn registry_lists_registered_tools() {
         let tools = all();
 
-        assert_eq!(tools.len(), 8);
+        assert_eq!(tools.len(), 9);
         let names: Vec<&str> = tools.iter().map(|t| t.name).collect();
         assert_eq!(
             names,
@@ -104,6 +116,7 @@ mod tests {
                 query_boundary::TOOL_NAME,
                 suppress::TOOL_NAME,
                 fix::TOOL_NAME,
+                search_symbols::TOOL_NAME,
             ],
         );
         for tool in tools {
@@ -121,6 +134,7 @@ mod tests {
         assert!(find(query_boundary::TOOL_NAME).is_some());
         assert!(find(suppress::TOOL_NAME).is_some());
         assert!(find(fix::TOOL_NAME).is_some());
+        assert!(find(search_symbols::TOOL_NAME).is_some());
         assert!(find("anvil_does_not_exist").is_none());
     }
 }

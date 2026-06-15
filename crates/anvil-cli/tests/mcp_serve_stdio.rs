@@ -212,11 +212,17 @@ fn mcp_serve_stdio_tools_list_returns_registered_tools() {
     let tools = parsed["result"]["tools"]
         .as_array()
         .expect("tools/list result must include a tools array");
-    assert_eq!(tools.len(), 8);
+    assert_eq!(tools.len(), 9);
     let validate_write = tools
         .iter()
         .find(|tool| tool["name"] == "anvil_validate_write")
         .expect("tools/list includes anvil_validate_write");
+    let search_symbols = tools
+        .iter()
+        .find(|tool| tool["name"] == "anvil_search_symbols")
+        .expect("tools/list includes anvil_search_symbols");
+    assert_eq!(search_symbols["inputSchema"]["type"], "object");
+    assert_eq!(search_symbols["annotations"]["readOnlyHint"], true);
     let apply_patch = tools
         .iter()
         .find(|tool| tool["name"] == "anvil_apply_patch")

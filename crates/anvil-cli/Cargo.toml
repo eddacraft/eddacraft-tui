@@ -31,6 +31,10 @@ anvil-checks = { path = "../anvil-checks", package = "eddacraft-anvil-checks" }
 anvil-checks-ast = { path = "../anvil-checks-ast", package = "eddacraft-anvil-checks-ast" }
 anvil-intercept = { path = "../anvil-intercept", package = "eddacraft-anvil-intercept" }
 anvil-intercept-proto = { path = "../anvil-intercept-proto", package = "eddacraft-anvil-intercept-proto" }
+# GCTX-010 / ADR-084: sealed graph-free egress DTOs for the `anvil_search_symbols`
+# MCP tool. The CLI links ONLY `-types` (never `-egress`/graph-cache), so the MCP
+# surface is structurally incapable of emitting a graph internal (CE-5).
+anvil-gctx-types = { path = "../anvil-gctx-types", package = "eddacraft-anvil-gctx-types" }
 anvil-intercept-rules = { path = "../anvil-intercept-rules", package = "eddacraft-anvil-intercept-rules" }
 anvil-observability = { path = "../anvil-observability", package = "eddacraft-anvil-observability" }
 anvil-witness = { path = "../anvil-witness", package = "eddacraft-anvil-witness" }
