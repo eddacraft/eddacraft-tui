@@ -242,13 +242,23 @@ impl KernelGraphCache {
         Some(f(&entry.sym, &entry.dep))
     }
 
-    /// Read the warm graph set for `key` as a [`GraphRegistry`] — the typed
-    /// multi-graph entry point (GV2-020). The daemon cache holds the semantic and
-    /// dependency graphs; the trust graph is empty here because the save-time
-    /// certify path reads only those two (the hot-read surface the registry hands
-    /// back is `HotReadApi`, identical to the direct path). Consumers that need
-    /// trust posture build a registry over a populated trust graph directly.
-    pub fn with_registry<R>(
+    /// Read the warm graph set for `key` as a [`GraphRegistry`] scoped to the
+    /// **hot** surface — semantic + dependency only (GV2-020). The daemon cache
+    /// holds no trust graph per key (the save-time certify path reads only
+    /// semantic + dependency), so the registry is built over an **empty**
+    /// `TrustGraph`: the `hot_read()`/`background_read()` surfaces and the
+    /// `dependency()`/`semantic()` handles are fully live, but the trust-bearing
+    /// joins (`symbol_trust`, `symbol_join`'s trust leg, `privileged_dependents`)
+    /// will read empty. Callers needing posture must build a registry over a
+    /// populated trust graph directly. The name carries the constraint so a
+    /// consumer cannot reach for posture here and get a silent empty result.
+    ///
+    /// Routing the production `validate_paths` certify through this accessor is a
+    /// deliberate follow-up (it would add the registry indirection to the frozen
+    /// hot wire); today `validate_paths` still calls [`Self::with_graphs`]
+    /// directly, and the registry is proven verdict-equivalent by the
+    /// `registry_e2e_*` test.
+    pub fn with_hot_registry<R>(
         &self,
         key: &WorktreeKey,
         f: impl FnOnce(&GraphRegistry) -> R,
@@ -479,10 +489,13 @@ mod tests {
         WorktreeKey::from_canonical(PathBuf::from(format!("/wt/{name}")))
     }
 
-    /// GV2-020 e2e — drive the save-time certify through the registry path and
-    /// prove it yields the same **non-vacuous** verdict as the direct hot-read
-    /// path (a real importer chain reaches the changed export surface; no
-    /// zero-callers).
+    /// GV2-020 e2e — drive the save-time certify through the registry entry point
+    /// over the real warm cache and prove it yields the same **non-vacuous**
+    /// verdict as the direct hot-read path (a real importer chain reaches the
+    /// changed export surface; no zero-callers). This exercises the registry as
+    /// the typed consumer surface; production `validate_paths` still calls
+    /// `with_graphs` directly (routing it through the registry is a follow-up —
+    /// see [`KernelGraphCache::with_hot_registry`]).
     #[test]
     fn registry_e2e_certify_through_registry_matches_direct_path() {
         use anvil_graph_cache::HotReadApi;
@@ -522,7 +535,7 @@ mod tests {
 
         // Registry path (GV2-020): the same certify, routed through
         // `GraphRegistry::hot_read`.
-        let v_registry = cache.with_registry(&k, |registry| {
+        let v_registry = cache.with_hot_registry(&k, |registry| {
             registry
                 .hot_read()
                 .certify(&ChangeKind::ContentModify, &outcome.delta, 64, depth)
@@ -546,7 +559,7 @@ mod tests {
         );
 
         // No zero-callers: the registry's dependency handle sees b.ts → a.ts.
-        let dependents = cache.with_registry(&k, |registry| {
+        let dependents = cache.with_hot_registry(&k, |registry| {
             registry
                 .dependency()
                 .dependents_of("a.ts")

@@ -39,8 +39,20 @@ impl WorkspaceRoot {
     /// graph's stored paths (Anvil determinism + the snapshot's
     /// `is_workspace_root_relative` contract). The absolute root is never part of
     /// the returned key.
+    ///
+    /// `strip_prefix` is purely **lexical** — it resolves no symlinks and no `..`
+    /// components. Callers must pass canonical paths; as a fail-closed guard this
+    /// returns `None` for any path that lexically matches the root prefix but then
+    /// escapes it via a `..` component (so a non-canonical path can never yield a
+    /// key that points outside the worktree).
     pub fn relativise(&self, path: &Path) -> Option<String> {
         let rel = path.strip_prefix(&self.root).ok()?;
+        if rel
+            .components()
+            .any(|c| c == std::path::Component::ParentDir)
+        {
+            return None;
+        }
         Some(rel.to_string_lossy().replace('\\', "/"))
     }
 }
@@ -68,5 +80,19 @@ mod tests {
         let root = WorkspaceRoot::new("/home/dev/proj");
         assert_eq!(root.relativise(Path::new("/home/dev/other/a.ts")), None);
         assert_eq!(root.relativise(Path::new("/etc/passwd")), None);
+    }
+
+    #[test]
+    fn workspace_root_rejects_parent_dir_escape() {
+        let root = WorkspaceRoot::new("/home/dev/proj");
+        // Lexically matches the root prefix but escapes via `..` — fail closed.
+        assert_eq!(
+            root.relativise(Path::new("/home/dev/proj/../other/secret.ts")),
+            None
+        );
+        assert_eq!(
+            root.relativise(Path::new("/home/dev/proj/src/../../etc/passwd")),
+            None
+        );
     }
 }

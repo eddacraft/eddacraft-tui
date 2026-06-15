@@ -171,6 +171,10 @@ impl<'a> GraphRegistry<'a> {
     /// plan/provenance (ref-only anchors). The provenance leg is resolved through
     /// the injected `provenance` join; pass [`NoProvenance`] when no
     /// plan/provenance authority is wired.
+    ///
+    /// The residency check walks the file's symbol identities once per call, so
+    /// this is not hot-path-admissible when looped over every symbol in a large
+    /// file — a future batch variant should compute the file's identities once.
     pub fn symbol_join<P: ProvenanceJoin>(
         &self,
         provenance: &P,
@@ -220,8 +224,9 @@ impl<'a> GraphRegistry<'a> {
                 reaches_privileged.then(|| dependent.to_string())
             })
             .collect();
+        // `dependents_of` returns from a `HashSet` (no duplicates); sort only —
+        // for deterministic ordering, since set iteration order is unspecified.
         out.sort();
-        out.dedup();
         out
     }
 }
@@ -399,5 +404,52 @@ mod tests {
             Some("session:abc".to_string())
         );
         assert!(registry.attribution_for(&StubControl, "src/b.ts").is_none());
+    }
+
+    /// `symbol_join` resolves overloaded symbols by ordinal — two same-(file,
+    /// kind, name) symbols are distinct identities; the residency check must
+    /// honour the ordinal, not just the name.
+    #[test]
+    fn registry_symbol_join_disambiguates_overloads_by_ordinal() {
+        let mut semantic = SymbolGraph::new();
+        // Two overloads of `foo` in one file → ordinals 0 and 1.
+        semantic
+            .add_symbol(node("a.ts", 1, "foo", TrustLevel::Unknown))
+            .unwrap();
+        semantic
+            .add_symbol(node("a.ts", 2, "foo", TrustLevel::Unknown))
+            .unwrap();
+        let dependency = DependencyGraph::new();
+        let trust = TrustGraph::new();
+        let registry = GraphRegistry::new(&semantic, &dependency, &trust);
+
+        let ord = |n: u32| SymbolIdentity {
+            file: "a.ts".to_string(),
+            kind: SymbolKind::Function,
+            name: "foo".to_string(),
+            ordinal: n,
+        };
+        assert!(registry.symbol_join(&NoProvenance, &ord(0)).defined);
+        assert!(registry.symbol_join(&NoProvenance, &ord(1)).defined);
+        // No third overload — ordinal 2 is not resident.
+        assert!(!registry.symbol_join(&NoProvenance, &ord(2)).defined);
+    }
+
+    /// Pins the denylist method the seal doctest relies on: `impact_closure_unbounded`
+    /// exists on `BackgroundReadApi` with the expected signature. If it were renamed
+    /// or removed, the `compile_fail` seal doctest could pass for the wrong reason —
+    /// this test would fail to compile, flagging it.
+    #[test]
+    fn background_read_exposes_unbounded_closure() {
+        let semantic = SymbolGraph::new();
+        let dependency = DependencyGraph::new();
+        let trust = TrustGraph::new();
+        let registry = GraphRegistry::new(&semantic, &dependency, &trust);
+        let result: Option<std::collections::HashSet<String>> = registry
+            .background_read()
+            .impact_closure_unbounded("a.ts", 100);
+        // Pins the method name + signature; an unknown file yields an empty (or
+        // absent) closure — the value is incidental, the point is it compiles.
+        assert!(result.is_none_or(|closure| closure.is_empty()));
     }
 }
