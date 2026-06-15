@@ -14,6 +14,13 @@ routing) confirmed in the v0.8.0-beta tag (record:
 plans/releases/v0.8.0-beta.md); Merged items advanced to Released/Shipped.
 Sub-phase B remains Blocked.
 
+2026-06-16: added **DSV-045 (full-scan executor, Ready)** — the loop that drives
+`request_full_scan` `Pending → Running → Clean` and populates the warm graph
+cache without a save, so a fresh session is not cold. Architecture decided by
+[ADR-085](../decisions/085-daemon-full-scan-executor.md) (planning council
+`plan-898d9222`); merges before the GCTX-010 warm-up triggers. Module total
+19 → 20.
+
 ## Purpose
 
 Deliver Anvil's save-time validation as a daemon-mediated service across its
@@ -973,6 +980,113 @@ Merged item; each is an additive improvement under the frozen wire.
 
 ---
 
+### Full-scan executor
+
+The `request_full_scan` verb shipped (DSV-002/005) and the scan primitives
+shipped (DSV-006: `walk_capped`, `run_chunked_scan`, `ScanCancel`, `DosCaps`, the
+two-pool scheduler), but the verb only sets the assurance machine to `Pending` —
+nothing drives `Pending → Running → Clean` or populates the warm
+`KernelGraphCache`. Population today is **only** via save-time `validate_paths` →
+`apply_delta`, so a fresh session's graph stays cold until a file is saved. This
+item builds the executor loop that closes that gap (and the
+[ADR-084](../decisions/084-gctx-graph-handle-access.md) C1 cold-start
+requirement). Architecture decided by
+[ADR-085](../decisions/085-daemon-full-scan-executor.md).
+
+#### DSV-045: Full-scan executor
+
+- **Status:** Ready
+- **Intent:** Drive a queued `request_full_scan` to completion on the background
+  pool — walk, parse, apply, complete — so the warm graph cache is populated
+  without a save, with cancellation, a timeout watchdog, eviction-rewarm, a
+  scan↔save race guard, truncation handling, and DoS coalescing.
+- **Expected Outcome:** A `Pending` assurance state spawns a background-pool job
+  that opens its own `WorkspaceAnchor` on the admitted canonical root, walks the
+  worktree (gitignore pre-filtered, `DosCaps`-bounded), parses each file with the
+  injected `SymbolParser` on `scheduler.background()` (the daemon links no
+  parser), feeds each file as `ChangeKind::Create` through `apply_delta`, and
+  transitions `start_scan → complete_scan` holding the per-key machine lock only
+  for those brief calls (ADR-084 C2). An interactive `validate_paths` preempts a
+  mid-chunk scan via `ScanCancel`; on yield, applied deltas are kept, the
+  worktree goes `Stale`, and a continuation re-queues from the processed offset.
+  `complete_scan` **reads-and-clears a per-key dirty-during-scan flag atomically
+  within the same per-key machine-lock critical section** as the `Clean`
+  transition (compare-and-clear under lock) → `Clean` only if never dirtied, else
+  `Stale(CrossFileResolutionNeeded)` + re-queue. The dirty flag is set by **ANY**
+  `apply_delta` for the key during a `Running` scan, regardless of call origin —
+  interactive `validate_paths` *and* a GCTX on-demand re-warm. A no-parser daemon
+  `mark_stale`s, never producing a phantom empty `Clean`. A worktree still over
+  `max_walk_files` after the gitignore pre-filter resolves to the new
+  `AssuranceState::Bounded` (warm-but-bounded; wire `"bounded"`, distinct from the
+  unrelated `Coverage::Partial`), carrying a `scan_coverage:
+  Option<ScanCoverage { scanned_files, total_files }>` field on
+  `WorkspaceAssurance` and `reason = None` (a lifecycle state, like `Clean`),
+  never `Clean`. The same proto change adds `#[serde(other)] Unknown` to
+  `AssuranceState` so the new variant is genuinely additive/forward-compatible
+  (consumers treat `Unknown` fail-safe as `Stale`); `status`/`watch`/GCTX each
+  explicitly handle `Bounded` (no wildcard-to-`Clean`). A per-key `scan-enqueued`
+  CAS coalesces repeated `request_full_scan` so N calls drive one scan; the CAS
+  flag resets via an RAII/drop guard on **any** job exit (completion, panic, or
+  cancellation), so a panicked/cancelled scan never wedges `request_full_scan`
+  inert for that key. The executor is reactive to `Pending` and the daemon
+  auto-enqueues on first contact (`validate_paths` / `workspace_status`) against a
+  cold key. A `WarmStateEvicted` event re-queues a `Pending` scan.
+- **Validation:**
+  `cargo test -p eddacraft-anvil-intercept -- full_scan_executor`. Named tests:
+  - **Order-independent convergence** —
+    `scan_driven_graph_equivalent_to_save_driven_baseline`, run against a
+    minimum corpus that includes an import cycle (A→B→A), a diamond
+    (A→B,C→D), and ≥10 files with cross-file imports (so order-independence is
+    actually exercised, not asserted on a trivial graph).
+  - **Dirty flag, origin-agnostic + compare-and-clear** —
+    `apply_delta_during_running_scan_marks_stale_not_clean`, plus
+    `non_validate_paths_apply_delta_during_running_also_sets_dirty` (a GCTX-origin
+    re-warm during `Running` sets the flag), and a case asserting the flag is
+    read-and-cleared under the same lock as the `Clean` transition (set/check
+    cannot interleave).
+  - **Truncation** —
+    `over_walk_cap_after_gitignore_resolves_bounded_not_clean` (resolves to
+    `AssuranceState::Bounded` with a populated `scan_coverage` and `reason =
+    None`).
+  - **No-parser** — `no_parser_marks_stale_never_starts_scan`.
+  - **Coalescing liveness** — `repeated_request_full_scan_drives_one_scan` and
+    `executor_panic_resets_scan_enqueued_flag` (the CAS flag clears on a
+    panicking/cancelled job so a subsequent `request_full_scan` still enqueues).
+  - **Yield/cancel** —
+    `yield_keeps_applied_deltas_and_resumes_from_processed_offset`.
+  - **Eviction rewarm** — `evicted_warm_state_requeues_and_rewarms`.
+  - **C2 concurrency** — a `validate_paths` completes within the ADR-031 budget
+    *while* a scan is `Running`, mechanically proving the per-key lock is not held
+    across walk+parse+apply.
+  - **`Bounded` exhaustiveness** — `status`/`watch`/GCTX each explicitly handle
+    `Bounded` (no wildcard-to-`Clean`), verified by an exhaustiveness (compile) or
+    per-consumer test.
+  - **ADR-031 bench + self-test** — `cargo bench -p eddacraft-anvil-intercept
+    ipc_roundtrip`: the scan-in-flight case holds interactive p95 under 80 ms, and
+    a synthetic regression self-test mirroring DSV-006 injects an artificial scan
+    stall and asserts the gate exits **non-zero** (proving the gate catches a
+    regression). CI `resource-budgets` gate is the authority.
+- **Files:** `crates/anvil-intercept/src/save_time.rs`,
+  `crates/anvil-intercept/src/full_scan_executor.rs` (new),
+  `crates/anvil-intercept/src/assurance.rs`,
+  `crates/anvil-intercept-proto/src/protocol.rs`
+  (`AssuranceState::Bounded` + `#[serde(other)] Unknown` fallback + new
+  `ScanCoverage { scanned_files, total_files }` struct + `scan_coverage`
+  field on `WorkspaceAssurance` + updated `reason`-invariant doc-comment),
+  `crates/anvil-intercept/src/workspace_pool.rs`,
+  `crates/anvil-intercept/benches/ipc_roundtrip.rs`
+- **Confidence:** medium
+- **Priority:** High
+- **Dependencies:** DSV-006 (scan primitives);
+  [ADR-085](../decisions/085-daemon-full-scan-executor.md). Soft dependency on
+  DLIFE-002 (UX docs only — code ships independently). Unblocks
+  [GCTX-010](graph-context-delivery.aps.md) C1 (session-init + on-demand warm-up
+  triggers rebase onto this).
+- **Source:** ADR-084 C1 cold-start warm-up; ADR-085; planning council
+  `plan-898d9222`.
+
+---
+
 ## Decisions
 
 1. **Delivery module, not foundation** — DSV owns the daemon save-time *delivery*
@@ -994,5 +1108,6 @@ Merged item; each is an additive improvement under the frozen wire.
 | A-W — Windows + cross-platform parity | 2 | 2/2 done (DSV-010 Merged — verbs served on Windows + hardening; DSV-011 Merged — clients verified on the green cross matrix, run 27102943706) | Done (all Merged; awaiting release) |
 | A — deferred follow-ups | 5 | 5/5 done | Done |
 | A′ — GV2 hot-read swap + default-on routing | 2 | 2/2 done | Done |
+| Full-scan executor | 1 | 0/1 done (DSV-045 Ready — ADR-085) | Ready |
 | B — Warm-start persistence | 1 | 0/1 done | Blocked |
-| **Total** | **19** | **18/19 done** | **In Progress** |
+| **Total** | **20** | **18/20 done** | **In Progress** |
