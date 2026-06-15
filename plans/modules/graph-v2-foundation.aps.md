@@ -28,7 +28,9 @@
 > 026 (registry/contracts) and GV2-030 (sealed-DTO snapshot, with Sub-phase B
 > persistence). v0.9 active: GV2-013/014 Merged 2026-06-13 (PR #2578/#2579);
 > GV2-026/030 Merged 2026-06-14 (PR #2594/#2595). Count is
-> **18/20** (001/002/003/010/011/012/013/014/021/022/023/024/025/026/027/028/029/030 Merged —
+> **19/20** (001/002/003/010/011/012/013/014/020/021/022/023/024/025/026/027/028/029/030 Merged —
+> GV2-020 #2622 added the multi-graph registry + typed query traits (the registry
+> impl behind the GV2-023 contract; control/provenance as trait stubs);
 > GV2-013 #2578 + GV2-014 #2579 added the control/session and plan/provenance
 > contracts (Phase 1 complete); GV2-023 #2621 added the consumer query contract
 > (four read classes, one mapped scenario each for INTD/DRVR/GCTX/WEAVE — the
@@ -471,7 +473,7 @@ Change status to **Ready** when:
 
 #### GV2-020: Multi-graph registry and typed query traits
 
-- **Status:** In Progress — started 2026-06-15 on `feat/gv2-020`. Building `GraphRegistry` + typed query traits over the real graphs (semantic/dependency/trust) with **trait-stub** surfaces for the contract-only control/session and plan/provenance graphs (GV2-013/014 are named-not-frozen contracts; their backing lands with consumers, ADR-064). Promoted Draft → Ready 2026-06-15 (deps GV2-010/011/012/013/014 all **Merged**; execution-authorised) alongside the ADR-075 entry decisions ([ADR-083](../decisions/083-gctx-mcp-delivery-target.md) Accepted + [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md) filed).
+- **Status:** Merged 2026-06-15 via PR #2622 — `GraphRegistry` + typed query traits over the real graphs (semantic/dependency/trust), with **trait-stub** `ControlJoin`/`ProvenanceJoin` seams for the contract-only control/session + plan/provenance graphs (GV2-013/014 named-not-frozen contracts; live resolvers land with consumers, ADR-064), the `WorkspaceRoot` worktree-root→file relativiser (`anvil-kernel-types`), and `KernelGraphCache::with_hot_registry`. Sealed hot-read surface preserved (compile_fail proof); e2e certifies a non-vacuous verdict through the registry path, verdict-equal to the direct hot-read path. Local Council ran pre-PR (all CRITICAL/MAJOR addressed). Promoted Draft → Ready 2026-06-15 (deps GV2-010/011/012/013/014 all Merged) alongside the ADR-075 entry decisions ([ADR-083](../decisions/083-gctx-mcp-delivery-target.md) Accepted + [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md) filed).
 - **Intent:** Provide one typed in-process entry point for querying joined graph
   state without coupling consumers to storage or `petgraph` internals.
 - **Expected Outcome:** Registry exposes graph handles and join queries for
