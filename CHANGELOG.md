@@ -12,6 +12,39 @@ engineering maintenance are recorded in the
 > since `v0.8.1-beta`; the version, date, and final scope are set at the next
 > release.
 
+Beta reliability polish, diagnostic quality, and scanning noise reduction while
+Graph V2 consumer surfaces and GCTX entry decisions lay the substrate for the
+assistant-facing graph (v0.9 window).
+
+### Changed
+
+- **Richer, structured warning diagnostics.** User-facing warnings now render
+  through `miette` with full source spans and code excerpts (CIB-071 Phase A/B).
+  This improves readability and precision for `anvil check`, `anvil gate`, and
+  other finding-emitting surfaces without changing exit semantics or JSON/SARIF
+  contracts. Spacing and original message fidelity are preserved in the mapping.
+
+### Fixed
+
+- **Secret scanning false-positive reduction.** Local `.env` files and
+  dependency lockfiles no longer trigger low-value keyword credential findings.
+  Lockfiles are now scanned narrowly for URL-shaped credential patterns rather
+  than blanket-skipped or over-reported. Comments and portable tests updated
+  (secret-scan hygiene).
+- **TUI dashboard picker navigation.** Pressing `esc` in a live dashboard now
+  returns to the dashboard list (picker) instead of exiting the shell (dashboard
+  surface fix).
+- **Auth gate and `whoami` output fidelity.** The auth-required contract is
+  honoured for output streams; `whoami` state and credential source reporting
+  clarified for humans and `--json` consumers.
+- **Various CLI contract and infra clean-ups.** Drive the unreleased window's
+  beta signal fixes (auth output on stderr, format handling, Nx graph exclusions
+  for docs tooling, RELEASE-PLAN formatting).
+
+See [Engineering History](./ENGINEERING-HISTORY.md) for the Graph V2 (GV2-020,
+GV2-023, GV2-026, GV2-030, GV2-031), GCTX (ADR-083, PV-9, GCTX-001), USAGE
+analytics foundation, daemon lifecycle (DLIFE), and full technical detail.
+
 ## [0.8.1-beta] — 2026-06-11 — Headless GitHub Login
 
 A patch cut hours after `v0.8.0-beta`, landing the GitHub device-flow login that

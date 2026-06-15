@@ -7,6 +7,158 @@ This log covers architecture, infrastructure, reliability, security, and
 delivery changes behind each release. For end-user feature summaries, see the
 [Changelog](./CHANGELOG.md).
 
+## [Unreleased] — Draft — Graph V2 Consumer Surfaces, GCTX Entry Gates, Usage Analytics & Diagnostics Polish
+
+Draft / unreleased. Technical work landed on `main` since `v0.8.1-beta`
+(2026-06-11). The window is the `v0.9.0-beta` "Assistant-Facing Graph"
+scoping/active transition: Graph V2 Phase 1 substrate completes (GV2 count
+reaches 20/20), GCTX entry gates clear (ADR-083 + PV-9 egress review on
+2026-06-15), USAGE analytics foundation lands, CIB-071 migrates user warnings to
+miette with spans, and daemon lifecycle (DLIFE) planning begins. Most changes
+are internal; visible effects are improved warning presentation and reduced
+secret-scan noise.
+
+### Graph V2 consumer layer and multi-graph registry (GV2-013, GV2-014, GV2-020, GV2-023, GV2-026, GV2-030, GV2-031)
+
+- **GraphRegistry + WorkspaceRoot bridge (GV2-020).** New `GraphRegistry`
+  skeleton, join stubs, `WorkspaceRoot` bridge, and seal proof. E2E
+  certification through the registry path; council review addressed on the
+  execution plan (renamed to canonical `.actions.md`). GV2-020 marked Merged via
+  #2622; count to 19/20 then 20/20.
+- **Consumer query contract (GV2-023).** Defined the governed consumer query
+  contract for weave/MCP surfaces. Citation alignment to Merged-via form;
+  promoted Ready alongside GV2-020 after GCTX gates cleared.
+- **Control/session and plan/provenance graph contracts (GV2-013/014).** Phase 1
+  contracts defined and landed; GV2 count reconciled to 14/20 then 15/20 (Phase
+  1 complete note). Provenance-join fixture made anchor-only.
+- **Runtime reverse-impact hop-depth lever (GV2-026).** Exposed as a
+  configurable lever for hot-path reverse closure; marked Ready/Merged with
+  count updates.
+- **Sealed-DTO graph snapshot + no-leak guard (GV2-030).** `anvil-graph-cache`
+  snapshot projection tightened, `forward_edges` visibility reduced, sealed DTO
+  with runtime guard. Promoted Ready 2026-06-13 (post ADR-069 persistence and
+  PV-6..12). Snapshot DTO rustfmt + tests.
+- **Re-export edges for transitive privilege (GV2-031).** Lifted re-export
+  modelling so privilege is correctly transitive. NBI row scheduled; module
+  narrative reconciled; marked Merged via #2627 with GV2 20/20 close.
+- **Graph boundary and cache refinements.** `anvil-graph-cache` crate (ADR-064)
+  continues to serve as the daemon graph boundary; kernel symbol feed and
+  per-worktree caches remain in use. Privacy review for machine-local
+  persistence (prior PV) carried forward.
+
+### GCTX entry decisions (GCTX-001, GCTX-002, ADR-083, PV-9)
+
+- **ADR-083 Accepted (2026-06-15).** GCTX-002: assistant graph context delivery
+  (tools/resources/slicing) targets the Rust `anvil mcp serve` (RMCPF) surface
+  as primary/long-term mechanism. Additive registration through existing
+  capability handlers; consumes daemon hot-read paths; no resurrection of
+  archived TS MCP for production GCTX. Interim TS shim only for migration
+  smoke-tests.
+- **Context-egress privacy review (PV-9) filed and APPROVE-WITH-CONDITIONS.**
+  Conditions (CE-1..CE-12) folded into GCTX-001. Complements the earlier GV2
+  machine-local persistence review.
+- **GCTX-001 assistant graph projection contract authored.** Captures NBI, agent
+  workflows, and update discipline. Promoted Draft → Ready; GCTX-001 + GCTX-002
+  marked Merged (GCTX 2/13).
+- **GV2-020/023 + GCTX module Ready promotion.** Post-gate:
+  `graph-context-delivery` module promoted Ready (0/13 work items); dependent
+  consumer surfaces unblocked. APS index and module narrative updates
+  (bullet-list brief metadata, upstream consumer brief).
+
+### Usage analytics foundation (USAGE-001..005)
+
+- **Command-invocation Kindling observations (USAGE-001).** Every CLI entrypoint
+  and JSON-RPC dispatcher emits a durable `command.invoked` (or equivalent)
+  Kindling row carrying: command, anonymised principal, timestamp, redacted
+  argument shape (names only), inline `flag_set` context (ADR-041), and
+  `traceparent`. Privacy contract re-uses existing `SENSITIVE_FIELDS` deny-list;
+  Copilot review addressed (posture hardening); tests avoid fixed salts in
+  anonymisation. Merged via #2603.
+- **Flag context inlining (USAGE-002).** `flag_set` resolved from auth/routing
+  surfaces inlined onto usage rows. Merged via #2607.
+- **Operator query views (USAGE-003).** New `anvil kindling usage` canned views
+  for top-N commands, never-invoked commands, and flag-dependent path exercise.
+  Runbook and query surface added.
+- **Licence gate flag-driven (USAGE-005).** CLI licence enforcement surface made
+  controllable via the single-source flag catalogue (no behaviour change for
+  default-on users).
+- **Cross-cutting module hygiene.** Follows ADR-034 convention; anti-drift hook
+  maintained; privacy and redaction alignment with observability-foundation.
+
+### Diagnostics migration (CIB-071)
+
+- **Miette diagnostic rendering for warnings (Phase A).** User-facing
+  diagnostics (warnings path) migrate from `anyhow`/`eyre` strings toward
+  `miette::Diagnostic` + `SourceSpan`/`LabeledSpan`. Phase A lands the renderer
+  and basic mapping while preserving original message + spacing.
+- **Source-span excerpts in warning diagnostics (Phase B).** Adds accurate
+  source excerpts to warnings. Full PR #2611; status reconciled in APS/CIB
+  index; `resource-budgets` and cross-matrix considerations noted for future
+  impact measurement. Fixes include miette test mapping preservation.
+- **Standing CIB tracking.** CIB-071 status flipped In Progress → progress
+  recorded; related Windows `ready_restart_required` (CIB-072) and
+  demo-readiness (CIB-073..076) plus preflight ordering (CIB-077) filed as
+  follow-ups.
+
+### Secret scanning hardening
+
+- **Lockfile and .env handling.** Lockfiles are now inspected only for
+  high-signal URL credential shapes (no blanket skip, no broad keyword blast).
+  Local `.env` (and lockfiles) are excluded from low-confidence keyword rules
+  that historically produced noise. Comment corrections for `.env`/lockfile
+  intent; new portable regression tests.
+- **Refactor + fix sequence.**
+  `refactor(secret-scan): scan lockfiles for URL credentials, not skip`;
+  `fix(secret-scan): stop flagging lockfiles and local .env files`.
+
+### Daemon lifecycle and intercept foundations (DLIFE)
+
+- **Daemon lifecycle planning (DLIFE).** New planning surface
+  `docs(dlife): plan daemon lifecycle startup`. Captures startup, shutdown,
+  restart, and `--verify` termination paths.
+- **DLIFE-006.** APS item filed for terminating `--verify` diagnostic behaviour.
+- **Intercept ref hygiene.** Stale `INTD-002` references repointed to the DLIFE
+  module. UUID fallback clarification for unparseable `traceparent` in intercept
+  telemetry.
+- **Telemetry join (MLP2-008).** `gate_evaluated` row now receives RTAI-007
+  telemetry join; MLP2 count advanced.
+
+### Graph cache, snapshot, and hot-path refinements (supporting GV2)
+
+- Tightened snapshot projection and `forward_edges` visibility.
+- Runtime hop-depth lever wired for reverse-impact queries.
+- Sealed DTO guard to prevent accidental leakage of internal graph shape across
+  the cache boundary.
+- Catalogue inventory test updated for `daemon.persist-graph` flag.
+
+### Release engineering, CI, APS & hygiene
+
+- **GV2 20/20 and GCTX 2/13 reconciliation.** Multiple docs(aps) updates:
+  narrative reconciliation, bullet-list metadata, upstream brief for NBI/agent
+  workflows, Schedule mode for NBI rows, Merged-via citations, count bumps,
+  archive of prior-window modules.
+- **GCTX entry gate landing.**
+  `docs(aps): land GCTX entry gates — accept ADR-083, file PV-9 egress review, promote GV2-020/-023`.
+- **CI/mirror hardening.**
+  `ci(mirror): harden eddacraft-tui + acknowledgements mirror workflows`
+  (#2620).
+- **Docs lint / format remediation.** Oxfmt applied to RELEASE-PLAN.md;
+  ADR-033/ADR-083 wording and GCTX-002 state corrected per Copilot review.
+- **CIB intake.** New items filed for Windows daemon restart stuck state, beta
+  demo gaps + script, release preflight version-gate ordering.
+- **Infra.** `.deepsec` excluded from Nx graph to unblock Vercel docs-shell.
+- **Deps & acknowledgements.** Hakari + acknowledgements refresh; esbuild floor
+  raised in prior window carry-over.
+- **Auth / API follow-through.** GitHub OAuth app org-ownership clarified; admin
+  key handling hardened; Resend probe and health work from prior window
+  stabilised.
+- **APS index & module state.** Continuous index refreshes, CIB count bumps,
+  USAGE/MLP2/GV2/GCTX state alignment before and after the window transition.
+
+See the active [RELEASE-PLAN.md](./RELEASE-PLAN.md) for v0.9.0-beta scope, cut
+criteria (ADR-031 latency gate, cross matrix, egress conditions), and the GCTX /
+GV2 balance of work still ahead in the window.
+
 ## [0.8.0-beta] — TBD — The Save-Time Daemon
 
 Draft / unreleased. Technical work landed on `main` since `v0.7.4-beta`; release
