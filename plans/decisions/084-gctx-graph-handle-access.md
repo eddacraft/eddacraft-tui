@@ -2,14 +2,17 @@
 
 ## Status
 
-**Proposed** — 2026-06-15. Synthesised by a planning council
+**Accepted** — 2026-06-15, Josh. Synthesised by a planning council
 (`plan-f211c211`; architect + kernel-maintainer + adversarial-reviewer) at the
 owner's request, after GCTX Phase 0 (the
 [GCTX-001 projection contract](../../docs/architecture/graph-context-delivery-spec.md)
 Merged via #2628 and GCTX-002 Merged via #2619) closed. Resolves the open
 architectural prerequisite that left the GCTX Phase 1 tool items (GCTX-010..013,
-021..023, 030) Draft: **how `anvil mcp serve` obtains a graph handle.** Awaiting
-owner acceptance before the Phase 1 items flip to Ready.
+021..023, 030) Draft: **how `anvil mcp serve` obtains a graph handle.** The
+Phase 1 items may flip to Ready once GCTX-010's binding conditions C1–C5 are
+folded into item text. Owner refinement at acceptance: the Phase-2 isolation
+layer is a **same-process second service surface over the same graphs** (option A
+below), not a dedicated daemon with its own graph.
 
 ## Date
 
@@ -35,9 +38,10 @@ Code facts established by the council (cite as given):
 
 The product owner set the posture before the council: **daemon-required, degrade
 gracefully** (not daemon-less); **thin vertical slice first**; and a Phase-2
-direction — rather than maintain a second in-process graph path, **lazily spawn a
-dedicated assistant/GCTX graph daemon** (a named feature) only when GCTX is
-actually used.
+direction to isolate assistant query-serving from the enforcement hot path. At
+acceptance the owner refined that direction: rather than maintain a second graph
+(in-process or in a separate daemon), add a **second service surface that reads
+the same graphs** — see option A in the Decision.
 
 ## Decision
 
@@ -84,19 +88,40 @@ Four parts:
      responses; runs the tool handler with CE-8 workspace-root validation; stdio
      only.
 
-4. **GCTX is its own dispatch, not the enforcement path.** The `anvil/gctx/*`
-   methods are handled by a separate read-only `GctxDispatch` (its own dispatch
-   arm in `ipc.rs`), **not** added to the save-time `SaveTimeDispatch` trait, so
-   GCTX queries never sit on the enforcement hot path and the trait's "save-time"
-   semantics stay coherent.
+4. **GCTX is its own service surface over the same graphs, not the enforcement
+   path.** Phase 1 handles `anvil/gctx/*` via a separate read-only `GctxDispatch`
+   (its own dispatch arm in `ipc.rs`), **not** the save-time `SaveTimeDispatch`
+   trait, so GCTX queries never sit on the enforcement hot path. Phase 2 promotes
+   this to a **same-process second service surface** (option A — see below): a
+   dedicated GCTX listener/socket + its own read worker pool inside the **same**
+   daemon process, reading the **same** in-memory graphs — never a second daemon
+   with its own graph, so there is exactly one substrate and one truth.
+
+   **Read-concurrency model (accepted).** GCTX reads must not contend with
+   save-time mutation. The save-time path publishes an **immutable read snapshot**
+   of the graph after each applied delta (`arc-swap` of an `Arc<GraphSnapshot>`);
+   the GCTX service reads the latest published snapshot **lock-free**, never
+   acquiring the `KernelGraphCache` write `Mutex`. This supersedes the
+   snapshot-under-lock mitigation in C2 below: the writer is never blocked by a
+   reader, and a reader always sees a consistent point-in-time graph. The
+   snapshot's freshness/generation feeds the CE-7 `WorkspaceAssurance` marker.
 
 **Phase boundary.** Phase 1 (thin slice) pilots **`anvil_search_symbols`
 (GCTX-010, identity-only — no snippet/CE-1/CE-2 escalation)** end-to-end over the
-*existing* intercept daemon, building the reusable spine (the two crates, the
-projector, the no-leak test, CE-3/CE-4/CE-6/CE-7/CE-10/CE-11). Phase 2 adds the
-owner's **lazily-spawned dedicated assistant graph daemon** as a *pluggable
-provider behind the same `anvil/gctx/*` contract* (the MCP consumer never
-changes), plus all snippet-bearing surfaces.
+*existing* intercept daemon via the separate `GctxDispatch`, building the reusable
+spine (the two crates, the projector, the no-leak test,
+CE-3/CE-4/CE-6/CE-7/CE-10/CE-11). **Phase 2** adds the owner's isolation layer —
+the **same-process second GCTX service surface over the same graphs** (option A),
+with the lock-free read-snapshot above — plus all snippet-bearing surfaces. The
+`anvil/gctx/*` contract is stable across the boundary, so promoting Phase 1's
+dispatch arm to a dedicated service endpoint does not change the MCP consumer.
+
+   **Option A (chosen) vs option B.** A = same-process second service surface
+   over the shared graphs (chosen): no duplication, one substrate, one egress
+   choke point. B = a separate process sharing the graphs was rejected — live
+   `petgraph` structures are not shareable across processes without shared-memory
+   arenas (complex) or a proxy hop into the owning daemon (latency for little
+   isolation gain), and it reintroduces the divergence/duplication risks A avoids.
 
 ## Rationale
 
@@ -115,37 +140,51 @@ changes), plus all snippet-bearing surfaces.
   daemon-only) keeps proto graph-free *and* binds the no-leak test where the
   egress types are defined — capturing both positions.
 - **It realises the owner's Phase-2 direction cleanly.** A stable sealed-DTO RPC
-  contract makes the warm-graph provider pluggable: the enforcement daemon today,
-  a dedicated spawned assistant daemon tomorrow, with no change to the MCP
-  consumer.
+  contract makes the service surface promotable in place: a `GctxDispatch` arm on
+  the existing socket today, a dedicated same-process GCTX listener + read worker
+  pool over the *same* graphs tomorrow — with no change to the MCP consumer and no
+  second graph to keep in parity.
 - **Reuse `WorkspaceAssurance` for CE-7.** The degradation signal already exists;
   GCTX embeds it rather than inventing a parallel readiness notion.
 
 ## Consequences
 
 **Positive.** No graph in the MCP process; one redaction choke point upstream of
-the wire; MCP crate cannot leak internal types (Cargo-enforced); the provider is
-pluggable for Phase 2; CE-7/CE-8 ride existing daemon machinery.
+the wire; MCP crate cannot leak internal types (Cargo-enforced); CE-7/CE-8 ride
+existing daemon machinery. The Phase-2 isolation layer (option A) adds query-path
+isolation with **one** substrate and **one** egress choke point — no second graph,
+no second watcher, no divergence.
 
 **Negative / accepted.** GCTX becomes daemon-dependent; the daemon gains a
 read-only egress-projection responsibility (bounded to `anvil-gctx-egress`, off
-the hot path). Two new crates.
+the hot path) and, in Phase 2, a second service listener + read worker pool in the
+same process. Two new crates. The lock-free read snapshot adds a per-delta publish
+cost on the save path (an `Arc` swap of an immutable snapshot) — cheap, and off
+the critical-section hold.
 
 **Binding conditions on GCTX-010 before it flips to Ready** (the council's
 critical findings — these gate the Phase-1 item, not this ADR):
 
-- **C1 — Cold-start warm-up.** The daemon's cache is *save-populated*: a fresh
-  session has no graph for an unedited worktree, so `anvil_search_symbols` would
-  return empty until the user saves. GCTX-010 MUST trigger a warm-up on MCP
-  session init via the existing `anvil/request_full_scan` verb (or surface a
-  structured `GctxError`/recovery-hint enum the assistant can act on) — silent
-  empty results are a product-death failure. This is also the strongest argument
-  for pulling the Phase-2 dedicated daemon (which can run a background full scan)
-  forward if the warm-up trigger proves insufficient.
-- **C2 — Bounded lock hold.** The `GctxProjector` MUST snapshot the matched graph
-  entries under the cache lock and release it *before* filtering/pagination, so
-  GCTX query latency never couples to the save-time hot path (ADR-031 80ms p95
-  gate). Holding the inner `Mutex` across the whole projection is prohibited.
+- **C1 — Cold-start warm-up (enough triggers).** The daemon's cache is
+  *save-populated*: a fresh session has no graph for an unedited worktree, so
+  `anvil_search_symbols` would return empty until the user saves. Silent empty
+  results are a product-death failure. GCTX-010 MUST ensure the graph warms
+  through a *sufficient set* of triggers, not a single hook — at minimum: a
+  warm-up on MCP session init via the existing `anvil/request_full_scan` verb;
+  an on-demand warm-up when a GCTX query hits a cold/`Pending` worktree; and a
+  structured `GctxError::NotReady` + recovery-hint enum the assistant can act on
+  while warming. Re-warm on workspace-root change / cache eviction. The bar is
+  that a realistic first-use session reaches a useful graph without the user
+  having to manually save files first. (The Phase-2 service surface does not by
+  itself warm the graph — these triggers are needed regardless of provider.)
+- **C2 — No hot-path coupling on reads.** GCTX reads MUST NOT block save-time
+  mutation. Phase 2 satisfies this with the accepted **lock-free read snapshot**
+  (save-time publishes an immutable `Arc<GraphSnapshot>` via `arc-swap`; GCTX
+  reads the latest without taking the write `Mutex`). For the Phase-1 dispatch-arm
+  pilot before that snapshot exists, the projector MUST take a cheap copy of the
+  matched entries under the cache lock and release it *before* filtering/
+  pagination — holding the inner `Mutex` across the whole projection is prohibited
+  (ADR-031 80ms p95 gate).
 - **C3 — Daemon-side root admission (CE-8).** The daemon MUST validate the
   client-supplied `workspace_root` against the connection's admitted-root set
   (reuse the `SaveTimeConn` admission gate) before projecting — a hostile MCP
@@ -177,8 +216,14 @@ no new transitive parser deps.
   (proto cleanliness, no-leak-test placement) are folded into the crate split.
 - **Hybrid (daemon-RPC primary, cold-build fallback).** Deferred: doubles the
   graph surface (two paths to keep correct and redact) and front-loads the
-  expensive path. The owner's Phase-2 spawned-daemon supersedes the need for an
+  expensive path. Superseded by the Phase-2 same-process service surface over the
+  shared graphs, which gives query-path isolation without a second graph or an
   in-process cold-build fallback.
+- **Separate GCTX process sharing the graphs (option B).** Rejected: live
+  `petgraph` structures are not shareable across processes without shared-memory
+  arenas (complex) or a proxy hop into the owning daemon (latency for little
+  isolation gain), and it reintroduces the duplication/divergence risks the
+  same-process surface (option A) avoids.
 
 ## References
 

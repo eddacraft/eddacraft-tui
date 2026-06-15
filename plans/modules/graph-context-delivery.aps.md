@@ -215,7 +215,7 @@ blockers — they are resolved during execution, not before promotion:
 ### Phase 1 — Graph Query Tools
 
 > **Graph-handle access fixed by [ADR-084](../decisions/084-gctx-graph-handle-access.md)
-> (Proposed 2026-06-15, planning council `plan-f211c211`).** GCTX tools query the
+> (Accepted 2026-06-15, planning council `plan-f211c211`).** GCTX tools query the
 > running `anvil-intercept` daemon over a new read-only `anvil/gctx/*` RPC
 > (daemon-required; degrade via the existing `WorkspaceAssurance`/CE-7 signal — no
 > per-call construction, no whole-file fallback). The CE-5 `GctxProjector` runs
@@ -223,20 +223,23 @@ blockers — they are resolved during execution, not before promotion:
 > crates: `anvil-gctx-types` (graph-free value DTOs + the no-leak test, shared by
 > proto + MCP) and `anvil-gctx-egress` (daemon-only projector). GCTX uses its own
 > `GctxDispatch`, not the save-time path. **Thin vertical slice first**:
-> GCTX-010 builds this spine end-to-end. Phase 2 = a lazily-spawned dedicated
-> assistant graph daemon as a pluggable provider behind the same RPC contract,
-> plus the snippet surfaces. The items below stay **Draft** until ADR-084 is
-> Accepted and GCTX-010's binding conditions C1–C5 are written into item text.
+> GCTX-010 builds this spine end-to-end. **Phase 2** = a same-process second GCTX
+> service surface over the **same** graphs (option A) with a lock-free read
+> snapshot (arc-swap), isolating query-serving from the hot path — not a second
+> graph — plus the snippet surfaces. The items below stay **Draft** until
+> GCTX-010's binding conditions C1–C5 are written into item text.
 
 #### GCTX-010: `anvil_search_symbols` tool
 
-- **Status:** Draft — unblocked in architecture by
-  [ADR-084](../decisions/084-gctx-graph-handle-access.md) (daemon-RPC +
-  daemon-side projection); flips to Ready once ADR-084 is Accepted and the
-  binding conditions are folded into this item: **C1** warm-up trigger on MCP
-  session init (`anvil/request_full_scan`) so a cold session is not empty; **C2**
-  projector snapshots under the cache lock then releases before
-  filtering/pagination (no hot-path latency coupling); **C3** daemon-side
+- **Status:** Draft — architecture fixed by
+  [ADR-084](../decisions/084-gctx-graph-handle-access.md) **Accepted** (daemon-RPC
+  + daemon-side projection); flips to Ready once the binding conditions are folded
+  into this item: **C1** enough cold-start warm-up triggers (session-init
+  `anvil/request_full_scan`, on-demand warm-up on a cold/`Pending` worktree, and
+  a `GctxError::NotReady` + recovery hint while warming) so a first-use session
+  is not empty; **C2** no hot-path coupling on reads (Phase-2 lock-free read
+  snapshot; for the Phase-1 pilot, snapshot the matched entries under the cache
+  lock then release before filtering/pagination); **C3** daemon-side
   `workspace_root` admission against the connection's admitted-root set (CE-8);
   **C4** `gctx.egress` flag lands with both a Rust gate and a TS consumer
   (FLAGCAT); **C5** snippet secret-scan completeness (Phase 2). This is the CE-5
