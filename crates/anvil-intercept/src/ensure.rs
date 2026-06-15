@@ -38,19 +38,25 @@
 //! [`Failed`]: EnsureOutcome::Failed
 
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+#[cfg(unix)]
+use std::path::PathBuf;
+#[cfg(unix)]
 use std::time::{Duration, Instant};
 
 /// Per-request wall-clock budget for the status probe. A listener that accepts
 /// the connection but does not answer within this window is treated as
 /// *live-but-slow* (never torn down), matching the save-time client budget.
+#[cfg(unix)]
 const PROBE_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// How long to wait for a freshly-spawned daemon to bind its endpoint and answer
 /// the status verb before declaring the launch [`EnsureOutcome::Failed`].
+#[cfg(unix)]
 const DAEMON_BIND_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Poll cadence while bound-waiting for a spawned daemon to come up.
+#[cfg(unix)]
 const BIND_POLL_INTERVAL: Duration = Duration::from_millis(50);
 
 /// Why a caller must not spawn a daemon, even though no live one was found.
@@ -117,6 +123,7 @@ pub enum EnsureOutcome {
 }
 
 /// The liveness of the per-user daemon endpoint as seen by a single probe.
+#[cfg(unix)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Liveness {
     /// Connected and received a valid status answer — a healthy daemon.
@@ -134,6 +141,7 @@ pub(crate) enum Liveness {
 /// Reads the liveness of the per-user daemon endpoint. Abstracted so the ensure
 /// state machine is tested without real sockets. Internal — callers consume the
 /// typed [`EnsureOutcome`], not the probe.
+#[cfg(unix)]
 pub(crate) trait DaemonProbe {
     /// Perform one liveness probe of the endpoint.
     fn probe(&self) -> Liveness;
@@ -218,6 +226,7 @@ pub fn ensure_daemon(
 }
 
 /// Inputs to the platform-agnostic ensure state machine.
+#[cfg(unix)]
 struct EnsureParams<'a> {
     probe: &'a dyn DaemonProbe,
     launcher: &'a dyn DaemonLauncher,
@@ -229,6 +238,7 @@ struct EnsureParams<'a> {
 
 /// The platform-agnostic ensure state machine. Pure but for the lock file, the
 /// injected probe, and the injected launcher — so every branch is unit-tested.
+#[cfg(unix)]
 fn ensure_with(params: &EnsureParams<'_>, capability: StartCapability) -> EnsureOutcome {
     // 1. Probe is read-only and always allowed, even for non-spawning callers:
     //    a live daemon is reused regardless of capability.
@@ -290,6 +300,7 @@ fn ensure_with(params: &EnsureParams<'_>, capability: StartCapability) -> Ensure
 
 /// `true` when a probe shows a daemon endpoint we must reuse rather than spawn
 /// over: either a healthy answer or a present-but-slow listener.
+#[cfg(unix)]
 fn reuse_if_live(probe: &dyn DaemonProbe) -> bool {
     matches!(
         probe.probe(),
@@ -305,6 +316,7 @@ fn reuse_if_live(probe: &dyn DaemonProbe) -> bool {
 /// once the budget is spent; a probe already in flight when the deadline passes
 /// can still overrun by at most one `PROBE_TIMEOUT` (the in-flight socket read),
 /// so the effective wall-clock ceiling is `timeout + PROBE_TIMEOUT`.
+#[cfg(unix)]
 fn wait_until_answered(probe: &dyn DaemonProbe, timeout: Duration, interval: Duration) -> bool {
     let deadline = Instant::now() + timeout;
     loop {
@@ -326,6 +338,7 @@ fn wait_until_answered(probe: &dyn DaemonProbe, timeout: Duration, interval: Dur
 /// The lock file is opened with the default close-on-exec flag, so a detached
 /// daemon child spawned while the lock is held never inherits (and therefore
 /// never wedges) it.
+#[cfg(unix)]
 fn acquire_ensure_lock(lock_path: &Path) -> io::Result<std::fs::File> {
     use std::fs::OpenOptions;
 
@@ -550,7 +563,7 @@ impl DaemonLauncher for DetachedCommandLauncher {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
