@@ -175,10 +175,11 @@ pub enum SearchSymbolsOutcome {
 }
 
 impl SearchSymbolsOutcome {
-    /// Classify this outcome into the exhaustive, PII-free [`GctxOutcome`]
-    /// telemetry enum (CE-10). A readable result splits into `Hit` (≥1 symbol)
-    /// and `Miss` (empty) by the page contents — the only place response counts
-    /// influence the label.
+    /// Classify this outcome into the PII-free [`GctxOutcome`] telemetry enum
+    /// (CE-10). The match over `SearchSymbolsOutcome` is exhaustive, so a new
+    /// response variant forces an explicit classification here. A readable result
+    /// splits into `Hit` (≥1 symbol) and `Miss` (empty) by the page contents —
+    /// the only place response counts influence the label.
     #[must_use]
     pub fn telemetry_outcome(&self) -> GctxOutcome {
         match self {
@@ -192,15 +193,17 @@ impl SearchSymbolsOutcome {
     }
 }
 
-/// The exhaustive, PII-free classification of a GCTX response (CE-10).
+/// The PII-free classification of a GCTX response (CE-10).
 ///
-/// Every counter, span attribute, and notification binds to **this enum** — and
-/// nothing else: no symbol names, paths, query text, or per-symbol token counts
-/// may appear in a telemetry label (only response-aggregate totals, in spans).
-/// `Hit`/`Miss` split a readable result by whether it returned any symbol. The
-/// labels match the GCTX-001 spec's outcome vocabulary
-/// (`hit`/`miss`/`warming`/`graph_disabled`/…). `#[non_exhaustive]` because
-/// Phase-2 adds `redacted`/`budget_exceeded` as snippet/credit surfaces land.
+/// Every counter, span attribute, tracing event, and notification binds to
+/// **this enum** — and nothing else: no symbol names, paths, query text, or
+/// per-symbol token counts may appear in a telemetry label. Only
+/// response-aggregate counts (e.g. `matched`/`returned`) may accompany it on the
+/// tracing pipe, as event fields within the dispatch span. `Hit`/`Miss` split a
+/// readable result by whether it returned any symbol. The labels match the
+/// GCTX-001 spec's outcome vocabulary (`hit`/`miss`/`warming`/`graph_disabled`/…).
+/// `#[non_exhaustive]` because Phase-2 adds `redacted`/`budget_exceeded` as
+/// snippet/credit surfaces land.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
