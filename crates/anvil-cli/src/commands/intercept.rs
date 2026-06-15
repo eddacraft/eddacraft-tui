@@ -973,7 +973,7 @@ fn round_to_int(value: f64) -> u64 {
 fn run_start(args: &StartArgs) -> Result<()> {
     if !args.foreground {
         anyhow::bail!(
-            "`anvil intercept start` currently requires --foreground; backgrounded launch lands with INTD-002"
+            "`anvil intercept start` currently requires --foreground; backgrounded launch is owned by the daemon-lifecycle module (DLIFE), gated on ADR-082"
         );
     }
 
@@ -1057,8 +1057,8 @@ mod tests {
             "bail message must mention --foreground, got: {msg}",
         );
         assert!(
-            msg.contains("INTD-002"),
-            "bail message must point at the future backgrounded path (INTD-002), got: {msg}",
+            msg.contains("DLIFE"),
+            "bail message must point at the future backgrounded path (DLIFE), got: {msg}",
         );
     }
 

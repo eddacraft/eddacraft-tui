@@ -9,8 +9,8 @@
 //!
 //! INTD-001 scaffold: `anvil-intercept start` runs the daemon in the
 //! foreground unconditionally. The backgrounded launch path (PID file
-//! handoff, double-fork on Unix, service install on Windows) lands
-//! with INTD-002.
+//! handoff, double-fork on Unix, service install on Windows) is owned
+//! by the daemon-lifecycle module (DLIFE), gated on ADR-082.
 
 use std::process::ExitCode;
 
@@ -31,7 +31,8 @@ struct Cli {
 #[derive(Debug, Subcommand)]
 enum Command {
     /// Run the intercept daemon in the current process. Always
-    /// foreground today — backgrounded launch lands with INTD-002.
+    /// foreground today — backgrounded launch is owned by the
+    /// daemon-lifecycle module (DLIFE), gated on ADR-082.
     Start,
 }
 
@@ -43,8 +44,8 @@ fn main() -> ExitCode {
     // but surfaces the condition so operators can diagnose missing
     // spans rather than silently dropping all daemon observability.
     // Deployment note: stderr must be captured by the supervising
-    // process manager (systemd / launchd) — INTD-002 owns the
-    // background-launch capture story.
+    // process manager (systemd / launchd) — the daemon-lifecycle
+    // module (DLIFE) owns the background-launch capture story.
     if let Err(err) =
         anvil_observability::init_tracing(anvil_observability::BinaryKind::InterceptDaemon)
     {
