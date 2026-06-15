@@ -12,9 +12,9 @@ engineering maintenance are recorded in the
 > since `v0.8.1-beta`; the version, date, and final scope are set at the next
 > release.
 
-Beta reliability polish, diagnostic quality, and scanning noise reduction while
-Graph V2 consumer surfaces and GCTX entry decisions lay the substrate for the
-assistant-facing graph (v0.9 window).
+This window delivers beta reliability polish, diagnostic quality, and scanning
+noise reduction, while Graph V2 consumer surfaces and GCTX entry decisions lay
+the substrate for the assistant-facing graph in the v0.9 window.
 
 ### Changed
 
@@ -37,9 +37,9 @@ assistant-facing graph (v0.9 window).
 - **Auth gate and `whoami` output fidelity.** The auth-required contract is
   honoured for output streams; `whoami` state and credential source reporting
   clarified for humans and `--json` consumers.
-- **Various CLI contract and infra clean-ups.** Drive the unreleased window's
-  beta signal fixes (auth output on stderr, format handling, Nx graph exclusions
-  for docs tooling, RELEASE-PLAN formatting).
+- **Various CLI contract and infra clean-ups.** These drive the unreleased
+  window's beta-signal fixes (auth output on stderr, format handling, Nx graph
+  exclusions for docs tooling, RELEASE-PLAN formatting).
 
 See [Engineering History](./ENGINEERING-HISTORY.md) for the Graph V2 (GV2-020,
 GV2-023, GV2-026, GV2-030, GV2-031), GCTX (ADR-083, PV-9, GCTX-001), USAGE

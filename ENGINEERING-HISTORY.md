@@ -54,9 +54,9 @@ secret-scan noise.
   capability handlers; consumes daemon hot-read paths; no resurrection of
   archived TS MCP for production GCTX. Interim TS shim only for migration
   smoke-tests.
-- **Context-egress privacy review (PV-9) filed and APPROVE-WITH-CONDITIONS.**
-  Conditions (CE-1..CE-12) folded into GCTX-001. Complements the earlier GV2
-  machine-local persistence review.
+- **Context-egress privacy review (PV-9) filed (verdict: approve with
+  conditions).** Conditions (CE-1..CE-12) folded into GCTX-001. Complements the
+  earlier GV2 machine-local persistence review.
 - **GCTX-001 assistant graph projection contract authored.** Captures NBI, agent
   workflows, and update discipline. Promoted Draft → Ready; GCTX-001 + GCTX-002
   marked Merged (GCTX 2/13).
