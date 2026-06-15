@@ -226,37 +226,80 @@ blockers — they are resolved during execution, not before promotion:
 > GCTX-010 builds this spine end-to-end. **Phase 2** = a same-process second GCTX
 > service surface over the **same** graphs (option A) with a lock-free read
 > snapshot (arc-swap), isolating query-serving from the hot path — not a second
-> graph — plus the snippet surfaces. The items below stay **Draft** until
-> GCTX-010's binding conditions C1–C5 are written into item text.
+> graph — plus the snippet surfaces. **GCTX-010 is Ready** (the pilot — C1–C5
+> folded as acceptance criteria, building the spine); GCTX-011/012/013, 021..023,
+> and 030 stay **Draft** pending the GCTX-010 spine they inherit.
 
 #### GCTX-010: `anvil_search_symbols` tool
 
-- **Status:** Draft — architecture fixed by
+- **Status:** Ready — architecture fixed by
   [ADR-084](../decisions/084-gctx-graph-handle-access.md) **Accepted** (daemon-RPC
-  + daemon-side projection); flips to Ready once the binding conditions are folded
-  into this item: **C1** enough cold-start warm-up triggers (session-init
-  `anvil/request_full_scan`, on-demand warm-up on a cold/`Pending` worktree, and
-  a `GctxError::NotReady` + recovery hint while warming) so a first-use session
-  is not empty; **C2** no hot-path coupling on reads (Phase-2 lock-free read
-  snapshot; for the Phase-1 pilot, snapshot the matched entries under the cache
-  lock then release before filtering/pagination); **C3** daemon-side
-  `workspace_root` admission against the connection's admitted-root set (CE-8);
-  **C4** `gctx.egress` flag lands with both a Rust gate and a TS consumer
-  (FLAGCAT); **C5** snippet secret-scan completeness (Phase 2). This is the CE-5
-  hard-gate item — it builds the sealed egress DTO crate + `GctxProjector` +
-  structural no-leak test the rest of Phase 1 inherits.
+  + daemon-side projection); the ADR-084 binding conditions C1–C5 are folded as
+  acceptance criteria below. This is the **CE-5 hard-gate item**: it builds the
+  reusable spine — the sealed egress DTO crate (`anvil-gctx-types`), the single
+  `GctxProjector` choke point (`anvil-gctx-egress`), and the structural no-leak
+  test — that the rest of Phase 1 inherits, plus the first identity-only tool.
+  Sequence the rollout against **DLIFE** (GCTX is daemon-required; see the Phase 1
+  note above).
 - **Intent:** Let assistants find symbols by name, kind, file, language, and
   visibility using GV2's semantic graph projection.
-- **Expected Outcome:** Tool returns paginated, deterministic symbol summaries
-  with source locations and redacted metadata.
-- **Validation:** Integration test queries a fixture and asserts stable ordering
+- **Expected Outcome:** `anvil_search_symbols` returns paginated, deterministic,
+  **identity-only** symbol summaries (`SymbolIdentity` + kind +
+  workspace-root-relative path + visibility — no source text) projected
+  **daemon-side** through the single `GctxProjector` over
+  `GraphRegistry::background_read()`, served to `anvil mcp serve` over the new
+  read-only `anvil/gctx/search_symbols` RPC on its own `GctxDispatch` (not the
+  save-time path). Lands the spine: `anvil-gctx-types` (graph-free sealed DTOs +
+  no-leak test) and `anvil-gctx-egress`, opaque pagination, and the CE-3 deny-list
+  / CE-4 allowlist filters.
+- **Acceptance criteria (ADR-084 C1–C5 + the CE gates):**
+  - **CE-5 (hard gate)** — a sealed egress DTO (no `serde(flatten)`, no `PathBuf`,
+    no session-local `u64` id; errors as a named `GctxError` enum), a single
+    `GctxProjector` constructor, and a structural no-leak test in
+    `anvil-gctx-types`; the MCP crate links only `anvil-gctx-types` and cannot
+    reach graph internals.
+  - **C1 — cold-start warm-up (enough triggers).** The graph is save-populated, so
+    a fresh session MUST warm through a sufficient set of triggers — at minimum a
+    session-init `anvil/request_full_scan`, an on-demand warm-up when a query hits
+    a cold/`Pending` worktree, and a `GctxError::NotReady` + recovery-hint enum
+    while warming — so a realistic first-use session is not empty.
+  - **C2 — no hot-path coupling.** For the Phase-1 pilot the projector snapshots
+    the matched entries under the cache lock then releases *before*
+    filtering/pagination; it MUST NOT hold the `Mutex` across the projection
+    (ADR-031 80ms p95). (The Phase-2 lock-free arc-swap snapshot supersedes this
+    and is bench-gated separately.)
+  - **C3 — daemon-side root admission (CE-8).** The daemon validates the
+    client-supplied `workspace_root` against the connection's admitted-root set
+    (reuse the `SaveTimeConn` gate); cross-worktree / arbitrary roots are rejected.
+  - **C4 — `gctx.egress` flag sequencing (CE-9 / FLAGCAT).** The `gctx.egress`
+    manifest entry lands with both a Rust consumer gate and a TS consumer reader.
+    (Phase 1 is identity-only, so the flag gates the Phase-2 snippet path; sequence
+    accordingly.)
+  - **C5 — secret-scan path (Phase-2 guard).** Confirm which secret-scan path the
+    daemon-side projector invokes; the SCAN-002 4 KiB per-line guard lives in
+    `anvil-checks` (`crates/anvil-checks/src/secret/types.rs`), **not** on
+    `SecretDetectionRule` — a skipped line MUST fail closed (redact). GCTX-010 is
+    identity-only (no source text egresses), so this binds the snippet items.
+  - **CE-3/CE-4/CE-6/CE-7/CE-10/CE-11** — sensitive-path deny-list + field
+    allowlist on this enumeration surface; opaque server-minted pagination + caps;
+    `WorkspaceAssurance`-driven degradation (no whole-file fallback); enum-only
+    telemetry; counts-only `redaction_summary`.
+- **Validation:**
+  - structural no-leak test (`anvil-gctx-types`) passes — gates the build;
+  - integration test queries a fixture and asserts stable `SymbolIdentity`
+    ordering and opaque-cursor pagination;
+  - degradation fixture: a `warming`/`disabled` graph yields a structured
+    `GctxError::NotReady` / `GraphUnavailable`, never a file read (CE-7);
+  - root-admission test: a cross-worktree / arbitrary `workspace_root` is rejected
+    daemon-side (C3 / CE-8).
 - **Files:** `crates/anvil-gctx-types/`, `crates/anvil-gctx-egress/`,
   `crates/anvil-intercept-proto/src/protocol.rs`,
-  `crates/anvil-intercept/src/ipc.rs`, `crates/anvil-cli/src/mcp/tools/`
-  (per ADR-084)
+  `crates/anvil-intercept/src/ipc.rs`, `crates/anvil-cli/src/mcp/tools/`,
+  `flags/manifest.json` (per ADR-084)
 - **Confidence:** high
 - **Priority:** Critical
-- **Dependencies:** GCTX-001, GCTX-002, GV2-020, ADR-084
+- **Dependencies:** GCTX-001, GCTX-002, GV2-020, ADR-084 (sequence against DLIFE
+  — daemon-required)
 
 ---
 
@@ -445,7 +488,7 @@ blockers — they are resolved during execution, not before promotion:
 | Phase | Items | Status |
 | ----- | ----- | ------ |
 | 0 — Delivery Contract | 2 | Complete (GCTX-001 Merged #2628, GCTX-002 Merged #2619) |
-| 1 — Graph Query Tools | 4 | Draft |
+| 1 — Graph Query Tools | 4 | GCTX-010 Ready (pilot); GCTX-011/012/013 Draft |
 | 2 — Context Slicing | 4 | Draft |
 | 3 — Resources, Benchmarks, Docs | 3 | Draft |
 | **Total** | **13** | **2/13** |
