@@ -8,5 +8,10 @@
   "packageManager": "pnpm@9.15.4",
   "dependencies": {
     "deepsec": "^2.0.12"
+  },
+  "pnpm": {
+    "overrides": {
+      "tar@<=7.5.15": "7.5.16"
+    }
   }
 }
