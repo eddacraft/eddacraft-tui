@@ -55,8 +55,8 @@ use std::sync::Mutex;
 
 use anvil_graph_cache::certify::ChangeKind;
 use anvil_graph_cache::{
-    DependencyGraph, GraphDelta, SymbolGraph, annotate_trust, re_resolve_imports_tracked,
-    remove_file, update_file,
+    DependencyGraph, GraphDelta, GraphRegistry, SymbolGraph, TrustGraph, annotate_trust,
+    re_resolve_imports_tracked, remove_file, update_file,
 };
 use anvil_intercept_proto::protocol::StaleReason;
 use anvil_kernel_types::{EdgeType, FileSymbols, ImportEdge};
@@ -240,6 +240,23 @@ impl KernelGraphCache {
         let entry = guard.map.get_mut(key)?;
         entry.last_used = recency;
         Some(f(&entry.sym, &entry.dep))
+    }
+
+    /// Read the warm graph set for `key` as a [`GraphRegistry`] — the typed
+    /// multi-graph entry point (GV2-020). The daemon cache holds the semantic and
+    /// dependency graphs; the trust graph is empty here because the save-time
+    /// certify path reads only those two (the hot-read surface the registry hands
+    /// back is `HotReadApi`, identical to the direct path). Consumers that need
+    /// trust posture build a registry over a populated trust graph directly.
+    pub fn with_registry<R>(
+        &self,
+        key: &WorktreeKey,
+        f: impl FnOnce(&GraphRegistry) -> R,
+    ) -> Option<R> {
+        self.with_graphs(key, |sym, dep| {
+            let trust = TrustGraph::new();
+            f(&GraphRegistry::new(sym, dep, &trust))
+        })
     }
 
     /// Apply one **already-parsed** delta to `key`'s warm graph pair, building
@@ -460,6 +477,84 @@ mod tests {
 
     fn key(name: &str) -> WorktreeKey {
         WorktreeKey::from_canonical(PathBuf::from(format!("/wt/{name}")))
+    }
+
+    /// GV2-020 e2e — drive the save-time certify through the registry path and
+    /// prove it yields the same **non-vacuous** verdict as the direct hot-read
+    /// path (a real importer chain reaches the changed export surface; no
+    /// zero-callers).
+    #[test]
+    fn registry_e2e_certify_through_registry_matches_direct_path() {
+        use anvil_graph_cache::HotReadApi;
+        use anvil_graph_cache::MAX_REVERSE_IMPACT_DEPTH;
+        use anvil_graph_cache::certify::{Certifiability, CertifyStale};
+
+        let cache = KernelGraphCache::new();
+        let k = key("registry-e2e");
+
+        // a.ts exports `sym`; b.ts imports a.ts — the importer chain.
+        cache.apply_delta(
+            &k,
+            ChangeKind::Create,
+            file_symbols("a.ts", &["sym"], &[], 0),
+        );
+        cache.apply_delta(
+            &k,
+            ChangeKind::Create,
+            file_symbols("b.ts", &["bsym"], &["./a"], 100),
+        );
+
+        // Change a.ts's export surface (now exports `sym2`). With importer b.ts
+        // this is a non-vacuous Partial(ExportSurfaceChange), not a self-only
+        // Certified.
+        let outcome = cache.apply_delta(
+            &k,
+            ChangeKind::ContentModify,
+            file_symbols("a.ts", &["sym2"], &[], 200),
+        );
+
+        let depth = MAX_REVERSE_IMPACT_DEPTH;
+
+        // Direct hot-read path (what `validate_paths` uses today).
+        let v_direct = cache.with_graphs(&k, |sym, dep| {
+            HotReadApi::new(sym, dep).certify(&ChangeKind::ContentModify, &outcome.delta, 64, depth)
+        });
+
+        // Registry path (GV2-020): the same certify, routed through
+        // `GraphRegistry::hot_read`.
+        let v_registry = cache.with_registry(&k, |registry| {
+            registry
+                .hot_read()
+                .certify(&ChangeKind::ContentModify, &outcome.delta, 64, depth)
+        });
+
+        assert_eq!(
+            v_registry, v_direct,
+            "registry path verdict must equal the direct hot-read verdict",
+        );
+
+        let verdict = v_registry.expect("warm entry is present for the key");
+        assert!(
+            matches!(
+                verdict,
+                Certifiability::Partial {
+                    reason: CertifyStale::ExportSurfaceChange,
+                }
+            ),
+            "export-surface change to a.ts with importer b.ts must be a non-vacuous \
+             Partial(ExportSurfaceChange), got {verdict:?}",
+        );
+
+        // No zero-callers: the registry's dependency handle sees b.ts → a.ts.
+        let dependents = cache.with_registry(&k, |registry| {
+            registry
+                .dependency()
+                .dependents_of("a.ts")
+                .into_iter()
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        });
+        assert_eq!(dependents, Some(vec!["b.ts".to_string()]));
     }
 
     /// A `FileSymbols` for `file` with the given public functions and import
