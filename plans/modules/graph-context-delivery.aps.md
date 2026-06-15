@@ -157,12 +157,15 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-001: Assistant graph projection contract
 
-- **Status:** Ready — sole dependency GV2-023 **Merged 2026-06-15 via #2621**, and
-  both ADR-075 entry gates landed ([ADR-083](../decisions/083-gctx-mcp-delivery-target.md)
+- **Status:** In Progress — sole dependency GV2-023 **Merged 2026-06-15 via #2621**,
+  and both ADR-075 entry gates landed ([ADR-083](../decisions/083-gctx-mcp-delivery-target.md)
   Accepted + [PV-9 egress review](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
-  filed). This is the contract item that folds CE-1..CE-12 into the spec; its
-  CE-1 / CE-5 hard gates carry into the downstream Phase-1 snippet items (which
-  stay Draft until that text lands).
+  filed). The contract spec is authored in
+  [`graph-context-delivery-spec.md`](../../docs/architecture/graph-context-delivery-spec.md)
+  (identity-only default, sealed egress DTO + single `GctxProjector` choke point,
+  egress allowlist/residual table, CE-1..CE-12 fold). This is the contract item
+  that folds CE-1..CE-12 into the spec; its CE-1 / CE-5 hard gates carry into the
+  downstream Phase-1 snippet items (which stay Draft until that text lands).
 - **Intent:** Define exactly which GV2 queries are safe and useful to expose to
   assistants.
 - **Expected Outcome:** Contract maps assistant tasks to graph projections,
@@ -409,7 +412,7 @@ blockers — they are resolved during execution, not before promotion:
 
 | Phase | Items | Status |
 | ----- | ----- | ------ |
-| 0 — Delivery Contract | 2 | Draft |
+| 0 — Delivery Contract | 2 | In Progress (GCTX-001 contract spec authored; GCTX-002 Ready) |
 | 1 — Graph Query Tools | 4 | Draft |
 | 2 — Context Slicing | 4 | Draft |
 | 3 — Resources, Benchmarks, Docs | 3 | Draft |

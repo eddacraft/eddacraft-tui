@@ -582,10 +582,13 @@ and absorbed by GCTX-001 (conditions CE-1..CE-12), not re-specified here.
 
 > Scope: this contract fixes the consumer read boundary only. The registry and
 > trait _implementation_ is GV2-020; the assistant projection _rules_
-> (redaction, pagination, warming) are GCTX-001. `GctxProjector` is named here
-> as the GCTX-001 implementation target required by PV-9 CE-5, not a type this
-> section freezes. This section deliberately does not freeze either — see "What
-> this spec deliberately does not freeze".
+> (redaction, pagination, warming) are GCTX-001, now specified in
+> [`graph-context-delivery-spec.md`](./graph-context-delivery-spec.md) (the
+> identity-only default, sealed egress DTO + single `GctxProjector` choke point,
+> egress allowlist/residual table, and CE-1..CE-12 fold). `GctxProjector` is
+> named here as the GCTX-001 implementation target required by PV-9 CE-5, not a
+> type this section freezes. This section deliberately does not freeze either —
+> see "What this spec deliberately does not freeze".
 
 ## Seams to other subsystems
 
@@ -772,4 +775,6 @@ longer make the export-diff silently under-fire (regression-tested in
 - Seam sources: [`intercept-as-built.md`](./intercept-as-built.md) §10,
   [`edda-stack.md`](./edda-stack.md)
 - Consumers:
-  [`plans/modules/graph-context-delivery.aps.md`](../../plans/modules/graph-context-delivery.aps.md)
+  [`plans/modules/graph-context-delivery.aps.md`](../../plans/modules/graph-context-delivery.aps.md),
+  [`graph-context-delivery-spec.md`](./graph-context-delivery-spec.md) (GCTX-001
+  projection contract — the assistant-facing egress rules over this substrate)
