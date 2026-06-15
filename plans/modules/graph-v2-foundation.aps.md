@@ -4,7 +4,7 @@
 | --- | ----- | ------ |
 | GV2 | —     | In Progress |
 
-**Last reviewed:** 2026-06-15 (GV2-031 promoted Ready per NBI readiness pass; **GV2-020 + GV2-023 promoted Draft → Ready** once the ADR-075 entry decisions landed — [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) Accepted + the [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md) filed. GV2-020 deps GV2-010..014 are all Merged. **GV2-023 consumer query contract authored** in the foundation spec ("The consumer query contract (GV2-023)") — four read classes with one mapped scenario each for INTD/DRVR (live), GCTX (in flight), and WEAVE (planned, Draft 0/21); the registry impl (GV2-020) and assistant projection rules (GCTX-001) remain downstream.)
+**Last reviewed:** 2026-06-15 (**GV2-031 Merged via #2627** — the last internal GV2 item, leaving GV2 20/20; **GV2-020 + GV2-023 promoted Draft → Ready then Merged** once the ADR-075 entry decisions landed — [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) Accepted + the [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md) filed. GV2-020 deps GV2-010..014 are all Merged. **GV2-023 consumer query contract authored** in the foundation spec ("The consumer query contract (GV2-023)") — four read classes with one mapped scenario each for INTD/DRVR (live), GCTX (in flight), and WEAVE (planned, Draft 0/21); the registry impl (GV2-020) and assistant projection rules (GCTX-001) remain downstream.)
 
 > 2026-06-12: the A′ slice (hot-read backing swap + seal + ADR-031 latency
 > gate) confirmed in the v0.8.0-beta tag (record:
@@ -28,7 +28,7 @@
 > 026 (registry/contracts) and GV2-030 (sealed-DTO snapshot, with Sub-phase B
 > persistence). v0.9 active: GV2-013/014 Merged 2026-06-13 (PR #2578/#2579);
 > GV2-026/030 Merged 2026-06-14 (PR #2594/#2595). Count is
-> **19/20** (001/002/003/010/011/012/013/014/020/021/022/023/024/025/026/027/028/029/030 Merged —
+> **20/20** (001/002/003/010/011/012/013/014/020/021/022/023/024/025/026/027/028/029/030/031 Merged —
 > GV2-020 #2622 added the multi-graph registry + typed query traits (the registry
 > impl behind the GV2-023 contract; control/provenance as trait stubs);
 > GV2-013 #2578 + GV2-014 #2579 added the control/session and plan/provenance
@@ -37,8 +37,9 @@
 > consumer-facing face of the GV2-020 registry, authored ahead of the impl);
 > GV2-026 #2594 (reverse-impact depth lever) +
 > GV2-030 #2595 (sealed-DTO snapshot no-leak guard); GV2-024 #2470 + GV2-025 #2459 closed the A′
-> hot-path hardening; GV2-031 is a Draft follow-up for the re-export privilege
-> blind spot found in #2453).
+> hot-path hardening; GV2-031 #2627 lifted re-export edges so transitive
+> privilege is visible to `annotate_trust`/`certify` (the re-export privilege
+> blind spot found in #2453) — the last internal GV2 item, leaving GV2 20/20).
 
 > **Reshaped 2026-06-08** around the now-landed spine spec
 > [`docs/architecture/graph-v2-foundation-spec.md`](../../docs/architecture/graph-v2-foundation-spec.md)
