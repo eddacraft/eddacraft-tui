@@ -212,7 +212,7 @@ trusted model.
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
 | [graph-v2-foundation](./modules/graph-v2-foundation.aps.md) | GV2 | In Progress | 19/20 (A′ slice shipped in v0.8.0-beta; Phase 1 complete — GV2-013/014 contracts Merged 2026-06-13 via #2578/#2579; GV2-023 consumer query contract Merged 2026-06-15 via #2621 (four read classes, one mapped scenario each for INTD/DRVR/GCTX/WEAVE); **GV2-020 multi-graph registry + typed query traits Merged 2026-06-15 via #2622** (the impl behind the GV2-023 contract; control/provenance as trait stubs, ADR-064); GV2-026 reverse-impact depth lever Merged 2026-06-14 via #2594 and GV2-030 sealed-DTO no-leak guard Merged 2026-06-14 via #2595; GV2-031 promoted Ready 2026-06-15 (internal substrate, not GCTX-gated) — the only item left) | KERN, anvil-graph-cache, ADR-061/063/064/067/069, ADR-031, INTD, GCTX, EDDA |
-| [graph-context-delivery](./modules/graph-context-delivery.aps.md) | GCTX | Ready | 0/13 (entry gates landed 2026-06-15 — ADR-083 Accepted + PV-9 egress review filed; GCTX-002 Ready; GCTX-001..013 stay Draft pending the GCTX-001 contract folding CE-1..CE-12) | GV2 |
+| [graph-context-delivery](./modules/graph-context-delivery.aps.md) | GCTX | Ready | 0/13 (entry gates landed 2026-06-15 — ADR-083 Accepted + PV-9 egress review filed; GCTX-001 (contract) + GCTX-002 Ready 2026-06-15 (GCTX-001 dep GV2-023 Merged #2621); GCTX-003..013 stay Draft pending the GCTX-001 contract folding CE-1..CE-12) | GV2 |
 
 ### Hardening & Maintenance
 
