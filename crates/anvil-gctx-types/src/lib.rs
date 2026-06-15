@@ -77,8 +77,8 @@ pub struct SearchSymbolsQuery {
 impl SearchSymbolsQuery {
     /// The page size to apply: the client `limit` clamped to
     /// `1..=`[`MAX_PAGE_LIMIT`], or [`DEFAULT_PAGE_LIMIT`] when absent. The lower
-    /// bound of 1 rejects a `limit: 0`, which would otherwise yield a
-    /// contradictory empty-but-more-remain page.
+    /// bound floors a `limit: 0` to 1 (it is clamped, not rejected), which would
+    /// otherwise yield a contradictory empty-but-more-remain page.
     #[must_use]
     pub fn effective_limit(&self) -> usize {
         self.limit

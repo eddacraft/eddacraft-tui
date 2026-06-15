@@ -170,9 +170,16 @@ impl GctxProjector {
     }
 }
 
-/// Cap on an echoed cursor's encoded length (CE-6). A genuine server-minted
-/// cursor is a few hundred bytes; this bounds hex-decode work on a hostile
-/// oversized token, independent of the larger IPC frame cap.
+/// Cap on an echoed cursor's encoded length.
+///
+/// The cursor is **separately bounded** from the CE-6 "≤ 512 bytes/param" cap on
+/// user-typed *filter* params (name/file/language): it is not user query text but
+/// a server-minted opaque token the client echoes back, and it must hold a
+/// hex-encoded [`SymbolIdentity`] whose `file` path can approach `PATH_MAX`
+/// (~4 KiB) — hex doubling that already exceeds 512 bytes for a legitimate deep
+/// path. 8 KiB comfortably covers a `PATH_MAX` identity while still bounding
+/// hex-decode work on a hostile oversized token (the IPC frame cap is the outer
+/// limit). A real cursor is a few hundred bytes.
 const MAX_CURSOR_BYTES: usize = 8 * 1024;
 
 /// The decoded contents of an [`OpaqueCursor`]: the keyset seek position plus a
