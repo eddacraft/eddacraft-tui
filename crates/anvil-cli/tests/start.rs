@@ -418,7 +418,7 @@ fn start_verify_on_fresh_repo_with_absent_config_does_not_advertise_watch() {
 }
 
 #[test]
-fn start_after_install_communicates_restart_required_via_headline() {
+fn start_after_install_communicates_restart_or_daemon_recovery_action() {
     // Council round-2 remediation: at `ready_restart_required`, the
     // headline already conveys the partial state ("restart your
     // editor or agent so the MCP server attaches"). The
@@ -427,9 +427,11 @@ fn start_after_install_communicates_restart_required_via_headline() {
     //   2. There is no `watch: offered` line — appending the watch-
     //      fallback note alone would orphan watch copy and nudge the
     //      user toward watch when they should restart.
-    // The honesty contract is preserved by the headline. This test
-    // pins the headline language as the load-bearing partial-state
-    // signal so a future copy edit cannot silently drop it.
+    // The honesty contract is preserved by the headline / hint. When
+    // daemon evidence is already available and says the daemon is not
+    // reachable, DLIFE-006 deliberately replaces the generic restart
+    // wording with the terminating `anvil intercept start --foreground`
+    // recovery path.
     let dir = tempfile::tempdir().unwrap();
     let home = tempfile::tempdir().unwrap();
     let out = run_start_with_home(dir.path(), home.path(), &[]);
@@ -441,14 +443,18 @@ fn start_after_install_communicates_restart_required_via_headline() {
     );
     let lower = stdout.to_lowercase();
     assert!(
-        lower.contains("restart your editor") || lower.contains("restart required"),
-        "ready_restart_required render must surface the restart action \
-         in headline / hint, got:\n{stdout}"
+        lower.contains("restart your editor")
+            || lower.contains("restart required")
+            || lower.contains("anvil intercept start --foreground"),
+        "ready_restart_required render must surface the next concrete \
+         recovery action in headline / hint, got:\n{stdout}"
     );
     assert!(
-        lower.contains("attach") || lower.contains("mcp server"),
-        "ready_restart_required render must explain MCP is not yet \
-         attached, got:\n{stdout}"
+        lower.contains("attach")
+            || lower.contains("mcp server")
+            || (lower.contains("mcp config") && lower.contains("daemon not reachable")),
+        "ready_restart_required render must explain why pre-write \
+         protection is not yet live, got:\n{stdout}"
     );
     // The note belongs with `Watching` / `NeedsAction (config valid)` /
     // the `Offered` watch tier. At ready_restart_required, suppress.
