@@ -4,7 +4,7 @@
 | ---- | ----- | ------ | -------- |
 | GCTX | —     | Ready  | 0/13     |
 
-**Last reviewed:** 2026-06-15 (both ADR-075 entry gates landed — [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) **Accepted** (GCTX-002 → Ready) and the [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md) filed (APPROVE-WITH-CONDITIONS, 4/4). Module promoted **Draft → Ready, 0/13**: execution is authorised. **GCTX-001 (contract) flipped Draft → Ready 2026-06-15** — its sole dep GV2-023 is Merged (#2621) and both entry gates landed; GCTX-002 already Ready. GCTX-003..013 stay Draft pending the GCTX-001 contract that folds the egress conditions CE-1..CE-12.)
+**Last reviewed:** 2026-06-15 (both ADR-075 entry gates landed — [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) **Accepted** (GCTX-002 → Ready) and the [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md) filed (APPROVE-WITH-CONDITIONS, 4/4). Module promoted **Draft → Ready, 0/13**: execution is authorised. **GCTX-001 (contract) flipped Draft → Ready 2026-06-15** — its sole dependency GV2-023 is Merged 2026-06-15 via #2621 and both entry gates landed; GCTX-002 already Ready. GCTX-003..013 stay Draft pending the GCTX-001 contract that folds the egress conditions CE-1..CE-12.)
 
 > **Scoped to v0.9, not v0.8.0-beta (2026-06-08, [ADR-075](../decisions/075-v080-graph-product-scope.md),
 > Accepted via council).** GCTX was considered for the v0.8.0 window but the
