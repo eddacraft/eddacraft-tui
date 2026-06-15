@@ -1,0 +1,22 @@
+diff --git a/lib/engines.js b/lib/engines.js
+index 38f993db06cf364191ac635a6590c2d29303297d..9f2a5965e32f31e2ffb0f14029887110b4e57536 100644
+--- a/lib/engines.js
++++ b/lib/engines.js
+@@ -1,6 +1,11 @@
+ 'use strict';
+-
+ const yaml = require('js-yaml');
++const removedYamlApi = function(fn) {
++  return /removed in js-yaml 4/.test(Function.prototype.toString.call(fn));
++};
++
++const parseYaml = yaml.safeLoad && !removedYamlApi(yaml.safeLoad) ? yaml.safeLoad : yaml.load;
++const stringifyYaml = yaml.safeDump && !removedYamlApi(yaml.safeDump) ? yaml.safeDump : yaml.dump;
+ 
+ /**
+  * Default engines
+@@ -16,2 +23,2 @@ engines.yaml = {
+-  parse: yaml.safeLoad.bind(yaml),
+-  stringify: yaml.safeDump.bind(yaml)
++  parse: parseYaml.bind(yaml),
++  stringify: stringifyYaml.bind(yaml)

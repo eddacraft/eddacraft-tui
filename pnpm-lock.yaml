@@ -64,6 +64,11 @@ overrides:
   js-yaml@>=3.0.0 <4.0.0: 4.2.0
   js-yaml@>=4.0.0 <4.2.0: 4.2.0
 
+patchedDependencies:
+  gray-matter@4.0.3:
+    hash: c53b60f70a9846157f45c8612e91fde7828d753f709448fe527d2334309c31e1
+    path: patches/gray-matter@4.0.3.patch
+
 importers:
 
   .:
@@ -15658,7 +15663,7 @@ snapshots:
       fs-extra: 11.3.4
       github-slugger: 1.5.0
       globby: 11.1.0
-      gray-matter: 4.0.3
+      gray-matter: 4.0.3(patch_hash=c53b60f70a9846157f45c8612e91fde7828d753f709448fe527d2334309c31e1)
       jiti: 1.21.7
       js-yaml: 4.2.0
       lodash: 4.18.1
@@ -21853,7 +21858,7 @@ snapshots:
 
   graceful-fs@4.2.11: {}
 
-  gray-matter@4.0.3:
+  gray-matter@4.0.3(patch_hash=c53b60f70a9846157f45c8612e91fde7828d753f709448fe527d2334309c31e1):
     dependencies:
       js-yaml: 4.2.0
       kind-of: 6.0.3
