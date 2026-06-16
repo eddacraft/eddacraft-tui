@@ -2,9 +2,17 @@
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| DLIFE | Josh  | In Progress | 3/6      |
+| DLIFE | Josh  | In Progress | 4/6      |
 
-**Last reviewed:** 2026-06-15 (DLIFE-001 Done — ADR-082 Accepted by operator with
+**Last reviewed:** 2026-06-16 (**DLIFE-003 Merged 2026-06-16 via PR #2678** —
+`anvil start` now ensures the per-user save-time daemon: interactive terminals
+auto-start it, while CI / hooks / piped output and `--no-daemon` / `ANVIL_NO_DAEMON`
+fall back deterministically to the scoped check, never leaving a surprise
+background daemon (owner-confirmed headless posture reconciling ADR-082 §1 vs §4).
+The `daemon:` line reports the lifecycle action only and never promotes the
+protection state; daemon-start failure is non-fatal. Module 4/6; DLIFE-004 (watch)
+still Proposed, DLIFE-005 (docs) still Blocked on 003/004. Prior, 2026-06-15:
+DLIFE-001 Done — ADR-082 Accepted by operator with
 the **tiered** startup mode: `anvil start` auto-starts the daemon; `anvil watch`
 prompts in TTY and falls back in headless. ADR-079 superseded. DLIFE-003/-004
 unblocked to Proposed. **DLIFE-002 Merged 2026-06-15 via PR #2644** — the idempotent
@@ -110,7 +118,7 @@ operator/debugging surface.
 
 ### DLIFE-003: Make `anvil start` manage daemon lifecycle
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-16 via PR #2678
 - **Intent:** Make `anvil start` the canonical command that brings a normal user to daemon-backed protection when the accepted lifecycle posture allows it.
 - **Expected Outcome:** `anvil start` configures protection, ensures the per-user daemon by default (tiered auto-start with explicit `--no-daemon` opt-out per the accepted ADR-082 posture), reports the resulting daemon-backed posture, and keeps `--verify` / `--json` non-mutating and non-interactive.
 - **Validation:** Activation tests cover daemon absent, daemon live, daemon ensure failure, `--verify`, `--json`, and repair-hint rendering.
