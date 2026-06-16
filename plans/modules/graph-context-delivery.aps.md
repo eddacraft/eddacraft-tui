@@ -232,7 +232,7 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-010: `anvil_search_symbols` tool
 
-- **Status:** Ready — architecture fixed by
+- **Status:** In Progress — architecture fixed by
   [ADR-084](../decisions/084-gctx-graph-handle-access.md) **Accepted** (daemon-RPC
   + daemon-side projection); the ADR-084 binding conditions C1–C5 are folded as
   acceptance criteria below. This is the **CE-5 hard-gate item**: it builds the
@@ -240,7 +240,16 @@ blockers — they are resolved during execution, not before promotion:
   `GctxProjector` choke point (`anvil-gctx-egress`), and the structural no-leak
   test — that the rest of Phase 1 inherits, plus the first identity-only tool.
   Sequence the rollout against **DLIFE** (GCTX is daemon-required; see the Phase 1
-  note above).
+  note above). Delivery is staged across PRs: the spine + identity tool
+  (#2637), CE-6 opaque cursors (#2645), and CE-10/CE-11 telemetry + kill-switch
+  (#2648) are **Merged**. The final slice — **C1 cold-start warm-up triggers**
+  (session-init `request_full_scan` on MCP `initialize` + on-demand re-warm when a
+  `search_symbols` query returns `NotReady`, both client-side and best-effort) —
+  lands last, on top of the DSV-045 full-scan executor it relies on
+  ([ADR-085](../decisions/085-daemon-full-scan-executor.md); **DSV-045 Merged
+  2026-06-16 via #2674**) so the enqueue actually drives `Pending → Running →
+  Clean` rather than sitting inert. The daemon-side `NotReady` + recovery-hint
+  degradation (CE-7) already landed with the spine.
 - **Intent:** Let assistants find symbols by name, kind, file, language, and
   visibility using GV2's semantic graph projection.
 - **Expected Outcome:** `anvil_search_symbols` returns paginated, deterministic,

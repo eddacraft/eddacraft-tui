@@ -136,6 +136,158 @@ pub(crate) fn query_workspace_status(_workspace_root: &Path) -> Option<Workspace
     None
 }
 
+/// Result of a best-effort GCTX cold-start warm-up (GCTX-010 C1 / ADR-085).
+/// Advisory only — production callers ignore it (warm-up never changes a tool
+/// result); it exists so the trigger is unit-testable and traceable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum WarmupOutcome {
+    /// A live daemon accepted the `request_full_scan` enqueue.
+    Requested,
+    /// This root was warm-enqueued within the recent cooldown window, so the
+    /// request was suppressed (the scan is already queued / running, and the
+    /// daemon coalesces in any case). The window is bounded, not permanent, so a
+    /// still-cold root self-corrects and re-warms once it elapses.
+    AlreadyRequested,
+    /// Suppressed by the `ANVIL_WATCH_DAEMON=0` operator opt-out — no daemon
+    /// contact at all.
+    Disabled,
+    /// No live daemon answered (absent / dead / unserved verb). Warm-up is
+    /// skipped; the graph warms lazily on the first save instead.
+    DaemonAbsent,
+}
+
+/// What [`warm_up_root`] should do, decided purely from policy inputs so the
+/// opt-out and per-session dedup are unit-testable without env vars or globals.
+#[cfg(any(unix, windows))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WarmupPlan {
+    /// Suppress with this outcome, without touching the daemon.
+    Skip(WarmupOutcome),
+    /// Attempt the enqueue against the resolved transport.
+    Attempt,
+}
+
+/// Pure warm-up policy (GCTX-010 C1): respect the `ANVIL_WATCH_DAEMON=0`
+/// opt-out, then dedupe a root warmed within the recent cooldown. Kept separate
+/// from transport resolution and global state so it can be exhaustively tested.
+#[cfg(any(unix, windows))]
+fn plan_warm_up(mode: DaemonRoutingMode, recently_warmed: bool) -> WarmupPlan {
+    if mode == DaemonRoutingMode::Disabled {
+        return WarmupPlan::Skip(WarmupOutcome::Disabled);
+    }
+    if recently_warmed {
+        return WarmupPlan::Skip(WarmupOutcome::AlreadyRequested);
+    }
+    WarmupPlan::Attempt
+}
+
+/// How long a warm-enqueued root is deduped before it may be re-warmed. The
+/// dedup is *time-bounded* on purpose: because the enqueue is fire-and-forget
+/// (`request_full_scan` returns `Ok` once the round-trip is detached, even if
+/// the daemon was transiently absent and the send later failed), a permanent
+/// mark could suppress the on-demand re-warm for a root that never actually
+/// enqueued — leaving a read-only session (no saves, so no save-time backstop)
+/// cold. A bounded window keeps the anti-spam property (one enqueue per root per
+/// window, not one per `NotReady` miss) while letting an optimistic mark
+/// self-correct.
+#[cfg(any(unix, windows))]
+const WARMUP_DEDUP_COOLDOWN: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// Roots warm-enqueued in this process and when, so [`recently_warmed`] can
+/// suppress repeat enqueues within [`WARMUP_DEDUP_COOLDOWN`]. Only successful
+/// (`Requested`) enqueues are recorded.
+#[cfg(any(unix, windows))]
+fn session_warmed_roots()
+-> &'static std::sync::Mutex<std::collections::HashMap<PathBuf, std::time::Instant>> {
+    static WARMED: std::sync::OnceLock<
+        std::sync::Mutex<std::collections::HashMap<PathBuf, std::time::Instant>>,
+    > = std::sync::OnceLock::new();
+    WARMED.get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()))
+}
+
+#[cfg(any(unix, windows))]
+fn recently_warmed(workspace_root: &Path) -> bool {
+    session_warmed_roots()
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .get(workspace_root)
+        .is_some_and(|marked| marked.elapsed() < WARMUP_DEDUP_COOLDOWN)
+}
+
+#[cfg(any(unix, windows))]
+fn mark_warmed(workspace_root: &Path) {
+    session_warmed_roots()
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .insert(workspace_root.to_path_buf(), std::time::Instant::now());
+}
+
+/// Best-effort cold-start warm-up (GCTX-010 C1 / ADR-085): ask the daemon to
+/// drive a full scan of `workspace_root` so a fresh assistant session reaches a
+/// populated graph without a manual save (the daemon's warm graph cache is
+/// otherwise only save-populated).
+///
+/// This only *enqueues* via the existing
+/// [`request_full_scan`](anvil_intercept_proto::protocol::ANVIL_REQUEST_FULL_SCAN)
+/// verb; the daemon-side full-scan executor (DSV-045) performs the actual
+/// `Pending → Running → Clean` drive and coalesces repeated requests per
+/// worktree. Strictly best-effort: it honours the `ANVIL_WATCH_DAEMON=0`
+/// opt-out, dedupes a root within [`WARMUP_DEDUP_COOLDOWN`], and treats an
+/// absent or unresponsive daemon as a silent skip (GCTX is daemon-required and
+/// degrades — never a tool error, never a panic). The enqueue is fire-and-forget
+/// (the transport detaches the round-trip), so it never blocks the MCP
+/// handshake; on a very short session the detached thread may not complete, in
+/// which case the daemon's own first-contact auto-enqueue (DSV-045) is the
+/// backstop.
+#[cfg(any(unix, windows))]
+pub(crate) fn warm_up_root(workspace_root: &Path) -> WarmupOutcome {
+    match plan_warm_up(daemon_routing_mode(), recently_warmed(workspace_root)) {
+        WarmupPlan::Skip(outcome) => outcome,
+        WarmupPlan::Attempt => {
+            let outcome = resolve_and_warm(workspace_root);
+            if outcome == WarmupOutcome::Requested {
+                mark_warmed(workspace_root);
+            }
+            outcome
+        }
+    }
+}
+
+#[cfg(not(any(unix, windows)))]
+pub(crate) fn warm_up_root(_workspace_root: &Path) -> WarmupOutcome {
+    WarmupOutcome::DaemonAbsent
+}
+
+/// Resolve the per-platform daemon transport and attempt the enqueue. Split out
+/// so [`warm_up_root`]'s opt-out + dedup policy is platform-agnostic.
+#[cfg(unix)]
+fn resolve_and_warm(workspace_root: &Path) -> WarmupOutcome {
+    match SocketSaveTimeTransport::resolve() {
+        Some(transport) => warm_up_with(&transport, workspace_root),
+        None => WarmupOutcome::DaemonAbsent,
+    }
+}
+
+#[cfg(windows)]
+fn resolve_and_warm(workspace_root: &Path) -> WarmupOutcome {
+    match WindowsPipeSaveTimeTransport::resolve() {
+        Some(transport) => warm_up_with(&transport, workspace_root),
+        None => WarmupOutcome::DaemonAbsent,
+    }
+}
+
+/// Core of [`warm_up_root`], split from transport resolution so the enqueue
+/// policy is unit-testable against an injected [`SaveTimeTransport`] without a
+/// live daemon. All transport failures fold to `Unavailable` (the trait's
+/// coarse, intentional contract), which is the silent-skip case here.
+#[cfg(any(unix, windows))]
+fn warm_up_with(transport: &impl SaveTimeTransport, workspace_root: &Path) -> WarmupOutcome {
+    match transport.request_full_scan(workspace_root) {
+        Ok(()) => WarmupOutcome::Requested,
+        Err(SaveTimeClientError::Unavailable) => WarmupOutcome::DaemonAbsent,
+    }
+}
+
 /// What a save-time cycle resolved to.
 #[derive(Debug)]
 pub(crate) enum SaveTimeDecision {
@@ -740,6 +892,119 @@ mod tests {
     };
 
     use super::*;
+
+    #[test]
+    fn warm_up_enqueues_one_scan_when_daemon_accepts() {
+        // GCTX-010 C1: a live daemon that accepts the enqueue → Requested, and
+        // exactly one `request_full_scan` is issued per warm-up.
+        let fake = FakeTransport::new(Vec::new());
+        assert_eq!(
+            warm_up_with(&fake, Path::new("/ws")),
+            WarmupOutcome::Requested,
+        );
+        assert_eq!(
+            fake.full_scan_calls(),
+            1,
+            "warm-up enqueues exactly one full scan",
+        );
+    }
+
+    #[test]
+    fn warm_up_skips_silently_when_daemon_absent() {
+        // GCTX-010 C1: no verdict (absent / dead / unserved verb) → DaemonAbsent,
+        // never an error bubbled to the caller and never a panic.
+        struct AbsentTransport;
+        impl SaveTimeTransport for AbsentTransport {
+            fn validate_paths(
+                &self,
+                _workspace_root: &Path,
+                _paths: &[ChangeDescriptor],
+            ) -> Result<ValidatePathsResponse, SaveTimeClientError> {
+                Err(SaveTimeClientError::Unavailable)
+            }
+
+            fn request_full_scan(&self, _workspace_root: &Path) -> Result<(), SaveTimeClientError> {
+                Err(SaveTimeClientError::Unavailable)
+            }
+
+            fn workspace_status(
+                &self,
+                _workspace_root: &Path,
+            ) -> Result<WorkspaceAssurance, SaveTimeClientError> {
+                Err(SaveTimeClientError::Unavailable)
+            }
+        }
+
+        assert_eq!(
+            warm_up_with(&AbsentTransport, Path::new("/ws")),
+            WarmupOutcome::DaemonAbsent,
+        );
+    }
+
+    #[test]
+    fn warm_up_plan_respects_opt_out_and_session_dedup() {
+        // GCTX-010 C1: `ANVIL_WATCH_DAEMON=0` suppresses all daemon contact,
+        // regardless of dedup state.
+        assert_eq!(
+            plan_warm_up(DaemonRoutingMode::Disabled, false),
+            WarmupPlan::Skip(WarmupOutcome::Disabled),
+        );
+        assert_eq!(
+            plan_warm_up(DaemonRoutingMode::Disabled, true),
+            WarmupPlan::Skip(WarmupOutcome::Disabled),
+        );
+        // A root already enqueued this session is suppressed (the on-demand
+        // re-warm fires on every miss; this bounds it to one request per root).
+        assert_eq!(
+            plan_warm_up(DaemonRoutingMode::DefaultOnWhenLive, true),
+            WarmupPlan::Skip(WarmupOutcome::AlreadyRequested),
+        );
+        // A fresh root with daemon routing enabled → attempt the enqueue.
+        assert_eq!(
+            plan_warm_up(DaemonRoutingMode::DefaultOnWhenLive, false),
+            WarmupPlan::Attempt,
+        );
+        assert_eq!(
+            plan_warm_up(DaemonRoutingMode::ForcedOn, false),
+            WarmupPlan::Attempt,
+        );
+    }
+
+    #[test]
+    fn session_dedup_marks_then_expires_after_cooldown() {
+        use std::time::{Duration, Instant};
+
+        // A unique path so this never collides with other tests that share the
+        // process-global warmed map.
+        let root = std::env::temp_dir().join("gctx-warmup-dedup-probe-7f3a");
+        assert!(!recently_warmed(&root), "a fresh root is not yet warmed");
+
+        mark_warmed(&root);
+        assert!(
+            recently_warmed(&root),
+            "a just-marked root is deduped within the cooldown",
+        );
+
+        // A mark older than the cooldown self-corrects: the root is re-warmable.
+        // (Backdate directly so the test is deterministic and does not sleep.)
+        let stale = Instant::now()
+            .checked_sub(WARMUP_DEDUP_COOLDOWN + Duration::from_secs(1))
+            .expect("cooldown fits before now");
+        session_warmed_roots()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(root.clone(), stale);
+        assert!(
+            !recently_warmed(&root),
+            "a mark older than the cooldown no longer suppresses re-warm",
+        );
+
+        // Tidy up the shared map so the probe path leaves no residue.
+        session_warmed_roots()
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .remove(&root);
+    }
 
     #[test]
     fn daemon_routing_unset_defaults_on_when_live() {

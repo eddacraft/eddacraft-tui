@@ -112,7 +112,36 @@ fn search_payload(arguments: &Value) -> Result<Value, String> {
         }
     };
 
+    // GCTX-010 C1 (ADR-085) on-demand re-warm: a `NotReady` graph (cold, or
+    // warming-but-not-yet-populated) is the one outcome a retry can recover
+    // from, so enqueue a full scan to make the *next* query more likely to
+    // succeed. Best-effort and fire-and-forget; the daemon-side executor
+    // (DSV-045) drives and coalesces the scan, so firing on every miss is safe.
+    if should_rewarm(&response.outcome) {
+        let _ = crate::commands::watch_save_time::warm_up_root(&workspace_path);
+    }
+
     Ok(render_response(&response, &redacted_workspace_root))
+}
+
+/// Whether a search outcome warrants an on-demand re-warm (GCTX-010 C1). Only a
+/// `NotReady` graph benefits: `Ready` is already populated, `Unavailable` has no
+/// live daemon to enqueue against, `Disabled` is an operator switch we must not
+/// fight (`ANVIL_GCTX_EGRESS=0`), and `InvalidQuery` is the caller's bug.
+///
+/// Written as an exhaustive match (not `matches!`) so a future
+/// [`SearchSymbolsOutcome`](anvil_gctx_types::SearchSymbolsOutcome) variant —
+/// e.g. a Phase-2 `Bounded`/budget state — forces a compile error here rather
+/// than silently defaulting to "do not re-warm".
+fn should_rewarm(outcome: &anvil_gctx_types::SearchSymbolsOutcome) -> bool {
+    use anvil_gctx_types::SearchSymbolsOutcome as Outcome;
+    match outcome {
+        Outcome::NotReady { .. } => true,
+        Outcome::Ready(_)
+        | Outcome::Unavailable
+        | Outcome::Disabled
+        | Outcome::InvalidQuery { .. } => false,
+    }
 }
 
 /// Build a [`SearchSymbolsQuery`](anvil_gctx_types::SearchSymbolsQuery) from the
@@ -364,6 +393,30 @@ mod tests {
                 .unwrap()
                 .contains("invalid search parameter")
         );
+    }
+
+    #[test]
+    fn rewarm_fires_only_on_not_ready() {
+        use anvil_gctx_types::{RedactionSummary, SearchSymbolsOutcome, SearchSymbolsProjection};
+
+        // The one recoverable state: a warming / cold-but-unpopulated graph.
+        assert!(should_rewarm(&SearchSymbolsOutcome::NotReady {
+            recovery_hint: "warming".into(),
+        }));
+
+        // Every other outcome must NOT trigger a re-warm.
+        assert!(!should_rewarm(&SearchSymbolsOutcome::Ready(
+            SearchSymbolsProjection {
+                symbols: Vec::new(),
+                next_cursor: None,
+                redaction_summary: RedactionSummary::default(),
+            }
+        )));
+        assert!(!should_rewarm(&SearchSymbolsOutcome::Unavailable));
+        assert!(!should_rewarm(&SearchSymbolsOutcome::Disabled));
+        assert!(!should_rewarm(&SearchSymbolsOutcome::InvalidQuery {
+            reason: "bad".into(),
+        }));
     }
 
     #[test]

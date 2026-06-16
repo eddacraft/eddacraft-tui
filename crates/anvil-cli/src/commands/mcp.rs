@@ -234,7 +234,10 @@ fn handle_message(message: &Value) -> Option<Value> {
     let method = message.get("method").and_then(Value::as_str);
 
     match method {
-        Some("initialize") => id.map(|id| initialize_response(id, message)),
+        Some("initialize") => {
+            warm_up_session();
+            id.map(|id| initialize_response(id, message))
+        }
         Some("notifications/initialized") => None,
         Some("exit") if id.is_none() => None,
         Some("exit") => id.map(|id| error_response(id, -32600, "Invalid Request")),
@@ -295,6 +298,29 @@ fn discard_line_tail(reader: &mut impl BufRead) -> io::Result<()> {
 
         let consumed = available.len();
         reader.consume(consumed);
+    }
+}
+
+/// GCTX-010 C1 (ADR-085) session-init warm-up: on `initialize`, proactively
+/// ask the daemon to warm this session's workspace graph so the assistant's
+/// first `anvil_search_symbols` query is less likely to hit a cold graph.
+///
+/// The root is the server's working directory — the same root the write tools
+/// derive their server-root from (`search_payload`), and the root the daemon
+/// re-validates against the connection's admitted-root set (ADR-084 C3) before
+/// scanning; this call does not itself enforce admission. The cwd may be a
+/// parent of the exact root a later query targets (a different worktree key); in
+/// that case this enqueue is merely a head start and the precise key is warmed
+/// by the on-demand re-warm in `search_symbols` instead.
+///
+/// Best-effort and fire-and-forget: the transport detaches the round-trip, so
+/// this never blocks or fails the MCP handshake; an absent daemon, the
+/// `ANVIL_WATCH_DAEMON=0` opt-out, and a per-session dedup are all handled in
+/// `warm_up_root`. On a very short session the detached thread may not complete,
+/// in which case the daemon's own first-contact auto-enqueue (DSV-045) warms it.
+fn warm_up_session() {
+    if let Ok(cwd) = std::env::current_dir() {
+        let _ = crate::commands::watch_save_time::warm_up_root(&cwd);
     }
 }
 
