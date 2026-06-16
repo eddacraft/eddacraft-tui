@@ -26,3 +26,18 @@ updates:
       prefix: 'ci'
     labels:
       - 'github-actions'
+
+  # SEC-001: automate Rust dependency updates the same way npm and actions are.
+  # Advisory *gating* already ships via cargo-deny (deny.toml `[advisories]`);
+  # this closes the *update* gap. See docs/guides/dependency-audit-posture.md.
+  - package-ecosystem: 'cargo'
+    directory: '/'
+    target-branch: 'main'
+    schedule:
+      interval: 'weekly'
+    commit-message:
+      prefix: 'chore(deps)'
+    labels:
+      - 'dependencies'
+      - 'rust'
+    open-pull-requests-limit: 10

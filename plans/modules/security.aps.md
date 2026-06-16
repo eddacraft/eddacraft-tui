@@ -96,9 +96,9 @@ security concerns.
 >   header config + policy lives in APGOV's API-surface governance or here in
 >   SEC. It is not fleshable to Ready until that boundary is set.
 
-### SEC-001: Reconcile and document the dependency-audit posture — Ready
+### SEC-001: Reconcile and document the dependency-audit posture — In Progress
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Make the already-shipped dependency-audit automation legible and
   close the one real Rust-update gap, rather than rebuilding it.
 - **Reality on `main` (2026-05-28):** the original bullet ("pnpm + cargo audit
@@ -131,9 +131,9 @@ security concerns.
   and the new posture doc passes `pnpm docs:check`.
 - **Confidence:** high
 
-### SEC-002: Secret rotation runbook — Ready
+### SEC-002: Secret rotation runbook — In Progress
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Document how each long-lived secret is rotated, on what cadence,
   and through which channel (Pulumi ESC), so rotation is a runbook step rather
   than tribal knowledge.
@@ -152,9 +152,9 @@ security concerns.
 - **Confidence:** medium — the secret inventory is grounded but the Pulumi ESC
   rotation path needs confirmation against the live infra.
 
-### SEC-003: Vulnerability response and coordinated disclosure policy — Ready
+### SEC-003: Vulnerability response and coordinated disclosure policy — In Progress
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Define how externally-reported and internally-found
   vulnerabilities are received, triaged, and patched, and publish a disclosure
   contact — the root policy file does not exist today (`apps/anvil-api/` has a
@@ -173,9 +173,9 @@ security concerns.
   review that the SLA table maps severity → response time.
 - **Confidence:** high
 
-### SEC-004: Supply-chain policy documentation — Ready
+### SEC-004: Supply-chain policy documentation — In Progress
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Write down the supply-chain policy that the `deny.toml` config
   already enforces, plus the lockfile/registry rules, so the enforcement is
   documented and changes to `deny.toml` have a referenced rationale.

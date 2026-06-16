@@ -361,6 +361,15 @@
 | [Authoring .anvil Rules](../../docs/guides/anvil-rule-authoring.md)            | `docs/guides/anvil-rule-authoring.md`  | Guide    | Authoritative | SCAN  | Live   |
 | [anvil-checks Pipeline — As-Built](../../docs/architecture/checks-as-built.md) | `docs/architecture/checks-as-built.md` | As-built | Derived       | SCAN  | Live   |
 
+## SEC
+
+| Document                                                                                   | Path                                      | Type    | Authority     | Owner | Status |
+| ------------------------------------------------------------------------------------------ | ----------------------------------------- | ------- | ------------- | ----- | ------ |
+| [Dependency Audit Posture](../../docs/guides/dependency-audit-posture.md)                  | `docs/guides/dependency-audit-posture.md` | Guide   | Authoritative | SEC   | Live   |
+| [Secret Rotation — Operator Runbook](../../docs/runbooks/secret-rotation.md)               | `docs/runbooks/secret-rotation.md`        | Runbook | Authoritative | SEC   | Live   |
+| [Supply-Chain Policy](../../docs/guides/supply-chain-policy.md)                            | `docs/guides/supply-chain-policy.md`      | Guide   | Authoritative | SEC   | Live   |
+| [Vulnerability Response — Operator Runbook](../../docs/runbooks/vulnerability-response.md) | `docs/runbooks/vulnerability-response.md` | Runbook | Authoritative | SEC   | Live   |
+
 ## STRATEGY
 
 | Document                                                                           | Path                                         | Type  | Authority | Owner    | Status |
