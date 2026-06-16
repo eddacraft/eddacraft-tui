@@ -47,10 +47,13 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use anvil_checks::antipattern::types::AntipatternCheckConfig;
 use anvil_gctx_egress::GctxProjector;
-use anvil_gctx_types::{SearchSymbolsOutcome, SearchSymbolsQuery};
+use anvil_gctx_types::{
+    FindDependentsOutcome, FindDependentsQuery, SearchSymbolsOutcome, SearchSymbolsQuery,
+};
 use anvil_graph_cache::clamp_reverse_impact_depth;
 use anvil_intercept_proto::protocol::{
-    AssuranceState, GctxSearchSymbolsRequest, GctxSearchSymbolsResponse, RequestFullScanRequest,
+    AssuranceState, GctxFindDependentsRequest, GctxFindDependentsResponse,
+    GctxSearchSymbolsRequest, GctxSearchSymbolsResponse, RequestFullScanRequest,
     RequestFullScanResponse, StaleReason, ValidatePathsRequest, ValidatePathsResponse,
     WorkspaceAssurance, WorkspaceStatusRequest, WorkspaceStatusResponse,
 };
@@ -762,6 +765,54 @@ impl GctxDispatch for SaveTimeConn<'_> {
             outcome,
         })
     }
+
+    fn find_dependents(
+        &mut self,
+        request: &GctxFindDependentsRequest,
+    ) -> Result<GctxFindDependentsResponse, SaveTimeError> {
+        let root = PathBuf::from(&request.workspace_root);
+        let originating_session = self.originating_session.clone();
+        let state = self.state;
+        // ADR-084 C3 / CE-8: admit the client-supplied root before any read.
+        authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        let canonical = canonical_root(&root)?;
+        let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
+        let key = WorktreeKey::from_canonical(canonical);
+
+        // CE-7: the assurance snapshot always rides along.
+        let workspace_assurance =
+            state.with_machine(&key, correlation, |machine| machine.snapshot());
+
+        let outcome = gctx_find_dependents_outcome(
+            state,
+            &key,
+            &workspace_assurance,
+            &request.query,
+            gctx_egress_disabled(),
+        );
+
+        // CE-10: bind telemetry to the exhaustive PII-free outcome enum plus
+        // response-aggregate counts only — never paths or query text.
+        let (matched, returned) = match &outcome {
+            FindDependentsOutcome::Ready(projection) => (
+                projection.redaction_summary.matched,
+                projection.redaction_summary.returned,
+            ),
+            _ => (0, 0),
+        };
+        tracing::info!(
+            target: "anvil_intercept::gctx",
+            outcome = outcome.telemetry_outcome().as_str(),
+            matched,
+            returned,
+            "gctx find_dependents served",
+        );
+
+        Ok(GctxFindDependentsResponse {
+            workspace_assurance,
+            outcome,
+        })
+    }
 }
 
 /// CE-11 kill-switch. `ANVIL_GCTX_EGRESS` is re-read **per call** (never cached
@@ -847,6 +898,115 @@ fn gctx_search_outcome(
             }
         }
     }
+}
+
+/// Compute the GCTX dependents outcome for an admitted root (GCTX-011 / ADR-084).
+///
+/// Mirrors [`gctx_search_outcome`] exactly for the kill-switch, query-validation,
+/// and CE-7 degradation arms — the difference is the read primitive: a
+/// depth-bounded reverse-impact (dependents) walk over the warm
+/// [`anvil_graph_cache::DependencyGraph`] instead of a symbol scan. The traversal
+/// `depth` is resolved through the GV2-026 [`clamp_reverse_impact_depth`] lever
+/// (an over-cap `max_depth` is clamped, not honoured); absent defaults to one hop.
+///
+/// ADR-084 C2: candidates are collected **under** the cache lock (inside
+/// `with_graphs`) and sorted/paginated/sealed **after** it releases.
+fn gctx_find_dependents_outcome(
+    state: &SaveTimeState,
+    key: &WorktreeKey,
+    assurance: &WorkspaceAssurance,
+    query: &FindDependentsQuery,
+    egress_disabled: bool,
+) -> FindDependentsOutcome {
+    // CE-11 kill-switch.
+    if egress_disabled {
+        return FindDependentsOutcome::Disabled;
+    }
+
+    // CE-6: reject a hostile or malformed query before touching the graph.
+    if let Some(reason) = invalid_find_dependents_query_reason(query) {
+        return FindDependentsOutcome::InvalidQuery { reason };
+    }
+    // A dependents walk needs a target file; absence is a structured rejection
+    // (the egress projector has no meaningful "all dependents" answer).
+    let Some(file) = query.file.as_deref() else {
+        return FindDependentsOutcome::InvalidQuery {
+            reason: "file is required".to_string(),
+        };
+    };
+    let file = file.to_string();
+
+    // GV2-026 lever: clamp the requested depth into `1..=MAX_REVERSE_IMPACT_DEPTH`
+    // (an unset / over-cap value folds to the default floor / hard ceiling).
+    let depth = clamp_reverse_impact_depth(query.max_depth.unwrap_or(1));
+
+    match assurance.state {
+        AssuranceState::Unavailable | AssuranceState::Unknown => FindDependentsOutcome::Unavailable,
+        AssuranceState::Pending | AssuranceState::Running => FindDependentsOutcome::NotReady {
+            recovery_hint: "the workspace graph is warming; retry the traversal shortly"
+                .to_string(),
+        },
+        AssuranceState::Clean | AssuranceState::Stale | AssuranceState::Bounded => {
+            // C2: collect under the lock, project after release.
+            let candidates = state.cache.with_graphs(key, |_sym, dep| {
+                GctxProjector::collect_dependents(dep, &file, depth)
+            });
+            match candidates {
+                Some(candidates) => {
+                    match GctxProjector::project_dependents(candidates, query, depth) {
+                        Ok(projection) => FindDependentsOutcome::Ready(projection),
+                        // A malformed / cross-query pagination cursor (CE-6).
+                        Err(reason) => FindDependentsOutcome::InvalidQuery { reason },
+                    }
+                }
+                None => FindDependentsOutcome::NotReady {
+                    recovery_hint: concat!(
+                        "the workspace graph is not yet populated; ",
+                        "save a file or request a full scan to warm it"
+                    )
+                    .to_string(),
+                },
+            }
+        }
+    }
+}
+
+/// CE-6 query hygiene for `find_dependents`. Like [`invalid_query_reason`], it
+/// rejects a malformed `file` **before** the graph is read: a per-param byte cap,
+/// no NUL, no absolute path (Unix or Windows-drive), no `..` traversal component,
+/// and no scheme prefix. `max_depth` is clamped (not rejected); `cursor` validity
+/// is checked in the projector. Returns the rejection reason, or `None`.
+fn invalid_find_dependents_query_reason(query: &FindDependentsQuery) -> Option<String> {
+    // `file` is the one required field: a dependents walk has no meaningful
+    // "all files" answer. Reject an absent or empty value here (not via a
+    // downstream guard's ordering) so the validation is self-contained — a direct
+    // IPC client cannot reach the graph read with a `Some("")` that would resolve
+    // to an empty `Ready` instead of a structured `InvalidQuery`.
+    let Some(file) = query.file.as_deref() else {
+        return Some("file is required".to_string());
+    };
+    if file.is_empty() {
+        return Some("file must not be empty".to_string());
+    }
+    if file.len() > MAX_FILTER_BYTES {
+        return Some(format!("file filter exceeds {MAX_FILTER_BYTES} bytes"));
+    }
+    if file.contains('\0') {
+        return Some("file filter must not contain a NUL byte".to_string());
+    }
+    if Path::new(file).is_absolute() || has_windows_drive_absolute_prefix(file) {
+        return Some("file filter must be a workspace-relative path".to_string());
+    }
+    if Path::new(file)
+        .components()
+        .any(|c| matches!(c, std::path::Component::ParentDir))
+    {
+        return Some("file filter must not contain a `..` component".to_string());
+    }
+    if has_uri_scheme_prefix(file) {
+        return Some("file filter must not be scheme-prefixed (e.g. npm:, https:)".to_string());
+    }
+    None
 }
 
 /// Per-param byte cap (GCTX-001 spec, CE-6: "≤ 512 bytes/param").
@@ -1600,6 +1760,251 @@ mod tests {
         })
         .expect("admitted")
         .outcome
+    }
+
+    // --- GCTX-011 find_dependents (daemon wiring) ---
+
+    fn dependents_request(
+        root: &Path,
+        file: &str,
+        max_depth: Option<u32>,
+    ) -> GctxFindDependentsRequest {
+        GctxFindDependentsRequest {
+            workspace_root: root.to_string_lossy().into_owned(),
+            query: FindDependentsQuery {
+                file: Some(file.to_string()),
+                max_depth,
+                ..Default::default()
+            },
+        }
+    }
+
+    /// Warm `file` with a single relative import specifier, building the
+    /// `importer → imported` dependency edge the reverse-impact walk reads.
+    fn warm_with_import(
+        state: &SaveTimeState,
+        root: &Path,
+        file: &str,
+        names: &[&str],
+        import: &str,
+        base: u64,
+    ) {
+        let key = WorktreeKey::from_canonical(std::fs::canonicalize(root).expect("canonical"));
+        let mut symbols = file_symbols(file, names, base);
+        symbols.imports = vec![anvil_kernel_types::ImportEdge {
+            from_file: file.to_string(),
+            to_source: import.to_string(),
+            line: 0,
+        }];
+        state.cache.apply_delta(&key, ChangeKind::Create, symbols);
+    }
+
+    /// A warm worktree resolves the file-keyed importer set: `b.ts` importing
+    /// `./a` makes `a.ts` report `b.ts` at distance 1.
+    #[test]
+    fn gctx_dependents_ready_reports_importer_when_warm() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = state();
+        warm(&state, tmp.path(), "a.ts", &["alpha"], 0);
+        warm_with_import(&state, tmp.path(), "b.ts", &["beta"], "./a", 100);
+
+        let mut conn = SaveTimeConn::new(&state);
+        let resp = conn
+            .find_dependents(&dependents_request(tmp.path(), "a.ts", None))
+            .expect("admitted");
+
+        match resp.outcome {
+            FindDependentsOutcome::Ready(projection) => {
+                let files: Vec<(&str, u32)> = projection
+                    .dependents
+                    .iter()
+                    .map(|d| (d.file.as_str(), d.distance))
+                    .collect();
+                assert_eq!(files, [("b.ts", 1)]);
+                assert_eq!(projection.redaction_summary.matched, 1);
+            }
+            other => panic!("expected Ready, got {other:?}"),
+        }
+    }
+
+    /// A file with no importers is a `Ready` empty page (not `NotReady`).
+    #[test]
+    fn gctx_dependents_ready_empty_when_no_importers() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = state();
+        warm(&state, tmp.path(), "a.ts", &["alpha"], 0);
+
+        let mut conn = SaveTimeConn::new(&state);
+        let resp = conn
+            .find_dependents(&dependents_request(tmp.path(), "a.ts", None))
+            .expect("admitted");
+        // An empty readable result classifies as a `miss` (CE-10), not a warming.
+        assert_eq!(resp.outcome.telemetry_outcome().as_str(), "miss");
+        match resp.outcome {
+            FindDependentsOutcome::Ready(projection) => {
+                assert!(projection.dependents.is_empty());
+            }
+            other => panic!("expected Ready empty, got {other:?}"),
+        }
+    }
+
+    /// CE-7: a cold worktree degrades to `NotReady`, never an empty `Ready`.
+    #[test]
+    fn gctx_dependents_not_ready_on_cold_worktree() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = state();
+        let mut conn = SaveTimeConn::new(&state);
+        let resp = conn
+            .find_dependents(&dependents_request(tmp.path(), "a.ts", None))
+            .expect("admitted");
+        assert!(
+            matches!(resp.outcome, FindDependentsOutcome::NotReady { .. }),
+            "cold worktree must degrade to NotReady: {:?}",
+            resp.outcome
+        );
+    }
+
+    /// CE-11 kill-switch: a disabled surface self-reports `Disabled` even warm.
+    #[test]
+    fn gctx_dependents_kill_switch_disables_egress() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = state();
+        warm(&state, tmp.path(), "a.ts", &["alpha"], 0);
+        let key =
+            WorktreeKey::from_canonical(std::fs::canonicalize(tmp.path()).expect("canonical"));
+        let clean = assurance(AssuranceState::Clean, None);
+
+        let disabled = gctx_find_dependents_outcome(
+            &state,
+            &key,
+            &clean,
+            &FindDependentsQuery {
+                file: Some("a.ts".into()),
+                ..Default::default()
+            },
+            true,
+        );
+        assert!(matches!(disabled, FindDependentsOutcome::Disabled));
+    }
+
+    /// A dependents query with no `file` is a structured `InvalidQuery`.
+    #[test]
+    fn gctx_dependents_missing_file_is_invalid_query() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = state();
+        warm(&state, tmp.path(), "a.ts", &["alpha"], 0);
+        let mut conn = SaveTimeConn::new(&state);
+        let resp = conn
+            .find_dependents(&GctxFindDependentsRequest {
+                workspace_root: tmp.path().to_string_lossy().into_owned(),
+                query: FindDependentsQuery::default(),
+            })
+            .expect("admitted");
+        assert!(
+            matches!(resp.outcome, FindDependentsOutcome::InvalidQuery { .. }),
+            "a missing file must be rejected: {:?}",
+            resp.outcome
+        );
+    }
+
+    /// CE-6: an empty `file` is rejected daemon-side as `InvalidQuery` — a direct
+    /// IPC client cannot slip a `Some("")` past validation into an empty `Ready`.
+    #[test]
+    fn gctx_dependents_empty_file_is_invalid_query() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = state();
+        warm(&state, tmp.path(), "a.ts", &["alpha"], 0);
+        let mut conn = SaveTimeConn::new(&state);
+        let resp = conn
+            .find_dependents(&dependents_request(tmp.path(), "", None))
+            .expect("admitted");
+        assert!(
+            matches!(resp.outcome, FindDependentsOutcome::InvalidQuery { .. }),
+            "an empty file must be rejected: {:?}",
+            resp.outcome
+        );
+    }
+
+    /// CE-6: a `..`-escaping file is rejected before any read.
+    #[test]
+    fn gctx_dependents_rejects_file_escape() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = state();
+        let mut conn = SaveTimeConn::new(&state);
+        let resp = conn
+            .find_dependents(&dependents_request(tmp.path(), "../escape", None))
+            .expect("admitted");
+        assert!(
+            matches!(resp.outcome, FindDependentsOutcome::InvalidQuery { .. }),
+            "a `..` file must be rejected: {:?}",
+            resp.outcome
+        );
+    }
+
+    /// C3 / CE-8: an unadmitted root is refused daemon-side before projection.
+    #[test]
+    fn gctx_dependents_rejects_unadmitted_root() {
+        let primary = tempfile::tempdir().expect("tempdir");
+        let unlisted = tempfile::tempdir().expect("tempdir");
+        let confinement = Confinement::from_file(crate::confinement::ConfinementConfigFile {
+            admission: crate::confinement::AdmissionModeFile::Allowlist,
+            allow: Vec::new(),
+        });
+        let state = SaveTimeState::new(
+            WorkScheduler::new().expect("scheduler"),
+            AntipatternCheckConfig::default(),
+            confinement,
+        );
+        let mut conn = SaveTimeConn::new(&state);
+        conn.find_dependents(&dependents_request(primary.path(), "a.ts", None))
+            .expect("primary root is implicitly admitted");
+        let refused = conn.find_dependents(&dependents_request(unlisted.path(), "a.ts", None));
+        assert!(
+            matches!(refused, Err(SaveTimeError::NotAdmitted)),
+            "an unadmitted root must be refused: {refused:?}",
+        );
+    }
+
+    /// CE-6: a dependents page mints an opaque `next_cursor` that resumes the walk
+    /// with no overlap or gap, end to end through the daemon dispatch.
+    #[test]
+    fn gctx_dependents_paginate_with_opaque_cursor() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = state();
+        warm(&state, tmp.path(), "a.ts", &["alpha"], 0);
+        // Three direct importers of a.ts.
+        warm_with_import(&state, tmp.path(), "b.ts", &["b"], "./a", 100);
+        warm_with_import(&state, tmp.path(), "c.ts", &["c"], "./a", 200);
+        warm_with_import(&state, tmp.path(), "d.ts", &["d"], "./a", 300);
+
+        let mut conn = SaveTimeConn::new(&state);
+        let mut seen: Vec<String> = Vec::new();
+        let mut cursor = None;
+        for _ in 0..5 {
+            let request = GctxFindDependentsRequest {
+                workspace_root: tmp.path().to_string_lossy().into_owned(),
+                query: FindDependentsQuery {
+                    file: Some("a.ts".into()),
+                    limit: Some(2),
+                    cursor: cursor.clone(),
+                    ..Default::default()
+                },
+            };
+            let resp = conn.find_dependents(&request).expect("admitted");
+            let FindDependentsOutcome::Ready(projection) = resp.outcome else {
+                panic!("expected Ready");
+            };
+            seen.extend(projection.dependents.iter().map(|d| d.file.clone()));
+            match projection.next_cursor {
+                Some(c) => cursor = Some(c),
+                None => break,
+            }
+        }
+        assert_eq!(
+            seen,
+            ["b.ts", "c.ts", "d.ts"],
+            "every importer exactly once"
+        );
     }
 
     /// CE-6: a search that pages through the daemon mints an opaque `next_cursor`

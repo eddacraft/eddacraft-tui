@@ -1,7 +1,8 @@
 use serde_json::Value;
 
 use super::{
-    apply_patch, check, fix, gate, query_boundary, search_symbols, status, suppress, validate_write,
+    apply_patch, check, find_dependents, fix, gate, query_boundary, search_symbols, status,
+    suppress, validate_write,
 };
 
 pub struct ToolDefinition {
@@ -85,6 +86,15 @@ static TOOLS: &[ToolDefinition] = &[
         descriptor: search_symbols::descriptor,
         call: search_symbols::call,
     },
+    // GCTX-011 / ADR-084: read-only file-keyed dependents traversal. Same
+    // read-only posture as `search_symbols`; the authority gate is the
+    // daemon-side workspace-root admission (C3 / CE-8), not the MCP auth cache.
+    ToolDefinition {
+        name: find_dependents::TOOL_NAME,
+        requires_auth: false,
+        descriptor: find_dependents::descriptor,
+        call: find_dependents::call,
+    },
 ];
 
 pub fn all() -> &'static [ToolDefinition] {
@@ -103,7 +113,7 @@ mod tests {
     fn registry_lists_registered_tools() {
         let tools = all();
 
-        assert_eq!(tools.len(), 9);
+        assert_eq!(tools.len(), 10);
         let names: Vec<&str> = tools.iter().map(|t| t.name).collect();
         assert_eq!(
             names,
@@ -117,6 +127,7 @@ mod tests {
                 suppress::TOOL_NAME,
                 fix::TOOL_NAME,
                 search_symbols::TOOL_NAME,
+                find_dependents::TOOL_NAME,
             ],
         );
         for tool in tools {
@@ -135,6 +146,7 @@ mod tests {
         assert!(find(suppress::TOOL_NAME).is_some());
         assert!(find(fix::TOOL_NAME).is_some());
         assert!(find(search_symbols::TOOL_NAME).is_some());
+        assert!(find(find_dependents::TOOL_NAME).is_some());
         assert!(find("anvil_does_not_exist").is_none());
     }
 }

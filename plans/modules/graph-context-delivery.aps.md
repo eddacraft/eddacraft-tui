@@ -317,12 +317,12 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-011: `anvil_find_dependents` dependency traversal tool
 
-- **Status:** Ready — builds directly on the GCTX-010 spine (Merged 2026-06-16
-  via #2657): the sealed `anvil-gctx-types` DTOs, the single `GctxProjector`
-  choke point in `anvil-gctx-egress`, and the `GctxDispatch` RPC surface. Scoped
-  to **dependents only**; symbol-level *caller* traversal needs call edges the
-  warm graph does not carry and is split out to **GCTX-014** (Blocked on GV2
-  call-edge support).
+- **Status:** In Progress — builds directly on the GCTX-010 spine (Merged
+  2026-06-16 via #2657): the sealed `anvil-gctx-types` DTOs, the single
+  `GctxProjector` choke point in `anvil-gctx-egress`, and the `GctxDispatch` RPC
+  surface. Scoped to **dependents only**; symbol-level *caller* traversal needs
+  call edges the warm graph does not carry and is split out to **GCTX-014**
+  (Blocked on GV2 call-edge support).
 - **Intent:** Let assistants inspect a symbol's local blast radius — what depends
   on it — without expensive or ambiguous whole-repo rereads.
 - **Expected Outcome:** `anvil_find_dependents` returns bounded, depth-limited,

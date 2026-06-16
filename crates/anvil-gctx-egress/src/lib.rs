@@ -19,10 +19,12 @@
 use std::path::Path;
 
 use anvil_gctx_types::{
-    OpaqueCursor, RedactionSummary, SearchSymbolsProjection, SearchSymbolsQuery, SymbolSummary,
+    DependentSummary, FindDependentsProjection, FindDependentsQuery, OpaqueCursor,
+    RedactionSummary, SearchSymbolsProjection, SearchSymbolsQuery, SymbolSummary,
 };
-use anvil_graph_cache::SymbolGraph;
+use anvil_graph_cache::{DependencyGraph, SymbolGraph};
 use anvil_kernel_types::{SymbolIdentity, SymbolKind, SymbolNode, Visibility};
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 /// The single CE-5 egress choke point: builds sealed identity-only DTOs from the
@@ -124,7 +126,7 @@ impl GctxProjector {
                 if cursor.as_str().len() > MAX_CURSOR_BYTES {
                     return Err("pagination cursor is too long".to_string());
                 }
-                let payload = decode_cursor(cursor)
+                let payload = decode_cursor::<CursorPayload>(cursor)
                     .ok_or_else(|| "malformed pagination cursor".to_string())?;
                 if payload.fingerprint != fingerprint {
                     return Err("pagination cursor does not match this query's filters".to_string());
@@ -168,6 +170,150 @@ impl GctxProjector {
             next_cursor,
         })
     }
+
+    /// Walk the reverse-impact (dependents) set of `file` and collect identity-only
+    /// candidates (GCTX-011).
+    ///
+    /// **Call this under the cache lock** (it borrows `dep`). Breadth-first over
+    /// [`DependencyGraph::dependents_of`] up to `depth` hops, recording each
+    /// importer at the **first** (smallest) distance it is reached — so a file
+    /// reachable by both a 1-hop and a 2-hop path is reported at distance 1. The
+    /// caller MUST clamp `depth` to the GV2-026
+    /// [`anvil_graph_cache::clamp_reverse_impact_depth`] lever before calling; a
+    /// `debug_assert` enforces the ADR-063 ceiling so a future caller that lifts
+    /// the cap on this read path trips under test rather than silently
+    /// reintroducing an unbounded walk.
+    ///
+    /// `file` is never reported as its own dependent. On a cyclic import graph the
+    /// `seen` set terminates the walk (a file is visited at most once). The
+    /// returned [`DependentSummary`] values own their data, so the caller releases
+    /// the lock before calling [`GctxProjector::project_dependents`].
+    ///
+    /// The collected set is bounded at [`MAX_DEPENDENTS_WALK`] nodes so a
+    /// pathologically-imported file (a barrel imported by tens of thousands of
+    /// files) cannot make this lock-held pass allocate without bound (ADR-031 hot
+    /// budget). Because each `dependents_of` frontier is walked in **sorted**
+    /// order, the bound truncates deterministically (the same prefix on every
+    /// call), so keyset pagination over the result stays stable.
+    #[must_use]
+    pub fn collect_dependents(
+        dep: &DependencyGraph,
+        file: &str,
+        depth: u32,
+    ) -> Vec<DependentSummary> {
+        debug_assert!(
+            depth <= anvil_graph_cache::MAX_REVERSE_IMPACT_DEPTH,
+            "dependents walk depth {depth} exceeds the ADR-063 cap {} (caller must clamp)",
+            anvil_graph_cache::MAX_REVERSE_IMPACT_DEPTH,
+        );
+        let mut out: Vec<DependentSummary> = Vec::new();
+        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+        // The origin is excluded from its own dependent set and seeded so a cycle
+        // back through `file` does not re-add it.
+        seen.insert(file.to_string());
+        let mut frontier: Vec<String> = vec![file.to_string()];
+
+        'walk: for hop in 1..=depth {
+            let mut next: Vec<String> = Vec::new();
+            for current in &frontier {
+                // Sort each frontier so an over-budget truncation keeps a stable,
+                // deterministic prefix (the dependency index is a `HashSet`, whose
+                // iteration order is otherwise unspecified).
+                let mut importers = dep.dependents_of(current);
+                importers.sort_unstable();
+                for importer in importers {
+                    // CE-5 defence in depth: never emit an absolute path, even if
+                    // one were resident in the dependency index.
+                    if is_absolute_path_like(importer) {
+                        continue;
+                    }
+                    // First (smallest) distance wins; a re-seen file is skipped.
+                    if seen.insert(importer.to_string()) {
+                        let importer = importer.to_string();
+                        out.push(DependentSummary {
+                            file: importer.clone(),
+                            distance: hop,
+                        });
+                        next.push(importer);
+                        if out.len() >= MAX_DEPENDENTS_WALK {
+                            break 'walk;
+                        }
+                    }
+                }
+            }
+            if next.is_empty() {
+                break;
+            }
+            frontier = next;
+        }
+        out
+    }
+
+    /// Sort, paginate, and seal collected dependents into the egress projection.
+    ///
+    /// **Call this after releasing the cache lock** (ADR-084 C2). Ordering is a
+    /// deterministic total order on the dependent `file` path (unique within the
+    /// set — each importer appears once, at its minimum distance). Pagination is
+    /// the same keyset (seek) scheme as [`GctxProjector::project`]: the
+    /// server-minted opaque `next_cursor` encodes the last returned `file` plus a
+    /// fingerprint of the query's traversal filters (`file` + `max_depth`).
+    ///
+    /// # Errors
+    ///
+    /// Returns the rejection reason when the supplied `cursor` is malformed,
+    /// oversized, or was minted for a different query.
+    pub fn project_dependents(
+        mut candidates: Vec<DependentSummary>,
+        query: &FindDependentsQuery,
+        depth: u32,
+    ) -> Result<FindDependentsProjection, String> {
+        candidates.sort_by(|a, b| a.file.cmp(&b.file));
+        let matched = candidates.len();
+        let fingerprint = dependents_fingerprint(query, depth);
+
+        let start = match &query.cursor {
+            None => 0,
+            Some(cursor) => {
+                if cursor.as_str().len() > MAX_CURSOR_BYTES {
+                    return Err("pagination cursor is too long".to_string());
+                }
+                let payload = decode_cursor::<DependentsCursorPayload>(cursor)
+                    .ok_or_else(|| "malformed pagination cursor".to_string())?;
+                if payload.fingerprint != fingerprint {
+                    return Err("pagination cursor does not match this query's filters".to_string());
+                }
+                candidates.partition_point(|d| d.file <= payload.last)
+            }
+        };
+
+        let limit = query.effective_limit();
+        let mut page = if start >= candidates.len() {
+            Vec::new()
+        } else {
+            candidates.split_off(start)
+        };
+        let has_more = page.len() > limit;
+        page.truncate(limit);
+
+        let next_cursor = has_more.then(|| {
+            let last = page.last().expect("a page with more rows is non-empty");
+            encode_cursor(&DependentsCursorPayload {
+                fingerprint,
+                last: last.file.clone(),
+            })
+        });
+
+        let returned = page.len();
+        Ok(FindDependentsProjection {
+            redaction_summary: RedactionSummary {
+                matched,
+                returned,
+                truncated: next_cursor.is_some(),
+            },
+            dependents: page,
+            next_cursor,
+        })
+    }
 }
 
 /// Cap on an echoed cursor's encoded length.
@@ -181,6 +327,14 @@ impl GctxProjector {
 /// hex-decode work on a hostile oversized token (the IPC frame cap is the outer
 /// limit). A real cursor is a few hundred bytes.
 const MAX_CURSOR_BYTES: usize = 8 * 1024;
+
+/// Hard cap on the number of dependents [`GctxProjector::collect_dependents`]
+/// materialises in a single lock-held pass. Two depth hops over a barrel file can
+/// reach an arbitrarily large importer set; this bounds the lock-held allocation
+/// (ADR-031) well above any honest page (`MAX_PAGE_LIMIT` is 200) while capping
+/// the pathological case. Truncation is deterministic (sorted-frontier walk), so
+/// keyset pagination stays stable across the bound.
+const MAX_DEPENDENTS_WALK: usize = 10_000;
 
 /// The decoded contents of an [`OpaqueCursor`]: the keyset seek position plus a
 /// fingerprint binding it to the query filters it was minted for.
@@ -196,12 +350,18 @@ struct CursorPayload {
     last: SymbolIdentity,
 }
 
-fn encode_cursor(payload: &CursorPayload) -> OpaqueCursor {
+/// Encode a keyset cursor payload (the search [`CursorPayload`] or the
+/// dependents [`DependentsCursorPayload`]) as a hex-wrapped opaque token. Generic
+/// so both GCTX surfaces mint cursors through the same JSON-then-hex path.
+fn encode_cursor<T: Serialize>(payload: &T) -> OpaqueCursor {
     let bytes = serde_json::to_vec(payload).expect("cursor payload serialises");
     OpaqueCursor::new(hex::encode(bytes))
 }
 
-fn decode_cursor(cursor: &OpaqueCursor) -> Option<CursorPayload> {
+/// Decode an opaque cursor back into its payload, or `None` if the token is not
+/// valid hex / does not deserialise into `T` (a malformed or wrong-surface
+/// cursor).
+fn decode_cursor<T: DeserializeOwned>(cursor: &OpaqueCursor) -> Option<T> {
     let bytes = hex::decode(cursor.as_str()).ok()?;
     serde_json::from_slice(&bytes).ok()
 }
@@ -233,8 +393,55 @@ fn query_fingerprint(query: &SearchSymbolsQuery) -> u64 {
         visibility: query.visibility,
     };
     let bytes = serde_json::to_vec(&filters).expect("query filters serialise");
+    fnv1a(&bytes)
+}
+
+/// The decoded contents of a dependents [`OpaqueCursor`]: the keyset seek
+/// position (last returned file path) plus a fingerprint binding it to the
+/// traversal filters it was minted for.
+#[derive(Serialize, Deserialize)]
+struct DependentsCursorPayload {
+    /// Fingerprint of the traversal filters (`file` + `max_depth`) — see
+    /// [`dependents_fingerprint`].
+    #[serde(rename = "q")]
+    fingerprint: u64,
+    /// The last dependent `file` returned on the previous page; the next page
+    /// resumes strictly after it.
+    #[serde(rename = "k")]
+    last: String,
+}
+
+/// A deterministic fingerprint of a dependents query's traversal filters: the
+/// **resolved** depth (after the daemon clamps it) and the queried `file`
+/// (case-normalised to match the search surface's convention). Changing `limit`
+/// mid-walk is allowed (not part of the fingerprint); changing the target file or
+/// the resolved depth invalidates a cursor. FNV-1a over the canonical serialised
+/// filters (a reproducible, non-randomly-seeded hash — PV-2).
+fn dependents_fingerprint(query: &FindDependentsQuery, depth: u32) -> u64 {
+    #[derive(Serialize)]
+    struct Filters {
+        // A constant surface tag domain-separates this fingerprint from the
+        // search surface (and any future GCTX traversal cursor), so a cursor
+        // minted for one surface can never fingerprint-match another even if the
+        // non-cryptographic FNV hash collided on the rest of the payload.
+        surface: &'static str,
+        file: Option<String>,
+        depth: u32,
+    }
+    let filters = Filters {
+        surface: "find_dependents",
+        file: query.file.as_deref().map(str::to_lowercase),
+        depth,
+    };
+    let bytes = serde_json::to_vec(&filters).expect("dependents filters serialise");
+    fnv1a(&bytes)
+}
+
+/// FNV-1a 64-bit over `bytes`. Reproducible across restarts (unlike the randomly
+/// seeded `std` hasher) so a minted cursor stays valid — PV-2.
+fn fnv1a(bytes: &[u8]) -> u64 {
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
-    for byte in bytes {
+    for &byte in bytes {
         hash ^= u64::from(byte);
         hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
     }
@@ -731,5 +938,299 @@ mod tests {
             },
         );
         assert!(result.is_err(), "an oversized cursor must be rejected");
+    }
+
+    // --- GCTX-011 find_dependents traversal ---
+
+    /// Build a `DependencyGraph` from `importer → imported` edges.
+    fn dep_graph(edges: &[(&str, &str)]) -> DependencyGraph {
+        let mut g = DependencyGraph::new();
+        for (from, to) in edges {
+            g.add_dependency((*from).to_string(), (*to).to_string());
+        }
+        g
+    }
+
+    fn run_dependents(
+        dep: &DependencyGraph,
+        file: &str,
+        depth: u32,
+        query: &FindDependentsQuery,
+    ) -> FindDependentsProjection {
+        let candidates = GctxProjector::collect_dependents(dep, file, depth);
+        GctxProjector::project_dependents(candidates, query, depth).expect("valid query")
+    }
+
+    fn files_and_distances(p: &FindDependentsProjection) -> Vec<(String, u32)> {
+        p.dependents
+            .iter()
+            .map(|d| (d.file.clone(), d.distance))
+            .collect()
+    }
+
+    #[test]
+    fn dependents_chain_reports_distance_per_hop() {
+        // c imports b imports a. Dependents of a: b at 1, c at 2 (within 2 hops).
+        let g = dep_graph(&[("src/b.ts", "src/a.ts"), ("src/c.ts", "src/b.ts")]);
+        let p = run_dependents(&g, "src/a.ts", 2, &FindDependentsQuery::default());
+        assert_eq!(
+            files_and_distances(&p),
+            vec![("src/b.ts".into(), 1), ("src/c.ts".into(), 2)],
+        );
+        assert_eq!(p.redaction_summary.matched, 2);
+        assert!(!p.redaction_summary.truncated);
+    }
+
+    #[test]
+    fn dependents_depth_one_stops_at_direct_importers() {
+        let g = dep_graph(&[("src/b.ts", "src/a.ts"), ("src/c.ts", "src/b.ts")]);
+        let p = run_dependents(&g, "src/a.ts", 1, &FindDependentsQuery::default());
+        // Only the direct importer at 1 hop; c.ts (2 hops) is excluded.
+        assert_eq!(files_and_distances(&p), vec![("src/b.ts".into(), 1)]);
+    }
+
+    #[test]
+    fn dependents_diamond_reports_each_importer_at_min_distance() {
+        // b and c both import a; d imports both b and c. Dependents of a:
+        // b@1, c@1, d@2 — d reached via two 2-hop paths but reported once.
+        let g = dep_graph(&[
+            ("src/b.ts", "src/a.ts"),
+            ("src/c.ts", "src/a.ts"),
+            ("src/d.ts", "src/b.ts"),
+            ("src/d.ts", "src/c.ts"),
+        ]);
+        let p = run_dependents(&g, "src/a.ts", 2, &FindDependentsQuery::default());
+        assert_eq!(
+            files_and_distances(&p),
+            vec![
+                ("src/b.ts".into(), 1),
+                ("src/c.ts".into(), 1),
+                ("src/d.ts".into(), 2),
+            ],
+        );
+    }
+
+    #[test]
+    fn dependents_cycle_terminates_and_excludes_origin() {
+        // a → b → a is a cycle (b imports a, a imports b). Dependents of a: just
+        // b at 1; the walk terminates and a is never reported as its own
+        // dependent even though it re-enters the frontier.
+        let g = dep_graph(&[("src/b.ts", "src/a.ts"), ("src/a.ts", "src/b.ts")]);
+        let p = run_dependents(&g, "src/a.ts", 2, &FindDependentsQuery::default());
+        assert_eq!(files_and_distances(&p), vec![("src/b.ts".into(), 1)]);
+        assert!(
+            p.dependents.iter().all(|d| d.file != "src/a.ts"),
+            "origin must never appear as its own dependent",
+        );
+    }
+
+    #[test]
+    fn dependents_max_depth_truncates_the_walk() {
+        // A 3-deep chain queried at depth 2 must omit the 3-hop importer — the
+        // caller-clamped depth is the only walk bound here.
+        let g = dep_graph(&[
+            ("src/b.ts", "src/a.ts"),
+            ("src/c.ts", "src/b.ts"),
+            ("src/d.ts", "src/c.ts"),
+        ]);
+        let p = run_dependents(&g, "src/a.ts", 2, &FindDependentsQuery::default());
+        let files: Vec<String> = p.dependents.iter().map(|d| d.file.clone()).collect();
+        assert_eq!(files, vec!["src/b.ts".to_string(), "src/c.ts".to_string()]);
+        assert!(
+            !files.contains(&"src/d.ts".to_string()),
+            "the 3-hop importer is beyond the depth-2 walk",
+        );
+    }
+
+    #[test]
+    fn dependents_with_no_importers_is_empty_not_truncated() {
+        let g = dep_graph(&[("src/b.ts", "src/a.ts")]);
+        // b.ts has no importers.
+        let p = run_dependents(&g, "src/b.ts", 2, &FindDependentsQuery::default());
+        assert!(p.dependents.is_empty());
+        assert_eq!(p.redaction_summary.matched, 0);
+        assert!(!p.redaction_summary.truncated);
+    }
+
+    #[test]
+    fn dependents_pagination_walks_all_pages_without_overlap_or_gap() {
+        // Five direct importers of a.ts, paged 2 at a time.
+        let g = dep_graph(&[
+            ("src/b.ts", "src/a.ts"),
+            ("src/c.ts", "src/a.ts"),
+            ("src/d.ts", "src/a.ts"),
+            ("src/e.ts", "src/a.ts"),
+            ("src/f.ts", "src/a.ts"),
+        ]);
+        let mut seen: Vec<String> = Vec::new();
+        let mut cursor = None;
+        let mut pages = 0;
+        loop {
+            let query = FindDependentsQuery {
+                file: Some("src/a.ts".into()),
+                limit: Some(2),
+                cursor: cursor.clone(),
+                ..Default::default()
+            };
+            let p = run_dependents(&g, "src/a.ts", 1, &query);
+            assert!(p.dependents.len() <= 2);
+            assert_eq!(p.redaction_summary.matched, 5);
+            assert_eq!(p.redaction_summary.truncated, p.next_cursor.is_some());
+            seen.extend(p.dependents.iter().map(|d| d.file.clone()));
+            pages += 1;
+            assert!(pages <= 5, "pagination must terminate");
+            match p.next_cursor {
+                Some(c) => cursor = Some(c),
+                None => break,
+            }
+        }
+        assert_eq!(pages, 3, "5 items at page size 2 → 3 pages");
+        assert_eq!(
+            seen,
+            ["src/b.ts", "src/c.ts", "src/d.ts", "src/e.ts", "src/f.ts"],
+            "every dependent exactly once, in file order",
+        );
+    }
+
+    #[test]
+    fn dependents_cursor_from_a_different_depth_is_rejected() {
+        let g = dep_graph(&[
+            ("src/b.ts", "src/a.ts"),
+            ("src/c.ts", "src/a.ts"),
+            ("src/d.ts", "src/a.ts"),
+        ]);
+        let query = FindDependentsQuery {
+            file: Some("src/a.ts".into()),
+            limit: Some(1),
+            ..Default::default()
+        };
+        let cursor = run_dependents(&g, "src/a.ts", 1, &query)
+            .next_cursor
+            .expect("more pages remain");
+
+        // Echo the depth-1 cursor against a depth-2 walk: the fingerprint differs.
+        let mismatched = FindDependentsQuery {
+            file: Some("src/a.ts".into()),
+            limit: Some(1),
+            cursor: Some(cursor),
+            ..Default::default()
+        };
+        let candidates = GctxProjector::collect_dependents(&g, "src/a.ts", 2);
+        let result = GctxProjector::project_dependents(candidates, &mismatched, 2);
+        assert!(
+            result.is_err(),
+            "a cursor is only valid for the depth it was minted at",
+        );
+    }
+
+    #[test]
+    fn dependents_malformed_and_oversized_cursors_are_rejected() {
+        let g = dep_graph(&[("src/b.ts", "src/a.ts")]);
+        let candidates = GctxProjector::collect_dependents(&g, "src/a.ts", 1);
+        let malformed = GctxProjector::project_dependents(
+            candidates.clone(),
+            &FindDependentsQuery {
+                cursor: Some(OpaqueCursor::new("not-hex-zzzz".into())),
+                ..Default::default()
+            },
+            1,
+        );
+        assert!(malformed.is_err(), "a malformed cursor must be rejected");
+
+        let oversized = GctxProjector::project_dependents(
+            candidates,
+            &FindDependentsQuery {
+                cursor: Some(OpaqueCursor::new("a".repeat(MAX_CURSOR_BYTES + 1))),
+                ..Default::default()
+            },
+            1,
+        );
+        assert!(oversized.is_err(), "an oversized cursor must be rejected");
+    }
+
+    #[test]
+    fn dependents_walk_is_deterministic_regardless_of_insertion_order() {
+        // The dependency index is a HashSet; the sorted-frontier walk must yield a
+        // stable order so the budget truncation and keyset cursor are reproducible.
+        let edges = [
+            ("src/z.ts", "src/a.ts"),
+            ("src/m.ts", "src/a.ts"),
+            ("src/b.ts", "src/a.ts"),
+        ];
+        let first = run_dependents(
+            &dep_graph(&edges),
+            "src/a.ts",
+            1,
+            &FindDependentsQuery::default(),
+        );
+        let mut reversed = edges;
+        reversed.reverse();
+        let second = run_dependents(
+            &dep_graph(&reversed),
+            "src/a.ts",
+            1,
+            &FindDependentsQuery::default(),
+        );
+        assert_eq!(files_and_distances(&first), files_and_distances(&second));
+        assert_eq!(
+            first
+                .dependents
+                .iter()
+                .map(|d| d.file.clone())
+                .collect::<Vec<_>>(),
+            ["src/b.ts", "src/m.ts", "src/z.ts"],
+        );
+    }
+
+    #[test]
+    fn dependents_rejects_a_search_surface_cursor() {
+        // A search cursor must never be accepted by find_dependents. Its payload
+        // carries a `SymbolIdentity` object for `k` (vs a string here), so decode
+        // fails outright — the domain-separated fingerprint is a second guard.
+        let g = five_symbol_graph();
+        let search_cursor = GctxProjector::project(
+            GctxProjector::collect_candidates(
+                &g,
+                &SearchSymbolsQuery {
+                    limit: Some(1),
+                    ..Default::default()
+                },
+            ),
+            &SearchSymbolsQuery {
+                limit: Some(1),
+                ..Default::default()
+            },
+        )
+        .expect("more pages")
+        .next_cursor
+        .expect("a search cursor");
+
+        let dep = dep_graph(&[("src/b.ts", "src/a.ts")]);
+        let candidates = GctxProjector::collect_dependents(&dep, "src/a.ts", 1);
+        let result = GctxProjector::project_dependents(
+            candidates,
+            &FindDependentsQuery {
+                file: Some("src/a.ts".into()),
+                cursor: Some(search_cursor),
+                ..Default::default()
+            },
+            1,
+        );
+        assert!(
+            result.is_err(),
+            "a search cursor must not seek a dependents page"
+        );
+    }
+
+    #[test]
+    fn dependents_absolute_path_importer_is_dropped() {
+        // CE-5 defence in depth: an absolute importer path must not be emitted.
+        let g = dep_graph(&[("src/b.ts", "src/a.ts"), ("/etc/evil.ts", "src/a.ts")]);
+        let p = run_dependents(&g, "src/a.ts", 1, &FindDependentsQuery::default());
+        assert_eq!(files_and_distances(&p), vec![("src/b.ts".into(), 1)]);
+        assert!(
+            p.dependents.iter().all(|d| !is_absolute_path_like(&d.file)),
+            "no absolute path may reach the projection",
+        );
     }
 }

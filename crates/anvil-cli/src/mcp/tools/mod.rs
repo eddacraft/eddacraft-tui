@@ -1,5 +1,6 @@
 pub mod apply_patch;
 pub mod check;
+pub mod find_dependents;
 pub mod fix;
 pub mod gate;
 pub mod query_boundary;

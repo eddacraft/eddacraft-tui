@@ -239,6 +239,130 @@ impl GctxOutcome {
     }
 }
 
+// ============================================================================
+// GCTX-011 — `anvil_find_dependents` dependency traversal (ADR-084)
+// ============================================================================
+
+/// Conjunctive query for `anvil_find_dependents`: which file's blast radius to
+/// walk, how deep, and how to page. Identity-only and graph-free — like
+/// [`SearchSymbolsQuery`], it names no graph internal.
+///
+/// Dependents resolve at **file** granularity over the warm dependency graph
+/// (`importer → imported`): the result is the set of files that import `file`,
+/// transitively up to `max_depth` hops. Symbol-granular caller edges are out of
+/// scope (split to GCTX-014).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FindDependentsQuery {
+    /// Workspace-root-relative path whose importers to find. Required in
+    /// practice; `Option` so a bare `{}` deserialises (rejected daemon-side with
+    /// a structured `InvalidQuery`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub file: Option<String>,
+    /// Traversal depth in hops: `1` is direct importers, `2` adds their
+    /// importers. Clamped daemon-side to the GV2-026
+    /// `MAX_REVERSE_IMPACT_DEPTH` ceiling (an over-cap value is clamped, not
+    /// honoured); absent defaults to a 1-hop walk.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_depth: Option<u32>,
+    /// Maximum dependents to return in this page. Clamped to [`MAX_PAGE_LIMIT`];
+    /// absent uses [`DEFAULT_PAGE_LIMIT`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u32>,
+    /// Opaque server-minted pagination cursor (CE-6), valid only for the filter
+    /// set (`file` + `max_depth`) it was minted against.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<OpaqueCursor>,
+}
+
+impl FindDependentsQuery {
+    /// The page size to apply: the client `limit` clamped to
+    /// `1..=`[`MAX_PAGE_LIMIT`], or [`DEFAULT_PAGE_LIMIT`] when absent. Mirrors
+    /// [`SearchSymbolsQuery::effective_limit`].
+    #[must_use]
+    pub fn effective_limit(&self) -> usize {
+        self.limit
+            .unwrap_or(DEFAULT_PAGE_LIMIT)
+            .clamp(1, MAX_PAGE_LIMIT) as usize
+    }
+}
+
+/// A single identity-only dependent summary: an importing file and how many hops
+/// away it sits in the reverse-impact walk.
+///
+/// Carries **only** the workspace-root-relative `file` path and the traversal
+/// `distance` — no [`anvil_kernel_types::ByteRange`] span, no source text, no
+/// session-local id. The file path is the dependent's identity at the file-keyed
+/// granularity this tool projects.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DependentSummary {
+    /// The importing file, workspace-root-relative.
+    pub file: String,
+    /// Hop distance from the queried file: `1` for a direct importer, `2` for an
+    /// importer-of-an-importer, etc. (bounded by the depth cap).
+    pub distance: u32,
+}
+
+/// The identity-only projection returned when the dependency graph is readable.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FindDependentsProjection {
+    /// Dependent summaries, ordered deterministically by `file`.
+    pub dependents: Vec<DependentSummary>,
+    /// Opaque next-page cursor when more dependents remain, or `None` on the
+    /// final page. Echo it back in [`FindDependentsQuery::cursor`] to continue.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<OpaqueCursor>,
+    /// Counts-only elision summary (CE-11).
+    pub redaction_summary: RedactionSummary,
+}
+
+/// The status-tagged outcome of a dependents traversal.
+///
+/// The non-`Ready` variants are the same named degradation surface as
+/// [`SearchSymbolsOutcome`] (ADR-084 CE-7): a warming/cold graph yields
+/// [`NotReady`](Self::NotReady), an absent daemon/graph yields
+/// [`Unavailable`](Self::Unavailable), an operator kill-switch yields
+/// [`Disabled`](Self::Disabled), and a rejected query yields
+/// [`InvalidQuery`](Self::InvalidQuery) — **never** a source-file fallback.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum FindDependentsOutcome {
+    /// Graph readable: dependent results, possibly empty (a file with no
+    /// importers is a `Ready` empty page, not a `NotReady`).
+    Ready(FindDependentsProjection),
+    /// Graph not yet readable (warming, or cold and not yet save-populated).
+    NotReady {
+        /// Human-readable, enum-stable recovery guidance.
+        recovery_hint: String,
+    },
+    /// Daemon or graph unavailable; no fallback was attempted (CE-7).
+    Unavailable,
+    /// The egress surface is switched off by the operator
+    /// (`ANVIL_GCTX_EGRESS=0`, re-read per call — CE-11 kill-switch).
+    Disabled,
+    /// The query was rejected before any read (CE-6 validation).
+    InvalidQuery {
+        /// Why the query was rejected.
+        reason: String,
+    },
+}
+
+impl FindDependentsOutcome {
+    /// Classify into the shared PII-free [`GctxOutcome`] telemetry enum (CE-10).
+    /// Exhaustive, so a new response variant forces an explicit classification.
+    /// A readable result splits into `Hit` (≥1 dependent) and `Miss` (empty).
+    #[must_use]
+    pub fn telemetry_outcome(&self) -> GctxOutcome {
+        match self {
+            Self::Ready(projection) if projection.dependents.is_empty() => GctxOutcome::Miss,
+            Self::Ready(_) => GctxOutcome::Hit,
+            Self::NotReady { .. } => GctxOutcome::Warming,
+            Self::Unavailable => GctxOutcome::Unavailable,
+            Self::Disabled => GctxOutcome::GraphDisabled,
+            Self::InvalidQuery { .. } => GctxOutcome::InvalidQuery,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -517,5 +641,157 @@ mod tests {
         let c = OpaqueCursor::new("page-2".into());
         assert_eq!(serde_json::to_string(&c).unwrap(), "\"page-2\"");
         assert_eq!(c.as_str(), "page-2");
+    }
+
+    // --- GCTX-011 find_dependents: CE-5 structural no-leak + shape ---
+
+    fn sample_dependent() -> DependentSummary {
+        DependentSummary {
+            file: "src/importer.ts".into(),
+            distance: 1,
+        }
+    }
+
+    fn sample_dependents_projection() -> FindDependentsProjection {
+        FindDependentsProjection {
+            dependents: vec![sample_dependent()],
+            next_cursor: None,
+            redaction_summary: RedactionSummary {
+                matched: 1,
+                returned: 1,
+                truncated: false,
+            },
+        }
+    }
+
+    /// A serialised [`DependentSummary`] exposes ONLY the file-keyed identity
+    /// allowlist (`file`, `distance`). A new field that widens egress (a span, a
+    /// snippet, a symbol id) fails this — the CE-5 hard gate for the new type.
+    #[test]
+    fn dependent_summary_serialised_keys_are_identity_only() {
+        let v = serde_json::to_value(sample_dependent()).unwrap();
+        let obj = v.as_object().expect("summary serialises to an object");
+        let mut keys: Vec<&str> = obj.keys().map(String::as_str).collect();
+        keys.sort_unstable();
+        assert_eq!(keys, ["distance", "file"]);
+    }
+
+    #[test]
+    fn dependent_summary_names_no_forbidden_concepts() {
+        assert_no_forbidden_keys(
+            &serde_json::to_value(sample_dependent()).unwrap(),
+            &[
+                "span", "byte", "text", "body", "snippet", "trust", "content", "id",
+            ],
+        );
+    }
+
+    #[test]
+    fn dependents_projection_carries_no_absolute_path_values() {
+        assert_no_absolute_path_values(
+            &serde_json::to_value(sample_dependents_projection()).unwrap(),
+        );
+    }
+
+    #[test]
+    fn dependents_projection_names_no_forbidden_concepts() {
+        assert_no_forbidden_keys(
+            &serde_json::to_value(sample_dependents_projection()).unwrap(),
+            &[
+                "span", "byte", "text", "body", "snippet", "trust", "content", "id",
+            ],
+        );
+    }
+
+    #[test]
+    fn dependents_effective_limit_clamps_and_defaults() {
+        assert_eq!(FindDependentsQuery::default().effective_limit(), 50);
+        assert_eq!(
+            FindDependentsQuery {
+                limit: Some(0),
+                ..Default::default()
+            }
+            .effective_limit(),
+            1
+        );
+        assert_eq!(
+            FindDependentsQuery {
+                limit: Some(100_000),
+                ..Default::default()
+            }
+            .effective_limit(),
+            MAX_PAGE_LIMIT as usize
+        );
+    }
+
+    #[test]
+    fn dependents_query_round_trips_and_skips_absent_fields() {
+        let q = FindDependentsQuery {
+            file: Some("src/a.ts".into()),
+            max_depth: Some(2),
+            ..Default::default()
+        };
+        let json = serde_json::to_string(&q).unwrap();
+        assert!(!json.contains("limit"));
+        assert!(!json.contains("cursor"));
+        let back: FindDependentsQuery = serde_json::from_str(&json).unwrap();
+        assert_eq!(q, back);
+    }
+
+    #[test]
+    fn dependents_outcome_is_status_tagged_and_round_trips() {
+        let v = serde_json::to_value(FindDependentsOutcome::Ready(sample_dependents_projection()))
+            .unwrap();
+        assert_eq!(v["status"], Value::String("ready".into()));
+        assert!(v.get("dependents").is_some());
+
+        for outcome in [
+            FindDependentsOutcome::Ready(sample_dependents_projection()),
+            FindDependentsOutcome::NotReady {
+                recovery_hint: "warming".into(),
+            },
+            FindDependentsOutcome::Unavailable,
+            FindDependentsOutcome::Disabled,
+            FindDependentsOutcome::InvalidQuery {
+                reason: "file is required".into(),
+            },
+        ] {
+            let json = serde_json::to_string(&outcome).unwrap();
+            let back: FindDependentsOutcome = serde_json::from_str(&json).unwrap();
+            assert_eq!(outcome, back);
+        }
+    }
+
+    #[test]
+    fn dependents_telemetry_outcome_classifies_every_variant() {
+        let cases = [
+            (
+                FindDependentsOutcome::Ready(sample_dependents_projection()),
+                "hit",
+            ),
+            (
+                FindDependentsOutcome::Ready(FindDependentsProjection {
+                    dependents: Vec::new(),
+                    next_cursor: None,
+                    redaction_summary: RedactionSummary::default(),
+                }),
+                "miss",
+            ),
+            (
+                FindDependentsOutcome::NotReady {
+                    recovery_hint: "warming".into(),
+                },
+                "warming",
+            ),
+            (FindDependentsOutcome::Unavailable, "unavailable"),
+            (FindDependentsOutcome::Disabled, "graph_disabled"),
+            (
+                FindDependentsOutcome::InvalidQuery { reason: "x".into() },
+                "invalid_query",
+            ),
+        ];
+        for (outcome, label) in cases {
+            assert_eq!(outcome.telemetry_outcome().as_str(), label);
+        }
     }
 }
