@@ -969,7 +969,7 @@ archive.
 
 ### CIB-042: Synthetic health check on the public installer URL
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Catch a broken `install.eddacraft.ai` installer proactively
   instead of waiting for a user to report a 404.
 - **Expected Outcome:** A post-publish probe in the `announce` job of
@@ -993,7 +993,7 @@ archive.
 
 ### CIB-043: Set `--latest=false` on the eddacraft-tui anvil-001 release
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Stop library (`eddacraft-tui-v*`) releases from contending for the
   GitHub "Latest" pointer on the private `anvil-001` repo, so the CLI release is
   always uncontested as Latest there.

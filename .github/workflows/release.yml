@@ -1049,3 +1049,28 @@ jobs:
                 ;;
             esac
           done
+
+      # CIB-042: synthetic health check on the public installer assets. A broken
+      # installer is otherwise only discovered when a user hits a 404; this turns
+      # a regression into a red release run instead of a support ticket. Probes
+      # the public `eddacraft/anvil` latest-download URLs the install site and
+      # `install.sh` both fetch, and hard-fails if either does not resolve 200.
+      - name: Verify public installer URLs resolve
+        run: |
+          set -euo pipefail
+          base="https://github.com/eddacraft/anvil/releases/latest/download"
+          fail=0
+          for asset in eddacraft-anvil-installer.sh eddacraft-anvil-installer.ps1; do
+            url="${base}/${asset}"
+            code="$(curl -sSL --retry 3 --retry-delay 5 -o /dev/null -w '%{http_code}' "${url}" || echo 000)"
+            if [ "${code}" = "200" ]; then
+              echo "::notice title=installer ok::${asset} resolved (${code})"
+            else
+              echo "::error title=installer unreachable::${url} returned ${code} (expected 200)"
+              fail=1
+            fi
+          done
+          if [ "${fail}" -ne 0 ]; then
+            echo "::error::Public installer asset(s) did not resolve — the install site is serving a broken download."
+            exit 1
+          fi

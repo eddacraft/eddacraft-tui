@@ -271,9 +271,14 @@ jobs:
           # release is for traceability + runbook verify only.
           # Ratified as D-TUIR-021 by TUIR-009 (2026-06-07) after
           # backfilling eddacraft-tui-v0.2.4.
+          # CIB-043: `--latest=false` also pins the Latest pointer explicitly,
+          # so a tui release never contends for anvil-001 `latest` with the
+          # CLI `v*` release even against `scripts/release/closeout.sh`'s
+          # `--latest` promotion (belt-and-braces with `--prerelease`).
           gh release create "${TAG}" \
             --title "${TAG}" \
             --prerelease \
+            --latest=false \
             --notes "Published from canonical source at \`crates/eddacraft-tui/\`. See [\`crates/eddacraft-tui/CHANGELOG.md\`](https://github.com/${GITHUB_REPOSITORY}/blob/main/crates/eddacraft-tui/CHANGELOG.md) for release notes."
 
       - name: Summary
