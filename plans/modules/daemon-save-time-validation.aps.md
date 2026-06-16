@@ -964,19 +964,32 @@ Merged item; each is an additive improvement under the frozen wire.
 
 #### DSV-030: Warm-start persistence for the daemon graph cache
 
-- **Status:** Blocked
+- **Status:** In Progress
 - **Intent:** Let the daemon restore graph indexes (not verdicts) on restart so a fresh
   connection is not `Stale` until a full scan completes.
 - **Expected Outcome:** A default-off, per-uid, owner-only snapshot location;
   warm-start restores **indexes only, never the verdict**; structural-identity-only
-  privacy line per the validation contract §9; crash-safe.
+  privacy line per the validation contract §9; crash-safe. The serialization core
+  (sealed allowlist `SnapshotPayload` DTO + `postcard` codec + magic/version/CRC
+  integrity gate + golden round-trip + relative-path no-leak test) already shipped
+  in `anvil-graph-cache/src/snapshot.rs` (with the ADR); this item adds the
+  **daemon-side disk I/O + timing**: atomic durable symlink-safe `write_snapshot` /
+  `load_snapshot` / GC sweep, wired to write-after-scan + load-on-first-contact +
+  start-GC + graceful-shutdown, behind `ANVIL_PERSIST_GRAPH` (default-off,
+  fail-closed). A restored entry serves stale reads; a full scan is
+  disk-authoritative (restored entry invalidated before rebuild) so a
+  deleted-while-down file never survives into a `Clean` graph.
 - **Validation:** restart-restores-indexes test; default-off assertion; the verdict is
   still re-derived from bytes after warm-start.
 - **Confidence:** low
 - **Priority:** Low
-- **Dependencies:** GV2-021; DSV-020
-- **Blocked reason:** the GV2-021 persistence/snapshot ADR is not yet accepted.
-- **Source:** ADR-061 §9; validation contract §9; GV2-021.
+- **Dependencies:** [ADR-069](../decisions/069-graph-v2-persistence.md) (Accepted);
+  GV2-021 (Released/Shipped via #2301); DSV-020; DSV-045 (the reconcile scan).
+- **Follow-up (not this item):** the content-hash **fast**-reconcile (ADR-069 §3 —
+  skip re-parse of files whose content hash is unchanged) needs the snapshot DTO to
+  carry per-file content hashes; tracked as a future DSV sub-item.
+- **Source:** ADR-061 §9; validation contract §9;
+  [ADR-069](../decisions/069-graph-v2-persistence.md) (GV2-021).
 
 ---
 
@@ -1109,5 +1122,5 @@ requirement). Architecture decided by
 | A — deferred follow-ups | 5 | 5/5 done | Done |
 | A′ — GV2 hot-read swap + default-on routing | 2 | 2/2 done | Done |
 | Full-scan executor | 1 | 1/1 done (DSV-045 Merged 2026-06-16 via #2674 — ADR-085) | Done (Merged; awaiting release) |
-| B — Warm-start persistence | 1 | 0/1 done | Blocked |
+| B — Warm-start persistence | 1 | 0/1 done (DSV-030 In Progress — ADR-069; serialization core shipped, daemon wiring in flight) | In Progress |
 | **Total** | **20** | **19/20 done** | **In Progress** |
