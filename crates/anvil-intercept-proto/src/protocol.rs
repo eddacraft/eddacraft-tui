@@ -333,6 +333,18 @@ pub enum CheckFamily {
 }
 
 /// The coarse workspace-assurance state the `anvil status` surface renders.
+///
+/// Forward-compat: like [`StaleReason`], this enum is on the frozen wire and may
+/// gain members in a later daemon, so it carries a [`AssuranceState::Unknown`]
+/// `#[serde(other)]` fallback (DSV-045 / ADR-085 Decision 5b). Without it the
+/// first added variant (`Bounded`) would *hard-fail* deserialisation of every
+/// [`WorkspaceAssurance`]-bearing response on shipped v0.8.0-beta clients —
+/// i.e. the addition would be **breaking, not additive**. With the fallback, an
+/// older client meeting a newer daemon's unrecognised state string degrades to
+/// `Unknown` rather than failing the whole parse. **Consumers MUST treat
+/// `Unknown` fail-safe as `Stale`** (never as `Clean`); they MUST NOT map it to
+/// a trusting path. New named states are therefore additive on both ends and do
+/// not require a `protocolVersion` bump.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AssuranceState {
@@ -344,9 +356,25 @@ pub enum AssuranceState {
     Pending,
     /// A scan is in flight.
     Running,
+    /// The warm graph is populated but the workspace exceeded the walk file-count
+    /// cap *after* the gitignore pre-filter, so coverage is bounded — known
+    /// incomplete, not certifiable as complete. Carries
+    /// [`WorkspaceAssurance::scan_coverage`] and, like the lifecycle states,
+    /// **no** [`StaleReason`] (it is a lifecycle state, not a staleness cause).
+    /// Deliberately named `Bounded`, *not* `Partial`, to avoid colliding with
+    /// the unrelated [`Coverage::Partial`] (wire `"partial"`), which is a
+    /// check-family-coverage axis (DSV-045 / ADR-085 Decision 5a). Consumers
+    /// MUST handle it explicitly (no wildcard-to-`Clean`): a bounded graph is
+    /// served as identity-results-marked-bounded, never as complete.
+    Bounded,
     /// No daemon answered (daemon-absent / mid-session death). Never a
     /// truncated `clean`.
     Unavailable,
+    /// `#[serde(other)]` fallback: a state string this build does not know,
+    /// emitted by a newer daemon. **Treated as stale (fail-safe)** — never as
+    /// clean. Never produced by this build's own serialiser for a known state.
+    #[serde(other)]
+    Unknown,
 }
 
 /// Why assurance is not `Clean`. Default-deny: any change class the daemon
@@ -395,6 +423,21 @@ pub enum StaleReason {
     Unknown,
 }
 
+/// Walk coverage for a completed-but-bounded full scan (DSV-045 / ADR-085
+/// Decision 5c). Carried on an [`AssuranceState::Bounded`] snapshot so a
+/// consumer can surface *how* bounded a worktree is (e.g. "scanned 100k of
+/// 250k files"). Named distinctly from the [`Coverage`] check-family axis: this
+/// is a file-count truncation signal, not a verdict-attestation one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ScanCoverage {
+    /// Files actually walked, parsed, and applied to the warm graph (the
+    /// post-gitignore-filter `max_walk_files` cap).
+    pub scanned_files: u64,
+    /// Total files the gitignore-filtered, depth-capped walk found. Greater than
+    /// `scanned_files` exactly when the worktree was truncated to `Bounded`.
+    pub total_files: u64,
+}
+
 /// The workspace-assurance snapshot carried by every verdict and by the
 /// standalone status/full-scan responses. Deliberately carries **no**
 /// graph-version field: the wire is frozen against the backing, so a GV2
@@ -406,7 +449,9 @@ pub struct WorkspaceAssurance {
     /// The cause when assurance is not trustworthy. Invariant: present iff
     /// `state` is `Stale` or `Unavailable` (an `Unavailable` snapshot carries
     /// [`StaleReason::DaemonAbsent`]); always `None` for `Clean`, `Pending`,
-    /// and `Running`, which are lifecycle states with no staleness cause.
+    /// `Running`, and `Bounded`, which are lifecycle states with no staleness
+    /// cause. (`Bounded` is a *completed* scan whose coverage was truncated —
+    /// its incompleteness rides [`Self::scan_coverage`], not a `StaleReason`.)
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub reason: Option<StaleReason>,
     /// Monotonic, per-worktree **opaque** turnover token; bumps on eviction /
@@ -420,6 +465,11 @@ pub struct WorkspaceAssurance {
     /// propagating it as a verdict error.
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub last_full_scan: Option<String>,
+    /// Walk coverage, present only on an [`AssuranceState::Bounded`] snapshot
+    /// (DSV-045). `default` + `skip_serializing_if` keep it forward-compatible:
+    /// absent on older daemons, ignored by older clients.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub scan_coverage: Option<ScanCoverage>,
 }
 
 /// One evaluated path echoed back with the **daemon-computed** content hash
@@ -658,6 +708,7 @@ mod tests {
             reason: Some(StaleReason::CrossFileResolutionNeeded),
             generation: 7,
             last_full_scan: None,
+            scan_coverage: None,
         }
     }
 
@@ -839,6 +890,7 @@ mod tests {
                 reason: None,
                 generation: 2,
                 last_full_scan: None,
+                scan_coverage: None,
             },
             coverage: Coverage::Certified,
             check_families: vec![CheckFamily::Antipattern],
@@ -966,6 +1018,7 @@ mod tests {
                     reason: Some(StaleReason::CrossFileResolutionNeeded),
                     generation: 3,
                     last_full_scan: None,
+                    scan_coverage: None,
                 },
                 outcome,
             };
@@ -1074,6 +1127,7 @@ mod tests {
             reason: Some(StaleReason::DaemonAbsent),
             generation: 0,
             last_full_scan: None,
+            scan_coverage: None,
         };
         let back: WorkspaceAssurance =
             serde_json::from_str(&serde_json::to_string(&unavailable).unwrap()).unwrap();
@@ -1085,11 +1139,91 @@ mod tests {
             reason: None,
             generation: 5,
             last_full_scan: Some("2026-06-03T12:00:00Z".to_string()),
+            scan_coverage: None,
         };
         let json = serde_json::to_value(&running).unwrap();
         assert_eq!(json["state"], "running");
         assert!(json.get("reason").is_none());
         let back: WorkspaceAssurance = serde_json::from_value(json).unwrap();
         assert_eq!(back, running);
+    }
+
+    /// DSV-045: `AssuranceState::Bounded` round-trips on the wire string
+    /// `"bounded"` — distinct from `Coverage::Partial`'s `"partial"`.
+    #[test]
+    fn bounded_state_round_trips_distinct_from_partial() {
+        assert_eq!(
+            serde_json::to_value(AssuranceState::Bounded).unwrap(),
+            serde_json::Value::String("bounded".to_string()),
+        );
+        let back: AssuranceState =
+            serde_json::from_value(serde_json::Value::String("bounded".to_string())).unwrap();
+        assert_eq!(back, AssuranceState::Bounded);
+        // The unrelated Coverage axis keeps its own wire string; the two do not
+        // collide.
+        assert_eq!(
+            serde_json::to_value(Coverage::Partial).unwrap(),
+            serde_json::Value::String("partial".to_string()),
+        );
+    }
+
+    /// DSV-045 / ADR-085 Decision 5b: an unrecognised *state* string from a
+    /// newer daemon degrades to [`AssuranceState::Unknown`] (fail-safe) rather
+    /// than hard-failing the whole `WorkspaceAssurance` parse. This is the
+    /// affordance that makes `Bounded` (and any future state) additive on a
+    /// shipped v0.8.0-beta client instead of breaking.
+    #[test]
+    fn unknown_assurance_state_string_degrades_to_unknown() {
+        let parsed: AssuranceState =
+            serde_json::from_value(serde_json::Value::String("some-future-state".to_string()))
+                .expect("an unrecognised state must deserialise to the fallback");
+        assert_eq!(parsed, AssuranceState::Unknown);
+
+        // The whole envelope still parses when a newer daemon sends an unknown
+        // state — the regression ADR-085 exists to prevent.
+        let assurance: WorkspaceAssurance = serde_json::from_value(serde_json::json!({
+            "state": "warming-up-from-snapshot",
+            "generation": 9
+        }))
+        .expect("a future state inside WorkspaceAssurance must not fail the parse");
+        assert_eq!(assurance.state, AssuranceState::Unknown);
+    }
+
+    /// DSV-045 / ADR-085 Decision 5c: a `Bounded` snapshot carries
+    /// `scan_coverage` and (like the lifecycle states) no `reason`; the
+    /// coverage skip-serialises when absent so it stays forward-compatible.
+    #[test]
+    fn bounded_snapshot_carries_scan_coverage_and_no_reason() {
+        let bounded = WorkspaceAssurance {
+            state: AssuranceState::Bounded,
+            reason: None,
+            generation: 4,
+            last_full_scan: Some("2026-06-16T00:00:00Z".to_string()),
+            scan_coverage: Some(ScanCoverage {
+                scanned_files: 100_000,
+                total_files: 250_000,
+            }),
+        };
+        let json = serde_json::to_value(&bounded).unwrap();
+        assert_eq!(json["state"], "bounded");
+        assert!(json.get("reason").is_none(), "Bounded carries no reason");
+        assert_eq!(json["scan_coverage"]["scanned_files"], 100_000);
+        assert_eq!(json["scan_coverage"]["total_files"], 250_000);
+        let back: WorkspaceAssurance = serde_json::from_value(json).unwrap();
+        assert_eq!(back, bounded);
+
+        // scan_coverage skip-serialises when absent (the common Clean case).
+        let clean = WorkspaceAssurance {
+            state: AssuranceState::Clean,
+            reason: None,
+            generation: 0,
+            last_full_scan: None,
+            scan_coverage: None,
+        };
+        let clean_json = serde_json::to_value(&clean).unwrap();
+        assert!(
+            clean_json.get("scan_coverage").is_none(),
+            "absent scan_coverage must skip-serialise, not emit null"
+        );
     }
 }

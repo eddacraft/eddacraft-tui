@@ -715,11 +715,20 @@ fn gctx_search_outcome(
     }
 
     match assurance.state {
-        AssuranceState::Unavailable => SearchSymbolsOutcome::Unavailable,
+        // `Unknown` is the deser-only forward-compat fallback (ADR-085 Decision
+        // 5b) — the local machine never produces it, but a consumer MUST treat
+        // it fail-safe; here that means the same "no trustworthy graph" answer
+        // as a daemon-absent surface.
+        AssuranceState::Unavailable | AssuranceState::Unknown => SearchSymbolsOutcome::Unavailable,
         AssuranceState::Pending | AssuranceState::Running => SearchSymbolsOutcome::NotReady {
             recovery_hint: "the workspace graph is warming; retry the search shortly".to_string(),
         },
-        AssuranceState::Clean | AssuranceState::Stale => {
+        // DSV-045: `Bounded` is a *populated* (warm-but-truncated) graph — read
+        // like `Clean`/`Stale`, never demoted to `NotReady` (ADR-085 Decision
+        // 5). The bounded-result truncation marker on the projection is a
+        // GCTX-010 consumer concern; the assurance snapshot already carries
+        // `scan_coverage` so the client can surface the bound.
+        AssuranceState::Clean | AssuranceState::Stale | AssuranceState::Bounded => {
             // C2: collect under the lock, project after release.
             let candidates = state.cache.with_graphs(key, |sym, _dep| {
                 GctxProjector::collect_candidates(sym, query)
@@ -1687,6 +1696,7 @@ mod tests {
             reason,
             generation: 0,
             last_full_scan: None,
+            scan_coverage: None,
         }
     }
 

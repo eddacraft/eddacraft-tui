@@ -57,6 +57,13 @@ anvil-rules = { path = "../anvil-rules", package = "eddacraft-anvil-rules" }
 anyhow = { workspace = true }
 chrono = { workspace = true, features = ["serde"] }
 clap = { workspace = true }
+# DSV-045 (ADR-085 Decision 5): the full-scan executor pre-filters the walk
+# through `.gitignore` before counting files against the walk cap, so a fresh
+# session warms a graph of *source* files (not `node_modules`/`target`). `ignore`
+# is the ripgrep gitignore engine, already in the shipped tree via `anvil-kernel`
+# (watch.rs), so this adds no new transitive licences. The daemon still links no
+# parser (ADR-064) — `ignore` is a filesystem-walk dep, not a parser.
+ignore = "0.4"
 # DSV-006a (ADR-061 §4): dedicated interactive + background work pools so a
 # saturated background scan cannot starve `validate_paths`. rayon is already in
 # the shipped tree via `anvil-checks`, so this adds no new transitive licences.

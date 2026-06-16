@@ -995,7 +995,7 @@ requirement). Architecture decided by
 
 #### DSV-045: Full-scan executor
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Drive a queued `request_full_scan` to completion on the background
   pool — walk, parse, apply, complete — so the warm graph cache is populated
   without a save, with cancellation, a timeout watchdog, eviction-rewarm, a
@@ -1108,6 +1108,6 @@ requirement). Architecture decided by
 | A-W — Windows + cross-platform parity | 2 | 2/2 done (DSV-010 Merged — verbs served on Windows + hardening; DSV-011 Merged — clients verified on the green cross matrix, run 27102943706) | Done (all Merged; awaiting release) |
 | A — deferred follow-ups | 5 | 5/5 done | Done |
 | A′ — GV2 hot-read swap + default-on routing | 2 | 2/2 done | Done |
-| Full-scan executor | 1 | 0/1 done (DSV-045 Ready — ADR-085) | Ready |
+| Full-scan executor | 1 | 0/1 done (DSV-045 In Progress — ADR-085) | In Progress |
 | B — Warm-start persistence | 1 | 0/1 done | Blocked |
 | **Total** | **20** | **18/20 done** | **In Progress** |

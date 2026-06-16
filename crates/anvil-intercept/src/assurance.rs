@@ -22,7 +22,9 @@
 
 use std::path::Path;
 
-use anvil_intercept_proto::protocol::{AssuranceState, StaleReason, WorkspaceAssurance};
+use anvil_intercept_proto::protocol::{
+    AssuranceState, ScanCoverage, StaleReason, WorkspaceAssurance,
+};
 
 use crate::change_class::CanonicalChange;
 
@@ -134,6 +136,24 @@ pub enum ScanPriority {
     Background,
 }
 
+/// How a full scan finished, returned by [`AssuranceMachine::complete_scan`] /
+/// [`AssuranceMachine::complete_scan_bounded`] so the executor knows whether to
+/// re-queue (DSV-045 / ADR-085 Decision 4).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ScanCompletion {
+    /// The scan completed with full coverage and was never raced by a save →
+    /// the workspace is `Clean`.
+    Clean,
+    /// The scan completed but the worktree exceeded the post-gitignore walk cap
+    /// → the workspace is `Bounded` (warm-but-incomplete), never `Clean`.
+    Bounded,
+    /// A save (or any other `apply_delta`) landed for this key *during* the
+    /// `Running` scan, so the completed graph may not reflect it: the workspace
+    /// is marked `Stale(CrossFileResolutionNeeded)` and the executor MUST
+    /// re-queue a fresh scan. This is the phantom-`Clean` guard (Decision 4).
+    Dirtied,
+}
+
 /// The per-worktree workspace-assurance state machine (DSV-005 Task 9,
 /// ADR-061 §9). Drives the lifecycle `validate_paths` reports and renders the
 /// wire [`WorkspaceAssurance`].
@@ -160,6 +180,18 @@ pub struct AssuranceMachine {
     generation: u64,
     last_full_scan: Option<String>,
     scan_started_at: Option<String>,
+    /// DSV-045 (ADR-085 Decision 4): set by [`note_apply_delta`](Self::note_apply_delta)
+    /// when **any** `apply_delta` lands for this key while a scan is `Running` —
+    /// origin-agnostic (an interactive `validate_paths` save *and* a GCTX
+    /// on-demand re-warm both set it). [`complete_scan`](Self::complete_scan)
+    /// reads-and-clears it under the same machine lock as the terminal
+    /// transition (compare-and-clear), so a raced save can never be lost to a
+    /// phantom-`Clean`.
+    dirty_during_scan: bool,
+    /// DSV-045 (ADR-085 Decision 5c): the walk coverage of the last
+    /// `Bounded`-completing scan. `Some` only while the state is `Bounded`;
+    /// every other transition clears it.
+    scan_coverage: Option<ScanCoverage>,
 }
 
 impl AssuranceMachine {
@@ -173,6 +205,8 @@ impl AssuranceMachine {
             generation: 0,
             last_full_scan: None,
             scan_started_at: None,
+            dirty_during_scan: false,
+            scan_coverage: None,
         }
     }
 
@@ -201,27 +235,72 @@ impl AssuranceMachine {
         self.scan_started_at.as_deref()
     }
 
+    /// The current scan coverage, if the state is `Bounded`.
+    #[must_use]
+    pub fn scan_coverage(&self) -> Option<ScanCoverage> {
+        self.scan_coverage
+    }
+
+    /// Whether a save raced the in-flight scan (DSV-045). Test/diagnostic
+    /// accessor — the authoritative compare-and-clear is in
+    /// [`complete_scan`](Self::complete_scan).
+    #[must_use]
+    pub fn is_dirty_during_scan(&self) -> bool {
+        self.dirty_during_scan
+    }
+
     /// Render the wire snapshot, enforcing the `reason`-iff-`Stale`/`Unavailable`
-    /// invariant regardless of any stale `reason` left on a lifecycle state.
+    /// invariant regardless of any stale `reason` left on a lifecycle state, and
+    /// carrying `scan_coverage` only on a `Bounded` snapshot (DSV-045).
     #[must_use]
     pub fn snapshot(&self) -> WorkspaceAssurance {
         let reason = match self.state {
             AssuranceState::Stale | AssuranceState::Unavailable => self.reason,
-            AssuranceState::Clean | AssuranceState::Pending | AssuranceState::Running => None,
+            // `Bounded` (a completed-but-truncated scan) and the lifecycle
+            // states carry no staleness cause; `Unknown` is never produced
+            // locally but must be handled for exhaustiveness (fail-safe: no
+            // reason emitted, the wire fallback is a deser-only affordance).
+            AssuranceState::Clean
+            | AssuranceState::Pending
+            | AssuranceState::Running
+            | AssuranceState::Bounded
+            | AssuranceState::Unknown => None,
+        };
+        let scan_coverage = match self.state {
+            AssuranceState::Bounded => self.scan_coverage,
+            _ => None,
         };
         WorkspaceAssurance {
             state: self.state,
             reason,
             generation: self.generation,
             last_full_scan: self.last_full_scan.clone(),
+            scan_coverage,
         }
     }
 
-    /// An uncertifiable delta makes the workspace stale with `reason`.
+    /// An uncertifiable delta makes the workspace stale with `reason`. Clears
+    /// any in-flight scan bookkeeping (DSV-045): a stale workspace has no
+    /// trustworthy coverage and no pending dirty-race to resolve.
     pub fn mark_stale(&mut self, reason: StaleReason) {
         self.state = AssuranceState::Stale;
         self.reason = Some(reason);
         self.scan_started_at = None;
+        self.scan_coverage = None;
+        self.dirty_during_scan = false;
+    }
+
+    /// Record that an `apply_delta` landed for this key (DSV-045 / ADR-085
+    /// Decision 4). If a scan is `Running`, this flags the scan dirty so its
+    /// eventual [`complete_scan`](Self::complete_scan) fails safe to `Stale`
+    /// rather than certifying a graph that may not reflect the just-applied
+    /// delta. Origin-agnostic: an interactive `validate_paths` save and a GCTX
+    /// on-demand re-warm both call it. A no-op outside `Running` — a delta
+    /// applied while `Clean`/`Stale`/etc. has no scan to invalidate.
+    pub fn note_apply_delta(&mut self) {
+        if self.state == AssuranceState::Running {
+            self.dirty_during_scan = true;
+        }
     }
 
     /// Fold a `validate_paths` verdict into the workspace state.
@@ -245,23 +324,70 @@ impl AssuranceMachine {
             self.state = AssuranceState::Pending;
             self.reason = None;
             self.scan_started_at = None;
+            self.scan_coverage = None;
+            self.dirty_during_scan = false;
         }
         priority
     }
 
-    /// Begin a queued scan (`now` = RFC 3339 start time).
+    /// Begin a queued scan (`now` = RFC 3339 start time). Clears the dirty flag
+    /// and any prior coverage so the run starts from a clean slate (DSV-045).
     pub fn start_scan(&mut self, now: String) {
         self.state = AssuranceState::Running;
         self.reason = None;
         self.scan_started_at = Some(now);
+        self.scan_coverage = None;
+        self.dirty_during_scan = false;
     }
 
-    /// A scan completed: the workspace is `Clean` (`now` = RFC 3339 completion).
-    pub fn complete_scan(&mut self, now: String) {
-        self.state = AssuranceState::Clean;
+    /// A full-coverage scan completed (`now` = RFC 3339 completion). Reads-and-
+    /// clears the dirty flag under the caller's machine lock (DSV-045 / ADR-085
+    /// Decision 4): if a save raced the scan the workspace fails safe to
+    /// `Stale(CrossFileResolutionNeeded)` ([`ScanCompletion::Dirtied`], the
+    /// executor re-queues); otherwise it transitions to `Clean`.
+    pub fn complete_scan(&mut self, now: String) -> ScanCompletion {
+        self.finish_scan(now, None)
+    }
+
+    /// A scan completed but the worktree exceeded the post-gitignore walk cap:
+    /// the workspace is `Bounded` (warm-but-incomplete), carrying `coverage`,
+    /// never `Clean` (DSV-045 / ADR-085 Decision 5). The same dirty-race guard
+    /// as [`complete_scan`](Self::complete_scan) applies — a raced save still
+    /// wins (`Dirtied`), because a bounded-but-raced graph is no more
+    /// trustworthy than a full-but-raced one.
+    pub fn complete_scan_bounded(&mut self, now: String, coverage: ScanCoverage) -> ScanCompletion {
+        self.finish_scan(now, Some(coverage))
+    }
+
+    /// Shared terminal transition for both completion paths: compare-and-clear
+    /// the dirty flag, then settle to `Clean`/`Bounded` (or fail safe to
+    /// `Stale` on a raced save). `coverage` selects the terminal state.
+    fn finish_scan(&mut self, now: String, coverage: Option<ScanCoverage>) -> ScanCompletion {
+        let was_dirty = std::mem::take(&mut self.dirty_during_scan);
+        self.scan_started_at = None;
+        if was_dirty {
+            // A save landed mid-scan — the completed graph may not reflect it.
+            // Fail safe and let the executor re-queue. `last_full_scan` does NOT
+            // advance: no trustworthy scan completed.
+            self.state = AssuranceState::Stale;
+            self.reason = Some(StaleReason::CrossFileResolutionNeeded);
+            self.scan_coverage = None;
+            return ScanCompletion::Dirtied;
+        }
         self.reason = None;
         self.last_full_scan = Some(now);
-        self.scan_started_at = None;
+        match coverage {
+            Some(coverage) => {
+                self.state = AssuranceState::Bounded;
+                self.scan_coverage = Some(coverage);
+                ScanCompletion::Bounded
+            }
+            None => {
+                self.state = AssuranceState::Clean;
+                self.scan_coverage = None;
+                ScanCompletion::Clean
+            }
+        }
     }
 
     /// A scan exceeded its time budget ⇒ `Stale(ScanTimeout)`.
@@ -555,6 +681,120 @@ mod tests {
         clean.complete_scan("t1".to_string());
         clean.on_restart();
         assert_eq!(clean.state(), AssuranceState::Clean);
+    }
+
+    // ---- DSV-045: dirty-during-scan race guard + Bounded completion ----
+
+    #[test]
+    fn note_apply_delta_sets_dirty_only_while_running() {
+        let mut m = AssuranceMachine::new();
+        // Stale (cold): a delta has no scan to invalidate.
+        m.note_apply_delta();
+        assert!(!m.is_dirty_during_scan(), "no dirty flag outside Running");
+
+        m.request_full_scan(ScanPriority::Background);
+        m.note_apply_delta();
+        assert!(!m.is_dirty_during_scan(), "Pending is not Running");
+
+        m.start_scan("t0".to_string());
+        m.note_apply_delta();
+        assert!(
+            m.is_dirty_during_scan(),
+            "a delta during Running flags dirty"
+        );
+    }
+
+    #[test]
+    fn complete_scan_after_dirty_is_stale_not_clean_and_clears_flag() {
+        let mut m = AssuranceMachine::new();
+        m.request_full_scan(ScanPriority::Background);
+        m.start_scan("t0".to_string());
+        m.note_apply_delta(); // a save raced the scan
+
+        let completion = m.complete_scan("t1".to_string());
+        assert_eq!(completion, ScanCompletion::Dirtied);
+        assert_eq!(m.state(), AssuranceState::Stale);
+        assert_eq!(m.reason(), Some(StaleReason::CrossFileResolutionNeeded));
+        // Read-and-clear: the flag is cleared by the completion, so a fresh
+        // (re-queued) scan does not inherit the prior race.
+        assert!(
+            !m.is_dirty_during_scan(),
+            "dirty flag cleared on completion"
+        );
+        // last_full_scan did NOT advance — no trustworthy scan completed.
+        assert_eq!(m.snapshot().last_full_scan, None);
+    }
+
+    #[test]
+    fn clean_completion_when_never_dirtied() {
+        let mut m = AssuranceMachine::new();
+        m.request_full_scan(ScanPriority::Background);
+        m.start_scan("t0".to_string());
+        let completion = m.complete_scan("t1".to_string());
+        assert_eq!(completion, ScanCompletion::Clean);
+        assert_eq!(m.state(), AssuranceState::Clean);
+        assert_eq!(m.snapshot().last_full_scan.as_deref(), Some("t1"));
+    }
+
+    #[test]
+    fn bounded_completion_carries_coverage_and_no_reason() {
+        let mut m = AssuranceMachine::new();
+        m.request_full_scan(ScanPriority::Background);
+        m.start_scan("t0".to_string());
+        let coverage = ScanCoverage {
+            scanned_files: 100,
+            total_files: 250,
+        };
+        let completion = m.complete_scan_bounded("t1".to_string(), coverage);
+        assert_eq!(completion, ScanCompletion::Bounded);
+        assert_eq!(m.state(), AssuranceState::Bounded);
+        let snap = m.snapshot();
+        assert_eq!(snap.state, AssuranceState::Bounded);
+        assert_eq!(snap.reason, None, "Bounded is a lifecycle state, no reason");
+        assert_eq!(snap.scan_coverage, Some(coverage));
+    }
+
+    #[test]
+    fn bounded_completion_after_dirty_still_fails_safe_to_stale() {
+        let mut m = AssuranceMachine::new();
+        m.request_full_scan(ScanPriority::Background);
+        m.start_scan("t0".to_string());
+        m.note_apply_delta();
+        let completion = m.complete_scan_bounded(
+            "t1".to_string(),
+            ScanCoverage {
+                scanned_files: 100,
+                total_files: 250,
+            },
+        );
+        assert_eq!(completion, ScanCompletion::Dirtied);
+        assert_eq!(m.state(), AssuranceState::Stale);
+        assert_eq!(
+            m.snapshot().scan_coverage,
+            None,
+            "no coverage on a stale race"
+        );
+    }
+
+    #[test]
+    fn scan_coverage_clears_on_a_later_clean_scan() {
+        let mut m = AssuranceMachine::new();
+        m.request_full_scan(ScanPriority::Background);
+        m.start_scan("t0".to_string());
+        m.complete_scan_bounded(
+            "t1".to_string(),
+            ScanCoverage {
+                scanned_files: 100,
+                total_files: 250,
+            },
+        );
+        assert!(m.scan_coverage().is_some());
+        // A later full scan that completes clean drops the bounded coverage.
+        m.request_full_scan(ScanPriority::Background);
+        m.start_scan("t2".to_string());
+        m.complete_scan("t3".to_string());
+        assert_eq!(m.state(), AssuranceState::Clean);
+        assert_eq!(m.snapshot().scan_coverage, None);
     }
 
     #[test]

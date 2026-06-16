@@ -484,6 +484,115 @@ pub fn walk_capped(root: &Path, max_depth: usize, max_files: usize) -> Vec<PathB
     out
 }
 
+/// Hard ceiling on how far past `max_files` a [`walk_gitignored`] count runs,
+/// as a multiple of the collection cap. The walk collects at most `max_files`
+/// paths but keeps *counting* to report `GitignoreWalk::total`; this bounds that
+/// counting against a pathologically wide *non-ignored* tree (the residual DoS
+/// the gitignore pre-filter does not remove) so a 50M-file directory cannot make
+/// the walk run unboundedly. When hit, `total` is a lower bound — still strictly
+/// greater than `max_files`, so the worktree still resolves to `Bounded`.
+const WALK_COUNT_CEILING_FACTOR: usize = 8;
+
+/// The outcome of a [`walk_gitignored`] full-scan walk: the collected file
+/// paths (capped) plus the total count of gitignore-filtered files found.
+#[derive(Debug, Clone)]
+pub struct GitignoreWalk {
+    /// Regular-file paths to scan, at most `max_files` (absolute, under `root`).
+    pub files: Vec<PathBuf>,
+    /// Total gitignore-filtered regular files the depth-capped walk found (a
+    /// lower bound once [`WALK_COUNT_CEILING_FACTOR`] is hit). Equal to
+    /// `files.len()` when the worktree fit under the cap; strictly greater when
+    /// it was truncated.
+    pub total: usize,
+}
+
+impl GitignoreWalk {
+    /// `true` when the worktree exceeded the file-count cap after the gitignore
+    /// pre-filter — i.e. the warm graph will be **bounded**, not complete
+    /// (DSV-045 / ADR-085 Decision 5).
+    #[must_use]
+    pub fn truncated(&self) -> bool {
+        self.total > self.files.len()
+    }
+}
+
+/// Walk `root` collecting regular files **pre-filtered through `.gitignore`**,
+/// descending at most `max_depth` levels and collecting at most `max_files`
+/// paths, while reporting the total filtered file count for the truncation
+/// decision (DSV-045 / ADR-085 Decision 5).
+///
+/// This is [`walk_capped`]'s gitignore-aware sibling, built for the full-scan
+/// executor. The crucial difference from `walk_capped` is the ordering ADR-085
+/// fixes: the gitignore filter is applied **before** files are counted against
+/// `max_files`, so a repo whose bulk is `node_modules`/`target` (ignored) warms
+/// a *complete* graph of its source instead of truncating on machine-generated
+/// files. Like `walk_capped` it:
+///
+/// - never follows symlinks (`follow_links(false)`) — the same cycle/escape DoS
+///   stance the read path enforces;
+/// - bounds depth (`max_depth`, files directly in `root` are depth 1); and
+/// - bounds the collected `Vec` at `max_files`.
+///
+/// It honours `.gitignore`/`.ignore`/parent-directory ignores **even outside a
+/// git repository** (`require_git(false)`) and lets the `ignore` crate's
+/// built-in `.git/`-directory skip keep VCS internals out. Dotfiles are *not*
+/// skipped (`hidden(false)`): only gitignore-marked paths are filtered, matching
+/// the ADR's "pre-filtered through gitignore" wording (a non-source dotfile the
+/// parser cannot handle simply yields no symbols downstream). Unreadable entries
+/// are skipped silently — a best-effort scan never aborts over one bad subtree.
+///
+/// `max_depth` and `max_files` are each floored at 1.
+#[must_use]
+pub fn walk_gitignored(root: &Path, max_depth: usize, max_files: usize) -> GitignoreWalk {
+    let max_depth = max_depth.max(1);
+    let max_files = max_files.max(1);
+    let count_ceiling = max_files.saturating_mul(WALK_COUNT_CEILING_FACTOR);
+
+    let mut files = Vec::new();
+    let mut total = 0usize;
+
+    let walker = ignore::WalkBuilder::new(root)
+        .follow_links(false)
+        .hidden(false)
+        .parents(true)
+        .git_ignore(true)
+        .git_global(true)
+        .git_exclude(true)
+        .ignore(true)
+        // Honour `.gitignore` even when `root` is not inside a git checkout — a
+        // fresh MCP session may open a non-git directory that still carries one.
+        .require_git(false)
+        .max_depth(Some(max_depth))
+        .build();
+
+    for entry in walker {
+        let Ok(entry) = entry else {
+            // Permission / race error on one entry — skip it, never abort.
+            continue;
+        };
+        // Depth 0 is `root` itself; collect only regular files beneath it. A
+        // symlink's `file_type` is `is_symlink` (we do not follow), so this also
+        // excludes symlinks — matching `walk_capped`.
+        if entry.depth() == 0 {
+            continue;
+        }
+        if !entry.file_type().is_some_and(|ft| ft.is_file()) {
+            continue;
+        }
+        total += 1;
+        if files.len() < max_files {
+            files.push(entry.into_path());
+        }
+        if total >= count_ceiling {
+            // Bound the counting against a pathologically wide non-ignored
+            // tree; `total` is now a lower bound (> max_files ⇒ still Bounded).
+            break;
+        }
+    }
+
+    GitignoreWalk { files, total }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -612,6 +721,83 @@ mod tests {
             .filter(|p| p.file_name().is_some_and(|n| n == "inside.txt"))
             .count();
         assert_eq!(inside_hits, 1, "symlinked dir not followed: {found:?}");
+    }
+
+    // ---- DSV-045: gitignore-aware bounded walk ----
+
+    #[test]
+    fn walk_gitignored_filters_ignored_paths_before_the_cap() {
+        // A repo whose bulk is gitignored (node_modules) must warm a *complete*
+        // graph of its source — the gitignore filter applies BEFORE the cap.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        std::fs::write(root.join(".gitignore"), b"node_modules/\ndist/\n").expect("gitignore");
+        std::fs::write(root.join("a.ts"), b"export const a = 1;").expect("a");
+        std::fs::write(root.join("b.ts"), b"export const b = 2;").expect("b");
+        let nm = root.join("node_modules").join("dep");
+        std::fs::create_dir_all(&nm).expect("node_modules");
+        for i in 0..50 {
+            std::fs::write(nm.join(format!("g{i}.js")), b"x").expect("gen");
+        }
+        std::fs::create_dir(root.join("dist")).expect("dist");
+        std::fs::write(root.join("dist").join("bundle.js"), b"x").expect("bundle");
+
+        let walk = walk_gitignored(root, 32, 1000);
+        let names = names_of(&walk.files);
+        assert!(
+            names.contains("a.ts") && names.contains("b.ts"),
+            "{names:?}"
+        );
+        assert!(
+            !names.iter().any(|n| n.ends_with(".js")),
+            "ignored node_modules/dist files must be filtered: {names:?}"
+        );
+        assert!(!walk.truncated(), "well under the cap after filtering");
+        // The .gitignore file itself is a regular file and not ignored, so it is
+        // counted — source filtering, not dotfile hiding.
+        assert!(names.contains(".gitignore"));
+    }
+
+    #[test]
+    fn walk_gitignored_reports_truncation_over_cap() {
+        // 12 non-ignored files, cap 5 → collect 5, total 12, truncated.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        for i in 0..12 {
+            std::fs::write(root.join(format!("f{i}.ts")), b"x").expect("file");
+        }
+        let walk = walk_gitignored(root, 8, 5);
+        assert_eq!(walk.files.len(), 5, "collection capped at max_files");
+        assert_eq!(walk.total, 12, "total counts past the cap for the bound");
+        assert!(walk.truncated());
+    }
+
+    #[test]
+    fn walk_gitignored_respects_depth_and_skips_symlinks() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        std::fs::write(root.join("top.ts"), b"x").expect("top");
+        let deep = root.join("d1").join("d2");
+        std::fs::create_dir_all(&deep).expect("deep");
+        std::fs::write(deep.join("deep.ts"), b"x").expect("deep file");
+
+        let names = names_of(&walk_gitignored(root, 1, 1000).files);
+        assert!(names.contains("top.ts"), "depth-1 file collected");
+        assert!(!names.contains("deep.ts"), "depth-3 file past the cap");
+
+        #[cfg(unix)]
+        {
+            let real = root.join("real");
+            std::fs::create_dir(&real).expect("real");
+            std::fs::write(real.join("inside.ts"), b"x").expect("inside");
+            std::os::unix::fs::symlink(&real, root.join("link")).expect("symlink");
+            let all = walk_gitignored(root, 16, 1000).files;
+            let inside_hits = all
+                .iter()
+                .filter(|p| p.file_name().is_some_and(|n| n == "inside.ts"))
+                .count();
+            assert_eq!(inside_hits, 1, "symlinked dir not followed: {all:?}");
+        }
     }
 
     #[test]

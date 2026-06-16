@@ -602,7 +602,11 @@ fn assurance_state_token(state: AssuranceState) -> &'static str {
         AssuranceState::Stale => "stale",
         AssuranceState::Pending => "pending",
         AssuranceState::Running => "running",
+        AssuranceState::Bounded => "bounded",
         AssuranceState::Unavailable => "unavailable",
+        // Deser-only fallback (ADR-085 Decision 5b): never produced locally, but
+        // exhaustiveness requires it. Mirrors the proto `snake_case` token.
+        AssuranceState::Unknown => "unknown",
     }
 }
 
@@ -613,6 +617,11 @@ fn assurance_message(to: AssuranceState, reason: Option<StaleReason>) -> String 
         AssuranceState::Clean => "workspace assurance restored to clean".to_string(),
         AssuranceState::Pending => "full workspace scan queued".to_string(),
         AssuranceState::Running => "full workspace scan started".to_string(),
+        AssuranceState::Bounded => {
+            "full workspace scan completed with bounded coverage".to_string()
+        }
+        // Deser-only fallback (ADR-085 Decision 5b): never produced locally.
+        AssuranceState::Unknown => "workspace assurance state unknown".to_string(),
         AssuranceState::Stale => match reason {
             Some(reason) => format!("workspace marked stale: {}", stale_reason_token(reason)),
             None => "workspace marked stale".to_string(),
@@ -677,10 +686,17 @@ pub(crate) fn envelope_for_assurance_transition(
     reason: Option<StaleReason>,
 ) -> NotificationEnvelope {
     let priority = match to {
-        AssuranceState::Stale | AssuranceState::Unavailable => NotificationPriority::High,
-        AssuranceState::Clean | AssuranceState::Pending | AssuranceState::Running => {
-            NotificationPriority::Normal
+        // `Unknown` (deser-only fallback) is treated fail-safe as a
+        // can't-be-trusted-clean transition (ADR-085 Decision 5b).
+        AssuranceState::Stale | AssuranceState::Unavailable | AssuranceState::Unknown => {
+            NotificationPriority::High
         }
+        // `Bounded` is a successful (if incomplete) scan completion, not a trust
+        // loss — Normal, like `Clean`.
+        AssuranceState::Clean
+        | AssuranceState::Pending
+        | AssuranceState::Running
+        | AssuranceState::Bounded => NotificationPriority::Normal,
     };
     let notification = Notification::new(
         NotificationClass::FenceState,
