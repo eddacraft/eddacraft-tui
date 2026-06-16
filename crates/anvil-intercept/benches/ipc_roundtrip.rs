@@ -405,9 +405,11 @@ fn run_concurrency_ramp(state: &SaveTimeState, agents: usize) -> Vec<Duration> {
 fn run_executor_scan_ramp(state: &SaveTimeState, agents: usize) -> Vec<Duration> {
     let agents = agents.max(1);
     let agent_ws: Vec<tempfile::TempDir> = (0..agents).map(|_| make_workspace(1)).collect();
-    // A "small fixture corpus" (ADR-085 Decision 14) — large enough that the
-    // executor scan is non-trivial work on the background pool.
-    let scan_ws = make_workspace(256);
+    // A "small fixture corpus" (ADR-085 Decision 14) — sized so a single
+    // executor scan (walk + parse + apply of every file on the background pool)
+    // outlasts the interactive measurement window, so a scan is genuinely
+    // in-flight throughout rather than completing between re-triggers.
+    let scan_ws = make_workspace(4096);
     let scan_root = scan_ws.path().to_path_buf();
     let stop = AtomicBool::new(false);
     let latencies: Mutex<Vec<Duration>> =

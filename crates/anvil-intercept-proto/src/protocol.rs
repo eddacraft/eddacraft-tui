@@ -434,7 +434,10 @@ pub struct ScanCoverage {
     /// post-gitignore-filter `max_walk_files` cap).
     pub scanned_files: u64,
     /// Total files the gitignore-filtered, depth-capped walk found. Greater than
-    /// `scanned_files` exactly when the worktree was truncated to `Bounded`.
+    /// `scanned_files` exactly when the worktree was truncated to `Bounded`. May
+    /// be a **lower bound** when the daemon's internal walk-count ceiling is hit
+    /// on a pathologically large tree (the true workspace may hold more), so a
+    /// "scanned X of Y" render should treat Y as "at least Y".
     pub total_files: u64,
 }
 

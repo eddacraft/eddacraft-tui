@@ -308,6 +308,11 @@ impl SaveTimeState {
     pub fn invalidate(&self, key: &WorktreeKey) {
         self.cache.invalidate(key);
         self.lock_map().remove(key);
+        // DSV-045: prune the executor's per-key coordination so its maps do not
+        // grow one entry per worktree ever seen. Safe non-atomically with the
+        // above (the worktree is fully unregistered); a still-running scan keeps
+        // its `scan-enqueued` flag (its `EnqueuedGuard` resets it on exit).
+        self.coordinator.forget(key);
     }
 
     #[allow(clippy::type_complexity)]
@@ -690,6 +695,12 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
             machine.snapshot()
         });
         // DSV-045: spawn the executor job (coalesced — N requests drive one scan).
+        // `spawn_scan` → `prepare_scan` re-asserts `request_full_scan` under its
+        // own lock; that second call is idempotent (the machine is already
+        // `Pending`, so it is a no-op) — the `with_machine` call above exists
+        // solely to capture the response snapshot and broadcast the transition
+        // with the client's correlation, which the lock-free executor path does
+        // not carry.
         state.spawn_scan(&key, key.as_path(), ScanPriority::Interactive);
         Ok(RequestFullScanResponse {
             workspace_assurance,

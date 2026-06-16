@@ -546,6 +546,10 @@ impl GitignoreWalk {
 pub fn walk_gitignored(root: &Path, max_depth: usize, max_files: usize) -> GitignoreWalk {
     let max_depth = max_depth.max(1);
     let max_files = max_files.max(1);
+    // `saturating_mul` keeps this panic-free; for an absurdly large `max_files`
+    // (near `usize::MAX`) the ceiling saturates and the count bound effectively
+    // lifts — harmless, since such a cap already permits an unbounded result and
+    // the realistic default (100k → 800k ceiling) is far from saturation.
     let count_ceiling = max_files.saturating_mul(WALK_COUNT_CEILING_FACTOR);
 
     let mut files = Vec::new();

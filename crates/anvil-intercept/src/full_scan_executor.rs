@@ -45,7 +45,8 @@ use std::collections::HashMap;
 use std::panic::AssertUnwindSafe;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError, mpsc};
+use std::time::Duration;
 
 use anvil_graph_cache::certify::ChangeKind;
 use anvil_intercept_proto::protocol::{AssuranceState, ScanCoverage, StaleReason};
@@ -69,6 +70,17 @@ const SCAN_CHUNK: usize = 64;
 /// warm through each save's own `apply_delta`, so the cap is rarely approached.
 const MAX_DIRTY_RETRIES: u32 = 4;
 
+/// Wall-clock budget for a single full scan (ADR-085 Decision 1 watchdog). A
+/// progressing-but-slow scan that exceeds this is cancelled and the worktree is
+/// marked `Stale(ScanTimeout)` — a later trigger re-warms it. Generous: a real
+/// repo scan (bounded by `DosCaps`) finishes far inside it; the budget exists to
+/// stop a pathologically large/slow walk from holding a background-pool thread
+/// indefinitely. (A single hung syscall/parse call cannot be interrupted in safe
+/// Rust; the watchdog bounds a scan that is still making chunk progress.)
+// `from_mins` is unstable; `from_secs(60)` is the stable spelling.
+#[allow(clippy::duration_suboptimal_units)]
+const SCAN_TIMEOUT: Duration = Duration::from_secs(60);
+
 /// RFC 3339 wall-clock now, for the machine's scan timestamps (diagnostic only —
 /// never load-bearing for a verdict).
 fn now_rfc3339() -> String {
@@ -78,12 +90,12 @@ fn now_rfc3339() -> String {
 /// Per-[`WorktreeKey`] concurrency coordination for the executor: the
 /// `scan-enqueued` CAS flags (coalescing) and the in-flight scans' cancel
 /// handles (cooperative yield). Cheap to clone — all clones share one inner.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct ScanCoordinator {
     inner: Arc<CoordinatorInner>,
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 struct CoordinatorInner {
     /// Per-key "a background scan job is enqueued or running" flag. Set by a
     /// `false → true` CAS in [`ScanCoordinator::try_enqueue`]; reset on any job
@@ -147,6 +159,24 @@ impl ScanCoordinator {
             cancel.cancel();
         }
     }
+
+    /// Drop all coordination state for `key` so the maps do not grow unbounded
+    /// with one entry per worktree ever seen. Called from
+    /// [`SaveTimeState::invalidate`](crate::save_time::SaveTimeState) when the
+    /// last session for a worktree unregisters. Only removes the `scan-enqueued`
+    /// flag when no scan is in flight (flag `false`): an in-flight scan still
+    /// owns its [`EnqueuedGuard`], which will reset and could re-create the
+    /// entry, so pruning a live flag would be pointless — leave it for the
+    /// guard's drop. The cancel registration is always dropped (a stale cancel
+    /// handle is harmless and re-created per scan).
+    pub fn forget(&self, key: &WorktreeKey) {
+        lock(&self.inner.active).remove(key);
+        let mut enqueued = lock(&self.inner.enqueued);
+        if enqueued.get(key).is_some_and(|f| f.load(Ordering::Acquire)) {
+            return;
+        }
+        enqueued.remove(key);
+    }
 }
 
 /// RAII slot release for one enqueued scan job. Resets the `scan-enqueued` CAS
@@ -154,7 +184,7 @@ impl ScanCoordinator {
 /// exit, or an unwinding panic — so a crashed scan never leaves
 /// `request_full_scan` permanently inert for the key (Decision 10's liveness
 /// hole). Also drops the key's cancel registration.
-pub struct EnqueuedGuard {
+pub(crate) struct EnqueuedGuard {
     flag: Arc<AtomicBool>,
     key: WorktreeKey,
     inner: Arc<CoordinatorInner>,
@@ -229,9 +259,35 @@ impl PreparedScan {
             guard,
         } = self;
 
+        // ADR-085 Decision 1 watchdog: a sibling thread fires the scan's cancel
+        // (via the coordinator) and sets `timed_out` if the scan overruns
+        // `SCAN_TIMEOUT`. The scan loop observes `timed_out` at its next chunk
+        // boundary and aborts to `Stale(ScanTimeout)`. The job signals `done` on
+        // exit (completion or panic) so the watchdog returns promptly instead of
+        // lingering for the full budget.
+        let timed_out = Arc::new(AtomicBool::new(false));
+        let (done_tx, done_rx) = mpsc::channel::<()>();
+        let watchdog = {
+            let coordinator = ctx.coordinator.clone();
+            let key = key.clone();
+            let timed_out = Arc::clone(&timed_out);
+            std::thread::spawn(move || {
+                if done_rx.recv_timeout(SCAN_TIMEOUT).is_err() {
+                    // Timed out (or the job dropped the sender mid-flight): trip
+                    // the flag, then cancel so the chunk loop yields and observes it.
+                    timed_out.store(true, Ordering::Release);
+                    coordinator.cancel(&key);
+                }
+            })
+        };
+
         let outcome = std::panic::catch_unwind(AssertUnwindSafe(|| {
-            run_scan_loop(&ctx, &machine, &key, &root);
+            run_scan_loop(&ctx, &machine, &key, &root, &timed_out);
         }));
+
+        // Stop the watchdog (idempotent if it already fired).
+        let _ = done_tx.send(());
+        let _ = watchdog.join();
 
         if outcome.is_err() {
             // The scan panicked mid-flight (e.g. a parser bug). The graph is
@@ -248,9 +304,7 @@ impl PreparedScan {
             );
         }
 
-        // Belt-and-braces: the guard's drop also clears this, but make the
-        // post-run state explicit. Then the guard drop releases the slot.
-        ctx.coordinator.clear_cancel(&key);
+        // The guard's drop clears the cancel registration and releases the slot.
         drop(guard);
     }
 }
@@ -289,6 +343,10 @@ pub fn prepare_scan(
             && !ctx.cache.contains(key);
         if evicted {
             m.mark_stale(StaleReason::WarmStateEvicted);
+            // Bump the opaque turnover token so a consumer holding a prior
+            // generation sees the warm-state turnover (the `generation` field's
+            // documented contract: bumps on eviction / cold rebuild).
+            m.bump_generation();
         }
 
         let already_warm = matches!(m.state(), AssuranceState::Clean | AssuranceState::Bounded)
@@ -309,8 +367,9 @@ pub fn prepare_scan(
         return None;
     }
 
-    // Coalesce: one job per key. A loser leaves the (now `Pending`) machine for
-    // the winning job to drive.
+    // Coalesce: one job per key. A loser leaves the machine as `prepare_scan`
+    // set it (`Pending` for a fresh queue, or unchanged `Running` if a scan was
+    // already in flight) for the winning job to drive.
     let guard = ctx.coordinator.try_enqueue(key)?;
     Some(PreparedScan {
         ctx: ctx.clone(),
@@ -321,14 +380,80 @@ pub fn prepare_scan(
     })
 }
 
+/// Run one full pass over `files` with cooperative-yield continuations.
+/// Returns `true` on completion, `false` if the watchdog tripped `timed_out`
+/// mid-pass (the caller marks `ScanTimeout`).
+///
+/// Each segment registers its cancel handle BEFORE the machine goes `Running`,
+/// so an interactive `validate_paths` firing `coordinator.cancel(key)` right
+/// after the state flips still finds a live handle (closing the
+/// register-after-start race). A cancel observed before a segment's first chunk
+/// yields with `processed == 0`; the next segment re-arms a fresh handle, so
+/// progress resumes (it does not require every yield to advance `start`). The
+/// machine lock is taken only for the brief `start_scan` (C2); the walk + parse
+/// + apply run lock-free.
+// Eight tightly-related parameters; bundling them into a struct would add
+// ceremony without clarity for a single private helper.
+#[allow(clippy::too_many_arguments)]
+fn run_segments(
+    ctx: &ScanContext,
+    machine: &Arc<Mutex<AssuranceMachine>>,
+    key: &WorktreeKey,
+    root: &Path,
+    parser: &dyn SymbolParser,
+    anchor: &WorkspaceAnchor,
+    files: &[PathBuf],
+    timed_out: &AtomicBool,
+) -> bool {
+    let mut start = 0usize;
+    loop {
+        let cancel = ScanCancel::new();
+        ctx.coordinator.register_cancel(key, cancel.clone());
+        with_locked_machine_trace(machine, root, |m| m.start_scan(now_rfc3339()));
+
+        let outcome = run_chunked_scan(&files[start..], SCAN_CHUNK, &cancel, |path| {
+            apply_file(
+                &ctx.cache,
+                key,
+                anchor,
+                parser,
+                ctx.caps.max_parse_bytes,
+                root,
+                path,
+            );
+        });
+        ctx.coordinator.clear_cancel(key);
+
+        match outcome {
+            ScanOutcome::Yielded { processed } => {
+                // The watchdog fires the cancel on a timeout; distinguish it from
+                // an interactive preemption (which keeps deltas + continues).
+                if timed_out.load(Ordering::Acquire) {
+                    return false;
+                }
+                start += processed;
+                if start >= files.len() {
+                    return true;
+                }
+            }
+            ScanOutcome::Completed => return true,
+        }
+    }
+}
+
 /// Drive one scan to a terminal state, handling cooperative-yield continuations
 /// and dirty-race re-scans in a single job (so the slot guard's ownership is
-/// never handed off and the CAS flag is never raced).
+/// never handed off and the CAS flag is never raced). The continuation stays in
+/// this job and keeps the machine `Running` (deviating from ADR-085's
+/// "set Stale + re-queue a separate job" — the two-pool model lets the
+/// continuation run here, so `Running` is the accurate state and there is no
+/// slot hand-off to race).
 fn run_scan_loop(
     ctx: &ScanContext,
     machine: &Arc<Mutex<AssuranceMachine>>,
     key: &WorktreeKey,
     root: &Path,
+    timed_out: &AtomicBool,
 ) {
     // Decision 3: no parser → abort to `Stale`, never start a scan / produce an
     // empty `Clean` graph.
@@ -336,10 +461,11 @@ fn run_scan_loop(
         with_locked_machine_trace(machine, root, |m| {
             m.mark_stale(StaleReason::CrossFileResolutionNeeded);
         });
-        tracing::debug!(
+        tracing::warn!(
             target: "anvil_intercept::full_scan",
             workspace_root = %root.display(),
-            "no parser injected; full scan aborted to stale (never phantom-clean)",
+            "no parser injected; full scan aborted to stale (never phantom-clean) — \
+             this daemon cannot warm a graph (e.g. the Windows daemon, DSV-010b)",
         );
         return;
     };
@@ -373,48 +499,26 @@ fn run_scan_loop(
             total_files: walk.total as u64,
         };
 
-        // Run the segments (start..) until the file list is exhausted, yielding
-        // and resuming on cancel. Returns when every file has been applied.
-        let mut start = 0usize;
-        loop {
-            with_locked_machine_trace(machine, root, |m| m.start_scan(now_rfc3339()));
-
-            let cancel = ScanCancel::new();
-            ctx.coordinator.register_cancel(key, cancel.clone());
-
-            // The walk + parse + apply run WITHOUT the machine lock (C2): only
-            // `start_scan` above and `complete_scan` below take it, briefly.
-            let outcome = run_chunked_scan(&files[start..], SCAN_CHUNK, &cancel, |path| {
-                apply_file(
-                    &ctx.cache,
-                    key,
-                    &anchor,
-                    parser.as_ref(),
-                    ctx.caps.max_parse_bytes,
-                    root,
-                    path,
-                );
-            });
-            ctx.coordinator.clear_cancel(key);
-
-            match outcome {
-                ScanOutcome::Yielded { processed } => {
-                    // Keep the applied deltas; resume the continuation from the
-                    // processed offset. The machine stays `Running` — a scan is
-                    // genuinely still in flight (we deviate from ADR-085's
-                    // "set Stale + re-queue a separate job" framing: the
-                    // two-pool model lets the continuation run in the same job,
-                    // so `Running` is the accurate state and there is no slot
-                    // hand-off to race). A cancel only ever lands before a
-                    // not-yet-started chunk, so `processed` advances by whole
-                    // chunks and the loop terminates.
-                    start += processed;
-                    if start >= files.len() {
-                        break;
-                    }
-                }
-                ScanOutcome::Completed => break,
-            }
+        // Run the file list with cooperative-yield continuations. A `false`
+        // return means the watchdog tripped mid-pass → abort to ScanTimeout.
+        if !run_segments(
+            ctx,
+            machine,
+            key,
+            root,
+            parser.as_ref(),
+            &anchor,
+            files,
+            timed_out,
+        ) {
+            with_locked_machine_trace(machine, root, AssuranceMachine::scan_timeout);
+            tracing::warn!(
+                target: "anvil_intercept::full_scan",
+                workspace_root = %root.display(),
+                timeout_secs = SCAN_TIMEOUT.as_secs(),
+                "full scan exceeded its wall-clock budget; marked stale (scan-timeout)",
+            );
+            return;
         }
 
         // Terminal transition for this walk, under the lock (brief): the
@@ -434,16 +538,23 @@ fn run_scan_loop(
                 if dirty_retries > MAX_DIRTY_RETRIES {
                     // Give up: the machine is already `Stale` from the dirtied
                     // completion. A later trigger re-warms.
-                    tracing::debug!(
+                    tracing::warn!(
                         target: "anvil_intercept::full_scan",
                         workspace_root = %root.display(),
                         retries = dirty_retries,
-                        "full scan exceeded dirty-race retries; left stale for a later trigger",
+                        "full scan exceeded dirty-race retries (save storm); left \
+                         stale for a later trigger to re-warm",
                     );
                     return;
                 }
-                // A save raced the scan; re-walk to pick up creates/deletes and
-                // re-scan from the start.
+                // A save raced the scan; re-queue properly through `Pending`
+                // (the documented `Stale → Pending → Running` lifecycle, rather
+                // than a bare `Stale → Running` on the next `start_scan`) — this
+                // also clears the dirty flag for the fresh retry. Then re-walk to
+                // pick up creates/deletes.
+                with_locked_machine_trace(machine, root, |m| {
+                    m.request_full_scan(ScanPriority::Background);
+                });
                 walk = walk_gitignored(root, ctx.caps.max_walk_depth, ctx.caps.max_walk_files);
             }
         }
@@ -890,42 +1001,55 @@ mod tests {
 
     #[test]
     fn yield_keeps_applied_deltas_and_resumes_from_processed_offset() {
-        // A cancel mid-scan yields at a chunk boundary; the continuation resumes
-        // from the processed offset and the final graph is complete. With a
-        // chunk of 64 and >64 files, a cancel after the first chunk forces a
-        // continuation. We drive scan segments directly to assert resumption.
+        // A cancel mid-scan must yield at a chunk boundary; the continuation
+        // resumes from the processed offset and the final graph is complete.
+        //
+        // Deterministic (no timing race): a `GatedParser` parks the scan inside
+        // the FIRST file of chunk 0. The test fires the cancel WHILE the scan is
+        // provably parked there, then releases it. Chunk 0 (64 files) then
+        // finishes and the check before chunk 1 observes the already-set cancel
+        // → a guaranteed `Yielded { processed: 64 }`. The continuation re-arms a
+        // fresh cancel and applies the remaining files. The barrier ordering
+        // makes the yield structural, not scheduler-dependent.
         let tmp = tempfile::tempdir().expect("tempdir");
         let root = tmp.path();
         let n = SCAN_CHUNK + 10;
         for i in 0..n {
             write(root, &format!("f{i}.ts"), &format!("export s{i}"));
         }
-        let ctx = line_ctx();
+        let entered = Arc::new(Barrier::new(2));
+        let release = Arc::new(Barrier::new(2));
+        let calls = Arc::new(AtomicUsize::new(0));
+        let parser = Arc::new(GatedParser {
+            entered: Arc::clone(&entered),
+            release: Arc::clone(&release),
+            calls: Arc::clone(&calls),
+        });
+        let ctx = ctx_with(Some(parser), DosCaps::default());
         let key = key_for(root);
         let machine = machine();
 
-        // Run the full job, but cancel once after the first chunk lands. We
-        // simulate the interactive preemption by cancelling the active scan from
-        // a watcher thread as soon as the first file is applied.
         let job =
             prepare_scan(&ctx, &machine, &key, root, ScanPriority::Background).expect("enqueue");
         let coordinator = ctx.coordinator.clone();
-        let key_for_cancel = key.clone();
-        let cache_for_watch = Arc::clone(&ctx.cache);
-        let canceller = std::thread::spawn(move || {
-            // Wait until the scan has applied at least one file, then preempt.
-            for _ in 0..10_000 {
-                if !cache_for_watch.is_empty() {
-                    coordinator.cancel(&key_for_cancel);
-                    return;
-                }
-                std::thread::yield_now();
-            }
-        });
-        job.run();
-        canceller.join().expect("canceller");
+        let cancel_key = key.clone();
+        let scan_thread = std::thread::spawn(move || job.run());
 
-        // Despite the mid-scan yield, every file resolved into the warm graph.
+        // The scan is provably parked inside chunk 0's first file (cancel handle
+        // already registered before start_scan). Fire the cancel, then release.
+        entered.wait();
+        coordinator.cancel(&cancel_key);
+        release.wait();
+
+        scan_thread.join().expect("scan thread");
+
+        // The cancel was observed at the chunk-1 boundary → the scan yielded and
+        // resumed; every file still resolved into the warm graph.
+        assert_eq!(
+            calls.load(Ordering::SeqCst),
+            n,
+            "all {n} files parsed across the yield + continuation"
+        );
         let summary = graph_summary(&ctx.cache, &key);
         assert_eq!(
             summary.len(),
@@ -933,6 +1057,108 @@ mod tests {
             "all {n} files applied across the continuation"
         );
         assert_eq!(lock(&machine).state(), AssuranceState::Clean);
+    }
+
+    #[test]
+    fn save_storm_exhausts_dirty_retries_and_leaves_stale() {
+        // A save that lands on EVERY scan pass keeps dirtying the scan; after
+        // MAX_DIRTY_RETRIES the executor gives up (leaving the worktree Stale for
+        // a later trigger) rather than looping forever. A `DirtyingParser` sets
+        // the dirty flag via the machine on every parse of each pass.
+
+        // Parser that, on every parse, marks the machine dirty (stands in for a
+        // save racing each scan pass).
+        #[derive(Debug)]
+        struct DirtyingParser {
+            machine: Arc<Mutex<AssuranceMachine>>,
+        }
+        impl SymbolParser for DirtyingParser {
+            fn parse(&self, path: &Path, bytes: &[u8]) -> Option<FileSymbols> {
+                // A scan pass is `Running` while parsing; flag it dirty as a
+                // concurrent save would.
+                self.machine.lock().expect("machine").note_apply_delta();
+                LineParser.parse(path, bytes)
+            }
+        }
+
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        write(root, "a.ts", "export a");
+
+        let machine = machine();
+        let parser = Arc::new(DirtyingParser {
+            machine: Arc::clone(&machine),
+        });
+        let ctx = ctx_with(Some(parser), DosCaps::default());
+        let key = key_for(root);
+
+        let job =
+            prepare_scan(&ctx, &machine, &key, root, ScanPriority::Background).expect("enqueue");
+        job.run();
+
+        // Every pass dirtied → never reaches Clean; terminates Stale, not looping.
+        assert_eq!(lock(&machine).state(), AssuranceState::Stale);
+        assert!(
+            !ctx.coordinator.is_enqueued(&key),
+            "the slot is released even after exhausting dirty retries"
+        );
+    }
+
+    #[test]
+    fn scan_timeout_aborts_to_stale_scan_timeout() {
+        // ADR-085 Decision 1 watchdog: when the scan overruns its wall-clock
+        // budget, the worktree is marked `Stale(ScanTimeout)`. Driven
+        // deterministically (no 60s wait) by calling `run_scan_loop` directly
+        // with a parser that, on its first parse, simulates the watchdog —
+        // trips the shared `timed_out` flag and cancels the active scan. The
+        // cancel yields at the chunk-1 boundary, where the loop observes
+        // `timed_out` and aborts.
+        #[derive(Debug)]
+        struct TimeoutParser {
+            coordinator: ScanCoordinator,
+            key: WorktreeKey,
+            timed_out: Arc<AtomicBool>,
+            fired: AtomicBool,
+        }
+        impl SymbolParser for TimeoutParser {
+            fn parse(&self, path: &Path, bytes: &[u8]) -> Option<FileSymbols> {
+                if !self.fired.swap(true, Ordering::SeqCst) {
+                    self.timed_out.store(true, Ordering::Release);
+                    self.coordinator.cancel(&self.key);
+                }
+                LineParser.parse(path, bytes)
+            }
+        }
+
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        let n = SCAN_CHUNK + 10;
+        for i in 0..n {
+            write(root, &format!("f{i}.ts"), &format!("export s{i}"));
+        }
+
+        let coordinator = ScanCoordinator::new();
+        let key = key_for(root);
+        let timed_out = Arc::new(AtomicBool::new(false));
+        let parser = Arc::new(TimeoutParser {
+            coordinator: coordinator.clone(),
+            key: key.clone(),
+            timed_out: Arc::clone(&timed_out),
+            fired: AtomicBool::new(false),
+        });
+        let ctx = ScanContext::new(
+            Arc::new(KernelGraphCache::new()),
+            Some(parser),
+            DosCaps::default(),
+            coordinator,
+        );
+        let machine = machine();
+
+        run_scan_loop(&ctx, &machine, &key, root, &timed_out);
+
+        let snap = lock(&machine).snapshot();
+        assert_eq!(snap.state, AssuranceState::Stale);
+        assert_eq!(snap.reason, Some(StaleReason::ScanTimeout));
     }
 
     #[test]
