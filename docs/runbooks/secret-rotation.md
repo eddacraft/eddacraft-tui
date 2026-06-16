@@ -28,13 +28,14 @@ Names only — never record a secret **value** here or in any committed file. Th
 review cadence is the default rotation window; rotate sooner on any suspected
 exposure.
 
-| Secret(s)                                                                                                                  | Where it lives                              | Review cadence / by    | Owner |
-| -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | ---------------------- | ----- |
-| `ANVIL_MINISIGN_PRIVATE_KEY` (release signing); licence signing keypair                                                    | GitHub Actions secret; key material offline | 12 months / 2027-06-16 | SEC   |
-| `NPM_TOKEN`, `CRATES_IO_EDDACRAFT_TUI_TOKEN`, `WINGET_TOKEN`, `ANVIL_RELEASES_TOKEN`, `MIRROR_PUSH_TOKEN`, `GH_AUTH_TOKEN` | GitHub Actions secrets                      | 6 months / 2026-12-16  | SEC   |
-| `EDDACRAFT_MIRROR_BOT_APP_ID` + `EDDACRAFT_MIRROR_BOT_PRIVATE_KEY` (GitHub App)                                            | GitHub Actions secrets + the GitHub App     | 12 months / 2027-06-16 | SEC   |
-| `ARM_CLIENT_ID/SECRET/SUBSCRIPTION_ID/TENANT_ID`, `AZURE_STORAGE_ACCOUNT/KEY`, `PULUMI_CONFIG_PASSPHRASE`                  | GitHub Actions secrets + Azure / Pulumi     | 6 months / 2026-12-16  | SEC   |
-| `TOKEN_PEPPER`, `DATABASE_URL` (Neon), admin tokens, github-device-crypto keys                                             | Pulumi config → Vercel env (anvil-api)      | 6 months / 2026-12-16  | SEC   |
+| Secret(s)                                                                                                                  | Where it lives                          | Review cadence / by    | Owner |
+| -------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- | ---------------------- | ----- |
+| `ANVIL_MINISIGN_PRIVATE_KEY` (release signing)                                                                             | GitHub Actions secret                   | 12 months / 2027-06-16 | SEC   |
+| `LICENSE_SIGNING_KEY`, `LICENSE_PUBLIC_KEY`                                                                                | Pulumi config -> Vercel env (anvil-api) | 12 months / 2027-06-16 | SEC   |
+| `NPM_TOKEN`, `CRATES_IO_EDDACRAFT_TUI_TOKEN`, `WINGET_TOKEN`, `ANVIL_RELEASES_TOKEN`, `MIRROR_PUSH_TOKEN`, `GH_AUTH_TOKEN` | GitHub Actions secrets                  | 6 months / 2026-12-16  | SEC   |
+| `EDDACRAFT_MIRROR_BOT_APP_ID` + `EDDACRAFT_MIRROR_BOT_PRIVATE_KEY` (GitHub App)                                            | GitHub Actions secrets + the GitHub App | 12 months / 2027-06-16 | SEC   |
+| `ARM_CLIENT_ID/SECRET/SUBSCRIPTION_ID/TENANT_ID`, `AZURE_STORAGE_ACCOUNT/KEY`, `PULUMI_CONFIG_PASSPHRASE`                  | GitHub Actions secrets + Azure / Pulumi | 6 months / 2026-12-16  | SEC   |
+| `TOKEN_PEPPER`, `DATABASE_URL` (Neon), `ADMIN_KEY`, `ADMIN_KEY_PEPPER`, `WAITLIST_RESEND_ADMIN_TOKEN`, `CRON_SECRET`       | Pulumi config -> Vercel env (anvil-api) | 6 months / 2026-12-16  | SEC   |
 
 ## General rotation procedure
 
@@ -52,9 +53,10 @@ exposure.
 
 ## Per-secret notes
 
-- **Release signing (`ANVIL_MINISIGN_PRIVATE_KEY`) + licence keypair.** Follow
-  the existing [release-signing runbook](./release-signing.md); the licence
-  keypair is minted by
+- **Release signing (`ANVIL_MINISIGN_PRIVATE_KEY`).** Follow the existing
+  [release-signing runbook](./release-signing.md).
+- **Licence JWT signing (`LICENSE_SIGNING_KEY`, `LICENSE_PUBLIC_KEY`).** The
+  licence keypair is minted by
   [`scripts/generate-licence-keypair.sh`](../../scripts/generate-licence-keypair.sh).
   Rotating a signing key means consumers must trust the new public key —
   coordinate the public-key distribution, do not just swap the private key.
@@ -65,12 +67,14 @@ exposure.
   update the `ARM_*` Actions secrets, and re-run the infra workflow. Rotating
   `PULUMI_CONFIG_PASSPHRASE` re-encrypts the Pulumi config and is a heavier
   operation — plan it and confirm the apply succeeds.
-- **anvil-api runtime (`TOKEN_PEPPER`, DB, admin tokens).** `TOKEN_PEPPER` has a
-  dedicated **zero-downtime dual-pepper** procedure in
+- **anvil-api runtime.** `TOKEN_PEPPER` has a dedicated **zero-downtime
+  dual-pepper** procedure in
   [`apps/anvil-api/SECURITY.md`](../../apps/anvil-api/SECURITY.md) — use it
   rather than a hard swap, which would invalidate live tokens. Rotate
-  `DATABASE_URL` (Neon) and admin tokens through the Pulumi-managed env and
-  redeploy.
+  `DATABASE_URL` (Neon), `ADMIN_KEY`, `ADMIN_KEY_PEPPER`,
+  `WAITLIST_RESEND_ADMIN_TOKEN`, and `CRON_SECRET` through the Pulumi-managed
+  env and redeploy. GitHub device-code encryption uses `TOKEN_PEPPER`; there is
+  not a separate github-device keypair to rotate.
 
 ## On suspected exposure
 
