@@ -1228,7 +1228,7 @@ dependencies = [
  "futures-util",
  "hex",
  "ignore",
- "jsonschema",
+ "jsonschema 0.45.1",
  "miette",
  "minisign",
  "minisign-verify",
@@ -1312,7 +1312,7 @@ dependencies = [
  "eddacraft-anvil-sarif",
  "eddacraft-anvil-witness",
  "hex",
- "jsonschema",
+ "jsonschema 0.45.1",
  "serde",
  "serde_json",
  "sha2 0.11.0",
@@ -1650,7 +1650,7 @@ dependencies = [
 name = "eddacraft-anvil-sarif"
 version = "0.8.1-beta"
 dependencies = [
- "jsonschema",
+ "jsonschema 0.45.1",
  "serde",
  "serde_json",
  "sha2 0.11.0",
@@ -1781,6 +1781,17 @@ name = "fancy-regex"
 version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72cf461f865c862bb7dc573f643dd6a2b6842f7c30b07882b56bd148cc2761b8"
+dependencies = [
+ "bit-set 0.8.0",
+ "regex-automata",
+ "regex-syntax",
+]
+
+[[package]]
+name = "fancy-regex"
+version = "0.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e1e1dacd0d2082dfcf1351c4bdd566bbe89a2b263235a2b50058f1e130a47277"
 dependencies = [
  "bit-set 0.8.0",
  "regex-automata",
@@ -2730,11 +2741,38 @@ dependencies = [
  "num-cmp",
  "num-traits",
  "percent-encoding",
- "referencing",
+ "referencing 0.45.1",
  "regex",
  "regex-syntax",
  "reqwest",
  "rustls",
+ "serde",
+ "serde_json",
+ "unicode-general-category",
+ "uuid-simd",
+]
+
+[[package]]
+name = "jsonschema"
+version = "0.46.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a5fe5206f06e589caf25e79fc05ccdf91fca745685fe9fe1a13bbdfb479a631"
+dependencies = [
+ "ahash",
+ "bytecount",
+ "data-encoding",
+ "email_address",
+ "fancy-regex 0.18.0",
+ "fraction",
+ "getrandom 0.3.4",
+ "idna",
+ "itoa",
+ "num-cmp",
+ "num-traits",
+ "percent-encoding",
+ "referencing 0.46.5",
+ "regex",
+ "regex-syntax",
  "serde",
  "serde_json",
  "unicode-general-category",
@@ -2885,6 +2923,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "lru"
+version = "0.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8a860605968fce16869fd239cf4237a82f3ac470723415db603b0e8b6c8d4fb9"
+
+[[package]]
 name = "lru-slab"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2929,6 +2973,12 @@ checksum = "488016bfae457b036d996092f6cb448677611ce4449e970ceaf42695203f218a"
 dependencies = [
  "autocfg",
 ]
+
+[[package]]
+name = "micromap"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c2a86d3146ed3995b5913c414f6664344b9617457320782e64f0bb44afd49d74"
 
 [[package]]
 name = "miette"
@@ -3880,7 +3930,7 @@ dependencies = [
  "indoc",
  "itertools 0.14.0",
  "kasuari",
- "lru",
+ "lru 0.16.4",
  "strum",
  "thiserror 2.0.18",
  "unicode-segmentation",
@@ -4031,6 +4081,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "referencing"
+version = "0.46.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69e4e17ef386c5383591d07623d3de49cbc601156e7582973e6db98d66a57de2"
+dependencies = [
+ "ahash",
+ "fluent-uri",
+ "getrandom 0.3.4",
+ "hashbrown 0.16.1",
+ "itoa",
+ "micromap",
+ "parking_lot",
+ "percent-encoding",
+ "serde_json",
+]
+
+[[package]]
 name = "regex"
 version = "1.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4061,17 +4128,17 @@ checksum = "dc897dd8d9e8bd1ed8cdad82b5966c3e0ecae09fb1907d58efaa013543185d0a"
 
 [[package]]
 name = "regorus"
-version = "0.10.0"
+version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "63642e663bb81698ab7160735bdc831f580022194922d3f24d5c40a913ff3fab"
+checksum = "419a0413adeece71e4d4a64fb75adc359cb807496f0dfd10f429517be908b807"
 dependencies = [
  "anyhow",
  "data-encoding",
  "globset",
  "indexmap",
- "jsonschema",
+ "jsonschema 0.46.5",
  "lazy_static",
- "lru",
+ "lru 0.18.0",
  "msvc_spectre_libs",
  "num-bigint",
  "num-traits",
@@ -6201,12 +6268,11 @@ dependencies = [
  "hyper",
  "hyper-rustls",
  "hyper-util",
+ "idna",
  "image",
  "indexmap",
  "itertools 0.14.0",
- "jsonschema",
  "libc",
- "lru",
  "memchr",
  "miniz_oxide",
  "mio",

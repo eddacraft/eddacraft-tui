@@ -138,7 +138,7 @@ used under the terms of its respective licence, reproduced in full below.
 
 ## Licence: MIT License
 
-Used by 326 crates. See the inventory table at the bottom of this file for the complete list.
+Used by 328 crates. See the inventory table at the bottom of this file for the complete list.
 
 <details>
 <summary>Licence text</summary>
@@ -1019,7 +1019,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `unicode-linebreak` | 0.1.5 | Apache License 2.0 | https://github.com/axelf4/unicode-linebreak |
 | `unicode-general-category` | 1.1.0 | Apache License 2.0 | https://github.com/yeslogic/unicode-general-category |
 | `self-replace` | 1.5.0 | Apache License 2.0 | https://github.com/mitsuhiko/self-replace |
-| `regorus` | 0.10.0 | Apache License 2.0 | https://github.com/microsoft/regorus |
+| `regorus` | 0.10.1 | Apache License 2.0 | https://github.com/microsoft/regorus |
 | `miette-derive` | 7.6.0 | Apache License 2.0 | https://github.com/zkat/miette |
 | `supports-color` | 3.0.2 | Apache License 2.0 | https://github.com/zkat/supports-color |
 | `supports-hyperlinks` | 3.2.0 | Apache License 2.0 | https://github.com/zkat/supports-hyperlinks |
@@ -1029,7 +1029,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `sync_wrapper` | 1.0.2 | Apache License 2.0 | https://github.com/Actyx/sync_wrapper |
 | `subtle` | 2.6.1 | BSD 3-Clause "New" or "Revised" License | https://github.com/dalek-cryptography/subtle |
 | `aws-lc-sys` | 0.41.0 | BSD 3-Clause "New" or "Revised" License | https://github.com/aws/aws-lc-rs |
-| `regorus` | 0.10.0 | BSD 3-Clause "New" or "Revised" License | https://github.com/microsoft/regorus |
+| `regorus` | 0.10.1 | BSD 3-Clause "New" or "Revised" License | https://github.com/microsoft/regorus |
 | `notify` | 8.2.0 | Creative Commons Zero v1.0 Universal | https://github.com/notify-rs/notify.git |
 | `untrusted` | 0.9.0 | ISC License | https://github.com/briansmith/untrusted |
 | `inotify-sys` | 0.1.5 | ISC License | https://github.com/hannobraun/inotify-sys |
@@ -1181,6 +1181,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `bit-set` | 0.8.0 | MIT License | https://github.com/contain-rs/bit-set |
 | `bit-vec` | 0.8.0 | MIT License | https://github.com/contain-rs/bit-vec |
 | `hyper-util` | 0.1.20 | MIT License | https://github.com/hyperium/hyper-util |
+| `micromap` | 0.3.0 | MIT License | https://github.com/yegor256/micromap |
 | `ratatui-macros` | 0.7.0 | MIT License | https://github.com/ratatui/ratatui |
 | `deranged` | 0.5.8 | MIT License | https://github.com/jhpratt/deranged |
 | `anstream` | 1.0.0 | MIT License | https://github.com/rust-cli/anstyle.git |
@@ -1212,6 +1213,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `zerocopy` | 0.8.50 | MIT License | https://github.com/google/zerocopy |
 | `utf8_iter` | 1.0.4 | MIT License | https://github.com/hsivonen/utf8_iter |
 | `lru` | 0.16.4 | MIT License | https://github.com/jeromefroe/lru-rs.git |
+| `lru` | 0.18.0 | MIT License | https://github.com/jeromefroe/lru-rs.git |
 | `textwrap` | 0.16.2 | MIT License | https://github.com/mgeisler/textwrap |
 | `smawk` | 0.3.2 | MIT License | https://github.com/mgeisler/smawk |
 | `static_assertions` | 1.1.0 | MIT License | https://github.com/nvzqz/static-assertions-rs |
@@ -1227,8 +1229,8 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `email_address` | 0.2.9 | MIT License | https://github.com/johnstonskj/rust-email_address.git |
 | `tokio-macros` | 2.7.0 | MIT License | https://github.com/tokio-rs/tokio |
 | `owo-colors` | 4.3.0 | MIT License | https://github.com/owo-colors/owo-colors |
-| `jsonschema` | 0.45.1 | MIT License | https://github.com/Stranger6667/jsonschema |
-| `referencing` | 0.45.1 | MIT License | https://github.com/Stranger6667/jsonschema |
+| `jsonschema` | 0.46.5 | MIT License | https://github.com/Stranger6667/jsonschema |
+| `referencing` | 0.46.5 | MIT License | https://github.com/Stranger6667/jsonschema |
 | `compact_str` | 0.9.1 | MIT License | https://github.com/ParkMyCar/compact_str |
 | `castaway` | 0.2.4 | MIT License | https://github.com/sagebind/castaway |
 | `rustls-platform-verifier` | 0.7.0 | MIT License | https://github.com/rustls/rustls-platform-verifier |
@@ -1255,7 +1257,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `ratatui-crossterm` | 0.1.0 | MIT License | https://github.com/ratatui/ratatui |
 | `ratatui-widgets` | 0.3.0 | MIT License | https://github.com/ratatui/ratatui |
 | `ratatui` | 0.30.0 | MIT License | https://github.com/ratatui/ratatui |
-| `regorus` | 0.10.0 | MIT License | https://github.com/microsoft/regorus |
+| `regorus` | 0.10.1 | MIT License | https://github.com/microsoft/regorus |
 | `tree-sitter-typescript` | 0.23.2 | MIT License | https://github.com/tree-sitter/tree-sitter-typescript |
 | `uuid-simd` | 0.8.0 | MIT License | https://github.com/Nugine/simd |
 | `vsimd` | 0.8.0 | MIT License | https://github.com/Nugine/simd |
@@ -1328,7 +1330,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `allocator-api2` | 0.2.21 | MIT License | https://github.com/zakarumych/allocator-api2 |
 | `winnow` | 1.0.3 | MIT License | https://github.com/winnow-rs/winnow |
 | `encode_unicode` | 1.0.0 | MIT License | https://github.com/tormol/encode_unicode |
-| `fancy-regex` | 0.17.0 | MIT License | https://github.com/fancy-regex/fancy-regex |
+| `fancy-regex` | 0.18.0 | MIT License | https://github.com/fancy-regex/fancy-regex |
 | `spin` | 0.10.0 | MIT License | https://github.com/mvdnes/spin-rs.git |
 | `spin` | 0.9.8 | MIT License | https://github.com/mvdnes/spin-rs.git |
 | `tree-sitter-javascript` | 0.25.0 | MIT License | https://github.com/tree-sitter/tree-sitter-javascript |
