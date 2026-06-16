@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 45/77    |
+| CIB | —     | In Progress | 46/77    |
 
 ## Purpose
 
@@ -753,7 +753,7 @@ archive.
 
 ### CIB-034: Publish sanitised release evidence for the public release mirror
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-16 via PR #2684
 - **Intent:** Give users of the public release mirror a concise, sanitised trust
   record for each shipped Anvil release, even though the source project itself is
   not public.
