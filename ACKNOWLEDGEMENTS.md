@@ -1562,7 +1562,7 @@ section above; this block focuses on the build-time runtime surface.
 | linkify-it | 5.0.1 | MIT | https://github.com/markdown-it/linkify-it |
 | log-symbols | 4.1.0 | MIT | https://github.com/sindresorhus/log-symbols |
 | magic-string | 0.30.21 | MIT | https://github.com/Rich-Harris/magic-string |
-| markdown-it | 14.2.0 | MIT | https://github.com/markdown-it/markdown-it |
+| markdown-it | 14.1.1 | MIT | https://github.com/markdown-it/markdown-it |
 | markdownlint-cli | 0.48.0 | MIT | https://github.com/igorshubovych/markdownlint-cli |
 | markdownlint | 0.40.0 | MIT | https://github.com/DavidAnson/markdownlint |
 | math-intrinsics | 1.1.0 | MIT | https://github.com/es-shims/math-intrinsics |
