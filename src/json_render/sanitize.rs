@@ -15,7 +15,7 @@
 /// - every `char::is_control()` codepoint — the C0 range (incl. `ESC`, `BEL`,
 ///   `CR`, `LF`, `TAB`), `DEL`, and the C1 range — any of which could reach the
 ///   terminal as a raw escape; and
-/// - Unicode [bidi control / zero-width characters](is_bidi_or_zero_width) —
+/// - Unicode bidi control / zero-width characters —
 ///   `char::is_control()` returns `false` for these, but a `RIGHT-TO-LEFT
 ///   OVERRIDE` (U+202E) or zero-width joiner can visually reorder/spoof a label
 ///   or title (e.g. make `fail` read as `pass`), so they are stripped too.

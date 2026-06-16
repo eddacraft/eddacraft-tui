@@ -5,7 +5,7 @@
 //! Image protocol detection (Kitty / Sixel / iTerm2 / halfblocks) lives in
 //! `ratatui_image::picker::Picker` — applications should construct one once at
 //! startup and reuse it. This widget just renders an existing
-//! [`Protocol`](ratatui_image::protocol::Protocol).
+//! [`Protocol`].
 //!
 //! Validate image dimensions and source before constructing a `Protocol` —
 //! the `image` crate has a parser surface that has carried decoder
@@ -61,7 +61,7 @@ impl<'a, T: Theme> ImagePane<'a, T> {
     /// Set the title shown in the top border. The title is only rendered
     /// when [`Self::bordered`] is `true` (the default); calling `.title(...)`
     /// on an unbordered pane is a no-op for clarity, surfaced via a debug
-    /// assertion in [`<ImagePane as Widget>::render`].
+    /// assertion in `<ImagePane as Widget>::render`.
     #[must_use]
     pub fn title(mut self, title: &'a str) -> Self {
         self.title = Some(title);
