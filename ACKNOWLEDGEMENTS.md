@@ -1071,8 +1071,8 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `num-traits` | 0.2.19 | MIT License | https://github.com/rust-num/num-traits |
 | `num` | 0.4.3 | MIT License | https://github.com/rust-num/num |
 | `regex-automata` | 0.4.14 | MIT License | https://github.com/rust-lang/regex |
-| `regex-syntax` | 0.8.10 | MIT License | https://github.com/rust-lang/regex |
-| `regex` | 1.12.3 | MIT License | https://github.com/rust-lang/regex |
+| `regex-syntax` | 0.8.11 | MIT License | https://github.com/rust-lang/regex |
+| `regex` | 1.12.4 | MIT License | https://github.com/rust-lang/regex |
 | `uuid` | 1.23.2 | MIT License | https://github.com/uuid-rs/uuid |
 | `flate2` | 1.1.9 | MIT License | https://github.com/rust-lang/flate2-rs |
 | `hyper` | 1.10.1 | MIT License | https://github.com/hyperium/hyper |
@@ -1562,7 +1562,7 @@ section above; this block focuses on the build-time runtime surface.
 | linkify-it | 5.0.1 | MIT | https://github.com/markdown-it/linkify-it |
 | log-symbols | 4.1.0 | MIT | https://github.com/sindresorhus/log-symbols |
 | magic-string | 0.30.21 | MIT | https://github.com/Rich-Harris/magic-string |
-| markdown-it | 14.1.1 | MIT | https://github.com/markdown-it/markdown-it |
+| markdown-it | 14.2.0 | MIT | https://github.com/markdown-it/markdown-it |
 | markdownlint-cli | 0.48.0 | MIT | https://github.com/igorshubovych/markdownlint-cli |
 | markdownlint | 0.40.0 | MIT | https://github.com/DavidAnson/markdownlint |
 | math-intrinsics | 1.1.0 | MIT | https://github.com/es-shims/math-intrinsics |
