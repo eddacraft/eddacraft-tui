@@ -18,10 +18,26 @@ set -euo pipefail
 
 PROVENANCE=""
 OUTPUT=""
+require_value() {
+  flag="$1"
+  value="${2:-}"
+  if [ -z "$value" ]; then
+    echo "::error::${flag} <value> is required" >&2
+    exit 2
+  fi
+  printf '%s' "$value"
+}
+
 while [ $# -gt 0 ]; do
   case "$1" in
-    --provenance) PROVENANCE="${2:-}"; shift 2 ;;
-    --output) OUTPUT="${2:-}"; shift 2 ;;
+    --provenance)
+      PROVENANCE="$(require_value "$1" "${2:-}")"
+      shift 2
+      ;;
+    --output)
+      OUTPUT="$(require_value "$1" "${2:-}")"
+      shift 2
+      ;;
     -h | --help)
       sed -n '2,17p' "$0"
       exit 0
@@ -86,7 +102,7 @@ release_url="https://github.com/${public_repo}/releases/tag/${public_tag}"
   [ -n "$source_sha" ] && echo "| Source revision | \`${source_sha}\` |"
   echo "| Public release | [\`${public_repo}\`](${release_url}) |"
   [ -n "$public_ref" ] && echo "| Public ref at publish | \`${public_ref}\` |"
-  [ -n "$built_at" ] && echo "| Published (UTC) | ${built_at} |"
+  [ -n "$built_at" ] && echo "| Built (UTC) | ${built_at} |"
   echo "| Artefacts | ${asset_count} |"
   echo
   echo "## Validation"

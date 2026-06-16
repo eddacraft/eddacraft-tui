@@ -4,7 +4,7 @@
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
-gen="${here}/generate-evidence.sh"
+gen="${here}/../generate-evidence.sh"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
@@ -52,7 +52,7 @@ grep -q "eddacraft/anvil" "$out"; check $? "includes the public repo"
 
 # --- Sanitisation: private/internal identifiers MUST NOT leak. The disclaimer
 # line is excluded because it names these concepts as policy, not as data.
-body="$(grep -v 'deliberately omits' "$out")"
+body="$(grep -v 'deliberately omits' "$out" || true)"
 ! grep -q "anvil-001" <<<"$body"; check $? "omits the private repository name"
 ! grep -q "actions/runs" <<<"$body"; check $? "omits private workflow-run URLs"
 ! grep -q "refs/tags" <<<"$body"; check $? "omits the private build ref"
@@ -70,6 +70,18 @@ if bash "$gen" --provenance "$tmp/nope.json" --output "$tmp/x.md" 2>/dev/null; t
   check 1 "rejects a missing provenance file"
 else
   check 0 "rejects a missing provenance file"
+fi
+
+if bash "$gen" --provenance 2>/dev/null; then
+  check 1 "rejects missing --provenance value"
+else
+  check 0 "rejects missing --provenance value"
+fi
+
+if bash "$gen" --provenance "$tmp/prov.json" --output 2>/dev/null; then
+  check 1 "rejects missing --output value"
+else
+  check 0 "rejects missing --output value"
 fi
 
 if [ "$fail" -ne 0 ]; then

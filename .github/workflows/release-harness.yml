@@ -53,3 +53,4 @@ jobs:
           bash scripts/release/_test/monitor.test.sh
           bash scripts/release/_test/verify.test.sh
           bash scripts/release/_test/closeout.test.sh
+          bash scripts/release/_test/generate-evidence.test.sh
