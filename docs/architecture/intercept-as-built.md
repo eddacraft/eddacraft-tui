@@ -211,14 +211,14 @@ defined (`ALL_ANVIL_METHODS`, `protocol.rs:212-222`):
 - `anvil/gate/request` (`ANVIL_GATE_REQUEST`, `protocol.rs:96`).
 - `anvil/suppression/apply` (`ANVIL_SUPPRESSION_APPLY`, `protocol.rs:103`).
 - `anvil/status/query` (`ANVIL_STATUS_QUERY`, `protocol.rs:108`).
-- `anvil/validate_paths` (`ANVIL_VALIDATE_PATHS`, `protocol.rs:153`) — client →
+- `anvil/validate_paths` (`ANVIL_VALIDATE_PATHS`, `protocol.rs:154`) — client →
   server, the save-time verdict verb (ADR-061 / DSV-002); certifies a change set
   against the warm graph cache. The wire is frozen across DSV sub-phases — only
   the cache backing swaps. See §4a.
-- `anvil/workspace_status` (`ANVIL_WORKSPACE_STATUS`, `protocol.rs:158`) —
+- `anvil/workspace_status` (`ANVIL_WORKSPACE_STATUS`, `protocol.rs:159`) —
   client → server, read-only `WorkspaceAssurance` snapshot without submitting a
   change set.
-- `anvil/request_full_scan` (`ANVIL_REQUEST_FULL_SCAN`, `protocol.rs:164`) —
+- `anvil/request_full_scan` (`ANVIL_REQUEST_FULL_SCAN`, `protocol.rs:165`) —
   client → server, drive a full scan that warms the graph cache and rebuilds the
   baseline. Since DSV-045 (ADR-085) the daemon's full-scan executor dequeues
   this and drives `Pending → Running → Clean` (or `Bounded` when the worktree
