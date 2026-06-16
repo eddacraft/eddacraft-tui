@@ -2,9 +2,9 @@
 
 | ID   | Owner | Status | Progress |
 | ---- | ----- | ------ | -------- |
-| GCTX | —     | In Progress | 3/14 |
+| GCTX | —     | In Progress | 4/14 |
 
-**Last reviewed:** 2026-06-15 (Phase 0 — Delivery Contract — complete. **GCTX-001 (projection contract) Merged 2026-06-15 via #2628** — the spec [`graph-context-delivery-spec.md`](../../docs/architecture/graph-context-delivery-spec.md) folds the context-egress privacy review (PV-9) conditions CE-1..CE-12 onto the GV2-023 consumer query contract. **GCTX-002 (MCP delivery target) Merged 2026-06-15 via #2619** — discharged by [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) **Accepted** (Rust RMCPF `anvil mcp serve` surface); RMCPF defers GCTX work by design, so no edit to rust-mcp-full-port. Module **In Progress, 3/14** (GCTX-010 pilot Merged 2026-06-16 via #2657; GCTX-011 `find_dependents` promoted to Ready 2026-06-17). The remaining Phase 1 tool items (GCTX-012/013, 021..023, 030) stay Draft, and GCTX-014 `find_callers` is Blocked on GV2 symbol-call-edge support (split from GCTX-011 2026-06-17); all build on the CE-5 sealed egress DTO + `GctxProjector` + structural no-leak spine that GCTX-010 established, using the daemon-RPC graph-handle path settled by ADR-084.)
+**Last reviewed:** 2026-06-15 (Phase 0 — Delivery Contract — complete. **GCTX-001 (projection contract) Merged 2026-06-15 via #2628** — the spec [`graph-context-delivery-spec.md`](../../docs/architecture/graph-context-delivery-spec.md) folds the context-egress privacy review (PV-9) conditions CE-1..CE-12 onto the GV2-023 consumer query contract. **GCTX-002 (MCP delivery target) Merged 2026-06-15 via #2619** — discharged by [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) **Accepted** (Rust RMCPF `anvil mcp serve` surface); RMCPF defers GCTX work by design, so no edit to rust-mcp-full-port. Module **In Progress, 4/14** (GCTX-010 pilot Merged 2026-06-16 via #2657; GCTX-011 `find_dependents` Merged 2026-06-16 via #2685). The remaining Phase 1 tool items (GCTX-012/013, 021..023, 030) stay Draft, and GCTX-014 `find_callers` is Blocked on GV2 symbol-call-edge support (split from GCTX-011 2026-06-17); all build on the CE-5 sealed egress DTO + `GctxProjector` + structural no-leak spine that GCTX-010 established, using the daemon-RPC graph-handle path settled by ADR-084.)
 
 > **Scoped to v0.9, not v0.8.0-beta (2026-06-08, [ADR-075](../decisions/075-v080-graph-product-scope.md),
 > Accepted via council).** GCTX was considered for the v0.8.0 window but the
@@ -317,12 +317,13 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-011: `anvil_find_dependents` dependency traversal tool
 
-- **Status:** In Progress — builds directly on the GCTX-010 spine (Merged
-  2026-06-16 via #2657): the sealed `anvil-gctx-types` DTOs, the single
-  `GctxProjector` choke point in `anvil-gctx-egress`, and the `GctxDispatch` RPC
-  surface. Scoped to **dependents only**; symbol-level *caller* traversal needs
-  call edges the warm graph does not carry and is split out to **GCTX-014**
-  (Blocked on GV2 call-edge support).
+- **Status:** Merged 2026-06-16 via PR #2685 — built directly on the GCTX-010
+  spine (Merged 2026-06-16 via #2657): the sealed `anvil-gctx-types` DTOs, the
+  single `GctxProjector` choke point in `anvil-gctx-egress`, and the
+  `GctxDispatch` RPC surface, plus the new `anvil/gctx/find_dependents` RPC and
+  the graph-free `anvil_find_dependents` MCP tool. Scoped to **dependents
+  only**; symbol-level *caller* traversal needs call edges the warm graph does
+  not carry and is split out to **GCTX-014** (Blocked on GV2 call-edge support).
 - **Intent:** Let assistants inspect a symbol's local blast radius — what depends
   on it — without expensive or ambiguous whole-repo rereads.
 - **Expected Outcome:** `anvil_find_dependents` returns bounded, depth-limited,
@@ -578,7 +579,7 @@ blockers — they are resolved during execution, not before promotion:
 | Phase | Items | Status |
 | ----- | ----- | ------ |
 | 0 — Delivery Contract | 2 | Complete (GCTX-001 Merged #2628, GCTX-002 Merged #2619) |
-| 1 — Graph Query Tools | 5 | GCTX-010 Merged #2657 (pilot); GCTX-011 Ready (`find_dependents`); GCTX-012/013 Draft; GCTX-014 Blocked (`find_callers` — GV2 call-edges) |
+| 1 — Graph Query Tools | 5 | GCTX-010 Merged #2657 (pilot); GCTX-011 Merged #2685 (`find_dependents`); GCTX-012/013 Draft; GCTX-014 Blocked (`find_callers` — GV2 call-edges) |
 | 2 — Context Slicing | 4 | Draft |
 | 3 — Resources, Benchmarks, Docs | 3 | Draft |
 | **Total** | **14** | **3/14** |
