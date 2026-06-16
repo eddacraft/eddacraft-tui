@@ -2,9 +2,9 @@
 
 | ID   | Owner | Status | Progress |
 | ---- | ----- | ------ | -------- |
-| GCTX | —     | In Progress | 3/13 |
+| GCTX | —     | In Progress | 3/14 |
 
-**Last reviewed:** 2026-06-15 (Phase 0 — Delivery Contract — complete. **GCTX-001 (projection contract) Merged 2026-06-15 via #2628** — the spec [`graph-context-delivery-spec.md`](../../docs/architecture/graph-context-delivery-spec.md) folds the context-egress privacy review (PV-9) conditions CE-1..CE-12 onto the GV2-023 consumer query contract. **GCTX-002 (MCP delivery target) Merged 2026-06-15 via #2619** — discharged by [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) **Accepted** (Rust RMCPF `anvil mcp serve` surface); RMCPF defers GCTX work by design, so no edit to rust-mcp-full-port. Module **In Progress, 3/13** (GCTX-010 pilot since Merged 2026-06-16 via #2657). The remaining Phase 1 tool items (GCTX-011..013, 021..023, 030) stay Draft: they build on the CE-5 sealed egress DTO + `GctxProjector` + structural no-leak spine that GCTX-010 established, using the daemon-RPC graph-handle path settled by ADR-084.)
+**Last reviewed:** 2026-06-15 (Phase 0 — Delivery Contract — complete. **GCTX-001 (projection contract) Merged 2026-06-15 via #2628** — the spec [`graph-context-delivery-spec.md`](../../docs/architecture/graph-context-delivery-spec.md) folds the context-egress privacy review (PV-9) conditions CE-1..CE-12 onto the GV2-023 consumer query contract. **GCTX-002 (MCP delivery target) Merged 2026-06-15 via #2619** — discharged by [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) **Accepted** (Rust RMCPF `anvil mcp serve` surface); RMCPF defers GCTX work by design, so no edit to rust-mcp-full-port. Module **In Progress, 3/14** (GCTX-010 pilot Merged 2026-06-16 via #2657; GCTX-011 `find_dependents` promoted to Ready 2026-06-17). The remaining Phase 1 tool items (GCTX-012/013, 021..023, 030) stay Draft, and GCTX-014 `find_callers` is Blocked on GV2 symbol-call-edge support (split from GCTX-011 2026-06-17); all build on the CE-5 sealed egress DTO + `GctxProjector` + structural no-leak spine that GCTX-010 established, using the daemon-RPC graph-handle path settled by ADR-084.)
 
 > **Scoped to v0.9, not v0.8.0-beta (2026-06-08, [ADR-075](../decisions/075-v080-graph-product-scope.md),
 > Accepted via council).** GCTX was considered for the v0.8.0 window but the
@@ -315,19 +315,64 @@ blockers — they are resolved during execution, not before promotion:
 
 ---
 
-#### GCTX-011: Caller and dependent traversal tools
+#### GCTX-011: `anvil_find_dependents` dependency traversal tool
 
-- **Status:** Draft
-- **Intent:** Let assistants inspect local blast radius without expensive or
-  ambiguous whole-repo rereads.
-- **Expected Outcome:** `anvil_find_callers` and `anvil_find_dependents` return
-  bounded traversal results with distance, source file, symbol summary, and
-  truncation metadata.
-- **Validation:** Fixture tests cover chain, diamond, cycle, and max-depth cases
-- **Files:** MCP server target decided by GCTX-002
+- **Status:** Ready — builds directly on the GCTX-010 spine (Merged 2026-06-16
+  via #2657): the sealed `anvil-gctx-types` DTOs, the single `GctxProjector`
+  choke point in `anvil-gctx-egress`, and the `GctxDispatch` RPC surface. Scoped
+  to **dependents only**; symbol-level *caller* traversal needs call edges the
+  warm graph does not carry and is split out to **GCTX-014** (Blocked on GV2
+  call-edge support).
+- **Intent:** Let assistants inspect a symbol's local blast radius — what depends
+  on it — without expensive or ambiguous whole-repo rereads.
+- **Expected Outcome:** `anvil_find_dependents` returns bounded, depth-limited,
+  **identity-only** traversal results over the daemon's resident dependency
+  graph: for a workspace-relative file (and optional symbol identity), the
+  importing files and their identity summaries, each with traversal distance,
+  source file, and truncation metadata. Projected **daemon-side** through the
+  single `GctxProjector` over a background-read snapshot, served to `anvil mcp
+  serve` over a new read-only `anvil/gctx/find_dependents` RPC on the existing
+  `GctxDispatch` (never the save-time path). Reuses the GCTX-010 spine end to
+  end; no new egress crate.
+- **Acceptance criteria (inherit the GCTX-010 CE spine):**
+  - **CE-5** — results are a sealed `anvil-gctx-types` DTO (no `PathBuf`, no
+    session-local id, no source text); the structural no-leak test covers the new
+    response type. The MCP crate links only `anvil-gctx-types`.
+  - **Depth bound** — traversal depth is clamped by the GV2-026
+    `clamp_reverse_impact_depth` / `MAX_REVERSE_IMPACT_DEPTH` lever (no unbounded
+    walk); over-depth results carry truncation metadata, never a silent cutoff.
+  - **File-keyed granularity (documented limit)** — dependents resolve via the
+    file-keyed `DependencyGraph::dependents_of` + `reverse_impact` reads;
+    symbol-granular dependent edges are the GV2-023 freeze-target and out of scope
+    here. The tool description states the file-keyed granularity so assistants do
+    not over-read the result.
+  - **CE-6** — opaque server-minted pagination cursor + input caps, reusing the
+    GCTX-010 cursor machinery.
+  - **CE-7** — `WorkspaceAssurance`-driven degradation: a warming / cold /
+    `Bounded` graph yields a structured `NotReady` / `Unavailable` outcome (with
+    the C1 warm-up re-warm trigger), never a whole-file fallback.
+  - **C3** — the daemon validates the client `workspace_root` against the
+    connection's admitted-root set (reuse the `SaveTimeConn` gate).
+  - **CE-10 / CE-11** — enum-only telemetry and the `ANVIL_GCTX_EGRESS`
+    kill-switch, reusing the GCTX-010 surfaces.
+- **Validation:**
+  - structural no-leak test for the new response DTO (gates the build);
+  - fixture traversal tests cover **chain, diamond, cycle, and max-depth**
+    truncation cases over a resident graph;
+  - degradation fixture: a warming / `Bounded` graph yields `NotReady`, never a
+    file read (CE-7);
+  - opaque-cursor pagination test (stable ordering, no overlap or gap);
+  - root-admission test: a cross-worktree `workspace_root` is rejected
+    daemon-side (C3).
+- **Files:** `crates/anvil-gctx-types/`, `crates/anvil-gctx-egress/`,
+  `crates/anvil-intercept-proto/src/protocol.rs`,
+  `crates/anvil-intercept/src/ipc.rs` (+ the `GctxDispatch` impl in
+  `save_time.rs`), `crates/anvil-cli/src/mcp/tools/`
 - **Confidence:** high
 - **Priority:** Critical
-- **Dependencies:** GCTX-010, GV2-011
+- **Dependencies:** GCTX-010 (Merged 2026-06-16 via #2657), GV2-011
+  (Released/Shipped v0.8.0-beta), GV2-026 reverse-impact depth lever (Merged
+  2026-06-14 via #2594) — all closed.
 
 ---
 
@@ -359,6 +404,39 @@ blockers — they are resolved during execution, not before promotion:
 - **Confidence:** medium
 - **Priority:** High
 - **Dependencies:** GCTX-012, GV2-011
+
+---
+
+#### GCTX-014: `anvil_find_callers` symbol caller traversal
+
+- **Status:** Blocked — the warm graph carries **no symbol-level call edges**.
+  The `EdgeType::Calls` / `References` variants exist in `anvil-kernel-types`, but
+  the kernel symbol extractor never emits them and `FileSymbols` (the `apply_delta`
+  feed) carries only `symbols` / `imports` / `reexports`, so a true call graph
+  cannot be projected today. Split out of GCTX-011 (2026-06-17) so the ready
+  `anvil_find_dependents` half ships independently.
+- **Intent:** Let assistants find the call sites of a symbol — who calls this
+  function — for precise blast-radius reasoning.
+- **Expected Outcome:** `anvil_find_callers` returns bounded, depth-limited,
+  identity-only caller results (calling symbol identity, source file, distance,
+  truncation metadata) over resident symbol-level call edges, reusing the GCTX-010
+  sealed-DTO + `GctxProjector` + `GctxDispatch` spine and the GCTX-011 CE gates.
+- **Validation:** Fixture tests over a call graph cover direct callers, transitive
+  callers at bounded depth, recursion / cycles, and overload disambiguation; plus
+  the CE-5 no-leak and CE-7 degradation gates.
+- **Files:** `crates/anvil-gctx-types/`, `crates/anvil-gctx-egress/`,
+  `crates/anvil-intercept-proto/src/protocol.rs`,
+  `crates/anvil-intercept/src/ipc.rs`, `crates/anvil-cli/src/mcp/tools/`
+- **Confidence:** medium
+- **Priority:** High
+- **Dependencies:** **GV2 symbol-level call-edge support (not yet filed)** —
+  kernel parser call-site extraction (TS / JS / Rust) into `FileSymbols`, lifting
+  `EdgeType::Calls` into the resident `SymbolGraph` via `apply_delta` within the
+  ADR-031 save-time budget; a GV2-substrate addition (the GV2-023 symbol-granular
+  freeze-target) that wants its own GV2 item + ADR before GCTX-014 can flip to
+  Ready. Also GCTX-010 (Merged), GCTX-011.
+- **Source:** Split from GCTX-011 via planning-workflow (2026-06-17); see the
+  GCTX-011 scope note.
 
 ---
 
@@ -500,7 +578,7 @@ blockers — they are resolved during execution, not before promotion:
 | Phase | Items | Status |
 | ----- | ----- | ------ |
 | 0 — Delivery Contract | 2 | Complete (GCTX-001 Merged #2628, GCTX-002 Merged #2619) |
-| 1 — Graph Query Tools | 4 | GCTX-010 Merged #2657 (pilot); GCTX-011/012/013 Draft |
+| 1 — Graph Query Tools | 5 | GCTX-010 Merged #2657 (pilot); GCTX-011 Ready (`find_dependents`); GCTX-012/013 Draft; GCTX-014 Blocked (`find_callers` — GV2 call-edges) |
 | 2 — Context Slicing | 4 | Draft |
 | 3 — Resources, Benchmarks, Docs | 3 | Draft |
-| **Total** | **13** | **3/13** |
+| **Total** | **14** | **3/14** |
