@@ -27,7 +27,7 @@ textwrap = { version = "0.16", features = ["smawk"] }
 # public footprint and ships proc-macro code (build-time RCE surface). Bumps
 # should go through `cargo audit` and a manual review.
 animate = { version = "=0.3.0", features = ["ratatui"] }
-ratatui-image = { version = "10", default-features = false, features = [
+ratatui-image = { version = "11", default-features = false, features = [
   "crossterm",
 ], optional = true }
 tui-big-text = { version = "0.8", optional = true }
