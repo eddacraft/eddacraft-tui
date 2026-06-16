@@ -51,7 +51,7 @@ pub const MAX_DEPTH: usize = 64;
 ///
 /// This is the engine entry point: it draws the whole element tree, starting
 /// from [`RenderSpec::root`], in one pass over the supplied [`Frame`]. It never
-/// panics on a malformed spec — see the [module docs](self) for the degradation
+/// panics on a malformed spec — see the module docs for the degradation
 /// rules. A zero-area `area` draws nothing.
 pub fn render_spec(spec: &RenderSpec, registry: &TuiRegistry, frame: &mut Frame, area: Rect) {
     render_element(spec, registry, &spec.root, frame, area, 0);

@@ -3,7 +3,7 @@
 //!
 //! Each component maps one catalogue `type` name (e.g. `"Stack"`, `"MetricCard"`)
 //! onto eddacraft-tui widgets or Ratatui primitives. They are registered into a
-//! [`TuiRegistry`](crate::json_render::TuiRegistry) by [`base_registry`], which
+//! [`TuiRegistry`] by [`base_registry`], which
 //! the tree renderer ([`render_spec`](crate::json_render::render_spec)) walks.
 //!
 //! # Boundary (ADR-054)
@@ -15,7 +15,7 @@
 //!
 //! - never panics on absent or ill-typed props (it degrades, reading props via
 //!   the `as_*` accessors that return `None` rather than unwrapping);
-//! - styles itself from the house [`EddaCraftTheme`] (a zero-size unit struct,
+//! - styles itself from the house `EddaCraftTheme` (a zero-size unit struct,
 //!   so it is constructed locally rather than threaded through the trait).
 
 use crate::json_render::TuiRegistry;
