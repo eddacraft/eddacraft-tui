@@ -412,25 +412,31 @@ struct DependentsCursorPayload {
 }
 
 /// A deterministic fingerprint of a dependents query's traversal filters: the
-/// **resolved** depth (after the daemon clamps it) and the queried `file`
-/// (case-normalised to match the search surface's convention). Changing `limit`
-/// mid-walk is allowed (not part of the fingerprint); changing the target file or
-/// the resolved depth invalidates a cursor. FNV-1a over the canonical serialised
-/// filters (a reproducible, non-randomly-seeded hash — PV-2).
+/// **resolved** depth (after the daemon clamps it) and the **exact** queried
+/// `file`. Changing `limit` mid-walk is allowed (not part of the fingerprint);
+/// changing the target file or the resolved depth invalidates a cursor.
+///
+/// Unlike [`query_fingerprint`], the `file` is **not** case-normalised: a
+/// dependents walk does an *exact* case-sensitive lookup into the dependency
+/// graph (`DependencyGraph::dependents_of`, whose keys are stored as-is), not a
+/// case-insensitive substring filter. Lower-casing here would let a cursor minted
+/// for `src/a.ts` match a `SRC/A.TS` query that resolves to a different (likely
+/// empty) result set, producing pagination overlap/gap. FNV-1a over the canonical
+/// serialised filters (a reproducible, non-randomly-seeded hash — PV-2).
 fn dependents_fingerprint(query: &FindDependentsQuery, depth: u32) -> u64 {
     #[derive(Serialize)]
-    struct Filters {
+    struct Filters<'a> {
         // A constant surface tag domain-separates this fingerprint from the
         // search surface (and any future GCTX traversal cursor), so a cursor
         // minted for one surface can never fingerprint-match another even if the
         // non-cryptographic FNV hash collided on the rest of the payload.
         surface: &'static str,
-        file: Option<String>,
+        file: Option<&'a str>,
         depth: u32,
     }
     let filters = Filters {
         surface: "find_dependents",
-        file: query.file.as_deref().map(str::to_lowercase),
+        file: query.file.as_deref(),
         depth,
     };
     let bytes = serde_json::to_vec(&filters).expect("dependents filters serialise");
@@ -1120,6 +1126,40 @@ mod tests {
         assert!(
             result.is_err(),
             "a cursor is only valid for the depth it was minted at",
+        );
+    }
+
+    #[test]
+    fn dependents_cursor_is_bound_to_the_exact_case_of_the_target_file() {
+        // The dependency lookup is case-sensitive; a cursor minted for `src/a.ts`
+        // must NOT be accepted for a `SRC/A.TS` query (which resolves to a
+        // different/empty set), or pagination would overlap/gap.
+        let g = dep_graph(&[("src/b.ts", "src/a.ts"), ("src/c.ts", "src/a.ts")]);
+        let cursor = run_dependents(
+            &g,
+            "src/a.ts",
+            1,
+            &FindDependentsQuery {
+                file: Some("src/a.ts".into()),
+                limit: Some(1),
+                ..Default::default()
+            },
+        )
+        .next_cursor
+        .expect("more pages remain");
+
+        let cross_case = FindDependentsQuery {
+            file: Some("SRC/A.TS".into()),
+            limit: Some(1),
+            cursor: Some(cursor),
+            ..Default::default()
+        };
+        // Same depth, different-case file → different fingerprint → rejected.
+        let candidates = GctxProjector::collect_dependents(&g, "SRC/A.TS", 1);
+        let result = GctxProjector::project_dependents(candidates, &cross_case, 1);
+        assert!(
+            result.is_err(),
+            "a cursor is bound to the exact case of its target file",
         );
     }
 
