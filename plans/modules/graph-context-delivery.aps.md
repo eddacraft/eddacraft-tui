@@ -2,9 +2,9 @@
 
 | ID   | Owner | Status | Progress |
 | ---- | ----- | ------ | -------- |
-| GCTX | —     | In Progress | 2/13 |
+| GCTX | —     | In Progress | 3/13 |
 
-**Last reviewed:** 2026-06-15 (Phase 0 — Delivery Contract — complete. **GCTX-001 (projection contract) Merged 2026-06-15 via #2628** — the spec [`graph-context-delivery-spec.md`](../../docs/architecture/graph-context-delivery-spec.md) folds the context-egress privacy review (PV-9) conditions CE-1..CE-12 onto the GV2-023 consumer query contract. **GCTX-002 (MCP delivery target) Merged 2026-06-15 via #2619** — discharged by [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) **Accepted** (Rust RMCPF `anvil mcp serve` surface); RMCPF defers GCTX work by design, so no edit to rust-mcp-full-port. Module **In Progress, 2/13**. The Phase 1 tool items (GCTX-010..013, 021..023, 030) stay Draft: they build the CE-5 sealed egress DTO + `GctxProjector` + structural no-leak test in Rust, which does not yet exist, and depend on a path for `anvil mcp serve` to obtain a graph handle — an open design question (fresh construction vs daemon-RPC) that wants a plan/ADR before implementation.)
+**Last reviewed:** 2026-06-15 (Phase 0 — Delivery Contract — complete. **GCTX-001 (projection contract) Merged 2026-06-15 via #2628** — the spec [`graph-context-delivery-spec.md`](../../docs/architecture/graph-context-delivery-spec.md) folds the context-egress privacy review (PV-9) conditions CE-1..CE-12 onto the GV2-023 consumer query contract. **GCTX-002 (MCP delivery target) Merged 2026-06-15 via #2619** — discharged by [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) **Accepted** (Rust RMCPF `anvil mcp serve` surface); RMCPF defers GCTX work by design, so no edit to rust-mcp-full-port. Module **In Progress, 3/13** (GCTX-010 pilot since Merged 2026-06-16 via #2657). The remaining Phase 1 tool items (GCTX-011..013, 021..023, 030) stay Draft: they build on the CE-5 sealed egress DTO + `GctxProjector` + structural no-leak spine that GCTX-010 established, using the daemon-RPC graph-handle path settled by ADR-084.)
 
 > **Scoped to v0.9, not v0.8.0-beta (2026-06-08, [ADR-075](../decisions/075-v080-graph-product-scope.md),
 > Accepted via council).** GCTX was considered for the v0.8.0 window but the
@@ -226,29 +226,32 @@ blockers — they are resolved during execution, not before promotion:
 > GCTX-010 builds this spine end-to-end. **Phase 2** = a same-process second GCTX
 > service surface over the **same** graphs (option A) with a lock-free read
 > snapshot (arc-swap), isolating query-serving from the hot path — not a second
-> graph — plus the snippet surfaces. **GCTX-010 is Ready** (the pilot — C1–C5
-> folded as acceptance criteria, building the spine); GCTX-011/012/013, 021..023,
-> and 030 stay **Draft** pending the GCTX-010 spine they inherit.
+> graph — plus the snippet surfaces. **GCTX-010 is Merged** (#2657; the pilot —
+> C1–C5 folded as acceptance criteria, building the spine); GCTX-011/012/013,
+> 021..023, and 030 stay **Draft** pending the GCTX-010 spine they inherit.
 
 #### GCTX-010: `anvil_search_symbols` tool
 
-- **Status:** In Progress — architecture fixed by
+- **Status:** Merged 2026-06-16 via #2657 — architecture fixed by
   [ADR-084](../decisions/084-gctx-graph-handle-access.md) **Accepted** (daemon-RPC
   + daemon-side projection); the ADR-084 binding conditions C1–C5 are folded as
   acceptance criteria below. This is the **CE-5 hard-gate item**: it builds the
   reusable spine — the sealed egress DTO crate (`anvil-gctx-types`), the single
   `GctxProjector` choke point (`anvil-gctx-egress`), and the structural no-leak
   test — that the rest of Phase 1 inherits, plus the first identity-only tool.
-  Sequence the rollout against **DLIFE** (GCTX is daemon-required; see the Phase 1
-  note above). Delivery is staged across PRs: the spine + identity tool
+  Sequenced the rollout against **DLIFE** (GCTX is daemon-required; see the Phase 1
+  note above). Delivered across PRs: the spine + identity tool
   (#2637), CE-6 opaque cursors (#2645), and CE-10/CE-11 telemetry + kill-switch
-  (#2648) are **Merged**. The final slice — **C1 cold-start warm-up triggers**
+  (#2648), then the final slice — **C1 cold-start warm-up triggers**
   (session-init `request_full_scan` on MCP `initialize` + on-demand re-warm when a
   `search_symbols` query returns `NotReady`, both client-side and best-effort) —
-  lands last, on top of the DSV-045 full-scan executor it relies on
+  landed on top of the DSV-045 full-scan executor it relies on
   ([ADR-085](../decisions/085-daemon-full-scan-executor.md); **DSV-045 Merged
   2026-06-16 via #2674**) so the enqueue actually drives `Pending → Running →
-  Clean` rather than sitting inert. The daemon-side `NotReady` + recovery-hint
+  Clean` rather than sitting inert. The C4 `gctx.egress` **manifest** flag
+  (FLAGCAT Rust+TS consumers) is deferred to Phase 2, where it gates the snippet
+  path; the Phase-1 identity surface ships behind the `ANVIL_GCTX_EGRESS`
+  kill-switch (CE-11) only. The daemon-side `NotReady` + recovery-hint
   degradation (CE-7) already landed with the spine.
 - **Intent:** Let assistants find symbols by name, kind, file, language, and
   visibility using GV2's semantic graph projection.
@@ -497,7 +500,7 @@ blockers — they are resolved during execution, not before promotion:
 | Phase | Items | Status |
 | ----- | ----- | ------ |
 | 0 — Delivery Contract | 2 | Complete (GCTX-001 Merged #2628, GCTX-002 Merged #2619) |
-| 1 — Graph Query Tools | 4 | GCTX-010 Ready (pilot); GCTX-011/012/013 Draft |
+| 1 — Graph Query Tools | 4 | GCTX-010 Merged #2657 (pilot); GCTX-011/012/013 Draft |
 | 2 — Context Slicing | 4 | Draft |
 | 3 — Resources, Benchmarks, Docs | 3 | Draft |
-| **Total** | **13** | **2/13** |
+| **Total** | **13** | **3/13** |
