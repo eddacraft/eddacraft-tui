@@ -34,13 +34,17 @@ use anvil_intercept::workspace_pool::{
     DosCaps, ScanCancel, WorkScheduler, run_chunked_scan, walk_capped,
 };
 #[cfg(unix)]
-use anvil_intercept_proto::protocol::{ChangeDescriptor, ChangeKindWire, ValidatePathsRequest};
+use anvil_intercept_proto::protocol::{
+    ChangeDescriptor, ChangeKindWire, RequestFullScanRequest, ValidatePathsRequest,
+};
 #[cfg(unix)]
 use anvil_kernel_types::{FileSymbols, SymbolKind, SymbolNode, TrustLevel, Visibility};
 #[cfg(unix)]
 use std::path::Path;
 #[cfg(unix)]
 use std::sync::Mutex;
+#[cfg(unix)]
+use std::sync::atomic::{AtomicBool, Ordering};
 
 #[cfg(unix)]
 const SAMPLES: usize = 200;
@@ -387,6 +391,69 @@ fn run_concurrency_ramp(state: &SaveTimeState, agents: usize) -> Vec<Duration> {
     latencies.into_inner().expect("ramp latencies")
 }
 
+/// DSV-045 (ADR-085 Decision 14): drive `agents` interactive `validate_paths`
+/// clients while the **real full-scan executor** runs a background scan over a
+/// fixture corpus, and return the agents' interactive latencies.
+///
+/// Unlike [`run_concurrency_ramp`] (whose "scan" is a CPU-competing stub
+/// thread), this re-triggers `request_full_scan` over a fixed corpus through the
+/// public verb on a loop, so a genuine executor scan — walk + parse (on the
+/// background pool) + `apply_delta` — is in flight throughout the interactive
+/// measurement. The gate proves the two-pool isolation + lock-discipline hold
+/// the interactive verdict to the ADR-031 budget with a live scan, not a stub.
+#[cfg(unix)]
+fn run_executor_scan_ramp(state: &SaveTimeState, agents: usize) -> Vec<Duration> {
+    let agents = agents.max(1);
+    let agent_ws: Vec<tempfile::TempDir> = (0..agents).map(|_| make_workspace(1)).collect();
+    // A "small fixture corpus" (ADR-085 Decision 14) — large enough that the
+    // executor scan is non-trivial work on the background pool.
+    let scan_ws = make_workspace(256);
+    let scan_root = scan_ws.path().to_path_buf();
+    let stop = AtomicBool::new(false);
+    let latencies: Mutex<Vec<Duration>> =
+        Mutex::new(Vec::with_capacity(agents * RAMP_ITERS_PER_AGENT));
+
+    std::thread::scope(|s| {
+        // Keep a real executor scan in flight by re-triggering the verb;
+        // coalescing means at most one scan runs at a time per key.
+        let scanner = s.spawn(|| {
+            let req = RequestFullScanRequest {
+                workspace_root: scan_root.to_string_lossy().into_owned(),
+            };
+            while !stop.load(Ordering::Relaxed) {
+                let mut conn = SaveTimeConn::new(state);
+                let _ = conn.request_full_scan(&req).expect("request_full_scan");
+                std::thread::sleep(Duration::from_millis(1));
+            }
+        });
+
+        let handles: Vec<_> = agent_ws
+            .iter()
+            .map(|ws| {
+                let req = modify_request(ws.path());
+                let latencies = &latencies;
+                s.spawn(move || {
+                    let mut conn = SaveTimeConn::new(state);
+                    let mut local = Vec::with_capacity(RAMP_ITERS_PER_AGENT);
+                    for _ in 0..RAMP_ITERS_PER_AGENT {
+                        let started = Instant::now();
+                        let _ = conn.validate_paths(&req).expect("verdict");
+                        local.push(started.elapsed());
+                    }
+                    latencies.lock().expect("latencies lock").extend(local);
+                })
+            })
+            .collect();
+        for a in handles {
+            a.join().expect("agent thread");
+        }
+        stop.store(true, Ordering::Relaxed);
+        scanner.join().expect("scanner thread");
+    });
+
+    latencies.into_inner().expect("ramp latencies")
+}
+
 /// The DSV-006 / Task 16 concurrency SLO: warm `validate_paths` p95, the
 /// `4 agents + 1 background scan` ramp, the daemon-absent scoped-fallback
 /// comparison, and (opt-in) a report-only stepped agent-count sweep
@@ -469,6 +536,28 @@ fn slo_gate_failed() -> bool {
             fmt(QUEUE_WAIT_WARN),
         );
     }
+
+    // --- Case B2 (DSV-045): 4 agents + the REAL full-scan executor in flight ---
+    // ADR-085 Decision 14: interactive p95 must hold the budget while a genuine
+    // executor scan (walk+parse+apply on the background pool) runs. Shares the
+    // synthetic-stall self-test above — with the stall injected, the parse the
+    // verdict path runs is inflated and this case (like Case A/B) breaches the
+    // gate, proving the gate actually catches a regression.
+    let mut exec_ramp = run_executor_scan_ramp(&state, RAMP_AGENTS);
+    report_dimensions(
+        "validation.service:validate_paths:4agents+executor-scan",
+        "save",
+        "default-v1",
+    );
+    report(
+        "validation.service:validate_paths:4agents+executor-scan",
+        &mut exec_ramp,
+    );
+    failed |= gate(
+        "validation.service:validate_paths (4 agents + 1 executor scan)",
+        exec_ramp[percentile_index(exec_ramp.len(), 95)],
+        SAVE_TIME_SERVICE_P95_BUDGET,
+    );
 
     // --- Case C: daemon-absent scoped fallback (RLB-002), report only ---
     // What `watch` runs on daemon absence: a scoped antipattern check over the

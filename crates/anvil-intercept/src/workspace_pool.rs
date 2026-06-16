@@ -487,7 +487,7 @@ pub fn walk_capped(root: &Path, max_depth: usize, max_files: usize) -> Vec<PathB
 /// Hard ceiling on how far past `max_files` a [`walk_gitignored`] count runs,
 /// as a multiple of the collection cap. The walk collects at most `max_files`
 /// paths but keeps *counting* to report `GitignoreWalk::total`; this bounds that
-/// counting against a pathologically wide *non-ignored* tree (the residual DoS
+/// counting against a pathologically wide *non-ignored* tree (the residual `DoS`
 /// the gitignore pre-filter does not remove) so a 50M-file directory cannot make
 /// the walk run unboundedly. When hit, `total` is a lower bound — still strictly
 /// greater than `max_files`, so the worktree still resolves to `Bounded`.
@@ -528,7 +528,7 @@ impl GitignoreWalk {
 /// a *complete* graph of its source instead of truncating on machine-generated
 /// files. Like `walk_capped` it:
 ///
-/// - never follows symlinks (`follow_links(false)`) — the same cycle/escape DoS
+/// - never follows symlinks (`follow_links(false)`) — the same cycle/escape `DoS`
 ///   stance the read path enforces;
 /// - bounds depth (`max_depth`, files directly in `root` are depth 1); and
 /// - bounds the collected `Vec` at `max_files`.
@@ -749,7 +749,9 @@ mod tests {
             "{names:?}"
         );
         assert!(
-            !names.iter().any(|n| n.ends_with(".js")),
+            !names.iter().any(|n| Path::new(n)
+                .extension()
+                .is_some_and(|e| e.eq_ignore_ascii_case("js"))),
             "ignored node_modules/dist files must be filtered: {names:?}"
         );
         assert!(!walk.truncated(), "well under the cap after filtering");

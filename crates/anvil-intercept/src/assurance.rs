@@ -383,17 +383,14 @@ impl AssuranceMachine {
         }
         self.reason = None;
         self.last_full_scan = Some(now);
-        match coverage {
-            Some(coverage) => {
-                self.state = AssuranceState::Bounded;
-                self.scan_coverage = Some(coverage);
-                ScanCompletion::Bounded
-            }
-            None => {
-                self.state = AssuranceState::Clean;
-                self.scan_coverage = None;
-                ScanCompletion::Clean
-            }
+        if let Some(coverage) = coverage {
+            self.state = AssuranceState::Bounded;
+            self.scan_coverage = Some(coverage);
+            ScanCompletion::Bounded
+        } else {
+            self.state = AssuranceState::Clean;
+            self.scan_coverage = None;
+            ScanCompletion::Clean
         }
     }
 

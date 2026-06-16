@@ -26,17 +26,46 @@
 //! `run_foreground`. They would have failed on `main` before the fix,
 //! and they trip if a future refactor drops the chained builder call.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::Duration;
 
 use anvil_intercept::config::Resolved;
 use anvil_intercept::dos::IpcLimits;
+use anvil_intercept::save_time::SymbolParser;
 use anvil_intercept::{ForegroundOpts, Shutdown, run_foreground};
+use anvil_kernel_types::{FileSymbols, SymbolKind, SymbolNode, TrustLevel, Visibility};
 use serde_json::{Value, json};
 use tempfile::TempDir;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixStream;
 use tokio::time::sleep;
+
+/// A deterministic stub parser for the warm-state-reclamation probes: every file
+/// parses to one public function, so the DSV-045 executor reaches a warm `Clean`
+/// state (the distinguishable marker these tests need now that `request_full_scan`
+/// is actually driven to a terminal state rather than left `Pending`).
+#[derive(Debug)]
+struct StubParser;
+
+impl SymbolParser for StubParser {
+    fn parse(&self, path: &Path, _bytes: &[u8]) -> Option<FileSymbols> {
+        let file = path.to_string_lossy().into_owned();
+        Some(FileSymbols {
+            file: file.clone(),
+            symbols: vec![SymbolNode {
+                id: 1,
+                kind: SymbolKind::Function,
+                name: "f".to_string(),
+                visibility: Visibility::Public,
+                file,
+                trust_level: TrustLevel::Unknown,
+            }],
+            imports: Vec::new(),
+            reexports: Vec::new(),
+        })
+    }
+}
 
 fn test_pid_file(tmp: &TempDir) -> PathBuf {
     tmp.path().join("anvil").join("intercept.pid")
@@ -73,6 +102,36 @@ async fn spawn_daemon_with_config(
         ForegroundOpts::with_pid_file_and_ipc_socket(&pid_file, &socket)
             .with_fence_store_file(&fence_store)
             .with_enforcement_config(config),
+        token,
+    ));
+
+    wait_for_path(&pid_file).await;
+    wait_for_path(&socket).await;
+
+    (shutdown, handle, socket)
+}
+
+/// Spawn a daemon with a stub [`SymbolParser`] injected, so the DSV-045
+/// full-scan executor can drive `request_full_scan` to a warm `Clean` state —
+/// the distinguishable marker the warm-state-reclamation probes rely on.
+async fn spawn_daemon_with_parser(
+    tmp: &TempDir,
+    config: Resolved,
+) -> (
+    Shutdown,
+    tokio::task::JoinHandle<anyhow::Result<()>>,
+    PathBuf,
+) {
+    let pid_file = test_pid_file(tmp);
+    let socket = test_ipc_socket(tmp);
+    let fence_store = tmp.path().join("state/intercept-fences.json");
+
+    let (shutdown, token) = Shutdown::new();
+    let handle = tokio::spawn(run_foreground(
+        ForegroundOpts::with_pid_file_and_ipc_socket(&pid_file, &socket)
+            .with_fence_store_file(&fence_store)
+            .with_enforcement_config(config)
+            .with_symbol_parser(Arc::new(StubParser)),
         token,
     ));
 
@@ -162,6 +221,26 @@ fn assurance_state(resp: &Value) -> Option<&str> {
         .and_then(Value::as_str)
 }
 
+/// Poll `workspace_status` until the worktree reaches `clean` (the DSV-045
+/// executor drives `Pending → Running → Clean` on the background pool, so the
+/// warm state is observable only once the scan settles). Panics on timeout.
+async fn poll_until_clean(socket: &std::path::Path, wt_str: &str) {
+    for i in 0..300 {
+        let resp = send_jsonrpc(
+            socket,
+            &format!("poll-{i}"),
+            "anvil/workspace_status",
+            json!({ "workspace_root": wt_str }),
+        )
+        .await;
+        if assurance_state(&resp) == Some("clean") {
+            return;
+        }
+        sleep(Duration::from_millis(10)).await;
+    }
+    panic!("worktree did not reach a warm `clean` state within the timeout");
+}
+
 /// MLP2-024 wire-up: a daemon launched with
 /// `Resolved.session_per_worktree_max = 2` must refuse the third
 /// concurrent registration on the same worktree. Before the fix,
@@ -247,9 +326,13 @@ async fn run_foreground_reclaims_warm_state_on_unregister() {
     let tmp = tempfile::tempdir().expect("tempdir");
     let worktree = tmp.path().join("worktree");
     std::fs::create_dir(&worktree).expect("create worktree");
+    std::fs::write(worktree.join("a.ts"), b"export const x = 1;\n").expect("seed source file");
     let wt_str = worktree.to_str().expect("utf-8 worktree path");
 
-    let (shutdown, handle, socket) = spawn_daemon_with_config(&tmp, Resolved::default()).await;
+    // A stub parser lets the DSV-045 executor reach a warm `Clean` — the
+    // distinguishable marker (a no-parser daemon now settles `request_full_scan`
+    // to `Stale`, which is indistinguishable from the cold-start state).
+    let (shutdown, handle, socket) = spawn_daemon_with_parser(&tmp, Resolved::default()).await;
 
     // A session to unregister later — its worktree is the one we warm.
     let reg = send_register_request(&socket, "1", "sess-warm", &worktree, "claude-warm").await;
@@ -258,19 +341,15 @@ async fn run_foreground_reclaims_warm_state_on_unregister() {
         "registration must succeed; got {reg:?}",
     );
 
-    // Warm the assurance machine to a distinguishable Pending.
-    let scan = send_jsonrpc(
+    // Warm the worktree to a distinguishable `Clean` via the full-scan executor.
+    send_jsonrpc(
         &socket,
         "2",
         "anvil/request_full_scan",
         json!({ "workspace_root": wt_str }),
     )
     .await;
-    assert_eq!(
-        assurance_state(&scan),
-        Some("pending"),
-        "request_full_scan must queue a scan (warm → Pending); got {scan:?}",
-    );
+    poll_until_clean(&socket, wt_str).await;
 
     let before = send_jsonrpc(
         &socket,
@@ -281,8 +360,8 @@ async fn run_foreground_reclaims_warm_state_on_unregister() {
     .await;
     assert_eq!(
         assurance_state(&before),
-        Some("pending"),
-        "the warm Pending must be observable before unregister; got {before:?}",
+        Some("clean"),
+        "the warm Clean must be observable before unregister; got {before:?}",
     );
 
     // Unregister → the hook must drop the worktree's warm state.
@@ -339,9 +418,10 @@ async fn warm_state_survives_until_last_session_unregisters() {
     let tmp = tempfile::tempdir().expect("tempdir");
     let worktree = tmp.path().join("worktree");
     std::fs::create_dir(&worktree).expect("create worktree");
+    std::fs::write(worktree.join("a.ts"), b"export const x = 1;\n").expect("seed source file");
     let wt_str = worktree.to_str().expect("utf-8 worktree path");
 
-    let (shutdown, handle, socket) = spawn_daemon_with_config(&tmp, Resolved::default()).await;
+    let (shutdown, handle, socket) = spawn_daemon_with_parser(&tmp, Resolved::default()).await;
 
     let a = send_register_request(&socket, "1", "sess-a", &worktree, "claude-a").await;
     assert!(
@@ -354,14 +434,15 @@ async fn warm_state_survives_until_last_session_unregisters() {
         "register b: {b:?}",
     );
 
-    let scan = send_jsonrpc(
+    // Warm the shared worktree to a distinguishable `Clean` via the executor.
+    send_jsonrpc(
         &socket,
         "3",
         "anvil/request_full_scan",
         json!({ "workspace_root": wt_str }),
     )
     .await;
-    assert_eq!(assurance_state(&scan), Some("pending"), "warm: {scan:?}");
+    poll_until_clean(&socket, wt_str).await;
 
     // First session leaves — the peer keeps the warm state.
     let unreg_a = send_jsonrpc(
@@ -382,7 +463,7 @@ async fn warm_state_survives_until_last_session_unregisters() {
     .await;
     assert_eq!(
         assurance_state(&mid),
-        Some("pending"),
+        Some("clean"),
         "warm state MUST survive while a peer session still holds the worktree \
          (last-session reclamation); a `stale` here means the hook fired \
          per-session and pulled warm state from under the live sibling. {mid:?}",

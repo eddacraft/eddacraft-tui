@@ -1484,12 +1484,20 @@ mod tests {
         let state = state();
         warm(&state, tmp.path(), "src/a.ts", &["alpha"], 0);
 
-        let mut conn = SaveTimeConn::new(&state);
-        conn.request_full_scan(&RequestFullScanRequest {
-            workspace_root: tmp.path().to_string_lossy().into_owned(),
-        })
-        .expect("admitted");
+        // Put the worktree's machine into `Pending` directly. (`request_full_scan`
+        // also reaches `Pending`, but the DSV-045 executor then drives it
+        // `Running → Clean` on the background pool, which would race this
+        // assertion; we assert the GCTX *state mapping* — a non-terminal scan
+        // suppresses results — deterministically here.)
+        let key =
+            WorktreeKey::from_canonical(std::fs::canonicalize(tmp.path()).expect("canonical"));
+        state
+            .machine_handle(&key)
+            .lock()
+            .expect("machine lock")
+            .request_full_scan(ScanPriority::Interactive);
 
+        let mut conn = SaveTimeConn::new(&state);
         let resp = conn
             .search_symbols(&gctx_request(tmp.path()))
             .expect("admitted");

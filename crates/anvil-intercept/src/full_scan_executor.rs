@@ -230,7 +230,7 @@ impl PreparedScan {
         } = self;
 
         let outcome = std::panic::catch_unwind(AssertUnwindSafe(|| {
-            run_scan_loop(&ctx, &machine, &key, &root)
+            run_scan_loop(&ctx, &machine, &key, &root);
         }));
 
         if outcome.is_err() {
@@ -653,8 +653,7 @@ mod tests {
         let job = prepare_scan(ctx, &machine, &key, root, ScanPriority::Background)
             .expect("a cold worktree must enqueue a scan");
         job.run();
-        let state = lock(&machine).state();
-        state
+        lock(&machine).state()
     }
 
     /// A normalised, order-independent summary of the warm graph for `key`:
