@@ -317,7 +317,7 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-011: `anvil_find_dependents` dependency traversal tool
 
-- **Status:** Merged 2026-06-16 via PR #2685 — built directly on the GCTX-010
+- **Status:** Merged 2026-06-16 via #2685 — built directly on the GCTX-010
   spine (Merged 2026-06-16 via #2657): the sealed `anvil-gctx-types` DTOs, the
   single `GctxProjector` choke point in `anvil-gctx-egress`, and the
   `GctxDispatch` RPC surface, plus the new `anvil/gctx/find_dependents` RPC and
@@ -582,4 +582,4 @@ blockers — they are resolved during execution, not before promotion:
 | 1 — Graph Query Tools | 5 | GCTX-010 Merged #2657 (pilot); GCTX-011 Merged #2685 (`find_dependents`); GCTX-012/013 Draft; GCTX-014 Blocked (`find_callers` — GV2 call-edges) |
 | 2 — Context Slicing | 4 | Draft |
 | 3 — Resources, Benchmarks, Docs | 3 | Draft |
-| **Total** | **14** | **3/14** |
+| **Total** | **14** | **4/14** |
