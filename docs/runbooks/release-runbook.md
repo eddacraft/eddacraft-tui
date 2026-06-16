@@ -216,6 +216,10 @@ Verification must confirm:
 - public GitHub release exists on `eddacraft/anvil`
 - expected cargo-dist assets are present
 - provenance names the build source SHA and workflow run
+- a sanitised `release-evidence-<tag>.md` is published as a public release asset
+  and committed to `eddacraft/anvil` under `releases/` (CIB-034; rendered
+  automatically from the provenance manifest by
+  `scripts/release/generate-evidence.sh`)
 - Homebrew, Scoop, and WinGet publication state is recorded
 - `https://install.eddacraft.ai` returns HTTP 200
 

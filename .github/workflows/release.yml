@@ -441,6 +441,20 @@ jobs:
             echo "::error::Provenance manifest recorded 0 assets — bailing out before publish."
             exit 1
           fi
+
+      # CIB-034: render a sanitised, public release-evidence Markdown record from
+      # the signed provenance manifest into artifacts/, so it ships as a release
+      # asset on BOTH the private and public releases via the existing
+      # `artifacts/*` globs below (and is committed to the public repo further
+      # down). Public-safe fields only — see scripts/release/generate-evidence.sh.
+      - name: Generate sanitised release evidence
+        env:
+          RELEASE_TAG: '${{ needs.plan.outputs.tag }}'
+        run: |
+          bash scripts/release/generate-evidence.sh \
+            --provenance "artifacts/anvil-${RELEASE_TAG}-provenance.json" \
+            --output "artifacts/release-evidence-${RELEASE_TAG}.md"
+
       - name: Publish release to eddacraft/anvil-001 (private)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -581,6 +595,43 @@ jobs:
             --method PUT \
             repos/eddacraft/anvil/contents/ACKNOWLEDGEMENTS.md \
             -f message="chore(release): update ACKNOWLEDGEMENTS.md for $RELEASE_TAG" \
+            -f content="$CONTENT" \
+            $SHA_ARG
+
+      # CIB-034: commit the sanitised release-evidence to the public repo's
+      # `releases/` path so it is browsable alongside each release (the evidence
+      # is also already a release asset via the `artifacts/*` upload above). Same
+      # contents-API update-in-place pattern as ACKNOWLEDGEMENTS.
+      - name: Publish release evidence to eddacraft/anvil
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.ANVIL_RELEASES_TOKEN }}
+          RELEASE_TAG: '${{ needs.plan.outputs.tag }}'
+        run: |
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::secrets.ANVIL_RELEASES_TOKEN is required to publish release evidence."
+            exit 1
+          fi
+
+          EVIDENCE="artifacts/release-evidence-${RELEASE_TAG}.md"
+          if [ ! -f "$EVIDENCE" ]; then
+            echo "::warning title=Missing release evidence::$EVIDENCE not found; skipping public commit."
+            exit 0
+          fi
+
+          DEST="releases/release-evidence-${RELEASE_TAG}.md"
+          CONTENT=$(base64 -w 0 "$EVIDENCE")
+          EXISTING_SHA=$(gh api "repos/eddacraft/anvil/contents/${DEST}" --jq '.sha' 2>/dev/null || echo "")
+
+          SHA_ARG=""
+          if [ -n "$EXISTING_SHA" ]; then
+            SHA_ARG="-f sha=$EXISTING_SHA"
+          fi
+
+          gh api \
+            --method PUT \
+            "repos/eddacraft/anvil/contents/${DEST}" \
+            -f message="chore(release): add release evidence for $RELEASE_TAG" \
             -f content="$CONTENT" \
             $SHA_ARG
 

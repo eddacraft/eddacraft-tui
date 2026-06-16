@@ -753,7 +753,7 @@ archive.
 
 ### CIB-034: Publish sanitised release evidence for the public release mirror
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Give users of the public release mirror a concise, sanitised trust
   record for each shipped Anvil release, even though the source project itself is
   not public.
