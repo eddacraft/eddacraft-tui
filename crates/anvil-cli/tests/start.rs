@@ -60,6 +60,14 @@ fn run_start_with_home(
         // Strip XDG so dirs::home_dir() doesn't resolve to a user
         // directory through XDG_CONFIG_HOME.
         .env_remove("XDG_CONFIG_HOME")
+        // DLIFE-003: pin the daemon socket/PID resolution to the per-test
+        // tempdir so the daemon-ensure probe is deterministically isolated
+        // from any real daemon on a developer box. The captured (non-TTY)
+        // stdout means `anvil start` resolves a non-interactive context and
+        // falls back without spawning — no `--no-daemon` needed for
+        // hermeticity, so the harness exercises the real default path.
+        // Unix-only env (ignored on Windows, which uses a per-user pipe).
+        .env("XDG_RUNTIME_DIR", home)
         .env("ANVIL_DEV", "1")
         .env("ANVIL_SKIP_WELCOME", "1");
     cmd.output().expect("failed to invoke anvil binary")
@@ -112,6 +120,81 @@ fn start_on_fresh_repo_runs_init_and_lands_ready_restart_required() {
     assert!(
         !stdout.contains("state: protecting"),
         "fresh repo MUST NOT claim protection, got:\n{stdout}"
+    );
+}
+
+#[cfg(not(target_os = "windows"))]
+#[test]
+fn start_in_non_interactive_context_falls_back_without_spawning() {
+    // DLIFE-003 (ADR-082 §4, owner-confirmed headless posture): a mutating
+    // `anvil start` with captured (non-TTY) stdout — the CI / scripted shape
+    // — must NOT auto-start a daemon. It reports the deterministic
+    // non-interactive fallback on the `daemon:` line and never makes a
+    // protection claim (module honesty contract: lifecycle action only).
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+
+    let out = run_start_with_home(dir.path(), home.path(), &[]);
+    assert!(
+        out.status.success(),
+        "anvil start failed: stderr={}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("daemon: not auto-started (non-interactive"),
+        "expected the non-interactive fallback line, got:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("scoped fallback"),
+        "the fallback line must name the preserved scoped fallback, got:\n{stdout}"
+    );
+    // The fallback line must never graduate the protection claim: the
+    // diagnostic still owns `state:`.
+    assert!(
+        !stdout.contains("state: protecting"),
+        "the daemon line must not push the protection state to protecting, got:\n{stdout}"
+    );
+}
+
+#[cfg(not(target_os = "windows"))]
+#[test]
+fn start_no_daemon_flag_reports_opt_out_end_to_end() {
+    // DLIFE-003: the explicit `--no-daemon` opt-out is plumbed through clap
+    // and rendered distinctly from the non-interactive fallback, so a user
+    // who opted out sees their flag acknowledged rather than a generic
+    // context message.
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+
+    let out = run_start_with_home(dir.path(), home.path(), &["--no-daemon"]);
+    assert!(
+        out.status.success(),
+        "anvil start --no-daemon failed: stderr={}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("daemon: not started (--no-daemon)"),
+        "expected the --no-daemon opt-out line, got:\n{stdout}"
+    );
+}
+
+#[cfg(not(target_os = "windows"))]
+#[test]
+fn start_verify_is_byte_identical_without_a_daemon_line() {
+    // DLIFE-003: read-only probes never start a daemon and never emit a
+    // `daemon:` lifecycle line — the auto-start is a mutating-path
+    // behaviour only. Pins the read-only contract end-to-end.
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+
+    let out = run_start_with_home(dir.path(), home.path(), &["--verify"]);
+    assert!(out.status.success());
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        !stdout.contains("daemon:"),
+        "--verify must not emit a daemon lifecycle line, got:\n{stdout}"
     );
 }
 
@@ -568,6 +651,11 @@ fn start_watch_renders_partial_protection_and_starts_watcher() {
         .env("HOME", home.path())
         .env("USERPROFILE", home.path())
         .env_remove("XDG_CONFIG_HOME")
+        // DLIFE-003: isolate the daemon socket to the per-test tempdir. The
+        // captured (non-TTY) stdout already makes `start` fall back without
+        // spawning a daemon; this also keeps the read-only ensure probe from
+        // touching a developer box's real daemon.
+        .env("XDG_RUNTIME_DIR", home.path())
         .env("ANVIL_DEV", "1")
         .env("ANVIL_SKIP_WELCOME", "1")
         .stdout(Stdio::piped())
