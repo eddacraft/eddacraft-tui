@@ -54,6 +54,7 @@ pub mod enforcement;
 pub mod ensure;
 pub mod fanout;
 pub mod fence;
+pub mod full_scan_executor;
 pub mod interrupt;
 pub mod ipc;
 pub mod kernel_cache;

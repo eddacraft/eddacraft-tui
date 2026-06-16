@@ -232,6 +232,7 @@ pub(crate) fn daemon_absent_assurance() -> WorkspaceAssurance {
         reason: Some(StaleReason::DaemonAbsent),
         generation: 0,
         last_full_scan: None,
+        scan_coverage: None,
     }
 }
 
@@ -317,8 +318,20 @@ pub(crate) fn assurance_label(assurance: &WorkspaceAssurance) -> String {
         AssuranceState::Stale => "stale",
         AssuranceState::Pending => "pending",
         AssuranceState::Running => "running",
+        AssuranceState::Bounded => "bounded",
         AssuranceState::Unavailable => "unavailable",
+        // Deser-only forward-compat fallback (ADR-085): a newer daemon's
+        // unrecognised state. Surface it fail-safe, never as clean.
+        AssuranceState::Unknown => "unknown",
     };
+    // DSV-045: a `Bounded` snapshot carries coverage but no reason; append the
+    // scanned/total so the human label conveys the bound.
+    if let Some(coverage) = assurance.scan_coverage {
+        return format!(
+            "{state} ({}/{} files)",
+            coverage.scanned_files, coverage.total_files
+        );
+    }
     match assurance.reason {
         Some(reason) => format!("{state}{{{}}}", stale_reason_str(reason)),
         None => state.to_string(),
@@ -854,6 +867,7 @@ mod tests {
                 reason: None,
                 generation: 1,
                 last_full_scan: None,
+                scan_coverage: None,
             },
             coverage: Coverage::Certified,
             check_families: vec![anvil_intercept_proto::protocol::CheckFamily::Antipattern],

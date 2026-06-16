@@ -749,7 +749,11 @@ fn assurance_state_str(state: AssuranceState) -> &'static str {
         AssuranceState::Stale => "stale",
         AssuranceState::Pending => "pending",
         AssuranceState::Running => "running",
+        AssuranceState::Bounded => "bounded",
         AssuranceState::Unavailable => "unavailable",
+        // Deser-only forward-compat fallback (ADR-085): never produced locally,
+        // surfaced fail-safe (never "clean") if a newer daemon sends it.
+        AssuranceState::Unknown => "unknown",
     }
 }
 
@@ -2020,6 +2024,7 @@ mod tests {
                 reason: None,
                 generation: 1,
                 last_full_scan: None,
+                scan_coverage: None,
             },
             confined: Some(3),
         };
@@ -2040,6 +2045,7 @@ mod tests {
                 ),
                 generation: 2,
                 last_full_scan: None,
+                scan_coverage: None,
             },
             confined: None,
         };
@@ -2079,6 +2085,7 @@ mod tests {
                 reason: None,
                 generation: 1,
                 last_full_scan: None,
+                scan_coverage: None,
             }),
         ] {
             let posture =
@@ -2118,6 +2125,7 @@ mod tests {
                 reason: None,
                 generation: 1,
                 last_full_scan: None,
+                scan_coverage: None,
             };
             let posture = classify_save_time(mode, Some(assurance), Some(3));
             match posture {
@@ -2255,6 +2263,7 @@ mod tests {
                     ),
                     generation: u64::MAX,
                     last_full_scan: None,
+                    scan_coverage: None,
                 },
                 confined: Some(9999),
             }),

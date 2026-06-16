@@ -159,6 +159,7 @@ fn unavailable_response() -> GctxSearchSymbolsResponse {
             reason: Some(StaleReason::DaemonAbsent),
             generation: 0,
             last_full_scan: None,
+            scan_coverage: None,
         },
         outcome: anvil_gctx_types::SearchSymbolsOutcome::Unavailable,
     }

@@ -59,6 +59,7 @@ use anvil_kernel_types::FileSymbols;
 use crate::assurance::{AssuranceMachine, ScanPriority};
 use crate::broadcaster::TelemetryBroadcaster;
 use crate::confinement::Confinement;
+use crate::full_scan_executor::{ScanContext, ScanCoordinator, prepare_scan};
 use crate::ipc::{GctxDispatch, SaveTimeDispatch, SaveTimeError};
 use crate::kernel_cache::KernelGraphCache;
 use crate::rule_cache::WorktreeKey;
@@ -140,8 +141,10 @@ pub trait SymbolParser: Send + Sync + std::fmt::Debug {
 /// share (`KernelGraphCache` and the assurance map carry their own locks, the
 /// pools are `Sync`, the config + confinement are immutable).
 pub struct SaveTimeState {
-    /// The warm per-`WorktreeKey` `(SymbolGraph, DependencyGraph)` cache.
-    cache: KernelGraphCache,
+    /// The warm per-`WorktreeKey` `(SymbolGraph, DependencyGraph)` cache. Behind
+    /// an `Arc` so the DSV-045 full-scan executor's background job can share it
+    /// (`apply_delta` is internally locked).
+    cache: Arc<KernelGraphCache>,
     /// The per-`WorktreeKey` workspace-assurance state machines. Each machine
     /// sits behind its **own** lock so a verdict on one worktree (which holds
     /// its machine lock across the antipattern scan) does not serialise verdicts
@@ -171,6 +174,9 @@ pub struct SaveTimeState {
     /// emit the same envelope as the tracing mirror through `Fanout::route`.
     broadcaster: Option<Arc<TelemetryBroadcaster>>,
     telemetry: Mutex<TelemetryEmitter>,
+    /// DSV-045 (ADR-085): per-key full-scan coalescing + cancel coordination.
+    /// Shared (cheap clone) into each spawned [`ScanContext`].
+    coordinator: ScanCoordinator,
 }
 
 impl SaveTimeState {
@@ -192,7 +198,7 @@ impl SaveTimeState {
             "save-time graph cache initialised"
         );
         Self {
-            cache,
+            cache: Arc::new(cache),
             assurance: Mutex::new(HashMap::new()),
             config,
             scheduler,
@@ -201,6 +207,7 @@ impl SaveTimeState {
             caps: DosCaps::default(),
             broadcaster: None,
             telemetry: Mutex::new(TelemetryEmitter::new()),
+            coordinator: ScanCoordinator::new(),
         }
     }
 
@@ -242,6 +249,46 @@ impl SaveTimeState {
     #[must_use]
     pub fn confinement(&self) -> &Confinement {
         &self.confinement
+    }
+
+    /// The full-scan coordinator (DSV-045), so an interactive `validate_paths`
+    /// can preempt an in-flight background scan for the worktree.
+    #[must_use]
+    pub(crate) fn scan_coordinator(&self) -> &ScanCoordinator {
+        &self.coordinator
+    }
+
+    /// Build a [`ScanContext`] for the DSV-045 executor from the shared
+    /// collaborators — a cheap clone of the cache `Arc`, the injected parser,
+    /// the `DoS` caps, and the coordinator.
+    #[must_use]
+    pub(crate) fn scan_context(&self) -> ScanContext {
+        ScanContext::new(
+            Arc::clone(&self.cache),
+            self.parser.clone(),
+            self.caps,
+            self.coordinator.clone(),
+        )
+    }
+
+    /// Resolve (inserting on first contact) the per-key assurance machine handle
+    /// — the same `Arc<Mutex<…>>` `with_machine` operates on — so the executor
+    /// can take the brief `start_scan`/`complete_scan` lock off the hot path.
+    #[must_use]
+    pub(crate) fn machine_handle(&self, key: &WorktreeKey) -> Arc<Mutex<AssuranceMachine>> {
+        let mut guard = self.lock_map();
+        Arc::clone(guard.entry(key.clone()).or_default())
+    }
+
+    /// Decide + spawn a full-scan job for `key` if one is warranted (DSV-045).
+    /// Coalesced and self-gating via [`prepare_scan`]; the job runs on the
+    /// background pool so it never touches the interactive verdict budget.
+    fn spawn_scan(&self, key: &WorktreeKey, root: &Path, priority: ScanPriority) {
+        let ctx = self.scan_context();
+        let machine = self.machine_handle(key);
+        if let Some(job) = prepare_scan(&ctx, &machine, key, root, priority) {
+            self.scheduler.background().spawn(move || job.run());
+        }
     }
 
     /// Drop a worktree's warm cache + assurance machine. Wired to the registry
@@ -425,6 +472,25 @@ fn emit_assurance_transition(workspace_root: &Path, transition: &AssuranceTransi
     }
 }
 
+/// Emit the standard `tracing` mirror for a machine transition observed by the
+/// full-scan executor (DSV-045). The executor mutates the per-key
+/// [`AssuranceMachine`] directly under its own brief lock (never through
+/// `with_machine`, which is the client-correlated verdict path), so it routes
+/// its `Pending`/`Running`/`Clean`/`Bounded`/`Stale` transitions through this
+/// shared helper to keep the assurance log consistent. There is no client
+/// correlation on a daemon-internal scan, so the DSV-044 broadcast (which
+/// default-denies an envelope with no originating session) is intentionally not
+/// invoked here — tracing only.
+pub(crate) fn trace_machine_transition(
+    workspace_root: &Path,
+    before: &WorkspaceAssurance,
+    after: &WorkspaceAssurance,
+) {
+    if let Some(transition) = transition_between(before, after, None) {
+        emit_assurance_transition(workspace_root, &transition);
+    }
+}
+
 /// Per-connection save-time context: borrows the shared [`SaveTimeState`] and
 /// owns this connection's [`AdmittedRoots`] set, built lazily on the first verb.
 pub struct SaveTimeConn<'a> {
@@ -547,7 +613,17 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
         let fed_symbols = move |path: &str, bytes: &[u8]| {
             parser.and_then(|p| parse_pool.install(|| p.parse(Path::new(path), bytes)))
         };
+        // DSV-045 (Decision 9): an interactive verdict preempts an in-flight
+        // background scan for this worktree so it hands cores back at the next
+        // chunk boundary. A no-op when no scan is running.
+        state.scan_coordinator().cancel(&key);
+
         let response = state.with_machine(&key, correlation, |machine| {
+            // DSV-045 (Decision 4): a save that lands while a scan is `Running`
+            // dirties it (checked here, before the verdict can change the state),
+            // so the scan's `complete_scan` fails safe to `Stale` + re-queue
+            // instead of certifying a graph that may not reflect this save.
+            machine.note_apply_delta();
             run_validate_paths(
                 &request,
                 &state.cache,
@@ -565,6 +641,11 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
             assurance = ?response.workspace_assurance.state,
             "validate_paths verdict",
         );
+        // DSV-045 (Decision 10): first-contact auto-warm. Opportunistic and
+        // self-gating — a no-op when the worktree is already warm or a scan is
+        // already enqueued; on a fresh cold key it drives the cache warm so the
+        // next GCTX query / status need not wait for a manual save.
+        state.spawn_scan(&key, &canonical, ScanPriority::Background);
         Ok(response)
     }
 
@@ -581,6 +662,9 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
         let key = WorktreeKey::from_canonical(canonical);
         let workspace_assurance =
             state.with_machine(&key, correlation, |machine| machine.snapshot());
+        // DSV-045 (Decision 10): first-contact auto-warm (self-gating) — a
+        // `workspace_status` against a fresh cold key kicks off a background scan.
+        state.spawn_scan(&key, key.as_path(), ScanPriority::Background);
         Ok(WorkspaceStatusResponse {
             workspace_assurance,
         })
@@ -598,13 +682,15 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
         let workspace_assurance = state.with_machine(&key, correlation, |machine| {
-            // An explicit client request is interactive (client-blocking). This
-            // queues the scan (→ `Pending`); the scan *executor* that drives
-            // `Pending → Running → Clean` is DSV-006 (Task 16) — until it lands
-            // the worktree stays `Pending` (a restart demotes it to `Stale`).
+            // An explicit client request is interactive (client-blocking): queue
+            // the scan (→ `Pending`) and broadcast the transition with the
+            // client's correlation. The DSV-045 executor below drives it
+            // `Pending → Running → Clean`/`Bounded` on the background pool.
             machine.request_full_scan(ScanPriority::Interactive);
             machine.snapshot()
         });
+        // DSV-045: spawn the executor job (coalesced — N requests drive one scan).
+        state.spawn_scan(&key, key.as_path(), ScanPriority::Interactive);
         Ok(RequestFullScanResponse {
             workspace_assurance,
         })

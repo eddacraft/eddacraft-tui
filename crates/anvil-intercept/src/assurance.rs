@@ -287,7 +287,12 @@ impl AssuranceMachine {
         self.reason = Some(reason);
         self.scan_started_at = None;
         self.scan_coverage = None;
-        self.dirty_during_scan = false;
+        // NB: the dirty flag is deliberately NOT cleared here. An uncertifiable
+        // verdict that lands *during* a `Running` scan transitions the machine
+        // to `Stale` while the scan loop is still in flight; the dirty flag must
+        // survive so the scan's eventual `complete_scan` still sees the race and
+        // re-queues (DSV-045). It is cleared only by `request_full_scan` (a fresh
+        // enqueue) and `finish_scan` (a completion's compare-and-clear).
     }
 
     /// Record that an `apply_delta` landed for this key (DSV-045 / ADR-085
@@ -330,14 +335,16 @@ impl AssuranceMachine {
         priority
     }
 
-    /// Begin a queued scan (`now` = RFC 3339 start time). Clears the dirty flag
-    /// and any prior coverage so the run starts from a clean slate (DSV-045).
+    /// Begin a queued scan (`now` = RFC 3339 start time). Clears any prior
+    /// coverage but NOT the dirty flag: a continuation segment (after a
+    /// cooperative yield) re-enters `start_scan`, and a save that raced the
+    /// already-processed portion must still be honoured at completion (DSV-045).
+    /// A fresh enqueue clears the flag via [`request_full_scan`](Self::request_full_scan).
     pub fn start_scan(&mut self, now: String) {
         self.state = AssuranceState::Running;
         self.reason = None;
         self.scan_started_at = Some(now);
         self.scan_coverage = None;
-        self.dirty_during_scan = false;
     }
 
     /// A full-coverage scan completed (`now` = RFC 3339 completion). Reads-and-
