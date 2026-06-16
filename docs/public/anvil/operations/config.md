@@ -438,10 +438,10 @@ explicit false value, not by blanking.
 
 When daemon routing is active, `anvil status` gains a `Save-time:` line
 reporting the current assurance state (`clean`, `stale`, `pending`, `running`,
-or `unavailable`) and, in confined mode, the size of the admitted-workspace
-allow-list. With the variable unset and no daemon live, `anvil status` prints an
-explicit off-state line naming `anvil start`; only an explicit
-`ANVIL_WATCH_DAEMON=0` opt-out hides the save-time line.
+`bounded`, or `unavailable`) and, in confined mode, the size of the
+admitted-workspace allow-list. With the variable unset and no daemon live,
+`anvil status` prints an explicit off-state line naming `anvil start`; only an
+explicit `ANVIL_WATCH_DAEMON=0` opt-out hides the save-time line.
 
 ## Workspace confinement
 

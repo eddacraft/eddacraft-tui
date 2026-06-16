@@ -219,8 +219,13 @@ defined (`ALL_ANVIL_METHODS`, `protocol.rs:212-222`):
   client → server, read-only `WorkspaceAssurance` snapshot without submitting a
   change set.
 - `anvil/request_full_scan` (`ANVIL_REQUEST_FULL_SCAN`, `protocol.rs:164`) —
-  client → server, request a cold full scan to rebuild a clean baseline after
-  assurance goes `Stale`/`Unavailable`.
+  client → server, drive a full scan that warms the graph cache and rebuilds the
+  baseline. Since DSV-045 (ADR-085) the daemon's full-scan executor dequeues
+  this and drives `Pending → Running → Clean` (or `Bounded` when the worktree
+  exceeds the post-`.gitignore` walk cap); the daemon also auto-warms from cold
+  on first contact (`validate_paths` / `workspace_status` /
+  `request_full_scan`), so a fresh session reaches a useful graph without a
+  manual save. Repeated calls coalesce to one scan.
 
 The capability lattice is `Attached < Participating` (`protocol.rs:124-139`); v1
 only ever downgrades, never promotes implicitly.
@@ -806,34 +811,35 @@ documented in §16 gap 5.
 
 ### `crates/anvil-intercept/src/`
 
-| File                     | Role                                                                                                                                                     |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lib.rs`                 | INTD-001 entry point: `run_foreground`, PID-file guard, `Shutdown` channel, `wait_for_shutdown_signal`. The single-source-of-truth for daemon lifecycle. |
-| `main.rs`                | Standalone `anvil-intercept` binary entry; calls into `run_foreground`.                                                                                  |
-| `assurance.rs`           | per-`WorktreeKey` `AssuranceMachine`; workspace-assurance state folded from graph certifiability.                                                        |
-| `auth.rs`                | DRVR-007 / DRVR-008: `is_driver_allowed`, `DriverManifest::validate_workspace_roots`, `negotiate_capability`. The driver trust boundary.                 |
-| `broadcaster.rs`         | MLP2-071 Phase 2: `TelemetryBroadcaster` delivery half of the fan-out.                                                                                   |
-| `config.rs`              | INTD-008: `Resolved` enforcement policy loader. Stricter-wins merge between project `.anvil.yaml` and user config; AD-3 ambiguous-ownership cap.         |
-| `confinement.rs`         | DSV-008: operator confinement config (open/allowlist), owner-only read from daemon home prefix.                                                          |
-| `dos.rs`                 | INTD-016: `IpcLimits` + `RpsBucket`. Per-connection token bucket and frame-size cap.                                                                     |
-| `embedded.rs`            | INTD-009: synchronous `embedded_evaluate` API; correctness-equivalent fallback for the MCP shim and CI.                                                  |
-| `enforcement.rs`         | INTD-005: `EnforcementPipeline`, `EnforcementDecision`, `ProposedChange`. Pure rule evaluation.                                                          |
-| `fanout.rs`              | INTD-015: per-event telemetry filter with daemon-minted `SubscriberId`; `Delivery::{Allow, Redact, Deny}`.                                               |
-| `fence.rs`               | INTD-005 + INTD-007: `FenceStore` on-disk persistence, `FenceState` in-memory view, `FenceRecord` with aliases.                                          |
-| `interrupt.rs`           | INTD-006: `run_unix_ladder`, `run_windows_termination`, AD-7 fence-on-failure invariant, PID-reuse defence.                                              |
-| `ipc.rs`                 | INTD-002: NDJSON IPC listener, owner-only socket permission ladder, peer-credential validation, `validate_socket_path_for_client`.                       |
-| `kernel_cache.rs`        | warm `(SymbolGraph, DependencyGraph)` cache (`KernelGraphCache`); `apply_delta`, `with_graphs`.                                                          |
-| `latency.rs`             | INTD-011: sliding-window aggregator for ADR-031 `validation.service` measurements (mid-edit p50/p95).                                                    |
-| `midedit.rs`             | INTD-005 mid-edit surface: `ScanBufferService`, `ScanBufferRequest`/`Response`, `MAX_CONCURRENT_SCAN_BUFFERS`.                                           |
-| `path_safety.rs`         | DSV-003/ADR-068: `openat2` `RESOLVE_NO_SYMLINKS \| RESOLVE_BENEATH` guarded read (Unix) / Windows anchor ladder.                                         |
-| `registry.rs`            | INTD-003: `SessionRegistry` (synchronous), `SessionDispatcher` trait, `Attribution`, `evict_stale`.                                                      |
-| `save_time.rs`           | DSV-005: per-connection save-time verb orchestration; `SaveTimeState`, `AdmittedRoots`, `SymbolParser` injection.                                        |
-| `status.rs`              | INTD-011: `DaemonStatus` snapshot, `DaemonStatusProvider`, wire conversion to `DaemonStatusV1`.                                                          |
-| `telemetry.rs`           | `anvil.notification.v1` envelope construction, `TelemetryEmitter`, `TelemetryCorrelation` with INTD-015 scoping fields.                                  |
-| `unregistered.rs`        | INTD-010: handler for changes that fall outside any registered session — AD-3 always-fence policy.                                                       |
-| `validate_paths.rs`      | DSV-004/-005: pure save-time verdict core; wire↔internal mappings; certify via GV2 hot-read; diagnostic sort-before-envelope.                            |
-| `watcher.rs`             | INTD-004: kernel watcher integration; receives `ChangeBatch`, attributes paths, dispatches to per-session enforcement or `UnregisteredHandler`.          |
-| `workspace_admission.rs` | per-connection `AdmittedRoots`; C2/C3 root-retarget defence.                                                                                             |
+| File                     | Role                                                                                                                                                                                                                                                                       |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib.rs`                 | INTD-001 entry point: `run_foreground`, PID-file guard, `Shutdown` channel, `wait_for_shutdown_signal`. The single-source-of-truth for daemon lifecycle.                                                                                                                   |
+| `main.rs`                | Standalone `anvil-intercept` binary entry; calls into `run_foreground`.                                                                                                                                                                                                    |
+| `assurance.rs`           | per-`WorktreeKey` `AssuranceMachine`; workspace-assurance state folded from graph certifiability.                                                                                                                                                                          |
+| `auth.rs`                | DRVR-007 / DRVR-008: `is_driver_allowed`, `DriverManifest::validate_workspace_roots`, `negotiate_capability`. The driver trust boundary.                                                                                                                                   |
+| `broadcaster.rs`         | MLP2-071 Phase 2: `TelemetryBroadcaster` delivery half of the fan-out.                                                                                                                                                                                                     |
+| `config.rs`              | INTD-008: `Resolved` enforcement policy loader. Stricter-wins merge between project `.anvil.yaml` and user config; AD-3 ambiguous-ownership cap.                                                                                                                           |
+| `confinement.rs`         | DSV-008: operator confinement config (open/allowlist), owner-only read from daemon home prefix.                                                                                                                                                                            |
+| `dos.rs`                 | INTD-016: `IpcLimits` + `RpsBucket`. Per-connection token bucket and frame-size cap.                                                                                                                                                                                       |
+| `embedded.rs`            | INTD-009: synchronous `embedded_evaluate` API; correctness-equivalent fallback for the MCP shim and CI.                                                                                                                                                                    |
+| `enforcement.rs`         | INTD-005: `EnforcementPipeline`, `EnforcementDecision`, `ProposedChange`. Pure rule evaluation.                                                                                                                                                                            |
+| `fanout.rs`              | INTD-015: per-event telemetry filter with daemon-minted `SubscriberId`; `Delivery::{Allow, Redact, Deny}`.                                                                                                                                                                 |
+| `fence.rs`               | INTD-005 + INTD-007: `FenceStore` on-disk persistence, `FenceState` in-memory view, `FenceRecord` with aliases.                                                                                                                                                            |
+| `full_scan_executor.rs`  | DSV-045 (ADR-085): the full-scan executor that drives `Pending → Running → Clean`/`Bounded`, populating the warm cache without a save. `ScanCoordinator` (per-key coalescing CAS + cancel), `prepare_scan`, `run_scan_loop` (background-pool walk/parse/apply + watchdog). |
+| `interrupt.rs`           | INTD-006: `run_unix_ladder`, `run_windows_termination`, AD-7 fence-on-failure invariant, PID-reuse defence.                                                                                                                                                                |
+| `ipc.rs`                 | INTD-002: NDJSON IPC listener, owner-only socket permission ladder, peer-credential validation, `validate_socket_path_for_client`.                                                                                                                                         |
+| `kernel_cache.rs`        | warm `(SymbolGraph, DependencyGraph)` cache (`KernelGraphCache`); `apply_delta`, `with_graphs`.                                                                                                                                                                            |
+| `latency.rs`             | INTD-011: sliding-window aggregator for ADR-031 `validation.service` measurements (mid-edit p50/p95).                                                                                                                                                                      |
+| `midedit.rs`             | INTD-005 mid-edit surface: `ScanBufferService`, `ScanBufferRequest`/`Response`, `MAX_CONCURRENT_SCAN_BUFFERS`.                                                                                                                                                             |
+| `path_safety.rs`         | DSV-003/ADR-068: `openat2` `RESOLVE_NO_SYMLINKS \| RESOLVE_BENEATH` guarded read (Unix) / Windows anchor ladder.                                                                                                                                                           |
+| `registry.rs`            | INTD-003: `SessionRegistry` (synchronous), `SessionDispatcher` trait, `Attribution`, `evict_stale`.                                                                                                                                                                        |
+| `save_time.rs`           | DSV-005: per-connection save-time verb orchestration; `SaveTimeState`, `AdmittedRoots`, `SymbolParser` injection.                                                                                                                                                          |
+| `status.rs`              | INTD-011: `DaemonStatus` snapshot, `DaemonStatusProvider`, wire conversion to `DaemonStatusV1`.                                                                                                                                                                            |
+| `telemetry.rs`           | `anvil.notification.v1` envelope construction, `TelemetryEmitter`, `TelemetryCorrelation` with INTD-015 scoping fields.                                                                                                                                                    |
+| `unregistered.rs`        | INTD-010: handler for changes that fall outside any registered session — AD-3 always-fence policy.                                                                                                                                                                         |
+| `validate_paths.rs`      | DSV-004/-005: pure save-time verdict core; wire↔internal mappings; certify via GV2 hot-read; diagnostic sort-before-envelope.                                                                                                                                              |
+| `watcher.rs`             | INTD-004: kernel watcher integration; receives `ChangeBatch`, attributes paths, dispatches to per-session enforcement or `UnregisteredHandler`.                                                                                                                            |
+| `workspace_admission.rs` | per-connection `AdmittedRoots`; C2/C3 root-retarget defence.                                                                                                                                                                                                               |
 
 ### `crates/anvil-intercept-proto/src/`
 

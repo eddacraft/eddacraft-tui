@@ -69,6 +69,11 @@ about how trustworthy the current save-time picture is:
   attached, e.g. `stale{cross-file-resolution-needed}`.
 - **`pending`** — a full scan is queued but has not started.
 - **`running`** — a full scan is in progress.
+- **`bounded`** — a full scan completed, but the workspace exceeded the
+  file-count cap after the `.gitignore` filter, so coverage is **bounded**: the
+  warm graph is populated but known-incomplete, never reported as a complete
+  `clean`. The snapshot carries a `scan_coverage` (scanned vs total files) so
+  consumers can surface the bound.
 - **`unavailable`** — no daemon verdict is possible. Absence always carries its
   reason: `unavailable{daemon-absent}` means no daemon answered. A missing
   daemon is **never** reported as a stale cached `clean`.
