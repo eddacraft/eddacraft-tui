@@ -110,7 +110,7 @@ operator/debugging surface.
 
 ### DLIFE-003: Make `anvil start` manage daemon lifecycle
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** Make `anvil start` the canonical command that brings a normal user to daemon-backed protection when the accepted lifecycle posture allows it.
 - **Expected Outcome:** `anvil start` configures protection, ensures the per-user daemon by default (tiered auto-start with explicit `--no-daemon` opt-out per the accepted ADR-082 posture), reports the resulting daemon-backed posture, and keeps `--verify` / `--json` non-mutating and non-interactive.
 - **Validation:** Activation tests cover daemon absent, daemon live, daemon ensure failure, `--verify`, `--json`, and repair-hint rendering.

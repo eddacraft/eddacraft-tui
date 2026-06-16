@@ -102,6 +102,16 @@ pub struct StartArgs {
     /// unaffected.
     #[arg(long)]
     pub why: bool,
+    /// Skip auto-starting the per-user save-time daemon (DLIFE-003,
+    /// ADR-082). In an interactive terminal `anvil start` auto-starts the
+    /// daemon so save-time validation is daemon-backed; pass `--no-daemon`
+    /// (or set `ANVIL_NO_DAEMON=1`) to suppress that and rely on the scoped
+    /// fallback. A daemon already running is still reused; only the
+    /// auto-start is suppressed. No-op under `--verify` / `--json` (those
+    /// read-only probes never start a daemon). Non-interactive contexts
+    /// (CI, hooks, piped output) already fall back automatically.
+    #[arg(long = "no-daemon")]
+    pub no_daemon: bool,
 }
 
 /// MLP2-039 — the format set chosen at adoption time. Maps onto
@@ -219,6 +229,38 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         pre_write_anvil_config(root, format)?;
     }
 
+    // DLIFE-003 (ADR-082): in an interactive session `anvil start` is the
+    // activation moment where taking daemon lifecycle responsibility is
+    // least surprising, so it auto-starts the per-user save-time daemon —
+    // no prompt, because activation IS the consent. Headless / CI / hook /
+    // piped contexts fall back deterministically (`NoStart{NonInteractive}`)
+    // rather than leave a surprise background daemon behind (ADR-082 §4).
+    // `--no-daemon` / `ANVIL_NO_DAEMON` opt out explicitly; the read-only
+    // probes (`--verify` / `--json`) never start a daemon
+    // (`daemon_capability_for_start` returns `None`). The ensure runs BEFORE
+    // the diagnostic so that when a daemon is already live (the common
+    // re-run case) the diagnostic's own attestation probe reflects it; a
+    // freshly *started* daemon has not yet admitted this worktree, so it can
+    // never promote the protection state on its own — the daemon line
+    // reports the lifecycle action only and the scoped fallback is preserved
+    // on every non-started path.
+    let daemon_capability = daemon_capability_for_start(
+        start_daemon_opt_out(args),
+        read_only,
+        start_is_interactive(),
+    );
+    // The spawn path bound-waits up to ~12s for a fresh daemon to bind. Name
+    // the action on stderr before blocking so an interactive `anvil start`
+    // does not read as a silent hang. stderr keeps the stdout / `--json`
+    // single-document contracts intact (read-only modes never reach here).
+    if matches!(
+        daemon_capability,
+        Some(anvil_intercept::ensure::StartCapability::MaySpawn)
+    ) {
+        eprintln!("anvil: ensuring the per-user save-time daemon is running…");
+    }
+    let daemon_outcome = daemon_capability.map(crate::commands::intercept::ensure_save_time_daemon);
+
     let (mut diagnostic, install_report) = if read_only {
         (
             activation::verify(root),
@@ -282,6 +324,14 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             activation::render_human_with_install(&diagnostic, &install_report)
         );
         print!("{}", render_rule_mode_summary(root));
+        // DLIFE-003: report the daemon lifecycle action taken this run
+        // (started / reused / opted-out / unsupported / failed). The
+        // line is additive and honest — it reports the action, never a
+        // protection claim. Absent under read-only modes (`daemon_outcome`
+        // is `None`), keeping `--verify` byte-stable.
+        if let Some(outcome) = &daemon_outcome {
+            print!("{}", render_daemon_lifecycle_line(outcome));
+        }
         // MLP2-051g — verbose tier-evidence on stderr. Additive: the
         // stdout block above is byte-identical with or without
         // `--why`, so scripted consumers of `anvil start --verify`
@@ -593,6 +643,104 @@ impl WatchDecision {
         }
         Self::Spawn
     }
+}
+
+// ---------------------------------------------------------------------------
+// DLIFE-003: daemon lifecycle wiring for `anvil start`
+// ---------------------------------------------------------------------------
+
+/// Decide whether `anvil start` should ensure the per-user save-time
+/// daemon this run, and with what capability. Pure so every branch is
+/// unit-tested; the caller supplies `opt_out` / `read_only` /
+/// `interactive` from the flags, env, and TTY (the ensure primitive's
+/// contract: the capability is decided by the caller, not sniffed).
+///
+/// Precedence (ADR-082):
+/// 1. Read-only modes (`--verify` / `--json`) → `None`: those probes are
+///    non-mutating and must never start a daemon (module constraint).
+/// 2. Explicit opt-out (`--no-daemon` / `ANVIL_NO_DAEMON`) →
+///    `NoSpawn(OptOut)`. A daemon already running is still reused; only
+///    the *auto-start* is suppressed.
+/// 3. Non-interactive context (CI / hook / piped, not a TTY) →
+///    `NoSpawn(NonInteractive)`: deterministic fallback, never a surprise
+///    background daemon in automation (ADR-082 §4, mirroring `anvil watch`).
+/// 4. Interactive session → `MaySpawn`: the activation moment auto-starts
+///    with no prompt (settled tiered posture). The already-live and
+///    platform-unsupported cases are decided inside the ensure primitive.
+fn daemon_capability_for_start(
+    opt_out: bool,
+    read_only: bool,
+    interactive: bool,
+) -> Option<anvil_intercept::ensure::StartCapability> {
+    use anvil_intercept::ensure::{NoStartReason, StartCapability};
+    if read_only {
+        return None;
+    }
+    Some(if opt_out {
+        StartCapability::NoSpawn(NoStartReason::OptOut)
+    } else if !interactive {
+        StartCapability::NoSpawn(NoStartReason::NonInteractive)
+    } else {
+        StartCapability::MaySpawn
+    })
+}
+
+/// Whether the operator explicitly opted out of daemon auto-start, via
+/// the `--no-daemon` flag or a non-empty `ANVIL_NO_DAEMON` env var (the
+/// scriptable/CI-friendly form, set `ANVIL_NO_DAEMON=1`). A daemon that
+/// is already running is still reused — this only suppresses spawning a
+/// new one.
+fn start_daemon_opt_out(args: &StartArgs) -> bool {
+    args.no_daemon || std::env::var_os("ANVIL_NO_DAEMON").is_some_and(|value| !value.is_empty())
+}
+
+/// Whether `anvil start` has an interactive consent surface for
+/// auto-starting the daemon. False in the contexts that must never grow
+/// a surprise background daemon: CI / commit hooks / explicit
+/// `ANVIL_NO_PROMPT` (via [`crate::is_non_interactive_env`]) or a
+/// non-terminal stdout (piped / captured / nohup).
+fn start_is_interactive() -> bool {
+    use std::io::IsTerminal as _;
+    !crate::is_non_interactive_env() && std::io::stdout().is_terminal()
+}
+
+/// Render the one-line daemon lifecycle outcome for `anvil start`.
+///
+/// Honesty contract (module risk): the line reports the lifecycle
+/// ACTION only — it never claims protection is active. The protection
+/// `state:` line is owned by the activation diagnostic and is not
+/// influenced by a freshly started daemon, which has not yet attested
+/// this worktree. Every non-started path names the scoped fallback so a
+/// user is never left thinking save-time validation silently vanished.
+fn render_daemon_lifecycle_line(outcome: &anvil_intercept::ensure::EnsureOutcome) -> String {
+    use anvil_intercept::ensure::{EnsureOutcome, NoStartReason};
+    let body = match outcome {
+        EnsureOutcome::Started => "started the per-user save-time daemon; \
+             it attests this worktree once your editor's MCP client connects."
+            .to_owned(),
+        EnsureOutcome::Reused => {
+            "reusing the per-user save-time daemon already running.".to_owned()
+        }
+        EnsureOutcome::NoStart {
+            reason: NoStartReason::OptOut,
+        } => "not started (--no-daemon); save-time validation uses the scoped fallback.".to_owned(),
+        EnsureOutcome::NoStart {
+            reason: NoStartReason::NonInteractive,
+        } => "not auto-started (non-interactive: CI, hook, or piped output); \
+             run `anvil start` in a terminal to auto-start it, or save-time \
+             validation uses the scoped fallback."
+            .to_owned(),
+        EnsureOutcome::NoStart {
+            reason: NoStartReason::PlatformUnsupported,
+        } => "background start is not yet available on this platform; \
+             save-time validation uses the scoped fallback."
+            .to_owned(),
+        EnsureOutcome::Failed { recovery } => format!(
+            "could not start the daemon — {recovery} \
+             Save-time validation uses the scoped fallback until then."
+        ),
+    };
+    format!("  daemon: {body}\n")
 }
 
 // ---------------------------------------------------------------------------
@@ -960,6 +1108,177 @@ mod tests {
         // The pre-existing file is untouched.
         let raw = std::fs::read_to_string(tmp.path().join(".anvil.toml")).unwrap();
         assert!(raw.contains("checks"));
+    }
+
+    // DLIFE-003 daemon lifecycle wiring tests.
+
+    fn start_args_default() -> StartArgs {
+        StartArgs {
+            verify: false,
+            watch: false,
+            format: None,
+            new_identity: false,
+            why: false,
+            no_daemon: false,
+        }
+    }
+
+    /// `--verify` and `--json` are read-only probes: they must never
+    /// start a daemon, so the capability resolver returns `None` and the
+    /// `run` flow skips the ensure entirely — regardless of opt-out or
+    /// interactivity.
+    #[test]
+    fn read_only_start_never_ensures_a_daemon() {
+        for opt_out in [false, true] {
+            for interactive in [false, true] {
+                assert!(
+                    daemon_capability_for_start(opt_out, /* read_only = */ true, interactive)
+                        .is_none(),
+                    "read-only start must not start a daemon (opt_out={opt_out}, interactive={interactive})",
+                );
+            }
+        }
+    }
+
+    /// An interactive mutating `anvil start` auto-starts the daemon
+    /// (ADR-082 tiered posture — no prompt at the activation moment).
+    #[test]
+    fn interactive_start_may_spawn_the_daemon() {
+        use anvil_intercept::ensure::StartCapability;
+        assert_eq!(
+            daemon_capability_for_start(
+                /* opt_out = */ false, /* read_only = */ false,
+                /* interactive = */ true,
+            ),
+            Some(StartCapability::MaySpawn),
+        );
+    }
+
+    /// Non-interactive contexts (CI / hook / piped) fall back
+    /// deterministically rather than leave a surprise background daemon
+    /// behind (ADR-082 §4 — owner-confirmed headless posture).
+    #[test]
+    fn non_interactive_start_falls_back_without_spawning() {
+        use anvil_intercept::ensure::{NoStartReason, StartCapability};
+        assert_eq!(
+            daemon_capability_for_start(
+                /* opt_out = */ false, /* read_only = */ false,
+                /* interactive = */ false,
+            ),
+            Some(StartCapability::NoSpawn(NoStartReason::NonInteractive)),
+        );
+    }
+
+    /// `--no-daemon` / `ANVIL_NO_DAEMON` is the explicit opt-out and wins
+    /// over interactivity: the ensure still runs (to reuse a live daemon
+    /// honestly) but is told not to spawn.
+    #[test]
+    fn opt_out_suppresses_spawn_even_when_interactive() {
+        use anvil_intercept::ensure::{NoStartReason, StartCapability};
+        assert_eq!(
+            daemon_capability_for_start(
+                /* opt_out = */ true, /* read_only = */ false,
+                /* interactive = */ true,
+            ),
+            Some(StartCapability::NoSpawn(NoStartReason::OptOut)),
+        );
+    }
+
+    /// The `--no-daemon` flag drives the opt-out predicate. (The
+    /// `ANVIL_NO_DAEMON` env arm is exercised end-to-end in the
+    /// integration suite to avoid racy process-global env mutation here.)
+    #[test]
+    fn no_daemon_flag_sets_opt_out() {
+        assert!(!start_daemon_opt_out(&start_args_default()));
+        let opted_out = StartArgs {
+            no_daemon: true,
+            ..start_args_default()
+        };
+        assert!(start_daemon_opt_out(&opted_out));
+    }
+
+    /// Daemon absent → started. The line reports the action and never
+    /// over-claims protection.
+    #[test]
+    fn lifecycle_line_for_started_is_honest() {
+        use anvil_intercept::ensure::EnsureOutcome;
+        let line = render_daemon_lifecycle_line(&EnsureOutcome::Started);
+        assert!(line.starts_with("  daemon: "), "got: {line}");
+        assert!(line.contains("started"), "got: {line}");
+        assert!(
+            !line.to_lowercase().contains("protect"),
+            "the lifecycle line must not claim protection: {line}",
+        );
+    }
+
+    /// Daemon live → reused; no second daemon, no protection claim.
+    #[test]
+    fn lifecycle_line_for_reused_names_the_running_daemon() {
+        use anvil_intercept::ensure::EnsureOutcome;
+        let line = render_daemon_lifecycle_line(&EnsureOutcome::Reused);
+        assert!(line.contains("reusing"), "got: {line}");
+        assert!(
+            !line.to_lowercase().contains("protect"),
+            "reuse must not claim protection: {line}",
+        );
+    }
+
+    /// Ensure failure → the repair hint is surfaced verbatim and the
+    /// scoped fallback is named so the user is not left stranded.
+    #[test]
+    fn lifecycle_line_for_failure_surfaces_recovery_hint() {
+        use anvil_intercept::ensure::EnsureOutcome;
+        let recovery = "the daemon did not become ready within 10s. See the daemon log at /run/x.";
+        let line = render_daemon_lifecycle_line(&EnsureOutcome::Failed {
+            recovery: recovery.to_owned(),
+        });
+        assert!(
+            line.contains(recovery),
+            "failure line must surface the recovery hint verbatim: {line}",
+        );
+        assert!(
+            line.contains("scoped fallback"),
+            "failure must name the preserved fallback: {line}",
+        );
+    }
+
+    /// Opt-out and platform-unsupported render distinct, honest copy —
+    /// a Windows user must not see the opt-out hint (DLIFE-002 typed
+    /// `NoStartReason` contract carried through to the surface).
+    #[test]
+    fn lifecycle_line_distinguishes_opt_out_from_platform_unsupported() {
+        use anvil_intercept::ensure::{EnsureOutcome, NoStartReason};
+        let opt_out = render_daemon_lifecycle_line(&EnsureOutcome::NoStart {
+            reason: NoStartReason::OptOut,
+        });
+        let unsupported = render_daemon_lifecycle_line(&EnsureOutcome::NoStart {
+            reason: NoStartReason::PlatformUnsupported,
+        });
+        assert!(opt_out.contains("--no-daemon"), "got: {opt_out}");
+        assert!(
+            !unsupported.contains("--no-daemon"),
+            "platform-unsupported must not blame the opt-out flag: {unsupported}",
+        );
+        assert!(unsupported.contains("platform"), "got: {unsupported}");
+        // Both preserve the scoped fallback contract.
+        assert!(opt_out.contains("scoped fallback"));
+        assert!(unsupported.contains("scoped fallback"));
+    }
+
+    /// The non-interactive fallback line names *why* it did not auto-start
+    /// (so a CI / hook user understands the deterministic behaviour) and
+    /// still preserves the scoped fallback.
+    #[test]
+    fn lifecycle_line_for_non_interactive_explains_and_preserves_fallback() {
+        use anvil_intercept::ensure::{EnsureOutcome, NoStartReason};
+        let line = render_daemon_lifecycle_line(&EnsureOutcome::NoStart {
+            reason: NoStartReason::NonInteractive,
+        });
+        assert!(line.contains("non-interactive"), "got: {line}");
+        assert!(line.contains("scoped fallback"), "got: {line}");
+        // It must not blame the opt-out flag — this is a context, not a
+        // deliberate opt-out.
+        assert!(!line.contains("--no-daemon"), "got: {line}");
     }
 
     #[test]

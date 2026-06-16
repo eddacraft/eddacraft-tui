@@ -296,6 +296,59 @@ pub(crate) fn query_daemon_status_with_timeout(
     }
 }
 
+/// DLIFE-003: the thin CLI entry point for the DLIFE-002 daemon ensure
+/// primitive. `anvil start` (DLIFE-003) and `anvil watch` (DLIFE-004)
+/// call this to bring up the per-user save-time daemon, passing the
+/// [`StartCapability`] they decided from their own flags/context. The
+/// primitive itself (probe → same-user lock → re-probe → detached spawn
+/// → bound-wait) lives in `anvil_intercept::ensure`; this wrapper only
+/// builds the platform launcher that re-execs *this* binary as
+/// `anvil intercept start --foreground` (the operator daemon surface
+/// the bail at [`run_start`] still guards for direct callers).
+///
+/// On Unix the launcher is a [`DetachedCommandLauncher`] over
+/// `current_exe()`; if `current_exe()` cannot be resolved the ensure
+/// degrades to [`EnsureOutcome::Failed`] with an actionable hint rather
+/// than spawning a daemon from an unknown path. On non-Unix the ensure
+/// primitive returns [`NoStartReason::PlatformUnsupported`] without
+/// touching a launcher (background launch follows DSV-010/011), so the
+/// wrapper forwards the deterministic platform-unsupported outcome.
+#[cfg(unix)]
+pub(crate) fn ensure_save_time_daemon(
+    capability: anvil_intercept::ensure::StartCapability,
+) -> anvil_intercept::ensure::EnsureOutcome {
+    use anvil_intercept::ensure::{DetachedCommandLauncher, EnsureOutcome, ensure_daemon};
+
+    let exe = match std::env::current_exe() {
+        Ok(exe) => exe,
+        Err(err) => {
+            return EnsureOutcome::Failed {
+                recovery: format!(
+                    "could not resolve the anvil executable to launch the daemon ({err}); \
+                     run `anvil intercept start --foreground` to start it manually"
+                ),
+            };
+        }
+    };
+    let launcher = DetachedCommandLauncher::new(
+        exe,
+        vec!["intercept".into(), "start".into(), "--foreground".into()],
+    );
+    ensure_daemon(capability, &launcher)
+}
+
+/// Non-Unix entry: background launch is not yet implemented (it follows
+/// the save-time Windows gap DSV-010/011), so the ensure primitive
+/// returns the deterministic platform-unsupported outcome. A live
+/// daemon is still *used* through the caller's own status probe — this
+/// only governs whether the CLI may *start* one.
+#[cfg(not(unix))]
+pub(crate) fn ensure_save_time_daemon(
+    _capability: anvil_intercept::ensure::StartCapability,
+) -> anvil_intercept::ensure::EnsureOutcome {
+    anvil_intercept::ensure::platform_unsupported_outcome()
+}
+
 /// Issue a `query_status` JSON-RPC request against an already-resolved
 /// daemon socket. Factored from [`query_daemon_status`] so MLP2-051b's
 /// MCP shim can reuse the same wire path against its existing
@@ -1047,10 +1100,11 @@ mod tests {
     /// not a silent no-op or a confusing panic. `anvil intercept start`
     /// is the low-level operator surface (module Purpose); backgrounded
     /// launch is reached through `anvil start` / `anvil watch` via the
-    /// DLIFE-002 ensure primitive (`anvil_intercept::ensure::ensure_daemon`;
-    /// the `start`/`watch` wiring lands in DLIFE-003/-004), so this bail
-    /// stays. A future change that wires backgrounding into this operator
-    /// command must update this test.
+    /// DLIFE-002 ensure primitive (`anvil_intercept::ensure::ensure_daemon`),
+    /// wired into `anvil start` in DLIFE-003 through
+    /// [`ensure_save_time_daemon`] (with `anvil watch` following in
+    /// DLIFE-004), so this operator bail stays. A future change that wires
+    /// backgrounding into this operator command must update this test.
     #[test]
     fn run_start_without_foreground_bails_with_actionable_message() {
         let args = StartArgs { foreground: false };
