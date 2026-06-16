@@ -180,6 +180,11 @@ pub struct SaveTimeState {
     /// DSV-045 (ADR-085): per-key full-scan coalescing + cancel coordination.
     /// Shared (cheap clone) into each spawned [`ScanContext`].
     coordinator: ScanCoordinator,
+    /// DSV-030 (ADR-069): the warm-graph snapshot directory when persistence is
+    /// enabled (`ANVIL_PERSIST_GRAPH` on + a resolvable state dir), else `None`
+    /// (default-off). `None` makes every persistence operation a no-op, so the
+    /// daemon's behaviour is byte-for-byte today's rebuild-on-restart.
+    snapshot_dir: Option<PathBuf>,
 }
 
 impl SaveTimeState {
@@ -211,7 +216,24 @@ impl SaveTimeState {
             broadcaster: None,
             telemetry: Mutex::new(TelemetryEmitter::new()),
             coordinator: ScanCoordinator::new(),
+            snapshot_dir: None,
         }
+    }
+
+    /// Enable warm-graph persistence (DSV-030 / ADR-069) by injecting the
+    /// resolved snapshot directory. `run_foreground` calls this only when
+    /// `ANVIL_PERSIST_GRAPH` is affirmative AND a state dir resolves; otherwise
+    /// the daemon stays default-off (`None`) and writes nothing.
+    #[must_use]
+    pub fn with_snapshot_dir(mut self, dir: PathBuf) -> Self {
+        self.snapshot_dir = Some(dir);
+        self
+    }
+
+    /// Whether warm-graph persistence is enabled (the snapshot dir is wired).
+    #[must_use]
+    pub fn persistence_enabled(&self) -> bool {
+        self.snapshot_dir.is_some()
     }
 
     /// Inject the kernel-backed [`SymbolParser`] (dependency-inverted from
@@ -271,7 +293,88 @@ impl SaveTimeState {
             self.parser.clone(),
             self.caps,
             self.coordinator.clone(),
+            self.snapshot_dir.clone(),
         )
+    }
+
+    /// DSV-030 (ADR-069 §3): on a cold-key GCTX first contact, restore the warm
+    /// graph from a snapshot on the **background** pool (the snapshot load is disk
+    /// I/O — ADR-063 classes it background-only, never on the save-time hot path)
+    /// so reads are served the restored (stale) graph rather than `NotReady` while
+    /// a reconcile is pending. No-op when persistence is off, the key is already
+    /// warm, or a scan is enqueued. The restored entry is a **read-only stand-in**:
+    /// the machine stays `Stale`, and the reconcile full scan is disk-authoritative
+    /// (the restored entry is dropped before the rebuild).
+    pub(crate) fn spawn_restore(&self, key: &WorktreeKey, canonical_root: &Path) {
+        #[cfg(unix)]
+        {
+            let Some(dir) = self.snapshot_dir.clone() else {
+                return;
+            };
+            if self.cache.contains(key) || self.coordinator.is_enqueued(key) {
+                return;
+            }
+            let cache = Arc::clone(&self.cache);
+            let coordinator = self.coordinator.clone();
+            let key = key.clone();
+            let root = canonical_root.to_path_buf();
+            self.scheduler.background().spawn(move || {
+                restore_snapshot_into_cache(&cache, &coordinator, &dir, &key, &root);
+            });
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = (key, canonical_root);
+        }
+    }
+
+    /// Persist every warm worktree's graph on graceful shutdown (DSV-030 /
+    /// ADR-069 §4 — "written … on graceful daemon shutdown"). No-op when
+    /// persistence is off. Best-effort per key; a failure logs and continues.
+    pub fn persist_all_on_shutdown(&self) {
+        #[cfg(unix)]
+        {
+            let Some(dir) = self.snapshot_dir.as_deref() else {
+                return;
+            };
+            let mut written = 0usize;
+            for key in self.cache.warm_keys() {
+                let built = self.cache.with_graphs(&key, |sym, dep| {
+                    anvil_graph_cache::snapshot::SnapshotPayload::from_graphs(sym, dep)
+                });
+                let Some(Ok(payload)) = built else {
+                    continue;
+                };
+                if crate::snapshot_io::write_snapshot(dir, key.as_path(), &payload).is_ok() {
+                    written += 1;
+                }
+            }
+            if written > 0 {
+                tracing::info!(
+                    target: "anvil_intercept::snapshot",
+                    count = written,
+                    "persisted warm graph snapshots on shutdown"
+                );
+            }
+        }
+    }
+
+    /// Sweep orphaned `*.tmp` files left by an interrupted write (ADR-069 §10),
+    /// run once at daemon start. No-op when persistence is off.
+    pub fn sweep_snapshot_temps_on_start(&self) {
+        #[cfg(unix)]
+        {
+            if let Some(dir) = self.snapshot_dir.as_deref() {
+                let removed = crate::snapshot_io::sweep_orphan_temps(dir);
+                if removed > 0 {
+                    tracing::info!(
+                        target: "anvil_intercept::snapshot",
+                        removed,
+                        "swept orphaned snapshot temp files on start"
+                    );
+                }
+            }
+        }
     }
 
     /// Resolve (inserting on first contact) the per-key assurance machine handle
@@ -316,6 +419,20 @@ impl SaveTimeState {
         // above (the worktree is fully unregistered); a still-running scan keeps
         // its `scan-enqueued` flag (its `EnqueuedGuard` resets it on exit).
         self.coordinator.forget(key);
+        // DSV-030 (ADR-069 §10): the last session for this worktree left — drop
+        // its on-disk snapshot too, so an unregistered worktree leaves no stale
+        // cache file behind. Best-effort; a failure is logged, never fatal.
+        #[cfg(unix)]
+        if let Some(dir) = self.snapshot_dir.as_deref()
+            && let Err(err) = crate::snapshot_io::remove_snapshot(dir, key.as_path())
+        {
+            tracing::warn!(
+                target: "anvil_intercept::snapshot",
+                workspace_root = %key.as_path().display(),
+                error = %err,
+                "failed to remove snapshot on unregister",
+            );
+        }
     }
 
     #[allow(clippy::type_complexity)]
@@ -477,6 +594,94 @@ fn emit_assurance_transition(workspace_root: &Path, transition: &AssuranceTransi
             scan_started_at = transition.scan_started_at.as_deref(),
             "workspace assurance transition",
         );
+    }
+}
+
+/// Load a snapshot for `key` and restore it into `cache` for reads (DSV-030 /
+/// ADR-069 §3). Re-checks the cold/not-enqueued guard (time may have passed since
+/// the caller checked) so a restore never overwrites a concurrent scan's
+/// authoritative graph. Marks the key restored so the next reconcile scan drops
+/// the read-only entry before its disk-authoritative rebuild. Every load failure
+/// is logged per §10 severity and is a no-op (cold rebuild).
+#[cfg(unix)]
+fn restore_snapshot_into_cache(
+    cache: &KernelGraphCache,
+    coordinator: &ScanCoordinator,
+    dir: &Path,
+    key: &WorktreeKey,
+    canonical_root: &Path,
+) {
+    if cache.contains(key) || coordinator.is_enqueued(key) {
+        return;
+    }
+    let payload = match crate::snapshot_io::load_snapshot(dir, canonical_root) {
+        Ok(payload) => payload,
+        // No snapshot is the normal first-run case; a rejected snapshot is logged
+        // per ADR-069 §10 severity. Either way ⇒ cold rebuild, no-op here.
+        Err(err) => {
+            log_snapshot_read_error(canonical_root, &err);
+            return;
+        }
+    };
+    // A decoded-but-internally-inconsistent payload (duplicate id / dangling
+    // edge) ⇒ cold rebuild, never a panic.
+    let Ok((sym, dep)) = payload.into_graphs() else {
+        tracing::warn!(
+            target: "anvil_intercept::snapshot",
+            workspace_root = %canonical_root.display(),
+            "snapshot decoded but rebuild was inconsistent; cold rebuild",
+        );
+        return;
+    };
+    cache.restore(key, sym, dep);
+    coordinator.mark_restored(key);
+    tracing::info!(
+        target: "anvil_intercept::snapshot",
+        workspace_root = %canonical_root.display(),
+        "warm-start: restored graph from snapshot (stale until reconcile)",
+    );
+}
+
+/// Log a snapshot read failure at the ADR-069 §10 severity: a missing snapshot
+/// is the expected first-run case (DEBUG); a version/schema mismatch is an
+/// expected one-time event after a schema bump (INFO); a corrupt/oversized/torn
+/// body or a disk error is worth investigating (WARN). Every case is a cold
+/// rebuild — the daemon never refuses to start. No path/identity bytes from the
+/// snapshot are echoed.
+#[cfg(unix)]
+fn log_snapshot_read_error(workspace_root: &Path, err: &crate::snapshot_io::SnapshotReadError) {
+    use crate::snapshot_io::SnapshotReadError;
+    use anvil_graph_cache::snapshot::SnapshotLoadError;
+    let workspace_root = workspace_root.display();
+    match err {
+        SnapshotReadError::NotFound => tracing::debug!(
+            target: "anvil_intercept::snapshot",
+            %workspace_root,
+            "no warm-start snapshot (cold rebuild)",
+        ),
+        SnapshotReadError::Rejected(SnapshotLoadError::VersionMismatch {
+            found_format,
+            expected_format,
+            found_backing,
+            expected_backing,
+        }) => tracing::info!(
+            target: "anvil_intercept::snapshot",
+            %workspace_root,
+            found_format, expected_format, found_backing, expected_backing,
+            "snapshot version/schema mismatch; cold rebuild (expected after a schema bump)",
+        ),
+        SnapshotReadError::Rejected(reason) => tracing::warn!(
+            target: "anvil_intercept::snapshot",
+            %workspace_root,
+            reason = ?reason,
+            "snapshot rejected by the integrity gate; cold rebuild",
+        ),
+        SnapshotReadError::Io(source) => tracing::warn!(
+            target: "anvil_intercept::snapshot",
+            %workspace_root,
+            error = %source,
+            "snapshot read failed; cold rebuild",
+        ),
     }
 }
 
@@ -727,6 +932,13 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let canonical = canonical_root(&root)?;
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
+
+        // DSV-030 (ADR-069 §3): a fresh GCTX session on a cold key kicks off a
+        // background warm-start restore (off the hot path); a subsequent query is
+        // then served the restored (stale) graph rather than `NotReady`. GCTX
+        // does not trigger a reconcile scan, so this is the surface that benefits
+        // most from persistence. No-op when persistence is off / already warm.
+        state.spawn_restore(&key, key.as_path());
 
         // CE-7: the assurance snapshot always rides along, whether or not the
         // graph is readable.
@@ -2239,5 +2451,102 @@ mod tests {
             transition_between(&stale_cross, &stale_cross, None).is_none(),
             "an unchanged verdict is not a transition",
         );
+    }
+
+    // ---- DSV-030: warm-start persistence (ADR-069) ----
+
+    /// The item's headline validation: a warm graph persisted on shutdown is
+    /// restored into a *fresh* daemon's cache on warm-start, and the restored
+    /// worktree comes up **`Stale`** (the verdict is re-derived, never carried
+    /// across the restart).
+    #[cfg(unix)]
+    #[test]
+    fn warm_start_round_trips_indexes_and_stays_stale() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = std::path::PathBuf::from("/ws-restart");
+        let key = WorktreeKey::from_canonical(root.clone());
+
+        // Daemon 1: warm a key, then persist on shutdown.
+        let state1 = state().with_snapshot_dir(dir.path().to_path_buf());
+        state1.cache.apply_delta(
+            &key,
+            ChangeKind::Create,
+            file_symbols("src/a.ts", &["alpha"], 0),
+        );
+        assert!(state1.cache.contains(&key));
+        state1.persist_all_on_shutdown();
+        assert!(
+            std::fs::read_dir(dir.path()).unwrap().next().is_some(),
+            "a snapshot file must be written on shutdown",
+        );
+
+        // Daemon 2 (fresh cache, same snapshot dir): cold until restore.
+        let state2 = state().with_snapshot_dir(dir.path().to_path_buf());
+        assert!(!state2.cache.contains(&key), "fresh daemon starts cold");
+
+        restore_snapshot_into_cache(
+            &state2.cache,
+            state2.scan_coordinator(),
+            dir.path(),
+            &key,
+            &root,
+        );
+        assert!(
+            state2.cache.contains(&key),
+            "warm-start restored the indexes"
+        );
+
+        // Verdict re-derived: a restored worktree is Stale, never carried Clean.
+        let machine = state2.machine_handle(&key);
+        assert_eq!(
+            machine.lock().unwrap().state(),
+            AssuranceState::Stale,
+            "a restored worktree must come up Stale (verdict re-derived)",
+        );
+        // And it is flagged for the disk-authoritative reconcile.
+        assert!(state2.scan_coordinator().take_restored(&key));
+    }
+
+    /// Default-off (ADR-069 §7): with no snapshot dir wired, the daemon writes
+    /// **nothing** — no file, no dir creation — across a warm + shutdown cycle.
+    #[cfg(unix)]
+    #[test]
+    fn default_off_persists_nothing() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        // `state()` has no snapshot dir → persistence off.
+        let state = state();
+        assert!(!state.persistence_enabled());
+
+        let key = WorktreeKey::from_canonical(std::path::PathBuf::from("/ws-off"));
+        state.cache.apply_delta(
+            &key,
+            ChangeKind::Create,
+            file_symbols("src/a.ts", &["a"], 0),
+        );
+        state.persist_all_on_shutdown();
+
+        assert_eq!(
+            std::fs::read_dir(dir.path()).unwrap().count(),
+            0,
+            "persistence-off must write nothing under the state dir",
+        );
+    }
+
+    /// A warm-start with no snapshot on disk is a quiet no-op (the normal
+    /// first-run / fresh-worktree case) — the key stays cold, no panic.
+    #[cfg(unix)]
+    #[test]
+    fn restore_without_a_snapshot_is_a_noop() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let state = state().with_snapshot_dir(dir.path().to_path_buf());
+        let key = WorktreeKey::from_canonical(std::path::PathBuf::from("/ws-none"));
+        restore_snapshot_into_cache(
+            &state.cache,
+            state.scan_coordinator(),
+            dir.path(),
+            &key,
+            std::path::Path::new("/ws-none"),
+        );
+        assert!(!state.cache.contains(&key), "no snapshot ⇒ stays cold");
     }
 }

@@ -66,6 +66,7 @@ pub mod path_safety;
 pub mod rate_window;
 pub mod registry;
 pub mod rule_cache;
+pub mod snapshot_io;
 // DSV-010b / ADR-070 Stage 2: the save-time verbs are served on both Unix and
 // Windows. `save_time` / `workspace_admission` code against the neutral
 // [`workspace_anchor::WorkspaceAnchor`] (Unix dirfd / the Windows ADR-068 guard)
@@ -1145,6 +1146,30 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
                 state = state.with_parser(parser);
             }
             state = state.with_broadcaster(Arc::clone(&daemon_state.broadcaster));
+            // DSV-030 (ADR-069 §7): warm-graph persistence, **default-off +
+            // fail-closed**. Only an affirmative `ANVIL_PERSIST_GRAPH` with a
+            // resolvable state dir wires the snapshot directory; unset/garbage/no
+            // home ⇒ no persistence (byte-for-byte today's rebuild-on-restart).
+            // Unix-only for now (the Windows daemon's persistence is a follow-up,
+            // mirroring the DSV-010/011 Windows-parity split).
+            #[cfg(unix)]
+            if anvil_graph_cache::snapshot::persist_graph_enabled(
+                env::var("ANVIL_PERSIST_GRAPH").ok().as_deref(),
+            ) {
+                if let Some(dir) = snapshot_io::graph_cache_dir() {
+                    tracing::info!(
+                        target: "anvil_intercept::snapshot",
+                        dir = %dir.display(),
+                        "warm-graph persistence enabled (ANVIL_PERSIST_GRAPH)",
+                    );
+                    state = state.with_snapshot_dir(dir);
+                } else {
+                    tracing::warn!(
+                        target: "anvil_intercept::snapshot",
+                        "ANVIL_PERSIST_GRAPH set but no state dir resolved; persistence off",
+                    );
+                }
+            }
             // Without a parser, verdicts stay `Partial` — warn so the degraded
             // mode is observable, not a silent feature-off.
             if !state.has_parser() {
@@ -1156,6 +1181,10 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
             }
             Arc::new(state)
         };
+
+        // DSV-030 (ADR-069 §10): sweep orphaned `*.tmp` files left by an
+        // interrupted snapshot write on a prior run. No-op when persistence off.
+        save_time_state.sweep_snapshot_temps_on_start();
 
         // DSV: reclaim a worktree's warm state (graph cache + assurance
         // machine) when its last session leaves the registry. The hook is
@@ -1268,6 +1297,13 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
                 }
             }
         }
+
+        // DSV-030 (ADR-069 §4): graceful shutdown (the `token.cancelled()` path
+        // above) — persist every warm worktree's graph so the next start re-warms
+        // from disk. No-op when persistence is off. Not reached on the
+        // listener-failure path (which `return`s inside the loop); a crash skips
+        // it too, so a crash-then-restart still pays one cold rebuild per key.
+        save_time_state.persist_all_on_shutdown();
 
         if let Ok(result) =
             tokio::time::timeout(Duration::from_secs(1), listener_handle.join()).await

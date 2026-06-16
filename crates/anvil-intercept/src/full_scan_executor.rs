@@ -41,7 +41,7 @@
 //!   the continuation from the processed offset.
 #![cfg(any(unix, windows))]
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::panic::AssertUnwindSafe;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -105,6 +105,12 @@ struct CoordinatorInner {
     /// Per-key cancel handle for the in-flight scan, so an interactive
     /// `validate_paths` can preempt it (Decision 9).
     active: Mutex<HashMap<WorktreeKey, ScanCancel>>,
+    /// DSV-030: keys whose warm pair was restored from a snapshot and not yet
+    /// reconciled. The first full scan for such a key invalidates the restored
+    /// (read-only) entry before rebuilding, so the rebuild is **disk-authoritative**
+    /// — a file deleted while the daemon was down never survives into a `Clean`
+    /// graph (the snapshot served only stale reads in the meantime).
+    restored: Mutex<HashSet<WorktreeKey>>,
 }
 
 impl ScanCoordinator {
@@ -171,11 +177,26 @@ impl ScanCoordinator {
     /// handle is harmless and re-created per scan).
     pub fn forget(&self, key: &WorktreeKey) {
         lock(&self.inner.active).remove(key);
+        lock(&self.inner.restored).remove(key);
         let mut enqueued = lock(&self.inner.enqueued);
         if enqueued.get(key).is_some_and(|f| f.load(Ordering::Acquire)) {
             return;
         }
         enqueued.remove(key);
+    }
+
+    /// Mark `key` as restored-from-snapshot and pending its disk-authoritative
+    /// reconcile (DSV-030). The next full scan for the key invalidates the
+    /// restored read-only entry before rebuilding.
+    pub fn mark_restored(&self, key: &WorktreeKey) {
+        lock(&self.inner.restored).insert(key.clone());
+    }
+
+    /// Take (clear + report) whether `key` is a restored entry pending reconcile.
+    /// `true` ⇒ the caller invalidates the restored entry before rebuilding.
+    #[must_use]
+    pub fn take_restored(&self, key: &WorktreeKey) -> bool {
+        lock(&self.inner.restored).remove(key)
     }
 }
 
@@ -208,6 +229,10 @@ pub struct ScanContext {
     parser: Option<Arc<dyn SymbolParser>>,
     caps: DosCaps,
     coordinator: ScanCoordinator,
+    /// DSV-030 (ADR-069 §4): the warm-graph snapshot directory when persistence
+    /// is enabled, else `None` (default-off — no snapshot written). The executor
+    /// writes a fresh snapshot here after a `Clean`/`Bounded` scan completion.
+    snapshot_dir: Option<PathBuf>,
 }
 
 impl ScanContext {
@@ -218,12 +243,14 @@ impl ScanContext {
         parser: Option<Arc<dyn SymbolParser>>,
         caps: DosCaps,
         coordinator: ScanCoordinator,
+        snapshot_dir: Option<PathBuf>,
     ) -> Self {
         Self {
             cache,
             parser,
             caps,
             coordinator,
+            snapshot_dir,
         }
     }
 
@@ -488,6 +515,19 @@ fn run_scan_loop(
         }
     };
 
+    // DSV-030: if this key's warm pair was restored from a snapshot, drop it
+    // before rebuilding so the scan is disk-authoritative (a file deleted while
+    // the daemon was down does not survive into the rebuilt graph). The restored
+    // entry served only stale reads until now.
+    if ctx.coordinator.take_restored(key) {
+        ctx.cache.invalidate(key);
+        tracing::debug!(
+            target: "anvil_intercept::full_scan",
+            workspace_root = %root.display(),
+            "reconcile: dropped restored snapshot entry before disk-authoritative rebuild",
+        );
+    }
+
     let mut walk = walk_gitignored(root, ctx.caps.max_walk_depth, ctx.caps.max_walk_files);
     let mut dirty_retries: u32 = 0;
 
@@ -532,7 +572,13 @@ fn run_scan_loop(
         });
 
         match completion {
-            ScanCompletion::Clean | ScanCompletion::Bounded => return,
+            ScanCompletion::Clean | ScanCompletion::Bounded => {
+                // DSV-030 (ADR-069 §4): persist the freshly-built warm graph
+                // after a successful scan (never per-save). Best-effort — a write
+                // failure logs and degrades, never wedges the scan.
+                persist_after_scan(ctx, key, root);
+                return;
+            }
             ScanCompletion::Dirtied => {
                 dirty_retries += 1;
                 if dirty_retries > MAX_DIRTY_RETRIES {
@@ -557,6 +603,52 @@ fn run_scan_loop(
                 });
                 walk = walk_gitignored(root, ctx.caps.max_walk_depth, ctx.caps.max_walk_files);
             }
+        }
+    }
+}
+
+/// Persist `key`'s freshly-built warm graph after a successful scan (DSV-030 /
+/// ADR-069 §4). No-op when persistence is off (`snapshot_dir` is `None`) or on a
+/// non-Unix daemon. Best-effort: a non-relative-path build error or a disk write
+/// failure logs and degrades to no-persistence — the scan's verdict still stands.
+#[allow(unused_variables)]
+fn persist_after_scan(ctx: &ScanContext, key: &WorktreeKey, root: &Path) {
+    let Some(dir) = ctx.snapshot_dir.as_deref() else {
+        return;
+    };
+    #[cfg(unix)]
+    {
+        // Project the sealed payload under the cache lock; write outside it.
+        let built = ctx.cache.with_graphs(key, |sym, dep| {
+            anvil_graph_cache::snapshot::SnapshotPayload::from_graphs(sym, dep)
+        });
+        let payload = match built {
+            Some(Ok(payload)) => payload,
+            Some(Err(_)) => {
+                // A non-workspace-relative path in the resident graph — surfaced,
+                // never silently persisted (ADR-069 §8). No path echoed.
+                tracing::warn!(
+                    target: "anvil_intercept::full_scan",
+                    workspace_root = %root.display(),
+                    "snapshot build rejected a non-relative path; skipped persisting",
+                );
+                return;
+            }
+            // The entry was evicted between completion and here — nothing to write.
+            None => return,
+        };
+        match crate::snapshot_io::write_snapshot(dir, root, &payload) {
+            Ok(()) => tracing::debug!(
+                target: "anvil_intercept::full_scan",
+                workspace_root = %root.display(),
+                "warm graph snapshot written",
+            ),
+            Err(err) => tracing::warn!(
+                target: "anvil_intercept::full_scan",
+                workspace_root = %root.display(),
+                error = %err,
+                "warm graph snapshot write failed; continuing without persistence",
+            ),
         }
     }
 }
@@ -733,6 +825,7 @@ mod tests {
             parser,
             caps,
             ScanCoordinator::new(),
+            None,
         )
     }
 
@@ -1151,6 +1244,7 @@ mod tests {
             Some(parser),
             DosCaps::default(),
             coordinator,
+            None,
         );
         let machine = machine();
 

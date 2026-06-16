@@ -410,6 +410,46 @@ impl KernelGraphCache {
         }
     }
 
+    /// Insert a pre-built warm pair for `key` from a restored snapshot (DSV-030
+    /// warm-start, ADR-069 §3). Overwrites any existing entry and evicts the LRU
+    /// victim first if the cache is at capacity.
+    ///
+    /// The import/re-export accumulators are seeded **empty**: the snapshot
+    /// carries the resolved `(SymbolGraph, DependencyGraph)` for reads, not the
+    /// per-file import edge lists `apply_delta` needs for incremental
+    /// re-resolution. A restored entry is therefore a **read-only stand-in**: the
+    /// reconcile full scan is **disk-authoritative** and invalidates this entry
+    /// before rebuilding (so a file deleted while the daemon was down never
+    /// survives into a `Clean` graph). It MUST NOT be promoted to `Clean` and MUST
+    /// NOT have `apply_delta` relied on for cross-file resolution until that
+    /// rebuild — the assurance machine stays `Stale` until the scan completes.
+    pub fn restore(&self, key: &WorktreeKey, sym: SymbolGraph, dep: DependencyGraph) {
+        let mut guard = self.lock();
+        let cold = !guard.map.contains_key(key);
+        if cold && guard.map.len() >= self.capacity {
+            evict_lru(&mut guard);
+        }
+        let recency = guard.next_recency;
+        guard.next_recency = recency.wrapping_add(1);
+        guard.map.insert(
+            key.clone(),
+            Entry {
+                sym,
+                dep,
+                all_imports: Vec::new(),
+                all_reexports: Vec::new(),
+                last_used: recency,
+            },
+        );
+    }
+
+    /// The keys of every currently-warm worktree (DSV-030: snapshot every warm
+    /// pair on graceful shutdown). Order is unspecified.
+    #[must_use]
+    pub fn warm_keys(&self) -> Vec<WorktreeKey> {
+        self.lock().map.keys().cloned().collect()
+    }
+
     /// Drop the warm pair for `key` and bump its generation. Returns `true`
     /// when an entry was present. Wired to the registry unregister hook so a
     /// register/unregister cycle leaves no residue.
