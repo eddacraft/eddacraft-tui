@@ -182,10 +182,14 @@ jobs:
       - name: cargo test -p eddacraft-tui --no-default-features
         run: cargo test -p eddacraft-tui --no-default-features
 
-      - name: cargo doc --no-deps -p eddacraft-tui
+      # CIB-030: --all-features matches `[package.metadata.docs.rs] all-features
+      # = true`, so this gate validates the same surface docs.rs builds —
+      # feature-gated rustdoc links/lints (e.g. the `image` feature) are no
+      # longer invisible to it.
+      - name: cargo doc --no-deps -p eddacraft-tui --all-features
         env:
           RUSTDOCFLAGS: '-D warnings'
-        run: cargo doc --no-deps -p eddacraft-tui
+        run: cargo doc --no-deps -p eddacraft-tui --all-features
 
       - name: Install cargo-deny
         uses: taiki-e/install-action@15449e3094499af05d8d964a1c884208e4b8b595 # v2.81.11

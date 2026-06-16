@@ -583,7 +583,7 @@ archive.
 
 ### CIB-030: Harden `eddacraft-tui` publish doc gate parity (PR-side `-D warnings`, all-features match docs.rs)
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Correction 2026-05-29:** A readiness review found the original point 3's
   premise did not hold on `main`. The `Create GitHub Release on anvil-001`
   step in `publish-eddacraft-tui.yml` is ALREADY the final state-mutating

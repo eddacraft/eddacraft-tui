@@ -285,6 +285,16 @@ jobs:
       - name: Run eddacraft-tui all-features tests
         run: cargo test -p eddacraft-tui --all-features
 
+      # CIB-030: PR-side rustdoc gate mirroring the publish-eddacraft-tui.yml
+      # doc step (`--all-features` + `RUSTDOCFLAGS=-D warnings`), so a broken /
+      # private / redundant intra-doc link blocks at PR review instead of failing
+      # the live publish run (as two broken links did on run 26549955604,
+      # 2026-05-28). Runs on PR + push like the all-features gates above.
+      - name: Run eddacraft-tui all-features rustdoc gate
+        env:
+          RUSTDOCFLAGS: '-D warnings'
+        run: cargo doc --no-deps -p eddacraft-tui --all-features
+
       # Release-build gate. The default `cargo check --workspace`
       # path uses the dev profile; release builds can fail even when
       # dev passes if a `#[cfg(debug_assertions)]`-gated item is
