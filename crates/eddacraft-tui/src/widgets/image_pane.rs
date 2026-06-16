@@ -24,7 +24,7 @@
 //! let dyn_img = image::open("logo.png")?;
 //! let protocol = picker.new_protocol(
 //!     dyn_img,
-//!     ratatui::layout::Rect::new(0, 0, 40, 20),
+//!     ratatui::layout::Rect::new(0, 0, 40, 20).into(),
 //!     ratatui_image::Resize::Fit(None),
 //! )?;
 //! let _ = ImagePane::new(&theme, &protocol).title("Logo");
@@ -128,7 +128,7 @@ mod tests {
         let dynamic = image::DynamicImage::ImageRgb8(img);
         let picker = Picker::halfblocks();
         picker
-            .new_protocol(dynamic, area, Resize::Fit(None))
+            .new_protocol(dynamic, area.into(), Resize::Fit(None))
             .expect("protocol")
     }
 
