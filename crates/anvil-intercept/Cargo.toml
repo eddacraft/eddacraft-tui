@@ -87,7 +87,7 @@ workspace-hack.workspace = true
 # `forbid(unsafe_code)` lint stays honest. Pinned to 0.30 per INTD-002
 # guidance.
 [target.'cfg(unix)'.dependencies]
-nix = { version = "0.30", default-features = false, features = [
+nix = { version = "0.31", default-features = false, features = [
   "fs",
   "hostname",
   "process",

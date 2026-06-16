@@ -20,7 +20,7 @@ workspace-hack.workspace = true
 # benched process spawns (e.g. watch's per-save `anvil check`) don't outlive
 # the bench and leak (inotify handles, CPU). Safe `killpg` wrapper.
 [target.'cfg(unix)'.dependencies]
-nix = { version = "0.30", default-features = false, features = ["signal"] }
+nix = { version = "0.31", default-features = false, features = ["signal"] }
 
 [dev-dependencies]
 rayon = { workspace = true }

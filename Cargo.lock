@@ -160,7 +160,7 @@ dependencies = [
  "eddacraft-anvil-kernel",
  "eddacraft-anvil-kernel-types",
  "ignore",
- "nix 0.30.1",
+ "nix 0.31.3",
  "petgraph",
  "rand 0.10.1",
  "rayon",
@@ -1278,7 +1278,7 @@ name = "eddacraft-anvil-attribution"
 version = "0.8.1-beta"
 dependencies = [
  "eddacraft-anvil-intercept-proto",
- "nix 0.30.1",
+ "nix 0.31.3",
  "serde_json",
  "thiserror 2.0.18",
  "workspace-hack",
@@ -1451,7 +1451,7 @@ dependencies = [
  "eddacraft-anvil-rules",
  "getrandom 0.3.4",
  "ignore",
- "nix 0.30.1",
+ "nix 0.31.3",
  "rayon",
  "serde",
  "serde_json",
@@ -1637,7 +1637,7 @@ dependencies = [
  "eddacraft-anvil-intercept",
  "eddacraft-anvil-intercept-proto",
  "eddacraft-anvil-intercept-win32",
- "nix 0.30.1",
+ "nix 0.31.3",
  "serde",
  "serde_json",
  "signal-hook 0.4.4",
@@ -3164,7 +3164,6 @@ dependencies = [
  "cfg-if",
  "cfg_aliases",
  "libc",
- "memoffset",
 ]
 
 [[package]]
@@ -3177,6 +3176,7 @@ dependencies = [
  "cfg-if",
  "cfg_aliases",
  "libc",
+ "memoffset",
 ]
 
 [[package]]
@@ -6277,7 +6277,7 @@ dependencies = [
  "memchr",
  "miniz_oxide",
  "mio",
- "nix 0.30.1",
+ "nix 0.31.3",
  "num-traits",
  "once_cell",
  "proc-macro2",
