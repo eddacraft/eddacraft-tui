@@ -25,14 +25,23 @@ use crate::symbol_graph::SymbolGraph;
 /// GCTX-011/013 reverse-impact bound.
 pub const MAX_CALLERS_WALK: usize = 10_000;
 
-/// One caller of the queried symbol: its identity and the traversal distance
-/// (hops) from the target.
+/// One caller of the queried symbol: its identity, the traversal distance
+/// (hops) from the target, and whether the edge reaching it is an overload
+/// fan-out (GCALL-007 CALL-1).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CallerResult {
     /// The calling symbol (identity-only).
     pub caller: SymbolIdentity,
     /// Distance in `Calls`-edge hops from the queried target (1 = direct caller).
     pub distance: u32,
+    /// True when the edge this caller was reached through is an **overload
+    /// fan-out** — the caller has `Calls` edges to two or more symbols sharing
+    /// the called symbol's `(file, kind, name)`, so the static resolver could not
+    /// pick one overload and attached the call to all (ADR-086 §1). A consumer
+    /// must not treat a `heuristic` caller as an exact call (GCALL-007 CALL-1).
+    /// Conservative: a caller that genuinely calls two distinct overloads is also
+    /// flagged — the marker never *under*-reports fan-out, the safe direction.
+    pub heuristic: bool,
 }
 
 /// The bounded result of a caller traversal.
@@ -78,23 +87,26 @@ pub fn callers_of(graph: &SymbolGraph, target: &SymbolIdentity, depth: u32) -> C
     let mut frontier: Vec<u64> = vec![target_id];
 
     'walk: for hop in 1..=depth {
-        // Resolve each frontier node's incoming callers to (identity, id), then
-        // expand in identity order so truncation keeps a deterministic prefix.
-        let mut next_ids: Vec<(SymbolIdentity, u64)> = Vec::new();
+        // Resolve each frontier node's incoming callers to (identity, id,
+        // heuristic), then expand in identity order so truncation keeps a
+        // deterministic prefix. `heuristic` records whether the edge reaching this
+        // caller is an overload fan-out (CALL-1).
+        let mut next_ids: Vec<(SymbolIdentity, u64, bool)> = Vec::new();
         for &current in &frontier {
             for edge in graph.incoming_edges(current) {
                 if edge.edge_type != EdgeType::Calls || seen.contains(&edge.from) {
                     continue;
                 }
                 if let Some(identity) = identity_of(graph, edge.from) {
-                    next_ids.push((identity, edge.from));
+                    let heuristic = is_fan_out_call(graph, edge.from, current);
+                    next_ids.push((identity, edge.from, heuristic));
                 }
             }
         }
         next_ids.sort_by(|a, b| a.0.cmp(&b.0));
 
         let mut next_frontier: Vec<u64> = Vec::new();
-        for (identity, id) in next_ids {
+        for (identity, id, heuristic) in next_ids {
             // Guard again: two frontier nodes can share a caller within one hop.
             if !seen.insert(id) {
                 continue;
@@ -102,6 +114,7 @@ pub fn callers_of(graph: &SymbolGraph, target: &SymbolIdentity, depth: u32) -> C
             callers.push(CallerResult {
                 caller: identity,
                 distance: hop,
+                heuristic,
             });
             next_frontier.push(id);
             if callers.len() >= MAX_CALLERS_WALK {
@@ -141,6 +154,29 @@ fn identity_of(graph: &SymbolGraph, id: u64) -> Option<SymbolIdentity> {
         .zip(identities)
         .find(|(node, _)| node.id == id)
         .map(|(_, identity)| identity)
+}
+
+/// Whether `caller`'s `Calls` edge to `callee` is an **overload fan-out** — i.e.
+/// `caller` has two or more `Calls` edges to symbols sharing `callee`'s
+/// `(file, kind, name)` (GCALL-007 CALL-1). The resident edge carries no
+/// provenance, so this is a conservative read-time signal: a caller that
+/// genuinely calls two distinct overloads is also flagged, but a real fan-out is
+/// never missed (the safe direction for an honesty marker).
+fn is_fan_out_call(graph: &SymbolGraph, from_id: u64, to_id: u64) -> bool {
+    let Some(called) = graph.get_symbol(to_id) else {
+        return false;
+    };
+    let siblings = graph
+        .outgoing_edges(from_id)
+        .into_iter()
+        .filter(|edge| edge.edge_type == EdgeType::Calls)
+        .filter(|edge| {
+            graph.get_symbol(edge.to).is_some_and(|n| {
+                n.file == called.file && n.kind == called.kind && n.name == called.name
+            })
+        })
+        .count();
+    siblings > 1
 }
 
 #[cfg(test)]
@@ -242,6 +278,76 @@ mod tests {
         assert_eq!(names, ["b", "c"]);
         assert!(report.callers.iter().all(|c| c.distance == 1));
         assert!(!report.truncated);
+        // Unambiguous direct calls are not heuristic.
+        assert!(report.callers.iter().all(|c| !c.heuristic));
+    }
+
+    #[test]
+    fn fan_out_caller_is_marked_heuristic() {
+        // `caller` calls `t`, which fans out to two overloads (t#0, t#1). Each
+        // overload's caller result is flagged heuristic; a non-overloaded callee
+        // (`u`, one definition) called by the same caller is not.
+        let mut g = SymbolGraph::new();
+        let file = "o.ts";
+        update_file(
+            &mut g,
+            FileSymbols {
+                file: file.to_string(),
+                symbols: vec![
+                    func(0, "t", file),
+                    func(1, "t", file),
+                    func(2, "u", file),
+                    func(3, "caller", file),
+                ],
+                imports: Vec::new(),
+                reexports: Vec::new(),
+                calls: vec![
+                    CallSite {
+                        from: caller_ref("caller"),
+                        callee: CalleeRef {
+                            name: "t".into(),
+                            via_import: None,
+                        },
+                        line: 1,
+                    },
+                    CallSite {
+                        from: caller_ref("caller"),
+                        callee: CalleeRef {
+                            name: "u".into(),
+                            via_import: None,
+                        },
+                        line: 2,
+                    },
+                ],
+            },
+        );
+        // callers_of(t#0): the caller is heuristic (fan-out to t#0 + t#1).
+        let t0 = SymbolIdentity {
+            file: file.into(),
+            kind: SymbolKind::Function,
+            name: "t".into(),
+            ordinal: 0,
+        };
+        let t_report = callers_of(&g, &t0, 1);
+        assert_eq!(t_report.callers.len(), 1);
+        assert!(
+            t_report.callers[0].heuristic,
+            "a fan-out caller must be flagged heuristic"
+        );
+
+        // callers_of(u): the same caller, but `u` has one definition → not fan-out.
+        let u = SymbolIdentity {
+            file: file.into(),
+            kind: SymbolKind::Function,
+            name: "u".into(),
+            ordinal: 0,
+        };
+        let u_report = callers_of(&g, &u, 1);
+        assert_eq!(u_report.callers.len(), 1);
+        assert!(
+            !u_report.callers[0].heuristic,
+            "an unambiguous callee's caller is not heuristic"
+        );
     }
 
     #[test]

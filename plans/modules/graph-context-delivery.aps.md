@@ -538,20 +538,20 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-014: `anvil_find_callers` symbol caller traversal
 
-- **Status:** Blocked — the warm graph carries **no symbol-level call edges**.
-  The `EdgeType::Calls` / `References` variants exist in `anvil-kernel-types`, but
-  the kernel symbol extractor never emits them and `FileSymbols` (the `apply_delta`
-  feed) carries only `symbols` / `imports` / `reexports`, so a true call graph
-  cannot be projected today. Split out of GCTX-011 (2026-06-17) so the ready
-  `anvil_find_dependents` half ships independently. The call-graph substrate is
+- **Status:** Ready — the GCALL substrate now provides symbol-level call edges
+  and a bounded `callers_of` read API with the CALL-1 `heuristic` marker; GCALL-007
+  approved the egress posture. The remaining work is the MCP/egress projection
+  itself. Split out of GCTX-011 (2026-06-17) so the ready
+  `anvil_find_dependents` half shipped independently. The call-graph substrate is
   now owned by the **[symbol-call-graph (GCALL)](symbol-call-graph.aps.md)**
   module (filed 2026-06-17). **GCALL-003** (resident call edges + `callers_of`
   read API) Merged 2026-06-17 via #2708; **GCALL-007** (caller-egress privacy
   review) APPROVE-WITH-CONDITIONS 2026-06-17 ([verdict](../reviews/2026-06-17-gcall-caller-egress-privacy-review-verdict.md);
-  CALL-1..CALL-5 folded below). This item flips to Ready once the one remaining
-  **CALL-1 substrate prerequisite** lands — `heuristic` / `partial` honesty
-  markers on the GCALL-003 `CallersReport` (a GCALL-003 follow-up; the egress
-  projector cannot synthesise markers the read API discards).
+  CALL-1..CALL-5 folded below). The **CALL-1 substrate prerequisite** is met:
+  `callers_of` now carries the per-caller `heuristic` (overload fan-out) marker
+  (GCALL-003 follow-up); the report-level `partial` (unresolved callers) is
+  computed in this item from the daemon `all_calls` accumulator. **Ready** — all
+  blockers cleared.
 - **Intent:** Let assistants find the call sites of a symbol — who calls this
   function — for precise blast-radius reasoning.
 - **Expected Outcome:** `anvil_find_callers` returns bounded, depth-limited,
