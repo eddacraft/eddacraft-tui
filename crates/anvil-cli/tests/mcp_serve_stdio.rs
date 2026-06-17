@@ -212,7 +212,7 @@ fn mcp_serve_stdio_tools_list_returns_registered_tools() {
     let tools = parsed["result"]["tools"]
         .as_array()
         .expect("tools/list result must include a tools array");
-    assert_eq!(tools.len(), 10);
+    assert_eq!(tools.len(), 11);
     let validate_write = tools
         .iter()
         .find(|tool| tool["name"] == "anvil_validate_write")
@@ -234,6 +234,17 @@ fn mcp_serve_stdio_tools_list_returns_registered_tools() {
         .expect("find_dependents inputSchema.required is an array");
     assert!(find_dependents_required.contains(&json!("workspaceRoot")));
     assert!(find_dependents_required.contains(&json!("file")));
+    let impact_of_change = tools
+        .iter()
+        .find(|tool| tool["name"] == "anvil_impact_of_change")
+        .expect("tools/list includes anvil_impact_of_change");
+    assert_eq!(impact_of_change["inputSchema"]["type"], "object");
+    assert_eq!(impact_of_change["annotations"]["readOnlyHint"], true);
+    let impact_required = impact_of_change["inputSchema"]["required"]
+        .as_array()
+        .expect("impact_of_change inputSchema.required is an array");
+    assert!(impact_required.contains(&json!("workspaceRoot")));
+    assert!(impact_required.contains(&json!("changedFiles")));
     let apply_patch = tools
         .iter()
         .find(|tool| tool["name"] == "anvil_apply_patch")
