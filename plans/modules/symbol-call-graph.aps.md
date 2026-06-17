@@ -2,7 +2,7 @@
 
 | ID    | Owner | Status   | Progress |
 | ----- | ----- | -------- | -------- |
-| GCALL | —     | Proposed | 0/7      |
+| GCALL | —     | In Progress | 0/7   |
 
 **Last reviewed:** 2026-06-17 (created from the GCTX-014 `anvil_find_callers`
 block. The warm graph carries **no symbol-level call edges**: the
@@ -12,8 +12,12 @@ feed) carries only `symbols` / `imports` / `reexports`, so a true call graph
 cannot be projected today. This module owns the **producer-side** substrate —
 call-site extraction + resident call edges + a caller-traversal read API — that
 GCTX consumes. It is **not** a GCTX item: GCTX projects egress DTOs over a graph
-the daemon already holds, mirroring how GCTX consumes GV2. Module stays
-**Proposed** until the gating design/ADR (GCALL-001) lands.)
+the daemon already holds, mirroring how GCTX consumes GV2. Module **In Progress**:
+GCALL-001 design authored as
+[ADR-086](../decisions/086-symbol-call-graph-substrate.md) (Proposed) — the
+call-edge model, the `FileSymbols` `calls` contract, the ADR-031 budget posture,
+and the PV-9 caller-egress posture; acceptance flips GCALL-001 to Merged and lets
+GCALL-002/003 go Ready.)
 
 ## Purpose
 
@@ -52,7 +56,11 @@ the per-language scanners (TS/JS, Rust, `lang-python`).
 
 #### GCALL-001: Call-graph substrate design + ADR
 
-- **Status:** Proposed
+- **Status:** In Progress — design authored as
+  [ADR-086](../decisions/086-symbol-call-graph-substrate.md) (Proposed);
+  acceptance ratifies the call-edge model, the `FileSymbols` `calls` contract,
+  the ADR-031 budget posture, and the PV-9 caller-egress posture that
+  GCALL-002..007 build on.
 - **Intent:** Settle the call-edge model and the contracts the rest of the
   module builds on before any extraction work begins.
 - **Expected Outcome:** An accepted ADR (and any spec delta) defines the
