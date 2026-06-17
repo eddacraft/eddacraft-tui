@@ -7,6 +7,7 @@
 //! already-parsed `FileSymbols` / `ImportEdge` (from `anvil-kernel-types`); it
 //! never parses. `anvil-kernel` re-exports this crate as its `graph` module.
 
+pub mod call_graph;
 pub mod certify;
 pub mod dependency;
 pub mod hot_index;
@@ -16,6 +17,7 @@ pub mod snapshot;
 pub mod symbol_graph;
 pub mod trust;
 
+pub use call_graph::{CallerResult, CallersReport, MAX_CALLERS_WALK, callers_of};
 pub use certify::{
     Certifiability, CertifyStale, ChangeKind, ExportSurfaceDiff, certify,
     clamp_reverse_impact_depth, export_surface_changed, export_surface_diff,
@@ -25,8 +27,8 @@ pub use hot_index::{
     BackgroundReadApi, HotPathSurface, HotRead, HotReadApi, HotReadMiss, MAX_REVERSE_IMPACT_DEPTH,
 };
 pub use incremental::{
-    GraphDelta, re_resolve_imports, re_resolve_imports_tracked, re_resolve_reexports, remove_file,
-    update_file,
+    GraphDelta, re_resolve_calls, re_resolve_imports, re_resolve_imports_tracked,
+    re_resolve_reexports, remove_file, update_file,
 };
 pub use registry::GraphRegistry;
 pub use snapshot::{

@@ -100,7 +100,9 @@ the per-language scanners (TS/JS, Rust, `lang-python`).
 
 #### GCALL-003: Resident call edges + caller read API
 
-- **Status:** Proposed
+- **Status:** In Progress — lifting `FileSymbols.calls` into resident
+  `EdgeType::Calls` edges (`re_resolve_calls` + `all_calls` accumulator) and the
+  bounded `callers_of` read API, on the GCALL-002 producer (Merged).
 - **Intent:** Make extracted call sites queryable on the resident graph so a
   consumer can perform bounded caller traversal.
 - **Expected Outcome:** `apply_delta` lifts `EdgeType::Calls` into the resident

@@ -56,10 +56,10 @@ use std::sync::Mutex;
 use anvil_graph_cache::certify::ChangeKind;
 use anvil_graph_cache::{
     DependencyGraph, GraphDelta, GraphRegistry, SymbolGraph, TrustGraph, annotate_trust,
-    re_resolve_imports_tracked, re_resolve_reexports, remove_file, update_file,
+    re_resolve_calls, re_resolve_imports_tracked, re_resolve_reexports, remove_file, update_file,
 };
 use anvil_intercept_proto::protocol::StaleReason;
-use anvil_kernel_types::{EdgeType, FileSymbols, ImportEdge, ReexportEdge};
+use anvil_kernel_types::{CallSite, EdgeType, FileSymbols, ImportEdge, ReexportEdge};
 
 use crate::rule_cache::WorktreeKey;
 
@@ -102,6 +102,15 @@ struct Entry {
     /// capability reached through a re-export chain stays visible to the certify
     /// privilege diff regardless of save order.
     all_reexports: Vec<ReexportEdge>,
+    /// Every live call site in the worktree as `(caller_file, CallSite)`, keyed by
+    /// caller file (GCALL-003). The call analogue of `all_imports`: a symbol-level
+    /// `Calls` edge resolves only when both the caller's file and the callee's
+    /// definition are resident, so a forward reference (a caller saved before its
+    /// callee's file) and an incoming edge dropped when the callee file is
+    /// re-saved (`update_file` removes the callee's symbols + incident edges) are
+    /// re-wired by re-running [`re_resolve_calls`] over the affected neighbourhood
+    /// after each delta.
+    all_calls: Vec<(String, CallSite)>,
     /// Generation at this entry's most recent access; the lowest in the map is
     /// the LRU victim.
     last_used: u64,
@@ -324,6 +333,7 @@ impl KernelGraphCache {
             dep: DependencyGraph::new(),
             all_imports: Vec::new(),
             all_reexports: Vec::new(),
+            all_calls: Vec::new(),
             last_used: recency,
         });
         entry.last_used = recency;
@@ -333,6 +343,11 @@ impl KernelGraphCache {
             let delta = remove_file(&mut entry.sym, &file);
             entry.all_imports.retain(|i| i.from_file != file);
             entry.all_reexports.retain(|r| r.from_file != file);
+            // GCALL-003: drop the deleted file's call sites. Stale entries for a
+            // deleted *callee* persist (keyed by caller file) until the caller is
+            // re-saved and resolve to no edge — the inherited `all_imports`
+            // behaviour, not a new mechanism.
+            entry.all_calls.retain(|(from_file, _)| from_file != &file);
             // GV2-011: a delete drops the file in both directions; no re-derive.
             // `remove_file` clears the reverse index, so dependents that imported
             // it correctly lose the edge.
@@ -360,6 +375,14 @@ impl KernelGraphCache {
             //    resolved to was deleted, so a different candidate now wins).
             let new_imports = symbols.imports.clone();
             let new_reexports = symbols.reexports.clone();
+            // GCALL-003: the file's call sites, keyed by caller file for the
+            // accumulator.
+            let new_calls: Vec<(String, CallSite)> = symbols
+                .calls
+                .iter()
+                .cloned()
+                .map(|call| (file.clone(), call))
+                .collect();
             let mut affected: BTreeSet<String> = entry
                 .dep
                 .dependents_of(&file)
@@ -387,6 +410,23 @@ impl KernelGraphCache {
             for other in &affected {
                 refresh_file_dependencies(&mut entry.dep, &entry.sym, other);
             }
+            // GCALL-003: maintain the call accumulator and re-resolve `Calls`
+            // edges over the affected neighbourhood — the file's own calls (a
+            // forward callee that just became resident) and its dependents' calls
+            // into the file (whose incident `Calls` edges `update_file` dropped
+            // when it removed the file's symbols). Scoped to `affected` (which now
+            // includes re-resolved import sources) rather than the whole
+            // accumulator, so the lock-held cost stays neighbourhood-bounded
+            // (ADR-031); `re_resolve_calls` dedups, so this is idempotent.
+            entry.all_calls.retain(|(from_file, _)| from_file != &file);
+            entry.all_calls.extend(new_calls);
+            let affected_calls: Vec<(String, CallSite)> = entry
+                .all_calls
+                .iter()
+                .filter(|(from_file, _)| affected.contains(from_file))
+                .cloned()
+                .collect();
+            re_resolve_calls(&mut entry.sym, &affected_calls);
             delta
         };
 
@@ -445,6 +485,7 @@ impl KernelGraphCache {
                 dep,
                 all_imports: Vec::new(),
                 all_reexports: Vec::new(),
+                all_calls: Vec::new(),
                 last_used: recency,
             },
         );
@@ -1663,6 +1704,136 @@ mod tests {
             dependents,
             vec!["main.ts".to_string()],
             "reverse index (the certify path's input) must show main.ts"
+        );
+    }
+
+    /// GCALL-003: a call to a not-yet-resident callee re-resolves across
+    /// `apply_delta`s via the `all_calls` accumulator, and `callers_of` then sees
+    /// the caller — the daemon analogue of the import forward-reference test.
+    #[test]
+    fn call_forward_reference_resolves_across_applies() {
+        use anvil_graph_cache::callers_of;
+        use anvil_kernel_types::{CalleeRef, LocalSymbolRef, SymbolIdentity};
+
+        let cache = KernelGraphCache::new();
+        let k = key("calls");
+
+        // main.ts: `run()` calls `helper` imported from ./util — saved FIRST, so
+        // the callee file is not resident yet.
+        let mut main = file_symbols("main.ts", &["run"], &["./util"], 0);
+        main.calls = vec![CallSite {
+            from: LocalSymbolRef {
+                kind: SymbolKind::Function,
+                name: "run".into(),
+                ordinal: 0,
+                module_scope: false,
+            },
+            callee: CalleeRef {
+                name: "helper".into(),
+                via_import: Some("./util".into()),
+            },
+            line: 1,
+        }];
+        cache.apply_delta(&k, ChangeKind::Create, main);
+
+        let target = SymbolIdentity {
+            file: "util.ts".into(),
+            kind: SymbolKind::Function,
+            name: "helper".into(),
+            ordinal: 0,
+        };
+        // No callers yet — the callee file is not resident.
+        let before = cache.with_graphs(&k, |sym, _| callers_of(sym, &target, 1).callers.len());
+        assert_eq!(before, Some(0));
+
+        // util.ts lands with `helper`; the accumulator re-resolves the forward
+        // call (main.ts is a dependent of util.ts once the import resolves).
+        cache.apply_delta(
+            &k,
+            ChangeKind::Create,
+            file_symbols("util.ts", &["helper"], &[], 100),
+        );
+
+        let callers = cache
+            .with_graphs(&k, |sym, _| {
+                callers_of(sym, &target, 1)
+                    .callers
+                    .into_iter()
+                    .map(|c| c.caller.name)
+                    .collect::<Vec<_>>()
+            })
+            .unwrap();
+        assert_eq!(callers, vec!["run".to_string()]);
+    }
+
+    /// GCALL-003: re-saving the **callee** file (its symbols get fresh ids, and
+    /// petgraph drops the incoming `Calls` edges) re-wires the incoming edge — the
+    /// caller is a dependent of the callee, so it lands in `affected` and
+    /// `re_resolve_calls` re-issues the edge against the new callee id. This is the
+    /// ADR-086 §2 load-bearing case.
+    #[test]
+    fn callee_resave_rewires_incoming_call_edge() {
+        use anvil_graph_cache::callers_of;
+        use anvil_kernel_types::{CalleeRef, LocalSymbolRef, SymbolIdentity};
+
+        let cache = KernelGraphCache::new();
+        let k = key("resave");
+        let target = SymbolIdentity {
+            file: "util.ts".into(),
+            kind: SymbolKind::Function,
+            name: "helper".into(),
+            ordinal: 0,
+        };
+        let run_calls_helper = |base: u64| {
+            let mut main = file_symbols("main.ts", &["run"], &["./util"], base);
+            main.calls = vec![CallSite {
+                from: LocalSymbolRef {
+                    kind: SymbolKind::Function,
+                    name: "run".into(),
+                    ordinal: 0,
+                    module_scope: false,
+                },
+                callee: CalleeRef {
+                    name: "helper".into(),
+                    via_import: Some("./util".into()),
+                },
+                line: 1,
+            }];
+            main
+        };
+
+        // Callee resident, then caller → edge established.
+        cache.apply_delta(
+            &k,
+            ChangeKind::Create,
+            file_symbols("util.ts", &["helper"], &[], 100),
+        );
+        cache.apply_delta(&k, ChangeKind::Create, run_calls_helper(0));
+        let before = cache
+            .with_graphs(&k, |sym, _| callers_of(sym, &target, 1).callers.len())
+            .unwrap();
+        assert_eq!(before, 1, "edge established before the resave");
+
+        // Re-save util.ts with fresh ids (200): the old incoming edge is dropped by
+        // petgraph; re_resolve over `dependents_of(util.ts) = {main.ts}` re-issues it.
+        cache.apply_delta(
+            &k,
+            ChangeKind::ContentModify,
+            file_symbols("util.ts", &["helper"], &[], 200),
+        );
+        let after = cache
+            .with_graphs(&k, |sym, _| {
+                callers_of(sym, &target, 1)
+                    .callers
+                    .into_iter()
+                    .map(|c| c.caller.name)
+                    .collect::<Vec<_>>()
+            })
+            .unwrap();
+        assert_eq!(
+            after,
+            vec!["run".to_string()],
+            "incoming call edge re-wired after the callee resave"
         );
     }
 }

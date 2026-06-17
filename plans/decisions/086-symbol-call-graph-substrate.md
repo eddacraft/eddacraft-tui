@@ -120,10 +120,21 @@ name-and-import analysis can prove, and nothing it cannot.
   clamped by the GV2-026 `clamp_reverse_impact_depth` / `MAX_REVERSE_IMPACT_DEPTH`
   lever and a node budget, with a `seen` set (so cycles/recursion terminate),
   **sorted frontiers** (so an over-budget truncation keeps a deterministic
-  path-ordered prefix), and truncation metadata. Returns calling symbol identity,
-  source file, distance, and `partial`/`truncated` markers — never source text.
+  identity-ordered prefix), and truncation metadata. Returns calling symbol
+  identity, source file, distance, and a `truncated` marker — never source text.
   This lives in `anvil-graph-cache` (it reads the resident `SymbolGraph`) and is
   surfaced over the daemon `GctxDispatch` RPC like `find_dependents`.
+  - **Implementation finding (GCALL-003): the `heuristic` (fan-out-derived) and
+    `partial` (unresolved callers exist) markers are an egress concern, owned by
+    GCTX-014, not the bare `callers_of` over the resident graph.** A resident
+    `EdgeType::Calls` edge carries no provenance, so fan-out cannot be told apart
+    from two legitimate distinct overload call sites at read time, and an
+    *unresolved* caller produces no edge so it is invisible to the graph walk.
+    Faithful markers need write-time provenance (the fan-out/unresolved set the
+    lift records) or the daemon `all_calls` accumulator — both available at the
+    GCTX-014 egress layer, which threads them onto the projected DTO. The
+    substrate read API stays identity + distance + `truncated` (all faithfully
+    computable); GCTX-014 adds `heuristic`/`partial`.
 
 ### 2. `FileSymbols` extension — a `calls` channel, resolved at lift time
 
