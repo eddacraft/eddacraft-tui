@@ -1,5 +1,24 @@
 use std::path::Path;
 
+/// Workspace-root-relative path with forward slashes, or `None` if `abs` is not
+/// under `root`, escapes it through an un-normalised `..` component, or is not
+/// valid UTF-8.
+///
+/// The `..` guard stops a `..`-bearing manifest path (a Cargo `members` /
+/// `[[bin]] path`, or a Python entry-point module reference) from persisting a
+/// path that points outside the workspace into a baseline. Shared by the Rust
+/// (`detection`) and Python (`python_detection`) entry-point detectors.
+pub(crate) fn relative_slash(root: &Path, abs: &Path) -> Option<String> {
+    let rel = abs.strip_prefix(root).ok()?;
+    if rel
+        .components()
+        .any(|c| matches!(c, std::path::Component::ParentDir))
+    {
+        return None;
+    }
+    Some(rel.to_str()?.replace('\\', "/"))
+}
+
 /// Atomically write `content` to `path` via a temp file + rename.
 ///
 /// Creates a temporary file in the same directory, writes content, then

@@ -18,6 +18,7 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 
 use crate::types::{DetectionConfidence, EntryPoint, EntryPointType};
+use crate::util::relative_slash;
 
 /// Detect Rust entry points under `workspace_root`.
 ///
@@ -203,21 +204,6 @@ fn is_excluded(root: &Path, dir: &Path, exclude: &[String]) -> bool {
         let ex = ex.trim_end_matches('/');
         rel == ex || glob::Pattern::new(ex).is_ok_and(|p| p.matches(&rel))
     })
-}
-
-/// Workspace-root-relative path with forward slashes, or `None` if `abs` is not
-/// under `root`, escapes it through an un-normalised `..` component, or is not
-/// valid UTF-8. The `..` guard stops a `..`-bearing `members`/`[[bin]] path`
-/// from persisting a path that points outside the workspace.
-fn relative_slash(root: &Path, abs: &Path) -> Option<String> {
-    let rel = abs.strip_prefix(root).ok()?;
-    if rel
-        .components()
-        .any(|c| matches!(c, std::path::Component::ParentDir))
-    {
-        return None;
-    }
-    Some(rel.to_str()?.replace('\\', "/"))
 }
 
 fn read_manifest(path: &Path) -> Option<Manifest> {

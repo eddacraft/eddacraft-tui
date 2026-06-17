@@ -151,13 +151,42 @@ anticipated until the module's governance slice is scheduled.
 
 ---
 
+#### PYLAN-005: Python entry-point detection
+
+- **Status:** In Progress — `detect_python_entry_points(workspace_root)` added
+  to `anvil-architecture`, mirroring RSTLAN-004's `detect_rust_entry_points`:
+  emits `EntryPoint`s for `pyproject.toml` `[project.scripts]` (Cli) /
+  `[project.gui-scripts]` (Application), `setup.cfg`
+  `[options.entry_points]` console/gui scripts (High), best-effort `setup.py`
+  `console_scripts`/`gui_scripts` string literals (Medium — setup.py is never
+  executed), and `if __name__ == "__main__":` guards in `.py` files
+  (Application, High). Declared `module:object` targets resolve to an existing
+  `.py` file (flat or `src/` layout, module-or-package); unresolved targets are
+  dropped. Output is workspace-relative, forward-slash, sorted, de-duplicated
+  by path (declared script wins over a bare guard). The `__main__` walk prunes
+  VCS/build/virtualenv/cache dirs. As with RSTLAN-004, this lands the detection
+  primitive with full unit coverage ahead of its consumer (PYLAN-006/-008).
+- **Intent:** Surface a Python (or mixed) repo's roots so baseline creation and
+  the `anvil architecture` surfaces treat them the way they treat Rust `[[bin]]`
+  and TS package `bin`/`main`.
+- **Expected Outcome:** `EntryPoint`s for the in-scope Python entry shapes
+  (`__main__`, `pyproject.toml`, `setup.py`/`setup.cfg`), deterministic and
+  workspace-relative.
+- **Validation:** Unit tests cover each source, `module:object` resolution
+  (flat + `src/` + `__init__.py`), unresolved-target drop, confidence tiers,
+  dedup precedence, directory pruning, and determinism.
+- **Files:** `crates/anvil-architecture/src/python_detection.rs`,
+  `crates/anvil-architecture/src/util.rs` (shared `relative_slash`),
+  `crates/anvil-architecture/src/lib.rs`
+- **Dependencies:** PYLAN-001/-002
+
+---
+
 ### Anticipated (defined when the governance slice is scheduled)
 
 - PYLAN-003: Python T2 anti-pattern catalogue.
 - PYLAN-004: `#`-comment suppression syntax integrated with suppression
   parser.
-- PYLAN-005: Entry-point detection (`__main__`, `pyproject.toml`,
-  `setup.py`/`setup.cfg`).
 - PYLAN-006: Layer/boundary enforcement reaches Python.
 - PYLAN-007: Drift baseline default-on for `.py`.
 - PYLAN-008: `architecture-validate` includes Python packages.
