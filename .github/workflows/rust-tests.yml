@@ -59,8 +59,6 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
-      - name: Free disk space
-        uses: ./.github/actions/free-disk-space
 
       # Cheap path classification first: decide whether this PR touches Rust at
       # all. When it does not, every heavy step below is skipped and the job
@@ -95,6 +93,14 @@ jobs:
             echo "run=false" >> "$GITHUB_OUTPUT"
             echo "::notice::No Rust-affecting changes; the Test gate is a green no-op for this PR."
           fi
+
+      # Only free disk space when real Rust work follows. Keeping it behind the
+      # gate means a no-op run (docs/config-only PR) does nothing but checkout +
+      # path-filter + gate, minimising the surface that could fail the required
+      # `Test` check on a non-Rust PR.
+      - name: Free disk space
+        if: steps.gate.outputs.run == 'true'
+        uses: ./.github/actions/free-disk-space
 
       - name: Setup workspace for Nx affected
         if: steps.gate.outputs.run == 'true' && github.event_name == 'pull_request'
