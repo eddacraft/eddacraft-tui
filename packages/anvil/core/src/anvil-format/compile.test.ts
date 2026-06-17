@@ -47,6 +47,7 @@ describe('compilePatterns — real patterns/ tree (golden)', () => {
       'dynamic-execution',
       'error-visibility',
       'guardrail-suppression',
+      'python-reliability',
       'responsibility-laundering',
       'rust-reliability',
       'type-system-evasion',
@@ -59,6 +60,8 @@ describe('compilePatterns — real patterns/ tree (golden)', () => {
     expect(ruleIds).toContain('AP-009'); // dynamic-execution: new Function() — LANGTS-006
     expect(ruleIds).toContain('GS-001');
     expect(ruleIds).toContain('DD-001');
+    expect(ruleIds).toContain('PY-001');
+    expect(ruleIds).toContain('PY-007');
     expect(ruleIds).toContain('RL-001');
     expect(ruleIds).toContain('RS-001'); // rust-reliability: AST unwrap/expect — RSTLAN-003
     expect(ruleIds).toContain('RS-005'); // rust-reliability: regex todo!/unimplemented! — RSTLAN-003
