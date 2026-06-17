@@ -12,9 +12,10 @@ feed) carries only `symbols` / `imports` / `reexports`, so a true call graph
 cannot be projected today. This module owns the **producer-side** substrate —
 call-site extraction + resident call edges + a caller-traversal read API — that
 GCTX consumes. It is **not** a GCTX item: GCTX projects egress DTOs over a graph
-the daemon already holds, mirroring how GCTX consumes GV2. Module **In Progress,
-7/7** — all work items Merged; the module advances to Complete on the release tag
-that includes the GCALL substrate. **GCALL-001** design accepted as
+the daemon already holds, mirroring how GCTX consumes GV2.
+Module **In Progress, 7/7** — all work items Merged; the module advances to
+Complete on the release tag that includes the GCALL substrate.
+**GCALL-001** design accepted as
 [ADR-086](../decisions/086-symbol-call-graph-substrate.md) (Accepted, operator
 2026-06-17; Merged via #2705) — the call-edge model, the `FileSymbols` `calls`
 contract, the ADR-031 budget posture, and the PV-9 caller-egress posture.
