@@ -168,7 +168,7 @@ enum Commands {
     Drift(commands::drift::DriftArgs),
     /// List, show, and trace Edda canonical memories.
     Edda(commands::edda::EddaArgs),
-    /// List Ember proposals (observations awaiting promotion to Edda).
+    /// List Ember proposals awaiting promotion to Edda.
     Ember(commands::ember::EmberArgs),
     /// Show project status and health.
     Status(commands::status::StatusArgs),

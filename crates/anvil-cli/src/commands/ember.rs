@@ -204,8 +204,9 @@ struct QueryOutcome {
     proposals: Vec<Proposal>,
 }
 
-/// Parse a nullable JSON text column, defaulting to `null` when absent or
-/// unparseable (a tolerant mirror of the Node `JSON.parse(... ?? default)`).
+/// Parse a nullable JSON text column, returning `None` when the column is
+/// absent or unparseable. Callers choose the fallback (`Value::Null` or
+/// `json!([])`), a tolerant mirror of the Node `JSON.parse(... ?? default)`.
 fn parse_json_column(raw: Option<String>) -> Option<Value> {
     raw.and_then(|text| serde_json::from_str(&text).ok())
 }
@@ -292,17 +293,20 @@ fn query_proposals(conn: &Connection, filter: &Filter) -> Result<QueryOutcome> {
 // Run
 // ---------------------------------------------------------------------------
 
-fn workspace_db_path() -> PathBuf {
-    // Match the historical Node.js CLI: anchor to the working directory
-    // (the operator's project root), where `.anvil/ember.db` lives.
-    PathBuf::from(".anvil").join("ember.db")
+fn workspace_db_path() -> Result<PathBuf> {
+    // Match the historical Node.js `getWorkspaceRoot`: resolve the repo root
+    // (via `git rev-parse --show-toplevel`, cwd fallback) so `anvil ember list`
+    // finds `.anvil/ember.db` even when invoked from a subdirectory.
+    Ok(crate::util::workspace_root()?
+        .join(".anvil")
+        .join("ember.db"))
 }
 
 fn run_list(args: &ListArgs, global: &GlobalArgs) -> Result<()> {
     // Honour both the subcommand-local `--json` and the global `anvil --json`
     // flag, matching the sibling `edda` command.
     let json = args.json || global.json;
-    let db_path = workspace_db_path();
+    let db_path = workspace_db_path()?;
     let status = parse_status(&args.status)?;
     let types = parse_csv_types(args.types.as_deref())?;
     let filter = Filter {
@@ -338,15 +342,19 @@ fn run_list(args: &ListArgs, global: &GlobalArgs) -> Result<()> {
         Err(err) => return report_query_error(json, &format!("{err:#}")),
     };
 
+    // Use the canonical parsed status (not the raw arg) so trimmed/odd input
+    // like `--status "active "` is reported in its canonical form.
+    let status_label = filter.status.as_str();
+
     if json {
         println!(
             "{}",
-            found_envelope(&db_path, args, &filter.types, &outcome)
+            found_envelope(&db_path, status_label, &filter.types, &outcome)
         );
         return Ok(());
     }
 
-    render_table(&outcome, &args.status, &filter.types);
+    render_table(&outcome, status_label, &filter.types);
     Ok(())
 }
 
@@ -394,7 +402,7 @@ fn missing_envelope(db_path: &Path) -> Value {
 
 fn found_envelope(
     db_path: &Path,
-    args: &ListArgs,
+    status: &str,
     types: &[ProposalType],
     outcome: &QueryOutcome,
 ) -> Value {
@@ -404,7 +412,7 @@ fn found_envelope(
         "total": outcome.total,
         "limit": outcome.limit,
         "has_more": outcome.has_more,
-        "filters": filters_payload(&args.status, types),
+        "filters": filters_payload(status, types),
         "proposals": outcome.proposals,
     })
 }
@@ -770,15 +778,11 @@ mod tests {
         )
         .unwrap();
 
-        let args = ListArgs {
-            json: true,
-            types: Some("pattern".into()),
-            status: "active".into(),
-            limit: 20,
-        };
+        // Pass a non-canonical status label to prove the envelope emits the
+        // canonical parsed status the caller supplies, not raw user input.
         let env = found_envelope(
             Path::new(".anvil/ember.db"),
-            &args,
+            ProposalStatus::Active.as_str(),
             &[ProposalType::Pattern],
             &outcome,
         );
