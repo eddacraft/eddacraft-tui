@@ -2488,12 +2488,16 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn warm_start_round_trips_indexes_and_stays_stale() {
-        let dir = tempfile::tempdir().expect("tempdir");
+        let tmp = tempfile::tempdir().expect("tempdir");
+        // The writer creates the `graph-cache` subdir owner-only 0700 (the
+        // tempdir root may be group-readable, which the dir-security check
+        // rejects — production always points at a `graph-cache` subdir).
+        let dir = tmp.path().join("graph-cache");
         let root = std::path::PathBuf::from("/ws-restart");
         let key = WorktreeKey::from_canonical(root.clone());
 
         // Daemon 1: warm a key, then persist on shutdown.
-        let state1 = state().with_snapshot_dir(dir.path().to_path_buf());
+        let state1 = state().with_snapshot_dir(dir.clone());
         state1.cache.apply_delta(
             &key,
             ChangeKind::Create,
@@ -2502,21 +2506,15 @@ mod tests {
         assert!(state1.cache.contains(&key));
         state1.persist_all_on_shutdown();
         assert!(
-            std::fs::read_dir(dir.path()).unwrap().next().is_some(),
+            std::fs::read_dir(&dir).unwrap().next().is_some(),
             "a snapshot file must be written on shutdown",
         );
 
         // Daemon 2 (fresh cache, same snapshot dir): cold until restore.
-        let state2 = state().with_snapshot_dir(dir.path().to_path_buf());
+        let state2 = state().with_snapshot_dir(dir.clone());
         assert!(!state2.cache.contains(&key), "fresh daemon starts cold");
 
-        restore_snapshot_into_cache(
-            &state2.cache,
-            state2.scan_coordinator(),
-            dir.path(),
-            &key,
-            &root,
-        );
+        restore_snapshot_into_cache(&state2.cache, state2.scan_coordinator(), &dir, &key, &root);
         assert!(
             state2.cache.contains(&key),
             "warm-start restored the indexes"
@@ -2548,16 +2546,21 @@ mod tests {
             file_symbols("src/a.ts", &["a"], 0),
         );
         off.persist_all_on_shutdown();
+        let gc = dir.path().join("graph-cache");
+        assert!(
+            !gc.exists(),
+            "persistence-off must not even create the snapshot dir",
+        );
         assert_eq!(
             std::fs::read_dir(dir.path()).unwrap().count(),
             0,
-            "persistence-off must write nothing under the snapshot dir",
+            "persistence-off must write nothing under the state dir",
         );
 
         // Positive control (non-vacuous): the SAME dir DOES receive a snapshot
         // once persistence is wired — proving the OFF assertion above is meaningful
         // (the dir is the real target, not an unrelated path).
-        let on = state().with_snapshot_dir(dir.path().to_path_buf());
+        let on = state().with_snapshot_dir(gc.clone());
         assert!(on.persistence_enabled());
         on.cache.apply_delta(
             &key,
@@ -2566,8 +2569,8 @@ mod tests {
         );
         on.persist_all_on_shutdown();
         assert!(
-            std::fs::read_dir(dir.path()).unwrap().next().is_some(),
-            "persistence-on must write the snapshot to this very dir",
+            std::fs::read_dir(&gc).unwrap().next().is_some(),
+            "persistence-on must write the snapshot to the wired dir",
         );
     }
 

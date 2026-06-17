@@ -411,8 +411,8 @@ impl KernelGraphCache {
     }
 
     /// Insert a pre-built warm pair for `key` from a restored snapshot (DSV-030
-    /// warm-start, ADR-069 §3). Overwrites any existing entry and evicts the LRU
-    /// victim first if the cache is at capacity.
+    /// warm-start, ADR-069 §3), evicting the LRU victim first if the cache is at
+    /// capacity.
     ///
     /// **Only inserts if the key is currently cold** — it never clobbers an
     /// existing entry (returns `false` then). This is the compare-and-insert that

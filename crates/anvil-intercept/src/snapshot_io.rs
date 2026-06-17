@@ -35,7 +35,7 @@
 
 use std::fs::{self, DirBuilder, File, OpenOptions};
 use std::io::{self, Read, Write};
-use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
+use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt};
 use std::path::{Path, PathBuf};
 
 use anvil_graph_cache::snapshot::{
@@ -266,7 +266,43 @@ pub fn sweep_orphan_temps(dir: &Path) -> usize {
 fn ensure_dir(dir: &Path) -> io::Result<()> {
     // `recursive(true)` is idempotent on a pre-existing dir, so no `is_dir`
     // pre-check (which would only add a TOCTOU window).
-    DirBuilder::new().recursive(true).mode(DIR_MODE).create(dir)
+    DirBuilder::new()
+        .recursive(true)
+        .mode(DIR_MODE)
+        .create(dir)?;
+    // Validate the dir's security properties (mirrors the fence store's
+    // owner-only state-dir discipline): a pre-existing `graph-cache` that is a
+    // symlink, not owned by us, or group/other-accessible means a redirected /
+    // tampered `ANVIL_HOME`/`XDG_STATE_HOME` — refuse to write there rather than
+    // undermine the owner-only / symlink-safe contract. The caller degrades to
+    // no-persistence. (A dir we just created is `0700` and owned by us; this only
+    // ever rejects an externally-planted one.)
+    validate_secure_dir(dir)
+}
+
+/// Reject a snapshot dir that is a symlink, not a directory, not owned by the
+/// current euid, or accessible by group/other (`mode & 0o077 != 0`).
+fn validate_secure_dir(dir: &Path) -> io::Result<()> {
+    let meta = fs::symlink_metadata(dir)?;
+    if meta.file_type().is_symlink() || !meta.is_dir() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "snapshot dir is a symlink or not a directory",
+        ));
+    }
+    if meta.uid() != nix::unistd::geteuid().as_raw() {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "snapshot dir is not owned by the current user",
+        ));
+    }
+    if meta.mode() & 0o077 != 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "snapshot dir is group/other-accessible",
+        ));
+    }
+    Ok(())
 }
 
 /// `fsync` a directory so a rename into it is durable. Opening a directory
@@ -317,14 +353,22 @@ mod tests {
         SnapshotPayload::from_graphs(&sym, &dep).unwrap()
     }
 
+    // The snapshot dir `write_snapshot` creates is owner-only 0700; in production
+    // it is a `graph-cache` subdir, never the (possibly group-readable) state-dir
+    // root, so the write tests use a fresh subdir the writer creates + validates.
+    fn gc(tmp: &tempfile::TempDir) -> PathBuf {
+        tmp.path().join("graph-cache")
+    }
+
     #[test]
     fn write_then_load_round_trips_through_disk() {
         let tmp = tempfile::tempdir().unwrap();
+        let dir = gc(&tmp);
         let root = Path::new("/some/workspace/root");
         let want = payload();
 
-        write_snapshot(tmp.path(), root, &want).expect("write");
-        let got = load_snapshot(tmp.path(), root).expect("load");
+        write_snapshot(&dir, root, &want).expect("write");
+        let got = load_snapshot(&dir, root).expect("load");
 
         // `SnapshotPayload: PartialEq` is byte-equality (the golden-fixture
         // property), so this proves the on-disk round-trip is lossless.
@@ -335,15 +379,21 @@ mod tests {
     fn write_is_owner_only_and_leaves_no_temp() {
         use std::os::unix::fs::PermissionsExt;
         let tmp = tempfile::tempdir().unwrap();
+        let dir = gc(&tmp);
         let root = Path::new("/ws");
-        write_snapshot(tmp.path(), root, &payload()).expect("write");
+        write_snapshot(&dir, root, &payload()).expect("write");
 
-        let file = tmp.path().join(snapshot_filename(root));
+        let file = dir.join(snapshot_filename(root));
         let mode = fs::metadata(&file).unwrap().permissions().mode() & 0o777;
         assert_eq!(mode, FILE_MODE, "snapshot must be owner-only 0600");
+        // The created dir is owner-only 0700.
+        assert_eq!(
+            fs::metadata(&dir).unwrap().permissions().mode() & 0o777,
+            DIR_MODE
+        );
 
         // No leftover temp after a successful write.
-        let temps = fs::read_dir(tmp.path())
+        let temps = fs::read_dir(&dir)
             .unwrap()
             .flatten()
             .filter(|e| e.path().extension().and_then(|x| x.to_str()) == Some(TMP_EXT))
@@ -400,12 +450,43 @@ mod tests {
     #[test]
     fn remove_snapshot_is_idempotent() {
         let tmp = tempfile::tempdir().unwrap();
+        let dir = gc(&tmp);
         let root = Path::new("/ws");
-        write_snapshot(tmp.path(), root, &payload()).unwrap();
-        remove_snapshot(tmp.path(), root).expect("first remove");
+        write_snapshot(&dir, root, &payload()).unwrap();
+        remove_snapshot(&dir, root).expect("first remove");
         // A second remove (already gone) is not an error.
-        remove_snapshot(tmp.path(), root).expect("idempotent remove");
-        assert!(!tmp.path().join(snapshot_filename(root)).exists());
+        remove_snapshot(&dir, root).expect("idempotent remove");
+        assert!(!dir.join(snapshot_filename(root)).exists());
+    }
+
+    #[test]
+    fn write_refuses_a_symlinked_snapshot_dir() {
+        // A planted symlink at the snapshot dir (redirected ANVIL_HOME) is
+        // refused, never written through (mirrors the fence-store owner-only
+        // discipline).
+        let tmp = tempfile::tempdir().unwrap();
+        let real = tmp.path().join("real");
+        fs::create_dir(&real).unwrap();
+        let link = tmp.path().join("graph-cache");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+
+        let err = write_snapshot(&link, Path::new("/ws"), &payload())
+            .expect_err("a symlinked snapshot dir must be refused");
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+        // Nothing was written into the redirected target.
+        assert_eq!(fs::read_dir(&real).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn write_refuses_a_group_accessible_dir() {
+        use std::os::unix::fs::PermissionsExt;
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().join("graph-cache");
+        fs::create_dir(&dir).unwrap();
+        fs::set_permissions(&dir, fs::Permissions::from_mode(0o755)).unwrap();
+        let err = write_snapshot(&dir, Path::new("/ws"), &payload())
+            .expect_err("a group/other-accessible dir must be refused");
+        assert_eq!(err.kind(), io::ErrorKind::PermissionDenied);
     }
 
     #[test]
