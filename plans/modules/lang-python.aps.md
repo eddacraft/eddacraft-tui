@@ -59,7 +59,8 @@ implementation shape entirely.
   - `print()` in production code
   - `# pylint: disable` without justification
   - Import star (`from foo import *`)
-- Suppression syntax: `# @anvil-ignore <ID>: <reason>`.
+- Suppression syntax: `# @anvil-ignore <ID> -- <reason>` (the ADR-029 parser's
+  `--` separator; matches TS/Rust `// @anvil-ignore <ID> -- <reason>`).
 - Entry-point detection: `if __name__ == '__main__'`, `pyproject.toml`
   `[project.scripts]` and `[project.gui-scripts]`, `setup.py` console_scripts,
   `setup.cfg`.
@@ -154,6 +155,50 @@ validation) remains, gated on operator decisions.
 
 ---
 
+#### PYLAN-003: Python T2 anti-pattern catalogue
+
+- **Status:** Merged 2026-06-17 via #2734 — new `python-reliability` pattern
+  family (PY-001..007), the Python parallel of `rust-reliability`, as RE2-legal
+  `Detection::Regex` rules scoped to `.py` (no AST tier needed; they run on the
+  daemon-safe save-time hot path like the TS rules): PY-001 `# type: ignore`
+  without an `[error-code]`, PY-002 bare `# noqa`, PY-003 `# pylint: disable`,
+  PY-004 bare `except:` / inline `except ...: pass`, PY-005 wildcard
+  `from x import *`, PY-006 `print()` (opt-in), PY-007 `Any` annotation incl.
+  qualified `typing.Any` (opt-in). Patterns are lookahead-free (RE2 drops
+  lookahead silently); a regression test guards `registry_compile_diagnostics`.
+- **Intent:** Govern the Python-specific anti-patterns from spec §8.1.
+- **Expected Outcome:** The catalogue fires on Python via `anvil
+  check`/`gate`/drift and the save-time daemon; opt-in for the noisy rules.
+- **Validation:** Per-rule positive + justified-negative tests, RE2-compile,
+  extension scoping, opt-in gating; council + Copilot hardening (`\bexcept`
+  FP, `^from` anchoring, `(^|[^.\w])print`, qualified `typing.Any`). Dogfood:
+  0 false positives on clean idiomatic Python, all default rules fire on
+  anti-pattern code.
+- **Files:** `patterns/python-reliability/*.anvil`,
+  `patterns/compiled/registry.json`,
+  `crates/anvil-checks/src/antipattern/types.rs`,
+  `crates/anvil-checks/tests/python_antipatterns.rs`
+- **Dependencies:** PYLAN-001
+
+---
+
+#### PYLAN-004: `#`-comment suppression syntax
+
+- **Status:** Merged 2026-06-17 via #2734 — the `# @anvil-ignore <ID> -- reason`
+  suppression for Python is handled by the existing ADR-029 parser (the `#`
+  comment prefix was already in the suppression regex); delivered with the
+  PYLAN-003 catalogue and covered by tests (marks the finding suppressed;
+  a wrong-id suppression does not silence it).
+- **Intent:** Let Python findings be suppressed with a reason, like TS/Rust.
+- **Expected Outcome:** `# @anvil-ignore PY-NNN -- reason` suppresses the
+  matching Python finding.
+- **Validation:** Suppression tests in `python_antipatterns.rs`.
+- **Files:** `crates/anvil-checks/tests/python_antipatterns.rs` (behaviour
+  already in `crates/anvil-checks/src/antipattern/scanner.rs`)
+- **Dependencies:** PYLAN-003
+
+---
+
 #### PYLAN-005: Python entry-point detection
 
 - **Status:** Merged 2026-06-17 via #2731 — `detect_python_entry_points(workspace_root)` added
@@ -214,6 +259,20 @@ validation) remains, gated on operator decisions.
 
 ---
 
+#### PYLAN-007: Drift baseline default-on for `.py`
+
+- **Status:** Merged 2026-06-17 via #2734 — `.py` added to
+  `AntipatternCheckConfig`'s default scan extensions, so the Python rules fire
+  across `anvil check`/`gate`/drift and the save-time daemon by default
+  (mirroring RSTLAN-006 for `.rs`).
+- **Intent:** Make Python drift/anti-pattern scanning default-on.
+- **Expected Outcome:** `.py` is in the default scanned-extension set.
+- **Validation:** Test asserts `.py` in `AntipatternCheckConfig::default()`.
+- **Files:** `crates/anvil-checks/src/antipattern/types.rs`
+- **Dependencies:** PYLAN-003
+
+---
+
 #### PYLAN-008: `architecture-validate` includes Python packages
 
 - **Status:** Merged 2026-06-17 via #2732 — `.py` added to
@@ -233,65 +292,7 @@ validation) remains, gated on operator decisions.
 
 ---
 
-#### PYLAN-003: Python T2 anti-pattern catalogue
-
-- **Status:** Merged 2026-06-17 via #2734 — new `python-reliability` pattern
-  family (PY-001..007), the Python parallel of `rust-reliability`, as RE2-legal
-  `Detection::Regex` rules scoped to `.py` (no AST tier needed; they run on the
-  daemon-safe save-time hot path like the TS rules): PY-001 `# type: ignore`
-  without an `[error-code]`, PY-002 bare `# noqa`, PY-003 `# pylint: disable`,
-  PY-004 bare `except:` / inline `except ...: pass`, PY-005 wildcard
-  `from x import *`, PY-006 `print()` (opt-in), PY-007 `Any` annotation incl.
-  qualified `typing.Any` (opt-in). Patterns are lookahead-free (RE2 drops
-  lookahead silently); a regression test guards `registry_compile_diagnostics`.
-- **Intent:** Govern the Python-specific anti-patterns from spec §8.1.
-- **Expected Outcome:** The catalogue fires on Python via `anvil
-  check`/`gate`/drift and the save-time daemon; opt-in for the noisy rules.
-- **Validation:** Per-rule positive + justified-negative tests, RE2-compile,
-  extension scoping, opt-in gating; council + Copilot hardening (`\bexcept`
-  FP, `^from` anchoring, `(^|[^.\w])print`, qualified `typing.Any`). Dogfood:
-  0 false positives on clean idiomatic Python, all default rules fire on
-  anti-pattern code.
-- **Files:** `patterns/python-reliability/*.anvil`,
-  `patterns/compiled/registry.json`,
-  `crates/anvil-checks/src/antipattern/types.rs`,
-  `crates/anvil-checks/tests/python_antipatterns.rs`
-- **Dependencies:** PYLAN-001
-
----
-
-#### PYLAN-004: `#`-comment suppression syntax
-
-- **Status:** Merged 2026-06-17 via #2734 — the `# @anvil-ignore <ID> -- reason`
-  suppression for Python is handled by the existing ADR-029 parser (the `#`
-  comment prefix was already in the suppression regex); delivered with the
-  PYLAN-003 catalogue and covered by tests (marks the finding suppressed;
-  a wrong-id suppression does not silence it).
-- **Intent:** Let Python findings be suppressed with a reason, like TS/Rust.
-- **Expected Outcome:** `# @anvil-ignore PY-NNN -- reason` suppresses the
-  matching Python finding.
-- **Validation:** Suppression tests in `python_antipatterns.rs`.
-- **Files:** `crates/anvil-checks/tests/python_antipatterns.rs` (behaviour
-  already in `crates/anvil-checks/src/antipattern/scanner.rs`)
-- **Dependencies:** PYLAN-003
-
----
-
-#### PYLAN-007: Drift baseline default-on for `.py`
-
-- **Status:** Merged 2026-06-17 via #2734 — `.py` added to
-  `AntipatternCheckConfig`'s default scan extensions, so the Python rules fire
-  across `anvil check`/`gate`/drift and the save-time daemon by default
-  (mirroring RSTLAN-006 for `.rs`).
-- **Intent:** Make Python drift/anti-pattern scanning default-on.
-- **Expected Outcome:** `.py` is in the default scanned-extension set.
-- **Validation:** Test asserts `.py` in `AntipatternCheckConfig::default()`.
-- **Files:** `crates/anvil-checks/src/antipattern/types.rs`
-- **Dependencies:** PYLAN-003
-
----
-
-### Anticipated (defined when the governance slice is scheduled)
+### Remaining (governance slice landed; only PYLAN-009 left, operator-gated)
 
 - PYLAN-009: Validate against User B + User C codebases — FP rate < N% per
   council §16.5 #9. **Gated** on the deferred Ready-Checklist items (named
