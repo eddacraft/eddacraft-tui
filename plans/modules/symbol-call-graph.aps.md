@@ -146,7 +146,13 @@ the per-language scanners (TS/JS, Rust, `lang-python`).
 
 #### GCALL-005: Python call-site extraction
 
-- **Status:** Proposed
+- **Status:** In Progress — extending the PYLAN-002 Python extractor with a Pass 2
+  call-site walk in `python.rs`: a parallel `spans` vec over Pass 1 symbols + a
+  `walk_calls` over `call` nodes, with an import-binding table
+  (`from m import x [as y]` reverse-map, `import m` / `import a.b as c` module
+  bindings), `self.`/`cls.` → `Owner.method` resolution, and bare-member fallback,
+  per the ADR-086 v1 contract. Lift-side resolution is the language-agnostic
+  GCALL-003 `re_resolve_calls`, so no graph-cache change is needed.
 - **Intent:** Extend call-site extraction to Python.
 - **Expected Outcome:** The Python extractor emits call-site edges into
   `FileSymbols` consistent with the GCALL-001 model.
