@@ -38,10 +38,11 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use anvil_intercept_proto::protocol::{
-    GctxFindDependentsRequest, GctxFindDependentsResponse, GctxImpactOfChangeRequest,
-    GctxImpactOfChangeResponse, GctxSearchSymbolsRequest, GctxSearchSymbolsResponse,
-    RequestFullScanRequest, RequestFullScanResponse, ValidatePathsRequest, ValidatePathsResponse,
-    WorkspaceStatusRequest, WorkspaceStatusResponse,
+    GctxAffectedTestsRequest, GctxAffectedTestsResponse, GctxFindDependentsRequest,
+    GctxFindDependentsResponse, GctxImpactOfChangeRequest, GctxImpactOfChangeResponse,
+    GctxSearchSymbolsRequest, GctxSearchSymbolsResponse, RequestFullScanRequest,
+    RequestFullScanResponse, ValidatePathsRequest, ValidatePathsResponse, WorkspaceStatusRequest,
+    WorkspaceStatusResponse,
 };
 use anvil_intercept_proto::{IpcCommand, IpcEnvelope};
 use anvil_observability::{TraceContext, bind_traceparent_to_span};
@@ -126,6 +127,24 @@ pub trait GctxDispatch: Send {
         &mut self,
         request: &GctxImpactOfChangeRequest,
     ) -> Result<GctxImpactOfChangeResponse, SaveTimeError>;
+
+    /// Project an identity-only affected-tests report (likely-relevant test files
+    /// with evidence edges + coverage gaps) from the warm graph for a set of
+    /// changed file paths (daemon-side CE-5 projection). The `workspace_root` is
+    /// admitted against this connection's admitted-root set (ADR-084 C3) before
+    /// any read.
+    ///
+    /// Like the sibling GCTX verbs, degradation rides in-band in the response
+    /// `outcome` (CE-7); the only `Err` returns are connection-level (a refused
+    /// root or an anchor IO error).
+    ///
+    /// # Errors
+    /// [`SaveTimeError::NotAdmitted`] when the root is refused;
+    /// [`SaveTimeError::Io`] when an admissible root cannot be opened.
+    fn affected_tests(
+        &mut self,
+        request: &GctxAffectedTestsRequest,
+    ) -> Result<GctxAffectedTestsResponse, SaveTimeError>;
 }
 
 /// DSV-005: the save-time verb surface the JSON-RPC dispatch arm routes to.
@@ -2727,6 +2746,20 @@ async fn handle_jsonrpc_request<D: SessionDispatcher>(
         });
     }
 
+    // GCTX affected-tests report (GCTX-013 / ADR-084): same read-only
+    // `GctxDispatch` surface — never the enforcement path.
+    if method == anvil_intercept_proto::protocol::ANVIL_GCTX_AFFECTED_TESTS {
+        return dispatch_span.in_scope(|| {
+            handle_gctx_affected_tests_jsonrpc(
+                params,
+                response_id,
+                traceparent,
+                is_notification,
+                save_time,
+            )
+        });
+    }
+
     dispatch_span.in_scope(|| {
         dispatch_session_jsonrpc(
             method,
@@ -2972,6 +3005,40 @@ fn handle_gctx_impact_jsonrpc(
             response_id,
             traceparent,
         ),
+        Err(err) => save_time_invalid_params(response_id, traceparent, &err),
+    }
+}
+
+/// Route the GCTX affected-tests verb (GCTX-013 / ADR-084) to the per-connection
+/// dispatcher. Mirrors [`handle_gctx_impact_jsonrpc`].
+fn handle_gctx_affected_tests_jsonrpc(
+    params: &Value,
+    response_id: Option<Value>,
+    traceparent: Option<&str>,
+    is_notification: bool,
+    save_time: Option<&mut (dyn SaveTimeDispatch + '_)>,
+) -> Option<Value> {
+    if is_notification {
+        tracing::warn!(
+            target: "anvil_intercept::gctx",
+            "ignoring gctx verb sent as a notification: request id required",
+        );
+        return None;
+    }
+    let Some(dispatch) = save_time else {
+        return jsonrpc_request_error(
+            response_id,
+            traceparent,
+            false,
+            -32601,
+            "Method not found",
+            json!({"reason": "graph-context delivery is not enabled on this daemon"}),
+        );
+    };
+    match serde_json::from_value::<GctxAffectedTestsRequest>(params.clone()) {
+        Ok(request) => {
+            save_time_result(dispatch.affected_tests(&request), response_id, traceparent)
+        }
         Err(err) => save_time_invalid_params(response_id, traceparent, &err),
     }
 }
@@ -5819,6 +5886,82 @@ mod tests {
                 "jsonrpc": "2.0",
                 "method": anvil_intercept_proto::protocol::ANVIL_GCTX_IMPACT_OF_CHANGE,
                 "id": "gctx-impact-2",
+                "params": {"workspace_root": "/tmp/x", "query": {"changed_files": ["src/a.ts"]}},
+            }),
+            &dispatcher,
+            &scan_buffer,
+            &status,
+            None,
+            None,
+            None,
+        )
+        .await
+        .expect("response");
+
+        assert_eq!(response["error"]["code"], -32601);
+    }
+
+    /// GCTX-013 / ADR-084: an `anvil/gctx/affected_tests` frame routes to the
+    /// dedicated GCTX arm and is answered with a sealed, assurance-bearing result.
+    /// A cold worktree degrades in-band to `not_ready` (a success envelope).
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn dispatch_arm_routes_gctx_affected_tests() {
+        use crate::confinement::Confinement;
+        use crate::save_time::{SaveTimeConn, SaveTimeState};
+        use crate::workspace_pool::WorkScheduler;
+        use anvil_checks::antipattern::types::AntipatternCheckConfig;
+
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = SaveTimeState::new(
+            WorkScheduler::new().expect("scheduler"),
+            AntipatternCheckConfig::default(),
+            Confinement::open_default(),
+        );
+        let mut conn = SaveTimeConn::new(&state);
+        let dispatcher = Arc::new(NoopDispatcher);
+        let scan_buffer = ScanBufferService::default();
+        let status: Arc<dyn StatusProvider> = Arc::new(NoopStatusProvider);
+
+        let response = handle_jsonrpc_value(
+            json!({
+                "jsonrpc": "2.0",
+                "method": anvil_intercept_proto::protocol::ANVIL_GCTX_AFFECTED_TESTS,
+                "id": "gctx-tests-1",
+                "params": {"workspace_root": tmp.path().to_string_lossy(), "query": {"changed_files": ["src/a.ts"]}},
+            }),
+            &dispatcher,
+            &scan_buffer,
+            &status,
+            None,
+            None,
+            Some(&mut conn as &mut dyn SaveTimeDispatch),
+        )
+        .await
+        .expect("a gctx affected-tests request returns a response");
+
+        assert_eq!(response["id"], "gctx-tests-1");
+        assert!(
+            response.get("error").is_none(),
+            "gctx affected_tests must route to the gctx arm, not error: {response}",
+        );
+        assert_eq!(response["result"]["outcome"]["status"], "not_ready");
+        assert_eq!(response["result"]["workspace_assurance"]["state"], "stale");
+    }
+
+    /// Without save-time state wired, the GCTX affected-tests verb replies
+    /// `Method not found` (which the MCP consumer maps to `unavailable`).
+    #[tokio::test]
+    async fn gctx_affected_tests_method_not_found_without_save_time_state() {
+        let dispatcher = Arc::new(NoopDispatcher);
+        let scan_buffer = ScanBufferService::default();
+        let status: Arc<dyn StatusProvider> = Arc::new(NoopStatusProvider);
+
+        let response = handle_jsonrpc_value(
+            json!({
+                "jsonrpc": "2.0",
+                "method": anvil_intercept_proto::protocol::ANVIL_GCTX_AFFECTED_TESTS,
+                "id": "gctx-tests-2",
                 "params": {"workspace_root": "/tmp/x", "query": {"changed_files": ["src/a.ts"]}},
             }),
             &dispatcher,

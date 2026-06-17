@@ -75,8 +75,8 @@
 //! name at the JSON-RPC layer.
 
 use anvil_gctx_types::{
-    FindDependentsOutcome, FindDependentsQuery, ImpactOutcome, ImpactQuery, SearchSymbolsOutcome,
-    SearchSymbolsQuery,
+    AffectedTestsOutcome, AffectedTestsQuery, FindDependentsOutcome, FindDependentsQuery,
+    ImpactOutcome, ImpactQuery, SearchSymbolsOutcome, SearchSymbolsQuery,
 };
 use serde::{Deserialize, Serialize};
 
@@ -190,6 +190,15 @@ pub const ANVIL_GCTX_FIND_DEPENDENTS: &str = "anvil/gctx/find_dependents";
 /// read-only `GctxDispatch` surface; never the save-time path.
 pub const ANVIL_GCTX_IMPACT_OF_CHANGE: &str = "anvil/gctx/impact_of_change";
 
+/// Client → server: a read-only, identity-only GCTX affected-tests report
+/// (GCTX-013, ADR-084). Given a set of **changed file paths** (never diff
+/// content), the daemon projects the likely-relevant test files (with evidence
+/// edges + distance) and the changed non-test files with no resident test
+/// importer (coverage gaps), and returns a sealed `AffectedTestsReport`
+/// ([`GctxAffectedTestsResponse`]). Dispatched on the same read-only
+/// `GctxDispatch` surface; never the save-time path.
+pub const ANVIL_GCTX_AFFECTED_TESTS: &str = "anvil/gctx/affected_tests";
+
 /// Capability lattice for the §3.3 state machine.
 ///
 /// `Attached` is the read-only floor: every successfully-handshaken
@@ -249,6 +258,7 @@ pub const ALL_ANVIL_METHODS: &[&str] = &[
     ANVIL_GCTX_SEARCH_SYMBOLS,
     ANVIL_GCTX_FIND_DEPENDENTS,
     ANVIL_GCTX_IMPACT_OF_CHANGE,
+    ANVIL_GCTX_AFFECTED_TESTS,
 ];
 
 // ============================================================================
@@ -648,6 +658,36 @@ pub struct GctxImpactOfChangeResponse {
     pub outcome: ImpactOutcome,
 }
 
+/// Request body for [`ANVIL_GCTX_AFFECTED_TESTS`] (GCTX-013, ADR-084).
+///
+/// The query is the sealed, graph-free [`AffectedTestsQuery`] — **changed file
+/// paths only**, never diff content (CE-6). The `workspace_root` is validated
+/// daemon-side against the connection's admitted-root set (ADR-084 C3 / CE-8)
+/// before any projection runs.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GctxAffectedTestsRequest {
+    /// Canonical, admitted workspace root to project from.
+    pub workspace_root: String,
+    /// The change set whose likely tests + coverage gaps to report.
+    #[serde(default)]
+    pub query: AffectedTestsQuery,
+}
+
+/// Response to [`ANVIL_GCTX_AFFECTED_TESTS`]: the daemon-projected sealed
+/// `AffectedTestsReport` (identity-only).
+///
+/// As with the other GCTX responses, the daemon performs the CE-5 projection
+/// itself, so this response **is** the sealed DTO. `workspace_assurance` always
+/// rides along (CE-7); `outcome` is `ready` with the report when the graph is
+/// readable, and a named non-`ready` variant otherwise.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GctxAffectedTestsResponse {
+    /// Workspace assurance at projection time (CE-7).
+    pub workspace_assurance: WorkspaceAssurance,
+    /// The status-tagged affected-tests outcome (sealed, identity-only).
+    pub outcome: AffectedTestsOutcome,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1039,6 +1079,7 @@ mod tests {
             ANVIL_GCTX_SEARCH_SYMBOLS,
             ANVIL_GCTX_FIND_DEPENDENTS,
             ANVIL_GCTX_IMPACT_OF_CHANGE,
+            ANVIL_GCTX_AFFECTED_TESTS,
         ]
         .into_iter()
         .collect();
@@ -1047,7 +1088,7 @@ mod tests {
         // Count pin: no silent additions, no silent drops.
         assert_eq!(
             ALL_ANVIL_METHODS.len(),
-            12,
+            13,
             "ALL_ANVIL_METHODS count changed — pin and the named set must move together"
         );
         // Forward: every named const is listed.
@@ -1216,6 +1257,61 @@ mod tests {
                 outcome,
             };
             let back: GctxImpactOfChangeResponse =
+                serde_json::from_str(&serde_json::to_string(&response).unwrap()).unwrap();
+            assert_eq!(response, back);
+        }
+    }
+
+    /// GCTX-013 / ADR-084: the affected-tests RPC method name is frozen and the
+    /// request/response envelopes round-trip, including the named non-`ready`
+    /// degradation outcome alongside the assurance snapshot.
+    #[test]
+    fn gctx_affected_tests_wire_round_trips() {
+        assert_eq!(ANVIL_GCTX_AFFECTED_TESTS, "anvil/gctx/affected_tests");
+
+        let request = GctxAffectedTestsRequest {
+            workspace_root: "/home/me/proj".into(),
+            query: AffectedTestsQuery {
+                changed_files: vec!["src/a.ts".into(), "src/b.ts".into()],
+                max_depth: Some(2),
+            },
+        };
+        let back: GctxAffectedTestsRequest =
+            serde_json::from_str(&serde_json::to_string(&request).unwrap()).unwrap();
+        assert_eq!(request, back);
+
+        // A request may omit `query` entirely (serde default).
+        let bare: GctxAffectedTestsRequest =
+            serde_json::from_str(r#"{"workspace_root":"/p"}"#).unwrap();
+        assert_eq!(bare.query, AffectedTestsQuery::default());
+
+        for outcome in [
+            AffectedTestsOutcome::Ready(anvil_gctx_types::AffectedTestsReport {
+                tests: Vec::new(),
+                coverage_gaps: Vec::new(),
+                heuristic: true,
+                summary: anvil_gctx_types::AffectedTestsSummary::default(),
+            }),
+            AffectedTestsOutcome::NotReady {
+                recovery_hint: "warming".into(),
+            },
+            AffectedTestsOutcome::Unavailable,
+            AffectedTestsOutcome::Disabled,
+            AffectedTestsOutcome::InvalidQuery {
+                reason: "changed_files exceeds the 200-file cap".into(),
+            },
+        ] {
+            let response = GctxAffectedTestsResponse {
+                workspace_assurance: WorkspaceAssurance {
+                    state: AssuranceState::Stale,
+                    reason: Some(StaleReason::CrossFileResolutionNeeded),
+                    generation: 3,
+                    last_full_scan: None,
+                    scan_coverage: None,
+                },
+                outcome,
+            };
+            let back: GctxAffectedTestsResponse =
                 serde_json::from_str(&serde_json::to_string(&response).unwrap()).unwrap();
             assert_eq!(response, back);
         }

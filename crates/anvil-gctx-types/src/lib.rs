@@ -485,6 +485,138 @@ impl ImpactOutcome {
     }
 }
 
+// ============================================================================
+// GCTX-013 — `anvil_affected_tests` test-attribution report (ADR-084)
+// ============================================================================
+
+/// Query for `anvil_affected_tests`: the changed file paths whose likely tests
+/// and coverage gaps to report. Identity-only and graph-free.
+///
+/// **Paths only.** Like [`ImpactQuery`], this carries changed file *paths*, never
+/// diff content — the MCP tool may derive the paths client-side from a git diff,
+/// but no diff text ever reaches this type or the daemon (CE-6).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AffectedTestsQuery {
+    /// Workspace-root-relative changed file paths (deduplicated daemon-side).
+    /// Capped at [`MAX_CHANGED_FILES`]; an over-cap input is rejected.
+    pub changed_files: Vec<String>,
+    /// Reverse-impact traversal depth in hops for test discovery and the
+    /// coverage-gap check. Clamped daemon-side to the GV2-026
+    /// `MAX_REVERSE_IMPACT_DEPTH` ceiling; absent defaults to a 1-hop walk.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_depth: Option<u32>,
+}
+
+/// One test file attributed to the change set, with the *why* that links it.
+///
+/// Identity-only: a workspace-relative test path, the workspace-relative changed
+/// source files it directly imports, and the traversal distance — **no source
+/// text, no byte spans, no session-local ids**.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TestEvidence {
+    /// The test file (workspace-relative), recognised by the best-effort
+    /// test-file heuristic.
+    pub file: String,
+    /// The changed source files this test **directly** depends on
+    /// (`dependencies_of(test) ∩ changed_set`), ordered by path — the evidence
+    /// edge connecting the test to the change. May be empty when the test reaches
+    /// the change only transitively (distance > 1 through a non-changed
+    /// intermediate); the `distance` still records the hop.
+    pub changed_dependencies: Vec<String>,
+    /// Reverse-impact traversal distance (hops) from the change set to this test.
+    pub distance: u32,
+}
+
+/// Counts-only summary of an affected-tests report (CE-5 safe — totals, no
+/// names/paths).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AffectedTestsSummary {
+    /// Distinct changed input files the report was computed over (post-validation
+    /// dedup).
+    pub changed_files: usize,
+    /// `tests` returned.
+    pub tests: usize,
+    /// Total evidence edges across all `tests` (summed
+    /// `changed_dependencies.len()`).
+    pub evidence_edges: usize,
+    /// `coverage_gaps` returned.
+    pub coverage_gaps: usize,
+    /// Whether a result cap bound the report (either traversal hit the node
+    /// budget); the returned sets are then a deterministic prefix, and a
+    /// coverage gap may be over-reported (a test that would have covered it was
+    /// beyond the bound) — never a silent full cutoff.
+    pub truncated: bool,
+}
+
+/// The identity-only test-attribution report for a change set.
+///
+/// Both sections are identity-only (workspace-relative file paths, no source
+/// text). Deterministic for an identical change set and graph state (every
+/// section is sorted). Relevance is **import-derived, not execution-verified**
+/// (`heuristic`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AffectedTestsReport {
+    /// The test files that import a changed file within the depth bound, each
+    /// with its evidence edges and traversal distance, ordered by path.
+    pub tests: Vec<TestEvidence>,
+    /// Changed **non-test** files with **no** test importer within the depth
+    /// bound — the "you changed X, nothing tests it" warning. Ordered by path.
+    pub coverage_gaps: Vec<String>,
+    /// Always `true`: relevance is an import heuristic (file-keyed, not
+    /// execution-verified, not symbol-level), so an assistant must not treat the
+    /// report as authoritative coverage.
+    pub heuristic: bool,
+    /// Counts-only totals + truncation marker.
+    pub summary: AffectedTestsSummary,
+}
+
+/// The status-tagged outcome of an affected-tests report.
+///
+/// Same named degradation surface as the other GCTX tools (ADR-084 CE-7); the
+/// report is identity-only, so it inherits the warming/stale carve-out.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum AffectedTestsOutcome {
+    /// Graph readable: the test-attribution report (any section may be empty).
+    Ready(AffectedTestsReport),
+    /// Graph not yet readable (warming, or cold and not yet save-populated).
+    NotReady {
+        /// Human-readable, enum-stable recovery guidance.
+        recovery_hint: String,
+    },
+    /// Daemon or graph unavailable; no fallback was attempted (CE-7).
+    Unavailable,
+    /// The egress surface is switched off by the operator
+    /// (`ANVIL_GCTX_EGRESS=0`, re-read per call — CE-11 kill-switch).
+    Disabled,
+    /// The query was rejected before any read (CE-6 validation — e.g. an empty,
+    /// over-cap, or malformed `changed_files`).
+    InvalidQuery {
+        /// Why the query was rejected.
+        reason: String,
+    },
+}
+
+impl AffectedTestsOutcome {
+    /// Classify into the shared PII-free [`GctxOutcome`] telemetry enum (CE-10).
+    /// Exhaustive. A readable report splits into `Hit` (any attributed test or
+    /// coverage gap) and `Miss` (the change set yields neither) by the report
+    /// contents.
+    #[must_use]
+    pub fn telemetry_outcome(&self) -> GctxOutcome {
+        match self {
+            Self::Ready(report) if report.tests.is_empty() && report.coverage_gaps.is_empty() => {
+                GctxOutcome::Miss
+            }
+            Self::Ready(_) => GctxOutcome::Hit,
+            Self::NotReady { .. } => GctxOutcome::Warming,
+            Self::Unavailable => GctxOutcome::Unavailable,
+            Self::Disabled => GctxOutcome::GraphDisabled,
+            Self::InvalidQuery { .. } => GctxOutcome::InvalidQuery,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1054,6 +1186,149 @@ mod tests {
             (ImpactOutcome::Disabled, "graph_disabled"),
             (
                 ImpactOutcome::InvalidQuery { reason: "x".into() },
+                "invalid_query",
+            ),
+        ] {
+            assert_eq!(outcome.telemetry_outcome().as_str(), label);
+        }
+    }
+
+    // --- GCTX-013 affected_tests: CE-5 structural no-leak + shape ---
+
+    fn sample_affected_tests_report() -> AffectedTestsReport {
+        AffectedTestsReport {
+            tests: vec![TestEvidence {
+                file: "src/handler.test.ts".into(),
+                changed_dependencies: vec!["src/handler.ts".into()],
+                distance: 1,
+            }],
+            coverage_gaps: vec!["src/untested.ts".into()],
+            heuristic: true,
+            summary: AffectedTestsSummary {
+                changed_files: 2,
+                tests: 1,
+                evidence_edges: 1,
+                coverage_gaps: 1,
+                truncated: false,
+            },
+        }
+    }
+
+    /// CE-5 hard gate: a serialised [`AffectedTestsReport`] exposes ONLY the
+    /// identity-allowlisted section keys, and its nested summary / evidence only
+    /// their own allowlists. A field that widens egress fails this and the build.
+    #[test]
+    fn affected_tests_report_serialised_keys_are_identity_only() {
+        let v = serde_json::to_value(sample_affected_tests_report()).unwrap();
+        let obj = v.as_object().expect("report serialises to an object");
+        let mut keys: Vec<&str> = obj.keys().map(String::as_str).collect();
+        keys.sort_unstable();
+        assert_eq!(keys, ["coverage_gaps", "heuristic", "summary", "tests"]);
+
+        let test = obj["tests"][0].as_object().expect("test is an object");
+        let mut tk: Vec<&str> = test.keys().map(String::as_str).collect();
+        tk.sort_unstable();
+        assert_eq!(tk, ["changed_dependencies", "distance", "file"]);
+
+        let summary = obj["summary"].as_object().expect("summary is an object");
+        let mut sk: Vec<&str> = summary.keys().map(String::as_str).collect();
+        sk.sort_unstable();
+        assert_eq!(
+            sk,
+            [
+                "changed_files",
+                "coverage_gaps",
+                "evidence_edges",
+                "tests",
+                "truncated"
+            ]
+        );
+    }
+
+    #[test]
+    fn affected_tests_report_carries_no_absolute_paths_or_forbidden_concepts() {
+        let v = serde_json::to_value(sample_affected_tests_report()).unwrap();
+        assert_no_absolute_path_values(&v);
+        assert_no_forbidden_keys(
+            &v,
+            &[
+                "span", "byte", "text", "body", "snippet", "trust", "content", "id",
+            ],
+        );
+    }
+
+    #[test]
+    fn affected_tests_query_is_paths_only_and_round_trips() {
+        let q = AffectedTestsQuery {
+            changed_files: vec!["src/a.ts".into(), "src/b.ts".into()],
+            max_depth: Some(2),
+        };
+        let json = serde_json::to_string(&q).unwrap();
+        // No diff-content field exists on the type — paths only (CE-6).
+        assert!(!json.contains("diff"));
+        assert!(!json.contains("content"));
+        let back: AffectedTestsQuery = serde_json::from_str(&json).unwrap();
+        assert_eq!(q, back);
+        // `max_depth` is omitted when absent.
+        let bare = AffectedTestsQuery {
+            changed_files: vec!["src/a.ts".into()],
+            ..Default::default()
+        };
+        assert!(!serde_json::to_string(&bare).unwrap().contains("max_depth"));
+    }
+
+    #[test]
+    fn affected_tests_outcome_is_status_tagged_and_round_trips() {
+        let v = serde_json::to_value(AffectedTestsOutcome::Ready(sample_affected_tests_report()))
+            .unwrap();
+        assert_eq!(v["status"], Value::String("ready".into()));
+        assert!(v.get("tests").is_some());
+
+        for outcome in [
+            AffectedTestsOutcome::Ready(sample_affected_tests_report()),
+            AffectedTestsOutcome::NotReady {
+                recovery_hint: "warming".into(),
+            },
+            AffectedTestsOutcome::Unavailable,
+            AffectedTestsOutcome::Disabled,
+            AffectedTestsOutcome::InvalidQuery {
+                reason: "too many files".into(),
+            },
+        ] {
+            let json = serde_json::to_string(&outcome).unwrap();
+            let back: AffectedTestsOutcome = serde_json::from_str(&json).unwrap();
+            assert_eq!(outcome, back);
+        }
+    }
+
+    #[test]
+    fn affected_tests_telemetry_outcome_classifies_every_variant() {
+        // A report with content → hit.
+        assert_eq!(
+            AffectedTestsOutcome::Ready(sample_affected_tests_report())
+                .telemetry_outcome()
+                .as_str(),
+            "hit"
+        );
+        // An empty report (no tests, no gaps) → miss.
+        let empty = AffectedTestsOutcome::Ready(AffectedTestsReport {
+            tests: Vec::new(),
+            coverage_gaps: Vec::new(),
+            heuristic: true,
+            summary: AffectedTestsSummary::default(),
+        });
+        assert_eq!(empty.telemetry_outcome().as_str(), "miss");
+        for (outcome, label) in [
+            (
+                AffectedTestsOutcome::NotReady {
+                    recovery_hint: "x".into(),
+                },
+                "warming",
+            ),
+            (AffectedTestsOutcome::Unavailable, "unavailable"),
+            (AffectedTestsOutcome::Disabled, "graph_disabled"),
+            (
+                AffectedTestsOutcome::InvalidQuery { reason: "x".into() },
                 "invalid_query",
             ),
         ] {

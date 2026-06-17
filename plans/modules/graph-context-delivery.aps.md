@@ -465,7 +465,7 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-013: `anvil_affected_tests` tool
 
-- **Status:** Ready — builds directly on the GCTX-010/011/012 spine (all Merged):
+- **Status:** In Progress — builds directly on the GCTX-010/011/012 spine (all Merged):
   the sealed `anvil-gctx-types` DTOs, the single `GctxProjector` choke point, the
   `GctxDispatch` RPC surface, GCTX-012's `is_test_file` heuristic, and the
   reverse-impact walk. **No new graph substrate** — it adds *attribution* and

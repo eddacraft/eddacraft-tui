@@ -19,8 +19,9 @@
 use std::path::Path;
 
 use anvil_gctx_types::{
-    DependentSummary, FindDependentsProjection, FindDependentsQuery, ImpactReport, ImpactSummary,
-    OpaqueCursor, RedactionSummary, SearchSymbolsProjection, SearchSymbolsQuery, SymbolSummary,
+    AffectedTestsReport, AffectedTestsSummary, DependentSummary, FindDependentsProjection,
+    FindDependentsQuery, ImpactReport, ImpactSummary, OpaqueCursor, RedactionSummary,
+    SearchSymbolsProjection, SearchSymbolsQuery, SymbolSummary, TestEvidence,
 };
 use anvil_graph_cache::{DependencyGraph, SymbolGraph};
 use anvil_kernel_types::{SymbolIdentity, SymbolKind, SymbolNode, Visibility};
@@ -480,6 +481,274 @@ impl GctxProjector {
             summary,
         }
     }
+
+    /// Collect the raw, identity-only pieces of an affected-tests report
+    /// (GCTX-013): the **test files** that import the change set within the depth
+    /// bound — each with its evidence edges (the changed files it directly
+    /// imports) and traversal distance — and the changed **non-test** files with
+    /// no resident test importer (coverage gaps).
+    ///
+    /// **Call this under the cache lock** (it borrows the dependency graph). It
+    /// needs only the [`DependencyGraph`]'s reverse edges (to find importers) and
+    /// forward edges (`dependencies_of`, for the evidence link and transitive
+    /// coverage), not the symbol graph.
+    ///
+    /// Two bounded passes run under the lock:
+    /// 1. a **reverse** multi-source breadth-first walk seeded with all changed
+    ///    files (shared `seen`, single aggregate node budget) discovers every
+    ///    dependent within `depth`; the test files among them become the report's
+    ///    `tests`, each tagged with `dependencies_of(test) ∩ changed_set` and its
+    ///    hop distance;
+    /// 2. a **forward** multi-source walk seeded with the discovered test files
+    ///    determines which changed files a test transitively reaches within
+    ///    `depth` — the *covered* set; a changed non-test file outside it is a
+    ///    coverage gap.
+    ///
+    /// The two passes **share one aggregate** [`MAX_DEPENDENTS_WALK`] node-visit
+    /// budget (the reverse pass's count carries into the forward pass), so a
+    /// single call's lock-held cost matches the single-walk sibling verbs and
+    /// cannot allocate without bound on a pathological graph (ADR-031); every
+    /// frontier is walked in **sorted path order**, so an over-budget truncation
+    /// keeps a deterministic, path-ordered prefix. The changed files seed the
+    /// reverse `seen`, so a changed file is never reported as importing itself.
+    ///
+    /// `depth` MUST be caller-clamped to the GV2-026 ceiling (a `debug_assert`
+    /// enforces it). The caller releases the lock before calling
+    /// [`GctxProjector::project_affected_tests`].
+    #[must_use]
+    pub fn collect_affected_tests(
+        dep: &DependencyGraph,
+        changed_files: &[String],
+        depth: u32,
+    ) -> CollectedAffectedTests {
+        debug_assert!(
+            depth <= anvil_graph_cache::MAX_REVERSE_IMPACT_DEPTH,
+            "affected-tests walk depth {depth} exceeds the ADR-063 cap {} (caller must clamp)",
+            anvil_graph_cache::MAX_REVERSE_IMPACT_DEPTH,
+        );
+
+        // Distinct, non-absolute changed seeds. This set doubles as change-set
+        // membership for evidence-edge and coverage tests.
+        let mut changed_set: std::collections::HashSet<String> = std::collections::HashSet::new();
+        for file in changed_files {
+            if !is_absolute_path_like(file) {
+                changed_set.insert(file.clone());
+            }
+        }
+        let changed_count = changed_set.len();
+
+        let mut truncated = false;
+
+        // --- Pass 1: reverse walk → dependent tests within the depth bound. ---
+        let mut tests: Vec<TestEvidence> = Vec::new();
+        let mut seen: std::collections::HashSet<String> = changed_set.clone();
+        let mut frontier: Vec<String> = {
+            let mut f: Vec<String> = changed_set.iter().cloned().collect();
+            f.sort_unstable();
+            f
+        };
+        let mut walked = 0usize;
+        'reverse: for hop in 1..=depth {
+            let mut next: Vec<String> = Vec::new();
+            for current in &frontier {
+                let mut importers = dep.dependents_of(current);
+                importers.sort_unstable();
+                for importer in importers {
+                    if is_absolute_path_like(importer) {
+                        continue;
+                    }
+                    if seen.insert(importer.to_string()) {
+                        walked += 1;
+                        if is_test_file(importer) {
+                            // Evidence edge: the changed files this test directly
+                            // imports. Empty when it reaches the change only
+                            // transitively (the `distance` still records the hop).
+                            let mut evidence: Vec<String> = dep
+                                .dependencies_of(importer)
+                                .into_iter()
+                                .filter(|dep_file| changed_set.contains(*dep_file))
+                                .map(ToString::to_string)
+                                .collect();
+                            evidence.sort_unstable();
+                            tests.push(TestEvidence {
+                                file: importer.to_string(),
+                                changed_dependencies: evidence,
+                                distance: hop,
+                            });
+                        }
+                        next.push(importer.to_string());
+                        if walked >= MAX_DEPENDENTS_WALK {
+                            truncated = true;
+                            break 'reverse;
+                        }
+                    }
+                }
+            }
+            if next.is_empty() {
+                break;
+            }
+            next.sort_unstable();
+            frontier = next;
+        }
+
+        // --- Pass 2: forward walk from the tests → covered changed files. ---
+        // Seed with the discovered (external) tests AND any changed file that is
+        // itself a test: a changed test importing another changed file still
+        // covers it, even though it is excluded from the dependent `tests` output
+        // as part of the change set.
+        let mut coverage_seeds: Vec<String> = tests.iter().map(|t| t.file.clone()).collect();
+        for file in &changed_set {
+            if is_test_file(file) {
+                coverage_seeds.push(file.clone());
+            }
+        }
+        // Share the node budget across both passes (`walked` carries over) so a
+        // single call stays bounded at one [`MAX_DEPENDENTS_WALK`] aggregate, not
+        // one per pass — the lock-held cost matches the single-walk sibling verbs
+        // (ADR-031).
+        let covered = covered_changed_files(
+            dep,
+            &coverage_seeds,
+            &changed_set,
+            depth,
+            &mut walked,
+            &mut truncated,
+        );
+
+        // Coverage gaps: changed non-test files no test reaches within the bound.
+        let coverage_gaps: Vec<String> = changed_set
+            .iter()
+            .filter(|file| !is_test_file(file) && !covered.contains(*file))
+            .cloned()
+            .collect();
+
+        CollectedAffectedTests {
+            tests,
+            coverage_gaps,
+            changed_count,
+            truncated,
+        }
+    }
+
+    /// Sort and seal collected affected-tests pieces into the report (GCTX-013).
+    /// **Call this after releasing the cache lock.**
+    ///
+    /// `tests` is ordered by path (already distinct from the shared-`seen`
+    /// reverse walk); `coverage_gaps` by path. Deterministic for an identical
+    /// change set and graph state. The `changed_files` / `truncated` summary
+    /// fields are taken from [`collect_affected_tests`] so they always reflect
+    /// what was actually walked. `heuristic` is always `true`.
+    #[must_use]
+    pub fn project_affected_tests(collected: CollectedAffectedTests) -> AffectedTestsReport {
+        let CollectedAffectedTests {
+            mut tests,
+            mut coverage_gaps,
+            changed_count,
+            truncated,
+        } = collected;
+        tests.sort_by(|a, b| a.file.cmp(&b.file));
+        coverage_gaps.sort_unstable();
+
+        let evidence_edges = tests.iter().map(|t| t.changed_dependencies.len()).sum();
+        let summary = AffectedTestsSummary {
+            changed_files: changed_count,
+            tests: tests.len(),
+            evidence_edges,
+            coverage_gaps: coverage_gaps.len(),
+            truncated,
+        };
+        AffectedTestsReport {
+            tests,
+            coverage_gaps,
+            heuristic: true,
+            summary,
+        }
+    }
+}
+
+/// The owned, identity-only pieces [`GctxProjector::collect_affected_tests`]
+/// gathers under the cache lock, handed to
+/// [`GctxProjector::project_affected_tests`] after the lock releases (ADR-084
+/// C2).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CollectedAffectedTests {
+    /// The test files attributed to the change set, with evidence edges +
+    /// distance (unsorted; sealed on `project_affected_tests`).
+    pub tests: Vec<TestEvidence>,
+    /// Changed non-test files with no resident test importer within the bound.
+    pub coverage_gaps: Vec<String>,
+    /// Distinct, non-absolute changed files actually seeded (the count the report
+    /// is computed over).
+    pub changed_count: usize,
+    /// Whether the shared [`MAX_DEPENDENTS_WALK`] budget bound either walk.
+    pub truncated: bool,
+}
+
+/// Forward multi-source breadth-first walk from `test_files`, returning the
+/// changed files a test transitively imports within `depth` hops (the *covered*
+/// set for the GCTX-013 coverage-gap check). `walked` is the **shared, aggregate**
+/// node-visit counter carried over from the reverse pass, so the whole call stays
+/// bounded at one [`MAX_DEPENDENTS_WALK`] (not one budget per pass) — an
+/// over-budget walk sets `truncated` (coverage may then be under-reported, i.e. a
+/// real gap conservatively shown). Absolute-path dependency nodes are dropped
+/// (CE-5 defence in depth; they can never be in the change set, so they only burn
+/// budget) before they consume the budget. Each frontier is walked in sorted path
+/// order for a deterministic prefix.
+fn covered_changed_files(
+    dep: &DependencyGraph,
+    test_files: &[String],
+    changed_set: &std::collections::HashSet<String>,
+    depth: u32,
+    walked: &mut usize,
+    truncated: &mut bool,
+) -> std::collections::HashSet<String> {
+    let mut covered: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut frontier: Vec<String> = test_files.to_vec();
+    frontier.sort_unstable();
+    frontier.dedup();
+    for test in &frontier {
+        seen.insert(test.clone());
+    }
+    // The reverse pass may already have spent the whole budget.
+    if *walked >= MAX_DEPENDENTS_WALK {
+        *truncated = true;
+        return covered;
+    }
+    'forward: for _hop in 1..=depth {
+        let mut next: Vec<String> = Vec::new();
+        for current in &frontier {
+            let mut deps = dep.dependencies_of(current);
+            deps.sort_unstable();
+            for dep_file in deps {
+                // CE-5 defence in depth: an absolute dependency node can never be
+                // in `changed_set`, so it contributes no coverage — drop it rather
+                // than let it burn budget and bloat the lock-held frontier.
+                if is_absolute_path_like(dep_file) {
+                    continue;
+                }
+                // Mark coverage regardless of whether `dep_file` is re-expanded —
+                // a changed file reached by two tests is covered all the same.
+                if changed_set.contains(dep_file) {
+                    covered.insert(dep_file.to_string());
+                }
+                if seen.insert(dep_file.to_string()) {
+                    *walked += 1;
+                    next.push(dep_file.to_string());
+                    if *walked >= MAX_DEPENDENTS_WALK {
+                        *truncated = true;
+                        break 'forward;
+                    }
+                }
+            }
+        }
+        if next.is_empty() {
+            break;
+        }
+        next.sort_unstable();
+        frontier = next;
+    }
+    covered
 }
 
 /// The owned, identity-only pieces [`GctxProjector::collect_impact`] gathers
@@ -1712,5 +1981,153 @@ mod tests {
         ] {
             assert!(!is_test_file(p), "{p} should NOT be a test file");
         }
+    }
+
+    // --- GCTX-013 affected_tests ---
+
+    fn run_affected_tests(
+        dep: &DependencyGraph,
+        changed: &[&str],
+        depth: u32,
+    ) -> anvil_gctx_types::AffectedTestsReport {
+        let changed: Vec<String> = changed.iter().map(ToString::to_string).collect();
+        let collected = GctxProjector::collect_affected_tests(dep, &changed, depth);
+        GctxProjector::project_affected_tests(collected)
+    }
+
+    /// The GCTX-013 fixture: a changed source `s.ts` with a test `s.test.ts`
+    /// importing it, and a second changed source `u.ts` with no test → the test
+    /// appears with an evidence edge to `s.ts`, `u.ts` is a coverage gap, and the
+    /// heuristic marker is set.
+    #[test]
+    fn affected_tests_attributes_test_and_flags_coverage_gap() {
+        let dep = dep_graph(&[("s.test.ts", "s.ts")]);
+        let report = run_affected_tests(&dep, &["s.ts", "u.ts"], 1);
+
+        assert!(report.heuristic);
+        assert_eq!(report.tests.len(), 1);
+        assert_eq!(report.tests[0].file, "s.test.ts");
+        assert_eq!(report.tests[0].changed_dependencies, ["s.ts"]);
+        assert_eq!(report.tests[0].distance, 1);
+        // s.ts is covered by s.test.ts; only u.ts is a gap.
+        assert_eq!(report.coverage_gaps, ["u.ts"]);
+        assert_eq!(report.summary.changed_files, 2);
+        assert_eq!(report.summary.tests, 1);
+        assert_eq!(report.summary.evidence_edges, 1);
+        assert_eq!(report.summary.coverage_gaps, 1);
+        assert!(!report.summary.truncated);
+    }
+
+    /// A test importing two changed files carries both as evidence edges (sorted),
+    /// and both are covered (no gaps).
+    #[test]
+    fn affected_tests_evidence_unions_multiple_changed_imports() {
+        // one.test.ts imports both changed sources a.ts and b.ts.
+        let dep = dep_graph(&[("one.test.ts", "a.ts"), ("one.test.ts", "b.ts")]);
+        let report = run_affected_tests(&dep, &["b.ts", "a.ts"], 1);
+
+        assert_eq!(report.tests.len(), 1);
+        assert_eq!(report.tests[0].changed_dependencies, ["a.ts", "b.ts"]);
+        assert!(report.coverage_gaps.is_empty());
+        assert_eq!(report.summary.evidence_edges, 2);
+    }
+
+    /// Transitive coverage: a test that reaches a changed file only through a
+    /// non-test intermediate is found at distance 2 (with no direct evidence
+    /// edge), and the changed file is covered — so it is NOT a gap at depth 2,
+    /// but IS a gap at depth 1 (the test is out of reach).
+    #[test]
+    fn affected_tests_transitive_coverage_respects_depth() {
+        // t.test.ts → m.ts → x.ts. x.ts is the changed source; m.ts a non-test
+        // intermediate; t.test.ts the test two hops up.
+        let dep = dep_graph(&[("m.ts", "x.ts"), ("t.test.ts", "m.ts")]);
+
+        let depth2 = run_affected_tests(&dep, &["x.ts"], 2);
+        assert_eq!(depth2.tests.len(), 1);
+        assert_eq!(depth2.tests[0].file, "t.test.ts");
+        assert_eq!(depth2.tests[0].distance, 2);
+        // The test reaches x.ts only transitively → no direct evidence edge…
+        assert!(depth2.tests[0].changed_dependencies.is_empty());
+        // …but x.ts is still covered within the bound, so it is not a gap.
+        assert!(depth2.coverage_gaps.is_empty());
+
+        let depth1 = run_affected_tests(&dep, &["x.ts"], 1);
+        // At depth 1 the test is out of reach: no tests, x.ts is a coverage gap.
+        assert!(depth1.tests.is_empty());
+        assert_eq!(depth1.coverage_gaps, ["x.ts"]);
+    }
+
+    /// Determinism: the report is identical regardless of changed-input order,
+    /// with both `tests` and `coverage_gaps` in path order.
+    #[test]
+    fn affected_tests_is_deterministic_regardless_of_input_order() {
+        let dep = dep_graph(&[
+            ("z.test.ts", "a.ts"),
+            ("m.test.ts", "b.ts"),
+            ("q.test.ts", "a.ts"),
+        ]);
+        let first = run_affected_tests(&dep, &["a.ts", "b.ts", "c.ts"], 1);
+        let second = run_affected_tests(&dep, &["c.ts", "b.ts", "a.ts"], 1);
+        assert_eq!(first, second);
+        let tests: Vec<&str> = first.tests.iter().map(|t| t.file.as_str()).collect();
+        assert_eq!(tests, ["m.test.ts", "q.test.ts", "z.test.ts"]);
+        // c.ts has no importer at all → the lone coverage gap.
+        assert_eq!(first.coverage_gaps, ["c.ts"]);
+    }
+
+    /// CE-5: an absolute changed path is neither seeded nor counted, and a changed
+    /// test file is never reported as a coverage gap (it is filtered as a test).
+    #[test]
+    fn affected_tests_drops_absolute_and_never_gaps_a_changed_test() {
+        // a.ts changed (covered by a.test.ts which is ALSO changed); the absolute
+        // path is dropped from the seed set and the count.
+        let dep = dep_graph(&[("a.test.ts", "a.ts")]);
+        let report = run_affected_tests(&dep, &["a.ts", "a.test.ts", "/etc/passwd"], 1);
+
+        // Two usable seeds (a.ts, a.test.ts); the absolute path is dropped.
+        assert_eq!(report.summary.changed_files, 2);
+        // a.test.ts is a changed test → it is in `tests`, never a coverage gap.
+        assert!(report.coverage_gaps.is_empty());
+        // No emitted path is absolute.
+        for test in &report.tests {
+            assert!(!is_absolute_path_like(&test.file));
+            assert!(
+                test.changed_dependencies
+                    .iter()
+                    .all(|d| !is_absolute_path_like(d))
+            );
+        }
+    }
+
+    /// CE-5 / bounds: an absolute-path dependency node reached by the forward
+    /// coverage walk is dropped — it can never be in the change set, so it neither
+    /// covers anything nor burns the shared node budget. The real changed source
+    /// reached past it stays covered (not a false gap).
+    #[test]
+    fn affected_tests_forward_walk_drops_absolute_dependency_nodes() {
+        // t.test.ts imports an absolute node_modules path AND the changed x.ts.
+        let dep = dep_graph(&[
+            ("t.test.ts", "/abs/node_modules/pkg/index.js"),
+            ("t.test.ts", "x.ts"),
+        ]);
+        let report = run_affected_tests(&dep, &["x.ts"], 1);
+
+        assert_eq!(report.tests.len(), 1);
+        assert_eq!(report.tests[0].file, "t.test.ts");
+        // The absolute import is dropped from the evidence edge…
+        assert_eq!(report.tests[0].changed_dependencies, ["x.ts"]);
+        // …and x.ts is covered, so there is no coverage gap.
+        assert!(report.coverage_gaps.is_empty());
+    }
+
+    /// An empty change set yields an empty report.
+    #[test]
+    fn affected_tests_empty_change_set_is_an_empty_report() {
+        let dep = dep_graph(&[("b.test.ts", "a.ts")]);
+        let report = run_affected_tests(&dep, &[], 1);
+        assert!(report.tests.is_empty());
+        assert!(report.coverage_gaps.is_empty());
+        assert_eq!(report.summary.changed_files, 0);
+        assert!(report.heuristic);
     }
 }

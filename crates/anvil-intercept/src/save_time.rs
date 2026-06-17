@@ -48,16 +48,16 @@ use std::sync::{Arc, Mutex, PoisonError};
 use anvil_checks::antipattern::types::AntipatternCheckConfig;
 use anvil_gctx_egress::GctxProjector;
 use anvil_gctx_types::{
-    FindDependentsOutcome, FindDependentsQuery, ImpactOutcome, ImpactQuery, MAX_CHANGED_FILES,
-    SearchSymbolsOutcome, SearchSymbolsQuery,
+    AffectedTestsOutcome, AffectedTestsQuery, FindDependentsOutcome, FindDependentsQuery,
+    ImpactOutcome, ImpactQuery, MAX_CHANGED_FILES, SearchSymbolsOutcome, SearchSymbolsQuery,
 };
 use anvil_graph_cache::clamp_reverse_impact_depth;
 use anvil_intercept_proto::protocol::{
-    AssuranceState, GctxFindDependentsRequest, GctxFindDependentsResponse,
-    GctxImpactOfChangeRequest, GctxImpactOfChangeResponse, GctxSearchSymbolsRequest,
-    GctxSearchSymbolsResponse, RequestFullScanRequest, RequestFullScanResponse, StaleReason,
-    ValidatePathsRequest, ValidatePathsResponse, WorkspaceAssurance, WorkspaceStatusRequest,
-    WorkspaceStatusResponse,
+    AssuranceState, GctxAffectedTestsRequest, GctxAffectedTestsResponse, GctxFindDependentsRequest,
+    GctxFindDependentsResponse, GctxImpactOfChangeRequest, GctxImpactOfChangeResponse,
+    GctxSearchSymbolsRequest, GctxSearchSymbolsResponse, RequestFullScanRequest,
+    RequestFullScanResponse, StaleReason, ValidatePathsRequest, ValidatePathsResponse,
+    WorkspaceAssurance, WorkspaceStatusRequest, WorkspaceStatusResponse,
 };
 use anvil_kernel_types::FileSymbols;
 
@@ -1105,6 +1105,56 @@ impl GctxDispatch for SaveTimeConn<'_> {
             outcome,
         })
     }
+
+    fn affected_tests(
+        &mut self,
+        request: &GctxAffectedTestsRequest,
+    ) -> Result<GctxAffectedTestsResponse, SaveTimeError> {
+        let root = PathBuf::from(&request.workspace_root);
+        let originating_session = self.originating_session.clone();
+        let state = self.state;
+        // ADR-084 C3 / CE-8: admit the client-supplied root before any read.
+        authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        let canonical = canonical_root(&root)?;
+        let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
+        let key = WorktreeKey::from_canonical(canonical);
+
+        // CE-7: the assurance snapshot always rides along.
+        let workspace_assurance =
+            state.with_machine(&key, correlation, |machine| machine.snapshot());
+
+        let outcome = gctx_affected_tests_outcome(
+            state,
+            &key,
+            &workspace_assurance,
+            &request.query,
+            gctx_egress_disabled(),
+        );
+
+        // CE-10: bind telemetry to the exhaustive PII-free outcome enum plus
+        // response-aggregate counts only — never paths or query text. `matched`
+        // is the total projected surface (tests + coverage gaps) and `returned`
+        // is the attributed test count.
+        let (matched, returned) = match &outcome {
+            AffectedTestsOutcome::Ready(report) => (
+                report.summary.tests + report.summary.coverage_gaps,
+                report.summary.tests,
+            ),
+            _ => (0, 0),
+        };
+        tracing::info!(
+            target: "anvil_intercept::gctx",
+            outcome = outcome.telemetry_outcome().as_str(),
+            matched,
+            returned,
+            "gctx affected_tests served",
+        );
+
+        Ok(GctxAffectedTestsResponse {
+            workspace_assurance,
+            outcome,
+        })
+    }
 }
 
 /// CE-11 kill-switch. `ANVIL_GCTX_EGRESS` is re-read **per call** (never cached
@@ -1373,20 +1423,84 @@ fn gctx_impact_outcome(
     }
 }
 
-/// CE-6 hygiene for `impact_of_change`. Rejects an empty or over-cap change set
+/// CE-6 hygiene for `impact_of_change`, delegating to the shared change-set
+/// validator.
+fn invalid_impact_query_reason(query: &ImpactQuery) -> Option<String> {
+    invalid_changed_files_reason(&query.changed_files)
+}
+
+/// Compute the GCTX affected-tests outcome for an admitted root (GCTX-013 /
+/// ADR-084). Mirrors [`gctx_impact_outcome`]: same kill-switch, query-validation,
+/// and CE-7 degradation arms. The read is a single `with_graphs` over the warm
+/// dependency graph inside the lock (the symbol graph is unused — test
+/// attribution is purely import-edge derived); the report is sorted/sealed after
+/// release (C2).
+fn gctx_affected_tests_outcome(
+    state: &SaveTimeState,
+    key: &WorktreeKey,
+    assurance: &WorkspaceAssurance,
+    query: &AffectedTestsQuery,
+    egress_disabled: bool,
+) -> AffectedTestsOutcome {
+    // CE-11 kill-switch.
+    if egress_disabled {
+        return AffectedTestsOutcome::Disabled;
+    }
+
+    // CE-6: reject a hostile or malformed change set before touching the graph.
+    if let Some(reason) = invalid_changed_files_reason(&query.changed_files) {
+        return AffectedTestsOutcome::InvalidQuery { reason };
+    }
+
+    // GV2-026 lever: clamp the discovery depth into the ADR-063 envelope.
+    let depth = clamp_reverse_impact_depth(query.max_depth.unwrap_or(1));
+    let changed_files = query.changed_files.clone();
+
+    match assurance.state {
+        AssuranceState::Unavailable | AssuranceState::Unknown => AffectedTestsOutcome::Unavailable,
+        AssuranceState::Pending | AssuranceState::Running => AffectedTestsOutcome::NotReady {
+            recovery_hint: "the workspace graph is warming; retry the affected-tests query shortly"
+                .to_string(),
+        },
+        AssuranceState::Clean | AssuranceState::Stale | AssuranceState::Bounded => {
+            // C2: collect under the lock (dependency graph only), project after
+            // release. The `changed_files` / `truncated` counts come from
+            // `collect_affected_tests`, so the summary always reflects the seeds
+            // it actually walked.
+            let collected = state.cache.with_graphs(key, |_sym, dep| {
+                GctxProjector::collect_affected_tests(dep, &changed_files, depth)
+            });
+            match collected {
+                Some(collected) => {
+                    AffectedTestsOutcome::Ready(GctxProjector::project_affected_tests(collected))
+                }
+                None => AffectedTestsOutcome::NotReady {
+                    recovery_hint: concat!(
+                        "the workspace graph is not yet populated; ",
+                        "save a file or request a full scan to warm it"
+                    )
+                    .to_string(),
+                },
+            }
+        }
+    }
+}
+
+/// CE-6 hygiene shared by the change-set GCTX verbs (`impact_of_change`,
+/// `affected_tests`). Rejects an empty or over-cap change set
 /// (≤ [`MAX_CHANGED_FILES`]) and any malformed changed-file path **before** the
 /// graph is read, reusing [`invalid_relative_path_reason`] per path. Returns the
 /// rejection reason, or `None`.
-fn invalid_impact_query_reason(query: &ImpactQuery) -> Option<String> {
-    if query.changed_files.is_empty() {
+fn invalid_changed_files_reason(changed_files: &[String]) -> Option<String> {
+    if changed_files.is_empty() {
         return Some("changed_files must not be empty".to_string());
     }
-    if query.changed_files.len() > MAX_CHANGED_FILES {
+    if changed_files.len() > MAX_CHANGED_FILES {
         return Some(format!(
             "changed_files exceeds the {MAX_CHANGED_FILES}-file cap"
         ));
     }
-    for file in &query.changed_files {
+    for file in changed_files {
         if file.is_empty() {
             return Some("a changed file path must not be empty".to_string());
         }
@@ -2561,6 +2675,159 @@ mod tests {
         conn.impact_of_change(&impact_request(primary.path(), &["a.ts"]))
             .expect("primary root is implicitly admitted");
         let refused = conn.impact_of_change(&impact_request(unlisted.path(), &["a.ts"]));
+        assert!(
+            matches!(refused, Err(SaveTimeError::NotAdmitted)),
+            "an unadmitted root must be refused: {refused:?}",
+        );
+    }
+
+    // --- GCTX-013 affected_tests (daemon wiring) ---
+
+    fn affected_tests_request(root: &Path, changed: &[&str]) -> GctxAffectedTestsRequest {
+        GctxAffectedTestsRequest {
+            workspace_root: root.to_string_lossy().into_owned(),
+            query: AffectedTestsQuery {
+                changed_files: changed.iter().map(ToString::to_string).collect(),
+                max_depth: None,
+            },
+        }
+    }
+
+    /// A warm worktree yields a `Ready` report: a test importing the changed
+    /// source appears with an evidence edge, and a second changed source with no
+    /// test is a coverage gap.
+    #[test]
+    fn gctx_affected_tests_ready_attributes_tests_and_gaps_when_warm() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = state();
+        warm(&state, tmp.path(), "s.ts", &["s"], 0);
+        warm(&state, tmp.path(), "u.ts", &["u"], 100);
+        warm_with_import(&state, tmp.path(), "s.test.ts", &["t"], "./s", 200);
+
+        let mut conn = SaveTimeConn::new(&state);
+        let resp = conn
+            .affected_tests(&affected_tests_request(tmp.path(), &["s.ts", "u.ts"]))
+            .expect("admitted");
+        match resp.outcome {
+            AffectedTestsOutcome::Ready(report) => {
+                assert!(report.heuristic);
+                assert_eq!(report.tests.len(), 1);
+                assert_eq!(report.tests[0].file, "s.test.ts");
+                assert_eq!(report.tests[0].changed_dependencies, ["s.ts"]);
+                assert_eq!(report.tests[0].distance, 1);
+                assert_eq!(report.coverage_gaps, ["u.ts"]);
+                assert_eq!(report.summary.changed_files, 2);
+                assert_eq!(report.summary.evidence_edges, 1);
+            }
+            other => panic!("expected Ready, got {other:?}"),
+        }
+    }
+
+    /// CE-7: a cold worktree degrades to `NotReady`, never an empty `Ready`.
+    #[test]
+    fn gctx_affected_tests_not_ready_on_cold_worktree() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = state();
+        let mut conn = SaveTimeConn::new(&state);
+        let resp = conn
+            .affected_tests(&affected_tests_request(tmp.path(), &["a.ts"]))
+            .expect("admitted");
+        assert!(
+            matches!(resp.outcome, AffectedTestsOutcome::NotReady { .. }),
+            "cold worktree must degrade to NotReady: {:?}",
+            resp.outcome
+        );
+    }
+
+    /// CE-11 kill-switch: a disabled surface self-reports `Disabled` even warm.
+    #[test]
+    fn gctx_affected_tests_kill_switch_disables_egress() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = state();
+        warm(&state, tmp.path(), "a.ts", &["alpha"], 0);
+        let key =
+            WorktreeKey::from_canonical(std::fs::canonicalize(tmp.path()).expect("canonical"));
+        let clean = assurance(AssuranceState::Clean, None);
+        let disabled = gctx_affected_tests_outcome(
+            &state,
+            &key,
+            &clean,
+            &AffectedTestsQuery {
+                changed_files: vec!["a.ts".into()],
+                max_depth: None,
+            },
+            true,
+        );
+        assert!(matches!(disabled, AffectedTestsOutcome::Disabled));
+    }
+
+    /// CE-6: an empty change set and an over-cap change set are both rejected.
+    #[test]
+    fn gctx_affected_tests_rejects_empty_and_over_cap_change_sets() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = state();
+        warm(&state, tmp.path(), "a.ts", &["alpha"], 0);
+        let mut conn = SaveTimeConn::new(&state);
+
+        let empty = conn
+            .affected_tests(&affected_tests_request(tmp.path(), &[]))
+            .expect("admitted");
+        assert!(matches!(
+            empty.outcome,
+            AffectedTestsOutcome::InvalidQuery { .. }
+        ));
+
+        let over: Vec<String> = (0..=MAX_CHANGED_FILES)
+            .map(|i| format!("src/f{i}.ts"))
+            .collect();
+        let over_req = GctxAffectedTestsRequest {
+            workspace_root: tmp.path().to_string_lossy().into_owned(),
+            query: AffectedTestsQuery {
+                changed_files: over,
+                max_depth: None,
+            },
+        };
+        let over_resp = conn.affected_tests(&over_req).expect("admitted");
+        assert!(matches!(
+            over_resp.outcome,
+            AffectedTestsOutcome::InvalidQuery { .. }
+        ));
+    }
+
+    /// CE-6: a `..`-escaping changed path is rejected before any read.
+    #[test]
+    fn gctx_affected_tests_rejects_path_escape() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = state();
+        let mut conn = SaveTimeConn::new(&state);
+        let resp = conn
+            .affected_tests(&affected_tests_request(tmp.path(), &["../escape.ts"]))
+            .expect("admitted");
+        assert!(
+            matches!(resp.outcome, AffectedTestsOutcome::InvalidQuery { .. }),
+            "a `..` changed path must be rejected: {:?}",
+            resp.outcome
+        );
+    }
+
+    /// C3 / CE-8: an unadmitted root is refused daemon-side before projection.
+    #[test]
+    fn gctx_affected_tests_rejects_unadmitted_root() {
+        let primary = tempfile::tempdir().expect("tempdir");
+        let unlisted = tempfile::tempdir().expect("tempdir");
+        let confinement = Confinement::from_file(crate::confinement::ConfinementConfigFile {
+            admission: crate::confinement::AdmissionModeFile::Allowlist,
+            allow: Vec::new(),
+        });
+        let state = SaveTimeState::new(
+            WorkScheduler::new().expect("scheduler"),
+            AntipatternCheckConfig::default(),
+            confinement,
+        );
+        let mut conn = SaveTimeConn::new(&state);
+        conn.affected_tests(&affected_tests_request(primary.path(), &["a.ts"]))
+            .expect("primary root is implicitly admitted");
+        let refused = conn.affected_tests(&affected_tests_request(unlisted.path(), &["a.ts"]));
         assert!(
             matches!(refused, Err(SaveTimeError::NotAdmitted)),
             "an unadmitted root must be refused: {refused:?}",
