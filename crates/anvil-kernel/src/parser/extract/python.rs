@@ -11,7 +11,7 @@
 //!
 //! | Python construct      | `SymbolKind` | Note                                  |
 //! | --------------------- | ------------ | ------------------------------------- |
-//! | `def`                 | `Function`   | module-level / nested defs            |
+//! | `def`                 | `Function`   | module/block-level, outside functions |
 //! | `class`               | `Class`      | the nominal type with members         |
 //! | `def` inside a `class`| `Method`     | qualified `Owner.method` (as TS-G2)   |
 //!
@@ -75,9 +75,9 @@ fn extract_from_node(
     next_id: &mut u64,
 ) {
     match node.kind() {
-        // A module-level (or nested) `def`. Functions inside a class body are
-        // emitted as `Owner.method` by `emit_methods`, so this arm sees only
-        // non-class-body defs.
+        // A module/block-level `def` outside function bodies. Functions inside
+        // a class body are emitted as `Owner.method` by `emit_methods`, so this
+        // arm sees only non-class-body defs.
         "function_definition" => {
             push_named(node, source, file, symbols, next_id, SymbolKind::Function);
         }
@@ -310,6 +310,12 @@ mod tests {
         );
         // The class itself is still a single Class symbol.
         assert_eq!(names_of(&fs, SymbolKind::Class), ["Service"]);
+    }
+
+    #[test]
+    fn nested_function_body_defs_are_not_emitted_as_top_level_symbols() {
+        let fs = extract(b"def outer():\n    def inner():\n        pass\n");
+        assert_eq!(names_of(&fs, SymbolKind::Function), ["outer"]);
     }
 
     #[test]
