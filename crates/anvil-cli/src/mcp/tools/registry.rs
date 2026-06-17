@@ -1,8 +1,8 @@
 use serde_json::Value;
 
 use super::{
-    apply_patch, check, find_dependents, fix, gate, query_boundary, search_symbols, status,
-    suppress, validate_write,
+    apply_patch, check, find_dependents, fix, gate, impact_of_change, query_boundary,
+    search_symbols, status, suppress, validate_write,
 };
 
 pub struct ToolDefinition {
@@ -95,6 +95,14 @@ static TOOLS: &[ToolDefinition] = &[
         descriptor: find_dependents::descriptor,
         call: find_dependents::call,
     },
+    // GCTX-012 / ADR-084: read-only change-impact report. Same read-only posture
+    // and daemon-side admission gate as the sibling GCTX tools.
+    ToolDefinition {
+        name: impact_of_change::TOOL_NAME,
+        requires_auth: false,
+        descriptor: impact_of_change::descriptor,
+        call: impact_of_change::call,
+    },
 ];
 
 pub fn all() -> &'static [ToolDefinition] {
@@ -113,7 +121,7 @@ mod tests {
     fn registry_lists_registered_tools() {
         let tools = all();
 
-        assert_eq!(tools.len(), 10);
+        assert_eq!(tools.len(), 11);
         let names: Vec<&str> = tools.iter().map(|t| t.name).collect();
         assert_eq!(
             names,
@@ -128,6 +136,7 @@ mod tests {
                 fix::TOOL_NAME,
                 search_symbols::TOOL_NAME,
                 find_dependents::TOOL_NAME,
+                impact_of_change::TOOL_NAME,
             ],
         );
         for tool in tools {
@@ -147,6 +156,7 @@ mod tests {
         assert!(find(fix::TOOL_NAME).is_some());
         assert!(find(search_symbols::TOOL_NAME).is_some());
         assert!(find(find_dependents::TOOL_NAME).is_some());
+        assert!(find(impact_of_change::TOOL_NAME).is_some());
         assert!(find("anvil_does_not_exist").is_none());
     }
 }

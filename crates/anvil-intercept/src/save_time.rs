@@ -48,14 +48,16 @@ use std::sync::{Arc, Mutex, PoisonError};
 use anvil_checks::antipattern::types::AntipatternCheckConfig;
 use anvil_gctx_egress::GctxProjector;
 use anvil_gctx_types::{
-    FindDependentsOutcome, FindDependentsQuery, SearchSymbolsOutcome, SearchSymbolsQuery,
+    FindDependentsOutcome, FindDependentsQuery, ImpactOutcome, ImpactQuery, MAX_CHANGED_FILES,
+    SearchSymbolsOutcome, SearchSymbolsQuery,
 };
 use anvil_graph_cache::clamp_reverse_impact_depth;
 use anvil_intercept_proto::protocol::{
     AssuranceState, GctxFindDependentsRequest, GctxFindDependentsResponse,
-    GctxSearchSymbolsRequest, GctxSearchSymbolsResponse, RequestFullScanRequest,
-    RequestFullScanResponse, StaleReason, ValidatePathsRequest, ValidatePathsResponse,
-    WorkspaceAssurance, WorkspaceStatusRequest, WorkspaceStatusResponse,
+    GctxImpactOfChangeRequest, GctxImpactOfChangeResponse, GctxSearchSymbolsRequest,
+    GctxSearchSymbolsResponse, RequestFullScanRequest, RequestFullScanResponse, StaleReason,
+    ValidatePathsRequest, ValidatePathsResponse, WorkspaceAssurance, WorkspaceStatusRequest,
+    WorkspaceStatusResponse,
 };
 use anvil_kernel_types::FileSymbols;
 
@@ -1051,6 +1053,58 @@ impl GctxDispatch for SaveTimeConn<'_> {
             outcome,
         })
     }
+
+    fn impact_of_change(
+        &mut self,
+        request: &GctxImpactOfChangeRequest,
+    ) -> Result<GctxImpactOfChangeResponse, SaveTimeError> {
+        let root = PathBuf::from(&request.workspace_root);
+        let originating_session = self.originating_session.clone();
+        let state = self.state;
+        // ADR-084 C3 / CE-8: admit the client-supplied root before any read.
+        authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        let canonical = canonical_root(&root)?;
+        let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
+        let key = WorktreeKey::from_canonical(canonical);
+
+        // CE-7: the assurance snapshot always rides along.
+        let workspace_assurance =
+            state.with_machine(&key, correlation, |machine| machine.snapshot());
+
+        let outcome = gctx_impact_outcome(
+            state,
+            &key,
+            &workspace_assurance,
+            &request.query,
+            gctx_egress_disabled(),
+        );
+
+        // CE-10: bind telemetry to the exhaustive PII-free outcome enum plus
+        // response-aggregate counts only — never paths or query text. Note the
+        // impact-specific reading (the report is not paginated, so there is no
+        // pre/post-redaction relationship like the sibling verbs): `matched` is
+        // the total projected surface (affected symbols + dependent files) and
+        // `returned` is the dependent-file count.
+        let (matched, returned) = match &outcome {
+            ImpactOutcome::Ready(report) => (
+                report.summary.affected_symbols + report.summary.dependent_files,
+                report.summary.dependent_files,
+            ),
+            _ => (0, 0),
+        };
+        tracing::info!(
+            target: "anvil_intercept::gctx",
+            outcome = outcome.telemetry_outcome().as_str(),
+            matched,
+            returned,
+            "gctx impact_of_change served",
+        );
+
+        Ok(GctxImpactOfChangeResponse {
+            workspace_assurance,
+            outcome,
+        })
+    }
 }
 
 /// CE-11 kill-switch. `ANVIL_GCTX_EGRESS` is re-read **per call** (never cached
@@ -1226,23 +1280,119 @@ fn invalid_find_dependents_query_reason(query: &FindDependentsQuery) -> Option<S
     if file.is_empty() {
         return Some("file must not be empty".to_string());
     }
-    if file.len() > MAX_FILTER_BYTES {
-        return Some(format!("file filter exceeds {MAX_FILTER_BYTES} bytes"));
+    invalid_relative_path_reason("file filter", file)
+}
+
+/// CE-6 per-path hygiene shared by the GCTX traversal verbs: a workspace-relative
+/// path filter must be ≤ [`MAX_FILTER_BYTES`], NUL-free, non-absolute (Unix or
+/// Windows-drive), free of `..` traversal components, and not scheme-prefixed
+/// (`npm:`, `https:`, `data:`, …). `label` names the offending field in the
+/// returned reason. Returns the rejection reason, or `None` when acceptable.
+fn invalid_relative_path_reason(label: &str, value: &str) -> Option<String> {
+    if value.len() > MAX_FILTER_BYTES {
+        return Some(format!("{label} exceeds {MAX_FILTER_BYTES} bytes"));
     }
-    if file.contains('\0') {
-        return Some("file filter must not contain a NUL byte".to_string());
+    if value.contains('\0') {
+        return Some(format!("{label} must not contain a NUL byte"));
     }
-    if Path::new(file).is_absolute() || has_windows_drive_absolute_prefix(file) {
-        return Some("file filter must be a workspace-relative path".to_string());
+    // Reject any absolute / rooted form: a Unix `/…`, a Windows drive `C:\…`, and
+    // a leading slash/backslash (a `\\server\share` UNC root, which
+    // `Path::is_absolute` does NOT flag on Unix). This keeps CE-6 validation in
+    // lockstep with the egress `is_absolute_path_like` drop, so a rooted path can
+    // never pass validation only to be silently dropped downstream.
+    if Path::new(value).is_absolute()
+        || has_windows_drive_absolute_prefix(value)
+        || value.starts_with(['/', '\\'])
+    {
+        return Some(format!("{label} must be a workspace-relative path"));
     }
-    if Path::new(file)
+    if Path::new(value)
         .components()
         .any(|c| matches!(c, std::path::Component::ParentDir))
     {
-        return Some("file filter must not contain a `..` component".to_string());
+        return Some(format!("{label} must not contain a `..` component"));
     }
-    if has_uri_scheme_prefix(file) {
-        return Some("file filter must not be scheme-prefixed (e.g. npm:, https:)".to_string());
+    if has_uri_scheme_prefix(value) {
+        return Some(format!(
+            "{label} must not be scheme-prefixed (e.g. npm:, https:)"
+        ));
+    }
+    None
+}
+
+/// Compute the GCTX impact-of-change outcome for an admitted root (GCTX-012 /
+/// ADR-084). Mirrors [`gctx_find_dependents_outcome`]: same kill-switch,
+/// query-validation, and CE-7 degradation arms. The read is a single
+/// `with_graphs` over **both** warm graphs (symbol surface + dependent closure)
+/// inside the lock; the report is sorted/sealed after release (C2).
+fn gctx_impact_outcome(
+    state: &SaveTimeState,
+    key: &WorktreeKey,
+    assurance: &WorkspaceAssurance,
+    query: &ImpactQuery,
+    egress_disabled: bool,
+) -> ImpactOutcome {
+    // CE-11 kill-switch.
+    if egress_disabled {
+        return ImpactOutcome::Disabled;
+    }
+
+    // CE-6: reject a hostile or malformed change set before touching the graph.
+    if let Some(reason) = invalid_impact_query_reason(query) {
+        return ImpactOutcome::InvalidQuery { reason };
+    }
+
+    // GV2-026 lever: clamp the dependent-closure depth into the ADR-063 envelope.
+    let depth = clamp_reverse_impact_depth(query.max_depth.unwrap_or(1));
+    let changed_files = query.changed_files.clone();
+
+    match assurance.state {
+        AssuranceState::Unavailable | AssuranceState::Unknown => ImpactOutcome::Unavailable,
+        AssuranceState::Pending | AssuranceState::Running => ImpactOutcome::NotReady {
+            recovery_hint: "the workspace graph is warming; retry the impact query shortly"
+                .to_string(),
+        },
+        AssuranceState::Clean | AssuranceState::Stale | AssuranceState::Bounded => {
+            // C2: collect under the lock (both graphs), project after release. The
+            // `changed_files` / `truncated` counts come from `collect_impact`, so
+            // the summary always reflects the seeds it actually walked.
+            let collected = state.cache.with_graphs(key, |sym, dep| {
+                GctxProjector::collect_impact(sym, dep, &changed_files, depth)
+            });
+            match collected {
+                Some(collected) => ImpactOutcome::Ready(GctxProjector::project_impact(collected)),
+                None => ImpactOutcome::NotReady {
+                    recovery_hint: concat!(
+                        "the workspace graph is not yet populated; ",
+                        "save a file or request a full scan to warm it"
+                    )
+                    .to_string(),
+                },
+            }
+        }
+    }
+}
+
+/// CE-6 hygiene for `impact_of_change`. Rejects an empty or over-cap change set
+/// (≤ [`MAX_CHANGED_FILES`]) and any malformed changed-file path **before** the
+/// graph is read, reusing [`invalid_relative_path_reason`] per path. Returns the
+/// rejection reason, or `None`.
+fn invalid_impact_query_reason(query: &ImpactQuery) -> Option<String> {
+    if query.changed_files.is_empty() {
+        return Some("changed_files must not be empty".to_string());
+    }
+    if query.changed_files.len() > MAX_CHANGED_FILES {
+        return Some(format!(
+            "changed_files exceeds the {MAX_CHANGED_FILES}-file cap"
+        ));
+    }
+    for file in &query.changed_files {
+        if file.is_empty() {
+            return Some("a changed file path must not be empty".to_string());
+        }
+        if let Some(reason) = invalid_relative_path_reason("changed file path", file) {
+            return Some(reason);
+        }
     }
     None
 }
@@ -2242,6 +2392,178 @@ mod tests {
             seen,
             ["b.ts", "c.ts", "d.ts"],
             "every importer exactly once"
+        );
+    }
+
+    // --- GCTX-012 impact_of_change (daemon wiring) ---
+
+    fn impact_request(root: &Path, changed: &[&str]) -> GctxImpactOfChangeRequest {
+        GctxImpactOfChangeRequest {
+            workspace_root: root.to_string_lossy().into_owned(),
+            query: ImpactQuery {
+                changed_files: changed.iter().map(ToString::to_string).collect(),
+                max_depth: None,
+            },
+        }
+    }
+
+    /// A warm worktree yields a `Ready` report: symbols defined in the changed
+    /// file (affected), its importers (dependent files), and the test subset.
+    #[test]
+    fn gctx_impact_ready_reports_blast_radius_when_warm() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = state();
+        warm(&state, tmp.path(), "a.ts", &["alpha"], 0);
+        warm_with_import(&state, tmp.path(), "b.ts", &["beta"], "./a", 100);
+        warm_with_import(&state, tmp.path(), "a.test.ts", &["t"], "./a", 200);
+
+        let mut conn = SaveTimeConn::new(&state);
+        let resp = conn
+            .impact_of_change(&impact_request(tmp.path(), &["a.ts"]))
+            .expect("admitted");
+        match resp.outcome {
+            ImpactOutcome::Ready(report) => {
+                assert_eq!(report.affected_symbols.len(), 1);
+                assert_eq!(report.affected_symbols[0].identity.name, "alpha");
+                let deps: Vec<&str> = report
+                    .dependent_files
+                    .iter()
+                    .map(|d| d.file.as_str())
+                    .collect();
+                assert_eq!(deps, ["a.test.ts", "b.ts"]);
+                assert_eq!(report.known_tests, ["a.test.ts"]);
+                assert_eq!(report.summary.changed_files, 1);
+            }
+            other => panic!("expected Ready, got {other:?}"),
+        }
+    }
+
+    /// CE-7: a cold worktree degrades to `NotReady`, never an empty `Ready`.
+    #[test]
+    fn gctx_impact_not_ready_on_cold_worktree() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = state();
+        let mut conn = SaveTimeConn::new(&state);
+        let resp = conn
+            .impact_of_change(&impact_request(tmp.path(), &["a.ts"]))
+            .expect("admitted");
+        assert!(
+            matches!(resp.outcome, ImpactOutcome::NotReady { .. }),
+            "cold worktree must degrade to NotReady: {:?}",
+            resp.outcome
+        );
+    }
+
+    /// CE-11 kill-switch: a disabled surface self-reports `Disabled` even warm.
+    #[test]
+    fn gctx_impact_kill_switch_disables_egress() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = state();
+        warm(&state, tmp.path(), "a.ts", &["alpha"], 0);
+        let key =
+            WorktreeKey::from_canonical(std::fs::canonicalize(tmp.path()).expect("canonical"));
+        let clean = assurance(AssuranceState::Clean, None);
+        let disabled = gctx_impact_outcome(
+            &state,
+            &key,
+            &clean,
+            &ImpactQuery {
+                changed_files: vec!["a.ts".into()],
+                max_depth: None,
+            },
+            true,
+        );
+        assert!(matches!(disabled, ImpactOutcome::Disabled));
+    }
+
+    /// CE-6: an empty change set and an over-cap change set are both rejected.
+    #[test]
+    fn gctx_impact_rejects_empty_and_over_cap_change_sets() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = state();
+        warm(&state, tmp.path(), "a.ts", &["alpha"], 0);
+        let mut conn = SaveTimeConn::new(&state);
+
+        let empty = conn
+            .impact_of_change(&impact_request(tmp.path(), &[]))
+            .expect("admitted");
+        assert!(matches!(empty.outcome, ImpactOutcome::InvalidQuery { .. }));
+
+        let over: Vec<String> = (0..=MAX_CHANGED_FILES)
+            .map(|i| format!("src/f{i}.ts"))
+            .collect();
+        let over_req = GctxImpactOfChangeRequest {
+            workspace_root: tmp.path().to_string_lossy().into_owned(),
+            query: ImpactQuery {
+                changed_files: over,
+                max_depth: None,
+            },
+        };
+        let over_resp = conn.impact_of_change(&over_req).expect("admitted");
+        assert!(matches!(
+            over_resp.outcome,
+            ImpactOutcome::InvalidQuery { .. }
+        ));
+    }
+
+    /// CE-6: a `..`-escaping changed path is rejected before any read.
+    #[test]
+    fn gctx_impact_rejects_path_escape() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = state();
+        let mut conn = SaveTimeConn::new(&state);
+        let resp = conn
+            .impact_of_change(&impact_request(tmp.path(), &["../escape.ts"]))
+            .expect("admitted");
+        assert!(
+            matches!(resp.outcome, ImpactOutcome::InvalidQuery { .. }),
+            "a `..` changed path must be rejected: {:?}",
+            resp.outcome
+        );
+    }
+
+    /// CE-6: a rooted changed path (leading `/`, or a `\\server\share` UNC root
+    /// that `Path::is_absolute` misses on Unix) is rejected — keeping validation
+    /// in lockstep with the egress absolute-path drop so the count stays honest.
+    #[test]
+    fn gctx_impact_rejects_rooted_and_unc_paths() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = state();
+        warm(&state, tmp.path(), "a.ts", &["alpha"], 0);
+        let mut conn = SaveTimeConn::new(&state);
+        for bad in ["/abs.ts", "\\\\server\\share\\x.ts"] {
+            let resp = conn
+                .impact_of_change(&impact_request(tmp.path(), &["a.ts", bad]))
+                .expect("admitted");
+            assert!(
+                matches!(resp.outcome, ImpactOutcome::InvalidQuery { .. }),
+                "a rooted/UNC path {bad:?} must be rejected: {:?}",
+                resp.outcome
+            );
+        }
+    }
+
+    /// C3 / CE-8: an unadmitted root is refused daemon-side before projection.
+    #[test]
+    fn gctx_impact_rejects_unadmitted_root() {
+        let primary = tempfile::tempdir().expect("tempdir");
+        let unlisted = tempfile::tempdir().expect("tempdir");
+        let confinement = Confinement::from_file(crate::confinement::ConfinementConfigFile {
+            admission: crate::confinement::AdmissionModeFile::Allowlist,
+            allow: Vec::new(),
+        });
+        let state = SaveTimeState::new(
+            WorkScheduler::new().expect("scheduler"),
+            AntipatternCheckConfig::default(),
+            confinement,
+        );
+        let mut conn = SaveTimeConn::new(&state);
+        conn.impact_of_change(&impact_request(primary.path(), &["a.ts"]))
+            .expect("primary root is implicitly admitted");
+        let refused = conn.impact_of_change(&impact_request(unlisted.path(), &["a.ts"]));
+        assert!(
+            matches!(refused, Err(SaveTimeError::NotAdmitted)),
+            "an unadmitted root must be refused: {refused:?}",
         );
     }
 

@@ -3,6 +3,7 @@ pub mod check;
 pub mod find_dependents;
 pub mod fix;
 pub mod gate;
+pub mod impact_of_change;
 pub mod query_boundary;
 pub mod registry;
 pub mod search_symbols;

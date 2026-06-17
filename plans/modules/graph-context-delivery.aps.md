@@ -379,7 +379,7 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-012: `anvil_impact_of_change` tool
 
-- **Status:** Ready — builds directly on the GCTX-010/011 spine (Merged): the
+- **Status:** In Progress — builds directly on the GCTX-010/011 spine (Merged): the
   sealed `anvil-gctx-types` DTOs, the single `GctxProjector` choke point in
   `anvil-gctx-egress`, the `GctxDispatch` RPC surface, and GCTX-011's
   `collect_dependents` reverse-impact walk. **No new graph substrate** — the

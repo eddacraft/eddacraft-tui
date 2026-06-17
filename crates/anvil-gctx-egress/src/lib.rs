@@ -19,8 +19,8 @@
 use std::path::Path;
 
 use anvil_gctx_types::{
-    DependentSummary, FindDependentsProjection, FindDependentsQuery, OpaqueCursor,
-    RedactionSummary, SearchSymbolsProjection, SearchSymbolsQuery, SymbolSummary,
+    DependentSummary, FindDependentsProjection, FindDependentsQuery, ImpactReport, ImpactSummary,
+    OpaqueCursor, RedactionSummary, SearchSymbolsProjection, SearchSymbolsQuery, SymbolSummary,
 };
 use anvil_graph_cache::{DependencyGraph, SymbolGraph};
 use anvil_kernel_types::{SymbolIdentity, SymbolKind, SymbolNode, Visibility};
@@ -244,6 +244,9 @@ impl GctxProjector {
             if next.is_empty() {
                 break;
             }
+            // Sort the next frontier so a depth-2 over-budget truncation keeps a
+            // path-ordered prefix, not an arbitrary insertion-ordered one.
+            next.sort_unstable();
             frontier = next;
         }
         out
@@ -314,6 +317,205 @@ impl GctxProjector {
             next_cursor,
         })
     }
+
+    /// Collect the raw, identity-only pieces of an impact-of-change report
+    /// (GCTX-012): the symbols defined in the changed files, and the
+    /// depth-bounded reverse-impact (dependent) closure of the whole change set.
+    ///
+    /// **Call this under the cache lock** (it borrows both graphs). The dependent
+    /// closure is a **multi-source** breadth-first walk seeded with *all* changed
+    /// files at once (with a single shared `seen` set and a single aggregate node
+    /// budget), so a 200-file input cannot fan out to `200 ×` the per-file bound.
+    /// The changed files seed `seen`, so they are excluded from their own
+    /// dependent set. Both the affected-symbol set ([`MAX_AFFECTED_SYMBOLS`]) and
+    /// the dependent closure ([`MAX_DEPENDENTS_WALK`]) are bounded so the
+    /// lock-held pass cannot allocate without bound on a pathological graph
+    /// (ADR-031). Every frontier (seeds and each `next` hop) is walked in **sorted
+    /// path order**, so an over-budget truncation keeps a deterministic,
+    /// path-ordered prefix.
+    ///
+    /// Returns the owned, already-sealed pieces, the count of **distinct,
+    /// non-absolute** changed files actually seeded (what the report is computed
+    /// over), and whether a budget bound the walk. The caller releases the lock
+    /// before calling [`GctxProjector::project_impact`].
+    ///
+    /// `depth` MUST be caller-clamped to the GV2-026 ceiling (a `debug_assert`
+    /// enforces it).
+    #[must_use]
+    pub fn collect_impact(
+        sym: &SymbolGraph,
+        dep: &DependencyGraph,
+        changed_files: &[String],
+        depth: u32,
+    ) -> CollectedImpact {
+        debug_assert!(
+            depth <= anvil_graph_cache::MAX_REVERSE_IMPACT_DEPTH,
+            "impact walk depth {depth} exceeds the ADR-063 cap {} (caller must clamp)",
+            anvil_graph_cache::MAX_REVERSE_IMPACT_DEPTH,
+        );
+
+        // Affected symbols: identity summaries of the symbols defined in each
+        // changed file (the change surface). Absolute paths are dropped (CE-5).
+        let mut affected: Vec<SymbolSummary> = Vec::new();
+        let mut truncated = false;
+        // `seen` doubles as the change-set membership for dependent exclusion;
+        // after this loop, `seen.len()` is the distinct non-absolute seed count.
+        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+        'affected: for file in changed_files {
+            if is_absolute_path_like(file) || !seen.insert(file.clone()) {
+                continue;
+            }
+            let symbols = sym.symbols_in_file(file);
+            let identities = SymbolIdentity::for_file_symbols(&symbols);
+            for (node, identity) in symbols.iter().zip(identities) {
+                affected.push(SymbolSummary {
+                    identity,
+                    visibility: node.visibility,
+                });
+                if affected.len() >= MAX_AFFECTED_SYMBOLS {
+                    // Bound the lock-held allocation on a pathological change set
+                    // (200 files × thousands of symbols). The seeds already in
+                    // `seen` still drive a complete dependent walk below.
+                    truncated = true;
+                    break 'affected;
+                }
+            }
+        }
+        let changed_count = seen.len();
+
+        // Dependent closure: one multi-source BFS over all seeds.
+        let mut dependents: Vec<DependentSummary> = Vec::new();
+        let mut frontier: Vec<String> = {
+            let mut f: Vec<String> = seen.iter().cloned().collect();
+            f.sort_unstable();
+            f
+        };
+        'walk: for hop in 1..=depth {
+            let mut next: Vec<String> = Vec::new();
+            for current in &frontier {
+                let mut importers = dep.dependents_of(current);
+                importers.sort_unstable();
+                for importer in importers {
+                    if is_absolute_path_like(importer) {
+                        continue;
+                    }
+                    if seen.insert(importer.to_string()) {
+                        let importer = importer.to_string();
+                        dependents.push(DependentSummary {
+                            file: importer.clone(),
+                            distance: hop,
+                        });
+                        next.push(importer);
+                        if dependents.len() >= MAX_DEPENDENTS_WALK {
+                            truncated = true;
+                            break 'walk;
+                        }
+                    }
+                }
+            }
+            if next.is_empty() {
+                break;
+            }
+            // Sort the next frontier so a depth-2 over-budget truncation keeps a
+            // path-ordered prefix (not an arbitrary insertion-ordered one).
+            next.sort_unstable();
+            frontier = next;
+        }
+
+        CollectedImpact {
+            affected,
+            dependents,
+            changed_count,
+            truncated,
+        }
+    }
+
+    /// Sort and seal collected impact pieces into the report (GCTX-012).
+    /// **Call this after releasing the cache lock.**
+    ///
+    /// `affected_symbols` is ordered by [`SymbolIdentity`]; `dependent_files` by
+    /// path (already distinct from the shared-`seen` walk); `known_tests` is the
+    /// subset of dependent paths matching the best-effort test-file heuristic.
+    /// Deterministic for an identical change set and graph state. The
+    /// `changed_files` / `truncated` summary fields are taken from
+    /// [`collect_impact`] so they always reflect what was actually walked.
+    #[must_use]
+    pub fn project_impact(collected: CollectedImpact) -> ImpactReport {
+        let CollectedImpact {
+            mut affected,
+            mut dependents,
+            changed_count,
+            truncated,
+        } = collected;
+        // Identities are already distinct (each changed file is seeded once and
+        // `for_file_symbols` assigns distinct ordinals), so a sort suffices — no
+        // dedup needed.
+        affected.sort_by(|a, b| a.identity.cmp(&b.identity));
+        dependents.sort_by(|a, b| a.file.cmp(&b.file));
+
+        let known_tests: Vec<String> = dependents
+            .iter()
+            .filter(|d| is_test_file(&d.file))
+            .map(|d| d.file.clone())
+            .collect();
+
+        let summary = ImpactSummary {
+            changed_files: changed_count,
+            affected_symbols: affected.len(),
+            dependent_files: dependents.len(),
+            known_tests: known_tests.len(),
+            truncated,
+        };
+        ImpactReport {
+            affected_symbols: affected,
+            dependent_files: dependents,
+            known_tests,
+            summary,
+        }
+    }
+}
+
+/// The owned, identity-only pieces [`GctxProjector::collect_impact`] gathers
+/// under the cache lock, handed to [`GctxProjector::project_impact`] after the
+/// lock releases (ADR-084 C2).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CollectedImpact {
+    /// Sealed identity summaries of the symbols defined in the changed files.
+    pub affected: Vec<SymbolSummary>,
+    /// The reverse-impact (dependent) closure, file-keyed with hop distance.
+    pub dependents: Vec<DependentSummary>,
+    /// Distinct, non-absolute changed files actually seeded (the count the report
+    /// is computed over).
+    pub changed_count: usize,
+    /// Whether a budget ([`MAX_AFFECTED_SYMBOLS`] or [`MAX_DEPENDENTS_WALK`])
+    /// bound the walk.
+    pub truncated: bool,
+}
+
+/// Best-effort, heuristic test-file recognition over a workspace-relative path
+/// (GCTX-012). Deliberately conservative and convention-based — it never claims
+/// authoritative coverage (GCTX-013 owns the evidence-edge treatment). Matches
+/// the common TS/JS/Rust conventions: a `.test.` / `.spec.` infix, a `_test`/
+/// `_spec` stem suffix, or a `tests` / `__tests__` path component.
+fn is_test_file(path: &str) -> bool {
+    let lower = path.to_ascii_lowercase();
+    if lower.contains(".test.") || lower.contains(".spec.") {
+        return true;
+    }
+    // Path-component check: `tests/…`, `…/tests/…`, `__tests__/…`.
+    if lower
+        .split(['/', '\\'])
+        .any(|seg| seg == "tests" || seg == "__tests__")
+    {
+        return true;
+    }
+    // Stem suffix `_test` / `_spec` (e.g. `foo_test.rs`).
+    if let Some(stem) = Path::new(&lower).file_stem().and_then(|s| s.to_str())
+        && (stem.ends_with("_test") || stem.ends_with("_spec"))
+    {
+        return true;
+    }
+    false
 }
 
 /// Cap on an echoed cursor's encoded length.
@@ -335,6 +537,13 @@ const MAX_CURSOR_BYTES: usize = 8 * 1024;
 /// the pathological case. Truncation is deterministic (sorted-frontier walk), so
 /// keyset pagination stays stable across the bound.
 const MAX_DEPENDENTS_WALK: usize = 10_000;
+
+/// Hard cap on the affected-symbol set [`GctxProjector::collect_impact`]
+/// materialises under the lock. A 200-file change set where each file defines
+/// thousands of symbols would otherwise allocate millions of summaries inside the
+/// cache `Mutex` (ADR-031). The cap is well above any honest change set; hitting
+/// it sets the report's `truncated` flag.
+const MAX_AFFECTED_SYMBOLS: usize = 20_000;
 
 /// The decoded contents of an [`OpaqueCursor`]: the keyset seek position plus a
 /// fingerprint binding it to the query filters it was minted for.
@@ -1272,5 +1481,188 @@ mod tests {
             p.dependents.iter().all(|d| !is_absolute_path_like(&d.file)),
             "no absolute path may reach the projection",
         );
+    }
+
+    // --- GCTX-012 impact_of_change ---
+
+    fn run_impact(
+        sym: &SymbolGraph,
+        dep: &DependencyGraph,
+        changed: &[&str],
+        depth: u32,
+    ) -> anvil_gctx_types::ImpactReport {
+        let changed: Vec<String> = changed.iter().map(ToString::to_string).collect();
+        let collected = GctxProjector::collect_impact(sym, dep, &changed, depth);
+        GctxProjector::project_impact(collected)
+    }
+
+    #[test]
+    fn impact_reports_affected_symbols_dependents_and_tests() {
+        // a.ts defines `alpha`; b.ts imports a; a.test.ts imports a (a test).
+        let sym = graph_of(vec![
+            node(1, "alpha", "a.ts", SymbolKind::Function, Visibility::Public),
+            node(2, "beta", "b.ts", SymbolKind::Function, Visibility::Public),
+        ]);
+        let dep = dep_graph(&[("b.ts", "a.ts"), ("a.test.ts", "a.ts")]);
+
+        let report = run_impact(&sym, &dep, &["a.ts"], 1);
+
+        // Affected = symbols defined in the changed file.
+        assert_eq!(report.affected_symbols.len(), 1);
+        assert_eq!(report.affected_symbols[0].identity.name, "alpha");
+        // Dependents = importers of a.ts (b.ts + a.test.ts), file-ordered.
+        let deps: Vec<&str> = report
+            .dependent_files
+            .iter()
+            .map(|d| d.file.as_str())
+            .collect();
+        assert_eq!(deps, ["a.test.ts", "b.ts"]);
+        // known_tests = the heuristic test subset of the dependents.
+        assert_eq!(report.known_tests, ["a.test.ts"]);
+        assert_eq!(report.summary.changed_files, 1);
+        assert_eq!(report.summary.affected_symbols, 1);
+        assert_eq!(report.summary.dependent_files, 2);
+        assert_eq!(report.summary.known_tests, 1);
+        assert!(!report.summary.truncated);
+    }
+
+    #[test]
+    fn impact_three_file_change_unions_and_dedups_dependents() {
+        // Changed: a.ts, b.ts, c.ts. d.ts imports a AND b (one dependent, once).
+        let sym = graph_of(vec![
+            node(1, "a", "a.ts", SymbolKind::Function, Visibility::Public),
+            node(2, "b", "b.ts", SymbolKind::Function, Visibility::Public),
+            node(3, "c", "c.ts", SymbolKind::Function, Visibility::Public),
+        ]);
+        let dep = dep_graph(&[("d.ts", "a.ts"), ("d.ts", "b.ts"), ("e.ts", "c.ts")]);
+
+        let report = run_impact(&sym, &dep, &["a.ts", "b.ts", "c.ts"], 1);
+
+        assert_eq!(report.summary.affected_symbols, 3);
+        // d.ts (imports a+b, deduped) and e.ts (imports c), file-ordered.
+        let deps: Vec<&str> = report
+            .dependent_files
+            .iter()
+            .map(|d| d.file.as_str())
+            .collect();
+        assert_eq!(deps, ["d.ts", "e.ts"]);
+    }
+
+    #[test]
+    fn impact_excludes_changed_files_from_their_own_dependents() {
+        // a.ts and b.ts both changed; b imports a. b must NOT appear as a
+        // dependent (it is part of the change set), and the closure is bounded.
+        let sym = graph_of(vec![
+            node(1, "a", "a.ts", SymbolKind::Function, Visibility::Public),
+            node(2, "b", "b.ts", SymbolKind::Function, Visibility::Public),
+        ]);
+        let dep = dep_graph(&[("b.ts", "a.ts"), ("c.ts", "b.ts")]);
+
+        let report = run_impact(&sym, &dep, &["a.ts", "b.ts"], 1);
+        let deps: Vec<&str> = report
+            .dependent_files
+            .iter()
+            .map(|d| d.file.as_str())
+            .collect();
+        // c.ts imports b.ts (changed) → distance 1; b.ts excluded as a seed.
+        assert_eq!(deps, ["c.ts"]);
+        assert!(report.dependent_files.iter().all(|d| d.file != "b.ts"));
+    }
+
+    #[test]
+    fn impact_is_deterministic_regardless_of_input_order() {
+        let sym = graph_of(vec![
+            node(1, "a", "a.ts", SymbolKind::Function, Visibility::Public),
+            node(2, "b", "b.ts", SymbolKind::Function, Visibility::Public),
+        ]);
+        let dep = dep_graph(&[("z.ts", "a.ts"), ("m.ts", "b.ts"), ("q.ts", "a.ts")]);
+
+        let first = run_impact(&sym, &dep, &["a.ts", "b.ts"], 1);
+        let second = run_impact(&sym, &dep, &["b.ts", "a.ts"], 1);
+        assert_eq!(first, second);
+        let deps: Vec<&str> = first
+            .dependent_files
+            .iter()
+            .map(|d| d.file.as_str())
+            .collect();
+        assert_eq!(deps, ["m.ts", "q.ts", "z.ts"]);
+    }
+
+    #[test]
+    fn impact_empty_change_set_is_an_empty_report() {
+        let sym = graph_of(vec![node(
+            1,
+            "a",
+            "a.ts",
+            SymbolKind::Function,
+            Visibility::Public,
+        )]);
+        let dep = dep_graph(&[("b.ts", "a.ts")]);
+        let report = run_impact(&sym, &dep, &[], 1);
+        assert!(report.affected_symbols.is_empty());
+        assert!(report.dependent_files.is_empty());
+        assert!(report.known_tests.is_empty());
+        assert_eq!(report.summary.changed_files, 0);
+    }
+
+    #[test]
+    fn impact_drops_absolute_changed_path() {
+        // CE-5: an absolute changed path is not used as a seed nor surfaced.
+        let sym = graph_of(vec![node(
+            1,
+            "a",
+            "a.ts",
+            SymbolKind::Function,
+            Visibility::Public,
+        )]);
+        let dep = dep_graph(&[("b.ts", "a.ts")]);
+        let report = run_impact(&sym, &dep, &["a.ts", "/etc/passwd"], 1);
+        // Only a.ts seeds; the absolute path is dropped from BOTH the surface and
+        // the `changed_files` count (the summary never over-reports the input).
+        assert_eq!(report.affected_symbols.len(), 1);
+        assert_eq!(
+            report
+                .dependent_files
+                .iter()
+                .map(|d| d.file.as_str())
+                .collect::<Vec<_>>(),
+            ["b.ts"]
+        );
+        assert_eq!(report.summary.changed_files, 1);
+    }
+
+    #[test]
+    fn impact_changed_count_is_distinct_non_absolute_seeds() {
+        let sym = graph_of(vec![
+            node(1, "a", "a.ts", SymbolKind::Function, Visibility::Public),
+            node(2, "b", "b.ts", SymbolKind::Function, Visibility::Public),
+        ]);
+        let dep = dep_graph(&[("c.ts", "a.ts")]);
+        // Duplicate `a.ts` + an absolute path → 2 distinct usable seeds (a, b).
+        let report = run_impact(&sym, &dep, &["a.ts", "a.ts", "b.ts", "/abs.ts"], 1);
+        assert_eq!(report.summary.changed_files, 2);
+    }
+
+    #[test]
+    fn is_test_file_recognises_common_conventions() {
+        for p in [
+            "src/a.test.ts",
+            "src/a.spec.js",
+            "tests/a.rs",
+            "crate/tests/it.rs",
+            "src/__tests__/a.ts",
+            "src/a_test.rs",
+            "src/a_spec.rb",
+        ] {
+            assert!(is_test_file(p), "{p} should be a test file");
+        }
+        for p in [
+            "src/a.ts",
+            "src/latest.ts",
+            "src/contest.ts",
+            "lib/spectrum.ts",
+        ] {
+            assert!(!is_test_file(p), "{p} should NOT be a test file");
+        }
     }
 }

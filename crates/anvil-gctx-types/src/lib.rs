@@ -363,6 +363,128 @@ impl FindDependentsOutcome {
     }
 }
 
+// ============================================================================
+// GCTX-012 — `anvil_impact_of_change` blast-radius report (ADR-084)
+// ============================================================================
+
+/// Hard cap on the number of changed files accepted in one
+/// `anvil_impact_of_change` call (CE-6 input bound, GCTX-001 spec "≈ ≤ 200").
+/// An input above this is **rejected** with a structured `InvalidQuery` before
+/// any graph read — not silently truncated — so the report is never built from a
+/// partial input the caller is unaware of.
+pub const MAX_CHANGED_FILES: usize = 200;
+
+/// Query for `anvil_impact_of_change`: the set of changed file paths whose blast
+/// radius to report. Identity-only and graph-free.
+///
+/// **Paths only.** This carries changed file *paths*, never diff content — the
+/// MCP tool may derive the paths client-side from a git diff, but no diff text
+/// ever reaches this type or the daemon (CE-6, GCTX-001 spec "Diff is
+/// paths-only").
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ImpactQuery {
+    /// Workspace-root-relative changed file paths (deduplicated daemon-side).
+    /// Capped at [`MAX_CHANGED_FILES`]; an over-cap input is rejected.
+    pub changed_files: Vec<String>,
+    /// Reverse-impact traversal depth in hops for the dependent closure. Clamped
+    /// daemon-side to the GV2-026 `MAX_REVERSE_IMPACT_DEPTH` ceiling; absent
+    /// defaults to a 1-hop walk.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_depth: Option<u32>,
+}
+
+/// Counts-only summary of an impact report (CE-5 safe — totals, no names/paths).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ImpactSummary {
+    /// Distinct changed input files the report was computed over (post-validation
+    /// dedup).
+    pub changed_files: usize,
+    /// `affected_symbols` returned.
+    pub affected_symbols: usize,
+    /// `dependent_files` returned.
+    pub dependent_files: usize,
+    /// `known_tests` returned (a subset of `dependent_files`).
+    pub known_tests: usize,
+    /// Whether a result cap bound the report (the dependent closure hit the
+    /// node budget); the returned sets are then a deterministic prefix, never a
+    /// silent full cutoff.
+    pub truncated: bool,
+}
+
+/// The identity-only blast-radius report for a change set.
+///
+/// All three sections are identity-only: symbol identities and
+/// workspace-relative file paths — **no source text, no byte spans, no
+/// session-local ids**. Deterministic for an identical change set and graph
+/// state (every section is sorted).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ImpactReport {
+    /// Identity summaries of the symbols **defined in** the changed files (the
+    /// change surface), ordered by [`SymbolIdentity`].
+    pub affected_symbols: Vec<SymbolSummary>,
+    /// The depth-bounded reverse-impact closure of the changed set: the files
+    /// that import them (transitively, within the depth cap), file-keyed with
+    /// traversal distance, ordered by path. Excludes the changed files
+    /// themselves.
+    pub dependent_files: Vec<DependentSummary>,
+    /// The subset of `dependent_files` whose paths match a **best-effort,
+    /// heuristic** test-file convention. Marked heuristic: an assistant must not
+    /// treat it as authoritative coverage — `anvil_affected_tests` (GCTX-013)
+    /// owns the richer evidence-edge + coverage-gap treatment.
+    pub known_tests: Vec<String>,
+    /// Counts-only totals + truncation marker.
+    pub summary: ImpactSummary,
+}
+
+/// The status-tagged outcome of an impact-of-change report.
+///
+/// Same named degradation surface as the other GCTX tools (ADR-084 CE-7); the
+/// report is identity-only, so it inherits the warming/stale carve-out.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum ImpactOutcome {
+    /// Graph readable: the blast-radius report (any section may be empty).
+    Ready(ImpactReport),
+    /// Graph not yet readable (warming, or cold and not yet save-populated).
+    NotReady {
+        /// Human-readable, enum-stable recovery guidance.
+        recovery_hint: String,
+    },
+    /// Daemon or graph unavailable; no fallback was attempted (CE-7).
+    Unavailable,
+    /// The egress surface is switched off by the operator
+    /// (`ANVIL_GCTX_EGRESS=0`, re-read per call — CE-11 kill-switch).
+    Disabled,
+    /// The query was rejected before any read (CE-6 validation — e.g. an empty,
+    /// over-cap, or malformed `changed_files`).
+    InvalidQuery {
+        /// Why the query was rejected.
+        reason: String,
+    },
+}
+
+impl ImpactOutcome {
+    /// Classify into the shared PII-free [`GctxOutcome`] telemetry enum (CE-10).
+    /// Exhaustive. A readable report splits into `Hit` (any affected symbol or
+    /// dependent file) and `Miss` (the change set has no resident surface and no
+    /// dependents) by the report contents.
+    #[must_use]
+    pub fn telemetry_outcome(&self) -> GctxOutcome {
+        match self {
+            Self::Ready(report)
+                if report.affected_symbols.is_empty() && report.dependent_files.is_empty() =>
+            {
+                GctxOutcome::Miss
+            }
+            Self::Ready(_) => GctxOutcome::Hit,
+            Self::NotReady { .. } => GctxOutcome::Warming,
+            Self::Unavailable => GctxOutcome::Unavailable,
+            Self::Disabled => GctxOutcome::GraphDisabled,
+            Self::InvalidQuery { .. } => GctxOutcome::InvalidQuery,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -791,6 +913,150 @@ mod tests {
             ),
         ];
         for (outcome, label) in cases {
+            assert_eq!(outcome.telemetry_outcome().as_str(), label);
+        }
+    }
+
+    // --- GCTX-012 impact_of_change: CE-5 structural no-leak + shape ---
+
+    fn sample_impact_report() -> ImpactReport {
+        ImpactReport {
+            affected_symbols: vec![sample_summary()],
+            dependent_files: vec![DependentSummary {
+                file: "src/importer.ts".into(),
+                distance: 1,
+            }],
+            known_tests: vec!["src/importer.test.ts".into()],
+            summary: ImpactSummary {
+                changed_files: 1,
+                affected_symbols: 1,
+                dependent_files: 1,
+                known_tests: 1,
+                truncated: false,
+            },
+        }
+    }
+
+    /// CE-5 hard gate: a serialised [`ImpactReport`] exposes ONLY the
+    /// identity-allowlisted section keys, and its nested summaries only their
+    /// own allowlists. A field that widens egress fails this and the build.
+    #[test]
+    fn impact_report_serialised_keys_are_identity_only() {
+        let v = serde_json::to_value(sample_impact_report()).unwrap();
+        let obj = v.as_object().expect("report serialises to an object");
+        let mut keys: Vec<&str> = obj.keys().map(String::as_str).collect();
+        keys.sort_unstable();
+        assert_eq!(
+            keys,
+            [
+                "affected_symbols",
+                "dependent_files",
+                "known_tests",
+                "summary"
+            ]
+        );
+
+        let summary = obj["summary"].as_object().expect("summary is an object");
+        let mut sk: Vec<&str> = summary.keys().map(String::as_str).collect();
+        sk.sort_unstable();
+        assert_eq!(
+            sk,
+            [
+                "affected_symbols",
+                "changed_files",
+                "dependent_files",
+                "known_tests",
+                "truncated"
+            ]
+        );
+    }
+
+    #[test]
+    fn impact_report_carries_no_absolute_paths_or_forbidden_concepts() {
+        let v = serde_json::to_value(sample_impact_report()).unwrap();
+        assert_no_absolute_path_values(&v);
+        assert_no_forbidden_keys(
+            &v,
+            &[
+                "span", "byte", "text", "body", "snippet", "trust", "content", "id",
+            ],
+        );
+    }
+
+    #[test]
+    fn impact_query_is_paths_only_and_round_trips() {
+        let q = ImpactQuery {
+            changed_files: vec!["src/a.ts".into(), "src/b.ts".into()],
+            max_depth: Some(2),
+        };
+        let json = serde_json::to_string(&q).unwrap();
+        // No diff-content field exists on the type — paths only (CE-6).
+        assert!(!json.contains("diff"));
+        assert!(!json.contains("content"));
+        let back: ImpactQuery = serde_json::from_str(&json).unwrap();
+        assert_eq!(q, back);
+        // `max_depth` is omitted when absent.
+        let bare = ImpactQuery {
+            changed_files: vec!["src/a.ts".into()],
+            ..Default::default()
+        };
+        assert!(!serde_json::to_string(&bare).unwrap().contains("max_depth"));
+    }
+
+    #[test]
+    fn impact_outcome_is_status_tagged_and_round_trips() {
+        let v = serde_json::to_value(ImpactOutcome::Ready(sample_impact_report())).unwrap();
+        assert_eq!(v["status"], Value::String("ready".into()));
+        assert!(v.get("affected_symbols").is_some());
+
+        for outcome in [
+            ImpactOutcome::Ready(sample_impact_report()),
+            ImpactOutcome::NotReady {
+                recovery_hint: "warming".into(),
+            },
+            ImpactOutcome::Unavailable,
+            ImpactOutcome::Disabled,
+            ImpactOutcome::InvalidQuery {
+                reason: "too many files".into(),
+            },
+        ] {
+            let json = serde_json::to_string(&outcome).unwrap();
+            let back: ImpactOutcome = serde_json::from_str(&json).unwrap();
+            assert_eq!(outcome, back);
+        }
+    }
+
+    #[test]
+    fn impact_telemetry_outcome_classifies_every_variant() {
+        // A report with content → hit.
+        assert_eq!(
+            ImpactOutcome::Ready(sample_impact_report())
+                .telemetry_outcome()
+                .as_str(),
+            "hit"
+        );
+        // An empty report (no surface, no dependents) → miss.
+        let empty = ImpactOutcome::Ready(ImpactReport {
+            affected_symbols: Vec::new(),
+            dependent_files: Vec::new(),
+            known_tests: Vec::new(),
+            summary: ImpactSummary::default(),
+        });
+        assert_eq!(empty.telemetry_outcome().as_str(), "miss");
+        for (outcome, label) in [
+            (
+                ImpactOutcome::NotReady {
+                    recovery_hint: "x".into(),
+                },
+                "warming",
+            ),
+            (ImpactOutcome::Unavailable, "unavailable"),
+            (ImpactOutcome::Disabled, "graph_disabled"),
+            (
+                ImpactOutcome::InvalidQuery { reason: "x".into() },
+                "invalid_query",
+            ),
+        ] {
             assert_eq!(outcome.telemetry_outcome().as_str(), label);
         }
     }
