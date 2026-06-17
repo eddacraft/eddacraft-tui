@@ -547,7 +547,7 @@ blockers — they are resolved during execution, not before promotion:
   now owned by the **[symbol-call-graph (GCALL)](symbol-call-graph.aps.md)**
   module (filed 2026-06-17). **GCALL-003** (resident call edges + `callers_of`
   read API) Merged 2026-06-17 via #2708; **GCALL-007** (caller-egress privacy
-  review) APPROVED-WITH-CONDITIONS 2026-06-17 ([verdict](../reviews/2026-06-17-gcall-caller-egress-privacy-review-verdict.md);
+  review) APPROVE-WITH-CONDITIONS 2026-06-17 ([verdict](../reviews/2026-06-17-gcall-caller-egress-privacy-review-verdict.md);
   CALL-1..CALL-5 folded below). This item flips to Ready once the one remaining
   **CALL-1 substrate prerequisite** lands — `heuristic` / `partial` honesty
   markers on the GCALL-003 `CallersReport` (a GCALL-003 follow-up; the egress
