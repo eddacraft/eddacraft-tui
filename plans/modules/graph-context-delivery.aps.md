@@ -2,9 +2,9 @@
 
 | ID   | Owner | Status | Progress |
 | ---- | ----- | ------ | -------- |
-| GCTX | —     | In Progress | 6/14 |
+| GCTX | —     | In Progress | 7/14 |
 
-**Last reviewed:** 2026-06-17 (Phase 0 — Delivery Contract — complete. **GCTX-001 (projection contract) Merged 2026-06-15 via #2628** — the spec [`graph-context-delivery-spec.md`](../../docs/architecture/graph-context-delivery-spec.md) folds the context-egress privacy review (PV-9) conditions CE-1..CE-12 onto the GV2-023 consumer query contract. **GCTX-002 (MCP delivery target) Merged 2026-06-15 via #2619** — discharged by [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) **Accepted** (Rust RMCPF `anvil mcp serve` surface); RMCPF defers GCTX work by design, so no edit to rust-mcp-full-port. Module **In Progress, 6/14** (GCTX-010 pilot Merged 2026-06-16 via #2657; GCTX-011 `find_dependents` Merged 2026-06-16 via #2685; GCTX-012 `anvil_impact_of_change` Merged 2026-06-17 via #2693; **GCTX-013 `anvil_affected_tests` Merged 2026-06-17 via #2700** — test attribution + coverage gaps over the same spine, no new substrate; reuses GCTX-012's `is_test_file` + the dependency graph's forward `dependencies_of` edges for evidence). With the Phase 1 Ready queue now drained, the remaining Phase 1/2 tool items (021..023, 030) stay Draft, and GCTX-014 `find_callers` is Blocked on the new symbol-call-graph (GCALL) substrate module (GCALL-003 + GCALL-007; split from GCTX-011 2026-06-17); all build on the CE-5 sealed egress DTO + `GctxProjector` + structural no-leak spine that GCTX-010 established, using the daemon-RPC graph-handle path settled by ADR-084.)
+**Last reviewed:** 2026-06-17 (Phase 0 — Delivery Contract — complete. **GCTX-001 (projection contract) Merged 2026-06-15 via #2628** — the spec [`graph-context-delivery-spec.md`](../../docs/architecture/graph-context-delivery-spec.md) folds the context-egress privacy review (PV-9) conditions CE-1..CE-12 onto the GV2-023 consumer query contract. **GCTX-002 (MCP delivery target) Merged 2026-06-15 via #2619** — discharged by [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) **Accepted** (Rust RMCPF `anvil mcp serve` surface); RMCPF defers GCTX work by design, so no edit to rust-mcp-full-port. Module **In Progress, 7/14** (GCTX-010 pilot Merged 2026-06-16 via #2657; GCTX-011 `find_dependents` Merged 2026-06-16 via #2685; GCTX-012 `anvil_impact_of_change` Merged 2026-06-17 via #2693; **GCTX-013 `anvil_affected_tests` Merged 2026-06-17 via #2700** — test attribution + coverage gaps over the same spine, no new substrate; reuses GCTX-012's `is_test_file` + the dependency graph's forward `dependencies_of` edges for evidence; **GCTX-014 `anvil_find_callers` Merged 2026-06-17 via #2715** — symbol-level caller traversal projecting the GCALL-003 `callers_of` read API, completing the Phase 1 tool surface (010..014)). With the Phase 1 tool queue now complete, the remaining Phase 1/2 tool items (021..023, 030) stay Draft; all build on the CE-5 sealed egress DTO + `GctxProjector` + structural no-leak spine that GCTX-010 established, using the daemon-RPC graph-handle path settled by ADR-084.)
 
 > **Scoped to v0.9, not v0.8.0-beta (2026-06-08, [ADR-075](../decisions/075-v080-graph-product-scope.md),
 > Accepted via council).** GCTX was considered for the v0.8.0 window but the
@@ -538,7 +538,7 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-014: `anvil_find_callers` symbol caller traversal
 
-- **Status:** In Progress — implementing the `anvil_find_callers` MCP tool +
+- **Status:** Merged 2026-06-17 via #2715 — the `anvil_find_callers` MCP tool +
   `anvil/gctx/find_callers` RPC projecting the GCALL-003 `callers_of` read API as
   a sealed identity-only DTO (`heuristic` per caller + report `partial`),
   reusing the GCTX-010/011 spine; CALL-1..CALL-5 met. The GCALL substrate now
@@ -553,8 +553,11 @@ blockers — they are resolved during execution, not before promotion:
   CALL-1..CALL-5 folded below). The **CALL-1 substrate prerequisite** is met:
   `callers_of` now carries the per-caller `heuristic` (overload fan-out) marker
   (GCALL-003 follow-up); the report-level `partial` (unresolved callers) is
-  computed in this item from the daemon `all_calls` accumulator. **Ready** — all
-  blockers cleared.
+  computed in this item from the daemon `all_calls` accumulator. **Merged** —
+  CE-5 structural no-leak tests extend to `CallerSummary` / `FindCallersProjection`
+  (CALL-2 hard gate); the CE-5 absolute-path drop and `project_callers` keyset
+  pagination tests landed with the Copilot review pass. With GCTX-014 merged the
+  Phase 1 tool surface (010..014) is complete.
 - **Intent:** Let assistants find the call sites of a symbol — who calls this
   function — for precise blast-radius reasoning.
 - **Expected Outcome:** `anvil_find_callers` returns bounded, depth-limited,
@@ -743,7 +746,7 @@ blockers — they are resolved during execution, not before promotion:
 | Phase | Items | Status |
 | ----- | ----- | ------ |
 | 0 — Delivery Contract | 2 | Complete (GCTX-001 Merged #2628, GCTX-002 Merged #2619) |
-| 1 — Graph Query Tools | 6 | GCTX-010 Merged #2657 (pilot); GCTX-011 Merged #2685 (`find_dependents`); GCTX-012 Merged #2693 (`impact_of_change`); GCTX-013 Merged #2700 (`affected_tests`); GCTX-014 Blocked (`find_callers` — GV2 call-edges) |
+| 1 — Graph Query Tools | 6 | GCTX-010 Merged #2657 (pilot); GCTX-011 Merged #2685 (`find_dependents`); GCTX-012 Merged #2693 (`impact_of_change`); GCTX-013 Merged #2700 (`affected_tests`); GCTX-014 Merged #2715 (`find_callers`) |
 | 2 — Context Slicing | 4 | Draft |
 | 3 — Resources, Benchmarks, Docs | 3 | Draft |
-| **Total** | **14** | **6/14** |
+| **Total** | **14** | **7/14** |

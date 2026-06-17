@@ -1,19 +1,19 @@
 # Post-merge: feat-gctx-014-find-callers
 
-PR: #NNN
+PR: #2715
 Branch: `feat/gctx-014-find-callers`
 APS: GCTX (graph-context-delivery), item GCTX-014
-Merged: <!-- filled by cleanup agent -->
+Merged: 2026-06-17
 Verified: <!-- filled by cleanup agent -->
 
 ## Steps
 
-- [ ] Flip GCTX-014 status `In Progress → Merged YYYY-MM-DD via PR #NNN` in
+- [x] Flip GCTX-014 status `In Progress → Merged 2026-06-17 via PR #2715` in
       `plans/modules/graph-context-delivery.aps.md`; bump the GCTX module count
       `6/14 → 7/14` (module header + Last-reviewed note + index module-table row)
       and reconcile the index NBI table/narrative. With GCTX-014 merged, the GCTX
       Phase-1 tool surface (010/011/012/013/014) is complete; remaining GCTX items
-      are Phase-1/2 Draft (021..023, 030). (agent: yes)
+      are Phase-1/2 Draft (021..023, 030). (agent: yes — done via this chore PR)
 - [ ] GCTX-014 → Released/Shipped only on the next release tag that includes this
       commit. (agent: yes — on tag evidence)
 - [ ] Live daemon smoke: with `anvil watch` on a TS workspace where `run()` calls
