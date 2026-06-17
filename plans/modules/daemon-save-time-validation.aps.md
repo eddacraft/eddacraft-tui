@@ -964,7 +964,7 @@ Merged item; each is an additive improvement under the frozen wire.
 
 #### DSV-030: Warm-start persistence for the daemon graph cache
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-17 via PR #2688
 - **Intent:** Let the daemon restore graph indexes (not verdicts) on restart so a fresh
   connection is not `Stale` until a full scan completes.
 - **Expected Outcome:** A default-off, per-uid, owner-only snapshot location;
@@ -1134,5 +1134,5 @@ requirement). Architecture decided by
 | A — deferred follow-ups | 5 | 5/5 done | Done |
 | A′ — GV2 hot-read swap + default-on routing | 2 | 2/2 done | Done |
 | Full-scan executor | 1 | 1/1 done (DSV-045 Merged 2026-06-16 via #2674 — ADR-085) | Done (Merged; awaiting release) |
-| B — Warm-start persistence | 1 | 0/1 done (DSV-030 In Progress — ADR-069; serialization core shipped, daemon wiring in flight) | In Progress |
-| **Total** | **20** | **19/20 done** | **In Progress** |
+| B — Warm-start persistence | 1 | 1/1 done (DSV-030 Merged 2026-06-17 via #2688 — ADR-069) | Done (Merged; awaiting release) |
+| **Total** | **20** | **20/20 done** | **In Progress (awaiting v0.9 release of DSV-045/-030)** |
