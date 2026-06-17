@@ -361,8 +361,18 @@ impl GctxProjector {
         // `seen` doubles as the change-set membership for dependent exclusion;
         // after this loop, `seen.len()` is the distinct non-absolute seed count.
         let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
-        'affected: for file in changed_files {
+        for file in changed_files {
+            // Always seed every distinct non-absolute changed file — this drives
+            // the dependent BFS and the `changed_files` count regardless of the
+            // affected-symbol cap below.
             if is_absolute_path_like(file) || !seen.insert(file.clone()) {
+                continue;
+            }
+            // Bound only the affected-symbol *collection* (the lock-held
+            // allocation on a pathological 200-files-×-thousands-of-symbols change
+            // set). Keep iterating so later files are still seeded above.
+            if affected.len() >= MAX_AFFECTED_SYMBOLS {
+                truncated = true;
                 continue;
             }
             let symbols = sym.symbols_in_file(file);
@@ -373,11 +383,8 @@ impl GctxProjector {
                     visibility: node.visibility,
                 });
                 if affected.len() >= MAX_AFFECTED_SYMBOLS {
-                    // Bound the lock-held allocation on a pathological change set
-                    // (200 files × thousands of symbols). The seeds already in
-                    // `seen` still drive a complete dependent walk below.
                     truncated = true;
-                    break 'affected;
+                    break;
                 }
             }
         }
@@ -1629,6 +1636,47 @@ mod tests {
             ["b.ts"]
         );
         assert_eq!(report.summary.changed_files, 1);
+    }
+
+    #[test]
+    fn impact_affected_cap_still_seeds_later_files_for_dependents() {
+        // big.ts exceeds MAX_AFFECTED_SYMBOLS; small.ts (later in the input) must
+        // still be seeded so its dependent is found and the count stays correct —
+        // the affected cap bounds symbol *collection*, never seed coverage.
+        let mut nodes = Vec::new();
+        for i in 0..=(MAX_AFFECTED_SYMBOLS as u64) {
+            nodes.push(node(
+                i,
+                &format!("s{i}"),
+                "big.ts",
+                SymbolKind::Function,
+                Visibility::Public,
+            ));
+        }
+        nodes.push(node(
+            9_999_999,
+            "small",
+            "small.ts",
+            SymbolKind::Function,
+            Visibility::Public,
+        ));
+        let sym = graph_of(nodes);
+        let dep = dep_graph(&[("dep_of_small.ts", "small.ts")]);
+
+        let report = run_impact(&sym, &dep, &["big.ts", "small.ts"], 1);
+        assert!(
+            report.summary.truncated,
+            "the affected-symbol cap must mark the report truncated"
+        );
+        assert_eq!(report.affected_symbols.len(), MAX_AFFECTED_SYMBOLS);
+        assert!(
+            report
+                .dependent_files
+                .iter()
+                .any(|d| d.file == "dep_of_small.ts"),
+            "a later changed file must still seed the dependent walk despite the cap",
+        );
+        assert_eq!(report.summary.changed_files, 2, "both files are counted");
     }
 
     #[test]

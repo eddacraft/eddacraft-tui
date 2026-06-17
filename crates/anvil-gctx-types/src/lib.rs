@@ -405,9 +405,9 @@ pub struct ImpactSummary {
     pub dependent_files: usize,
     /// `known_tests` returned (a subset of `dependent_files`).
     pub known_tests: usize,
-    /// Whether a result cap bound the report (the dependent closure hit the
-    /// node budget); the returned sets are then a deterministic prefix, never a
-    /// silent full cutoff.
+    /// Whether a result cap bound the report — **either** the affected-symbol
+    /// set or the dependent-closure walk hit its node budget. The returned sets
+    /// are then a deterministic, path-ordered prefix, never a silent full cutoff.
     pub truncated: bool,
 }
 
