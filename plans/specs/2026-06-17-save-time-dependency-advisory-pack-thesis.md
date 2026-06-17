@@ -21,7 +21,7 @@ known vulnerability databases before they are added to your project"**
 (`apps/website/app/security/page.tsx:76`). The actual backing was a deliberate
 beta shortcut: *"a known-vulnerable list (shipped as a JSON fixture, updated per
 release)... **Not a full advisory database — a curated blocklist for beta**"*
-(`docs/archive/specs/2026-03-27-rust-cli-cutover.md`). The GitHub Advisory
+(`docs/archive/specs/2026-03-27-rust-cli-cutover-design.md`). The GitHub Advisory
 Database — OSV format, 12 ecosystems, CC-BY-4.0 — is the authoritative feed that
 makes that claim honest.
 
@@ -198,7 +198,7 @@ These gate APS promotion. The first two warrant an ADR.
 - `crates/anvil-cli/src/update_hint.rs` — shared 24h rate-limit gate.
 - `crates/anvil-cli/src/commands/update/fetch.rs` + `update/signature.rs` —
   signed-artefact fetch + minisign verify.
-- `docs/archive/specs/2026-03-27-rust-cli-cutover.md` — the beta JSON-fixture
+- `docs/archive/specs/2026-03-27-rust-cli-cutover-design.md` — the beta JSON-fixture
   shortcut.
 
 **Decisions / modules**
