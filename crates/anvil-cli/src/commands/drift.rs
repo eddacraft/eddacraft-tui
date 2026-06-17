@@ -17,7 +17,148 @@ use crate::util::is_ignored_dir_name;
 const SNAPSHOTS_DIR: &str = "snapshots";
 const ANVIL_DIR: &str = ".anvil";
 const SNAPSHOT_PREFIX: &str = "snapshot-";
-const SCHEMA_VERSION: &str = "1.0.0";
+
+// ── Drift baseline schema versioning (OPSUP-003) ────────────────────
+//
+// The baseline schema version is no longer a hand-edited string constant.
+// It is *derived* from a registry of per-surface field declarations: each
+// Track 3/4 surface declares the baseline fields it contributes and the
+// schema version that introduced them. The current schema version is the
+// highest `introduced_in` across the registry, so shipping a new surface
+// advances the version additively rather than mutating a literal in place.
+//
+// On load, a baseline whose version is newer than this binary understands
+// is rejected with an "upgrade anvil" message instead of silently dropping
+// the fields the newer schema added. Migrating an older baseline forward is
+// owned by OPSUP-004 and is out of scope here.
+
+/// A `major.minor.patch` drift baseline schema version. Ordering is
+/// lexicographic over the three components (derived), so comparisons answer
+/// "is this baseline newer than what we support?".
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct SchemaVersion {
+    major: u32,
+    minor: u32,
+    patch: u32,
+}
+
+impl SchemaVersion {
+    const fn new(major: u32, minor: u32, patch: u32) -> Self {
+        Self {
+            major,
+            minor,
+            patch,
+        }
+    }
+
+    /// Parse a `major.minor.patch` string. Every component must be a
+    /// non-negative integer; anything else is a hard error so an
+    /// unrecognised baseline is never read as though it were understood.
+    fn parse(s: &str) -> Result<Self> {
+        let mut parts = s.split('.');
+        let mut next = |label: &str| -> Result<u32> {
+            parts
+                .next()
+                .and_then(|p| p.parse::<u32>().ok())
+                .ok_or_else(|| {
+                    anyhow::anyhow!("schema version '{s}' has no valid {label} component")
+                })
+        };
+        let major = next("major")?;
+        let minor = next("minor")?;
+        let patch = next("patch")?;
+        if parts.next().is_some() {
+            bail!("schema version '{s}' has too many components (expected major.minor.patch)");
+        }
+        Ok(Self::new(major, minor, patch))
+    }
+}
+
+impl std::fmt::Display for SchemaVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
+    }
+}
+
+/// A baseline-field contribution from one surface, tagged with the schema
+/// version that introduced it. Adding a new declaration with a higher
+/// `introduced_in` is how the schema advances additively.
+struct FieldDeclaration {
+    /// The surface or pack contributing these fields (documentation only).
+    #[allow(dead_code)]
+    surface: &'static str,
+    /// The baseline fields this surface contributes (documentation only).
+    #[allow(dead_code)]
+    fields: &'static [&'static str],
+    introduced_in: SchemaVersion,
+}
+
+/// The per-surface baseline field registry. Concrete future surface fields
+/// are owned by their surface modules (OPSUP-003 non-scope); this is the
+/// versioning mechanism plus the v1.0.0 fields that ship today.
+const FIELD_DECLARATIONS: &[FieldDeclaration] = &[
+    FieldDeclaration {
+        surface: "core",
+        fields: &["schema_version", "created_at", "name", "git_ref"],
+        introduced_in: SchemaVersion::new(1, 0, 0),
+    },
+    FieldDeclaration {
+        surface: "metrics",
+        fields: &[
+            "boundary_violations",
+            "antipattern_count",
+            "suppression_count",
+            "expired_suppressions",
+            "files_analysed",
+        ],
+        introduced_in: SchemaVersion::new(1, 0, 0),
+    },
+    FieldDeclaration {
+        surface: "architecture",
+        fields: &["violations", "antipattern_breakdown"],
+        introduced_in: SchemaVersion::new(1, 0, 0),
+    },
+    FieldDeclaration {
+        surface: "antipattern",
+        fields: &["antipatterns"],
+        introduced_in: SchemaVersion::new(1, 0, 0),
+    },
+    FieldDeclaration {
+        surface: "suppressions",
+        fields: &["suppressions"],
+        introduced_in: SchemaVersion::new(1, 0, 0),
+    },
+];
+
+/// The schema version a registry describes: the highest `introduced_in`
+/// across its declarations. Pure over its input so an additive declaration
+/// can be shown to advance the version in tests.
+fn schema_version_for(declarations: &[FieldDeclaration]) -> SchemaVersion {
+    declarations
+        .iter()
+        .map(|d| d.introduced_in)
+        .max()
+        .unwrap_or_else(|| SchemaVersion::new(1, 0, 0))
+}
+
+/// The schema version this binary writes and is the newest it can read.
+fn current_schema() -> SchemaVersion {
+    schema_version_for(FIELD_DECLARATIONS)
+}
+
+/// Reject a baseline written by a newer schema than this binary understands.
+/// Equal or older baselines are accepted (forward migration of older
+/// baselines is OPSUP-004's concern); a newer one fails loudly rather than
+/// silently dropping the fields the newer schema added.
+fn ensure_readable(baseline: SchemaVersion, current: SchemaVersion) -> Result<()> {
+    if baseline > current {
+        bail!(
+            "baseline schema {baseline} is newer than this anvil understands \
+             (supported up to {current}); upgrade anvil to read it"
+        );
+    }
+    Ok(())
+}
 
 #[derive(Debug, Args)]
 pub struct DriftArgs {
@@ -240,7 +381,7 @@ fn run_snapshot(name: Option<&str>, global: &GlobalArgs) -> Result<()> {
     let git_ref = get_git_ref();
 
     let snapshot = DriftSnapshot {
-        schema_version: SCHEMA_VERSION.to_string(),
+        schema_version: current_schema().to_string(),
         created_at: chrono::Utc::now().to_rfc3339(),
         name: name.map(String::from),
         metrics: SnapshotMetrics {
@@ -492,6 +633,14 @@ pub(crate) fn load_snapshot_file(path: &Path) -> Result<DriftSnapshot> {
         .with_context(|| format!("reading snapshot {}", path.display()))?;
     let snapshot: DriftSnapshot = serde_json::from_str(&content)
         .with_context(|| format!("parsing snapshot {}", path.display()))?;
+    let baseline = SchemaVersion::parse(&snapshot.schema_version).with_context(|| {
+        format!(
+            "unrecognised drift baseline schema version in {}",
+            path.display()
+        )
+    })?;
+    ensure_readable(baseline, current_schema())
+        .with_context(|| format!("drift baseline {}", path.display()))?;
     Ok(snapshot)
 }
 
@@ -794,11 +943,14 @@ fn get_source_files(workspace: &Path) -> Result<Vec<String>> {
 }
 
 /// Read the `created_at` field from a snapshot file. Returns `None`
-/// on any I/O or parse error so the caller can fall back to filename
-/// ordering.
+/// on any I/O or parse error — including a baseline written by a newer
+/// schema than this binary understands — so the caller falls back to
+/// filename ordering and never sorts on an unguarded future baseline.
 fn read_created_at(path: &Path) -> Option<chrono::DateTime<chrono::FixedOffset>> {
     let content = std::fs::read_to_string(path).ok()?;
     let snap: DriftSnapshot = serde_json::from_str(&content).ok()?;
+    let baseline = SchemaVersion::parse(&snap.schema_version).ok()?;
+    ensure_readable(baseline, current_schema()).ok()?;
     chrono::DateTime::parse_from_rfc3339(&snap.created_at).ok()
 }
 
@@ -897,7 +1049,7 @@ mod tests {
 
     fn make_snapshot(name: &str, violations: usize, aps: usize, sups: usize) -> DriftSnapshot {
         DriftSnapshot {
-            schema_version: SCHEMA_VERSION.to_string(),
+            schema_version: current_schema().to_string(),
             created_at: "2025-01-15T14:30:00+00:00".to_string(),
             name: Some(name.to_string()),
             metrics: SnapshotMetrics {
@@ -951,6 +1103,96 @@ mod tests {
         assert_eq!(parsed.name, Some("test".to_string()));
         assert_eq!(parsed.metrics.boundary_violations, 3);
         assert_eq!(parsed.metrics.antipattern_count, 7);
+    }
+
+    // ── Schema versioning (OPSUP-003) ────────────────────────────
+
+    #[test]
+    fn schema_version_parses_and_orders() {
+        assert_eq!(
+            SchemaVersion::parse("1.2.3").unwrap(),
+            SchemaVersion::new(1, 2, 3)
+        );
+        assert!(SchemaVersion::new(1, 1, 0) > SchemaVersion::new(1, 0, 9));
+        assert!(SchemaVersion::new(2, 0, 0) > SchemaVersion::new(1, 9, 9));
+        assert!(SchemaVersion::parse("1.0").is_err());
+        assert!(SchemaVersion::parse("1.0.0.0").is_err());
+        assert!(SchemaVersion::parse("1.x.0").is_err());
+    }
+
+    /// A current-version baseline survives a save → load → re-serialise
+    /// cycle byte-for-byte, and carries the derived schema version.
+    #[test]
+    fn current_version_baseline_round_trips_byte_stable() {
+        let dir = tempfile::tempdir().unwrap();
+        let snap = make_snapshot("rt", 1, 2, 0);
+        assert_eq!(snap.schema_version, current_schema().to_string());
+
+        let filename = save_snapshot(dir.path(), &snap, Some("rt")).unwrap();
+        let path = snapshots_dir(dir.path()).join(&filename);
+
+        let on_disk = std::fs::read_to_string(&path).unwrap();
+        let loaded = load_snapshot_file(&path).unwrap();
+        let reserialised = serde_json::to_string_pretty(&loaded).unwrap();
+        assert_eq!(
+            on_disk, reserialised,
+            "loaded baseline must re-serialise byte-stable"
+        );
+    }
+
+    /// A baseline written by a newer schema is refused with an upgrade
+    /// message rather than silently loaded with its newer fields dropped.
+    #[test]
+    fn future_version_baseline_fails_with_upgrade_message() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut snap = make_snapshot("future", 0, 0, 0);
+        let future = SchemaVersion::new(current_schema().major + 1, 0, 0);
+        snap.schema_version = future.to_string();
+
+        let path = snapshots_dir(dir.path()).join("snapshot-future.json");
+        std::fs::create_dir_all(snapshots_dir(dir.path())).unwrap();
+        std::fs::write(&path, serde_json::to_string_pretty(&snap).unwrap()).unwrap();
+
+        let err = load_snapshot_file(&path).unwrap_err();
+        let chain = format!("{err:#}");
+        assert!(
+            chain.contains("upgrade"),
+            "expected an upgrade hint, got: {chain}"
+        );
+    }
+
+    /// Declaring a new surface field at a higher version advances the
+    /// schema additively, and a baseline written at the older version is
+    /// still readable under the advanced version.
+    #[test]
+    fn additive_surface_declaration_advances_version_without_breaking_old_reads() {
+        let base = schema_version_for(FIELD_DECLARATIONS);
+
+        let mut extended: Vec<FieldDeclaration> = Vec::new();
+        for d in FIELD_DECLARATIONS {
+            extended.push(FieldDeclaration {
+                surface: d.surface,
+                fields: d.fields,
+                introduced_in: d.introduced_in,
+            });
+        }
+        extended.push(FieldDeclaration {
+            surface: "future-surface",
+            fields: &["future_metric"],
+            introduced_in: SchemaVersion::new(base.major, base.minor + 1, 0),
+        });
+        let advanced = schema_version_for(&extended);
+
+        assert!(
+            advanced > base,
+            "an additive declaration must advance the version"
+        );
+        // An older baseline (written at `base`) remains readable once the
+        // binary has advanced to `advanced`.
+        assert!(ensure_readable(base, advanced).is_ok());
+        // ...but a baseline at the advanced version is rejected by a binary
+        // that only understands `base`.
+        assert!(ensure_readable(advanced, base).is_err());
     }
 
     // ── Save/load round-trip ────────────────────────────────────

@@ -199,7 +199,7 @@ Remaining non-registry slices move to **Ready** when:
 
 ### OPSUP-003 — Drift baseline schema versioning
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Replace ad hoc schema constants with a versioned drift baseline
   schema model and per-field declarations.
 - **Expected Outcome:** The single `SCHEMA_VERSION = "1.0.0"` string constant
