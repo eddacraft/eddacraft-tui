@@ -7,17 +7,20 @@
 | ----- | ----- | ----------- |
 | PYLAN | —     | In Progress |
 
-**Last reviewed:** 2026-06-17 (promoted Draft → In Progress on operator
-direction — "build lang-python first" — to unblock GCALL-005 Python call-site
-extraction. Prerequisites LANGTS and RSTLAN are both Complete; the remaining
-Ready-Checklist items (re-scoring gate, named owner, User C framework choice)
-are deferred by the operator for the substrate-first slice. **PYLAN-001**
-(tree-sitter-python grammar wired: `Language::Python`, `.py`/`.pyi` detection)
-and **PYLAN-002** (Python symbol/import extractor — `def`/`class`/method
-symbols + `import`/`from`-import edges incl. relative + star) are In Progress in
-the foundational PR; PYLAN-003..009 (T2 anti-patterns, suppression, entry-point
-detection, layer/boundary enforcement, drift, architecture-validate, validation)
-remain anticipated.)
+**Last reviewed:** 2026-06-17 (substrate + governance slice landed. Promoted
+Draft → In Progress on operator direction — "build lang-python first" — to
+unblock GCALL-005 Python call-site extraction. Prerequisites LANGTS and RSTLAN
+both Complete; the remaining Ready-Checklist items (re-scoring gate, named
+owner, User C framework choice) stay deferred by the operator. **PYLAN-001/-002**
+(grammar + symbol/import extractor) Merged via #2716; **PYLAN-005**
+(entry-point detection) via #2731; **PYLAN-006/-008** (import resolver +
+boundary/architecture-validate surface) via #2732; **PYLAN-003/-004/-007**
+(`python-reliability` anti-pattern catalogue + `#`-suppression + `.py` drift
+default-on) via #2734. Eight of nine items Merged — Python is functionally at
+T3 (parsed, symbol graph, entry points, boundary enforcement, anti-pattern
+catalogue, drift). **PYLAN-009** (User B/C dogfood FP-rate sign-off) remains,
+gated on the deferred Ready-Checklist items; the module advances to **Complete**
+only with that sign-off plus release-tag ship evidence, per the APS lifecycle.)
 
 ## Purpose
 
@@ -110,12 +113,12 @@ Change status to **Ready** when:
 
 ## Work Items
 
-The foundational substrate items are formalised below; PYLAN-003..009 stay
-anticipated until the module's governance slice is scheduled.
+PYLAN-001..008 are Merged (see each item below); only PYLAN-009 (User B/C
+validation) remains, gated on operator decisions.
 
 #### PYLAN-001: Tree-sitter-python grammar wired through the extractor trait
 
-- **Status:** In Progress — `tree-sitter-python` added (workspace + kernel),
+- **Status:** Merged 2026-06-17 via #2716 — `tree-sitter-python` added (workspace + kernel),
   `Language::Python` with `.py` / `.pyi` detection and `ts_language()` wiring,
   folded into the grammar-version cache key. Delivered in the foundational PR.
 - **Intent:** Make Python files parseable by the existing kernel parser surface.
@@ -133,7 +136,7 @@ anticipated until the module's governance slice is scheduled.
 
 #### PYLAN-002: Python symbol/import extraction
 
-- **Status:** In Progress — `python.rs` `PythonExtractor` emits `FileSymbols`:
+- **Status:** Merged 2026-06-17 via #2716 — `python.rs` `PythonExtractor` emits `FileSymbols`:
   `def` → Function, `class` → Class, class-body `def` → `Owner.method` Method
   (decorated defs unwrapped), leading-underscore visibility; and one
   `ImportEdge` per `import` / `from`-import module, preserving relative-import
@@ -153,7 +156,7 @@ anticipated until the module's governance slice is scheduled.
 
 #### PYLAN-005: Python entry-point detection
 
-- **Status:** In Progress — `detect_python_entry_points(workspace_root)` added
+- **Status:** Merged 2026-06-17 via #2731 — `detect_python_entry_points(workspace_root)` added
   to `anvil-architecture`, mirroring RSTLAN-004's `detect_rust_entry_points`:
   emits `EntryPoint`s for `pyproject.toml` `[project.scripts]` (Cli) /
   `[project.gui-scripts]` (Application), `setup.cfg`
@@ -184,7 +187,7 @@ anticipated until the module's governance slice is scheduled.
 
 #### PYLAN-006: Python layer/boundary enforcement
 
-- **Status:** In Progress — `resolve_python_import(workspace_root, from_file,
+- **Status:** Merged 2026-06-17 via #2732 — `resolve_python_import(workspace_root, from_file,
   module)` added to `anvil-architecture` (mirroring RSTLAN-005's
   `resolve_rust_import`): maps a Python import's module string to the
   workspace-relative `.py` file. Absolute `foo.bar` resolves against flat and
@@ -213,7 +216,7 @@ anticipated until the module's governance slice is scheduled.
 
 #### PYLAN-008: `architecture-validate` includes Python packages
 
-- **Status:** In Progress — `.py` added to
+- **Status:** Merged 2026-06-17 via #2732 — `.py` added to
   `validator::collect_source_files`'s `include_extensions`, so the public
   validate surface (CLI / MCP / dashboard) enumerates and layer-assigns Python
   files. Layer assignment is path-glob based, so no language gate is needed;
@@ -230,14 +233,75 @@ anticipated until the module's governance slice is scheduled.
 
 ---
 
+#### PYLAN-003: Python T2 anti-pattern catalogue
+
+- **Status:** Merged 2026-06-17 via #2734 — new `python-reliability` pattern
+  family (PY-001..007), the Python parallel of `rust-reliability`, as RE2-legal
+  `Detection::Regex` rules scoped to `.py` (no AST tier needed; they run on the
+  daemon-safe save-time hot path like the TS rules): PY-001 `# type: ignore`
+  without an `[error-code]`, PY-002 bare `# noqa`, PY-003 `# pylint: disable`,
+  PY-004 bare `except:` / inline `except ...: pass`, PY-005 wildcard
+  `from x import *`, PY-006 `print()` (opt-in), PY-007 `Any` annotation incl.
+  qualified `typing.Any` (opt-in). Patterns are lookahead-free (RE2 drops
+  lookahead silently); a regression test guards `registry_compile_diagnostics`.
+- **Intent:** Govern the Python-specific anti-patterns from spec §8.1.
+- **Expected Outcome:** The catalogue fires on Python via `anvil
+  check`/`gate`/drift and the save-time daemon; opt-in for the noisy rules.
+- **Validation:** Per-rule positive + justified-negative tests, RE2-compile,
+  extension scoping, opt-in gating; council + Copilot hardening (`\bexcept`
+  FP, `^from` anchoring, `(^|[^.\w])print`, qualified `typing.Any`). Dogfood:
+  0 false positives on clean idiomatic Python, all default rules fire on
+  anti-pattern code.
+- **Files:** `patterns/python-reliability/*.anvil`,
+  `patterns/compiled/registry.json`,
+  `crates/anvil-checks/src/antipattern/types.rs`,
+  `crates/anvil-checks/tests/python_antipatterns.rs`
+- **Dependencies:** PYLAN-001
+
+---
+
+#### PYLAN-004: `#`-comment suppression syntax
+
+- **Status:** Merged 2026-06-17 via #2734 — the `# @anvil-ignore <ID> -- reason`
+  suppression for Python is handled by the existing ADR-029 parser (the `#`
+  comment prefix was already in the suppression regex); delivered with the
+  PYLAN-003 catalogue and covered by tests (marks the finding suppressed;
+  a wrong-id suppression does not silence it).
+- **Intent:** Let Python findings be suppressed with a reason, like TS/Rust.
+- **Expected Outcome:** `# @anvil-ignore PY-NNN -- reason` suppresses the
+  matching Python finding.
+- **Validation:** Suppression tests in `python_antipatterns.rs`.
+- **Files:** `crates/anvil-checks/tests/python_antipatterns.rs` (behaviour
+  already in `crates/anvil-checks/src/antipattern/scanner.rs`)
+- **Dependencies:** PYLAN-003
+
+---
+
+#### PYLAN-007: Drift baseline default-on for `.py`
+
+- **Status:** Merged 2026-06-17 via #2734 — `.py` added to
+  `AntipatternCheckConfig`'s default scan extensions, so the Python rules fire
+  across `anvil check`/`gate`/drift and the save-time daemon by default
+  (mirroring RSTLAN-006 for `.rs`).
+- **Intent:** Make Python drift/anti-pattern scanning default-on.
+- **Expected Outcome:** `.py` is in the default scanned-extension set.
+- **Validation:** Test asserts `.py` in `AntipatternCheckConfig::default()`.
+- **Files:** `crates/anvil-checks/src/antipattern/types.rs`
+- **Dependencies:** PYLAN-003
+
+---
+
 ### Anticipated (defined when the governance slice is scheduled)
 
-- PYLAN-003: Python T2 anti-pattern catalogue.
-- PYLAN-004: `#`-comment suppression syntax integrated with suppression
-  parser.
-- PYLAN-007: Drift baseline default-on for `.py`.
 - PYLAN-009: Validate against User B + User C codebases — FP rate < N% per
-  council §16.5 #9.
+  council §16.5 #9. **Gated** on the deferred Ready-Checklist items (named
+  owner, re-scoring gate, User C's framework choice) and a real `N`/target
+  codebase — operator decisions, not yet scheduled. An initial Anvil-side
+  dogfood (clean idiomatic Python → 0 false positives; anti-pattern fixtures →
+  all default rules fire) is captured against the PYLAN-003 catalogue, but the
+  User B/C FP-rate sign-off and the module's advance to **Complete** (which
+  also needs release-tag ship evidence per the APS lifecycle) remain
+  operator-gated.
 
 ## Risks
 
