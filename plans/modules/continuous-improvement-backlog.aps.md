@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 46/78    |
+| CIB | —     | In Progress | 47/78    |
 
 ## Purpose
 
@@ -2120,7 +2120,7 @@ archive.
 
 ### CIB-078: freeze the `anvil policy eval --json` output contract at v1 before EVAL binds
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-17 via PR #2717
 - **Intent:** POLENG-007 shipped `anvil policy eval --json` preview-gated, with
   the wire shape explicitly _not_ a stable contract. The
   [eval-harness-integration](eval-harness-integration.aps.md) module (EVAL) is
