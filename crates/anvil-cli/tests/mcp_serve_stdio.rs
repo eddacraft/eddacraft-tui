@@ -212,7 +212,7 @@ fn mcp_serve_stdio_tools_list_returns_registered_tools() {
     let tools = parsed["result"]["tools"]
         .as_array()
         .expect("tools/list result must include a tools array");
-    assert_eq!(tools.len(), 9);
+    assert_eq!(tools.len(), 10);
     let validate_write = tools
         .iter()
         .find(|tool| tool["name"] == "anvil_validate_write")
@@ -223,6 +223,17 @@ fn mcp_serve_stdio_tools_list_returns_registered_tools() {
         .expect("tools/list includes anvil_search_symbols");
     assert_eq!(search_symbols["inputSchema"]["type"], "object");
     assert_eq!(search_symbols["annotations"]["readOnlyHint"], true);
+    let find_dependents = tools
+        .iter()
+        .find(|tool| tool["name"] == "anvil_find_dependents")
+        .expect("tools/list includes anvil_find_dependents");
+    assert_eq!(find_dependents["inputSchema"]["type"], "object");
+    assert_eq!(find_dependents["annotations"]["readOnlyHint"], true);
+    let find_dependents_required = find_dependents["inputSchema"]["required"]
+        .as_array()
+        .expect("find_dependents inputSchema.required is an array");
+    assert!(find_dependents_required.contains(&json!("workspaceRoot")));
+    assert!(find_dependents_required.contains(&json!("file")));
     let apply_patch = tools
         .iter()
         .find(|tool| tool["name"] == "anvil_apply_patch")
