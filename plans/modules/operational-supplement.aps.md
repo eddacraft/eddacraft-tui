@@ -12,7 +12,7 @@ Cross-cutting convention: see plans/aps-rules.md#cross-cutting-modules.
 
 | ID    | Owner   | Status      | Progress |
 | ----- | ------- | ----------- | -------- |
-| OPSUP | OpenCode | In Progress | 2/7      |
+| OPSUP | OpenCode | In Progress | 3/7      |
 
 **Last reviewed:** 2026-05-17
 
@@ -199,7 +199,7 @@ Remaining non-registry slices move to **Ready** when:
 
 ### OPSUP-003 — Drift baseline schema versioning
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-17 via PR #2694
 - **Intent:** Replace ad hoc schema constants with a versioned drift baseline
   schema model and per-field declarations.
 - **Expected Outcome:** The single `SCHEMA_VERSION = "1.0.0"` string constant
