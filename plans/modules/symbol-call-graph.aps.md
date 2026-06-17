@@ -127,7 +127,11 @@ the per-language scanners (TS/JS, Rust, `lang-python`).
 
 #### GCALL-004: Rust call-site extraction
 
-- **Status:** Proposed
+- **Status:** In Progress — extending the GCALL-002 two-pass extractor to Rust
+  in `rust.rs`: a parallel `spans` vec over Pass 1 symbols + a Pass 2
+  `extract_call_sites` walking `call_expression`s, with a `use`-derived binding
+  table (alias reverse-map), `Self::`/`self.` → `Owner.method` resolution, and
+  scoped paths as the namespace-member shape, per the ADR-086 v1 contract.
 - **Intent:** Extend call-site extraction to Rust.
 - **Expected Outcome:** The Rust extractor emits call-site edges into
   `FileSymbols` consistent with the GCALL-001 model.
