@@ -764,6 +764,7 @@ mod tests {
                 .collect(),
             imports: Vec::new(),
             reexports: Vec::new(),
+            calls: Vec::new(),
         }
     }
 
@@ -934,6 +935,7 @@ mod tests {
                 line: 0,
             }],
             reexports: Vec::new(),
+            calls: Vec::new(),
         };
 
         let delta = update_file(&mut g, syms);
@@ -975,6 +977,7 @@ mod tests {
                 line: 0,
             }],
             reexports: Vec::new(),
+            calls: Vec::new(),
         };
 
         let delta = update_file(&mut g, syms);
@@ -1006,6 +1009,7 @@ mod tests {
                 line: 0,
             }],
             reexports: Vec::new(),
+            calls: Vec::new(),
         };
 
         let delta = update_file(&mut g, syms);
@@ -1039,6 +1043,7 @@ mod tests {
                 line: 0,
             }],
             reexports: Vec::new(),
+            calls: Vec::new(),
         };
         let delta1 = update_file(&mut g, syms);
         assert!(
@@ -1063,6 +1068,7 @@ mod tests {
                 line: 0,
             }],
             reexports: Vec::new(),
+            calls: Vec::new(),
         };
         let delta2 = update_file(&mut g, syms2);
 
@@ -1112,6 +1118,7 @@ mod tests {
                 line: 0,
             }],
             reexports: Vec::new(),
+            calls: Vec::new(),
         };
 
         let delta = update_file(&mut g, syms);
@@ -1146,6 +1153,7 @@ mod tests {
                 line: 0,
             }],
             reexports: Vec::new(),
+            calls: Vec::new(),
         };
         let delta1 = update_file(&mut g, main_syms);
         assert!(
@@ -1166,6 +1174,7 @@ mod tests {
             }],
             imports: vec![],
             reexports: Vec::new(),
+            calls: Vec::new(),
         };
         update_file(&mut g, util_syms);
 
@@ -1261,6 +1270,7 @@ mod tests {
                 line: 0,
             }],
             reexports: Vec::new(),
+            calls: Vec::new(),
         };
         let delta_a = update_file(&mut g, a);
         assert!(delta_a.errors.is_empty(), "first file inserts cleanly");
@@ -1298,6 +1308,7 @@ mod tests {
             ],
             imports: vec![],
             reexports: Vec::new(),
+            calls: Vec::new(),
         };
         let delta_b = update_file(&mut g, b);
         assert!(
@@ -1352,6 +1363,7 @@ mod tests {
                 line: 0,
             }],
             reexports: Vec::new(),
+            calls: Vec::new(),
         };
 
         let delta = update_file(&mut g, syms);

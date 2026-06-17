@@ -697,6 +697,7 @@ fn empty_file_symbols(file: String) -> anvil_kernel_types::FileSymbols {
         symbols: Vec::new(),
         imports: Vec::new(),
         reexports: Vec::new(),
+        calls: Vec::new(),
     }
 }
 
@@ -791,6 +792,7 @@ mod tests {
                 symbols,
                 imports,
                 reexports: Vec::new(),
+                calls: Vec::new(),
             })
         }
     }

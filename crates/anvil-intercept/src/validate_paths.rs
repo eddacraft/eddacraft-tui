@@ -717,6 +717,7 @@ mod tests {
                 })
                 .collect(),
             reexports: Vec::new(),
+            calls: Vec::new(),
         }
     }
 

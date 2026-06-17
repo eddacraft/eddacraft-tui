@@ -81,9 +81,9 @@ the per-language scanners (TS/JS, Rust, `lang-python`).
 
 #### GCALL-002: TS/JS call-site extraction into `FileSymbols`
 
-- **Status:** Ready — its sole dependency GCALL-001 is Merged (ADR-086 Accepted),
-  so the `CallSite` / `CalleeRef` contract and the v1 resolution semantics it
-  implements are now fixed. The next GCALL dev pick.
+- **Status:** In Progress — implementing the `CallSite` / `CalleeRef` contract +
+  v1 resolution semantics fixed by GCALL-001 (ADR-086 Accepted) in the TS/JS
+  extractor.
 - **Intent:** Emit symbol-level call sites for the primary language so the feed
   carries call data alongside `symbols` / `imports` / `reexports`.
 - **Expected Outcome:** The kernel extractor emits call-site edges for TS/JS into

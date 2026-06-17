@@ -1691,6 +1691,7 @@ mod tests {
                 .collect(),
             imports: Vec::new(),
             reexports: Vec::new(),
+            calls: Vec::new(),
         }
     }
 

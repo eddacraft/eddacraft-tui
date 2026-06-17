@@ -63,6 +63,8 @@ impl LanguageExtractor for RustExtractor {
             symbols,
             imports,
             reexports,
+            // Rust call-site extraction is GCALL-004; none emitted yet.
+            calls: Vec::new(),
         }
     }
 }

@@ -5,7 +5,12 @@
 //! in this module asserts the emitted [`FileSymbols`] are identical to the
 //! pre-refactor behaviour.
 
-use anvil_kernel_types::{SymbolKind, SymbolNode, TrustLevel, Visibility};
+use std::collections::HashMap;
+
+use anvil_kernel_types::{
+    CallSite, CalleeRef, LocalSymbolRef, SymbolIdentity, SymbolKind, SymbolNode, TrustLevel,
+    Visibility,
+};
 
 use super::{FileSymbols, ImportEdge, LanguageExtractor, ReexportEdge};
 
@@ -30,55 +35,104 @@ impl LanguageExtractor for TypeScriptExtractor {
         let mut imports = Vec::new();
         let mut reexports = Vec::new();
         let mut next_id = id_offset;
+        // GCALL-002: the byte range of each emitted symbol's defining node, kept
+        // strictly parallel to `symbols`. Pass 2 attributes a call to the
+        // innermost containing span, so caller attribution uses pass 1's *actual*
+        // emitted symbol set (no re-recognition) — correct across nesting,
+        // export wrappers, and arrow consts by construction.
+        let mut spans: Vec<std::ops::Range<usize>> = Vec::new();
 
         extract_from_node(
             root,
             source,
             file,
             &mut symbols,
+            &mut spans,
             &mut imports,
             &mut reexports,
             &mut next_id,
         );
+        debug_assert_eq!(
+            spans.len(),
+            symbols.len(),
+            "GCALL-002: every emitted symbol must record a defining-node span",
+        );
+
+        // Pass 2 (GCALL-002 / ADR-086): symbol-level call sites. A separate walk
+        // so pass 1's symbol/import/reexport emission stays byte-identical (the
+        // parity test guards it).
+        let calls = extract_call_sites(root, source, &symbols, &spans);
 
         FileSymbols {
             file: file.to_string(),
             symbols,
             imports,
             reexports,
+            calls,
         }
     }
 }
 
+// The accumulators (symbols + their parallel spans + imports + reexports + the
+// id counter) are all genuinely threaded through this recursive walker; bundling
+// them into a struct would not reduce the coupling, only hide it.
+#[allow(clippy::too_many_arguments)]
 fn extract_from_node(
     node: tree_sitter::Node,
     source: &[u8],
     file: &str,
     symbols: &mut Vec<SymbolNode>,
+    spans: &mut Vec<std::ops::Range<usize>>,
     imports: &mut Vec<ImportEdge>,
     reexports: &mut Vec<ReexportEdge>,
     next_id: &mut u64,
 ) {
     match node.kind() {
-        "function_declaration" => extract_function(node, source, file, symbols, next_id),
-        "class_declaration" => extract_class(node, source, file, symbols, next_id),
+        "function_declaration" => extract_function(node, source, file, symbols, spans, next_id),
+        "class_declaration" => extract_class(node, source, file, symbols, spans, next_id),
         // TS-G1: type-shape declarations become first-class symbols.
         "interface_declaration" => {
-            extract_named_decl(node, source, file, symbols, next_id, SymbolKind::Interface);
+            extract_named_decl(
+                node,
+                source,
+                file,
+                symbols,
+                spans,
+                next_id,
+                SymbolKind::Interface,
+            );
         }
         "type_alias_declaration" => {
-            extract_named_decl(node, source, file, symbols, next_id, SymbolKind::TypeAlias);
+            extract_named_decl(
+                node,
+                source,
+                file,
+                symbols,
+                spans,
+                next_id,
+                SymbolKind::TypeAlias,
+            );
         }
         "enum_declaration" => {
-            extract_named_decl(node, source, file, symbols, next_id, SymbolKind::Enum);
+            extract_named_decl(
+                node,
+                source,
+                file,
+                symbols,
+                spans,
+                next_id,
+                SymbolKind::Enum,
+            );
         }
         "export_statement" => {
-            extract_export(node, source, file, symbols, imports, reexports, next_id);
+            extract_export(
+                node, source, file, symbols, spans, imports, reexports, next_id,
+            );
         }
         "import_statement" => extract_import(node, source, file, imports),
         "call_expression" => extract_require(node, source, file, imports),
-        "assignment_expression" => extract_cjs_export(node, source, file, symbols, next_id),
-        "lexical_declaration" => extract_lexical(node, source, file, symbols, next_id),
+        "assignment_expression" => extract_cjs_export(node, source, file, symbols, spans, next_id),
+        "lexical_declaration" => extract_lexical(node, source, file, symbols, spans, next_id),
         _ => {}
     }
 
@@ -102,7 +156,9 @@ fn extract_from_node(
     ) {
         for i in 0..u32::try_from(node.named_child_count()).unwrap_or(0) {
             if let Some(child) = node.named_child(i) {
-                extract_from_node(child, source, file, symbols, imports, reexports, next_id);
+                extract_from_node(
+                    child, source, file, symbols, spans, imports, reexports, next_id,
+                );
             }
         }
     }
@@ -113,6 +169,7 @@ fn extract_function(
     source: &[u8],
     file: &str,
     symbols: &mut Vec<SymbolNode>,
+    spans: &mut Vec<std::ops::Range<usize>>,
     next_id: &mut u64,
 ) {
     if let Some(name_node) = node.child_by_field_name("name") {
@@ -125,6 +182,7 @@ fn extract_function(
             file: file.to_string(),
             trust_level: TrustLevel::default(),
         });
+        spans.push(node.byte_range());
         *next_id += 1;
     }
 }
@@ -134,6 +192,7 @@ fn extract_class(
     source: &[u8],
     file: &str,
     symbols: &mut Vec<SymbolNode>,
+    spans: &mut Vec<std::ops::Range<usize>>,
     next_id: &mut u64,
 ) {
     let Some(name_node) = node.child_by_field_name("name") else {
@@ -148,6 +207,7 @@ fn extract_class(
         file: file.to_string(),
         trust_level: TrustLevel::default(),
     });
+    spans.push(node.byte_range());
     *next_id += 1;
 
     // TS-G2: surface each class method as its own symbol, qualifying the name
@@ -172,6 +232,7 @@ fn extract_class(
                     file: file.to_string(),
                     trust_level: TrustLevel::default(),
                 });
+                spans.push(member.byte_range());
                 *next_id += 1;
             }
         }
@@ -186,6 +247,7 @@ fn extract_named_decl(
     source: &[u8],
     file: &str,
     symbols: &mut Vec<SymbolNode>,
+    spans: &mut Vec<std::ops::Range<usize>>,
     next_id: &mut u64,
     kind: SymbolKind,
 ) {
@@ -198,22 +260,27 @@ fn extract_named_decl(
             file: file.to_string(),
             trust_level: TrustLevel::default(),
         });
+        spans.push(node.byte_range());
         *next_id += 1;
     }
 }
 
+#[allow(clippy::too_many_arguments)] // same threaded accumulators as extract_from_node
 fn extract_export(
     node: tree_sitter::Node,
     source: &[u8],
     file: &str,
     symbols: &mut Vec<SymbolNode>,
+    spans: &mut Vec<std::ops::Range<usize>>,
     imports: &mut Vec<ImportEdge>,
     reexports: &mut Vec<ReexportEdge>,
     next_id: &mut u64,
 ) {
     if let Some(decl) = node.child_by_field_name("declaration") {
         let before = symbols.len();
-        extract_from_node(decl, source, file, symbols, imports, reexports, next_id);
+        extract_from_node(
+            decl, source, file, symbols, spans, imports, reexports, next_id,
+        );
         for sym in &mut symbols[before..] {
             sym.visibility = Visibility::Public;
         }
@@ -242,6 +309,9 @@ fn extract_export(
             file: file.to_string(),
             trust_level: TrustLevel::default(),
         });
+        // Span = the exported expression (a `function`/`class` body holds the
+        // default export's call sites).
+        spans.push(value.byte_range());
         *next_id += 1;
         return;
     }
@@ -254,7 +324,7 @@ fn extract_export(
         match child.kind() {
             "export_clause" => {
                 handled_clause = true;
-                extract_export_clause(child, source, file, symbols, next_id);
+                extract_export_clause(child, source, file, symbols, spans, next_id);
             }
             // `export * as ns from "m"` — a namespace re-export binds the whole
             // module surface to `ns`. Emit a public `Export` symbol named `ns`
@@ -271,6 +341,7 @@ fn extract_export(
                     file: file.to_string(),
                     trust_level: TrustLevel::default(),
                 });
+                spans.push(child.byte_range());
                 *next_id += 1;
             }
             _ => {}
@@ -310,6 +381,7 @@ fn extract_export(
             file: file.to_string(),
             trust_level: TrustLevel::default(),
         });
+        spans.push(node.byte_range());
         *next_id += 1;
     }
 }
@@ -319,6 +391,7 @@ fn extract_export_clause(
     source: &[u8],
     file: &str,
     symbols: &mut Vec<SymbolNode>,
+    spans: &mut Vec<std::ops::Range<usize>>,
     next_id: &mut u64,
 ) {
     for j in 0..u32::try_from(clause.named_child_count()).unwrap_or(0) {
@@ -366,6 +439,7 @@ fn extract_export_clause(
                     file: file.to_string(),
                     trust_level: TrustLevel::default(),
                 });
+                spans.push(spec.byte_range());
                 *next_id += 1;
             }
         }
@@ -417,16 +491,18 @@ fn extract_cjs_export(
     source: &[u8],
     file: &str,
     symbols: &mut Vec<SymbolNode>,
+    spans: &mut Vec<std::ops::Range<usize>>,
     next_id: &mut u64,
 ) {
     let Some(left) = node.child_by_field_name("left") else {
         return;
     };
     let left_text = node_text(left, source);
+    let span = node.byte_range();
 
     if let Some(prop) = left_text.strip_prefix("module.exports.") {
         // `module.exports.foo = ...` — mark only the specific property as Public
-        mark_or_add_public_symbol(prop, file, symbols, next_id);
+        mark_or_add_public_symbol(prop, file, symbols, spans, &span, next_id);
     } else if left_text == "module.exports" {
         // `module.exports = { foo, bar }` — only mark referenced symbols as Public.
         // If the RHS is not an object literal or is too complex, fall back to
@@ -451,7 +527,7 @@ fn extract_cjs_export(
                 }
             }
             for name in &property_names {
-                mark_or_add_public_symbol(name, file, symbols, next_id);
+                mark_or_add_public_symbol(name, file, symbols, spans, &span, next_id);
             }
         } else {
             // RHS is a single identifier or complex expression — mark only that
@@ -459,7 +535,7 @@ fn extract_cjs_export(
             if let Some(rhs_node) = rhs {
                 if rhs_node.kind() == "identifier" {
                     let name = node_text(rhs_node, source);
-                    mark_or_add_public_symbol(&name, file, symbols, next_id);
+                    mark_or_add_public_symbol(&name, file, symbols, spans, &span, next_id);
                 } else {
                     // Complex RHS (call expression, ternary, etc.) — conservative fallback
                     for sym in symbols.iter_mut().filter(|s| s.file == file) {
@@ -470,7 +546,7 @@ fn extract_cjs_export(
         }
     } else if let Some(prop) = left_text.strip_prefix("exports.") {
         // `exports.foo = ...` — mark only the specific property as Public
-        mark_or_add_public_symbol(prop, file, symbols, next_id);
+        mark_or_add_public_symbol(prop, file, symbols, spans, &span, next_id);
     }
 }
 
@@ -478,6 +554,8 @@ fn mark_or_add_public_symbol(
     name: &str,
     file: &str,
     symbols: &mut Vec<SymbolNode>,
+    spans: &mut Vec<std::ops::Range<usize>>,
+    span: &std::ops::Range<usize>,
     next_id: &mut u64,
 ) {
     if let Some(sym) = symbols.iter_mut().find(|s| s.name == name) {
@@ -491,6 +569,7 @@ fn mark_or_add_public_symbol(
             file: file.to_string(),
             trust_level: TrustLevel::default(),
         });
+        spans.push(span.clone());
         *next_id += 1;
     }
 }
@@ -500,6 +579,7 @@ fn extract_lexical(
     source: &[u8],
     file: &str,
     symbols: &mut Vec<SymbolNode>,
+    spans: &mut Vec<std::ops::Range<usize>>,
     next_id: &mut u64,
 ) {
     for i in 0..u32::try_from(node.named_child_count()).unwrap_or(0) {
@@ -518,6 +598,9 @@ fn extract_lexical(
                 file: file.to_string(),
                 trust_level: TrustLevel::default(),
             });
+            // Span = the declarator (`x = () => {…}`), which contains the arrow
+            // body's call sites.
+            spans.push(child.byte_range());
             *next_id += 1;
         }
     }
@@ -583,6 +666,304 @@ fn node_line(node: tree_sitter::Node) -> u32 {
 
 fn node_text(node: tree_sitter::Node, source: &[u8]) -> String {
     node.utf8_text(source).unwrap_or("").to_string()
+}
+
+// ============================================================================
+// GCALL-002 — symbol-level call-site extraction (ADR-086)
+// ============================================================================
+
+/// How a local name is bound by an `import` so a call site can name the callee's
+/// **export** identity, not its local alias (ADR-086 §2).
+enum Binding {
+    /// A named or default import: `import { a } / { b as c } / d from "m"`.
+    /// `export_name` is the name in the target module (`"default"` for a default
+    /// import — resolved to `Unresolved` at lift time per ADR-086).
+    Named {
+        export_name: String,
+        specifier: String,
+    },
+    /// A namespace import: `import * as ns from "m"`. Member calls `ns.foo()`
+    /// resolve `foo` against `specifier`.
+    Namespace { specifier: String },
+}
+
+/// Pass 2 (ADR-086): walk the tree and emit symbol-level [`CallSite`]s. Kept
+/// separate from pass 1 so symbol/import emission is untouched.
+///
+/// Caller attribution uses pass 1's **actual** emitted symbols: each call is
+/// attributed to the innermost emitted-symbol span ([`spans`] parallel to
+/// [`symbols`]) that contains it, and the caller's identity comes straight from
+/// [`SymbolIdentity::for_file_symbols`]. So a nested function/class that pass 1
+/// did not emit has no span and its calls fall to the nearest enclosing emitted
+/// symbol — never a phantom caller — and the ordinal matches the lift-time
+/// identity (GCALL-003) by construction.
+fn extract_call_sites(
+    root: tree_sitter::Node,
+    source: &[u8],
+    symbols: &[SymbolNode],
+    spans: &[std::ops::Range<usize>],
+) -> Vec<CallSite> {
+    let bindings = build_import_bindings(root, source);
+    let refs: Vec<&SymbolNode> = symbols.iter().collect();
+    let identities = SymbolIdentity::for_file_symbols(&refs);
+    let mut calls = Vec::new();
+    walk_calls(root, source, &bindings, spans, &identities, &mut calls);
+    calls
+}
+
+/// The caller for a call/new at byte `pos`: the innermost emitted-symbol span
+/// containing it (smallest width wins, so a method beats its class, a nested
+/// emitted function beats its parent), or the module-scope placeholder when none
+/// contains it.
+fn caller_at(
+    pos: usize,
+    spans: &[std::ops::Range<usize>],
+    identities: &[SymbolIdentity],
+) -> LocalSymbolRef {
+    let mut best: Option<usize> = None;
+    for (i, span) in spans.iter().enumerate() {
+        if span.contains(&pos)
+            && best.is_none_or(|b| span.end - span.start < spans[b].end - spans[b].start)
+        {
+            best = Some(i);
+        }
+    }
+    match best.and_then(|i| identities.get(i)) {
+        Some(id) => LocalSymbolRef {
+            kind: id.kind,
+            name: id.name.clone(),
+            ordinal: id.ordinal,
+            module_scope: false,
+        },
+        None => LocalSymbolRef {
+            kind: SymbolKind::Module,
+            name: String::new(),
+            ordinal: 0,
+            module_scope: true,
+        },
+    }
+}
+
+/// Build the local-name → [`Binding`] table from every `import_statement`.
+fn build_import_bindings(root: tree_sitter::Node, source: &[u8]) -> HashMap<String, Binding> {
+    let mut bindings = HashMap::new();
+    collect_import_bindings(root, source, &mut bindings);
+    bindings
+}
+
+fn collect_import_bindings(
+    node: tree_sitter::Node,
+    source: &[u8],
+    bindings: &mut HashMap<String, Binding>,
+) {
+    if node.kind() == "import_statement" {
+        let specifier = node.child_by_field_name("source").map(|s| {
+            node_text(s, source)
+                .trim_matches(|c| c == '\'' || c == '"')
+                .to_string()
+        });
+        // `import_clause` is a child node kind, not a field.
+        let clause = (0..u32::try_from(node.named_child_count()).unwrap_or(0))
+            .filter_map(|i| node.named_child(i))
+            .find(|c| c.kind() == "import_clause");
+        if let (Some(specifier), Some(clause)) = (specifier, clause) {
+            collect_clause_bindings(clause, source, &specifier, bindings);
+        }
+        return;
+    }
+    for i in 0..u32::try_from(node.named_child_count()).unwrap_or(0) {
+        if let Some(child) = node.named_child(i) {
+            collect_import_bindings(child, source, bindings);
+        }
+    }
+}
+
+fn collect_clause_bindings(
+    clause: tree_sitter::Node,
+    source: &[u8],
+    specifier: &str,
+    bindings: &mut HashMap<String, Binding>,
+) {
+    for i in 0..u32::try_from(clause.named_child_count()).unwrap_or(0) {
+        let Some(child) = clause.named_child(i) else {
+            continue;
+        };
+        match child.kind() {
+            // `import d from "m"` — the default binding is an identifier child.
+            "identifier" => {
+                bindings.insert(
+                    node_text(child, source),
+                    Binding::Named {
+                        export_name: "default".to_string(),
+                        specifier: specifier.to_string(),
+                    },
+                );
+            }
+            // `import * as ns from "m"`.
+            "namespace_import" => {
+                if let Some(alias) = child.named_child(0) {
+                    bindings.insert(
+                        node_text(alias, source),
+                        Binding::Namespace {
+                            specifier: specifier.to_string(),
+                        },
+                    );
+                }
+            }
+            // `import { a, b as c } from "m"`.
+            "named_imports" => {
+                for j in 0..u32::try_from(child.named_child_count()).unwrap_or(0) {
+                    let Some(spec) = child.named_child(j) else {
+                        continue;
+                    };
+                    if spec.kind() != "import_specifier" {
+                        continue;
+                    }
+                    let Some(name_node) = spec.child_by_field_name("name") else {
+                        continue;
+                    };
+                    let export_name = node_text(name_node, source);
+                    // `alias` field present ⇒ the local binding is the alias.
+                    let local = spec
+                        .child_by_field_name("alias")
+                        .map_or_else(|| export_name.clone(), |a| node_text(a, source));
+                    bindings.insert(
+                        local,
+                        Binding::Named {
+                            export_name,
+                            specifier: specifier.to_string(),
+                        },
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Recursively walk emitting call sites. Each call/new is attributed to its
+/// enclosing emitted symbol via [`caller_at`] over the parallel `spans` /
+/// `identities` — no scope tracking, so it cannot mint a caller pass 1 did not
+/// emit.
+fn walk_calls(
+    node: tree_sitter::Node,
+    source: &[u8],
+    bindings: &HashMap<String, Binding>,
+    spans: &[std::ops::Range<usize>],
+    identities: &[SymbolIdentity],
+    calls: &mut Vec<CallSite>,
+) {
+    let callee_node = match node.kind() {
+        "call_expression" => node.child_by_field_name("function"),
+        "new_expression" => node.child_by_field_name("constructor"),
+        _ => None,
+    };
+    if let Some(func) = callee_node {
+        let from = caller_at(node.start_byte(), spans, identities);
+        if let Some(callee) = resolve_callee(func, source, bindings, &from) {
+            calls.push(CallSite {
+                from,
+                callee,
+                line: node_line(node),
+            });
+        }
+    }
+
+    for i in 0..u32::try_from(node.named_child_count()).unwrap_or(0) {
+        if let Some(child) = node.named_child(i) {
+            walk_calls(child, source, bindings, spans, identities, calls);
+        }
+    }
+}
+
+/// The class name owning a method, derived from the call's enclosing caller: a
+/// `Class` caller's name, or the owner prefix of a `Method` caller's
+/// `Owner.method`. Used to resolve `this.method()` to `Owner.method`.
+fn enclosing_class_name(caller: &LocalSymbolRef) -> Option<String> {
+    if caller.module_scope {
+        return None;
+    }
+    match caller.kind {
+        SymbolKind::Class => Some(caller.name.clone()),
+        SymbolKind::Method => caller.name.split('.').next().map(ToString::to_string),
+        _ => None,
+    }
+}
+
+/// Resolve a callee expression (the `function` of a call or `constructor` of a
+/// `new`) to a [`CalleeRef`], or `None` when there is no statically nameable
+/// callee (a computed member, an IIFE, a `require`/dynamic-`import`). Resolution
+/// is best-effort and static (ADR-086 §1); cross-file resolution is lift-time.
+fn resolve_callee(
+    func: tree_sitter::Node,
+    source: &[u8],
+    bindings: &HashMap<String, Binding>,
+    caller: &LocalSymbolRef,
+) -> Option<CalleeRef> {
+    match func.kind() {
+        "identifier" => {
+            let name = node_text(func, source);
+            // `require(...)` is a CJS import (pass 1), never a symbol call.
+            if name == "require" {
+                return None;
+            }
+            match bindings.get(&name) {
+                Some(Binding::Named {
+                    export_name,
+                    specifier,
+                }) => Some(CalleeRef {
+                    name: export_name.clone(),
+                    via_import: Some(specifier.clone()),
+                }),
+                // Calling a namespace binding directly (`ns()`) is not nameable.
+                Some(Binding::Namespace { .. }) => None,
+                None => Some(CalleeRef {
+                    name,
+                    via_import: None,
+                }),
+            }
+        }
+        "member_expression" => {
+            let property = func.child_by_field_name("property")?;
+            // A computed member (`obj[x]()`) has no static property name.
+            if property.kind() != "property_identifier" && property.kind() != "identifier" {
+                return None;
+            }
+            let prop = node_text(property, source);
+            let object = func.child_by_field_name("object")?;
+            match object.kind() {
+                // `ns.foo()` where `ns` is a namespace import.
+                "identifier" => {
+                    if let Some(Binding::Namespace { specifier }) =
+                        bindings.get(&node_text(object, source))
+                    {
+                        return Some(CalleeRef {
+                            name: prop,
+                            via_import: Some(specifier.clone()),
+                        });
+                    }
+                    Some(CalleeRef {
+                        name: prop,
+                        via_import: None,
+                    })
+                }
+                // `this.method()` inside a class resolves to `Owner.method`.
+                "this" => {
+                    let class = enclosing_class_name(caller)?;
+                    Some(CalleeRef {
+                        name: format!("{class}.{prop}"),
+                        via_import: None,
+                    })
+                }
+                // Any other receiver: name the member, leave resolution to lift.
+                _ => Some(CalleeRef {
+                    name: prop,
+                    via_import: None,
+                }),
+            }
+        }
+        _ => None,
+    }
 }
 
 #[cfg(test)]
@@ -1279,5 +1660,248 @@ export { foo } from './other';\n";
         assert_eq!(via_orchestrator.symbols.len(), via_trait.symbols.len());
         assert_eq!(via_orchestrator.symbols[0].name, "f");
         assert_eq!(via_trait.symbols[0].name, "f");
+    }
+
+    // --- GCALL-002 call-site extraction ---
+
+    use anvil_kernel_types::{CalleeRef, FileSymbols, LocalSymbolRef, SymbolIdentity};
+
+    fn extract(source: &[u8]) -> FileSymbols {
+        let mut parser = Parser::new();
+        let result = parser.parse_bytes(Path::new("test.ts"), source).unwrap();
+        extract_symbols(&result.tree, source, Path::new("test.ts"), 0)
+    }
+
+    /// Find the single call whose resolved callee `name` matches.
+    fn call_to<'a>(fs: &'a FileSymbols, callee: &str) -> &'a anvil_kernel_types::CallSite {
+        let matches: Vec<_> = fs
+            .calls
+            .iter()
+            .filter(|c| c.callee.name == callee)
+            .collect();
+        assert_eq!(
+            matches.len(),
+            1,
+            "expected exactly one call to `{callee}`, got {}: {:#?}",
+            matches.len(),
+            fs.calls
+        );
+        matches[0]
+    }
+
+    fn fn_caller(name: &str, ordinal: u32) -> LocalSymbolRef {
+        LocalSymbolRef {
+            kind: SymbolKind::Function,
+            name: name.to_string(),
+            ordinal,
+            module_scope: false,
+        }
+    }
+
+    #[test]
+    fn direct_same_file_call_attributes_caller_and_callee() {
+        let fs = extract(b"function helper() {}\nfunction run() { helper(); }\n");
+        let call = call_to(&fs, "helper");
+        assert_eq!(call.from, fn_caller("run", 0));
+        assert_eq!(
+            call.callee,
+            CalleeRef {
+                name: "helper".into(),
+                via_import: None
+            }
+        );
+        assert_eq!(call.line, 2);
+    }
+
+    #[test]
+    fn module_scope_call_has_module_scope_caller() {
+        let fs = extract(b"function setup() {}\nsetup();\n");
+        let call = call_to(&fs, "setup");
+        assert!(call.from.module_scope, "top-level call is module-scoped");
+        assert_eq!(call.from.kind, SymbolKind::Module);
+    }
+
+    #[test]
+    fn imported_symbol_call_carries_export_name_and_specifier() {
+        let fs = extract(b"import { foo } from './m';\nfunction run() { foo(); }\n");
+        let call = call_to(&fs, "foo");
+        assert_eq!(call.from, fn_caller("run", 0));
+        assert_eq!(call.callee.via_import.as_deref(), Some("./m"));
+    }
+
+    #[test]
+    fn aliased_import_resolves_to_export_name() {
+        let fs = extract(b"import { foo as bar } from './m';\nbar();\n");
+        // The callee is the export name `foo`, not the local alias `bar`.
+        let call = call_to(&fs, "foo");
+        assert_eq!(call.callee.via_import.as_deref(), Some("./m"));
+        assert!(fs.calls.iter().all(|c| c.callee.name != "bar"));
+    }
+
+    #[test]
+    fn namespace_member_call_resolves_member_against_specifier() {
+        let fs = extract(b"import * as ns from './m';\nns.foo();\n");
+        let call = call_to(&fs, "foo");
+        assert_eq!(call.callee.via_import.as_deref(), Some("./m"));
+    }
+
+    #[test]
+    fn default_import_call_is_named_default() {
+        // Per ADR-086 a default-export callee is named `default` (Unresolved at
+        // lift time).
+        let fs = extract(b"import d from './m';\nd();\n");
+        let call = call_to(&fs, "default");
+        assert_eq!(call.callee.via_import.as_deref(), Some("./m"));
+    }
+
+    #[test]
+    fn this_method_call_inside_class_resolves_to_owner_method() {
+        let fs = extract(b"class Greeter {\n  greet() { this.helper(); }\n  helper() {}\n}\n");
+        let call = call_to(&fs, "Greeter.helper");
+        assert_eq!(
+            call.from,
+            LocalSymbolRef {
+                kind: SymbolKind::Method,
+                name: "Greeter.greet".into(),
+                ordinal: 0,
+                module_scope: false,
+            }
+        );
+        assert_eq!(call.callee.via_import, None);
+    }
+
+    #[test]
+    fn general_member_call_is_named_member_unresolved_specifier() {
+        // `obj.save()` on an unknown receiver: named by member, no specifier —
+        // lift-time will treat it as Unresolved unless a same-file match exists.
+        let fs = extract(b"function run(obj) { obj.save(); }\n");
+        let call = call_to(&fs, "save");
+        assert_eq!(call.from, fn_caller("run", 0));
+        assert_eq!(call.callee.via_import, None);
+    }
+
+    #[test]
+    fn constructor_call_names_the_constructor() {
+        let fs =
+            extract(b"import { Widget } from './w';\nfunction make() { return new Widget(); }\n");
+        let call = call_to(&fs, "Widget");
+        assert_eq!(call.from, fn_caller("make", 0));
+        assert_eq!(call.callee.via_import.as_deref(), Some("./w"));
+    }
+
+    #[test]
+    fn call_inside_named_arrow_const_attributes_to_the_const() {
+        let fs = extract(b"function helper() {}\nconst run = () => { helper(); };\n");
+        let call = call_to(&fs, "helper");
+        assert_eq!(call.from, fn_caller("run", 0));
+    }
+
+    #[test]
+    fn require_is_not_emitted_as_a_call() {
+        let fs =
+            extract(b"const fs = require('node:fs');\nfunction run() { fs.readFileSync('x'); }\n");
+        assert!(
+            fs.calls.iter().all(|c| c.callee.name != "require"),
+            "require() is a CJS import, not a symbol call: {:#?}",
+            fs.calls
+        );
+    }
+
+    #[test]
+    fn anonymous_callback_calls_attribute_to_enclosing_named_scope() {
+        // The arrow passed to `forEach` is anonymous → its body's call attributes
+        // to `run`, not to a new scope and not to module scope.
+        let fs = extract(
+            b"function sink(x) {}\nfunction run(items) { items.forEach((i) => sink(i)); }\n",
+        );
+        let call = call_to(&fs, "sink");
+        assert_eq!(call.from, fn_caller("run", 0));
+    }
+
+    /// ADR-086: every non-module caller ref is a real emitted symbol identity
+    /// with the `for_file_symbols` ordinal — the consistency the lift relies on.
+    #[test]
+    fn caller_refs_match_for_file_symbols_identities() {
+        let fs = extract(
+            b"function a() { b(); }\nfunction b() { a(); }\nclass C {\n  m() { this.n(); }\n  n() {}\n}\nconst d = () => { a(); };\n",
+        );
+        let refs: Vec<&SymbolNode> = fs.symbols.iter().collect();
+        let identities: std::collections::HashSet<(SymbolKind, String, u32)> =
+            SymbolIdentity::for_file_symbols(&refs)
+                .into_iter()
+                .map(|id| (id.kind, id.name, id.ordinal))
+                .collect();
+
+        for call in &fs.calls {
+            if call.from.module_scope {
+                continue;
+            }
+            let key = (call.from.kind, call.from.name.clone(), call.from.ordinal);
+            assert!(
+                identities.contains(&key),
+                "caller {:?} is not an emitted symbol identity; identities={identities:?}",
+                call.from
+            );
+        }
+    }
+
+    #[test]
+    fn extraction_is_deterministic() {
+        let source =
+            b"import { x } from './m';\nfunction a() { x(); helper(); }\nfunction helper() {}\n";
+        assert_eq!(extract(source).calls, extract(source).calls);
+    }
+
+    #[test]
+    fn call_in_nested_function_attributes_to_outer_emitted_symbol() {
+        // Pass 1 does NOT emit `inner` (it never recurses a function body), so a
+        // call inside it must attribute to `outer` — never a phantom `inner`
+        // caller (the span model uses pass 1's actual symbol set).
+        let fs =
+            extract(b"function outer() {\n  function inner() { sink(); }\n}\nfunction sink() {}\n");
+        let call = call_to(&fs, "sink");
+        assert_eq!(call.from, fn_caller("outer", 0));
+        assert!(fs.calls.iter().all(|c| c.from.name != "inner"));
+    }
+
+    #[test]
+    fn call_in_anonymous_default_export_attributes_to_default_symbol() {
+        // Pass 1 emits a synthetic Function "default" for an anonymous
+        // `export default function(){}`; the call inside must attribute to it,
+        // not to module scope.
+        let fs = extract(b"export default function() {\n  sink();\n}\nfunction sink() {}\n");
+        let call = call_to(&fs, "sink");
+        assert!(!call.from.module_scope, "caller is the default-export fn");
+        assert_eq!(call.from.kind, SymbolKind::Function);
+        assert_eq!(call.from.name, "default");
+    }
+
+    #[test]
+    fn call_in_class_field_initializer_attributes_to_class() {
+        // A call in a class field initializer (not a method) has the class as its
+        // nearest emitted enclosing symbol.
+        let fs = extract(b"function seed() {}\nclass C {\n  x = seed();\n}\n");
+        let call = call_to(&fs, "seed");
+        assert_eq!(
+            call.from,
+            LocalSymbolRef {
+                kind: SymbolKind::Class,
+                name: "C".into(),
+                ordinal: 0,
+                module_scope: false,
+            }
+        );
+    }
+
+    #[test]
+    fn call_in_nested_function_inside_arrow_const_attributes_to_nested() {
+        // Pass 1 DOES recurse arrow-const bodies, so it emits the nested `inner`
+        // Function; its span is innermost, so the call attributes to `inner`
+        // (the span model tracks exactly what pass 1 emitted).
+        let fs = extract(
+            b"function sink() {}\nconst run = () => {\n  function inner() { sink(); }\n};\n",
+        );
+        let call = call_to(&fs, "sink");
+        assert_eq!(call.from, fn_caller("inner", 0));
     }
 }

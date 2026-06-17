@@ -63,6 +63,7 @@ impl SymbolParser for StubParser {
             }],
             imports: Vec::new(),
             reexports: Vec::new(),
+            calls: Vec::new(),
         })
     }
 }

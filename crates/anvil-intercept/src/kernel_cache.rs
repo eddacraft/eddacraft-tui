@@ -683,6 +683,7 @@ mod tests {
                 })
                 .collect(),
             reexports: Vec::new(),
+            calls: Vec::new(),
         }
     }
 
@@ -793,6 +794,7 @@ mod tests {
                 })
                 .collect(),
             reexports: Vec::new(),
+            calls: Vec::new(),
         };
 
         let cache = KernelGraphCache::new();

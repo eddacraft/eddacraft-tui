@@ -68,6 +68,7 @@ fn ts_reexport_fixture() -> FileSymbols {
                 line: 2,
             },
         ],
+        calls: Vec::new(),
     }
 }
 
@@ -145,6 +146,7 @@ fn schema_fixtures_rust_pub_use_reexport_future_language() {
             to_source: "crate::internal::Widget".to_string(),
             line: 1,
         }],
+        calls: Vec::new(),
     };
     assert_eq!(fs.reexports.len(), 1);
     assert_eq!(fs.reexports[0].exported_name, "Widget");

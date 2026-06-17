@@ -185,7 +185,7 @@ pub struct SymbolEdge {
 /// the tree-sitter parser surface; the old `anvil_kernel::parser::extract`
 /// path still resolves via a re-export. Carries `serde` for parity with the
 /// sibling graph types (and the planned daemon `FileSymbols` feed, ADR-064 §4).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct FileSymbols {
     pub file: String,
     pub symbols: Vec<SymbolNode>,
@@ -196,6 +196,81 @@ pub struct FileSymbols {
     /// (pre-GV2-010) still deserialize.
     #[serde(default)]
     pub reexports: Vec<ReexportEdge>,
+    /// Symbol-level call sites (GCALL-001 / ADR-086): the producer-side, **still
+    /// unresolved** caller→callee records. The caller is a file-local
+    /// [`LocalSymbolRef`]; the callee a [`CalleeRef`] resolved to a
+    /// [`SymbolIdentity`] only at lift time (GCALL-003) against the import graph.
+    /// Defaults empty so older serialized `FileSymbols` (pre-GCALL-002) still
+    /// deserialize, and so a language whose extractor does not yet emit call
+    /// sites (Rust/Python until GCALL-004/005) carries none.
+    #[serde(default)]
+    pub calls: Vec<CallSite>,
+}
+
+/// A file-local reference to a symbol within its own file (GCALL-001 / ADR-086).
+///
+/// Identifies the **enclosing caller** of a [`CallSite`] using the same
+/// `(kind, name, ordinal)` scheme as [`SymbolIdentity`] minus `file` (it is
+/// always the current file). The extractor MUST derive `ordinal` from
+/// [`SymbolIdentity::for_file_symbols`] over the file's emitted `symbols` so the
+/// ordinal matches the lift-time identity exactly.
+///
+/// `module_scope == true` marks a top-level or anonymous-closure call site that
+/// has **no** enclosing named symbol; it binds to the file's synthetic module
+/// node at lift time, and `kind` / `name` / `ordinal` are then ignored (carried
+/// as placeholders).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LocalSymbolRef {
+    /// Structural kind of the enclosing symbol (placeholder when `module_scope`).
+    pub kind: SymbolKind,
+    /// Name of the enclosing symbol (methods encode their owner as
+    /// `Owner.method`); empty placeholder when `module_scope`.
+    pub name: String,
+    /// Occurrence index among same-`(kind, name)` symbols in the file, parse
+    /// order — the [`SymbolIdentity::for_file_symbols`] scheme.
+    pub ordinal: u32,
+    /// True for a module-scope / anonymous-closure caller with no enclosing named
+    /// symbol. Defaults false so an older serialized `CallSite` still
+    /// deserializes.
+    #[serde(default)]
+    pub module_scope: bool,
+}
+
+/// The callee at a [`CallSite`], to be resolved to a [`SymbolIdentity`] at lift
+/// time (GCALL-003 / ADR-086).
+///
+/// `name` is the **target module's export name**: the extractor reverse-maps a
+/// local alias (`import { foo as bar } from "m"; bar()`) to the exported `foo`,
+/// and a namespace member (`import * as ns from "m"; ns.foo()`) to `foo`. A
+/// same-file callee carries `via_import: None`; an imported callee carries the
+/// module specifier. The model is best-effort and static — a callee the
+/// extractor cannot name (dynamic dispatch, a computed member, a default import)
+/// resolves to `Unresolved` at lift time.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CalleeRef {
+    /// The callee's name in its defining module (export name, not the local
+    /// alias).
+    pub name: String,
+    /// The module specifier the callee is imported from, or `None` for a
+    /// same-file callee.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub via_import: Option<String>,
+}
+
+/// A symbol-level call site (GCALL-001 / ADR-086): caller → callee at one
+/// source location, **before** cross-file resolution.
+///
+/// Identity-only and text-free: a file-local caller reference, a callee name +
+/// optional module specifier, and a 1-based line. No argument text, no receiver
+/// expression, no source body.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CallSite {
+    /// The enclosing caller (or `module_scope`).
+    pub from: LocalSymbolRef,
+    /// The callee to resolve at lift time.
+    pub callee: CalleeRef,
+    /// 1-based line number of the call site (0 = unknown).
+    pub line: u32,
 }
 
 /// An import edge from one file to another.
@@ -638,5 +713,66 @@ mod tests {
         let legacy = r#"{"file":"src/a.ts","symbols":[],"imports":[]}"#;
         let fs: FileSymbols = serde_json::from_str(legacy).unwrap();
         assert!(fs.reexports.is_empty());
+    }
+
+    // --- GCALL-002 call-site types ---
+
+    #[test]
+    fn file_symbols_calls_defaults_empty_on_pre_gcall_json() {
+        // Pre-GCALL-002 serialized FileSymbols (and a non-TS language's feed)
+        // carry no `calls` field; it must still deserialize (serde default).
+        let legacy = r#"{"file":"src/a.ts","symbols":[],"imports":[],"reexports":[]}"#;
+        let fs: FileSymbols = serde_json::from_str(legacy).unwrap();
+        assert!(fs.calls.is_empty());
+    }
+
+    #[test]
+    fn call_site_round_trips_and_omits_absent_via_import() {
+        let same_file = CallSite {
+            from: LocalSymbolRef {
+                kind: SymbolKind::Function,
+                name: "run".into(),
+                ordinal: 0,
+                module_scope: false,
+            },
+            callee: CalleeRef {
+                name: "helper".into(),
+                via_import: None,
+            },
+            line: 4,
+        };
+        let json = serde_json::to_string(&same_file).unwrap();
+        // `via_import` omitted when None (skip_serializing_if); `module_scope`
+        // false is carried.
+        assert!(!json.contains("via_import"));
+        assert_eq!(same_file, serde_json::from_str(&json).unwrap());
+
+        let imported = CallSite {
+            from: LocalSymbolRef {
+                kind: SymbolKind::Module,
+                name: String::new(),
+                ordinal: 0,
+                module_scope: true,
+            },
+            callee: CalleeRef {
+                name: "foo".into(),
+                via_import: Some("./m".into()),
+            },
+            line: 2,
+        };
+        assert_eq!(
+            imported,
+            serde_json::from_str(&serde_json::to_string(&imported).unwrap()).unwrap()
+        );
+    }
+
+    #[test]
+    fn local_symbol_ref_module_scope_defaults_false() {
+        // An older `CallSite.from` without `module_scope` deserializes as a named
+        // (non-module) caller.
+        let legacy = r#"{"kind":"Function","name":"run","ordinal":1}"#;
+        let r: LocalSymbolRef = serde_json::from_str(legacy).unwrap();
+        assert!(!r.module_scope);
+        assert_eq!(r.ordinal, 1);
     }
 }
