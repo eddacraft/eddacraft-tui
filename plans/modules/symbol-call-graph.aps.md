@@ -2,7 +2,7 @@
 
 | ID    | Owner | Status   | Progress |
 | ----- | ----- | -------- | -------- |
-| GCALL | —     | In Progress | 1/7   |
+| GCALL | —     | In Progress | 2/7   |
 
 **Last reviewed:** 2026-06-17 (created from the GCTX-014 `anvil_find_callers`
 block. The warm graph carries **no symbol-level call edges**: the
@@ -13,13 +13,16 @@ cannot be projected today. This module owns the **producer-side** substrate —
 call-site extraction + resident call edges + a caller-traversal read API — that
 GCTX consumes. It is **not** a GCTX item: GCTX projects egress DTOs over a graph
 the daemon already holds, mirroring how GCTX consumes GV2. Module **In Progress,
-1/7**: GCALL-001 design accepted as
+2/7**: GCALL-001 design accepted as
 [ADR-086](../decisions/086-symbol-call-graph-substrate.md) (Accepted, operator
 2026-06-17; Merged via #2705) — the call-edge model, the `FileSymbols` `calls`
 contract, the ADR-031 budget posture, and the PV-9 caller-egress posture.
-**GCALL-002** (TS/JS call-site extraction) is now Ready — the next dev pick;
-GCALL-003 (resident edges + read API) follows it; GCALL-004/005 (Rust/Python
-extraction) also unblock on GCALL-001.)
+**GCALL-002** (TS/JS call-site extraction) **Merged 2026-06-17 via #2707** — the
+`CallSite` / `CalleeRef` / `LocalSymbolRef` types + the `calls` channel on
+`FileSymbols` + the TS/JS extractor's call-site pass (alias reverse-map,
+namespace member, module-scope/synthetic caller, unresolved drop). **GCALL-003**
+(resident edges + read API) is the next pick — In Progress (#2708); GCALL-004/005
+(Rust/Python extraction) also unblock on GCALL-001.)
 
 ## Purpose
 
@@ -81,9 +84,12 @@ the per-language scanners (TS/JS, Rust, `lang-python`).
 
 #### GCALL-002: TS/JS call-site extraction into `FileSymbols`
 
-- **Status:** In Progress — implementing the `CallSite` / `CalleeRef` contract +
-  v1 resolution semantics fixed by GCALL-001 (ADR-086 Accepted) in the TS/JS
-  extractor.
+- **Status:** Merged 2026-06-17 via #2707 — landed the `CallSite` / `CalleeRef` /
+  `LocalSymbolRef` types + the `serde(default) calls` channel on `FileSymbols` in
+  `anvil-kernel-types`, and the TS/JS extractor's call-site pass (caller via
+  `for_file_symbols` ordinals / `module_scope` synthetic node; callee export-name +
+  `via_import` with alias reverse-map + namespace member; unresolved drop) per the
+  GCALL-001 (ADR-086) v1 resolution contract. Consumed by GCALL-003 (#2708).
 - **Intent:** Emit symbol-level call sites for the primary language so the feed
   carries call data alongside `symbols` / `imports` / `reexports`.
 - **Expected Outcome:** The kernel extractor emits call-site edges for TS/JS into
