@@ -3,11 +3,21 @@
 
 # Python Language Anchor (Track 1)
 
-| ID    | Owner | Status |
-| ----- | ----- | ------ |
-| PYLAN | —     | Draft  |
+| ID    | Owner | Status      |
+| ----- | ----- | ----------- |
+| PYLAN | —     | In Progress |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-06-17 (promoted Draft → In Progress on operator
+direction — "build lang-python first" — to unblock GCALL-005 Python call-site
+extraction. Prerequisites LANGTS and RSTLAN are both Complete; the remaining
+Ready-Checklist items (re-scoring gate, named owner, User C framework choice)
+are deferred by the operator for the substrate-first slice. **PYLAN-001**
+(tree-sitter-python grammar wired: `Language::Python`, `.py`/`.pyi` detection)
+and **PYLAN-002** (Python symbol/import extractor — `def`/`class`/method
+symbols + `import`/`from`-import edges incl. relative + star) are In Progress in
+the foundational PR; PYLAN-003..009 (T2 anti-patterns, suppression, entry-point
+detection, layer/boundary enforcement, drift, architecture-validate, validation)
+remain anticipated.)
 
 ## Purpose
 
@@ -100,11 +110,49 @@ Change status to **Ready** when:
 
 ## Work Items
 
-Tasks will be defined when this module moves to Ready. Anticipated shape:
+The foundational substrate items are formalised below; PYLAN-003..009 stay
+anticipated until the module's governance slice is scheduled.
 
-- PYLAN-001: Tree-sitter-python grammar wired through extractor trait.
-- PYLAN-002: Python symbol/import extraction (absolute, relative, namespace
-  packages).
+#### PYLAN-001: Tree-sitter-python grammar wired through the extractor trait
+
+- **Status:** In Progress — `tree-sitter-python` added (workspace + kernel),
+  `Language::Python` with `.py` / `.pyi` detection and `ts_language()` wiring,
+  folded into the grammar-version cache key. Delivered in the foundational PR.
+- **Intent:** Make Python files parseable by the existing kernel parser surface.
+- **Expected Outcome:** `.py` / `.pyi` files route through the
+  `LanguageExtractor` dispatch like TS and Rust; no orchestrator `if lang ==`
+  cascade.
+- **Validation:** `Language::from_path` maps `.py`/`.pyi`; the parser produces a
+  tree and the dispatch reaches the Python extractor.
+- **Files:** `Cargo.toml`, `crates/anvil-kernel/Cargo.toml`,
+  `crates/anvil-kernel/src/parser/languages.rs`,
+  `crates/anvil-kernel/src/parser/extract/mod.rs`
+- **Dependencies:** —
+
+---
+
+#### PYLAN-002: Python symbol/import extraction
+
+- **Status:** In Progress — `python.rs` `PythonExtractor` emits `FileSymbols`:
+  `def` → Function, `class` → Class, class-body `def` → `Owner.method` Method
+  (decorated defs unwrapped), leading-underscore visibility; and one
+  `ImportEdge` per `import` / `from`-import module, preserving relative-import
+  dot prefixes (`.`, `..pkg`) and recording the module for star imports.
+  Re-exports and call sites are out of scope (call sites are GCALL-005).
+  Delivered in the foundational PR with fixture tests.
+- **Intent:** Surface Python modules in the symbol graph exactly as TS/Rust.
+- **Expected Outcome:** Symbols + import edges for the Python shapes in scope
+  (absolute, dotted, aliased, relative, star, namespace packages best-effort).
+- **Validation:** Fixture tests cover functions/classes/methods, decorated
+  defs, visibility, and plain/dotted/aliased/from/relative/star imports;
+  deterministic.
+- **Files:** `crates/anvil-kernel/src/parser/extract/python.rs`
+- **Dependencies:** PYLAN-001
+
+---
+
+### Anticipated (defined when the governance slice is scheduled)
+
 - PYLAN-003: Python T2 anti-pattern catalogue.
 - PYLAN-004: `#`-comment suppression syntax integrated with suppression
   parser.

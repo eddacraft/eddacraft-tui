@@ -8,6 +8,7 @@ pub enum Language {
     JavaScript,
     Jsx,
     Rust,
+    Python,
 }
 
 impl Language {
@@ -19,6 +20,7 @@ impl Language {
             "js" | "mjs" | "cjs" => Some(Self::JavaScript),
             "jsx" => Some(Self::Jsx),
             "rs" => Some(Self::Rust),
+            "py" | "pyi" => Some(Self::Python),
             _ => None,
         }
     }
@@ -30,6 +32,7 @@ impl Language {
             Self::Tsx => tree_sitter_typescript::LANGUAGE_TSX.into(),
             Self::JavaScript | Self::Jsx => tree_sitter_javascript::LANGUAGE.into(),
             Self::Rust => tree_sitter_rust::LANGUAGE.into(),
+            Self::Python => tree_sitter_python::LANGUAGE.into(),
         }
     }
 

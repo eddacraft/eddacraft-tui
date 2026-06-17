@@ -138,7 +138,7 @@ used under the terms of its respective licence, reproduced in full below.
 
 ## Licence: MIT License
 
-Used by 334 crates. See the inventory table at the bottom of this file for the complete list.
+Used by 335 crates. See the inventory table at the bottom of this file for the complete list.
 
 <details>
 <summary>Licence text</summary>
@@ -1263,6 +1263,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `ratatui-widgets` | 0.3.0 | MIT License | https://github.com/ratatui/ratatui |
 | `ratatui` | 0.30.0 | MIT License | https://github.com/ratatui/ratatui |
 | `regorus` | 0.10.1 | MIT License | https://github.com/microsoft/regorus |
+| `tree-sitter-python` | 0.23.6 | MIT License | https://github.com/tree-sitter/tree-sitter-python |
 | `tree-sitter-typescript` | 0.23.2 | MIT License | https://github.com/tree-sitter/tree-sitter-typescript |
 | `uuid-simd` | 0.8.0 | MIT License | https://github.com/Nugine/simd |
 | `vsimd` | 0.8.0 | MIT License | https://github.com/Nugine/simd |

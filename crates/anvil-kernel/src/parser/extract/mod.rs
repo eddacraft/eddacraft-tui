@@ -13,6 +13,7 @@
 //! suggested interface (`route (Language, Tree, source) through the trait, not
 //! via a string-kind match`).
 
+pub mod python;
 pub mod rust;
 pub mod typescript;
 
@@ -75,6 +76,7 @@ pub fn extract_symbols(
             typescript::TypeScriptExtractor.extract(tree, source, &file, id_offset)
         }
         Some(Language::Rust) => rust::RustExtractor.extract(tree, source, &file, id_offset),
+        Some(Language::Python) => python::PythonExtractor.extract(tree, source, &file, id_offset),
         None => {
             // Reaching here means a caller passed a tree whose path has no
             // known grammar — `parse_bytes` rejects those up front, so every
