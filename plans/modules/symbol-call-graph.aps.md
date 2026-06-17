@@ -2,7 +2,7 @@
 
 | ID    | Owner | Status   | Progress |
 | ----- | ----- | -------- | -------- |
-| GCALL | —     | In Progress | 2/7   |
+| GCALL | —     | In Progress | 7/7   |
 
 **Last reviewed:** 2026-06-17 (created from the GCTX-014 `anvil_find_callers`
 block. The warm graph carries **no symbol-level call edges**: the
@@ -13,16 +13,18 @@ cannot be projected today. This module owns the **producer-side** substrate —
 call-site extraction + resident call edges + a caller-traversal read API — that
 GCTX consumes. It is **not** a GCTX item: GCTX projects egress DTOs over a graph
 the daemon already holds, mirroring how GCTX consumes GV2. Module **In Progress,
-2/7**: GCALL-001 design accepted as
+7/7** — all work items Merged; the module advances to Complete on the release tag
+that includes the GCALL substrate. **GCALL-001** design accepted as
 [ADR-086](../decisions/086-symbol-call-graph-substrate.md) (Accepted, operator
 2026-06-17; Merged via #2705) — the call-edge model, the `FileSymbols` `calls`
 contract, the ADR-031 budget posture, and the PV-9 caller-egress posture.
-**GCALL-002** (TS/JS call-site extraction) **Merged 2026-06-17 via #2707** — the
-`CallSite` / `CalleeRef` / `LocalSymbolRef` types + the `calls` channel on
-`FileSymbols` + the TS/JS extractor's call-site pass (alias reverse-map,
-namespace member, module-scope/synthetic caller, unresolved drop). **GCALL-003**
-(resident edges + read API) is the next pick — In Progress (#2708); GCALL-004/005
-(Rust/Python extraction) also unblock on GCALL-001.)
+**GCALL-002** (TS/JS extraction) **Merged via #2707**; **GCALL-003** (resident
+`EdgeType::Calls` edges + `callers_of` read API) **Merged via #2708** (+ CALL-1
+heuristic marker #2712); **GCALL-004** (Rust extraction) **Merged via #2711**;
+**GCALL-005** (Python extraction) **Merged via #2733**; **GCALL-006** (save-time
+call-lift latency gate) **Merged via #2735**; **GCALL-007** (caller-egress
+privacy review verdict) **Merged via #2710**. The GCALL consumer **GCTX-014
+`anvil_find_callers` Merged via #2715** over the GCALL-003 `callers_of` read API.)
 
 ## Purpose
 
@@ -106,10 +108,10 @@ the per-language scanners (TS/JS, Rust, `lang-python`).
 
 #### GCALL-003: Resident call edges + caller read API
 
-- **Status:** In Progress — lifting `FileSymbols.calls` into resident
-  `EdgeType::Calls` edges (`re_resolve_calls` + `all_calls` accumulator) and the
-  bounded `callers_of` read API, on the GCALL-002 producer (merged via #2707;
-  its module-status flip is pending post-merge cleanup).
+- **Status:** Merged 2026-06-17 via #2708 — lifts `FileSymbols.calls` into
+  resident `EdgeType::Calls` edges (`re_resolve_calls` + `all_calls` accumulator)
+  and the bounded `callers_of` read API on the GCALL-002 producer (#2707); the
+  CALL-1 heuristic/partial honesty marker landed via #2712.
 - **Intent:** Make extracted call sites queryable on the resident graph so a
   consumer can perform bounded caller traversal.
 - **Expected Outcome:** `apply_delta` lifts `EdgeType::Calls` into the resident
@@ -127,11 +129,12 @@ the per-language scanners (TS/JS, Rust, `lang-python`).
 
 #### GCALL-004: Rust call-site extraction
 
-- **Status:** In Progress — extending the GCALL-002 two-pass extractor to Rust
-  in `rust.rs`: a parallel `spans` vec over Pass 1 symbols + a Pass 2
-  `extract_call_sites` walking `call_expression`s, with a `use`-derived binding
-  table (alias reverse-map), `Self::`/`self.` → `Owner.method` resolution, and
-  scoped paths as the namespace-member shape, per the ADR-086 v1 contract.
+- **Status:** Merged 2026-06-17 via #2711 — extends the GCALL-002 two-pass
+  extractor to Rust in `rust.rs`: a parallel `spans` vec over Pass 1 symbols + a
+  Pass 2 `extract_call_sites` walking `call_expression`s, with a `use`-derived
+  binding table (alias reverse-map), `Self::`/`self.` → `Owner.method`
+  resolution, and scoped paths as the namespace-member shape, per the ADR-086 v1
+  contract.
 - **Intent:** Extend call-site extraction to Rust.
 - **Expected Outcome:** The Rust extractor emits call-site edges into
   `FileSymbols` consistent with the GCALL-001 model.
@@ -146,9 +149,10 @@ the per-language scanners (TS/JS, Rust, `lang-python`).
 
 #### GCALL-005: Python call-site extraction
 
-- **Status:** In Progress — extending the PYLAN-002 Python extractor with a Pass 2
-  call-site walk in `python.rs`: a parallel `spans` vec over Pass 1 symbols + a
-  `walk_calls` over `call` nodes, with an import-binding table
+- **Status:** Merged 2026-06-18 via #2733 — extends the PYLAN-002 Python
+  extractor with a Pass 2 call-site walk in `python.rs`: a parallel `spans` vec
+  over Pass 1 symbols + a `walk_calls` over `call` nodes, with an import-binding
+  table
   (`from m import x [as y]` reverse-map, `import m` / `import a.b as c` module
   bindings), `self.`/`cls.` → `Owner.method` resolution, and bare-member fallback,
   per the ADR-086 v1 contract. Lift-side resolution is the language-agnostic
@@ -167,7 +171,8 @@ the per-language scanners (TS/JS, Rust, `lang-python`).
 
 #### GCALL-006: Save-time hot-path budget validation
 
-- **Status:** In Progress — added `crates/anvil-graph-cache/benches/call_lift.rs`
+- **Status:** Merged 2026-06-18 via #2735 — added
+  `crates/anvil-graph-cache/benches/call_lift.rs`
   (`harness=false`, mirroring the GV2-025 `hot_read` gate): an in-process bench
   timing the two call-graph save-time ops — `update_file` (the full per-save
   apply incl. `lift_calls_tracked`) and the daemon `re_resolve_calls`
@@ -193,12 +198,12 @@ the per-language scanners (TS/JS, Rust, `lang-python`).
 
 #### GCALL-007: Caller-egress privacy review
 
-- **Status:** In Progress — verdict authored
+- **Status:** Merged 2026-06-17 via #2710 — verdict filed
   ([2026-06-17 caller-egress privacy review](../reviews/2026-06-17-gcall-caller-egress-privacy-review-verdict.md),
   APPROVE-WITH-CONDITIONS): caller egress is identity-only and equivalent-risk to
   the PV-9-approved `find_dependents`; conditions CALL-1..CALL-5 folded into
-  GCTX-014. The one new condition (CALL-1, heuristic/partial honesty markers)
-  carries a GCALL-003 substrate follow-up.
+  GCTX-014 (Merged #2715). The one new substrate condition (CALL-1,
+  heuristic/partial honesty markers) landed in GCALL-003 via #2712.
 - **Intent:** Settle the privacy posture for exposing "who calls this" before any
   assistant-facing surface ships it.
 - **Expected Outcome:** A council/privacy review (PV-style, modelled on PV-9)
