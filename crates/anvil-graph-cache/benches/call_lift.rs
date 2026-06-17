@@ -316,7 +316,7 @@ fn hot_file_symbols() -> FileSymbols {
                     name: format!("fn_{target}"),
                     via_import: None,
                 },
-                line: u32::try_from(i + 1).unwrap_or(0),
+                line: u32::try_from(i + 1).expect("hot-file line number fits u32"),
             });
         }
 
@@ -325,7 +325,7 @@ fn hot_file_symbols() -> FileSymbols {
         imports.push(ImportEdge {
             from_file: HOT_FILE.to_string(),
             to_source: module.clone(),
-            line: u32::try_from(i + 1).unwrap_or(0),
+            line: u32::try_from(i + 1).expect("hot-file line number fits u32"),
         });
         calls.push(CallSite {
             from: caller,
@@ -333,7 +333,7 @@ fn hot_file_symbols() -> FileSymbols {
                 name: "handler".to_string(),
                 via_import: Some(module),
             },
-            line: u32::try_from(i + 1).unwrap_or(0),
+            line: u32::try_from(i + 1).expect("hot-file line number fits u32"),
         });
     }
 

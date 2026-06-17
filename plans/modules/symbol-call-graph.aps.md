@@ -174,8 +174,10 @@ the per-language scanners (TS/JS, Rust, `lang-python`).
   forward-reference pass — over a 100-function / ~300-call corpus that lifts real
   resident `Calls` edges, exiting non-zero on an 80 ms p95 breach. Wired into
   `resource-budget.yml` as a gate step + a `ANVIL_BENCH_CALLLIFT_STALL_MS`
-  self-test proving the gate trips on a synthetic regression. Measured p95 ~3 ms
-  (~25× under budget).
+  self-test proving the gate trips on a synthetic regression. The corpus is
+  padded to ~50k resident nodes (representative of a mid-large workspace, since
+  `resolve_import` scans the whole graph per cross-file callee); measured p95
+  ~6 ms (~13× under budget), ~9 ms even at 100k nodes.
 - **Intent:** Prove call extraction stays within the save-time latency budget.
 - **Expected Outcome:** Call-site extraction + `apply_delta` lift run within the
   ADR-031 save-time p95 budget on the benchmark corpus; a CI latency gate guards

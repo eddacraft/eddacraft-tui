@@ -127,7 +127,7 @@ jobs:
           fi
           echo "hot-read gate correctly fails on a synthetic regression"
       # GCALL-006 / ADR-086: the save-time call-lift latency gate. In-process
-      # microbench (no daemon/inotify), p95 ~25x under the 80 ms ADR-031 save-time
+      # microbench (no daemon/inotify), p95 ~13x under the 80 ms ADR-031 save-time
       # budget, so it gates on the standard runner. The bench exits non-zero on a
       # p95 breach, so the step itself is the gate.
       - name: Measure call-lift latency budget (GCALL-006)
