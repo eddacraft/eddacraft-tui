@@ -87,11 +87,13 @@ pub fn callers_of(graph: &SymbolGraph, target: &SymbolIdentity, depth: u32) -> C
     let mut frontier: Vec<u64> = vec![target_id];
 
     'walk: for hop in 1..=depth {
-        // Resolve each frontier node's incoming callers to (identity, id,
-        // heuristic), then expand in identity order so truncation keeps a
-        // deterministic prefix. `heuristic` records whether the edge reaching this
-        // caller is an overload fan-out (CALL-1).
-        let mut next_ids: Vec<(SymbolIdentity, u64, bool)> = Vec::new();
+        // Collect this hop's new callers, deduplicated by caller node id. A caller
+        // reachable via several frontier nodes in one hop is recorded once, with
+        // `heuristic` **OR-ed** across all its edges — so a caller is heuristic if
+        // *any* of its calls into the frontier is an overload fan-out (a
+        // deterministic, conservative result independent of frontier-visit order).
+        let mut hop_callers: std::collections::HashMap<u64, (SymbolIdentity, bool)> =
+            std::collections::HashMap::new();
         for &current in &frontier {
             for edge in graph.incoming_edges(current) {
                 if edge.edge_type != EdgeType::Calls || seen.contains(&edge.from) {
@@ -99,15 +101,25 @@ pub fn callers_of(graph: &SymbolGraph, target: &SymbolIdentity, depth: u32) -> C
                 }
                 if let Some(identity) = identity_of(graph, edge.from) {
                     let heuristic = is_fan_out_call(graph, edge.from, current);
-                    next_ids.push((identity, edge.from, heuristic));
+                    hop_callers
+                        .entry(edge.from)
+                        .and_modify(|entry| entry.1 |= heuristic)
+                        .or_insert((identity, heuristic));
                 }
             }
         }
-        next_ids.sort_by(|a, b| a.0.cmp(&b.0));
+        // Expand in identity order so an over-budget truncation keeps a
+        // deterministic prefix.
+        let mut next_ids: Vec<(u64, SymbolIdentity, bool)> = hop_callers
+            .into_iter()
+            .map(|(id, (identity, heuristic))| (id, identity, heuristic))
+            .collect();
+        next_ids.sort_by(|a, b| a.1.cmp(&b.1));
 
         let mut next_frontier: Vec<u64> = Vec::new();
-        for (identity, id, heuristic) in next_ids {
-            // Guard again: two frontier nodes can share a caller within one hop.
+        for (id, identity, heuristic) in next_ids {
+            // `hop_callers` keys are unique and already excluded prior-hop callers;
+            // `seen.insert` records this caller for the next hop's cycle guard.
             if !seen.insert(id) {
                 continue;
             }

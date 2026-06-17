@@ -124,20 +124,23 @@ name-and-import analysis can prove, and nothing it cannot.
   `(distance, identity)` order (all nearer callers, identity-ordered within a
   distance; not a global identity-prefix), and truncation metadata. Returns
   calling symbol
-  identity, source file, distance, and a `truncated` marker — never source text.
-  This lives in `anvil-graph-cache` (it reads the resident `SymbolGraph`) and is
-  surfaced over the daemon `GctxDispatch` RPC like `find_dependents`.
-  - **Implementation finding (GCALL-003): the `heuristic` (fan-out-derived) and
-    `partial` (unresolved callers exist) markers are an egress concern, owned by
-    GCTX-014, not the bare `callers_of` over the resident graph.** A resident
-    `EdgeType::Calls` edge carries no provenance, so fan-out cannot be told apart
-    from two legitimate distinct overload call sites at read time, and an
-    *unresolved* caller produces no edge so it is invisible to the graph walk.
-    Faithful markers need write-time provenance (the fan-out/unresolved set the
-    lift records) or the daemon `all_calls` accumulator — both available at the
-    GCTX-014 egress layer, which threads them onto the projected DTO. The
-    substrate read API stays identity + distance + `truncated` (all faithfully
-    computable); GCTX-014 adds `heuristic`/`partial`.
+  identity, source file, distance, a per-caller `heuristic` (fan-out) marker, and
+  a `truncated` marker — never source text. This lives in `anvil-graph-cache` (it
+  reads the resident `SymbolGraph`) and is surfaced over the daemon `GctxDispatch`
+  RPC like `find_dependents`.
+  - **Implementation finding (GCALL-003 / CALL-1): the two honesty markers split
+    by where their data lives.** `heuristic` (overload fan-out) **is** carried by
+    the substrate read API per `CallerResult`: a resident `Calls` edge has no
+    provenance, but fan-out is recoverable from the graph **conservatively** — a
+    caller is `heuristic` when it has `Calls` edges to ≥2 symbols sharing the
+    called symbol's `(file, kind, name)`. This over-flags a caller that genuinely
+    calls two distinct overloads, but never *under*-reports fan-out (the safe
+    direction for an honesty marker). `partial` (unresolved callers may exist) is
+    **not** computable from the bare graph — an unresolved call produces no edge,
+    so it is invisible to the walk — and is therefore computed at the **GCTX-014**
+    egress layer from the daemon `all_calls` accumulator (which records every call
+    site, resolved or not). The substrate read API thus carries identity +
+    distance + `heuristic` + `truncated`; GCTX-014 adds `partial`.
 
 ### 2. `FileSymbols` extension — a `calls` channel, resolved at lift time
 

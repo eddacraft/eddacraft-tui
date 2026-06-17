@@ -75,15 +75,19 @@ NEW (caller-specific) vs INHERITED (from PV-9).
   MUST state the result is a **best-effort static import-derived
   over-approximation, not an authoritative caller set** — mirroring the
   `affected_tests` `heuristic: true` framing.
-- **Substrate prerequisite.** GCALL-003's `CallersReport` currently carries only
-  `truncated` — not `heuristic` / `partial` (deferred during GCALL-003 as an
-  egress concern; this verdict makes them a hard prerequisite). The egress
-  projector cannot synthesise honesty markers the read API discards, so
-  `callers_of` (and the lift's fan-out/unresolved provenance) MUST be extended to
-  carry them **before GCTX-014 can project them**. Tracked as the GCALL-003
-  substrate follow-up below.
-- **Folds into:** GCTX-014 acceptance criteria (new bullet) + the GCALL-003
-  substrate follow-up.
+- **Implementation split (resolved post-verdict).** The two markers split by
+  where their data lives. **`heuristic`** is carried by the substrate read API
+  (`CallerResult.heuristic`, GCALL-003 follow-up) — fan-out is recoverable from
+  the graph **conservatively** (a caller with `Calls` edges to ≥2 symbols sharing
+  the called symbol's `(file, kind, name)`), which over-flags but never
+  under-reports fan-out. **`partial`** is *not* graph-computable (an unresolved
+  call produces no edge, invisible to the walk) and is therefore added at the
+  **GCTX-014** egress layer from the daemon `all_calls` accumulator (which records
+  every call site, resolved or not). So the substrate carries identity + distance
+  + `heuristic` + `truncated`; GCTX-014 adds `partial`. (ADR-086 §1 records this.)
+- **Folds into:** the GCALL-003 substrate follow-up (`heuristic`, landed) +
+  GCTX-014 acceptance criteria (`partial` from the accumulator, the tool
+  description, surfacing `heuristic`).
 
 ### CALL-2 — Sealed caller DTO + extend the structural no-leak test — **INHERITED (CE-5), hard item gate**
 
