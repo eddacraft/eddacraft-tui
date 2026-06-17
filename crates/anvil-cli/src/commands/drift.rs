@@ -55,22 +55,19 @@ impl SchemaVersion {
     /// non-negative integer; anything else is a hard error so an
     /// unrecognised baseline is never read as though it were understood.
     fn parse(s: &str) -> Result<Self> {
-        let mut parts = s.split('.');
-        let mut next = |label: &str| -> Result<u32> {
-            parts
-                .next()
-                .and_then(|p| p.parse::<u32>().ok())
-                .ok_or_else(|| {
-                    anyhow::anyhow!("schema version '{s}' has no valid {label} component")
-                })
+        let parts: Vec<&str> = s.split('.').collect();
+        let [major, minor, patch] = parts.as_slice() else {
+            bail!("schema version '{s}' must be major.minor.patch");
         };
-        let major = next("major")?;
-        let minor = next("minor")?;
-        let patch = next("patch")?;
-        if parts.next().is_some() {
-            bail!("schema version '{s}' has too many components (expected major.minor.patch)");
-        }
-        Ok(Self::new(major, minor, patch))
+        let component = |p: &str| -> Result<u32> {
+            p.parse::<u32>()
+                .map_err(|_| anyhow::anyhow!("schema version '{s}' has a non-numeric component"))
+        };
+        Ok(Self::new(
+            component(major)?,
+            component(minor)?,
+            component(patch)?,
+        ))
     }
 }
 
@@ -103,13 +100,15 @@ const FIELD_DECLARATIONS: &[FieldDeclaration] = &[
         introduced_in: SchemaVersion::new(1, 0, 0),
     },
     FieldDeclaration {
+        // Nested under the top-level `metrics` object; paths are dotted so
+        // the registry mirrors the actual snapshot JSON shape.
         surface: "metrics",
         fields: &[
-            "boundary_violations",
-            "antipattern_count",
-            "suppression_count",
-            "expired_suppressions",
-            "files_analysed",
+            "metrics.boundary_violations",
+            "metrics.antipattern_count",
+            "metrics.suppression_count",
+            "metrics.expired_suppressions",
+            "metrics.files_analysed",
         ],
         introduced_in: SchemaVersion::new(1, 0, 0),
     },
