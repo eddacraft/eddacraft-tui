@@ -2,9 +2,9 @@
 
 | ID   | Owner | Status | Progress |
 | ---- | ----- | ------ | -------- |
-| GCTX | —     | In Progress | 4/14 |
+| GCTX | —     | In Progress | 5/14 |
 
-**Last reviewed:** 2026-06-17 (Phase 0 — Delivery Contract — complete. **GCTX-001 (projection contract) Merged 2026-06-15 via #2628** — the spec [`graph-context-delivery-spec.md`](../../docs/architecture/graph-context-delivery-spec.md) folds the context-egress privacy review (PV-9) conditions CE-1..CE-12 onto the GV2-023 consumer query contract. **GCTX-002 (MCP delivery target) Merged 2026-06-15 via #2619** — discharged by [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) **Accepted** (Rust RMCPF `anvil mcp serve` surface); RMCPF defers GCTX work by design, so no edit to rust-mcp-full-port. Module **In Progress, 4/14** (GCTX-010 pilot Merged 2026-06-16 via #2657; GCTX-011 `find_dependents` Merged 2026-06-16 via #2685). **GCTX-012 `anvil_impact_of_change` promoted to Ready 2026-06-17** — the next dev pick, composing existing warm-graph reads on the GCTX-010/011 spine (no new substrate; contract fixed by the GCTX-001 spec — paths-only diff, ≤200-file cap, identity-only `ImpactReport`). The remaining Phase 1 tool items (GCTX-013, 021..023, 030) stay Draft, and GCTX-014 `find_callers` is Blocked on GV2 symbol-call-edge support (split from GCTX-011 2026-06-17); all build on the CE-5 sealed egress DTO + `GctxProjector` + structural no-leak spine that GCTX-010 established, using the daemon-RPC graph-handle path settled by ADR-084.)
+**Last reviewed:** 2026-06-17 (Phase 0 — Delivery Contract — complete. **GCTX-001 (projection contract) Merged 2026-06-15 via #2628** — the spec [`graph-context-delivery-spec.md`](../../docs/architecture/graph-context-delivery-spec.md) folds the context-egress privacy review (PV-9) conditions CE-1..CE-12 onto the GV2-023 consumer query contract. **GCTX-002 (MCP delivery target) Merged 2026-06-15 via #2619** — discharged by [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) **Accepted** (Rust RMCPF `anvil mcp serve` surface); RMCPF defers GCTX work by design, so no edit to rust-mcp-full-port. Module **In Progress, 5/14** (GCTX-010 pilot Merged 2026-06-16 via #2657; GCTX-011 `find_dependents` Merged 2026-06-16 via #2685; **GCTX-012 `anvil_impact_of_change` Merged 2026-06-17 via #2693**). **GCTX-013 `anvil_affected_tests` promoted to Ready 2026-06-17** — the next dev pick, adding test attribution + coverage gaps over the same spine (no new substrate; reuses GCTX-012's `is_test_file` + the dependency graph's forward `dependencies_of` edges for evidence). The remaining Phase 1/2 tool items (021..023, 030) stay Draft, and GCTX-014 `find_callers` is Blocked on GV2 symbol-call-edge support (split from GCTX-011 2026-06-17); all build on the CE-5 sealed egress DTO + `GctxProjector` + structural no-leak spine that GCTX-010 established, using the daemon-RPC graph-handle path settled by ADR-084.)
 
 > **Scoped to v0.9, not v0.8.0-beta (2026-06-08, [ADR-075](../decisions/075-v080-graph-product-scope.md),
 > Accepted via council).** GCTX was considered for the v0.8.0 window but the
@@ -379,15 +379,17 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-012: `anvil_impact_of_change` tool
 
-- **Status:** In Progress — builds directly on the GCTX-010/011 spine (Merged): the
-  sealed `anvil-gctx-types` DTOs, the single `GctxProjector` choke point in
-  `anvil-gctx-egress`, the `GctxDispatch` RPC surface, and GCTX-011's
-  `collect_dependents` reverse-impact walk. **No new graph substrate** — the
-  report composes existing warm-graph reads (`symbols_in_file` +
-  `dependents_of`). The contract is already fixed by the GCTX-001 spec
+- **Status:** Merged 2026-06-17 via #2693 — built directly on the GCTX-010/011
+  spine: the sealed `anvil-gctx-types` DTOs, the single `GctxProjector` choke
+  point in `anvil-gctx-egress` (`collect_impact` multi-source reverse-impact BFS
+  + `project_impact`), the `GctxDispatch` RPC (`anvil/gctx/impact_of_change`),
+  and the graph-free `anvil_impact_of_change` MCP tool. **No new graph
+  substrate** — the report composes existing warm-graph reads (`symbols_in_file`
+  + `dependents_of`). Contract fixed by the GCTX-001 spec
   ([`graph-context-delivery-spec.md`](../../docs/architecture/graph-context-delivery-spec.md)):
-  paths-only diff input, a ≤200 input-file cap (CE-6), and an identity-only
-  deterministic `ImpactReport`.
+  paths-only input, a ≤200 input-file cap (CE-6), and an identity-only
+  deterministic `ImpactReport` (affected symbols + dependent files + heuristic
+  known tests); both result sets are node-budget capped with `summary.truncated`.
 - **Intent:** Given a set of changed file paths (an assistant's edit set, or a
   git diff/staged path list), return the local blast radius — what changed and
   what depends on it — as one structured, assistant-readable report, so the
@@ -463,16 +465,74 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-013: `anvil_affected_tests` tool
 
-- **Status:** Draft
-- **Intent:** Let assistants ask which tests are likely relevant to a change.
-- **Expected Outcome:** Tool returns test files and evidence edges, clearly
-  marking heuristic or incomplete coverage.
-- **Validation:** Fixture test shows known source/test import links and missing
-  coverage warnings
-- **Files:** MCP server target decided by GCTX-002
-- **Confidence:** medium
+- **Status:** Ready — builds directly on the GCTX-010/011/012 spine (all Merged):
+  the sealed `anvil-gctx-types` DTOs, the single `GctxProjector` choke point, the
+  `GctxDispatch` RPC surface, GCTX-012's `is_test_file` heuristic, and the
+  reverse-impact walk. **No new graph substrate** — it adds *attribution* and
+  *coverage gaps* over the same warm-graph reads GCTX-012 already uses, plus the
+  dependency graph's **forward** edges (`dependencies_of`) for the evidence link.
+  Contract fixed by the GCTX-001 spec ("test files + evidence edges with explicit
+  heuristic/incomplete-coverage markers, identity-only").
+- **Intent:** Let assistants ask which tests are likely relevant to a change —
+  and, conversely, which changed files have **no** test exercising them — so they
+  can run the right tests and spot uncovered edits.
+- **Expected Outcome:** `anvil_affected_tests` accepts **changed file paths only**
+  (workspace-relative, ≤200, CE-6 — never diff content) and returns a
+  deterministic, **identity-only** `AffectedTestsReport`, projected daemon-side
+  through the single `GctxProjector` and served over a new read-only
+  `anvil/gctx/affected_tests` RPC on the existing `GctxDispatch`. The report
+  carries:
+  - `tests` — each **test file** (recognised by GCTX-012's `is_test_file`
+    heuristic) that imports a changed file within the depth bound, with its
+    **evidence edges**: the changed source files it depends on
+    (`dependencies_of(test) ∩ changed_set`) and the traversal distance — the
+    *why* that connects the test to the change;
+  - `coverage_gaps` — changed **non-test** files with **no** test importer within
+    the depth bound (the "you changed X, nothing tests it" warning);
+  - a `heuristic: true` marker stating relevance is **import-derived, not
+    execution-verified**, file-keyed (symbol-level coverage is out of scope) —
+    so an assistant never treats the result as authoritative coverage;
+  - counts-only `summary` (tests, evidence edges, coverage gaps, truncation).
+- **Acceptance criteria (inherit the GCTX-010/011/012 CE spine):**
+  - **CE-5** — the report is a sealed `anvil-gctx-types` DTO (no `PathBuf`, no
+    session-local id, no source text); the structural no-leak test covers the new
+    `AffectedTestsReport` type. The MCP crate links only `anvil-gctx-types`.
+  - **CE-6** — the ≤200 changed-file input cap + per-path validation reuse the
+    GCTX-012 helpers; paths-only (no diff content reaches the daemon).
+  - **Depth bound** — test discovery and coverage-gap detection are clamped by the
+    GV2-026 `clamp_reverse_impact_depth` / `MAX_REVERSE_IMPACT_DEPTH` lever and a
+    node budget; over-bound results carry truncation metadata.
+  - **Heuristic honesty** — the report explicitly marks itself import-heuristic;
+    a changed file with no resident test importer is surfaced as a coverage gap,
+    never silently omitted.
+  - **CE-7** — identity-only carve-out: a warming / cold graph yields a structured
+    `NotReady` / `Unavailable` outcome (with the C1 re-warm trigger), never a
+    whole-file fallback.
+  - **C3** — the daemon validates the client `workspace_root` against the
+    connection's admitted-root set (reuse the `SaveTimeConn` gate).
+  - **CE-10 / CE-11** — enum-only telemetry and the `ANVIL_GCTX_EGRESS`
+    kill-switch, reusing the GCTX-010 surfaces.
+- **Validation:**
+  - structural no-leak test for the new `AffectedTestsReport` DTO (gates the
+    build);
+  - fixture test over a source `s.ts`, a test `s.test.ts` importing it, and a
+    second changed source `u.ts` with no test → asserts `s.test.ts` appears with
+    an evidence edge to `s.ts`, `u.ts` is in `coverage_gaps`, and the heuristic
+    marker is set;
+  - input-cap + path-validation rejection (CE-6); warming-graph degradation
+    (CE-7); cross-worktree `workspace_root` rejection (C3); deterministic
+    ordering.
+- **Files:** `crates/anvil-gctx-types/`, `crates/anvil-gctx-egress/`,
+  `crates/anvil-intercept-proto/src/protocol.rs`,
+  `crates/anvil-intercept/src/ipc.rs` (+ the `GctxDispatch` impl in
+  `save_time.rs`), `crates/anvil-cli/src/mcp/tools/`
+- **Confidence:** medium — test *relevance* is an import heuristic (not
+  execution-based), so the report is explicitly framed as such; the projection
+  itself is mechanical on the existing spine.
 - **Priority:** High
-- **Dependencies:** GCTX-012, GV2-011
+- **Dependencies:** GCTX-012 (Merged 2026-06-17 via #2693), GCTX-010/011 (Merged),
+  GV2-011 (Released/Shipped v0.8.0-beta), GV2-026 reverse-impact depth lever
+  (Merged 2026-06-14 via #2594) — all closed.
 
 ---
 
@@ -647,7 +707,7 @@ blockers — they are resolved during execution, not before promotion:
 | Phase | Items | Status |
 | ----- | ----- | ------ |
 | 0 — Delivery Contract | 2 | Complete (GCTX-001 Merged #2628, GCTX-002 Merged #2619) |
-| 1 — Graph Query Tools | 5 | GCTX-010 Merged #2657 (pilot); GCTX-011 Merged #2685 (`find_dependents`); GCTX-012 Ready (`impact_of_change`); GCTX-013 Draft; GCTX-014 Blocked (`find_callers` — GV2 call-edges) |
+| 1 — Graph Query Tools | 5 | GCTX-010 Merged #2657 (pilot); GCTX-011 Merged #2685 (`find_dependents`); GCTX-012 Merged #2693 (`impact_of_change`); GCTX-013 Ready (`affected_tests`); GCTX-014 Blocked (`find_callers` — GV2 call-edges) |
 | 2 — Context Slicing | 4 | Draft |
 | 3 — Resources, Benchmarks, Docs | 3 | Draft |
-| **Total** | **14** | **4/14** |
+| **Total** | **14** | **5/14** |
