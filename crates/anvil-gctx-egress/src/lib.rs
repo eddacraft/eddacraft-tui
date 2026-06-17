@@ -343,6 +343,11 @@ impl GctxProjector {
         let callers = report
             .callers
             .into_iter()
+            // CE-5 defence in depth: symbol identities carry workspace-relative
+            // paths, so an absolute path should never be resident — but if one is,
+            // drop the caller rather than egress an absolute filesystem location
+            // via `CallerSummary.caller.file` (mirrors `collect_dependents`).
+            .filter(|c| !is_absolute_path_like(&c.caller.file))
             .map(|c| CallerSummary {
                 caller: c.caller,
                 distance: c.distance,
@@ -1896,6 +1901,286 @@ mod tests {
         assert!(
             p.dependents.iter().all(|d| !is_absolute_path_like(&d.file)),
             "no absolute path may reach the projection",
+        );
+    }
+
+    // --- GCTX-014 find_callers pagination + cursor binding ---
+
+    fn target_identity(name: &str) -> SymbolIdentity {
+        SymbolIdentity {
+            file: "src/target.ts".into(),
+            kind: SymbolKind::Function,
+            name: name.into(),
+            ordinal: 0,
+        }
+    }
+
+    /// Build caller candidates directly (the unit under test for pagination is
+    /// `project_callers`, which takes the collected `Vec<CallerSummary>`).
+    fn caller_candidates(files: &[&str]) -> Vec<CallerSummary> {
+        files
+            .iter()
+            .map(|f| CallerSummary {
+                caller: SymbolIdentity {
+                    file: (*f).into(),
+                    kind: SymbolKind::Function,
+                    name: "caller".into(),
+                    ordinal: 0,
+                },
+                distance: 1,
+                heuristic: false,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn callers_pagination_walks_all_pages_without_overlap_or_gap() {
+        // Five callers, paged 2 at a time: every caller exactly once, in identity
+        // order, and `truncated` tracks `next_cursor` (no stuck last page).
+        let files = ["src/b.ts", "src/c.ts", "src/d.ts", "src/e.ts", "src/f.ts"];
+        let mut seen: Vec<String> = Vec::new();
+        let mut cursor = None;
+        let mut pages = 0;
+        loop {
+            let query = FindCallersQuery {
+                target: Some(target_identity("hot")),
+                limit: Some(2),
+                cursor: cursor.clone(),
+                ..Default::default()
+            };
+            let p =
+                GctxProjector::project_callers(caller_candidates(&files), &query, 1, false, false)
+                    .expect("valid query");
+            assert!(p.callers.len() <= 2);
+            assert_eq!(p.redaction_summary.matched, 5);
+            assert_eq!(p.redaction_summary.truncated, p.next_cursor.is_some());
+            seen.extend(p.callers.iter().map(|c| c.caller.file.clone()));
+            pages += 1;
+            assert!(pages <= 5, "pagination must terminate");
+            match p.next_cursor {
+                Some(c) => cursor = Some(c),
+                None => break,
+            }
+        }
+        assert_eq!(pages, 3, "5 items at page size 2 → 3 pages");
+        assert_eq!(
+            seen,
+            ["src/b.ts", "src/c.ts", "src/d.ts", "src/e.ts", "src/f.ts"],
+            "every caller exactly once, in identity order",
+        );
+    }
+
+    #[test]
+    fn callers_cursor_from_a_different_depth_is_rejected() {
+        let files = ["src/b.ts", "src/c.ts", "src/d.ts"];
+        let cursor = GctxProjector::project_callers(
+            caller_candidates(&files),
+            &FindCallersQuery {
+                target: Some(target_identity("hot")),
+                limit: Some(1),
+                ..Default::default()
+            },
+            1,
+            false,
+            false,
+        )
+        .expect("valid query")
+        .next_cursor
+        .expect("more pages remain");
+
+        // Echo the depth-1 cursor against a depth-2 walk: the fingerprint differs.
+        let mismatched = FindCallersQuery {
+            target: Some(target_identity("hot")),
+            limit: Some(1),
+            cursor: Some(cursor),
+            ..Default::default()
+        };
+        let result =
+            GctxProjector::project_callers(caller_candidates(&files), &mismatched, 2, false, false);
+        assert!(
+            result.is_err(),
+            "a cursor is only valid for the depth it was minted at",
+        );
+    }
+
+    #[test]
+    fn callers_cursor_from_a_different_target_is_rejected() {
+        // A cursor minted for `hot`'s callers must not seek `cold`'s page — the
+        // result set differs, so accepting it would overlap/gap pagination.
+        let files = ["src/b.ts", "src/c.ts", "src/d.ts"];
+        let cursor = GctxProjector::project_callers(
+            caller_candidates(&files),
+            &FindCallersQuery {
+                target: Some(target_identity("hot")),
+                limit: Some(1),
+                ..Default::default()
+            },
+            1,
+            false,
+            false,
+        )
+        .expect("valid query")
+        .next_cursor
+        .expect("more pages remain");
+
+        let mismatched = FindCallersQuery {
+            target: Some(target_identity("cold")),
+            limit: Some(1),
+            cursor: Some(cursor),
+            ..Default::default()
+        };
+        let result =
+            GctxProjector::project_callers(caller_candidates(&files), &mismatched, 1, false, false);
+        assert!(
+            result.is_err(),
+            "a cursor is bound to the exact target symbol it was minted for",
+        );
+    }
+
+    #[test]
+    fn callers_malformed_and_oversized_cursors_are_rejected() {
+        let files = ["src/b.ts", "src/c.ts"];
+        let malformed = GctxProjector::project_callers(
+            caller_candidates(&files),
+            &FindCallersQuery {
+                target: Some(target_identity("hot")),
+                cursor: Some(OpaqueCursor::new("not-hex-zzzz".into())),
+                ..Default::default()
+            },
+            1,
+            false,
+            false,
+        );
+        assert!(malformed.is_err(), "a malformed cursor must be rejected");
+
+        let oversized = GctxProjector::project_callers(
+            caller_candidates(&files),
+            &FindCallersQuery {
+                target: Some(target_identity("hot")),
+                cursor: Some(OpaqueCursor::new("a".repeat(MAX_CURSOR_BYTES + 1))),
+                ..Default::default()
+            },
+            1,
+            false,
+            false,
+        );
+        assert!(oversized.is_err(), "an oversized cursor must be rejected");
+    }
+
+    #[test]
+    fn callers_reject_a_dependents_surface_cursor() {
+        // A dependents cursor must never seek a callers page: its payload carries a
+        // `file` string (vs a `SymbolIdentity` here) so decode fails, and the
+        // domain-separated surface tag is a second guard.
+        let dep = dep_graph(&[("src/b.ts", "src/a.ts"), ("src/c.ts", "src/a.ts")]);
+        let dependents_cursor = GctxProjector::project_dependents(
+            GctxProjector::collect_dependents(&dep, "src/a.ts", 1),
+            &FindDependentsQuery {
+                file: Some("src/a.ts".into()),
+                limit: Some(1),
+                ..Default::default()
+            },
+            1,
+        )
+        .expect("valid query")
+        .next_cursor
+        .expect("two importers at page size 1 leaves a next page");
+
+        let result = GctxProjector::project_callers(
+            caller_candidates(&["src/b.ts"]),
+            &FindCallersQuery {
+                target: Some(target_identity("hot")),
+                cursor: Some(dependents_cursor),
+                ..Default::default()
+            },
+            1,
+            false,
+            false,
+        );
+        assert!(
+            result.is_err(),
+            "a dependents cursor must not seek a callers page",
+        );
+    }
+
+    #[test]
+    fn callers_partial_marks_truncated_or_unclean_graph() {
+        let q = FindCallersQuery {
+            target: Some(target_identity("hot")),
+            ..Default::default()
+        };
+        let clean =
+            GctxProjector::project_callers(caller_candidates(&["src/b.ts"]), &q, 1, false, false)
+                .expect("valid");
+        assert!(
+            !clean.partial,
+            "a complete walk on a clean graph is not partial"
+        );
+        let walk_bound =
+            GctxProjector::project_callers(caller_candidates(&["src/b.ts"]), &q, 1, true, false)
+                .expect("valid");
+        assert!(walk_bound.partial, "a node-budget-bound walk is partial");
+        let unclean =
+            GctxProjector::project_callers(caller_candidates(&["src/b.ts"]), &q, 1, false, true)
+                .expect("valid");
+        assert!(unclean.partial, "a non-Clean graph is partial");
+    }
+
+    #[test]
+    fn callers_absolute_path_caller_is_dropped() {
+        // CE-5 defence in depth: a caller resident with an absolute path must not
+        // egress via `CallerSummary.caller.file`.
+        use anvil_kernel_types::{EdgeType, SymbolEdge};
+        let mut g = graph_of(vec![
+            node(
+                1,
+                "callee",
+                "src/callee.ts",
+                SymbolKind::Function,
+                Visibility::Public,
+            ),
+            node(
+                2,
+                "rel",
+                "src/rel.ts",
+                SymbolKind::Function,
+                Visibility::Public,
+            ),
+            node(
+                3,
+                "abs",
+                "/etc/evil.ts",
+                SymbolKind::Function,
+                Visibility::Public,
+            ),
+        ]);
+        g.add_edge(SymbolEdge {
+            from: 2,
+            to: 1,
+            edge_type: EdgeType::Calls,
+        })
+        .unwrap();
+        g.add_edge(SymbolEdge {
+            from: 3,
+            to: 1,
+            edge_type: EdgeType::Calls,
+        })
+        .unwrap();
+
+        let callee = SymbolIdentity {
+            file: "src/callee.ts".into(),
+            kind: SymbolKind::Function,
+            name: "callee".into(),
+            ordinal: 0,
+        };
+        let (callers, _truncated) = GctxProjector::collect_callers(&g, &callee, 1);
+        let files: Vec<&str> = callers.iter().map(|c| c.caller.file.as_str()).collect();
+        assert_eq!(files, ["src/rel.ts"], "the absolute-path caller is dropped");
+        assert!(
+            callers
+                .iter()
+                .all(|c| !is_absolute_path_like(&c.caller.file)),
+            "no absolute path may reach the caller projection",
         );
     }
 
