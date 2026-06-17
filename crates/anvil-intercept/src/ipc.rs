@@ -38,11 +38,11 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use anvil_intercept_proto::protocol::{
-    GctxAffectedTestsRequest, GctxAffectedTestsResponse, GctxFindDependentsRequest,
-    GctxFindDependentsResponse, GctxImpactOfChangeRequest, GctxImpactOfChangeResponse,
-    GctxSearchSymbolsRequest, GctxSearchSymbolsResponse, RequestFullScanRequest,
-    RequestFullScanResponse, ValidatePathsRequest, ValidatePathsResponse, WorkspaceStatusRequest,
-    WorkspaceStatusResponse,
+    GctxAffectedTestsRequest, GctxAffectedTestsResponse, GctxFindCallersRequest,
+    GctxFindCallersResponse, GctxFindDependentsRequest, GctxFindDependentsResponse,
+    GctxImpactOfChangeRequest, GctxImpactOfChangeResponse, GctxSearchSymbolsRequest,
+    GctxSearchSymbolsResponse, RequestFullScanRequest, RequestFullScanResponse,
+    ValidatePathsRequest, ValidatePathsResponse, WorkspaceStatusRequest, WorkspaceStatusResponse,
 };
 use anvil_intercept_proto::{IpcCommand, IpcEnvelope};
 use anvil_observability::{TraceContext, bind_traceparent_to_span};
@@ -109,6 +109,22 @@ pub trait GctxDispatch: Send {
         &mut self,
         request: &GctxFindDependentsRequest,
     ) -> Result<GctxFindDependentsResponse, SaveTimeError>;
+
+    /// Project an identity-only, depth-bounded **caller** traversal (the symbols
+    /// that call the target) from the warm symbol graph (daemon-side CE-5
+    /// projection, GCTX-014). The `workspace_root` is admitted against this
+    /// connection's admitted-root set (ADR-084 C3) before any read.
+    ///
+    /// Like [`Self::find_dependents`], degradation rides in-band in the response
+    /// `outcome` (CE-7); the only `Err` returns are connection-level.
+    ///
+    /// # Errors
+    /// [`SaveTimeError::NotAdmitted`] when the root is refused;
+    /// [`SaveTimeError::Io`] when an admissible root cannot be opened.
+    fn find_callers(
+        &mut self,
+        request: &GctxFindCallersRequest,
+    ) -> Result<GctxFindCallersResponse, SaveTimeError>;
 
     /// Project an identity-only impact-of-change report (affected symbols +
     /// dependent-file closure + heuristic known tests) from the warm graph pair
@@ -2738,6 +2754,20 @@ async fn handle_jsonrpc_request<D: SessionDispatcher>(
         });
     }
 
+    // GCTX caller traversal (GCTX-014 / ADR-084): same read-only `GctxDispatch`
+    // surface — never the enforcement path.
+    if method == anvil_intercept_proto::protocol::ANVIL_GCTX_FIND_CALLERS {
+        return dispatch_span.in_scope(|| {
+            handle_gctx_find_callers_jsonrpc(
+                params,
+                response_id,
+                traceparent,
+                is_notification,
+                save_time,
+            )
+        });
+    }
+
     // GCTX impact-of-change report (GCTX-012 / ADR-084): same read-only
     // `GctxDispatch` surface — never the enforcement path.
     if method == anvil_intercept_proto::protocol::ANVIL_GCTX_IMPACT_OF_CHANGE {
@@ -2969,6 +2999,38 @@ fn handle_gctx_find_dependents_jsonrpc(
         Ok(request) => {
             save_time_result(dispatch.find_dependents(&request), response_id, traceparent)
         }
+        Err(err) => save_time_invalid_params(response_id, traceparent, &err),
+    }
+}
+
+/// Route the GCTX caller verb (GCTX-014 / ADR-084) to the per-connection
+/// dispatcher. Mirrors [`handle_gctx_find_dependents_jsonrpc`].
+fn handle_gctx_find_callers_jsonrpc(
+    params: &Value,
+    response_id: Option<Value>,
+    traceparent: Option<&str>,
+    is_notification: bool,
+    save_time: Option<&mut (dyn SaveTimeDispatch + '_)>,
+) -> Option<Value> {
+    if is_notification {
+        tracing::warn!(
+            target: "anvil_intercept::gctx",
+            "ignoring gctx verb sent as a notification: request id required",
+        );
+        return None;
+    }
+    let Some(dispatch) = save_time else {
+        return jsonrpc_request_error(
+            response_id,
+            traceparent,
+            false,
+            -32601,
+            "Method not found",
+            json!({"reason": "graph-context delivery is not enabled on this daemon"}),
+        );
+    };
+    match serde_json::from_value::<GctxFindCallersRequest>(params.clone()) {
+        Ok(request) => save_time_result(dispatch.find_callers(&request), response_id, traceparent),
         Err(err) => save_time_invalid_params(response_id, traceparent, &err),
     }
 }
@@ -5811,6 +5873,82 @@ mod tests {
                 "method": anvil_intercept_proto::protocol::ANVIL_GCTX_FIND_DEPENDENTS,
                 "id": "gctx-dep-2",
                 "params": {"workspace_root": "/tmp/x", "query": {"file": "src/a.ts"}},
+            }),
+            &dispatcher,
+            &scan_buffer,
+            &status,
+            None,
+            None,
+            None,
+        )
+        .await
+        .expect("response");
+
+        assert_eq!(response["error"]["code"], -32601);
+    }
+
+    /// GCTX-014 / ADR-084: an `anvil/gctx/find_callers` frame routes to the
+    /// dedicated GCTX arm and is answered with a sealed, assurance-bearing result.
+    /// A cold worktree degrades in-band to `not_ready` (a success envelope).
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn dispatch_arm_routes_gctx_find_callers() {
+        use crate::confinement::Confinement;
+        use crate::save_time::{SaveTimeConn, SaveTimeState};
+        use crate::workspace_pool::WorkScheduler;
+        use anvil_checks::antipattern::types::AntipatternCheckConfig;
+
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = SaveTimeState::new(
+            WorkScheduler::new().expect("scheduler"),
+            AntipatternCheckConfig::default(),
+            Confinement::open_default(),
+        );
+        let mut conn = SaveTimeConn::new(&state);
+        let dispatcher = Arc::new(NoopDispatcher);
+        let scan_buffer = ScanBufferService::default();
+        let status: Arc<dyn StatusProvider> = Arc::new(NoopStatusProvider);
+
+        let response = handle_jsonrpc_value(
+            json!({
+                "jsonrpc": "2.0",
+                "method": anvil_intercept_proto::protocol::ANVIL_GCTX_FIND_CALLERS,
+                "id": "gctx-callers-1",
+                "params": {"workspace_root": tmp.path().to_string_lossy(), "query": {"target": {"file": "src/a.ts", "kind": "Function", "name": "handle", "ordinal": 0}}},
+            }),
+            &dispatcher,
+            &scan_buffer,
+            &status,
+            None,
+            None,
+            Some(&mut conn as &mut dyn SaveTimeDispatch),
+        )
+        .await
+        .expect("a gctx find_callers request returns a response");
+
+        assert_eq!(response["id"], "gctx-callers-1");
+        assert!(
+            response.get("error").is_none(),
+            "gctx find_callers must route to the gctx arm, not error: {response}",
+        );
+        assert_eq!(response["result"]["outcome"]["status"], "not_ready");
+        assert_eq!(response["result"]["workspace_assurance"]["state"], "stale");
+    }
+
+    /// Without save-time state wired, the GCTX callers verb replies `Method not
+    /// found` (which the MCP consumer maps to `unavailable`).
+    #[tokio::test]
+    async fn gctx_find_callers_method_not_found_without_save_time_state() {
+        let dispatcher = Arc::new(NoopDispatcher);
+        let scan_buffer = ScanBufferService::default();
+        let status: Arc<dyn StatusProvider> = Arc::new(NoopStatusProvider);
+
+        let response = handle_jsonrpc_value(
+            json!({
+                "jsonrpc": "2.0",
+                "method": anvil_intercept_proto::protocol::ANVIL_GCTX_FIND_CALLERS,
+                "id": "gctx-callers-2",
+                "params": {"workspace_root": "/tmp/x", "query": {"target": {"file": "src/a.ts", "kind": "Function", "name": "handle", "ordinal": 0}}},
             }),
             &dispatcher,
             &scan_buffer,

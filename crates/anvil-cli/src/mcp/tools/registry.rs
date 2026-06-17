@@ -1,7 +1,7 @@
 use serde_json::Value;
 
 use super::{
-    affected_tests, apply_patch, check, find_dependents, fix, gate, impact_of_change,
+    affected_tests, apply_patch, check, find_callers, find_dependents, fix, gate, impact_of_change,
     query_boundary, search_symbols, status, suppress, validate_write,
 };
 
@@ -95,6 +95,14 @@ static TOOLS: &[ToolDefinition] = &[
         descriptor: find_dependents::descriptor,
         call: find_dependents::call,
     },
+    // GCTX-014 / ADR-084 / GCALL-007: read-only symbol-keyed caller traversal.
+    // Same read-only posture and daemon-side admission gate as the sibling tools.
+    ToolDefinition {
+        name: find_callers::TOOL_NAME,
+        requires_auth: false,
+        descriptor: find_callers::descriptor,
+        call: find_callers::call,
+    },
     // GCTX-012 / ADR-084: read-only change-impact report. Same read-only posture
     // and daemon-side admission gate as the sibling GCTX tools.
     ToolDefinition {
@@ -129,7 +137,7 @@ mod tests {
     fn registry_lists_registered_tools() {
         let tools = all();
 
-        assert_eq!(tools.len(), 12);
+        assert_eq!(tools.len(), 13);
         let names: Vec<&str> = tools.iter().map(|t| t.name).collect();
         assert_eq!(
             names,
@@ -144,6 +152,7 @@ mod tests {
                 fix::TOOL_NAME,
                 search_symbols::TOOL_NAME,
                 find_dependents::TOOL_NAME,
+                find_callers::TOOL_NAME,
                 impact_of_change::TOOL_NAME,
                 affected_tests::TOOL_NAME,
             ],
@@ -165,6 +174,7 @@ mod tests {
         assert!(find(fix::TOOL_NAME).is_some());
         assert!(find(search_symbols::TOOL_NAME).is_some());
         assert!(find(find_dependents::TOOL_NAME).is_some());
+        assert!(find(find_callers::TOOL_NAME).is_some());
         assert!(find(impact_of_change::TOOL_NAME).is_some());
         assert!(find(affected_tests::TOOL_NAME).is_some());
         assert!(find("anvil_does_not_exist").is_none());

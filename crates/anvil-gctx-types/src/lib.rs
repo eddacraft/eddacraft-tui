@@ -364,6 +364,131 @@ impl FindDependentsOutcome {
 }
 
 // ============================================================================
+// GCTX-014 — `anvil_find_callers` symbol caller traversal (ADR-084 / GCALL-007)
+// ============================================================================
+
+/// Query for `anvil_find_callers`: the symbol whose callers to find, plus the
+/// traversal depth and pagination. Identity-only and graph-free.
+///
+/// Callers resolve at **symbol** granularity over the warm call graph
+/// (`caller → callee`): the result is the set of symbols that call `target`,
+/// transitively up to `max_depth` hops. The file-level dependency variant is
+/// `anvil_find_dependents` (GCTX-011).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FindCallersQuery {
+    /// The symbol identity whose callers to find. Required in practice; `Option`
+    /// so a bare `{}` deserialises (rejected daemon-side with a structured
+    /// `InvalidQuery`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target: Option<SymbolIdentity>,
+    /// Traversal depth in hops: `1` is direct callers, `2` adds their callers.
+    /// Clamped daemon-side to the GV2-026 `MAX_REVERSE_IMPACT_DEPTH` ceiling;
+    /// absent defaults to a 1-hop walk.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_depth: Option<u32>,
+    /// Maximum callers to return in this page. Clamped to [`MAX_PAGE_LIMIT`];
+    /// absent uses [`DEFAULT_PAGE_LIMIT`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u32>,
+    /// Opaque server-minted pagination cursor (CE-6), valid only for the filter
+    /// set (`target` + `max_depth`) it was minted against.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<OpaqueCursor>,
+}
+
+impl FindCallersQuery {
+    /// The page size to apply: the client `limit` clamped to
+    /// `1..=`[`MAX_PAGE_LIMIT`], or [`DEFAULT_PAGE_LIMIT`] when absent.
+    #[must_use]
+    pub fn effective_limit(&self) -> usize {
+        self.limit
+            .unwrap_or(DEFAULT_PAGE_LIMIT)
+            .clamp(1, MAX_PAGE_LIMIT) as usize
+    }
+}
+
+/// A single identity-only caller summary: a calling symbol, its hop distance, and
+/// whether the call reaching it is an overload fan-out (GCALL-007 CALL-1).
+///
+/// Carries **only** the caller's [`SymbolIdentity`], the traversal `distance`,
+/// and the `heuristic` marker — no source text, no call-site arguments, no byte
+/// span, no session-local id.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CallerSummary {
+    /// The calling symbol (identity-only).
+    pub caller: SymbolIdentity,
+    /// Hop distance from the queried symbol: `1` for a direct caller, `2` for a
+    /// caller-of-a-caller (bounded by the depth cap).
+    pub distance: u32,
+    /// `true` when the call reaching this caller is an **overload fan-out** — the
+    /// static resolver could not pick one overload and attached the call to all,
+    /// so this caller may be over-included (GCALL-007 CALL-1, ADR-086 §1). A
+    /// consumer must not treat a `heuristic` caller as an exact call.
+    pub heuristic: bool,
+}
+
+/// The identity-only projection returned when the call graph is readable.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FindCallersProjection {
+    /// Caller summaries, ordered deterministically by [`SymbolIdentity`].
+    pub callers: Vec<CallerSummary>,
+    /// Opaque next-page cursor when more callers remain, or `None` on the final
+    /// page. Echo it back in [`FindCallersQuery::cursor`] to continue.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<OpaqueCursor>,
+    /// Counts-only elision summary (CE-11).
+    pub redaction_summary: RedactionSummary,
+    /// `true` when the caller set may be **incomplete** (GCALL-007 CALL-1): the
+    /// node-budget bound the walk, or the graph is not fully resolved
+    /// (`Stale`/`Bounded`). Static-analysis under-inclusion (dynamic dispatch,
+    /// unresolved/default-import callees) is conveyed by the tool description, not
+    /// this flag — an unresolved call leaves no edge to count.
+    #[serde(default)]
+    pub partial: bool,
+}
+
+/// The status-tagged outcome of a caller traversal. Same named degradation
+/// surface as [`FindDependentsOutcome`] (ADR-084 CE-7).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum FindCallersOutcome {
+    /// Graph readable: caller results, possibly empty (a symbol with no callers
+    /// is a `Ready` empty page, not a `NotReady`).
+    Ready(FindCallersProjection),
+    /// Graph not yet readable (warming, or cold and not yet save-populated).
+    NotReady {
+        /// Human-readable, enum-stable recovery guidance.
+        recovery_hint: String,
+    },
+    /// Daemon or graph unavailable; no fallback was attempted (CE-7).
+    Unavailable,
+    /// The egress surface is switched off by the operator
+    /// (`ANVIL_GCTX_EGRESS=0`, re-read per call — CE-11 kill-switch).
+    Disabled,
+    /// The query was rejected before any read (CE-6 validation).
+    InvalidQuery {
+        /// Why the query was rejected.
+        reason: String,
+    },
+}
+
+impl FindCallersOutcome {
+    /// Classify into the shared PII-free [`GctxOutcome`] telemetry enum (CE-10).
+    /// A readable result splits into `Hit` (≥1 caller) and `Miss` (empty).
+    #[must_use]
+    pub fn telemetry_outcome(&self) -> GctxOutcome {
+        match self {
+            Self::Ready(projection) if projection.callers.is_empty() => GctxOutcome::Miss,
+            Self::Ready(_) => GctxOutcome::Hit,
+            Self::NotReady { .. } => GctxOutcome::Warming,
+            Self::Unavailable => GctxOutcome::Unavailable,
+            Self::Disabled => GctxOutcome::GraphDisabled,
+            Self::InvalidQuery { .. } => GctxOutcome::InvalidQuery,
+        }
+    }
+}
+
+// ============================================================================
 // GCTX-012 — `anvil_impact_of_change` blast-radius report (ADR-084)
 // ============================================================================
 
@@ -954,6 +1079,117 @@ mod tests {
             &[
                 "span", "byte", "text", "body", "snippet", "trust", "content", "id",
             ],
+        );
+    }
+
+    // --- GCTX-014 find_callers: CE-5 structural no-leak (CALL-2 hard gate) ---
+
+    fn sample_caller() -> CallerSummary {
+        CallerSummary {
+            caller: sample_identity(),
+            distance: 1,
+            heuristic: true,
+        }
+    }
+
+    fn sample_callers_projection() -> FindCallersProjection {
+        FindCallersProjection {
+            callers: vec![sample_caller()],
+            next_cursor: None,
+            redaction_summary: RedactionSummary {
+                matched: 1,
+                returned: 1,
+                truncated: false,
+            },
+            partial: true,
+        }
+    }
+
+    /// A serialised [`CallerSummary`] exposes ONLY the identity allowlist
+    /// (`caller`, `distance`, `heuristic`), and its nested `caller` only the
+    /// `SymbolIdentity` keys. A field that widens egress fails this — the CE-5 /
+    /// CALL-2 hard gate for the new caller type.
+    #[test]
+    fn caller_summary_serialised_keys_are_identity_only() {
+        let v = serde_json::to_value(sample_caller()).unwrap();
+        let obj = v.as_object().expect("summary serialises to an object");
+        let mut keys: Vec<&str> = obj.keys().map(String::as_str).collect();
+        keys.sort_unstable();
+        assert_eq!(keys, ["caller", "distance", "heuristic"]);
+
+        let id = obj["caller"].as_object().expect("caller is an object");
+        let mut id_keys: Vec<&str> = id.keys().map(String::as_str).collect();
+        id_keys.sort_unstable();
+        assert_eq!(id_keys, ["file", "kind", "name", "ordinal"]);
+    }
+
+    #[test]
+    fn callers_projection_names_no_forbidden_concepts() {
+        assert_no_forbidden_keys(
+            &serde_json::to_value(sample_callers_projection()).unwrap(),
+            &[
+                "span", "byte", "text", "body", "snippet", "trust", "content", "id",
+            ],
+        );
+    }
+
+    #[test]
+    fn callers_projection_carries_no_absolute_path_values() {
+        assert_no_absolute_path_values(&serde_json::to_value(sample_callers_projection()).unwrap());
+    }
+
+    #[test]
+    fn callers_outcome_round_trips_and_classifies_telemetry() {
+        // A readable non-empty result is a hit; empty is a miss.
+        assert_eq!(
+            FindCallersOutcome::Ready(sample_callers_projection())
+                .telemetry_outcome()
+                .as_str(),
+            "hit"
+        );
+        let empty = FindCallersOutcome::Ready(FindCallersProjection {
+            callers: Vec::new(),
+            next_cursor: None,
+            redaction_summary: RedactionSummary::default(),
+            partial: false,
+        });
+        assert_eq!(empty.telemetry_outcome().as_str(), "miss");
+
+        for outcome in [
+            FindCallersOutcome::Ready(sample_callers_projection()),
+            FindCallersOutcome::NotReady {
+                recovery_hint: "warming".into(),
+            },
+            FindCallersOutcome::Unavailable,
+            FindCallersOutcome::Disabled,
+            FindCallersOutcome::InvalidQuery {
+                reason: "target is required".into(),
+            },
+        ] {
+            let json = serde_json::to_string(&outcome).unwrap();
+            let back: FindCallersOutcome = serde_json::from_str(&json).unwrap();
+            assert_eq!(outcome, back);
+        }
+    }
+
+    #[test]
+    fn callers_effective_limit_clamps_and_defaults() {
+        assert_eq!(FindCallersQuery::default().effective_limit(), 50);
+        assert_eq!(
+            FindCallersQuery {
+                limit: Some(0),
+                ..Default::default()
+            }
+            .effective_limit(),
+            1
+        );
+        assert_eq!(
+            FindCallersQuery {
+                limit: Some(100_000),
+                ..Default::default()
+            }
+            .effective_limit(),
+            MAX_PAGE_LIMIT as usize
         );
     }
 

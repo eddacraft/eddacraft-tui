@@ -1,6 +1,7 @@
 pub mod affected_tests;
 pub mod apply_patch;
 pub mod check;
+pub mod find_callers;
 pub mod find_dependents;
 pub mod fix;
 pub mod gate;

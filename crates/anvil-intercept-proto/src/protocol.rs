@@ -75,8 +75,9 @@
 //! name at the JSON-RPC layer.
 
 use anvil_gctx_types::{
-    AffectedTestsOutcome, AffectedTestsQuery, FindDependentsOutcome, FindDependentsQuery,
-    ImpactOutcome, ImpactQuery, SearchSymbolsOutcome, SearchSymbolsQuery,
+    AffectedTestsOutcome, AffectedTestsQuery, FindCallersOutcome, FindCallersQuery,
+    FindDependentsOutcome, FindDependentsQuery, ImpactOutcome, ImpactQuery, SearchSymbolsOutcome,
+    SearchSymbolsQuery,
 };
 use serde::{Deserialize, Serialize};
 
@@ -182,6 +183,13 @@ pub const ANVIL_GCTX_SEARCH_SYMBOLS: &str = "anvil/gctx/search_symbols";
 /// `GctxDispatch` surface — never the save-time `validate_paths` path.
 pub const ANVIL_GCTX_FIND_DEPENDENTS: &str = "anvil/gctx/find_dependents";
 
+/// Client → server: a read-only, identity-only GCTX caller traversal (GCTX-014,
+/// ADR-084 / GCALL-007). Given a `SymbolIdentity`, the daemon walks its reverse
+/// **call** graph (the symbols that call it) over the resident symbol graph and
+/// returns sealed identity-only DTOs ([`GctxFindCallersResponse`]). Dispatched on
+/// the same read-only `GctxDispatch` surface; never the save-time path.
+pub const ANVIL_GCTX_FIND_CALLERS: &str = "anvil/gctx/find_callers";
+
 /// Client → server: a read-only, identity-only GCTX impact-of-change report
 /// (GCTX-012, ADR-084). Given a set of **changed file paths** (never diff
 /// content), the daemon projects the blast radius — affected symbols, the
@@ -257,6 +265,7 @@ pub const ALL_ANVIL_METHODS: &[&str] = &[
     ANVIL_REQUEST_FULL_SCAN,
     ANVIL_GCTX_SEARCH_SYMBOLS,
     ANVIL_GCTX_FIND_DEPENDENTS,
+    ANVIL_GCTX_FIND_CALLERS,
     ANVIL_GCTX_IMPACT_OF_CHANGE,
     ANVIL_GCTX_AFFECTED_TESTS,
 ];
@@ -626,6 +635,33 @@ pub struct GctxFindDependentsResponse {
     pub workspace_assurance: WorkspaceAssurance,
     /// The status-tagged dependents outcome (sealed, identity-only).
     pub outcome: FindDependentsOutcome,
+}
+
+/// Request body for [`ANVIL_GCTX_FIND_CALLERS`] (GCTX-014, ADR-084).
+///
+/// The query is the sealed, graph-free [`FindCallersQuery`]; the `workspace_root`
+/// is validated daemon-side against the connection's admitted-root set
+/// (ADR-084 C3 / CE-8) before any projection runs.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GctxFindCallersRequest {
+    /// Canonical, admitted workspace root to project from.
+    pub workspace_root: String,
+    /// The symbol-keyed caller traversal query.
+    #[serde(default)]
+    pub query: FindCallersQuery,
+}
+
+/// Response to [`ANVIL_GCTX_FIND_CALLERS`]: the daemon-projected sealed egress
+/// DTO (identity-only). The daemon performs the CE-5 projection itself, so this
+/// response **is** the sealed DTO; `workspace_assurance` always rides along
+/// (CE-7), and `outcome` is `ready` with identity-only callers when the call
+/// graph is readable, a named non-`ready` variant otherwise.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GctxFindCallersResponse {
+    /// Workspace assurance at projection time (CE-7).
+    pub workspace_assurance: WorkspaceAssurance,
+    /// The status-tagged callers outcome (sealed, identity-only).
+    pub outcome: FindCallersOutcome,
 }
 
 /// Request body for [`ANVIL_GCTX_IMPACT_OF_CHANGE`] (GCTX-012, ADR-084).
@@ -1078,6 +1114,7 @@ mod tests {
             ANVIL_REQUEST_FULL_SCAN,
             ANVIL_GCTX_SEARCH_SYMBOLS,
             ANVIL_GCTX_FIND_DEPENDENTS,
+            ANVIL_GCTX_FIND_CALLERS,
             ANVIL_GCTX_IMPACT_OF_CHANGE,
             ANVIL_GCTX_AFFECTED_TESTS,
         ]
@@ -1088,7 +1125,7 @@ mod tests {
         // Count pin: no silent additions, no silent drops.
         assert_eq!(
             ALL_ANVIL_METHODS.len(),
-            13,
+            14,
             "ALL_ANVIL_METHODS count changed — pin and the named set must move together"
         );
         // Forward: every named const is listed.
@@ -1202,6 +1239,66 @@ mod tests {
                 outcome,
             };
             let back: GctxFindDependentsResponse =
+                serde_json::from_str(&serde_json::to_string(&response).unwrap()).unwrap();
+            assert_eq!(response, back);
+        }
+    }
+
+    /// GCTX-014 / ADR-084: the callers RPC method name is frozen and the
+    /// request/response envelopes round-trip, including the named non-`ready`
+    /// degradation outcome alongside the assurance snapshot.
+    #[test]
+    fn gctx_find_callers_wire_round_trips() {
+        use anvil_kernel_types::{SymbolIdentity, SymbolKind};
+
+        assert_eq!(ANVIL_GCTX_FIND_CALLERS, "anvil/gctx/find_callers");
+
+        let request = GctxFindCallersRequest {
+            workspace_root: "/home/me/proj".into(),
+            query: FindCallersQuery {
+                target: Some(SymbolIdentity {
+                    file: "src/a.ts".into(),
+                    kind: SymbolKind::Function,
+                    name: "handle".into(),
+                    ordinal: 0,
+                }),
+                max_depth: Some(2),
+                ..Default::default()
+            },
+        };
+        let back: GctxFindCallersRequest =
+            serde_json::from_str(&serde_json::to_string(&request).unwrap()).unwrap();
+        assert_eq!(request, back);
+
+        // A request may omit `query` entirely (serde default).
+        let bare: GctxFindCallersRequest =
+            serde_json::from_str(r#"{"workspace_root":"/p"}"#).unwrap();
+        assert_eq!(bare.query, FindCallersQuery::default());
+
+        for outcome in [
+            FindCallersOutcome::Ready(anvil_gctx_types::FindCallersProjection {
+                callers: Vec::new(),
+                next_cursor: None,
+                redaction_summary: anvil_gctx_types::RedactionSummary::default(),
+                partial: false,
+            }),
+            FindCallersOutcome::NotReady {
+                recovery_hint: "warming".into(),
+            },
+            FindCallersOutcome::Unavailable,
+            FindCallersOutcome::Disabled,
+        ] {
+            let response = GctxFindCallersResponse {
+                workspace_assurance: WorkspaceAssurance {
+                    state: AssuranceState::Stale,
+                    reason: Some(StaleReason::CrossFileResolutionNeeded),
+                    generation: 3,
+                    last_full_scan: None,
+                    scan_coverage: None,
+                },
+                outcome,
+            };
+            let back: GctxFindCallersResponse =
                 serde_json::from_str(&serde_json::to_string(&response).unwrap()).unwrap();
             assert_eq!(response, back);
         }

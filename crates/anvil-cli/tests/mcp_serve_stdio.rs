@@ -212,7 +212,7 @@ fn mcp_serve_stdio_tools_list_returns_registered_tools() {
     let tools = parsed["result"]["tools"]
         .as_array()
         .expect("tools/list result must include a tools array");
-    assert_eq!(tools.len(), 12);
+    assert_eq!(tools.len(), 13);
     let validate_write = tools
         .iter()
         .find(|tool| tool["name"] == "anvil_validate_write")
@@ -234,6 +234,17 @@ fn mcp_serve_stdio_tools_list_returns_registered_tools() {
         .expect("find_dependents inputSchema.required is an array");
     assert!(find_dependents_required.contains(&json!("workspaceRoot")));
     assert!(find_dependents_required.contains(&json!("file")));
+    let find_callers = tools
+        .iter()
+        .find(|tool| tool["name"] == "anvil_find_callers")
+        .expect("tools/list includes anvil_find_callers");
+    assert_eq!(find_callers["inputSchema"]["type"], "object");
+    assert_eq!(find_callers["annotations"]["readOnlyHint"], true);
+    let find_callers_required = find_callers["inputSchema"]["required"]
+        .as_array()
+        .expect("find_callers inputSchema.required is an array");
+    assert!(find_callers_required.contains(&json!("workspaceRoot")));
+    assert!(find_callers_required.contains(&json!("target")));
     let impact_of_change = tools
         .iter()
         .find(|tool| tool["name"] == "anvil_impact_of_change")

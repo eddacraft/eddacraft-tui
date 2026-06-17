@@ -538,10 +538,13 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-014: `anvil_find_callers` symbol caller traversal
 
-- **Status:** Ready — the GCALL substrate now provides symbol-level call edges
-  and a bounded `callers_of` read API with the CALL-1 `heuristic` marker; GCALL-007
-  approved the egress posture. The remaining work is the MCP/egress projection
-  itself. Split out of GCTX-011 (2026-06-17) so the ready
+- **Status:** In Progress — implementing the `anvil_find_callers` MCP tool +
+  `anvil/gctx/find_callers` RPC projecting the GCALL-003 `callers_of` read API as
+  a sealed identity-only DTO (`heuristic` per caller + report `partial`),
+  reusing the GCTX-010/011 spine; CALL-1..CALL-5 met. The GCALL substrate now
+  provides symbol-level call edges and a bounded `callers_of` read API with the
+  CALL-1 `heuristic` marker; GCALL-007 approved the egress posture.
+  Split out of GCTX-011 (2026-06-17) so the ready
   `anvil_find_dependents` half shipped independently. The call-graph substrate is
   now owned by the **[symbol-call-graph (GCALL)](symbol-call-graph.aps.md)**
   module (filed 2026-06-17). **GCALL-003** (resident call edges + `callers_of`

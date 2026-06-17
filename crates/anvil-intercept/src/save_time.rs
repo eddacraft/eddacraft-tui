@@ -48,16 +48,18 @@ use std::sync::{Arc, Mutex, PoisonError};
 use anvil_checks::antipattern::types::AntipatternCheckConfig;
 use anvil_gctx_egress::GctxProjector;
 use anvil_gctx_types::{
-    AffectedTestsOutcome, AffectedTestsQuery, FindDependentsOutcome, FindDependentsQuery,
-    ImpactOutcome, ImpactQuery, MAX_CHANGED_FILES, SearchSymbolsOutcome, SearchSymbolsQuery,
+    AffectedTestsOutcome, AffectedTestsQuery, FindCallersOutcome, FindCallersQuery,
+    FindDependentsOutcome, FindDependentsQuery, ImpactOutcome, ImpactQuery, MAX_CHANGED_FILES,
+    SearchSymbolsOutcome, SearchSymbolsQuery,
 };
 use anvil_graph_cache::clamp_reverse_impact_depth;
 use anvil_intercept_proto::protocol::{
-    AssuranceState, GctxAffectedTestsRequest, GctxAffectedTestsResponse, GctxFindDependentsRequest,
-    GctxFindDependentsResponse, GctxImpactOfChangeRequest, GctxImpactOfChangeResponse,
-    GctxSearchSymbolsRequest, GctxSearchSymbolsResponse, RequestFullScanRequest,
-    RequestFullScanResponse, StaleReason, ValidatePathsRequest, ValidatePathsResponse,
-    WorkspaceAssurance, WorkspaceStatusRequest, WorkspaceStatusResponse,
+    AssuranceState, GctxAffectedTestsRequest, GctxAffectedTestsResponse, GctxFindCallersRequest,
+    GctxFindCallersResponse, GctxFindDependentsRequest, GctxFindDependentsResponse,
+    GctxImpactOfChangeRequest, GctxImpactOfChangeResponse, GctxSearchSymbolsRequest,
+    GctxSearchSymbolsResponse, RequestFullScanRequest, RequestFullScanResponse, StaleReason,
+    ValidatePathsRequest, ValidatePathsResponse, WorkspaceAssurance, WorkspaceStatusRequest,
+    WorkspaceStatusResponse,
 };
 use anvil_kernel_types::FileSymbols;
 
@@ -1054,6 +1056,54 @@ impl GctxDispatch for SaveTimeConn<'_> {
         })
     }
 
+    fn find_callers(
+        &mut self,
+        request: &GctxFindCallersRequest,
+    ) -> Result<GctxFindCallersResponse, SaveTimeError> {
+        let root = PathBuf::from(&request.workspace_root);
+        let originating_session = self.originating_session.clone();
+        let state = self.state;
+        // ADR-084 C3 / CE-8: admit the client-supplied root before any read.
+        authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        let canonical = canonical_root(&root)?;
+        let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
+        let key = WorktreeKey::from_canonical(canonical);
+
+        // CE-7: the assurance snapshot always rides along.
+        let workspace_assurance =
+            state.with_machine(&key, correlation, |machine| machine.snapshot());
+
+        let outcome = gctx_find_callers_outcome(
+            state,
+            &key,
+            &workspace_assurance,
+            &request.query,
+            gctx_egress_disabled(),
+        );
+
+        // CE-10: enum-only telemetry + response-aggregate counts — never caller
+        // identities or query text.
+        let (matched, returned) = match &outcome {
+            FindCallersOutcome::Ready(projection) => (
+                projection.redaction_summary.matched,
+                projection.redaction_summary.returned,
+            ),
+            _ => (0, 0),
+        };
+        tracing::info!(
+            target: "anvil_intercept::gctx",
+            outcome = outcome.telemetry_outcome().as_str(),
+            matched,
+            returned,
+            "gctx find_callers served",
+        );
+
+        Ok(GctxFindCallersResponse {
+            workspace_assurance,
+            outcome,
+        })
+    }
+
     fn impact_of_change(
         &mut self,
         request: &GctxImpactOfChangeRequest,
@@ -1331,6 +1381,92 @@ fn invalid_find_dependents_query_reason(query: &FindDependentsQuery) -> Option<S
         return Some("file must not be empty".to_string());
     }
     invalid_relative_path_reason("file filter", file)
+}
+
+/// Compute the GCTX `find_callers` outcome for an admitted root (GCTX-014 /
+/// ADR-084). Mirrors [`gctx_find_dependents_outcome`]: kill-switch, query
+/// validation, CE-7 degradation, depth clamp, collect-under-lock / project-after.
+/// The `partial` marker (CALL-1) is set when the bounded walk was budget-truncated
+/// **or** the graph is not fully resolved (`Stale` / `Bounded`) — a non-`Clean`
+/// graph may be missing callers.
+fn gctx_find_callers_outcome(
+    state: &SaveTimeState,
+    key: &WorktreeKey,
+    assurance: &WorkspaceAssurance,
+    query: &FindCallersQuery,
+    egress_disabled: bool,
+) -> FindCallersOutcome {
+    // CE-11 kill-switch.
+    if egress_disabled {
+        return FindCallersOutcome::Disabled;
+    }
+
+    // CE-6: reject a malformed / absent target before touching the graph.
+    if let Some(reason) = invalid_find_callers_query_reason(query) {
+        return FindCallersOutcome::InvalidQuery { reason };
+    }
+    let Some(target) = query.target.clone() else {
+        return FindCallersOutcome::InvalidQuery {
+            reason: "target is required".to_string(),
+        };
+    };
+
+    // GV2-026 lever: clamp the requested depth.
+    let depth = clamp_reverse_impact_depth(query.max_depth.unwrap_or(1));
+
+    match assurance.state {
+        AssuranceState::Unavailable | AssuranceState::Unknown => FindCallersOutcome::Unavailable,
+        AssuranceState::Pending | AssuranceState::Running => FindCallersOutcome::NotReady {
+            recovery_hint: "the workspace graph is warming; retry the traversal shortly"
+                .to_string(),
+        },
+        AssuranceState::Clean | AssuranceState::Stale | AssuranceState::Bounded => {
+            // A non-Clean graph may be missing call edges → the caller set is
+            // partial (CALL-1).
+            let graph_partial = assurance.state != AssuranceState::Clean;
+            // C2: collect under the lock (symbol graph), project after release.
+            let collected = state.cache.with_graphs(key, |sym, _dep| {
+                GctxProjector::collect_callers(sym, &target, depth)
+            });
+            match collected {
+                Some((candidates, walk_truncated)) => {
+                    match GctxProjector::project_callers(
+                        candidates,
+                        query,
+                        depth,
+                        walk_truncated,
+                        graph_partial,
+                    ) {
+                        Ok(projection) => FindCallersOutcome::Ready(projection),
+                        Err(reason) => FindCallersOutcome::InvalidQuery { reason },
+                    }
+                }
+                None => FindCallersOutcome::NotReady {
+                    recovery_hint: concat!(
+                        "the workspace graph is not yet populated; ",
+                        "save a file or request a full scan to warm it"
+                    )
+                    .to_string(),
+                },
+            }
+        }
+    }
+}
+
+/// CE-6 query hygiene for `find_callers`: the `target` symbol identity is required
+/// and its `file` must be a valid workspace-relative path. `max_depth` is clamped
+/// (not rejected); `cursor` validity is checked in the projector.
+fn invalid_find_callers_query_reason(query: &FindCallersQuery) -> Option<String> {
+    let Some(target) = query.target.as_ref() else {
+        return Some("target is required".to_string());
+    };
+    if target.name.is_empty() {
+        return Some("target.name must not be empty".to_string());
+    }
+    if target.file.is_empty() {
+        return Some("target.file must not be empty".to_string());
+    }
+    invalid_relative_path_reason("target.file", &target.file)
 }
 
 /// CE-6 per-path hygiene shared by the GCTX traversal verbs: a workspace-relative
@@ -2349,6 +2485,102 @@ mod tests {
             }
             other => panic!("expected Ready empty, got {other:?}"),
         }
+    }
+
+    // --- GCTX-014 find_callers (daemon wiring) ---
+
+    fn callers_request(root: &Path, name: &str, file: &str) -> GctxFindCallersRequest {
+        GctxFindCallersRequest {
+            workspace_root: root.to_string_lossy().into_owned(),
+            query: FindCallersQuery {
+                target: Some(anvil_kernel_types::SymbolIdentity {
+                    file: file.to_string(),
+                    kind: anvil_kernel_types::SymbolKind::Function,
+                    name: name.to_string(),
+                    ordinal: 0,
+                }),
+                ..Default::default()
+            },
+        }
+    }
+
+    /// Warm a file whose `caller` function calls the same-file `callee`, building
+    /// the resident `Calls` edge the caller traversal reads.
+    fn warm_with_call(state: &SaveTimeState, root: &Path, file: &str) {
+        use anvil_kernel_types::{CallSite, CalleeRef, LocalSymbolRef};
+        let key = WorktreeKey::from_canonical(std::fs::canonicalize(root).expect("canonical"));
+        let mut symbols = file_symbols(file, &["callee", "caller"], 0);
+        symbols.calls = vec![CallSite {
+            from: LocalSymbolRef {
+                kind: anvil_kernel_types::SymbolKind::Function,
+                name: "caller".to_string(),
+                ordinal: 0,
+                module_scope: false,
+            },
+            callee: CalleeRef {
+                name: "callee".to_string(),
+                via_import: None,
+            },
+            line: 1,
+        }];
+        state.cache.apply_delta(&key, ChangeKind::Create, symbols);
+    }
+
+    /// A warm worktree resolves the caller set: `caller` calling `callee` makes
+    /// `find_callers(callee)` report `caller` at distance 1, not heuristic.
+    #[test]
+    fn gctx_callers_ready_reports_caller_when_warm() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = state();
+        warm_with_call(&state, tmp.path(), "a.ts");
+
+        let mut conn = SaveTimeConn::new(&state);
+        let resp = conn
+            .find_callers(&callers_request(tmp.path(), "callee", "a.ts"))
+            .expect("admitted");
+
+        match resp.outcome {
+            FindCallersOutcome::Ready(projection) => {
+                let callers: Vec<(&str, u32, bool)> = projection
+                    .callers
+                    .iter()
+                    .map(|c| (c.caller.name.as_str(), c.distance, c.heuristic))
+                    .collect();
+                assert_eq!(callers, [("caller", 1, false)]);
+            }
+            other => panic!("expected Ready, got {other:?}"),
+        }
+    }
+
+    /// CE-6: a `find_callers` query with no target is a structured `InvalidQuery`.
+    #[test]
+    fn gctx_callers_rejects_missing_target() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = state();
+        warm_with_call(&state, tmp.path(), "a.ts");
+        let mut conn = SaveTimeConn::new(&state);
+        let resp = conn
+            .find_callers(&GctxFindCallersRequest {
+                workspace_root: tmp.path().to_string_lossy().into_owned(),
+                query: FindCallersQuery::default(),
+            })
+            .expect("admitted");
+        assert!(matches!(
+            resp.outcome,
+            FindCallersOutcome::InvalidQuery { .. }
+        ));
+    }
+
+    /// CE-7: a cold worktree degrades to `NotReady`, never an empty `Ready`.
+    #[test]
+    fn gctx_callers_not_ready_on_cold_worktree() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = state();
+        let mut conn = SaveTimeConn::new(&state);
+        let resp = conn
+            .find_callers(&callers_request(tmp.path(), "callee", "a.ts"))
+            .expect("admitted");
+        assert!(matches!(resp.outcome, FindCallersOutcome::NotReady { .. }));
     }
 
     /// CE-7: a cold worktree degrades to `NotReady`, never an empty `Ready`.

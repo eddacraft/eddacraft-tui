@@ -19,9 +19,10 @@
 use std::path::Path;
 
 use anvil_gctx_types::{
-    AffectedTestsReport, AffectedTestsSummary, DependentSummary, FindDependentsProjection,
-    FindDependentsQuery, ImpactReport, ImpactSummary, OpaqueCursor, RedactionSummary,
-    SearchSymbolsProjection, SearchSymbolsQuery, SymbolSummary, TestEvidence,
+    AffectedTestsReport, AffectedTestsSummary, CallerSummary, DependentSummary,
+    FindCallersProjection, FindCallersQuery, FindDependentsProjection, FindDependentsQuery,
+    ImpactReport, ImpactSummary, OpaqueCursor, RedactionSummary, SearchSymbolsProjection,
+    SearchSymbolsQuery, SymbolSummary, TestEvidence,
 };
 use anvil_graph_cache::{DependencyGraph, SymbolGraph};
 use anvil_kernel_types::{SymbolIdentity, SymbolKind, SymbolNode, Visibility};
@@ -316,6 +317,110 @@ impl GctxProjector {
             },
             dependents: page,
             next_cursor,
+        })
+    }
+
+    /// Collect the identity-only callers of `target` from the warm symbol graph
+    /// (GCTX-014), plus whether the bounded walk was budget-truncated.
+    ///
+    /// **Call this under the cache lock** (it borrows `graph`). It delegates to
+    /// [`anvil_graph_cache::callers_of`] (the bounded reverse-`Calls` BFS) and
+    /// seals each result into an identity-only [`CallerSummary`] carrying the
+    /// caller identity, hop distance, and the GCALL-007 CALL-1 `heuristic`
+    /// (fan-out) marker. The returned summaries own their data, so the caller
+    /// releases the lock before calling [`GctxProjector::project_callers`]. The
+    /// `bool` is the walk's `truncated` flag (node budget hit) — folded into the
+    /// projection's `partial` marker.
+    ///
+    /// `depth` MUST be caller-clamped to the GV2-026 ceiling.
+    #[must_use]
+    pub fn collect_callers(
+        graph: &SymbolGraph,
+        target: &SymbolIdentity,
+        depth: u32,
+    ) -> (Vec<CallerSummary>, bool) {
+        let report = anvil_graph_cache::callers_of(graph, target, depth);
+        let callers = report
+            .callers
+            .into_iter()
+            .map(|c| CallerSummary {
+                caller: c.caller,
+                distance: c.distance,
+                heuristic: c.heuristic,
+            })
+            .collect();
+        (callers, report.truncated)
+    }
+
+    /// Sort, paginate, and seal collected callers into the egress projection
+    /// (GCTX-014). **Call this after releasing the cache lock** (ADR-084 C2).
+    ///
+    /// Ordering is a deterministic total order on the caller [`SymbolIdentity`]
+    /// (each caller appears once, at its minimum distance). Pagination is the same
+    /// keyset (seek) scheme as [`GctxProjector::project_dependents`]: the
+    /// server-minted opaque `next_cursor` encodes the last returned identity plus a
+    /// fingerprint of the query's traversal filters (`target` + `max_depth`).
+    /// `walk_truncated` (the node-budget bound from [`collect_callers`]) and
+    /// `graph_partial` (a non-`Clean` graph) together set the projection's
+    /// `partial` marker (CALL-1).
+    ///
+    /// # Errors
+    ///
+    /// Returns the rejection reason when the supplied `cursor` is malformed,
+    /// oversized, or was minted for a different query.
+    pub fn project_callers(
+        mut candidates: Vec<CallerSummary>,
+        query: &FindCallersQuery,
+        depth: u32,
+        walk_truncated: bool,
+        graph_partial: bool,
+    ) -> Result<FindCallersProjection, String> {
+        candidates.sort_by(|a, b| a.caller.cmp(&b.caller));
+        let matched = candidates.len();
+        let fingerprint = callers_fingerprint(query, depth);
+
+        let start = match &query.cursor {
+            None => 0,
+            Some(cursor) => {
+                if cursor.as_str().len() > MAX_CURSOR_BYTES {
+                    return Err("pagination cursor is too long".to_string());
+                }
+                let payload = decode_cursor::<CallersCursorPayload>(cursor)
+                    .ok_or_else(|| "malformed pagination cursor".to_string())?;
+                if payload.fingerprint != fingerprint {
+                    return Err("pagination cursor does not match this query's filters".to_string());
+                }
+                candidates.partition_point(|c| c.caller <= payload.last)
+            }
+        };
+
+        let limit = query.effective_limit();
+        let mut page = if start >= candidates.len() {
+            Vec::new()
+        } else {
+            candidates.split_off(start)
+        };
+        let has_more = page.len() > limit;
+        page.truncate(limit);
+
+        let next_cursor = has_more.then(|| {
+            let last = page.last().expect("a page with more rows is non-empty");
+            encode_cursor(&CallersCursorPayload {
+                fingerprint,
+                last: last.caller.clone(),
+            })
+        });
+
+        let returned = page.len();
+        Ok(FindCallersProjection {
+            redaction_summary: RedactionSummary {
+                matched,
+                returned,
+                truncated: next_cursor.is_some(),
+            },
+            callers: page,
+            next_cursor,
+            partial: walk_truncated || graph_partial,
         })
     }
 
@@ -925,6 +1030,41 @@ fn dependents_fingerprint(query: &FindDependentsQuery, depth: u32) -> u64 {
         depth,
     };
     let bytes = serde_json::to_vec(&filters).expect("dependents filters serialise");
+    fnv1a(&bytes)
+}
+
+/// The decoded contents of a callers [`OpaqueCursor`]: the keyset seek position
+/// (last returned caller identity) plus a fingerprint binding it to the traversal
+/// filters it was minted for.
+#[derive(Serialize, Deserialize)]
+struct CallersCursorPayload {
+    /// Fingerprint of the traversal filters (`target` + `max_depth`).
+    #[serde(rename = "q")]
+    fingerprint: u64,
+    /// The last caller identity returned on the previous page; the next page
+    /// resumes strictly after it.
+    #[serde(rename = "k")]
+    last: SymbolIdentity,
+}
+
+/// A deterministic fingerprint of a callers query's traversal filters: the
+/// **resolved** depth (after the daemon clamps it) and the **exact** target
+/// [`SymbolIdentity`]. Changing `limit` mid-walk is allowed (not part of the
+/// fingerprint); changing the target or the resolved depth invalidates a cursor.
+/// A constant surface tag domain-separates it from the other GCTX cursors.
+fn callers_fingerprint(query: &FindCallersQuery, depth: u32) -> u64 {
+    #[derive(Serialize)]
+    struct Filters<'a> {
+        surface: &'static str,
+        target: Option<&'a SymbolIdentity>,
+        depth: u32,
+    }
+    let filters = Filters {
+        surface: "find_callers",
+        target: query.target.as_ref(),
+        depth,
+    };
+    let bytes = serde_json::to_vec(&filters).expect("callers filters serialise");
     fnv1a(&bytes)
 }
 
