@@ -145,14 +145,15 @@ The pinned version lives in **one** place:
 Currently `1.16.1`. CI installs the same version via
 [`open-policy-agent/setup-opa`](https://github.com/open-policy-agent/setup-opa)
 in `.github/workflows/ci.yml`, `.github/workflows/ci-nightly.yml`,
-`.github/workflows/rust.yml`, and `.github/workflows/poleng-parity.yml` (the
-POLENG-008 regorus-vs-Go-OPA parity gate).
+`.github/workflows/rust.yml`, `.github/workflows/rust-tests.yml`, and
+`.github/workflows/poleng-parity.yml` (the POLENG-008 regorus-vs-Go-OPA parity
+gate).
 
 To bump:
 
 1. Update `DEFAULT_OPA_VERSION` in `opa-binary-manager.ts`.
 2. Update the `version:` input (and `EXPECTED_OPA_VERSION` env where present) in
-   all four workflows. Re-run `scripts/bench-vs-go-opa.sh` and refresh the
+   all five workflows. Re-run `scripts/bench-vs-go-opa.sh` and refresh the
    POLENG-008 parity result note in `plans/archive/modules/policy-engine.aps.md`
    if the reference OPA version changed.
 3. Update any other files in the allowlist in `scripts/check-opa-version-pin.sh`
