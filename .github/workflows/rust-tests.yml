@@ -1,0 +1,200 @@
+name: Rust Tests
+
+# Dedicated home for the REQUIRED `Test` status check.
+#
+# Unlike rust.yml (which is paths-filtered and therefore never runs on a
+# docs/config-only PR), this workflow runs on EVERY pull request so the
+# required check always reports. A cheap `dorny/paths-filter` gate makes the
+# job a green no-op when nothing Rust-affecting changed, so only Rust-touching
+# PRs pay the build/test cost. Push events stay paths-filtered, matching
+# rust.yml. The heavy work and rationale are unchanged from the job's previous
+# home in rust.yml — it was extracted here purely so it can be required without
+# wedging non-Rust PRs.
+on:
+  push:
+    branches: [main, 'rust-*', 'release/*']
+    paths:
+      - 'crates/**'
+      - 'packages/anvil-checks-native/native/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'dist-workspace.toml'
+      - 'rust-toolchain.toml'
+      - 'pnpm-workspace.yaml'
+      - 'nx.json'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.github/actions/setup-workspace/**'
+      - '.github/actions/free-disk-space/**'
+      - '.github/workflows/rust-tests.yml'
+  pull_request: {}
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  # Pinned so nextest behaviour (retry/timeout/output) is reproducible.
+  CARGO_NEXTEST_VERSION: '0.9.133'
+
+jobs:
+  test:
+    name: Test
+    runs-on:
+      ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
+      'ubuntu-latest' }}
+    # `pull-requests: read` lets `dorny/paths-filter` query the PR diff via the
+    # GitHub API on PR events (the workflow-level `permissions` only grants
+    # `contents: read`).
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+      - name: Free disk space
+        uses: ./.github/actions/free-disk-space
+
+      # Cheap path classification first: decide whether this PR touches Rust at
+      # all. When it does not, every heavy step below is skipped and the job
+      # reports green, so the required `Test` check never blocks a
+      # docs/config-only PR. fetch-depth: 0 above lets the action fall back to a
+      # git diff on push events where there is no PR API to query.
+      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        id: changes
+        with:
+          filters: |
+            rust:
+              - 'crates/**'
+              - 'packages/anvil-checks-native/native/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'dist-workspace.toml'
+              - 'rust-toolchain.toml'
+              - 'pnpm-workspace.yaml'
+              - 'nx.json'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - '.github/actions/setup-workspace/**'
+              - '.github/actions/free-disk-space/**'
+              - '.github/workflows/rust-tests.yml'
+      - name: Decide whether the Rust test gate must run
+        id: gate
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" != 'pull_request' ] || [ "${{ steps.changes.outputs.rust }}" = 'true' ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No Rust-affecting changes; the Test gate is a green no-op for this PR."
+          fi
+
+      - name: Setup workspace for Nx affected
+        if: steps.gate.outputs.run == 'true' && github.event_name == 'pull_request'
+        uses: ./.github/actions/setup-workspace
+      - name: Detect Rust Nx projects
+        if: steps.gate.outputs.run == 'true' && github.event_name == 'pull_request'
+        id: rust-projects
+        shell: bash
+        run: |
+          echo "all=$(pnpm exec nx show projects --withTarget=check --json | jq -r 'join(",")')" >> "$GITHUB_OUTPUT"
+          echo "affected=$(pnpm exec nx show projects --affected --withTarget=check --base="origin/${{ github.base_ref }}" --head="$GITHUB_SHA" --json | jq -r 'join(",")')" >> "$GITHUB_OUTPUT"
+
+      # Run the pin guard before any expensive setup so a stray version
+      # reference fails fast without burning toolchain install time. Invoke via
+      # `sh` so this doesn't depend on the executable bit surviving checkout.
+      - name: Check OPA version pin is not duplicated outside allowlist
+        if: steps.gate.outputs.run == 'true'
+        run: sh scripts/check-opa-version-pin.sh
+
+      - uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1
+        if: steps.gate.outputs.run == 'true'
+      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+        if: steps.gate.outputs.run == 'true'
+        with:
+          shared-key: rust-ci
+
+      - name: Install OPA
+        if: steps.gate.outputs.run == 'true'
+        uses: open-policy-agent/setup-opa@b2b258e089860efaadaaf71bf6e3aecb4a3eeff1 # v2.4.0
+        with:
+          # Pinned to DEFAULT_OPA_VERSION in packages/anvil/policy/src/opa-binary-manager.ts
+          version: v1.16.1
+      - name: Verify OPA version
+        if: steps.gate.outputs.run == 'true'
+        env:
+          EXPECTED_OPA_VERSION: '1.16.1'
+        run: |
+          installed=$(opa version | awk '/^Version:/ {print $2}')
+          if [ "$installed" != "$EXPECTED_OPA_VERSION" ]; then
+            echo "::error::OPA version mismatch: installed=$installed expected=$EXPECTED_OPA_VERSION"
+            exit 1
+          fi
+          echo "OPA $installed installed"
+      - name: Install Regal
+        if: steps.gate.outputs.run == 'true'
+        uses: open-policy-agent/setup-regal@761188c3b435761fa254beca508a44875619648f # v2.0.0
+        with:
+          # Fixed pin, not floating `latest` (the botched Regal v0.41.0 release
+          # shipped with no assets attached and 404'd the download).
+          version: v0.41.1
+      - name: Run OPA policy tests
+        if: steps.gate.outputs.run == 'true'
+        run: opa test --verbose policies/fixtures/
+      - name: Lint policies with Regal
+        if: steps.gate.outputs.run == 'true'
+        run: regal lint --format github policies/fixtures/
+
+      # CICD-006: coverage moved to nightly assurance (ci-nightly.yml). PR/push
+      # runs are the strict test gate only — no coverage instrumentation.
+      - name: Run tests (affected on PRs)
+        if: steps.gate.outputs.run == 'true' && github.event_name == 'pull_request'
+        env:
+          AFFECTED_RUST_PROJECTS: ${{ steps.rust-projects.outputs.affected }}
+        run: |
+          if [ -z "$AFFECTED_RUST_PROJECTS" ]; then
+            echo "No affected Rust projects detected"
+            exit 0
+          fi
+          pnpm exec nx run-many -t test --projects="$AFFECTED_RUST_PROJECTS" --outputStyle=static
+
+      # Push events run the full workspace suite via nextest (the strict gate).
+      # Failure here MUST fail the workflow.
+      - name: Install cargo-nextest
+        if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
+        uses: taiki-e/install-action@15449e3094499af05d8d964a1c884208e4b8b595 # v2.81.11
+        with:
+          tool: cargo-nextest@${{ env.CARGO_NEXTEST_VERSION }}
+      - name: Run tests (nextest)
+        if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
+        run: cargo nextest run --workspace --no-fail-fast
+      # nextest does not run doctests, so run them separately to preserve the
+      # same test surface as the pre-RUSTNX-002 `cargo test` invocation.
+      - name: Run doctests
+        if: steps.gate.outputs.run == 'true' && github.event_name != 'pull_request'
+        run: cargo test --doc --workspace
+
+      # eddacraft-tui all-features gates (TUIR-006 / CIB-030): the workspace
+      # default-feature test gate skips eddacraft-tui's optional features, so
+      # run them explicitly on both PR and push as an authoritative Anvil-side
+      # gate mirroring the standalone repo's `Check (all-features)` coverage.
+      - name: Run eddacraft-tui all-features tests
+        if: steps.gate.outputs.run == 'true'
+        run: cargo test -p eddacraft-tui --all-features
+      - name: Run eddacraft-tui all-features rustdoc gate
+        if: steps.gate.outputs.run == 'true'
+        env:
+          RUSTDOCFLAGS: '-D warnings'
+        run: cargo doc --no-deps -p eddacraft-tui --all-features
+      # Release-build gate: a `#[cfg(debug_assertions)]`-gated item named from a
+      # `debug_assert!` can fail release name resolution even when dev passes.
+      - name: Run eddacraft-tui release check (all features)
+        if: steps.gate.outputs.run == 'true'
+        run: cargo check -p eddacraft-tui --all-features --release
