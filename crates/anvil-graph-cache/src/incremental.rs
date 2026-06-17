@@ -764,12 +764,21 @@ fn lift_calls_tracked(
         let Some(from) = caller_node_id(graph, from_file, &call.from) else {
             continue;
         };
-        for to in resolve_callee_targets(graph, from_file, &call.callee, known_files) {
-            let already = graph
-                .outgoing_edges(from)
-                .iter()
-                .any(|e| e.to == to && e.edge_type == EdgeType::Calls);
-            if already {
+        let targets = resolve_callee_targets(graph, from_file, &call.callee, known_files);
+        if targets.is_empty() {
+            continue;
+        }
+        // Snapshot the caller's existing `Calls` targets once per call site (not
+        // once per candidate) so fan-out dedup is O(out-degree + fan-out), not
+        // O(out-degree × fan-out) — this runs on the save-time path.
+        let mut existing: std::collections::HashSet<u64> = graph
+            .outgoing_edges(from)
+            .iter()
+            .filter(|e| e.edge_type == EdgeType::Calls)
+            .map(|e| e.to)
+            .collect();
+        for to in targets {
+            if !existing.insert(to) {
                 continue;
             }
             let edge = anvil_kernel_types::SymbolEdge {
@@ -792,10 +801,10 @@ pub fn re_resolve_calls(
     graph: &mut SymbolGraph,
     calls: &[(String, CallSite)],
 ) -> Vec<(u64, u64, EdgeType)> {
+    // Distinct resident files in O(files) (not an O(symbols) node-weight scan).
     let known_files: Vec<String> = graph
-        .inner()
-        .node_weights()
-        .map(|s| s.file.clone())
+        .file_names()
+        .map(ToString::to_string)
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect();

@@ -7,9 +7,13 @@
 //! walk over **incoming** `Calls` edges, clamped by the GV2-026
 //! [`clamp_reverse_impact_depth`](crate::clamp_reverse_impact_depth) lever and a
 //! node budget, with a `seen` set (so recursion/cycles terminate) and
-//! identity-sorted frontiers (so an over-budget truncation keeps a deterministic
-//! prefix). Output is **identity-only** — calling-symbol [`SymbolIdentity`] plus
-//! traversal distance — the substrate GCTX-014 (`anvil_find_callers`) projects.
+//! identity-sorted frontiers. The walk is **distance-first** (BFS by hop) and
+//! identity-ordered within a hop, so an over-budget truncation keeps a
+//! deterministic **nearest-callers-first** prefix in `(distance, identity)`
+//! order — the right callers to keep for "who calls this" (direct before
+//! transitive). Output is **identity-only** — calling-symbol [`SymbolIdentity`]
+//! plus traversal distance — the substrate GCTX-014 (`anvil_find_callers`)
+//! projects.
 
 use anvil_kernel_types::{EdgeType, SymbolIdentity};
 
@@ -36,8 +40,11 @@ pub struct CallerResult {
 pub struct CallersReport {
     /// Callers, ordered by [`SymbolIdentity`], each at its minimum distance.
     pub callers: Vec<CallerResult>,
-    /// Whether the node budget bound the walk (the returned set is then a
-    /// deterministic identity-ordered prefix, never a silent cutoff).
+    /// Whether the node budget bound the walk. The returned set is then a
+    /// deterministic **nearest-first** prefix — all callers at smaller distances,
+    /// identity-ordered within each distance — never a silent cutoff. (It is not a
+    /// global identity-ordered prefix: a distance-2 caller sorting earlier
+    /// alphabetically is still dropped before a kept distance-1 caller.)
     pub truncated: bool,
 }
 
@@ -47,9 +54,10 @@ pub struct CallersReport {
 /// `depth` MUST be caller-clamped to the GV2-026 ceiling
 /// ([`clamp_reverse_impact_depth`](crate::clamp_reverse_impact_depth)); a
 /// `debug_assert` enforces it. Recursion and cycles terminate via the `seen`
-/// set; each frontier is expanded in identity order so an over-budget truncation
-/// keeps a deterministic prefix. A `target` that is not resident yields an empty
-/// report.
+/// set; the walk is distance-first and each hop is expanded in identity order, so
+/// an over-budget truncation keeps a deterministic nearest-first prefix (all
+/// nearer callers, identity-ordered within a distance). A `target` that is not
+/// resident yields an empty report.
 #[must_use]
 pub fn callers_of(graph: &SymbolGraph, target: &SymbolIdentity, depth: u32) -> CallersReport {
     debug_assert!(

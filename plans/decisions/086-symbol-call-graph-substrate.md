@@ -119,8 +119,11 @@ name-and-import analysis can prove, and nothing it cannot.
   `Calls` edges, mirroring `collect_dependents` exactly: a breadth-first walk
   clamped by the GV2-026 `clamp_reverse_impact_depth` / `MAX_REVERSE_IMPACT_DEPTH`
   lever and a node budget, with a `seen` set (so cycles/recursion terminate),
-  **sorted frontiers** (so an over-budget truncation keeps a deterministic
-  identity-ordered prefix), and truncation metadata. Returns calling symbol
+  **identity-sorted frontiers** — the walk is distance-first (BFS), so an
+  over-budget truncation keeps a deterministic *nearest-callers-first* prefix in
+  `(distance, identity)` order (all nearer callers, identity-ordered within a
+  distance; not a global identity-prefix), and truncation metadata. Returns
+  calling symbol
   identity, source file, distance, and a `truncated` marker — never source text.
   This lives in `anvil-graph-cache` (it reads the resident `SymbolGraph`) and is
   surfaced over the daemon `GctxDispatch` RPC like `find_dependents`.
