@@ -59,11 +59,37 @@ pub fn detect_python_entry_points(workspace_root: &Path) -> Vec<EntryPoint> {
     collect_setup_py_scripts(workspace_root, &mut ranked);
     collect_main_guards(workspace_root, &mut ranked);
 
-    // Deterministic order: by path, then by rank so the lowest rank (most
-    // informative) survives dedup.
-    ranked.sort_by(|a, b| a.1.path.cmp(&b.1.path).then(a.0.cmp(&b.0)));
+    // Deterministic order: by path, then by rank (lowest rank — most
+    // informative — survives dedup), then by a total tiebreak on the remaining
+    // fields so two distinct entries at the same path+rank (e.g. the same file
+    // declared in both `[project.scripts]` and `[project.gui-scripts]`) always
+    // order the same way regardless of insertion order or sort stability — no
+    // baseline churn across toolchains.
+    ranked.sort_by(|a, b| {
+        a.1.path
+            .cmp(&b.1.path)
+            .then(a.0.cmp(&b.0))
+            .then_with(|| entry_type_ord(&a.1.entry_type).cmp(&entry_type_ord(&b.1.entry_type)))
+            .then_with(|| a.1.exports.cmp(&b.1.exports))
+    });
     ranked.dedup_by(|a, b| a.1.path == b.1.path);
     ranked.into_iter().map(|(_, ep)| ep).collect()
+}
+
+/// Stable ordinal for tiebreaking entry points at the same path+rank, so the
+/// dedup survivor is deterministic. `EntryPointType` is not `Ord`; this gives a
+/// fixed order without imposing a semantic ranking on the type elsewhere.
+fn entry_type_ord(t: &EntryPointType) -> u8 {
+    match t {
+        EntryPointType::Package => 0,
+        EntryPointType::Application => 1,
+        EntryPointType::Http => 2,
+        EntryPointType::Api => 3,
+        EntryPointType::Cli => 4,
+        EntryPointType::Worker => 5,
+        EntryPointType::Test => 6,
+        EntryPointType::Unknown => 7,
+    }
 }
 
 /// A parsed `name = module[:object] [extras]` entry-point target, reduced to
@@ -892,6 +918,30 @@ mod tests {
         );
         let entries = detect_python_entry_points(tmp.path());
         assert_eq!(paths(&entries), ["m.py"]);
+    }
+
+    #[test]
+    fn same_file_in_scripts_and_gui_scripts_is_deterministic() {
+        // The same module declared in both [project.scripts] and
+        // [project.gui-scripts] yields two rank-0 entries at the same path; the
+        // total comparator must pick the same survivor every run.
+        let tmp = tempfile::TempDir::new().unwrap();
+        write(
+            tmp.path(),
+            "pyproject.toml",
+            "[project]\nname = \"app\"\n\n[project.scripts]\nc = \"app.main:cli\"\n\n[project.gui-scripts]\ng = \"app.main:gui\"\n",
+        );
+        write(tmp.path(), "app/main.py", "def cli():\n    pass\n");
+
+        let first = detect_python_entry_points(tmp.path());
+        let second = detect_python_entry_points(tmp.path());
+        assert_eq!(first.len(), 1);
+        assert_eq!(paths(&first), ["app/main.py"]);
+        // Survivor is stable across runs (type + exports identical each time).
+        assert_eq!(first[0].entry_type, second[0].entry_type);
+        assert_eq!(first[0].exports, second[0].exports);
+        // Application (gui, ord 1) sorts before Cli (ord 4) at equal path+rank.
+        assert_eq!(first[0].entry_type, EntryPointType::Application);
     }
 
     #[test]
