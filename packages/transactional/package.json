@@ -28,7 +28,7 @@
   "dependencies": {
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "react-email": "^6.6.0"
+    "react-email": "^6.6.3"
   },
   "devDependencies": {
     "@react-email/ui": "^6.5.0",
