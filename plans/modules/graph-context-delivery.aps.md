@@ -746,7 +746,7 @@ blockers — they are resolved during execution, not before promotion:
 | Phase | Items | Status |
 | ----- | ----- | ------ |
 | 0 — Delivery Contract | 2 | Complete (GCTX-001 Merged #2628, GCTX-002 Merged #2619) |
-| 1 — Graph Query Tools | 6 | GCTX-010 Merged #2657 (pilot); GCTX-011 Merged #2685 (`find_dependents`); GCTX-012 Merged #2693 (`impact_of_change`); GCTX-013 Merged #2700 (`affected_tests`); GCTX-014 Merged #2715 (`find_callers`) |
+| 1 — Graph Query Tools | 5 | GCTX-010 Merged #2657 (pilot); GCTX-011 Merged #2685 (`find_dependents`); GCTX-012 Merged #2693 (`impact_of_change`); GCTX-013 Merged #2700 (`affected_tests`); GCTX-014 Merged #2715 (`find_callers`) |
 | 2 — Context Slicing | 4 | Draft |
 | 3 — Resources, Benchmarks, Docs | 3 | Draft |
 | **Total** | **14** | **7/14** |
