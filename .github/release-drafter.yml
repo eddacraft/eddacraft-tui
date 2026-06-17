@@ -1,0 +1,189 @@
+# .github/release-drafter.yml
+#
+# Release Drafter configuration for the Anvil monorepo (dev/ops automation).
+#
+# Purpose:
+# - Automatically maintains a draft GitHub Release as PRs are merged to main.
+# - Groups changes using conventional commit types + the project's existing labels
+#   (see .github/labeler.yml for area:* labels, dependabot for dependencies).
+# - Complements (does not replace) the cargo-dist release pipeline, release-readiness.yml,
+#   release-harness, release-sign-artefacts, and the high-level narrative maintained in
+#   plans/releases/*.md and RELEASE-PLAN.md.
+#
+# The draft gives a consistent, machine-generated change list. Humans still curate the
+# release theme, APS window summary, and "Save-Time Trust" style narrative before publishing.
+#
+# Quick start:
+#   1. Install the Release Drafter GitHub App: https://github.com/apps/release-drafter
+#   2. (Recommended) Add a workflow that runs on push to main (see example below).
+#   3. Merge PRs using conventional commits (feat/fix/chore/docs...) and the project's labels.
+#   4. The draft updates automatically. Edit + publish when ready.
+#
+# Prereleases (beta etc.):
+#   Pass these inputs from your workflow:
+#     prerelease: true
+#     prerelease-identifier: 'beta'
+#   Or set defaults here and override per run.
+#
+# References:
+# - https://github.com/release-drafter/release-drafter
+# - Anvil branching/ops: docs/guides/branching-strategy.md, AGENTS.md, plans/aps-rules.md
+# - Current release process: .github/workflows/release*.yml and plans/releases/
+
+name-template: 'v$RESOLVED_VERSION'
+tag-template: 'v$RESOLVED_VERSION'
+tag-prefix: 'v'
+
+# Controlled primarily from workflow inputs for beta vs stable.
+prerelease: false
+
+# Drop intentionally internal/noisy PRs from the public draft release notes.
+exclude-labels:
+  - 'skip-changelog'
+
+# Version resolution: the highest matching level wins. This keeps version bump
+# logic in Release Drafter's supported top-level schema rather than attaching
+# unsupported keys to individual category entries.
+version-resolver:
+  major:
+    labels:
+      - 'breaking'
+      - 'major'
+  minor:
+    labels:
+      - 'feat'
+      - 'feature'
+      - 'enhancement'
+  patch:
+    labels:
+      - 'fix'
+      - 'bugfix'
+      - 'bug'
+      - 'chore'
+      - 'refactor'
+      - 'style'
+      - 'perf'
+      - 'plans'
+      - 'config'
+      - 'ci'
+      - 'github-actions'
+      - 'dependencies'
+      - 'test'
+      - 'docs'
+  default: patch
+
+# Categories are evaluated in order. First match wins for a given PR (unless exclusive).
+# We map directly to the commit types used in this repo + common labels.
+categories:
+  - title: '🚀 Features'
+    labels:
+      - 'feat'
+      - 'feature'
+      - 'enhancement'
+
+  - title: '🐛 Bug Fixes'
+    labels:
+      - 'fix'
+      - 'bugfix'
+      - 'bug'
+
+  - title: '📝 Documentation'
+    labels:
+      - 'docs'
+
+  - title: '🔧 Maintenance & Refactoring'
+    labels:
+      - 'chore'
+      - 'refactor'
+      - 'style'
+      - 'perf'
+
+  - title: '🧪 Tests & Quality'
+    labels:
+      - 'test'
+
+  - title: '🏗️ CI, Build & Infrastructure'
+    labels:
+      - 'ci'
+      - 'infra'
+      - 'github-actions'
+
+  - title: '⬆️ Dependencies'
+    labels:
+      - 'dependencies'
+    collapse-after: 5
+    # Dependencies are usually patch-level unless a major bump is explicitly labeled.
+
+  - title: '🧠 APS, Planning & Governance'
+    labels:
+      - 'plans'
+      - 'config'
+    # Changes to plans/, .claude/, nx config, AGENTS.md, etc. — important for traceability
+    # in this project even if they don't affect shipped binaries.
+
+  - title: '📦 Components'
+    # Catch-all for the detailed area labels produced by .github/labeler.yml.
+    # These provide useful signal without forcing a top-level section per area.
+    # If you prefer separate sections (e.g. "Area: CLI"), duplicate the pattern above.
+    labels:
+      - 'area:cli'
+      - 'area:core'
+      - 'area:runtime'
+      - 'area:contracts'
+      - 'area:mcp'
+      - 'area:website'
+      - 'area:docs-site'
+      - 'area:api'
+      - 'area:edda-stack'
+      - 'area:adapters'
+      - 'area:policy'
+
+  # Final fallback — everything that didn't match a more specific category.
+  - title: 'Other Changes'
+
+# How each individual change line is rendered.
+change-template: '- $TITLE by @$AUTHOR in #$NUMBER'
+change-title-escapes: '\<*_&`'
+
+# Contributors section (useful for attribution). Exclude bots.
+exclude-contributors:
+  - 'dependabot[bot]'
+  - 'renovate[bot]'
+  - 'github-actions[bot]'
+
+# The main release body template.
+# Keep it clean — the high-level story ("Headless GitHub Login", APS windows, etc.)
+# is still written by hand on top of this list when you publish.
+template: |
+  ## What's Changed
+
+  $CHANGES
+
+  ## Contributors
+  $CONTRIBUTORS
+
+  **Full Changelog**: https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...$TAG_NAME
+
+  ---
+  > **Note for Anvil maintainers**: This list is auto-generated for consistency.
+  > Before publishing:
+  > - Add the release theme / narrative (see previous entries in `plans/releases/`).
+  > - Reference the APS window or key work items if relevant.
+  > - Cross-link to release-readiness evidence, signing, and distribution artefacts.
+  > - Update `plans/index.aps.md` with the new release tag and summary (per APS rules).
+
+# Labeling remains owned by `.github/workflows/labeler.yml` and
+# `.github/labeler.yml`. This workflow intentionally runs only on `push` to
+# `main` / manual dispatch, so Release Drafter autolabeling is not configured.
+
+# sort-by: 'merged_at'   # default
+# sort-direction: 'descending'
+
+# If you ever want to collapse very long sections (e.g. many dependency bumps):
+# Use collapse-after: N on the relevant category (0 = always collapsed).
+
+# To force major bumps, add labels to `version-resolver.major.labels` above
+# (for example, `breaking`), or extend that resolver if the project later adopts
+# a conventional `!` breaking-change signal.
+
+# End of release-drafter.yml

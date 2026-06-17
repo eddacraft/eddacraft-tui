@@ -1,0 +1,85 @@
+# .github/workflows/release-drafter.yml
+#
+# Maintains an automatically updated draft release using Release Drafter.
+#
+# This is an *auxiliary* workflow for dev/ops convenience.
+# It does **not** replace or bypass the main release contract implemented by
+# `release.yml` (cargo-dist), `release-readiness.yml`, `release-harness.yml`,
+# `release-sign-artefacts.yml`, etc.
+#
+# The draft gives a consistent changelog derived from merged PRs (conventional
+# commits + labels). Release managers still edit the published release with the
+# high-level narrative, APS references, and links to readiness evidence.
+#
+# Trigger:
+#   - On every push to main (after merges). This is when new changes appear in
+#     the release window.
+#
+# How to use prereleases (beta etc.):
+#   - Use workflow_dispatch with inputs, or temporarily edit the `with:` block,
+#     or have a separate job / matrix. The action accepts:
+#       prerelease: true
+#       prerelease-identifier: 'beta'
+#
+# See also:
+# - .github/release-drafter.yml (the actual configuration)
+# - https://github.com/release-drafter/release-drafter
+# - docs/guides/branching-strategy.md and the release operating model specs
+
+name: Release Drafter
+
+on:
+  push:
+    branches:
+      - main
+  # Optional: allow manual runs to refresh the draft or test configuration.
+  workflow_dispatch:
+    inputs:
+      prerelease:
+        description: 'Mark the draft as a prerelease'
+        required: false
+        default: false
+        type: boolean
+      prerelease-identifier:
+        description: 'Prerelease identifier (e.g. beta, rc)'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  # Release Drafter needs to create/update the draft release and read PR data.
+  contents: write
+  pull-requests: read
+
+jobs:
+  update_release_draft:
+    name: Update Release Draft
+    runs-on: ubuntu-latest
+    # Only run the real work on the default branch (defensive).
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Run Release Drafter
+        uses: release-drafter/release-drafter@v7
+        with:
+          config-name: release-drafter.yml
+          # These can be overridden at dispatch time.
+          prerelease:
+            ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.prerelease == 'true'
+            }}
+          prerelease-identifier:
+            ${{ github.event_name == 'workflow_dispatch' &&
+            github.event.inputs['prerelease-identifier'] || '' }}
+          # You can also force a specific version or tag here for testing:
+          # version: 'v0.9.0-beta.1'
+          # dry-run: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+# Optional enhancement ideas for the future:
+# - Add a concurrency group so rapid merges don't create duplicate drafts.
+# - After a real release is published (on tag), you could have a follow-up step
+#   that clears or resets the draft for the next window (some teams do this).
+# - Integrate with the existing release-readiness workflow (e.g. after a
+#   successful readiness run, auto-publish the draft as a GitHub Release).
+#
+# For now this is deliberately lightweight and advisory.
