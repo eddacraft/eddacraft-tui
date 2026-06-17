@@ -91,6 +91,7 @@ mod tests {
             Language::JavaScript.grammar_version(),
             Language::Jsx.grammar_version(),
             Language::Rust.grammar_version(),
+            Language::Python.grammar_version(),
         ];
         for (i, a) in versions.iter().enumerate() {
             for b in &versions[i + 1..] {
@@ -149,6 +150,18 @@ mod tests {
         assert_eq!(
             Language::from_path(Path::new("lib.rs")),
             Some(Language::Rust)
+        );
+    }
+
+    #[test]
+    fn detects_python() {
+        assert_eq!(
+            Language::from_path(Path::new("pkg/mod.py")),
+            Some(Language::Python)
+        );
+        assert_eq!(
+            Language::from_path(Path::new("stubs/types.pyi")),
+            Some(Language::Python)
         );
     }
 
