@@ -350,7 +350,7 @@ pub fn collect_source_files(
         .filter_map(|p| Pattern::new(p).ok())
         .collect();
 
-    let include_extensions = ["ts", "tsx", "js", "jsx", "mjs", "cjs", "rs"];
+    let include_extensions = ["ts", "tsx", "js", "jsx", "mjs", "cjs", "rs", "py"];
 
     let mut files = Vec::new();
 
@@ -974,6 +974,47 @@ mod tests {
             .expect("expected a Rust boundary violation");
         assert_eq!(v.edge.from, "src/core/entity.rs");
         assert_eq!(v.edge.to, "src/app/service.rs");
+    }
+
+    // --- PYLAN-008: the validate surface reports Python packages/modules -------
+
+    #[test]
+    fn assign_layer_matches_python_file() {
+        // Layer assignment is path-glob based, so `.py` files land in layers the
+        // same way `.ts`/`.rs` files do — no language gate.
+        let layers = sample_layers();
+        let assignment = assign_layer("src/core/entity.py", &layers);
+        assert_eq!(assignment.layer.as_deref(), Some("core"));
+        assert_eq!(assignment.confidence, DetectionConfidence::High);
+    }
+
+    #[test]
+    fn validate_surface_detects_python_cross_layer_violation() {
+        // The public validate surface must flag a forbidden Python cross-layer
+        // import (the resolver in `python_resolve` maps `..app.service` to the
+        // `.py` file; the file paths appear verbatim in the violation).
+        let definition = sample_definition(sample_layers());
+        let files = vec!["src/core/entity.py".into(), "src/app/service.py".into()];
+        let edges = vec![ImportEdge {
+            // core -> app violates the dependency direction.
+            from_file: "src/core/entity.py".into(),
+            to_file: "src/app/service.py".into(),
+            line: 4,
+        }];
+
+        let result = validate_with_files_and_edges(&definition, &files, &edges);
+
+        assert!(
+            !result.valid,
+            "a forbidden Python cross-layer import must fail"
+        );
+        assert!(result.boundary_checking_active);
+        let v = result
+            .violations
+            .first()
+            .expect("expected a Python boundary violation");
+        assert_eq!(v.edge.from, "src/core/entity.py");
+        assert_eq!(v.edge.to, "src/app/service.py");
     }
 
     #[test]

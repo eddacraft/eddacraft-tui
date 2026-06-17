@@ -182,14 +182,60 @@ anticipated until the module's governance slice is scheduled.
 
 ---
 
+#### PYLAN-006: Python layer/boundary enforcement
+
+- **Status:** In Progress — `resolve_python_import(workspace_root, from_file,
+  module)` added to `anvil-architecture` (mirroring RSTLAN-005's
+  `resolve_rust_import`): maps a Python import's module string to the
+  workspace-relative `.py` file. Absolute `foo.bar` resolves against flat and
+  `src/` package roots (`foo/bar.py` / `foo/bar/__init__.py`); relative imports
+  resolve their leading-dot prefix against the importing file's package
+  (`.x`, `..pkg.sub`, climbing `N-1` parents); stdlib/third-party/namespace
+  modules that exist nowhere in the tree return `None` and the edge is dropped
+  (conservative — never a false boundary violation). Wired into
+  `gate::extract_import_edges` via a language-aware dispatch (`.py` → the Python
+  resolver) and `.py` added to the boundary-scan `include_extensions`.
+- **Intent:** Let layer/boundary rules reach Python packages and modules, the
+  same enforcement Rust and TS get.
+- **Expected Outcome:** Cross-layer Python imports surface as boundary
+  violations with verbatim `.py` paths; external imports never do.
+- **Validation:** `python_resolve` unit tests (absolute flat/`src`, relative
+  single/double-dot, bare-dot package init, climb-above-root drop, external
+  drop, malformed drop, star-import module); gate integration tests proving an
+  end-to-end cross-layer Python violation and that stdlib imports drop out.
+- **Files:** `crates/anvil-architecture/src/python_resolve.rs`,
+  `crates/anvil-architecture/src/lib.rs`,
+  `crates/anvil-architecture/src/validator.rs`,
+  `crates/anvil-cli/src/commands/gate.rs`
+- **Dependencies:** PYLAN-002
+
+---
+
+#### PYLAN-008: `architecture-validate` includes Python packages
+
+- **Status:** In Progress — `.py` added to
+  `validator::collect_source_files`'s `include_extensions`, so the public
+  validate surface (CLI / MCP / dashboard) enumerates and layer-assigns Python
+  files. Layer assignment is path-glob based, so no language gate is needed;
+  the Python boundary edges come from PYLAN-006's resolver. Delivered alongside
+  PYLAN-006.
+- **Intent:** Surface Python packages and module graphs in
+  `anvil architecture validate`.
+- **Expected Outcome:** `.py` files appear in the validate surface and their
+  cross-layer edges are reported, with no "Python ignored" silent path.
+- **Validation:** Validator tests — `.py` layer assignment and a Python
+  cross-layer violation through `validate_with_files_and_edges`.
+- **Files:** `crates/anvil-architecture/src/validator.rs`
+- **Dependencies:** PYLAN-006
+
+---
+
 ### Anticipated (defined when the governance slice is scheduled)
 
 - PYLAN-003: Python T2 anti-pattern catalogue.
 - PYLAN-004: `#`-comment suppression syntax integrated with suppression
   parser.
-- PYLAN-006: Layer/boundary enforcement reaches Python.
 - PYLAN-007: Drift baseline default-on for `.py`.
-- PYLAN-008: `architecture-validate` includes Python packages.
 - PYLAN-009: Validate against User B + User C codebases — FP rate < N% per
   council §16.5 #9.
 

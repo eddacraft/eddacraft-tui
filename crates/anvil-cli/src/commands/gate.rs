@@ -1029,10 +1029,12 @@ fn extract_import_edges(
     let mut parser = anvil_kernel::parser::Parser::new();
     let mut edges = Vec::new();
 
-    // RSTLAN-005: `.rs` joins the JS/TS family so Rust crates participate in
-    // architecture/boundary analysis. The kernel parser dispatches by extension,
-    // so `parse_bytes` handles `.rs` via the Rust extractor (RSTLAN-002).
-    let include_extensions = ["ts", "tsx", "js", "jsx", "mjs", "cjs", "rs"];
+    // RSTLAN-005 / PYLAN-006: `.rs` and `.py` join the JS/TS family so Rust
+    // crates and Python packages participate in architecture/boundary analysis.
+    // The kernel parser dispatches by extension, so `parse_bytes` handles `.rs`
+    // via the Rust extractor (RSTLAN-002) and `.py` via the Python extractor
+    // (PYLAN-002).
+    let include_extensions = ["ts", "tsx", "js", "jsx", "mjs", "cjs", "rs", "py"];
 
     // Collect file paths to parse — either from the pre-collected list or via walkdir.
     let owned_paths: Vec<String>;
@@ -1069,12 +1071,23 @@ fn extract_import_edges(
             anvil_kernel::parser::extract::extract_symbols(&parse_result.tree, &content, &path, 0);
 
         for import in &file_symbols.imports {
-            // TS/JS relative specifiers (`./`, `../`) resolve lexically; Rust
-            // module paths (`crate::`/`super::`/`self::`, containing `::`)
-            // resolve against the owning crate's module tree. Everything else
-            // (bare npm packages, `std::`/external crates) targets code outside
-            // the workspace and is skipped — never a boundary violation.
-            let resolved = if import.to_source.starts_with('.') {
+            // Resolution is language-aware on the importing file's extension: a
+            // Python relative import (`.sibling`) and a TS relative specifier
+            // (`./sibling`) both begin with `.` but resolve under different
+            // rules, and a Python absolute import (`foo.bar`) must resolve
+            // against the package tree rather than be dropped.
+            //
+            // - `.py`  → Python module resolution (PYLAN-006: relative dot
+            //   prefixes against the file's package, absolute against flat/`src`
+            //   roots; stdlib/third-party drop out).
+            // - else: TS/JS relative specifiers (`./`, `../`) resolve lexically;
+            //   Rust module paths (containing `::`) resolve against the owning
+            //   crate's module tree. Everything else (bare npm packages,
+            //   `std::`/external crates) targets code outside the workspace and
+            //   is skipped — never a boundary violation.
+            let resolved = if ext == "py" {
+                anvil_architecture::resolve_python_import(project_root, rel_path, &import.to_source)
+            } else if import.to_source.starts_with('.') {
                 resolve_import(rel_path, &import.to_source)
             } else if import.to_source.contains("::") {
                 anvil_architecture::resolve_rust_import(project_root, rel_path, &import.to_source)
@@ -3258,6 +3271,96 @@ rules: []
         assert!(
             edges.is_empty(),
             "external/std imports must not produce in-workspace edges, got {edges:?}"
+        );
+    }
+
+    #[test]
+    fn architecture_detects_python_cross_layer_violation() {
+        // PYLAN-006: a Python absolute import that crosses a forbidden layer
+        // boundary must resolve to the `.py` file and produce a violation, via
+        // the language-aware dispatch (`ext == "py"` → resolve_python_import).
+        let tmp = tempfile::TempDir::new().unwrap();
+        let anvil_dir = tmp.path().join(".anvil");
+        std::fs::create_dir_all(&anvil_dir).unwrap();
+        std::fs::write(
+            anvil_dir.join("architecture.yaml"),
+            r#"
+schema_version: "0.1.0"
+template: custom
+layers:
+  core:
+    patterns: ["src/core/**"]
+    depends_on: []
+  app:
+    patterns: ["src/app/**"]
+    depends_on: ["core"]
+rules: []
+"#,
+        )
+        .unwrap();
+
+        let core_dir = tmp.path().join("src/core");
+        let app_dir = tmp.path().join("src/app");
+        std::fs::create_dir_all(&core_dir).unwrap();
+        std::fs::create_dir_all(&app_dir).unwrap();
+        // core → app is forbidden (core depends_on []).
+        std::fs::write(
+            core_dir.join("entity.py"),
+            "from app.service import Service\n\nclass Entity:\n    pass\n",
+        )
+        .unwrap();
+        std::fs::write(app_dir.join("service.py"), "class Service:\n    pass\n").unwrap();
+
+        let edges = extract_import_edges(tmp.path(), None);
+        assert!(
+            edges
+                .iter()
+                .any(|e| e.from_file == "src/core/entity.py" && e.to_file == "src/app/service.py"),
+            "the `from app.service import` should resolve to src/app/service.py, got {edges:?}"
+        );
+
+        let definition = anvil_architecture::parse_architecture_definition(tmp.path()).unwrap();
+        let result =
+            anvil_architecture::validate_with_edges(tmp.path(), &definition, &edges).unwrap();
+        assert!(
+            !result.violations.is_empty(),
+            "core importing from app (Python import) should violate the boundary"
+        );
+        assert!(!result.valid);
+    }
+
+    #[test]
+    fn architecture_python_external_imports_are_not_violations() {
+        // stdlib / third-party Python imports target code outside the workspace
+        // and must never be flagged.
+        let tmp = tempfile::TempDir::new().unwrap();
+        let anvil_dir = tmp.path().join(".anvil");
+        std::fs::create_dir_all(&anvil_dir).unwrap();
+        std::fs::write(
+            anvil_dir.join("architecture.yaml"),
+            r#"
+schema_version: "0.1.0"
+template: custom
+layers:
+  core:
+    patterns: ["src/core/**"]
+    depends_on: []
+rules: []
+"#,
+        )
+        .unwrap();
+        let core_dir = tmp.path().join("src/core");
+        std::fs::create_dir_all(&core_dir).unwrap();
+        std::fs::write(
+            core_dir.join("entity.py"),
+            "import os\nfrom collections import OrderedDict\nimport numpy as np\n\nclass Entity:\n    pass\n",
+        )
+        .unwrap();
+
+        let edges = extract_import_edges(tmp.path(), None);
+        assert!(
+            edges.is_empty(),
+            "external/stdlib Python imports must not produce in-workspace edges, got {edges:?}"
         );
     }
 

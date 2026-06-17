@@ -7,6 +7,7 @@ pub mod baseline;
 pub mod definition;
 pub mod detection;
 pub mod python_detection;
+pub mod python_resolve;
 pub mod rust_resolve;
 pub mod types;
 mod util;
@@ -23,6 +24,7 @@ pub use definition::{
 };
 pub use detection::detect_rust_entry_points;
 pub use python_detection::detect_python_entry_points;
+pub use python_resolve::resolve_python_import;
 pub use rust_resolve::resolve_rust_import;
 pub use types::{
     ArchitectureBaseline, Boundary, BoundarySeverity, BoundaryViolation, EntryPoint, Layer,
