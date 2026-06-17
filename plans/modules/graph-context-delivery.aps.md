@@ -545,18 +545,45 @@ blockers — they are resolved during execution, not before promotion:
   cannot be projected today. Split out of GCTX-011 (2026-06-17) so the ready
   `anvil_find_dependents` half ships independently. The call-graph substrate is
   now owned by the **[symbol-call-graph (GCALL)](symbol-call-graph.aps.md)**
-  module (filed 2026-06-17); this item flips to Ready once **GCALL-003** (resident
-  call edges + caller read API) and **GCALL-007** (caller-egress privacy review)
-  land.
+  module (filed 2026-06-17). **GCALL-003** (resident call edges + `callers_of`
+  read API) Merged 2026-06-17 via #2708; **GCALL-007** (caller-egress privacy
+  review) APPROVED-WITH-CONDITIONS 2026-06-17 ([verdict](../reviews/2026-06-17-gcall-caller-egress-privacy-review-verdict.md);
+  CALL-1..CALL-5 folded below). This item flips to Ready once the one remaining
+  **CALL-1 substrate prerequisite** lands — `heuristic` / `partial` honesty
+  markers on the GCALL-003 `CallersReport` (a GCALL-003 follow-up; the egress
+  projector cannot synthesise markers the read API discards).
 - **Intent:** Let assistants find the call sites of a symbol — who calls this
   function — for precise blast-radius reasoning.
 - **Expected Outcome:** `anvil_find_callers` returns bounded, depth-limited,
   identity-only caller results (calling symbol identity, source file, distance,
   truncation metadata) over resident symbol-level call edges, reusing the GCTX-010
   sealed-DTO + `GctxProjector` + `GctxDispatch` spine and the GCTX-011 CE gates.
+- **Acceptance criteria (GCALL-007 caller-egress conditions, folded):**
+  - **CALL-1 (NEW, hard)** — the result carries `heuristic` (overload-fan-out
+    over-inclusion) and `partial` (unresolved / over-cap call sites) markers per
+    ADR-086 §1, and the tool description states it is a best-effort static
+    import-derived over-approximation, not an authoritative caller set. Requires
+    the GCALL-003 substrate markers first (CALL-1 prerequisite).
+  - **CALL-2 (CE-5, hard)** — sealed `anvil-gctx-types` caller DTO carrying only
+    `SymbolIdentity` + `distance` (+ markers + counts-only `RedactionSummary`);
+    no `PathBuf`, no session-local `u64` id, no source text; the structural
+    no-leak test extends to the new response type; MCP crate links only
+    `anvil-gctx-types`.
+  - **CALL-3 (CE-6)** — keep the `callers_of` node budget + GV2-026 depth clamp;
+    add server-minted opaque pagination + `MAX_PAGE_LIMIT` + query-param
+    validation, reusing the GCTX-010/011 cursor machinery; truncation surfaced,
+    never silent.
+  - **CALL-4 (CE-7/10/11)** — a `FindCallersOutcome` enum shaped like
+    `FindDependentsOutcome`; `telemetry_outcome() -> GctxOutcome` (PII-free labels
+    only); `ANVIL_GCTX_EGRESS=0` re-read per call; no source fallback on
+    warming/stale (`not_ready` / `partial`).
+  - **CALL-5 (CE-1/2/3, confirmatory)** — identity-only; any call-site /
+    caller-body **source-text** egress is a CE-1-gated Phase-2 escalation, out of
+    scope here.
 - **Validation:** Fixture tests over a call graph cover direct callers, transitive
   callers at bounded depth, recursion / cycles, and overload disambiguation; plus
-  the CE-5 no-leak and CE-7 degradation gates.
+  the CE-5 no-leak (CALL-2) and CE-7 degradation (CALL-4) gates and the CALL-1
+  heuristic/partial markers.
 - **Files:** `crates/anvil-gctx-types/`, `crates/anvil-gctx-egress/`,
   `crates/anvil-intercept-proto/src/protocol.rs`,
   `crates/anvil-intercept/src/ipc.rs`, `crates/anvil-cli/src/mcp/tools/`

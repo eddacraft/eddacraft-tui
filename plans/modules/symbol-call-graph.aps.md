@@ -167,7 +167,12 @@ the per-language scanners (TS/JS, Rust, `lang-python`).
 
 #### GCALL-007: Caller-egress privacy review
 
-- **Status:** Proposed
+- **Status:** In Progress — verdict authored
+  ([2026-06-17 caller-egress privacy review](../reviews/2026-06-17-gcall-caller-egress-privacy-review-verdict.md),
+  APPROVE-WITH-CONDITIONS): caller egress is identity-only and equivalent-risk to
+  the PV-9-approved `find_dependents`; conditions CALL-1..CALL-5 folded into
+  GCTX-014. The one new condition (CALL-1, heuristic/partial honesty markers)
+  carries a GCALL-003 substrate follow-up.
 - **Intent:** Settle the privacy posture for exposing "who calls this" before any
   assistant-facing surface ships it.
 - **Expected Outcome:** A council/privacy review (PV-style, modelled on PV-9)
