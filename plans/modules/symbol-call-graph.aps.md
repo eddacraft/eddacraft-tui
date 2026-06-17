@@ -1,8 +1,8 @@
 # Symbol Call Graph
 
-| ID    | Owner | Status   |
-| ----- | ----- | -------- |
-| GCALL | —     | Proposed |
+| ID    | Owner | Status   | Progress |
+| ----- | ----- | -------- | -------- |
+| GCALL | —     | Proposed | 0/7      |
 
 **Last reviewed:** 2026-06-17 (created from the GCTX-014 `anvil_find_callers`
 block. The warm graph carries **no symbol-level call edges**: the
@@ -79,7 +79,7 @@ the per-language scanners (TS/JS, Rust, `lang-python`).
   (GCALL-001) admits.
 - **Validation:** Fixture tests cover direct calls, method calls, imported-symbol
   calls, and unresolved call sites; extraction is deterministic.
-- **Files:** `crates/anvil-kernel/`, `anvil-kernel-types`
+- **Files:** `crates/anvil-kernel/`, `crates/anvil-kernel-types/`
 - **Confidence:** medium
 - **Priority:** High
 - **Dependencies:** GCALL-001
