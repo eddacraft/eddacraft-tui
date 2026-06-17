@@ -243,8 +243,11 @@ pub struct LocalSymbolRef {
 /// local alias (`import { foo as bar } from "m"; bar()`) to the exported `foo`,
 /// and a namespace member (`import * as ns from "m"; ns.foo()`) to `foo`. A
 /// same-file callee carries `via_import: None`; an imported callee carries the
-/// module specifier. The model is best-effort and static — a callee the
-/// extractor cannot name (dynamic dispatch, a computed member, a default import)
+/// module specifier. A **default import** is named `"default"` (the extractor
+/// records the binding, but the lift treats `"default"` as `Unresolved` in v1).
+/// The model is best-effort and static — a callee the extractor cannot name at
+/// all (dynamic dispatch, a computed member `obj[x]()`, an IIFE) emits no
+/// `CallSite`; one it can name but that does not bind to a resident symbol
 /// resolves to `Unresolved` at lift time.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CalleeRef {
