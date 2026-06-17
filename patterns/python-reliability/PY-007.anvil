@@ -1,0 +1,29 @@
+---
+id: PY-007
+type: rule
+family: python-reliability
+title: 'Any annotation escapes the type system'
+version: 1
+
+severity: warning
+confidence: medium
+spectrum_position: 2
+
+targets: [source]
+file_extensions: [.py]
+allowlist: ['**/test_*.py', '**/*_test.py', '**/tests/**', '**/conftest.py', '**/explain/**']
+
+detection:
+  type: regex
+  pattern: ':\s*(\w+\.)*Any\b|->\s*(\w+\.)*Any\b|[\[,]\s*(\w+\.)*Any\b'
+
+related: [PY-001]
+enabled: true
+opt_in: true
+---
+
+`Any` switches off type checking for the value it annotates and everything
+derived from it, so the checker can no longer catch misuse downstream. Reach for
+a real type, a `Protocol`, a `TypeVar`, or `object` (which keeps the checks)
+before `Any`. This rule is opt-in because partially-typed code legitimately uses
+`Any` at boundaries; enable it for fully-typed packages.

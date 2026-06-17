@@ -1,0 +1,36 @@
+---
+id: PY-004
+type: rule
+family: python-reliability
+title: 'bare except, or an inline except ...: pass swallow'
+version: 1
+
+severity: warning
+confidence: high
+spectrum_position: 5
+
+targets: [source]
+file_extensions: [.py]
+allowlist: ['**/test_*.py', '**/*_test.py', '**/tests/**', '**/conftest.py', '**/explain/**']
+
+detection:
+  type: regex
+  pattern: '\bexcept\s*:|\bexcept[^:]*:\s*pass\b'
+
+related: [PY-006]
+enabled: true
+opt_in: false
+---
+
+A bare `except:` (or `except ...: pass`) catches `KeyboardInterrupt`,
+`SystemExit`, and ordinary bugs alike, then discards them — the program runs on
+in an unknown state and the real fault is invisible. Catch the narrowest
+exception you can handle and re-raise or log the rest:
+`except ValueError as e: raise ConfigError(...) from e`. If swallowing really is
+correct (a top-level daemon guard that logs), suppress with that reason:
+`# @anvil-ignore PY-004 -- top-level guard, logs and continues`.
+
+Detection is line-oriented: a bare `except:` and an inline `except ...: pass`
+are caught, but a named handler whose `pass` sits on the *next* line
+(`except Exception:` then an indented `pass`) is not — that needs block
+context this regex tier does not have.

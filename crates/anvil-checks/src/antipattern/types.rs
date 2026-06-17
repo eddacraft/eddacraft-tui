@@ -364,6 +364,14 @@ impl Default for AntipatternCheckConfig {
                 // save-time daemon, the same as TS. JS/TS-specific rules stay
                 // extension-restricted.
                 ".rs".to_string(),
+                // PYLAN-007: `.py` joins the default scan set so the Python
+                // reliability rules (PY-001..007: blanket `# type: ignore` /
+                // `# noqa` / `# pylint: disable`, bare `except`, wildcard
+                // import, and the opt-in `print()` / `Any`) fire on Python
+                // across `anvil check`/`gate`/drift and the save-time daemon,
+                // the same as TS and Rust. Python-specific rules are
+                // `.py`-restricted via their `file_extensions`.
+                ".py".to_string(),
                 ".html".to_string(),
                 ".htm".to_string(),
                 ".css".to_string(),

@@ -1,0 +1,108 @@
+---
+id: python-reliability
+type: definition
+name: Python Reliability
+category: error-handling
+targets: [source]
+related: [deferred-debt, guardrail-suppression]
+tensions: []
+rules: [PY-001, PY-002, PY-003, PY-004, PY-005, PY-006, PY-007]
+---
+
+## What It Is
+
+The Python reliability family flags language-level habits that quietly trade a
+checkable guarantee for a run-time or review-time gamble: type-checker and
+linter suppressions added without the specific code that says *what* is being
+silenced (`# type: ignore` with no `[code]`, bare `# noqa`, `# pylint:
+disable`), error handling that swallows everything (`except:` / `except
+Exception: pass`), namespace-polluting wildcard imports (`from x import *`),
+stray `print()` debugging left in shipped code, and `Any` annotations that opt a
+value out of the type system entirely.
+
+These are the Python analogues of the TypeScript escape hatches Anvil already
+governs (`any`, `as any`, broad `eslint-disable`, `@ts-ignore`) and the Rust
+ones (`unwrap`, `panic!`, blanket `unsafe`). Each is sometimes the right call —
+which is why the ubiquitous-but-noisy ones (`print()`, `Any`) default to
+**opt-in**, and the family leans on suppression-with-reason rather than
+blocking.
+
+## Why It's Harmful
+
+- A blanket `# type: ignore` (no error code) silences *every* type error on the
+  line forever, including ones introduced by a later edit — the code that was
+  wrong stays hidden. `# type: ignore[assignment]` silences only the named
+  failure and lets new ones surface.
+- A bare `# noqa` disables all lint rules on the line; a typo or a genuine new
+  defect on that line will never be reported again.
+- `# pylint: disable` turns the linter off for a rule (or all rules) with no
+  inline justification of why the warning is wrong here.
+- A bare `except:` (or `except Exception: pass`) catches `KeyboardInterrupt`,
+  `SystemExit`, `MemoryError`, and ordinary bugs alike, then discards them —
+  the program limps on in an unknown state and the real fault is invisible.
+- `from module import *` pulls an unknown set of names into the namespace,
+  shadowing locals unpredictably and defeating static analysis of what is used.
+- A shipped `print()` is unstructured output with no level, timestamp, or sink
+  control; in a service it pollutes stdout and is invisible to the log pipeline.
+- `Any` switches off type checking for the value it annotates and everything
+  derived from it, so the type checker can no longer catch misuse downstream.
+
+## The Spectrum
+
+From most to least severe in practice: a bare `except:` that swallows control
+signals and bugs, then a blanket `# type: ignore` / `# noqa` that hides errors
+permanently, then `from x import *` namespace pollution, then `# pylint:
+disable`, then the ubiquitous `print()` / `Any` (off by default, opt-in). The
+detectors are line-oriented and exclude test files (`test_*.py`, `*_test.py`,
+`tests/`, `conftest.py`) so test scaffolding does not produce noise.
+
+## The Right Response
+
+Add the specific code to the suppression so it silences only the real failure
+(`# type: ignore[arg-type]`, `# noqa: E501`, `# pylint: disable=broad-except`);
+catch the narrowest exception you can handle and re-raise or log the rest
+(`except ValueError:` over bare `except:`); import the names you use explicitly
+instead of `*`; use the `logging` module instead of `print()`; give the value a
+real type instead of `Any`. When a pattern is genuinely correct, suppress the
+finding with a reason: `# @anvil-ignore PY-004 -- top-level daemon guard, logs
+and re-raises`.
+
+## Detection Signals
+
+- `# type: ignore` not immediately followed by an `[error-code]` (PY-001).
+- `# noqa` not followed by `:` and a rule list (PY-002).
+- `# pylint: disable` directives (PY-003).
+- A bare `except:` clause, or `except <Exc>: pass` on one line (PY-004).
+- `from <module> import *` wildcard imports (PY-005).
+- `print(` calls in shipped source — opt-in (PY-006).
+- `Any` used as a type annotation (`: Any`, `-> Any`, `[Any`) — opt-in (PY-007).
+
+## Example
+
+### Observed
+
+```python
+import os
+from .config import *          # PY-005: wildcard import
+
+def load_port(raw):            # type: ignore   # PY-001: no error code
+    try:
+        print(raw)             # PY-006: stray debug print
+        return int(raw)
+    except:                    # PY-004: bare except swallows everything
+        pass
+```
+
+### What actually happened
+
+The wildcard import makes it impossible to tell which names `config` actually
+contributes; the blanket `# type: ignore` hides every type error on the
+signature line including ones added later; the `print` leaks to stdout in
+production; and the bare `except: pass` swallows `KeyboardInterrupt` and the
+real `ValueError` alike, returning `None` silently so the caller fails far away.
+
+### The fix
+
+Import names explicitly (`from .config import PORT, HOST`); scope the ignore
+(`# type: ignore[no-any-return]`); use `logging.debug(raw)`; catch the specific
+error and act on it (`except ValueError: raise ConfigError(...) from None`).

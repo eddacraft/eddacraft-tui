@@ -1,0 +1,27 @@
+---
+id: PY-005
+type: rule
+family: python-reliability
+title: 'wildcard import (from x import *)'
+version: 1
+
+severity: warning
+confidence: high
+spectrum_position: 3
+
+targets: [source]
+file_extensions: [.py]
+allowlist: ['**/test_*.py', '**/*_test.py', '**/tests/**', '**/conftest.py', '**/explain/**']
+
+detection:
+  type: regex
+  pattern: '^\s*from\s+[.\w]+\s+import\s+\*'
+
+related: []
+enabled: true
+opt_in: false
+---
+
+`from module import *` pulls an unknown set of names into this namespace,
+shadowing locals unpredictably and defeating static analysis of what is used.
+Import the names you actually use explicitly: `from module import PORT, HOST`.

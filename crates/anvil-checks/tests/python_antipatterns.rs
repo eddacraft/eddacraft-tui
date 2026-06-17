@@ -1,0 +1,316 @@
+//! PYLAN-003/-004/-007: Python reliability anti-pattern catalogue.
+//!
+//! Exercises the `python-reliability` family (PY-001..007) through the public
+//! scanner API: each rule fires on a realistic positive fixture and stays
+//! quiet on the justified/negative form, the rules compile cleanly under the
+//! RE2 engine (no silent-drop), `#`-comment suppression works (PYLAN-004), the
+//! rules are `.py`-extension-scoped, and `.py` is in the default scan set
+//! (PYLAN-007).
+
+use anvil_checks::antipattern::{
+    AntipatternCheckConfig, ScanOptions, registry_compile_diagnostics, scan_file,
+};
+
+fn fires(path: &str, content: &str, id: &str) -> bool {
+    scan_file(path, content, None)
+        .warnings
+        .iter()
+        .any(|w| w.id == id)
+}
+
+fn fires_opt_in(path: &str, content: &str, id: &str) -> bool {
+    let opts = ScanOptions {
+        patterns: None,
+        include_opt_in: true,
+    };
+    scan_file(path, content, Some(&opts))
+        .warnings
+        .iter()
+        .any(|w| w.id == id)
+}
+
+// --- RE2 compile (no silent drop) ------------------------------------------
+
+#[test]
+fn python_reliability_rules_compile_under_re2() {
+    // A lookahead in a pattern would make Rust's RE2 engine drop the rule
+    // silently; assert none of the PY-* rules are in the compile-diagnostics.
+    let dropped: Vec<String> = registry_compile_diagnostics()
+        .into_iter()
+        .filter(|d| d.pattern_id.starts_with("PY-"))
+        .map(|d| format!("{}: {}", d.pattern_id, d.error))
+        .collect();
+    assert!(
+        dropped.is_empty(),
+        "PY rules must compile under RE2 (no lookahead): {dropped:?}"
+    );
+}
+
+// --- PY-001: # type: ignore without an error code --------------------------
+
+#[test]
+fn py001_bare_type_ignore_fires() {
+    assert!(fires(
+        "src/app.py",
+        "def f(x):  # type: ignore\n    return x\n",
+        "PY-001"
+    ));
+}
+
+#[test]
+fn py001_scoped_type_ignore_is_clean() {
+    assert!(!fires(
+        "src/app.py",
+        "def f(x):  # type: ignore[arg-type]\n    return x\n",
+        "PY-001"
+    ));
+}
+
+// --- PY-002: bare # noqa without a rule code -------------------------------
+
+#[test]
+fn py002_bare_noqa_fires() {
+    assert!(fires("src/app.py", "import os  # noqa\n", "PY-002"));
+}
+
+#[test]
+fn py002_coded_noqa_is_clean() {
+    assert!(!fires("src/app.py", "import os  # noqa: F401\n", "PY-002"));
+}
+
+// --- PY-003: # pylint: disable ---------------------------------------------
+
+#[test]
+fn py003_pylint_disable_fires() {
+    assert!(fires(
+        "src/app.py",
+        "obj.dynamic  # pylint: disable=no-member\n",
+        "PY-003"
+    ));
+}
+
+#[test]
+fn py003_pylint_enable_is_clean() {
+    // Review: a clean/negative case — `# pylint: enable` re-enables a rule and
+    // must not be flagged as a suppression.
+    assert!(!fires(
+        "src/app.py",
+        "obj.dynamic  # pylint: enable=no-member\n",
+        "PY-003"
+    ));
+}
+
+// --- PY-004: bare except / except ...: pass --------------------------------
+
+#[test]
+fn py004_bare_except_fires() {
+    assert!(fires(
+        "src/app.py",
+        "try:\n    risky()\nexcept:\n    pass\n",
+        "PY-004"
+    ));
+}
+
+#[test]
+fn py004_inline_except_pass_fires() {
+    assert!(fires(
+        "src/app.py",
+        "try:\n    risky()\nexcept Exception: pass\n",
+        "PY-004"
+    ));
+}
+
+#[test]
+fn py004_arbitrary_inline_handler_pass_fires() {
+    // Review: the rule intentionally flags ANY inline `except <x>: pass`
+    // swallow, not just `except Exception:` — the title reflects this.
+    assert!(fires(
+        "src/app.py",
+        "try:\n    f()\nexcept (KeyError, IndexError): pass\n",
+        "PY-004"
+    ));
+}
+
+#[test]
+fn py004_named_handler_is_clean() {
+    assert!(!fires(
+        "src/app.py",
+        "try:\n    risky()\nexcept ValueError as e:\n    raise\n",
+        "PY-004"
+    ));
+}
+
+#[test]
+fn py004_attribute_named_except_is_not_a_false_positive() {
+    // Review regression: `\bexcept` must not match an identifier ending in
+    // "except" (`last_except: int = 0`).
+    assert!(!fires(
+        "src/app.py",
+        "class C:\n    last_except: int = 0\n",
+        "PY-004"
+    ));
+    // ...while a real bare except still fires.
+    assert!(fires(
+        "src/app.py",
+        "try:\n    f()\nexcept:\n    g()\n",
+        "PY-004"
+    ));
+}
+
+// --- PY-005: wildcard import -----------------------------------------------
+
+#[test]
+fn py005_wildcard_import_fires() {
+    assert!(fires("src/app.py", "from os.path import *\n", "PY-005"));
+}
+
+#[test]
+fn py005_relative_wildcard_import_fires() {
+    assert!(fires("src/app.py", "from .config import *\n", "PY-005"));
+}
+
+#[test]
+fn py005_explicit_import_is_clean() {
+    assert!(!fires(
+        "src/app.py",
+        "from os.path import join, dirname\n",
+        "PY-005"
+    ));
+}
+
+#[test]
+fn py005_commented_out_wildcard_is_not_flagged() {
+    // Review regression: anchoring to `^\s*from` excludes a commented-out
+    // import and a string-literal occurrence.
+    assert!(!fires("src/app.py", "# from os import *\n", "PY-005"));
+    assert!(!fires(
+        "src/app.py",
+        "doc = \"from os import *\"\n",
+        "PY-005"
+    ));
+    // An indented (in-block) real wildcard import still fires.
+    assert!(fires(
+        "src/app.py",
+        "if True:\n    from os import *\n",
+        "PY-005"
+    ));
+}
+
+// --- PY-006: print() (opt-in) ----------------------------------------------
+
+#[test]
+fn py006_print_fires_only_when_opt_in_enabled() {
+    let content = "def main():\n    print(\"debug\", value)\n";
+    assert!(
+        !fires("src/app.py", content, "PY-006"),
+        "PY-006 is opt-in and must be off by default"
+    );
+    assert!(
+        fires_opt_in("src/app.py", content, "PY-006"),
+        "PY-006 fires when opt-in is enabled"
+    );
+}
+
+#[test]
+fn py006_method_named_print_is_not_flagged() {
+    // Review improvement: `(^|[^.\w])print` excludes a `.print()` method call
+    // (e.g. rich's `console.print(...)`) while still catching the builtin.
+    assert!(!fires_opt_in(
+        "src/app.py",
+        "    console.print(panel)\n",
+        "PY-006"
+    ));
+    assert!(fires_opt_in("src/app.py", "    print(value)\n", "PY-006"));
+}
+
+// --- PY-007: Any annotation (opt-in) ---------------------------------------
+
+#[test]
+fn py007_any_annotation_fires_when_opt_in() {
+    assert!(fires_opt_in(
+        "src/app.py",
+        "def f(x: Any) -> Any:\n    return x\n",
+        "PY-007"
+    ));
+    assert!(fires_opt_in(
+        "src/app.py",
+        "data: Dict[str, Any] = {}\n",
+        "PY-007"
+    ));
+}
+
+#[test]
+fn py007_qualified_typing_any_fires() {
+    // Review: the qualified form `typing.Any` is as common as the bare import.
+    assert!(fires_opt_in(
+        "src/app.py",
+        "def f(x: typing.Any) -> typing.Any:\n    return x\n",
+        "PY-007"
+    ));
+    // A name that merely ends in `Any` (e.g. a user type) is not flagged.
+    assert!(!fires_opt_in(
+        "src/app.py",
+        "def f(x: MyAny) -> None:\n    return None\n",
+        "PY-007"
+    ));
+}
+
+// --- PYLAN-004: # @anvil-ignore suppression --------------------------------
+
+#[test]
+fn anvil_ignore_comment_suppresses_python_rule() {
+    // A `# @anvil-ignore <ID> -- reason` on the preceding line marks the
+    // finding suppressed (not removed), mirroring the TS/Rust behaviour.
+    let content = "try:\n    risky()\n# @anvil-ignore PY-004 -- top-level daemon guard, logs and re-raises\nexcept:\n    pass\n";
+    let result = scan_file("src/daemon.py", content, None);
+    let warning = result
+        .warnings
+        .iter()
+        .find(|w| w.id == "PY-004")
+        .expect("PY-004 should still be reported, just suppressed");
+    let suppression = warning
+        .suppressed
+        .as_ref()
+        .expect("PY-004 should be marked suppressed");
+    assert_eq!(
+        suppression.reason,
+        "top-level daemon guard, logs and re-raises"
+    );
+}
+
+#[test]
+fn anvil_ignore_for_other_rule_does_not_suppress() {
+    let content = "# @anvil-ignore PY-001 -- unrelated\nfrom os import *\n";
+    let result = scan_file("src/app.py", content, None);
+    let warning = result.warnings.iter().find(|w| w.id == "PY-005").unwrap();
+    assert!(
+        warning.suppressed.is_none(),
+        "a PY-001 suppression must not silence a PY-005 finding"
+    );
+}
+
+// --- Extension scoping ------------------------------------------------------
+
+#[test]
+fn python_rules_do_not_fire_on_non_python_files() {
+    // PY rules are `.py`-scoped; matching text in a `.ts` file must not fire.
+    assert!(!fires(
+        "src/app.ts",
+        "const x = 1;  # type: ignore\n",
+        "PY-001"
+    ));
+    assert!(!fires("src/app.ts", "from os import *\n", "PY-005"));
+}
+
+// --- PYLAN-007: .py in the default scan set --------------------------------
+
+#[test]
+fn py_extension_is_in_default_scan_set() {
+    assert!(
+        AntipatternCheckConfig::default()
+            .extensions
+            .iter()
+            .any(|e| e == ".py"),
+        "`.py` must be in the default antipattern/drift scan extensions"
+    );
+}

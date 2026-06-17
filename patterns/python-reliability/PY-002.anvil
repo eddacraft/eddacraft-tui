@@ -1,0 +1,27 @@
+---
+id: PY-002
+type: rule
+family: python-reliability
+title: 'bare # noqa without a rule code'
+version: 1
+
+severity: warning
+confidence: high
+spectrum_position: 4
+
+targets: [source]
+file_extensions: [.py]
+allowlist: ['**/test_*.py', '**/*_test.py', '**/tests/**', '**/conftest.py', '**/explain/**']
+
+detection:
+  type: regex
+  pattern: '#\s*noqa([^:]|$)'
+
+related: [PY-001]
+enabled: true
+opt_in: false
+---
+
+A bare `# noqa` disables every lint rule on this line, so a real defect added
+here later will never be reported. Name the rule you mean to silence:
+`# noqa: E501`. If several apply, list them: `# noqa: E501,F401`.

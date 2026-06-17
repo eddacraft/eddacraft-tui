@@ -1,0 +1,29 @@
+---
+id: PY-006
+type: rule
+family: python-reliability
+title: 'print() in production code'
+version: 1
+
+severity: info
+confidence: medium
+spectrum_position: 1
+
+targets: [source]
+file_extensions: [.py]
+allowlist: ['**/test_*.py', '**/*_test.py', '**/tests/**', '**/conftest.py', '**/explain/**']
+
+detection:
+  type: regex
+  pattern: '(^|[^.\w])print\s*\('
+
+related: [PY-004]
+enabled: true
+opt_in: true
+---
+
+A shipped `print()` is unstructured output with no level, timestamp, or sink
+control; in a service it pollutes stdout and is invisible to the log pipeline.
+Use the `logging` module instead: `logging.getLogger(__name__).debug(...)`.
+This rule is opt-in — enable it for services and libraries where stdout is not
+the product. (A CLI that legitimately prints to stdout should leave it off.)

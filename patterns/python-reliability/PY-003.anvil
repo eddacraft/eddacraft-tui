@@ -1,0 +1,28 @@
+---
+id: PY-003
+type: rule
+family: python-reliability
+title: '# pylint: disable suppression'
+version: 1
+
+severity: warning
+confidence: medium
+spectrum_position: 3
+
+targets: [source]
+file_extensions: [.py]
+allowlist: ['**/test_*.py', '**/*_test.py', '**/tests/**', '**/conftest.py', '**/explain/**']
+
+detection:
+  type: regex
+  pattern: '#\s*pylint:\s*disable'
+
+related: [PY-001, PY-002]
+enabled: true
+opt_in: false
+---
+
+This `# pylint: disable` turns the linter off with no inline justification of
+why the warning is wrong here. Prefer fixing the flagged code; if the warning
+is a genuine false positive, record why with a reason suppression:
+`# @anvil-ignore PY-003 -- dynamic attr set by the ORM metaclass`.
