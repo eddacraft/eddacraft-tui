@@ -543,7 +543,11 @@ blockers — they are resolved during execution, not before promotion:
   the kernel symbol extractor never emits them and `FileSymbols` (the `apply_delta`
   feed) carries only `symbols` / `imports` / `reexports`, so a true call graph
   cannot be projected today. Split out of GCTX-011 (2026-06-17) so the ready
-  `anvil_find_dependents` half ships independently.
+  `anvil_find_dependents` half ships independently. The call-graph substrate is
+  now owned by the **[symbol-call-graph (GCALL)](symbol-call-graph.aps.md)**
+  module (filed 2026-06-17); this item flips to Ready once **GCALL-003** (resident
+  call edges + caller read API) and **GCALL-007** (caller-egress privacy review)
+  land.
 - **Intent:** Let assistants find the call sites of a symbol — who calls this
   function — for precise blast-radius reasoning.
 - **Expected Outcome:** `anvil_find_callers` returns bounded, depth-limited,
@@ -558,12 +562,14 @@ blockers — they are resolved during execution, not before promotion:
   `crates/anvil-intercept/src/ipc.rs`, `crates/anvil-cli/src/mcp/tools/`
 - **Confidence:** medium
 - **Priority:** High
-- **Dependencies:** **GV2 symbol-level call-edge support (not yet filed)** —
-  kernel parser call-site extraction (TS / JS / Rust) into `FileSymbols`, lifting
-  `EdgeType::Calls` into the resident `SymbolGraph` via `apply_delta` within the
-  ADR-031 save-time budget; a GV2-substrate addition (the GV2-023 symbol-granular
-  freeze-target) that wants its own GV2 item + ADR before GCTX-014 can flip to
-  Ready. Also GCTX-010 (Merged), GCTX-011.
+- **Dependencies:** **[GCALL-003](symbol-call-graph.aps.md)** (resident call
+  edges + caller read API) + **[GCALL-007](symbol-call-graph.aps.md)**
+  (caller-egress privacy review), from the symbol-call-graph (GCALL) module —
+  kernel call-site extraction into `FileSymbols`, lifting `EdgeType::Calls` into
+  the resident `SymbolGraph` via `apply_delta` within the ADR-031 save-time
+  budget, plus the egress sign-off. GCALL is producer-side substrate (mirrors how
+  GCTX consumes GV2), gated on its own design ADR (GCALL-001). Also GCTX-010
+  (Merged), GCTX-011.
 - **Source:** Split from GCTX-011 via planning-workflow (2026-06-17); see the
   GCTX-011 scope note.
 
