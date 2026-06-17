@@ -203,6 +203,10 @@ scripts/dbcon/*.csv
 # Local scratch — drafts, throwaway notes, intermediate artefacts
 .scratch/
 
+# Stray Rust build/run output binaries redirected to the repo root (e.g.
+# `rustc … -o rust_out`, `cargo run > rust_out`). These are debris, never source.
+/rust_out
+
 # APSCAN-007: canonical `anvil-plan-spec` CLI generates context packages
 # under `.aps/context/<ID>.md` when `aps start <work-item>` runs. Treat as
 # safe-to-regenerate cache output; the durable issues/questions surface is
