@@ -2,7 +2,7 @@
 
 | ID    | Owner | Status   | Progress |
 | ----- | ----- | -------- | -------- |
-| GCALL | —     | In Progress | 0/7   |
+| GCALL | —     | In Progress | 1/7   |
 
 **Last reviewed:** 2026-06-17 (created from the GCTX-014 `anvil_find_callers`
 block. The warm graph carries **no symbol-level call edges**: the
@@ -12,12 +12,14 @@ feed) carries only `symbols` / `imports` / `reexports`, so a true call graph
 cannot be projected today. This module owns the **producer-side** substrate —
 call-site extraction + resident call edges + a caller-traversal read API — that
 GCTX consumes. It is **not** a GCTX item: GCTX projects egress DTOs over a graph
-the daemon already holds, mirroring how GCTX consumes GV2. Module **In Progress**:
-GCALL-001 design authored as
-[ADR-086](../decisions/086-symbol-call-graph-substrate.md) (Proposed) — the
-call-edge model, the `FileSymbols` `calls` contract, the ADR-031 budget posture,
-and the PV-9 caller-egress posture; acceptance flips GCALL-001 to Merged and lets
-GCALL-002/003 go Ready.)
+the daemon already holds, mirroring how GCTX consumes GV2. Module **In Progress,
+1/7**: GCALL-001 design accepted as
+[ADR-086](../decisions/086-symbol-call-graph-substrate.md) (Accepted, operator
+2026-06-17; Merged via #2705) — the call-edge model, the `FileSymbols` `calls`
+contract, the ADR-031 budget posture, and the PV-9 caller-egress posture.
+**GCALL-002** (TS/JS call-site extraction) is now Ready — the next dev pick;
+GCALL-003 (resident edges + read API) follows it; GCALL-004/005 (Rust/Python
+extraction) also unblock on GCALL-001.)
 
 ## Purpose
 
@@ -56,9 +58,9 @@ the per-language scanners (TS/JS, Rust, `lang-python`).
 
 #### GCALL-001: Call-graph substrate design + ADR
 
-- **Status:** In Progress — design authored as
-  [ADR-086](../decisions/086-symbol-call-graph-substrate.md) (Proposed);
-  acceptance ratifies the call-edge model, the `FileSymbols` `calls` contract,
+- **Status:** Merged 2026-06-17 via #2705 — design accepted as
+  [ADR-086](../decisions/086-symbol-call-graph-substrate.md) (Accepted, operator
+  2026-06-17); ratifies the call-edge model, the `FileSymbols` `calls` contract,
   the ADR-031 budget posture, and the PV-9 caller-egress posture that
   GCALL-002..007 build on.
 - **Intent:** Settle the call-edge model and the contracts the rest of the
@@ -79,7 +81,9 @@ the per-language scanners (TS/JS, Rust, `lang-python`).
 
 #### GCALL-002: TS/JS call-site extraction into `FileSymbols`
 
-- **Status:** Proposed
+- **Status:** Ready — its sole dependency GCALL-001 is Merged (ADR-086 Accepted),
+  so the `CallSite` / `CalleeRef` contract and the v1 resolution semantics it
+  implements are now fixed. The next GCALL dev pick.
 - **Intent:** Emit symbol-level call sites for the primary language so the feed
   carries call data alongside `symbols` / `imports` / `reexports`.
 - **Expected Outcome:** The kernel extractor emits call-site edges for TS/JS into

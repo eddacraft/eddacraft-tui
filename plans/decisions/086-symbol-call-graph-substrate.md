@@ -2,9 +2,10 @@
 
 ## Status
 
-Proposed (GCALL-001). Authored as the gating design decision for the
-`symbol-call-graph` (GCALL) module; acceptance ratifies the model the rest of
-the module (GCALL-002..007) builds on.
+Accepted (operator, 2026-06-17). The gating design decision for the
+`symbol-call-graph` (GCALL) module — ratifies the call-edge model, the
+`FileSymbols` `calls` contract, the ADR-031 budget posture, and the PV-9
+caller-egress posture that the rest of the module (GCALL-002..007) builds on.
 
 ## Date
 
