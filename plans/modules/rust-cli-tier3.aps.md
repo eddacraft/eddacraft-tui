@@ -11,7 +11,7 @@ Scopes: RCLI3 (main)
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| RCLI3 | —     | In Progress | 5/20     |
+| RCLI3 | —     | In Progress | 6/20     |
 
 **Last reviewed:** 2026-05-17
 
@@ -231,8 +231,8 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 
 ### RCLI3-005: ember list command
 
-- **Status:** In Progress (2026-06-17 — `feat/rcli3-005-ember-list`; TDD port
-  against the real `ProposalStore` SQLite schema)
+- **Status:** Merged 2026-06-17 via PR #2713 (`anvil ember list` Rust port over
+  the real `ProposalStore` SQLite schema)
 - **Intent:** Port `anvil ember list`. Query proposals by type (`decision`,
   `pattern`, `warning`, `lesson`, `anomaly`, `constraint`) and status
   (`active`, `promoted`, `expired`, `dismissed`) with filtering and expiry
@@ -635,7 +635,7 @@ audit; reviewed 2026-04-26):
 
 | Phase | Items | Status |
 | ----- | ----- | ------ |
-| 1 — Edda & Ember | 7 | 2 Done, 1 In Progress, 4 Proposed |
+| 1 — Edda & Ember | 7 | 3 Done, 4 Proposed |
 | 2 — Plan & Stack | 4 | 1 Ready, 3 Proposed |
 | 3 — Agent & Authorship | 3 | 2 Ready, 1 Proposed |
 | 4 — Utility Commands | 6 | 3 Done, 3 Ready |
