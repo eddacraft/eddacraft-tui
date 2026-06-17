@@ -43,6 +43,8 @@
 
 use std::collections::{HashMap, HashSet};
 use std::panic::AssertUnwindSafe;
+// `HashSet` is used for the reconcile prune's walked-file set; `HashMap` for the
+// coordinator maps.
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError, mpsc};
@@ -105,12 +107,6 @@ struct CoordinatorInner {
     /// Per-key cancel handle for the in-flight scan, so an interactive
     /// `validate_paths` can preempt it (Decision 9).
     active: Mutex<HashMap<WorktreeKey, ScanCancel>>,
-    /// DSV-030: keys whose warm pair was restored from a snapshot and not yet
-    /// reconciled. The first full scan for such a key invalidates the restored
-    /// (read-only) entry before rebuilding, so the rebuild is **disk-authoritative**
-    /// — a file deleted while the daemon was down never survives into a `Clean`
-    /// graph (the snapshot served only stale reads in the meantime).
-    restored: Mutex<HashSet<WorktreeKey>>,
 }
 
 impl ScanCoordinator {
@@ -177,26 +173,11 @@ impl ScanCoordinator {
     /// handle is harmless and re-created per scan).
     pub fn forget(&self, key: &WorktreeKey) {
         lock(&self.inner.active).remove(key);
-        lock(&self.inner.restored).remove(key);
         let mut enqueued = lock(&self.inner.enqueued);
         if enqueued.get(key).is_some_and(|f| f.load(Ordering::Acquire)) {
             return;
         }
         enqueued.remove(key);
-    }
-
-    /// Mark `key` as restored-from-snapshot and pending its disk-authoritative
-    /// reconcile (DSV-030). The next full scan for the key invalidates the
-    /// restored read-only entry before rebuilding.
-    pub fn mark_restored(&self, key: &WorktreeKey) {
-        lock(&self.inner.restored).insert(key.clone());
-    }
-
-    /// Take (clear + report) whether `key` is a restored entry pending reconcile.
-    /// `true` ⇒ the caller invalidates the restored entry before rebuilding.
-    #[must_use]
-    pub fn take_restored(&self, key: &WorktreeKey) -> bool {
-        lock(&self.inner.restored).remove(key)
     }
 }
 
@@ -515,19 +496,6 @@ fn run_scan_loop(
         }
     };
 
-    // DSV-030: if this key's warm pair was restored from a snapshot, drop it
-    // before rebuilding so the scan is disk-authoritative (a file deleted while
-    // the daemon was down does not survive into the rebuilt graph). The restored
-    // entry served only stale reads until now.
-    if ctx.coordinator.take_restored(key) {
-        ctx.cache.invalidate(key);
-        tracing::debug!(
-            target: "anvil_intercept::full_scan",
-            workspace_root = %root.display(),
-            "reconcile: dropped restored snapshot entry before disk-authoritative rebuild",
-        );
-    }
-
     let mut walk = walk_gitignored(root, ctx.caps.max_walk_depth, ctx.caps.max_walk_files);
     let mut dirty_retries: u32 = 0;
 
@@ -559,6 +527,26 @@ fn run_scan_loop(
                 "full scan exceeded its wall-clock budget; marked stale (scan-timeout)",
             );
             return;
+        }
+
+        // DSV-030 reconcile: make the rebuild **disk-authoritative**. The walk
+        // applied every file currently on disk; any file still in the warm graph
+        // but NOT in the walk is gone from disk (deleted while the daemon was down
+        // and restored from a snapshot, or deleted between dirty-retry passes) —
+        // `Delete` it so it cannot survive into a `Clean` graph. A no-op in the
+        // common case (graph files == walked files). This is what lets a restore
+        // race a scan safely: whoever the cache entry came from, the prune brings
+        // it to match disk before completion.
+        let walked: HashSet<String> = walk
+            .files
+            .iter()
+            .filter_map(|abs| workspace_relative(root, abs))
+            .collect();
+        for stale in ctx.cache.warm_files(key) {
+            if !walked.contains(&stale) {
+                ctx.cache
+                    .apply_delta(key, ChangeKind::Delete, empty_file_symbols(stale));
+            }
         }
 
         // Terminal transition for this walk, under the lock (brief): the
@@ -668,20 +656,9 @@ fn apply_file(
     root: &Path,
     abs_path: &Path,
 ) {
-    let Ok(rel_path) = abs_path.strip_prefix(root) else {
+    let Some(rel) = workspace_relative(root, abs_path) else {
         return;
     };
-    // Forward-slash, structurally-clean relative path (the platform anchor
-    // refuses backslashes/escape forms; the parser keys symbols on this string).
-    let rel: String = rel_path
-        .components()
-        .map(|c| c.as_os_str().to_string_lossy())
-        .collect::<Vec<_>>()
-        .join("/");
-    if rel.is_empty() {
-        return;
-    }
-
     let Ok(bytes) = anchor.read_rel(&rel) else {
         return;
     };
@@ -693,6 +670,34 @@ fn apply_file(
         return;
     };
     cache.apply_delta(key, ChangeKind::Create, symbols);
+}
+
+/// The forward-slash, structurally-clean workspace-root-relative form of `abs`
+/// under `root` — the exact key the parser assigns symbols under and the cache
+/// stores them as, so the reconcile prune's walked-set compares apples to apples.
+/// `None` if `abs` is not under `root` or relativises to empty.
+fn workspace_relative(root: &Path, abs: &Path) -> Option<String> {
+    let rel = abs.strip_prefix(root).ok()?;
+    // The platform anchor refuses backslashes/escape forms; forward-slash join
+    // keeps the key cross-platform-stable.
+    let joined: String = rel
+        .components()
+        .map(|c| c.as_os_str().to_string_lossy())
+        .collect::<Vec<_>>()
+        .join("/");
+    (!joined.is_empty()).then_some(joined)
+}
+
+/// An empty [`FileSymbols`] for `file` — the `Delete` payload the reconcile prune
+/// feeds `apply_delta` to drop a file that is gone from disk (only its `file`
+/// field is read on the delete path).
+fn empty_file_symbols(file: String) -> anvil_kernel_types::FileSymbols {
+    anvil_kernel_types::FileSymbols {
+        file,
+        symbols: Vec::new(),
+        imports: Vec::new(),
+        reexports: Vec::new(),
+    }
 }
 
 /// Run `f` against the per-key machine under its lock, emitting the standard
@@ -727,6 +732,7 @@ mod tests {
     use std::sync::Barrier;
     use std::sync::atomic::AtomicUsize;
 
+    use anvil_graph_cache::{DependencyGraph, SymbolGraph};
     use anvil_kernel_types::{
         FileSymbols, ImportEdge, SymbolKind, SymbolNode, TrustLevel, Visibility,
     };
@@ -1253,6 +1259,72 @@ mod tests {
         let snap = lock(&machine).snapshot();
         assert_eq!(snap.state, AssuranceState::Stale);
         assert_eq!(snap.reason, Some(StaleReason::ScanTimeout));
+    }
+
+    #[test]
+    fn reconcile_scan_prunes_a_file_deleted_while_down() {
+        // DSV-030 disk-authoritative reconcile: a file present in a restored
+        // snapshot but NO LONGER on disk (deleted while the daemon was down) must
+        // be pruned by the reconcile scan, never surviving into the `Clean` graph.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        // Disk has only a.ts now; dead.ts was deleted while the daemon was down.
+        write(root, "a.ts", "export a");
+
+        let ctx = line_ctx();
+        let key = key_for(root);
+
+        // Simulate a restored snapshot graph that still holds BOTH files.
+        let mut sym = SymbolGraph::new();
+        for (id, file) in [(1u64, "a.ts"), (2u64, "dead.ts")] {
+            sym.add_symbol(SymbolNode {
+                id,
+                kind: SymbolKind::Function,
+                name: "s".to_string(),
+                visibility: Visibility::Public,
+                file: file.to_string(),
+                trust_level: TrustLevel::Unknown,
+            })
+            .unwrap();
+        }
+        assert!(ctx.cache.restore(&key, sym, DependencyGraph::new()));
+        assert!(ctx.cache.warm_files(&key).contains(&"dead.ts".to_string()));
+
+        // The reconcile scan rebuilds disk-authoritatively.
+        let machine = machine();
+        prepare_scan(&ctx, &machine, &key, root, ScanPriority::Background)
+            .expect("enqueue")
+            .run();
+
+        assert_eq!(lock(&machine).state(), AssuranceState::Clean);
+        let files = ctx.cache.warm_files(&key);
+        assert!(files.contains(&"a.ts".to_string()), "on-disk file kept");
+        assert!(
+            !files.contains(&"dead.ts".to_string()),
+            "a file deleted while down must be pruned, not survive into Clean: {files:?}",
+        );
+    }
+
+    #[test]
+    fn restore_does_not_clobber_a_warm_entry() {
+        // Compare-and-insert: `restore` only inserts when cold, so it can never
+        // overwrite a concurrent scan's authoritative graph.
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        write(root, "a.ts", "export a");
+        let ctx = line_ctx();
+        let key = key_for(root);
+        let machine = machine();
+        prepare_scan(&ctx, &machine, &key, root, ScanPriority::Background)
+            .expect("enqueue")
+            .run();
+        assert!(ctx.cache.contains(&key));
+        // A late restore attempt on the now-warm key is refused.
+        assert!(
+            !ctx.cache
+                .restore(&key, SymbolGraph::new(), DependencyGraph::new()),
+            "restore must not clobber a warm entry",
+        );
     }
 
     #[test]

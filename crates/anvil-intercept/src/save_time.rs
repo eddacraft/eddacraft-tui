@@ -338,6 +338,7 @@ impl SaveTimeState {
                 return;
             };
             let mut written = 0usize;
+            let mut failed = 0usize;
             for key in self.cache.warm_keys() {
                 let built = self.cache.with_graphs(&key, |sym, dep| {
                     anvil_graph_cache::snapshot::SnapshotPayload::from_graphs(sym, dep)
@@ -345,14 +346,27 @@ impl SaveTimeState {
                 let Some(Ok(payload)) = built else {
                     continue;
                 };
-                if crate::snapshot_io::write_snapshot(dir, key.as_path(), &payload).is_ok() {
-                    written += 1;
+                match crate::snapshot_io::write_snapshot(dir, key.as_path(), &payload) {
+                    Ok(()) => written += 1,
+                    // ADR-069 §10: a write failure is surfaced (WARN), never silent
+                    // loss — even on the shutdown flush. (The per-fleet counter +
+                    // ADR-035 notification are a documented follow-up.)
+                    Err(err) => {
+                        failed += 1;
+                        tracing::warn!(
+                            target: "anvil_intercept::snapshot",
+                            workspace_root = %key.as_path().display(),
+                            error = %err,
+                            "snapshot write failed on shutdown; skipping (no persistence for this key)",
+                        );
+                    }
                 }
             }
-            if written > 0 {
+            if written > 0 || failed > 0 {
                 tracing::info!(
                     target: "anvil_intercept::snapshot",
-                    count = written,
+                    written,
+                    failed,
                     "persisted warm graph snapshots on shutdown"
                 );
             }
@@ -633,13 +647,17 @@ fn restore_snapshot_into_cache(
         );
         return;
     };
-    cache.restore(key, sym, dep);
-    coordinator.mark_restored(key);
-    tracing::info!(
-        target: "anvil_intercept::snapshot",
-        workspace_root = %canonical_root.display(),
-        "warm-start: restored graph from snapshot (stale until reconcile)",
-    );
+    // Compare-and-insert: `restore` only inserts if the key is still cold, so if
+    // a reconcile scan beat us to warming it we no-op rather than clobber its
+    // authoritative graph. Either way the next scan's prune keeps the entry
+    // disk-authoritative, so this is correctness-safe regardless of the race.
+    if cache.restore(key, sym, dep) {
+        tracing::info!(
+            target: "anvil_intercept::snapshot",
+            workspace_root = %canonical_root.display(),
+            "warm-start: restored graph from snapshot (stale until reconcile)",
+        );
+    }
 }
 
 /// Log a snapshot read failure at the ADR-069 §10 severity: a missing snapshot
@@ -854,6 +872,11 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
             assurance = ?response.workspace_assurance.state,
             "validate_paths verdict",
         );
+        // DSV-030 (ADR-069 §3): first-contact warm-start restore (background, off
+        // the hot path). Populates the cache from a snapshot so reads during the
+        // reconcile scan below are served the restored (stale) graph; the scan's
+        // prune keeps it disk-authoritative. No-op when persistence is off / warm.
+        state.spawn_restore(&key, key.as_path());
         // DSV-045 (Decision 10): first-contact auto-warm. Opportunistic and
         // self-gating — a no-op when the worktree is already warm or a scan is
         // already enqueued; on a fresh cold key it drives the cache warm so the
@@ -875,6 +898,9 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
         let key = WorktreeKey::from_canonical(canonical);
         let workspace_assurance =
             state.with_machine(&key, correlation, |machine| machine.snapshot());
+        // DSV-030: first-contact warm-start restore (background); then the
+        // DSV-045 reconcile scan.
+        state.spawn_restore(&key, key.as_path());
         // DSV-045 (Decision 10): first-contact auto-warm (self-gating) — a
         // `workspace_status` against a fresh cold key kicks off a background scan.
         state.spawn_scan(&key, key.as_path(), ScanPriority::Background);
@@ -2503,8 +2529,6 @@ mod tests {
             AssuranceState::Stale,
             "a restored worktree must come up Stale (verdict re-derived)",
         );
-        // And it is flagged for the disk-authoritative reconcile.
-        assert!(state2.scan_coordinator().take_restored(&key));
     }
 
     /// Default-off (ADR-069 §7): with no snapshot dir wired, the daemon writes
@@ -2513,22 +2537,37 @@ mod tests {
     #[test]
     fn default_off_persists_nothing() {
         let dir = tempfile::tempdir().expect("tempdir");
-        // `state()` has no snapshot dir → persistence off.
-        let state = state();
-        assert!(!state.persistence_enabled());
-
         let key = WorktreeKey::from_canonical(std::path::PathBuf::from("/ws-off"));
-        state.cache.apply_delta(
+
+        // OFF: `state()` has no snapshot dir → persistence off → no write.
+        let off = state();
+        assert!(!off.persistence_enabled());
+        off.cache.apply_delta(
             &key,
             ChangeKind::Create,
             file_symbols("src/a.ts", &["a"], 0),
         );
-        state.persist_all_on_shutdown();
-
+        off.persist_all_on_shutdown();
         assert_eq!(
             std::fs::read_dir(dir.path()).unwrap().count(),
             0,
-            "persistence-off must write nothing under the state dir",
+            "persistence-off must write nothing under the snapshot dir",
+        );
+
+        // Positive control (non-vacuous): the SAME dir DOES receive a snapshot
+        // once persistence is wired — proving the OFF assertion above is meaningful
+        // (the dir is the real target, not an unrelated path).
+        let on = state().with_snapshot_dir(dir.path().to_path_buf());
+        assert!(on.persistence_enabled());
+        on.cache.apply_delta(
+            &key,
+            ChangeKind::Create,
+            file_symbols("src/a.ts", &["a"], 0),
+        );
+        on.persist_all_on_shutdown();
+        assert!(
+            std::fs::read_dir(dir.path()).unwrap().next().is_some(),
+            "persistence-on must write the snapshot to this very dir",
         );
     }
 

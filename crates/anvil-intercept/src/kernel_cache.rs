@@ -414,19 +414,26 @@ impl KernelGraphCache {
     /// warm-start, ADR-069 §3). Overwrites any existing entry and evicts the LRU
     /// victim first if the cache is at capacity.
     ///
+    /// **Only inserts if the key is currently cold** — it never clobbers an
+    /// existing entry (returns `false` then). This is the compare-and-insert that
+    /// makes a background restore safe to race a concurrent reconcile scan: if the
+    /// scan has already begun warming the key, the restore is a no-op. Returns
+    /// `true` when it inserted.
+    ///
     /// The import/re-export accumulators are seeded **empty**: the snapshot
     /// carries the resolved `(SymbolGraph, DependencyGraph)` for reads, not the
     /// per-file import edge lists `apply_delta` needs for incremental
     /// re-resolution. A restored entry is therefore a **read-only stand-in**: the
-    /// reconcile full scan is **disk-authoritative** and invalidates this entry
-    /// before rebuilding (so a file deleted while the daemon was down never
-    /// survives into a `Clean` graph). It MUST NOT be promoted to `Clean` and MUST
-    /// NOT have `apply_delta` relied on for cross-file resolution until that
-    /// rebuild — the assurance machine stays `Stale` until the scan completes.
-    pub fn restore(&self, key: &WorktreeKey, sym: SymbolGraph, dep: DependencyGraph) {
+    /// reconcile full scan is **disk-authoritative** (it re-applies every walked
+    /// file and prunes any file absent from disk — see the executor), so a file
+    /// deleted while the daemon was down never survives into a `Clean` graph. The
+    /// assurance machine stays `Stale` until that scan completes.
+    pub fn restore(&self, key: &WorktreeKey, sym: SymbolGraph, dep: DependencyGraph) -> bool {
         let mut guard = self.lock();
-        let cold = !guard.map.contains_key(key);
-        if cold && guard.map.len() >= self.capacity {
+        if guard.map.contains_key(key) {
+            return false;
+        }
+        if guard.map.len() >= self.capacity {
             evict_lru(&mut guard);
         }
         let recency = guard.next_recency;
@@ -441,6 +448,7 @@ impl KernelGraphCache {
                 last_used: recency,
             },
         );
+        true
     }
 
     /// The keys of every currently-warm worktree (DSV-030: snapshot every warm
@@ -448,6 +456,22 @@ impl KernelGraphCache {
     #[must_use]
     pub fn warm_keys(&self) -> Vec<WorktreeKey> {
         self.lock().map.keys().cloned().collect()
+    }
+
+    /// The distinct files present in `key`'s warm symbol graph (DSV-030 reconcile:
+    /// the executor diffs this against the walked set and `Delete`s any file no
+    /// longer on disk, so a deleted-while-down file is pruned before `Clean`).
+    /// Empty when the key is cold.
+    #[must_use]
+    pub fn warm_files(&self, key: &WorktreeKey) -> Vec<String> {
+        self.with_graphs(key, |sym, _dep| {
+            let mut files: Vec<String> =
+                sym.inner().node_weights().map(|n| n.file.clone()).collect();
+            files.sort_unstable();
+            files.dedup();
+            files
+        })
+        .unwrap_or_default()
     }
 
     /// Drop the warm pair for `key` and bump its generation. Returns `true`

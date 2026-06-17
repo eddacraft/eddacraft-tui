@@ -66,6 +66,7 @@ pub mod path_safety;
 pub mod rate_window;
 pub mod registry;
 pub mod rule_cache;
+#[cfg(unix)]
 pub mod snapshot_io;
 // DSV-010b / ADR-070 Stage 2: the save-time verbs are served on both Unix and
 // Windows. `save_time` / `workspace_admission` code against the neutral

@@ -195,25 +195,35 @@ pub fn load_snapshot(
         Err(err) => return Err(SnapshotReadError::Io(err)),
     };
     // A symlink at the snapshot path is never a legitimate snapshot — refuse it
-    // (the O_NOFOLLOW open would also fail, but reject early + explicitly).
+    // (the O_NOFOLLOW open below would also fail; reject early + explicitly).
+    // `O_NOFOLLOW` on the open is the actual security guard against a same-uid
+    // symlink swap in the stat→open window; this early check is just a clear
+    // fast-path rejection.
     if metadata.file_type().is_symlink() || !metadata.is_file() {
         return Err(SnapshotReadError::Rejected(SnapshotLoadError::Corrupt));
     }
-    // Size cap BEFORE reading — a crafted length cannot trigger a huge read.
+    // Size cap on the stat (cheap pre-check).
     if metadata.len() > MAX_SNAPSHOT_BYTES as u64 {
         return Err(SnapshotReadError::Rejected(SnapshotLoadError::Oversized));
     }
 
-    let mut file = OpenOptions::new()
+    let file = OpenOptions::new()
         .read(true)
         .custom_flags(nix::libc::O_NOFOLLOW | nix::libc::O_CLOEXEC)
         .open(&path)
         .map_err(SnapshotReadError::Io)?;
-    // `metadata.len()` is already proven `<= MAX_SNAPSHOT_BYTES` above; the
-    // `try_from` keeps the cast honest on a 32-bit target.
-    let mut bytes = Vec::with_capacity(usize::try_from(metadata.len()).unwrap_or(0));
-    file.read_to_end(&mut bytes)
+    // Cap the actual READ at the open fd, not just the pre-stat size: a file that
+    // grew between `symlink_metadata` and `open` (a TOCTOU on a network/FUSE
+    // mount) cannot drive `read_to_end` past the cap. `take(MAX + 1)` lets a
+    // genuine over-cap file be detected and rejected rather than truncated.
+    let cap = MAX_SNAPSHOT_BYTES as u64 + 1;
+    let mut bytes = Vec::with_capacity(usize::try_from(metadata.len().min(cap)).unwrap_or(0));
+    file.take(cap)
+        .read_to_end(&mut bytes)
         .map_err(SnapshotReadError::Io)?;
+    if bytes.len() > MAX_SNAPSHOT_BYTES {
+        return Err(SnapshotReadError::Rejected(SnapshotLoadError::Oversized));
+    }
 
     SnapshotPayload::from_bytes(&bytes).map_err(SnapshotReadError::Rejected)
 }
@@ -254,9 +264,8 @@ pub fn sweep_orphan_temps(dir: &Path) -> usize {
 
 /// Create `dir` (and parents) at owner-only mode `0700` if absent (ADR-069 §2).
 fn ensure_dir(dir: &Path) -> io::Result<()> {
-    if dir.is_dir() {
-        return Ok(());
-    }
+    // `recursive(true)` is idempotent on a pre-existing dir, so no `is_dir`
+    // pre-check (which would only add a TOCTOU window).
     DirBuilder::new().recursive(true).mode(DIR_MODE).create(dir)
 }
 
@@ -272,10 +281,10 @@ fn fsync_dir(dir: &Path) -> io::Result<()> {
 fn temp_name(final_name: &str) -> String {
     let mut rand = [0u8; 8];
     // A randomness failure is implausible on supported hosts; fall back to the
-    // pid so we never block a write on it (O_EXCL still guards correctness).
+    // pid (widened to 8 bytes) so we never block a write on it. `O_EXCL` is the
+    // actual correctness guard — a colliding temp name fails the create.
     if getrandom::fill(&mut rand).is_err() {
-        let pid = std::process::id().to_le_bytes();
-        rand[..4].copy_from_slice(&pid);
+        rand = u64::from(std::process::id()).to_le_bytes();
     }
     let mut suffix = String::with_capacity(16);
     for b in rand {

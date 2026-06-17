@@ -985,9 +985,21 @@ Merged item; each is an additive improvement under the frozen wire.
 - **Priority:** Low
 - **Dependencies:** [ADR-069](../decisions/069-graph-v2-persistence.md) (Accepted);
   GV2-021 (Released/Shipped via #2301); DSV-020; DSV-045 (the reconcile scan).
-- **Follow-up (not this item):** the content-hash **fast**-reconcile (ADR-069 §3 —
-  skip re-parse of files whose content hash is unchanged) needs the snapshot DTO to
-  carry per-file content hashes; tracked as a future DSV sub-item.
+- **Follow-up (not this item; tracked for the default-on graduation, ADR-069 §7):**
+  (a) the content-hash **fast**-reconcile (ADR-069 §3 — skip re-parse of files whose
+  content hash is unchanged) needs the snapshot DTO to carry per-file content hashes;
+  (b) **orphan-by-key GC** (ADR-069 §10 — sweep `*.snap` for worktrees with no
+  registered worktree) — the filename is a one-way SHA-256 hash so this needs a
+  registry cross-ref once the registry is populated, not a start-time sweep (which
+  has no registered worktrees yet); the `*.tmp` sweep and unregister-time removal +
+  the "deleting `graph-cache/` is safe" escape hatch cover the rest; (c) the
+  `snapshot_load_result`/`snapshot_write_result` **fleet counters** + the ADR-035
+  write-failure **Notification** (§10) — tracing logs at the §10 severities ship now;
+  (d) the openat/`O_PATH`-anchored **directory** create (§4) — per-file `O_EXCL` +
+  `O_NOFOLLOW` ship now and bound it under the same-uid boundary; (e) a **write
+  debounce** (§4 — currently writes once per successful scan, never per-save, which
+  the DSV-045 scan coalescing already bounds); (f) **Windows** persistence (Unix-only
+  here, mirroring the DSV-010/011 parity split).
 - **Source:** ADR-061 §9; validation contract §9;
   [ADR-069](../decisions/069-graph-v2-persistence.md) (GV2-021).
 
