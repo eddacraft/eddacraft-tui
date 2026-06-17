@@ -100,6 +100,12 @@ hex = "0.4"
 # Filesystem test fixtures
 tempfile = "3"
 
+# SQLite reader for the Ember proposal store (.anvil/ember.db, written by the
+# edda-stack `ProposalStore`). RCLI3-005. The `bundled` feature is opted into
+# per-consumer (anvil-cli) rather than here, so a future crate taking
+# `rusqlite = { workspace = true }` does not silently inherit a SQLite C build.
+rusqlite = { version = "0.32" }
+
 # Error handling
 thiserror = "2"
 miette = { version = "7", features = ["derive", "fancy"] }

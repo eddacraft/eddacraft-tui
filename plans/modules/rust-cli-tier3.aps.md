@@ -231,15 +231,20 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 
 ### RCLI3-005: ember list command
 
-- **Status:** Ready (2026-05-17 — readiness audit promoted; depends only on
-  RCLI foundation, which is complete)
-- **Intent:** Port `anvil ember list`. Query proposals by type (observation,
-  pattern, anomaly, suggestion) and status (active, promoted, expired,
-  rejected) with filtering and expiry display. Reads from `.anvil/ember.db`
-  SQLite database
+- **Status:** In Progress (2026-06-17 — `feat/rcli3-005-ember-list`; TDD port
+  against the real `ProposalStore` SQLite schema)
+- **Intent:** Port `anvil ember list`. Query proposals by type (`decision`,
+  `pattern`, `warning`, `lesson`, `anomaly`, `constraint`) and status
+  (`active`, `promoted`, `expired`, `dismissed`) with filtering and expiry
+  display. Reads from `.anvil/ember.db` SQLite database. (Type/status enums
+  corrected 2026-06-17 from the historical `ProposalStore` schema in
+  `packages/edda-stack/src/ember/proposal-store.ts`; the earlier draft list
+  — `observation`/`suggestion` types, `rejected` status — predated the schema.)
 - **Expected Outcome:** `anvil ember list --status active` shows proposals
-  with ID, type, summary, confidence, expiry, observation count. JSON mode
-  returns full proposal objects
+  with ID, type, status, confidence, summary, created, expires. JSON mode
+  returns the full proposal objects in the historical envelope
+  (`database_found`, `database_path`, `total`, `limit`, `has_more`, `filters`,
+  `proposals`)
 - **Validation:** Row count and content match the historical Node.js CLI contract; expiry time
   formatting consistent
 - **Files:** `crates/anvil-cli/src/commands/ember.rs`
@@ -630,7 +635,7 @@ audit; reviewed 2026-04-26):
 
 | Phase | Items | Status |
 | ----- | ----- | ------ |
-| 1 — Edda & Ember | 7 | 2 Done, 1 Ready, 4 Proposed |
+| 1 — Edda & Ember | 7 | 2 Done, 1 In Progress, 4 Proposed |
 | 2 — Plan & Stack | 4 | 1 Ready, 3 Proposed |
 | 3 — Agent & Authorship | 3 | 2 Ready, 1 Proposed |
 | 4 — Utility Commands | 6 | 3 Done, 3 Ready |

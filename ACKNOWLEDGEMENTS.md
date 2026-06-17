@@ -138,7 +138,7 @@ used under the terms of its respective licence, reproduced in full below.
 
 ## Licence: MIT License
 
-Used by 328 crates. See the inventory table at the bottom of this file for the complete list.
+Used by 334 crates. See the inventory table at the bottom of this file for the complete list.
 
 <details>
 <summary>Licence text</summary>
@@ -1074,6 +1074,8 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `regex-syntax` | 0.8.11 | MIT License | https://github.com/rust-lang/regex |
 | `regex` | 1.12.4 | MIT License | https://github.com/rust-lang/regex |
 | `uuid` | 1.23.2 | MIT License | https://github.com/uuid-rs/uuid |
+| `libsqlite3-sys` | 0.30.1 | MIT License | https://github.com/rusqlite/rusqlite |
+| `rusqlite` | 0.32.1 | MIT License | https://github.com/rusqlite/rusqlite |
 | `flate2` | 1.1.9 | MIT License | https://github.com/rust-lang/flate2-rs |
 | `hyper` | 1.10.1 | MIT License | https://github.com/hyperium/hyper |
 | `either` | 1.16.0 | MIT License | https://github.com/rayon-rs/either |
@@ -1088,6 +1090,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `unicode-width` | 0.1.14 | MIT License | https://github.com/unicode-rs/unicode-width |
 | `unicode-width` | 0.2.2 | MIT License | https://github.com/unicode-rs/unicode-width |
 | `cobs` | 0.3.0 | MIT License | https://github.com/jamesmunns/cobs.rs |
+| `fallible-iterator` | 0.3.0 | MIT License | https://github.com/sfackler/rust-fallible-iterator |
 | `terminal_size` | 0.4.4 | MIT License | https://github.com/eminence/terminal-size |
 | `which` | 8.0.2 | MIT License | https://github.com/harryfei/which-rs.git |
 | `png` | 0.18.1 | MIT License | https://github.com/image-rs/image-png |
@@ -1103,6 +1106,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `futures-sink` | 0.3.32 | MIT License | https://github.com/rust-lang/futures-rs |
 | `futures-task` | 0.3.32 | MIT License | https://github.com/rust-lang/futures-rs |
 | `futures-util` | 0.3.32 | MIT License | https://github.com/rust-lang/futures-rs |
+| `hashbrown` | 0.14.5 | MIT License | https://github.com/rust-lang/hashbrown |
 | `hashbrown` | 0.15.5 | MIT License | https://github.com/rust-lang/hashbrown |
 | `hashbrown` | 0.16.1 | MIT License | https://github.com/rust-lang/hashbrown |
 | `hashbrown` | 0.17.1 | MIT License | https://github.com/rust-lang/hashbrown |
@@ -1116,6 +1120,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `parking_lot` | 0.12.5 | MIT License | https://github.com/Amanieu/parking_lot |
 | `parking_lot_core` | 0.9.12 | MIT License | https://github.com/Amanieu/parking_lot |
 | `thread_local` | 1.1.9 | MIT License | https://github.com/Amanieu/thread_local-rs |
+| `fallible-streaming-iterator` | 0.1.9 | MIT License | https://github.com/sfackler/fallible-streaming-iterator |
 | `indexmap` | 2.14.0 | MIT License | https://github.com/indexmap-rs/indexmap |
 | `equivalent` | 1.0.2 | MIT License | https://github.com/indexmap-rs/equivalent |
 | `addr2line` | 0.25.1 | MIT License | https://github.com/gimli-rs/addr2line |
@@ -1366,6 +1371,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `crossbeam-deque` | 0.8.6 | MIT License | https://github.com/crossbeam-rs/crossbeam |
 | `crossbeam-epoch` | 0.9.18 | MIT License | https://github.com/crossbeam-rs/crossbeam |
 | `crossbeam-utils` | 0.8.21 | MIT License | https://github.com/crossbeam-rs/crossbeam |
+| `hashlink` | 0.9.1 | MIT License | https://github.com/kyren/hashlink |
 | `borrow-or-share` | 0.2.4 | MIT No Attribution | https://github.com/yescallop/borrow-or-share |
 | `option-ext` | 0.2.0 | Mozilla Public License 2.0 | https://github.com/soc/option-ext.git |
 | `unicode-ident` | 1.0.24 | Unicode License v3 | https://github.com/dtolnay/unicode-ident |
