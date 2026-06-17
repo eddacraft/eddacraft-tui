@@ -126,6 +126,29 @@ jobs:
             exit 1
           fi
           echo "hot-read gate correctly fails on a synthetic regression"
+      # GCALL-006 / ADR-086: the save-time call-lift latency gate. In-process
+      # microbench (no daemon/inotify), p95 ~25x under the 80 ms ADR-031 save-time
+      # budget, so it gates on the standard runner. The bench exits non-zero on a
+      # p95 breach, so the step itself is the gate.
+      - name: Measure call-lift latency budget (GCALL-006)
+        run: |
+          set -o pipefail
+          cargo bench -p eddacraft-anvil-graph-cache --bench call_lift | tee call-lift-budget.log
+      # Prove the call-lift gate is live: a 120 ms injected stall MUST drive p95
+      # past the 80 ms budget and exit non-zero. Build first so a *compile*
+      # failure is unambiguous rather than mistaken for "gate tripped".
+      - name: Self-test — call-lift gate trips on a synthetic regression
+        if: success() || failure()
+        run: |
+          set -o pipefail
+          cargo build -p eddacraft-anvil-graph-cache --bench call_lift
+          if ANVIL_BENCH_CALLLIFT_STALL_MS=120 \
+              cargo bench -p eddacraft-anvil-graph-cache --bench call_lift \
+              2>&1 | tee call-lift-budget-selftest.log; then
+            echo "::error::call-lift gate did not fail on a 120 ms synthetic regression"
+            exit 1
+          fi
+          echo "call-lift gate correctly fails on a synthetic regression"
       - name: Upload resource budget verdicts
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -137,6 +160,8 @@ jobs:
             validate-paths-slo-selftest.log
             hot-read-budget.log
             hot-read-budget-selftest.log
+            call-lift-budget.log
+            call-lift-budget-selftest.log
           if-no-files-found: ignore
           retention-days: 30
 

@@ -167,7 +167,15 @@ the per-language scanners (TS/JS, Rust, `lang-python`).
 
 #### GCALL-006: Save-time hot-path budget validation
 
-- **Status:** Proposed
+- **Status:** In Progress — added `crates/anvil-graph-cache/benches/call_lift.rs`
+  (`harness=false`, mirroring the GV2-025 `hot_read` gate): an in-process bench
+  timing the two call-graph save-time ops — `update_file` (the full per-save
+  apply incl. `lift_calls_tracked`) and the daemon `re_resolve_calls`
+  forward-reference pass — over a 100-function / ~300-call corpus that lifts real
+  resident `Calls` edges, exiting non-zero on an 80 ms p95 breach. Wired into
+  `resource-budget.yml` as a gate step + a `ANVIL_BENCH_CALLLIFT_STALL_MS`
+  self-test proving the gate trips on a synthetic regression. Measured p95 ~3 ms
+  (~25× under budget).
 - **Intent:** Prove call extraction stays within the save-time latency budget.
 - **Expected Outcome:** Call-site extraction + `apply_delta` lift run within the
   ADR-031 save-time p95 budget on the benchmark corpus; a CI latency gate guards

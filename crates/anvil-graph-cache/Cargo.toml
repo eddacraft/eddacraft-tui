@@ -17,6 +17,12 @@ name = "anvil_graph_cache"
 name = "hot_read"
 harness = false
 
+# GCALL-006: gates the save-time call-lift (`update_file` + `re_resolve_calls`)
+# on the ADR-031 p95 budget; same `harness = false` rationale as `hot_read`.
+[[bench]]
+name = "call_lift"
+harness = false
+
 [dependencies]
 anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }
 petgraph = { workspace = true }
