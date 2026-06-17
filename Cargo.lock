@@ -1228,6 +1228,7 @@ dependencies = [
  "futures-util",
  "hex",
  "ignore",
+ "insta",
  "jsonschema 0.45.1",
  "miette",
  "minisign",

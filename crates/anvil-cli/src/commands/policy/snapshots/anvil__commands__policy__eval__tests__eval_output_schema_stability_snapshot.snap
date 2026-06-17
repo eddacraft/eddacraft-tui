@@ -1,0 +1,27 @@
+---
+source: crates/anvil-cli/src/commands/policy/eval.rs
+expression: json
+---
+{
+  "schema_version": "1.0.0",
+  "policy": "policies/arch_boundary.rego",
+  "query": "data.anvil.arch.findings",
+  "findings": [
+    {
+      "severity": "error",
+      "message": "import crosses an architecture boundary",
+      "from": "crates/app/src/ui.rs",
+      "to": "crates/app/src/db.rs",
+      "fingerprint": "a1b2c3d4",
+      "is_new_edge": true,
+      "baselined": false
+    },
+    {
+      "severity": "warning",
+      "message": "module lacks an owner annotation",
+      "is_new_edge": false,
+      "baselined": false
+    }
+  ],
+  "exit_code": 1
+}

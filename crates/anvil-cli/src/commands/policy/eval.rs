@@ -77,8 +77,19 @@ pub struct EvalArgs {
     fail_on_warnings: bool,
 }
 
+/// Stability-contract version of the `anvil policy eval --json` wire format.
+/// Bumped only under the deprecation policy in
+/// `docs/specs/policy-eval-output-v1.md`; the
+/// `eval_output_schema_stability_snapshot` test pins the frozen surface so an
+/// accidental change to the gate-critical fields fails CI.
+const EVAL_OUTPUT_SCHEMA_VERSION: &str = "1.0.0";
+
 #[derive(Debug, Serialize)]
 struct EvalOutput {
+    /// Version of the frozen output contract (policy-eval-output-v1). Emitted
+    /// first so machine consumers — the EVAL harness adapter — can branch on it
+    /// before reading the rest of the document.
+    schema_version: &'static str,
     policy: String,
     query: String,
     /// The raw query result. Present only for non-findings queries; for a
@@ -221,6 +232,7 @@ pub fn run(args: &EvalArgs, global: &GlobalArgs) -> Result<()> {
     let trace = result.trace().cloned();
 
     let output = EvalOutput {
+        schema_version: EVAL_OUTPUT_SCHEMA_VERSION,
         policy: policy_display,
         query: args.query.clone(),
         value,
@@ -294,4 +306,70 @@ fn render_plain(output: &EvalOutput) {
 
     plain::blank();
     plain::label("exit code", output.exit_code);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use anvil_policy_engine::Severity;
+
+    /// A fully-populated `EvalOutput` over the **frozen** gate-critical surface
+    /// (`schema_version`, `policy`, `query`, `findings`, `exit_code`, and the
+    /// `Finding` shape). The diagnostic fields (`value`, `coverage`, `trace`,
+    /// `why`) are deliberately left `None`: they are not part of the v1
+    /// stability contract, so the snapshot must not pin them. See
+    /// `docs/specs/policy-eval-output-v1.md`.
+    fn frozen_surface_fixture() -> EvalOutput {
+        EvalOutput {
+            schema_version: EVAL_OUTPUT_SCHEMA_VERSION,
+            policy: "policies/arch_boundary.rego".to_string(),
+            query: "data.anvil.arch.findings".to_string(),
+            value: None,
+            findings: vec![
+                Finding {
+                    severity: Severity::Error,
+                    message: "import crosses an architecture boundary".to_string(),
+                    from: Some("crates/app/src/ui.rs".to_string()),
+                    to: Some("crates/app/src/db.rs".to_string()),
+                    fingerprint: Some("a1b2c3d4".to_string()),
+                    is_new_edge: true,
+                    baselined: false,
+                },
+                // A finding with no edge/fingerprint: exercises that the optional
+                // `from`/`to`/`fingerprint` fields are *omitted* (not `null`) when
+                // absent, so the snapshot pins that presence contract too.
+                Finding {
+                    severity: Severity::Warning,
+                    message: "module lacks an owner annotation".to_string(),
+                    from: None,
+                    to: None,
+                    fingerprint: None,
+                    is_new_edge: false,
+                    baselined: false,
+                },
+            ],
+            exit_code: 1,
+            why: None,
+            coverage: None,
+            trace: None,
+        }
+    }
+
+    /// Schema-stability snapshot: pins the exact JSON wire format of the frozen
+    /// gate-critical surface that downstream consumers (the EVAL harness
+    /// adapter) bind to. Updating this snapshot is a deliberate contract change
+    /// and must follow the deprecation policy in
+    /// `docs/specs/policy-eval-output-v1.md`.
+    #[test]
+    fn eval_output_schema_stability_snapshot() {
+        let json = serde_json::to_string_pretty(&frozen_surface_fixture()).expect("serialise");
+        insta::assert_snapshot!(json);
+    }
+
+    /// The embedded contract version must match the one documented in the spec.
+    /// A bump here without a spec + deprecation-cycle update is a mistake.
+    #[test]
+    fn schema_version_is_pinned() {
+        assert_eq!(EVAL_OUTPUT_SCHEMA_VERSION, "1.0.0");
+    }
 }

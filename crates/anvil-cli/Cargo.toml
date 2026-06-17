@@ -82,6 +82,9 @@ workspace-hack.workspace = true
 anvil-intercept-win32 = { path = "../anvil-intercept-win32", package = "eddacraft-anvil-intercept-win32" }
 
 [dev-dependencies]
+# CIB-078: schema-stability snapshot pinning the `anvil policy eval` output
+# contract (docs/specs/policy-eval-output-v1.md). Test-only.
+insta = { workspace = true }
 temp-env = "0.3"
 tempfile = "3"
 wiremock = "0.6"

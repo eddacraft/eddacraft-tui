@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 46/77    |
+| CIB | —     | In Progress | 46/78    |
 
 ## Purpose
 
@@ -2117,3 +2117,37 @@ archive.
 - **Confidence:** medium — the ordering tension is clearly diagnosed, but the
   right fix shape (skip flag vs. reordering the gate vs. moving the check into
   `prepare`) is a release-owner call.
+
+### CIB-078: freeze the `anvil policy eval --json` output contract at v1 before EVAL binds
+
+- **Status:** In Progress
+- **Intent:** POLENG-007 shipped `anvil policy eval --json` preview-gated, with
+  the wire shape explicitly _not_ a stable contract. The
+  [eval-harness-integration](eval-harness-integration.aps.md) module (EVAL) is
+  next to bind an adapter (`EvalRunSummary`/`EvalRegressionReport`) to that
+  output. Freeze the shape at v1 _before_ EVAL locks onto it so the adapter has
+  a durable contract and a later eval-output refactor cannot silently break
+  trust-regression gates — the output dual of the existing
+  [`PolicyInput` v1 contract](../../docs/specs/policy-input-v1.md).
+- **Expected Outcome:** an embedded `schema_version` (`"1.0.0"`, emitted first)
+  on `EvalOutput`; a schema-stability snapshot test pinning the **gate-critical**
+  surface (`schema_version`/`policy`/`query`/`findings`/`exit_code` plus the
+  `Finding`/`Severity` shapes) so an accidental change fails CI; the diagnostic
+  fields (`value`/`coverage`/`trace`/`why`) documented as outside the contract
+  and free to evolve; an authoritative spec at
+  [`docs/specs/policy-eval-output-v1.md`](../../docs/specs/policy-eval-output-v1.md)
+  with a deprecation policy; and the EVAL module annotated to bind to the frozen
+  surface.
+- **Files:** `crates/anvil-cli/src/commands/policy/eval.rs` (`EvalOutput`,
+  `EVAL_OUTPUT_SCHEMA_VERSION`, snapshot test),
+  `crates/anvil-cli/src/commands/policy/snapshots/`,
+  `docs/specs/policy-eval-output-v1.md`,
+  `plans/modules/eval-harness-integration.aps.md`.
+- **Validation:** `cargo test -p eddacraft-anvil eval::tests`; `pnpm docs:check`.
+- **Identified From:** the 2026-06-17 OPA/policy-cluster readiness review — the
+  one outstanding Regorus follow-up was that the eval output shape is not yet a
+  stable contract, and EVAL was about to harden against it.
+- **Coordinates with:** EVAL (eval-harness-integration), POLENG (engine
+  substrate, archived), ADR-040.
+- **Confidence:** high — direct mirror of the shipped `PolicyInput` v1 +
+  `watch-output-contract` patterns; additive field, no behaviour change.

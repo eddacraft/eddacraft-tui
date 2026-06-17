@@ -34,6 +34,11 @@ Integrate an external eval harness through Anvil-owned contracts so trust regres
 - `opa-enhancements`
 - `opa-agent-orchestration`
 - `drift-reporting`
+- `anvil policy eval --json` output contract, frozen at v1 — see
+  [`docs/specs/policy-eval-output-v1.md`](../../docs/specs/policy-eval-output-v1.md)
+  (CIB-078). The adapter (EVAL-002) normalises from this contract; bind to its
+  frozen surface (`schema_version` / `findings` / `exit_code`), not the
+  diagnostic fields.
 
 **Exposes:**
 - `EvalHarnessPort`
@@ -55,7 +60,7 @@ Integrate an external eval harness through Anvil-owned contracts so trust regres
 
 ### EVAL-002: Implement framework adapter
 - **Intent:** Add a concrete adapter for harness suite execution.
-- **Expected Outcome:** Harness suites run via adapter with normalized outputs.
+- **Expected Outcome:** Harness suites run via adapter with normalized outputs, normalised from the frozen [`policy-eval-output-v1`](../../docs/specs/policy-eval-output-v1.md) contract.
 - **Validation:** `cargo test -p eddacraft-anvil-policy -- eval_harness_adapter`
 - **Dependencies:** EVAL-001
 
