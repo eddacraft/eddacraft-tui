@@ -75,16 +75,11 @@
 
 ## CIB
 
-| Document                                                                | Path                                     | Type    | Authority     | Owner | Status |
-| ----------------------------------------------------------------------- | ---------------------------------------- | ------- | ------------- | ----- | ------ |
-| [Admin CLI Operator Runbook](../../docs/runbooks/admin-cli.md)          | `docs/runbooks/admin-cli.md`             | Runbook | Authoritative | CIB   | Live   |
-| [Agent Surface Inventory](../../docs/guides/agent-surface-inventory.md) | `docs/guides/agent-surface-inventory.md` | Guide   | Authoritative | CIB   | Live   |
-
-## CIB (plans/modules/continuous-improvement-backlog.aps.md)
-
-| Document                                                                                               | Path                                  | Type | Authority     | Owner                                                     | Status |
-| ------------------------------------------------------------------------------------------------------ | ------------------------------------- | ---- | ------------- | --------------------------------------------------------- | ------ |
-| [Policy Eval Output Contract — anvil policy eval --json v1](../../docs/specs/policy-eval-output-v1.md) | `docs/specs/policy-eval-output-v1.md` | Spec | Authoritative | CIB (plans/modules/continuous-improvement-backlog.aps.md) | Live   |
+| Document                                                                                               | Path                                     | Type    | Authority     | Owner | Status |
+| ------------------------------------------------------------------------------------------------------ | ---------------------------------------- | ------- | ------------- | ----- | ------ |
+| [Admin CLI Operator Runbook](../../docs/runbooks/admin-cli.md)                                         | `docs/runbooks/admin-cli.md`             | Runbook | Authoritative | CIB   | Live   |
+| [Agent Surface Inventory](../../docs/guides/agent-surface-inventory.md)                                | `docs/guides/agent-surface-inventory.md` | Guide   | Authoritative | CIB   | Live   |
+| [Policy Eval Output Contract — anvil policy eval --json v1](../../docs/specs/policy-eval-output-v1.md) | `docs/specs/policy-eval-output-v1.md`    | Spec    | Authoritative | CIB   | Live   |
 
 ## CLAR
 

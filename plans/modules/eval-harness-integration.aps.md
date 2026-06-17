@@ -60,7 +60,7 @@ Integrate an external eval harness through Anvil-owned contracts so trust regres
 
 ### EVAL-002: Implement framework adapter
 - **Intent:** Add a concrete adapter for harness suite execution.
-- **Expected Outcome:** Harness suites run via adapter with normalized outputs, normalised from the frozen [`policy-eval-output-v1`](../../docs/specs/policy-eval-output-v1.md) contract.
+- **Expected Outcome:** Harness suites run via adapter with normalised outputs, normalised from the frozen [`policy-eval-output-v1`](../../docs/specs/policy-eval-output-v1.md) contract.
 - **Validation:** `cargo test -p eddacraft-anvil-policy -- eval_harness_adapter`
 - **Dependencies:** EVAL-001
 

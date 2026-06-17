@@ -1,8 +1,8 @@
 # Policy Eval Output Contract — `anvil policy eval --json` v1
 
-| Type | Authority     | Owner                                                                                                                    | Status | Freshness                                                                                          |
-| ---- | ------------- | ------------------------------------------------------------------------------------------------------------------------ | ------ | -------------------------------------------------------------------------------------------------- |
-| Spec | Authoritative | CIB ([`plans/modules/continuous-improvement-backlog.aps.md`](../../plans/modules/continuous-improvement-backlog.aps.md)) | Live   | Last reviewed 2026-06-17 against `main`; frozen at v1 by CIB-078 before EVAL binds (EVAL-001/-002) |
+| Type | Authority     | Owner | Status | Freshness                                                                                                                                                                                                               |
+| ---- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Spec | Authoritative | CIB   | Live   | Last reviewed 2026-06-17 against `main`; frozen at v1 by CIB-078 ([`plans/modules/continuous-improvement-backlog.aps.md`](../../plans/modules/continuous-improvement-backlog.aps.md)) before EVAL binds (EVAL-001/-002) |
 
 | Upstream                                                                                                                                                   | Downstream                                                                                                                                                                    |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
