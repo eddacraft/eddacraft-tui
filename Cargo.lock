@@ -1445,6 +1445,7 @@ dependencies = [
  "eddacraft-anvil-gctx-egress",
  "eddacraft-anvil-gctx-types",
  "eddacraft-anvil-graph-cache",
+ "eddacraft-anvil-intercept-macos",
  "eddacraft-anvil-intercept-proto",
  "eddacraft-anvil-intercept-rules",
  "eddacraft-anvil-intercept-win32",
@@ -1453,7 +1454,6 @@ dependencies = [
  "eddacraft-anvil-rules",
  "getrandom 0.4.2",
  "ignore",
- "libc",
  "nix 0.31.3",
  "rayon",
  "serde",
@@ -1467,6 +1467,13 @@ dependencies = [
  "tracing-subscriber",
  "uuid",
  "workspace-hack",
+]
+
+[[package]]
+name = "eddacraft-anvil-intercept-macos"
+version = "0.8.1-beta"
+dependencies = [
+ "libc",
 ]
 
 [[package]]

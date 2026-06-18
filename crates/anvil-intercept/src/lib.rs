@@ -992,7 +992,7 @@ fn process_start_time(pid: u32) -> Option<u64> {
 
 #[cfg(target_os = "macos")]
 fn process_start_time(pid: u32) -> Option<u64> {
-    macos_process_start_time(pid)
+    anvil_intercept_macos::process_start_time(pid)
 }
 
 #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
@@ -1017,31 +1017,7 @@ fn process_start_time(_pid: u32) -> Option<u64> {
 /// fallback that previously skewed macOS fence telemetry.
 #[cfg(target_os = "macos")]
 pub(crate) fn macos_process_start_time(pid: u32) -> Option<u64> {
-    let raw = i32::try_from(pid).ok()?;
-    let mut info: libc::proc_bsdinfo = unsafe { std::mem::zeroed() };
-    let size = i32::try_from(std::mem::size_of::<libc::proc_bsdinfo>()).ok()?;
-    // SAFETY: `proc_pidinfo` with flavor `PROC_PIDTBSDINFO` writes up to
-    // `size_of::<proc_bsdinfo>()` bytes into the supplied buffer. We pass a
-    // zeroed, correctly sized `proc_bsdinfo` and only read it back when the
-    // call reports it wrote exactly that many bytes — its success contract.
-    let written = unsafe {
-        libc::proc_pidinfo(
-            raw,
-            libc::PROC_PIDTBSDINFO,
-            0,
-            std::ptr::from_mut(&mut info).cast(),
-            size,
-        )
-    };
-    if written != size {
-        return None;
-    }
-    // `pbi_start_tvsec` / `pbi_start_tvusec` are both `u64` in libc.
-    Some(
-        info.pbi_start_tvsec
-            .saturating_mul(1_000_000)
-            .saturating_add(info.pbi_start_tvusec),
-    )
+    anvil_intercept_macos::process_start_time(pid)
 }
 
 #[derive(Debug)]
