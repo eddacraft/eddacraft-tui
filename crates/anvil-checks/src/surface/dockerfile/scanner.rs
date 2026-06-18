@@ -41,8 +41,11 @@ pub fn is_dockerfile(path: &Path) -> bool {
         return true;
     }
     for prefix in ["dockerfile.", "containerfile."] {
-        if let Some(suffix) = lower.strip_prefix(prefix) {
-            return !suffix.is_empty() && !DOC_EXTS.contains(&suffix);
+        if lower.starts_with(prefix) {
+            // Exclude when the FINAL extension is a doc type, so multi-suffix
+            // names like `Dockerfile.prod.md` are treated as docs, not builds.
+            let final_ext = lower.rsplit('.').next().unwrap_or("");
+            return !final_ext.is_empty() && !DOC_EXTS.contains(&final_ext);
         }
     }
     false
@@ -232,7 +235,10 @@ fn from_uses_latest(norm: &str) -> bool {
 /// `| sh`, `|bash`, `| /bin/sh`, `| ash` (Alpine), `| dash`, `| zsh`, with or
 /// without a leading absolute path.
 fn pipes_to_shell(norm: &str) -> bool {
-    norm.split('|').skip(1).any(|segment| {
+    // Neutralise `||` (shell logical-OR) so it isn't mistaken for a pipe:
+    // `curl … || sh` is a fallback, not a pipe-to-shell.
+    let piped = norm.replace("||", "  ");
+    piped.split('|').skip(1).any(|segment| {
         let after_pipe = segment.trim_start();
         // Drop a leading absolute path: `/bin/sh` -> `sh`.
         let cmd = after_pipe.rsplit('/').next().unwrap_or(after_pipe);
@@ -262,9 +268,12 @@ mod tests {
         // Suffixed build variants are a real `-f` convention.
         assert!(is_dockerfile(Path::new("Dockerfile.prod")));
         assert!(is_dockerfile(Path::new("app/Dockerfile.dev")));
-        // ...but doc files named like one are not build inputs.
+        // ...but doc files named like one are not build inputs — including
+        // multi-suffix docs whose FINAL extension is a doc type.
         assert!(!is_dockerfile(Path::new("Dockerfile.md")));
         assert!(!is_dockerfile(Path::new("Dockerfile.txt")));
+        assert!(!is_dockerfile(Path::new("Dockerfile.prod.md")));
+        assert!(!is_dockerfile(Path::new("Containerfile.dev.txt")));
         assert!(!is_dockerfile(Path::new("compose.yml")));
         assert!(!is_dockerfile(Path::new("src/main.rs")));
     }
@@ -331,6 +340,8 @@ mod tests {
         );
         // A pipe to a non-shell is fine.
         assert!(risks("RUN curl -fsSL https://x | tar xz\n").is_empty());
+        // `||` (logical OR) is a fallback, not a pipe-to-shell (council FP).
+        assert!(risks("RUN curl -fsSL https://x -o /tmp/x || sh /tmp/fallback\n").is_empty());
     }
 
     #[test]
