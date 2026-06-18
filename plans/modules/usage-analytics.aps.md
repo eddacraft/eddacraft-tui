@@ -459,8 +459,39 @@ requires founder review. The contract doc lives in
   new method without an observation fails; (c) a test asserting the
   agreed principal decision (raw principal / session_id never leaks per
   the recorded choice).
-- **Confidence:** medium-low — gated on the principal decision.
-- **Status:** Draft
+- **Execution decisions (founder, 2026-06-18):** the two gating
+  questions are settled, unblocking the item.
+  - **Principal model → add to envelope.** An optional per-call
+    principal field is added to the JSON-RPC envelope so daemon usage
+    rows carry the *same* salted-hash principal as CLI rows
+    (SHA-256(salt‖email)); raw principal never on the wire. Symmetric
+    to the CLI path rather than the weaker `session_id`-only
+    correlation. Field is optional, so absence resolves to `anonymous`
+    (parity with the unauthenticated CLI case) and existing clients
+    stay wire-compatible.
+  - **Method scope → explicit allowlist.** Only an explicit
+    user-initiated method allowlist emits `command.invoked` rows;
+    internal save-time/scan machinery (`scan_buffer`, `validate_paths`,
+    `workspace_status`, `request_full_scan`, `status_query`, session
+    lifecycle verbs) is excluded. The allowlist is the five GCTX query
+    methods (`search_symbols`, `find_dependents`, `find_callers`,
+    `impact_of_change`, `affected_tests`) plus the operator
+    `unblock-cascade` / `unblock-worktree` verbs. New human-facing
+    methods opt in deliberately, and a two-directional conformance pin
+    (modelled on `all_anvil_methods_two_directional`) asserts
+    allowlist ∪ excluded == every dispatchable method, so a new method
+    forces an explicit classification (R2 mitigation extended to the
+    daemon).
+  - **Double-count avoidance (2026-06-18).** GCTX tools have no
+    CLI-side USAGE-001 row (only the `mcp` startup command is counted),
+    so per-tool daemon rows are net-new signal. The `unblock-*` verbs
+    *do* emit a CLI-side row today; to keep the daemon row the single
+    source of truth, the CLI-side USAGE-001 producer suppresses its row
+    for the `intercept unblock-*` commands (they emit only via the
+    daemon path).
+- **Confidence:** medium — both gating decisions resolved 2026-06-18;
+  scope is a bounded protocol-additive change plus producer wiring.
+- **Status:** In Progress (feat/usage-004, 2026-06-18)
 
 ---
 
