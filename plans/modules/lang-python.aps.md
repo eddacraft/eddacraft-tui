@@ -16,11 +16,11 @@ owner, User C framework choice) stay deferred by the operator. **PYLAN-001/-002*
 (entry-point detection) via #2731; **PYLAN-006/-008** (import resolver +
 boundary/architecture-validate surface) via #2732; **PYLAN-003/-004/-007**
 (`python-reliability` anti-pattern catalogue + `#`-suppression + `.py` drift
-default-on) via #2734. Eight of nine items Merged — Python is functionally at
-T3 (parsed, symbol graph, entry points, boundary enforcement, anti-pattern
-catalogue, drift). **PYLAN-009** (User B/C dogfood FP-rate sign-off) remains,
-gated on the deferred Ready-Checklist items; the module advances to **Complete**
-only with that sign-off plus release-tag ship evidence, per the APS lifecycle.)
+default-on) via #2734; **PYLAN-009** (T3 dogfood + FP bar — 0.0% < N=1% on
+httpx + rich) via #2740. **All nine items Merged** — Python is at T3 (parsed,
+symbol graph, entry points, boundary enforcement, anti-pattern catalogue,
+drift). The module stays In Progress until a release tag ships these items
+(Released/Shipped → **Complete**), per the APS lifecycle.)
 
 ## Purpose
 
@@ -114,8 +114,8 @@ Change status to **Ready** when:
 
 ## Work Items
 
-PYLAN-001..008 are Merged (see each item below); only PYLAN-009 (User B/C
-validation) remains, gated on operator decisions.
+PYLAN-001..009 are all Merged (see each item below). The module stays In
+Progress until a release tag ships them (Released/Shipped → Complete).
 
 #### PYLAN-001: Tree-sitter-python grammar wired through the extractor trait
 
@@ -292,21 +292,22 @@ validation) remains, gated on operator decisions.
 
 ---
 
-### Remaining (governance slice landed; PYLAN-009 awaiting operator sign-off)
+### Acceptance (all nine items Merged; module → Complete on a release tag)
 
 #### PYLAN-009: Dogfood T3 acceptance + FP bar (§16.5 #9)
 
-- **Status:** External validation **done** — the ≥1-external-codebase run
-  (spec §16.5 #9 / C-014) was executed on public OSS at the operator's
-  direction: `encode/httpx` + `Textualize/rich` (~270 `.py` files, 0 panics,
-  0 parse errors). The catalogue as shipped scored **2.9% FP** (1 mis-detection:
-  `except:` inside a string literal); three precision fixes landed here drop it
+- **Status:** Merged 2026-06-18 via #2740 — external-codebase validation
+  (spec §16.5 #9 / C-014) executed on public OSS at the operator's direction:
+  `encode/httpx` + `Textualize/rich` (~270 `.py` files, 0 panics, 0 parse
+  errors), FP rate **0.0% < N = 1%** (**N accepted by the operator 2026-06-18**).
+  The catalogue as shipped scored **2.9% FP** (1 mis-detection:
+  `except:` inside a string literal); three precision fixes landed there drop it
   to **0.0% FP** default-on and 0% on the opt-in PY-006/PY-007 surfaces. Fixes:
   PY-005 allowlists `**/__init__.py` (re-export idiom), PY-007 uses a
   subscript-context `Any` match (no `from typing import Any` FP), and PY-004
   joins the comment/string-masked view (`rule_is_code_scoped`). Evidence:
   [`plans/reviews/2026-06-18-pylan-009-external-validation.md`](../reviews/2026-06-18-pylan-009-external-validation.md).
-  **Proposed N = 1%** (observed 0.0%). NOTE: Anvil itself has ~no Python, so the
+  **N = 1%** (accepted; observed 0.0%). NOTE: Anvil itself has ~no Python, so the
   "own repo" half of the bar is discharged via the public-OSS external run.
 - **Intent:** Demonstrate the full Python T3 stack on real-world code at an
   acceptable FP rate per §16.5 #9.
@@ -320,10 +321,12 @@ validation) remains, gated on operator decisions.
   `crates/anvil-checks/src/antipattern/scanner.rs`,
   `crates/anvil-checks/tests/python_antipatterns.rs`,
   `plans/reviews/2026-06-18-pylan-009-external-validation.md`
-- **Operator-gated to close:** accept **N = 1%** as the governance bar; name the
-  anchor owner; run the §16.5 #8 re-scoring gate; (optional) fold in the
-  specific User B / User C codebases. Module advances to **Complete** only with
-  a release tag, per the APS lifecycle.
+- **Remaining for module → Complete (not for this item):** all nine work items
+  are Merged, but the module stays In Progress until a release tag ships them
+  (Released/Shipped → Complete), per the APS lifecycle. Still-open governance
+  housekeeping, none blocking the shipped behaviour: name the anchor owner; run
+  the §16.5 #8 re-scoring gate; (optional) re-run against the specific
+  User B / User C codebases when available.
 - **Dependencies:** PYLAN-003, PYLAN-005, PYLAN-006
 
 ## Risks
