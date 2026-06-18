@@ -36,8 +36,26 @@ struct Stat {
     files: usize,
     panics: usize,
     error_trees: usize,
+    unreadable: usize,
+    parse_errors: usize,
     symbols: usize,
     imports: usize,
+}
+
+/// Restores the previous panic hook on drop, so an early panic anywhere in the
+/// test body (a failed assertion, an unexpected panic outside the inner
+/// `catch_unwind`) can never leave the process-global hook suppressed for
+/// subsequent tests in the same binary.
+type PanicHook = Box<dyn Fn(&std::panic::PanicHookInfo<'_>) + Sync + Send + 'static>;
+
+struct HookGuard(Option<PanicHook>);
+
+impl Drop for HookGuard {
+    fn drop(&mut self) {
+        if let Some(prev) = self.0.take() {
+            std::panic::set_hook(prev);
+        }
+    }
 }
 
 #[test]
@@ -52,8 +70,9 @@ fn external_corpus_parse_robustness() {
         "LANGTAIL_CORPUS must be a directory: {root:?}"
     );
 
-    // Silence per-file panic spew; we count panics instead.
-    let prev_hook = std::panic::take_hook();
+    // Silence per-file panic spew; we count panics instead. The guard restores
+    // the previous hook on drop even if the test panics early.
+    let _hook_guard = HookGuard(Some(std::panic::take_hook()));
     std::panic::set_hook(Box::new(|_| {}));
 
     let mut stats: BTreeMap<String, Stat> = BTreeMap::new();
@@ -88,7 +107,14 @@ fn external_corpus_parse_robustness() {
         let s = stats.entry(key.clone()).or_default();
         s.files += 1;
 
+        // An unreadable file was counted in `files` but never parsed — record
+        // it as its own failure category so the denominator stays honest rather
+        // than silently inflating the clean-parse share.
         let Ok(content) = std::fs::read(path) else {
+            s.unreadable += 1;
+            if error_files.len() < 50 {
+                error_files.push(format!("UNREADABLE {}", path.display()));
+            }
             continue;
         };
 
@@ -106,50 +132,74 @@ fn external_corpus_parse_robustness() {
                     panic_files.push(path.display().to_string());
                 }
             }
-            Ok(None) => {} // unsupported/parse_bytes error — counted as a file only
+            // `parse_bytes` returned `Err` (grammar load failure — extension is
+            // already known here). Conservatively a non-clean parse, not a
+            // free pass: count it so the robustness metric can't look better
+            // than reality.
+            Ok(None) => {
+                s.parse_errors += 1;
+                if error_files.len() < 50 {
+                    error_files.push(format!("PARSE_ERR {}", path.display()));
+                }
+            }
             Ok(Some((has_error, syms, imps))) => {
                 s.symbols += syms;
                 s.imports += imps;
                 if has_error {
                     s.error_trees += 1;
                     if error_files.len() < 50 {
-                        error_files.push(path.display().to_string());
+                        error_files.push(format!("ERRTREE {}", path.display()));
                     }
                 }
             }
         }
     }
 
-    std::panic::set_hook(prev_hook);
-
     // Report — machine-greppable.
     eprintln!("\n===== LANGTAIL EXTERNAL VALIDATION =====");
-    eprintln!(
-        "{:<10} {:>7} {:>7} {:>11} {:>9} {:>9}",
-        "lang", "files", "panics", "err-trees", "symbols", "imports"
+    let header = format!(
+        "{:<10} {:>7} {:>7} {:>10} {:>7} {:>9} {:>9} {:>9}",
+        "lang", "files", "panics", "err-trees", "unread", "parse-err", "symbols", "imports"
     );
+    eprintln!("{header}");
     let mut total = Stat::default();
     for (lang, s) in &stats {
         eprintln!(
-            "{lang:<10} {:>7} {:>7} {:>11} {:>9} {:>9}",
-            s.files, s.panics, s.error_trees, s.symbols, s.imports
+            "{lang:<10} {:>7} {:>7} {:>10} {:>7} {:>9} {:>9} {:>9}",
+            s.files, s.panics, s.error_trees, s.unreadable, s.parse_errors, s.symbols, s.imports
         );
         total.files += s.files;
         total.panics += s.panics;
         total.error_trees += s.error_trees;
+        total.unreadable += s.unreadable;
+        total.parse_errors += s.parse_errors;
         total.symbols += s.symbols;
         total.imports += s.imports;
     }
     eprintln!(
-        "{:<10} {:>7} {:>7} {:>11} {:>9} {:>9}",
-        "TOTAL", total.files, total.panics, total.error_trees, total.symbols, total.imports
+        "{:<10} {:>7} {:>7} {:>10} {:>7} {:>9} {:>9} {:>9}",
+        "TOTAL",
+        total.files,
+        total.panics,
+        total.error_trees,
+        total.unreadable,
+        total.parse_errors,
+        total.symbols,
+        total.imports
     );
-    let err_pct = if total.files > 0 {
-        100.0 * total.error_trees as f64 / total.files as f64
+    // Conservative "not cleanly parsed" rate: every file that wasn't a clean
+    // error-free parse (error-tree OR unreadable OR parse_bytes failure).
+    let not_clean = total.error_trees + total.unreadable + total.parse_errors;
+    let not_clean_pct = if total.files > 0 {
+        100.0 * not_clean as f64 / total.files as f64
     } else {
         0.0
     };
-    eprintln!("error-tree rate: {err_pct:.2}% of {} files", total.files);
+    eprintln!(
+        "not-cleanly-parsed rate: {not_clean_pct:.2}% ({not_clean} of {} files) \
+         [err-trees {} + unreadable {} + parse-err {}]",
+        total.files, total.error_trees, total.unreadable, total.parse_errors
+    );
     if !panic_files.is_empty() {
         eprintln!("\n-- panic files (up to 50) --");
         for f in &panic_files {
@@ -157,9 +207,9 @@ fn external_corpus_parse_robustness() {
         }
     }
     if !error_files.is_empty() {
-        eprintln!("\n-- error-tree files (up to 50) --");
+        eprintln!("\n-- not-cleanly-parsed files (up to 50) --");
         for f in &error_files {
-            eprintln!("  ERRTREE {f}");
+            eprintln!("  {f}");
         }
     }
 

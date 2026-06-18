@@ -23,8 +23,13 @@ Harness: `crates/anvil-kernel/tests/langtail_external_validation.rs` (gated by
 corpus whose extension maps to a tail-wave `Language`, it runs the production
 parse + symbol-extraction path (`Parser::parse_bytes` + `extract_symbols`)
 inside `catch_unwind`, tallying per language: files, **panics**, **error-trees**
-(`root.has_error()`), and extracted symbols/imports. Run once per repo so signals
-stay isolated.
+(`root.has_error()`), **unreadable** files, **parse_bytes failures**, and
+extracted symbols/imports. Run once per repo so signals stay isolated. The
+harness counts unreadable + `parse_bytes` failures as their own conservative
+"not-cleanly-parsed" categories (never silent skips); both were **0** in this
+run, so the per-language error-tree rate equals the not-cleanly-parsed rate.
+The panic hook is restored via a `Drop` guard so an early test panic can't
+leak a suppressed hook.
 
 ## Corpus
 
