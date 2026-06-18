@@ -23,12 +23,12 @@ sorted all 36 against Anvil's actual detection model:
 
 - **4 are already covered** by the `secret` engine check (hardcoded
   credentials / keys) — duplicating them is pure cost.
-- **18 are out of Anvil's model.** Anvil is a *deterministic single-file regex +
+- **19 are out of Anvil's model.** Anvil is a *deterministic single-file regex +
   AST-query scanner* (ADR-071), not a taint-based SAST. Items whose real
   detection needs untrusted-input-reaches-sink taint (reflected/stored XSS,
   output encoding) or the *absence* of a control (missing rate limiting, MFA,
   CSP, server-side validation) cannot be expressed at any Anvil tier.
-- **~14 are new-family candidates,** but only a minority are low-false-positive
+- **13 are new-family candidates,** but only a minority are low-false-positive
   enough to ship enabled-by-default; the injection class is a *syntactic smell*
   without taint and would fail the §16.5 #9 FP bar if on by default.
 
@@ -95,8 +95,9 @@ absence-class items explicitly out of scope.
    absence-class (missing rate limiting, MFA, CSP, server-side validation,
    length limits) items are **out of model** and will not be added by stretching
    regex/AST to approximate them. Detecting them properly is a different product;
-   that decision, if ever made, is a separate ADR. A one-line scope note lands in
-   `docs/vision/anvil-scope-guard.md`.
+   that decision, if ever made, is a separate ADR. **Follow-up (not part of this
+   ADR's change set):** the implementing PR should add a one-line scope note to
+   `docs/vision/anvil-scope-guard.md` recording this boundary.
 
 6. **Posture preserved.** All `insecure-construction` rules are warnings under
    the new-edges-only baseline, exit 0 by default, suppressible via the

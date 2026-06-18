@@ -84,9 +84,9 @@ Legend — **Disp**: C=Covered, R=Route-out, F=New family, X=Out of model.
 
 - **Covered (secret check): 4** — #1, 2, 3, 25. Possibly extend secret patterns
   for #25.
-- **Out of model: 18** — taint-class (#12, 13, 16, 35), absence-class (#15, 18,
+- **Out of model: 19** — taint-class (#12, 13, 16, 35), absence-class (#15, 18,
   22, 31, 33), and semantic/flow (#4, 5, 17, 20, 23, 27, 28, 30, 32, 36).
-- **New-family candidates: 14** — but only a *minority* are low-FP enough to
+- **New-family candidates: 13** — but only a *minority* are low-FP enough to
   ship enabled-by-default:
   - **Low/med FP, regex, viable first wave:** #24 (deprecated algos), #26 (ECB),
     #21 (JWT none), #14 (DOM-XSS sinks), #11 (SSTI → extend `dynamic-execution`).
