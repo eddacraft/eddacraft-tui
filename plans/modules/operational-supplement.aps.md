@@ -14,7 +14,7 @@ Cross-cutting convention: see plans/aps-rules.md#cross-cutting-modules.
 | ----- | ------- | ----------- | -------- |
 | OPSUP | OpenCode | In Progress | 4/7      |
 
-**Last reviewed:** 2026-05-17
+**Last reviewed:** 2026-06-18
 
 ## Cross-cutting convention
 
