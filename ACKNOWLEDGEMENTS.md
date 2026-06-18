@@ -1266,7 +1266,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `tree-sitter-cpp` | 0.23.4 | MIT License | https://github.com/tree-sitter/tree-sitter-cpp |
 | `tree-sitter-java` | 0.23.5 | MIT License | https://github.com/tree-sitter/tree-sitter-java |
 | `tree-sitter-kotlin-ng` | 1.1.0 | MIT License | https://github.com/tree-sitter-grammars/tree-sitter-kotlin |
-| `tree-sitter-python` | 0.23.6 | MIT License | https://github.com/tree-sitter/tree-sitter-python |
+| `tree-sitter-python` | 0.25.0 | MIT License | https://github.com/tree-sitter/tree-sitter-python |
 | `tree-sitter-typescript` | 0.23.2 | MIT License | https://github.com/tree-sitter/tree-sitter-typescript |
 | `uuid-simd` | 0.8.0 | MIT License | https://github.com/Nugine/simd |
 | `vsimd` | 0.8.0 | MIT License | https://github.com/Nugine/simd |
