@@ -1,9 +1,10 @@
 //! `anvil intercept` — INTD-001 scaffold + INTD-011 status surface.
 //!
 //! Wires the shipped `anvil` binary's CLI surface to the intercept
-//! daemon library. Today this implements `start --foreground` (INTD-001)
-//! and `status` (INTD-011); backgrounded launch (`stop`, daemonised
-//! `start`) arrives with later INTD tasks.
+//! daemon library. Today this implements `start --foreground` (INTD-001),
+//! `status` (INTD-011), `unblock` (RCLI3-017b), and `stop` (V060F-002 —
+//! signal the running daemon's PID file); a daemonised (non-foreground)
+//! `start` arrives with later INTD tasks.
 
 use anvil_intercept::{ForegroundOpts, Shutdown, config, run_foreground, wait_for_shutdown_signal};
 use anvil_intercept_proto::status::DaemonStatusV1;
@@ -57,6 +58,12 @@ enum InterceptCommand {
     ///    `degraded:fence-cascade` engaged state. The two modes
     ///    target different daemon state and do NOT overlap.
     Unblock(UnblockArgs),
+    /// Stop the per-user intercept daemon. Sends SIGTERM to the PID
+    /// recorded in the daemon's PID file; the daemon flushes fence
+    /// state, unbinds its IPC listener, and exits cleanly. Idempotent —
+    /// exits zero when no daemon is running. Unix-only for now
+    /// (background daemon lifecycle is Unix-only; DSV-010/011).
+    Stop,
 }
 
 #[derive(Debug, Args)]
@@ -110,7 +117,44 @@ pub fn run(args: &InterceptArgs, _global: &GlobalArgs) -> Result<()> {
         InterceptCommand::Start(start_args) => run_start(start_args),
         InterceptCommand::Status(status_args) => run_status(status_args),
         InterceptCommand::Unblock(unblock_args) => run_unblock(unblock_args),
+        InterceptCommand::Stop => run_stop(),
     }
+}
+
+/// V060F-002: stop the per-user intercept daemon. Delegates to the
+/// `anvil_intercept` lookup-and-signal primitive (which owns the `nix`
+/// dependency and the PID-file semantics) and renders the outcome.
+/// Idempotent: a missing or stale PID file exits zero with an
+/// informational line, matching the `unblock` no-op convention.
+#[cfg(unix)]
+fn run_stop() -> Result<()> {
+    use anvil_intercept::StopOutcome;
+
+    match anvil_intercept::request_daemon_stop()? {
+        StopOutcome::Signalled { pid } => println!(
+            "sent SIGTERM to the anvil intercept daemon (pid {pid}); it will flush fence state \
+             and exit",
+        ),
+        StopOutcome::NotRunning => {
+            println!("anvil intercept daemon is not running (no PID file)");
+        }
+        StopOutcome::StaleCleared { pid } => println!(
+            "anvil intercept daemon is not running; cleared a stale PID file (recorded pid {pid})",
+        ),
+    }
+    Ok(())
+}
+
+/// Non-Unix entry: the background daemon lifecycle (and therefore a
+/// PID-file to signal) is Unix-only today — the save-time Windows gap is
+/// tracked under DSV-010/011. Bail with an actionable line rather than
+/// pretending to stop a daemon that was never backgrounded here.
+#[cfg(not(unix))]
+fn run_stop() -> Result<()> {
+    anyhow::bail!(
+        "`anvil intercept stop` is not supported on this platform yet — the background daemon \
+         lifecycle is Unix-only (DSV-010/011). Stop a foreground daemon with Ctrl+C.",
+    )
 }
 
 fn run_unblock(args: &UnblockArgs) -> Result<()> {

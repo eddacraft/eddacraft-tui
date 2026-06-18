@@ -834,6 +834,119 @@ fn existing_pid_status(record: &str) -> ExistingPidStatus {
     }
 }
 
+/// Outcome of an `anvil intercept stop` request (V060F-002).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StopOutcome {
+    /// SIGTERM was delivered to a live daemon with this PID. The daemon's
+    /// `run_foreground` handler flushes fence state, unbinds the IPC
+    /// listener, and removes its own PID file on exit.
+    Signalled { pid: u32 },
+    /// No PID file was present — the daemon is not running. Idempotent no-op.
+    NotRunning,
+    /// The PID file pointed at a process that is no longer alive; the stale
+    /// file was removed. Idempotent no-op as far as the daemon is concerned.
+    StaleCleared { pid: u32 },
+}
+
+/// The pure decision for [`stop_daemon_at`]: what to do given the PID-file
+/// contents, with liveness classification injected so the branch selection is
+/// unit-testable without real processes or signals (mirrors the
+/// inject-the-effect style used by [`default_pid_file_path_from`] and the
+/// `ensure` primitive).
+#[derive(Debug, PartialEq, Eq)]
+enum StopPlan {
+    NotRunning,
+    Signal { pid: u32 },
+    ClearStale { pid: u32 },
+    Malformed,
+}
+
+fn parse_pid_record(record: &str) -> Option<u32> {
+    record
+        .lines()
+        .next()
+        .and_then(|line| line.trim().parse::<u32>().ok())
+}
+
+fn plan_stop(record: Option<&str>, classify: impl Fn(&str) -> ExistingPidStatus) -> StopPlan {
+    let Some(record) = record else {
+        return StopPlan::NotRunning;
+    };
+    let Some(pid) = parse_pid_record(record) else {
+        return StopPlan::Malformed;
+    };
+    match classify(record) {
+        ExistingPidStatus::Live => StopPlan::Signal { pid },
+        ExistingPidStatus::Stale => StopPlan::ClearStale { pid },
+        ExistingPidStatus::Unknown => StopPlan::Malformed,
+    }
+}
+
+/// Stop the per-user intercept daemon by sending SIGTERM to the PID recorded
+/// in the [`default_pid_file_path`]. The daemon's `run_foreground` SIGTERM
+/// handler flushes fence state, unbinds the IPC listener, and removes the PID
+/// file on exit, so this is a thin lookup-and-signal wrapper (V060F-002).
+///
+/// Idempotent: a missing PID file yields [`StopOutcome::NotRunning`]; a PID
+/// file whose process has already exited yields [`StopOutcome::StaleCleared`]
+/// after removing the stale file. Neither is an error.
+#[cfg(unix)]
+pub fn request_daemon_stop() -> Result<StopOutcome> {
+    let path = default_pid_file_path()?;
+    stop_daemon_at(&path)
+}
+
+#[cfg(unix)]
+fn stop_daemon_at(path: &Path) -> Result<StopOutcome> {
+    let record = match fs::read_to_string(path) {
+        Ok(record) => Some(record),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => None,
+        Err(err) => {
+            return Err(anyhow::Error::new(err))
+                .with_context(|| format!("failed to read PID file {}", path.display()));
+        }
+    };
+    match plan_stop(record.as_deref(), existing_pid_status) {
+        StopPlan::NotRunning => Ok(StopOutcome::NotRunning),
+        StopPlan::Signal { pid } => {
+            send_sigterm(pid)?;
+            Ok(StopOutcome::Signalled { pid })
+        }
+        StopPlan::ClearStale { pid } => {
+            match fs::remove_file(path) {
+                Ok(()) => {}
+                Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+                Err(err) => {
+                    return Err(anyhow::Error::new(err)).with_context(|| {
+                        format!("failed to remove stale PID file {}", path.display())
+                    });
+                }
+            }
+            Ok(StopOutcome::StaleCleared { pid })
+        }
+        StopPlan::Malformed => anyhow::bail!(
+            "PID file {} is malformed (no parseable daemon PID); remove it manually if the \
+             daemon is not running",
+            path.display(),
+        ),
+    }
+}
+
+/// Send SIGTERM to `pid`. A process that has already exited (`ESRCH`) between
+/// the liveness classification and the signal is treated as success — the
+/// daemon is gone either way.
+#[cfg(unix)]
+fn send_sigterm(pid: u32) -> Result<()> {
+    let raw = i32::try_from(pid)
+        .map_err(|_| anyhow::anyhow!("daemon PID {pid} is out of range for signalling"))?;
+    match kill(Pid::from_raw(raw), Some(nix::sys::signal::Signal::SIGTERM)) {
+        Ok(()) | Err(Errno::ESRCH) => Ok(()),
+        Err(err) => Err(anyhow::anyhow!(
+            "failed to send SIGTERM to daemon PID {pid}: {err}"
+        )),
+    }
+}
+
 #[cfg(unix)]
 fn process_exists(pid: u32) -> bool {
     let Ok(pid) = i32::try_from(pid) else {
@@ -1422,6 +1535,51 @@ mod tests {
         assert_eq!(
             p,
             PathBuf::from("/home/somebody/.local/state/anvil/intercept.pid")
+        );
+    }
+
+    // V060F-002: `anvil intercept stop` plan resolution. The branch
+    // selection is pure with liveness classification injected, so each
+    // outcome is pinned without spawning a process or sending a signal.
+    #[test]
+    fn plan_stop_missing_pid_file_is_not_running() {
+        assert_eq!(
+            plan_stop(None, |_| ExistingPidStatus::Live),
+            StopPlan::NotRunning
+        );
+    }
+
+    #[test]
+    fn plan_stop_live_daemon_signals_its_pid() {
+        assert_eq!(
+            plan_stop(Some("4321\nstart_time=99\n"), |_| ExistingPidStatus::Live),
+            StopPlan::Signal { pid: 4321 }
+        );
+    }
+
+    #[test]
+    fn plan_stop_dead_daemon_clears_stale_pid() {
+        assert_eq!(
+            plan_stop(Some("4321\n"), |_| ExistingPidStatus::Stale),
+            StopPlan::ClearStale { pid: 4321 }
+        );
+    }
+
+    #[test]
+    fn plan_stop_unparseable_pid_is_malformed() {
+        assert_eq!(
+            plan_stop(Some("not-a-pid\n"), |_| ExistingPidStatus::Live),
+            StopPlan::Malformed
+        );
+    }
+
+    #[test]
+    fn plan_stop_unprovable_liveness_is_malformed() {
+        // An unparseable/old record that `existing_pid_status` cannot prove
+        // either way must not blindly signal an arbitrary PID.
+        assert_eq!(
+            plan_stop(Some("4321\n"), |_| ExistingPidStatus::Unknown),
+            StopPlan::Malformed
         );
     }
 

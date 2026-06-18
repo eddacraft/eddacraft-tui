@@ -35,7 +35,7 @@ See: plans/aps-rules.md
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| V060F | —     | In Progress | 18/25    |
+| V060F | —     | In Progress | 19/25    |
 
 **Last reviewed:** 2026-06-19 (full triage pass + Wave 1 shipped — re-verified
 all 21 open items against HEAD; 8 closed as resolved-elsewhere:
@@ -149,7 +149,18 @@ discovery.
   is a thin lookup-and-signal wrapper. Update the runbook §1 and §3
   framing once shipped.
 - **Confidence:** high
-- **Status:** Open
+- **Status:** Done (Wave 2, 2026-06-19) — `Stop` variant added to
+  `InterceptCommand`. The lookup-and-signal primitive lives in
+  `anvil_intercept::request_daemon_stop` (owns the `nix` dep): reads
+  `default_pid_file_path`, classifies via the existing
+  `existing_pid_status`, and SIGTERMs a live daemon. Idempotent — missing
+  PID file → `NotRunning`, dead PID → `StaleCleared` (removes the stale
+  file), both exit 0. Pure `plan_stop` resolver unit-tested (5 cases);
+  CLI no-daemon + stale-clear paths covered by
+  `crates/anvil-cli/tests/intercept_stop.rs`. Non-Unix bails with an
+  actionable line (background lifecycle is Unix-only; DSV-010/011). The
+  runbook §1/§3 reframe is deferred to a docs follow-up (Windows
+  named-pipe stop remains out of scope until DSV-010/011).
 
 ---
 
@@ -840,7 +851,8 @@ Disjoint single-file edits; no code-build risk. All five shipped together.
 
 ### Wave 2 — operator surface & UX correctness (4 items, parallel, disjoint crates)
 
-- **V060F-002** — `anvil intercept stop` subcommand (`anvil-cli` commands)
+- **V060F-002** ✅ (2026-06-19) — `anvil intercept stop` subcommand + the
+  `anvil_intercept::request_daemon_stop` lookup-and-signal primitive
 - **V060F-004** — macOS `current_process_start_time` via `proc_pidinfo`
   (`anvil-intercept` interrupt ladder — removes the macOS fence-telemetry skew)
 - **V060F-018** ✅ (2026-06-19) — stale premise: production already renders
@@ -881,11 +893,11 @@ or sequence to avoid collisions on the command modules.
 | ------------------------------------ | ----- | ------------------------------------------------------ |
 | Deferrals (v0.5.0-beta)              | 0     | —                                                      |
 | Nominations                          | 1     | Complete (V060F-001)                                   |
-| As-built sweep follow-ups (batch 1)  | 10    | 6 Done / 4 Open (triage closed 003/005/010/011; Wave 1 closed 008/009) |
+| As-built sweep follow-ups (batch 1)  | 10    | 7 Done / 3 Open (triage closed 003/005/010/011; Wave 1 closed 008/009; Wave 2 closed 002) |
 | As-built sweep follow-ups (batch 2)  | 8     | 5 Done / 3 Open (triage closed 012/013/017; Wave 1 closed 014; Wave 2 closed 018) |
 | As-built sweep follow-ups (batch 3)  | 5     | 5 Done / 0 Open (020/021/022; Wave 1 closed 023/024) |
 | OPA runtime refresh                  | 1     | Complete (V060F-025, 2026-05-08)                      |
-| **Total**                            | **25** | 18 Done / 7 Open (Wave 2 V060F-018; counts reconcile with sibling Wave 2 PR V060F-002 #2781 at merge) |
+| **Total**                            | **25** | 19 Done / 6 Open (Wave 2 V060F-002 + V060F-018; V060F-004 remains in #2784) |
 
 Batch 1 (intercept / activation / MCP shim / checks / kernel as-builts) split:
 
