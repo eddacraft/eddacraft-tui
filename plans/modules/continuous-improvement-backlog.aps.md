@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 47/79    |
+| CIB | —     | In Progress | 47/82    |
 
 ## Purpose
 
@@ -2191,3 +2191,74 @@ archive.
 - **Confidence:** medium — the AST mechanism is proven and the rule shapes are
   well-specified, but the precise hot-loop predicate and secret-field heuristic
   need tuning against the FP bar.
+
+### CIB-080: secret-detection test-vector / fixture false positives
+
+- **Status:** Proposed 2026-06-18
+- **Intent:** Suppress the residual secret-detection false positives the
+  external-codebase FP dogfood surfaced beyond the credit-card class (fixed in
+  PR #2747): high-entropy base64 test vectors, `mongodb://` validator fixtures
+  (zod), and JWT / database-URL / API-key literals that are test data, not
+  leaked credentials.
+- **Expected Outcome:** the secret detectors gain the masking / test-path /
+  field-proximity gating the `AP-*` / `GS-*` rules already have — e.g. skip
+  obvious test-vector contexts and require a credential-shaped key in proximity
+  — so the language-agnostic secret scan no longer dominates the FP count on
+  fixture-heavy repos, without weakening detection of real high-confidence
+  patterns (issue #1800 textbook keys must still fire).
+- **Files:** `crates/anvil-checks/src/secret/scanner.rs`,
+  `crates/anvil-checks/src/secret/entropy.rs`, `crates/anvil-checks/src/secret/patterns.rs`.
+- **Validation:** `cargo test -p eddacraft-anvil-checks secret::`; re-run
+  `scripts/dogfood/external-fp` over the pinned corpus and confirm the
+  `SECRET-HIGH-ENTROPY-STRING` / `SECRET-DATABASE-URL` / `SECRET-JWT-TOKEN`
+  counts drop while real-credential fixtures still fire.
+- **Identified From:** the 2026-06-18 external-codebase FP dogfood
+  ([plans/reviews/2026-06-18-langts-external-fp.md](../reviews/2026-06-18-langts-external-fp.md)
+  cross-cutting secret-detection section).
+- **Confidence:** medium — the gating patterns are well understood, but
+  balancing test-vector suppression against issue #1800's "textbook keys must
+  fire" stance needs care.
+
+### CIB-081: RS-005 doc-config (`cfg(doc)` / `cfg(docsrs)`) residual
+
+- **Status:** Proposed 2026-06-18
+- **Intent:** Decide how RS-005 should treat `todo!()` / `unimplemented!()`
+  stubs gated by `#[cfg(doc)]` / `#[cfg(docsrs)]` — doc-build-only signature
+  stubs that are not shipped runtime code but are still flagged after the
+  AST conversion (PR #2743) because `in_cfg_test` only matches `cfg(test)`.
+- **Expected Outcome:** either extend the AST cfg predicate to treat
+  `doc` / `docsrs` as non-shipped (excluding such stubs) or document the
+  decision to keep flagging them as suppressible via
+  `// @anvil-ignore RS-005 -- doc-only stub`; whichever is chosen, a fixture
+  pins the behaviour.
+- **Files:** `crates/anvil-checks-ast/src/predicates.rs`,
+  `crates/anvil-checks-ast/src/lib.rs`, `crates/anvil-checks-ast/src/tests.rs`.
+- **Validation:** `cargo test -p eddacraft-anvil-checks-ast`.
+- **Identified From:** the 2026-06-18 external-codebase FP dogfood
+  ([plans/reviews/2026-06-18-rstlan-external-fp.md](../reviews/2026-06-18-rstlan-external-fp.md))
+  — tokio `process/mod.rs` / `macros/*.rs` doc-only stubs.
+- **Confidence:** medium — small, well-scoped; mostly a policy decision on
+  whether doc-only configs count as shipped code.
+
+### CIB-082: tree-sitter-rust parse-skip coverage gap
+
+- **Status:** Proposed 2026-06-18
+- **Intent:** Close (or upstream) the tree-sitter-rust 0.24 grammar gaps that
+  make real Rust files parse-skip, leaving the `RS-*` AST catalogue silently
+  blind to them. The external-FP dogfood hit a 2.3% parse-skip rate on
+  alacritty (`src/config/bindings.rs` — bare `~Ident::CONST` macro-matcher
+  tokens; `src/display/window.rs` — attributes on function parameters), above
+  the internal dogfood's < 2% clean-parse bar.
+- **Expected Outcome:** a grammar bump that parses these constructs (or a filed
+  upstream issue + a tracked pin), and a parse-skip-rate assertion in the
+  external-FP harness so a regression is visible.
+- **Files:** `crates/anvil-checks-ast/` (grammar dependency / cache key),
+  `scripts/dogfood/external-fp/`.
+- **Validation:** re-run `scripts/dogfood/external-fp` over alacritty and
+  confirm `anvil-ast-parse-skip` count drops to 0 (or the rate stays logged
+  under the bar).
+- **Identified From:** the 2026-06-18 external-codebase FP dogfood
+  ([plans/reviews/2026-06-18-rstlan-external-fp.md](../reviews/2026-06-18-rstlan-external-fp.md)
+  parse-skips section).
+- **Confidence:** low — depends on upstream tree-sitter-rust grammar coverage;
+  may resolve to a documented limitation rather than a code fix.
