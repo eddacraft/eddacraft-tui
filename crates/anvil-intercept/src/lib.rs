@@ -1295,7 +1295,7 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
             // cross-check context stays Linux-only (`SO_PEERCRED` PID-based);
             // the Windows peer boundary is the owner-only pipe DACL plus the
             // explicit peer-SID compare in the accept loop.
-            listener
+            let listener = listener
                 .with_status_provider(Arc::clone(&status_provider))
                 .with_limits(ipc_limits)
                 .with_save_time_state(Arc::clone(&save_time_state))

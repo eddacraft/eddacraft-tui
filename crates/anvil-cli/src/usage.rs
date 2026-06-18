@@ -336,7 +336,19 @@ fn incoming_traceparent() -> Option<String> {
 /// raw email is never returned.
 pub fn current_principal() -> Result<String> {
     let state_dir = credentials::credentials_dir().context("resolve usage state directory")?;
-    let salt = load_or_create_salt_in(&state_dir)?;
+    resolve_principal_in(&state_dir)
+}
+
+/// Resolve the salted-hash principal under an explicit state directory:
+/// load (or create) the per-deployment salt and hash the loaded email,
+/// or `anonymous` when no credential is present. Shared by
+/// [`current_principal`] (client/daemon-attach path) and
+/// [`record_invocation`] (CLI producer) so the salt-load + hashing logic
+/// has one home.
+fn resolve_principal_in(state_dir: &Path) -> Result<String> {
+    let salt = load_or_create_salt_in(state_dir)?;
+    // Credential load failure or absence is fine — an unauthenticated
+    // invocation records the `anonymous` principal.
     let email = credentials::load().ok().flatten().and_then(|c| c.email);
     Ok(anonymise_principal(email.as_deref(), &salt))
 }
@@ -359,12 +371,7 @@ pub fn attach_principal(frame: &mut serde_json::Value) {
 
 pub fn record_invocation(command_name: &str) -> Result<()> {
     let state_dir = credentials::credentials_dir().context("resolve usage state directory")?;
-    let salt = load_or_create_salt_in(&state_dir)?;
-
-    // Credential load failure or absence is fine — an unauthenticated
-    // invocation records the `anonymous` principal.
-    let email = credentials::load().ok().flatten().and_then(|c| c.email);
-    let principal = anonymise_principal(email.as_deref(), &salt);
+    let principal = resolve_principal_in(&state_dir)?;
 
     let argv: Vec<String> = env::args().collect();
     let arg_shapes = arg_shapes_from_argv(&argv);

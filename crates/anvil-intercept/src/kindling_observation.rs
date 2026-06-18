@@ -250,6 +250,13 @@ pub struct ObservationInputs {
 /// `packages/kindling-integration/src/observation-contract.ts`.
 pub const KIND_COMMAND_INVOKED: &str = "command.invoked";
 
+/// USAGE-004: fixed placeholder recorded for a nested object/array
+/// JSON-RPC param by [`arg_shapes_from_params`]. Using a constant (rather
+/// than the serialised value) keeps the coarse length bucket independent
+/// of the nested structure's size, so neither nested values nor nested
+/// size leak.
+const NESTED_PARAM_MARKER: &str = "<nested>";
+
 /// One resolved feature-flag entry captured inline on a usage row, per
 /// ADR-041 (`plans/decisions/041-flag-snapshot-usage-join-contract.md`).
 ///
@@ -350,10 +357,15 @@ pub fn from_command_invocation(
 ///
 /// Value mapping: a JSON string feeds `redact_arg` directly; `null` is
 /// treated as an absent value (bare-flag shape); scalars (bool/number)
-/// are stringified compactly; nested arrays/objects are compact-JSON
-/// serialised purely to measure their coarse length bucket — the bucket
-/// (never an exact length) is the backstop that keeps structure size
-/// from leaking. A non-object `params` (or `Null`) yields no shapes.
+/// are stringified compactly; a nested array/object records a fixed
+/// [`NESTED_PARAM_MARKER`] (never its serialised content), so neither the
+/// nested values nor the nested structure's *size* leak. A non-object
+/// `params` (or `Null`) yields no shapes.
+///
+/// A sensitive-named nested key (e.g. `params.opts.token`) is not
+/// individually marker-redacted — but its value is never captured
+/// either, so nothing sensitive leaks; only the top-level key's presence
+/// is recorded.
 #[must_use]
 pub fn arg_shapes_from_params(params: &serde_json::Value) -> Vec<ArgShape> {
     use anvil_observability::redaction::redact_arg;
@@ -370,7 +382,15 @@ pub fn arg_shapes_from_params(params: &serde_json::Value) -> Vec<ArgShape> {
             Value::String(s) => redact_arg(key, Some(s)),
             Value::Bool(b) => redact_arg(key, Some(if *b { "true" } else { "false" })),
             Value::Number(n) => redact_arg(key, Some(&n.to_string())),
-            other => redact_arg(key, Some(&other.to_string())),
+            // Nested object/array: feed a FIXED marker, never the
+            // serialised content. Measuring the serialised form would let
+            // the coarse length bucket leak the nested structure's size
+            // (a daemon-only signal the flat CLI argv path cannot produce)
+            // and a sensitive key nested one level deep would not be
+            // name-redacted. The fixed marker keeps the length bucket
+            // constant regardless of nested size; the value is never
+            // stored either way. (Council: nested-param redaction.)
+            Value::Object(_) | Value::Array(_) => redact_arg(key, Some(NESTED_PARAM_MARKER)),
         })
         .collect()
 }
@@ -1402,6 +1422,12 @@ pub struct CommandInvokedEmissionRequest<'a> {
 pub struct CommandInvokedEmitter {
     sink: Arc<dyn KindlingObservationSink>,
     daemon_session_id: String,
+    /// USAGE-004: `true` while the sink is in a failing run. Suppresses
+    /// the per-call `warn!` after the first failure so a persistently
+    /// unwritable sidecar (disk full, permission drift) cannot flood the
+    /// trace stream under high-frequency GCTX traffic — one warn on the
+    /// edge into failure, one info on recovery. (Council: log-spam.)
+    sink_failing: std::sync::atomic::AtomicBool,
 }
 
 impl CommandInvokedEmitter {
@@ -1412,6 +1438,7 @@ impl CommandInvokedEmitter {
         Self {
             sink,
             daemon_session_id,
+            sink_failing: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
@@ -1462,14 +1489,35 @@ impl CommandInvokedEmitter {
         };
         let observation = from_command_invocation(&ctx, args, Vec::new());
         match self.sink.try_emit_command_invoked(observation) {
-            Ok(()) => CommandEmissionOutcome::Emitted,
+            Ok(()) => {
+                // Recovery edge: log once when the sink starts working again.
+                if self
+                    .sink_failing
+                    .swap(false, std::sync::atomic::Ordering::Relaxed)
+                {
+                    tracing::info!(
+                        target: "anvil_intercept::kindling_observation",
+                        "command.invoked sink recovered; resuming usage rows",
+                    );
+                }
+                CommandEmissionOutcome::Emitted
+            }
             Err(err) => {
-                tracing::warn!(
-                    target: "anvil_intercept::kindling_observation",
-                    method = request.method,
-                    error = %err,
-                    "command.invoked emit dropped: sink failure",
-                );
+                // Failure edge: warn once on entering a failing run, then
+                // suppress per-call warns until recovery so a persistently
+                // unwritable sidecar cannot flood the trace stream.
+                if !self
+                    .sink_failing
+                    .swap(true, std::sync::atomic::Ordering::Relaxed)
+                {
+                    tracing::warn!(
+                        target: "anvil_intercept::kindling_observation",
+                        method = request.method,
+                        error = %err,
+                        "command.invoked emit dropped: sink failure; \
+                         suppressing per-call warnings until the sink recovers",
+                    );
+                }
                 CommandEmissionOutcome::SinkError
             }
         }
@@ -1574,6 +1622,44 @@ mod tests {
         assert!(recorder.recorded_command_invocations().is_empty());
     }
 
+    /// USAGE-004 (Council: log-spam): repeated sink failures all return
+    /// `SinkError` (rows always dropped, dispatch never coupled to sink
+    /// health), and a later success resumes recording — the failing-run
+    /// state used to throttle per-call warnings clears on recovery.
+    #[test]
+    fn command_invoked_emitter_recovers_after_failing_run() {
+        let (emitter, recorder) = CommandInvokedEmitter::with_recorder("daemon-session-4");
+        let params = serde_json::Value::Null;
+        let req = |method| CommandInvokedEmissionRequest {
+            method,
+            principal: None,
+            params: &params,
+            timestamp: "2026-06-18T10:00:00Z",
+            traceparent: None,
+        };
+
+        // Two consecutive failures (the throttle suppresses the 2nd warn,
+        // but both still drop the row and report SinkError).
+        recorder.fail_next_command_with(KindlingSinkError::Unavailable("disk full".to_owned()));
+        assert_eq!(
+            emitter.try_emit(&req("anvil/gctx/find_callers")),
+            CommandEmissionOutcome::SinkError
+        );
+        recorder.fail_next_command_with(KindlingSinkError::Unavailable("disk full".to_owned()));
+        assert_eq!(
+            emitter.try_emit(&req("anvil/gctx/find_callers")),
+            CommandEmissionOutcome::SinkError
+        );
+        assert!(recorder.recorded_command_invocations().is_empty());
+
+        // Recovery: the next call succeeds and the row lands.
+        assert_eq!(
+            emitter.try_emit(&req("anvil/gctx/search_symbols")),
+            CommandEmissionOutcome::Emitted
+        );
+        assert_eq!(recorder.recorded_command_invocations().len(), 1);
+    }
+
     /// USAGE-004: a JSON-RPC `params` object maps to one redacted
     /// `ArgShape` per top-level key, in sorted order, with no raw value
     /// retained and sensitive-named keys elided to the marker.
@@ -1602,6 +1688,30 @@ mod tests {
             !json.contains("fn handle_jsonrpc_request"),
             "raw query value leaked: {json}"
         );
+    }
+
+    /// USAGE-004 (Council: nested-param redaction): a nested object/array
+    /// is recorded as the fixed marker, so neither nested values nor the
+    /// nested structure's size leak. Two differently-sized nested objects
+    /// must produce identical shape metadata.
+    #[test]
+    fn arg_shapes_from_params_does_not_leak_nested_content_or_size() {
+        let small = arg_shapes_from_params(&serde_json::json!({"filter": {"a": 1}}));
+        let large = arg_shapes_from_params(&serde_json::json!({
+            "filter": {"token": "supersecretvalue", "a": 1, "b": 2, "c": [1,2,3,4,5]}
+        }));
+        assert_eq!(small.len(), 1);
+        assert_eq!(large.len(), 1);
+        // Same coarse shape regardless of nested size → no size leak.
+        assert_eq!(small[0].shape, large[0].shape);
+        assert_eq!(small[0].length, large[0].length);
+        // No nested value or nested key leaks into the serialised row.
+        let json = serde_json::to_string(&large).expect("serialise");
+        assert!(
+            !json.contains("supersecretvalue"),
+            "nested value leaked: {json}"
+        );
+        assert!(!json.contains("token"), "nested key leaked: {json}");
     }
 
     /// USAGE-004: `null` params (and any non-object) yield no shapes —

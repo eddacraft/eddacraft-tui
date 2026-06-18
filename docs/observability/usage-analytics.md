@@ -261,6 +261,32 @@ user-scoped `<credentials_dir>/kindling/usage.ndjson` sidecar. The path is
 resolved by the CLI (which owns the `ANVIL_HOME`/credentials re-rooting) and
 injected into the daemon, so the daemon and CLI never diverge on where rows
 land. `flag_set` is empty on the daemon path (no resolver there). Emission is
-keyed on _invocation_ (recorded before dispatch, regardless of outcome) and is
-strictly best-effort: a sink failure is logged and dropped, never coupling the
-dispatch path to sink health.
+keyed on _invocation_ — recorded before dispatch — but only for a frame the
+dispatcher would accept: a malformed `principal`/`traceparent` or an
+empty/over-limit JSON-RPC batch records nothing, because the dispatcher rejects
+it (no phantom rows). It is strictly best-effort: a sink failure is logged once
+on entering a failing run and suppressed per-call until recovery, never coupling
+the dispatch path to sink health.
+
+### Trust boundary, attribution, and nested params
+
+- **The daemon-path principal is client-asserted, not authenticated.** The
+  daemon records whatever salted hash the client put on the envelope; it does
+  not derive or verify it from peer credentials. This is sound under the
+  single-owner model — `usage.ndjson` is the per-user, owner-only (`0600`/`0700`
+  on Unix) sidecar, so attribution lives entirely within one trust domain. If
+  cross-user attribution integrity ever matters, the principal would need to be
+  derived from the peer PID rather than the envelope. The hash is length-capped
+  (256 bytes) and never interpreted; it is not a secret (it appears in every
+  row).
+- **Daemon `session_id` is the daemon's per-startup id**, stable across every
+  row a given daemon instance produces — unlike the CLI's per-invocation
+  `session_id`. Consumers grouping by `session_id` will see a bimodal
+  distribution (one coarse daemon id + many fine CLI ids); individual daemon
+  calls are correlated by `traceparent`, not `session_id`.
+- **Nested params are recorded as a fixed marker, never measured.** A nested
+  object/array argument is recorded as a presence-only fixed placeholder, so
+  neither its values nor its _size_ leak — the coarse length bucket the flat CLI
+  path uses is not applied to nested structure. A sensitive key nested inside a
+  non-sensitive parent is therefore not individually marker-redacted, but its
+  value is never captured either, so nothing sensitive leaks.

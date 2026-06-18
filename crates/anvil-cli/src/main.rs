@@ -1082,11 +1082,13 @@ fn main() -> ExitCode {
     // `process::exit` paths cannot drop it. Strictly best-effort: a
     // usage-write failure is logged and dropped so it never changes the
     // command's behaviour or exit code.
-    // USAGE-004: the `intercept unblock` verbs record their authoritative
-    // row from the daemon dispatch path; suppress the generic CLI-side
-    // `intercept` row for them so the operator action is counted once.
+    // USAGE-004: a non-dry-run `intercept unblock` records its
+    // authoritative row from the daemon dispatch path; suppress the
+    // generic CLI-side `intercept` row for it so the operator action is
+    // counted once (a dry-run unblock contacts no daemon, so its CLI row
+    // is kept — see InterceptArgs::suppresses_cli_usage_row).
     let suppress_cli_usage_row =
-        matches!(&cli.command, Commands::Intercept(args) if args.is_unblock());
+        matches!(&cli.command, Commands::Intercept(args) if args.suppresses_cli_usage_row());
     if !suppress_cli_usage_row && let Err(err) = usage::record_invocation(command_name) {
         tracing::warn!(
             target: "anvil_cli",

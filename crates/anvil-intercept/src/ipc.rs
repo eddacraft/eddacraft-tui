@@ -2643,17 +2643,27 @@ pub fn is_command_invoked_method(method: &str) -> bool {
 }
 
 /// USAGE-004: emit a `command.invoked` usage row for every allowlisted,
-/// well-formed request in `value`, which may be a single JSON-RPC object
+/// dispatchable request in `value`, which may be a single JSON-RPC object
 /// or a batch array. Called from `handle_connection` just before the
 /// frame is dispatched — emission is keyed on *invocation*, not outcome
 /// (parity with the CLI producer, which records regardless of exit
-/// status). Best-effort: a malformed `principal`/`traceparent` degrades
-/// the row (the field drops to `None`/`anonymous`) but never suppresses
-/// it; sink failures are swallowed inside the emitter. Non-allowlisted
-/// methods, non-2.0 frames, and non-request shapes produce no row.
+/// status). A row is recorded only for a frame that will actually reach
+/// dispatch: a batch that `handle_jsonrpc_value` would reject wholesale
+/// (empty, or over [`MAX_JSONRPC_BATCH_ITEMS`]) emits nothing, so a
+/// single oversized control frame can never drive more sink writes than
+/// it can dispatch requests (Council: write-amplification / over-count).
+/// Sink failures are swallowed inside the emitter. Non-allowlisted
+/// methods, non-2.0 frames, frames whose envelope the dispatcher would
+/// reject, and non-request shapes produce no row.
 fn emit_command_invocations(value: &Value, emitter: &CommandInvokedEmitter, timestamp: &str) {
     match value {
         Value::Array(items) => {
+            // Mirror `handle_jsonrpc_value`'s batch guards: an empty or
+            // oversized batch is rejected wholesale and dispatches
+            // nothing, so it must record nothing.
+            if items.is_empty() || items.len() > MAX_JSONRPC_BATCH_ITEMS {
+                return;
+            }
             for item in items {
                 emit_one_command_invocation(item, emitter, timestamp);
             }
@@ -2668,9 +2678,13 @@ fn emit_one_command_invocation(value: &Value, emitter: &CommandInvokedEmitter, t
     let Some(map) = value.as_object() else {
         return;
     };
-    // Only well-formed JSON-RPC 2.0 requests with an allowlisted method
-    // count — mirrors the front-matter checks in `handle_jsonrpc_request`
-    // so a row is never recorded for a frame that cannot dispatch.
+    // Only frames the dispatcher would accept count — apply the SAME
+    // front-matter checks as `handle_jsonrpc_request` so a row is never
+    // recorded for a frame that the dispatcher then rejects (Council:
+    // lenient-emit vs strict-dispatch divergence → phantom rows). A
+    // malformed `principal`/`traceparent` is a hard rejection there, so
+    // it must suppress the row here too; an *absent* optional field is
+    // fine and resolves to `anonymous`/`None`.
     if map.get("jsonrpc") != Some(&Value::String("2.0".to_owned())) {
         return;
     }
@@ -2680,10 +2694,12 @@ fn emit_one_command_invocation(value: &Value, emitter: &CommandInvokedEmitter, t
     if !is_command_invoked_method(method) {
         return;
     }
-    // Lenient: a malformed optional field degrades the row rather than
-    // dropping it — the request itself is still a user invocation.
-    let principal = extract_principal(map).ok().flatten();
-    let traceparent = extract_traceparent(map).ok().flatten();
+    let (Ok(principal), Ok(traceparent)) = (extract_principal(map), extract_traceparent(map))
+    else {
+        // The dispatcher will reject this frame for the same reason; do
+        // not record a phantom invocation.
+        return;
+    };
     let params = map.get("params").unwrap_or(&Value::Null);
     emitter.try_emit(&CommandInvokedEmissionRequest {
         method,
@@ -2756,11 +2772,12 @@ async fn handle_jsonrpc_request<D: SessionDispatcher>(
 
     // USAGE-004: the optional envelope `principal` is the salted-hash
     // identity the client attaches so daemon usage rows are attributable.
-    // Extract alongside `traceparent` (a malformed/over-cap value is a
-    // deterministic rejection); a valid one feeds the usage producer.
-    // `_principal` is consumed by the usage producer wired in the
-    // allowlist slice; kept bound here so the extraction/rejection
-    // contract lands and is unit-tested independently.
+    // Extract alongside `traceparent`: a malformed/over-cap value is a
+    // deterministic rejection. This binding enforces the principal wire
+    // contract for requests that reach dispatch; the usage row itself is
+    // produced upstream in `handle_connection` (via `emit_command_invocations`)
+    // before this function is called, which applies the same strict
+    // checks so it never records a frame this path would reject.
     let _principal = match extract_principal(&map) {
         Ok(p) => p,
         Err(JsonRpcFailure {
@@ -4868,25 +4885,68 @@ mod tests {
         assert_eq!(commands, ["anvil/gctx/find_callers", "unblock-cascade"]);
     }
 
-    /// USAGE-004: a malformed envelope `principal` degrades the row to
-    /// `anonymous` rather than suppressing it — the call still happened.
+    /// USAGE-004 (Council: lenient-emit vs strict-dispatch): a malformed
+    /// envelope `principal` (or `traceparent`) is a hard rejection in
+    /// `handle_jsonrpc_request`, so emission must suppress the row too —
+    /// no phantom invocation for a frame the dispatcher then rejects. An
+    /// *absent* principal is fine and resolves to `anonymous`.
     #[test]
-    fn emit_command_invocations_degrades_bad_principal_to_anonymous() {
+    fn emit_command_invocations_skips_frames_the_dispatcher_rejects() {
         use crate::kindling_observation::CommandInvokedEmitter;
 
         let (emitter, recorder) = CommandInvokedEmitter::with_recorder("daemon-x");
+        // Non-string principal → dispatcher rejects → no row.
         emit_command_invocations(
-            &json!({
-                "jsonrpc": "2.0", "id": 1,
-                "method": "anvil/gctx/find_dependents",
-                "principal": 42
-            }),
+            &json!({"jsonrpc": "2.0", "id": 1, "method": "anvil/gctx/find_dependents", "principal": 42}),
+            &emitter,
+            "t",
+        );
+        // Over-cap principal → dispatcher rejects → no row.
+        emit_command_invocations(
+            &json!({"jsonrpc": "2.0", "id": 2, "method": "anvil/gctx/find_dependents", "principal": "x".repeat(MAX_PRINCIPAL_BYTES + 1)}),
+            &emitter,
+            "t",
+        );
+        assert!(recorder.recorded_command_invocations().is_empty());
+
+        // Absent principal is fine → one row, anonymous.
+        emit_command_invocations(
+            &json!({"jsonrpc": "2.0", "id": 3, "method": "anvil/gctx/find_dependents"}),
             &emitter,
             "t",
         );
         let rows = recorder.recorded_command_invocations();
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].principal, "anonymous");
+    }
+
+    /// USAGE-004 (Council: batch write-amplification): a batch the
+    /// dispatcher rejects wholesale — empty, or larger than
+    /// `MAX_JSONRPC_BATCH_ITEMS` — records nothing, so an oversized
+    /// control frame cannot drive more sink writes than it can dispatch.
+    #[test]
+    fn emit_command_invocations_skips_rejected_batches() {
+        use crate::kindling_observation::CommandInvokedEmitter;
+
+        let (emitter, recorder) = CommandInvokedEmitter::with_recorder("daemon-x");
+        // Empty batch → rejected → no rows.
+        emit_command_invocations(&json!([]), &emitter, "t");
+        // Over-limit batch of allowlisted methods → rejected → no rows.
+        let oversized: Vec<_> = (0..=MAX_JSONRPC_BATCH_ITEMS)
+            .map(|i| json!({"jsonrpc": "2.0", "id": i, "method": "anvil/gctx/search_symbols"}))
+            .collect();
+        emit_command_invocations(&Value::Array(oversized), &emitter, "t");
+        assert!(recorder.recorded_command_invocations().is_empty());
+
+        // A batch at the limit still emits for its allowlisted items.
+        let at_limit: Vec<_> = (0..MAX_JSONRPC_BATCH_ITEMS)
+            .map(|i| json!({"jsonrpc": "2.0", "id": i, "method": "anvil/gctx/search_symbols"}))
+            .collect();
+        emit_command_invocations(&Value::Array(at_limit), &emitter, "t");
+        assert_eq!(
+            recorder.recorded_command_invocations().len(),
+            MAX_JSONRPC_BATCH_ITEMS
+        );
     }
 
     /// USAGE-004 (R2 mitigation, daemon side): every namespaced method

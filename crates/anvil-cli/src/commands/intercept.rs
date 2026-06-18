@@ -19,14 +19,21 @@ pub struct InterceptArgs {
 }
 
 impl InterceptArgs {
-    /// USAGE-004: true when this is an `intercept unblock` invocation.
-    /// The unblock verbs emit their authoritative `command.invoked`
-    /// usage row from the daemon dispatch path, so the generic CLI-side
-    /// `intercept` row is suppressed for them to avoid double-counting
-    /// the operator action (founder decision 2026-06-18).
+    /// USAGE-004: true when the generic CLI-side `intercept` usage row
+    /// should be suppressed because the daemon will record the
+    /// authoritative `command.invoked` row for this action instead
+    /// (founder decision 2026-06-18: the daemon row is the single source
+    /// of truth for `unblock-*`, avoiding a double-count).
+    ///
+    /// Scoped to a **non-dry-run** `unblock`: a `--dry-run` unblock
+    /// (`--worktree --dry-run` / `--all --dry-run`) previews without
+    /// contacting the daemon, so it emits no daemon row — suppressing the
+    /// CLI row there would drop the invocation entirely (Council). Every
+    /// non-dry-run unblock mode (cascade / per-fence / all) dispatches a
+    /// daemon `unblock-*` verb, so the daemon row covers it.
     #[must_use]
-    pub fn is_unblock(&self) -> bool {
-        matches!(self.command, InterceptCommand::Unblock(_))
+    pub fn suppresses_cli_usage_row(&self) -> bool {
+        matches!(&self.command, InterceptCommand::Unblock(args) if !args.dry_run)
     }
 }
 
@@ -1124,11 +1131,14 @@ mod tests {
 
     use super::*;
 
-    /// USAGE-004: `is_unblock` is the CLI-row suppression trigger — true
-    /// only for `intercept unblock` (any mode), false for the other
-    /// intercept subcommands. Parsed via clap so it tracks the real CLI.
+    /// USAGE-004: `suppresses_cli_usage_row` is the CLI-row suppression
+    /// trigger — true only for a NON-dry-run `intercept unblock` (which
+    /// dispatches a daemon `unblock-*` verb that records the
+    /// authoritative row). A dry-run unblock contacts no daemon, so its
+    /// CLI row must be kept; other intercept subcommands always keep it.
+    /// Parsed via clap so it tracks the real CLI.
     #[test]
-    fn is_unblock_flags_only_the_unblock_subcommand() {
+    fn suppresses_cli_usage_row_only_for_non_dry_run_unblock() {
         use clap::Parser;
 
         #[derive(Parser)]
@@ -1138,10 +1148,18 @@ mod tests {
         }
 
         let parse = |argv: &[&str]| TestCli::try_parse_from(argv).expect("parse").args;
-        assert!(parse(&["x", "unblock", "--all"]).is_unblock());
-        assert!(parse(&["x", "unblock", "--worktree", "/tmp/wt"]).is_unblock());
-        assert!(!parse(&["x", "status"]).is_unblock());
-        assert!(!parse(&["x", "start", "--foreground"]).is_unblock());
+        // Non-dry-run unblock → suppress (daemon records it).
+        assert!(parse(&["x", "unblock", "--all"]).suppresses_cli_usage_row());
+        assert!(parse(&["x", "unblock", "--worktree", "/tmp/wt"]).suppresses_cli_usage_row());
+        // Dry-run unblock → keep the CLI row (no daemon contact).
+        assert!(!parse(&["x", "unblock", "--all", "--dry-run"]).suppresses_cli_usage_row());
+        assert!(
+            !parse(&["x", "unblock", "--worktree", "/tmp/wt", "--dry-run"])
+                .suppresses_cli_usage_row()
+        );
+        // Other intercept subcommands always keep the CLI row.
+        assert!(!parse(&["x", "status"]).suppresses_cli_usage_row());
+        assert!(!parse(&["x", "start", "--foreground"]).suppresses_cli_usage_row());
     }
 
     /// Pin the contract: `anvil intercept start` without `--foreground`
