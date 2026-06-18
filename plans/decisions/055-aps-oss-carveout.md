@@ -2,14 +2,12 @@
 
 ## Status
 
-Proposed
+**Accepted** — 2026-06-18 (legal gate cleared by operator approval)
 
-> **Legal gate:** this ADR proposes relicensing source that is currently
-> `LicenseRef-Proprietary`. It must not advance to **Accepted** without explicit
-> sign-off from `legal@eddacraft.ai`. Until then, the APSDASH starter kit
-> (`tools/starters/aps-dashboard/`) and any APS-tooling starter derived from
-> `scripts/aps/*` are staged-only and **must not be published** to any public
-> repository.
+> The legal gate (explicit sign-off from `legal@eddacraft.ai` for the
+> `LicenseRef-Proprietary` → Apache-2.0 carve-out) has been satisfied. The
+> carve-out is now in effect. The APSDASH starter kit and APS format tooling
+> may proceed through the pre-publication checklist and publication steps.
 
 ## Date
 

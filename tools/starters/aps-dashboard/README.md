@@ -1,13 +1,11 @@
 # APS dashboard starter kit
 
-> **STATUS: PROPOSED — DO NOT PUBLISH.** This kit copies source that is
-> currently `LicenseRef-Proprietary` (`anvil-cli` / `anvil-tui`, per ADR-018).
-> Publishing it to any public repository is **blocked on
-> [ADR-055](../../../plans/decisions/055-aps-oss-carveout.md)** being Accepted
-> with legal sign-off, plus the ADR-055 pre-publication scrub (Apache-2.0
-> headers, removal of Anvil-internal references, neutral branding). A 2026-05-27
-> Council review blocked the lift on this. Until then this is internal staging
-> only. Tracked as APSDASH-003.
+> **ADR-055 Accepted (2026-06-18).** The OSS carve-out for read-only APS format
+> consumers is in effect. This kit is still a **staged seed only**. Publication
+> to `anvil-plan-spec` (or any public repo) requires completing the ADR-055
+> pre-publication checklist: apply Apache-2.0 headers, scrub Anvil-internal
+> references and status dialect, neutralise branding, then obtain Council
+> sign-off on the scrubbed copy before the lift. Tracked as APSDASH-003.
 
 A read-only terminal dashboard for canonical
 [APS](https://github.com/eddacraft/anvil-plan-spec) plan state: it reads

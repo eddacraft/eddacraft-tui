@@ -11,9 +11,9 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.88"
 description = "Read-only terminal dashboard for canonical APS plan state"
-# Intended published licence — NOT yet in force. The source copied into this kit
-# is currently LicenseRef-Proprietary; Apache-2.0 applies only once ADR-055 is
-# Accepted with legal sign-off and the pre-publication scrub is done (APSDASH-003).
+# Intended published licence (Apache-2.0). The source in this kit originated
+# under LicenseRef-Proprietary. Per ADR-055 (Accepted 2026-06-18), the carve-out
+# is approved; Apache-2.0 takes effect after the pre-publication scrub (APSDASH-003).
 license = "Apache-2.0"
 
 [[bin]]

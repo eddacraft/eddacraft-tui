@@ -7,14 +7,12 @@
 | ------- | ---------- | ----------- | -------- |
 | APSDASH | joshuaboys | In Progress | 2/4      |
 
-**Last reviewed:** 2026-05-27
+**Last reviewed:** 2026-06-18 (ADR-055 Accepted)
 
-**Blocks on:** [ADR-055](../decisions/055-aps-oss-carveout.md) — publishing
-the kit relicenses proprietary Anvil source (`anvil-cli`/`anvil-tui`,
-`LicenseRef-Proprietary` per ADR-018) as Apache-2.0 for the public
-`anvil-plan-spec` repo. A Council review (2026-05-27) blocked publication on this
-unresolved IP decision. The kit is staged and verified but **must not be
-published** until ADR-055 is Accepted with legal sign-off.
+**Blocks on:** none (ADR-055 Accepted 2026-06-18). Publishing the kit
+requires completing the ADR-055 pre-publication checklist (scrub + neutral
+branding) before lifting the seed into `anvil-plan-spec`. The kit remains
+staged-only until the scrub step (APSDASH-003) is executed.
 
 ## Purpose
 
@@ -116,10 +114,11 @@ Status is **In Progress** because APSDASH-001 is staged in this branch:
 
 ### APSDASH-003: Scrub and publish the seed to `anvil-plan-spec`
 
-- **Status:** Blocked
-- **Blocks on:** APSDASH-001 / ADR-055 Accepted + legal sign-off.
-- **Intent:** Once the IP decision clears, run the ADR-055 pre-publication
-  checklist and lift the seed into `anvil-plan-spec`.
+- **Status:** Ready
+- **Blocks on:** none (ADR-055 Accepted 2026-06-18 cleared the gate).
+- **Intent:** Run the ADR-055 pre-publication checklist (Apache-2.0 headers,
+  scrub internal references and Anvil-specific status dialect, neutralise
+  branding) and lift the seed into `anvil-plan-spec`.
 - **Expected Outcome:** Apache-2.0 headers applied; Anvil-internal references
   scrubbed (internal crate paths in comments, status-dialect framing, fixture
   strings — internal branch names, SHAs, PR numbers, version tags, non-existent
