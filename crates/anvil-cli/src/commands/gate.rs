@@ -738,6 +738,87 @@ fn run_check_secret(
     }
 }
 
+/// SURFSQL (Track 3) — scan SQL migration files for destructive patterns.
+///
+/// Warn-only by design: per the architecture rules (warnings over blocks,
+/// exit 0 by default, new-edges-only), this surface never fails the gate.
+/// It reports unsuppressed findings in the message; escalation to a failing
+/// verdict on *new* edges waits on the SURFSQL-006 drift baseline. The
+/// file-presence guard (OPSUP-006) already short-circuits when no `.sql`
+/// files are present, so reaching here means there is SQL to scan.
+fn run_check_sql_migrations(name: &str, root: &Path, walked_files: &[String]) -> CheckResult {
+    use anvil_checks::surface::sql::{is_sql_migration_file, run_surfsql_check};
+
+    let sql_files: Vec<(std::path::PathBuf, String)> = walked_files
+        .iter()
+        .filter(|rel| is_sql_migration_file(std::path::Path::new(rel)))
+        .filter_map(|rel| {
+            std::fs::read_to_string(root.join(rel))
+                .ok()
+                .map(|content| (std::path::PathBuf::from(rel), content))
+        })
+        .collect();
+
+    let result = run_surfsql_check(&sql_files);
+    let unsuppressed: Vec<_> = result
+        .destructive
+        .iter()
+        .filter(|f| !f.suppressed)
+        .collect();
+
+    if unsuppressed.is_empty() {
+        return CheckResult {
+            name: name.to_string(),
+            passed: true,
+            score: 100.0,
+            message: format!(
+                "No unguarded destructive SQL migration patterns found across {} file(s)",
+                sql_files.len()
+            ),
+            requires_config: false,
+        };
+    }
+
+    let locations: Vec<String> = unsuppressed
+        .iter()
+        .map(|f| {
+            format!(
+                "{}:{} [{}] {}",
+                f.file,
+                f.line,
+                rule_label(f.kind),
+                f.statement
+            )
+        })
+        .collect();
+    CheckResult {
+        name: name.to_string(),
+        // Warn-only: surfaced, never blocking (architecture default).
+        passed: true,
+        score: 100.0,
+        message: format!(
+            "⚠ {} destructive SQL migration pattern(s) flagged (warn-only; \
+             baseline lands in SURFSQL-006):\n{}",
+            unsuppressed.len(),
+            locations.join("\n")
+        ),
+        requires_config: false,
+    }
+}
+
+/// Short label for a destructive finding kind, for the gate message.
+fn rule_label(kind: anvil_checks::surface::sql::DestructiveKind) -> &'static str {
+    use anvil_checks::surface::sql::DestructiveKind as K;
+    match kind {
+        K::DropTable => "DROP TABLE",
+        K::DropColumn => "DROP COLUMN",
+        K::Truncate => "TRUNCATE",
+        K::DeleteWithoutWhere => "DELETE without WHERE",
+        K::UpdateWithoutWhere => "UPDATE without WHERE",
+        K::DropConstraint => "DROP CONSTRAINT",
+    }
+}
+
 fn run_check_antipattern(
     name: &str,
     root: &Path,
@@ -1489,6 +1570,7 @@ fn run_single_check(name: &str, ctx: &GateContext) -> CheckResult {
         "test" => run_check_test(name, root),
         "antipattern-scan" => run_check_antipattern(name, root, &ctx.plan_files),
         "secret" => run_check_secret(name, root, &ctx.plan_files),
+        "sql-migrations" => run_check_sql_migrations(name, root, &ctx.walked_files),
         "coverage" => run_check_coverage(root, DEFAULT_COVERAGE_THRESHOLD),
         "dependency" => run_check_dependency(root),
         "architecture" => run_check_architecture(root),
@@ -2079,6 +2161,14 @@ fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
         {
             continue;
         }
+        // Track 3 surface opt-in (OPSUP-005 + SURFSQL-005): a flag-gated
+        // surface is omitted from the run entirely while its track flag is
+        // off — it emits NO result, so the default gate run (check count,
+        // score denominator, output) is byte-identical for anyone who has
+        // not opted in via ANVIL_TRACK_SURFACE_SQL=1.
+        if *check_name == "sql-migrations" && !crate::feature_flags::track_surface_sql_enabled() {
+            continue;
+        }
 
         let display_name = gate_canonical_name_from_internal(check_name);
 
@@ -2442,6 +2532,41 @@ mod tests {
     struct Wrapper {
         #[command(flatten)]
         inner: GateArgs,
+    }
+
+    #[test]
+    fn sql_migrations_check_warns_but_does_not_block() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let dir = tmp.path().join("db/migrations");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("001.sql"), "DROP TABLE legacy_events;\n").unwrap();
+
+        let result = run_check_sql_migrations(
+            "sql-migrations",
+            tmp.path(),
+            &["db/migrations/001.sql".to_string()],
+        );
+        // Warn-only: surfaced in the message, never blocks the gate.
+        assert!(result.passed, "SURFSQL is warn-only and must not block");
+        assert!(
+            result.message.contains("DROP TABLE"),
+            "finding should be surfaced: {}",
+            result.message
+        );
+    }
+
+    #[test]
+    fn sql_migrations_check_clean_on_guarded_migration() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join("schema.sql"),
+            "CREATE TABLE IF NOT EXISTS t (id int);\n",
+        )
+        .unwrap();
+        let result =
+            run_check_sql_migrations("sql-migrations", tmp.path(), &["schema.sql".to_string()]);
+        assert!(result.passed);
+        assert!(result.message.contains("No unguarded destructive"));
     }
 
     #[test]

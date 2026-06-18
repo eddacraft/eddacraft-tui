@@ -158,13 +158,15 @@ hygiene, gate/catalogue registration, drift, and validation.
 
 ### SURFSQL-005 — Gate/catalogue registration + policy hook wiring
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Surface SURFSQL in the gate behind `track.surface.sql`.
 - **Expected Outcome:** A `ANV-SURF-SQL-001` check is registered in
   `check_catalog.rs` (relaxing the `ANV-CORE-`-only ID-validation test to
   accept the `ANV-SURF-<SURFACE>-NNN` scheme), wired into the gate dispatcher
   with file-presence guards, and gated behind the `track.surface.sql` leaf flag
   (createdFor SURFSQL-005) inheriting the OPSUP-005 `track.surface` umbrella.
+  Warn-only (architecture default); operators opt in for the session with
+  `ANVIL_TRACK_SURFACE_SQL=1` until the post-release default flip.
 - **Validation:** `cargo test -p eddacraft-anvil commands::check_catalog` + gate dispatch test asserting SURFSQL runs only when `track.surface.sql` resolves enabled
 - **Dependencies:** SURFSQL-002, OPSUP-005 (Merged)
 - **Confidence:** medium

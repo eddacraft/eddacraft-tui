@@ -237,6 +237,33 @@ pub fn is_dev_bypass(details: &ResolutionDetails) -> bool {
     details.reason == ResolutionReason::LocalOverride && details.variant == "enabled"
 }
 
+/// Env var that opts into the SURFSQL governance surface for the session
+/// (SURFSQL-005). `=1` forces `track.surface.sql` to `"enabled"` via a local
+/// override routed through the resolver — not a bespoke env read — so the
+/// FLAGCAT flag stays the single source of truth (OPSUP-005).
+pub const TRACK_SURFACE_SQL_ENV_VAR: &str = "ANVIL_TRACK_SURFACE_SQL";
+
+/// Whether the SURFSQL gate check is active this session.
+///
+/// Default-off: per OPSUP-005 a Track 3 surface ships opt-in for one release.
+/// `ANVIL_TRACK_SURFACE_SQL=1` forces it on for the session; resolution goes
+/// through the shared resolver against the generated `track.surface.sql`
+/// definition so a future default flip (manifest edit) needs no code change.
+#[must_use]
+pub fn track_surface_sql_enabled() -> bool {
+    use anvil_kernel_types::feature_flags_catalogue::track_surface_sql;
+
+    let mut overrides = FlagOverrides::default();
+    if std::env::var(TRACK_SURFACE_SQL_ENV_VAR).as_deref() == Ok("1") {
+        overrides
+            .local
+            .insert(track_surface_sql::KEY.into(), "enabled".into());
+    }
+    let definition = track_surface_sql::definition();
+    let context = cli_evaluation_context("gate-session", None);
+    resolve_flag(&definition, &context, Some(&overrides)).variant == "enabled"
+}
+
 /// The `cli.licence-gate` variant that means the gate is **off**. Mirrors
 /// the `disabled` variant in `flags/manifest.json`; the sibling `enabled`
 /// variant (the manifest default) means the gate is enforced. Kept as a
@@ -442,6 +469,37 @@ mod tests {
             assert!(overrides.local.is_empty());
             assert!(overrides.emergency.is_empty());
         });
+    }
+
+    // ── SURFSQL-005: track.surface.sql opt-in ───────────────────────
+
+    #[test]
+    fn track_surface_sql_disabled_by_default() {
+        temp_env::with_var(TRACK_SURFACE_SQL_ENV_VAR, None::<&str>, || {
+            assert!(
+                !track_surface_sql_enabled(),
+                "Track 3 surface ships opt-in (default disabled)"
+            );
+        });
+    }
+
+    #[test]
+    fn track_surface_sql_enabled_via_env_opt_in() {
+        temp_env::with_var(TRACK_SURFACE_SQL_ENV_VAR, Some("1"), || {
+            assert!(track_surface_sql_enabled());
+        });
+    }
+
+    #[test]
+    fn track_surface_sql_ignores_non_one_values() {
+        for value in ["true", "0", "", "1 ", "yes"] {
+            temp_env::with_var(TRACK_SURFACE_SQL_ENV_VAR, Some(value), || {
+                assert!(
+                    !track_surface_sql_enabled(),
+                    "ANVIL_TRACK_SURFACE_SQL={value:?} must not enable the surface"
+                );
+            });
+        }
     }
 
     #[test]

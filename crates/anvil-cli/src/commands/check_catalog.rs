@@ -147,6 +147,33 @@ pub(crate) const CHECK_DEFINITIONS: &[CheckDefinition] = &[
         file_shape_globs: &[],
         wall_time_soft_budget_secs: None,
     },
+    // SURFSQL (Track 3) — the first governance-surface check in the registry.
+    // Dispatchable (in GATE_INTERNAL_CHECKS) but gated dark behind the
+    // `track.surface.sql` flag (SURFSQL-005), so the default gate run is
+    // behaviourally unchanged until an operator opts in
+    // (ANVIL_TRACK_SURFACE_SQL=1) or the flag default flips post-release.
+    // `gate_config_supported=false`: activation is flag-driven, not via the
+    // `.anvil` checks list, so it stays out of the default editable config.
+    CheckDefinition {
+        stable_id: "ANV-SURF-SQL-001",
+        canonical_name: "sql-migrations",
+        internal_name: "sql-migrations",
+        aliases: &["sql"],
+        description: "Flag destructive/irreversible operations in SQL migrations",
+        init_enabled: false,
+        // Not an `anvil init` wizard toggle — activation is flag-driven
+        // (track.surface.sql), so it stays out of the init available-checks list.
+        init_visible: false,
+        gate_supported: true,
+        gate_config_supported: false,
+        file_shape_globs: &[
+            "*.sql",
+            "migrations/**",
+            "db/migrations/**",
+            "supabase/migrations/**",
+        ],
+        wall_time_soft_budget_secs: Some(30),
+    },
 ];
 
 pub(crate) const DEFAULT_INIT_CHECKS: &[&str] =
@@ -162,6 +189,9 @@ pub(crate) const GATE_INTERNAL_CHECKS: &[&str] = &[
     "architecture",
     "policy",
     "command-safety",
+    // Track 3 governance surface: dispatchable + in the default loop, but
+    // gated dark behind `track.surface.sql` (SURFSQL-005) until opt-in.
+    "sql-migrations",
 ];
 
 pub(crate) fn definition_by_canonical(name: &str) -> Option<&'static CheckDefinition> {
@@ -263,9 +293,7 @@ mod tests {
         for definition in CHECK_DEFINITIONS {
             let stable_id = definition.stable_id;
             assert!(
-                stable_id.len() == "ANV-CORE-001".len()
-                    && stable_id.starts_with("ANV-CORE-")
-                    && stable_id[9..].chars().all(|ch| ch.is_ascii_digit()),
+                is_valid_stable_id(stable_id),
                 "{} has invalid stable ID {}",
                 definition.canonical_name,
                 stable_id
@@ -275,6 +303,31 @@ mod tests {
                 "duplicate stable check ID {stable_id}"
             );
         }
+    }
+
+    /// Stable check IDs follow `ANV-CORE-NNN` for core checks and
+    /// `ANV-SURF-<SURFACE>-NNN` / `ANV-PACK-<PACK>-NNN` for Track 3/4
+    /// surface and pack checks (OPSUP-001 scheme). Every segment after the
+    /// `ANV-` prefix is uppercase alphanumeric, and the ID ends in a numeric
+    /// segment.
+    fn is_valid_stable_id(id: &str) -> bool {
+        let Some(rest) = id.strip_prefix("ANV-") else {
+            return false;
+        };
+        let segments: Vec<&str> = rest.split('-').collect();
+        if segments.len() < 2 {
+            return false;
+        }
+        let (last, head) = segments.split_last().expect("len checked >= 2");
+        // Final segment is a zero-padded 3-digit counter (e.g. `001`),
+        // matching the established `ANV-CORE-009` convention.
+        if last.len() != 3 || !last.chars().all(|c| c.is_ascii_digit()) {
+            return false;
+        }
+        // Leading segments (family / surface / pack) are uppercase letters
+        // (CORE / SURF / PACK / SQL / PULUMI …) — no digits.
+        head.iter()
+            .all(|seg| !seg.is_empty() && seg.chars().all(|c| c.is_ascii_uppercase()))
     }
 
     #[test]
@@ -296,7 +349,39 @@ mod tests {
                 ("coverage", "ANV-CORE-007"),
                 ("dependency", "ANV-CORE-008"),
                 ("command-safety", "ANV-CORE-009"),
+                ("sql-migrations", "ANV-SURF-SQL-001"),
             ]
+        );
+    }
+
+    #[test]
+    fn surface_stable_id_scheme_is_accepted_and_core_unchanged() {
+        assert!(is_valid_stable_id("ANV-SURF-SQL-001"));
+        assert!(is_valid_stable_id("ANV-PACK-PULUMI-012"));
+        assert!(is_valid_stable_id("ANV-CORE-001"));
+        // Malformed: lowercase, missing counter, non-numeric counter,
+        // non-3-digit counter, digit family segment, missing prefix.
+        assert!(!is_valid_stable_id("ANV-surf-sql-001"));
+        assert!(!is_valid_stable_id("ANV-SURF-SQL"));
+        assert!(!is_valid_stable_id("ANV-SURF-SQL-foo"));
+        assert!(!is_valid_stable_id("ANV-CORE-0001"));
+        assert!(!is_valid_stable_id("ANV-1-001"));
+        assert!(!is_valid_stable_id("SURF-SQL-001"));
+    }
+
+    #[test]
+    fn sql_migrations_check_resolves_and_declares_sql_file_shapes() {
+        let def = definition_by_name("sql-migrations").expect("registered");
+        assert_eq!(def.stable_id, "ANV-SURF-SQL-001");
+        assert_eq!(
+            definition_by_name("sql").map(|d| d.stable_id),
+            Some("ANV-SURF-SQL-001")
+        );
+        assert!(!def.init_enabled, "Track 3 surface ships opt-in");
+        assert!(def.gate_supported);
+        assert!(
+            def.file_shape_globs.contains(&"*.sql"),
+            "must declare .sql so the file-presence guard short-circuits clean repos"
         );
     }
 
@@ -395,11 +480,15 @@ mod tests {
 
     #[test]
     fn opsup_006_core_checks_default_to_unguarded() {
-        // Migration-safety contract for OPSUP-006: every current core
+        // Migration-safety contract for OPSUP-006: every current *core*
         // check ships with no file-shape guard and no wall-time cap so
-        // observable gate behaviour is unchanged. Future surface/pack
-        // checks opt in.
-        for definition in CHECK_DEFINITIONS {
+        // observable gate behaviour is unchanged. Surface/pack checks
+        // (ANV-SURF-*/ANV-PACK-*) opt in by declaring file shapes and are
+        // exempt — they stay dark behind their track flag until opt-in.
+        for definition in CHECK_DEFINITIONS
+            .iter()
+            .filter(|def| def.stable_id.starts_with("ANV-CORE-"))
+        {
             assert!(
                 definition.file_shape_globs.is_empty(),
                 "{} ({}) regressed OPSUP-006 default — core checks must not declare file_shape_globs",

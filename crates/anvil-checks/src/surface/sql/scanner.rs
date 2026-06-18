@@ -34,12 +34,17 @@ const MIGRATION_DIRS: &[&str] = &["migrations", "db/migrations", "supabase/migra
 /// pays nothing.
 #[must_use]
 pub fn is_sql_migration_file(path: &Path) -> bool {
-    let has_sql_ext = path
-        .extension()
-        .and_then(|e| e.to_str())
-        .is_some_and(|ext| ext.eq_ignore_ascii_case("sql"));
-    if has_sql_ext {
+    let ext = path.extension().and_then(|e| e.to_str());
+    if ext.is_some_and(|e| e.eq_ignore_ascii_case("sql")) {
         return true;
+    }
+    // Under a migration directory, treat only *extensionless* files as SQL
+    // (some tools use bare versioned names like `001_init`). A file with a
+    // non-`.sql` extension is not a SQL migration — this avoids SQL-scanning
+    // Django/Alembic `.py` migrations or runbook `.md`/`.json` living under a
+    // `migrations/` directory.
+    if ext.is_some() {
+        return false;
     }
     let normalised = path
         .to_string_lossy()
@@ -354,6 +359,15 @@ mod tests {
         // Not a SQL file and not under a migration dir.
         assert!(!is_sql_migration_file(Path::new("src/main.rs")));
         assert!(!is_sql_migration_file(Path::new("docs/migrations.md")));
+        // Non-`.sql` files *inside* a migration dir are NOT SQL — Django/
+        // Alembic Python migrations and runbook docs must not be SQL-scanned.
+        assert!(!is_sql_migration_file(Path::new(
+            "migrations/0001_initial.py"
+        )));
+        assert!(!is_sql_migration_file(Path::new("db/migrations/README.md")));
+        assert!(!is_sql_migration_file(Path::new(
+            "supabase/migrations/seed.json"
+        )));
     }
 
     #[test]
