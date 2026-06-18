@@ -190,6 +190,24 @@ pub(crate) const CHECK_DEFINITIONS: &[CheckDefinition] = &[
         file_shape_globs: &[".github/workflows/*.yml", ".github/workflows/*.yaml"],
         wall_time_soft_budget_secs: Some(30),
     },
+    // SURFDOCK (Track 3) — same opt-in contract. `file_shape_globs` is empty
+    // because the file-presence glob vocabulary (`*.ext` basename only) can't
+    // express bare `Dockerfile`/`Containerfile` or case-insensitive naming; the
+    // check self-filters via `is_dockerfile` over the walked files (cheap), and
+    // the `track.surface.dock` flag gate already skips it when off.
+    CheckDefinition {
+        stable_id: "ANV-SURF-DOCK-001",
+        canonical_name: "dockerfile",
+        internal_name: "dockerfile",
+        aliases: &["dock"],
+        description: "Flag build-hygiene / supply-chain risks in Dockerfiles",
+        init_enabled: false,
+        init_visible: false,
+        gate_supported: true,
+        gate_config_supported: false,
+        file_shape_globs: &[],
+        wall_time_soft_budget_secs: Some(30),
+    },
 ];
 
 pub(crate) const DEFAULT_INIT_CHECKS: &[&str] =
@@ -209,6 +227,7 @@ pub(crate) const GATE_INTERNAL_CHECKS: &[&str] = &[
     // gated dark behind their `track.surface.*` flag until opt-in.
     "sql-migrations",
     "github-actions",
+    "dockerfile",
 ];
 
 pub(crate) fn definition_by_canonical(name: &str) -> Option<&'static CheckDefinition> {
@@ -368,8 +387,24 @@ mod tests {
                 ("command-safety", "ANV-CORE-009"),
                 ("sql-migrations", "ANV-SURF-SQL-001"),
                 ("github-actions", "ANV-SURF-GHA-001"),
+                ("dockerfile", "ANV-SURF-DOCK-001"),
             ]
         );
+    }
+
+    #[test]
+    fn dockerfile_check_resolves_and_is_self_filtering() {
+        let def = definition_by_name("dockerfile").expect("registered");
+        assert_eq!(def.stable_id, "ANV-SURF-DOCK-001");
+        assert_eq!(
+            definition_by_name("dock").map(|d| d.stable_id),
+            Some("ANV-SURF-DOCK-001")
+        );
+        assert!(!def.init_enabled, "Track 3 surface ships opt-in");
+        assert!(def.gate_supported);
+        // Empty globs by design — Dockerfile naming can't be expressed in the
+        // file-presence glob vocabulary; the check self-filters.
+        assert!(def.file_shape_globs.is_empty());
     }
 
     #[test]

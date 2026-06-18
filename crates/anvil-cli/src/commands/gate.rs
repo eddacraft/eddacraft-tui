@@ -921,6 +921,85 @@ fn gha_risk_label(risk: anvil_checks::surface::github_actions::GhaRisk) -> &'sta
     }
 }
 
+/// SURFDOCK (Track 3) — scan Dockerfiles for build-hygiene risks. Warn-only.
+/// Self-filters via `is_dockerfile` (the check declares no file-presence
+/// globs — Dockerfile naming doesn't fit the glob vocabulary).
+fn run_check_dockerfile(name: &str, root: &Path, walked_files: &[String]) -> CheckResult {
+    use anvil_checks::surface::dockerfile::{is_dockerfile, run_surfdock_check};
+
+    let mut files: Vec<(std::path::PathBuf, String)> = Vec::new();
+    let mut unreadable = 0usize;
+    for rel in walked_files
+        .iter()
+        .filter(|rel| is_dockerfile(std::path::Path::new(rel)))
+    {
+        match std::fs::read_to_string(root.join(rel)) {
+            Ok(content) => files.push((std::path::PathBuf::from(rel), content)),
+            Err(_) => unreadable += 1,
+        }
+    }
+    let unreadable_note = if unreadable > 0 {
+        format!(" ({unreadable} file(s) unreadable, skipped)")
+    } else {
+        String::new()
+    };
+
+    let result = run_surfdock_check(&files);
+    let locations: Vec<String> = result
+        .risks
+        .iter()
+        .filter(|f| !f.suppressed)
+        .map(|f| {
+            format!(
+                "{}:{} [{}] {}",
+                f.file,
+                f.line,
+                dock_risk_label(f.risk),
+                f.instruction
+            )
+        })
+        .collect();
+
+    if locations.is_empty() {
+        return CheckResult {
+            name: name.to_string(),
+            passed: true,
+            score: 100.0,
+            message: format!(
+                "No Dockerfile build-hygiene risks found across {} file(s){unreadable_note}",
+                files.len() + unreadable
+            ),
+            requires_config: false,
+        };
+    }
+
+    CheckResult {
+        name: name.to_string(),
+        // Warn-only: surfaced, never blocking (architecture default).
+        passed: true,
+        score: 100.0,
+        message: format!(
+            "⚠ {} Dockerfile build-hygiene risk(s) flagged (warn-only){}:\n{}",
+            locations.len(),
+            unreadable_note,
+            locations.join("\n")
+        ),
+        requires_config: false,
+    }
+}
+
+/// Short label for a SURFDOCK risk kind, for the gate message.
+fn dock_risk_label(risk: anvil_checks::surface::dockerfile::DockerRisk) -> &'static str {
+    use anvil_checks::surface::dockerfile::DockerRisk as R;
+    match risk {
+        R::AddRemoteFetch => "ADD remote fetch",
+        R::PipeToShell => "pipe-to-shell",
+        R::LatestBaseImage => ":latest base image",
+        R::SudoInRun => "sudo in layer",
+        R::AptMissingNoRecommends => "apt-get without --no-install-recommends",
+    }
+}
+
 fn run_check_antipattern(
     name: &str,
     root: &Path,
@@ -1674,6 +1753,7 @@ fn run_single_check(name: &str, ctx: &GateContext) -> CheckResult {
         "secret" => run_check_secret(name, root, &ctx.plan_files),
         "sql-migrations" => run_check_sql_migrations(name, root, &ctx.walked_files),
         "github-actions" => run_check_github_actions(name, root, &ctx.walked_files),
+        "dockerfile" => run_check_dockerfile(name, root, &ctx.walked_files),
         "coverage" => run_check_coverage(root, DEFAULT_COVERAGE_THRESHOLD),
         "dependency" => run_check_dependency(root),
         "architecture" => run_check_architecture(root),
@@ -2274,6 +2354,9 @@ fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
         if *check_name == "github-actions" && !crate::feature_flags::track_surface_gha_enabled() {
             continue;
         }
+        if *check_name == "dockerfile" && !crate::feature_flags::track_surface_dock_enabled() {
+            continue;
+        }
 
         let display_name = gate_canonical_name_from_internal(check_name);
 
@@ -2731,6 +2814,33 @@ mod tests {
                 .message
                 .contains("No GitHub Actions supply-chain risks")
         );
+    }
+
+    #[test]
+    fn dockerfile_check_warns_but_does_not_block() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join("Dockerfile"),
+            "FROM node:latest\nRUN curl -fsSL https://x | sh\n",
+        )
+        .unwrap();
+        let result = run_check_dockerfile("dockerfile", tmp.path(), &["Dockerfile".to_string()]);
+        assert!(result.passed, "warn-only, never blocks");
+        assert!(result.message.contains(":latest base image"));
+        assert!(result.message.contains("pipe-to-shell"));
+    }
+
+    #[test]
+    fn dockerfile_check_clean_on_safe_dockerfile() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join("Dockerfile"),
+            "FROM node:20-alpine\nWORKDIR /app\nCOPY . .\nRUN npm ci\nUSER node\n",
+        )
+        .unwrap();
+        let result = run_check_dockerfile("dockerfile", tmp.path(), &["Dockerfile".to_string()]);
+        assert!(result.passed);
+        assert!(result.message.contains("No Dockerfile build-hygiene risks"));
     }
 
     #[test]

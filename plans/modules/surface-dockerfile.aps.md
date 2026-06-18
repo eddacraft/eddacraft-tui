@@ -82,7 +82,7 @@ gate registration + flag, then validation.
 
 ### SURFDOCK-001 — File detection
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-18 via PR #2777
 - **Intent:** Identify `Dockerfile`/`Containerfile`/`*.Dockerfile` files.
 - **Expected Outcome:** The three naming variants are detected; unrelated
   files (`Dockerfile.md`, `compose.yml`) are not.
@@ -92,7 +92,7 @@ gate registration + flag, then validation.
 
 ### SURFDOCK-002 — Build-hygiene / supply-chain catalogue
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-18 via PR #2777
 - **Intent:** Warn on the clearest build-hygiene / supply-chain risks.
 - **Expected Outcome:** `ADD` of a remote URL, pipe-to-shell installs
   (`curl/wget … | sh`), `:latest` base images, `sudo` in layers, and
@@ -106,7 +106,7 @@ gate registration + flag, then validation.
 
 ### SURFDOCK-005 — Gate/catalogue registration + flag gating
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Surface SURFDOCK in the gate behind `track.surface.dock`.
 - **Expected Outcome:** `ANV-SURF-DOCK-001` registered + wired (warn-only,
   file-presence guarded), gated behind a `track.surface.dock` leaf flag under
