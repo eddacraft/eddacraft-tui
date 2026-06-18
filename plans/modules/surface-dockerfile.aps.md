@@ -106,7 +106,7 @@ gate registration + flag, then validation.
 
 ### SURFDOCK-005 — Gate/catalogue registration + flag gating
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-18 via PR #2780
 - **Intent:** Surface SURFDOCK in the gate behind `track.surface.dock`.
 - **Expected Outcome:** `ANV-SURF-DOCK-001` registered + wired (warn-only,
   file-presence guarded), gated behind a `track.surface.dock` leaf flag under

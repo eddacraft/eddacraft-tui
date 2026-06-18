@@ -115,7 +115,7 @@ registration + flag, then validation.
 
 ### SURFGHA-006 — Gate/catalogue registration + flag gating
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-18 via PR #2776
 - **Intent:** Surface SURFGHA in the gate behind `track.surface.gha`.
 - **Expected Outcome:** `ANV-SURF-GHA-001` registered + wired into the gate
   dispatcher (warn-only, file-presence guarded), gated behind a

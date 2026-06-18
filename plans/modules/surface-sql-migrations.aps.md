@@ -135,7 +135,7 @@ hygiene, gate/catalogue registration, drift, and validation.
 
 ### SURFSQL-003 — Schema-hygiene catalogue
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-18 via PR #2771
 - **Intent:** Flag missing idempotency guards on idempotent DDL.
 - **Expected Outcome:** `CREATE TABLE`/`CREATE INDEX` without `IF NOT EXISTS`
   surface as warn-only schema-hygiene findings (`SqlHygieneFinding`), with `--`

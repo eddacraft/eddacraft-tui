@@ -114,7 +114,7 @@ Delivered as slices mirroring the other surfaces. T1 (Scanned).
 
 ### SURFSH-005 — Gate/catalogue registration + flag gating
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-18 via PR #2786
 - **Intent:** Surface SURFSH in the gate behind `track.surface.sh`.
 - **Expected Outcome:** `ANV-SURF-SH-001` registered + wired (warn-only),
   gated behind a `track.surface.sh` leaf flag under the OPSUP-005
