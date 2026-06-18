@@ -29,6 +29,7 @@ futures-sink = { version = "0.3" }
 futures-util = { version = "0.3", features = ["channel", "io", "sink"] }
 getrandom-9fbad63c4bcf4a8f = { package = "getrandom", version = "0.4", default-features = false, features = ["std", "sys_rng"] }
 globset = { version = "0.4", features = ["simd-accel"] }
+hashbrown = { version = "0.17", default-features = false, features = ["default-hasher"] }
 image = { version = "0.25", default-features = false, features = ["png"] }
 indexmap = { version = "2" }
 itertools = { version = "0.14" }
@@ -51,6 +52,7 @@ tracing-core = { version = "0.1" }
 zerocopy = { version = "0.8", default-features = false, features = ["derive", "simd"] }
 
 [build-dependencies]
+hashbrown = { version = "0.17", default-features = false, features = ["default-hasher"] }
 indexmap = { version = "2" }
 memchr = { version = "2" }
 proc-macro2 = { version = "1" }

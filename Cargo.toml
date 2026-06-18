@@ -114,7 +114,7 @@ tempfile = "3"
 # edda-stack `ProposalStore`). RCLI3-005. The `bundled` feature is opted into
 # per-consumer (anvil-cli) rather than here, so a future crate taking
 # `rusqlite = { workspace = true }` does not silently inherit a SQLite C build.
-rusqlite = { version = "0.32" }
+rusqlite = { version = "0.40" }
 
 # Error handling
 thiserror = "2"
