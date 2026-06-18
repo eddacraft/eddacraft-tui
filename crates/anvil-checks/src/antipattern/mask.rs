@@ -14,12 +14,15 @@
 //! (so a `!` / `any` / `//` / quote inside a pattern is neither flagged nor
 //! mistaken for a comment/string).
 //!
-//! **What is NOT masked:** template literals (backticks) are passed through
-//! so their `${ … }` interpolations — real code — keep being scanned. The
-//! literal text of a template can therefore still match a rule; that is a
-//! deliberate trade-off (a stray false positive there is less harmful than
-//! masking real interpolation code into a false negative). Nested template
-//! literals inside an interpolation are not tracked.
+//! **Template literals (backticks).** The literal *text* of a template is
+//! masked (it is string content, so a `!` / `any` there is not a non-null
+//! assertion or a type — GS-001 external-FP dogfood: `` `my-0!` ``,
+//! `` `Stack overflow!` ``). The `${ … }` interpolation spans, which are real
+//! code, are kept and scanned. Brace depth is tracked so a `}` inside the
+//! interpolation's own code does not end it prematurely, and the in-text /
+//! in-interpolation state carries across lines. Nested template literals
+//! inside an interpolation are not separately re-lexed (their content is kept
+//! as code, matching the prior pass-through behaviour).
 //!
 //! **Regex vs division.** `/` is ambiguous in JS/TS. A `/` is treated as the
 //! start of a regex literal only when the preceding significant token implies
@@ -35,8 +38,11 @@ pub(crate) enum Carry {
     Code,
     /// Inside a `/* … */` block comment.
     BlockComment,
-    /// Inside a `` `…` `` template literal (passed through unmasked).
+    /// Inside the *text* of a `` `…` `` template literal (masked).
     Template,
+    /// Inside a `${ … }` interpolation of a template literal, at the carried
+    /// brace depth (kept as code).
+    TemplateInterp(u32),
     /// Inside a `'…'` string continued via a trailing `\` at end of line.
     SingleString,
     /// Inside a `"…"` string continued via a trailing `\` at end of line.
@@ -69,7 +75,10 @@ enum S {
     Code,
     LineComment,
     BlockComment,
+    /// Template literal text (masked).
     Template,
+    /// Inside a `${ … }` interpolation (kept as code).
+    TemplateInterp,
     Single,
     Double,
     Regex,
@@ -154,10 +163,15 @@ fn ends_with_regex_keyword(out_so_far: &str) -> bool {
 fn mask_line(line: &str, carry: Carry) -> (String, Carry) {
     let mut out = String::with_capacity(line.len());
     let mut chars = line.chars().peekable();
+    let mut interp_depth: u32 = 0;
     let mut state = match carry {
         Carry::Code => S::Code,
         Carry::BlockComment => S::BlockComment,
         Carry::Template => S::Template,
+        Carry::TemplateInterp(depth) => {
+            interp_depth = depth;
+            S::TemplateInterp
+        }
         Carry::SingleString => S::Single,
         Carry::DoubleString => S::Double,
     };
@@ -219,14 +233,46 @@ fn mask_line(line: &str, carry: Carry) -> (String, Carry) {
                 }
             }
             S::Template => {
-                out.push(c);
+                // Template literal text is string content — mask it. Keep the
+                // structural punctuation (backtick, `${`) so byte offsets and
+                // the interpolation boundary stay legible.
                 if c == '\\' {
+                    push_spaces(&mut out, c);
                     if let Some(n) = chars.next() {
-                        out.push(n);
+                        push_spaces(&mut out, n);
                     }
                 } else if c == '`' {
+                    out.push(c);
                     state = S::Code;
                     prev_sig = Some('`');
+                } else if c == '$' && chars.peek() == Some(&'{') {
+                    let brace = chars.next().expect("peeked");
+                    out.push(c);
+                    out.push(brace);
+                    interp_depth = 1;
+                    state = S::TemplateInterp;
+                    prev_sig = Some('{');
+                } else {
+                    push_spaces(&mut out, c);
+                }
+            }
+            S::TemplateInterp => {
+                // Real code inside `${ … }` — keep verbatim so the rules scan
+                // it. Track brace depth so an inner `{ … }` (object literal,
+                // block) does not end the interpolation early.
+                out.push(c);
+                match c {
+                    '{' => interp_depth += 1,
+                    '}' => {
+                        interp_depth -= 1;
+                        if interp_depth == 0 {
+                            state = S::Template;
+                        }
+                    }
+                    _ => {}
+                }
+                if !c.is_whitespace() {
+                    prev_sig = Some(c);
                 }
             }
             S::Single | S::Double => {
@@ -270,6 +316,7 @@ fn mask_line(line: &str, carry: Carry) -> (String, Carry) {
     let next_carry = match state {
         S::BlockComment => Carry::BlockComment,
         S::Template => Carry::Template,
+        S::TemplateInterp => Carry::TemplateInterp(interp_depth),
         S::Single if string_continues => Carry::SingleString,
         S::Double if string_continues => Carry::DoubleString,
         // LineComment / Regex / unterminated strings do not carry.
@@ -342,12 +389,60 @@ mod tests {
     }
 
     #[test]
-    fn template_literal_text_passes_through_but_interpolation_code_survives() {
+    fn template_text_is_masked_but_interpolation_code_survives() {
         let out = mask_one("const s = `hello ${obj!.x} world`;");
         assert!(
             out.contains("obj!.x"),
-            "interpolation code must survive: {out}"
+            "interpolation code (a real non-null assertion) must survive: {out}"
         );
+        assert!(
+            !out.contains("hello") && !out.contains("world"),
+            "template literal text must be masked: {out}"
+        );
+        assert_eq!(out.len(), "const s = `hello ${obj!.x} world`;".len());
+    }
+
+    #[test]
+    fn template_text_bang_is_masked() {
+        // GS-001 external-FP dogfood (zod `my-0!`, excalidraw `Stack overflow!`):
+        // a `!` in template literal *text* is not a non-null assertion.
+        let out = mask_one("const c = `my-0! border-none`;");
+        assert!(
+            !out.contains('!'),
+            "template text bang must be masked: {out}"
+        );
+        assert_eq!(out.len(), "const c = `my-0! border-none`;".len());
+    }
+
+    #[test]
+    fn template_text_bang_before_interpolation_is_masked() {
+        let out = mask_one("err(`Stack overflow! ${size} bytes`);");
+        let head = &out[..out.find("${").expect("interp")];
+        assert!(
+            !head.contains('!'),
+            "text bang before interp must mask: {out}"
+        );
+        assert!(out.contains("size"), "interpolation must survive: {out}");
+    }
+
+    #[test]
+    fn template_multiline_interpolation_code_survives() {
+        let masked =
+            mask_non_code_lines(&["const c = `pre ${ map.get(k)", "    .unwrap()! } post`;"]);
+        assert!(
+            masked[1].contains(".unwrap()!"),
+            "multi-line interpolation code must survive: {masked:?}"
+        );
+    }
+
+    #[test]
+    fn template_multiline_text_is_masked() {
+        let masked = mask_non_code_lines(&["const c = `line one!", "  line two any`;"]);
+        assert!(
+            !masked[0].contains('!'),
+            "line0 text bang masked: {masked:?}"
+        );
+        assert!(!masked[1].contains("any"), "line1 text masked: {masked:?}");
     }
 
     #[test]

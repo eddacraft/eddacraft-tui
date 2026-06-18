@@ -1464,18 +1464,27 @@ mod tests {
     }
 
     #[test]
-    fn ap003_template_literal_text_is_a_known_tradeoff() {
-        // KNOWN-TRADEOFF (GH #1914): template-literal TEXT is left unmasked
-        // so `${…}` interpolation code keeps being scanned. A consequence is
-        // that `as any` in template prose still fires. This test pins the
-        // deliberate behaviour so a future change to mask backtick text is a
-        // conscious decision, not a silent regression.
-        let content = "const msg = `cast as any value`;";
-        let result = scan_file("src/real.ts", content, None);
+    fn ap003_template_literal_text_is_masked_interpolation_is_scanned() {
+        // GH #1914 left template-literal TEXT unmasked as a known trade-off, so
+        // `as any` in template prose fired (a false positive). The external-FP
+        // dogfood made masking backtick text the conscious decision it asked
+        // for: text is now masked, but `${…}` interpolation code is still
+        // scanned.
+        let text = "const msg = `cast as any value`;";
         assert!(
-            result.warnings.iter().any(|w| w.id == "AP-003"),
-            "template-literal text trade-off changed: {:?}",
-            result.warnings
+            scan_file("src/real.ts", text, None)
+                .warnings
+                .iter()
+                .all(|w| w.id != "AP-003"),
+            "`as any` in template TEXT must no longer fire (masked)"
+        );
+        let interp = "const x = `v=${cfg as any}`;";
+        assert!(
+            scan_file("src/real.ts", interp, None)
+                .warnings
+                .iter()
+                .any(|w| w.id == "AP-003"),
+            "`as any` inside a `${{…}}` interpolation must still fire (real code)"
         );
     }
 
