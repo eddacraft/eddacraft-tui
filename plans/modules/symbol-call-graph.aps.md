@@ -4,7 +4,8 @@
 | ----- | ----- | -------- | -------- |
 | GCALL | —     | In Progress | 7/7   |
 
-**Last reviewed:** 2026-06-17 (created from the GCTX-014 `anvil_find_callers`
+**Last reviewed:** 2026-06-18 (post-merge milestone Council review + remediation,
+#2745; created 2026-06-17 from the GCTX-014 `anvil_find_callers`
 block. The warm graph carries **no symbol-level call edges**: the
 `EdgeType::Calls` / `References` variants exist in `anvil-kernel-types`, but the
 kernel symbol extractor never emits them and `FileSymbols` (the `apply_delta`
@@ -33,7 +34,8 @@ substrate without changing its contract — per-file `MAX_CALL_SITES` cap +
 accumulator + capped-file signal, nearest-first `callers_of` ordering, an
 identity cache + node-count-independent `resolve_import`, and the cap-ceiling
 latency-gate op (~15× under the ADR-031 budget). No new work item — all 7 stay
-Merged; this is hardening on the already-shipped substrate.)
+Merged (Released/Shipped → Complete still pending the release tag); this is
+hardening on the already-merged substrate.)
 
 ## Purpose
 
