@@ -74,8 +74,9 @@ fn is_credit_card_false_positive(line: &str, match_start: usize, match_end: usiz
     if match_start > 0 {
         let prev = bytes[match_start - 1];
         // `-`/digit: inside a longer dashed/numeric token (UUID). `.`: the
-        // matched digits are the fractional part of a decimal literal (external
-        // -FP dogfood: float coordinate arrays like `[3.5475921483286084, …]`).
+        // matched digits are the fractional part of a decimal literal (the
+        // external-FP dogfood hit float coordinate arrays like
+        // `[3.5475921483286084, …]`).
         if prev == b'-' || prev == b'.' || prev.is_ascii_digit() {
             return true;
         }
@@ -93,8 +94,9 @@ fn is_credit_card_false_positive(line: &str, match_start: usize, match_end: usiz
     !luhn_valid(matched)
 }
 
-/// Luhn (mod-10) checksum over the digits in `s`, ignoring any `-`/space
-/// grouping separators. Empty input is not valid.
+/// Luhn (mod-10) checksum over the digits in `s`. Any non-digit character
+/// (grouping separators such as `-` or spaces, and anything else) is skipped.
+/// Input with no digits is not valid.
 fn luhn_valid(s: &str) -> bool {
     let mut sum = 0u32;
     let mut count = 0u32;
