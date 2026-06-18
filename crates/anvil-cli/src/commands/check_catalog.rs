@@ -174,6 +174,22 @@ pub(crate) const CHECK_DEFINITIONS: &[CheckDefinition] = &[
         ],
         wall_time_soft_budget_secs: Some(30),
     },
+    // SURFGHA (Track 3) — same opt-in contract as SURFSQL: dispatchable but
+    // gated dark behind `track.surface.gha` (SURFGHA-006); flag-driven
+    // activation, so out of the init wizard and the default editable config.
+    CheckDefinition {
+        stable_id: "ANV-SURF-GHA-001",
+        canonical_name: "github-actions",
+        internal_name: "github-actions",
+        aliases: &["gha"],
+        description: "Flag supply-chain risks in GitHub Actions workflows",
+        init_enabled: false,
+        init_visible: false,
+        gate_supported: true,
+        gate_config_supported: false,
+        file_shape_globs: &[".github/workflows/*.yml", ".github/workflows/*.yaml"],
+        wall_time_soft_budget_secs: Some(30),
+    },
 ];
 
 pub(crate) const DEFAULT_INIT_CHECKS: &[&str] =
@@ -189,9 +205,10 @@ pub(crate) const GATE_INTERNAL_CHECKS: &[&str] = &[
     "architecture",
     "policy",
     "command-safety",
-    // Track 3 governance surface: dispatchable + in the default loop, but
-    // gated dark behind `track.surface.sql` (SURFSQL-005) until opt-in.
+    // Track 3 governance surfaces: dispatchable + in the default loop, but
+    // gated dark behind their `track.surface.*` flag until opt-in.
     "sql-migrations",
+    "github-actions",
 ];
 
 pub(crate) fn definition_by_canonical(name: &str) -> Option<&'static CheckDefinition> {
@@ -350,7 +367,24 @@ mod tests {
                 ("dependency", "ANV-CORE-008"),
                 ("command-safety", "ANV-CORE-009"),
                 ("sql-migrations", "ANV-SURF-SQL-001"),
+                ("github-actions", "ANV-SURF-GHA-001"),
             ]
+        );
+    }
+
+    #[test]
+    fn github_actions_check_resolves_and_declares_workflow_shapes() {
+        let def = definition_by_name("github-actions").expect("registered");
+        assert_eq!(def.stable_id, "ANV-SURF-GHA-001");
+        assert_eq!(
+            definition_by_name("gha").map(|d| d.stable_id),
+            Some("ANV-SURF-GHA-001")
+        );
+        assert!(!def.init_enabled, "Track 3 surface ships opt-in");
+        assert!(def.gate_supported);
+        assert!(
+            def.file_shape_globs.contains(&".github/workflows/*.yml"),
+            "must declare workflow globs for the file-presence guard"
         );
     }
 

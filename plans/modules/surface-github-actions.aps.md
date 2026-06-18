@@ -89,7 +89,7 @@ registration + flag, then validation.
 
 ### SURFGHA-001 — Workflow file detection
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-18 via PR #2773
 - **Intent:** Identify the `.github/workflows/*.yml`/`*.yaml` files SURFGHA
   governs.
 - **Expected Outcome:** Files under a `.github/workflows/` directory with a
@@ -101,7 +101,7 @@ registration + flag, then validation.
 
 ### SURFGHA-002 — Supply-chain pattern catalogue
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-18 via PR #2773
 - **Intent:** Warn on the highest-blast-radius supply-chain risks in workflow
   YAML.
 - **Expected Outcome:** Unpinned **branch** action refs (`uses: …@main`/branch,
@@ -115,7 +115,7 @@ registration + flag, then validation.
 
 ### SURFGHA-006 — Gate/catalogue registration + flag gating
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Surface SURFGHA in the gate behind `track.surface.gha`.
 - **Expected Outcome:** `ANV-SURF-GHA-001` registered + wired into the gate
   dispatcher (warn-only, file-presence guarded), gated behind a

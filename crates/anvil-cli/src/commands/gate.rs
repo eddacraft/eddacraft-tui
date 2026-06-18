@@ -844,6 +844,83 @@ fn hygiene_label(kind: anvil_checks::surface::sql::HygieneKind) -> &'static str 
     }
 }
 
+/// SURFGHA (Track 3) — scan workflow files for supply-chain risks. Warn-only
+/// (architecture default); the file-presence guard (OPSUP-006) already
+/// short-circuits when no workflow files are present.
+fn run_check_github_actions(name: &str, root: &Path, walked_files: &[String]) -> CheckResult {
+    use anvil_checks::surface::github_actions::{is_workflow_file, run_surfgha_check};
+
+    let mut files: Vec<(std::path::PathBuf, String)> = Vec::new();
+    let mut unreadable = 0usize;
+    for rel in walked_files
+        .iter()
+        .filter(|rel| is_workflow_file(std::path::Path::new(rel)))
+    {
+        match std::fs::read_to_string(root.join(rel)) {
+            Ok(content) => files.push((std::path::PathBuf::from(rel), content)),
+            Err(_) => unreadable += 1,
+        }
+    }
+    let unreadable_note = if unreadable > 0 {
+        format!(" ({unreadable} file(s) unreadable, skipped)")
+    } else {
+        String::new()
+    };
+
+    let result = run_surfgha_check(&files);
+    let locations: Vec<String> = result
+        .risks
+        .iter()
+        .filter(|f| !f.suppressed)
+        .map(|f| {
+            format!(
+                "{}:{} [{}] {}",
+                f.file,
+                f.line,
+                gha_risk_label(f.risk),
+                f.snippet
+            )
+        })
+        .collect();
+
+    if locations.is_empty() {
+        return CheckResult {
+            name: name.to_string(),
+            passed: true,
+            score: 100.0,
+            message: format!(
+                "No GitHub Actions supply-chain risks found across {} file(s){unreadable_note}",
+                files.len() + unreadable
+            ),
+            requires_config: false,
+        };
+    }
+
+    CheckResult {
+        name: name.to_string(),
+        // Warn-only: surfaced, never blocking (architecture default).
+        passed: true,
+        score: 100.0,
+        message: format!(
+            "⚠ {} GitHub Actions supply-chain risk(s) flagged (warn-only){}:\n{}",
+            locations.len(),
+            unreadable_note,
+            locations.join("\n")
+        ),
+        requires_config: false,
+    }
+}
+
+/// Short label for a SURFGHA risk kind, for the gate message.
+fn gha_risk_label(risk: anvil_checks::surface::github_actions::GhaRisk) -> &'static str {
+    use anvil_checks::surface::github_actions::GhaRisk as R;
+    match risk {
+        R::UnpinnedActionRef => "unpinned action ref",
+        R::PullRequestTarget => "pull_request_target",
+        R::SelfHostedRunner => "self-hosted runner",
+    }
+}
+
 fn run_check_antipattern(
     name: &str,
     root: &Path,
@@ -1596,6 +1673,7 @@ fn run_single_check(name: &str, ctx: &GateContext) -> CheckResult {
         "antipattern-scan" => run_check_antipattern(name, root, &ctx.plan_files),
         "secret" => run_check_secret(name, root, &ctx.plan_files),
         "sql-migrations" => run_check_sql_migrations(name, root, &ctx.walked_files),
+        "github-actions" => run_check_github_actions(name, root, &ctx.walked_files),
         "coverage" => run_check_coverage(root, DEFAULT_COVERAGE_THRESHOLD),
         "dependency" => run_check_dependency(root),
         "architecture" => run_check_architecture(root),
@@ -2186,12 +2264,14 @@ fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
         {
             continue;
         }
-        // Track 3 surface opt-in (OPSUP-005 + SURFSQL-005): a flag-gated
-        // surface is omitted from the run entirely while its track flag is
-        // off — it emits NO result, so the default gate run (check count,
-        // score denominator, output) is byte-identical for anyone who has
-        // not opted in via ANVIL_TRACK_SURFACE_SQL=1.
+        // Track 3 surface opt-in (OPSUP-005): a flag-gated surface is omitted
+        // from the run entirely while its track flag is off — it emits NO
+        // result, so the default gate run (check count, score denominator,
+        // output) is byte-identical for anyone who has not opted in.
         if *check_name == "sql-migrations" && !crate::feature_flags::track_surface_sql_enabled() {
+            continue;
+        }
+        if *check_name == "github-actions" && !crate::feature_flags::track_surface_gha_enabled() {
             continue;
         }
 
@@ -2607,6 +2687,49 @@ mod tests {
                 .contains("CREATE TABLE without IF NOT EXISTS"),
             "hygiene finding surfaced: {}",
             result.message
+        );
+    }
+
+    #[test]
+    fn github_actions_check_warns_but_does_not_block() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let dir = tmp.path().join(".github/workflows");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("ci.yml"),
+            "on: pull_request_target\njobs:\n  b:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@main\n",
+        )
+        .unwrap();
+        let result = run_check_github_actions(
+            "github-actions",
+            tmp.path(),
+            &[".github/workflows/ci.yml".to_string()],
+        );
+        assert!(result.passed, "warn-only, never blocks");
+        assert!(result.message.contains("pull_request_target"));
+        assert!(result.message.contains("unpinned action ref"));
+    }
+
+    #[test]
+    fn github_actions_check_clean_on_safe_workflow() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let dir = tmp.path().join(".github/workflows");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("ci.yml"),
+            "on:\n  push:\njobs:\n  b:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n",
+        )
+        .unwrap();
+        let result = run_check_github_actions(
+            "github-actions",
+            tmp.path(),
+            &[".github/workflows/ci.yml".to_string()],
+        );
+        assert!(result.passed);
+        assert!(
+            result
+                .message
+                .contains("No GitHub Actions supply-chain risks")
         );
     }
 

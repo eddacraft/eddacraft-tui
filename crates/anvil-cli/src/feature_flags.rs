@@ -264,6 +264,29 @@ pub fn track_surface_sql_enabled() -> bool {
     resolve_flag(&definition, &context, Some(&overrides)).variant == "enabled"
 }
 
+/// Env var that opts into the SURFGHA governance surface for the session
+/// (SURFGHA-006); mirrors [`TRACK_SURFACE_SQL_ENV_VAR`].
+pub const TRACK_SURFACE_GHA_ENV_VAR: &str = "ANVIL_TRACK_SURFACE_GHA";
+
+/// Whether the SURFGHA gate check is active this session. Default-off
+/// (opt-in for one release per OPSUP-005); `ANVIL_TRACK_SURFACE_GHA=1` forces
+/// it on via the shared resolver against the generated `track.surface.gha`
+/// definition.
+#[must_use]
+pub fn track_surface_gha_enabled() -> bool {
+    use anvil_kernel_types::feature_flags_catalogue::track_surface_gha;
+
+    let mut overrides = FlagOverrides::default();
+    if std::env::var(TRACK_SURFACE_GHA_ENV_VAR).as_deref() == Ok("1") {
+        overrides
+            .local
+            .insert(track_surface_gha::KEY.into(), "enabled".into());
+    }
+    let definition = track_surface_gha::definition();
+    let context = cli_evaluation_context("gate-session", None);
+    resolve_flag(&definition, &context, Some(&overrides)).variant == "enabled"
+}
+
 /// The `cli.licence-gate` variant that means the gate is **off**. Mirrors
 /// the `disabled` variant in `flags/manifest.json`; the sibling `enabled`
 /// variant (the manifest default) means the gate is enforced. Kept as a
@@ -500,6 +523,22 @@ mod tests {
                 );
             });
         }
+    }
+
+    // ── SURFGHA-006: track.surface.gha opt-in ───────────────────────
+
+    #[test]
+    fn track_surface_gha_disabled_by_default() {
+        temp_env::with_var(TRACK_SURFACE_GHA_ENV_VAR, None::<&str>, || {
+            assert!(!track_surface_gha_enabled());
+        });
+    }
+
+    #[test]
+    fn track_surface_gha_enabled_via_env_opt_in() {
+        temp_env::with_var(TRACK_SURFACE_GHA_ENV_VAR, Some("1"), || {
+            assert!(track_surface_gha_enabled());
+        });
     }
 
     #[test]

@@ -26,7 +26,7 @@ describe('flags catalogue manifest', () => {
     expect(FeatureFlagManifestSchema.safeParse(featureFlagManifest()).success).toBe(true);
   });
 
-  it('contains exactly the eleven shipped flags', () => {
+  it('contains exactly the twelve shipped flags', () => {
     const keys = featureFlagManifest().flags.map((f) => f.key);
     expect(keys).toEqual([
       'api.scope.beta',
@@ -38,6 +38,7 @@ describe('flags catalogue manifest', () => {
       'gv2.reverse-impact-depth',
       'track.pack',
       'track.surface',
+      'track.surface.gha',
       'track.surface.sql',
       'tui-dashboard.aps-dashboard',
     ]);
