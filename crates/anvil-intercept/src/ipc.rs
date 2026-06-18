@@ -259,6 +259,16 @@ const MAX_SCAN_BUFFER_ENV_AGENT_TAG_BYTES: usize = 1024;
 /// matches [`MAX_JSONRPC_ID_BYTES`] — both bound caller-supplied
 /// identifier strings.
 const MAX_SCAN_BUFFER_SESSION_ID_BYTES: usize = 256;
+/// USAGE-004: cap for the optional envelope `principal` wire field. The
+/// principal is the same salted hash CLI usage rows carry —
+/// `hex(SHA-256(salt ‖ ":" ‖ email))`, exactly 64 lowercase hex chars —
+/// or the literal `"anonymous"`. We do NOT validate the hex shape on the
+/// wire (keeps the field forward-compatible if the hash algorithm
+/// changes); we only bound its length and reject non-strings. 256 bytes
+/// is well above the 64-char real value and matches the established
+/// identifier-cap family ([`MAX_SCAN_BUFFER_SESSION_ID_BYTES`] /
+/// [`MAX_JSONRPC_ID_BYTES`]).
+const MAX_PRINCIPAL_BYTES: usize = 256;
 const MAX_TRACE_METHOD_LEN: usize = 128;
 
 /// How long [`IpcListener::shutdown`] waits for in-flight handler tasks
@@ -2623,6 +2633,24 @@ async fn handle_jsonrpc_request<D: SessionDispatcher>(
         }
     };
 
+    // USAGE-004: the optional envelope `principal` is the salted-hash
+    // identity the client attaches so daemon usage rows are attributable.
+    // Extract alongside `traceparent` (a malformed/over-cap value is a
+    // deterministic rejection); a valid one feeds the usage producer.
+    // `_principal` is consumed by the usage producer wired in the
+    // allowlist slice; kept bound here so the extraction/rejection
+    // contract lands and is unit-tested independently.
+    let _principal = match extract_principal(&map) {
+        Ok(p) => p,
+        Err(JsonRpcFailure {
+            code,
+            message,
+            data,
+        }) => {
+            return jsonrpc_request_error(response_id, traceparent, !has_id, code, message, data);
+        }
+    };
+
     if map.get("jsonrpc") != Some(&Value::String("2.0".to_owned())) {
         return Some(jsonrpc_error(
             response_id,
@@ -3328,6 +3356,30 @@ fn extract_traceparent(
     TraceContext::parse(raw)
         .map_err(|err| invalid_request(format!("traceparent is invalid: {err}")))?;
     Ok(Some(raw))
+}
+
+/// USAGE-004: extract the optional envelope `principal`, the salted-hash
+/// identity the client attaches so daemon usage rows carry the same
+/// principal as CLI rows. Mirrors [`extract_traceparent`]'s discipline:
+/// absent or JSON `null` both yield `None` (the producer resolves that
+/// to `"anonymous"`, parity with the unauthenticated CLI path); a
+/// non-string is a hard `Invalid Request`; an over-cap string is
+/// rejected so a caller cannot smuggle an unbounded field through. The
+/// hex shape is deliberately NOT validated here (see [`MAX_PRINCIPAL_BYTES`]).
+fn extract_principal(
+    map: &serde_json::Map<String, Value>,
+) -> Result<Option<&str>, JsonRpcFailure> {
+    match map.get("principal") {
+        None => Ok(None),
+        Some(Value::Null) => Ok(None),
+        Some(Value::String(raw)) => {
+            if raw.len() > MAX_PRINCIPAL_BYTES {
+                return Err(invalid_request("principal exceeds the maximum length"));
+            }
+            Ok(Some(raw.as_str()))
+        }
+        Some(_) => Err(invalid_request("principal must be a string")),
+    }
 }
 
 fn valid_jsonrpc_id(id: Option<&Value>) -> Option<Value> {
@@ -4590,6 +4642,55 @@ mod tests {
     /// `skip_bounded_json_string_or_null` fix, a `null` here was rejected
     /// as "missing or too large", so an oversized frame diverged from a
     /// normal-sized one for the same payload.
+    /// USAGE-004: the principal cap stays in the established
+    /// identifier-cap family so the envelope field cannot be used to
+    /// smuggle an unbounded string past the dispatcher.
+    #[test]
+    fn principal_cap_matches_identifier_family() {
+        assert_eq!(MAX_PRINCIPAL_BYTES, 256);
+        assert_eq!(MAX_PRINCIPAL_BYTES, MAX_SCAN_BUFFER_SESSION_ID_BYTES);
+    }
+
+    /// USAGE-004: a present, in-bounds principal string is returned
+    /// verbatim (the 64-hex salted hash the client attached).
+    #[test]
+    fn extract_principal_returns_present_string() {
+        let hash = "a".repeat(64);
+        let map = serde_json::Map::from_iter([(
+            "principal".to_owned(),
+            Value::String(hash.clone()),
+        )]);
+        assert!(matches!(extract_principal(&map), Ok(Some(p)) if p == hash));
+    }
+
+    /// USAGE-004: an absent or `null` principal both resolve to `None`
+    /// (the producer maps that to `"anonymous"`, parity with the
+    /// unauthenticated CLI path) — existing clients stay wire-compatible.
+    #[test]
+    fn extract_principal_absent_and_null_are_none() {
+        let absent = serde_json::Map::new();
+        assert!(matches!(extract_principal(&absent), Ok(None)));
+
+        let null = serde_json::Map::from_iter([("principal".to_owned(), Value::Null)]);
+        assert!(matches!(extract_principal(&null), Ok(None)));
+    }
+
+    /// USAGE-004: a non-string principal is a hard `Invalid Request`.
+    #[test]
+    fn extract_principal_rejects_non_string() {
+        let map = serde_json::Map::from_iter([("principal".to_owned(), json!(42))]);
+        assert!(extract_principal(&map).is_err());
+    }
+
+    /// USAGE-004: an over-cap principal is rejected so the field cannot
+    /// carry an unbounded payload.
+    #[test]
+    fn extract_principal_rejects_over_cap() {
+        let big = "x".repeat(MAX_PRINCIPAL_BYTES + 1);
+        let map = serde_json::Map::from_iter([("principal".to_owned(), Value::String(big))]);
+        assert!(extract_principal(&map).is_err());
+    }
+
     #[test]
     fn oversized_params_validator_accepts_null_optional_fields() {
         let params =
