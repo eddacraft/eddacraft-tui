@@ -117,26 +117,30 @@ Promoted to **Ready** (then **In Progress**) 2026-06-18 — all met:
 
 Delivered as a single wave (one branch/PR) per the module's amortisation
 intent — the languages share `Language`/dispatch hot files, so a batch lands
-cleaner than per-language PRs.
+cleaner than per-language PRs. All eight items **Merged 2026-06-18 via PR
+#2757**; the module stays In Progress until a release tag ships them
+(Released/Shipped → Complete), per the APS lifecycle.
 
 - **LANGTAIL-001** — Grammar maturity audit; finalise wave membership.
-  **Done** (see audit table above).
+  **Merged 2026-06-18 via PR #2757** (see audit table above).
 - **LANGTAIL-002** — Wire `tree-sitter-dart`; symbol/import extraction
-  (`parser/extract/dart.rs`); fixture. **Done**.
+  (`parser/extract/dart.rs`); fixture. **Merged 2026-06-18 via PR #2757**.
 - **LANGTAIL-003** — Wire `tree-sitter-go` (`parser/extract/go.rs`); fixture.
-  **Done**.
+  **Merged 2026-06-18 via PR #2757**.
 - **LANGTAIL-004** — Wire `tree-sitter-java` (`parser/extract/java.rs`);
-  fixture. **Done**.
+  fixture. **Merged 2026-06-18 via PR #2757**.
 - **LANGTAIL-005** — Wire `tree-sitter-kotlin-ng` (`parser/extract/kotlin.rs`);
-  fixture. **Done**.
+  fixture. **Merged 2026-06-18 via PR #2757**.
 - **LANGTAIL-006** — Wire `tree-sitter-c-sharp` (`parser/extract/csharp.rs`);
-  fixture. **Done**.
+  fixture. **Merged 2026-06-18 via PR #2757**.
 - **LANGTAIL-007** — Wire `tree-sitter-c` + `tree-sitter-cpp`
-  (`parser/extract/clike.rs`); fixture. **Done** — not cut; both bind and parse
-  the T1 fixtures (at-risk flag retained for future deep-C++ work).
+  (`parser/extract/clike.rs`); fixture. **Merged 2026-06-18 via PR #2757** —
+  not cut; both bind and parse the T1 fixtures (at-risk flag retained for
+  future deep-C++ work).
 - **LANGTAIL-008** — Wave-level acceptance: every included language parses a
   real-world fixture without panicking, symbols appear in the kernel symbol
-  graph, all fixtures green (`tests/langtail_wave_acceptance.rs`). **Done**.
+  graph, all fixtures green (`tests/langtail_wave_acceptance.rs`).
+  **Merged 2026-06-18 via PR #2757**.
 
 Supporting change (outside the numbered items, required for graph inclusion):
 the kernel parseable-extension gate (`FileFilter::is_parseable`) and the
