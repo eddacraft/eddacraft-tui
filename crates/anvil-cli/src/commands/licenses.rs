@@ -55,7 +55,10 @@ fn render_plain(use_colour: bool) -> String {
     } else {
         let _ = writeln!(out, "Anvil {version}");
     }
-    let _ = writeln!(out, "Copyright (C) 2026 eddacraft, Inc. All rights reserved.");
+    let _ = writeln!(
+        out,
+        "Copyright (C) 2026 eddacraft, Inc. All rights reserved."
+    );
     let _ = writeln!(out, "Licensed under LicenseRef-Proprietary.");
     let _ = writeln!(out);
     // ACKNOWLEDGEMENTS.md already starts with its own `# Acknowledgements`

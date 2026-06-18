@@ -1523,7 +1523,7 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Outcome:** One Clawpatch-generated fix was retained and several narrow manual
   fixes were applied after Clawpatch refused further fixes on a dirty worktree.
 - **Worked:** Filtering report output to current-tree, high-confidence findings
-  avoided flooding the backlog with stale worktree and wont-fix items.
+  avoided flooding the backlog with stale worktree and won't-fix items.
 - **Failed:** Chaining `clawpatch fix` hid that the first validation failure stops
   later fixes, and Clawpatch requires a clean tree for each subsequent fix.
 - **Friction:** `clawpatch report` can surface hundreds of mixed-lifecycle issues;
