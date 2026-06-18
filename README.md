@@ -47,8 +47,8 @@ Latest `anvil-bench` data (deus reference box):
 **Clean run (2026-05-30)** — see
 [`benchmarks/history/2026-05-30.json`](./benchmarks/history/2026-05-30.json):
 
-- **Parallel anti-pattern scan** — 0.43 ms per pass on the 320-artifact mixed
-  corpus → **~752K artifacts/sec**.
+- **Parallel anti-pattern scan** — 0.43 ms per pass on the 320-artefact mixed
+  corpus → **~752K artefacts/sec**.
 - **Secret scan parallel** — ~7.2× speedup (serial ~5.79 s vs parallel ~0.81 s
   on its corpus).
 
@@ -64,7 +64,7 @@ Latest `anvil-bench` data (deus reference box):
   stayed around 11.4 MiB RSS.
 - **Concurrent watch + MCP + intercept budget** — pass at 193.1% CPU / 54.4 MiB
   RSS, against an 800% CPU / 700 MiB aggregate budget.
-- **Parallel anti-pattern scan** — indicative ~647K artifacts/sec (overlapped
+- **Parallel anti-pattern scan** — indicative ~647K artefacts/sec (overlapped
   run).
 - **Secret scan parallel rollout** — indicative ~3.69K elements/sec, about 7.1x
   faster than serial. This timing overlapped another bench, so use it as a
@@ -445,9 +445,9 @@ regression detection. These validate the performance targets defined in the
 The kernel was designed against the targets in the
 [Kernel Spec](./docs/architecture/rust-kernel-spec.md). Latest clean committed
 run on the reference box is 2026-05-30 (see
-[`benchmarks/history/2026-05-30.json`](./benchmarks/history/2026-05-30.json));
-2026-04-03 figures retained below for historical/extrapolated context where
-direct later equivalents are not yet recorded in history/.
+[`benchmarks/history/2026-05-30.json`](./benchmarks/history/2026-05-30.json)).
+2026-04-03 values appear only in parenthetical historical notes where later
+direct measurements from the committed history files are absent.
 
 | Metric                                    | Target      | Measured (2026-05-30 clean) | Status                                           |
 | ----------------------------------------- | ----------- | --------------------------- | ------------------------------------------------ |
@@ -467,24 +467,24 @@ Full benchmark report and marketing-ready angles:
 
 ### Scan throughput across releases
 
-`anvil-bench` measures end-to-end scanner throughput on a 320-artifact mixed
+`anvil-bench` measures end-to-end scanner throughput on a 320-artefact mixed
 corpus (60% source, 20% PR descriptions, 10% commit messages, 10% agent output)
 on a fixed dev machine (Ubuntu 25.04 / Linux 6.17 / rayon default thread pool)
 so cross-release numbers stay honest.
 
 | Release / spot          | Date       | Per-pass time | Throughput              | Notes                                                                                               |
 | ----------------------- | ---------- | ------------- | ----------------------- | --------------------------------------------------------------------------------------------------- |
-| pre-RUSTNX-008          | 2026-04-22 | 14.6 ms       | 21.9K artifacts/sec     | Baseline before workspace-hack                                                                      |
-| **v0.4.0-beta**         | 2026-04-25 | **11.2 ms**   | **28.6K artifacts/sec** | **+31%**; `serde_json` `preserve_order` feature unification did not regress                         |
-| **v0.5.0-beta**         | 2026-05-01 | **8.0 ms**    | **39.9K artifacts/sec** | **+42%**; SCAN-001 parallelisation (rayon fan-out, gitignore-aware walker)                          |
-| 2026-05-30 (clean spot) | 2026-05-30 | **0.43 ms**   | **752K artifacts/sec**  | **+18.8×** vs v0.5 on same box; continued kernel + scan-path wins (clean `history/2026-05-30.json`) |
-| 2026-06-12 (health)     | 2026-06-12 | ~0.49 ms      | ~647K artifacts/sec     | Indicative only (concurrent with secret scan; see `2026-06-12.json` caveats)                        |
+| pre-RUSTNX-008          | 2026-04-22 | 14.6 ms       | 21.9K artefacts/sec     | Baseline before workspace-hack                                                                      |
+| **v0.4.0-beta**         | 2026-04-25 | **11.2 ms**   | **28.6K artefacts/sec** | **+31%**; `serde_json` `preserve_order` feature unification did not regress                         |
+| **v0.5.0-beta**         | 2026-05-01 | **8.0 ms**    | **39.9K artefacts/sec** | **+42%**; SCAN-001 parallelisation (rayon fan-out, gitignore-aware walker)                          |
+| 2026-05-30 (clean spot) | 2026-05-30 | **0.43 ms**   | **752K artefacts/sec**  | **+18.8×** vs v0.5 on same box; continued kernel + scan-path wins (clean `history/2026-05-30.json`) |
+| 2026-06-12 (health)     | 2026-06-12 | ~0.49 ms      | ~647K artefacts/sec     | Indicative only (concurrent with secret scan; see `2026-06-12.json` caveats)                        |
 
 ```mermaid
 xychart-beta
-    title "antipattern_scan throughput (artifacts/sec, higher is better)"
+    title "antipattern_scan throughput (artefacts/sec, higher is better)"
     x-axis ["2026-04-22 baseline", "v0.4.0-beta (2026-04-25)", "v0.5.0-beta (2026-05-01)", "2026-05-30 clean", "2026-06-12 (ind.)"]
-    y-axis "artifacts / sec" 0 --> 800000
+    y-axis "artefacts / sec" 0 --> 800000
     bar [21900, 28600, 39900, 752000, 647000]
     line [21900, 28600, 39900, 752000, 647000]
 ```
