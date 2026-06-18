@@ -5,6 +5,8 @@
 //! Surfaces start at coverage tier T1 (Scanned) — file detection plus
 //! content scanning hand-off — and grow structural rules incrementally.
 //!
-//! See `plans/modules/surface-env-files.aps.md` for the SURFENV roadmap.
+//! See `plans/modules/surface-env-files.aps.md` for the SURFENV roadmap and
+//! `plans/modules/surface-sql-migrations.aps.md` for the SURFSQL roadmap.
 
 pub mod env;
+pub mod sql;

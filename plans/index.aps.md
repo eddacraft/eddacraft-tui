@@ -661,7 +661,7 @@ radius × strategic per spec §8.3.
 
 | Module                                                            | Scope    | Surface             | Target tier | Status      | Phase |
 | ----------------------------------------------------------------- | -------- | ------------------- | ----------- | ----------- | ----- |
-| [surface-sql-migrations](./modules/surface-sql-migrations.aps.md) | SURFSQL  | SQL migrations      | T2          | Draft       | 1     |
+| [surface-sql-migrations](./modules/surface-sql-migrations.aps.md) | SURFSQL  | SQL migrations      | T2          | In Progress | 1     |
 | [surface-github-actions](./modules/surface-github-actions.aps.md) | SURFGHA  | GitHub Actions YAML | T2          | Draft       | 2     |
 | [surface-dockerfile](./modules/surface-dockerfile.aps.md)         | SURFDOCK | Dockerfile          | T2          | Draft       | 3     |
 | [surface-shell](./modules/surface-shell.aps.md)                   | SURFSH   | Shell scripts       | T1          | Draft       | 3     |
