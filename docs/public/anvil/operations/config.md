@@ -423,15 +423,21 @@ By default `anvil watch` uses daemon-backed save-time validation when a resident
 intercept daemon is already live and serving the save-time verbs. The daemon
 validates the changed-path delta against one warm model rather than spawning a
 per-save subprocess, so `anvil watch` and the editor/agent MCP
-`anvil_validate_write` tool converge on the same verdict path.
+`anvil_validate_write` tool converge on the same verdict path. From
+`v0.9.0-beta`, an interactive `anvil start` auto-starts the daemon and an
+interactive `anvil watch` offers to start one when none is answering (Linux and
+macOS) — pass `--no-daemon`, or set `ANVIL_NO_DAEMON=1` for `start`, to keep to
+the scoped fallback. See the
+[daemon lifecycle](../guides/save-time-validation.md#daemon-lifecycle) for the
+full start/offer/opt-out model.
 
-If no daemon is live, the default path stays quiet and runs a scoped `check`
-over exactly the changed files, never a whole-repository `--all` scan. Set
-`ANVIL_WATCH_DAEMON=0` (also `false`/`off`/`no`) to opt out of daemon routing.
-Set `ANVIL_WATCH_DAEMON=1` (also `true`/`on`/`yes`) to force daemon routing for
-diagnostics; in that forced mode, an absent daemon falls back to the same scoped
-`check` and reports save-time assurance as `unavailable` rather than a
-misleading `clean`. Value matching is case-insensitive. Any other value —
+If no daemon is live, the default routing path stays quiet and runs a scoped
+`check` over exactly the changed files, never a whole-repository `--all` scan.
+Set `ANVIL_WATCH_DAEMON=0` (also `false`/`off`/`no`) to opt out of daemon
+routing. Set `ANVIL_WATCH_DAEMON=1` (also `true`/`on`/`yes`) to force daemon
+routing for diagnostics; in that forced mode, an absent daemon falls back to the
+same scoped `check` and reports save-time assurance as `unavailable` rather than
+a misleading `clean`. Value matching is case-insensitive. Any other value —
 including an empty `ANVIL_WATCH_DAEMON=` — carries no explicit opinion and is
 treated as unset (the safe default-on-when-live posture); opt out with an
 explicit false value, not by blanking.
@@ -544,9 +550,14 @@ configuration, including:
   scans, `check`, `gate`, and `audit` (default `min(num_cpus, 4)`); raise this
   when running on a dedicated CI runner
 - `ANVIL_WATCH_DAEMON` — unset defaults to daemon-backed `anvil watch` routing
-  only when a live daemon answers; set `0` (or `false`/`off`/`no`) to opt out,
-  or `1` (or `true`/`on`/`yes`) to force routing for diagnostics. See
+  only when a live daemon answers; set `0` (or `false`/`off`/`no`) to opt out
+  (no routing, reuse, start, or offer), or `1` (or `true`/`on`/`yes`) to force
+  routing for diagnostics. See
   [Save-time validation through the daemon](#save-time-validation-through-the-daemon)
+- `ANVIL_NO_DAEMON` — set to a non-empty value to stop `anvil start` from
+  auto-starting the per-user save-time daemon (the environment equivalent of
+  `--no-daemon`); a daemon already running is still reused. See the
+  [daemon lifecycle](../guides/save-time-validation.md#daemon-lifecycle)
 
 Legacy Node.js environment variables (`ANVIL_CI`, `ANVIL_FAIL_ON_WARNINGS`) are
 not supported.

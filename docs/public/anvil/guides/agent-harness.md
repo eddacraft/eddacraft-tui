@@ -138,6 +138,13 @@ editing concurrently. Set `ANVIL_WATCH_DAEMON=0` to opt out, or
 [save-time validation guide](save-time-validation.md) covers the full routing
 story, assurance states, and fallback behaviour.
 
+In an agent or headless harness, bring the daemon up explicitly with
+`anvil start` (or `anvil intercept start --foreground` for an attached process):
+the `v0.9.0-beta` interactive offer that an at-the-keyboard `anvil watch` shows
+is deliberately suppressed in headless, `--json`, CI, hook, and piped contexts,
+so an unattended harness never blocks on a prompt and falls back
+deterministically to the scoped check until a daemon is running.
+
 See [MCP Integration](/anvil/integrations/mcp) for full configuration and tool
 reference.
 

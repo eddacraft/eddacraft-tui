@@ -103,8 +103,10 @@ If the state remains `ready_restart_required`, follow the repair hint:
 
 - **Editor not restarted yet:** restart Cursor or Claude Code so it picks up the
   MCP config entry.
-- **Daemon unreachable:** run `anvil intercept start --foreground` in another
-  terminal, then re-run `anvil start --verify`.
+- **Daemon unreachable:** run `anvil start` in an interactive terminal — it
+  auto-starts the per-user daemon (Linux and macOS) — then re-run
+  `anvil start --verify`. In a headless session, or on Windows, run
+  `anvil intercept start --foreground` in another terminal instead.
 - **Worktree unenforced or stale:** run `anvil intercept status` and confirm the
   daemon knows about the repository path you are probing.
 - **All surfaces quarantined:** clear the fence where supported with
@@ -114,15 +116,20 @@ If the state remains `ready_restart_required`, follow the repair hint:
 Run with `ANVIL_LOG=warn` if you need the daemon-state reason in logs;
 actionable activation failures now surface at that level.
 
-### Daemon must run in foreground in v1
+### Starting and stopping the daemon
 
-`anvil intercept start --foreground` is the only supported invocation in
-`v0.6.0-beta`. Output goes to the operator's terminal; the daemon stays attached
-to the controlling TTY.
+From `v0.9.0-beta`, an interactive `anvil start` auto-starts the per-user daemon
+in the background and an interactive `anvil watch` offers to start one (Linux
+and macOS) — this is the normal path, and a daemon already running is always
+reused. `anvil intercept start --foreground` remains the low-level operator and
+debugging surface: output goes to the operator's terminal and the daemon stays
+attached to the controlling TTY. It is the way to run the daemon in a headless
+session, and the only launch mode on Windows until background launch lands
+there.
 
 If a start fails with "address already in use" or a stale-PID complaint, a prior
 instance is the most likely cause. The `anvil intercept stop` CLI subcommand is
-not wired in v1, so stop it directly:
+not wired, so stop it directly:
 
 1. Press Ctrl-C in the controlling terminal of the foreground daemon (sends
    SIGINT to the shutdown handler).

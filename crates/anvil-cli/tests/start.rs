@@ -382,6 +382,32 @@ fn welcome_still_runs_after_start_promotion() {
 }
 
 #[test]
+fn start_help_documents_daemon_lifecycle() {
+    // DLIFE-005: `anvil start --help` must keep documenting the daemon
+    // lifecycle opt-out so the CLI long help stays aligned with the
+    // public docs (auto-start + `--no-daemon` / `ANVIL_NO_DAEMON`).
+    let out = Command::new(ANVIL_BIN)
+        .arg("start")
+        .arg("--help")
+        .output()
+        .expect("failed to invoke anvil binary");
+    assert!(
+        out.status.success(),
+        "anvil start --help failed: stderr={}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("--no-daemon"),
+        "start --help should list the --no-daemon opt-out, got:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("ANVIL_NO_DAEMON"),
+        "start --help should name the ANVIL_NO_DAEMON env opt-out, got:\n{stdout}"
+    );
+}
+
+#[test]
 fn start_on_invalid_config_emits_error_state_not_panic() {
     // Adversarial guardrail: a malformed .anvilrc must not panic the
     // start orchestrator. The diagnostic surfaces it as `state: error`.

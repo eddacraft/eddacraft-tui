@@ -41,11 +41,14 @@ further with `--patterns`, `--exclude`, `--file`, `--source`, or `--plans`.
 
 ## The daemon's role
 
-The intercept daemon — started by `anvil start`, or run directly with
-`anvil intercept start --foreground` (the flag is currently required;
-backgrounded launch is not yet available) — keeps one warm validation model per
-admitted workspace and serves save-time verbs over owner-only IPC: a Unix domain
-socket on macOS and Linux, a named pipe on Windows.
+The intercept daemon keeps one warm validation model per admitted workspace and
+serves save-time verbs over owner-only IPC: a Unix domain socket on macOS and
+Linux, a named pipe on Windows. In an interactive terminal `anvil start`
+auto-starts it and `anvil watch` offers to start one when none is answering, so
+daemon-backed protection is the normal path — see
+[Daemon lifecycle](#daemon-lifecycle) below.
+`anvil intercept start --foreground` remains the low-level operator and
+debugging surface, running the daemon attached to your terminal.
 
 From `v0.8.0-beta`, when a live daemon answers the presence probe, `anvil watch`
 routes each save through the daemon instead of spawning a per-save subprocess
@@ -56,6 +59,40 @@ verdict path — same inputs, same verdict, faster than a cold subprocess.
 The daemon only ever receives workspace-relative paths for files under an
 admitted root; it re-derives file identity from disk and never trusts client
 hints for a verdict.
+
+## Daemon lifecycle
+
+From `v0.9.0-beta`, daemon-backed protection is the normal path rather than an
+operator-only foreground ceremony. `anvil start` and `anvil watch` manage the
+per-user daemon for you on Linux and macOS:
+
+- **`anvil start`** — in an interactive terminal it auto-starts the daemon and
+  reports the result on a `daemon:` line (`started…`, or `reusing…` when one is
+  already live). A daemon already running is always reused; concurrent
+  invocations never start a second one.
+- **`anvil watch`** — when no daemon answers, an interactive run offers to start
+  one
+  (`No save-time daemon is running. Start one now for daemon-backed validation?`).
+  Decline and it falls back to the scoped check; a daemon already running is
+  reused without prompting.
+
+Opting out and non-interactive behaviour:
+
+- **`--no-daemon`** — on either command, suppresses the auto-start (or the watch
+  offer) and uses the scoped fallback. A daemon already running is still reused;
+  only the start/offer is suppressed.
+- **`ANVIL_NO_DAEMON`** — the environment equivalent of `--no-daemon` for
+  `anvil start`.
+- **`ANVIL_WATCH_DAEMON=0`** — the hard opt-out for watch: no start, no offer,
+  and **no reuse** even of a live daemon (see
+  [Routing control](#routing-control-anvilwatchdaemon)).
+- **Headless, `--json`, CI, hooks, and piped output never start, offer, or
+  prompt.** They fall back deterministically to the scoped check, so automation
+  never hangs waiting for consent or pollutes a JSON stream.
+- **`--verify` is read-only and never starts a daemon.**
+- **Windows** background launch is not yet available; `start`/`watch` use the
+  scoped fallback there until that path lands (tracked with the save-time
+  Windows gap). `anvil intercept start --foreground` works on every OS.
 
 ## Assurance states
 
@@ -120,10 +157,12 @@ One environment variable controls save-time routing:
 
 - **unset** (including an empty `ANVIL_WATCH_DAEMON=`) — the default: route
   through a live daemon when one answers the presence probe; stay on the
-  scoped-check path otherwise. There is no auto-start — the daemon is only used
-  when it is already running.
+  scoped-check path otherwise. This variable governs **routing only** — it does
+  not itself start a daemon. The interactive start/offer behaviour is the
+  separate [daemon lifecycle](#daemon-lifecycle); `--no-daemon` suppresses that
+  without disabling reuse of a daemon that is already live.
 - **`0`** (also `false` / `off` / `no`, case-insensitive) — opt out of daemon
-  routing entirely.
+  routing entirely: no routing, no reuse, no start, and no offer.
 - **`1`** (also `true` / `on` / `yes`) — force daemon routing for diagnostics.
   An absent daemon still falls back to the scoped check with a warning — never a
   hard failure — and reports `unavailable{daemon-absent}`.

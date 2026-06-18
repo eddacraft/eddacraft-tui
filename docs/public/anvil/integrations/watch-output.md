@@ -37,7 +37,10 @@ documented variants below stay stable. The full normative spec lives at
 The stream is identical whether `anvil watch` runs its own scoped `check` per
 save or routes save-time validation through the resident daemon (the default
 when the daemon is live; `ANVIL_WATCH_DAEMON=0` opts out). The backing changes;
-the event contract does not — so consumers never need to branch on it.
+the event contract does not — so consumers never need to branch on it. The
+`v0.9.0-beta` daemon lifecycle offer (an interactive `anvil watch` offering to
+start a daemon) never appears under `--json`: the lifecycle line is suppressed
+and no prompt is shown, so the stdout stream stays pure NDJSON.
 
 :::
 

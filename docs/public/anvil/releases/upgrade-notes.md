@@ -9,6 +9,28 @@ sidebar_position: 2
 
 Guides for upgrading between anvil versions.
 
+## Unreleased — daemon lifecycle for `anvil start` / `anvil watch`
+
+No config migration and no protection-claim vocabulary change. The behavioural
+change is that daemon-backed save-time validation is now the normal path:
+
+- In an interactive terminal, `anvil start` auto-starts the per-user save-time
+  daemon (Linux and macOS) and reports the result on a `daemon:` line. An
+  interactive `anvil watch` offers to start one when none is answering.
+- A daemon already running is always reused; concurrent invocations never start
+  a second one.
+- Opt out with `--no-daemon` (or `ANVIL_NO_DAEMON=1` for `start`); `anvil watch`
+  also honours `ANVIL_WATCH_DAEMON=0` as a hard opt-out that disables reuse too.
+- Headless, `--json`, CI, hook, and piped runs never start, offer, or prompt and
+  fall back deterministically to the scoped check; `--verify` stays read-only.
+- `anvil intercept start --foreground` is unchanged — it remains the
+  operator/debug surface and the only launch mode on Windows for now.
+
+If you relied on the daemon never starting on its own: for `anvil start`, pass
+`--no-daemon` (or set `ANVIL_NO_DAEMON=1`). For `anvil watch`, `--no-daemon`
+only suppresses the offer — a daemon already running is still reused; set
+`ANVIL_WATCH_DAEMON=0` if you want watch to make no daemon contact at all.
+
 ## Current Version: 0.7.2-beta
 
 ## Upgrading to 0.7.2-beta

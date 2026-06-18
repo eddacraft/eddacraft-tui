@@ -9,6 +9,25 @@ sidebar_position: 1
 
 All notable changes to anvil are documented here.
 
+## [Unreleased]
+
+### Changed
+
+- **`anvil start` and `anvil watch` now manage the save-time daemon.**
+  Daemon-backed protection is the normal path rather than an operator-only
+  foreground ceremony (Linux and macOS). In an interactive terminal
+  `anvil start` auto-starts the per-user daemon and reports the result on a
+  `daemon:` line; an interactive `anvil watch` offers to start one when none is
+  answering. A daemon already running is always reused, and concurrent
+  invocations never start a second one. Pass `--no-daemon` (or set
+  `ANVIL_NO_DAEMON=1` for `start`) to keep to the scoped fallback. Headless,
+  `--json`, CI, hook, and piped runs never start, offer, or prompt — they fall
+  back deterministically — and `--verify` stays read-only and never starts a
+  daemon. `anvil intercept start --foreground` remains the low-level operator
+  and debugging surface, and is the only launch mode on Windows until background
+  launch lands there. See the
+  [daemon lifecycle](../guides/save-time-validation.md#daemon-lifecycle).
+
 ## [0.8.1-beta] — 2026-06-11 — Headless GitHub Login
 
 A patch cut hours after `v0.8.0-beta`, landing the GitHub device-flow login that

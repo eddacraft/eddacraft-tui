@@ -276,3 +276,34 @@ fn json_mode_suppresses_the_lifecycle_line_on_stdout() {
         );
     }
 }
+
+#[test]
+fn watch_help_documents_daemon_lifecycle() {
+    // DLIFE-005: `anvil watch --help` must keep documenting the daemon
+    // lifecycle (offer + opt-out) so the CLI long help stays aligned with
+    // the public docs. Asserts on stable, unwrappable tokens — the flag
+    // name, the env opt-out, and the after-help section header.
+    let out = Command::new(ANVIL_BIN)
+        .arg("watch")
+        .arg("--help")
+        .output()
+        .expect("failed to invoke anvil binary");
+    assert!(
+        out.status.success(),
+        "anvil watch --help failed: stderr={}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("Save-time daemon:"),
+        "watch --help should carry the daemon lifecycle section, got:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("--no-daemon"),
+        "watch --help should list the --no-daemon opt-out, got:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("ANVIL_WATCH_DAEMON"),
+        "watch --help should name the ANVIL_WATCH_DAEMON routing control, got:\n{stdout}"
+    );
+}

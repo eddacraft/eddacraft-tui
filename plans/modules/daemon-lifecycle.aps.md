@@ -156,7 +156,7 @@ operator/debugging surface.
 
 ### DLIFE-005: Align docs, help text, and runbooks with daemon lifecycle
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Replace guidance-only daemon startup instructions with the accepted user-facing lifecycle model.
 - **Expected Outcome:** Public docs, CLI long help, beta testing guide, troubleshooting, and release notes all describe the same `start`/`watch`/opt-out behaviour and reserve `anvil intercept start --foreground` for operator/debugging use.
 - **Validation:** `pnpm docs:check`; `pnpm docs:index:check`; `pnpm aps:index:check`; targeted help-text tests pass.
