@@ -439,10 +439,13 @@ pub struct FindCallersProjection {
     /// Counts-only elision summary (CE-11).
     pub redaction_summary: RedactionSummary,
     /// `true` when the caller set may be **incomplete** (GCALL-007 CALL-1): the
-    /// node-budget bound the walk, or the graph is not fully resolved
-    /// (`Stale`/`Bounded`). Static-analysis under-inclusion (dynamic dispatch,
-    /// unresolved/default-import callees) is conveyed by the tool description, not
-    /// this flag — an unresolved call leaves no edge to count.
+    /// node-budget bound the walk, the graph is not fully resolved
+    /// (`Stale`/`Bounded`), **or** a call site naming this target was left
+    /// unresolved (dynamic dispatch, a default-export callee, an over-cap overload,
+    /// or an import to a non-resident file). An unresolved call leaves no edge for
+    /// the walk to find, so the daemon folds the intended-callee record from its
+    /// call accumulator into this flag rather than letting a Clean graph report a
+    /// truncated caller set as complete (ADR-086 §1).
     #[serde(default)]
     pub partial: bool,
 }

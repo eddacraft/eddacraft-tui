@@ -205,6 +205,15 @@ pub struct FileSymbols {
     /// sites (Rust/Python until GCALL-004/005) carries none.
     #[serde(default)]
     pub calls: Vec<CallSite>,
+    /// `true` when this file's call-site extraction was bounded by the per-file
+    /// [`MAX_CALL_SITES`] cap (ADR-086 §3) — `calls` holds the first
+    /// `MAX_CALL_SITES` in deterministic walk order and the rest were dropped, so
+    /// the file's call data is **incomplete**. The daemon folds this into the
+    /// GCALL-007 CALL-1 `partial` egress marker so a consumer is never told a
+    /// truncated caller set is complete. Defaults false so older serialized
+    /// `FileSymbols` (pre-cap) still deserialize and an uncapped file is honest.
+    #[serde(default)]
+    pub calls_partial: bool,
 }
 
 /// A file-local reference to a symbol within its own file (GCALL-001 / ADR-086).
@@ -259,6 +268,17 @@ pub struct CalleeRef {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub via_import: Option<String>,
 }
+
+/// Per-file cap on extracted [`CallSite`]s (ADR-086 §3 budget escape hatch).
+///
+/// A pathological, call-dense file (generated/bundled code, a giant dispatch
+/// table) is bounded here so it can never blow the save-time lift budget
+/// (ADR-031): over the cap the extractor keeps the first `MAX_CALL_SITES` call
+/// sites in deterministic walk order, drops the rest, and sets
+/// [`FileSymbols::calls_partial`]. Sized well above any hand-written file's
+/// call-site count, so a real source file is never truncated; it bites only the
+/// generated outliers the budget exists to contain.
+pub const MAX_CALL_SITES: usize = 2_048;
 
 /// A symbol-level call site (GCALL-001 / ADR-086): caller → callee at one
 /// source location, **before** cross-file resolution.

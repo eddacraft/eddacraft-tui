@@ -35,6 +35,7 @@ fn file_symbols(file: &str, symbols: Vec<SymbolNode>) -> FileSymbols {
         imports: Vec::new(),
         reexports: Vec::new(),
         calls: Vec::new(),
+        calls_partial: false,
     }
 }
 

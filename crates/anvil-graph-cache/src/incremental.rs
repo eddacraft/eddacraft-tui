@@ -2,8 +2,8 @@ use std::collections::{BTreeSet, HashSet};
 use std::path::Path;
 
 use anvil_kernel_types::{
-    CallSite, CalleeRef, EdgeType, FileSymbols, ImportEdge, LocalSymbolRef, ReexportEdge,
-    SymbolIdentity, SymbolKind, SymbolNode, TrustLevel, Visibility,
+    CallSite, CalleeRef, EdgeType, FileSymbols, ImportEdge, ReexportEdge, SymbolIdentity,
+    SymbolKind, SymbolNode, TrustLevel, Visibility,
 };
 
 use super::symbol_graph::SymbolGraph;
@@ -510,7 +510,11 @@ pub(crate) fn resolve_import(
     // External packages (axios, node:fs, etc.) won't have pre-existing
     // graph nodes, so we create one on demand to enable edge tracking.
     if !specifier.starts_with('.') {
-        if let Some(existing) = graph.inner().node_weights().find(|s| s.file == specifier) {
+        // External/virtual module nodes are keyed by `file == specifier`, so the
+        // file index answers this in O(1) — not an O(total-graph-nodes)
+        // `node_weights().find` scan on every cross-file callee/import lift
+        // (council ADV-4: the scan made call-lift cost grow with graph size).
+        if let Some(existing) = graph.symbols_in_file(specifier).first() {
             return Some(existing.id);
         }
         // Create a synthetic external node
@@ -576,11 +580,8 @@ pub(crate) fn resolve_import(
             // Prefer exact match, then shortest path (most specific)
             matches.sort_by_key(|f| f.len());
             let file_path = matches[0];
-            return graph
-                .inner()
-                .node_weights()
-                .find(|s| s.file == *file_path)
-                .map(|s| s.id);
+            // O(1) file-index lookup, not an O(total-graph-nodes) scan (ADV-4).
+            return graph.symbols_in_file(file_path).first().map(|s| s.id);
         }
     }
 
@@ -743,102 +744,213 @@ fn is_callable_kind(kind: SymbolKind) -> bool {
     )
 }
 
+/// Outcome of lifting a batch of [`CallSite`]s: the `Calls` edges added, plus
+/// the intended callee `(target_file, export_name)` of every call site that
+/// produced **no** edge.
+///
+/// The `unresolved` channel is the CALL-1 partial signal (ADR-086 §1): an
+/// unresolved call (a missing caller, a default-export callee, an over-cap
+/// overload, an import that does not resolve to a resident file) leaves no edge,
+/// so it is invisible to the [`crate::callers_of`] walk. Surfacing the intended
+/// callee here lets the daemon set the `find_callers` egress `partial` marker for
+/// exactly the targets whose caller set may be incomplete, instead of silently
+/// under-reporting (the council's load-bearing finding).
+#[derive(Debug, Default)]
+pub struct CallLift {
+    /// The `(from, to, Calls)` edges added this lift.
+    pub added: Vec<(u64, u64, EdgeType)>,
+    /// `(intended_target_file, callee_export_name)` of each call site that
+    /// resolved to no edge. `intended_target_file` is `None` when even the callee's
+    /// file is unknown (a callee imported from a not-yet-resident relative file, or
+    /// a default-export binding) — a `None` flags by name alone, the conservative
+    /// over-approximation a partial marker should make.
+    pub unresolved: Vec<(Option<String>, String)>,
+}
+
 /// Lift a file's [`CallSite`]s into resident `EdgeType::Calls` edges
-/// (caller symbol → callee symbol), returning the edges actually added this
-/// call. Idempotent: a `(from, to, Calls)` edge already present is not
-/// re-added, so re-resolution over the daemon accumulator never duplicates.
+/// (caller symbol → callee symbol). Idempotent: a `(from, to, Calls)` edge
+/// already present is not re-added, so re-resolution over the daemon accumulator
+/// never duplicates — and an already-present edge is still counted **resolved**
+/// (not pushed to `unresolved`).
 ///
 /// `from_file` is the file the calls were extracted from (the caller's file).
 /// Caller and callee are resolved at **symbol** granularity — not the file-level
 /// `first()`-symbol shortcut the import resolver uses (ADR-086 §2). A caller or
 /// callee that does not resolve to a resident symbol yields no edge (the call is
-/// left for a later re-resolution when its target lands, or stays unresolved).
+/// left for a later re-resolution when its target lands, or stays unresolved) and
+/// is recorded in [`CallLift::unresolved`].
+///
+/// The file's named-caller index is built **once** here (not per call site), so
+/// the lift is O(file-symbols + call-sites), not O(call-sites × file-symbols)
+/// (council OPS-3).
+fn lift_calls(
+    graph: &mut SymbolGraph,
+    from_file: &str,
+    calls: &[CallSite],
+    known_files: &[String],
+) -> CallLift {
+    let mut out = CallLift::default();
+    // Hoist: resolve every named caller through one (kind, name, ordinal) → id
+    // index built once for `from_file`. Module-scope callers bind to the file's
+    // synthetic node, materialised lazily and reused across call sites.
+    let caller_index = build_caller_index(graph, from_file);
+    let mut module_id: Option<u64> = None;
+    let (mut caller_miss, mut callee_unresolved, mut overcap_drops) = (0usize, 0usize, 0usize);
+
+    for call in calls {
+        let from = if call.from.module_scope {
+            Some(*module_id.get_or_insert_with(|| ensure_module_node(graph, from_file)))
+        } else {
+            caller_index
+                .get(&(call.from.kind, call.from.name.clone(), call.from.ordinal))
+                .copied()
+        };
+        let resolution = resolve_callee_targets(graph, from_file, &call.callee, known_files);
+
+        // Resolved iff the caller is resident AND at least one callee target
+        // resolved — independent of whether a *new* edge was added (an already
+        // resident edge is still resolved, the idempotent re-resolution case).
+        if let Some(from) = from.filter(|_| !resolution.targets.is_empty()) {
+            // Snapshot the caller's existing `Calls` targets once per call site
+            // (not once per candidate) so fan-out dedup is O(out-degree + fan-out).
+            let mut existing: std::collections::HashSet<u64> = graph
+                .outgoing_edges(from)
+                .iter()
+                .filter(|e| e.edge_type == EdgeType::Calls)
+                .map(|e| e.to)
+                .collect();
+            for to in resolution.targets {
+                if !existing.insert(to) {
+                    continue;
+                }
+                let edge = anvil_kernel_types::SymbolEdge {
+                    from,
+                    to,
+                    edge_type: EdgeType::Calls,
+                };
+                if graph.add_edge(edge).is_ok() {
+                    out.added.push((from, to, EdgeType::Calls));
+                }
+            }
+        } else {
+            // No edge: record the intended callee so the egress `partial` marker
+            // can fire for this target. `intended_file` is the callee's resolved
+            // module file when known (a same-file callee carries the caller's own
+            // file), or `None` when the file is unknown (forward-referenced or
+            // default-export callee) — then the egress matches by name alone.
+            out.unresolved
+                .push((resolution.intended_file, call.callee.name.clone()));
+            if from.is_none() {
+                caller_miss += 1;
+            } else if resolution.overcap {
+                overcap_drops += 1;
+            } else {
+                callee_unresolved += 1;
+            }
+        }
+    }
+
+    if caller_miss + callee_unresolved + overcap_drops > 0 {
+        // Counts only (no identities/paths) — PV-10 telemetry posture. Lets an
+        // operator see what fraction of call sites are dropping without a profiler.
+        tracing::debug!(
+            target: "anvil_graph_cache::call_graph",
+            added = out.added.len(),
+            caller_miss,
+            callee_unresolved,
+            overcap = overcap_drops,
+            "call lift: unresolved call sites dropped"
+        );
+    }
+    out
+}
+
+/// Build `from_file`'s named-caller `(kind, name, ordinal) → node id` index using
+/// the [`SymbolIdentity::for_file_symbols`] ordinal scheme the extractor used.
+fn build_caller_index(
+    graph: &SymbolGraph,
+    file: &str,
+) -> std::collections::HashMap<(SymbolKind, String, u32), u64> {
+    let symbols = graph.symbols_in_file(file);
+    let identities = SymbolIdentity::for_file_symbols(&symbols);
+    identities
+        .iter()
+        .zip(symbols.iter())
+        .map(|(id, node)| ((id.kind, id.name.clone(), id.ordinal), node.id))
+        .collect()
+}
+
+/// Thin wrapper returning only the edges added — the `update_file` initial-lift
+/// path, which does not maintain the daemon's unresolved-callee set (that is
+/// rebuilt by [`re_resolve_calls_tracked`] over the affected neighbourhood).
 fn lift_calls_tracked(
     graph: &mut SymbolGraph,
     from_file: &str,
     calls: &[CallSite],
     known_files: &[String],
 ) -> Vec<(u64, u64, EdgeType)> {
-    let mut added = Vec::new();
-    for call in calls {
-        let Some(from) = caller_node_id(graph, from_file, &call.from) else {
-            continue;
-        };
-        let targets = resolve_callee_targets(graph, from_file, &call.callee, known_files);
-        if targets.is_empty() {
-            continue;
-        }
-        // Snapshot the caller's existing `Calls` targets once per call site (not
-        // once per candidate) so fan-out dedup is O(out-degree + fan-out), not
-        // O(out-degree × fan-out) — this runs on the save-time path.
-        let mut existing: std::collections::HashSet<u64> = graph
-            .outgoing_edges(from)
-            .iter()
-            .filter(|e| e.edge_type == EdgeType::Calls)
-            .map(|e| e.to)
-            .collect();
-        for to in targets {
-            if !existing.insert(to) {
-                continue;
-            }
-            let edge = anvil_kernel_types::SymbolEdge {
-                from,
-                to,
-                edge_type: EdgeType::Calls,
-            };
-            if graph.add_edge(edge).is_ok() {
-                added.push((from, to, EdgeType::Calls));
-            }
-        }
-    }
-    added
+    lift_calls(graph, from_file, calls, known_files).added
 }
 
 /// Re-resolve call edges over a daemon accumulator of `(caller_file, CallSite)`
-/// pairs (ADR-086 §2 forward-reference + callee-resave handling). Idempotent via
-/// the dedup in [`lift_calls_tracked`]. Returns the edges added this generation.
-pub fn re_resolve_calls(
+/// pairs (ADR-086 §2 forward-reference + callee-resave handling), returning the
+/// edges added **and** the unresolved intended-callee keys (CALL-1 partial
+/// signal). Idempotent via the dedup in [`lift_calls`].
+///
+/// Calls are grouped by caller file so each file's caller index is built once
+/// (council OPS-3), and the output is deterministic (`BTreeMap` file order).
+pub fn re_resolve_calls_tracked(
     graph: &mut SymbolGraph,
     calls: &[(String, CallSite)],
-) -> Vec<(u64, u64, EdgeType)> {
-    // Distinct resident files in O(files) (not an O(symbols) node-weight scan).
+) -> CallResolution {
     let known_files: Vec<String> = graph
         .file_names()
         .map(ToString::to_string)
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect();
-    let mut added = Vec::new();
+
+    let mut by_file: std::collections::BTreeMap<&str, Vec<CallSite>> =
+        std::collections::BTreeMap::new();
     for (from_file, call) in calls {
-        added.extend(lift_calls_tracked(
-            graph,
-            from_file,
-            std::slice::from_ref(call),
-            &known_files,
-        ));
+        by_file
+            .entry(from_file.as_str())
+            .or_default()
+            .push(call.clone());
     }
-    added
+
+    let mut out = CallResolution::default();
+    for (from_file, file_calls) in by_file {
+        let lift = lift_calls(graph, from_file, &file_calls, &known_files);
+        out.added.extend(lift.added);
+        for (target_file, name) in lift.unresolved {
+            out.unresolved
+                .push((from_file.to_string(), target_file, name));
+        }
+    }
+    out
 }
 
-/// Resolve a call site's caller [`LocalSymbolRef`] to its resident node id.
-///
-/// A `module_scope` caller binds to the file's synthetic `Module` node (created
-/// on demand, reusing the one `update_file` may have made for side-effect
-/// imports — never a second). A named caller is matched by
-/// `(kind, name, ordinal)` against the file's symbols using the same
-/// [`SymbolIdentity::for_file_symbols`] ordinal scheme the extractor used, so the
-/// extractor's caller ref and the resident node line up exactly.
-fn caller_node_id(graph: &mut SymbolGraph, file: &str, from: &LocalSymbolRef) -> Option<u64> {
-    if from.module_scope {
-        return Some(ensure_module_node(graph, file));
-    }
-    let symbols = graph.symbols_in_file(file);
-    let identities = SymbolIdentity::for_file_symbols(&symbols);
-    identities
-        .iter()
-        .zip(symbols.iter())
-        .find(|(id, _)| id.kind == from.kind && id.name == from.name && id.ordinal == from.ordinal)
-        .map(|(_, node)| node.id)
+/// The result of [`re_resolve_calls_tracked`].
+#[derive(Debug, Default)]
+pub struct CallResolution {
+    /// `(from, to, Calls)` edges added this generation.
+    pub added: Vec<(u64, u64, EdgeType)>,
+    /// `(caller_file, intended_target_file, callee_export_name)` of each call
+    /// site that produced no edge — the daemon's CALL-1 partial signal, keyed by
+    /// caller file so it can be maintained incrementally (retain-by-`from_file`).
+    /// `intended_target_file` is `None` when the callee's file is unknown.
+    pub unresolved: Vec<(String, Option<String>, String)>,
+}
+
+/// Re-resolve call edges over a daemon accumulator (ADR-086 §2). Returns the
+/// edges added this generation; callers needing the unresolved signal use
+/// [`re_resolve_calls_tracked`].
+pub fn re_resolve_calls(
+    graph: &mut SymbolGraph,
+    calls: &[(String, CallSite)],
+) -> Vec<(u64, u64, EdgeType)> {
+    re_resolve_calls_tracked(graph, calls).added
 }
 
 /// Find the file's synthetic `Module` node (the module-scope caller anchor), or
@@ -866,37 +978,83 @@ fn ensure_module_node(graph: &mut SymbolGraph, file: &str) -> u64 {
     id
 }
 
+/// A callee resolution: the resident target node id(s), the **intended** callee
+/// file (for the unresolved-callee partial signal), and whether the callee was
+/// dropped by the overload-fan-out cap.
+struct CalleeResolution {
+    /// Resolved resident callee nodes (empty ⇒ unresolved).
+    targets: Vec<u64>,
+    /// The file the callee was expected in, when determinable — the resolved
+    /// module file for an import, or the caller's own file for a same-file
+    /// callee. `None` when even the intended file is unknown (a default-export
+    /// callee, or a specifier that resolves to no resident file).
+    intended_file: Option<String>,
+    /// True when the callee name resolved to more than [`MAX_OVERLOAD_FANOUT`]
+    /// overloads and was dropped (distinguished from "no such symbol" for
+    /// telemetry only).
+    overcap: bool,
+}
+
 /// Resolve a [`CalleeRef`] to the resident callee node id(s) — best-effort and
 /// static (ADR-086 §1). Same-file callees resolve in `from_file`; imported
 /// callees resolve the module specifier (reusing [`resolve_import`]) then the
 /// export name in the target file. Overloads fan out, capped at
 /// [`MAX_OVERLOAD_FANOUT`]. A default import (`name == "default"`), a callee that
 /// resolves to no resident symbol, or an over-cap fan-out yields no edge (left
-/// `Unresolved` — barrel/re-export follow is a deferred refinement).
+/// `Unresolved` — barrel/re-export follow is a deferred refinement) but still
+/// reports its `intended_file` where known so the egress `partial` marker fires.
 fn resolve_callee_targets(
     graph: &mut SymbolGraph,
     from_file: &str,
     callee: &CalleeRef,
     known_files: &[String],
-) -> Vec<u64> {
+) -> CalleeResolution {
     match callee.via_import.as_deref() {
-        None => symbols_named(graph, from_file, &callee.name),
-        Some(_) if callee.name == "default" => Vec::new(),
+        None => {
+            let (targets, overcap) = symbols_named(graph, from_file, &callee.name);
+            CalleeResolution {
+                targets,
+                intended_file: Some(from_file.to_string()),
+                overcap,
+            }
+        }
+        // A default import is recorded but left Unresolved in v1; the intended
+        // file is the import target, but a `"default"` name never matches a real
+        // target identity, so reporting `None` keeps the partial set precise.
+        Some(_) if callee.name == "default" => CalleeResolution {
+            targets: Vec::new(),
+            intended_file: None,
+            overcap: false,
+        },
         Some(specifier) => {
             let Some(target_node) = resolve_import(specifier, from_file, known_files, graph) else {
-                return Vec::new();
+                return CalleeResolution {
+                    targets: Vec::new(),
+                    intended_file: None,
+                    overcap: false,
+                };
             };
             let Some(target_file) = graph.get_symbol(target_node).map(|s| s.file.clone()) else {
-                return Vec::new();
+                return CalleeResolution {
+                    targets: Vec::new(),
+                    intended_file: None,
+                    overcap: false,
+                };
             };
-            symbols_named(graph, &target_file, &callee.name)
+            let (targets, overcap) = symbols_named(graph, &target_file, &callee.name);
+            CalleeResolution {
+                targets,
+                intended_file: Some(target_file),
+                overcap,
+            }
         }
     }
 }
 
 /// The resident callable symbols in `file` named `name`, fan-out capped and
-/// deterministically ordered by node id.
-fn symbols_named(graph: &SymbolGraph, file: &str, name: &str) -> Vec<u64> {
+/// deterministically ordered by node id. Returns `(ids, overcap)`: over the
+/// [`MAX_OVERLOAD_FANOUT`] cap the ids are empty and `overcap` is true.
+fn symbols_named(graph: &SymbolGraph, file: &str, name: &str) -> (Vec<u64>, bool) {
     let mut ids: Vec<u64> = graph
         .symbols_in_file(file)
         .iter()
@@ -905,9 +1063,9 @@ fn symbols_named(graph: &SymbolGraph, file: &str, name: &str) -> Vec<u64> {
         .collect();
     ids.sort_unstable();
     if ids.len() > MAX_OVERLOAD_FANOUT {
-        return Vec::new();
+        return (Vec::new(), true);
     }
-    ids
+    (ids, false)
 }
 
 /// Remove a deleted file from the graph entirely.
@@ -955,7 +1113,7 @@ pub fn remove_file(graph: &mut SymbolGraph, file: &str) -> GraphDelta {
 mod tests {
     use super::*;
     use anvil_kernel_types::{
-        ImportEdge, ReexportEdge, SymbolKind, SymbolNode, TrustLevel, Visibility,
+        ImportEdge, LocalSymbolRef, ReexportEdge, SymbolKind, SymbolNode, TrustLevel, Visibility,
     };
 
     fn make_file_symbols(file: &str, symbols: Vec<(u64, &str, SymbolKind)>) -> FileSymbols {
@@ -975,6 +1133,7 @@ mod tests {
             imports: Vec::new(),
             reexports: Vec::new(),
             calls: Vec::new(),
+            calls_partial: false,
         }
     }
 
@@ -1146,6 +1305,7 @@ mod tests {
             }],
             reexports: Vec::new(),
             calls: Vec::new(),
+            calls_partial: false,
         };
 
         let delta = update_file(&mut g, syms);
@@ -1188,6 +1348,7 @@ mod tests {
             }],
             reexports: Vec::new(),
             calls: Vec::new(),
+            calls_partial: false,
         };
 
         let delta = update_file(&mut g, syms);
@@ -1220,6 +1381,7 @@ mod tests {
             }],
             reexports: Vec::new(),
             calls: Vec::new(),
+            calls_partial: false,
         };
 
         let delta = update_file(&mut g, syms);
@@ -1254,6 +1416,7 @@ mod tests {
             }],
             reexports: Vec::new(),
             calls: Vec::new(),
+            calls_partial: false,
         };
         let delta1 = update_file(&mut g, syms);
         assert!(
@@ -1279,6 +1442,7 @@ mod tests {
             }],
             reexports: Vec::new(),
             calls: Vec::new(),
+            calls_partial: false,
         };
         let delta2 = update_file(&mut g, syms2);
 
@@ -1329,6 +1493,7 @@ mod tests {
             }],
             reexports: Vec::new(),
             calls: Vec::new(),
+            calls_partial: false,
         };
 
         let delta = update_file(&mut g, syms);
@@ -1364,6 +1529,7 @@ mod tests {
             }],
             reexports: Vec::new(),
             calls: Vec::new(),
+            calls_partial: false,
         };
         let delta1 = update_file(&mut g, main_syms);
         assert!(
@@ -1385,6 +1551,7 @@ mod tests {
             imports: vec![],
             reexports: Vec::new(),
             calls: Vec::new(),
+            calls_partial: false,
         };
         update_file(&mut g, util_syms);
 
@@ -1481,6 +1648,7 @@ mod tests {
             }],
             reexports: Vec::new(),
             calls: Vec::new(),
+            calls_partial: false,
         };
         let delta_a = update_file(&mut g, a);
         assert!(delta_a.errors.is_empty(), "first file inserts cleanly");
@@ -1519,6 +1687,7 @@ mod tests {
             imports: vec![],
             reexports: Vec::new(),
             calls: Vec::new(),
+            calls_partial: false,
         };
         let delta_b = update_file(&mut g, b);
         assert!(
@@ -1574,6 +1743,7 @@ mod tests {
             }],
             reexports: Vec::new(),
             calls: Vec::new(),
+            calls_partial: false,
         };
 
         let delta = update_file(&mut g, syms);
@@ -1834,5 +2004,111 @@ mod tests {
         update_file(&mut g, caller);
         // A default-import callee produces no edge in v1 (Unresolved).
         assert!(calls_edges(&g).is_empty());
+    }
+
+    /// CALL-1: `re_resolve_calls_tracked` reports the intended callee of a call
+    /// site that resolves to no edge — here a same-file call to a name with no
+    /// resident definition — keyed `(caller_file, intended_file, name)`. A
+    /// resolved call in the same batch is **not** reported.
+    #[test]
+    fn tracked_reports_unresolved_callee_only() {
+        let mut g = SymbolGraph::new();
+        update_file(
+            &mut g,
+            FileSymbols {
+                file: "a.ts".into(),
+                symbols: vec![fn_node(1, "caller", "a.ts"), fn_node(2, "real", "a.ts")],
+                imports: Vec::new(),
+                reexports: Vec::new(),
+                calls: Vec::new(),
+                calls_partial: false,
+            },
+        );
+        let batch = vec![
+            (
+                "a.ts".to_string(),
+                CallSite {
+                    from: from_fn("caller", 0),
+                    callee: CalleeRef {
+                        name: "real".into(),
+                        via_import: None,
+                    },
+                    line: 1,
+                },
+            ),
+            (
+                "a.ts".to_string(),
+                CallSite {
+                    from: from_fn("caller", 0),
+                    callee: CalleeRef {
+                        name: "missing".into(),
+                        via_import: None,
+                    },
+                    line: 2,
+                },
+            ),
+        ];
+        let res = re_resolve_calls_tracked(&mut g, &batch);
+        // The resolved `real` call produced an edge; the `missing` call did not.
+        assert_eq!(res.added.len(), 1, "exactly the resolved call adds an edge");
+        assert!(
+            res.unresolved
+                .iter()
+                .any(|(ff, tf, n)| ff == "a.ts" && tf.as_deref() == Some("a.ts") && n == "missing"),
+            "the unresolved callee `missing` is reported: {:?}",
+            res.unresolved
+        );
+        assert!(
+            !res.unresolved.iter().any(|(_, _, n)| n == "real"),
+            "a resolved callee is not reported as unresolved"
+        );
+    }
+
+    /// An already-resident `Calls` edge is **resolved**, not unresolved — the
+    /// idempotent re-resolution case must not falsely flag `partial`.
+    #[test]
+    fn tracked_does_not_flag_already_resident_edge() {
+        let mut g = SymbolGraph::new();
+        update_file(
+            &mut g,
+            FileSymbols {
+                file: "a.ts".into(),
+                symbols: vec![fn_node(1, "caller", "a.ts"), fn_node(2, "real", "a.ts")],
+                imports: Vec::new(),
+                reexports: Vec::new(),
+                calls: vec![CallSite {
+                    from: from_fn("caller", 0),
+                    callee: CalleeRef {
+                        name: "real".into(),
+                        via_import: None,
+                    },
+                    line: 1,
+                }],
+                calls_partial: false,
+            },
+        );
+        // The edge is already resident from update_file; re-resolving the same
+        // call adds nothing AND reports nothing unresolved.
+        let batch = vec![(
+            "a.ts".to_string(),
+            CallSite {
+                from: from_fn("caller", 0),
+                callee: CalleeRef {
+                    name: "real".into(),
+                    via_import: None,
+                },
+                line: 1,
+            },
+        )];
+        let res = re_resolve_calls_tracked(&mut g, &batch);
+        assert!(
+            res.added.is_empty(),
+            "already-resident edge is not re-added"
+        );
+        assert!(
+            res.unresolved.is_empty(),
+            "a resolved-but-present edge is not unresolved: {:?}",
+            res.unresolved
+        );
     }
 }

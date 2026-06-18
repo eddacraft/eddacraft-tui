@@ -97,6 +97,7 @@ impl LanguageExtractor for PythonExtractor {
             // `__init__.py` convention is deferred.
             reexports: Vec::<ReexportEdge>::new(),
             calls,
+            calls_partial: false,
         }
     }
 }

@@ -1386,9 +1386,10 @@ fn invalid_find_dependents_query_reason(query: &FindDependentsQuery) -> Option<S
 /// Compute the GCTX `find_callers` outcome for an admitted root (GCTX-014 /
 /// ADR-084). Mirrors [`gctx_find_dependents_outcome`]: kill-switch, query
 /// validation, CE-7 degradation, depth clamp, collect-under-lock / project-after.
-/// The `partial` marker (CALL-1) is set when the bounded walk was budget-truncated
-/// **or** the graph is not fully resolved (`Stale` / `Bounded`) — a non-`Clean`
-/// graph may be missing callers.
+/// The `partial` marker (CALL-1) is set when the bounded walk was budget-truncated,
+/// the graph is not fully resolved (`Stale` / `Bounded`), **or** the target has an
+/// unresolved call site naming it in the daemon accumulator (an unresolved call
+/// leaves no edge, so a Clean graph can still be missing callers — ADR-086 §1).
 fn gctx_find_callers_outcome(
     state: &SaveTimeState,
     key: &WorktreeKey,
@@ -1424,6 +1425,14 @@ fn gctx_find_callers_outcome(
             // A non-Clean graph may be missing call edges → the caller set is
             // partial (CALL-1).
             let graph_partial = assurance.state != AssuranceState::Clean;
+            // CALL-1 honesty: even on a Clean graph, an unresolved call site
+            // naming this target (dynamic dispatch, default-export callee, over-cap
+            // overload, import to a non-resident file) leaves no edge and is
+            // invisible to the `callers_of` walk — so the caller set may be
+            // incomplete. Fold that accumulator-derived signal in so `partial` is
+            // honest rather than a false "complete" (council CR-2/SEC-1).
+            let callers_incomplete =
+                graph_partial || state.cache.target_has_unresolved_callers(key, &target);
             // C2: collect under the lock (symbol graph), project after release.
             let collected = state.cache.with_graphs(key, |sym, _dep| {
                 GctxProjector::collect_callers(sym, &target, depth)
@@ -1435,7 +1444,7 @@ fn gctx_find_callers_outcome(
                         query,
                         depth,
                         walk_truncated,
-                        graph_partial,
+                        callers_incomplete,
                     ) {
                         Ok(projection) => FindCallersOutcome::Ready(projection),
                         Err(reason) => FindCallersOutcome::InvalidQuery { reason },
@@ -1828,6 +1837,7 @@ mod tests {
             imports: Vec::new(),
             reexports: Vec::new(),
             calls: Vec::new(),
+            calls_partial: false,
         }
     }
 

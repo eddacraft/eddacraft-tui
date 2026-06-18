@@ -27,8 +27,8 @@ pub use hot_index::{
     BackgroundReadApi, HotPathSurface, HotRead, HotReadApi, HotReadMiss, MAX_REVERSE_IMPACT_DEPTH,
 };
 pub use incremental::{
-    GraphDelta, re_resolve_calls, re_resolve_imports, re_resolve_imports_tracked,
-    re_resolve_reexports, remove_file, update_file,
+    CallResolution, GraphDelta, re_resolve_calls, re_resolve_calls_tracked, re_resolve_imports,
+    re_resolve_imports_tracked, re_resolve_reexports, remove_file, update_file,
 };
 pub use registry::GraphRegistry;
 pub use snapshot::{

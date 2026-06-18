@@ -26,17 +26,25 @@
 //!
 //! ## Why the corpus is padded to a production-scale node count
 //!
-//! `resolve_import` resolves a non-relative cross-file callee specifier with an
-//! `O(total_graph_nodes)` `node_weights().find(…)` scan — it does not use the
-//! `files` index — so the cross-file call-lift cost scales with the *whole*
-//! resident graph, not just the hot file. A toy corpus would hide that and let
-//! the gate pass green while production save-time exceeded the budget. So the
-//! graph is padded with [`RESIDENT_FILLER_SYMBOLS`] filler symbols to a
-//! mid-large-workspace node count. The scan is cheap (length-then-byte string
-//! compares), so the measured p95 scales gently and stays well under budget:
-//! ~4.8 ms at 30k nodes, ~6 ms at 50k (the chosen size, ~13× under), ~9 ms even
-//! at 100k. The gate therefore reflects real save-time cost at scale, not a
-//! small-corpus illusion.
+//! `resolve_import` now resolves a cross-file callee specifier through the
+//! `symbols_in_file` **file index** (O(1)), not the former
+//! `O(total_graph_nodes)` `node_weights().find(…)` scan (council ADV-4), so
+//! call-lift cost is no longer node-count-dependent. The corpus stays padded
+//! with [`RESIDENT_FILLER_SYMBOLS`] filler symbols to a mid-large-workspace node
+//! count anyway, as a standing regression guard: if a future change reintroduces
+//! a whole-graph scan on the lift path, the padded corpus surfaces it here
+//! instead of in production. The measured p95 lands well under budget (~6 ms at
+//! 50k nodes, ~13× under) and — now that the scan is indexed — holds flat as the
+//! node count grows.
+//!
+//! ## Why a max-density op
+//!
+//! ADR-086 §3 bounds a pathological, call-dense file with the per-file
+//! [`anvil_kernel_types::MAX_CALL_SITES`] cap, applied at extraction. The daemon
+//! therefore never lifts more than `MAX_CALL_SITES` call sites from one file, so
+//! the gate measures a third op at exactly that ceiling — the worst-case lift the
+//! cap admits — proving even a maximally-call-dense file's save stays inside the
+//! budget (council OPS-1).
 //!
 //! ## Why `harness = false` (and not a Criterion group)
 //!
@@ -182,9 +190,67 @@ fn main() {
         });
     }
 
+    // Op 3 — the worst-case lift the ADR-086 §3 cap admits: a single file at the
+    // `MAX_CALL_SITES` ceiling. Proves a maximally call-dense file's save stays in
+    // budget, so the cap is a real bound, not a number (council OPS-1).
+    {
+        let cap_file = cap_ceiling_file_symbols();
+        let mut graph = build_corpus();
+        let _ = update_file(&mut graph, cap_file.clone());
+        let label = "update_file lift (cap-ceiling file, MAX_CALL_SITES calls)";
+        failed |= measure_gate(label, stall, || {
+            let _ = black_box(update_file(black_box(&mut graph), cap_file.clone()));
+        });
+    }
+
     if failed {
         eprintln!("call-lift latency gate FAILED (see FAIL lines above)");
         std::process::exit(1);
+    }
+}
+
+/// A single file carrying exactly [`anvil_kernel_types::MAX_CALL_SITES`]
+/// same-file call sites (all resolved, `via_import: None`) over [`HOT_FUNCS`]
+/// functions — the densest call file the ADR-086 §3 cap admits onto the lift.
+fn cap_ceiling_file_symbols() -> FileSymbols {
+    const FILE: &str = "src/dense.ts";
+    let cap = anvil_kernel_types::MAX_CALL_SITES;
+    let mut symbols = Vec::with_capacity(HOT_FUNCS);
+    for i in 0..HOT_FUNCS {
+        symbols.push(SymbolNode {
+            id: HOT_ID_BASE + i as u64,
+            kind: SymbolKind::Function,
+            name: format!("fn_{i}"),
+            visibility: Visibility::Internal,
+            file: FILE.to_string(),
+            trust_level: TrustLevel::Internal,
+        });
+    }
+    let mut calls = Vec::with_capacity(cap);
+    for n in 0..cap {
+        let caller = n % HOT_FUNCS;
+        let target = (n + 1) % HOT_FUNCS;
+        calls.push(CallSite {
+            from: LocalSymbolRef {
+                kind: SymbolKind::Function,
+                name: format!("fn_{caller}"),
+                ordinal: 0,
+                module_scope: false,
+            },
+            callee: CalleeRef {
+                name: format!("fn_{target}"),
+                via_import: None,
+            },
+            line: 1,
+        });
+    }
+    FileSymbols {
+        file: FILE.to_string(),
+        symbols,
+        imports: Vec::new(),
+        reexports: Vec::<ReexportEdge>::new(),
+        calls,
+        calls_partial: true,
     }
 }
 
@@ -343,6 +409,7 @@ fn hot_file_symbols() -> FileSymbols {
         imports,
         reexports: Vec::<ReexportEdge>::new(),
         calls,
+        calls_partial: false,
     }
 }
 

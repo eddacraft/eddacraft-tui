@@ -69,6 +69,7 @@ impl LanguageExtractor for TypeScriptExtractor {
             imports,
             reexports,
             calls,
+            calls_partial: false,
         }
     }
 }

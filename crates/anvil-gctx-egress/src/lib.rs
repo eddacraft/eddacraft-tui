@@ -361,13 +361,21 @@ impl GctxProjector {
     /// (GCTX-014). **Call this after releasing the cache lock** (ADR-084 C2).
     ///
     /// Ordering is a deterministic total order on the caller [`SymbolIdentity`]
-    /// (each caller appears once, at its minimum distance). Pagination is the same
-    /// keyset (seek) scheme as [`GctxProjector::project_dependents`]: the
-    /// server-minted opaque `next_cursor` encodes the last returned identity plus a
-    /// fingerprint of the query's traversal filters (`target` + `max_depth`).
+    /// (each caller appears once, at its minimum distance) — a stable **page**
+    /// order for keyset pagination, which is a separate concern from the
+    /// nearest-first order [`collect_callers`] uses to decide which callers to
+    /// *keep* under the node budget. So the page is identity-ordered, not
+    /// distance-ordered; a consumer that wants direct-before-transitive reads each
+    /// row's `distance` field (carried on every [`CallerSummary`]) rather than
+    /// relying on page position. Pagination is the same keyset (seek) scheme as
+    /// [`GctxProjector::project_dependents`]: the server-minted opaque
+    /// `next_cursor` encodes the last returned identity plus a fingerprint of the
+    /// query's traversal filters (`target` + `max_depth`).
     /// `walk_truncated` (the node-budget bound from [`collect_callers`]) and
-    /// `graph_partial` (a non-`Clean` graph) together set the projection's
-    /// `partial` marker (CALL-1).
+    /// `callers_incomplete` (the caller set may be missing entries — a non-`Clean`
+    /// graph **or** an unresolved call site naming the target in the daemon
+    /// accumulator, folded by the egress) together set the projection's `partial`
+    /// marker (CALL-1).
     ///
     /// # Errors
     ///
@@ -378,7 +386,7 @@ impl GctxProjector {
         query: &FindCallersQuery,
         depth: u32,
         walk_truncated: bool,
-        graph_partial: bool,
+        callers_incomplete: bool,
     ) -> Result<FindCallersProjection, String> {
         candidates.sort_by(|a, b| a.caller.cmp(&b.caller));
         let matched = candidates.len();
@@ -425,7 +433,7 @@ impl GctxProjector {
             },
             callers: page,
             next_cursor,
-            partial: walk_truncated || graph_partial,
+            partial: walk_truncated || callers_incomplete,
         })
     }
 

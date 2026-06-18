@@ -47,7 +47,11 @@ pub struct CallerResult {
 /// The bounded result of a caller traversal.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct CallersReport {
-    /// Callers, ordered by [`SymbolIdentity`], each at its minimum distance.
+    /// Callers in deterministic **nearest-first** order: ascending traversal
+    /// `(distance, caller identity)`, each caller appearing once at its minimum
+    /// distance. `callers[0]` is therefore always a closest (smallest-distance)
+    /// caller — the order a `find_callers` consumer relies on to read direct
+    /// callers before transitive ones.
     pub callers: Vec<CallerResult>,
     /// Whether the node budget bound the walk. The returned set is then a
     /// deterministic **nearest-first** prefix — all callers at smaller distances,
@@ -69,11 +73,18 @@ pub struct CallersReport {
 /// resident yields an empty report.
 #[must_use]
 pub fn callers_of(graph: &SymbolGraph, target: &SymbolIdentity, depth: u32) -> CallersReport {
+    // `depth` is contractually caller-clamped to the GV2-026 ceiling; the
+    // `debug_assert` catches a caller that forgot in debug/test builds, and the
+    // `.min` makes a release build self-correcting (a stray over-depth caller
+    // walks the clamped budget, never an unbounded BFS) rather than silently
+    // honouring an out-of-contract depth.
     debug_assert!(
         depth <= MAX_REVERSE_IMPACT_DEPTH,
         "callers_of depth {depth} exceeds the GV2-026 cap {MAX_REVERSE_IMPACT_DEPTH} (caller must clamp)",
     );
+    let depth = depth.min(MAX_REVERSE_IMPACT_DEPTH);
 
+    let mut identities = IdentityCache::new(graph);
     let Some(target_id) = node_for_identity(graph, target) else {
         return CallersReport::default();
     };
@@ -99,7 +110,11 @@ pub fn callers_of(graph: &SymbolGraph, target: &SymbolIdentity, depth: u32) -> C
                 if edge.edge_type != EdgeType::Calls || seen.contains(&edge.from) {
                     continue;
                 }
-                if let Some(identity) = identity_of(graph, edge.from) {
+                // Identity is resolved through a per-file-memoised cache, not
+                // rebuilt from scratch per edge — a hot symbol with thousands of
+                // callers across few files pays the file-symbol scan once per file,
+                // not once per caller node, on this lock-held read path.
+                if let Some(identity) = identities.get(edge.from) {
                     let heuristic = is_fan_out_call(graph, edge.from, current);
                     hop_callers
                         .entry(edge.from)
@@ -140,7 +155,29 @@ pub fn callers_of(graph: &SymbolGraph, target: &SymbolIdentity, depth: u32) -> C
         frontier = next_frontier;
     }
 
-    callers.sort_by(|a, b| a.caller.cmp(&b.caller));
+    // Order nearest-first: ascending `(distance, identity)`. The BFS already
+    // appends in hop order, but a final sort makes the `(distance, identity)`
+    // total order explicit and independent of frontier-visit order, so
+    // `callers[0]` is always a closest caller (matching the rustdoc contract a
+    // consumer reads).
+    callers.sort_by(|a, b| {
+        a.distance
+            .cmp(&b.distance)
+            .then_with(|| a.caller.cmp(&b.caller))
+    });
+
+    if truncated {
+        // Counts only (no identities/paths) — PV-10 telemetry posture. Lets an
+        // operator see that a caller result was budget-bound without a profiler.
+        tracing::debug!(
+            target: "anvil_graph_cache::call_graph",
+            returned = callers.len(),
+            budget = MAX_CALLERS_WALK,
+            depth,
+            "callers_of truncated by node budget"
+        );
+    }
+
     CallersReport { callers, truncated }
 }
 
@@ -155,17 +192,46 @@ fn node_for_identity(graph: &SymbolGraph, target: &SymbolIdentity) -> Option<u64
         .map(|(_, node)| node.id)
 }
 
-/// Recover a resident node's [`SymbolIdentity`] (no node→identity index exists;
-/// rebuild it from the node's file like the projection layer does).
-fn identity_of(graph: &SymbolGraph, id: u64) -> Option<SymbolIdentity> {
-    let node = graph.get_symbol(id)?;
-    let symbols = graph.symbols_in_file(&node.file);
-    let identities = SymbolIdentity::for_file_symbols(&symbols);
-    symbols
-        .iter()
-        .zip(identities)
-        .find(|(node, _)| node.id == id)
-        .map(|(_, identity)| identity)
+/// A per-traversal node-id → [`SymbolIdentity`] cache over one [`SymbolGraph`].
+///
+/// There is no resident node→identity index (identities are assigned over a
+/// file's full parse-ordered symbol list), so recovering one node's identity
+/// costs an O(file-symbols) scan. In a caller walk a hot symbol's callers cluster
+/// into relatively few files, so memoising **per file** — the first lookup for a
+/// file materialises every symbol in it — turns O(callers × file-symbols) into
+/// O(distinct-caller-files × file-symbols + callers), the win
+/// [`callers_of`] needs on the lock-held read path (council CR-3/PL-3/OPS-4).
+struct IdentityCache<'g> {
+    graph: &'g SymbolGraph,
+    by_id: std::collections::HashMap<u64, SymbolIdentity>,
+    files_loaded: std::collections::HashSet<String>,
+}
+
+impl<'g> IdentityCache<'g> {
+    fn new(graph: &'g SymbolGraph) -> Self {
+        Self {
+            graph,
+            by_id: std::collections::HashMap::new(),
+            files_loaded: std::collections::HashSet::new(),
+        }
+    }
+
+    /// The identity of resident node `id`, or `None` if absent. On the first
+    /// lookup into a file, every symbol in that file is identity-mapped at once.
+    fn get(&mut self, id: u64) -> Option<SymbolIdentity> {
+        if let Some(identity) = self.by_id.get(&id) {
+            return Some(identity.clone());
+        }
+        let file = self.graph.get_symbol(id)?.file.clone();
+        if self.files_loaded.insert(file.clone()) {
+            let symbols = self.graph.symbols_in_file(&file);
+            let identities = SymbolIdentity::for_file_symbols(&symbols);
+            for (node, identity) in symbols.iter().zip(identities) {
+                self.by_id.insert(node.id, identity);
+            }
+        }
+        self.by_id.get(&id).cloned()
+    }
 }
 
 /// Whether `caller`'s `Calls` edge to `callee` is an **overload fan-out** — i.e.
@@ -264,6 +330,7 @@ mod tests {
                 imports: Vec::new(),
                 reexports: Vec::new(),
                 calls,
+                calls_partial: false,
             },
         );
         g
@@ -331,6 +398,7 @@ mod tests {
                         line: 2,
                     },
                 ],
+                calls_partial: false,
             },
         );
         // callers_of(t#0): the caller is heuristic (fan-out to t#0 + t#1).
@@ -398,6 +466,7 @@ mod tests {
                     },
                     line: 1,
                 }],
+                calls_partial: false,
             },
         );
         let report = callers_of(&g, &identity_in("r.ts", "a"), 2);
@@ -436,6 +505,7 @@ mod tests {
                         line: 2,
                     },
                 ],
+                calls_partial: false,
             },
         );
         let report = callers_of(&g, &identity_in("m.ts", "a"), 2);
@@ -471,5 +541,69 @@ mod tests {
             callers_of(&g, &identity("a"), 2),
             callers_of(&g, &identity("a"), 2)
         );
+    }
+
+    /// Regression for the council ADV-2 finding: the report is nearest-first
+    /// `(distance, identity)`, not identity-only. `m`'s direct caller is `z`
+    /// (distance 1) and `z`'s caller is `a` (distance 2); alphabetically `a < z`,
+    /// so an identity-only sort would wrongly put the distance-2 caller first.
+    #[test]
+    fn nearest_first_beats_alphabetical_order() {
+        let mut g = SymbolGraph::new();
+        let file = "n.ts";
+        update_file(
+            &mut g,
+            FileSymbols {
+                file: file.to_string(),
+                symbols: vec![func(0, "m", file), func(1, "z", file), func(2, "a", file)],
+                imports: Vec::new(),
+                reexports: Vec::new(),
+                calls: vec![
+                    CallSite {
+                        from: caller_ref("z"),
+                        callee: CalleeRef {
+                            name: "m".into(),
+                            via_import: None,
+                        },
+                        line: 1,
+                    },
+                    CallSite {
+                        from: caller_ref("a"),
+                        callee: CalleeRef {
+                            name: "z".into(),
+                            via_import: None,
+                        },
+                        line: 2,
+                    },
+                ],
+                calls_partial: false,
+            },
+        );
+        let report = callers_of(&g, &identity_in("n.ts", "m"), 2);
+        let pairs: Vec<(&str, u32)> = report
+            .callers
+            .iter()
+            .map(|c| (c.caller.name.as_str(), c.distance))
+            .collect();
+        assert_eq!(
+            pairs,
+            [("z", 1), ("a", 2)],
+            "nearest-first: the distance-1 caller `z` precedes the distance-2 caller `a` despite a < z"
+        );
+        assert_eq!(
+            report.callers[0].distance, 1,
+            "callers[0] must be a closest caller"
+        );
+    }
+
+    /// `depth == 0` is in-contract (the GV2-026 clamp floor) and yields no callers:
+    /// the `1..=0` hop range is empty. Guards against an off-by-one that would
+    /// either panic or walk one hop.
+    #[test]
+    fn depth_zero_yields_no_callers() {
+        let g = fixture();
+        let report = callers_of(&g, &identity("a"), 0);
+        assert!(report.callers.is_empty());
+        assert!(!report.truncated);
     }
 }

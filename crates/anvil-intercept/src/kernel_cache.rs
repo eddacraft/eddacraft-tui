@@ -50,16 +50,19 @@
 //! assurance *state machine* that consumes these lands with the `validate_paths`
 //! orchestration (DSV-005).
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::Mutex;
 
 use anvil_graph_cache::certify::ChangeKind;
 use anvil_graph_cache::{
     DependencyGraph, GraphDelta, GraphRegistry, SymbolGraph, TrustGraph, annotate_trust,
-    re_resolve_calls, re_resolve_imports_tracked, re_resolve_reexports, remove_file, update_file,
+    re_resolve_calls_tracked, re_resolve_imports_tracked, re_resolve_reexports, remove_file,
+    update_file,
 };
 use anvil_intercept_proto::protocol::StaleReason;
-use anvil_kernel_types::{CallSite, EdgeType, FileSymbols, ImportEdge, ReexportEdge};
+use anvil_kernel_types::{
+    CallSite, EdgeType, FileSymbols, ImportEdge, ReexportEdge, SymbolIdentity,
+};
 
 use crate::rule_cache::WorktreeKey;
 
@@ -111,6 +114,29 @@ struct Entry {
     /// re-wired by re-running [`re_resolve_calls`] over the affected neighbourhood
     /// after each delta.
     all_calls: Vec<(String, CallSite)>,
+    /// Intended callees of call sites that resolved to **no** `Calls` edge, as
+    /// `(caller_file, intended_target_file, callee_export_name)` (GCALL-007
+    /// CALL-1). An unresolved call (a missing caller, a default-export callee, an
+    /// over-cap overload, an import to a non-resident file) leaves no edge and is
+    /// invisible to the `callers_of` walk, so a `find_callers` query for such a
+    /// target would otherwise report a complete caller set when callers are
+    /// missing. Keyed by `caller_file` so it is maintained incrementally in
+    /// lockstep with `all_calls` (retain-by-`from_file` + extend), and queried at
+    /// egress to set the projection's `partial` marker. Carries no node ids and
+    /// no source text — identity-only paths/names, the same egress class as the
+    /// caller summaries themselves. `intended_target_file` is `None` when the
+    /// callee's file is unknown (a forward-referenced or default-export callee),
+    /// in which case the egress matches by name alone — the safe over-approximation.
+    unresolved_callees: HashSet<(String, Option<String>, String)>,
+    /// Files whose call-site extraction was bounded by the per-file
+    /// [`anvil_kernel_types::MAX_CALL_SITES`] cap (ADR-086 §3) — call sites beyond
+    /// the cap were dropped before reaching this layer, so the daemon cannot know
+    /// which callees they targeted. While any file is capped, *any* target may have
+    /// a missing caller in that file's dropped suffix, so the egress reports
+    /// `partial` conservatively (GCALL-007 CALL-1). Maintained per file: set on a
+    /// capped save, cleared when the file re-saves under the cap or is deleted, so
+    /// a transient generated-file save self-heals.
+    capped_files: HashSet<String>,
     /// Generation at this entry's most recent access; the lowest in the map is
     /// the LRU victim.
     last_used: u64,
@@ -260,6 +286,41 @@ impl KernelGraphCache {
         Some(f(&entry.sym, &entry.dep))
     }
 
+    /// Whether `target` has at least one **unresolved** caller in `key`'s warm
+    /// state — a call site naming `target` (by export name, in `target`'s file)
+    /// that produced no `Calls` edge (GCALL-007 CALL-1).
+    ///
+    /// `callers_of` walks only resident edges, so an unresolved call (a missing
+    /// caller, a default-export callee, an over-cap overload, an import to a
+    /// non-resident file) is invisible to it. This consults the
+    /// `unresolved_callees` set the lift maintains so the egress can set the
+    /// projection's `partial` marker for exactly the targets whose caller set may
+    /// be incomplete, rather than silently under-reporting. Returns `false` for a
+    /// cold key (no warm state to be incomplete about — the assurance state
+    /// already conveys "not ready"). Read-only; does not bump recency.
+    #[must_use]
+    pub fn target_has_unresolved_callers(
+        &self,
+        key: &WorktreeKey,
+        target: &SymbolIdentity,
+    ) -> bool {
+        let guard = self.lock();
+        guard.map.get(key).is_some_and(|entry| {
+            // A cap-truncated file (ADR-086 §3) dropped call sites to unknown
+            // callees, so any target may have a missing caller while one stands.
+            !entry.capped_files.is_empty()
+                || entry
+                    .unresolved_callees
+                    .iter()
+                    .any(|(_, target_file, name)| {
+                        *name == target.name
+                    // A known callee file must match the target's; an unknown file
+                    // (`None`) matches by name alone — conservative over-flagging.
+                    && target_file.as_deref().is_none_or(|tf| tf == target.file)
+                    })
+        })
+    }
+
     /// Read the warm graph set for `key` as a [`GraphRegistry`] scoped to the
     /// **hot** surface — semantic + dependency only (GV2-020). The daemon cache
     /// holds no trust graph per key (the save-time certify path reads only
@@ -334,11 +395,16 @@ impl KernelGraphCache {
             all_imports: Vec::new(),
             all_reexports: Vec::new(),
             all_calls: Vec::new(),
+            unresolved_callees: HashSet::new(),
+            capped_files: HashSet::new(),
             last_used: recency,
         });
         entry.last_used = recency;
 
         let file = symbols.file.clone();
+        // ADR-086 §3: did this file's extraction hit the per-file call-site cap?
+        // Captured before `symbols` is consumed by `update_file`.
+        let file_calls_capped = symbols.calls_partial;
         let delta = if change == ChangeKind::Delete {
             let delta = remove_file(&mut entry.sym, &file);
             entry.all_imports.retain(|i| i.from_file != file);
@@ -348,6 +414,15 @@ impl KernelGraphCache {
             // re-saved and resolve to no edge — the inherited `all_imports`
             // behaviour, not a new mechanism.
             entry.all_calls.retain(|(from_file, _)| from_file != &file);
+            // GCALL-007 CALL-1: drop the deleted file's unresolved-callee
+            // contributions. A callee file deleted out from under surviving
+            // callers leaves their calls unresolved until they re-save — the same
+            // staleness `all_calls` carries, refreshed on the caller's next delta.
+            entry
+                .unresolved_callees
+                .retain(|(from_file, _, _)| from_file != &file);
+            // A deleted file is no longer capped.
+            entry.capped_files.remove(&file);
             // GV2-011: a delete drops the file in both directions; no re-derive.
             // `remove_file` clears the reverse index, so dependents that imported
             // it correctly lose the edge.
@@ -426,7 +501,26 @@ impl KernelGraphCache {
                 .filter(|(from_file, _)| affected.contains(from_file))
                 .cloned()
                 .collect();
-            re_resolve_calls(&mut entry.sym, &affected_calls);
+            // GCALL-007 CALL-1: re-resolve over the affected neighbourhood and
+            // refresh the unresolved-callee set for exactly those caller files.
+            // `affected` covers every file whose call sites this delta could have
+            // re-resolved (the saved file plus its import-dependents — i.e. its
+            // callers — plus re-bound import sources), so retaining the others and
+            // extending with the freshly-computed unresolved keys keeps the set
+            // consistent with a cold rebuild, scoped to the lock-held budget.
+            let resolution = re_resolve_calls_tracked(&mut entry.sym, &affected_calls);
+            entry
+                .unresolved_callees
+                .retain(|(from_file, _, _)| !affected.contains(from_file));
+            entry.unresolved_callees.extend(resolution.unresolved);
+            // ADR-086 §3: track whether this file's calls were cap-truncated. The
+            // dropped suffix could call any target, so while it stands the egress
+            // reports `partial` conservatively; a re-save under the cap clears it.
+            if file_calls_capped {
+                entry.capped_files.insert(file.clone());
+            } else {
+                entry.capped_files.remove(&file);
+            }
             delta
         };
 
@@ -486,6 +580,8 @@ impl KernelGraphCache {
                 all_imports: Vec::new(),
                 all_reexports: Vec::new(),
                 all_calls: Vec::new(),
+                unresolved_callees: HashSet::new(),
+                capped_files: HashSet::new(),
                 last_used: recency,
             },
         );
@@ -725,6 +821,7 @@ mod tests {
                 .collect(),
             reexports: Vec::new(),
             calls: Vec::new(),
+            calls_partial: false,
         }
     }
 
@@ -836,6 +933,7 @@ mod tests {
                 .collect(),
             reexports: Vec::new(),
             calls: Vec::new(),
+            calls_partial: false,
         };
 
         let cache = KernelGraphCache::new();
@@ -1834,6 +1932,97 @@ mod tests {
             after,
             vec!["run".to_string()],
             "incoming call edge re-wired after the callee resave"
+        );
+    }
+
+    /// GCALL-007 CALL-1: a call to a not-yet-resident callee is **unresolved**,
+    /// so `target_has_unresolved_callers` reports the target as possibly
+    /// incomplete; once the callee file lands and the call re-resolves, the
+    /// signal clears. This is what makes the egress `partial` marker honest on a
+    /// Clean graph rather than silently under-reporting (the council finding).
+    #[test]
+    fn unresolved_callers_signal_tracks_resolution() {
+        use anvil_kernel_types::{CalleeRef, LocalSymbolRef, SymbolIdentity};
+
+        let cache = KernelGraphCache::new();
+        let k = key("partial");
+        let target = SymbolIdentity {
+            file: "util.ts".into(),
+            kind: SymbolKind::Function,
+            name: "helper".into(),
+            ordinal: 0,
+        };
+
+        // main.ts saved first: `run()` calls `helper` from ./util — the callee
+        // file is not resident, so the call resolves to no edge.
+        let mut main = file_symbols("main.ts", &["run"], &["./util"], 0);
+        main.calls = vec![CallSite {
+            from: LocalSymbolRef {
+                kind: SymbolKind::Function,
+                name: "run".into(),
+                ordinal: 0,
+                module_scope: false,
+            },
+            callee: CalleeRef {
+                name: "helper".into(),
+                via_import: Some("./util".into()),
+            },
+            line: 1,
+        }];
+        cache.apply_delta(&k, ChangeKind::Create, main);
+
+        assert!(
+            cache.target_has_unresolved_callers(&k, &target),
+            "an unresolved forward call marks the target's caller set incomplete"
+        );
+
+        // util.ts lands with `helper`; the accumulator re-resolves the call (main.ts
+        // is in the affected set), clearing the unresolved signal.
+        cache.apply_delta(
+            &k,
+            ChangeKind::Create,
+            file_symbols("util.ts", &["helper"], &[], 100),
+        );
+        assert!(
+            !cache.target_has_unresolved_callers(&k, &target),
+            "once the call resolves to an edge the target is no longer flagged"
+        );
+
+        // A cold key has no warm state to be incomplete about.
+        assert!(!cache.target_has_unresolved_callers(&key("cold"), &target));
+    }
+
+    /// ADR-086 §3: a file whose extraction hit the `MAX_CALL_SITES` cap dropped
+    /// call sites to unknown callees, so the egress must report `partial` for any
+    /// target while it stands — and clear once the file re-saves under the cap.
+    #[test]
+    fn capped_file_marks_any_target_partial_until_uncapped() {
+        let cache = KernelGraphCache::new();
+        let k = key("capped");
+        let target = SymbolIdentity {
+            file: "anything.ts".into(),
+            kind: SymbolKind::Function,
+            name: "whatever".into(),
+            ordinal: 0,
+        };
+        // No capped file yet → no partial.
+        assert!(!cache.target_has_unresolved_callers(&k, &target));
+
+        // A generated file lands cap-truncated (calls_partial = true).
+        let mut generated = file_symbols("gen.ts", &["a"], &[], 0);
+        generated.calls_partial = true;
+        cache.apply_delta(&k, ChangeKind::Create, generated);
+        assert!(
+            cache.target_has_unresolved_callers(&k, &target),
+            "while a file is cap-truncated, any target's caller set may be incomplete"
+        );
+
+        // The file re-saves under the cap → the flag clears.
+        let uncapped = file_symbols("gen.ts", &["a"], &[], 10);
+        cache.apply_delta(&k, ChangeKind::ContentModify, uncapped);
+        assert!(
+            !cache.target_has_unresolved_callers(&k, &target),
+            "a re-save under the cap clears the conservative partial signal"
         );
     }
 }

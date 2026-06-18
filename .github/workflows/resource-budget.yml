@@ -1,5 +1,15 @@
 name: Resource Budget
 
+# REQUIRED CHECK: the `per-process resource budgets` job carries the load-bearing
+# latency gates (GCALL-006 call-lift, GV2-025 hot-read, RLB SLOs) — each exits
+# non-zero on a budget breach, and each proves it trips via a synthetic-regression
+# self-test step. For those gates to actually BLOCK a regression, this job must be
+# added to the `main` branch-protection ruleset as a required status check
+# (branch protection is a repo-admin setting, not expressible in-repo). Without
+# that, a PR can merge with this job red (council ADV-3/OPS-2). It already runs on
+# every PR touching `crates/**`, so the only remaining step is the protection-rule
+# designation.
+
 on:
   push:
     branches: [main]

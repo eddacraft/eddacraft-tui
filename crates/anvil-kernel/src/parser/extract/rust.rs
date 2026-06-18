@@ -82,6 +82,7 @@ impl LanguageExtractor for RustExtractor {
             imports,
             reexports,
             calls,
+            calls_partial: false,
         }
     }
 }

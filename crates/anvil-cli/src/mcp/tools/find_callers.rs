@@ -320,8 +320,16 @@ fn daemon_find_callers(
 fn daemon_find_callers(
     _request: &GctxFindCallersRequest,
 ) -> Result<GctxFindCallersResponse, GctxDaemonError> {
-    // The Windows named-pipe GCTX client is a future item. Until it lands,
-    // degrade to `unavailable`.
+    // The Windows named-pipe GCTX client is a future item (shared with the rest
+    // of the GCTX tool suite — find_dependents, impact_of_change, …). Until it
+    // lands, degrade to a structured `unavailable` outcome. Logged at debug so the
+    // Windows cross-matrix run shows an actionable line instead of a silent
+    // unavailable (council PL-5); PII-free — no request fields.
+    tracing::debug!(
+        target: "anvil_mcp::gctx",
+        tool = "find_callers",
+        "GCTX daemon client unavailable on non-unix (named-pipe transport pending)"
+    );
     Err(GctxDaemonError::Unavailable)
 }
 
