@@ -25,7 +25,15 @@ heuristic marker #2712); **GCALL-004** (Rust extraction) **Merged via #2711**;
 **GCALL-005** (Python extraction) **Merged via #2733**; **GCALL-006** (save-time
 call-lift latency gate) **Merged via #2735**; **GCALL-007** (caller-egress
 privacy review verdict) **Merged via #2710**. The GCALL consumer **GCTX-014
-`anvil_find_callers` Merged via #2715** over the GCALL-003 `callers_of` read API.)
+`anvil_find_callers` Merged via #2715** over the GCALL-003 `callers_of` read API.
+**Post-merge milestone Council review + remediation Merged 2026-06-18 via #2745**
+(5-persona panel + adversarial verification re-review): hardened the merged
+substrate without changing its contract — per-file `MAX_CALL_SITES` cap +
+`FileSymbols.calls_partial`, honest CALL-1 `partial` from the unresolved-callee
+accumulator + capped-file signal, nearest-first `callers_of` ordering, an
+identity cache + node-count-independent `resolve_import`, and the cap-ceiling
+latency-gate op (~15× under the ADR-031 budget). No new work item — all 7 stay
+Merged; this is hardening on the already-shipped substrate.)
 
 ## Purpose
 
