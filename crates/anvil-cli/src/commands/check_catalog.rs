@@ -191,10 +191,12 @@ pub(crate) const CHECK_DEFINITIONS: &[CheckDefinition] = &[
         wall_time_soft_budget_secs: Some(30),
     },
     // SURFDOCK (Track 3) — same opt-in contract. `file_shape_globs` is empty
-    // because the file-presence glob vocabulary (`*.ext` basename only) can't
-    // express bare `Dockerfile`/`Containerfile` or case-insensitive naming; the
-    // check self-filters via `is_dockerfile` over the walked files (cheap), and
-    // the `track.surface.dock` flag gate already skips it when off.
+    // because the file-presence matcher's only any-depth, name-anchored form is
+    // `*.ext` (case-sensitive); it has no any-depth name-only match, so a bare
+    // `Dockerfile`/`Containerfile` (no extension) at arbitrary depth and the
+    // case-insensitive `*.Dockerfile`/suffixed `Dockerfile.<v>` variants can't
+    // be expressed. The check self-filters via `is_dockerfile` over the walked
+    // files (cheap), and the `track.surface.dock` flag gate skips it when off.
     CheckDefinition {
         stable_id: "ANV-SURF-DOCK-001",
         canonical_name: "dockerfile",
