@@ -542,6 +542,18 @@ mod tests {
     }
 
     #[test]
+    fn track_surface_gha_ignores_non_one_values() {
+        for value in ["true", "0", "", "1 ", "yes"] {
+            temp_env::with_var(TRACK_SURFACE_GHA_ENV_VAR, Some(value), || {
+                assert!(
+                    !track_surface_gha_enabled(),
+                    "ANVIL_TRACK_SURFACE_GHA={value:?} must not enable the surface"
+                );
+            });
+        }
+    }
+
+    #[test]
     fn local_overrides_from_env_sets_gate_enabled_when_anvil_dev_one() {
         temp_env::with_var(DEV_BYPASS_ENV_VAR, Some("1"), || {
             let overrides = local_overrides_from_env();
