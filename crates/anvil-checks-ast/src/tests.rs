@@ -279,6 +279,14 @@ fn rs003_excluded_in_cfg_test_module() {
     assert!(!fires("src/lib.rs", src, "RS-003"));
 }
 
+#[test]
+fn rs003_excluded_in_build_script() {
+    // path_is_test_target also covers build.rs (a build script is not shipped
+    // runtime code) — exclude RS-003 there too, as RS-001/RS-002 do.
+    let src = "fn main() {\n    unsafe { configure(); }\n}\n";
+    assert!(!fires("crates/x/build.rs", src, "RS-003"));
+}
+
 // --- RS-004 serde deny_unknown_fields --------------------------------------
 
 #[test]

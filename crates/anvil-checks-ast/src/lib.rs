@@ -331,9 +331,11 @@ fn eval(kind: AstRuleKind, ctx: &PredCtx) -> bool {
                 && !predicates::in_cfg_test(ctx.target, ctx.src)
         }
         AstRuleKind::UnsafeNoSafety => {
-            // `unsafe` in test/bench/example targets or `#[cfg(test)]` modules is
-            // test scaffolding, not shipped runtime code — exclude it as RS-001
-            // and RS-002 do (external-FP dogfood: tokio test modules).
+            // `unsafe` outside shipped runtime code is not the target: exclude
+            // `#[cfg(test)]` modules and the paths `path_is_test_target` covers
+            // (`tests/`/`benches/`/`examples/` targets, `tests.rs`/`test.rs`/
+            // `bench.rs` module files, and `build.rs` scripts) — the same
+            // exclusion RS-001/RS-002 apply (external-FP dogfood: tokio tests).
             !predicates::has_preceding_safety_comment(ctx.target, ctx.src)
                 && !predicates::path_is_test_target(ctx.path)
                 && !predicates::in_cfg_test(ctx.target, ctx.src)
