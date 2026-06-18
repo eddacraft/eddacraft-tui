@@ -2,16 +2,26 @@
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| DLIFE | Josh  | In Progress | 4/6      |
+| DLIFE | Josh  | In Progress | 5/6      |
 
-**Last reviewed:** 2026-06-16 (**DLIFE-003 Merged 2026-06-16 via PR #2678** —
+**Last reviewed:** 2026-06-18 (**DLIFE-004 Merged 2026-06-18 via PR #2759** —
+`anvil watch check` now follows the ADR-082 tiered posture: an interactive TTY
+with no live daemon **offers** to start one (decline → scoped fallback), while
+headless / `--json` / CI / hook / piped contexts **fall back deterministically**
+without prompting or hanging; a live daemon is reused without prompting. New
+soft `--no-daemon` opt-out (offer suppressed, live daemon still reused);
+`ANVIL_WATCH_DAEMON=0` stays the hard opt-out (no reuse). The `daemon:` line
+reports the action only and names the preserved scoped fallback on every
+non-started path; non-Unix renders an honest platform-unsupported line instead
+of an unactionable prompt. Module 5/6; with DLIFE-003 + DLIFE-004 both landed,
+**DLIFE-005 (docs) is unblocked → Ready**. Prior, 2026-06-16:
+**DLIFE-003 Merged 2026-06-16 via PR #2678** —
 `anvil start` now ensures the per-user save-time daemon: interactive terminals
 auto-start it, while CI / hooks / piped output and `--no-daemon` / `ANVIL_NO_DAEMON`
 fall back deterministically to the scoped check, never leaving a surprise
 background daemon (owner-confirmed headless posture reconciling ADR-082 §1 vs §4).
 The `daemon:` line reports the lifecycle action only and never promotes the
-protection state; daemon-start failure is non-fatal. Module 4/6; DLIFE-004 (watch)
-still Proposed, DLIFE-005 (docs) still Blocked on 003/004. Prior, 2026-06-15:
+protection state; daemon-start failure is non-fatal. Prior, 2026-06-15:
 DLIFE-001 Done — ADR-082 Accepted by operator with
 the **tiered** startup mode: `anvil start` auto-starts the daemon; `anvil watch`
 prompts in TTY and falls back in headless. ADR-079 superseded. DLIFE-003/-004
@@ -132,7 +142,7 @@ operator/debugging surface.
 
 ### DLIFE-004: Make `anvil watch` start or offer daemon startup by default
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-18 via PR #2759
 - **Intent:** Close the fallback-only gap for bare `anvil watch` while preserving explicit opt-out and machine-readable behaviour.
 - **Expected Outcome:** Bare `anvil watch` follows the accepted lifecycle posture when no daemon answers; `--no-daemon` and `ANVIL_WATCH_DAEMON=0` never start or prompt; `--json` and headless modes are deterministic and parse-safe.
 - **Validation:** Watch routing tests cover live daemon, absent daemon with startup allowed, absent daemon with startup disabled, daemon startup failure, JSON mode, non-TTY mode, and forced/disabled environment values.
@@ -146,7 +156,7 @@ operator/debugging surface.
 
 ### DLIFE-005: Align docs, help text, and runbooks with daemon lifecycle
 
-- **Status:** Blocked
+- **Status:** Ready
 - **Intent:** Replace guidance-only daemon startup instructions with the accepted user-facing lifecycle model.
 - **Expected Outcome:** Public docs, CLI long help, beta testing guide, troubleshooting, and release notes all describe the same `start`/`watch`/opt-out behaviour and reserve `anvil intercept start --foreground` for operator/debugging use.
 - **Validation:** `pnpm docs:check`; `pnpm docs:index:check`; `pnpm aps:index:check`; targeted help-text tests pass.
