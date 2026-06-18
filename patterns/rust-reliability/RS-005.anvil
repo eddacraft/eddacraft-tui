@@ -14,8 +14,8 @@ file_extensions: [.rs]
 allowlist: []
 
 detection:
-  type: regex
-  pattern: '\b(?:todo|unimplemented)!\s*[\(\[\{]'
+  type: ast
+  ast_query: '(macro_invocation macro: (identifier) @name) @target'
 
 related: []
 enabled: true
@@ -26,6 +26,7 @@ A `todo!()` / `unimplemented!()` macro panics the moment a caller reaches it —
 shipping one is a runtime abort waiting to happen. Finish the implementation, or
 return a real error and open a ticket for the gap.
 
-This is a regex rule (the macro is unambiguous on its own line), so unlike the
-rest of the family it is not `#[cfg(test)]`-aware; suppress deliberate
-test-scaffolding stubs with `// @anvil-ignore RS-005 -- test stub`.
+If a stub is genuinely deliberate (e.g. a doc-only signature), suppress with the
+reason: `// @anvil-ignore RS-005 -- doc-only stub`. Test code (`#[cfg(test)]`
+modules and `tests/` / `benches/` / `examples/` targets) is excluded
+automatically.

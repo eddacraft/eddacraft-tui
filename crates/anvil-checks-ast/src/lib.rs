@@ -341,6 +341,19 @@ fn eval(kind: AstRuleKind, ctx: &PredCtx) -> bool {
                 && !predicates::in_cfg_test(ctx.target, ctx.src)
         }
         AstRuleKind::SerdeDenyUnknown => predicates::struct_lacks_deny_unknown(ctx.target, ctx.src),
+        AstRuleKind::TodoMacro => {
+            // Shares RS-002's `macro_invocation` query; dispatch on the macro
+            // name and exclude test scaffolding the same way. Moving RS-005 off
+            // the regex engine also drops its doc-comment false positives — the
+            // parser never sees `/// unimplemented!()` as a macro call
+            // (external-FP dogfood).
+            let Some(name) = ctx.capture_text("name") else {
+                return false;
+            };
+            (name == "todo" || name == "unimplemented")
+                && !predicates::path_is_test_target(ctx.path)
+                && !predicates::in_cfg_test(ctx.target, ctx.src)
+        }
     }
 }
 

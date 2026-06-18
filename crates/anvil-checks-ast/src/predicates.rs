@@ -21,6 +21,8 @@ pub enum AstRuleKind {
     UnsafeNoSafety,
     /// RS-004 — `Deserialize` struct missing `#[serde(deny_unknown_fields)]`.
     SerdeDenyUnknown,
+    /// RS-005 — `todo!()` / `unimplemented!()` reached from non-test code.
+    TodoMacro,
 }
 
 /// Predicate table (ADR-071 §3/§4): rule id → (kind, expected `ast_query`).
@@ -42,6 +44,10 @@ pub fn kind_for(id: &str) -> Option<(AstRuleKind, &'static str)> {
         )),
         "RS-003" => Some((AstRuleKind::UnsafeNoSafety, "(unsafe_block) @target")),
         "RS-004" => Some((AstRuleKind::SerdeDenyUnknown, "(struct_item) @target")),
+        "RS-005" => Some((
+            AstRuleKind::TodoMacro,
+            "(macro_invocation macro: (identifier) @name) @target",
+        )),
         _ => None,
     }
 }
@@ -49,7 +55,7 @@ pub fn kind_for(id: &str) -> Option<(AstRuleKind, &'static str)> {
 /// Every rule id the predicate table knows about (for the completeness guard).
 #[must_use]
 pub fn known_rule_ids() -> &'static [&'static str] {
-    &["RS-001", "RS-002", "RS-003", "RS-004"]
+    &["RS-001", "RS-002", "RS-003", "RS-004", "RS-005"]
 }
 
 #[must_use]

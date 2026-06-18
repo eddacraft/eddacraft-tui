@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "compiled_at": "2026-06-17T19:29:41.231Z",
+  "compiled_at": "2026-06-18T05:59:24.946Z",
   "source_root": "patterns",
   "patterns": [
     {
@@ -971,12 +971,12 @@
       "spectrum_position": 1,
       "targets": ["source"],
       "detection": {
-        "type": "regex",
-        "pattern": "\\b(?:todo|unimplemented)!\\s*[\\(\\[\\{]"
+        "type": "ast",
+        "ast_query": "(macro_invocation macro: (identifier) @name) @target"
       },
       "file_extensions": [".rs"],
       "allowlist": [],
-      "nudge": "A `todo!()` / `unimplemented!()` macro panics the moment a caller reaches it —\nshipping one is a runtime abort waiting to happen. Finish the implementation, or\nreturn a real error and open a ticket for the gap.\n\nThis is a regex rule (the macro is unambiguous on its own line), so unlike the\nrest of the family it is not `#[cfg(test)]`-aware; suppress deliberate\ntest-scaffolding stubs with `// @anvil-ignore RS-005 -- test stub`.",
+      "nudge": "A `todo!()` / `unimplemented!()` macro panics the moment a caller reaches it —\nshipping one is a runtime abort waiting to happen. Finish the implementation, or\nreturn a real error and open a ticket for the gap.\n\nIf a stub is genuinely deliberate (e.g. a doc-only signature), suppress with the\nreason: `// @anvil-ignore RS-005 -- doc-only stub`. Test code (`#[cfg(test)]`\nmodules and `tests/` / `benches/` / `examples/` targets) is excluded\nautomatically.",
       "related": [],
       "enabled": true,
       "opt_in": false,

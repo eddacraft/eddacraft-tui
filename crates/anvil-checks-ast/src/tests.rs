@@ -332,6 +332,52 @@ fn rs004_skips_tuple_and_unit_structs() {
     assert!(!fires_opt_in("src/lib.rs", unit, "RS-004"));
 }
 
+// --- RS-005 todo!/unimplemented! (AST; was regex) ---------------------------
+
+#[test]
+fn rs005_fires_on_todo_in_prod_code() {
+    let src = "fn run() -> u8 {\n    todo!()\n}\n";
+    assert!(fires("src/lib.rs", src, "RS-005"));
+}
+
+#[test]
+fn rs005_fires_on_unimplemented_in_prod_code() {
+    // External-FP dogfood (tokio poll_aio.rs): a genuine shipped stub in a
+    // deprecated default trait method is a true positive and must still fire.
+    let src =
+        "fn register(&mut self) {\n    unimplemented!(\"use register_borrowed instead\")\n}\n";
+    assert!(fires("src/lib.rs", src, "RS-005"));
+}
+
+#[test]
+fn rs005_excluded_in_test_target_path() {
+    let src = "fn t() {\n    todo!()\n}\n";
+    assert!(!fires("tests/integration.rs", src, "RS-005"));
+}
+
+#[test]
+fn rs005_excluded_in_cfg_test_module() {
+    // External-FP dogfood (alacritty): `todo!()` inside a `#[cfg(test)]` module
+    // is test scaffolding, not shipped code.
+    let src = "#[cfg(test)]\nmod tests {\n    fn t() {\n        unimplemented!()\n    }\n}\n";
+    assert!(!fires("src/lib.rs", src, "RS-005"));
+}
+
+#[test]
+fn rs005_does_not_fire_in_doc_comment() {
+    // External-FP dogfood (tokio sync_bridge.rs): the regex rule fired on
+    // `/// # unimplemented!()` doc-test lines. The AST parser never treats
+    // comment text as a macro call, so the false positive is gone.
+    let src = "/// Example:\n/// #   unimplemented!()\nfn run() {}\n";
+    assert!(!fires("src/lib.rs", src, "RS-005"));
+}
+
+#[test]
+fn rs005_does_not_fire_on_other_macros() {
+    let src = "fn run() {\n    println!(\"hello\");\n    vec![1, 2, 3];\n}\n";
+    assert!(!fires("src/lib.rs", src, "RS-005"));
+}
+
 // --- Cross-cutting ----------------------------------------------------------
 
 #[test]
