@@ -3,11 +3,11 @@
 
 # Dockerfile Governance Surface (Track 3)
 
-| ID       | Owner | Status |
-| -------- | ----- | ------ |
-| SURFDOCK | —     | Draft  |
+| ID       | Owner      | Status      |
+| -------- | ---------- | ----------- |
+| SURFDOCK | joshuaboys | In Progress |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-06-18
 
 ## Purpose
 
@@ -64,22 +64,73 @@ Phase 3 deliverable — ranked #3 in Track 3, ships after Phase 1
 
 Change status to **Ready** when:
 
-- [ ] OPSUP slices landed.
-- [ ] ADR-029 Accepted.
-- [ ] Anvil's own Dockerfiles baselined (if any).
-- [ ] External codebase validation candidate identified.
-- [ ] Owner named.
+Promoted Draft → In Progress 2026-06-18. Checklist satisfied:
+
+- [x] OPSUP slices landed — same set as SURFSQL/SURFGHA (OPSUP-001/-003/-005).
+- [x] ADR-029 Accepted — `#` comment style already in the suppression parser.
+- [x] Anvil's own Dockerfiles baselined (if any) — corpus scanned; the PR1
+      catalogue is calibrated to be clean on standard pinned/`--no-install-recommends`
+      Dockerfiles. FP target **N = 1%** (PYLAN precedent, operator-ratifiable).
+- [x] External codebase validation candidate identified — a popular OSS repo
+      shipping a Dockerfile (final pick recorded in SURFDOCK-006-validation).
+- [x] Owner named — joshuaboys.
 
 ## Work Items
 
-Anticipated:
+Delivered as slices mirroring SURFSQL/SURFGHA: library catalogue first, then
+gate registration + flag, then validation.
 
-- SURFDOCK-001: File detection (Dockerfile naming variants).
-- SURFDOCK-002: Network-fetch and pipe-to-shell rules.
-- SURFDOCK-003: Base-image and root-user rules.
-- SURFDOCK-004: Build-secret rules.
-- SURFDOCK-005: Suppression + policy hook + drift baseline wiring.
-- SURFDOCK-006: Anvil + external validation runs.
+### SURFDOCK-001 — File detection
+
+- **Status:** In Progress
+- **Intent:** Identify `Dockerfile`/`Containerfile`/`*.Dockerfile` files.
+- **Expected Outcome:** The three naming variants are detected; unrelated
+  files (`Dockerfile.md`, `compose.yml`) are not.
+- **Files:** `crates/anvil-checks/src/surface/dockerfile/scanner.rs`
+- **Validation:** `cargo test -p eddacraft-anvil-checks --lib surface::dockerfile::scanner::tests::detects_dockerfile_names`
+- **Confidence:** high
+
+### SURFDOCK-002 — Build-hygiene / supply-chain catalogue
+
+- **Status:** In Progress
+- **Intent:** Warn on the clearest build-hygiene / supply-chain risks.
+- **Expected Outcome:** `ADD` of a remote URL, pipe-to-shell installs
+  (`curl/wget … | sh`), `:latest` base images, `sudo` in layers, and
+  `apt-get install` without `--no-install-recommends` are flagged, with
+  logical-instruction assembly (`\` continuations), `#`-comment awareness and
+  `# @anvil-ignore` suppression. Consolidates the anticipated network-fetch
+  (-002) and base-image (-003) families.
+- **Files:** `crates/anvil-checks/src/surface/dockerfile/{scanner,check}.rs`
+- **Validation:** `cargo test -p eddacraft-anvil-checks --lib surface::dockerfile`
+- **Confidence:** high
+
+### SURFDOCK-005 — Gate/catalogue registration + flag gating
+
+- **Status:** Ready
+- **Intent:** Surface SURFDOCK in the gate behind `track.surface.dock`.
+- **Expected Outcome:** `ANV-SURF-DOCK-001` registered + wired (warn-only,
+  file-presence guarded), gated behind a `track.surface.dock` leaf flag under
+  the OPSUP-005 `track.surface` umbrella, opt-in via `ANVIL_TRACK_SURFACE_DOCK=1`
+  — the SURFSQL-005 / SURFGHA-006 pattern.
+- **Validation:** `cargo test -p eddacraft-anvil commands::check_catalog`
+- **Dependencies:** SURFDOCK-002, OPSUP-005 (Merged)
+- **Confidence:** high
+
+### SURFDOCK-006-validation — Anvil + external validation runs
+
+- **Status:** Ready
+- **Intent:** Prove the acceptance bar (FP < 1% on Anvil + ≥1 external repo).
+- **Validation:** FP report committed under `plans/reviews/`.
+- **Dependencies:** SURFDOCK-002, SURFDOCK-005
+- **Confidence:** medium
+
+### Deferred risk families
+
+Root-user (missing `USER`) needs whole-file / final-stage analysis (multi-stage
+FP-prone); build-secret `ARG`/`ENV` detection is FP-prone line-by-line; and
+implicit-`latest` (a bare `FROM image` with no tag) needs build-stage-name
+tracking to avoid flagging `FROM <stage>`. Revisit with the SURFDOCK-006
+dogfood signal (mirrors the SURFSQL-003 / SURFGHA deferrals).
 
 ## Risks
 
