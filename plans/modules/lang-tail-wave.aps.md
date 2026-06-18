@@ -140,7 +140,13 @@ cleaner than per-language PRs. All eight items **Merged 2026-06-18 via PR
 - **LANGTAIL-008** — Wave-level acceptance: every included language parses a
   real-world fixture without panicking, symbols appear in the kernel symbol
   graph, all fixtures green (`tests/langtail_wave_acceptance.rs`).
-  **Merged 2026-06-18 via PR #2757**.
+  **Merged 2026-06-18 via PR #2757**. External-corpus robustness validation
+  (the RSTLAN-008/PYLAN-009 equivalent) run 2026-06-18 over ~3,700 real OSS
+  files across all 6 languages — **0 panics**; Go/Java/Dart/Kotlin parse clean
+  (≤1.2% error-trees), C# 6.9%, C/C++ 31–57% (validates the C-005 at-risk flag:
+  un-preprocessed macro/template syntax → partial parses, recovery still
+  extracts symbols). Evidence:
+  `plans/reviews/2026-06-18-langtail-008-external-validation.md`.
 
 Supporting change (outside the numbered items, required for graph inclusion):
 the kernel parseable-extension gate (`FileFilter::is_parseable`) and the
