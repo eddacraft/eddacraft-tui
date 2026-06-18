@@ -743,21 +743,33 @@ fn run_check_secret(
 /// Warn-only by design: per the architecture rules (warnings over blocks,
 /// exit 0 by default, new-edges-only), this surface never fails the gate.
 /// It reports unsuppressed findings in the message; escalation to a failing
-/// verdict on *new* edges waits on the SURFSQL-006 drift baseline. The
-/// file-presence guard (OPSUP-006) already short-circuits when no `.sql`
-/// files are present, so reaching here means there is SQL to scan.
+/// verdict on *new* edges waits on the SURFSQL-006 drift baseline.
+///
+/// The OPSUP-006 file-presence guard is a *coarse* pre-filter on the declared
+/// globs (which include migration directories), so reaching here means there
+/// *might* be SQL; `is_sql_migration_file` does the precise per-file
+/// selection. A migration directory holding only non-`.sql` files therefore
+/// yields zero scanned files and a clean result. Files that match but fail to
+/// read are counted and surfaced in the message rather than silently dropped.
 fn run_check_sql_migrations(name: &str, root: &Path, walked_files: &[String]) -> CheckResult {
     use anvil_checks::surface::sql::{is_sql_migration_file, run_surfsql_check};
 
-    let sql_files: Vec<(std::path::PathBuf, String)> = walked_files
+    let mut sql_files: Vec<(std::path::PathBuf, String)> = Vec::new();
+    let mut unreadable = 0usize;
+    for rel in walked_files
         .iter()
         .filter(|rel| is_sql_migration_file(std::path::Path::new(rel)))
-        .filter_map(|rel| {
-            std::fs::read_to_string(root.join(rel))
-                .ok()
-                .map(|content| (std::path::PathBuf::from(rel), content))
-        })
-        .collect();
+    {
+        match std::fs::read_to_string(root.join(rel)) {
+            Ok(content) => sql_files.push((std::path::PathBuf::from(rel), content)),
+            Err(_) => unreadable += 1,
+        }
+    }
+    let unreadable_note = if unreadable > 0 {
+        format!(" ({unreadable} file(s) unreadable, skipped)")
+    } else {
+        String::new()
+    };
 
     let result = run_surfsql_check(&sql_files);
     let unsuppressed: Vec<_> = result
@@ -772,7 +784,7 @@ fn run_check_sql_migrations(name: &str, root: &Path, walked_files: &[String]) ->
             passed: true,
             score: 100.0,
             message: format!(
-                "No unguarded destructive SQL migration patterns found across {} file(s)",
+                "No unguarded destructive SQL migration patterns found across {} file(s){unreadable_note}",
                 sql_files.len()
             ),
             requires_config: false,
@@ -798,8 +810,9 @@ fn run_check_sql_migrations(name: &str, root: &Path, walked_files: &[String]) ->
         score: 100.0,
         message: format!(
             "⚠ {} destructive SQL migration pattern(s) flagged (warn-only; \
-             baseline lands in SURFSQL-006):\n{}",
+             baseline lands in SURFSQL-006){}:\n{}",
             unsuppressed.len(),
+            unreadable_note,
             locations.join("\n")
         ),
         requires_config: false,

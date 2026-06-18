@@ -307,9 +307,9 @@ mod tests {
 
     /// Stable check IDs follow `ANV-CORE-NNN` for core checks and
     /// `ANV-SURF-<SURFACE>-NNN` / `ANV-PACK-<PACK>-NNN` for Track 3/4
-    /// surface and pack checks (OPSUP-001 scheme). Every segment after the
-    /// `ANV-` prefix is uppercase alphanumeric, and the ID ends in a numeric
-    /// segment.
+    /// surface and pack checks (OPSUP-001 scheme). After the `ANV-` prefix
+    /// every leading segment is uppercase letters (the family / surface /
+    /// pack name) and the final segment is a zero-padded 3-digit counter.
     fn is_valid_stable_id(id: &str) -> bool {
         let Some(rest) = id.strip_prefix("ANV-") else {
             return false;

@@ -26,12 +26,15 @@ pub const SURFSQL_002_RULE_ID: &str = "SURFSQL-002";
 const MIGRATION_DIRS: &[&str] = &["migrations", "db/migrations", "supabase/migrations"];
 
 /// True when `path` is a SQL file SURFSQL should scan: any `*.sql` file, or
-/// a file living under a recognised migration directory.
+/// an *extensionless* file living under a recognised migration directory
+/// (some tools use bare versioned names). A file under a migration directory
+/// that carries a non-`.sql` extension (`.py`, `.md`, `.json`, …) is not a
+/// SQL migration.
 ///
-/// The migration-directory heuristic is deliberately permissive — a repo
-/// with a non-standard layout still gets coverage via the `.sql` extension,
-/// and the OPSUP-006 file-presence guard means a repo with no `.sql` files
-/// pays nothing.
+/// This is the precise per-file selector. The OPSUP-006 file-presence guard
+/// (which keys on coarser globs including `migrations/**`) is only a cheap
+/// pre-filter — a repo whose migration directory holds no SQL still pays a
+/// near-zero walk and yields no scanned files here.
 #[must_use]
 pub fn is_sql_migration_file(path: &Path) -> bool {
     let ext = path.extension().and_then(|e| e.to_str());
