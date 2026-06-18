@@ -337,6 +337,44 @@ pub fn from_command_invocation(
     }
 }
 
+/// USAGE-004: derive redacted argument shapes from a JSON-RPC `params`
+/// object, the daemon-path analogue of the CLI's `arg_shapes_from_argv`.
+///
+/// Each top-level key becomes one [`ArgShape`] via
+/// [`anvil_observability::redaction::redact_arg`], so the privacy
+/// contract is identical to the CLI path: a sensitive-named key is
+/// elided to the `<redacted>` marker, every other value contributes
+/// only its coarse shape (type + length bucket + presence), never the
+/// raw value. Keys are visited in sorted order so a row is deterministic
+/// regardless of the wire object's key order.
+///
+/// Value mapping: a JSON string feeds `redact_arg` directly; `null` is
+/// treated as an absent value (bare-flag shape); scalars (bool/number)
+/// are stringified compactly; nested arrays/objects are compact-JSON
+/// serialised purely to measure their coarse length bucket — the bucket
+/// (never an exact length) is the backstop that keeps structure size
+/// from leaking. A non-object `params` (or `Null`) yields no shapes.
+#[must_use]
+pub fn arg_shapes_from_params(params: &serde_json::Value) -> Vec<ArgShape> {
+    use anvil_observability::redaction::redact_arg;
+    use serde_json::Value;
+
+    let Some(map) = params.as_object() else {
+        return Vec::new();
+    };
+    let mut keys: Vec<&String> = map.keys().collect();
+    keys.sort();
+    keys.into_iter()
+        .map(|key| match &map[key] {
+            Value::Null => redact_arg(key, None),
+            Value::String(s) => redact_arg(key, Some(s)),
+            Value::Bool(b) => redact_arg(key, Some(if *b { "true" } else { "false" })),
+            Value::Number(n) => redact_arg(key, Some(&n.to_string())),
+            other => redact_arg(key, Some(&other.to_string())),
+        })
+        .collect()
+}
+
 /// Convert a mid-edit [`ScanBufferResponse`] into a Kindling
 /// `gate_evaluated` observation, returning `None` when the response
 /// has no diagnostics (volume-control contract).
@@ -1281,6 +1319,43 @@ mod tests {
             file_path: "src/lib.rs",
             duration_ms: 42,
         }
+    }
+
+    /// USAGE-004: a JSON-RPC `params` object maps to one redacted
+    /// `ArgShape` per top-level key, in sorted order, with no raw value
+    /// retained and sensitive-named keys elided to the marker.
+    #[test]
+    fn arg_shapes_from_params_redacts_and_sorts() {
+        let params = serde_json::json!({
+            "query": "fn handle_jsonrpc_request",
+            "token": "super-secret",
+            "depth": 3,
+            "include_tests": true,
+        });
+        let shapes = arg_shapes_from_params(&params);
+
+        // Sorted by key: depth, include_tests, query, token.
+        let names: Vec<&str> = shapes.iter().map(|s| s.name.as_str()).collect();
+        assert_eq!(names, ["depth", "include_tests", "query", "token"]);
+
+        // Sensitive-named key elided to the marker; no raw values anywhere.
+        let json = serde_json::to_string(&shapes).expect("serialise");
+        assert!(json.contains("<redacted>"), "sensitive key not redacted: {json}");
+        assert!(!json.contains("super-secret"), "raw secret leaked: {json}");
+        assert!(
+            !json.contains("fn handle_jsonrpc_request"),
+            "raw query value leaked: {json}"
+        );
+    }
+
+    /// USAGE-004: `null` params (and any non-object) yield no shapes —
+    /// a notification with no params produces an empty arg list, not a
+    /// panic.
+    #[test]
+    fn arg_shapes_from_params_handles_non_object() {
+        assert!(arg_shapes_from_params(&serde_json::Value::Null).is_empty());
+        assert!(arg_shapes_from_params(&serde_json::json!("scalar")).is_empty());
+        assert!(arg_shapes_from_params(&serde_json::json!([1, 2, 3])).is_empty());
     }
 
     #[test]
