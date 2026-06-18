@@ -11,9 +11,12 @@ use crate::GlobalArgs;
 use crate::warmup_cache::load_watch_warmup_cache;
 
 #[derive(Debug, Args)]
+// CLI flags are naturally booleans; the >3-bool shape is intentional and
+// matches the sibling arg structs (StartArgs, CheckArgs, …).
+#[allow(clippy::struct_excessive_bools)]
 #[command(
     about = "Watch files and report save-time Anvil findings.",
-    after_help = "Behaviour:\n  - The initial scan builds baseline/readiness state; existing repo contents are not reported as new save-time violations.\n  - Watch and audit skip local tool state, agent worktrees, generated folders, and common caches by default.\n  - The TUI opens only when stdin and stdout are terminals; otherwise watch falls back to plain output.\n\nSave-time daemon:\n  - Save-time validation is served by the Anvil daemon; run `anvil start` first for daemon-backed validation.\n  - ANVIL_WATCH_DAEMON controls routing: unset routes through a live daemon when one answers (default), ANVIL_WATCH_DAEMON=0 opts out, ANVIL_WATCH_DAEMON=1 forces daemon routing (falls back to a scoped check with a warning when no daemon answers).\n  - When daemon routing is engaged but the daemon stops answering (forced-on start, or a mid-session disconnect), watch falls back to a scoped check and reports assurance unavailable{daemon-absent}."
+    after_help = "Behaviour:\n  - The initial scan builds baseline/readiness state; existing repo contents are not reported as new save-time violations.\n  - Watch and audit skip local tool state, agent worktrees, generated folders, and common caches by default.\n  - The TUI opens only when stdin and stdout are terminals; otherwise watch falls back to plain output.\n\nSave-time daemon:\n  - Save-time validation is served by the Anvil daemon. When none is running, an interactive `anvil watch` offers to start one (run `anvil start` to auto-start it instead); pass --no-daemon to decline and use the scoped fallback. Headless, --json, CI, hook, and piped runs never start or offer a daemon and fall back deterministically. A daemon already running is reused without prompting.\n  - ANVIL_WATCH_DAEMON controls routing: unset routes through a live daemon when one answers (default), ANVIL_WATCH_DAEMON=0 opts out (no reuse, no start, no offer), ANVIL_WATCH_DAEMON=1 forces daemon routing (falls back to a scoped check with a warning when no daemon answers).\n  - When daemon routing is engaged but the daemon stops answering (forced-on start, or a mid-session disconnect), watch falls back to a scoped check and reports assurance unavailable{daemon-absent}."
 )]
 pub struct WatchArgs {
     /// File or directory to scope the watcher (when a file is given, its
@@ -52,6 +55,18 @@ pub struct WatchArgs {
     /// Debounce interval in milliseconds
     #[arg(long)]
     debounce: Option<u64>,
+
+    /// Skip starting (or offering to start) the per-user save-time daemon
+    /// (DLIFE-004, ADR-082). With no daemon answering, an interactive
+    /// `anvil watch` offers to start one so save-time validation is
+    /// daemon-backed; pass `--no-daemon` to suppress that offer and rely on
+    /// the scoped fallback. A daemon already running is still reused; only
+    /// the offer is suppressed. `ANVIL_WATCH_DAEMON=0` is the equivalent
+    /// environment opt-out and additionally disables reuse. No daemon is
+    /// ever started or offered in `--json`, headless, CI, hook, or piped
+    /// contexts — those fall back deterministically.
+    #[arg(long = "no-daemon")]
+    no_daemon: bool,
 }
 
 impl WatchArgs {
@@ -76,6 +91,11 @@ impl WatchArgs {
             patterns: None,
             exclude: None,
             debounce: None,
+            // The LAUNCH-011 fallback watcher is architecture-only
+            // (`action: none`), so it never engages the save-time daemon
+            // lifecycle. `anvil start` already owns daemon startup for that
+            // path (DLIFE-003), so the offer must stay off here.
+            no_daemon: true,
         }
     }
 }
@@ -435,6 +455,265 @@ fn fallback_advisory_line(
         "[warn] anvil watch: save-time daemon unavailable -- falling back to a scoped check ({}); run `anvil start` for daemon-backed validation",
         crate::commands::watch_save_time::assurance_label(assurance),
     )
+}
+
+// ---------------------------------------------------------------------------
+// DLIFE-004: daemon lifecycle wiring for `anvil watch`
+// ---------------------------------------------------------------------------
+
+/// The lifecycle decision `anvil watch` takes for the per-user save-time
+/// daemon this run, before the watcher starts. Pure so every branch is
+/// unit-tested; the orchestration ([`ensure_watch_daemon`]) supplies the
+/// flags, env, TTY, and liveness probe.
+///
+/// Unlike `anvil start` — which auto-starts at the activation moment
+/// (DLIFE-003) — `anvil watch` follows the ADR-082 tiered posture: it
+/// *prompts* in an interactive TTY when no daemon answers and *falls back*
+/// deterministically everywhere else (headless / `--json` / CI / hook /
+/// piped), never prompting or hanging automation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WatchDaemonPlan {
+    /// A daemon already answers the worktree — reuse it; no prompt, no spawn.
+    ReuseLive,
+    /// Do not start or prompt this run; the scoped fallback is preserved.
+    /// The reason drives honest copy that names only the surface the user
+    /// actually engaged (Council: don't blame a flag/env they didn't set).
+    FallBack(WatchFallbackReason),
+    /// Interactive TTY with no live daemon — offer to start one.
+    Prompt,
+}
+
+/// Why `anvil watch` did not start (or offer) a daemon this run. Kept
+/// distinct from [`anvil_intercept::ensure::NoStartReason`] so the rendered
+/// copy can separate the two opt-out *surfaces* — they have different reuse
+/// semantics and naming both when only one was used misleads the user.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum WatchFallbackReason {
+    /// `ANVIL_WATCH_DAEMON=0`: the hard opt-out — disables all daemon
+    /// contact for this run (no reuse, no start, no offer).
+    RoutingDisabled,
+    /// `--no-daemon`: the soft opt-out — suppresses the start/offer only; a
+    /// live daemon would still be reused (so this branch means none was live).
+    NoDaemonFlag,
+    /// Headless / `--json` / CI / hook / piped: a deterministic context with
+    /// no interactive consent surface.
+    NonInteractive,
+}
+
+/// The decision inputs for [`watch_daemon_plan`]. A named-field record (not
+/// positional bools) so call sites and the truth-table tests cannot transpose
+/// two flags silently. Each field is sourced once in [`ensure_watch_daemon`].
+// All fields are independent runtime signals; the >3-bool shape is the data,
+// not an abstraction smell.
+#[allow(clippy::struct_excessive_bools)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct WatchDaemonContext {
+    /// `ANVIL_WATCH_DAEMON=0`: the hard opt-out — no daemon contact at all
+    /// (no reuse, no start, no offer).
+    routing_disabled: bool,
+    /// `--no-daemon`: the soft opt-out — suppresses start/offer, but a live
+    /// daemon is still reused (mirrors `anvil start`).
+    no_daemon: bool,
+    /// `--json`: never prompt; fold into the deterministic, parse-safe fallback.
+    json: bool,
+    /// A terminal on stdin+stdout with no non-interactive env signal.
+    interactive: bool,
+    /// A live daemon already answered the worktree probe this run.
+    daemon_live: bool,
+}
+
+/// Decide the watch daemon lifecycle plan. Pure; see [`WatchDaemonPlan`].
+///
+/// Precedence (ADR-082 §"Settled startup mode"):
+/// 1. `routing_disabled` (`ANVIL_WATCH_DAEMON=0`) → `FallBack(RoutingDisabled)`:
+///    the hard opt-out disables daemon contact entirely (no reuse, no spawn),
+///    so liveness is moot.
+/// 2. `daemon_live` → `ReuseLive`: a live daemon is used through the existing
+///    routing probe; starting or offering a second one is pointless ceremony.
+///    This wins over the soft `--no-daemon` opt-out, mirroring `anvil start`
+///    (a running daemon is still reused; only the *offer* is suppressed).
+/// 3. `no_daemon` (`--no-daemon`, nothing live) → `FallBack(NoDaemonFlag)`.
+/// 4. `json` or non-interactive context → `FallBack(NonInteractive)`: never
+///    prompt or hang automation; `--json` stays parse-safe.
+/// 5. Interactive TTY, no live daemon → `Prompt`. Note `ANVIL_WATCH_DAEMON=1`
+///    (`ForcedOn`) is *not* `routing_disabled`, so it reaches this branch when
+///    no daemon answers in a TTY — offering to start one is consistent with the
+///    user having forced routing on (pinned by the planner tests).
+fn watch_daemon_plan(ctx: WatchDaemonContext) -> WatchDaemonPlan {
+    if ctx.routing_disabled {
+        return WatchDaemonPlan::FallBack(WatchFallbackReason::RoutingDisabled);
+    }
+    if ctx.daemon_live {
+        return WatchDaemonPlan::ReuseLive;
+    }
+    if ctx.no_daemon {
+        return WatchDaemonPlan::FallBack(WatchFallbackReason::NoDaemonFlag);
+    }
+    if ctx.json || !ctx.interactive {
+        return WatchDaemonPlan::FallBack(WatchFallbackReason::NonInteractive);
+    }
+    WatchDaemonPlan::Prompt
+}
+
+/// Whether `anvil watch` has an interactive consent surface for offering
+/// daemon startup. Requires a terminal on *both* stdin (to read the answer)
+/// and stdout, and no CI / hook / explicit non-interactive signal
+/// ([`crate::is_non_interactive_env`]).
+///
+/// Deliberately stricter than `anvil start`'s `start_is_interactive`, which
+/// gates on stdout only: `start` never reads a reply, but `watch` reads the
+/// y/n answer from stdin, so a session with a redirected stdin (e.g. a
+/// `script`-driven harness presenting a PTY stdout) must still be classified
+/// non-interactive here rather than blocking on an unreadable prompt.
+fn watch_is_interactive() -> bool {
+    use std::io::IsTerminal as _;
+    !crate::is_non_interactive_env()
+        && std::io::stdin().is_terminal()
+        && std::io::stdout().is_terminal()
+}
+
+/// Render the one-line outcome of an *attempted* daemon ensure (the consented
+/// [`WatchDaemonPlan::Prompt`] path) or a reuse. Deterministic fallbacks have
+/// their own copy in [`render_watch_fallback_line`].
+///
+/// Honesty contract (module risk): the line reports the lifecycle ACTION
+/// only — it never claims protection is active, and every non-started path
+/// names the preserved scoped fallback so the user is never left thinking
+/// save-time validation silently vanished.
+fn render_watch_daemon_line(outcome: &anvil_intercept::ensure::EnsureOutcome) -> String {
+    use anvil_intercept::ensure::{EnsureOutcome, NoStartReason};
+    let body = match outcome {
+        // Mirrors `anvil start`'s deferred-attestation phrasing: the daemon has
+        // bound, but it only attests this worktree once the editor's MCP client
+        // (re)connects — so this must not claim active protection.
+        EnsureOutcome::Started => "started the per-user save-time daemon; \
+             save-time checks route through it once your editor's MCP client connects."
+            .to_owned(),
+        EnsureOutcome::Reused => {
+            "reusing the per-user save-time daemon already running.".to_owned()
+        }
+        EnsureOutcome::NoStart {
+            reason: NoStartReason::PlatformUnsupported,
+        } => "background start is not yet available on this platform; \
+             save-time validation uses the scoped fallback."
+            .to_owned(),
+        // The `MaySpawn` ensure path only ever yields `PlatformUnsupported`
+        // among the `NoStart` reasons (OptOut / NonInteractive are decided
+        // earlier by the planner and rendered by `render_watch_fallback_line`).
+        // Keep the arm total and defensive rather than `unreachable!`.
+        EnsureOutcome::NoStart { .. } => {
+            "not started; save-time validation uses the scoped fallback.".to_owned()
+        }
+        EnsureOutcome::Failed { recovery } => format!(
+            "could not start the daemon — {recovery} \
+             Save-time validation uses the scoped fallback until then."
+        ),
+    };
+    format!("anvil watch: daemon: {body}")
+}
+
+/// Render the one-line copy for a deterministic, non-started fallback. Names
+/// only the surface the user actually engaged so the message never blames a
+/// flag or env var they did not set (Council finding), and always names the
+/// preserved scoped fallback.
+fn render_watch_fallback_line(reason: WatchFallbackReason) -> String {
+    let body = match reason {
+        WatchFallbackReason::RoutingDisabled => {
+            "not started (ANVIL_WATCH_DAEMON=0 disables daemon contact); \
+             save-time validation uses the scoped fallback."
+        }
+        WatchFallbackReason::NoDaemonFlag => {
+            "not started (--no-daemon); save-time validation uses the scoped fallback."
+        }
+        WatchFallbackReason::NonInteractive => {
+            "not started (non-interactive: CI, hook, piped output, or --json); \
+             run `anvil watch` in a terminal to start it, or `anvil start` to \
+             auto-start it; save-time validation uses the scoped fallback."
+        }
+    };
+    format!("anvil watch: daemon: {body}")
+}
+
+/// The lifecycle line shown when the user declines the interactive offer.
+/// Distinct from a deliberate `--no-daemon` opt-out (it points at how to
+/// start one later) and from a non-interactive fallback (the user *was*
+/// asked).
+fn watch_daemon_declined_line() -> String {
+    "anvil watch: daemon: not started (declined); save-time validation uses \
+     the scoped fallback. Run `anvil start` to start it later."
+        .to_owned()
+}
+
+/// Resolve and act on the watch daemon lifecycle for a `check` watch, then
+/// return the human-readable lifecycle line to surface on stderr (or `None`
+/// in `--json` mode, where the run is deterministic and the stdout NDJSON
+/// stream must stay the sole document).
+///
+/// Side effects are confined to the interactive [`WatchDaemonPlan::Prompt`]
+/// branch: it asks on stderr and, on consent, drives the DLIFE-002 ensure
+/// primitive through [`crate::commands::intercept::ensure_save_time_daemon`].
+/// Reuse / fallback branches never touch a launcher. `--json` callers never
+/// reach the prompt (the planner folds `json` into the non-interactive
+/// fallback), so this can never block a machine-readable run.
+fn ensure_watch_daemon(
+    no_daemon: bool,
+    json: bool,
+    workspace_root: &std::path::Path,
+) -> Option<String> {
+    use crate::commands::watch_save_time::{DaemonRoutingMode, daemon_routing_mode};
+    use anvil_intercept::ensure::{EnsureOutcome, StartCapability};
+
+    let routing_disabled = daemon_routing_mode() == DaemonRoutingMode::Disabled;
+    // Probe for a live daemon only when the answer can change the outcome:
+    // the hard opt-out short-circuits without any daemon contact, and `--json`
+    // suppresses the line entirely below (so reuse vs fallback both render to
+    // nothing — no point paying a socket round-trip on every headless run).
+    // NOTE: this is *not* the same probe the dispatcher makes when it builds
+    // its save-time client. That second probe must stay: a daemon the prompt
+    // path just *started* was not live at this point, and only the later probe
+    // observes it. The two are intentionally independent, not redundant.
+    let daemon_live = !routing_disabled
+        && !json
+        && crate::commands::watch_save_time::query_workspace_status(workspace_root).is_some();
+
+    let plan = watch_daemon_plan(WatchDaemonContext {
+        routing_disabled,
+        no_daemon,
+        json,
+        interactive: watch_is_interactive(),
+        daemon_live,
+    });
+
+    let line = match plan {
+        WatchDaemonPlan::ReuseLive => render_watch_daemon_line(&EnsureOutcome::Reused),
+        WatchDaemonPlan::FallBack(reason) => render_watch_fallback_line(reason),
+        WatchDaemonPlan::Prompt => {
+            let consented = crate::prompt_yes_no(
+                "No save-time daemon is running. Start one now for daemon-backed validation?",
+                true,
+            )
+            .unwrap_or(false);
+            if consented {
+                eprintln!("anvil watch: ensuring the per-user save-time daemon is running…");
+                let outcome =
+                    crate::commands::intercept::ensure_save_time_daemon(StartCapability::MaySpawn);
+                render_watch_daemon_line(&outcome)
+            } else {
+                watch_daemon_declined_line()
+            }
+        }
+    };
+
+    // Structured trace so a fleet operator reading the JSON tracing sink sees
+    // the lifecycle decision even when the user's stderr is discarded — in
+    // particular a fallback or a failed spawn that quietly drops to the scoped
+    // check. The `line` is the user-facing copy; this is the machine record.
+    tracing::debug!(outcome = %line, "anvil watch daemon lifecycle");
+
+    // `--json` keeps stdout reserved for the v1 NDJSON event stream; the
+    // lifecycle line is informational, so suppress it there entirely rather
+    // than relying on stderr alone to keep the run deterministic.
+    if json { None } else { Some(line) }
 }
 
 /// Build the Command for action dispatch (extracted for testability).
@@ -1105,6 +1384,19 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
     let workspace_root = crate::util::workspace_root()?;
     let action = resolve_action(args.action.as_deref())?;
 
+    // DLIFE-004 (ADR-082): only the `check` watch routes through the save-time
+    // daemon, so the daemon lifecycle offer applies only there. Resolve it
+    // before the watcher starts so the (interactive) offer and any bounded
+    // start wait happen up front, not interleaved with file events. The line
+    // goes to stderr so the stdout NDJSON / plain event stream stays intact;
+    // `--json` suppresses it entirely. Reuse / fallback are non-interactive
+    // and side-effect-free; the offer can only appear in an interactive TTY.
+    if action == Some("check")
+        && let Some(line) = ensure_watch_daemon(args.no_daemon, global.json, &workspace_root)
+    {
+        eprintln!("{line}");
+    }
+
     // LAUNCH-002: --action is now allowed in TUI mode. The dispatcher forces
     // --no-tui on the child and discards child stdio so two Ratatui sessions
     // can't fight over the same alternate-screen.
@@ -1446,6 +1738,254 @@ mod tests {
     struct Wrapper {
         #[command(flatten)]
         inner: WatchArgs,
+    }
+
+    // ----- DLIFE-004 daemon lifecycle planner + render tests -----
+
+    /// The default decision context: no opt-out, plain (non-JSON) output, a
+    /// non-interactive shell, no live daemon. Tests flip exactly the fields
+    /// they exercise via struct-update syntax, so each case reads as a delta.
+    fn base_ctx() -> WatchDaemonContext {
+        WatchDaemonContext {
+            routing_disabled: false,
+            no_daemon: false,
+            json: false,
+            interactive: false,
+            daemon_live: false,
+        }
+    }
+
+    /// The hard opt-out (`ANVIL_WATCH_DAEMON=0`) falls back without any
+    /// daemon contact — regardless of liveness, flag, or interactivity — so
+    /// the planner never reuses or offers under it.
+    #[test]
+    fn watch_plan_routing_disabled_always_falls_back_opt_out() {
+        for no_daemon in [false, true] {
+            for json in [false, true] {
+                for interactive in [false, true] {
+                    for daemon_live in [false, true] {
+                        assert_eq!(
+                            watch_daemon_plan(WatchDaemonContext {
+                                routing_disabled: true,
+                                no_daemon,
+                                json,
+                                interactive,
+                                daemon_live,
+                            }),
+                            WatchDaemonPlan::FallBack(WatchFallbackReason::RoutingDisabled),
+                            "ANVIL_WATCH_DAEMON=0 must always fall back \
+                             (no_daemon={no_daemon}, json={json}, \
+                             interactive={interactive}, daemon_live={daemon_live})",
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// A live daemon is reused — no prompt, no second daemon — and reuse
+    /// wins over the soft `--no-daemon` opt-out, mirroring `anvil start`
+    /// (a running daemon is still reused; only the offer is suppressed).
+    #[test]
+    fn watch_plan_live_daemon_is_reused_even_with_no_daemon() {
+        for no_daemon in [false, true] {
+            for json in [false, true] {
+                for interactive in [false, true] {
+                    assert_eq!(
+                        watch_daemon_plan(WatchDaemonContext {
+                            no_daemon,
+                            json,
+                            interactive,
+                            daemon_live: true,
+                            ..base_ctx()
+                        }),
+                        WatchDaemonPlan::ReuseLive,
+                        "a live daemon must be reused (no_daemon={no_daemon}, \
+                         json={json}, interactive={interactive})",
+                    );
+                }
+            }
+        }
+    }
+
+    /// `--no-daemon` with nothing live suppresses the offer and falls back,
+    /// with copy distinct from both the hard env opt-out and the
+    /// non-interactive context.
+    #[test]
+    fn watch_plan_no_daemon_falls_back_opt_out_when_nothing_live() {
+        assert_eq!(
+            watch_daemon_plan(WatchDaemonContext {
+                no_daemon: true,
+                interactive: true,
+                ..base_ctx()
+            }),
+            WatchDaemonPlan::FallBack(WatchFallbackReason::NoDaemonFlag),
+        );
+    }
+
+    /// `--json` never prompts even on an interactive TTY: it folds into the
+    /// deterministic non-interactive fallback so the run stays parse-safe.
+    #[test]
+    fn watch_plan_json_never_prompts() {
+        assert_eq!(
+            watch_daemon_plan(WatchDaemonContext {
+                json: true,
+                interactive: true,
+                ..base_ctx()
+            }),
+            WatchDaemonPlan::FallBack(WatchFallbackReason::NonInteractive),
+        );
+    }
+
+    /// A non-interactive context (CI / hook / piped) with nothing live falls
+    /// back deterministically — never prompting or hanging automation. This is
+    /// also the `ANVIL_WATCH_DAEMON=1` (`ForcedOn`) headless case: `ForcedOn`
+    /// is not `routing_disabled`, so it lands here, not at an opt-out.
+    #[test]
+    fn watch_plan_non_interactive_falls_back_without_prompting() {
+        assert_eq!(
+            watch_daemon_plan(base_ctx()),
+            WatchDaemonPlan::FallBack(WatchFallbackReason::NonInteractive),
+        );
+    }
+
+    /// Interactive TTY, no live daemon, no opt-out → the offer is made. This
+    /// also pins the `ANVIL_WATCH_DAEMON=1` (`ForcedOn`) interactive case:
+    /// `ForcedOn` maps to `routing_disabled = false`, so a forced-routing user
+    /// whose daemon is absent is offered a start rather than silently
+    /// dropped to the scoped fallback.
+    #[test]
+    fn watch_plan_interactive_no_live_daemon_prompts() {
+        assert_eq!(
+            watch_daemon_plan(WatchDaemonContext {
+                interactive: true,
+                ..base_ctx()
+            }),
+            WatchDaemonPlan::Prompt,
+        );
+    }
+
+    /// Started: the line reports the action, defers attestation to the MCP
+    /// (re)connect (mirroring `anvil start`), and never claims protection
+    /// state (the activation diagnostic owns it).
+    #[test]
+    fn watch_line_for_started_is_honest() {
+        use anvil_intercept::ensure::EnsureOutcome;
+        let line = render_watch_daemon_line(&EnsureOutcome::Started);
+        assert!(line.contains("started"), "got: {line}");
+        assert!(
+            !line.to_lowercase().contains("protect"),
+            "the lifecycle line must not claim protection: {line}",
+        );
+        // Must not over-claim active daemon-backed validation before the
+        // editor reconnects — the attestation is deferred.
+        assert!(
+            line.contains("connects") || line.contains("once"),
+            "started copy must defer attestation to MCP reconnect: {line}",
+        );
+    }
+
+    /// Reuse names the running daemon and makes no protection claim.
+    #[test]
+    fn watch_line_for_reused_names_the_running_daemon() {
+        use anvil_intercept::ensure::EnsureOutcome;
+        let line = render_watch_daemon_line(&EnsureOutcome::Reused);
+        assert!(line.contains("reusing"), "got: {line}");
+        assert!(!line.to_lowercase().contains("protect"), "got: {line}");
+    }
+
+    /// Failure surfaces the recovery hint verbatim and names the preserved
+    /// scoped fallback so the user is not stranded.
+    #[test]
+    fn watch_line_for_failure_surfaces_recovery_and_fallback() {
+        use anvil_intercept::ensure::EnsureOutcome;
+        let recovery = "the daemon did not become ready within 12s. See the daemon log at /run/x.";
+        let line = render_watch_daemon_line(&EnsureOutcome::Failed {
+            recovery: recovery.to_owned(),
+        });
+        assert!(line.contains(recovery), "got: {line}");
+        assert!(line.contains("scoped fallback"), "got: {line}");
+    }
+
+    /// Platform-unsupported (the only `NoStart` reason the `MaySpawn` ensure
+    /// path yields) must not blame the opt-out flag and must preserve the
+    /// scoped fallback.
+    #[test]
+    fn watch_line_for_platform_unsupported_does_not_blame_opt_out() {
+        use anvil_intercept::ensure::{EnsureOutcome, NoStartReason};
+        let unsupported = render_watch_daemon_line(&EnsureOutcome::NoStart {
+            reason: NoStartReason::PlatformUnsupported,
+        });
+        assert!(unsupported.contains("platform"), "got: {unsupported}");
+        assert!(
+            !unsupported.contains("--no-daemon"),
+            "platform-unsupported must not blame the opt-out flag: {unsupported}",
+        );
+        assert!(
+            unsupported.contains("scoped fallback"),
+            "got: {unsupported}"
+        );
+    }
+
+    /// The three deterministic fallback reasons render distinct, honest copy:
+    /// each names ONLY the surface the user actually engaged (Council: don't
+    /// blame a flag/env they didn't set), and all preserve the scoped fallback.
+    #[test]
+    fn watch_fallback_lines_name_only_the_engaged_surface() {
+        let routing = render_watch_fallback_line(WatchFallbackReason::RoutingDisabled);
+        let flag = render_watch_fallback_line(WatchFallbackReason::NoDaemonFlag);
+        let non_interactive = render_watch_fallback_line(WatchFallbackReason::NonInteractive);
+
+        // Hard env opt-out: names the env var, not the flag.
+        assert!(routing.contains("ANVIL_WATCH_DAEMON=0"), "got: {routing}");
+        assert!(!routing.contains("--no-daemon"), "got: {routing}");
+
+        // Soft flag opt-out: names the flag, not the env var.
+        assert!(flag.contains("--no-daemon"), "got: {flag}");
+        assert!(!flag.contains("ANVIL_WATCH_DAEMON"), "got: {flag}");
+
+        // Context fallback: blames neither opt-out surface, explains why, and
+        // points at both recovery commands.
+        assert!(
+            non_interactive.contains("non-interactive"),
+            "got: {non_interactive}"
+        );
+        assert!(
+            !non_interactive.contains("--no-daemon"),
+            "got: {non_interactive}"
+        );
+        assert!(
+            non_interactive.contains("anvil start"),
+            "got: {non_interactive}"
+        );
+
+        // All three preserve the scoped fallback.
+        for line in [&routing, &flag, &non_interactive] {
+            assert!(line.contains("scoped fallback"), "got: {line}");
+        }
+    }
+
+    /// The declined line is distinct from a deliberate opt-out (the user was
+    /// asked) and points at how to start one later, preserving the fallback.
+    #[test]
+    fn watch_declined_line_is_distinct_and_preserves_fallback() {
+        let line = watch_daemon_declined_line();
+        assert!(line.contains("declined"), "got: {line}");
+        assert!(line.contains("scoped fallback"), "got: {line}");
+        assert!(line.contains("anvil start"), "got: {line}");
+        assert!(!line.contains("--no-daemon"), "got: {line}");
+    }
+
+    /// `--no-daemon` parses onto `WatchArgs` and the `anvil start --watch`
+    /// fallback constructor disables the offer (architecture-only watch must
+    /// never engage the save-time daemon lifecycle).
+    #[test]
+    fn no_daemon_flag_parses_and_fallback_constructor_opts_out() {
+        let parsed = Wrapper::parse_from(["watch", "--no-daemon"]);
+        assert!(parsed.inner.no_daemon);
+        let default = Wrapper::parse_from(["watch"]);
+        assert!(!default.inner.no_daemon);
+        assert!(WatchArgs::fallback_for_repo().no_daemon);
     }
 
     /// Assert the v1 envelope invariants the wire contract guarantees for
