@@ -23,6 +23,7 @@ export interface ContextBundleJSON {
     tags?: string[];
     priorities?: string[];
     confidences?: string[];
+    statuses?: string[];
   };
 
   /** Summary statistics */
@@ -137,6 +138,7 @@ export function buildContextBundleJSON(filtered: FilteredPlan): ContextBundleJSO
       tags: criteria.tags,
       priorities: criteria.priorities,
       confidences: criteria.confidences,
+      statuses: criteria.statuses,
     },
     summary,
     modules: moduleData,
@@ -169,6 +171,7 @@ export function buildContextBundleText(filtered: FilteredPlan): string {
     filterParts.push(`priorities: ${criteria.priorities.join(', ')}`);
   if (criteria.confidences?.length)
     filterParts.push(`confidences: ${criteria.confidences.join(', ')}`);
+  if (criteria.statuses?.length) filterParts.push(`statuses: ${criteria.statuses.join(', ')}`);
 
   if (filterParts.length > 0) {
     lines.push(`> Filtered by: ${filterParts.join('; ')}`);

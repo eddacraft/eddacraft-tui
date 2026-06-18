@@ -19,15 +19,19 @@ const trendColours: Record<string, string> = {
   flat: 'var(--text-muted)',
 };
 
-function formatValue(raw: string, format?: MetricCardProps['format']): string {
+export function formatValue(raw: string, format?: MetricCardProps['format']): string {
   if (!format) return raw;
   const num = Number(raw);
   if (Number.isNaN(num)) return raw;
   switch (format) {
     case 'percent':
       return `${num}%`;
-    case 'duration':
-      return num >= 60 ? `${Math.floor(num / 60)}m ${Math.round(num % 60)}s` : `${num}s`;
+    case 'duration': {
+      const totalSeconds = Math.round(num);
+      return totalSeconds >= 60
+        ? `${Math.floor(totalSeconds / 60)}m ${totalSeconds % 60}s`
+        : `${totalSeconds}s`;
+    }
     case 'number':
       return num.toLocaleString('en-GB');
     default:

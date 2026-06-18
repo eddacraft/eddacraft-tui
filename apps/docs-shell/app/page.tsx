@@ -54,7 +54,7 @@ export default function HomePage() {
         </a>
       </section>
 
-      <footer className="footer">&copy; {COPYRIGHT_YEAR} eddacraft</footer>
+      <footer className="footer">&copy; {COPYRIGHT_YEAR} eddacraft, Inc.</footer>
     </>
   );
 }

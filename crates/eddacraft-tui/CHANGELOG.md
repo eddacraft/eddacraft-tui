@@ -13,22 +13,21 @@ minor version bump indicates a breaking change.
 
 ### Added
 
-- **`lifecycle` feature** (off by default): terminal session lifecycle
-  helpers. `TerminalGuard::enter` enables raw mode and the alternate screen
-  and restores both on `Drop` — including during unwinding panics via an
-  installed panic hook — with `TerminalGuard::leave` for callers that want
-  restoration errors surfaced, and `restore_terminal` for manual best-effort
-  cleanup. Both are re-exported through the prelude.
-- **`runner` feature** (off by default, implies `lifecycle`): a small
-  fallback CLI shell for consumers without their own argument parser. Parses
-  the global envelope only (`--help`/`-h`, `--version`/`-V`, `--theme`,
-  `--no-tui`, `--config`) plus first-level command selection via the
-  zero-dependency `lexopt`, handing command-specific arguments to the
-  consumer's `TerminalCli::parse_command` verbatim. `launch_cli` drives the
-  fallback path; `launch_with` / `launch_with_args` support
-  bring-your-own-parser consumers (clap, argh, hand-rolled) that still want
-  the runner's lifecycle/theme integration. Ships with
-  `examples/runner_shell.rs`.
+- **`lifecycle` feature** (off by default): terminal session lifecycle helpers.
+  `TerminalGuard::enter` enables raw mode and the alternate screen and restores
+  both on `Drop` — including during unwinding panics via an installed panic hook
+  — with `TerminalGuard::leave` for callers that want restoration errors
+  surfaced, and `restore_terminal` for manual best-effort cleanup. Both are
+  re-exported through the prelude.
+- **`runner` feature** (off by default, implies `lifecycle`): a small fallback
+  CLI shell for consumers without their own argument parser. Parses the global
+  envelope only (`--help`/`-h`, `--version`/`-V`, `--theme`, `--no-tui`,
+  `--config`) plus first-level command selection via the zero-dependency
+  `lexopt`, handing command-specific arguments to the consumer's
+  `TerminalCli::parse_command` verbatim. `launch_cli` drives the fallback path;
+  `launch_with` / `launch_with_args` support bring-your-own-parser consumers
+  (clap, argh, hand-rolled) that still want the runner's lifecycle/theme
+  integration. Ships with `examples/runner_shell.rs`.
 
 ### Changed
 
@@ -46,17 +45,18 @@ minor version bump indicates a breaking change.
 
 - **`json-render` feature API contract expanded from parse/validation to
   rendering.** Consumers that enabled the experimental `json-render` feature in
-  0.2.4 should treat the module as a new rendering engine surface: it now exports
-  data binding, sanitisation, responsive helpers, component renderers, a base
-  registry, and `render_spec`. Code that wrapped or re-exported the previous
-  parser-only module should review its public API and feature documentation.
+  0.2.4 should treat the module as a new rendering engine surface: it now
+  exports data binding, sanitisation, responsive helpers, component renderers, a
+  base registry, and `render_spec`. Code that wrapped or re-exported the
+  previous parser-only module should review its public API and feature
+  documentation.
 
 ### Added
 
-- **JSON render component catalogue and renderer.** The `json-render` feature now
-  includes terminal renderers for dashboard-style components including alerts,
-  badges, cards, grids, headings, metrics, progress, separators, stacks, status
-  badges, tables, text, and line/bar/sparkline charts.
+- **JSON render component catalogue and renderer.** The `json-render` feature
+  now includes terminal renderers for dashboard-style components including
+  alerts, badges, cards, grids, headings, metrics, progress, separators, stacks,
+  status badges, tables, text, and line/bar/sparkline charts.
 - **Binding and catalogue sync support.** JSON render specs can bind component
   props to external data and validate canonical component names against the
   shared catalogue fixtures.

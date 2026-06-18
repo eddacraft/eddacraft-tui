@@ -1,10 +1,10 @@
 # eddacraft-tui
 
-> **A curated, themed, animation-ready Ratatui component library.**
-> Drop-in compatible with `ratatui` 0.30. It gives you a polished widget set,
-> the `pretext` reflow-free streaming text engine, a JSON-driven UI renderer,
-> smooth animations, composable overlays, and responsive layout primitives —
-> with theming and shell branding fully optional. The default theme follows the
+> **A curated, themed, animation-ready Ratatui component library.** Drop-in
+> compatible with `ratatui` 0.30. It gives you a polished widget set, the
+> `pretext` reflow-free streaming text engine, a JSON-driven UI renderer, smooth
+> animations, composable overlays, and responsive layout primitives — with
+> theming and shell branding fully optional. The default theme follows the
 > eddacraft Terminal Standard, but nothing forces you to use it.
 
 ## Why eddacraft-tui over vanilla `ratatui`?
@@ -28,27 +28,27 @@ presets (`.anvil()`, `.eddacraft()`) are just ergonomic helpers.
 
 ### `json-render` — declarative JSON UI specs in the terminal
 
-`eddacraft-tui` provides a generic engine (developed by the eddacraft team
-as part of the Anvil/TUIDASH work) for the `@json-render/core` flat element
-spec format. The spec format and overall approach were inspired by Vercel’s
+`eddacraft-tui` provides a generic engine (developed by the eddacraft team as
+part of the Anvil/TUIDASH work) for the `@json-render/core` flat element spec
+format. The spec format and overall approach were inspired by Vercel’s
 json-render product. A spec describes a tree of components (`Stack`, `Grid`,
 `Card`, `Heading`, `Text`, `Table`, `Alert`, charts, etc.) using a flat
 id-referenced structure. The crate parses it, validates structural integrity
-against a `Catalog` (unknown types, dangling/cyclic children, missing root),
-and renders it via a pluggable `TuiRegistry`.
+against a `Catalog` (unknown types, dangling/cyclic children, missing root), and
+renders it via a pluggable `TuiRegistry`.
 
-`serde`/`serde_json` are behind the `json-render` feature so the core
-library stays free of them. A separate producer (build step, server,
-LLM-emitted artefact, …) can ship one UI description that the TUI renders
-with no additional glue code.
+`serde`/`serde_json` are behind the `json-render` feature so the core library
+stays free of them. A separate producer (build step, server, LLM-emitted
+artefact, …) can ship one UI description that the TUI renders with no additional
+glue code.
 
 While the initial consumer and example specs are dashboards and monitoring
-surfaces, the engine is not dashboard-specific. The base components are
-general layout and content primitives, the catalogue is extensible, and
-features like data binding (`$data` references), sanitisation for untrusted
-specs, and responsive breakpoints (`Narrow`/`Medium`/`Wide`) make it
-suitable for many declarative UI use cases (detail views, status pages,
-settings surfaces, LLM-generated interfaces, etc.).
+surfaces, the engine is not dashboard-specific. The base components are general
+layout and content primitives, the catalogue is extensible, and features like
+data binding (`$data` references), sanitisation for untrusted specs, and
+responsive breakpoints (`Narrow`/`Medium`/`Wide`) make it suitable for many
+declarative UI use cases (detail views, status pages, settings surfaces,
+LLM-generated interfaces, etc.).
 
 ```toml
 [dependencies]
@@ -69,60 +69,58 @@ let registry: TuiRegistry = base_registry();
 render_spec(&spec, &registry, frame, area);
 ```
 
-Components consult shared width breakpoints (`Narrow` / `Medium` / `Wide`)
-so a single spec degrades gracefully: grids collapse to one column, tables
+Components consult shared width breakpoints (`Narrow` / `Medium` / `Wide`) so a
+single spec degrades gracefully: grids collapse to one column, tables
 progressively drop columns, etc. Thresholds are tuned for real terminal sizes
 (80×24, 120×40, 200×60, …).
 
-See the [`json_render` API docs] for the base element set and the
-`TuiComponent` / `TuiRegistry` extension points.
+See the [`json_render` API docs] for the base element set and the `TuiComponent`
+/ `TuiRegistry` extension points.
 
 [`json_render` API docs]: https://docs.rs/eddacraft-tui/0.2.4/eddacraft_tui/json_render/
 
 ### `pretext` — reflow-free text layout for streaming AI
 
-Two-phase text layout inspired by Cheng Lou's Pretext for the browser.
-`pretext` measures word widths once with `unicode-width`, caches the
-layout per container width, and re-runs only on resize. Streaming
-tokens land in a frame with no reflow stutter; container resizes
-invalidate the cache and re-measure in a single pass. Exclusion zones
-let text flow around moving shapes — a sidebar that animates, a live
-chart. The widget itself is zero-sized: all caching lives on
-`PretextState`, so caching works correctly across moves and
-reparenting. See [Pretext layout](#pretext-layout) below for a worked
-example.
+Two-phase text layout inspired by Cheng Lou's Pretext for the browser. `pretext`
+measures word widths once with `unicode-width`, caches the layout per container
+width, and re-runs only on resize. Streaming tokens land in a frame with no
+reflow stutter; container resizes invalidate the cache and re-measure in a
+single pass. Exclusion zones let text flow around moving shapes — a sidebar that
+animates, a live chart. The widget itself is zero-sized: all caching lives on
+`PretextState`, so caching works correctly across moves and reparenting. See
+[Pretext layout](#pretext-layout) below for a worked example.
 
 ### Curated themed widget library
 
-The `widgets/` module ships a curated set of production-ready components
-with a default theme that follows the eddacraft Terminal Standard (easily
-replaced by implementing `Theme`). Highlights: `TextInput`, `Editor`, `Select`,
-`Confirm` (inputs); `Spinner`, `ProgressBar`, `ParallelProgress`,
-`StatusBadge`, `StatusBar` (status); `Container`, `Divider`, `Header`
-(layout); `DataTable` (sortable, themed `▲`/`▼` indicators), `Tree`
-(expand/collapse via `TreeState`), `LogPanel` (data); `OverlayStack` +
-`Layer` + `Placement` (overlays for modals, toasts, command palettes);
-`HelpBar` (auto-generated key hints that stay in sync with your `KeyHandler`
-bindings); `PretextWidget` (text reflow); and `Hideable`, `Disableable`,
-`Padded` wrappers. See [Widgets](#widgets) below for the full reference.
+The `widgets/` module ships a curated set of production-ready components with a
+default theme that follows the eddacraft Terminal Standard (easily replaced by
+implementing `Theme`). Highlights: `TextInput`, `Editor`, `Select`, `Confirm`
+(inputs); `Spinner`, `ProgressBar`, `ParallelProgress`, `StatusBadge`,
+`StatusBar` (status); `Container`, `Divider`, `Header` (layout); `DataTable`
+(sortable, themed `▲`/`▼` indicators), `Tree` (expand/collapse via `TreeState`),
+`LogPanel` (data); `OverlayStack` + `Layer` + `Placement` (overlays for modals,
+toasts, command palettes); `HelpBar` (auto-generated key hints that stay in sync
+with your `KeyHandler` bindings); `PretextWidget` (text reflow); and `Hideable`,
+`Disableable`, `Padded` wrappers. See [Widgets](#widgets) below for the full
+reference.
 
 Other standouts include smooth animated progress (call `animate_tick` each
-frame; the library handles easing), `ParallelProgress` with per-task status,
-ETA calculation, and live spinners, plus careful engineering details like
-iterative tree teardown to avoid stack overflows on deep hierarchies.
+frame; the library handles easing), `ParallelProgress` with per-task status, ETA
+calculation, and live spinners, plus careful engineering details like iterative
+tree teardown to avoid stack overflows on deep hierarchies.
 
 ### Theming + animated progress
 
 `EddaCraftTheme` provides the default 8-colour palette and semantic `Role`
-tokens. `ProgressBar` and `ParallelProgress` animate toward their targets
-(250 ms quad-out by default). Your event loop just calls `animate_tick(delta_ms)`
-each frame (and can check `is_animating()` to decide whether to short-poll
-input for smooth playback). The underlying animation engine is
+tokens. `ProgressBar` and `ParallelProgress` animate toward their targets (250
+ms quad-out by default). Your event loop just calls `animate_tick(delta_ms)`
+each frame (and can check `is_animating()` to decide whether to short-poll input
+for smooth playback). The underlying animation engine is
 [`vyfor/animate`](https://github.com/vyfor/animate). See
 [`docs/animations.md`](docs/animations.md) for the wiring pattern.
 
-Brand marks are provided via `ShellBranding` (Plain, Edda, Anvil, Custom, …)
-and the convenience spinner presets, but are never required.
+Brand marks are provided via `ShellBranding` (Plain, Edda, Anvil, Custom, …) and
+the convenience spinner presets, but are never required.
 
 ## Quick start
 
@@ -150,8 +148,8 @@ let spinner = Spinner::new(&theme).label("Loading...");
 ```
 
 `ParallelProgress` can show a live animated spinner for the "Running" state
-(brand mark is configurable). `render_shell` supports a few reusable marks
-plus `ShellBranding::Plain` and `ShellBranding::Custom("…")`.
+(brand mark is configurable). `render_shell` supports a few reusable marks plus
+`ShellBranding::Plain` and `ShellBranding::Custom("…")`.
 
 ## Modules
 
@@ -167,9 +165,9 @@ plus `ShellBranding::Plain` and `ShellBranding::Custom("…")`.
 
 ## Default theme (EddaCraftTheme)
 
-The built-in `EddaCraftTheme` follows the eddacraft Terminal Standard
-palette. All colours are exposed through the `Theme` trait, so you can
-implement your own without touching widget code.
+The built-in `EddaCraftTheme` follows the eddacraft Terminal Standard palette.
+All colours are exposed through the `Theme` trait, so you can implement your own
+without touching widget code.
 
 | Token       | Colour               |
 | ----------- | -------------------- |
@@ -289,7 +287,8 @@ fn main() -> std::process::ExitCode {
 }
 ```
 
-See the [`runner` module docs](https://docs.rs/eddacraft-tui/latest/eddacraft_tui/runner/)
+See the
+[`runner` module docs](https://docs.rs/eddacraft-tui/latest/eddacraft_tui/runner/)
 for the full contract.
 
 [`lexopt`]: https://crates.io/crates/lexopt
@@ -345,7 +344,8 @@ Smooth progress/spinner animations are powered by
 
 The `pretext` two-phase layout engine and widget were originally prototyped in
 [`joshuaboys/pretext-tui`](https://github.com/joshuaboys/pretext-tui), a
-terminal port of ideas from Cheng Lou's browser [Pretext](https://github.com/chenglou/pretext) library.
+terminal port of ideas from Cheng Lou's browser
+[Pretext](https://github.com/chenglou/pretext) library.
 
 The layered overlay model (`OverlayStack` / `Layer` / `Placement`) draws
 inspiration from Cursive's `StackView`.

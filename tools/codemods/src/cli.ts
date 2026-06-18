@@ -14,10 +14,17 @@ import { resolve, relative } from 'node:path';
 import {
   createProject,
   rewriteImportsInFile,
-  TransformResult,
+  type TransformResult,
 } from './transforms/rewrite-imports.js';
+import { printImportsCompletion } from './imports-completion.js';
 
 const ROOT_DIR = resolve(import.meta.dirname, '../../..');
+const DEFAULT_EXCLUDE_PATTERNS = [
+  '**/node_modules/**',
+  '**/dist/**',
+  '**/.nx/**',
+  '**/tools/codemods/**',
+];
 
 program.name('anvil-codemod').description('Codemods for Anvil monorepo migration').version('0.0.1');
 
@@ -27,12 +34,7 @@ program
   .option('-d, --dry-run', 'Preview changes without applying', false)
   .option('-v, --verbose', 'Show detailed output', false)
   .option('-p, --path <glob>', 'Glob pattern for files to process', '**/*.ts')
-  .option('--exclude <patterns...>', 'Patterns to exclude', [
-    '**/node_modules/**',
-    '**/dist/**',
-    '**/.nx/**',
-    '**/tools/codemods/**',
-  ])
+  .option('--exclude <patterns...>', 'Patterns to exclude')
   .action(async (options) => {
     console.log(chalk.blue('\n  Anvil Import Path Codemod\n'));
 
@@ -44,7 +46,9 @@ program
 
     // Find all TypeScript files
     const pattern = resolve(ROOT_DIR, options.path);
-    const excludePatterns = options.exclude.map((p: string) => resolve(ROOT_DIR, p));
+    const excludePatterns = (options.exclude ?? DEFAULT_EXCLUDE_PATTERNS).map((p: string) =>
+      resolve(ROOT_DIR, p)
+    );
 
     console.log(chalk.gray(`  Searching: ${relative(ROOT_DIR, pattern)}`));
 
@@ -122,11 +126,7 @@ program
       console.log(chalk.red(`    Errors: ${totalErrors}`));
     }
 
-    if (options.dryRun) {
-      console.log(chalk.yellow('\n  [DRY RUN] Run without --dry-run to apply changes.\n'));
-    } else {
-      console.log(chalk.green('\n  Changes applied successfully.\n'));
-    }
+    printImportsCompletion({ dryRun: options.dryRun, totalErrors });
   });
 
 await program.parseAsync(process.argv);

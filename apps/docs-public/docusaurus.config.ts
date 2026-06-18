@@ -143,7 +143,7 @@ const config: Config = {
           items: [{ label: 'Blog', to: '/blog' }],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} eddacraft. Built with Docusaurus.`,
+      copyright: `Copyright © ${new Date().getFullYear()} eddacraft, Inc. Built with Docusaurus.`,
     },
     prism: {
       theme: prismThemes.github,

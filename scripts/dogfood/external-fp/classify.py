@@ -30,7 +30,12 @@ OUT = pathlib.Path(os.environ.get("EXT_FP_OUT", WORK / "out"))
 
 
 def source_line(repo, relfile, lineno):
-    p = WORK / repo / relfile
+    repo_root = (WORK / repo).resolve()
+    p = (repo_root / relfile).resolve()
+    try:
+        p.relative_to(repo_root)
+    except ValueError:
+        return "<source unavailable>"
     if not p.exists():
         return "<source unavailable>"
     # linecache caches file contents per path, so repeated findings in the same
@@ -63,6 +68,7 @@ def load_warnings(path):
 
 
 def build(group):
+    OUT.mkdir(parents=True, exist_ok=True)
     g = CORPUS["groups"][group]
     md = [f"# {group} external-FP worksheet\n",
           "Verdict column: `TP` (true positive), `FP` (false positive), or a",

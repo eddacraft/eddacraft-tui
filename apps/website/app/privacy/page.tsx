@@ -206,7 +206,7 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-anvil font-bold mb-2">AUTHOR</h2>
             <div className="text-text-muted pl-6">
-              <p>eddacraft Ltd.</p>
+              <p>eddacraft, Inc.</p>
             </div>
           </section>
         </div>

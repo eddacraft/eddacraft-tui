@@ -530,8 +530,8 @@ The following are **OUT OF SCOPE** for v1:
 
 ## Licence
 
-Copyright (c) 2026 eddacraft. All rights reserved. See [LICENSE](../../LICENSE)
-for details.
+Copyright (c) 2026 eddacraft, Inc. All rights reserved. See
+[LICENSE](../../LICENSE) for details.
 
 ## See Also
 

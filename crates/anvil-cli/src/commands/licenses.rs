@@ -55,7 +55,7 @@ fn render_plain(use_colour: bool) -> String {
     } else {
         let _ = writeln!(out, "Anvil {version}");
     }
-    let _ = writeln!(out, "Copyright (C) 2026 EddaCraft. All rights reserved.");
+    let _ = writeln!(out, "Copyright (C) 2026 eddacraft, Inc. All rights reserved.");
     let _ = writeln!(out, "Licensed under LicenseRef-Proprietary.");
     let _ = writeln!(out);
     // ACKNOWLEDGEMENTS.md already starts with its own `# Acknowledgements`
@@ -85,6 +85,7 @@ mod tests {
     #[test]
     fn plain_without_colour_contains_proprietary_header() {
         let out = render(Format::Plain, false);
+        assert!(out.contains("Copyright (C) 2026 eddacraft, Inc. All rights reserved."));
         assert!(out.contains("Licensed under LicenseRef-Proprietary."));
         assert!(out.contains("Anvil "));
         // ACKNOWLEDGEMENTS.md's own top heading shows through in plain mode.

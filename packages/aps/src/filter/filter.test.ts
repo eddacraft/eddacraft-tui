@@ -241,11 +241,16 @@ describe('context bundle builders', () => {
 
     it('should include filter criteria in bundle', async () => {
       const plan = await loadPlan(join(EXAMPLES_DIR, 'system-ecommerce/APS.md'));
-      const filtered = filterPlan(plan, { scopes: ['AUTH'], tags: ['security'] });
+      const filtered = filterPlan(plan, {
+        scopes: ['AUTH'],
+        tags: ['security'],
+        statuses: ['open'],
+      });
       const bundle = buildContextBundleJSON(filtered);
 
       expect(bundle.filter.scopes).toEqual(['AUTH']);
       expect(bundle.filter.tags).toEqual(['security']);
+      expect(bundle.filter.statuses).toEqual(['open']);
     });
 
     it('should include task details', async () => {
@@ -276,11 +281,12 @@ describe('context bundle builders', () => {
 
     it('should include filter info in text', async () => {
       const plan = await loadPlan(join(EXAMPLES_DIR, 'system-ecommerce/APS.md'));
-      const filtered = filterPlan(plan, { scopes: ['AUTH'] });
+      const filtered = filterPlan(plan, { scopes: ['AUTH'], statuses: ['open'] });
       const text = buildContextBundleText(filtered);
 
       expect(text).toContain('Filtered by:');
       expect(text).toContain('scopes: AUTH');
+      expect(text).toContain('statuses: open');
     });
   });
 

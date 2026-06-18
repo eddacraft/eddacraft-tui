@@ -1517,3 +1517,17 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** none.
 - **Follow-up:** When INSEC starts, promote the deferred opt-in items only after
   the enabled-family FP bar is met; register the `WC`/`UR` registry prefixes.
+### 2026-06-19 — opencode
+
+- **Task:** Run Clawpatch report triage and apply selected fixes.
+- **Outcome:** One Clawpatch-generated fix was retained and several narrow manual
+  fixes were applied after Clawpatch refused further fixes on a dirty worktree.
+- **Worked:** Filtering report output to current-tree, high-confidence findings
+  avoided flooding the backlog with stale worktree and wont-fix items.
+- **Failed:** Chaining `clawpatch fix` hid that the first validation failure stops
+  later fixes, and Clawpatch requires a clean tree for each subsequent fix.
+- **Friction:** `clawpatch report` can surface hundreds of mixed-lifecycle issues;
+  a raw run is too noisy to translate directly into GitHub issues.
+- **Improvement:** Run `clawpatch fix` one finding at a time from a clean tree, and
+  triage report output by status/path before filing any follow-up work.
+- **Follow-up:** none

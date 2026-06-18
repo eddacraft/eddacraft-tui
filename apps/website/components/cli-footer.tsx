@@ -355,7 +355,7 @@ export function CLIFooter() {
               PRIVACY
             </a>
 
-            <span className="text-text-muted/30">{'// (c) 2026 eddacraft Inc.'}</span>
+            <span className="text-text-muted/30">{'// (c) 2026 eddacraft, Inc.'}</span>
           </div>
         </div>
       </div>
