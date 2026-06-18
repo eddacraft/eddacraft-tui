@@ -45,12 +45,18 @@
 //! best-effort: a failure is logged and dropped, never surfaced to the
 //! exit code.
 //!
-//! ## Surfaced blocker (per the module's out-of-scope clause)
+//! ## JSON-RPC daemon producer (USAGE-004)
 //!
-//! The JSON-RPC daemon dispatch boundary (`anvil-intercept::ipc`) has
-//! no user principal and no flag resolver, so the IPC-side producer is
-//! intentionally **not** implemented here; it is filed as a follow-up
-//! rather than emitting a principal-less, asymmetric row.
+//! USAGE-001 surfaced that the JSON-RPC daemon dispatch boundary
+//! (`anvil-intercept::ipc`) carries no user principal and no flag
+//! resolver. USAGE-004 resolves that: the client now attaches its
+//! salted-hash principal on the JSON-RPC envelope, and the daemon emits
+//! a `command.invoked` row for an explicit allowlist of user-initiated
+//! methods (the GCTX query tools + the operator `unblock-*` verbs) to
+//! this *same* sidecar via [`daemon_usage_emitter`]. `flag_set` stays
+//! empty on the daemon path (no resolver there). The path is resolved
+//! here ([`default_usage_log_path`]) so the daemon and CLI never diverge
+//! on the credentials/`ANVIL_HOME` re-rooting.
 
 use std::env;
 use std::fs;
@@ -58,7 +64,8 @@ use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
 
 use anvil_intercept::kindling_observation::{
-    CommandInvocationContext, CommandInvokedObservation, FlagSetEntry, from_command_invocation,
+    CommandInvocationContext, CommandInvokedEmitter, CommandInvokedObservation, FlagSetEntry,
+    GateEvaluatedObservation, KindlingObservationSink, KindlingSinkError, from_command_invocation,
 };
 use anvil_kernel::feature_flags::{CapturedResolution, ResolutionReason, take_captured_flags};
 use anvil_observability::TraceContext;
@@ -66,6 +73,7 @@ use anvil_observability::redaction::{ArgShape, redact_arg};
 use anyhow::{Context, Result};
 use chrono::Utc;
 use sha2::{Digest, Sha256};
+use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::auth::credentials;
@@ -406,6 +414,64 @@ pub fn default_usage_log_path() -> Result<PathBuf> {
     Ok(usage_log_path(&state_dir))
 }
 
+/// USAGE-004: a [`KindlingObservationSink`] that appends `command.invoked`
+/// rows produced by the JSON-RPC daemon dispatch to the *same*
+/// user-scoped `usage.ndjson` sidecar the CLI producer writes (resolved
+/// via the CLI-owned [`default_usage_log_path`], so the daemon and CLI
+/// never diverge on the path — the credentials/`ANVIL_HOME` re-rooting
+/// logic lives only here). Only `command.invoked` is consumed; the
+/// daemon does not route `gate_evaluated` / `action_executed` rows
+/// through this sink.
+///
+/// The path is resolved once at construction so a per-call resolution
+/// failure cannot occur on the dispatch hot path; a write failure is
+/// surfaced as [`KindlingSinkError::Unavailable`] and swallowed by the
+/// emitter (logged, row dropped — dispatch is never coupled to sink
+/// health).
+struct DaemonUsageSink {
+    path: PathBuf,
+}
+
+impl KindlingObservationSink for DaemonUsageSink {
+    fn try_emit(&self, _observation: GateEvaluatedObservation) -> Result<(), KindlingSinkError> {
+        // The daemon does not export gate_evaluated rows through the
+        // usage sink — USAGE-004 owns command.invoked only.
+        Ok(())
+    }
+
+    fn try_emit_command_invoked(
+        &self,
+        observation: CommandInvokedObservation,
+    ) -> Result<(), KindlingSinkError> {
+        append_usage_observation_to(&self.path, &observation)
+            .map_err(|err| KindlingSinkError::Unavailable(err.to_string()))
+    }
+}
+
+/// USAGE-004: build the daemon-side command-invocation usage emitter,
+/// wired to the shared `usage.ndjson` sink. Returns `None` (usage export
+/// off) when the usage path cannot be resolved, so a daemon on a host
+/// without a resolvable state dir still starts. The per-startup
+/// `daemon_session_id` stamps every daemon row; individual calls are
+/// correlated by `traceparent`, not this id.
+#[must_use]
+pub fn daemon_usage_emitter() -> Option<Arc<CommandInvokedEmitter>> {
+    let path = default_usage_log_path()
+        .map_err(|err| {
+            tracing::warn!(
+                target: "anvil::usage",
+                error = %err,
+                "usage export disabled: could not resolve usage sidecar path",
+            );
+        })
+        .ok()?;
+    let sink = Arc::new(DaemonUsageSink { path }) as Arc<dyn KindlingObservationSink>;
+    Some(Arc::new(CommandInvokedEmitter::new(
+        sink,
+        Uuid::new_v4().to_string(),
+    )))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -558,6 +624,36 @@ mod tests {
         assert!(!contents.contains("/secret/place"), "raw value leaked");
         assert!(!contents.contains("zzsecretzz"), "sensitive value leaked");
         assert!(contents.contains("<redacted>"), "redaction marker expected");
+    }
+
+    /// USAGE-004: the daemon sink appends `command.invoked` rows to the
+    /// configured path (the JSON-RPC dispatch surface's entry point into
+    /// the shared usage sidecar), and never routes `gate_evaluated` rows.
+    #[test]
+    fn daemon_usage_sink_appends_command_invoked_row() {
+        let dir = tempdir().expect("tempdir");
+        let path = dir.path().join("kindling").join(USAGE_NDJSON);
+        let sink = DaemonUsageSink { path: path.clone() };
+
+        let ctx = CommandInvocationContext {
+            session_id: "daemon-startup-1",
+            timestamp: "2026-06-18T11:00:00Z",
+            command: "anvil/gctx/search_symbols",
+            principal: "deadbeefcafe",
+            traceparent: Some("00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"),
+        };
+        let obs = from_command_invocation(&ctx, vec![redact_arg("query", Some("Foo"))], Vec::new());
+        sink.try_emit_command_invoked(obs)
+            .expect("daemon sink appends the row");
+
+        let contents = fs::read_to_string(&path).expect("read usage log");
+        let lines: Vec<&str> = contents.lines().collect();
+        assert_eq!(lines.len(), 1, "one NDJSON row per emit");
+        let parsed: CommandInvokedObservation =
+            serde_json::from_str(lines[0]).expect("valid NDJSON row");
+        assert_eq!(parsed.kind, "command.invoked");
+        assert_eq!(parsed.command, "anvil/gctx/search_symbols");
+        assert_eq!(parsed.principal, "deadbeefcafe");
     }
 
     #[test]

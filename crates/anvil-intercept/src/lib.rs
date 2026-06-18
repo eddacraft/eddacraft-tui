@@ -315,6 +315,12 @@ pub struct ForegroundOpts {
     /// documented degraded mode Unix also uses when no parser is wired.
     #[cfg(any(unix, windows))]
     symbol_parser: Option<Arc<dyn save_time::SymbolParser>>,
+    /// USAGE-004: the command-invocation usage producer the daemon emits
+    /// `command.invoked` rows through. `None` ⇒ usage export off (the
+    /// default; tests and embedded mode). `anvil-cli` injects a real
+    /// NDJSON-backed emitter via [`Self::with_usage_emitter`].
+    #[cfg(any(unix, windows))]
+    usage_emitter: Option<Arc<kindling_observation::CommandInvokedEmitter>>,
     #[cfg(unix)]
     ipc_socket: Option<PathBuf>,
     #[cfg(windows)]
@@ -333,6 +339,8 @@ impl ForegroundOpts {
             enforcement_config: config::Resolved::default(),
             #[cfg(any(unix, windows))]
             symbol_parser: None,
+            #[cfg(any(unix, windows))]
+            usage_emitter: None,
             #[cfg(unix)]
             ipc_socket: None,
             #[cfg(windows)]
@@ -354,6 +362,7 @@ impl ForegroundOpts {
             scan_buffer: midedit::ScanBufferService::default(),
             enforcement_config: config::Resolved::default(),
             symbol_parser: None,
+            usage_emitter: None,
             ipc_socket: Some(ipc_socket.into()),
         }
     }
@@ -372,6 +381,7 @@ impl ForegroundOpts {
             scan_buffer: midedit::ScanBufferService::default(),
             enforcement_config: config::Resolved::default(),
             symbol_parser: None,
+            usage_emitter: None,
             ipc_pipe_name: Some(ipc_pipe_name.into()),
         }
     }
@@ -438,6 +448,21 @@ impl ForegroundOpts {
     #[must_use]
     pub fn with_symbol_parser(mut self, parser: Arc<dyn save_time::SymbolParser>) -> Self {
         self.symbol_parser = Some(parser);
+        self
+    }
+
+    /// USAGE-004: inject the command-invocation usage producer. `anvil-cli`
+    /// builds an NDJSON-backed emitter (see `usage::daemon_usage_emitter`)
+    /// and wires it here so the daemon records `command.invoked` rows for
+    /// allowlisted JSON-RPC methods. Without it the daemon serves
+    /// normally and records no usage rows (the default).
+    #[cfg(any(unix, windows))]
+    #[must_use]
+    pub fn with_usage_emitter(
+        mut self,
+        emitter: Arc<kindling_observation::CommandInvokedEmitter>,
+    ) -> Self {
+        self.usage_emitter = Some(emitter);
         self
     }
 
@@ -1062,6 +1087,9 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
             Arc::clone(&daemon_state.fence_store),
         );
         let scan_buffer = opts.scan_buffer.clone();
+        // USAGE-004: the command-invocation usage producer, injected by
+        // `anvil-cli`. `None` ⇒ no usage rows.
+        let usage_emitter = opts.usage_emitter.clone();
         // INTD-011: the production status provider reads sessions from
         // the daemon's registry, fences from the persisted store, and
         // the latency rollup from the same `ScanBufferService` the
@@ -1241,6 +1269,12 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
                 // `SubscribeTelemetry` connections register against the
                 // daemon's per-startup fan-out.
                 .with_broadcaster(Arc::clone(&daemon_state.broadcaster));
+            // USAGE-004: wire the command-invocation usage producer when
+            // the host injected one.
+            let listener = match usage_emitter.clone() {
+                Some(emitter) => listener.with_usage_emitter(emitter),
+                None => listener,
+            };
             #[cfg(target_os = "linux")]
             let listener = listener.with_cross_check_context(ipc::CrossCheckContext {
                 registry: Arc::clone(&daemon_state.registry),
@@ -1267,7 +1301,13 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
                 .with_save_time_state(Arc::clone(&save_time_state))
                 // MLP2-071 Phase 2: wire the telemetry broadcaster (served
                 // on Windows too; the subscriber surface is platform-neutral).
-                .with_broadcaster(Arc::clone(&daemon_state.broadcaster))
+                .with_broadcaster(Arc::clone(&daemon_state.broadcaster));
+            // USAGE-004: wire the command-invocation usage producer when
+            // the host injected one.
+            match usage_emitter.clone() {
+                Some(emitter) => listener.with_usage_emitter(emitter),
+                None => listener,
+            }
         })
         .context("failed to bind intercept IPC listener")?;
 

@@ -1062,6 +1062,15 @@ fn run_start(args: &StartArgs) -> Result<()> {
         let enforcement_config = config::load_for_daemon_cwd()
             .context("anvil intercept: failed to load enforcement config")?;
         let opts = ForegroundOpts::default().with_enforcement_config(enforcement_config);
+        // USAGE-004: inject the command-invocation usage producer so the
+        // daemon records `command.invoked` rows for allowlisted JSON-RPC
+        // methods to the shared usage sidecar. `None` (unresolvable state
+        // dir) ⇒ the daemon still serves, just without usage rows.
+        #[cfg(any(unix, windows))]
+        let opts = match crate::usage::daemon_usage_emitter() {
+            Some(emitter) => opts.with_usage_emitter(emitter),
+            None => opts,
+        };
         // DSV-005: inject the kernel-backed symbol parser so the daemon can
         // return Certified verdicts (ADR-064: tree-sitter links into this
         // binary, never the `anvil-intercept` crate). Unix-only — the verdict
