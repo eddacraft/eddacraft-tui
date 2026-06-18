@@ -2,7 +2,7 @@
 
 | Type  | Authority     | Owner | Status | Freshness                         |
 | ----- | ------------- | ----- | ------ | --------------------------------- |
-| Guide | Authoritative | USAGE | Live   | Live as of 2026-06-14 (USAGE-005) |
+| Guide | Authoritative | USAGE | Live   | Live as of 2026-06-18 (USAGE-004) |
 
 | Upstream                                | Downstream                              |
 | --------------------------------------- | --------------------------------------- |
@@ -31,10 +31,14 @@ Kindling, the source-of-truth pipe (ADR-035), as `command.invoked` rows.
 
 Per invocation, the `command.invoked` row carries:
 
-- **Command name** — the canonical command (e.g. `check`, `status`).
+- **Command name** — the canonical command (e.g. `check`, `status`). For rows
+  produced by the JSON-RPC daemon (USAGE-004, see below) this is the dispatched
+  method name (e.g. `anvil/gctx/search_symbols`, `unblock-cascade`).
 - **Anonymised principal** — a one-way SHA-256 hash of the user's email with a
   per-deployment salt. When no identity is on the call path the literal
   `anonymous` is recorded instead. The raw identity never appears in any field.
+  On the daemon path the client supplies this already-hashed value on the
+  JSON-RPC envelope (USAGE-004); the raw identity is never on the wire.
 - **Timestamp** — RFC 3339.
 - **Per-argument shape only** — for each argument: its name, plus shape fields
   (value type, a **coarse length bucket** — `empty` / `short` / `medium` /
@@ -218,10 +222,45 @@ intentionally **not** captured in v1: several command paths exit via
 Widening capture to command-internal flags is deferred until those exit paths
 are cleaned up, so row coverage is never traded for flag completeness.
 
-## Scope note: JSON-RPC producer
+## JSON-RPC daemon producer (USAGE-004)
 
-USAGE-001 wires the producer at the CLI entrypoint only. The JSON-RPC daemon
-dispatch boundary has no user principal and no flag resolver on the call path,
-so an IPC-side producer is **filed as a follow-up** rather than emitting a
-principal-less, asymmetric row (consistent with the USAGE module's out-of-scope
-clause on principal minting). See the USAGE module plan for the follow-up item.
+USAGE-001 wired the producer at the CLI entrypoint only, deferring the JSON-RPC
+daemon path because the dispatch boundary carried no user principal and no flag
+resolver. USAGE-004 closes that gap; the contract below is the daemon-path
+addition to everything above.
+
+**Principal — supplied by the client.** The JSON-RPC envelope carries an
+optional top-level `principal` field. Clients (the GCTX MCP query tools and the
+`anvil intercept unblock` verbs) attach the **same** one-way salted hash the CLI
+records — never a raw identity. The field is optional and length-capped; an
+absent or malformed value resolves to the literal `anonymous` (parity with an
+unauthenticated CLI run), so the raw principal is never on the wire and existing
+clients stay wire-compatible.
+
+**Method scope — an explicit allowlist.** Only user-initiated methods emit a
+`command.invoked` row: the GCTX query tools (`search_symbols`,
+`find_dependents`, `find_callers`, `impact_of_change`, `affected_tests`) and the
+operator `unblock-cascade` / `unblock-worktree` verbs. Internal machinery —
+`scan_buffer`, `validate_paths`, `workspace_status`, `request_full_scan`, status
+queries, and session-lifecycle verbs — is **excluded** and never recorded. A
+two-directional test pins every protocol method as exactly one of
+allowlisted/excluded, so a new method forces a deliberate decision rather than
+silently leaking or under-counting.
+
+**No double-counting.** The GCTX tools have no CLI-side row (only the `mcp`
+startup command is CLI-recorded), so daemon rows are net-new signal. The
+`unblock-*` verbs _do_ run as a CLI command, so the generic CLI-side `intercept`
+row is **suppressed** for `anvil intercept unblock` — the daemon row is the
+single source of truth for that operator action.
+
+**Same captured/not-captured contract.** The daemon row reuses the exact shape,
+redaction (`SENSITIVE_FIELDS` / `<redacted>`), and storage of the CLI row: the
+JSON-RPC method name is the `command`, the request `params` object is reduced to
+per-argument _shapes_ (no raw values), and rows append to the **same**
+user-scoped `<credentials_dir>/kindling/usage.ndjson` sidecar. The path is
+resolved by the CLI (which owns the `ANVIL_HOME`/credentials re-rooting) and
+injected into the daemon, so the daemon and CLI never diverge on where rows
+land. `flag_set` is empty on the daemon path (no resolver there). Emission is
+keyed on _invocation_ (recorded before dispatch, regardless of outcome) and is
+strictly best-effort: a sink failure is logged and dropped, never coupling the
+dispatch path to sink health.

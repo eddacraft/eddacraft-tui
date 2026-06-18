@@ -4813,6 +4813,42 @@ mod tests {
         assert!(recorder.recorded_command_invocations().is_empty());
     }
 
+    /// USAGE-004 conformance (R2): drive *every* method in the live
+    /// `COMMAND_INVOKED_ALLOWLIST` through the real emit path and assert
+    /// each produces exactly one `command.invoked` row whose `command`
+    /// is the method. Because emission is a single allowlist-gated
+    /// chokepoint (not per-method handlers), adding a method to the
+    /// allowlist is sufficient for it to emit — and this fixture proves
+    /// it, so the allowlist can never carry a method that silently fails
+    /// to record. Pairs with
+    /// `command_invoked_allowlist_classifies_every_namespaced_method`
+    /// (which forces a new protocol method to be classified) and
+    /// `emit_command_invocations_skips_non_user_initiated` (excluded → 0).
+    #[test]
+    fn every_allowlisted_method_emits_exactly_one_row() {
+        use crate::kindling_observation::CommandInvokedEmitter;
+
+        for method in COMMAND_INVOKED_ALLOWLIST {
+            let (emitter, recorder) = CommandInvokedEmitter::with_recorder("daemon-conformance");
+            let frame = json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": method,
+                "principal": "deadbeef",
+                "params": {}
+            });
+            emit_command_invocations(&frame, &emitter, "2026-06-18T12:00:00Z");
+
+            let rows = recorder.recorded_command_invocations();
+            assert_eq!(
+                rows.len(),
+                1,
+                "allowlisted method {method} must emit exactly one command.invoked row"
+            );
+            assert_eq!(rows[0].command, *method, "row command must be the method");
+        }
+    }
+
     /// USAGE-004: a batch array emits one row per allowlisted item and
     /// skips the rest.
     #[test]
