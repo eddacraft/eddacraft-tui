@@ -73,7 +73,10 @@ fn is_credit_card_false_positive(line: &str, match_start: usize, match_end: usiz
     let bytes = line.as_bytes();
     if match_start > 0 {
         let prev = bytes[match_start - 1];
-        if prev == b'-' || prev.is_ascii_digit() {
+        // `-`/digit: inside a longer dashed/numeric token (UUID). `.`: the
+        // matched digits are the fractional part of a decimal literal (external
+        // -FP dogfood: float coordinate arrays like `[3.5475921483286084, …]`).
+        if prev == b'-' || prev == b'.' || prev.is_ascii_digit() {
             return true;
         }
     }
@@ -83,7 +86,30 @@ fn is_credit_card_false_positive(line: &str, match_start: usize, match_end: usiz
             return true;
         }
     }
-    false
+    // A real card number satisfies the Luhn checksum. Arbitrary 16-digit runs
+    // (coordinates, ids, hashes) almost never do, so a Luhn failure marks the
+    // match as a false positive (external-FP dogfood: 119 coordinate FPs).
+    let matched = &line[match_start..match_end];
+    !luhn_valid(matched)
+}
+
+/// Luhn (mod-10) checksum over the digits in `s`, ignoring any `-`/space
+/// grouping separators. Empty input is not valid.
+fn luhn_valid(s: &str) -> bool {
+    let mut sum = 0u32;
+    let mut count = 0u32;
+    for d in s.bytes().rev().filter(u8::is_ascii_digit) {
+        let mut v = u32::from(d - b'0');
+        if count % 2 == 1 {
+            v *= 2;
+            if v > 9 {
+                v -= 9;
+            }
+        }
+        sum += v;
+        count += 1;
+    }
+    count > 0 && sum.is_multiple_of(10)
 }
 
 fn is_js_identifier_path(value: &str) -> bool {
@@ -479,7 +505,7 @@ pub fn scan_content_with_pattern_errors_and_stats(
 #[cfg(test)]
 mod tests {
     use crate::secret::scanner::{
-        scan_content, scan_content_with_compiled_patterns,
+        luhn_valid, scan_content, scan_content_with_compiled_patterns,
         scan_content_with_pattern_errors_and_stats, scan_content_with_stats,
     };
     use crate::secret::types::{FindingType, SecretCheckConfig};
@@ -713,6 +739,45 @@ export function go(){return [k,s];}";
             findings.iter().any(|f| f.pattern_name == "Credit Card"),
             "real Visa-shaped card must still fire"
         );
+    }
+
+    #[test]
+    fn does_not_flag_float_coordinate_array_as_credit_card() {
+        // External-FP dogfood (excalidraw initialData): float coordinate arrays
+        // produced 119 Credit Card false positives — the 16-digit fractional
+        // part of a decimal is preceded by `.` and is not Luhn-valid.
+        let config = SecretCheckConfig::default();
+        let content = "const points = [3.5475921483286084, -47.099726468136254];";
+        let findings = scan_content(content, "src/initialData.js", &config);
+        assert!(
+            !findings.iter().any(|f| f.pattern_name == "Credit Card"),
+            "float coordinates must not be flagged as Credit Card, got: {:?}",
+            findings
+                .iter()
+                .find(|f| f.pattern_name == "Credit Card")
+                .map(|f| &f.redacted_line)
+        );
+    }
+
+    #[test]
+    fn does_not_flag_luhn_invalid_16_digit_run() {
+        // A standalone 16-digit number that fails the Luhn checksum is an id /
+        // nonce, not a card.
+        let config = SecretCheckConfig::default();
+        let content = "const id = 1234567812345678;";
+        let findings = scan_content(content, "src/ids.ts", &config);
+        assert!(
+            !findings.iter().any(|f| f.pattern_name == "Credit Card"),
+            "Luhn-invalid 16-digit run must not be flagged as Credit Card"
+        );
+    }
+
+    #[test]
+    fn luhn_valid_accepts_test_cards_and_rejects_noise() {
+        assert!(luhn_valid("4242 4242 4242 4242"));
+        assert!(luhn_valid("4111-1111-1111-1111"));
+        assert!(!luhn_valid("3547592148328608"));
+        assert!(!luhn_valid(""));
     }
 
     // v0.5.0 Generic Secret false positives — actual repo lines that
