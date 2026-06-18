@@ -89,6 +89,12 @@ impl WatchProcess {
             // resolves to a fallback rather than reuse.
             .env("XDG_RUNTIME_DIR", home)
             .env_remove("XDG_CONFIG_HOME")
+            // Hermeticity: the spawned binary inherits the parent env, so a
+            // developer's (or CI's) `ANVIL_WATCH_DAEMON` would change the
+            // planner's routing posture and the asserted copy. Clear it so the
+            // default (unset → DefaultOnWhenLive) posture is what these tests
+            // actually exercise.
+            .env_remove("ANVIL_WATCH_DAEMON")
             // Clear any inherited prompt opt-out so the test genuinely proves
             // the piped-stdout (non-TTY) detection alone forces the
             // non-interactive fallback — not an inherited env signal. (The
