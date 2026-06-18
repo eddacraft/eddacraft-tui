@@ -234,6 +234,7 @@ fn heredoc_opener(instruction: &str) -> Option<(String, bool)> {
             rest = &rest[1..];
         }
         let rest = rest.trim_start();
+        let quoted = rest.starts_with('"') || rest.starts_with('\'');
         // The marker is the next token, with surrounding quotes stripped.
         let marker: String = rest
             .split(|c: char| c.is_whitespace() || c == ';' || c == '|' || c == '&')
@@ -241,7 +242,15 @@ fn heredoc_opener(instruction: &str) -> Option<(String, bool)> {
             .unwrap_or("")
             .trim_matches(['"', '\''])
             .to_string();
-        if marker.is_empty() {
+        // A heredoc marker is identifier-like (or quoted); a `<<` followed by
+        // an expression is an arithmetic left-shift (`$((x<<2))`), not a
+        // heredoc — must not flip the scanner into body-skipping mode.
+        let marker_like = quoted
+            || marker
+                .chars()
+                .next()
+                .is_some_and(|c| c.is_ascii_alphabetic() || c == '_');
+        if marker.is_empty() || !marker_like {
             i = at + 2;
             continue;
         }
@@ -288,6 +297,22 @@ mod tests {
         // `<<-` (tab-stripped) closing marker is also honoured.
         let content2 = "cat <<-EOF\n\trm -rf /\n\tEOF\n";
         assert!(findings(content2).is_empty());
+    }
+
+    #[test]
+    fn arithmetic_left_shift_is_not_a_heredoc() {
+        // `<<` inside arithmetic must NOT enter heredoc mode and swallow the
+        // following dangerous command (council false-negative).
+        let f = findings("shift=$((1 << 4))\nrm -rf /\n");
+        assert!(
+            f.iter().any(|x| x.command.contains("rm -rf /")),
+            "rm -rf / after an arithmetic shift must still be scanned, got {f:?}"
+        );
+        assert!(
+            findings("(( mask = x << 2 ))\nrm -rf /\n")
+                .iter()
+                .any(|x| x.command.contains("rm -rf /"))
+        );
     }
 
     #[test]
