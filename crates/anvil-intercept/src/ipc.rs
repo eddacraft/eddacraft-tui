@@ -2573,7 +2573,6 @@ fn scan_buffer_batch_error(response_id: Option<Value>, traceparent: Option<&str>
     )
 }
 
-#[allow(clippy::too_many_lines)] // MLP2-026 pushed line count from 99 to 101 via the additional cross_check/peer_pid threading; splitting would obscure the per-method routing.
 /// USAGE-004: the explicit allowlist of JSON-RPC methods that count as
 /// *user-initiated command invocations* and therefore emit one
 /// `command.invoked` usage row when dispatched. Founder decision
@@ -2605,6 +2604,7 @@ pub fn is_command_invoked_method(method: &str) -> bool {
     COMMAND_INVOKED_ALLOWLIST.contains(&method)
 }
 
+#[allow(clippy::too_many_lines)] // MLP2-026 pushed line count from 99 to 101 via the additional cross_check/peer_pid threading; splitting would obscure the per-method routing.
 async fn handle_jsonrpc_request<D: SessionDispatcher>(
     value: Value,
     dispatcher: &Arc<D>,
@@ -3397,9 +3397,7 @@ fn extract_traceparent(
 /// non-string is a hard `Invalid Request`; an over-cap string is
 /// rejected so a caller cannot smuggle an unbounded field through. The
 /// hex shape is deliberately NOT validated here (see [`MAX_PRINCIPAL_BYTES`]).
-fn extract_principal(
-    map: &serde_json::Map<String, Value>,
-) -> Result<Option<&str>, JsonRpcFailure> {
+fn extract_principal(map: &serde_json::Map<String, Value>) -> Result<Option<&str>, JsonRpcFailure> {
     match map.get("principal") {
         None => Ok(None),
         Some(Value::Null) => Ok(None),
@@ -4726,7 +4724,10 @@ mod tests {
             "unblock-worktree",
             "fence.unblock-worktree",
         ] {
-            assert!(is_command_invoked_method(verb), "{verb} must be allowlisted");
+            assert!(
+                is_command_invoked_method(verb),
+                "{verb} must be allowlisted"
+            );
         }
         for machinery in [
             "scan_buffer",
@@ -4757,10 +4758,8 @@ mod tests {
     #[test]
     fn extract_principal_returns_present_string() {
         let hash = "a".repeat(64);
-        let map = serde_json::Map::from_iter([(
-            "principal".to_owned(),
-            Value::String(hash.clone()),
-        )]);
+        let map =
+            serde_json::Map::from_iter([("principal".to_owned(), Value::String(hash.clone()))]);
         assert!(matches!(extract_principal(&map), Ok(Some(p)) if p == hash));
     }
 

@@ -1531,7 +1531,10 @@ mod tests {
         // Privacy: no raw values, sensitive key elided.
         let json = serde_json::to_string(row).expect("serialise");
         assert!(!json.contains("secret"), "raw value leaked: {json}");
-        assert!(json.contains("<redacted>"), "sensitive key not redacted: {json}");
+        assert!(
+            json.contains("<redacted>"),
+            "sensitive key not redacted: {json}"
+        );
     }
 
     /// USAGE-004: a missing envelope principal resolves to `anonymous`
@@ -1547,7 +1550,10 @@ mod tests {
             timestamp: "2026-06-18T10:00:00Z",
             traceparent: None,
         });
-        assert_eq!(recorder.recorded_command_invocations()[0].principal, "anonymous");
+        assert_eq!(
+            recorder.recorded_command_invocations()[0].principal,
+            "anonymous"
+        );
     }
 
     /// USAGE-004: a sink failure is swallowed (logged, row dropped) so
@@ -1587,7 +1593,10 @@ mod tests {
 
         // Sensitive-named key elided to the marker; no raw values anywhere.
         let json = serde_json::to_string(&shapes).expect("serialise");
-        assert!(json.contains("<redacted>"), "sensitive key not redacted: {json}");
+        assert!(
+            json.contains("<redacted>"),
+            "sensitive key not redacted: {json}"
+        );
         assert!(!json.contains("super-secret"), "raw secret leaked: {json}");
         assert!(
             !json.contains("fn handle_jsonrpc_request"),
