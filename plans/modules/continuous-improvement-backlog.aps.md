@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 47/78    |
+| CIB | —     | In Progress | 47/79    |
 
 ## Purpose
 
@@ -2151,3 +2151,43 @@ archive.
   substrate, archived), ADR-040.
 - **Confidence:** high — direct mirror of the shipped `PolicyInput` v1 +
   `watch-output-contract` patterns; additive field, no behaviour change.
+
+### CIB-079: Rust serde-hygiene + clone-in-hot-loop AST anti-pattern rules (RSTLAN-003b)
+
+- **Status:** Proposed
+- **Intent:** Land the three AST-dependent Rust reliability rules deferred from
+  RSTLAN-003 (the "RSTLAN-003b" follow-on) onto the now-shipped
+  `anvil-checks-ast` gate-time mechanism, so the `rust-reliability` catalogue
+  covers the serde-hygiene and hot-loop-allocation shapes the regex scanner
+  could not express.
+- **Expected Outcome:** Three new gate-time AST rules in the `rust-reliability`
+  family (provisional ids continuing the shipped RS-001..005 sequence):
+  `#[serde(flatten)]` without validation; `Deserialize` on secret-bearing
+  types; and `.clone()` inside a hot loop. Each rule fires on representative bad
+  Rust, is clean on the good equivalent, and is suppressible via
+  `// @anvil-ignore RS-00x -- <reason>`. Default-on/opt-in posture decided per
+  rule against the §16.5 #9 FP bar at authoring time (mirroring RS-004 shipping
+  opt-in). Daemon save-time path stays regex-only + parser-free (ADR-064/ADR-061
+  hot/non-hot split unchanged); these are `anvil check`/`gate` only.
+- **Scope:** New rule definitions + tree-sitter queries + Rust predicate tables
+  in `crates/anvil-checks-ast` (`Detection::Ast`), registry registration, and
+  good/bad fixture pairs.
+- **Non-scope:** New detection infrastructure (the `anvil-checks-ast` crate and
+  `Detection::Ast` variant already shipped under RSTLAN-003/ADR-071); framework
+  packs; changing severity defaults of the shipped RS-001..005 rules.
+- **Files:** `crates/anvil-checks-ast/src/`, rule/fixture directories under
+  `crates/anvil-checks-ast/`, the compiled rule registry.
+- **Validation:** `cargo test -p eddacraft-anvil-checks-ast` (fixture pairs
+  assert each rule fires on bad Rust, is clean + suppressible on good Rust);
+  end-to-end `anvil check` on a temp Rust file exercising the three shapes.
+- **Identified From:** RSTLAN-003 detection-mechanism finding (2026-06-04) and
+  [ADR-071](../decisions/071-ast-aware-antipattern-detection.md) — the
+  "needs real AST" remainder (serde flatten / secret-field `Deserialize` /
+  `.clone()`-in-hot-loop) was explicitly carved out as RSTLAN-003b when
+  lang-rust (RSTLAN) shipped 8/8 in v0.8.0-beta and was archived.
+- **Coordinates with:** archived [lang-rust](../archive/modules/lang-rust.aps.md)
+  (RSTLAN-003), ADR-071 (`anvil-checks-ast`), ADR-064/ADR-061 (daemon hot/non-hot
+  split), RSTLAN-008 FP bar.
+- **Confidence:** medium — the AST mechanism is proven and the rule shapes are
+  well-specified, but the precise hot-loop predicate and secret-field heuristic
+  need tuning against the FP bar.
