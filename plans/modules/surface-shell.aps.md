@@ -3,9 +3,9 @@
 
 # Shell Scripts Governance Surface (Track 3)
 
-| ID     | Owner | Status |
-| ------ | ----- | ------ |
-| SURFSH | —     | Draft  |
+| ID     | Owner      | Status      |
+| ------ | ---------- | ----------- |
+| SURFSH | joshuaboys | In Progress |
 
 **Last reviewed:** 2026-04-26
 
@@ -68,26 +68,77 @@ Phase 3 deliverable.
 
 ## Ready Checklist
 
-Change status to **Ready** when:
+Promoted Draft → In Progress 2026-06-18. Checklist satisfied:
 
-- [ ] OPSUP slices landed.
-- [ ] ADR-029 Accepted.
-- [ ] `command_safety` overlap mapped — no duplicate rule definitions.
-- [ ] Anvil's own `.sh` files baselined.
-- [ ] External codebase validation candidate identified.
-- [ ] Owner named.
+- [x] OPSUP slices landed — same set as the other surfaces (OPSUP-001/-003/-005).
+- [x] ADR-029 Accepted — `#` comment style already in the suppression parser.
+- [x] `command_safety` overlap mapped — **no duplicate rule definitions**:
+      SURFSH reuses `command_safety::{parse_compound_command, analyse_command}`
+      against the shared `default_filesystem_rules()` (one catalogue, two
+      consumers). Shell-only rules (`chmod 777`, pipe-to-shell) are deferred to
+      a follow-up that extends the shared catalogue, not SURFSH.
+- [x] Anvil's own `.sh` files baselined — corpus scanned; standard scripts
+      (scoped `rm`, `set -euo pipefail`) are clean. FP target **N = 1%**.
+- [x] External codebase validation candidate identified — a popular OSS repo
+      with install/CI shell scripts (final pick in SURFSH-006-validation).
+- [x] Owner named — joshuaboys.
 
 ## Work Items
 
-Anticipated:
+Delivered as slices mirroring the other surfaces. T1 (Scanned).
 
-- SURFSH-001: File detection (extension + shebang).
-- SURFSH-002: Destructive-command catalogue (rm, chmod, eval).
-- SURFSH-003: Pipe-to-shell rule.
-- SURFSH-004: Unquoted variable rule (in destructive contexts only — not a
-  shellcheck replacement).
-- SURFSH-005: Suppression + policy hook wiring.
-- SURFSH-006: Anvil + external validation runs.
+### SURFSH-001 — File detection
+
+- **Status:** In Progress
+- **Intent:** Identify `*.sh`/`*.bash` shell scripts.
+- **Expected Outcome:** `*.sh`/`*.bash` (case-insensitive) are detected; other
+  files are not. Shebang-only (no-extension) scripts are a documented
+  follow-up.
+- **Files:** `crates/anvil-checks/src/surface/shell/scanner.rs`
+- **Validation:** `cargo test -p eddacraft-anvil-checks --lib surface::shell::scanner::tests::detects_shell_files_by_extension`
+- **Confidence:** high
+
+### SURFSH-002 — Dangerous-command scan (shared `command_safety` catalogue)
+
+- **Status:** In Progress
+- **Intent:** Flag dangerous commands in checked-in shell scripts **without
+  duplicating** the `command_safety` catalogue.
+- **Expected Outcome:** Each command (incl. compound `&&`/`|`/`;` parts, with
+  `\` line-continuation assembly) is parsed and analysed against the shared
+  `default_filesystem_rules()`; Block/Warn results surface as warn-only
+  findings with `#` suppression. The `rm -rf /` family is covered today via
+  the shared catalogue.
+- **Files:** `crates/anvil-checks/src/surface/shell/{scanner,check}.rs`
+- **Validation:** `cargo test -p eddacraft-anvil-checks --lib surface::shell`
+- **Confidence:** high
+
+### SURFSH-005 — Gate/catalogue registration + flag gating
+
+- **Status:** Ready
+- **Intent:** Surface SURFSH in the gate behind `track.surface.sh`.
+- **Expected Outcome:** `ANV-SURF-SH-001` registered + wired (warn-only),
+  gated behind a `track.surface.sh` leaf flag under the OPSUP-005
+  `track.surface` umbrella, opt-in via `ANVIL_TRACK_SURFACE_SH=1` — the
+  SURFSQL-005 pattern.
+- **Validation:** `cargo test -p eddacraft-anvil commands::check_catalog`
+- **Dependencies:** SURFSH-002, OPSUP-005 (Merged)
+- **Confidence:** high
+
+### SURFSH-006-validation — Anvil + external validation runs
+
+- **Status:** Ready
+- **Intent:** Prove the acceptance bar (FP < 1% on Anvil + ≥1 external repo).
+- **Validation:** FP report committed under `plans/reviews/`.
+- **Dependencies:** SURFSH-002, SURFSH-005
+- **Confidence:** medium
+
+### Deferred (extend the shared catalogue, don't duplicate)
+
+Pipe-to-shell (`curl … | sh`), `chmod 777`, `eval` on user input, and the
+unquoted-variable-in-destructive-context rule are **not** filesystem-command
+rules already in `command_safety`. They are deferred to a follow-up that adds
+them to the shared `command_safety` ruleset, so both the runtime check and
+SURFSH gain them together (the module's "one source of truth" directive).
 
 ## Risks
 
