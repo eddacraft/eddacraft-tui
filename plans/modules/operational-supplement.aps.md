@@ -12,7 +12,7 @@ Cross-cutting convention: see plans/aps-rules.md#cross-cutting-modules.
 
 | ID    | Owner   | Status      | Progress |
 | ----- | ------- | ----------- | -------- |
-| OPSUP | OpenCode | In Progress | 3/7      |
+| OPSUP | OpenCode | In Progress | 4/7      |
 
 **Last reviewed:** 2026-05-17
 
@@ -253,7 +253,7 @@ Remaining non-registry slices move to **Ready** when:
 
 ### OPSUP-005 — Per-track feature flag taxonomy
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-18 via PR #2755
 - **Intent:** Define per-track flag naming, defaults, and governance alignment
   for new surfaces and packs.
 - **Expected Outcome:** A documented flag taxonomy lets a user disable a noisy
