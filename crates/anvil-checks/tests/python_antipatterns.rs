@@ -305,6 +305,24 @@ fn py007_any_in_import_statement_is_not_flagged() {
     ));
 }
 
+#[test]
+fn py007_string_subscript_key_any_is_not_flagged() {
+    // PR #2740 review regression: `x["Any"]` is a runtime subscript with the
+    // string key "Any", not a type annotation. PY-007 is code-scoped (masked
+    // view), so the string occurrence does not fire...
+    assert!(!fires_opt_in(
+        "src/app.py",
+        "value = config[\"Any\"]\n",
+        "PY-007"
+    ));
+    // ...while a real bare `Any` in a subscript annotation still fires.
+    assert!(fires_opt_in(
+        "src/app.py",
+        "mapping: Dict[str, Any] = {}\n",
+        "PY-007"
+    ));
+}
+
 // --- PYLAN-004: # @anvil-ignore suppression --------------------------------
 
 #[test]
