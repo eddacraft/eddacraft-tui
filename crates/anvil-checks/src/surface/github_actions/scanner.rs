@@ -21,9 +21,13 @@ use super::suppression::resolve_line_suppression;
 pub const SURFGHA_002_RULE_ID: &str = "SURFGHA-002";
 
 /// True when `path` is a GitHub Actions workflow file: a `*.yml`/`*.yaml`
-/// file under a `.github/workflows/` directory.
+/// file **directly** inside a `.github/workflows/` directory. GitHub does not
+/// recurse into subdirectories, so `.github/workflows/sub/ci.yml` is not a
+/// workflow; the segment must also be a real path component, not a substring
+/// of a longer name (`x.github/workflows/…`).
 #[must_use]
 pub fn is_workflow_file(path: &Path) -> bool {
+    const SEG: &str = ".github/workflows/";
     let is_yaml = path
         .extension()
         .and_then(|e| e.to_str())
@@ -35,7 +39,16 @@ pub fn is_workflow_file(path: &Path) -> bool {
         .to_string_lossy()
         .replace('\\', "/")
         .to_ascii_lowercase();
-    normalised.contains(".github/workflows/")
+    let Some(pos) = normalised.find(SEG) else {
+        return false;
+    };
+    // The segment must start the path or be preceded by a `/`.
+    if pos != 0 && normalised.as_bytes()[pos - 1] != b'/' {
+        return false;
+    }
+    // The file must sit directly in the directory (no further `/`).
+    let after = &normalised[pos + SEG.len()..];
+    !after.is_empty() && !after.contains('/')
 }
 
 /// The kind of supply-chain risk a [`GhaFinding`] reports.
@@ -289,6 +302,10 @@ mod tests {
         assert!(!is_workflow_file(Path::new("src/ci.yml")));
         assert!(!is_workflow_file(Path::new(".github/actions/x/action.yml")));
         assert!(!is_workflow_file(Path::new(".github/workflows/notes.md")));
+        // GitHub does not recurse: a nested subdir file is not a workflow.
+        assert!(!is_workflow_file(Path::new(".github/workflows/sub/ci.yml")));
+        // The segment must be a real path component, not a substring.
+        assert!(!is_workflow_file(Path::new("x.github/workflows/ci.yml")));
     }
 
     #[test]
