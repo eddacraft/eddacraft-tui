@@ -87,8 +87,8 @@ pub fn extract_symbols(
 ///   yields an edge when `Foo` resolves to a callable symbol at lift time.
 ///
 /// The asymmetry is intentional, not a bug — a `find_callers` consumer reads it
-/// through the per-caller `heuristic` and report `partial` markers, never as an
-/// exact cross-language guarantee.
+/// through the per-caller `heuristic` and the report's `partial` marker, never as
+/// an exact cross-language guarantee.
 fn extract_symbols_uncapped(
     tree: &tree_sitter::Tree,
     source: &[u8],

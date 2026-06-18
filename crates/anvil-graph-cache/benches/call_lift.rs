@@ -250,6 +250,11 @@ fn cap_ceiling_file_symbols() -> FileSymbols {
         imports: Vec::new(),
         reexports: Vec::<ReexportEdge>::new(),
         calls,
+        // Models the post-truncation state of an over-cap file: cap_call_sites
+        // truncates a >MAX_CALL_SITES file down to exactly MAX_CALL_SITES and sets
+        // calls_partial=true, so a genuinely-capped file carries this flag with
+        // exactly this call count. (The lift ignores the flag; it is set here only
+        // so the fixture is a faithful capped-file shape, not for the bench logic.)
         calls_partial: true,
     }
 }

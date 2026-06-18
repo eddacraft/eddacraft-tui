@@ -1018,14 +1018,20 @@ fn resolve_callee_targets(
                 overcap,
             }
         }
-        // A default import is recorded but left Unresolved in v1; the intended
-        // file is the import target, but a `"default"` name never matches a real
-        // target identity, so reporting `None` keeps the partial set precise.
-        Some(_) if callee.name == "default" => CalleeResolution {
-            targets: Vec::new(),
-            intended_file: None,
-            overcap: false,
-        },
+        // A default import is left Unresolved in v1 (ADR-086) — no edge. Resolve
+        // the specifier to the target *file* (not the symbol) so the unresolved
+        // record is precise: it matches only a `default`-named target in that
+        // file, never every `default` across the workspace by name alone. The
+        // file stays `None` only when the specifier resolves to no resident file.
+        Some(specifier) if callee.name == "default" => {
+            let intended_file = resolve_import(specifier, from_file, known_files, graph)
+                .and_then(|node| graph.get_symbol(node).map(|s| s.file.clone()));
+            CalleeResolution {
+                targets: Vec::new(),
+                intended_file,
+                overcap: false,
+            }
+        }
         Some(specifier) => {
             let Some(target_node) = resolve_import(specifier, from_file, known_files, graph) else {
                 return CalleeResolution {
