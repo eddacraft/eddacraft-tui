@@ -1480,3 +1480,23 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** For dependency-update PRs, run the acknowledgements generation flow immediately after lockfile changes to avoid late CI failures.
 - **Follow-up:** none
 
+
+### 2026-06-18 — claude
+
+- **Task:** Evaluate agentpatterns.ai + Arcanum-Sec/sec-context as anti-pattern
+  sources; triage sec-context and propose a catalogue/category structure.
+- **Outcome:** Triage brainstorm (36 items) + ADR-087 (Proposed) for an
+  `insecure-construction` category, scoped to syntactic-smell families; logged.
+- **Worked:** Grounding the triage in Anvil's actual detection tiers (regex /
+  ADR-071 AST-query / secret check) made the covered/route-out/out-of-model
+  split fall out cleanly; ~half of sec-context is taint/absence-class and not
+  Anvil-shaped.
+- **Failed:** agentpatterns.ai/anti-patterns returned HTTP 403 to WebFetch; used
+  WebSearch + corroborating sources instead.
+- **Friction:** Category naming nearly collided with the existing SEC CI-pipeline
+  module / `security.yml`; caught only by grepping the APS index.
+- **Improvement:** When proposing a new enum/category name, grep the APS index
+  and workflows for the bare word first — collision check is cheap and the rename
+  cost later is not.
+- **Follow-up:** None yet; if ADR-087 is accepted, open a catalogue module for
+  the first-wave families (weak-cryptography, unsafe-rendering).
