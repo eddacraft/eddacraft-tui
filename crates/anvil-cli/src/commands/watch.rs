@@ -498,6 +498,9 @@ enum WatchFallbackReason {
     /// Headless / `--json` / CI / hook / piped: a deterministic context with
     /// no interactive consent surface.
     NonInteractive,
+    /// This platform cannot background-launch a daemon yet (Windows follows
+    /// DSV-010/011), so there is nothing to offer even in a TTY.
+    PlatformUnsupported,
 }
 
 /// The decision inputs for [`watch_daemon_plan`]. A named-field record (not
@@ -520,6 +523,11 @@ struct WatchDaemonContext {
     interactive: bool,
     /// A live daemon already answered the worktree probe this run.
     daemon_live: bool,
+    /// This platform can actually background-launch a daemon (Unix-first;
+    /// Windows follows DSV-010/011). When false, the ensure primitive returns
+    /// `PlatformUnsupported` regardless, so offering to start one would ask a
+    /// question that cannot change the outcome — the planner skips the prompt.
+    platform_can_spawn: bool,
 }
 
 /// Decide the watch daemon lifecycle plan. Pure; see [`WatchDaemonPlan`].
@@ -535,10 +543,15 @@ struct WatchDaemonContext {
 /// 3. `no_daemon` (`--no-daemon`, nothing live) → `FallBack(NoDaemonFlag)`.
 /// 4. `json` or non-interactive context → `FallBack(NonInteractive)`: never
 ///    prompt or hang automation; `--json` stays parse-safe.
-/// 5. Interactive TTY, no live daemon → `Prompt`. Note `ANVIL_WATCH_DAEMON=1`
-///    (`ForcedOn`) is *not* `routing_disabled`, so it reaches this branch when
-///    no daemon answers in a TTY — offering to start one is consistent with the
-///    user having forced routing on (pinned by the planner tests).
+/// 5. `!platform_can_spawn` (interactive, no live daemon, would otherwise
+///    prompt) → `FallBack(PlatformUnsupported)`: on a platform where the ensure
+///    primitive can never start a daemon, asking for consent is a question that
+///    cannot change the outcome, so skip the prompt and say so honestly.
+/// 6. Interactive TTY, no live daemon, can spawn → `Prompt`. Note
+///    `ANVIL_WATCH_DAEMON=1` (`ForcedOn`) is *not* `routing_disabled`, so it
+///    reaches this branch when no daemon answers in a TTY — offering to start
+///    one is consistent with the user having forced routing on (pinned by the
+///    planner tests).
 fn watch_daemon_plan(ctx: WatchDaemonContext) -> WatchDaemonPlan {
     if ctx.routing_disabled {
         return WatchDaemonPlan::FallBack(WatchFallbackReason::RoutingDisabled);
@@ -551,6 +564,9 @@ fn watch_daemon_plan(ctx: WatchDaemonContext) -> WatchDaemonPlan {
     }
     if ctx.json || !ctx.interactive {
         return WatchDaemonPlan::FallBack(WatchFallbackReason::NonInteractive);
+    }
+    if !ctx.platform_can_spawn {
+        return WatchDaemonPlan::FallBack(WatchFallbackReason::PlatformUnsupported);
     }
     WatchDaemonPlan::Prompt
 }
@@ -630,6 +646,10 @@ fn render_watch_fallback_line(reason: WatchFallbackReason) -> String {
              run `anvil watch` in a terminal to start it, or `anvil start` to \
              auto-start it; save-time validation uses the scoped fallback."
         }
+        WatchFallbackReason::PlatformUnsupported => {
+            "background start is not yet available on this platform; \
+             save-time validation uses the scoped fallback."
+        }
     };
     format!("anvil watch: daemon: {body}")
 }
@@ -682,6 +702,10 @@ fn ensure_watch_daemon(
         json,
         interactive: watch_is_interactive(),
         daemon_live,
+        // Only Unix can background-launch the daemon today; on other platforms
+        // the ensure primitive returns `PlatformUnsupported`, so the planner
+        // renders that honestly instead of prompting for nothing.
+        platform_can_spawn: cfg!(unix),
     });
 
     let line = match plan {
@@ -1752,6 +1776,7 @@ mod tests {
             json: false,
             interactive: false,
             daemon_live: false,
+            platform_can_spawn: true,
         }
     }
 
@@ -1771,6 +1796,7 @@ mod tests {
                                 json,
                                 interactive,
                                 daemon_live,
+                                ..base_ctx()
                             }),
                             WatchDaemonPlan::FallBack(WatchFallbackReason::RoutingDisabled),
                             "ANVIL_WATCH_DAEMON=0 must always fall back \
@@ -1865,6 +1891,32 @@ mod tests {
         );
     }
 
+    /// On a platform that cannot background-launch a daemon, an interactive
+    /// session that would otherwise prompt instead falls back as
+    /// platform-unsupported — asking for consent it cannot honour is pointless
+    /// ceremony (Copilot finding). The opt-outs still take precedence.
+    #[test]
+    fn watch_plan_no_spawn_platform_skips_the_prompt() {
+        assert_eq!(
+            watch_daemon_plan(WatchDaemonContext {
+                interactive: true,
+                platform_can_spawn: false,
+                ..base_ctx()
+            }),
+            WatchDaemonPlan::FallBack(WatchFallbackReason::PlatformUnsupported),
+        );
+        // A live daemon is still reused even where we cannot spawn one.
+        assert_eq!(
+            watch_daemon_plan(WatchDaemonContext {
+                interactive: true,
+                platform_can_spawn: false,
+                daemon_live: true,
+                ..base_ctx()
+            }),
+            WatchDaemonPlan::ReuseLive,
+        );
+    }
+
     /// Started: the line reports the action, defers attestation to the MCP
     /// (re)connect (mirroring `anvil start`), and never claims protection
     /// state (the activation diagnostic owns it).
@@ -1935,6 +1987,7 @@ mod tests {
         let routing = render_watch_fallback_line(WatchFallbackReason::RoutingDisabled);
         let flag = render_watch_fallback_line(WatchFallbackReason::NoDaemonFlag);
         let non_interactive = render_watch_fallback_line(WatchFallbackReason::NonInteractive);
+        let platform = render_watch_fallback_line(WatchFallbackReason::PlatformUnsupported);
 
         // Hard env opt-out: names the env var, not the flag.
         assert!(routing.contains("ANVIL_WATCH_DAEMON=0"), "got: {routing}");
@@ -1959,8 +2012,12 @@ mod tests {
             "got: {non_interactive}"
         );
 
-        // All three preserve the scoped fallback.
-        for line in [&routing, &flag, &non_interactive] {
+        // Platform-unsupported: blames the platform, not an opt-out surface.
+        assert!(platform.contains("platform"), "got: {platform}");
+        assert!(!platform.contains("--no-daemon"), "got: {platform}");
+
+        // All preserve the scoped fallback.
+        for line in [&routing, &flag, &non_interactive, &platform] {
             assert!(line.contains("scoped fallback"), "got: {line}");
         }
     }

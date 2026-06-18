@@ -9,15 +9,19 @@ Verified: <!-- filled by cleanup agent -->
 ## Steps
 
 - [ ] Manually verify the interactive offer in a real TTY (human required):
-      in a terminal with no daemon running, `anvil watch` prints the
-      `daemon:` offer (`Start one now…? [Y/n]`); answering `y` starts the
-      daemon and reports `started…`, answering `n` reports `not started
-      (declined)…` and the watcher still runs on the scoped fallback. This
-      path has no CI coverage (no TTY); the planner + render unit tests pin
-      the decision and copy, this confirms the wiring end-to-end.
+      in a terminal with no daemon running, `anvil watch` prompts on stderr
+      with `No save-time daemon is running. Start one now for daemon-backed
+      validation? [Y/n]`. Answering `y` prints
+      `anvil watch: daemon: started the per-user save-time daemon; …`;
+      answering `n` prints
+      `anvil watch: daemon: not started (declined); … Run `anvil start` to
+      start it later.` and the watcher still runs on the scoped fallback.
+      This path has no CI coverage (no TTY); the planner + render unit tests
+      pin the decision and copy — this confirms the wiring end-to-end.
 - [ ] Manually verify reuse copy in a real TTY (human required): with a
       daemon already running (`anvil start`), `anvil watch` prints
-      `daemon: reusing…` and does NOT prompt.
+      `anvil watch: daemon: reusing the per-user save-time daemon already
+      running.` and does NOT prompt.
 - [ ] Confirm DLIFE-005 (docs) re-points public docs that still teach
       "run `anvil start` first" / "no auto-start" at the new offer behaviour
       (agent: no — separate item, just a tracking reminder).
