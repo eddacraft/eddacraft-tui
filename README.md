@@ -1,8 +1,8 @@
 # anvil
 
-| Type   | Authority | Owner  | Status | Freshness                                                                                                                             |
-| ------ | --------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------- |
-| README | Advisory  | DOCGOV | Live   | Last reviewed 2026-06-12 against `benchmarks/history/2026-06-12.json`, `plans/index.aps.md`, `package.json`, and `.github/workflows/` |
+| Type   | Authority | Owner  | Status | Freshness                                                                                                                                    |
+| ------ | --------- | ------ | ------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| README | Advisory  | DOCGOV | Live   | Bench sections refreshed 2026-06-17 from `benchmarks/history/2026-05-30.json` (clean) + `2026-06-12.json` (partial); prior review 2026-06-12 |
 
 | Upstream                                               | Downstream                        |
 | ------------------------------------------------------ | --------------------------------- |
@@ -30,20 +30,31 @@ violations **before they ever leave the developer's machine.**
 ## Hero stats
 
 ```
-10 µs      save-time check (incremental file update)
-800 ns     full policy evaluation, all invariants
-14.5 ms    cold graph build, 100-file codebase
+7.8 µs     save-time incremental (single file reparse + graph update)
+1.2 µs     full policy evaluation (all invariants)
+8.3 ms     cold graph build, 100-file codebase
 0          perceptible delay
 ```
 
-Measured 2026-05-08 on deus (Ryzen 7 5800X) against the Rust kernel via
-Criterion (release build). Previously measured 2026-04-28 and 2026-04-03.
-Governance overhead is effectively zero — anvil is in a different category from
-SAST, not a faster scanner.
+Latest clean measurements 2026-05-30 on deus (Ryzen 7 5800X) via Criterion
+(release build). 2026-06-12 provided a partial spot-check focused on resource
+budgets and indicative scan health (see below). Previously measured 2026-05-08,
+2026-04-28 and 2026-04-03. Governance overhead is effectively zero — anvil is in
+a different category from SAST, not a faster scanner.
 
-Latest `anvil-bench` spot-check snapshot on deus (2026-06-12, partial run; see
-[`benchmarks/history/2026-06-12.json`](./benchmarks/history/2026-06-12.json) for
-caveats and raw values):
+Latest `anvil-bench` data (deus reference box):
+
+**Clean run (2026-05-30)** — see
+[`benchmarks/history/2026-05-30.json`](./benchmarks/history/2026-05-30.json):
+
+- **Parallel anti-pattern scan** — 0.43 ms per pass on the 320-artifact mixed
+  corpus → **~752K artifacts/sec**.
+- **Secret scan parallel** — ~7.2× speedup (serial ~5.79 s vs parallel ~0.81 s
+  on its corpus).
+
+**Partial spot-check (2026-06-12)** — see
+[`benchmarks/history/2026-06-12.json`](./benchmarks/history/2026-06-12.json)
+(concurrent runs + capture issues; indicative only for scans):
 
 - **Watch resource budget** — pass at 9.7% CPU / 33.0 MiB RSS, against a 50% CPU
   / 300 MiB budget.
@@ -53,9 +64,8 @@ caveats and raw values):
   stayed around 11.4 MiB RSS.
 - **Concurrent watch + MCP + intercept budget** — pass at 193.1% CPU / 54.4 MiB
   RSS, against an 800% CPU / 700 MiB aggregate budget.
-- **Parallel anti-pattern scan** — indicative ~647K artifacts/sec on the
-  320-artifact mixed corpus. This timing overlapped another bench, so use it as
-  a health check rather than a quiet-box baseline.
+- **Parallel anti-pattern scan** — indicative ~647K artifacts/sec (overlapped
+  run).
 - **Secret scan parallel rollout** — indicative ~3.69K elements/sec, about 7.1x
   faster than serial. This timing overlapped another bench, so use it as a
   health check rather than a quiet-box baseline.
@@ -433,21 +443,24 @@ regression detection. These validate the performance targets defined in the
 ### Performance Targets vs Measured
 
 The kernel was designed against the targets in the
-[Kernel Spec](./docs/architecture/rust-kernel-spec.md). The 2026-04-03 benchmark
-run (rayon-parallel parser, release build, Criterion 100 samples):
+[Kernel Spec](./docs/architecture/rust-kernel-spec.md). Latest clean committed
+run on the reference box is 2026-05-30 (see
+[`benchmarks/history/2026-05-30.json`](./benchmarks/history/2026-05-30.json));
+2026-04-03 figures retained below for historical/extrapolated context where
+direct later equivalents are not yet recorded in history/.
 
-| Metric                                    | Target      | Measured (2026-04-03)      | Status                            |
-| ----------------------------------------- | ----------- | -------------------------- | --------------------------------- |
-| Cold graph build, 100 files               | —           | **14.5 ms**                | Validated                         |
-| Cold graph build, 1,000 files             | —           | **~565 ms** (extrapolated) | Validated                         |
-| Cold graph build, 2,500 files             | —           | **~3.4 s** (extrapolated)  | Validated                         |
-| Cold graph build, 100k LOC / ~2,000 files | < 3 seconds | Pending stress harness     | Pending                           |
-| Incremental update (single file)          | < 100 ms    | **10.7 µs**                | Validated · ~10,000× under target |
-| Policy evaluation (all invariants)        | —           | **799 ns**                 | Validated                         |
-| Event emission (1,000 events)             | < 10 ms     | **408 µs**                 | Validated · ~25× under target     |
-| Memory footprint (medium repo)            | < 500 MB    | Pending stress test        | Pending                           |
-| File detection latency (p99)              | < 20 ms     | Validated (spike)          | Validated                         |
-| tree-sitter parse (single file)           | < 1 ms      | Validated (spike + bench)  | Validated                         |
+| Metric                                    | Target      | Measured (2026-05-30 clean) | Status                                           |
+| ----------------------------------------- | ----------- | --------------------------- | ------------------------------------------------ |
+| Cold graph build, 100 files               | —           | **8.3 ms**                  | Validated (improved vs 14.5 ms historical)       |
+| Cold graph build, 1,000 files             | —           | **523 ms**                  | Validated (from 05-30; was ~565 ms extrapolated) |
+| Cold graph build, 2,500 files             | —           | —                           | Pending (extrapolation retired)                  |
+| Cold graph build, 100k LOC / ~2,000 files | < 3 seconds | Pending stress harness      | Pending                                          |
+| Incremental update (single file)          | < 100 ms    | **7.8 µs**                  | Validated · ~12,800× under target                |
+| Policy evaluation (all invariants)        | —           | **1.2 µs**                  | Validated                                        |
+| Event emission (1,000 events)             | < 10 ms     | **252 µs**                  | Validated · ~40× under target                    |
+| Memory footprint (medium repo)            | < 500 MB    | Pending stress test         | Pending                                          |
+| File detection latency (p99)              | < 20 ms     | Validated (spike)           | Validated                                        |
+| tree-sitter parse (single file)           | < 1 ms      | Validated (spike + bench)   | Validated                                        |
 
 Full benchmark report and marketing-ready angles:
 [`eddacraft-gtm/competitive/anvil-benchmarks-2026-04-03.md`](https://github.com/eddacraft/eddacraft-gtm/blob/main/competitive/anvil-benchmarks-2026-04-03.md)
@@ -459,23 +472,29 @@ corpus (60% source, 20% PR descriptions, 10% commit messages, 10% agent output)
 on a fixed dev machine (Ubuntu 25.04 / Linux 6.17 / rayon default thread pool)
 so cross-release numbers stay honest.
 
-| Release         | Date       | Per-pass time | Throughput              | Notes                                                                       |
-| --------------- | ---------- | ------------- | ----------------------- | --------------------------------------------------------------------------- |
-| pre-RUSTNX-008  | 2026-04-22 | 14.6 ms       | 21.9K artifacts/sec     | Baseline before workspace-hack                                              |
-| **v0.4.0-beta** | 2026-04-25 | **11.2 ms**   | **28.6K artifacts/sec** | **+31%**; `serde_json` `preserve_order` feature unification did not regress |
-| **v0.5.0-beta** | 2026-05-01 | **8.0 ms**    | **39.9K artifacts/sec** | **+42%**; SCAN-001 parallelisation (rayon fan-out, gitignore-aware walker)  |
+| Release / spot          | Date       | Per-pass time | Throughput              | Notes                                                                                               |
+| ----------------------- | ---------- | ------------- | ----------------------- | --------------------------------------------------------------------------------------------------- |
+| pre-RUSTNX-008          | 2026-04-22 | 14.6 ms       | 21.9K artifacts/sec     | Baseline before workspace-hack                                                                      |
+| **v0.4.0-beta**         | 2026-04-25 | **11.2 ms**   | **28.6K artifacts/sec** | **+31%**; `serde_json` `preserve_order` feature unification did not regress                         |
+| **v0.5.0-beta**         | 2026-05-01 | **8.0 ms**    | **39.9K artifacts/sec** | **+42%**; SCAN-001 parallelisation (rayon fan-out, gitignore-aware walker)                          |
+| 2026-05-30 (clean spot) | 2026-05-30 | **0.43 ms**   | **752K artifacts/sec**  | **+18.8×** vs v0.5 on same box; continued kernel + scan-path wins (clean `history/2026-05-30.json`) |
+| 2026-06-12 (health)     | 2026-06-12 | ~0.49 ms      | ~647K artifacts/sec     | Indicative only (concurrent with secret scan; see `2026-06-12.json` caveats)                        |
 
 ```mermaid
 xychart-beta
     title "antipattern_scan throughput (artifacts/sec, higher is better)"
-    x-axis ["2026-04-22 baseline", "v0.4.0-beta (2026-04-25)", "v0.5.0-beta (2026-05-01)"]
-    y-axis "artifacts / sec" 0 --> 44000
-    bar [21900, 28600, 39900]
-    line [21900, 28600, 39900]
+    x-axis ["2026-04-22 baseline", "v0.4.0-beta (2026-04-25)", "v0.5.0-beta (2026-05-01)", "2026-05-30 clean", "2026-06-12 (ind.)"]
+    y-axis "artifacts / sec" 0 --> 800000
+    bar [21900, 28600, 39900, 752000, 647000]
+    line [21900, 28600, 39900, 752000, 647000]
 ```
 
-Each release adds a row so scan-path drift is visible over time. Per-run detail
-lives in [`crates/anvil-bench/README.md`](./crates/anvil-bench/README.md).
+Each release (and clean spot-check on the reference "deus" machine) adds a row
+so scan-path drift is visible over time. The 2026-05-30 entry is the last full
+quiet-box comparable run captured in `benchmarks/history/`. Per-run detail and
+later micro-bases (walk_discovery, midedit, resource budgets) live in
+[`crates/anvil-bench/README.md`](./crates/anvil-bench/README.md). Note the
+dramatic post-v0.5 improvement captured by the harness.
 
 ### Benchmark Groups
 
