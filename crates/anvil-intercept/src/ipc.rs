@@ -3489,8 +3489,8 @@ fn extract_traceparent(
 /// hex shape is deliberately NOT validated here (see [`MAX_PRINCIPAL_BYTES`]).
 fn extract_principal(map: &serde_json::Map<String, Value>) -> Result<Option<&str>, JsonRpcFailure> {
     match map.get("principal") {
-        None => Ok(None),
-        Some(Value::Null) => Ok(None),
+        // Absent or explicit JSON null both resolve to None (→ anonymous).
+        None | Some(Value::Null) => Ok(None),
         Some(Value::String(raw)) => {
             if raw.len() > MAX_PRINCIPAL_BYTES {
                 return Err(invalid_request("principal exceeds the maximum length"));

@@ -1087,14 +1087,12 @@ fn main() -> ExitCode {
     // `intercept` row for them so the operator action is counted once.
     let suppress_cli_usage_row =
         matches!(&cli.command, Commands::Intercept(args) if args.is_unblock());
-    if !suppress_cli_usage_row {
-        if let Err(err) = usage::record_invocation(command_name) {
-            tracing::warn!(
-                target: "anvil_cli",
-                error = %err,
-                "usage: failed to record command-invocation observation; continuing",
-            );
-        }
+    if !suppress_cli_usage_row && let Err(err) = usage::record_invocation(command_name) {
+        tracing::warn!(
+            target: "anvil_cli",
+            error = %err,
+            "usage: failed to record command-invocation observation; continuing",
+        );
     }
 
     if let Err(code) = auth_outcome {
