@@ -1453,6 +1453,7 @@ dependencies = [
  "eddacraft-anvil-rules",
  "getrandom 0.4.2",
  "ignore",
+ "libc",
  "nix 0.31.3",
  "rayon",
  "serde",

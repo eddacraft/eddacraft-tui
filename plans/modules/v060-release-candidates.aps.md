@@ -35,7 +35,7 @@ See: plans/aps-rules.md
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| V060F | —     | In Progress | 19/25    |
+| V060F | —     | In Progress | 20/25    |
 
 **Last reviewed:** 2026-06-19 (full triage pass + Wave 1 shipped — re-verified
 all 21 open items against HEAD; 8 closed as resolved-elsewhere:
@@ -208,7 +208,19 @@ discovery.
   symmetric; macOS-vs-Linux fence telemetry skew goes away.
 - **Confidence:** medium (libproc binding choice; needs to match the
   existing Linux call shape so AD-7's logic doesn't diverge)
-- **Status:** Open
+- **Status:** Done (Wave 2, 2026-06-19) — added
+  `macos_process_start_time` (isolated `unsafe`
+  `proc_pidinfo(PROC_PIDTBSDINFO)` reading `pbi_start_tvsec/tvusec` as
+  epoch µs) and a macOS-only `libc` dep. Wired into **both** call sites:
+  `lib.rs::process_start_time` (PID-file staleness) and
+  `interrupt.rs::current_process_start_time` (the AD-7 PID-reuse guard),
+  so macOS now runs the full SIGINT→SIGTERM→SIGKILL ladder instead of the
+  fence-first fallback — removing the macOS `SignalDeliveryFailed`
+  telemetry skew. FFI type-verified against Apple `libc` on
+  x86_64-apple-darwin; Linux unaffected (740 lib tests / clippy / fmt
+  green). **Runtime proof is gated on the apple-darwin CI leg** (the local
+  box can't cross-build `aws-lc-sys`); a macOS-only unit test asserts the
+  helper resolves the live process and agrees with `process_start_time`.
 
 ---
 
@@ -853,8 +865,9 @@ Disjoint single-file edits; no code-build risk. All five shipped together.
 
 - **V060F-002** ✅ (2026-06-19) — `anvil intercept stop` subcommand + the
   `anvil_intercept::request_daemon_stop` lookup-and-signal primitive
-- **V060F-004** — macOS `current_process_start_time` via `proc_pidinfo`
-  (`anvil-intercept` interrupt ladder — removes the macOS fence-telemetry skew)
+- **V060F-004** ✅ (2026-06-19, macOS-CI-gated) — macOS
+  `current_process_start_time` via `proc_pidinfo`; removes the macOS
+  fence-telemetry skew (runtime proof on the apple-darwin CI leg)
 - **V060F-018** ✅ (2026-06-19) — stale premise: production already renders
   Ratatui via `render_shell`; aligned the vestigial `TuiBackend` stub default
 - **V060F-019** — retire Node `apps/admin-cli/` (attribution drift already
@@ -893,11 +906,11 @@ or sequence to avoid collisions on the command modules.
 | ------------------------------------ | ----- | ------------------------------------------------------ |
 | Deferrals (v0.5.0-beta)              | 0     | —                                                      |
 | Nominations                          | 1     | Complete (V060F-001)                                   |
-| As-built sweep follow-ups (batch 1)  | 10    | 7 Done / 3 Open (triage closed 003/005/010/011; Wave 1 closed 008/009; Wave 2 closed 002) |
+| As-built sweep follow-ups (batch 1)  | 10    | 8 Done / 2 Open (triage closed 003/005/010/011; Wave 1 closed 008/009; Wave 2 closed 002/004) |
 | As-built sweep follow-ups (batch 2)  | 8     | 5 Done / 3 Open (triage closed 012/013/017; Wave 1 closed 014; Wave 2 closed 018) |
 | As-built sweep follow-ups (batch 3)  | 5     | 5 Done / 0 Open (020/021/022; Wave 1 closed 023/024) |
 | OPA runtime refresh                  | 1     | Complete (V060F-025, 2026-05-08)                      |
-| **Total**                            | **25** | 19 Done / 6 Open (Wave 2 V060F-002 + V060F-018; V060F-004 remains in #2784) |
+| **Total**                            | **25** | 20 Done / 5 Open (Wave 2 V060F-002 + V060F-004 + V060F-018) |
 
 Batch 1 (intercept / activation / MCP shim / checks / kernel as-builts) split:
 

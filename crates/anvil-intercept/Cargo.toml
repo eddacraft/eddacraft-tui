@@ -99,6 +99,12 @@ nix = { version = "0.31", default-features = false, features = [
 [target.'cfg(windows)'.dependencies]
 anvil-intercept-win32 = { path = "../anvil-intercept-win32", package = "eddacraft-anvil-intercept-win32" }
 
+# V060F-004: macOS process start-time read via `proc_pidinfo` for the
+# PID-reuse defence (AD-7). libc is already in the workspace tree (see
+# `workspace-hack`), so this only adds a direct edge, not a new crate.
+[target.'cfg(target_os = "macos")'.dependencies]
+libc = { version = "0.2", features = ["extra_traits"] }
+
 [dev-dependencies]
 anvil-attribution = { path = "../anvil-attribution", package = "eddacraft-anvil-attribution" }
 # RLB-003: reuse the shared process-tree sampler + budget evaluator + binary

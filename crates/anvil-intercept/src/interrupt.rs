@@ -416,16 +416,18 @@ pub mod unix {
             let after_command = stat.rsplit_once(") ")?.1;
             after_command.split_whitespace().nth(19)?.parse().ok()
         }
-        #[cfg(not(target_os = "linux"))]
+        #[cfg(target_os = "macos")]
         {
-            // macOS: `proc_pidinfo` returns start time in
-            // `pbi_start_tvsec`. The intercept daemon's macOS
-            // start-time read lives in `crate::lib`'s
-            // `process_start_time` helper (currently Linux-only +
-            // Windows-only); this branch returns `None` so the
-            // PID-reuse defence falls through to the conservative
-            // "treat as mismatch" path on macOS until the helper
-            // gains a macOS branch (out of scope for this PR).
+            // V060F-004: read the start time via `proc_pidinfo` so the
+            // macOS interrupt ladder runs the same SIGINT→SIGTERM→SIGKILL
+            // sequence as Linux instead of the conservative fence-first
+            // fallback (which skewed macOS fence telemetry toward
+            // `SignalDeliveryFailed`). The `unsafe` FFI is isolated in
+            // `crate::macos_process_start_time`.
+            crate::macos_process_start_time(pid)
+        }
+        #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+        {
             let _ = pid;
             None
         }
