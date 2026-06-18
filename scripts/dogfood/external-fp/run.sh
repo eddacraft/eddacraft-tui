@@ -65,6 +65,14 @@ clone_pinned() {  # url sha dest
 
 while IFS=$'\t' read -r group name url sha; do
   [ -n "${name:-}" ] || continue
+  # `name` is interpolated into paths and later `rm -rf "$dest"`. Require a safe
+  # single path segment so a mis-edited corpus.json can't escape $WORK (e.g. via
+  # `..` or `/`) and delete unexpected paths.
+  case "$name" in
+    *[!A-Za-z0-9._-]* | "." | "..")
+      echo "  !! unsafe repo name '$name' in corpus.json — skipping" >&2
+      continue ;;
+  esac
   echo "== [$group] $name =="
   dest="$WORK/$name"
   clone_pinned "$url" "$sha" "$dest"

@@ -14,11 +14,13 @@ Usage:
 
 Env: EXT_FP_WORK (clone cache, default /tmp/anvil-ext-fp), EXT_FP_OUT (results).
 """
-import json
-import os
-import sys
-import pathlib
 import collections
+import html
+import json
+import linecache
+import os
+import pathlib
+import sys
 
 HERE = pathlib.Path(__file__).resolve().parent
 with open(HERE / "corpus.json", "r") as fh:
@@ -29,14 +31,25 @@ OUT = pathlib.Path(os.environ.get("EXT_FP_OUT", WORK / "out"))
 
 def source_line(repo, relfile, lineno):
     p = WORK / repo / relfile
-    try:
-        with open(p, "r", errors="replace") as fh:
-            for i, line in enumerate(fh, 1):
-                if i == lineno:
-                    return line.rstrip("\n")
-    except OSError:
+    if not p.exists():
         return "<source unavailable>"
-    return "<line out of range>"
+    # linecache caches file contents per path, so repeated findings in the same
+    # file don't re-read it from the start (O(findings) instead of O(findings × line)).
+    line = linecache.getline(str(p), lineno)
+    if not line:
+        return "<line out of range>"
+    return line.rstrip("\n")
+
+
+def code_cell(text):
+    """Render text as an HTML <code> cell that survives a markdown table.
+
+    Backticks/pipes are common in source lines (TS template literals, regex,
+    doc snippets) and would break a single-backtick code span or the table's
+    column separators, so escape the HTML metacharacters and the pipe.
+    """
+    escaped = html.escape(text, quote=False).replace("|", "&#124;")
+    return f"<code>{escaped}</code>"
 
 
 def load_warnings(path):
@@ -51,7 +64,6 @@ def load_warnings(path):
 
 def build(group):
     g = CORPUS["groups"][group]
-    optin_ids = set(g["opt_in_rules"])
     md = [f"# {group} external-FP worksheet\n",
           "Verdict column: `TP` (true positive), `FP` (false positive), or a",
           "noise note. Default-catalogue findings drive the §16.5 #9 rate;",
@@ -75,15 +87,15 @@ def build(group):
         md.append("| Verdict | Rule | Location | Source line |")
         md.append("| --- | --- | --- | --- |")
         for w in sorted(default, key=lambda w: (w["id"], w["file"], w["line"])):
-            src = source_line(name, w["file"], w["line"]).strip().replace("|", "\\|")
-            md.append(f"|  | {w['id']} | `{w['file']}:{w['line']}` | `{src[:90]}` |")
+            src = source_line(name, w["file"], w["line"]).strip()
+            md.append(f"|  | {w['id']} | `{w['file']}:{w['line']}` | {code_cell(src[:90])} |")
         if optin_only:
             md.append(f"\n### {name} — opt-in only (not in default rate)\n")
             md.append("| Verdict | Rule | Location | Source line |")
             md.append("| --- | --- | --- | --- |")
             for w in sorted(optin_only, key=lambda w: (w["id"], w["file"], w["line"])):
-                src = source_line(name, w["file"], w["line"]).strip().replace("|", "\\|")
-                md.append(f"|  | {w['id']} | `{w['file']}:{w['line']}` | `{src[:90]}` |")
+                src = source_line(name, w["file"], w["line"]).strip()
+                md.append(f"|  | {w['id']} | `{w['file']}:{w['line']}` | {code_cell(src[:90])} |")
         md.append("")
     dest = OUT / f"{group}.worksheet.md"
     dest.write_text("\n".join(md) + "\n")
