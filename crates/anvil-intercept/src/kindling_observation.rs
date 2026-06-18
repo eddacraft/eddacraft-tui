@@ -708,6 +708,18 @@ pub trait KindlingObservationSink: Send + Sync {
     ) -> Result<(), KindlingSinkError> {
         Ok(())
     }
+
+    /// USAGE-004: deliver a `command.invoked` row produced by the
+    /// JSON-RPC dispatch surface for a user-initiated method call.
+    /// Defaulted to `Ok(())` for the same reason as
+    /// [`Self::try_emit_action_executed`] — existing sinks auto-satisfy
+    /// the extended trait; only sinks that consume usage rows override.
+    fn try_emit_command_invoked(
+        &self,
+        _observation: CommandInvokedObservation,
+    ) -> Result<(), KindlingSinkError> {
+        Ok(())
+    }
 }
 
 /// Default sink used when the daemon was started without a Kindling
@@ -731,8 +743,10 @@ impl KindlingObservationSink for NoopKindlingObservationSink {
 pub struct RecordingKindlingObservationSink {
     observations: Mutex<Vec<GateEvaluatedObservation>>,
     actions: Mutex<Vec<ActionExecutedObservation>>,
+    commands: Mutex<Vec<CommandInvokedObservation>>,
     fail_next: Mutex<Option<KindlingSinkError>>,
     fail_next_action: Mutex<Option<KindlingSinkError>>,
+    fail_next_command: Mutex<Option<KindlingSinkError>>,
 }
 
 impl RecordingKindlingObservationSink {
@@ -777,6 +791,29 @@ impl RecordingKindlingObservationSink {
         self.actions.lock().expect("actions mutex").clone()
     }
 
+    /// USAGE-004: inject a one-shot failure for the next
+    /// [`Self::try_emit_command_invoked`] call so tests can exercise the
+    /// dispatch-side sink-error swallow path.
+    pub fn fail_next_command_with(&self, error: KindlingSinkError) {
+        *self
+            .fail_next_command
+            .lock()
+            .expect("fail_next_command mutex") = Some(error);
+    }
+
+    /// USAGE-004: snapshot the recorded `command.invoked` observations in
+    /// arrival order.
+    #[must_use]
+    pub fn recorded_command_invocations(&self) -> Vec<CommandInvokedObservation> {
+        self.commands.lock().expect("commands mutex").clone()
+    }
+
+    /// USAGE-004: number of `command.invoked` observations recorded.
+    #[must_use]
+    pub fn commands_len(&self) -> usize {
+        self.commands.lock().expect("commands mutex").len()
+    }
+
     /// Number of `gate_evaluated` observations recorded.
     #[must_use]
     pub fn len(&self) -> usize {
@@ -789,10 +826,10 @@ impl RecordingKindlingObservationSink {
         self.actions.lock().expect("actions mutex").len()
     }
 
-    /// True when no observations of either kind have been recorded.
+    /// True when no observations of any kind have been recorded.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.len() == 0 && self.actions_len() == 0
+        self.len() == 0 && self.actions_len() == 0 && self.commands_len() == 0
     }
 }
 
@@ -823,6 +860,25 @@ impl KindlingObservationSink for RecordingKindlingObservationSink {
         self.actions
             .lock()
             .expect("actions mutex")
+            .push(observation);
+        Ok(())
+    }
+
+    fn try_emit_command_invoked(
+        &self,
+        observation: CommandInvokedObservation,
+    ) -> Result<(), KindlingSinkError> {
+        if let Some(err) = self
+            .fail_next_command
+            .lock()
+            .expect("fail_next_command mutex")
+            .take()
+        {
+            return Err(err);
+        }
+        self.commands
+            .lock()
+            .expect("commands mutex")
             .push(observation);
         Ok(())
     }
@@ -1304,6 +1360,130 @@ impl std::fmt::Debug for PostHookEmitter {
     }
 }
 
+/// USAGE-004: outcome of a `command.invoked` emission attempt.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CommandEmissionOutcome {
+    /// Sink accepted the row.
+    Emitted,
+    /// Sink returned an error; the row was dropped and a
+    /// `tracing::warn!` was logged. Dispatch continues regardless.
+    SinkError,
+}
+
+/// Per-call inputs the JSON-RPC dispatcher supplies for one
+/// `command.invoked` emission. Holds borrowed data so the handler can
+/// build one inline from the envelope + params without extra owned
+/// allocations.
+#[derive(Debug, Clone, Copy)]
+pub struct CommandInvokedEmissionRequest<'a> {
+    /// The dispatched JSON-RPC method name — becomes the row `command`.
+    pub method: &'a str,
+    /// The salted-hash principal from the envelope, or `None` when the
+    /// caller did not attach one (resolves to `"anonymous"`, parity with
+    /// the unauthenticated CLI path). The raw principal is never on the
+    /// wire — only this already-hashed value.
+    pub principal: Option<&'a str>,
+    /// The method's `params` object; redacted to argument *shapes* via
+    /// [`arg_shapes_from_params`] — no raw value is ever retained.
+    pub params: &'a serde_json::Value,
+    /// ISO 8601 datetime the daemon observed the call (caller-minted, so
+    /// the emitter stays clock-free and unit-testable).
+    pub timestamp: &'a str,
+    /// W3C `traceparent` off the envelope — the cross-pipe correlation
+    /// key joining this row back to the originating telemetry span.
+    pub traceparent: Option<&'a str>,
+}
+
+/// JSON-RPC dispatch-side emitter that builds a `command.invoked` row
+/// for a user-initiated method call and hands it to the configured
+/// sink. Like [`PostHookEmitter`]: exactly one row per call, no rate
+/// window, never returns an error (sink failures are logged and the row
+/// dropped so dispatch stays uncoupled from sink health).
+pub struct CommandInvokedEmitter {
+    sink: Arc<dyn KindlingObservationSink>,
+    daemon_session_id: String,
+}
+
+impl CommandInvokedEmitter {
+    /// Construct an emitter with an explicit sink. Production callers
+    /// wire a real sink; tests use [`Self::with_recorder`].
+    #[must_use]
+    pub fn new(sink: Arc<dyn KindlingObservationSink>, daemon_session_id: String) -> Self {
+        Self {
+            sink,
+            daemon_session_id,
+        }
+    }
+
+    /// Construct a noop emitter — a handle that discards every row.
+    #[must_use]
+    pub fn noop(daemon_session_id: impl Into<String>) -> Self {
+        Self::new(
+            Arc::new(NoopKindlingObservationSink) as Arc<dyn KindlingObservationSink>,
+            daemon_session_id.into(),
+        )
+    }
+
+    /// Construct a recording-sink emitter for tests. Returns
+    /// `(emitter, recorder)` so the test can assert against a clone.
+    #[must_use]
+    pub fn with_recorder(
+        daemon_session_id: impl Into<String>,
+    ) -> (Self, Arc<RecordingKindlingObservationSink>) {
+        let recorder = Arc::new(RecordingKindlingObservationSink::new());
+        let emitter = Self::new(
+            Arc::clone(&recorder) as Arc<dyn KindlingObservationSink>,
+            daemon_session_id.into(),
+        );
+        (emitter, recorder)
+    }
+
+    /// Daemon-process-stable session id stamped onto every row. The
+    /// originating client session is correlated via `traceparent`, not
+    /// this field.
+    #[must_use]
+    pub fn daemon_session_id(&self) -> &str {
+        &self.daemon_session_id
+    }
+
+    /// Build + emit a `command.invoked` row. Always builds; never
+    /// returns an error — sink failures are logged internally so the
+    /// dispatch path stays uncoupled from sink health. `flag_set` is
+    /// empty on the daemon path (no resolver there), consistent with the
+    /// USAGE-001 CLI producer before USAGE-002.
+    pub fn try_emit(&self, request: &CommandInvokedEmissionRequest<'_>) -> CommandEmissionOutcome {
+        let args = arg_shapes_from_params(request.params);
+        let ctx = CommandInvocationContext {
+            session_id: &self.daemon_session_id,
+            timestamp: request.timestamp,
+            command: request.method,
+            principal: request.principal.unwrap_or("anonymous"),
+            traceparent: request.traceparent,
+        };
+        let observation = from_command_invocation(&ctx, args, Vec::new());
+        match self.sink.try_emit_command_invoked(observation) {
+            Ok(()) => CommandEmissionOutcome::Emitted,
+            Err(err) => {
+                tracing::warn!(
+                    target: "anvil_intercept::kindling_observation",
+                    method = request.method,
+                    error = %err,
+                    "command.invoked emit dropped: sink failure",
+                );
+                CommandEmissionOutcome::SinkError
+            }
+        }
+    }
+}
+
+impl std::fmt::Debug for CommandInvokedEmitter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CommandInvokedEmitter")
+            .field("daemon_session_id", &self.daemon_session_id)
+            .finish_non_exhaustive()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1319,6 +1499,73 @@ mod tests {
             file_path: "src/lib.rs",
             duration_ms: 42,
         }
+    }
+
+    /// USAGE-004: the dispatch emitter builds exactly one `command.invoked`
+    /// row carrying the method as `command`, the envelope principal, the
+    /// echoed `traceparent`, an empty `flag_set`, and redacted args.
+    #[test]
+    fn command_invoked_emitter_emits_one_row() {
+        let (emitter, recorder) = CommandInvokedEmitter::with_recorder("daemon-session-1");
+        let params = serde_json::json!({"query": "Foo", "token": "secret"});
+        let outcome = emitter.try_emit(&CommandInvokedEmissionRequest {
+            method: "anvil/gctx/search_symbols",
+            principal: Some("deadbeef0123"),
+            params: &params,
+            timestamp: "2026-06-18T10:00:00Z",
+            traceparent: Some("00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"),
+        });
+
+        assert_eq!(outcome, CommandEmissionOutcome::Emitted);
+        let rows = recorder.recorded_command_invocations();
+        assert_eq!(rows.len(), 1);
+        let row = &rows[0];
+        assert_eq!(row.command, "anvil/gctx/search_symbols");
+        assert_eq!(row.principal, "deadbeef0123");
+        assert_eq!(row.session_id, "daemon-session-1");
+        assert!(row.flag_set.is_empty());
+        assert_eq!(
+            row.traceparent.as_deref(),
+            Some("00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01")
+        );
+        // Privacy: no raw values, sensitive key elided.
+        let json = serde_json::to_string(row).expect("serialise");
+        assert!(!json.contains("secret"), "raw value leaked: {json}");
+        assert!(json.contains("<redacted>"), "sensitive key not redacted: {json}");
+    }
+
+    /// USAGE-004: a missing envelope principal resolves to `anonymous`
+    /// (parity with the unauthenticated CLI path).
+    #[test]
+    fn command_invoked_emitter_defaults_anonymous_principal() {
+        let (emitter, recorder) = CommandInvokedEmitter::with_recorder("daemon-session-2");
+        let params = serde_json::Value::Null;
+        emitter.try_emit(&CommandInvokedEmissionRequest {
+            method: "unblock-cascade",
+            principal: None,
+            params: &params,
+            timestamp: "2026-06-18T10:00:00Z",
+            traceparent: None,
+        });
+        assert_eq!(recorder.recorded_command_invocations()[0].principal, "anonymous");
+    }
+
+    /// USAGE-004: a sink failure is swallowed (logged, row dropped) so
+    /// the dispatch path is never coupled to sink health.
+    #[test]
+    fn command_invoked_emitter_swallows_sink_error() {
+        let (emitter, recorder) = CommandInvokedEmitter::with_recorder("daemon-session-3");
+        recorder.fail_next_command_with(KindlingSinkError::Unavailable("db locked".to_owned()));
+        let params = serde_json::Value::Null;
+        let outcome = emitter.try_emit(&CommandInvokedEmissionRequest {
+            method: "anvil/gctx/find_callers",
+            principal: None,
+            params: &params,
+            timestamp: "2026-06-18T10:00:00Z",
+            traceparent: None,
+        });
+        assert_eq!(outcome, CommandEmissionOutcome::SinkError);
+        assert!(recorder.recorded_command_invocations().is_empty());
     }
 
     /// USAGE-004: a JSON-RPC `params` object maps to one redacted
