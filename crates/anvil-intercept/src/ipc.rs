@@ -2574,6 +2574,37 @@ fn scan_buffer_batch_error(response_id: Option<Value>, traceparent: Option<&str>
 }
 
 #[allow(clippy::too_many_lines)] // MLP2-026 pushed line count from 99 to 101 via the additional cross_check/peer_pid threading; splitting would obscure the per-method routing.
+/// USAGE-004: the explicit allowlist of JSON-RPC methods that count as
+/// *user-initiated command invocations* and therefore emit one
+/// `command.invoked` usage row when dispatched. Founder decision
+/// (2026-06-18): the GCTX query tools (no CLI-side USAGE-001 equivalent,
+/// so daemon rows are net-new signal) plus the operator `unblock-*`
+/// verbs (whose CLI-side row is suppressed so the daemon row is the
+/// single source of truth). Every other dispatchable method is internal
+/// machinery (scan/save/status), session lifecycle, or a server→client
+/// message and is deliberately excluded. Both wire spellings of each
+/// bare-name verb are listed so the classifier matches whatever the
+/// client sends. New user-facing methods opt in here deliberately — see
+/// `command_invoked_allowlist_classifies_every_namespaced_method`.
+pub const COMMAND_INVOKED_ALLOWLIST: &[&str] = &[
+    anvil_intercept_proto::protocol::ANVIL_GCTX_SEARCH_SYMBOLS,
+    anvil_intercept_proto::protocol::ANVIL_GCTX_FIND_DEPENDENTS,
+    anvil_intercept_proto::protocol::ANVIL_GCTX_FIND_CALLERS,
+    anvil_intercept_proto::protocol::ANVIL_GCTX_IMPACT_OF_CHANGE,
+    anvil_intercept_proto::protocol::ANVIL_GCTX_AFFECTED_TESTS,
+    "unblock-cascade",
+    "fence.unblock-cascade",
+    "unblock-worktree",
+    "fence.unblock-worktree",
+];
+
+/// USAGE-004: true when `method` is a user-initiated command invocation
+/// that should emit a `command.invoked` usage row. See
+/// [`COMMAND_INVOKED_ALLOWLIST`].
+pub fn is_command_invoked_method(method: &str) -> bool {
+    COMMAND_INVOKED_ALLOWLIST.contains(&method)
+}
+
 async fn handle_jsonrpc_request<D: SessionDispatcher>(
     value: Value,
     dispatcher: &Arc<D>,
@@ -4642,6 +4673,76 @@ mod tests {
     /// `skip_bounded_json_string_or_null` fix, a `null` here was rejected
     /// as "missing or too large", so an oversized frame diverged from a
     /// normal-sized one for the same payload.
+    /// USAGE-004 (R2 mitigation, daemon side): every namespaced method
+    /// the protocol defines must be classified as *exactly one* of
+    /// user-initiated (allowlisted → emits a usage row) or internal
+    /// machinery (explicitly excluded). The count pin forces a new
+    /// `anvil/*` method to be triaged here rather than silently
+    /// defaulting to "no usage row" (or, worse, flooding usage with
+    /// machine traffic).
+    #[test]
+    fn command_invoked_allowlist_classifies_every_namespaced_method() {
+        use anvil_intercept_proto::protocol::*;
+        // Deliberately NOT user-initiated: scan/save/status machinery,
+        // server→client messages, gate/suppression protocol verbs.
+        const EXCLUDED: &[&str] = &[
+            ANVIL_PUBLISH_DIAGNOSTICS,
+            ANVIL_SCAN_BUFFER,
+            ANVIL_ENFORCEMENT_ACK,
+            ANVIL_GATE_REQUEST,
+            ANVIL_SUPPRESSION_APPLY,
+            ANVIL_STATUS_QUERY,
+            ANVIL_VALIDATE_PATHS,
+            ANVIL_WORKSPACE_STATUS,
+            ANVIL_REQUEST_FULL_SCAN,
+        ];
+        for method in ALL_ANVIL_METHODS {
+            let allowed = is_command_invoked_method(method);
+            let excluded = EXCLUDED.contains(method);
+            assert!(
+                allowed ^ excluded,
+                "method {method} must be classified as exactly one of \
+                 allowlisted/excluded — a new protocol method needs a \
+                 deliberate USAGE-004 decision"
+            );
+        }
+        // Count pin: 5 GCTX query methods are allowlisted; the rest are
+        // excluded. Moving either set must move this assertion.
+        assert_eq!(
+            ALL_ANVIL_METHODS.len(),
+            EXCLUDED.len() + 5,
+            "ALL_ANVIL_METHODS changed — reclassify the new method for USAGE-004"
+        );
+    }
+
+    /// USAGE-004: the operator `unblock-*` verbs (bare-name, not in
+    /// `ALL_ANVIL_METHODS`) are user-initiated under both wire spellings;
+    /// internal machinery is never allowlisted regardless of spelling.
+    #[test]
+    fn command_invoked_allowlist_covers_unblock_and_excludes_machinery() {
+        for verb in [
+            "unblock-cascade",
+            "fence.unblock-cascade",
+            "unblock-worktree",
+            "fence.unblock-worktree",
+        ] {
+            assert!(is_command_invoked_method(verb), "{verb} must be allowlisted");
+        }
+        for machinery in [
+            "scan_buffer",
+            anvil_intercept_proto::protocol::ANVIL_SCAN_BUFFER,
+            anvil_intercept_proto::protocol::ANVIL_VALIDATE_PATHS,
+            "query_status",
+            "session.register",
+            "report-process",
+        ] {
+            assert!(
+                !is_command_invoked_method(machinery),
+                "{machinery} must NOT be allowlisted"
+            );
+        }
+    }
+
     /// USAGE-004: the principal cap stays in the established
     /// identifier-cap family so the envelope field cannot be used to
     /// smuggle an unbounded string past the dispatcher.
