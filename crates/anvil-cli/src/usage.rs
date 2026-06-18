@@ -334,6 +334,7 @@ fn incoming_traceparent() -> Option<String> {
 /// principal-less one. An absent/unreadable credential resolves to the
 /// `anonymous` principal (parity with an unauthenticated CLI run); the
 /// raw email is never returned.
+#[cfg_attr(windows, allow(dead_code))]
 pub fn current_principal() -> Result<String> {
     let state_dir = credentials::credentials_dir().context("resolve usage state directory")?;
     resolve_principal_in(&state_dir)
@@ -361,6 +362,7 @@ fn resolve_principal_in(state_dir: &Path) -> Result<String> {
 /// JSON object, the frame is left unchanged and the daemon records the
 /// `anonymous` principal (parity with an unauthenticated run). Never puts
 /// a raw email on the wire — only the one-way hash.
+#[cfg_attr(windows, allow(dead_code))]
 pub fn attach_principal(frame: &mut serde_json::Value) {
     if let Ok(principal) = current_principal()
         && let Some(obj) = frame.as_object_mut()
