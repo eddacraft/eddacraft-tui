@@ -212,6 +212,7 @@ use crate::dos::{IpcLimits, RpsBucket};
 use crate::enforcement::CONTENT_SIZE_CAP_BYTES_USIZE;
 use crate::fence::FenceStore;
 use crate::kindling_observation::MidEditEmissionRequest;
+use crate::kindling_observation::{CommandInvokedEmissionRequest, CommandInvokedEmitter};
 use crate::midedit::{self, ScanBufferMode, ScanBufferRequest, ScanBufferService, SpoofBlockInfo};
 use crate::registry::{Cross, SessionDispatcher, SessionRegistry};
 use crate::status::{DaemonStatus, StatusProvider};
@@ -806,6 +807,11 @@ pub struct IpcListener<D: SessionDispatcher> {
     /// to `SubscribeTelemetry` with a "not available" error).
     #[cfg(any(unix, windows))]
     broadcaster: Option<Arc<crate::broadcaster::TelemetryBroadcaster>>,
+    /// USAGE-004: the command-invocation usage producer. Set by the
+    /// daemon at startup via [`Self::with_usage_emitter`]; `None` for
+    /// tests and embedded listeners that do not record usage.
+    #[cfg(any(unix, windows))]
+    usage_emitter: Option<Arc<CommandInvokedEmitter>>,
     #[cfg(windows)]
     inner: tokio::net::windows::named_pipe::NamedPipeServer,
     #[cfg(windows)]
@@ -891,6 +897,16 @@ impl<D: SessionDispatcher> IpcListener<D> {
         broadcaster: Arc<crate::broadcaster::TelemetryBroadcaster>,
     ) -> Self {
         self.broadcaster = Some(broadcaster);
+        self
+    }
+
+    /// USAGE-004: plug the command-invocation usage producer. Listeners
+    /// default to `None` (no usage rows) so tests and embedded callers
+    /// keep working; the daemon host wires a real NDJSON-backed emitter.
+    #[cfg(any(unix, windows))]
+    #[must_use]
+    pub fn with_usage_emitter(mut self, emitter: Arc<CommandInvokedEmitter>) -> Self {
+        self.usage_emitter = Some(emitter);
         self
     }
 }
@@ -1011,6 +1027,7 @@ impl<D: SessionDispatcher> IpcListener<D> {
             cross_check: None,
             save_time: None,
             broadcaster: None,
+            usage_emitter: None,
         })
     }
 
@@ -1034,6 +1051,8 @@ impl<D: SessionDispatcher> IpcListener<D> {
         // each subscriber connection registers against the shared
         // fan-out.
         let broadcaster = self.broadcaster.clone();
+        // USAGE-004: usage producer, cloned per spawn.
+        let usage_emitter = self.usage_emitter.clone();
         let connection_permits = Arc::new(tokio::sync::Semaphore::new(
             limits.max_concurrent_connections,
         ));
@@ -1079,9 +1098,10 @@ impl<D: SessionDispatcher> IpcListener<D> {
                             let conn_cross_check = cross_check.clone();
                             let conn_save_time = save_time.clone();
                             let conn_broadcaster = broadcaster.clone();
+                            let conn_usage_emitter = usage_emitter.clone();
                             joinset.spawn(async move {
                                 let _connection_permit = connection_permit;
-                                if let Err(err) = handle_connection(stream, dispatcher, scan_buffer, conn_status, conn_token, limits, peer_pid, conn_cross_check, conn_save_time, conn_broadcaster).await {
+                                if let Err(err) = handle_connection(stream, dispatcher, scan_buffer, conn_status, conn_token, limits, peer_pid, conn_cross_check, conn_save_time, conn_broadcaster, conn_usage_emitter).await {
                                     tracing::warn!(target: "anvil_intercept::ipc", error = %err, "ipc connection ended with error");
                                     eprintln!("anvil-intercept: ipc connection ended with error: {err}");
                                 }
@@ -1159,6 +1179,7 @@ impl<D: SessionDispatcher> IpcListener<D> {
             cross_check: None,
             save_time: None,
             broadcaster: None,
+            usage_emitter: None,
         })
     }
 
@@ -1178,6 +1199,8 @@ impl<D: SessionDispatcher> IpcListener<D> {
         // each subscriber connection registers against the shared
         // fan-out.
         let broadcaster = self.broadcaster.clone();
+        // USAGE-004: usage producer, cloned per spawn.
+        let usage_emitter = self.usage_emitter.clone();
         let mut joinset: JoinSet<()> = JoinSet::new();
         let connection_permits = Arc::new(tokio::sync::Semaphore::new(
             limits.max_concurrent_connections,
@@ -1269,6 +1292,7 @@ impl<D: SessionDispatcher> IpcListener<D> {
                             let conn_cross_check = cross_check.clone();
                             let conn_save_time = save_time.clone();
                             let conn_broadcaster = broadcaster.clone();
+                            let conn_usage_emitter = usage_emitter.clone();
                             joinset.spawn(async move {
                                 let _connection_permit = connection_permit;
                                 // MLP2-025b: Windows peer-PID is
@@ -1283,7 +1307,7 @@ impl<D: SessionDispatcher> IpcListener<D> {
                                 // becomes the documented fail-closed
                                 // default for un-validated peers.
                                 let peer_pid: Option<u32> = None;
-                                if let Err(err) = handle_connection(connected_server, dispatcher, scan_buffer, conn_status, conn_token, limits, peer_pid, conn_cross_check, conn_save_time, conn_broadcaster).await {
+                                if let Err(err) = handle_connection(connected_server, dispatcher, scan_buffer, conn_status, conn_token, limits, peer_pid, conn_cross_check, conn_save_time, conn_broadcaster, conn_usage_emitter).await {
                                     tracing::warn!(target: "anvil_intercept::ipc", error = %err, "ipc connection ended with error");
                                     eprintln!("anvil-intercept: ipc connection ended with error: {err}");
                                 }
@@ -1432,6 +1456,10 @@ async fn handle_connection<D: SessionDispatcher, R: AsyncRead + AsyncWrite + Unp
     // those reply to `SubscribeTelemetry` with a structured "not
     // available" error rather than silently accepting a no-op.
     #[cfg(any(unix, windows))] broadcaster: Option<Arc<crate::broadcaster::TelemetryBroadcaster>>,
+    // USAGE-004: optional usage producer. `None` for tests and embedded
+    // listeners that do not record command-invocation usage; the daemon
+    // host wires a real NDJSON-backed emitter at startup.
+    #[cfg(any(unix, windows))] usage_emitter: Option<Arc<CommandInvokedEmitter>>,
 ) -> Result<(), IpcError> {
     let mut reader = BufReader::new(stream);
     let mut buf = String::new();
@@ -1723,6 +1751,16 @@ async fn handle_connection<D: SessionDispatcher, R: AsyncRead + AsyncWrite + Unp
                         .map(|conn| conn as &mut dyn SaveTimeDispatch);
                     #[cfg(not(any(unix, windows)))]
                     let save_time_arg: Option<&mut dyn SaveTimeDispatch> = None;
+                    // USAGE-004: record command-invocation usage for any
+                    // allowlisted method in this frame BEFORE dispatch
+                    // (keyed on invocation, not outcome). Borrows `value`
+                    // so it must run before the move into the dispatcher.
+                    #[cfg(any(unix, windows))]
+                    if let Some(emitter) = usage_emitter.as_deref() {
+                        let timestamp =
+                            chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+                        emit_command_invocations(&value, emitter, &timestamp);
+                    }
                     if let Some(response) = handle_jsonrpc_value(
                         value,
                         &dispatcher,
@@ -2602,6 +2640,58 @@ pub const COMMAND_INVOKED_ALLOWLIST: &[&str] = &[
 /// [`COMMAND_INVOKED_ALLOWLIST`].
 pub fn is_command_invoked_method(method: &str) -> bool {
     COMMAND_INVOKED_ALLOWLIST.contains(&method)
+}
+
+/// USAGE-004: emit a `command.invoked` usage row for every allowlisted,
+/// well-formed request in `value`, which may be a single JSON-RPC object
+/// or a batch array. Called from `handle_connection` just before the
+/// frame is dispatched — emission is keyed on *invocation*, not outcome
+/// (parity with the CLI producer, which records regardless of exit
+/// status). Best-effort: a malformed `principal`/`traceparent` degrades
+/// the row (the field drops to `None`/`anonymous`) but never suppresses
+/// it; sink failures are swallowed inside the emitter. Non-allowlisted
+/// methods, non-2.0 frames, and non-request shapes produce no row.
+fn emit_command_invocations(value: &Value, emitter: &CommandInvokedEmitter, timestamp: &str) {
+    match value {
+        Value::Array(items) => {
+            for item in items {
+                emit_one_command_invocation(item, emitter, timestamp);
+            }
+        }
+        item => emit_one_command_invocation(item, emitter, timestamp),
+    }
+}
+
+/// USAGE-004: emit at most one `command.invoked` row for a single
+/// JSON-RPC request object. See [`emit_command_invocations`].
+fn emit_one_command_invocation(value: &Value, emitter: &CommandInvokedEmitter, timestamp: &str) {
+    let Some(map) = value.as_object() else {
+        return;
+    };
+    // Only well-formed JSON-RPC 2.0 requests with an allowlisted method
+    // count — mirrors the front-matter checks in `handle_jsonrpc_request`
+    // so a row is never recorded for a frame that cannot dispatch.
+    if map.get("jsonrpc") != Some(&Value::String("2.0".to_owned())) {
+        return;
+    }
+    let Some(method) = map.get("method").and_then(Value::as_str) else {
+        return;
+    };
+    if !is_command_invoked_method(method) {
+        return;
+    }
+    // Lenient: a malformed optional field degrades the row rather than
+    // dropping it — the request itself is still a user invocation.
+    let principal = extract_principal(map).ok().flatten();
+    let traceparent = extract_traceparent(map).ok().flatten();
+    let params = map.get("params").unwrap_or(&Value::Null);
+    emitter.try_emit(&CommandInvokedEmissionRequest {
+        method,
+        principal,
+        params,
+        timestamp,
+        traceparent,
+    });
 }
 
 #[allow(clippy::too_many_lines)] // MLP2-026 pushed line count from 99 to 101 via the additional cross_check/peer_pid threading; splitting would obscure the per-method routing.
@@ -4671,6 +4761,98 @@ mod tests {
     /// `skip_bounded_json_string_or_null` fix, a `null` here was rejected
     /// as "missing or too large", so an oversized frame diverged from a
     /// normal-sized one for the same payload.
+    /// USAGE-004: an allowlisted single-object request emits exactly one
+    /// `command.invoked` row carrying the method, envelope principal, and
+    /// echoed traceparent.
+    #[test]
+    fn emit_command_invocations_emits_for_allowlisted_object() {
+        use crate::kindling_observation::CommandInvokedEmitter;
+
+        let (emitter, recorder) = CommandInvokedEmitter::with_recorder("daemon-x");
+        let value = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "anvil/gctx/search_symbols",
+            "principal": "deadbeef",
+            "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+            "params": {"query": "Foo"}
+        });
+        emit_command_invocations(&value, &emitter, "2026-06-18T10:00:00Z");
+
+        let rows = recorder.recorded_command_invocations();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].command, "anvil/gctx/search_symbols");
+        assert_eq!(rows[0].principal, "deadbeef");
+        assert_eq!(
+            rows[0].traceparent.as_deref(),
+            Some("00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01")
+        );
+    }
+
+    /// USAGE-004: excluded methods, non-2.0 frames, and non-request
+    /// shapes produce no usage row.
+    #[test]
+    fn emit_command_invocations_skips_non_user_initiated() {
+        use crate::kindling_observation::CommandInvokedEmitter;
+
+        let (emitter, recorder) = CommandInvokedEmitter::with_recorder("daemon-x");
+        // Excluded internal method.
+        emit_command_invocations(
+            &json!({"jsonrpc": "2.0", "id": 1, "method": "scan_buffer"}),
+            &emitter,
+            "t",
+        );
+        // Missing jsonrpc version.
+        emit_command_invocations(
+            &json!({"id": 1, "method": "anvil/gctx/search_symbols"}),
+            &emitter,
+            "t",
+        );
+        // Not an object.
+        emit_command_invocations(&json!("scalar"), &emitter, "t");
+        assert!(recorder.recorded_command_invocations().is_empty());
+    }
+
+    /// USAGE-004: a batch array emits one row per allowlisted item and
+    /// skips the rest.
+    #[test]
+    fn emit_command_invocations_handles_batch() {
+        use crate::kindling_observation::CommandInvokedEmitter;
+
+        let (emitter, recorder) = CommandInvokedEmitter::with_recorder("daemon-x");
+        let batch = json!([
+            {"jsonrpc": "2.0", "id": 1, "method": "anvil/gctx/find_callers"},
+            {"jsonrpc": "2.0", "id": 2, "method": "scan_buffer"},
+            {"jsonrpc": "2.0", "id": 3, "method": "unblock-cascade", "principal": "abc"}
+        ]);
+        emit_command_invocations(&batch, &emitter, "t");
+
+        let rows = recorder.recorded_command_invocations();
+        let commands: Vec<&str> = rows.iter().map(|r| r.command.as_str()).collect();
+        assert_eq!(commands, ["anvil/gctx/find_callers", "unblock-cascade"]);
+    }
+
+    /// USAGE-004: a malformed envelope `principal` degrades the row to
+    /// `anonymous` rather than suppressing it — the call still happened.
+    #[test]
+    fn emit_command_invocations_degrades_bad_principal_to_anonymous() {
+        use crate::kindling_observation::CommandInvokedEmitter;
+
+        let (emitter, recorder) = CommandInvokedEmitter::with_recorder("daemon-x");
+        emit_command_invocations(
+            &json!({
+                "jsonrpc": "2.0", "id": 1,
+                "method": "anvil/gctx/find_dependents",
+                "principal": 42
+            }),
+            &emitter,
+            "t",
+        );
+        let rows = recorder.recorded_command_invocations();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].principal, "anonymous");
+    }
+
     /// USAGE-004 (R2 mitigation, daemon side): every namespaced method
     /// the protocol defines must be classified as *exactly one* of
     /// user-initiated (allowlisted → emits a usage row) or internal
