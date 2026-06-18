@@ -7,7 +7,8 @@
 | ----- | ----- | ----------- |
 | PYLAN | —     | In Progress |
 
-**Last reviewed:** 2026-06-17 (substrate + governance slice landed. Promoted
+**Last reviewed:** 2026-06-18 (substrate + governance slice landed; PYLAN-009
+FP bar accepted at N=1%. Promoted
 Draft → In Progress on operator direction — "build lang-python first" — to
 unblock GCALL-005 Python call-site extraction. Prerequisites LANGTS and RSTLAN
 both Complete; the remaining Ready-Checklist items (re-scoring gate, named
