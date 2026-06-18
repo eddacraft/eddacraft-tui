@@ -14,7 +14,7 @@ Cross-cutting convention: see plans/aps-rules.md#cross-cutting-modules.
 
 | ID    | Owner      | Status | Progress |
 | ----- | ---------- | ------ | -------- |
-| USAGE | @eddacraft | In Progress | 4/5 |
+| USAGE | @eddacraft | In Progress | 5/5 |
 
 **Last reviewed:** 2026-06-14
 
@@ -219,11 +219,14 @@ requires founder review. The contract doc lives in
 > runbook; OQ3 → both CLI surface and docs). USAGE-005 Merged 2026-06-14
 > via PR #2614 (flag-driven licence-gate enforcement; `check_auth`
 > branches on the resolved `cli.licence-gate` variant, default `enabled`
-> so production unchanged). USAGE-004 (JSON-RPC producer) remains Draft —
-> it needs a founder decision on the principal model and on which daemon
-> methods count as user-initiated (most are internal machinery). Scoped
-> into the `v0.9.0-beta` release window as additive scope (operator,
-> 2026-06-13).
+> so production unchanged). USAGE-004 Merged 2026-06-18 via PR #2744
+> (JSON-RPC command-invocation producer; founder decisions: principal on
+> the envelope — salted-hash, optional, parity with CLI — and an explicit
+> user-initiated method allowlist; the CLI `intercept unblock` row is
+> suppressed so the daemon row is the single source of truth). All five
+> items now Merged (5/5); the module advances to Complete on release-tag
+> evidence. Follow-ups #2751 (async sink offload) and #2752
+> (live-listener integration test).
 
 ### USAGE-001: Command-invocation observation kind and producer
 
@@ -492,7 +495,7 @@ requires founder review. The contract doc lives in
     daemon path).
 - **Confidence:** medium — both gating decisions resolved 2026-06-18;
   scope is a bounded protocol-additive change plus producer wiring.
-- **Status:** In Progress (feat/usage-004, 2026-06-18)
+- **Status:** Merged 2026-06-18 via PR #2744
 
 ---
 
