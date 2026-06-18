@@ -1,12 +1,18 @@
-/// TUI rendering backend selection for the Ink-to-Ratatui migration.
+/// TUI rendering backend selection — migration-era scaffolding from the
+/// Ink-to-Ratatui port (RATS + PORT modules, both Complete).
 ///
-/// Default is `Ink` until Ratatui feature parity is validated.
-/// Users opt in with `--tui=ratatui`.
+/// The shipped `anvil` binary no longer consults this enum: every surface
+/// renders through [`crate::shell::render_shell`] (a thin wrapper over
+/// `eddacraft_tui::shell::render_shell`, i.e. Ratatui), and the legacy
+/// `Ink` renderer was the retired Node process (`archive/anvil-cli-node/`).
+/// The default is therefore `Ratatui`, matching shipped reality (V060F-018);
+/// `Ink` is retained only so a historical `--tui=ink` argument still parses
+/// and errors with a clear "handled by the Node.js process" message.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TuiBackend {
     #[default]
-    Ink,
     Ratatui,
+    Ink,
 }
 
 impl TuiBackend {
@@ -32,7 +38,7 @@ impl std::fmt::Display for TuiBackend {
 }
 
 /// Select the TUI backend based on user preference.
-/// Falls back to `Ink` when no preference is given.
+/// Falls back to `Ratatui` (the shipped default) when no preference is given.
 pub fn select_backend(preference: Option<TuiBackend>) -> TuiBackend {
     preference.unwrap_or_default()
 }
@@ -42,8 +48,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_returns_ink() {
-        assert_eq!(select_backend(None), TuiBackend::Ink);
+    fn default_returns_ratatui() {
+        // V060F-018: the shipped CLI renders via `render_shell` (Ratatui);
+        // the default must match that reality, not the retired Ink path.
+        assert_eq!(select_backend(None), TuiBackend::Ratatui);
+        assert_eq!(TuiBackend::default(), TuiBackend::Ratatui);
     }
 
     #[test]

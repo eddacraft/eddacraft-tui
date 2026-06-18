@@ -35,7 +35,7 @@ See: plans/aps-rules.md
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| V060F | —     | In Progress | 17/25    |
+| V060F | —     | In Progress | 18/25    |
 
 **Last reviewed:** 2026-06-19 (full triage pass + Wave 1 shipped — re-verified
 all 21 open items against HEAD; 8 closed as resolved-elsewhere:
@@ -576,7 +576,19 @@ discovery.
   expose Ink as the explicit fallback.
 - **Confidence:** medium (the technical flip is straightforward;
   the user-facing change needs validation across terminals)
-- **Status:** Open
+- **Status:** Done (Wave 2, 2026-06-19) — **premise was stale**: the
+  shipped CLI already renders every surface through
+  `anvil_tui::shell::render_shell` → `eddacraft_tui::shell::render_shell`
+  (Ratatui). `TuiBackend` / `select_backend` / `TuiApp` have **zero**
+  references in `crates/anvil-cli/src` — vestigial migration scaffolding —
+  and the `Ink` arm is the retired Node TUI (`archive/anvil-cli-node/`).
+  So Ratatui is already the default (and only) production UX; there was no
+  live Ink default to flip. Aligned the vestigial stub to match reality
+  (`TuiBackend` default Ink → Ratatui, doc + `select_backend` fallback +
+  the `default_returns_ratatui` test) so it stops advertising a false Ink
+  default. No production/snapshot change (678 anvil-tui tests green; no
+  `--backend`/`--tui` selector is wired to the stub, so nothing to
+  re-expose).
 
 ---
 
@@ -831,7 +843,8 @@ Disjoint single-file edits; no code-build risk. All five shipped together.
 - **V060F-002** — `anvil intercept stop` subcommand (`anvil-cli` commands)
 - **V060F-004** — macOS `current_process_start_time` via `proc_pidinfo`
   (`anvil-intercept` interrupt ladder — removes the macOS fence-telemetry skew)
-- **V060F-018** — flip TuiBackend default Ink → Ratatui (`anvil-tui`)
+- **V060F-018** ✅ (2026-06-19) — stale premise: production already renders
+  Ratatui via `render_shell`; aligned the vestigial `TuiBackend` stub default
 - **V060F-019** — retire Node `apps/admin-cli/` (attribution drift already
   resolved; pure retirement remains)
 
@@ -869,10 +882,10 @@ or sequence to avoid collisions on the command modules.
 | Deferrals (v0.5.0-beta)              | 0     | —                                                      |
 | Nominations                          | 1     | Complete (V060F-001)                                   |
 | As-built sweep follow-ups (batch 1)  | 10    | 6 Done / 4 Open (triage closed 003/005/010/011; Wave 1 closed 008/009) |
-| As-built sweep follow-ups (batch 2)  | 8     | 4 Done / 4 Open (triage closed 012/013/017; Wave 1 closed 014) |
+| As-built sweep follow-ups (batch 2)  | 8     | 5 Done / 3 Open (triage closed 012/013/017; Wave 1 closed 014; Wave 2 closed 018) |
 | As-built sweep follow-ups (batch 3)  | 5     | 5 Done / 0 Open (020/021/022; Wave 1 closed 023/024) |
 | OPA runtime refresh                  | 1     | Complete (V060F-025, 2026-05-08)                      |
-| **Total**                            | **25** | 17 Done / 8 Open (4/21 before 2026-06-19 triage → 12/13 after triage → 17/8 after Wave 1) |
+| **Total**                            | **25** | 18 Done / 7 Open (Wave 2 V060F-018; counts reconcile with sibling Wave 2 PR V060F-002 #2781 at merge) |
 
 Batch 1 (intercept / activation / MCP shim / checks / kernel as-builts) split:
 
