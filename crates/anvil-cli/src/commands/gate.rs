@@ -800,7 +800,7 @@ fn run_check_sql_migrations(name: &str, root: &Path, walked_files: &[String]) ->
             score: 100.0,
             message: format!(
                 "No destructive or schema-hygiene SQL migration issues found across {} file(s){unreadable_note}",
-                sql_files.len()
+                sql_files.len() + unreadable
             ),
             requires_config: false,
         };

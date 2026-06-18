@@ -15,7 +15,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use super::scanner::{SqlFinding, SqlHygieneFinding, scan_sql_file, scan_sql_hygiene};
+use super::scanner::{SqlFinding, SqlHygieneFinding, scan_sql_all};
 
 /// Aggregated result of running every SURFSQL rule against a file set.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -50,8 +50,10 @@ pub fn run_surfsql_check(sql_files: &[(PathBuf, String)]) -> SurfsqlCheckResult 
     let mut result = SurfsqlCheckResult::default();
     for (path, content) in sql_files {
         let display = path.to_string_lossy();
-        result.destructive.extend(scan_sql_file(&display, content));
-        result.hygiene.extend(scan_sql_hygiene(&display, content));
+        // Split + normalise each file once, run both rule families over it.
+        let (destructive, hygiene) = scan_sql_all(&display, content);
+        result.destructive.extend(destructive);
+        result.hygiene.extend(hygiene);
     }
     result
 }

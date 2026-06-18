@@ -108,22 +108,41 @@ pub struct SqlFinding {
     pub suppression_reason: Option<String>,
 }
 
-/// Scan one SQL file's `content` for destructive operations (SURFSQL-002).
+/// Scan one SQL file's `content` for **both** SURFSQL-002 (destructive) and
+/// SURFSQL-003 (schema-hygiene) findings, splitting + normalising statements
+/// a single time. This is the path [`super::run_surfsql_check`] uses; the
+/// per-rule [`scan_sql_file`] / [`scan_sql_hygiene`] delegate here so the
+/// split work is never duplicated as more rules land.
 ///
 /// `display_path` is used only for the `file` field on findings. Findings
-/// for statements directly preceded by an `-- @anvil-ignore SURFSQL-002`
-/// directive are returned with `suppressed = true` rather than dropped, so
-/// callers can report suppression counts.
+/// directly preceded by a matching `-- @anvil-ignore <ID>` directive are
+/// returned with `suppressed = true` rather than dropped.
 #[must_use]
-pub fn scan_sql_file(display_path: &str, content: &str) -> Vec<SqlFinding> {
+pub fn scan_sql_all(
+    display_path: &str,
+    content: &str,
+) -> (Vec<SqlFinding>, Vec<SqlHygieneFinding>) {
     let lines: Vec<&str> = content.lines().collect();
-    let mut findings = Vec::new();
+    let mut destructive = Vec::new();
+    let mut hygiene = Vec::new();
 
     for statement in split_statements(content) {
         for kind in classify(&statement.normalised) {
             let (suppressed, reason) =
                 resolve_line_suppression(&lines, statement.line, SURFSQL_002_RULE_ID);
-            findings.push(SqlFinding {
+            destructive.push(SqlFinding {
+                file: display_path.to_string(),
+                line: statement.line,
+                kind,
+                statement: truncate_statement(&statement.normalised),
+                suppressed,
+                suppression_reason: reason,
+            });
+        }
+        for kind in classify_hygiene(&statement.normalised) {
+            let (suppressed, reason) =
+                resolve_line_suppression(&lines, statement.line, SURFSQL_003_RULE_ID);
+            hygiene.push(SqlHygieneFinding {
                 file: display_path.to_string(),
                 line: statement.line,
                 kind,
@@ -133,7 +152,13 @@ pub fn scan_sql_file(display_path: &str, content: &str) -> Vec<SqlFinding> {
             });
         }
     }
-    findings
+    (destructive, hygiene)
+}
+
+/// Scan one SQL file's `content` for destructive operations (SURFSQL-002).
+#[must_use]
+pub fn scan_sql_file(display_path: &str, content: &str) -> Vec<SqlFinding> {
+    scan_sql_all(display_path, content).0
 }
 
 /// SURFSQL-003 — schema-hygiene rule: idempotent DDL that omits its guard.
@@ -181,24 +206,7 @@ pub struct SqlHygieneFinding {
 /// `-- @anvil-ignore SURFSQL-003`.
 #[must_use]
 pub fn scan_sql_hygiene(display_path: &str, content: &str) -> Vec<SqlHygieneFinding> {
-    let lines: Vec<&str> = content.lines().collect();
-    let mut findings = Vec::new();
-
-    for statement in split_statements(content) {
-        for kind in classify_hygiene(&statement.normalised) {
-            let (suppressed, reason) =
-                resolve_line_suppression(&lines, statement.line, SURFSQL_003_RULE_ID);
-            findings.push(SqlHygieneFinding {
-                file: display_path.to_string(),
-                line: statement.line,
-                kind,
-                statement: truncate_statement(&statement.normalised),
-                suppressed,
-                suppression_reason: reason,
-            });
-        }
-    }
-    findings
+    scan_sql_all(display_path, content).1
 }
 
 /// Modifier keywords that may sit between `CREATE` and the object keyword

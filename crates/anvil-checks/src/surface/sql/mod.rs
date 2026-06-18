@@ -19,7 +19,7 @@ pub mod suppression;
 pub use check::{SurfsqlCheckResult, run_surfsql_check};
 pub use scanner::{
     DestructiveKind, HygieneKind, SURFSQL_002_RULE_ID, SURFSQL_003_RULE_ID, SqlFinding,
-    SqlHygieneFinding, is_sql_migration_file, scan_sql_file, scan_sql_hygiene,
+    SqlHygieneFinding, is_sql_migration_file, scan_sql_all, scan_sql_file, scan_sql_hygiene,
 };
 pub use suppression::{resolve_file_header_suppression, resolve_line_suppression};
 
