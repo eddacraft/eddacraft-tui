@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 47/82    |
+| CIB | —     | In Progress | 47/83    |
 
 ## Purpose
 
@@ -2262,3 +2262,28 @@ archive.
   parse-skips section).
 - **Confidence:** low — depends on upstream tree-sitter-rust grammar coverage;
   may resolve to a documented limitation rather than a code fix.
+
+### CIB-083: context-stack lexer for template-literal interpolation masking
+
+- **Status:** Proposed 2026-06-18
+- **Intent:** Replace the lexer-light interpolation brace-counter in the AP-/GS-
+  comment/string masker (`mask.rs`) with a context stack so a `${ … }`
+  interpolation is fully re-lexed — masking a `!` / `any` / brace that sits
+  inside an interpolation *string or comment* — while still handling nested
+  template literals correctly.
+- **Expected Outcome:** strings/comments inside an interpolation are masked (no
+  residual `!`/`any` false positives there) and a `}` inside such a literal no
+  longer affects interpolation depth, with **no** regression on nested template
+  literals (the naive single-counter re-lex leaks template-text state to
+  end-of-file and mass-masks real assertions — verified against vite
+  `proxy.ts`, which is why PR #2746 kept the brace-count version). Fixtures
+  cover nested templates, interpolation strings, and brace-in-string.
+- **Files:** `crates/anvil-checks/src/antipattern/mask.rs`.
+- **Validation:** `cargo test -p eddacraft-anvil-checks`; re-run
+  `scripts/dogfood/external-fp` over the TS/JS corpus and confirm GS-001/AP-003
+  counts hold or drop with no new false negatives.
+- **Identified From:** Copilot review of PR #2746 (template-literal masking) —
+  the suggested full re-lex is correct but needs the nested-template-safe stack.
+- **Confidence:** medium — the correct design is known (a frame stack); the risk
+  is the false-negative class a naive version reintroduces, so it needs careful
+  fixtures.
