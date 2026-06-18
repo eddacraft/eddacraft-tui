@@ -676,15 +676,35 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-030: `graph://` MCP resources
 
-- **Status:** Draft
-- **Intent:** Expose safe graph summaries and stats as read-only MCP resources.
+- **Status:** Ready
+- **Intent:** Expose safe graph summaries and stats as read-only MCP resources —
+  the identity-only **resource** surface, distinct from (and not dependent on) the
+  Phase-2 snippet tools GCTX-020..023.
 - **Expected Outcome:** `graph://symbols`, `graph://edges`, and `graph://stats`
-  exist with pagination, redaction, and warming/stale metadata.
-- **Validation:** MCP resource listing and read tests pass
-- **Files:** MCP server target decided by GCTX-002
+  exist with pagination, redaction, and warming/stale metadata. Each is
+  **identity-only** through the CE-5 `GctxProjector` choke point (same sealed
+  posture as the GCTX-010..014 tools — no source text); `stats` carries the
+  `AssuranceState` warming/stale signal; large listings page via the CE-6 keyset
+  cursor scheme. The `initialize` result advertises the `resources` capability.
+- **Validation:** `resources/list` returns the three URIs; `resources/read` round
+  trips each with pagination + the CE-5 no-leak test battery extended to the
+  resource payloads; `graph_disabled`/kill-switch (`ANVIL_GCTX_EGRESS`) and
+  `NotReady`/warming states surface as for the tools.
+- **Files:** `crates/anvil-cli/src/commands/mcp.rs` (add `resources/list` +
+  `resources/read` arms to the JSON-RPC dispatch at the `tools/list`/`tools/call`
+  match, and advertise the resources capability in `initialize`); a new
+  `crates/anvil-cli/src/mcp/resources/` module mirroring `mcp/tools/`; reuse the
+  daemon `anvil/gctx/*` RPC (ADR-084) + `anvil-gctx-egress` / `anvil-gctx-types`
+  sealed DTOs.
 - **Confidence:** high
 - **Priority:** Medium
-- **Dependencies:** GCTX-001, GCTX-002
+- **Dependencies:** GCTX-001, GCTX-002 (both **Merged**) — readiness-verified
+  2026-06-18 against `origin/main`: deps satisfied, scope identity-only, MCP
+  target settled by ADR-083 (Rust RMCPF `anvil mcp serve`) and the graph-access
+  path by ADR-084. **Independent of GCTX-020..023** (the snippet line, in flight
+  in a sibling worktree); shares the `mcp` dispatch + egress crates with it, so
+  coordinate landing order / rebase to avoid file collisions on
+  `commands/mcp.rs` and the gctx-egress DTOs.
 
 ---
 
