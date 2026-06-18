@@ -1,0 +1,71 @@
+{
+  "$comment": "Pinned external-codebase corpus for the language false-positive dogfood. Mirrors the per-language T3 FP acceptance run (council §16.5 #9). Commits are PINNED so re-runs are deterministic; bump a sha deliberately and note it in the evidence writeup. See README.md.",
+  "fp_bar": "council §16.5 #9 — genuine-FP rate on the default (non-opt-in) catalogue; RSTLAN-008 set the precedent at 0%.",
+  "groups": {
+    "rust": {
+      "evidence": "plans/reviews/2026-06-18-rstlan-external-fp.md",
+      "default_rules": ["RS-001", "RS-002", "RS-003", "RS-005"],
+      "opt_in_rules": ["RS-004"],
+      "repos": [
+        {
+          "name": "ripgrep",
+          "url": "https://github.com/BurntSushi/ripgrep",
+          "sha": "82313cf95849bfe425109ad9506a52154879b1b1",
+          "why": "Idiomatic, carefully-written CLI baseline. Stresses the build.rs / tests.rs RS-001/RS-002 exclusions on an external test layout.",
+          "stresses": ["RS-001", "RS-002", "RS-005"]
+        },
+        {
+          "name": "tokio",
+          "url": "https://github.com/tokio-rs/tokio",
+          "sha": "7892f6020d9c914a41d0c350693fb71937d43c03",
+          "why": "Heavy, well-documented `// SAFETY:` unsafe and macro-generated code. Adversarial for RS-003 (must NOT fire on documented unsafe) and for parse robustness.",
+          "stresses": ["RS-003", "RS-002"]
+        },
+        {
+          "name": "alacritty",
+          "url": "https://github.com/alacritty/alacritty",
+          "sha": "985394dd42ca1408868ccee8070c8c75cccd762f",
+          "why": "FFI/rendering unsafe + serde config structs + build scripts. Stresses RS-003, the opt-in RS-004, and re-validates the build.rs exclusion on a foreign tree.",
+          "stresses": ["RS-003", "RS-004", "RS-001"]
+        }
+      ]
+    },
+    "langts": {
+      "evidence": "plans/reviews/2026-06-18-langts-external-fp.md",
+      "default_rules": [
+        "AP-001",
+        "AP-003",
+        "AP-004",
+        "AP-006",
+        "AP-008",
+        "AP-009",
+        "AP-015",
+        "GS-001"
+      ],
+      "opt_in_rules": ["AP-002", "AP-005", "AP-007", "AP-016"],
+      "repos": [
+        {
+          "name": "zod",
+          "url": "https://github.com/colinhacks/zod",
+          "sha": "912f0f51b0ced654d0069741e7160834dca742ee",
+          "why": "Adversarial for the Zod rules AP-015/AP-016 (same spirit as rich->PY-006). Type machinery uses `any` definitionally -> AP-003 / GS-001 FP stress.",
+          "stresses": ["AP-015", "AP-016", "AP-003", "GS-001"]
+        },
+        {
+          "name": "vite",
+          "url": "https://github.com/vitejs/vite",
+          "sha": "3527191cad6c935a3d129506cc9a893c84009037",
+          "why": "Large real-world TS tooling. Bundler codegen -> AP-008 (eval) / AP-009 (new Function) FP risk; broad eslint-disable usage -> AP-001 / AP-002.",
+          "stresses": ["AP-008", "AP-009", "AP-001", "AP-004"]
+        },
+        {
+          "name": "excalidraw",
+          "url": "https://github.com/excalidraw/excalidraw",
+          "sha": "28a9b1711dc0625b8ab5d643dc871810ee13642f",
+          "why": "Large React+TS application. Real-world @ts-ignore / any / non-null assertions at app scale -> AP-003 / AP-004 / GS-001; exercises string/comment masking on a big tree.",
+          "stresses": ["AP-003", "AP-004", "GS-001", "AP-006"]
+        }
+      ]
+    }
+  }
+}
