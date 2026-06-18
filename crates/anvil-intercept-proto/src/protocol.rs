@@ -76,8 +76,8 @@
 
 use anvil_gctx_types::{
     AffectedTestsOutcome, AffectedTestsQuery, FindCallersOutcome, FindCallersQuery,
-    FindDependentsOutcome, FindDependentsQuery, ImpactOutcome, ImpactQuery, SearchSymbolsOutcome,
-    SearchSymbolsQuery,
+    FindDependentsOutcome, FindDependentsQuery, GraphEdgesOutcome, GraphEdgesQuery,
+    GraphStatsOutcome, ImpactOutcome, ImpactQuery, SearchSymbolsOutcome, SearchSymbolsQuery,
 };
 use serde::{Deserialize, Serialize};
 
@@ -207,6 +207,20 @@ pub const ANVIL_GCTX_IMPACT_OF_CHANGE: &str = "anvil/gctx/impact_of_change";
 /// `GctxDispatch` surface; never the save-time path.
 pub const ANVIL_GCTX_AFFECTED_TESTS: &str = "anvil/gctx/affected_tests";
 
+/// Client → server: a read-only, workspace-wide GCTX graph-stats summary
+/// (GCTX-030, ADR-084). Returns counts only — resident symbols, symbol-graph
+/// edges, files, and dependency edges ([`GctxGraphStatsResponse`]) — backing the
+/// `graph://stats` MCP resource. No query. Dispatched on the same read-only
+/// `GctxDispatch` surface; never the save-time path.
+pub const ANVIL_GCTX_GRAPH_STATS: &str = "anvil/gctx/graph_stats";
+
+/// Client → server: a read-only, identity-only GCTX edge enumeration (GCTX-030,
+/// ADR-084). Returns sealed `(from, to, edge_type)` identity summaries
+/// ([`GctxGraphEdgesResponse`]), paginated, optionally filtered to one source
+/// file — backing the `graph://edges` MCP resource. Dispatched on the same
+/// read-only `GctxDispatch` surface; never the save-time path.
+pub const ANVIL_GCTX_GRAPH_EDGES: &str = "anvil/gctx/graph_edges";
+
 /// Capability lattice for the §3.3 state machine.
 ///
 /// `Attached` is the read-only floor: every successfully-handshaken
@@ -268,6 +282,8 @@ pub const ALL_ANVIL_METHODS: &[&str] = &[
     ANVIL_GCTX_FIND_CALLERS,
     ANVIL_GCTX_IMPACT_OF_CHANGE,
     ANVIL_GCTX_AFFECTED_TESTS,
+    ANVIL_GCTX_GRAPH_STATS,
+    ANVIL_GCTX_GRAPH_EDGES,
 ];
 
 // ============================================================================
@@ -724,6 +740,47 @@ pub struct GctxAffectedTestsResponse {
     pub outcome: AffectedTestsOutcome,
 }
 
+/// Client → server request for [`ANVIL_GCTX_GRAPH_STATS`] (GCTX-030). No query —
+/// stats are workspace-wide.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GctxGraphStatsRequest {
+    /// Canonical, admitted workspace root to project from.
+    pub workspace_root: String,
+}
+
+/// Response to [`ANVIL_GCTX_GRAPH_STATS`]: the daemon-projected counts-only
+/// summary. `workspace_assurance` always rides along (CE-7).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GctxGraphStatsResponse {
+    /// Workspace assurance at projection time (CE-7).
+    pub workspace_assurance: WorkspaceAssurance,
+    /// The status-tagged graph-stats outcome (counts only).
+    pub outcome: GraphStatsOutcome,
+}
+
+/// Client → server request for [`ANVIL_GCTX_GRAPH_EDGES`] (GCTX-030).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GctxGraphEdgesRequest {
+    /// Canonical, admitted workspace root to project from.
+    pub workspace_root: String,
+    /// The (optionally file-filtered, paginated) edge query.
+    #[serde(default)]
+    pub query: GraphEdgesQuery,
+}
+
+/// Response to [`ANVIL_GCTX_GRAPH_EDGES`]: the daemon-projected sealed,
+/// identity-only edge page. The daemon performs the CE-5 projection itself, so
+/// this response **is** the sealed DTO. `workspace_assurance` always rides along
+/// (CE-7); `outcome` is `ready` with the edge page when readable, a named
+/// non-`ready` variant otherwise.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GctxGraphEdgesResponse {
+    /// Workspace assurance at projection time (CE-7).
+    pub workspace_assurance: WorkspaceAssurance,
+    /// The status-tagged graph-edges outcome (sealed, identity-only).
+    pub outcome: GraphEdgesOutcome,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1117,6 +1174,8 @@ mod tests {
             ANVIL_GCTX_FIND_CALLERS,
             ANVIL_GCTX_IMPACT_OF_CHANGE,
             ANVIL_GCTX_AFFECTED_TESTS,
+            ANVIL_GCTX_GRAPH_STATS,
+            ANVIL_GCTX_GRAPH_EDGES,
         ]
         .into_iter()
         .collect();
@@ -1125,7 +1184,7 @@ mod tests {
         // Count pin: no silent additions, no silent drops.
         assert_eq!(
             ALL_ANVIL_METHODS.len(),
-            14,
+            16,
             "ALL_ANVIL_METHODS count changed — pin and the named set must move together"
         );
         // Forward: every named const is listed.

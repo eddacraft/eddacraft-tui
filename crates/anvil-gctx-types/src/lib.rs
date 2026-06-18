@@ -16,7 +16,7 @@
 //! trust posture. Source-text egress (snippets) is a Phase-2 concern gated behind
 //! the `gctx.egress` flag and is intentionally unrepresentable here.
 
-use anvil_kernel_types::{SymbolIdentity, SymbolKind, Visibility};
+use anvil_kernel_types::{EdgeType, SymbolIdentity, SymbolKind, Visibility};
 use serde::{Deserialize, Serialize};
 
 /// Default page size when a query omits `limit`.
@@ -736,6 +736,163 @@ impl AffectedTestsOutcome {
             Self::Ready(report) if report.tests.is_empty() && report.coverage_gaps.is_empty() => {
                 GctxOutcome::Miss
             }
+            Self::Ready(_) => GctxOutcome::Hit,
+            Self::NotReady { .. } => GctxOutcome::Warming,
+            Self::Unavailable => GctxOutcome::Unavailable,
+            Self::Disabled => GctxOutcome::GraphDisabled,
+            Self::InvalidQuery { .. } => GctxOutcome::InvalidQuery,
+        }
+    }
+}
+
+// ============================================================================
+// GCTX-030 — `graph://` MCP resources (read-only graph summaries, ADR-084)
+// ============================================================================
+//
+// `graph://stats` and `graph://edges` add two new sealed, identity-only
+// projections. `graph://symbols` deliberately reuses the GCTX-010
+// `search_symbols` surface (it is "search with no filters"), so no new symbol
+// DTO is defined here.
+
+/// Workspace-wide graph counts (`graph://stats`). Counts-only and therefore
+/// itself safe to egress — it carries no names, paths, or content (CE-5).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GraphStatsProjection {
+    /// Resident symbols in the workspace symbol graph.
+    pub symbol_count: usize,
+    /// Resident edges in the symbol graph (imports, reexports, calls).
+    pub symbol_edge_count: usize,
+    /// Files tracked in the dependency graph.
+    pub file_count: usize,
+    /// Edges in the dependency graph (`importer → imported`).
+    pub dependency_edge_count: usize,
+}
+
+/// Status-tagged outcome of a `graph://stats` read. No query, so there is no
+/// `InvalidQuery` arm; the named degradation surface otherwise mirrors the other
+/// GCTX outcomes (ADR-084 CE-7).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum GraphStatsOutcome {
+    /// Graph readable (assurance `Clean`/`Stale`/`Bounded`): the counts.
+    Ready(GraphStatsProjection),
+    /// Graph not yet readable (warming, or cold and not yet save-populated).
+    NotReady {
+        /// Human-readable, enum-stable recovery guidance.
+        recovery_hint: String,
+    },
+    /// Daemon or graph unavailable; no fallback (CE-7).
+    Unavailable,
+    /// Operator kill-switch engaged (`ANVIL_GCTX_EGRESS=0`, CE-11).
+    Disabled,
+}
+
+impl GraphStatsOutcome {
+    /// Classify into the PII-free [`GctxOutcome`] telemetry enum (CE-10). A
+    /// readable stats response is always `Hit` — it is a summary, not a search,
+    /// so a zero-symbol workspace is still a successful read.
+    #[must_use]
+    pub fn telemetry_outcome(&self) -> GctxOutcome {
+        match self {
+            Self::Ready(_) => GctxOutcome::Hit,
+            Self::NotReady { .. } => GctxOutcome::Warming,
+            Self::Unavailable => GctxOutcome::Unavailable,
+            Self::Disabled => GctxOutcome::GraphDisabled,
+        }
+    }
+}
+
+/// One symbol-graph edge as identity-only endpoints + kind (`graph://edges`).
+/// Text-free: both endpoints are stable [`SymbolIdentity`] values (CE-5). The
+/// derived `Ord` is `(from, to, edge_type)` — the deterministic projection sort
+/// + keyset-cursor order.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct EdgeSummary {
+    /// The edge source symbol (identity-only).
+    pub from: SymbolIdentity,
+    /// The edge target symbol (identity-only).
+    pub to: SymbolIdentity,
+    /// The edge kind (`imports`, `reexports`, `calls`, …).
+    pub edge_type: EdgeType,
+}
+
+/// Query for `graph://edges`: an optional source-file filter plus pagination.
+/// Identity-only and graph-free, like the other GCTX queries.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GraphEdgesQuery {
+    /// When set, only edges whose **source** symbol is in this
+    /// workspace-root-relative file (case-sensitive exact path) are returned.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub file: Option<String>,
+    /// Maximum edges to return in this page. Clamped to [`MAX_PAGE_LIMIT`];
+    /// absent uses [`DEFAULT_PAGE_LIMIT`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub limit: Option<u32>,
+    /// Opaque server-minted pagination cursor (CE-6); echo a prior
+    /// `next_cursor`. Valid only for the filter it was minted against.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<OpaqueCursor>,
+}
+
+impl GraphEdgesQuery {
+    /// Page size: client `limit` clamped to `1..=`[`MAX_PAGE_LIMIT`], or
+    /// [`DEFAULT_PAGE_LIMIT`] when absent (mirrors [`SearchSymbolsQuery`]).
+    #[must_use]
+    pub fn effective_limit(&self) -> usize {
+        self.limit
+            .unwrap_or(DEFAULT_PAGE_LIMIT)
+            .clamp(1, MAX_PAGE_LIMIT) as usize
+    }
+}
+
+/// The identity-only projection returned when the graph is readable.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GraphEdgesProjection {
+    /// Edge summaries, ordered deterministically by `(from, to, edge_type)`.
+    pub edges: Vec<EdgeSummary>,
+    /// Opaque next-page cursor when more edges remain, else `None`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<OpaqueCursor>,
+    /// Counts-only elision summary (CE-11).
+    pub redaction_summary: RedactionSummary,
+    /// `true` when the daemon's edge enumeration hit its per-call bound, so edges
+    /// beyond it were never collected and `redaction_summary.matched` is a
+    /// **lower bound**, not the true total. The returned (paginated) prefix is
+    /// complete and stable; the graph simply has more edges than one pass
+    /// surfaces. Distinct from `redaction_summary.truncated` ("more pages of
+    /// *this* set follow"). Defaults false.
+    #[serde(default)]
+    pub bounded: bool,
+}
+
+/// Status-tagged outcome of a `graph://edges` read (ADR-084 CE-7).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum GraphEdgesOutcome {
+    /// Graph readable: identity-only edges, possibly empty.
+    Ready(GraphEdgesProjection),
+    /// Graph not yet readable (warming/cold).
+    NotReady {
+        /// Human-readable, enum-stable recovery guidance.
+        recovery_hint: String,
+    },
+    /// Daemon or graph unavailable; no fallback (CE-7).
+    Unavailable,
+    /// Operator kill-switch engaged (`ANVIL_GCTX_EGRESS=0`, CE-11).
+    Disabled,
+    /// The query/cursor was rejected before any read (CE-6 validation).
+    InvalidQuery {
+        /// Why the query was rejected.
+        reason: String,
+    },
+}
+
+impl GraphEdgesOutcome {
+    /// Classify into the PII-free [`GctxOutcome`] telemetry enum (CE-10).
+    #[must_use]
+    pub fn telemetry_outcome(&self) -> GctxOutcome {
+        match self {
+            Self::Ready(projection) if projection.edges.is_empty() => GctxOutcome::Miss,
             Self::Ready(_) => GctxOutcome::Hit,
             Self::NotReady { .. } => GctxOutcome::Warming,
             Self::Unavailable => GctxOutcome::Unavailable,
@@ -1573,5 +1730,184 @@ mod tests {
         ] {
             assert_eq!(outcome.telemetry_outcome().as_str(), label);
         }
+    }
+
+    // --- GCTX-030 graph:// resources ---
+
+    fn sample_edge() -> EdgeSummary {
+        EdgeSummary {
+            from: sample_identity(),
+            to: SymbolIdentity {
+                file: "src/util.ts".into(),
+                kind: SymbolKind::Function,
+                name: "helper".into(),
+                ordinal: 0,
+            },
+            edge_type: EdgeType::Calls,
+        }
+    }
+
+    fn sample_edges_projection() -> GraphEdgesProjection {
+        GraphEdgesProjection {
+            edges: vec![sample_edge()],
+            next_cursor: Some(OpaqueCursor::new("ab12".into())),
+            redaction_summary: RedactionSummary {
+                matched: 5,
+                returned: 1,
+                truncated: true,
+            },
+            bounded: false,
+        }
+    }
+
+    #[test]
+    fn graph_stats_projection_is_counts_only_and_round_trips() {
+        let projection = GraphStatsProjection {
+            symbol_count: 12,
+            symbol_edge_count: 30,
+            file_count: 4,
+            dependency_edge_count: 7,
+        };
+        let v = serde_json::to_value(projection).unwrap();
+        // Counts-only: no string values at all, so nothing to leak (CE-5).
+        assert_no_absolute_path_values(&v);
+        assert_no_forbidden_keys(
+            &v,
+            &[
+                "span", "byte", "text", "body", "snippet", "trust", "content",
+            ],
+        );
+        let back: GraphStatsProjection = serde_json::from_value(v).unwrap();
+        assert_eq!(projection, back);
+    }
+
+    #[test]
+    fn graph_stats_outcome_is_status_tagged_and_classifies_every_variant() {
+        let ready = GraphStatsOutcome::Ready(GraphStatsProjection::default());
+        let v = serde_json::to_value(&ready).unwrap();
+        assert_eq!(v["status"], Value::String("ready".into()));
+        // A readable stats response is always a hit — even an empty workspace.
+        assert_eq!(ready.telemetry_outcome().as_str(), "hit");
+        for (outcome, label) in [
+            (
+                GraphStatsOutcome::NotReady {
+                    recovery_hint: "warming".into(),
+                },
+                "warming",
+            ),
+            (GraphStatsOutcome::Unavailable, "unavailable"),
+            (GraphStatsOutcome::Disabled, "graph_disabled"),
+        ] {
+            let back: GraphStatsOutcome =
+                serde_json::from_str(&serde_json::to_string(&outcome).unwrap()).unwrap();
+            assert_eq!(outcome, back);
+            assert_eq!(outcome.telemetry_outcome().as_str(), label);
+        }
+    }
+
+    #[test]
+    fn edge_summary_is_identity_only_no_leak() {
+        let v = serde_json::to_value(sample_edge()).unwrap();
+        assert_no_absolute_path_values(&v);
+        // Identity-only endpoints + kind — no span/byte/text/body/snippet/trust.
+        assert_no_forbidden_keys(
+            &v,
+            &[
+                "span", "byte", "text", "body", "snippet", "trust", "content",
+            ],
+        );
+        // Exactly the three sealed fields.
+        let obj = v.as_object().unwrap();
+        let mut keys: Vec<&str> = obj.keys().map(String::as_str).collect();
+        keys.sort_unstable();
+        assert_eq!(keys, vec!["edge_type", "from", "to"]);
+    }
+
+    #[test]
+    fn graph_edges_projection_carries_no_absolute_path_values() {
+        assert_no_absolute_path_values(&serde_json::to_value(sample_edges_projection()).unwrap());
+    }
+
+    #[test]
+    fn graph_edges_outcome_is_status_tagged_and_classifies_every_variant() {
+        let ready = GraphEdgesOutcome::Ready(sample_edges_projection());
+        let v = serde_json::to_value(&ready).unwrap();
+        assert_eq!(v["status"], Value::String("ready".into()));
+        assert_eq!(ready.telemetry_outcome().as_str(), "hit");
+        // An empty page is a miss.
+        let empty = GraphEdgesOutcome::Ready(GraphEdgesProjection {
+            edges: Vec::new(),
+            next_cursor: None,
+            redaction_summary: RedactionSummary::default(),
+            bounded: false,
+        });
+        assert_eq!(empty.telemetry_outcome().as_str(), "miss");
+        for (outcome, label) in [
+            (
+                GraphEdgesOutcome::NotReady {
+                    recovery_hint: "warming".into(),
+                },
+                "warming",
+            ),
+            (GraphEdgesOutcome::Unavailable, "unavailable"),
+            (GraphEdgesOutcome::Disabled, "graph_disabled"),
+            (
+                GraphEdgesOutcome::InvalidQuery {
+                    reason: "bad cursor".into(),
+                },
+                "invalid_query",
+            ),
+        ] {
+            let back: GraphEdgesOutcome =
+                serde_json::from_str(&serde_json::to_string(&outcome).unwrap()).unwrap();
+            assert_eq!(outcome, back);
+            assert_eq!(outcome.telemetry_outcome().as_str(), label);
+        }
+    }
+
+    #[test]
+    fn graph_edges_query_skips_absent_filters_and_round_trips() {
+        let q = GraphEdgesQuery {
+            file: Some("src/a.ts".into()),
+            ..Default::default()
+        };
+        let json = serde_json::to_string(&q).unwrap();
+        assert!(!json.contains("cursor"));
+        assert!(!json.contains("limit"));
+        let back: GraphEdgesQuery = serde_json::from_str(&json).unwrap();
+        assert_eq!(q, back);
+        assert_eq!(
+            GraphEdgesQuery::default().effective_limit(),
+            DEFAULT_PAGE_LIMIT as usize
+        );
+    }
+
+    #[test]
+    fn edge_summary_orders_by_from_then_to_then_kind() {
+        // Ord drives the deterministic projection sort + keyset cursor, so each
+        // tier of the (from, to, edge_type) key must actually break the tie.
+        // `to` breaks a tie when `from` is equal.
+        let a = sample_edge();
+        let mut b = sample_edge();
+        b.to.name = "zzz".into();
+        assert!(a < b, "equal from, lower `to` sorts first");
+
+        // `edge_type` breaks a tie when both `from` and `to` are equal. Declared
+        // order is Contains < References < Calls < Imports < Reexports, so a
+        // `Calls` edge sorts before an otherwise-identical `Imports` edge.
+        let calls = EdgeSummary {
+            edge_type: EdgeType::Calls,
+            ..sample_edge()
+        };
+        let imports = EdgeSummary {
+            edge_type: EdgeType::Imports,
+            ..sample_edge()
+        };
+        assert_eq!(calls.from, imports.from);
+        assert_eq!(calls.to, imports.to);
+        assert!(
+            calls < imports,
+            "equal endpoints: edge_type breaks the tie (Calls < Imports)"
+        );
     }
 }

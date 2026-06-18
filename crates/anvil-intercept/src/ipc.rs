@@ -40,6 +40,7 @@ use std::time::{Duration, Instant};
 use anvil_intercept_proto::protocol::{
     GctxAffectedTestsRequest, GctxAffectedTestsResponse, GctxFindCallersRequest,
     GctxFindCallersResponse, GctxFindDependentsRequest, GctxFindDependentsResponse,
+    GctxGraphEdgesRequest, GctxGraphEdgesResponse, GctxGraphStatsRequest, GctxGraphStatsResponse,
     GctxImpactOfChangeRequest, GctxImpactOfChangeResponse, GctxSearchSymbolsRequest,
     GctxSearchSymbolsResponse, RequestFullScanRequest, RequestFullScanResponse,
     ValidatePathsRequest, ValidatePathsResponse, WorkspaceStatusRequest, WorkspaceStatusResponse,
@@ -161,6 +162,39 @@ pub trait GctxDispatch: Send {
         &mut self,
         request: &GctxAffectedTestsRequest,
     ) -> Result<GctxAffectedTestsResponse, SaveTimeError>;
+
+    /// Project workspace-wide graph counts (GCTX-030 `graph://stats`): resident
+    /// symbols, symbol-graph edges, files, and dependency edges. Counts-only, so
+    /// the response is trivially CE-5-safe. The `workspace_root` is admitted
+    /// against this connection's admitted-root set (ADR-084 C3) before any read.
+    ///
+    /// Like the sibling GCTX verbs, degradation rides in-band in the response
+    /// `outcome` (CE-7); the only `Err` returns are connection-level.
+    ///
+    /// # Errors
+    /// [`SaveTimeError::NotAdmitted`] when the root is refused;
+    /// [`SaveTimeError::Io`] when an admissible root cannot be opened.
+    fn graph_stats(
+        &mut self,
+        request: &GctxGraphStatsRequest,
+    ) -> Result<GctxGraphStatsResponse, SaveTimeError>;
+
+    /// Project an identity-only, paginated edge enumeration (GCTX-030
+    /// `graph://edges`): `(from, to, edge_type)` summaries over the resident
+    /// symbol graph, optionally filtered to one source file (daemon-side CE-5
+    /// projection). The `workspace_root` is admitted against this connection's
+    /// admitted-root set (ADR-084 C3) before any read.
+    ///
+    /// Like the sibling GCTX verbs, degradation rides in-band in the response
+    /// `outcome` (CE-7); the only `Err` returns are connection-level.
+    ///
+    /// # Errors
+    /// [`SaveTimeError::NotAdmitted`] when the root is refused;
+    /// [`SaveTimeError::Io`] when an admissible root cannot be opened.
+    fn graph_edges(
+        &mut self,
+        request: &GctxGraphEdgesRequest,
+    ) -> Result<GctxGraphEdgesResponse, SaveTimeError>;
 }
 
 /// DSV-005: the save-time verb surface the JSON-RPC dispatch arm routes to.
@@ -2629,6 +2663,8 @@ pub const COMMAND_INVOKED_ALLOWLIST: &[&str] = &[
     anvil_intercept_proto::protocol::ANVIL_GCTX_FIND_CALLERS,
     anvil_intercept_proto::protocol::ANVIL_GCTX_IMPACT_OF_CHANGE,
     anvil_intercept_proto::protocol::ANVIL_GCTX_AFFECTED_TESTS,
+    anvil_intercept_proto::protocol::ANVIL_GCTX_GRAPH_STATS,
+    anvil_intercept_proto::protocol::ANVIL_GCTX_GRAPH_EDGES,
     "unblock-cascade",
     "fence.unblock-cascade",
     "unblock-worktree",
@@ -2956,6 +2992,34 @@ async fn handle_jsonrpc_request<D: SessionDispatcher>(
         });
     }
 
+    // GCTX graph-stats summary (GCTX-030 / ADR-084): same read-only
+    // `GctxDispatch` surface — never the enforcement path.
+    if method == anvil_intercept_proto::protocol::ANVIL_GCTX_GRAPH_STATS {
+        return dispatch_span.in_scope(|| {
+            handle_gctx_graph_stats_jsonrpc(
+                params,
+                response_id,
+                traceparent,
+                is_notification,
+                save_time,
+            )
+        });
+    }
+
+    // GCTX graph-edges enumeration (GCTX-030 / ADR-084): same read-only
+    // `GctxDispatch` surface — never the enforcement path.
+    if method == anvil_intercept_proto::protocol::ANVIL_GCTX_GRAPH_EDGES {
+        return dispatch_span.in_scope(|| {
+            handle_gctx_graph_edges_jsonrpc(
+                params,
+                response_id,
+                traceparent,
+                is_notification,
+                save_time,
+            )
+        });
+    }
+
     dispatch_span.in_scope(|| {
         dispatch_session_jsonrpc(
             method,
@@ -3197,6 +3261,70 @@ fn handle_gctx_find_callers_jsonrpc(
     };
     match serde_json::from_value::<GctxFindCallersRequest>(params.clone()) {
         Ok(request) => save_time_result(dispatch.find_callers(&request), response_id, traceparent),
+        Err(err) => save_time_invalid_params(response_id, traceparent, &err),
+    }
+}
+
+/// Route the GCTX graph-stats verb (GCTX-030 / ADR-084) to the per-connection
+/// dispatcher. Mirrors [`handle_gctx_find_callers_jsonrpc`].
+fn handle_gctx_graph_stats_jsonrpc(
+    params: &Value,
+    response_id: Option<Value>,
+    traceparent: Option<&str>,
+    is_notification: bool,
+    save_time: Option<&mut (dyn SaveTimeDispatch + '_)>,
+) -> Option<Value> {
+    if is_notification {
+        tracing::warn!(
+            target: "anvil_intercept::gctx",
+            "ignoring gctx verb sent as a notification: request id required",
+        );
+        return None;
+    }
+    let Some(dispatch) = save_time else {
+        return jsonrpc_request_error(
+            response_id,
+            traceparent,
+            false,
+            -32601,
+            "Method not found",
+            json!({"reason": "graph-context delivery is not enabled on this daemon"}),
+        );
+    };
+    match serde_json::from_value::<GctxGraphStatsRequest>(params.clone()) {
+        Ok(request) => save_time_result(dispatch.graph_stats(&request), response_id, traceparent),
+        Err(err) => save_time_invalid_params(response_id, traceparent, &err),
+    }
+}
+
+/// Route the GCTX graph-edges verb (GCTX-030 / ADR-084) to the per-connection
+/// dispatcher. Mirrors [`handle_gctx_find_callers_jsonrpc`].
+fn handle_gctx_graph_edges_jsonrpc(
+    params: &Value,
+    response_id: Option<Value>,
+    traceparent: Option<&str>,
+    is_notification: bool,
+    save_time: Option<&mut (dyn SaveTimeDispatch + '_)>,
+) -> Option<Value> {
+    if is_notification {
+        tracing::warn!(
+            target: "anvil_intercept::gctx",
+            "ignoring gctx verb sent as a notification: request id required",
+        );
+        return None;
+    }
+    let Some(dispatch) = save_time else {
+        return jsonrpc_request_error(
+            response_id,
+            traceparent,
+            false,
+            -32601,
+            "Method not found",
+            json!({"reason": "graph-context delivery is not enabled on this daemon"}),
+        );
+    };
+    match serde_json::from_value::<GctxGraphEdgesRequest>(params.clone()) {
+        Ok(request) => save_time_result(dispatch.graph_edges(&request), response_id, traceparent),
         Err(err) => save_time_invalid_params(response_id, traceparent, &err),
     }
 }
@@ -4982,11 +5110,12 @@ mod tests {
                  deliberate USAGE-004 decision"
             );
         }
-        // Count pin: 5 GCTX query methods are allowlisted; the rest are
-        // excluded. Moving either set must move this assertion.
+        // Count pin: 7 GCTX query methods are allowlisted (search/dependents/
+        // callers/impact/affected-tests + the GCTX-030 graph_stats/graph_edges
+        // resources); the rest are excluded. Moving either set must move this.
         assert_eq!(
             ALL_ANVIL_METHODS.len(),
-            EXCLUDED.len() + 5,
+            EXCLUDED.len() + 7,
             "ALL_ANVIL_METHODS changed — reclassify the new method for USAGE-004"
         );
     }

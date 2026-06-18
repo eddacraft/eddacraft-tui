@@ -245,6 +245,8 @@ fn handle_message(message: &Value) -> Option<Value> {
         Some("ping") => id.map(|id| success_response(id, &json!({}))),
         Some("tools/list") => id.map(tools_list_response),
         Some("tools/call") => id.map(|id| tools_call_response(id, message)),
+        Some("resources/list") => id.map(resources_list_response),
+        Some("resources/read") => id.map(|id| resources_read_response(id, message)),
         Some(_) => id.map(|id| error_response(id, -32601, "Method not found")),
         None => id.map(|id| error_response(id, -32600, "Invalid Request")),
     }
@@ -338,7 +340,8 @@ fn initialize_response(id: &Value, message: &Value) -> Value {
     let result = json!({
         "protocolVersion": protocol_version,
         "capabilities": {
-            "tools": {}
+            "tools": {},
+            "resources": {}
         },
         "instructions": SERVER_INSTRUCTIONS,
         "serverInfo": {
@@ -362,6 +365,41 @@ fn tools_list_response(id: &Value) -> Value {
             "tools": tools
         }),
     )
+}
+
+fn resources_list_response(id: &Value) -> Value {
+    success_response(
+        id,
+        &json!({
+            "resources": crate::mcp::resources::list()
+        }),
+    )
+}
+
+fn resources_read_response(id: &Value, message: &Value) -> Value {
+    let Some(params) = message.get("params").and_then(Value::as_object) else {
+        return error_response(id, -32602, "Invalid params");
+    };
+    let Some(uri) = params.get("uri").and_then(Value::as_str) else {
+        return error_response(id, -32602, "Invalid params");
+    };
+    match crate::mcp::resources::read(uri) {
+        Ok(result) => success_response(id, &result),
+        // A client mistake (unknown URI / malformed query) is -32602; a
+        // server-side daemon transport fault is -32603 (council CR-2).
+        Err(err @ crate::mcp::resources::ReadError::BadRequest(_)) => error_response_with_data(
+            id,
+            -32602,
+            "Invalid params",
+            &json!({ "reason": err.reason(), "uri": uri }),
+        ),
+        Err(err @ crate::mcp::resources::ReadError::Internal(_)) => error_response_with_data(
+            id,
+            -32603,
+            "Internal error",
+            &json!({ "reason": err.reason(), "uri": uri }),
+        ),
+    }
 }
 
 fn tools_call_response(id: &Value, message: &Value) -> Value {

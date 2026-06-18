@@ -49,13 +49,15 @@ use anvil_checks::antipattern::types::AntipatternCheckConfig;
 use anvil_gctx_egress::GctxProjector;
 use anvil_gctx_types::{
     AffectedTestsOutcome, AffectedTestsQuery, FindCallersOutcome, FindCallersQuery,
-    FindDependentsOutcome, FindDependentsQuery, ImpactOutcome, ImpactQuery, MAX_CHANGED_FILES,
-    SearchSymbolsOutcome, SearchSymbolsQuery,
+    FindDependentsOutcome, FindDependentsQuery, GraphEdgesOutcome, GraphEdgesQuery,
+    GraphStatsOutcome, ImpactOutcome, ImpactQuery, MAX_CHANGED_FILES, SearchSymbolsOutcome,
+    SearchSymbolsQuery,
 };
 use anvil_graph_cache::clamp_reverse_impact_depth;
 use anvil_intercept_proto::protocol::{
     AssuranceState, GctxAffectedTestsRequest, GctxAffectedTestsResponse, GctxFindCallersRequest,
     GctxFindCallersResponse, GctxFindDependentsRequest, GctxFindDependentsResponse,
+    GctxGraphEdgesRequest, GctxGraphEdgesResponse, GctxGraphStatsRequest, GctxGraphStatsResponse,
     GctxImpactOfChangeRequest, GctxImpactOfChangeResponse, GctxSearchSymbolsRequest,
     GctxSearchSymbolsResponse, RequestFullScanRequest, RequestFullScanResponse, StaleReason,
     ValidatePathsRequest, ValidatePathsResponse, WorkspaceAssurance, WorkspaceStatusRequest,
@@ -1104,6 +1106,87 @@ impl GctxDispatch for SaveTimeConn<'_> {
         })
     }
 
+    fn graph_stats(
+        &mut self,
+        request: &GctxGraphStatsRequest,
+    ) -> Result<GctxGraphStatsResponse, SaveTimeError> {
+        let root = PathBuf::from(&request.workspace_root);
+        let originating_session = self.originating_session.clone();
+        let state = self.state;
+        // ADR-084 C3 / CE-8: admit the client-supplied root before any read.
+        authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        let canonical = canonical_root(&root)?;
+        let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
+        let key = WorktreeKey::from_canonical(canonical);
+
+        // CE-7: the assurance snapshot always rides along.
+        let workspace_assurance =
+            state.with_machine(&key, correlation, |machine| machine.snapshot());
+
+        let outcome =
+            gctx_graph_stats_outcome(state, &key, &workspace_assurance, gctx_egress_disabled());
+
+        // CE-10: enum-only telemetry — counts only, never paths or names.
+        tracing::info!(
+            target: "anvil_intercept::gctx",
+            outcome = outcome.telemetry_outcome().as_str(),
+            "gctx graph_stats served",
+        );
+
+        Ok(GctxGraphStatsResponse {
+            workspace_assurance,
+            outcome,
+        })
+    }
+
+    fn graph_edges(
+        &mut self,
+        request: &GctxGraphEdgesRequest,
+    ) -> Result<GctxGraphEdgesResponse, SaveTimeError> {
+        let root = PathBuf::from(&request.workspace_root);
+        let originating_session = self.originating_session.clone();
+        let state = self.state;
+        // ADR-084 C3 / CE-8: admit the client-supplied root before any read.
+        authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        let canonical = canonical_root(&root)?;
+        let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
+        let key = WorktreeKey::from_canonical(canonical);
+
+        // CE-7: the assurance snapshot always rides along.
+        let workspace_assurance =
+            state.with_machine(&key, correlation, |machine| machine.snapshot());
+
+        let outcome = gctx_graph_edges_outcome(
+            state,
+            &key,
+            &workspace_assurance,
+            &request.query,
+            gctx_egress_disabled(),
+        );
+
+        // CE-10: enum-only telemetry + response-aggregate counts — never edge
+        // identities or query text.
+        let (matched, returned) = match &outcome {
+            GraphEdgesOutcome::Ready(projection) => (
+                projection.redaction_summary.matched,
+                projection.redaction_summary.returned,
+            ),
+            _ => (0, 0),
+        };
+        tracing::info!(
+            target: "anvil_intercept::gctx",
+            outcome = outcome.telemetry_outcome().as_str(),
+            matched,
+            returned,
+            "gctx graph_edges served",
+        );
+
+        Ok(GctxGraphEdgesResponse {
+            workspace_assurance,
+            outcome,
+        })
+    }
+
     fn impact_of_change(
         &mut self,
         request: &GctxImpactOfChangeRequest,
@@ -1459,6 +1542,102 @@ fn gctx_find_callers_outcome(
                 },
             }
         }
+    }
+}
+
+/// Compute the GCTX `graph_stats` outcome (GCTX-030). Kill-switch, CE-7
+/// degradation, then read the counts under the lock. No query, so no
+/// `InvalidQuery` arm; a readable graph (even an empty one) is always `Ready`.
+fn gctx_graph_stats_outcome(
+    state: &SaveTimeState,
+    key: &WorktreeKey,
+    assurance: &WorkspaceAssurance,
+    egress_disabled: bool,
+) -> GraphStatsOutcome {
+    if egress_disabled {
+        return GraphStatsOutcome::Disabled;
+    }
+    match assurance.state {
+        AssuranceState::Unavailable | AssuranceState::Unknown => GraphStatsOutcome::Unavailable,
+        AssuranceState::Pending | AssuranceState::Running => GraphStatsOutcome::NotReady {
+            recovery_hint: "the workspace graph is warming; retry shortly".to_string(),
+        },
+        AssuranceState::Clean | AssuranceState::Stale | AssuranceState::Bounded => {
+            // C2: read the counts under the lock; the projection is counts-only.
+            let collected = state.cache.with_graphs(key, |sym, dep| {
+                GctxProjector::project_stats(
+                    sym.node_count(),
+                    sym.edge_count(),
+                    dep.file_count(),
+                    dep.edge_count(),
+                )
+            });
+            match collected {
+                Some(projection) => GraphStatsOutcome::Ready(projection),
+                None => GraphStatsOutcome::NotReady {
+                    recovery_hint: concat!(
+                        "the workspace graph is not yet populated; ",
+                        "save a file or request a full scan to warm it"
+                    )
+                    .to_string(),
+                },
+            }
+        }
+    }
+}
+
+/// Compute the GCTX `graph_edges` outcome (GCTX-030). Kill-switch, CE-6 query
+/// validation, CE-7 degradation, collect-under-lock / project-after.
+fn gctx_graph_edges_outcome(
+    state: &SaveTimeState,
+    key: &WorktreeKey,
+    assurance: &WorkspaceAssurance,
+    query: &GraphEdgesQuery,
+    egress_disabled: bool,
+) -> GraphEdgesOutcome {
+    if egress_disabled {
+        return GraphEdgesOutcome::Disabled;
+    }
+    if let Some(reason) = invalid_graph_edges_query_reason(query) {
+        return GraphEdgesOutcome::InvalidQuery { reason };
+    }
+    match assurance.state {
+        AssuranceState::Unavailable | AssuranceState::Unknown => GraphEdgesOutcome::Unavailable,
+        AssuranceState::Pending | AssuranceState::Running => GraphEdgesOutcome::NotReady {
+            recovery_hint: "the workspace graph is warming; retry shortly".to_string(),
+        },
+        AssuranceState::Clean | AssuranceState::Stale | AssuranceState::Bounded => {
+            // C2: collect under the lock (symbol graph), project after release.
+            let collected = state.cache.with_graphs(key, |sym, _dep| {
+                GctxProjector::collect_all_edges(sym, query.file.as_deref())
+            });
+            match collected {
+                Some((candidates, bounded)) => {
+                    match GctxProjector::project_edges(candidates, query, bounded) {
+                        Ok(projection) => GraphEdgesOutcome::Ready(projection),
+                        Err(reason) => GraphEdgesOutcome::InvalidQuery { reason },
+                    }
+                }
+                None => GraphEdgesOutcome::NotReady {
+                    recovery_hint: concat!(
+                        "the workspace graph is not yet populated; ",
+                        "save a file or request a full scan to warm it"
+                    )
+                    .to_string(),
+                },
+            }
+        }
+    }
+}
+
+/// CE-6 query hygiene for `graph_edges`: the optional `file` filter, when set,
+/// must be a valid workspace-relative path. `cursor` validity is checked in the
+/// projector.
+fn invalid_graph_edges_query_reason(query: &GraphEdgesQuery) -> Option<String> {
+    match query.file.as_deref() {
+        Some("") => Some("file must not be empty".to_string()),
+        Some(file) => invalid_relative_path_reason("file", file),
+        None => None,
     }
 }
 

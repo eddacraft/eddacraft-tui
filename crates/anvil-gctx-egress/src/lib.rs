@@ -19,13 +19,14 @@
 use std::path::Path;
 
 use anvil_gctx_types::{
-    AffectedTestsReport, AffectedTestsSummary, CallerSummary, DependentSummary,
+    AffectedTestsReport, AffectedTestsSummary, CallerSummary, DependentSummary, EdgeSummary,
     FindCallersProjection, FindCallersQuery, FindDependentsProjection, FindDependentsQuery,
-    ImpactReport, ImpactSummary, OpaqueCursor, RedactionSummary, SearchSymbolsProjection,
-    SearchSymbolsQuery, SymbolSummary, TestEvidence,
+    GraphEdgesProjection, GraphEdgesQuery, GraphStatsProjection, ImpactReport, ImpactSummary,
+    OpaqueCursor, RedactionSummary, SearchSymbolsProjection, SearchSymbolsQuery, SymbolSummary,
+    TestEvidence,
 };
 use anvil_graph_cache::{DependencyGraph, SymbolGraph};
-use anvil_kernel_types::{SymbolIdentity, SymbolKind, SymbolNode, Visibility};
+use anvil_kernel_types::{EdgeType, SymbolIdentity, SymbolKind, SymbolNode, Visibility};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
@@ -782,6 +783,183 @@ impl GctxProjector {
             summary,
         }
     }
+
+    /// Build the counts-only `graph://stats` projection (GCTX-030). Pure
+    /// construction from aggregate counts the caller reads under the lock — there
+    /// is nothing to seal (no names, paths, or content), so this is trivially
+    /// CE-5-safe and needs no lock itself.
+    #[must_use]
+    pub fn project_stats(
+        symbol_count: usize,
+        symbol_edge_count: usize,
+        file_count: usize,
+        dependency_edge_count: usize,
+    ) -> GraphStatsProjection {
+        GraphStatsProjection {
+            symbol_count,
+            symbol_edge_count,
+            file_count,
+            dependency_edge_count,
+        }
+    }
+
+    /// Collect identity-only `(from, to, edge_type)` edge summaries from the
+    /// resident symbol graph (GCTX-030 `graph://edges`). Returns the summaries and
+    /// a `bounded` flag (`true` when the [`MAX_EDGES_WALK`] enumeration bound was
+    /// hit, so some edges were not collected and the matched count is a lower
+    /// bound).
+    ///
+    /// **Call this under the cache lock** (it borrows `graph`). When
+    /// `file_filter` is `Some`, only edges whose **source** symbol is in that
+    /// workspace-root-relative file are collected; the target may live in any
+    /// file. Both endpoints are resolved to stable [`SymbolIdentity`] via a
+    /// `node id → identity` map built once over **all** files (so a cross-file
+    /// `to` endpoint always resolves), so an edge is emitted only when **both**
+    /// endpoints resolve to a non-absolute-path resident symbol (CE-5 defence in
+    /// depth — a synthetic node with an absolute file is dropped). An external
+    /// module node (file == a bare import specifier like `node:fs` or a scoped
+    /// package) is *not* absolute-path-like, so an `imports`/`reexports` edge to it
+    /// IS surfaced — the same identity surface GCTX-010 `search_symbols` already
+    /// egresses (PV-9 identity-only); it exposes the dependency relationship, not
+    /// source content.
+    ///
+    /// **Determinism (council ADV-1/ADV-2/KM-1):** `file_names()` is a `HashMap`
+    /// iterator (unordered) and `outgoing_edges()` is petgraph insertion order, so
+    /// this **sorts** the file list and each node's resolved outgoing edges before
+    /// applying the bound. The collected prefix under [`MAX_EDGES_WALK`] is
+    /// therefore the same set on every call, so keyset pagination over it stays
+    /// stable. The returned summaries own their data, so the caller releases the
+    /// lock before calling [`GctxProjector::project_edges`].
+    #[must_use]
+    pub fn collect_all_edges(
+        graph: &SymbolGraph,
+        file_filter: Option<&str>,
+    ) -> (Vec<EdgeSummary>, bool) {
+        // Pass 1: one `symbols_in_file` per file (cached for pass 2), building the
+        // global node id → identity map. Files held in a Vec so pass 2 can visit
+        // them in a deterministic sorted order.
+        let mut by_file: Vec<(&str, Vec<&SymbolNode>)> = Vec::new();
+        let mut identities: std::collections::HashMap<u64, SymbolIdentity> =
+            std::collections::HashMap::new();
+        for file in graph.file_names() {
+            if is_absolute_path_like(file) {
+                continue;
+            }
+            let symbols = graph.symbols_in_file(file);
+            let resolved = SymbolIdentity::for_file_symbols(&symbols);
+            for (node, identity) in symbols.iter().zip(resolved) {
+                identities.insert(node.id, identity);
+            }
+            by_file.push((file, symbols));
+        }
+        by_file.sort_by(|a, b| a.0.cmp(b.0));
+
+        // Pass 2: walk sorted files, and within each node its outgoing edges in
+        // sorted `(to, edge_type)` order, so the bounded prefix is deterministic.
+        let mut out = Vec::new();
+        let mut bounded = false;
+        'walk: for (file, symbols) in &by_file {
+            if let Some(filter) = file_filter
+                && *file != filter
+            {
+                continue;
+            }
+            for node in symbols {
+                let Some(from) = identities.get(&node.id) else {
+                    continue;
+                };
+                let mut resolved_edges: Vec<(SymbolIdentity, EdgeType)> = graph
+                    .outgoing_edges(node.id)
+                    .into_iter()
+                    .filter_map(|edge| {
+                        identities
+                            .get(&edge.to)
+                            .map(|to| (to.clone(), edge.edge_type))
+                    })
+                    .collect();
+                resolved_edges.sort();
+                for (to, edge_type) in resolved_edges {
+                    out.push(EdgeSummary {
+                        from: from.clone(),
+                        to,
+                        edge_type,
+                    });
+                    if out.len() >= MAX_EDGES_WALK {
+                        bounded = true;
+                        break 'walk;
+                    }
+                }
+            }
+        }
+        (out, bounded)
+    }
+
+    /// Sort, paginate, and seal collected edges into the `graph://edges`
+    /// projection (GCTX-030). **Call this after releasing the cache lock.**
+    ///
+    /// Ordering is the deterministic total order on [`EdgeSummary`]
+    /// (`from`, `to`, `edge_type`). Pagination is the same CE-6 keyset scheme as
+    /// the other GCTX surfaces: the server-minted opaque `next_cursor` encodes the
+    /// last returned edge plus a fingerprint of the query's `file` filter.
+    ///
+    /// # Errors
+    ///
+    /// Returns the rejection reason when the supplied `cursor` is malformed,
+    /// oversized, or was minted for a different `file` filter.
+    pub fn project_edges(
+        mut candidates: Vec<EdgeSummary>,
+        query: &GraphEdgesQuery,
+        bounded: bool,
+    ) -> Result<GraphEdgesProjection, String> {
+        candidates.sort();
+        candidates.dedup();
+        let matched = candidates.len();
+        let fingerprint = edges_fingerprint(query);
+
+        let start = match &query.cursor {
+            None => 0,
+            Some(cursor) => {
+                if cursor.as_str().len() > MAX_CURSOR_BYTES {
+                    return Err("pagination cursor is too long".to_string());
+                }
+                let payload = decode_cursor::<EdgesCursorPayload>(cursor)
+                    .ok_or_else(|| "malformed pagination cursor".to_string())?;
+                if payload.fingerprint != fingerprint {
+                    return Err("pagination cursor does not match this query's filters".to_string());
+                }
+                candidates.partition_point(|e| *e <= payload.last)
+            }
+        };
+
+        let limit = query.effective_limit();
+        let mut page = if start >= candidates.len() {
+            Vec::new()
+        } else {
+            candidates.split_off(start)
+        };
+        let has_more = page.len() > limit;
+        page.truncate(limit);
+
+        let next_cursor = has_more.then(|| {
+            let last = page.last().expect("a page with more rows is non-empty");
+            encode_cursor(&EdgesCursorPayload {
+                fingerprint,
+                last: last.clone(),
+            })
+        });
+
+        let returned = page.len();
+        Ok(GraphEdgesProjection {
+            redaction_summary: RedactionSummary {
+                matched,
+                returned,
+                truncated: next_cursor.is_some(),
+            },
+            edges: page,
+            next_cursor,
+            bounded,
+        })
+    }
 }
 
 /// The owned, identity-only pieces [`GctxProjector::collect_affected_tests`]
@@ -919,10 +1097,13 @@ fn is_test_file(path: &str) -> bool {
 /// a server-minted opaque token the client echoes back, and it must hold a
 /// hex-encoded [`SymbolIdentity`] whose `file` path can approach `PATH_MAX`
 /// (~4 KiB) — hex doubling that already exceeds 512 bytes for a legitimate deep
-/// path. 8 KiB comfortably covers a `PATH_MAX` identity while still bounding
-/// hex-decode work on a hostile oversized token (the IPC frame cap is the outer
-/// limit). A real cursor is a few hundred bytes.
-const MAX_CURSOR_BYTES: usize = 8 * 1024;
+/// path. 16 KiB comfortably covers the largest legitimate payload — the
+/// GCTX-030 edges cursor encodes **two** `SymbolIdentity` values (`from` + `to`),
+/// so two `PATH_MAX` paths hex-doubled can approach 16 KiB on pathologically deep
+/// monorepo paths (council ADV-4); the single-identity cursors stay far under it.
+/// Still bounds hex-decode work on a hostile oversized token (the IPC frame cap
+/// is the outer limit). A real cursor is a few hundred bytes.
+const MAX_CURSOR_BYTES: usize = 16 * 1024;
 
 /// Hard cap on the number of dependents [`GctxProjector::collect_dependents`]
 /// materialises in a single lock-held pass. Two depth hops over a barrel file can
@@ -1078,6 +1259,48 @@ fn callers_fingerprint(query: &FindCallersQuery, depth: u32) -> u64 {
         depth,
     };
     let bytes = serde_json::to_vec(&filters).expect("callers filters serialise");
+    fnv1a(&bytes)
+}
+
+/// Hard cap on the edges [`GctxProjector::collect_all_edges`] materialises in one
+/// lock-held pass (GCTX-030). A dense monorepo graph has O(edges) edges; this
+/// bounds the lock-held allocation well above any honest page
+/// (`MAX_PAGE_LIMIT` = 200) while capping the pathological case. The bound is
+/// applied over the sorted-file / outgoing-edge walk, so truncation is
+/// deterministic and keyset pagination stays stable across it.
+const MAX_EDGES_WALK: usize = 50_000;
+
+/// The decoded contents of an edges [`OpaqueCursor`]: the keyset seek position
+/// (last returned edge) plus a fingerprint binding it to the query's `file`
+/// filter.
+#[derive(Serialize, Deserialize)]
+struct EdgesCursorPayload {
+    /// Fingerprint of the `file` filter — see [`edges_fingerprint`].
+    #[serde(rename = "q")]
+    fingerprint: u64,
+    /// The last [`EdgeSummary`] returned on the previous page; the next page
+    /// resumes strictly after it in `(from, to, edge_type)` order.
+    #[serde(rename = "k")]
+    last: EdgeSummary,
+}
+
+/// A deterministic fingerprint of a `graph://edges` query's `file` filter
+/// (domain-separated by a surface tag so it can never match another GCTX
+/// cursor). The `file` is **not** case-normalised — `collect_all_edges` does an
+/// exact case-sensitive path match, mirroring [`dependents_fingerprint`]. Page
+/// size is excluded so `limit` may change mid-walk. FNV-1a over the canonical
+/// serialised filter (reproducible, non-randomly-seeded — PV-2).
+fn edges_fingerprint(query: &GraphEdgesQuery) -> u64 {
+    #[derive(Serialize)]
+    struct Filters<'a> {
+        surface: &'static str,
+        file: Option<&'a str>,
+    }
+    let filters = Filters {
+        surface: "graph_edges",
+        file: query.file.as_deref(),
+    };
+    let bytes = serde_json::to_vec(&filters).expect("edges filters serialise");
     fnv1a(&bytes)
 }
 
@@ -2562,5 +2785,163 @@ mod tests {
         assert!(report.coverage_gaps.is_empty());
         assert_eq!(report.summary.changed_files, 0);
         assert!(report.heuristic);
+    }
+
+    // --- GCTX-030 graph:// resources ---
+
+    fn edge(
+        from: u64,
+        to: u64,
+        edge_type: anvil_kernel_types::EdgeType,
+    ) -> anvil_kernel_types::SymbolEdge {
+        anvil_kernel_types::SymbolEdge {
+            from,
+            to,
+            edge_type,
+        }
+    }
+
+    fn edges_graph() -> SymbolGraph {
+        use anvil_kernel_types::EdgeType;
+        let mut g = graph_of(vec![
+            node(1, "a", "src/a.ts", SymbolKind::Function, Visibility::Public),
+            node(2, "b", "src/b.ts", SymbolKind::Function, Visibility::Public),
+            node(
+                3,
+                "c",
+                "src/a.ts",
+                SymbolKind::Function,
+                Visibility::Internal,
+            ),
+        ]);
+        g.add_edge(edge(1, 2, EdgeType::Calls)).unwrap();
+        g.add_edge(edge(3, 2, EdgeType::Imports)).unwrap();
+        g
+    }
+
+    #[test]
+    fn project_stats_constructs_counts() {
+        let p = GctxProjector::project_stats(12, 30, 4, 7);
+        assert_eq!(p.symbol_count, 12);
+        assert_eq!(p.symbol_edge_count, 30);
+        assert_eq!(p.file_count, 4);
+        assert_eq!(p.dependency_edge_count, 7);
+    }
+
+    #[test]
+    fn collect_all_edges_resolves_both_endpoints_to_identity() {
+        let g = edges_graph();
+        let (edges, bounded) = GctxProjector::collect_all_edges(&g, None);
+        // Both edges resolve (every endpoint is a resident, relative-path symbol).
+        assert_eq!(edges.len(), 2);
+        assert!(!bounded);
+        // Every endpoint is identity-only with a relative path.
+        for e in &edges {
+            assert!(!e.from.file.starts_with('/'));
+            assert!(!e.to.file.starts_with('/'));
+        }
+    }
+
+    #[test]
+    fn collect_all_edges_is_deterministic_across_calls() {
+        // Determinism guard (council ADV-1/ADV-2): the sorted file + sorted edge
+        // walk must yield byte-identical results on repeat calls, even though the
+        // underlying file_names()/outgoing_edges() iteration order is unspecified.
+        let g = edges_graph();
+        let (first, _) = GctxProjector::collect_all_edges(&g, None);
+        for _ in 0..8 {
+            let (again, _) = GctxProjector::collect_all_edges(&g, None);
+            assert_eq!(first, again, "collect_all_edges must be deterministic");
+        }
+    }
+
+    #[test]
+    fn project_edges_orders_and_paginates_deterministically() {
+        let g = edges_graph();
+        let (candidates, bounded) = GctxProjector::collect_all_edges(&g, None);
+        let page1 = GctxProjector::project_edges(
+            candidates.clone(),
+            &GraphEdgesQuery {
+                limit: Some(1),
+                ..Default::default()
+            },
+            bounded,
+        )
+        .unwrap();
+        assert_eq!(page1.edges.len(), 1);
+        assert_eq!(page1.redaction_summary.matched, 2);
+        assert!(page1.redaction_summary.truncated);
+        assert!(!page1.bounded);
+        let cursor = page1.next_cursor.clone().expect("more pages");
+
+        let page2 = GctxProjector::project_edges(
+            candidates,
+            &GraphEdgesQuery {
+                limit: Some(1),
+                cursor: Some(cursor),
+                ..Default::default()
+            },
+            bounded,
+        )
+        .unwrap();
+        assert_eq!(page2.edges.len(), 1);
+        assert!(!page2.redaction_summary.truncated);
+        // The two pages are disjoint and in ascending (from, to, edge_type) order.
+        assert!(page1.edges[0] < page2.edges[0]);
+    }
+
+    #[test]
+    fn project_edges_propagates_bounded_flag() {
+        let g = edges_graph();
+        let (candidates, _) = GctxProjector::collect_all_edges(&g, None);
+        let p =
+            GctxProjector::project_edges(candidates, &GraphEdgesQuery::default(), true).unwrap();
+        assert!(
+            p.bounded,
+            "the collection-bound signal must reach the projection"
+        );
+    }
+
+    #[test]
+    fn project_edges_rejects_cursor_from_a_different_filter() {
+        let g = edges_graph();
+        let (candidates, bounded) = GctxProjector::collect_all_edges(&g, None);
+        let page1 = GctxProjector::project_edges(
+            candidates.clone(),
+            &GraphEdgesQuery {
+                limit: Some(1),
+                ..Default::default()
+            },
+            bounded,
+        )
+        .unwrap();
+        let cursor = page1.next_cursor.unwrap();
+        // Same cursor, but now with a `file` filter → fingerprint mismatch.
+        let err = GctxProjector::project_edges(
+            candidates,
+            &GraphEdgesQuery {
+                file: Some("src/a.ts".into()),
+                cursor: Some(cursor),
+                ..Default::default()
+            },
+            bounded,
+        )
+        .unwrap_err();
+        assert!(err.contains("does not match"), "{err}");
+    }
+
+    #[test]
+    fn collect_all_edges_file_filter_scopes_to_source_file() {
+        let g = edges_graph();
+        // Only edges whose source symbol is in src/a.ts: a→b (id 1) and c→b (id 3).
+        let (edges, _) = GctxProjector::collect_all_edges(&g, Some("src/a.ts"));
+        assert_eq!(edges.len(), 2);
+        assert!(edges.iter().all(|e| e.from.file == "src/a.ts"));
+        // A filter matching no source file yields nothing.
+        assert!(
+            GctxProjector::collect_all_edges(&g, Some("src/missing.ts"))
+                .0
+                .is_empty()
+        );
     }
 }

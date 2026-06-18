@@ -466,7 +466,7 @@ fn mcp_serve_stdio_unsupported_method_returns_method_not_found() {
             json!({
                 "jsonrpc": "2.0",
                 "id": 7,
-                "method": "resources/list"
+                "method": "prompts/list"
             })
         )
         .expect("failed to send unsupported method frame");
@@ -486,6 +486,143 @@ fn mcp_serve_stdio_unsupported_method_returns_method_not_found() {
     assert_eq!(parsed["jsonrpc"], "2.0");
     assert_eq!(parsed["id"], 7);
     assert_eq!(parsed["error"]["code"], -32601);
+}
+
+#[test]
+fn mcp_serve_stdio_resources_list_advertises_graph_resources() {
+    let mut child = spawn_mcp_server();
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(
+            stdin,
+            "{}",
+            json!({ "jsonrpc": "2.0", "id": 11, "method": "resources/list" })
+        )
+        .expect("failed to send resources/list frame");
+    }
+    drop(child.stdin.take());
+
+    let line = recv_stdout_line(&mut child, &stdout_rx);
+    let status = wait_for_exit(&mut child);
+    assert!(
+        status.success(),
+        "mcp server must exit cleanly; status: {status:?}"
+    );
+
+    let parsed: Value = serde_json::from_str(&line).expect("resources/list response is JSON");
+    assert_eq!(parsed["id"], 11);
+    let uris: Vec<&str> = parsed["result"]["resources"]
+        .as_array()
+        .expect("resources is an array")
+        .iter()
+        .filter_map(|r| r["uri"].as_str())
+        .collect();
+    assert!(uris.contains(&"graph://symbols"), "got {uris:?}");
+    assert!(uris.contains(&"graph://edges"), "got {uris:?}");
+    assert!(uris.contains(&"graph://stats"), "got {uris:?}");
+}
+
+#[test]
+fn mcp_serve_stdio_resources_read_stats_returns_contents() {
+    let mut child = spawn_mcp_server();
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(
+            stdin,
+            "{}",
+            json!({
+                "jsonrpc": "2.0",
+                "id": 12,
+                "method": "resources/read",
+                "params": { "uri": "graph://stats" }
+            })
+        )
+        .expect("failed to send resources/read frame");
+    }
+    drop(child.stdin.take());
+
+    let line = recv_stdout_line(&mut child, &stdout_rx);
+    let status = wait_for_exit(&mut child);
+    assert!(
+        status.success(),
+        "mcp server must exit cleanly; status: {status:?}"
+    );
+
+    let parsed: Value = serde_json::from_str(&line).expect("resources/read response is JSON");
+    assert_eq!(parsed["id"], 12);
+    // The read returns a contents envelope whose text is the sealed outcome.
+    // Without a running daemon the outcome degrades to `unavailable` (CE-7) —
+    // still a well-formed contents reply, never a fallback or an error.
+    let contents = parsed["result"]["contents"]
+        .as_array()
+        .expect("contents is an array");
+    assert_eq!(contents.len(), 1);
+    assert_eq!(contents[0]["uri"], "graph://stats");
+    assert_eq!(contents[0]["mimeType"], "application/json");
+    let text = contents[0]["text"]
+        .as_str()
+        .expect("contents text is a string");
+    let outcome: Value = serde_json::from_str(text).expect("contents text is JSON");
+    assert!(
+        outcome.get("outcome").is_some(),
+        "carries a sealed outcome: {outcome}"
+    );
+}
+
+/// CR-3: <graph://symbols> and <graph://edges> (the paginated resources) also round
+/// trip through resources/read, degrading to a sealed `unavailable` outcome with
+/// no daemon — same contract as <graph://stats>.
+#[test]
+fn mcp_serve_stdio_resources_read_symbols_and_edges_return_contents() {
+    for (id, uri) in [(13, "graph://symbols?file=src/a.ts"), (14, "graph://edges")] {
+        let mut child = spawn_mcp_server();
+        let stdout = child.stdout.take().expect("child stdout is piped");
+        let stdout_rx = spawn_stdout_reader(stdout);
+        {
+            let stdin = child.stdin.as_mut().expect("child stdin is piped");
+            writeln!(
+                stdin,
+                "{}",
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": id,
+                    "method": "resources/read",
+                    "params": { "uri": uri }
+                })
+            )
+            .expect("failed to send resources/read frame");
+        }
+        drop(child.stdin.take());
+
+        let line = recv_stdout_line(&mut child, &stdout_rx);
+        let status = wait_for_exit(&mut child);
+        assert!(
+            status.success(),
+            "mcp server must exit cleanly; status: {status:?}"
+        );
+
+        let parsed: Value = serde_json::from_str(&line).expect("resources/read response is JSON");
+        assert_eq!(parsed["id"], id);
+        let base_uri = uri.split('?').next().unwrap();
+        let contents = parsed["result"]["contents"]
+            .as_array()
+            .unwrap_or_else(|| panic!("contents array for {uri}: {parsed}"));
+        assert_eq!(contents[0]["uri"], uri, "echoes the full request uri");
+        let text = contents[0]["text"]
+            .as_str()
+            .expect("contents text is a string");
+        let outcome: Value = serde_json::from_str(text).expect("contents text is JSON");
+        assert!(
+            outcome["outcome"]["status"].is_string(),
+            "{base_uri} carries a status-tagged sealed outcome: {outcome}"
+        );
+    }
 }
 
 #[test]
@@ -1397,6 +1534,12 @@ fn mcp_serve_stdio_initialize_does_not_advertise_prompts_capability() {
     assert!(
         capabilities.get("tools").is_some(),
         "tools capability must still be advertised",
+    );
+    // GCTX-030: the resources capability is advertised so clients call
+    // resources/list and resources/read.
+    assert!(
+        capabilities.get("resources").is_some(),
+        "GCTX-030 resources capability must be advertised, got {capabilities:?}",
     );
 }
 

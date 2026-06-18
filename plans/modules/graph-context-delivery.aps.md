@@ -676,7 +676,7 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-030: `graph://` MCP resources
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Expose safe graph summaries and stats as read-only MCP resources —
   the identity-only **resource** surface, distinct from (and not dependent on) the
   Phase-2 snippet tools GCTX-020..023.
