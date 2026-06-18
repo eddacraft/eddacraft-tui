@@ -823,14 +823,10 @@ fn existing_pid_status(record: &str) -> ExistingPidStatus {
         return ExistingPidStatus::Stale;
     }
 
-    if let (Some(expected), Some(actual)) = (recorded_start_time, process_start_time(pid)) {
-        if expected == actual {
-            ExistingPidStatus::Live
-        } else {
-            ExistingPidStatus::Stale
-        }
-    } else {
-        ExistingPidStatus::Live
+    match (recorded_start_time, process_start_time(pid)) {
+        (Some(expected), Some(actual)) if expected == actual => ExistingPidStatus::Live,
+        (Some(_), Some(_)) => ExistingPidStatus::Stale,
+        _ => ExistingPidStatus::Unknown,
     }
 }
 
@@ -859,6 +855,7 @@ enum StopPlan {
     Signal { pid: u32 },
     ClearStale { pid: u32 },
     Malformed,
+    Unproven,
 }
 
 fn parse_pid_record(record: &str) -> Option<u32> {
@@ -878,7 +875,7 @@ fn plan_stop(record: Option<&str>, classify: impl Fn(&str) -> ExistingPidStatus)
     match classify(record) {
         ExistingPidStatus::Live => StopPlan::Signal { pid },
         ExistingPidStatus::Stale => StopPlan::ClearStale { pid },
-        ExistingPidStatus::Unknown => StopPlan::Malformed,
+        ExistingPidStatus::Unknown => StopPlan::Unproven,
     }
 }
 
@@ -898,12 +895,20 @@ pub fn request_daemon_stop() -> Result<StopOutcome> {
 
 #[cfg(unix)]
 fn stop_daemon_at(path: &Path) -> Result<StopOutcome> {
-    let record = match fs::read_to_string(path) {
-        Ok(record) => Some(record),
+    let record = match fs::symlink_metadata(path) {
+        Ok(metadata) => {
+            if metadata.file_type().is_symlink() {
+                anyhow::bail!("refusing symlink PID file {}", path.display());
+            }
+            Some(
+                fs::read_to_string(path)
+                    .with_context(|| format!("failed to read PID file {}", path.display()))?,
+            )
+        }
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => None,
         Err(err) => {
             return Err(anyhow::Error::new(err))
-                .with_context(|| format!("failed to read PID file {}", path.display()));
+                .with_context(|| format!("failed to inspect PID file {}", path.display()));
         }
     };
     match plan_stop(record.as_deref(), existing_pid_status) {
@@ -927,6 +932,11 @@ fn stop_daemon_at(path: &Path) -> Result<StopOutcome> {
         StopPlan::Malformed => anyhow::bail!(
             "PID file {} is malformed (no parseable daemon PID); remove it manually if the \
              daemon is not running",
+            path.display(),
+        ),
+        StopPlan::Unproven => anyhow::bail!(
+            "PID file {} cannot be proven to identify the live daemon; refusing to signal it. \
+             Remove it manually if the daemon is not running",
             path.display(),
         ),
     }
@@ -1579,7 +1589,23 @@ mod tests {
         // either way must not blindly signal an arbitrary PID.
         assert_eq!(
             plan_stop(Some("4321\n"), |_| ExistingPidStatus::Unknown),
-            StopPlan::Malformed
+            StopPlan::Unproven
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn stop_daemon_refuses_symlink_pid_file() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let target = dir.path().join("target.pid");
+        let link = dir.path().join("intercept.pid");
+        fs::write(&target, "4321\n").expect("write target");
+        std::os::unix::fs::symlink(&target, &link).expect("symlink pid file");
+
+        let err = stop_daemon_at(&link).expect_err("symlink should be refused");
+        assert!(
+            err.to_string().contains("refusing symlink PID file"),
+            "unexpected error: {err:#}",
         );
     }
 
