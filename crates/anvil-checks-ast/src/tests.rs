@@ -378,6 +378,16 @@ fn rs005_does_not_fire_on_other_macros() {
     assert!(!fires("src/lib.rs", src, "RS-005"));
 }
 
+#[test]
+fn rs005_does_not_fire_inside_macro_rules_template() {
+    // External-FP dogfood (tokio doc-only macro stubs): a `todo!()` /
+    // `unimplemented!()` inside a `macro_rules!` transcriber is a template
+    // token tree, not a macro_invocation, so the AST query never captures it.
+    let src =
+        "macro_rules! stub {\n    () => {\n        unimplemented!()\n    };\n}\nfn keep() {}\n";
+    assert!(!fires("src/lib.rs", src, "RS-005"));
+}
+
 // --- Cross-cutting ----------------------------------------------------------
 
 #[test]

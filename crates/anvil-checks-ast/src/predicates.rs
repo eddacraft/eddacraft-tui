@@ -7,7 +7,7 @@
 
 use tree_sitter::Node;
 
-/// The four AST-detection rules this crate implements. Each maps 1:1 to a
+/// The AST-detection rules this crate implements (RS-001..RS-005). Each maps 1:1 to a
 /// `Detection::Ast` rule id in the compiled registry; [`kind_for`] is the
 /// predicate table ADR-071 §3 requires every registry AST rule to have an entry
 /// in (enforced by the registry-completeness guard test).
