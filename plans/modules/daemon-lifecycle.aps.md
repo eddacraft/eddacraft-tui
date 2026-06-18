@@ -2,9 +2,17 @@
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| DLIFE | Josh  | In Progress | 5/6      |
+| DLIFE | Josh  | In Progress | 6/6      |
 
-**Last reviewed:** 2026-06-18 (**DLIFE-004 Merged 2026-06-18 via PR #2759** —
+**Last reviewed:** 2026-06-18 (**DLIFE-005 Merged 2026-06-18 via PR #2765** —
+public docs, CLI long help, beta guide, troubleshooting, and release notes now
+describe one `start` auto-start / `watch` offer / `--no-daemon` (soft) vs
+`ANVIL_WATCH_DAEMON=0` (hard) opt-out model, reserving
+`anvil intercept start --foreground` for operator/debug use; lifecycle attributed
+to the unreleased `v0.9.0-beta` window (it landed after the `v0.8.1-beta` tag).
+Added `start`/`watch --help` tests pinning the lifecycle long help against drift.
+Module **6/6 — all work items merged**; status stays In Progress until a release
+tag records the ship. Prior, 2026-06-18: **DLIFE-004 Merged 2026-06-18 via PR #2759** —
 `anvil watch check` now follows the ADR-082 tiered posture: an interactive TTY
 with no live daemon **offers** to start one (decline → scoped fallback), while
 headless / `--json` / CI / hook / piped contexts **fall back deterministically**
@@ -156,7 +164,7 @@ operator/debugging surface.
 
 ### DLIFE-005: Align docs, help text, and runbooks with daemon lifecycle
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-18 via PR #2765
 - **Intent:** Replace guidance-only daemon startup instructions with the accepted user-facing lifecycle model.
 - **Expected Outcome:** Public docs, CLI long help, beta testing guide, troubleshooting, and release notes all describe the same `start`/`watch`/opt-out behaviour and reserve `anvil intercept start --foreground` for operator/debugging use.
 - **Validation:** `pnpm docs:check`; `pnpm docs:index:check`; `pnpm aps:index:check`; targeted help-text tests pass.
