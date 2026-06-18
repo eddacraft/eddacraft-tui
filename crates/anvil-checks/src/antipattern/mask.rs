@@ -260,6 +260,17 @@ fn mask_line(line: &str, carry: Carry) -> (String, Carry) {
                 // Real code inside `${ … }` — keep verbatim so the rules scan
                 // it. Track brace depth so an inner `{ … }` (object literal,
                 // block) does not end the interpolation early.
+                //
+                // Brace counting is intentionally lexer-light: it counts every
+                // `{`/`}` without re-masking strings/comments inside the
+                // interpolation. Fully re-lexing it (to also mask a `!`/`any`
+                // inside an interpolation *string*, or to skip a brace inside
+                // one) needs a context stack — and a naive version mis-handles
+                // *nested* template literals (common in real code), leaking
+                // template-text state to end-of-file and masking real
+                // assertions. That trade-off (rare interpolation-string edge vs.
+                // common nested-template correctness) is tracked as a follow-up;
+                // counting raw braces keeps nested templates correct here.
                 out.push(c);
                 match c {
                     '{' => interp_depth += 1,

@@ -1484,7 +1484,7 @@ mod tests {
                 .warnings
                 .iter()
                 .any(|w| w.id == "AP-003"),
-            "`as any` inside a `${{…}}` interpolation must still fire (real code)"
+            "`as any` inside the `${{cfg as any}}` interpolation must still fire (real code)"
         );
     }
 
