@@ -1470,3 +1470,13 @@ a backlog. Promote repeated friction or executable follow-up work to
   active `CARGO_TARGET_DIR`.
 - **Follow-up:** Promote a CIB item if the tee/cargo-test failure recurs on the
   next benchmark run.
+### 2026-06-18 — claude
+
+- **Task:** Fix failing "Acknowledgements freshness" CI job on a dependency-bump PR.
+- **Outcome:** Regenerated `ACKNOWLEDGEMENTS.md` so the freshness check now passes for the `uuid` 1.23.3 bump.
+- **Worked:** Pulling the exact failing job logs first made the fix deterministic and kept scope to one generated file.
+- **Failed:** Local pre-change validation was partially blocked because repo-wide JS checks need dependencies that were not installed in this worktree.
+- **Friction:** The acknowledgements generator needs both `cargo-about` and `tools/dev` node tooling available to reproduce CI locally.
+- **Improvement:** For dependency-update PRs, run the acknowledgements generation flow immediately after lockfile changes to avoid late CI failures.
+- **Follow-up:** none
+
