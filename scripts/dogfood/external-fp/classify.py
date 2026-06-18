@@ -42,7 +42,8 @@ def load_warnings(path):
     if not path.exists():
         return None
     try:
-        return json.load(open(path)).get("warnings", [])
+        with open(path, "r") as fh:
+            return json.load(fh).get("warnings", [])
     except json.JSONDecodeError:
         return None
 
