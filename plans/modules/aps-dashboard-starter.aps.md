@@ -127,7 +127,7 @@ Status is **In Progress** because APSDASH-001 is staged in this branch:
   Council before the lift.
 - **Validation:** Council sign-off on the scrubbed copy; the published component
   builds + tests green against crates.io `eddacraft-tui` in its home-repo CI.
-- **Confidence:** medium — mechanically clear, but gated on the legal decision.
+- **Confidence:** medium — mechanically clear, with remaining risk concentrated in the scrubbed-copy review and home-repo CI lift.
 
 ### APSDASH-004: Re-develop into a standalone shippable component
 

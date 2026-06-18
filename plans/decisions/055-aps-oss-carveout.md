@@ -2,7 +2,7 @@
 
 ## Status
 
-**Accepted** — 2026-06-18 (legal gate cleared by operator approval)
+Accepted (2026-06-18; legal gate cleared by operator approval)
 
 > The legal gate (explicit sign-off from `legal@eddacraft.ai` for the
 > `LicenseRef-Proprietary` → Apache-2.0 carve-out) has been satisfied. The
@@ -11,7 +11,7 @@
 
 ## Date
 
-2026-05-27
+2026-06-18
 
 ## Context
 
