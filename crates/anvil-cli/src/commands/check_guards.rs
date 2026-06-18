@@ -163,9 +163,11 @@ pub(crate) fn pattern_matches(pattern: &str, file: &str) -> bool {
     // Bare-extension or basename glob — anchor on the basename only.
     if let Some(ext) = pattern.strip_prefix("*.") {
         let basename = file.rsplit_once('/').map_or(file, |(_, name)| name);
+        // Case-insensitive on the extension to match the surface scanners
+        // (e.g. `is_shell_file`), so `RUN.SH` / `build.BaSh` stay in scope.
         return basename
             .rsplit_once('.')
-            .is_some_and(|(_, file_ext)| file_ext == ext);
+            .is_some_and(|(_, file_ext)| file_ext.eq_ignore_ascii_case(ext));
     }
 
     // Prefix recursion: `dir/**` matches anything under `dir/`.
@@ -185,7 +187,7 @@ pub(crate) fn pattern_matches(pattern: &str, file: &str) -> bool {
         }
         return stripped
             .rsplit_once('.')
-            .is_some_and(|(_, ext)| ext == rest);
+            .is_some_and(|(_, ext)| ext.eq_ignore_ascii_case(rest));
     }
 
     // Literal match — exact workspace-relative path.
@@ -274,6 +276,19 @@ mod tests {
     #[test]
     fn double_star_prefix_strip_is_idempotent_for_extension_globs() {
         let result = evaluate_file_presence(&["**/*.sql"], &files(&["db/0001.sql", "src/main.rs"]));
+        assert_eq!(result, FileShapeGuard::Present(1));
+    }
+
+    #[test]
+    fn extension_globs_match_case_insensitively() {
+        // The file-presence guard aligns with the case-insensitive surface
+        // scanners (e.g. `is_shell_file`): an upper/mixed-case extension is
+        // still in scope, so the surface check is not silently skipped.
+        assert!(pattern_matches("*.sh", "ci/RUN.SH"));
+        assert!(pattern_matches("*.bash", "tools/build.BaSh"));
+        assert!(pattern_matches("migrations/*.sql", "migrations/0001.SQL"));
+        let result =
+            evaluate_file_presence(&["*.sh", "*.bash"], &files(&["scripts/DEPLOY.SH", "a.rs"]));
         assert_eq!(result, FileShapeGuard::Present(1));
     }
 
