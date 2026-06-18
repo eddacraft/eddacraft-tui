@@ -239,6 +239,46 @@ fn rs003_safety_requires_word_boundary() {
     assert!(fires("src/lib.rs", src, "RS-003"));
 }
 
+#[test]
+fn rs003_clean_with_multiline_safety_comment() {
+    // External-FP dogfood (tokio): `// SAFETY:` is the first line of a
+    // multi-line rationale block, so the comment immediately above the block is
+    // a continuation line. The SAFETY keyword anywhere in the contiguous
+    // comment run must be credited.
+    let src = "fn run() {\n    // SAFETY: p is valid because the caller upholds the\n    // invariant that it points to an initialised, aligned T.\n    unsafe { deref(p); }\n}\n";
+    assert!(!fires("src/lib.rs", src, "RS-003"));
+}
+
+#[test]
+fn rs003_clean_with_safety_comment_inside_block() {
+    // External-FP dogfood (tokio): `// SAFETY:` written as the first statement
+    // inside the unsafe block rather than above it.
+    let src = "fn run() {\n    unsafe {\n        // SAFETY: justified at the point of use\n        deref(p);\n    }\n}\n";
+    assert!(!fires("src/lib.rs", src, "RS-003"));
+}
+
+#[test]
+fn rs003_fires_when_comment_run_has_no_safety() {
+    // A multi-line comment run with no SAFETY keyword must still fire — the
+    // run-walk must not over-credit ordinary comments.
+    let src = "fn run() {\n    // just a note\n    // another note about the call\n    unsafe { deref(p); }\n}\n";
+    assert!(fires("src/lib.rs", src, "RS-003"));
+}
+
+#[test]
+fn rs003_excluded_in_test_target_path() {
+    // External-FP dogfood: `unsafe` in a tests/ target is test scaffolding, not
+    // shipped runtime code — mirror the RS-001/RS-002 test exclusion.
+    let src = "fn t() {\n    unsafe { deref(p); }\n}\n";
+    assert!(!fires("tests/integration.rs", src, "RS-003"));
+}
+
+#[test]
+fn rs003_excluded_in_cfg_test_module() {
+    let src = "#[cfg(test)]\nmod tests {\n    fn t() {\n        unsafe { deref(p); }\n    }\n}\n";
+    assert!(!fires("src/lib.rs", src, "RS-003"));
+}
+
 // --- RS-004 serde deny_unknown_fields --------------------------------------
 
 #[test]

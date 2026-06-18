@@ -182,23 +182,41 @@ fn token_tree_has_unnegated_test(tt: Node, src: &[u8], negated: bool) -> bool {
     false
 }
 
-/// RS-003 — true when the `unsafe` block already carries a `// SAFETY:` comment
-/// on an immediately-preceding sibling line at any level between the block and
-/// its enclosing statement (AST-sibling semantics, not byte proximity, so a
-/// blank line does not defeat it but an intervening statement does). Walking the
-/// chain — not just the statement anchor — covers a `// SAFETY:` written inside
-/// a `match` arm (the comment precedes the `match_arm`, not the whole `match`).
+/// RS-003 — true when the `unsafe` block already carries a `// SAFETY:` comment.
+///
+/// Credited in three positions (external-FP dogfood widened this from the
+/// original single-sibling check, which tokio/alacritty's idioms defeated):
+/// - anywhere in the **contiguous run** of comment siblings immediately
+///   preceding the block at any level up to its enclosing statement — so a
+///   multi-line `// SAFETY:` block whose keyword is on the first line, with
+///   continuation lines below, still counts (AST-sibling semantics, not byte
+///   proximity, so a blank line does not defeat it but an intervening statement
+///   does);
+/// - inside a `match` arm (the comment precedes the `match_arm`, not the whole
+///   `match`), covered by walking the chain rather than just the anchor;
+/// - as the **first statement inside** the block (`unsafe { // SAFETY: … }`).
+///
 /// The predicate fires when this returns `false`.
 #[must_use]
 pub(crate) fn has_preceding_safety_comment(unsafe_block: Node, src: &[u8]) -> bool {
+    if block_opens_with_safety_comment(unsafe_block, src) {
+        return true;
+    }
     let anchor = statement_anchor(unsafe_block);
     let mut cur = unsafe_block;
     loop {
-        if let Some(prev) = cur.prev_named_sibling()
-            && matches!(prev.kind(), "line_comment" | "block_comment")
-            && is_safety_comment(node_text(prev, src))
-        {
-            return true;
+        // Scan the whole contiguous run of preceding comment siblings — a
+        // multi-line `// SAFETY:` rationale is several `line_comment` nodes, and
+        // the keyword may sit on any of them, not just the line above.
+        let mut sib = cur.prev_named_sibling();
+        while let Some(prev) = sib {
+            if !matches!(prev.kind(), "line_comment" | "block_comment") {
+                break;
+            }
+            if is_safety_comment(node_text(prev, src)) {
+                return true;
+            }
+            sib = prev.prev_named_sibling();
         }
         if cur.id() == anchor.id() {
             return false;
@@ -208,6 +226,31 @@ pub(crate) fn has_preceding_safety_comment(unsafe_block: Node, src: &[u8]) -> bo
             None => return false,
         }
     }
+}
+
+/// True when a `// SAFETY:` comment is the leading content inside the block of
+/// an `unsafe_block` (`unsafe { // SAFETY: … }`). The scan stops at the first
+/// non-comment child so only a genuinely-leading safety rationale counts.
+fn block_opens_with_safety_comment(unsafe_block: Node, src: &[u8]) -> bool {
+    let mut top = unsafe_block.walk();
+    let Some(block) = unsafe_block
+        .named_children(&mut top)
+        .find(|n| n.kind() == "block")
+    else {
+        return false;
+    };
+    let mut cursor = block.walk();
+    for child in block.named_children(&mut cursor) {
+        match child.kind() {
+            "line_comment" | "block_comment" => {
+                if is_safety_comment(node_text(child, src)) {
+                    return true;
+                }
+            }
+            _ => break,
+        }
+    }
+    false
 }
 
 /// Climb to the node that sits directly in a statement list (`block`,
