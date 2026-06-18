@@ -132,7 +132,7 @@ operator/debugging surface.
 
 ### DLIFE-004: Make `anvil watch` start or offer daemon startup by default
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** Close the fallback-only gap for bare `anvil watch` while preserving explicit opt-out and machine-readable behaviour.
 - **Expected Outcome:** Bare `anvil watch` follows the accepted lifecycle posture when no daemon answers; `--no-daemon` and `ANVIL_WATCH_DAEMON=0` never start or prompt; `--json` and headless modes are deterministic and parse-safe.
 - **Validation:** Watch routing tests cover live daemon, absent daemon with startup allowed, absent daemon with startup disabled, daemon startup failure, JSON mode, non-TTY mode, and forced/disabled environment values.
