@@ -69,9 +69,11 @@
 
 ## BETA
 
-| Document                                                                   | Path                                       | Type  | Authority | Owner | Status |
-| -------------------------------------------------------------------------- | ------------------------------------------ | ----- | --------- | ----- | ------ |
-| [Beta User Test Scenarios](../../docs/testing/beta-user-test-scenarios.md) | `docs/testing/beta-user-test-scenarios.md` | Guide | Advisory  | BETA  | Live   |
+| Document                                                                       | Path                                       | Type  | Authority | Owner | Status |
+| ------------------------------------------------------------------------------ | ------------------------------------------ | ----- | --------- | ----- | ------ |
+| [Beta User Test Scenarios](../../docs/testing/beta-user-test-scenarios.md)     | `docs/testing/beta-user-test-scenarios.md` | Guide | Advisory  | BETA  | Live   |
+| [Pack Coverage Survey — Full](../../docs/surveys/pack-coverage-survey.md)      | `docs/surveys/pack-coverage-survey.md`     | Guide | Advisory  | BETA  | Live   |
+| [Pack Coverage Survey — Quick](../../docs/surveys/pack-coverage-quickstart.md) | `docs/surveys/pack-coverage-quickstart.md` | Guide | Advisory  | BETA  | Live   |
 
 ## CIB
 
