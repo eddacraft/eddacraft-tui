@@ -188,7 +188,7 @@ PRD format.
 
 - **Extensions**: `.md` (PRD, Architecture, Epic, Story formats)
 - **Status**: ✅ Fully implemented (November 2025)
-- **Version**: 1.0.0
+- **Version**: 0.1.2
 - **Code**: ~800 lines
 - **Tests**: 86 tests (all passing ✅) - exceeds 50+ target
 - **Coverage**: >95%

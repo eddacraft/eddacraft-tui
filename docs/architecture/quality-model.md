@@ -165,9 +165,14 @@ Workflow judgement.
 
 Continuous mode over checks and gates.
 
-- Watch mode reruns checks as files change.
+- Watch mode observes the workspace continuously: the kernel watcher emits
+  change events, and check evaluation is _deferred_ — dispatched through the
+  intercept daemon (`anvil-intercept-rules`) when it is wired, or run on the
+  next manual `anvil check`. Watch does not itself re-run the full check
+  pipeline inline on every change event.
 - It should be understood as continuous quality feedback, not as a separate
-  parallel quality system.
+  parallel quality system. See [`checks-as-built.md`](./checks-as-built.md) for
+  the live event-emission + deferred-dispatch path.
 
 ### `anvil doctor`
 

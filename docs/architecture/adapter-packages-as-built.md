@@ -803,16 +803,21 @@ documented in `plans/modules/bmad-v4-backward-compat.aps.md:34-52`. **Risk:**
 Medium for users on a v4 BMAD project — silent format misidentification.
 **Fix:** BMAD4-001 through BMAD4-008.
 
-### G-03: BMAD adapter version drift between code and README
+### G-03: BMAD adapter version drift between code and README — Resolved 2026-06-19 via V060F-023
 
 `packages/adapters/src/bmad/format-adapter.ts:43` declares `version: '0.1.2'`;
 `packages/adapters/README.md:191` documents BMAD adapter `version: 1.0.0`. The
 string is metadata-only (consumed by `AdapterMetadata` for telemetry-style
 reporting), not load-bearing for parsing, but the documented version is wrong.
 **Risk:** Low. **Fix:** update either side; preference is to bump the live
-constant since the adapter is documented as Complete.
+constant since the adapter is documented as Complete. **Resolved 2026-06-19
+(V060F-023):** aligned the README **down** to `0.1.2`, the reverse of the
+preference noted above. Rationale: the code constant is test-pinned
+(`packages/adapters/src/__tests__/bmad-format-adapter.test.ts:44` asserts
+`0.1.2`), so it is the enforced source of truth; bumping it would be a code +
+test change deferred out of the docs-only wave. The README was the drift.
 
-### G-04: Kindling observation count drift between header comment and body
+### G-04: Kindling observation count drift between header comment and body — Resolved 2026-06-19 via V060F-023
 
 `packages/kindling-integration/src/observation-contract.ts:4` says "Defines the
 9 observation kinds that Anvil must emit to Kindling." The file actually defines
@@ -821,7 +826,8 @@ hits; `packages/kindling-integration/CONTRACTS.md:38-54` and `README.md:88-101`
 also say 11; the test assertions count 11; the OpenAPI generator at
 `packages/kindling-integration/scripts/generate-openapi.ts:35-44` enumerates 11
 kinds). The "9" comment is a stale carry-over from an earlier scoping pass.
-**Risk:** Low (documentation-only). **Fix:** one-line comment update.
+**Risk:** Low (documentation-only). **Fix:** one-line comment update. **Resolved
+2026-06-19 (V060F-023):** the header comment now reads "11 observation kinds."
 
 ### G-05: APS module-status enum drift between live schema and public docs — Resolved 2026-05-12 via DOCGOV-003
 

@@ -1,5 +1,14 @@
 # eddacraft-tui
 
+> **⚠️ Historical archive — not the source of truth.** This is a
+> _pre-publication_ fork of `eddacraft-tui`. The crate is now published on
+> crates.io at `0.1.0` and consumed via the workspace dependency
+> (`Cargo.toml`); **the published crate is authoritative**. This fork diverges
+> from it — notably it is missing surfaces that exist only in the published
+> crate (e.g. the `editor` widget consumed by `tutorial/fix.rs`). Retained for
+> historical reference only; do not cite it for current widget behaviour. See
+> `git log` for pre-publication history.
+
 Shared Ratatui component library for the eddacraft product family.
 
 ## Modules

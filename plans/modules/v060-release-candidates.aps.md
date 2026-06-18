@@ -35,9 +35,15 @@ See: plans/aps-rules.md
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| V060F | —     | In Progress | 4/25     |
+| V060F | —     | In Progress | 17/25    |
 
-**Last reviewed:** 2026-05-12 (V060F-021 completed — tutorial legacy paths refreshed to reflect Rego policies and current CLI commands; V060F-020 completed — `TerminalGuard` + idempotent panic hook landed in `crates/anvil-cli/src/tui.rs`; previously: V060F-025 OPA runtime pin 2026-05-08, V060F-002..V060F-024 filed 2026-05-07)
+**Last reviewed:** 2026-06-19 (full triage pass + Wave 1 shipped — re-verified
+all 21 open items against HEAD; 8 closed as resolved-elsewhere:
+V060F-003/005/010/011/012/013/017/022; **Wave 1 (docs & hygiene) completed:
+V060F-008/009/014/023/024**; remaining 8 sequenced into Waves 2–4 — see
+"Triage 2026-06-19" below. Previously: V060F-021 + V060F-020 completed
+2026-05-12; V060F-025 OPA runtime pin 2026-05-08; V060F-002..V060F-024 filed
+2026-05-07)
 **Predecessor:** [v050-release-followups](./v050-release-followups.aps.md)
 **Sequencing context:** [`ROADMAP.md`](../../ROADMAP.md) +
 [`RELEASE-PLAN.md`](../../RELEASE-PLAN.md)
@@ -166,7 +172,10 @@ discovery.
   over IPC. Reframe runbook §3 / §4 recovery instructions back to
   `anvil intercept unblock` once shipped.
 - **Confidence:** high
-- **Status:** Open
+- **Status:** Done — superseded by RCLI3-017b (`anvil intercept unblock
+  --worktree` / `--all`), wired in `crates/anvil-cli/src/commands/intercept.rs`
+  (`Unblock(UnblockArgs)` → `dispatch_unblock_worktree`) over the existing
+  `FenceStore::unblock_worktree` data path. Closed in triage 2026-06-19.
 
 ---
 
@@ -214,7 +223,13 @@ discovery.
   Remove the `cfg(unix)` gate on `LocalDaemonValidationClient`.
 - **Confidence:** high (the path is proven by the status CLI; the
   validation client is one more consumer of the same primitives)
-- **Status:** Open
+- **Status:** Done — `daemonStatus` parity closed on Windows by MLP2-075
+  (`query_protection_claim` Windows named-pipe arm in
+  `crates/anvil-cli/src/mcp/validation.rs`, via
+  `anvil_intercept_win32::pipe_name_for_current_user`). The remaining Windows
+  *pre-write* IPC (`validate_pre_write` `cfg(unix)` arm) is intentionally out
+  of scope and tracked under the MLP2 / intercept Windows workstream, not
+  here. Closed in triage 2026-06-19.
 
 ---
 
@@ -279,7 +294,10 @@ discovery.
   top so readers land on the as-built first if they want shipping
   state.
 - **Confidence:** high (small doc edit)
-- **Status:** Open
+- **Status:** Done (Wave 1, 2026-06-19) — `docs/architecture/rust-kernel-spec.md`
+  status header reworded to "Spec — H1 design intent" with an authoritative
+  cross-link to `kernel-as-built.md`, plus a folded-in V060F-011 spec-vs-code
+  reconciliation block covering §5.2/§6.4/§7.2/§8.2/§9.3.
 
 ---
 
@@ -299,7 +317,10 @@ discovery.
   re-run). Cross-link `checks-as-built.md` §9.4 for the live
   state.
 - **Confidence:** high (small doc edit)
-- **Status:** Open
+- **Status:** Done (Wave 1, 2026-06-19) — `docs/architecture/quality-model.md`
+  `anvil watch` section now states the watcher emits change events and check
+  evaluation is deferred (intercept daemon / manual `anvil check`), with a
+  cross-link to `checks-as-built.md`.
 
 ---
 
@@ -323,7 +344,11 @@ discovery.
   the right home for new check work without rerunning the
   discovery.
 - **Confidence:** medium
-- **Status:** Open
+- **Status:** Done — `docs/architecture/checks-as-built.md` now records the
+  canonical owner split (`scan-performance` SCAN-NNN primary, with SURFENV /
+  AI-001 / AIGUARD subsets and archived `command-safety-surfaces`); ownership
+  is discoverable without rerunning the discovery, so no consolidated module
+  is needed. Closed in triage 2026-06-19.
 
 ---
 
@@ -354,7 +379,13 @@ discovery.
   moved/dropped/deferred, or (c) acknowledge as a known gap in the
   kernel as-built and leave the spec dormant. Pick per item.
 - **Confidence:** low (mixed scope)
-- **Status:** Open
+- **Status:** Done — per-item triage complete (2026-06-19): (a) Rust parser
+  **built** (`crates/anvil-kernel/src/parser/languages.rs` registers `Rust`
+  alongside the tail languages); (e) daemon-mode transport tracked as
+  KERN-050..052 → INTD per ADR-030 (INTD Complete). The residual spec-doc
+  reconciliation for (b) AST-snapshot-to-disk, (c) `Heartbeat` payload, and
+  (d) declarative-DSL-now-in-`anvil-policy` is a single doc edit that rides
+  **V060F-008** (same file). No standalone code work remains; item closed.
 
 ---
 
@@ -378,7 +409,10 @@ discovery.
   `idx_audit_log_metadata_email_lower` row in the schema list with
   the migration that introduced it. Refresh "Last reviewed" date.
 - **Confidence:** high (small targeted doc edit)
-- **Status:** Open
+- **Status:** Done — `docs/architecture/auth-as-built.md` now carries the
+  `### GitHub OAuth Flow` subsection (cites `auth-github.ts`) and lists the
+  `idx_audit_log_metadata_email_lower` index in the schema list. Closed in
+  triage 2026-06-19.
 
 ---
 
@@ -402,7 +436,10 @@ discovery.
   conceptually correct, or (c) delete it. Status quo is the worst
   option because it implies coverage that doesn't exist.
 - **Confidence:** medium (depends on triage decision)
-- **Status:** Open
+- **Status:** Done — no longer dead code: `is_sensitive_field()` is now
+  consumed via `redact_arg()` in `crates/anvil-cli/src/usage.rs` (USAGE-001,
+  live 2026-06-14), so the deny-list backs a real redaction path. Closed in
+  triage 2026-06-19.
 
 ---
 
@@ -427,7 +464,14 @@ discovery.
   enforced and what's advisory. (a) is more work but kills the
   drift class permanently.
 - **Confidence:** medium
-- **Status:** Open
+- **Status:** Done (Wave 1, 2026-06-19) — scope reduced to the doc-side per-row
+  wiring markers (option b) and shipped: every row in
+  `docs/observability/namespace-registry.md` now opens with a **Wired** /
+  **Not yet wired** / **Out-of-tree** marker plus a legend; the registry now
+  reflects that `anvil.cli.*`/`anvil.intercept.*` (TRACE-004) and
+  `anvil.usage.*` (USAGE-001) are wired, not just `anvil.flags.*`. The
+  build-time validation hook (option a) was triaged out as gold-plating —
+  defer unless a drift regression appears.
 
 ---
 
@@ -508,7 +552,10 @@ discovery.
   docs and accept the constraint as a v1 trade-off.
 - **Confidence:** medium (the trade-off is real; the choice is
   hard)
-- **Status:** Open
+- **Status:** Done — resolved by ADR-051: the workspace `[profile.release]`
+  is `panic = "unwind"` (`Cargo.toml`), so `RuleRegistry`'s `catch_unwind`
+  isolation (`crates/anvil-intercept-rules/src/registry.rs`) holds in release
+  as well as debug/test. Closed in triage 2026-06-19.
 
 ---
 
@@ -558,7 +605,12 @@ discovery.
   cleaner; (b) is a stopgap.
 - **Confidence:** high (the retirement path is documented; the
   attribution drift is a small Node-CLI fix)
-- **Status:** Open
+- **Status:** Open (scope reduced 2026-06-19) — the `X-Admin-Actor`
+  attribution drift is **resolved by design**: `admin-auth.ts` now derives
+  the actor from the key material and ignores the header (ADMINCLIH-002).
+  Remaining work is purely option (a): **retire** the Node `apps/admin-cli/`
+  now that the Rust `anvil admin` surface is release-grade. Hygiene, not a
+  correctness fix.
 
 ---
 
@@ -653,7 +705,9 @@ discovery.
   compatibility. Cross-link the `packages/aps/src/types/index.ts`
   schema as the source of truth.
 - **Confidence:** high (small public-doc edit)
-- **Status:** Open
+- **Status:** Done — `docs/public/aps/schemas/json-schema.md` now documents
+  the canonical enum (`Proposed | Ready | In Progress | Done | Blocked`),
+  matching `packages/aps/src/types/index.ts`. Closed in triage 2026-06-19.
 - **Risk-level:** medium for downstream agent tooling — agents
   typing APS by-hand against the public spec will land
   non-canonical values that work but don't match the live
@@ -683,7 +737,12 @@ discovery.
   v6.0.3 + v5 legacy support is the actual feature surface,
   the version-string choice is purely communicative.
 - **Confidence:** high (both are one-line edits)
-- **Status:** Open
+- **Status:** Done (Wave 1, 2026-06-19) — (a) `observation-contract.ts:4`
+  header now reads "11 observation kinds"; (b) BMAD version aligned to
+  **`0.1.2`** — the code value is test-pinned (`bmad-format-adapter.test.ts:44`),
+  so `packages/adapters/README.md` was corrected down to match (README was the
+  drift). Both now-stale `adapter-packages-as-built.md` notes (G-03 + G-04) are
+  marked resolved in place.
 
 ---
 
@@ -711,7 +770,10 @@ discovery.
   the archive entirely and rely on `git log` for
   pre-publication history. (a) is safer; (b) is cleaner.
 - **Confidence:** high (small archive-management decision)
-- **Status:** Open
+- **Status:** Done (Wave 1, 2026-06-19) — took option (a): prepended a
+  "Historical archive — not the source of truth" banner to
+  `archive/eddacraft-tui-local/README.md` pointing at the published
+  crates.io `0.1.0` crate and calling out the missing `editor` widget.
 
 ---
 
@@ -732,6 +794,66 @@ discovery.
 
 ---
 
+## Triage 2026-06-19 — disposition + parallel waves
+
+Re-verified all 21 open items against HEAD (five weeks of churn since the
+2026-05-07 filing). **8 closed** as resolved-elsewhere; **2 scope-reduced**;
+**13 remain**, sequenced into waves below so concurrently-developed items
+touch disjoint files (no shared-file collisions, dependency order respected).
+
+### Closed this pass (resolved since filing)
+
+| Item | Resolved by |
+| ---- | ----------- |
+| V060F-003 | RCLI3-017b — `anvil intercept unblock --worktree/--all` shipped |
+| V060F-005 | MLP2-075 — Windows `query_protection_claim` pipe parity (pre-write IPC out of scope, tracked elsewhere) |
+| V060F-010 | `checks-as-built.md` now documents the canonical owner split |
+| V060F-011 | Rust parser built; daemon transport → INTD/ADR-030; residual spec-doc edit folded into V060F-008 |
+| V060F-012 | `auth-as-built.md` GitHub-OAuth + audit-index rows added |
+| V060F-013 | `is_sensitive_field()` wired via `redact_arg()` (USAGE-001) |
+| V060F-017 | ADR-051 — release profile is `panic = "unwind"` |
+| V060F-022 | public APS schema doc now lists the canonical enum |
+
+### Wave 1 — docs & hygiene ✅ COMPLETE (2026-06-19)
+
+Disjoint single-file edits; no code-build risk. All five shipped together.
+
+- **V060F-008** ✅ — `rust-kernel-spec.md` status header reworded + as-built
+  cross-link + folded-in V060F-011 §5.2/§6.4/§7.2/§8.2/§9.3 reconciliation
+- **V060F-009** ✅ — `quality-model.md` watch→checks deferred-dispatch framing
+- **V060F-014** ✅ — `namespace-registry.md` per-row wiring markers + legend
+- **V060F-023** ✅ — kindling "11 observation kinds" header (+ G-04 note marked
+  resolved); BMAD version aligned to test-pinned `0.1.2` in the README
+- **V060F-024** ✅ — `archive/eddacraft-tui-local/README.md` historical banner
+
+### Wave 2 — operator surface & UX correctness (4 items, parallel, disjoint crates)
+
+- **V060F-002** — `anvil intercept stop` subcommand (`anvil-cli` commands)
+- **V060F-004** — macOS `current_process_start_time` via `proc_pidinfo`
+  (`anvil-intercept` interrupt ladder — removes the macOS fence-telemetry skew)
+- **V060F-018** — flip TuiBackend default Ink → Ratatui (`anvil-tui`)
+- **V060F-019** — retire Node `apps/admin-cli/` (attribution drift already
+  resolved; pure retirement remains)
+
+### Wave 3 — activation seams (2 items, coordinate — shared `anvil-cli` dirs)
+
+Both touch `crates/anvil-cli/src/{commands,activation}/`; assign to one owner
+or sequence to avoid collisions on the command modules.
+
+- **V060F-006** — honour `extensions:` opt-in in `check`/`watch`/`audit`
+- **V060F-007** — real watch-liveness probe in `start --verify` (today
+  `WatchTier::Running` is synthesised, not probed)
+
+### Wave 4 — design-gated / blocked (2 items, NOT RC quick-wins)
+
+- **V060F-015** — eight spec-only driver JSON-RPC methods; needs per-method
+  ADR triage (`enforcement/decision` + `suppression/state` are load-bearing,
+  the rest decorative). Spike before any code; do **not** treat as one PR.
+- **V060F-016** — reliability-budget on-disk persistence; explicitly deferred
+  to **DRVR-001** (driver-framework Wave 2). Blocked on that owner.
+
+---
+
 ## Risks
 
 | Risk | Likelihood | Impact | Mitigation |
@@ -746,11 +868,11 @@ discovery.
 | ------------------------------------ | ----- | ------------------------------------------------------ |
 | Deferrals (v0.5.0-beta)              | 0     | —                                                      |
 | Nominations                          | 1     | Complete (V060F-001)                                   |
-| As-built sweep follow-ups (batch 1)  | 10    | Open (V060F-002..V060F-011, filed 2026-05-07)          |
-| As-built sweep follow-ups (batch 2)  | 8     | Open (V060F-012..V060F-019, filed 2026-05-07)          |
-| As-built sweep follow-ups (batch 3)  | 5     | 2 Complete (V060F-020, V060F-021) / 3 Open (V060F-022..V060F-024) |
+| As-built sweep follow-ups (batch 1)  | 10    | 6 Done / 4 Open (triage closed 003/005/010/011; Wave 1 closed 008/009) |
+| As-built sweep follow-ups (batch 2)  | 8     | 4 Done / 4 Open (triage closed 012/013/017; Wave 1 closed 014) |
+| As-built sweep follow-ups (batch 3)  | 5     | 5 Done / 0 Open (020/021/022; Wave 1 closed 023/024) |
 | OPA runtime refresh                  | 1     | Complete (V060F-025, 2026-05-08)                      |
-| **Total**                            | **25** | 4 Complete / 21 Open                                  |
+| **Total**                            | **25** | 17 Done / 8 Open (4/21 before 2026-06-19 triage → 12/13 after triage → 17/8 after Wave 1) |
 
 Batch 1 (intercept / activation / MCP shim / checks / kernel as-builts) split:
 

@@ -8,7 +8,28 @@
 | ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
 | ADR-011a, `docs/architecture/anvil-architecture-evolution.md`, `docs/vision/constitutional-engineering.md`, ADR-006 | `kernel-as-built.md`, benchmarking specs, Rust architecture overview |
 
-**Status:** Proposed — H1 Implementation Target
+**Status:** Spec — H1 design intent. The kernel has since shipped through
+multiple beta tags; **[`kernel-as-built.md`](./kernel-as-built.md) is the
+authoritative record of current shipping state** and supersedes this spec
+wherever they differ. Read the as-built first for "what exists today"; read this
+spec for the original design rationale. (The governance metadata above keeps
+`Proposed` as the spec's lifecycle state — it was never ratified via a dedicated
+ADR — but the design it describes is substantially built.)
+
+> **Spec-vs-code reconciliation (V060F-011, triaged 2026-06-19):** five §-level
+> items diverge from the as-built and are intentionally left as dormant design
+> intent unless re-prioritised:
+>
+> - **§5.2 Rust parser** — now _built_; the kernel registers `Rust` alongside
+>   the tail languages, so this section is satisfied.
+> - **§6.4 AST snapshot to disk** — not built; cold rebuild on start is the
+>   shipped behaviour.
+> - **§8.2 `Heartbeat` event payload** — not built; `EventPayload` ships
+>   `Progress | Snapshot | Violation | Error`.
+> - **§7.2 declarative invariant DSL** — moved out to the `anvil-policy` crate;
+>   kernel invariants remain Rust-only.
+> - **§9.3 daemon-mode transport** — superseded into INTD per ADR-030 (tracked
+>   as KERN-050..052).
 
 **Relationship to other documents:**
 

@@ -1,7 +1,7 @@
 /**
  * Observation Contract (v1)
  *
- * Defines the 9 observation kinds that Anvil must emit to Kindling.
+ * Defines the 11 observation kinds that Anvil must emit to Kindling.
  * This is the write-only contract - what gets recorded, not how it's queried.
  *
  * Based on: "What Kindling is used for in Anvil v1" specification
