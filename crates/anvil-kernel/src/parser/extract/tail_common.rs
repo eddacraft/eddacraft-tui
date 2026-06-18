@@ -16,8 +16,10 @@ use anvil_kernel_types::{SymbolNode, TrustLevel, Visibility};
 
 use super::{FileSymbols, ImportEdge};
 
-/// UTF-8 text of a node's source span (lossily empty on the impossible
-/// non-UTF-8 case — the parser feed is always UTF-8).
+/// UTF-8 text of a node's source span. `parse_bytes` takes raw bytes, so a
+/// non-UTF-8 span is possible (e.g. a file with a stray invalid byte); such a
+/// span yields an empty string rather than panicking — a missed name is a
+/// missed symbol, never a crash on the load-bearing parse path.
 pub(super) fn node_text(node: tree_sitter::Node, source: &[u8]) -> String {
     node.utf8_text(source).unwrap_or_default().to_string()
 }

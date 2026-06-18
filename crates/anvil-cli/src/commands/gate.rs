@@ -1084,15 +1084,17 @@ fn extract_import_edges(
             // rules, and a Python absolute import (`foo.bar`) must resolve
             // against the package tree rather than be dropped.
             //
-            // - `.py`  → Python module resolution (PYLAN-006: relative dot
-            //   prefixes against the file's package, absolute against flat/`src`
-            //   roots; stdlib/third-party drop out).
+            // - `.py` / `.pyi` → Python module resolution (PYLAN-006: relative
+            //   dot prefixes against the file's package, absolute against
+            //   flat/`src` roots; stdlib/third-party drop out). Stub files
+            //   (`.pyi`) share Python's import grammar, so they must take this
+            //   path too — not the TS/Rust fallback.
             // - else: TS/JS relative specifiers (`./`, `../`) resolve lexically;
             //   Rust module paths (containing `::`) resolve against the owning
             //   crate's module tree. Everything else (bare npm packages,
             //   `std::`/external crates) targets code outside the workspace and
             //   is skipped — never a boundary violation.
-            let resolved = if ext == "py" {
+            let resolved = if ext == "py" || ext == "pyi" {
                 anvil_architecture::resolve_python_import(project_root, rel_path, &import.to_source)
             } else if import.to_source.starts_with('.') {
                 resolve_import(rel_path, &import.to_source)
