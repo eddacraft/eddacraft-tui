@@ -89,7 +89,7 @@ Delivered as slices mirroring the other surfaces. T1 (Scanned).
 
 ### SURFSH-001 — File detection
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-18 via PR #2785
 - **Intent:** Identify `*.sh`/`*.bash` shell scripts.
 - **Expected Outcome:** `*.sh`/`*.bash` (case-insensitive) are detected; other
   files are not. Shebang-only (no-extension) scripts are a documented
@@ -100,7 +100,7 @@ Delivered as slices mirroring the other surfaces. T1 (Scanned).
 
 ### SURFSH-002 — Dangerous-command scan (shared `command_safety` catalogue)
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-18 via PR #2785
 - **Intent:** Flag dangerous commands in checked-in shell scripts **without
   duplicating** the `command_safety` catalogue.
 - **Expected Outcome:** Each command (incl. compound `&&`/`|`/`;` parts, with
@@ -114,7 +114,7 @@ Delivered as slices mirroring the other surfaces. T1 (Scanned).
 
 ### SURFSH-005 — Gate/catalogue registration + flag gating
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Surface SURFSH in the gate behind `track.surface.sh`.
 - **Expected Outcome:** `ANV-SURF-SH-001` registered + wired (warn-only),
   gated behind a `track.surface.sh` leaf flag under the OPSUP-005

@@ -1000,6 +1000,66 @@ fn dock_risk_label(risk: anvil_checks::surface::dockerfile::DockerRisk) -> &'sta
     }
 }
 
+/// SURFSH (Track 3, T1) — scan checked-in shell scripts for dangerous commands
+/// via the shared `command_safety` catalogue. Warn-only; self-filters via
+/// `is_shell_file` (the `*.sh`/`*.bash` file-presence guard is a coarse
+/// pre-filter on top).
+fn run_check_shell(name: &str, root: &Path, walked_files: &[String]) -> CheckResult {
+    use anvil_checks::surface::shell::{is_shell_file, run_surfsh_check};
+
+    let mut files: Vec<(std::path::PathBuf, String)> = Vec::new();
+    let mut unreadable = 0usize;
+    for rel in walked_files
+        .iter()
+        .filter(|rel| is_shell_file(std::path::Path::new(rel)))
+    {
+        match std::fs::read_to_string(root.join(rel)) {
+            Ok(content) => files.push((std::path::PathBuf::from(rel), content)),
+            Err(_) => unreadable += 1,
+        }
+    }
+    let unreadable_note = if unreadable > 0 {
+        format!(" ({unreadable} file(s) unreadable, skipped)")
+    } else {
+        String::new()
+    };
+
+    let result = run_surfsh_check(&files);
+    let locations: Vec<String> = result
+        .commands
+        .iter()
+        .filter(|f| !f.suppressed)
+        .map(|f| format!("{}:{} [{}] {}", f.file, f.line, f.reason, f.command))
+        .collect();
+
+    if locations.is_empty() {
+        return CheckResult {
+            name: name.to_string(),
+            passed: true,
+            score: 100.0,
+            message: format!(
+                "No dangerous shell-script commands found across {} file(s){unreadable_note}",
+                files.len() + unreadable
+            ),
+            requires_config: false,
+        };
+    }
+
+    CheckResult {
+        name: name.to_string(),
+        // Warn-only: surfaced, never blocking (architecture default).
+        passed: true,
+        score: 100.0,
+        message: format!(
+            "⚠ {} dangerous shell-script command(s) flagged (warn-only){}:\n{}",
+            locations.len(),
+            unreadable_note,
+            locations.join("\n")
+        ),
+        requires_config: false,
+    }
+}
+
 fn run_check_antipattern(
     name: &str,
     root: &Path,
@@ -1754,6 +1814,7 @@ fn run_single_check(name: &str, ctx: &GateContext) -> CheckResult {
         "sql-migrations" => run_check_sql_migrations(name, root, &ctx.walked_files),
         "github-actions" => run_check_github_actions(name, root, &ctx.walked_files),
         "dockerfile" => run_check_dockerfile(name, root, &ctx.walked_files),
+        "shell-scripts" => run_check_shell(name, root, &ctx.walked_files),
         "coverage" => run_check_coverage(root, DEFAULT_COVERAGE_THRESHOLD),
         "dependency" => run_check_dependency(root),
         "architecture" => run_check_architecture(root),
@@ -2248,6 +2309,23 @@ struct GateContext {
     strict_config: bool,
 }
 
+/// True when `check_name` is a flag-gated Track 3 surface whose
+/// `track.surface.*` flag is currently off. Such a surface is omitted from the
+/// run entirely (no result emitted) so opt-out gate runs stay byte-identical.
+fn surface_check_disabled(check_name: &str) -> bool {
+    use crate::feature_flags::{
+        track_surface_dock_enabled, track_surface_gha_enabled, track_surface_sh_enabled,
+        track_surface_sql_enabled,
+    };
+    match check_name {
+        "sql-migrations" => !track_surface_sql_enabled(),
+        "github-actions" => !track_surface_gha_enabled(),
+        "dockerfile" => !track_surface_dock_enabled(),
+        "shell-scripts" => !track_surface_sh_enabled(),
+        _ => false,
+    }
+}
+
 fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
     let root = crate::util::workspace_root()?;
 
@@ -2348,13 +2426,7 @@ fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
         // from the run entirely while its track flag is off — it emits NO
         // result, so the default gate run (check count, score denominator,
         // output) is byte-identical for anyone who has not opted in.
-        if *check_name == "sql-migrations" && !crate::feature_flags::track_surface_sql_enabled() {
-            continue;
-        }
-        if *check_name == "github-actions" && !crate::feature_flags::track_surface_gha_enabled() {
-            continue;
-        }
-        if *check_name == "dockerfile" && !crate::feature_flags::track_surface_dock_enabled() {
+        if surface_check_disabled(check_name) {
             continue;
         }
 
@@ -2841,6 +2913,36 @@ mod tests {
         let result = run_check_dockerfile("dockerfile", tmp.path(), &["Dockerfile".to_string()]);
         assert!(result.passed);
         assert!(result.message.contains("No Dockerfile build-hygiene risks"));
+    }
+
+    #[test]
+    fn shell_check_warns_but_does_not_block() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("danger.sh"), "#!/bin/sh\nrm -rf /\n").unwrap();
+        let result = run_check_shell("shell-scripts", tmp.path(), &["danger.sh".to_string()]);
+        assert!(result.passed, "warn-only, never blocks");
+        assert!(
+            result.message.contains("dangerous shell-script command"),
+            "rm -rf / surfaced: {}",
+            result.message
+        );
+    }
+
+    #[test]
+    fn shell_check_clean_on_safe_script() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join("ok.sh"),
+            "#!/bin/sh\nset -euo pipefail\necho building\nnpm ci\n",
+        )
+        .unwrap();
+        let result = run_check_shell("shell-scripts", tmp.path(), &["ok.sh".to_string()]);
+        assert!(result.passed);
+        assert!(
+            result
+                .message
+                .contains("No dangerous shell-script commands")
+        );
     }
 
     #[test]

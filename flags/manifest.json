@@ -191,6 +191,23 @@
       "primaryGroup": "track-surface"
     },
     {
+      "key": "track.surface.sh",
+      "owner": "SURFSH",
+      "intent": "Gate the shell-script governance surface (SURFSH) in the gate run",
+      "class": "rollout",
+      "valueType": "boolean",
+      "variants": [
+        { "key": "enabled", "value": true },
+        { "key": "disabled", "value": false }
+      ],
+      "defaultVariant": "disabled",
+      "status": "active",
+      "createdFor": "SURFSH-005",
+      "expiryOrReviewDate": "2026-12-31T00:00:00Z",
+      "description": "Per-surface leaf flag under the track.surface umbrella (OPSUP-005). Ships opt-in (disabled); ANVIL_TRACK_SURFACE_SH=1 forces it on for a session via a local override routed through the resolver. The default flips to enabled after a clean release.",
+      "primaryGroup": "track-surface"
+    },
+    {
       "key": "track.surface.sql",
       "owner": "SURFSQL",
       "intent": "Gate the SQL migrations governance surface (SURFSQL) in the gate run",

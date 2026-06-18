@@ -210,6 +210,21 @@ pub(crate) const CHECK_DEFINITIONS: &[CheckDefinition] = &[
         file_shape_globs: &[],
         wall_time_soft_budget_secs: Some(30),
     },
+    // SURFSH (Track 3, T1) — same opt-in contract. Reuses the shared
+    // command_safety catalogue; gated behind `track.surface.sh`.
+    CheckDefinition {
+        stable_id: "ANV-SURF-SH-001",
+        canonical_name: "shell-scripts",
+        internal_name: "shell-scripts",
+        aliases: &["sh", "shell"],
+        description: "Flag dangerous commands in checked-in shell scripts",
+        init_enabled: false,
+        init_visible: false,
+        gate_supported: true,
+        gate_config_supported: false,
+        file_shape_globs: &["*.sh", "*.bash"],
+        wall_time_soft_budget_secs: Some(30),
+    },
 ];
 
 pub(crate) const DEFAULT_INIT_CHECKS: &[&str] =
@@ -230,6 +245,7 @@ pub(crate) const GATE_INTERNAL_CHECKS: &[&str] = &[
     "sql-migrations",
     "github-actions",
     "dockerfile",
+    "shell-scripts",
 ];
 
 pub(crate) fn definition_by_canonical(name: &str) -> Option<&'static CheckDefinition> {
@@ -390,8 +406,23 @@ mod tests {
                 ("sql-migrations", "ANV-SURF-SQL-001"),
                 ("github-actions", "ANV-SURF-GHA-001"),
                 ("dockerfile", "ANV-SURF-DOCK-001"),
+                ("shell-scripts", "ANV-SURF-SH-001"),
             ]
         );
+    }
+
+    #[test]
+    fn shell_scripts_check_resolves_and_declares_shell_shapes() {
+        let def = definition_by_name("shell-scripts").expect("registered");
+        assert_eq!(def.stable_id, "ANV-SURF-SH-001");
+        assert_eq!(
+            definition_by_name("sh").map(|d| d.stable_id),
+            Some("ANV-SURF-SH-001")
+        );
+        assert!(!def.init_enabled, "Track 3 surface ships opt-in");
+        assert!(def.gate_supported);
+        assert!(def.file_shape_globs.contains(&"*.sh"));
+        assert!(def.file_shape_globs.contains(&"*.bash"));
     }
 
     #[test]
