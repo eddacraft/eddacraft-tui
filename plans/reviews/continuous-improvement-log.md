@@ -1500,3 +1500,20 @@ a backlog. Promote repeated friction or executable follow-up work to
   cost later is not.
 - **Follow-up:** None yet; if ADR-087 is accepted, open a catalogue module for
   the first-wave families (weak-cryptography, unsafe-rendering).
+
+### 2026-06-18 — claude
+
+- **Task:** Flip ADR-087 to Accepted (operator) and open the first-wave INSEC
+  catalogue module realising the sec-context syntactic-smell subset.
+- **Outcome:** ADR-087 Accepted; new `insecure-construction-catalogue.aps.md`
+  (INSEC-001..008, 6 Ready + 2 deferred Proposed); index row + DECISION-LOG
+  status updated. aps:index:check / aps:drift / adr:check green.
+- **Worked:** PYLAN-003/-009 were a near-exact template for a new pattern-family
+  catalogue module (family `.anvil` + registry + types.rs + FP-bar dogfood).
+- **Failed:** Stale local `main` had diverged from origin (rebase-merge rewrote
+  history); had to reset the new branch to origin/main before working.
+- **Friction:** `aps:active-lint` can't run here — the `aps` CLI binary is not
+  installed (node_modules missing); relied on index:check + drift instead.
+- **Improvement:** none.
+- **Follow-up:** When INSEC starts, promote the deferred opt-in items only after
+  the enabled-family FP bar is met; register the `WC`/`UR` registry prefixes.
