@@ -610,9 +610,10 @@
         "**/*_test.py",
         "**/tests/**",
         "**/conftest.py",
-        "**/explain/**"
+        "**/explain/**",
+        "**/__init__.py"
       ],
-      "nudge": "`from module import *` pulls an unknown set of names into this namespace,\nshadowing locals unpredictably and defeating static analysis of what is used.\nImport the names you actually use explicitly: `from module import PORT, HOST`.",
+      "nudge": "`from module import *` pulls an unknown set of names into this namespace,\nshadowing locals unpredictably and defeating static analysis of what is used.\nImport the names you actually use explicitly: `from module import PORT, HOST`.\n\n`__init__.py` is allowlisted: re-exporting a package's public API with\n`from .submodule import *` is the one conventional use of the wildcard, so\nflagging it on by default would just be day-one noise.",
       "related": [],
       "enabled": true,
       "opt_in": false,
@@ -668,7 +669,7 @@
       "targets": ["source"],
       "detection": {
         "type": "regex",
-        "pattern": ":\\s*(\\w+\\.)*Any\\b|->\\s*(\\w+\\.)*Any\\b|[\\[,]\\s*(\\w+\\.)*Any\\b"
+        "pattern": ":\\s*(\\w+\\.)*Any\\b|->\\s*(\\w+\\.)*Any\\b|\\[[^\\]]*\\bAny\\b"
       },
       "file_extensions": [".py"],
       "allowlist": [

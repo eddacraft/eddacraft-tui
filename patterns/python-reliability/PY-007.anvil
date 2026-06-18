@@ -15,7 +15,7 @@ allowlist: ['**/test_*.py', '**/*_test.py', '**/tests/**', '**/conftest.py', '**
 
 detection:
   type: regex
-  pattern: ':\s*(\w+\.)*Any\b|->\s*(\w+\.)*Any\b|[\[,]\s*(\w+\.)*Any\b'
+  pattern: ':\s*(\w+\.)*Any\b|->\s*(\w+\.)*Any\b|\[[^\]]*\bAny\b'
 
 related: [PY-001]
 enabled: true

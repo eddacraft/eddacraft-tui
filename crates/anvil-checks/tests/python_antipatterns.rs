@@ -157,6 +157,18 @@ fn py004_attribute_named_except_is_not_a_false_positive() {
     ));
 }
 
+#[test]
+fn py004_except_inside_a_string_literal_is_not_flagged() {
+    // PYLAN-009 validation regression: rich's traceback.py has the literal
+    // `"... not called in except: block"`. PY-004 is code-scoped (runs against
+    // the comment/string-masked view), so a string occurrence does not fire.
+    assert!(!fires(
+        "src/app.py",
+        "raise ValueError(\"Value for 'trace' required if not called in except: block\")\n",
+        "PY-004"
+    ));
+}
+
 // --- PY-005: wildcard import -----------------------------------------------
 
 #[test]
@@ -194,6 +206,20 @@ fn py005_commented_out_wildcard_is_not_flagged() {
         "if True:\n    from os import *\n",
         "PY-005"
     ));
+}
+
+#[test]
+fn py005_init_file_wildcard_reexport_is_allowlisted() {
+    // PYLAN-009 validation: `__init__.py` re-exporting a package API with
+    // `from .sub import *` is the one conventional wildcard use, so it is
+    // allowlisted — no day-one noise.
+    assert!(!fires(
+        "pkg/__init__.py",
+        "from ._api import *\nfrom ._client import *\n",
+        "PY-005"
+    ));
+    // The same wildcard in a non-__init__ module still fires.
+    assert!(fires("pkg/api.py", "from ._client import *\n", "PY-005"));
 }
 
 // --- PY-006: print() (opt-in) ----------------------------------------------
@@ -251,6 +277,30 @@ fn py007_qualified_typing_any_fires() {
     assert!(!fires_opt_in(
         "src/app.py",
         "def f(x: MyAny) -> None:\n    return None\n",
+        "PY-007"
+    ));
+}
+
+#[test]
+fn py007_any_in_import_statement_is_not_flagged() {
+    // PYLAN-009 validation regression: `from typing import ..., Any, ...`
+    // imports the NAME, it is not a type annotation. The subscript-context
+    // branch (`\[[^\]]*\bAny\b`) no longer matches the import-list comma.
+    assert!(!fires_opt_in(
+        "src/app.py",
+        "from typing import IO, TYPE_CHECKING, Any, Callable, Optional\n",
+        "PY-007"
+    ));
+    assert!(!fires_opt_in("src/app.py", "import typing.Any\n", "PY-007"));
+    // ...but a real subscripted `Any` (incl. with a leading comma) still fires.
+    assert!(fires_opt_in(
+        "src/app.py",
+        "data: Dict[str, Any] = {}\n",
+        "PY-007"
+    ));
+    assert!(fires_opt_in(
+        "src/app.py",
+        "items: List[Any] = []\n",
         "PY-007"
     ));
 }

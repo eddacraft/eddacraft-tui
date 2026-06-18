@@ -11,7 +11,7 @@ spectrum_position: 3
 
 targets: [source]
 file_extensions: [.py]
-allowlist: ['**/test_*.py', '**/*_test.py', '**/tests/**', '**/conftest.py', '**/explain/**']
+allowlist: ['**/test_*.py', '**/*_test.py', '**/tests/**', '**/conftest.py', '**/explain/**', '**/__init__.py']
 
 detection:
   type: regex
@@ -25,3 +25,7 @@ opt_in: false
 `from module import *` pulls an unknown set of names into this namespace,
 shadowing locals unpredictably and defeating static analysis of what is used.
 Import the names you actually use explicitly: `from module import PORT, HOST`.
+
+`__init__.py` is allowlisted: re-exporting a package's public API with
+`from .submodule import *` is the one conventional use of the wildcard, so
+flagging it on by default would just be day-one noise.

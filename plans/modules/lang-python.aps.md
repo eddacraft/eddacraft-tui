@@ -292,17 +292,39 @@ validation) remains, gated on operator decisions.
 
 ---
 
-### Remaining (governance slice landed; only PYLAN-009 left, operator-gated)
+### Remaining (governance slice landed; PYLAN-009 awaiting operator sign-off)
 
-- PYLAN-009: Validate against User B + User C codebases — FP rate < N% per
-  council §16.5 #9. **Gated** on the deferred Ready-Checklist items (named
-  owner, re-scoring gate, User C's framework choice) and a real `N`/target
-  codebase — operator decisions, not yet scheduled. An initial Anvil-side
-  dogfood (clean idiomatic Python → 0 false positives; anti-pattern fixtures →
-  all default rules fire) is captured against the PYLAN-003 catalogue, but the
-  User B/C FP-rate sign-off and the module's advance to **Complete** (which
-  also needs release-tag ship evidence per the APS lifecycle) remain
-  operator-gated.
+#### PYLAN-009: Dogfood T3 acceptance + FP bar (§16.5 #9)
+
+- **Status:** External validation **done** — the ≥1-external-codebase run
+  (spec §16.5 #9 / C-014) was executed on public OSS at the operator's
+  direction: `encode/httpx` + `Textualize/rich` (~270 `.py` files, 0 panics,
+  0 parse errors). The catalogue as shipped scored **2.9% FP** (1 mis-detection:
+  `except:` inside a string literal); three precision fixes landed here drop it
+  to **0.0% FP** default-on and 0% on the opt-in PY-006/PY-007 surfaces. Fixes:
+  PY-005 allowlists `**/__init__.py` (re-export idiom), PY-007 uses a
+  subscript-context `Any` match (no `from typing import Any` FP), and PY-004
+  joins the comment/string-masked view (`rule_is_code_scoped`). Evidence:
+  [`plans/reviews/2026-06-18-pylan-009-external-validation.md`](../reviews/2026-06-18-pylan-009-external-validation.md).
+  **Proposed N = 1%** (observed 0.0%). NOTE: Anvil itself has ~no Python, so the
+  "own repo" half of the bar is discharged via the public-OSS external run.
+- **Intent:** Demonstrate the full Python T3 stack on real-world code at an
+  acceptable FP rate per §16.5 #9.
+- **Expected Outcome:** ≥1 external-codebase run with FP rate < N%; evidence
+  recorded.
+- **Validation:** httpx + rich classification (TP vs FP) in the evidence note;
+  per-fix regression tests in `python_antipatterns.rs`; full `anvil-checks`
+  green.
+- **Files:** `patterns/python-reliability/PY-004.anvil` (via code-scoping),
+  `PY-005.anvil`, `PY-007.anvil`, `patterns/compiled/registry.json`,
+  `crates/anvil-checks/src/antipattern/scanner.rs`,
+  `crates/anvil-checks/tests/python_antipatterns.rs`,
+  `plans/reviews/2026-06-18-pylan-009-external-validation.md`
+- **Operator-gated to close:** accept **N = 1%** as the governance bar; name the
+  anchor owner; run the §16.5 #8 re-scoring gate; (optional) fold in the
+  specific User B / User C codebases. Module advances to **Complete** only with
+  a release tag, per the APS lifecycle.
+- **Dependencies:** PYLAN-003, PYLAN-005, PYLAN-006
 
 ## Risks
 

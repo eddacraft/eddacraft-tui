@@ -822,7 +822,15 @@ fn rule_is_code_scoped(rule_id: &str) -> bool {
     // AP-015/AP-016 (Zod escape hatches) join AP-003 here: a `z.any(` or
     // `z.unknown(` mentioned in a comment or string literal is a false
     // positive, so they run against the comment/string-masked view too.
-    matches!(rule_id, "AP-003" | "AP-015" | "AP-016" | "GS-001")
+    //
+    // PY-004 (`except:`) is a code construct whose token legitimately appears
+    // inside string literals (e.g. an error message `"... in except: block"`),
+    // so it joins the masked-view set. The comment-based Python rules
+    // (PY-001/-002/-003, which *must* see `#` comments) deliberately stay out.
+    matches!(
+        rule_id,
+        "AP-003" | "AP-015" | "AP-016" | "GS-001" | "PY-004"
+    )
 }
 
 fn find_match_columns(
