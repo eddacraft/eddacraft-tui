@@ -2152,7 +2152,7 @@ archive.
 - **Confidence:** high — direct mirror of the shipped `PolicyInput` v1 +
   `watch-output-contract` patterns; additive field, no behaviour change.
 
-### CIB-079: Rust serde-hygiene + clone-in-hot-loop AST anti-pattern rules (RSTLAN-003b)
+### CIB-079: Rust serde-hygiene + clone-in-hot-loop AST antipattern rules (RSTLAN-003b)
 
 - **Status:** Proposed
 - **Intent:** Land the three AST-dependent Rust reliability rules deferred from
