@@ -181,6 +181,16 @@ pub struct FeatureFlagDefinition {
     pub tags: Option<Vec<String>>,
 }
 
+// OPSUP-005: per-track feature-flag taxonomy (Track 3 governance surfaces and
+// Track 4 semantic packs). Flags are hierarchical under a `track.surface.*` /
+// `track.pack.*` namespace and resolve through the matching umbrella group so
+// the flag count does not explode one-per-surface. See
+// `docs/guides/feature-flag-governance.md` (Per-Track Flags).
+pub const TRACK_SURFACE_FLAG: &str = "track.surface";
+pub const TRACK_PACK_FLAG: &str = "track.pack";
+pub const TRACK_SURFACE_GROUP: &str = "track-surface";
+pub const TRACK_PACK_GROUP: &str = "track-pack";
+
 impl FeatureFlagDefinition {
     pub fn default_variant_exists(&self) -> bool {
         self.variants.iter().any(|v| v.key == self.default_variant)
@@ -189,6 +199,72 @@ impl FeatureFlagDefinition {
     /// C-013: validate key format matches `^[a-z][a-z0-9]*([._-][a-z0-9]+)*$`
     pub fn has_valid_key(&self) -> bool {
         is_valid_flag_key(&self.key)
+    }
+
+    /// True when this flag belongs to the OPSUP-005 per-track taxonomy:
+    /// the `track.surface`/`track.pack` umbrellas or a `track.surface.*` /
+    /// `track.pack.*` per-leaf override.
+    pub fn is_track_flag(&self) -> bool {
+        self.expected_track_group().is_some()
+    }
+
+    /// The `groups.json` id a per-track flag must resolve to, derived from its
+    /// key namespace. `None` when the flag is not a per-track flag.
+    pub fn expected_track_group(&self) -> Option<&'static str> {
+        if self.key == TRACK_PACK_FLAG || self.key.starts_with("track.pack.") {
+            Some(TRACK_PACK_GROUP)
+        } else if self.key == TRACK_SURFACE_FLAG || self.key.starts_with("track.surface.") {
+            Some(TRACK_SURFACE_GROUP)
+        } else {
+            None
+        }
+    }
+
+    /// OPSUP-005 *permanent* invariant for per-track flags: `rollout` class with
+    /// a sunset/review date, `createdFor` provenance, and a `primaryGroup` that
+    /// resolves through the hierarchical `track-surface` / `track-pack` umbrella.
+    /// Returns the list of violations — empty means conformant. Non-track flags
+    /// yield no violations (the invariant does not apply).
+    ///
+    /// Deliberately does NOT pin the default variant: per-track flags ship
+    /// opt-in (`defaultVariant: disabled`) at first release, then the default
+    /// flips to `enabled` after a clean release (see
+    /// `docs/guides/feature-flag-governance.md`). The opt-in-at-first-ship
+    /// expectation is a review-time check, not a manifest-wide invariant —
+    /// enforcing it here would break CI the moment a surface legitimately
+    /// graduates.
+    pub fn track_flag_violations(&self) -> Vec<String> {
+        let mut violations = Vec::new();
+        let Some(expected_group) = self.expected_track_group() else {
+            return violations;
+        };
+        if self.class != FlagClass::Rollout {
+            violations.push(format!(
+                "{}: per-track flags must be class rollout, got {:?}",
+                self.key, self.class
+            ));
+        }
+        if self.created_for.trim().is_empty() {
+            violations.push(format!("{}: missing createdFor provenance", self.key));
+        }
+        if self.expiry_or_review_date.is_none() {
+            violations.push(format!(
+                "{}: missing expiryOrReviewDate (sunset/review date)",
+                self.key
+            ));
+        }
+        match self.primary_group.as_deref() {
+            Some(g) if g == expected_group => {}
+            Some(g) => violations.push(format!(
+                "{}: primaryGroup `{g}` does not resolve to the `{expected_group}` umbrella",
+                self.key
+            )),
+            None => violations.push(format!(
+                "{}: missing primaryGroup (must be `{expected_group}`)",
+                self.key
+            )),
+        }
+        violations
     }
 }
 
@@ -286,6 +362,112 @@ mod tests {
             primary_group: None,
             tags: None,
         }
+    }
+
+    // OPSUP-005: a conformant per-track surface flag — opt-in (default
+    // disabled), sunset date set, resolves through the `track-surface` umbrella.
+    fn valid_track_flag() -> FeatureFlagDefinition {
+        FeatureFlagDefinition {
+            key: "track.surface.sql".into(),
+            owner: "SURFSQL".into(),
+            intent: "Gate the SQL migrations governance surface".into(),
+            class: FlagClass::Rollout,
+            value_type: FlagValueType::Boolean,
+            variants: vec![
+                FlagVariant {
+                    key: "enabled".into(),
+                    value: FlagValue::Boolean(true),
+                },
+                FlagVariant {
+                    key: "disabled".into(),
+                    value: FlagValue::Boolean(false),
+                },
+            ],
+            default_variant: "disabled".into(),
+            status: FlagStatus::Active,
+            created_for: "SURFSQL-006".into(),
+            expiry_or_review_date: Some("2026-12-31T00:00:00Z".into()),
+            description: None,
+            targeting: None,
+            primary_group: Some(TRACK_SURFACE_GROUP.into()),
+            tags: None,
+        }
+    }
+
+    #[test]
+    fn track_flag_detection_by_namespace() {
+        assert!(valid_track_flag().is_track_flag());
+        let mut umbrella = valid_track_flag();
+        umbrella.key = TRACK_PACK_FLAG.into();
+        assert_eq!(umbrella.expected_track_group(), Some(TRACK_PACK_GROUP));
+        // A non-track flag is exempt from the invariant.
+        assert!(!valid_flag().is_track_flag());
+        assert!(valid_flag().track_flag_violations().is_empty());
+    }
+
+    #[test]
+    fn conformant_track_flag_has_no_violations() {
+        assert!(valid_track_flag().track_flag_violations().is_empty());
+    }
+
+    #[test]
+    fn track_flag_missing_sunset_date_is_flagged() {
+        let mut flag = valid_track_flag();
+        flag.expiry_or_review_date = None;
+        assert!(
+            flag.track_flag_violations()
+                .iter()
+                .any(|v| v.contains("expiryOrReviewDate"))
+        );
+    }
+
+    #[test]
+    fn track_flag_wrong_umbrella_group_is_flagged() {
+        // Both directions: surface key + pack group, and pack key + surface group.
+        let mut surface = valid_track_flag();
+        surface.primary_group = Some(TRACK_PACK_GROUP.into());
+        assert!(
+            surface
+                .track_flag_violations()
+                .iter()
+                .any(|v| v.contains("umbrella"))
+        );
+        let mut pack = valid_track_flag();
+        pack.key = TRACK_PACK_FLAG.into(); // pack key, but surface group from builder
+        assert!(
+            pack.track_flag_violations()
+                .iter()
+                .any(|v| v.contains("umbrella"))
+        );
+    }
+
+    #[test]
+    fn track_flag_non_rollout_class_is_flagged() {
+        // A per-track flag must be rollout class (the doc's "every per-track
+        // flag is rollout class" contract). The default state is NOT pinned —
+        // the opt-in default may flip to enabled after one release.
+        let mut flag = valid_track_flag();
+        flag.class = FlagClass::Entitlement;
+        assert!(
+            flag.track_flag_violations()
+                .iter()
+                .any(|v| v.contains("rollout"))
+        );
+        // The flip path: a rollout track flag with default enabled is conformant.
+        let mut flipped = valid_track_flag();
+        flipped.default_variant = "enabled".into();
+        assert!(flipped.track_flag_violations().is_empty());
+    }
+
+    #[test]
+    fn track_flag_missing_created_for_is_flagged() {
+        let mut flag = valid_track_flag();
+        flag.created_for = "  ".into();
+        assert!(
+            flag.track_flag_violations()
+                .iter()
+                .any(|v| v.contains("createdFor"))
+        );
     }
 
     #[test]

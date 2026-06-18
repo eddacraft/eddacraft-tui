@@ -63,6 +63,20 @@
       "defaultClass": "entitlement",
       "defaultAudiences": ["staff-anvil-internal"],
       "defaultStatus": "active"
+    },
+    {
+      "id": "track-surface",
+      "name": "Track 3 governance surfaces",
+      "defaultClass": "rollout",
+      "defaultAudiences": ["channel-general"],
+      "defaultStatus": "active"
+    },
+    {
+      "id": "track-pack",
+      "name": "Track 4 semantic packs",
+      "defaultClass": "rollout",
+      "defaultAudiences": ["channel-general"],
+      "defaultStatus": "active"
     }
   ]
 }

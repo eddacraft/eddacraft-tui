@@ -17,7 +17,8 @@ pub use events::{EngineEvent, ErrorCode, ErrorPayload, EventPayload, EventType};
 pub use feature_flags::{
     AudienceContext, Channel, ConditionValue, EnvironmentContext, EnvironmentName,
     EvaluationContext, FEATURE_FLAG_SCHEMA_VERSION, FeatureFlagDefinition, FeatureFlagManifest,
-    FlagClass, FlagStatus, FlagValue, FlagValueType, FlagVariant, TargetingCondition,
+    FlagClass, FlagStatus, FlagValue, FlagValueType, FlagVariant, TRACK_PACK_FLAG,
+    TRACK_PACK_GROUP, TRACK_SURFACE_FLAG, TRACK_SURFACE_GROUP, TargetingCondition,
     TargetingOperator, TargetingRule,
 };
 pub use graph::{

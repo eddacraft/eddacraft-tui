@@ -123,6 +123,40 @@
       "primaryGroup": "gv2"
     },
     {
+      "key": "track.pack",
+      "owner": "OPSUP",
+      "intent": "Umbrella gate for Track 4 semantic packs (per-pack overrides use track.pack.<pack>)",
+      "class": "rollout",
+      "valueType": "boolean",
+      "variants": [
+        { "key": "enabled", "value": true },
+        { "key": "disabled", "value": false }
+      ],
+      "defaultVariant": "disabled",
+      "status": "active",
+      "createdFor": "OPSUP-005",
+      "expiryOrReviewDate": "2026-12-31T00:00:00Z",
+      "description": "Per-track flag taxonomy (OPSUP-005). Disables noisy Track 4 packs without rolling back the release. Ships opt-in for one release, then the default flips on; per-pack leaf overrides (e.g. track.pack.pulumi) are added by the owning pack module and inherit this umbrella.",
+      "primaryGroup": "track-pack"
+    },
+    {
+      "key": "track.surface",
+      "owner": "OPSUP",
+      "intent": "Umbrella gate for Track 3 governance surfaces (per-surface overrides use track.surface.<surface>)",
+      "class": "rollout",
+      "valueType": "boolean",
+      "variants": [
+        { "key": "enabled", "value": true },
+        { "key": "disabled", "value": false }
+      ],
+      "defaultVariant": "disabled",
+      "status": "active",
+      "createdFor": "OPSUP-005",
+      "expiryOrReviewDate": "2026-12-31T00:00:00Z",
+      "description": "Per-track flag taxonomy (OPSUP-005). Disables noisy Track 3 governance surfaces without rolling back the release. Ships opt-in for one release, then the default flips on; per-surface leaf overrides (e.g. track.surface.sql) are added by the owning surface module and inherit this umbrella.",
+      "primaryGroup": "track-surface"
+    },
+    {
       "key": "tui-dashboard.aps-dashboard",
       "owner": "CIB",
       "intent": "Gate the read-only APS plan dashboard (`anvil plan dashboard`) to internal developers",

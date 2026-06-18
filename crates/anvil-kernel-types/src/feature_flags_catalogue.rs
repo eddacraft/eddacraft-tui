@@ -39,6 +39,41 @@ mod tests {
     }
 
     #[test]
+    fn per_track_flags_obey_opsup_005_taxonomy() {
+        // OPSUP-005: every shipped `track.surface.*` / `track.pack.*` flag must
+        // ship opt-in with a sunset date and resolve through its umbrella group.
+        // Non-track flags are exempt (track_flag_violations returns empty).
+        for flag in manifest().flags {
+            let violations = flag.track_flag_violations();
+            assert!(
+                violations.is_empty(),
+                "per-track flag {} violates the OPSUP-005 taxonomy: {violations:?}",
+                flag.key
+            );
+        }
+    }
+
+    #[test]
+    fn track_umbrella_flags_present_and_grouped() {
+        // The two umbrella flags OPSUP-005 seeds must exist so surfaces/packs
+        // have something to gate behind from their first release.
+        let flags = manifest().flags;
+        let surface = flags
+            .iter()
+            .find(|f| f.key == crate::TRACK_SURFACE_FLAG)
+            .expect("track.surface umbrella flag present");
+        assert_eq!(
+            surface.primary_group.as_deref(),
+            Some(crate::TRACK_SURFACE_GROUP)
+        );
+        let pack = flags
+            .iter()
+            .find(|f| f.key == crate::TRACK_PACK_FLAG)
+            .expect("track.pack umbrella flag present");
+        assert_eq!(pack.primary_group.as_deref(), Some(crate::TRACK_PACK_GROUP));
+    }
+
+    #[test]
     fn manifest_flags_declare_primary_group_and_round_trip() {
         // FLAGCAT-004 / Council: two guarantees in one pass — (a) `primary_group`
         // survives deserialisation (no field loss; it's `Option` on the struct),

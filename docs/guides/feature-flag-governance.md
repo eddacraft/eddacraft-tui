@@ -48,6 +48,45 @@ Every production flag must define:
 - **`ops_kill_switch`** — emergency disable for operational safety. Always
   active, rarely toggled.
 
+## Per-Track Flags (Track 3 / Track 4)
+
+Language & Coverage governance surfaces (Track 3) and semantic packs (Track 4)
+ship behind a shared per-track flag taxonomy (OPSUP-005) so a user can disable a
+noisy surface or pack without rolling back the whole release.
+
+### Naming
+
+Flags are hierarchical under two umbrella namespaces, each resolving to a
+`flags/groups.json` group of the same shape:
+
+| Namespace         | Umbrella flag   | Group           | Gates                       |
+| ----------------- | --------------- | --------------- | --------------------------- |
+| `track.surface.*` | `track.surface` | `track-surface` | Track 3 governance surfaces |
+| `track.pack.*`    | `track.pack`    | `track-pack`    | Track 4 semantic packs      |
+
+The umbrella flag gates the whole track. A surface or pack adds a per-leaf
+override (e.g. `track.surface.sql`, `track.pack.pulumi`) **only when it needs
+independent control** — this keeps the flag count from exploding
+one-per-surface. Each leaf flag carries `createdFor` pointing at its owning
+surface/pack work item and resolves to the same umbrella group as its namespace.
+
+### Default-state policy
+
+Each new track surface or pack ships **opt-in** (`defaultVariant` resolves to
+`disabled`) for one release. Reviewers verify the opt-in default when the leaf
+flag is first added. After a clean release with no false-positive regressions,
+the default flips on by changing `defaultVariant` to `enabled` in a follow-up
+change. Every per-track flag is `rollout` class and therefore carries an
+`expiryOrReviewDate`.
+
+The Rust invariant `FeatureFlagDefinition::track_flag_violations` enforces the
+**permanent** contract for any `track.*` flag in the manifest — `rollout` class,
+a sunset date, `createdFor` provenance, and umbrella-group resolution — and the
+catalogue test `per_track_flags_obey_opsup_005_taxonomy` runs it across the
+shipped manifest. It deliberately does **not** pin the default variant, so the
+opt-in→enabled flip is permitted without tripping CI; the opt-in-at-first-ship
+expectation is a review-time check, not a manifest-wide invariant.
+
 ## Rollout Policy
 
 ### Progressive enablement

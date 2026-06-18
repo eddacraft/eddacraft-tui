@@ -253,7 +253,7 @@ Remaining non-registry slices move to **Ready** when:
 
 ### OPSUP-005 — Per-track feature flag taxonomy
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Define per-track flag naming, defaults, and governance alignment
   for new surfaces and packs.
 - **Expected Outcome:** A documented flag taxonomy lets a user disable a noisy
@@ -283,8 +283,16 @@ Remaining non-registry slices move to **Ready** when:
   - `pnpm`-side flag consistency check (FLAGCAT) passes with the new entries
 - **Dependencies:** FLAGCAT manifest layout (FLAGCAT-001 Complete)
 - **Confidence:** medium
-- **Open question:** default policy — opt-in for one release then auto-flip, or
-  opt-in until an explicit per-track promotion decision? (See Open Questions.)
+- **Resolution (2026-06-18, confirms documented design; owner-overridable):**
+  default policy is **opt-in for one release then auto-flip** — each track
+  surface/pack ships `defaultVariant: disabled`, and the default flips to
+  `enabled` in a follow-up change after a clean release. This confirms the
+  Expected Outcome above (authored 2026-05-28) rather than introducing a new
+  policy; if the owner prefers opt-in-until-explicit-promotion, this is a
+  one-line manifest convention change with no code impact. The default state is
+  intentionally **not** hard-enforced by `track_flag_violations` (which guards
+  only the permanent invariants: rollout class, sunset date, `createdFor`,
+  umbrella-group resolution) so the flip path cannot break CI.
 
 ### OPSUP-006 — File-presence guards and wall-time caps
 
@@ -350,8 +358,8 @@ Remaining non-registry slices move to **Ready** when:
 ## Open Questions
 
 - [ ] Hosting the FP telemetry — Kindling pipeline reuse or new endpoint?
-- [ ] Per-track flag default policy — opt-in for one release then flip on,
-      or opt-in until an explicit promotion decision?
+- [x] Per-track flag default policy — **resolved 2026-06-18** (owner-overridable):
+      opt-in for one release then flip on (OPSUP-005 Resolution).
 - [ ] How do legacy check names map to the new registry IDs — via
       alias table or one-shot rename in a major release?
 - [x] Wall-time budget — OPSUP-006 chose per-check soft budgets; no global
