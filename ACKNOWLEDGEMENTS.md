@@ -1059,7 +1059,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `mio` | 1.2.1 | MIT License | https://github.com/tokio-rs/mio |
 | `errno` | 0.3.14 | MIT License | https://github.com/lambda-fairy/rust-errno |
 | `mime` | 0.3.17 | MIT License | https://github.com/hyperium/mime |
-| `bitflags` | 2.11.1 | MIT License | https://github.com/bitflags/bitflags |
+| `bitflags` | 2.13.0 | MIT License | https://github.com/bitflags/bitflags |
 | `fraction` | 0.15.4 | MIT License | https://github.com/dnsl48/fraction.git |
 | `glob` | 0.3.3 | MIT License | https://github.com/rust-lang/glob |
 | `log` | 0.4.30 | MIT License | https://github.com/rust-lang/log |
