@@ -1,8 +1,8 @@
 # anvil
 
-| Type   | Authority | Owner  | Status | Freshness                                                                                                                                    |
-| ------ | --------- | ------ | ------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| README | Advisory  | DOCGOV | Live   | Bench sections refreshed 2026-06-17 from `benchmarks/history/2026-05-30.json` (clean) + `2026-06-12.json` (partial); prior review 2026-06-12 |
+| Type   | Authority | Owner  | Status | Freshness                                                                                                                                                       |
+| ------ | --------- | ------ | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| README | Advisory  | DOCGOV | Live   | Bench sections refreshed 2026-06-17 from `benchmarks/history/2026-05-30.json` (clean) + `benchmarks/history/2026-06-12.json` (partial); prior review 2026-06-12 |
 
 | Upstream                                               | Downstream                        |
 | ------------------------------------------------------ | --------------------------------- |
@@ -37,10 +37,11 @@ violations **before they ever leave the developer's machine.**
 ```
 
 Latest clean measurements 2026-05-30 on deus (Ryzen 7 5800X) via Criterion
-(release build). 2026-06-12 provided a partial spot-check focused on resource
-budgets and indicative scan health (see below). Previously measured 2026-05-08,
-2026-04-28 and 2026-04-03. Governance overhead is effectively zero — anvil is in
-a different category from SAST, not a faster scanner.
+(release build). The 2026-06-12 run was a partial spot-check focused on resource
+budgets and indicative scan health (see `benchmarks/history/2026-06-12.json`
+below). Previously measured 2026-05-08, 2026-04-28 and 2026-04-03. Governance
+overhead is effectively zero — anvil is in a different category from SAST, not a
+faster scanner.
 
 Latest `anvil-bench` data (deus reference box):
 
@@ -447,7 +448,7 @@ The kernel was designed against the targets in the
 run on the reference box is 2026-05-30 (see
 [`benchmarks/history/2026-05-30.json`](./benchmarks/history/2026-05-30.json)).
 2026-04-03 values appear only in parenthetical historical notes where later
-direct measurements from the committed history files are absent.
+direct measurements from `benchmarks/history/` are absent.
 
 | Metric                                    | Target      | Measured (2026-05-30 clean) | Status                                           |
 | ----------------------------------------- | ----------- | --------------------------- | ------------------------------------------------ |
@@ -472,13 +473,13 @@ corpus (60% source, 20% PR descriptions, 10% commit messages, 10% agent output)
 on a fixed dev machine (Ubuntu 25.04 / Linux 6.17 / rayon default thread pool)
 so cross-release numbers stay honest.
 
-| Release / spot          | Date       | Per-pass time | Throughput              | Notes                                                                                               |
-| ----------------------- | ---------- | ------------- | ----------------------- | --------------------------------------------------------------------------------------------------- |
-| pre-RUSTNX-008          | 2026-04-22 | 14.6 ms       | 21.9K artefacts/sec     | Baseline before workspace-hack                                                                      |
-| **v0.4.0-beta**         | 2026-04-25 | **11.2 ms**   | **28.6K artefacts/sec** | **+31%**; `serde_json` `preserve_order` feature unification did not regress                         |
-| **v0.5.0-beta**         | 2026-05-01 | **8.0 ms**    | **39.9K artefacts/sec** | **+42%**; SCAN-001 parallelisation (rayon fan-out, gitignore-aware walker)                          |
-| 2026-05-30 (clean spot) | 2026-05-30 | **0.43 ms**   | **752K artefacts/sec**  | **+18.8×** vs v0.5 on same box; continued kernel + scan-path wins (clean `history/2026-05-30.json`) |
-| 2026-06-12 (health)     | 2026-06-12 | ~0.49 ms      | ~647K artefacts/sec     | Indicative only (concurrent with secret scan; see `2026-06-12.json` caveats)                        |
+| Release / spot          | Date       | Per-pass time | Throughput              | Notes                                                                                                          |
+| ----------------------- | ---------- | ------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------- |
+| pre-RUSTNX-008          | 2026-04-22 | 14.6 ms       | 21.9K artefacts/sec     | Baseline before workspace-hack                                                                                 |
+| **v0.4.0-beta**         | 2026-04-25 | **11.2 ms**   | **28.6K artefacts/sec** | **+31%**; `serde_json` `preserve_order` feature unification did not regress                                    |
+| **v0.5.0-beta**         | 2026-05-01 | **8.0 ms**    | **39.9K artefacts/sec** | **+42%**; SCAN-001 parallelisation (rayon fan-out, gitignore-aware walker)                                     |
+| 2026-05-30 (clean spot) | 2026-05-30 | **0.43 ms**   | **752K artefacts/sec**  | **+18.8×** vs v0.5 on same box; continued kernel + scan-path wins (clean `benchmarks/history/2026-05-30.json`) |
+| 2026-06-12 (health)     | 2026-06-12 | ~0.49 ms      | ~647K artefacts/sec     | Indicative only (concurrent with secret scan; see `benchmarks/history/2026-06-12.json` caveats)                |
 
 ```mermaid
 xychart-beta
