@@ -78,9 +78,10 @@ per-user daemon for you on Linux and macOS:
 
 Opting out and non-interactive behaviour:
 
-- **`--no-daemon`** — on either command, suppresses the auto-start (or the watch
-  offer) and uses the scoped fallback. A daemon already running is still reused;
-  only the start/offer is suppressed.
+- **`--no-daemon`** — on either command, suppresses only the auto-start (or the
+  watch offer). With no daemon already running this leaves you on the scoped
+  fallback, but a daemon that is already live is still reused. For watch,
+  `ANVIL_WATCH_DAEMON=0` is the stricter opt-out that also disables that reuse.
 - **`ANVIL_NO_DAEMON`** — the environment equivalent of `--no-daemon` for
   `anvil start`.
 - **`ANVIL_WATCH_DAEMON=0`** — the hard opt-out for watch: no start, no offer,

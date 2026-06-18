@@ -20,11 +20,13 @@ All notable changes to anvil are documented here.
   `daemon:` line; an interactive `anvil watch` offers to start one when none is
   answering. A daemon already running is always reused, and concurrent
   invocations never start a second one. Pass `--no-daemon` (or set
-  `ANVIL_NO_DAEMON=1` for `start`) to keep to the scoped fallback. Headless,
-  `--json`, CI, hook, and piped runs never start, offer, or prompt — they fall
-  back deterministically — and `--verify` stays read-only and never starts a
-  daemon. `anvil intercept start --foreground` remains the low-level operator
-  and debugging surface, and is the only launch mode on Windows until background
+  `ANVIL_NO_DAEMON=1` for `start`) to suppress the auto-start/offer; a daemon
+  already running is still reused, and `ANVIL_WATCH_DAEMON=0` is the stricter
+  watch opt-out that also disables reuse. Headless, `--json`, CI, hook, and
+  piped runs never start, offer, or prompt — they fall back deterministically —
+  and `--verify` stays read-only and never starts a daemon.
+  `anvil intercept start --foreground` remains the low-level operator and
+  debugging surface, and is the only launch mode on Windows until background
   launch lands there. See the
   [daemon lifecycle](../guides/save-time-validation.md#daemon-lifecycle).
 

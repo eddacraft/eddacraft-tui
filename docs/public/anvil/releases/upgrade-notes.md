@@ -31,7 +31,11 @@ If you relied on the daemon never starting on its own: for `anvil start`, pass
 only suppresses the offer — a daemon already running is still reused; set
 `ANVIL_WATCH_DAEMON=0` if you want watch to make no daemon contact at all.
 
-## Current Version: 0.7.2-beta
+## Versions covered
+
+This page carries the per-version migration guides through `0.7.2-beta`. For
+newer tagged releases (`0.8.0-beta`, `0.8.1-beta`) and the unreleased
+daemon-lifecycle change noted above, see the [changelog](changelog.md).
 
 ## Upgrading to 0.7.2-beta
 

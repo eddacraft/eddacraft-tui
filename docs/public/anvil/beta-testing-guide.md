@@ -34,9 +34,10 @@ foreground ceremony (Linux and macOS).
 
 - **`anvil start` auto-starts the daemon.** In an interactive terminal it starts
   the daemon and reports the result on a `daemon:` line (`started…` or
-  `reusing…`). Pass `--no-daemon` (or set `ANVIL_NO_DAEMON=1`) to keep to the
-  scoped fallback; a daemon already running is reused either way. Confirm the
-  `daemon:` line matches what actually happened.
+  `reusing…`). Pass `--no-daemon` (or set `ANVIL_NO_DAEMON=1`) to suppress that
+  auto-start; with no daemon running this leaves the scoped fallback, but a
+  daemon already running is still reused. Confirm the `daemon:` line matches
+  what actually happened.
 - **`anvil watch` offers to start one.** When no daemon answers, an interactive
   `anvil watch` prompts
   `No save-time daemon is running. Start one now for daemon-backed validation?`.

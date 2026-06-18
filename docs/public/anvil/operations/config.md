@@ -426,8 +426,8 @@ per-save subprocess, so `anvil watch` and the editor/agent MCP
 `anvil_validate_write` tool converge on the same verdict path. From
 `v0.9.0-beta`, an interactive `anvil start` auto-starts the daemon and an
 interactive `anvil watch` offers to start one when none is answering (Linux and
-macOS) — pass `--no-daemon`, or set `ANVIL_NO_DAEMON=1` for `start`, to keep to
-the scoped fallback. See the
+macOS) — pass `--no-daemon`, or set `ANVIL_NO_DAEMON=1` for `start`, to suppress
+that auto-start/offer (a daemon already running is still reused). See the
 [daemon lifecycle](../guides/save-time-validation.md#daemon-lifecycle) for the
 full start/offer/opt-out model.
 

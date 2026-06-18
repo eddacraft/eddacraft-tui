@@ -128,9 +128,9 @@ baselines the repo, wires Cursor and Claude Code MCP entries (writing
 `~/.cursor/mcp.json` and `~/.claude.json`), and ends in one literal protection
 state. From `v0.9.0-beta`, in an interactive terminal it also auto-starts the
 per-user save-time daemon (Linux and macOS) and reports the result on a
-`daemon:` line; pass `--no-daemon` (or set `ANVIL_NO_DAEMON=1`) to keep to the
-scoped fallback, and note `--verify` never starts a daemon. The protection state
-is one of:
+`daemon:` line; pass `--no-daemon` (or set `ANVIL_NO_DAEMON=1`) to suppress that
+auto-start — a daemon already running is still reused — and note `--verify`
+never starts a daemon. The protection state is one of:
 
 - `protecting` — MCP pre-write validation is live
 - `ready_restart_required` — config is wired, restart Cursor/Claude Code to pick
