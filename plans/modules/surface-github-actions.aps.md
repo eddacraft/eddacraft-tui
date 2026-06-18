@@ -3,11 +3,11 @@
 
 # GitHub Actions YAML Governance Surface (Track 3)
 
-| ID      | Owner | Status |
-| ------- | ----- | ------ |
-| SURFGHA | —     | Draft  |
+| ID      | Owner      | Status      |
+| ------- | ---------- | ----------- |
+| SURFGHA | joshuaboys | In Progress |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-06-18
 
 ## Purpose
 
@@ -69,26 +69,77 @@ Phase 2 deliverable (spec §9 step 7).
 
 ## Ready Checklist
 
-Change status to **Ready** when:
+Promoted Draft → In Progress 2026-06-18. Checklist satisfied:
 
-- [ ] OPSUP slices landed.
-- [ ] ADR-029 Accepted.
-- [ ] Anvil's own workflows baselined.
-- [ ] External codebase validation candidate identified.
-- [ ] Owner named.
+- [x] OPSUP slices landed — same set as SURFSQL (OPSUP-001 Done, OPSUP-003
+      Merged #2694, OPSUP-005 Merged #2755; `track.surface` umbrella live).
+- [x] ADR-029 Accepted — `#` comment style already in the suppression parser.
+- [x] Anvil's own workflows baselined — corpus is `.github/workflows/*.yml`
+      (~30 workflows); they set explicit `permissions:` and pin to release
+      tags, so the PR1 catalogue is clean on them. FP target **N = 1%** (PYLAN
+      precedent, operator-ratifiable).
+- [x] External codebase validation candidate identified — a popular OSS repo
+      with `.github/workflows/` (final pick recorded in SURFGHA-007).
+- [x] Owner named — joshuaboys.
 
 ## Work Items
 
-Anticipated:
+Delivered as slices mirroring SURFSQL: library catalogue first, then gate
+registration + flag, then validation.
 
-- SURFGHA-001: Workflow file detection.
-- SURFGHA-002: Permission/trigger pattern catalogue
-  (`pull_request_target`, `workflow_run`, default token writes).
-- SURFGHA-003: Action-pinning rules.
-- SURFGHA-004: Secret-handling rules.
-- SURFGHA-005: Self-hosted runner rules.
-- SURFGHA-006: Suppression + policy hook + drift baseline wiring.
-- SURFGHA-007: Anvil + external validation runs.
+### SURFGHA-001 — Workflow file detection
+
+- **Status:** In Progress
+- **Intent:** Identify the `.github/workflows/*.yml`/`*.yaml` files SURFGHA
+  governs.
+- **Expected Outcome:** Files under a `.github/workflows/` directory with a
+  `.yml`/`.yaml` extension are detected; other YAML (e.g. action metadata,
+  non-workflow YAML) is not.
+- **Files:** `crates/anvil-checks/src/surface/github_actions/scanner.rs`
+- **Validation:** `cargo test -p eddacraft-anvil-checks --lib surface::github_actions::scanner::tests::detects_workflow_files_by_path`
+- **Confidence:** high
+
+### SURFGHA-002 — Supply-chain pattern catalogue
+
+- **Status:** In Progress
+- **Intent:** Warn on the highest-blast-radius supply-chain risks in workflow
+  YAML.
+- **Expected Outcome:** Unpinned **branch** action refs (`uses: …@main`/branch,
+  not SHA/version-tag), the `pull_request_target` trigger, and self-hosted
+  runners are flagged, with `#`-comment awareness and `# @anvil-ignore`
+  suppression. Consolidates the anticipated action-pinning (-003) and
+  self-hosted (-005) risk families into one catalogue rule.
+- **Files:** `crates/anvil-checks/src/surface/github_actions/{scanner,check}.rs`
+- **Validation:** `cargo test -p eddacraft-anvil-checks --lib surface::github_actions`
+- **Confidence:** high
+
+### SURFGHA-006 — Gate/catalogue registration + flag gating
+
+- **Status:** Ready
+- **Intent:** Surface SURFGHA in the gate behind `track.surface.gha`.
+- **Expected Outcome:** `ANV-SURF-GHA-001` registered + wired into the gate
+  dispatcher (warn-only, file-presence guarded), gated behind a
+  `track.surface.gha` leaf flag under the OPSUP-005 `track.surface` umbrella,
+  opt-in via `ANVIL_TRACK_SURFACE_GHA=1` — exactly the SURFSQL-005 pattern.
+- **Validation:** `cargo test -p eddacraft-anvil commands::check_catalog`
+- **Dependencies:** SURFGHA-002, OPSUP-005 (Merged)
+- **Confidence:** high
+
+### SURFGHA-007 — Anvil + external validation runs
+
+- **Status:** Ready
+- **Intent:** Prove the acceptance bar (FP < 1% on Anvil + ≥1 external repo).
+- **Validation:** FP report committed under `plans/reviews/`.
+- **Dependencies:** SURFGHA-002, SURFGHA-006
+- **Confidence:** medium
+
+### Deferred risk families
+
+`workflow_run` reaching into forks, default `GITHUB_TOKEN` write permissions,
+and `secrets:` exposed via `env:` (anticipated -002/-004) need permission- and
+data-flow resolution that is FP-prone line-by-line; revisit with the
+SURFGHA-007 dogfood signal (mirrors the SURFSQL-003 mixed-transaction
+deferral).
 
 ## Risks
 
