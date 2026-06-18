@@ -227,6 +227,9 @@ fn split_statements(content: &str) -> Vec<SqlStatement> {
         if c == '/' && chars.peek() == Some(&'*') {
             chars.next();
             block_depth += 1;
+            // Replace the comment with a separator so tokens on either side
+            // don't fuse (`IF/*x*/EXISTS` → `IF EXISTS`, not `IFEXISTS`).
+            current.push(' ');
             continue;
         }
         if c == ';' {
@@ -512,6 +515,21 @@ mod tests {
         // First drop is guarded, second is not — must still flag (council).
         let content = "ALTER TABLE t DROP COLUMN IF EXISTS a, DROP COLUMN b;\n";
         assert_eq!(kinds(content), vec![DestructiveKind::DropColumn]);
+    }
+
+    #[test]
+    fn inline_block_comment_does_not_fuse_tokens() {
+        // `IF/*x*/EXISTS` must read as a guard (IF EXISTS), not `IFEXISTS`
+        // (council: stripping a comment without a separator broke detection).
+        assert!(
+            kinds("ALTER TABLE t DROP COLUMN IF/*c*/EXISTS email;").is_empty(),
+            "inline comment must not break the IF EXISTS guard"
+        );
+        // And the inverse: a comment splitting a keyword must not hide it.
+        assert_eq!(
+            kinds("DROP/*c*/TABLE users;"),
+            vec![DestructiveKind::DropTable]
+        );
     }
 
     #[test]
