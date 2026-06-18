@@ -21,7 +21,8 @@ import pathlib
 import collections
 
 HERE = pathlib.Path(__file__).resolve().parent
-CORPUS = json.load(open(HERE / "corpus.json"))
+with open(HERE / "corpus.json", "r") as fh:
+    CORPUS = json.load(fh)
 WORK = pathlib.Path(os.environ.get("EXT_FP_WORK", "/tmp/anvil-ext-fp"))
 OUT = pathlib.Path(os.environ.get("EXT_FP_OUT", WORK / "out"))
 
