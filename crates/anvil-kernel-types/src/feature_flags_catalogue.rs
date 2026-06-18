@@ -41,8 +41,11 @@ mod tests {
     #[test]
     fn per_track_flags_obey_opsup_005_taxonomy() {
         // OPSUP-005: every shipped `track.surface.*` / `track.pack.*` flag must
-        // ship opt-in with a sunset date and resolve through its umbrella group.
-        // Non-track flags are exempt (track_flag_violations returns empty).
+        // satisfy the permanent invariants — rollout class, a sunset date,
+        // createdFor, and umbrella-group resolution. The default variant is NOT
+        // pinned here (the opt-in→enabled flip must not break CI); opt-in at
+        // first ship is a review-time check. Non-track flags are exempt
+        // (track_flag_violations returns empty).
         for flag in manifest().flags {
             let violations = flag.track_flag_violations();
             assert!(
