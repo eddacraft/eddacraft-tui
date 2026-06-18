@@ -772,46 +772,49 @@ fn run_check_sql_migrations(name: &str, root: &Path, walked_files: &[String]) ->
     };
 
     let result = run_surfsql_check(&sql_files);
-    let unsuppressed: Vec<_> = result
-        .destructive
-        .iter()
-        .filter(|f| !f.suppressed)
-        .collect();
+    // SURFSQL-002 destructive + SURFSQL-003 schema-hygiene, unsuppressed.
+    let mut locations: Vec<String> = Vec::new();
+    for f in result.destructive.iter().filter(|f| !f.suppressed) {
+        locations.push(format!(
+            "{}:{} [{}] {}",
+            f.file,
+            f.line,
+            rule_label(f.kind),
+            f.statement
+        ));
+    }
+    for f in result.hygiene.iter().filter(|f| !f.suppressed) {
+        locations.push(format!(
+            "{}:{} [{}] {}",
+            f.file,
+            f.line,
+            hygiene_label(f.kind),
+            f.statement
+        ));
+    }
 
-    if unsuppressed.is_empty() {
+    if locations.is_empty() {
         return CheckResult {
             name: name.to_string(),
             passed: true,
             score: 100.0,
             message: format!(
-                "No unguarded destructive SQL migration patterns found across {} file(s){unreadable_note}",
+                "No destructive or schema-hygiene SQL migration issues found across {} file(s){unreadable_note}",
                 sql_files.len()
             ),
             requires_config: false,
         };
     }
 
-    let locations: Vec<String> = unsuppressed
-        .iter()
-        .map(|f| {
-            format!(
-                "{}:{} [{}] {}",
-                f.file,
-                f.line,
-                rule_label(f.kind),
-                f.statement
-            )
-        })
-        .collect();
     CheckResult {
         name: name.to_string(),
         // Warn-only: surfaced, never blocking (architecture default).
         passed: true,
         score: 100.0,
         message: format!(
-            "⚠ {} destructive SQL migration pattern(s) flagged (warn-only; \
-             baseline lands in SURFSQL-006){}:\n{}",
-            unsuppressed.len(),
+            "⚠ {} SQL migration issue(s) flagged (warn-only; baseline lands in \
+             SURFSQL-006){}:\n{}",
+            locations.len(),
             unreadable_note,
             locations.join("\n")
         ),
@@ -829,6 +832,15 @@ fn rule_label(kind: anvil_checks::surface::sql::DestructiveKind) -> &'static str
         K::DeleteWithoutWhere => "DELETE without WHERE",
         K::UpdateWithoutWhere => "UPDATE without WHERE",
         K::DropConstraint => "DROP CONSTRAINT",
+    }
+}
+
+/// Short label for a schema-hygiene finding kind, for the gate message.
+fn hygiene_label(kind: anvil_checks::surface::sql::HygieneKind) -> &'static str {
+    use anvil_checks::surface::sql::HygieneKind as K;
+    match kind {
+        K::MissingCreateTableGuard => "CREATE TABLE without IF NOT EXISTS",
+        K::MissingCreateIndexGuard => "CREATE INDEX without IF NOT EXISTS",
     }
 }
 
@@ -2579,7 +2591,23 @@ mod tests {
         let result =
             run_check_sql_migrations("sql-migrations", tmp.path(), &["schema.sql".to_string()]);
         assert!(result.passed);
-        assert!(result.message.contains("No unguarded destructive"));
+        assert!(result.message.contains("No destructive or schema-hygiene"));
+    }
+
+    #[test]
+    fn sql_migrations_check_surfaces_hygiene_warning() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("001.sql"), "CREATE TABLE users (id int);\n").unwrap();
+        let result =
+            run_check_sql_migrations("sql-migrations", tmp.path(), &["001.sql".to_string()]);
+        assert!(result.passed, "warn-only, never blocks");
+        assert!(
+            result
+                .message
+                .contains("CREATE TABLE without IF NOT EXISTS"),
+            "hygiene finding surfaced: {}",
+            result.message
+        );
     }
 
     #[test]

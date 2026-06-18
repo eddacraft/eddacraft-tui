@@ -136,6 +136,114 @@ pub fn scan_sql_file(display_path: &str, content: &str) -> Vec<SqlFinding> {
     findings
 }
 
+/// SURFSQL-003 — schema-hygiene rule: idempotent DDL that omits its guard.
+pub const SURFSQL_003_RULE_ID: &str = "SURFSQL-003";
+
+/// The kind of schema-hygiene issue a [`SqlHygieneFinding`] reports.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HygieneKind {
+    /// `CREATE TABLE` without `IF NOT EXISTS` — not idempotent; a re-run
+    /// (or a partially-applied migration) errors instead of no-op'ing.
+    MissingCreateTableGuard,
+    /// `CREATE INDEX` without `IF NOT EXISTS`.
+    MissingCreateIndexGuard,
+}
+
+impl HygieneKind {
+    /// Human-readable summary used in the finding message.
+    #[must_use]
+    pub fn description(self) -> &'static str {
+        match self {
+            Self::MissingCreateTableGuard => "CREATE TABLE without IF NOT EXISTS is not idempotent",
+            Self::MissingCreateIndexGuard => "CREATE INDEX without IF NOT EXISTS is not idempotent",
+        }
+    }
+}
+
+/// A single SURFSQL-003 schema-hygiene finding, anchored to the statement's
+/// start line.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SqlHygieneFinding {
+    pub file: String,
+    pub line: usize,
+    pub kind: HygieneKind,
+    pub statement: String,
+    pub suppressed: bool,
+    pub suppression_reason: Option<String>,
+}
+
+/// Scan one SQL file's `content` for schema-hygiene issues (SURFSQL-003).
+///
+/// Only `CREATE TABLE`/`CREATE INDEX` are checked — these support
+/// `IF NOT EXISTS`. `CREATE OR REPLACE` constructs (views, functions) use a
+/// different idempotency idiom and are out of scope. Suppression uses
+/// `-- @anvil-ignore SURFSQL-003`.
+#[must_use]
+pub fn scan_sql_hygiene(display_path: &str, content: &str) -> Vec<SqlHygieneFinding> {
+    let lines: Vec<&str> = content.lines().collect();
+    let mut findings = Vec::new();
+
+    for statement in split_statements(content) {
+        for kind in classify_hygiene(&statement.normalised) {
+            let (suppressed, reason) =
+                resolve_line_suppression(&lines, statement.line, SURFSQL_003_RULE_ID);
+            findings.push(SqlHygieneFinding {
+                file: display_path.to_string(),
+                line: statement.line,
+                kind,
+                statement: truncate_statement(&statement.normalised),
+                suppressed,
+                suppression_reason: reason,
+            });
+        }
+    }
+    findings
+}
+
+/// Modifier keywords that may sit between `CREATE` and the object keyword
+/// (`CREATE OR REPLACE`, `CREATE TEMP TABLE`, `CREATE UNIQUE INDEX`, …).
+const CREATE_MODIFIERS: &[&str] = &[
+    "OR",
+    "REPLACE",
+    "TEMP",
+    "TEMPORARY",
+    "UNLOGGED",
+    "GLOBAL",
+    "LOCAL",
+    "UNIQUE",
+    "MATERIALIZED",
+];
+
+/// Classify a normalised statement into zero or more schema-hygiene kinds.
+///
+/// The object keyword is matched **positionally** — the first token after
+/// `CREATE` that is not a known modifier. This avoids false positives where
+/// `TABLE`/`INDEX` appears later as an identifier (a column/parameter/table
+/// named `index`, a `CREATE TRIGGER … ON index`, a view alias `AS index`).
+fn classify_hygiene(norm: &str) -> Vec<HygieneKind> {
+    let tokens: Vec<&str> = norm.split(' ').filter(|t| !t.is_empty()).collect();
+    let mut kinds = Vec::new();
+    if tokens.first() != Some(&"CREATE") {
+        return kinds;
+    }
+    // `IF NOT EXISTS` anywhere in the (string-elided) statement = guarded.
+    if contains_seq(&tokens, &["IF", "NOT", "EXISTS"]) {
+        return kinds;
+    }
+    // The object keyword is the first non-modifier token after CREATE.
+    let object = tokens
+        .iter()
+        .skip(1)
+        .find(|t| !CREATE_MODIFIERS.contains(t));
+    match object {
+        Some(&"TABLE") => kinds.push(HygieneKind::MissingCreateTableGuard),
+        Some(&"INDEX") => kinds.push(HygieneKind::MissingCreateIndexGuard),
+        _ => {}
+    }
+    kinds
+}
+
 /// Display cap for the echoed statement so a multi-line `CREATE TABLE`
 /// doesn't bloat the finding payload.
 const STATEMENT_DISPLAY_CAP: usize = 120;
@@ -555,5 +663,97 @@ mod tests {
         // leak the trailing DROP TABLE back into live SQL (council).
         let content = "/* outer /* inner */ DROP TABLE users; */\nSELECT 1;\n";
         assert!(scan_sql_file("m.sql", content).is_empty());
+    }
+
+    // ── SURFSQL-003: schema hygiene (missing idempotency guards) ────
+
+    fn hygiene_kinds(content: &str) -> Vec<HygieneKind> {
+        scan_sql_hygiene("m.sql", content)
+            .into_iter()
+            .map(|f| f.kind)
+            .collect()
+    }
+
+    #[test]
+    fn flags_create_table_without_guard() {
+        assert_eq!(
+            hygiene_kinds("CREATE TABLE users (id int);"),
+            vec![HygieneKind::MissingCreateTableGuard]
+        );
+        // Guarded — Anvil's own migrations use this; must be clean.
+        assert!(hygiene_kinds("CREATE TABLE IF NOT EXISTS users (id int);").is_empty());
+    }
+
+    #[test]
+    fn flags_create_index_without_guard() {
+        assert_eq!(
+            hygiene_kinds("CREATE UNIQUE INDEX idx ON users (email);"),
+            vec![HygieneKind::MissingCreateIndexGuard]
+        );
+        assert!(hygiene_kinds("CREATE INDEX IF NOT EXISTS idx ON users (email);").is_empty());
+    }
+
+    #[test]
+    fn hygiene_ignores_non_table_index_creates() {
+        // CREATE OR REPLACE VIEW/FUNCTION use a different idempotency idiom.
+        assert!(hygiene_kinds("CREATE OR REPLACE VIEW v AS SELECT 1;").is_empty());
+        assert!(hygiene_kinds("CREATE SCHEMA app;").is_empty());
+        assert!(hygiene_kinds("CREATE EXTENSION IF NOT EXISTS pgcrypto;").is_empty());
+        assert!(hygiene_kinds("CREATE MATERIALIZED VIEW mv AS SELECT 1;").is_empty());
+        // ALTER / DROP are not CREATE statements.
+        assert!(hygiene_kinds("ALTER TABLE users ADD COLUMN x int;").is_empty());
+    }
+
+    #[test]
+    fn hygiene_object_keyword_is_positional_not_anywhere() {
+        // The keyword TABLE/INDEX appearing later as an identifier must NOT
+        // trigger a finding (council false-positives).
+        assert!(
+            hygiene_kinds(
+                "CREATE TRIGGER t AFTER INSERT ON index FOR EACH ROW EXECUTE FUNCTION f();"
+            )
+            .is_empty(),
+            "CREATE TRIGGER ... ON index must not fire the index rule"
+        );
+        assert!(
+            hygiene_kinds(
+                "CREATE OR REPLACE VIEW summary AS SELECT count(*) AS index FROM events;"
+            )
+            .is_empty(),
+            "a view column aliased `index` must not fire the index rule"
+        );
+        assert!(
+            hygiene_kinds("CREATE FUNCTION check_status( index integer ) RETURNS void LANGUAGE sql AS $$ SELECT 1 $$;").is_empty(),
+            "a function parameter named `index` must not fire the index rule"
+        );
+    }
+
+    #[test]
+    fn hygiene_covers_create_modifiers() {
+        // Modifiers between CREATE and the object keyword still resolve.
+        assert_eq!(
+            hygiene_kinds("CREATE TEMP TABLE scratch (id int);"),
+            vec![HygieneKind::MissingCreateTableGuard]
+        );
+        assert_eq!(
+            hygiene_kinds("CREATE UNIQUE INDEX CONCURRENTLY idx ON t (a);"),
+            vec![HygieneKind::MissingCreateIndexGuard]
+        );
+        assert_eq!(
+            hygiene_kinds("CREATE TABLE archive AS SELECT * FROM events;"),
+            vec![HygieneKind::MissingCreateTableGuard]
+        );
+    }
+
+    #[test]
+    fn hygiene_suppression_marks_finding() {
+        let content = "-- @anvil-ignore SURFSQL-003 -- one-shot bootstrap table\nCREATE TABLE seed (id int);\n";
+        let findings = scan_sql_hygiene("m.sql", content);
+        assert_eq!(findings.len(), 1);
+        assert!(findings[0].suppressed);
+        assert_eq!(
+            findings[0].suppression_reason.as_deref(),
+            Some("one-shot bootstrap table")
+        );
     }
 }

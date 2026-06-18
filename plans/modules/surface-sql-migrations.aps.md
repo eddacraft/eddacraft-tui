@@ -111,7 +111,7 @@ hygiene, gate/catalogue registration, drift, and validation.
 
 ### SURFSQL-001 — SQL file detection + migration-directory heuristics
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-18 via PR #2761
 - **Intent:** Identify the files SURFSQL governs without forcing config.
 - **Expected Outcome:** `*.sql` files and files under recognised migration
   directories (`migrations/`, `db/migrations/`, `supabase/migrations/`) are
@@ -122,7 +122,7 @@ hygiene, gate/catalogue registration, drift, and validation.
 
 ### SURFSQL-002 — Destructive-pattern catalogue
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-18 via PR #2761
 - **Intent:** Warn on irreversible / unguarded destructive operations.
 - **Expected Outcome:** `DROP TABLE`, `TRUNCATE`, unguarded `DROP COLUMN`,
   unguarded `ALTER … DROP CONSTRAINT`, and `DELETE`/`UPDATE` without a `WHERE`
@@ -135,19 +135,26 @@ hygiene, gate/catalogue registration, drift, and validation.
 
 ### SURFSQL-003 — Schema-hygiene catalogue
 
-- **Status:** Ready
-- **Intent:** Flag missing idempotency guards and mixed schema/data
-  transactions.
-- **Expected Outcome:** Missing `IF NOT EXISTS`/`IF EXISTS` on idempotent ops
-  and schema+data changes in one transaction surface as findings, with `--`
-  suppression.
-- **Validation:** `cargo test -p eddacraft-anvil-checks --lib surface::sql` (new schema-hygiene cases)
+- **Status:** In Progress
+- **Intent:** Flag missing idempotency guards on idempotent DDL.
+- **Expected Outcome:** `CREATE TABLE`/`CREATE INDEX` without `IF NOT EXISTS`
+  surface as warn-only schema-hygiene findings (`SqlHygieneFinding`), with `--`
+  suppression and the same comment/string-aware statement splitting as
+  SURFSQL-002. `CREATE OR REPLACE` constructs (views/functions) are out of
+  scope (different idempotency idiom).
+- **Files:** `crates/anvil-checks/src/surface/sql/scanner.rs`,
+  `crates/anvil-checks/src/surface/sql/check.rs`,
+  `crates/anvil-cli/src/commands/gate.rs`
+- **Validation:** `cargo test -p eddacraft-anvil-checks --lib surface::sql`
 - **Dependencies:** SURFSQL-001, SURFSQL-002
-- **Confidence:** medium
+- **Confidence:** high
+- **Deferred:** the "schema + data changes in one transaction" rule — needs
+  transaction-block awareness and is FP-prone (create-table-then-seed is a
+  legitimate pattern); revisit with the SURFSQL-007 dogfood signal.
 
 ### SURFSQL-004 — SQL `--` suppression syntax integration
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-18 via PR #2761
 - **Intent:** Honour `-- @anvil-ignore <ID> -- <reason>` for SQL findings.
 - **Expected Outcome:** A directive on the line above a finding (or in the file
   header) marks it suppressed with its reason, reusing the ADR-029 canonical
@@ -158,7 +165,7 @@ hygiene, gate/catalogue registration, drift, and validation.
 
 ### SURFSQL-005 — Gate/catalogue registration + policy hook wiring
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-18 via PR #2764
 - **Intent:** Surface SURFSQL in the gate behind `track.surface.sql`.
 - **Expected Outcome:** A `ANV-SURF-SQL-001` check is registered in
   `check_catalog.rs` (relaxing the `ANV-CORE-`-only ID-validation test to

@@ -18,7 +18,8 @@ pub mod suppression;
 
 pub use check::{SurfsqlCheckResult, run_surfsql_check};
 pub use scanner::{
-    DestructiveKind, SURFSQL_002_RULE_ID, SqlFinding, is_sql_migration_file, scan_sql_file,
+    DestructiveKind, HygieneKind, SURFSQL_002_RULE_ID, SURFSQL_003_RULE_ID, SqlFinding,
+    SqlHygieneFinding, is_sql_migration_file, scan_sql_file, scan_sql_hygiene,
 };
 pub use suppression::{resolve_file_header_suppression, resolve_line_suppression};
 
@@ -28,4 +29,4 @@ pub use suppression::{resolve_file_header_suppression, resolve_line_suppression}
 /// registering a new rule trips the audit's exhaustiveness check until a
 /// matching suppression case exists. Keep in sync with the
 /// `SURFSQL_00n_RULE_ID` constants as rules land.
-pub const SURFSQL_RULES: &[&str] = &[SURFSQL_002_RULE_ID];
+pub const SURFSQL_RULES: &[&str] = &[SURFSQL_002_RULE_ID, SURFSQL_003_RULE_ID];
