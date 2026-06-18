@@ -464,7 +464,8 @@ requires founder review. The contract doc lives in
   - **Principal model → add to envelope.** An optional per-call
     principal field is added to the JSON-RPC envelope so daemon usage
     rows carry the *same* salted-hash principal as CLI rows
-    (SHA-256(salt‖email)); raw principal never on the wire. Symmetric
+    (SHA-256(salt ‖ ":" ‖ email), per `anonymise_principal`); raw
+    principal never on the wire. Symmetric
     to the CLI path rather than the weaker `session_id`-only
     correlation. Field is optional, so absence resolves to `anonymous`
     (parity with the unauthenticated CLI case) and existing clients

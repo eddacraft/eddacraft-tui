@@ -232,10 +232,12 @@ addition to everything above.
 **Principal — supplied by the client.** The JSON-RPC envelope carries an
 optional top-level `principal` field. Clients (the GCTX MCP query tools and the
 `anvil intercept unblock` verbs) attach the **same** one-way salted hash the CLI
-records — never a raw identity. The field is optional and length-capped; an
-absent or malformed value resolves to the literal `anonymous` (parity with an
-unauthenticated CLI run), so the raw principal is never on the wire and existing
-clients stay wire-compatible.
+records — never a raw identity. The field is optional and length-capped. An
+**absent** principal resolves to the literal `anonymous` (parity with an
+unauthenticated CLI run), so existing clients stay wire-compatible; a
+**malformed** value (non-string, or over the length cap) is a hard dispatch
+rejection — the daemon rejects the request and records no row, rather than
+attributing it to `anonymous`. The raw principal is never on the wire.
 
 **Method scope — an explicit allowlist.** Only user-initiated methods emit a
 `command.invoked` row: the GCTX query tools (`search_symbols`,

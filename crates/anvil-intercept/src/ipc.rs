@@ -2685,7 +2685,7 @@ fn emit_one_command_invocation(value: &Value, emitter: &CommandInvokedEmitter, t
     // malformed `principal`/`traceparent` is a hard rejection there, so
     // it must suppress the row here too; an *absent* optional field is
     // fine and resolves to `anonymous`/`None`.
-    if map.get("jsonrpc") != Some(&Value::String("2.0".to_owned())) {
+    if map.get("jsonrpc").and_then(Value::as_str) != Some("2.0") {
         return;
     }
     let Some(method) = map.get("method").and_then(Value::as_str) else {
