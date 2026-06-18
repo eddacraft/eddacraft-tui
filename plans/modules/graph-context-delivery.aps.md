@@ -2,9 +2,9 @@
 
 | ID   | Owner | Status | Progress |
 | ---- | ----- | ------ | -------- |
-| GCTX | —     | In Progress | 7/14 |
+| GCTX | —     | In Progress | 8/14 |
 
-**Last reviewed:** 2026-06-17 (Phase 0 — Delivery Contract — complete. **GCTX-001 (projection contract) Merged 2026-06-15 via #2628** — the spec [`graph-context-delivery-spec.md`](../../docs/architecture/graph-context-delivery-spec.md) folds the context-egress privacy review (PV-9) conditions CE-1..CE-12 onto the GV2-023 consumer query contract. **GCTX-002 (MCP delivery target) Merged 2026-06-15 via #2619** — discharged by [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) **Accepted** (Rust RMCPF `anvil mcp serve` surface); RMCPF defers GCTX work by design, so no edit to rust-mcp-full-port. Module **In Progress, 7/14** (GCTX-010 pilot Merged 2026-06-16 via #2657; GCTX-011 `find_dependents` Merged 2026-06-16 via #2685; GCTX-012 `anvil_impact_of_change` Merged 2026-06-17 via #2693; **GCTX-013 `anvil_affected_tests` Merged 2026-06-17 via #2700** — test attribution + coverage gaps over the same spine, no new substrate; reuses GCTX-012's `is_test_file` + the dependency graph's forward `dependencies_of` edges for evidence; **GCTX-014 `anvil_find_callers` Merged 2026-06-17 via #2715** — symbol-level caller traversal projecting the GCALL-003 `callers_of` read API, completing the Phase 1 tool surface (010..014)). With the Phase 1 tool queue now complete, the remaining Phase 1/2 tool items (021..023, 030) stay Draft; all build on the CE-5 sealed egress DTO + `GctxProjector` + structural no-leak spine that GCTX-010 established, using the daemon-RPC graph-handle path settled by ADR-084.)
+**Last reviewed:** 2026-06-17 (Phase 0 — Delivery Contract — complete. **GCTX-001 (projection contract) Merged 2026-06-15 via #2628** — the spec [`graph-context-delivery-spec.md`](../../docs/architecture/graph-context-delivery-spec.md) folds the context-egress privacy review (PV-9) conditions CE-1..CE-12 onto the GV2-023 consumer query contract. **GCTX-002 (MCP delivery target) Merged 2026-06-15 via #2619** — discharged by [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) **Accepted** (Rust RMCPF `anvil mcp serve` surface); RMCPF defers GCTX work by design, so no edit to rust-mcp-full-port. Module **In Progress, 7/14** (GCTX-010 pilot Merged 2026-06-16 via #2657; GCTX-011 `find_dependents` Merged 2026-06-16 via #2685; GCTX-012 `anvil_impact_of_change` Merged 2026-06-17 via #2693; **GCTX-013 `anvil_affected_tests` Merged 2026-06-17 via #2700** — test attribution + coverage gaps over the same spine, no new substrate; reuses GCTX-012's `is_test_file` + the dependency graph's forward `dependencies_of` edges for evidence; **GCTX-014 `anvil_find_callers` Merged 2026-06-17 via #2715** — symbol-level caller traversal projecting the GCALL-003 `callers_of` read API, completing the Phase 1 tool surface (010..014); **GCTX-030 (`graph://` MCP resources) Merged 2026-06-18 via #2772** — the read-only `graph://stats`/`symbols`/`edges` resource surface, identity-only, with CE-6 pagination and a `bounded` edges flag). With the Phase 1 tool queue + the resource surface complete, the remaining Phase-2 snippet items (021..023) stay Draft; all build on the CE-5 sealed egress DTO + `GctxProjector` + structural no-leak spine that GCTX-010 established, using the daemon-RPC graph-handle path settled by ADR-084.)
 
 > **Scoped to v0.9, not v0.8.0-beta (2026-06-08, [ADR-075](../decisions/075-v080-graph-product-scope.md),
 > Accepted via council).** GCTX was considered for the v0.8.0 window but the
@@ -676,7 +676,15 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-030: `graph://` MCP resources
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-18 via #2772 — the three read-only `graph://`
+  resources (`stats`/`symbols`/`edges`) over the daemon `anvil/gctx/*` surface,
+  identity-only through the CE-5 `GctxProjector`, with CE-6 keyset pagination, a
+  `bounded` honesty flag on edges, warm-on-`NotReady`, and the `resources`
+  capability + `resources/list`/`resources/read` dispatch. `graph://symbols`
+  reuses the GCTX-010 `search_symbols` RPC. Batch Council ran pre-PR (determinism
+  BLOCK on the edge enumeration fixed: sorted file/edge walk + deterministic
+  truncation) plus the Copilot follow-ups; cleanup agent advances Merged →
+  Released/Shipped on the next release tag that includes #2772.
 - **Intent:** Expose safe graph summaries and stats as read-only MCP resources —
   the identity-only **resource** surface, distinct from (and not dependent on) the
   Phase-2 snippet tools GCTX-020..023.
