@@ -18,6 +18,18 @@ pub struct InterceptArgs {
     command: InterceptCommand,
 }
 
+impl InterceptArgs {
+    /// USAGE-004: true when this is an `intercept unblock` invocation.
+    /// The unblock verbs emit their authoritative `command.invoked`
+    /// usage row from the daemon dispatch path, so the generic CLI-side
+    /// `intercept` row is suppressed for them to avoid double-counting
+    /// the operator action (founder decision 2026-06-18).
+    #[must_use]
+    pub fn is_unblock(&self) -> bool {
+        matches!(self.command, InterceptCommand::Unblock(_))
+    }
+}
+
 #[derive(Debug, Subcommand)]
 enum InterceptCommand {
     /// Start the intercept daemon. Use `--foreground` to keep it in
@@ -735,12 +747,16 @@ fn dispatch_unblock_cascade(worktree: &std::path::Path) -> Result<bool> {
         .set_write_timeout(Some(REQUEST_TIMEOUT))
         .context("failed to configure write timeout")?;
 
-    let frame = serde_json::json!({
+    let mut frame = serde_json::json!({
         "jsonrpc": "2.0",
         "method": "unblock-cascade",
         "params": { "worktree": worktree.to_string_lossy() },
         "id": UNBLOCK_REQUEST_ID,
     });
+    // USAGE-004: attach the operator's salted-hash principal so the
+    // daemon records the single source-of-truth `command.invoked` row
+    // (the CLI-side row is suppressed for unblock — see main.rs).
+    crate::usage::attach_principal(&mut frame);
     let mut frame_bytes = frame.to_string().into_bytes();
     frame_bytes.push(b'\n');
     stream
@@ -822,12 +838,16 @@ fn dispatch_unblock_worktree(worktree: &std::path::Path) -> Result<bool> {
         .set_write_timeout(Some(REQUEST_TIMEOUT))
         .context("failed to configure write timeout")?;
 
-    let frame = serde_json::json!({
+    let mut frame = serde_json::json!({
         "jsonrpc": "2.0",
         "method": "unblock-worktree",
         "params": { "worktree": worktree.to_string_lossy() },
         "id": UNBLOCK_WORKTREE_REQUEST_ID,
     });
+    // USAGE-004: attach the operator's salted-hash principal so the
+    // daemon records the single source-of-truth `command.invoked` row
+    // (the CLI-side row is suppressed for unblock — see main.rs).
+    crate::usage::attach_principal(&mut frame);
     let mut frame_bytes = frame.to_string().into_bytes();
     frame_bytes.push(b'\n');
     stream
@@ -1103,6 +1123,26 @@ mod tests {
     };
 
     use super::*;
+
+    /// USAGE-004: `is_unblock` is the CLI-row suppression trigger — true
+    /// only for `intercept unblock` (any mode), false for the other
+    /// intercept subcommands. Parsed via clap so it tracks the real CLI.
+    #[test]
+    fn is_unblock_flags_only_the_unblock_subcommand() {
+        use clap::Parser;
+
+        #[derive(Parser)]
+        struct TestCli {
+            #[command(flatten)]
+            args: InterceptArgs,
+        }
+
+        let parse = |argv: &[&str]| TestCli::try_parse_from(argv).expect("parse").args;
+        assert!(parse(&["x", "unblock", "--all"]).is_unblock());
+        assert!(parse(&["x", "unblock", "--worktree", "/tmp/wt"]).is_unblock());
+        assert!(!parse(&["x", "status"]).is_unblock());
+        assert!(!parse(&["x", "start", "--foreground"]).is_unblock());
+    }
 
     /// Pin the contract: `anvil intercept start` without `--foreground`
     /// exits with a clear error directing the user at the missing flag,

@@ -243,12 +243,15 @@ fn daemon_impact(
         GctxDaemonError::Failure
     })?;
 
-    let frame = json!({
+    let mut frame = json!({
         "jsonrpc": "2.0",
         "method": anvil_intercept_proto::protocol::ANVIL_GCTX_IMPACT_OF_CHANGE,
         "params": request,
         "id": REQUEST_ID,
     });
+    // USAGE-004: attach the caller's salted-hash principal so the daemon
+    // records an attributable `command.invoked` row.
+    crate::usage::attach_principal(&mut frame);
     if let Err(err) = writeln!(stream, "{frame}").and_then(|()| stream.flush()) {
         eprintln!("anvil-mcp: gctx impact request write failed: {err}");
         return Err(GctxDaemonError::Failure);

@@ -1082,12 +1082,19 @@ fn main() -> ExitCode {
     // `process::exit` paths cannot drop it. Strictly best-effort: a
     // usage-write failure is logged and dropped so it never changes the
     // command's behaviour or exit code.
-    if let Err(err) = usage::record_invocation(command_name) {
-        tracing::warn!(
-            target: "anvil_cli",
-            error = %err,
-            "usage: failed to record command-invocation observation; continuing",
-        );
+    // USAGE-004: the `intercept unblock` verbs record their authoritative
+    // row from the daemon dispatch path; suppress the generic CLI-side
+    // `intercept` row for them so the operator action is counted once.
+    let suppress_cli_usage_row =
+        matches!(&cli.command, Commands::Intercept(args) if args.is_unblock());
+    if !suppress_cli_usage_row {
+        if let Err(err) = usage::record_invocation(command_name) {
+            tracing::warn!(
+                target: "anvil_cli",
+                error = %err,
+                "usage: failed to record command-invocation observation; continuing",
+            );
+        }
     }
 
     if let Err(code) = auth_outcome {

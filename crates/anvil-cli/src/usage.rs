@@ -325,6 +325,38 @@ fn incoming_traceparent() -> Option<String> {
 /// behaviour or exit code. Writes to the user-scoped state directory
 /// (`credentials_dir`), which already honours a gated `ANVIL_HOME`, so
 /// no separate project-write gating is needed.
+/// USAGE-004: resolve the current invocation's salted-hash principal —
+/// the same value [`record_invocation`] stamps on CLI rows.
+///
+/// JSON-RPC clients (the MCP query tools, the `intercept` operator verbs)
+/// call this and attach the result on the request envelope so the
+/// daemon-side producer records an attributable row instead of a
+/// principal-less one. An absent/unreadable credential resolves to the
+/// `anonymous` principal (parity with an unauthenticated CLI run); the
+/// raw email is never returned.
+pub fn current_principal() -> Result<String> {
+    let state_dir = credentials::credentials_dir().context("resolve usage state directory")?;
+    let salt = load_or_create_salt_in(&state_dir)?;
+    let email = credentials::load().ok().flatten().and_then(|c| c.email);
+    Ok(anonymise_principal(email.as_deref(), &salt))
+}
+
+/// USAGE-004: attach the current salted-hash principal to a JSON-RPC
+/// request `frame` so the daemon-side producer can attribute the row to
+/// the same principal CLI rows carry.
+///
+/// Best-effort: if the principal cannot be resolved, or `frame` is not a
+/// JSON object, the frame is left unchanged and the daemon records the
+/// `anonymous` principal (parity with an unauthenticated run). Never puts
+/// a raw email on the wire — only the one-way hash.
+pub fn attach_principal(frame: &mut serde_json::Value) {
+    if let Ok(principal) = current_principal()
+        && let Some(obj) = frame.as_object_mut()
+    {
+        obj.insert("principal".to_owned(), serde_json::Value::String(principal));
+    }
+}
+
 pub fn record_invocation(command_name: &str) -> Result<()> {
     let state_dir = credentials::credentials_dir().context("resolve usage state directory")?;
     let salt = load_or_create_salt_in(&state_dir)?;
@@ -624,6 +656,19 @@ mod tests {
         assert!(!contents.contains("/secret/place"), "raw value leaked");
         assert!(!contents.contains("zzsecretzz"), "sensitive value leaked");
         assert!(contents.contains("<redacted>"), "redaction marker expected");
+    }
+
+    /// USAGE-004: `attach_principal` never panics on a non-object frame
+    /// and leaves it unchanged (the daemon then records `anonymous`).
+    #[test]
+    fn attach_principal_leaves_non_object_unchanged() {
+        let mut scalar = serde_json::json!("not-an-object");
+        attach_principal(&mut scalar);
+        assert_eq!(scalar, serde_json::json!("not-an-object"));
+
+        let mut arr = serde_json::json!([1, 2, 3]);
+        attach_principal(&mut arr);
+        assert_eq!(arr, serde_json::json!([1, 2, 3]));
     }
 
     /// USAGE-004: the daemon sink appends `command.invoked` rows to the
