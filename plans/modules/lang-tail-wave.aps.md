@@ -3,11 +3,37 @@
 
 # Tail Language T1 Wave (Track 2)
 
-| ID       | Owner | Status |
-| -------- | ----- | ------ |
-| LANGTAIL | —     | Draft  |
+| ID       | Owner       | Status      |
+| -------- | ----------- | ----------- |
+| LANGTAIL | joshuaboys  | In Progress |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-06-18
+
+## Grammar Maturity Audit (LANGTAIL-001)
+
+Audited 2026-06-18 against the workspace `tree-sitter` 0.26 runtime. Every
+candidate grammar crate resolves on crates.io and **binds + parses a
+representative multi-line snippet without an error tree** (pinned as a
+permanent regression guard in `parser::languages::tests::tail_wave_grammars_bind_and_parse`):
+
+| Language | Grammar crate | Version | ABI bind | Verdict |
+|----------|---------------|---------|----------|---------|
+| Dart | `tree-sitter-dart` | 0.2.0 | ✓ | Include |
+| Go | `tree-sitter-go` | 0.25.0 | ✓ | Include |
+| Java | `tree-sitter-java` | 0.23.5 | ✓ | Include |
+| Kotlin | `tree-sitter-kotlin-ng` | 1.1.0 | ✓ | Include (maintained fork of `tree-sitter-kotlin`) |
+| C# / .NET | `tree-sitter-c-sharp` | 0.23.5 | ✓ | Include |
+| C | `tree-sitter-c` | 0.24.2 | ✓ | Include |
+| C++ | `tree-sitter-cpp` | 0.23.4 | ✓ | Include |
+
+**Final wave membership: all 6 languages (7 grammars).** The spec anticipated
+"likely 5 of 6"; empirically all bind and parse, so none were cut. The C/C++
+at-risk flag (council C-005, spec §12.3) is retained as a *future* concern —
+the deep C++20/23 partial-parse risk only surfaces on advanced syntax beyond
+T1; the basic-symbol fixtures parse cleanly. The Kotlin community-maintenance
+risk is mitigated by using the maintained `-ng` fork and by realistic
+multi-line fixtures (single-line bodies trip the newline-sensitive grammar —
+the audit's one transient ERROR was a snippet artifact, not a grammar defect).
 
 ## Purpose
 
@@ -79,29 +105,44 @@ Java, Kotlin, .NET/C#, and C/C++ (now archived).
 
 ## Ready Checklist
 
-Change status to **Ready** when:
+Promoted to **Ready** (then **In Progress**) 2026-06-18 — all met:
 
-- [ ] LANGTS complete.
-- [ ] Grammar maturity audit complete; final wave membership confirmed.
-- [ ] At least one fixture file identified per included language.
-- [ ] Owner named.
+- [x] LANGTS complete (`lang-ts-audit` Complete, v0.7.3-beta).
+- [x] Grammar maturity audit complete; final wave membership confirmed (all 6).
+- [x] At least one fixture file identified per included language
+      (`crates/anvil-kernel/tests/fixtures/langtail/`).
+- [x] Owner named.
 
 ## Work Items
 
-Tasks will be defined when this module moves to Ready. Anticipated shape:
+Delivered as a single wave (one branch/PR) per the module's amortisation
+intent — the languages share `Language`/dispatch hot files, so a batch lands
+cleaner than per-language PRs.
 
-- LANGTAIL-001: Grammar maturity audit; finalise wave membership.
-- LANGTAIL-002: Wire `tree-sitter-dart`; basic symbol extraction; fixture.
-- LANGTAIL-003: Wire `tree-sitter-go`; basic symbol extraction; fixture.
-- LANGTAIL-004: Wire `tree-sitter-java`; basic symbol extraction; fixture.
-- LANGTAIL-005: Wire `tree-sitter-kotlin`; basic symbol extraction; fixture.
-- LANGTAIL-006: Wire `tree-sitter-c-sharp`; basic symbol extraction; fixture.
-- LANGTAIL-007: Wire `tree-sitter-c` and `tree-sitter-cpp`; basic symbol
-  extraction; fixture. **At-risk** — drop from wave if grammar quality
-  blocks the batch (spec §12.3, council C-005).
-- LANGTAIL-008: Wave-level acceptance: all included languages parse
-  real-world files without panicking, appear in the graph, all fixtures
-  green.
+- **LANGTAIL-001** — Grammar maturity audit; finalise wave membership.
+  **Done** (see audit table above).
+- **LANGTAIL-002** — Wire `tree-sitter-dart`; symbol/import extraction
+  (`parser/extract/dart.rs`); fixture. **Done**.
+- **LANGTAIL-003** — Wire `tree-sitter-go` (`parser/extract/go.rs`); fixture.
+  **Done**.
+- **LANGTAIL-004** — Wire `tree-sitter-java` (`parser/extract/java.rs`);
+  fixture. **Done**.
+- **LANGTAIL-005** — Wire `tree-sitter-kotlin-ng` (`parser/extract/kotlin.rs`);
+  fixture. **Done**.
+- **LANGTAIL-006** — Wire `tree-sitter-c-sharp` (`parser/extract/csharp.rs`);
+  fixture. **Done**.
+- **LANGTAIL-007** — Wire `tree-sitter-c` + `tree-sitter-cpp`
+  (`parser/extract/clike.rs`); fixture. **Done** — not cut; both bind and parse
+  the T1 fixtures (at-risk flag retained for future deep-C++ work).
+- **LANGTAIL-008** — Wave-level acceptance: every included language parses a
+  real-world fixture without panicking, symbols appear in the kernel symbol
+  graph, all fixtures green (`tests/langtail_wave_acceptance.rs`). **Done**.
+
+Supporting change (outside the numbered items, required for graph inclusion):
+the kernel parseable-extension gate (`FileFilter::is_parseable`) and the
+daemon warm-up + architecture-validate discovery lists now delegate to
+`Language::from_path`, so every supported language — closing the latent
+Rust/Python omission as well — reaches the symbol graph, not just JS/TS.
 
 ## Risks
 
@@ -116,6 +157,11 @@ Tasks will be defined when this module moves to Ready. Anticipated shape:
 
 ## Open Questions
 
-- [ ] Final wave membership after grammar maturity audit — likely 5 of 6.
-- [ ] Binary size / LTO budget agreed for Ready promotion.
-- [ ] Where does the per-language fixture corpus live in the repo?
+- [x] Final wave membership after grammar maturity audit — **all 6** included
+      (audit found every grammar binds + parses; none cut).
+- [x] Where does the per-language fixture corpus live in the repo? —
+      `crates/anvil-kernel/tests/fixtures/langtail/`, exercised by
+      `tests/langtail_wave_acceptance.rs`.
+- [ ] Binary size / LTO budget — measured cost is 7 small grammar crates (all
+      MIT, no new transitive runtime deps; ACKNOWLEDGEMENTS +7). Formal budget
+      sign-off deferred to release prep; not a blocker for T1 landing.

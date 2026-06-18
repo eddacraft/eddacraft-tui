@@ -125,10 +125,9 @@ fn collect_entries(root: &Path) -> anyhow::Result<Vec<WarmupEntry>> {
 }
 
 fn is_parseable(path: &Path) -> bool {
-    matches!(
-        path.extension().and_then(|ext| ext.to_str()),
-        Some("ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs")
-    )
+    // Single source of truth with the kernel parser — every supported anchor
+    // and tail-wave language (LANGTAIL) warms the cache, not just JS/TS.
+    anvil_kernel::parser::languages::Language::from_path(path).is_some()
 }
 
 fn modified_unix_secs(metadata: &std::fs::Metadata) -> Option<u64> {

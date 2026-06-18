@@ -91,11 +91,14 @@ impl FileFilter {
     }
 
     /// Check if a file has a parseable extension.
+    ///
+    /// Delegates to [`Language::from_path`] so the parseable gate stays the
+    /// single source of truth for "is this a language the kernel parses" —
+    /// every supported anchor and tail-wave language (LANGTAIL) is admitted,
+    /// and adding a language is a one-line change in `languages.rs` rather than
+    /// a second list to keep in sync here.
     pub fn is_parseable(&self, path: &Path) -> bool {
-        matches!(
-            path.extension().and_then(|e| e.to_str()),
-            Some("ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs")
-        )
+        crate::parser::languages::Language::from_path(path).is_some()
     }
 
     /// Combined check: not ignored AND a plausible file path.
@@ -169,11 +172,24 @@ mod tests {
     #[test]
     fn detects_parseable_extensions() {
         let filter = FileFilter::default();
+        // Anchor languages.
         assert!(filter.is_parseable(Path::new("main.ts")));
         assert!(filter.is_parseable(Path::new("App.tsx")));
         assert!(filter.is_parseable(Path::new("index.js")));
         assert!(filter.is_parseable(Path::new("config.mjs")));
         assert!(filter.is_parseable(Path::new("util.cjs")));
+        assert!(filter.is_parseable(Path::new("lib.rs")));
+        assert!(filter.is_parseable(Path::new("mod.py")));
+        // Tail-wave languages (LANGTAIL) — the gate delegates to
+        // `Language::from_path`, so these are admitted as first-class.
+        assert!(filter.is_parseable(Path::new("main.go")));
+        assert!(filter.is_parseable(Path::new("App.java")));
+        assert!(filter.is_parseable(Path::new("Main.kt")));
+        assert!(filter.is_parseable(Path::new("Program.cs")));
+        assert!(filter.is_parseable(Path::new("widget.dart")));
+        assert!(filter.is_parseable(Path::new("engine.c")));
+        assert!(filter.is_parseable(Path::new("engine.cpp")));
+        // Non-source files stay out.
         assert!(!filter.is_parseable(Path::new("README.md")));
         assert!(!filter.is_parseable(Path::new("Cargo.toml")));
     }
@@ -249,10 +265,18 @@ mod tests {
     }
 
     #[test]
-    fn respect_extensions_default_keeps_ts_js_only() {
+    fn respect_extensions_default_admits_all_supported_languages() {
+        // The default gate now admits every language the kernel can parse
+        // (anchors + LANGTAIL tail wave), not just JS/TS — but still rejects
+        // files with no supported grammar so non-source never reaches the
+        // parser.
         let filter = FileFilter::default();
         assert!(filter.should_process(Path::new("src/main.ts")));
-        assert!(!filter.should_process(Path::new("src/main.rs")));
+        assert!(filter.should_process(Path::new("src/main.rs")));
+        assert!(filter.should_process(Path::new("cmd/main.go")));
+        assert!(filter.should_process(Path::new("App.java")));
+        assert!(!filter.should_process(Path::new("src/notes.md")));
+        assert!(!filter.should_process(Path::new("Cargo.toml")));
     }
 
     /// ADOPT-004: the canonical [`IGNORE_DIRS`] list must cover every

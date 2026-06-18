@@ -350,7 +350,17 @@ pub fn collect_source_files(
         .filter_map(|p| Pattern::new(p).ok())
         .collect();
 
-    let include_extensions = ["ts", "tsx", "js", "jsx", "mjs", "cjs", "rs", "py"];
+    // Kept in step with `anvil_kernel::parser::languages::Language::from_path`
+    // (the single source of truth for parseable extensions). This crate does
+    // not depend on `anvil-kernel`, so the set is mirrored rather than
+    // delegated; a future move of `Language` to `anvil-kernel-types` would let
+    // these converge. `pyi` (Python stubs) is included to match `from_path`.
+    let include_extensions = [
+        "ts", "tsx", "js", "jsx", "mjs", "cjs", "rs", "py", "pyi",
+        // Tail-language wave (LANGTAIL).
+        "dart", "go", "java", "kt", "kts", "cs", "c", "h", "cpp", "cc", "cxx", "c++", "hpp", "hh",
+        "hxx", "h++",
+    ];
 
     let mut files = Vec::new();
 

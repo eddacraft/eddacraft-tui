@@ -138,7 +138,7 @@ used under the terms of its respective licence, reproduced in full below.
 
 ## Licence: MIT License
 
-Used by 335 crates. See the inventory table at the bottom of this file for the complete list.
+Used by 342 crates. See the inventory table at the bottom of this file for the complete list.
 
 <details>
 <summary>Licence text</summary>
@@ -1245,6 +1245,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `line-clipping` | 0.3.7 | MIT License | https://github.com/ratatui/line-clipping |
 | `fluent-uri` | 0.4.1 | MIT License | https://github.com/yescallop/fluent-uri-rs |
 | `convert_case` | 0.10.0 | MIT License | https://github.com/rutrum/convert-case |
+| `tree-sitter-dart` | 0.2.0 | MIT License | https://github.com/nielsenko/tree-sitter-dart |
 | `animate-core` | 0.3.0 | MIT License | https://github.com/vyfor/animate |
 | `animate-macros` | 0.3.0 | MIT License | https://github.com/vyfor/animate |
 | `animate` | 0.3.0 | MIT License | https://github.com/vyfor/animate |
@@ -1263,6 +1264,9 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `ratatui-widgets` | 0.3.0 | MIT License | https://github.com/ratatui/ratatui |
 | `ratatui` | 0.30.0 | MIT License | https://github.com/ratatui/ratatui |
 | `regorus` | 0.10.1 | MIT License | https://github.com/microsoft/regorus |
+| `tree-sitter-cpp` | 0.23.4 | MIT License | https://github.com/tree-sitter/tree-sitter-cpp |
+| `tree-sitter-java` | 0.23.5 | MIT License | https://github.com/tree-sitter/tree-sitter-java |
+| `tree-sitter-kotlin-ng` | 1.1.0 | MIT License | https://github.com/tree-sitter-grammars/tree-sitter-kotlin |
 | `tree-sitter-python` | 0.23.6 | MIT License | https://github.com/tree-sitter/tree-sitter-python |
 | `tree-sitter-typescript` | 0.23.2 | MIT License | https://github.com/tree-sitter/tree-sitter-typescript |
 | `uuid-simd` | 0.8.0 | MIT License | https://github.com/Nugine/simd |
@@ -1339,8 +1343,11 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `fancy-regex` | 0.18.0 | MIT License | https://github.com/fancy-regex/fancy-regex |
 | `spin` | 0.10.0 | MIT License | https://github.com/mvdnes/spin-rs.git |
 | `spin` | 0.9.8 | MIT License | https://github.com/mvdnes/spin-rs.git |
+| `tree-sitter-c` | 0.24.2 | MIT License | https://github.com/tree-sitter/tree-sitter-c |
+| `tree-sitter-go` | 0.25.0 | MIT License | https://github.com/tree-sitter/tree-sitter-go |
 | `tree-sitter-javascript` | 0.25.0 | MIT License | https://github.com/tree-sitter/tree-sitter-javascript |
 | `typenum` | 1.20.1 | MIT License | https://github.com/paholg/typenum |
+| `tree-sitter-c-sharp` | 0.23.5 | MIT License | https://github.com/tree-sitter/tree-sitter-c-sharp |
 | `base64` | 0.22.1 | MIT License | https://github.com/marshallpierce/rust-base64 |
 | `aho-corasick` | 1.1.4 | MIT License | https://github.com/BurntSushi/aho-corasick |
 | `byteorder-lite` | 0.1.0 | MIT License | https://github.com/image-rs/byteorder-lite |

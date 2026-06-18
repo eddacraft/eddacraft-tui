@@ -13,8 +13,15 @@
 //! suggested interface (`route (Language, Tree, source) through the trait, not
 //! via a string-kind match`).
 
+pub mod clike;
+pub mod csharp;
+pub mod dart;
+pub mod go;
+pub mod java;
+pub mod kotlin;
 pub mod python;
 pub mod rust;
+pub mod tail_common;
 pub mod typescript;
 
 use std::path::Path;
@@ -102,6 +109,16 @@ fn extract_symbols_uncapped(
         }
         Some(Language::Rust) => rust::RustExtractor.extract(tree, source, &file, id_offset),
         Some(Language::Python) => python::PythonExtractor.extract(tree, source, &file, id_offset),
+        // Tail-language wave (LANGTAIL) — T1 extractors. Each owns only its
+        // grammar walk; this dispatch is the sole orchestrator change per the
+        // K1 contract (no `if lang == …` cascade in the walker).
+        Some(Language::Dart) => dart::DartExtractor.extract(tree, source, &file, id_offset),
+        Some(Language::Go) => go::GoExtractor.extract(tree, source, &file, id_offset),
+        Some(Language::Java) => java::JavaExtractor.extract(tree, source, &file, id_offset),
+        Some(Language::Kotlin) => kotlin::KotlinExtractor.extract(tree, source, &file, id_offset),
+        Some(Language::CSharp) => csharp::CSharpExtractor.extract(tree, source, &file, id_offset),
+        Some(Language::C) => clike::CExtractor.extract(tree, source, &file, id_offset),
+        Some(Language::Cpp) => clike::CppExtractor.extract(tree, source, &file, id_offset),
         None => {
             // Reaching here means a caller passed a tree whose path has no
             // known grammar — `parse_bytes` rejects those up front, so every

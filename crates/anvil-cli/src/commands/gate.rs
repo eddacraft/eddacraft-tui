@@ -1034,7 +1034,14 @@ fn extract_import_edges(
     // The kernel parser dispatches by extension, so `parse_bytes` handles `.rs`
     // via the Rust extractor (RSTLAN-002) and `.py` via the Python extractor
     // (PYLAN-002).
-    let include_extensions = ["ts", "tsx", "js", "jsx", "mjs", "cjs", "rs", "py"];
+    // LANGTAIL: tail-wave extensions join too, kept in step with
+    // `Language::from_path`. Their symbols flow into the graph; cross-file
+    // import-edge *resolvers* for these languages are T2 work, so edges may
+    // resolve to `None` until then — parsing them now is correct and harmless.
+    let include_extensions = [
+        "ts", "tsx", "js", "jsx", "mjs", "cjs", "rs", "py", "pyi", "dart", "go", "java", "kt",
+        "kts", "cs", "c", "h", "cpp", "cc", "cxx", "c++", "hpp", "hh", "hxx", "h++",
+    ];
 
     // Collect file paths to parse — either from the pre-collected list or via walkdir.
     let owned_paths: Vec<String>;
