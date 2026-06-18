@@ -1147,7 +1147,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -1229,7 +1229,7 @@ dependencies = [
  "hex",
  "ignore",
  "insta",
- "jsonschema 0.45.1",
+ "jsonschema",
  "miette",
  "minisign",
  "minisign-verify",
@@ -1314,7 +1314,7 @@ dependencies = [
  "eddacraft-anvil-sarif",
  "eddacraft-anvil-witness",
  "hex",
- "jsonschema 0.45.1",
+ "jsonschema",
  "serde",
  "serde_json",
  "sha2 0.11.0",
@@ -1661,7 +1661,7 @@ dependencies = [
 name = "eddacraft-anvil-sarif"
 version = "0.8.1-beta"
 dependencies = [
- "jsonschema 0.45.1",
+ "jsonschema",
  "serde",
  "serde_json",
  "sha2 0.11.0",
@@ -1765,7 +1765,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -1797,17 +1797,6 @@ checksum = "b95f7c0680e4142284cf8b22c14a476e87d61b004a3a0861872b32ef7ead40a2"
 dependencies = [
  "bit-set 0.5.3",
  "regex",
-]
-
-[[package]]
-name = "fancy-regex"
-version = "0.17.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72cf461f865c862bb7dc573f643dd6a2b6842f7c30b07882b56bd148cc2761b8"
-dependencies = [
- "bit-set 0.8.0",
- "regex-automata",
- "regex-syntax",
 ]
 
 [[package]]
@@ -2760,35 +2749,6 @@ dependencies = [
 
 [[package]]
 name = "jsonschema"
-version = "0.45.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "257eb0e588b76827bbddc9e73945a9743693dd2adeaee9da26420f93cfedb798"
-dependencies = [
- "ahash",
- "bytecount",
- "data-encoding",
- "email_address",
- "fancy-regex 0.17.0",
- "fraction",
- "getrandom 0.3.4",
- "idna",
- "itoa",
- "num-cmp",
- "num-traits",
- "percent-encoding",
- "referencing 0.45.1",
- "regex",
- "regex-syntax",
- "reqwest",
- "rustls",
- "serde",
- "serde_json",
- "unicode-general-category",
- "uuid-simd",
-]
-
-[[package]]
-name = "jsonschema"
 version = "0.46.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a5fe5206f06e589caf25e79fc05ccdf91fca745685fe9fe1a13bbdfb479a631"
@@ -2805,9 +2765,11 @@ dependencies = [
  "num-cmp",
  "num-traits",
  "percent-encoding",
- "referencing 0.46.5",
+ "referencing",
  "regex",
  "regex-syntax",
+ "reqwest",
+ "rustls",
  "serde",
  "serde_json",
  "unicode-general-category",
@@ -3841,7 +3803,7 @@ dependencies = [
  "once_cell",
  "socket2",
  "tracing",
- "windows-sys 0.60.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -4120,21 +4082,6 @@ dependencies = [
 
 [[package]]
 name = "referencing"
-version = "0.45.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e2f38748ceca8d0b0013e60f534d94a6e23dfd89fd2a88318fc5a2d04fda1010"
-dependencies = [
- "ahash",
- "fluent-uri",
- "getrandom 0.3.4",
- "hashbrown 0.16.1",
- "parking_lot",
- "percent-encoding",
- "serde_json",
-]
-
-[[package]]
-name = "referencing"
 version = "0.46.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "69e4e17ef386c5383591d07623d3de49cbc601156e7582973e6db98d66a57de2"
@@ -4189,7 +4136,7 @@ dependencies = [
  "data-encoding",
  "globset",
  "indexmap",
- "jsonschema 0.46.5",
+ "jsonschema",
  "lazy_static",
  "lru 0.18.0",
  "msvc_spectre_libs",
@@ -4353,7 +4300,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.12.1",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -4410,7 +4357,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -4914,7 +4861,7 @@ dependencies = [
  "getrandom 0.4.2",
  "once_cell",
  "rustix 1.1.4",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -4933,7 +4880,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "230a1b821ccbd75b185820a1f1ff7b14d21da1e442e22c0863ea5f08771a8874"
 dependencies = [
  "rustix 1.1.4",
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -5917,7 +5864,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -6451,10 +6398,10 @@ dependencies = [
  "hyper",
  "hyper-rustls",
  "hyper-util",
- "idna",
  "image",
  "indexmap",
  "itertools 0.14.0",
+ "jsonschema",
  "libc",
  "memchr",
  "miniz_oxide",
@@ -6486,6 +6433,7 @@ dependencies = [
  "tracing",
  "tracing-core",
  "winapi",
+ "windows-sys 0.59.0",
  "windows-sys 0.61.2",
  "zerocopy",
 ]

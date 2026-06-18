@@ -33,6 +33,7 @@ hashbrown = { version = "0.17", default-features = false, features = ["default-h
 image = { version = "0.25", default-features = false, features = ["png"] }
 indexmap = { version = "2" }
 itertools = { version = "0.14" }
+jsonschema = { version = "0.46" }
 memchr = { version = "2" }
 num-traits = { version = "0.2", features = ["i128", "libm"] }
 once_cell = { version = "1" }
@@ -66,7 +67,6 @@ syn = { version = "2", features = ["extra-traits", "fold", "full", "visit", "vis
 hyper = { version = "1", features = ["full"] }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "tls12"] }
 hyper-util = { version = "0.1", features = ["client-legacy", "client-proxy", "http1", "http2", "server"] }
-idna = { version = "1" }
 libc = { version = "0.2", features = ["extra_traits"] }
 miniz_oxide = { version = "0.8", features = ["simd"] }
 mio = { version = "1", features = ["net", "os-ext"] }
@@ -87,7 +87,6 @@ libc = { version = "0.2", features = ["extra_traits"] }
 hyper = { version = "1", features = ["full"] }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "tls12"] }
 hyper-util = { version = "0.1", features = ["client-legacy", "client-proxy", "http1", "http2", "server"] }
-idna = { version = "1" }
 libc = { version = "0.2", features = ["extra_traits"] }
 miniz_oxide = { version = "0.8", features = ["simd"] }
 mio = { version = "1", features = ["net", "os-ext"] }
@@ -109,7 +108,6 @@ errno = { version = "0.3" }
 hyper = { version = "1", features = ["full"] }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "tls12"] }
 hyper-util = { version = "0.1", features = ["client-legacy", "client-proxy", "http1", "http2", "server"] }
-idna = { version = "1" }
 libc = { version = "0.2", features = ["extra_traits"] }
 miniz_oxide = { version = "0.8", features = ["simd"] }
 mio = { version = "1", features = ["net", "os-ext"] }
@@ -131,7 +129,6 @@ errno = { version = "0.3" }
 hyper = { version = "1", features = ["full"] }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "tls12"] }
 hyper-util = { version = "0.1", features = ["client-legacy", "client-proxy", "http1", "http2", "server"] }
-idna = { version = "1" }
 libc = { version = "0.2", features = ["extra_traits"] }
 miniz_oxide = { version = "0.8", features = ["simd"] }
 mio = { version = "1", features = ["net", "os-ext"] }
@@ -154,14 +151,14 @@ getrandom-468e82937335b1c9 = { package = "getrandom", version = "0.3", default-f
 hyper = { version = "1", features = ["full"] }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "tls12"] }
 hyper-util = { version = "0.1", features = ["client-legacy", "client-proxy", "http1", "http2", "server"] }
-idna = { version = "1" }
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "default-tls", "http2", "json", "rustls-no-provider", "stream"] }
 tokio = { version = "1", features = ["full"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["aws-lc-rs", "tls12"] }
 tokio-util = { version = "0.7", features = ["codec", "io"] }
 tracing = { version = "0.1" }
 winapi = { version = "0.3", default-features = false, features = ["consoleapi", "fileapi", "handleapi", "impl-default", "processenv", "processthreadsapi", "std", "synchapi", "sysinfoapi", "winbase", "winerror", "winuser"] }
-windows-sys = { version = "0.61", features = ["Wdk_Foundation", "Wdk_Storage_FileSystem", "Wdk_System_IO", "Win32_Globalization", "Win32_Networking_WinSock", "Win32_Security_Authorization", "Win32_Security_Cryptography", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Console", "Win32_System_Diagnostics_Debug", "Win32_System_IO", "Win32_System_JobObjects", "Win32_System_Kernel", "Win32_System_Pipes", "Win32_System_SystemInformation", "Win32_System_SystemServices", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell"] }
+windows-sys-73dcd821b1037cfd = { package = "windows-sys", version = "0.59", features = ["Win32_Globalization", "Win32_Networking_WinSock", "Win32_Security_Cryptography", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Console", "Win32_System_Diagnostics_Debug", "Win32_System_SystemInformation", "Win32_System_SystemServices", "Win32_UI_Shell"] }
+windows-sys-d4189bed749088b6 = { package = "windows-sys", version = "0.61", features = ["Wdk_Foundation", "Wdk_Storage_FileSystem", "Wdk_System_IO", "Win32_Networking_WinSock", "Win32_Security_Authorization", "Win32_Storage_FileSystem", "Win32_System_Console", "Win32_System_IO", "Win32_System_JobObjects", "Win32_System_Kernel", "Win32_System_Pipes", "Win32_System_SystemServices", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI_Input_KeyboardAndMouse"] }
 
 [target.x86_64-pc-windows-msvc.build-dependencies]
 cc = { version = "1", default-features = false, features = ["parallel"] }
@@ -173,14 +170,14 @@ getrandom-468e82937335b1c9 = { package = "getrandom", version = "0.3", default-f
 hyper = { version = "1", features = ["full"] }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "tls12"] }
 hyper-util = { version = "0.1", features = ["client-legacy", "client-proxy", "http1", "http2", "server"] }
-idna = { version = "1" }
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "default-tls", "http2", "json", "rustls-no-provider", "stream"] }
 tokio = { version = "1", features = ["full"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["aws-lc-rs", "tls12"] }
 tokio-util = { version = "0.7", features = ["codec", "io"] }
 tracing = { version = "0.1" }
 winapi = { version = "0.3", default-features = false, features = ["consoleapi", "fileapi", "handleapi", "impl-default", "processenv", "processthreadsapi", "std", "synchapi", "sysinfoapi", "winbase", "winerror", "winuser"] }
-windows-sys = { version = "0.61", features = ["Wdk_Foundation", "Wdk_Storage_FileSystem", "Wdk_System_IO", "Win32_Globalization", "Win32_Networking_WinSock", "Win32_Security_Authorization", "Win32_Security_Cryptography", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Console", "Win32_System_Diagnostics_Debug", "Win32_System_IO", "Win32_System_JobObjects", "Win32_System_Kernel", "Win32_System_Pipes", "Win32_System_SystemInformation", "Win32_System_SystemServices", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell"] }
+windows-sys-73dcd821b1037cfd = { package = "windows-sys", version = "0.59", features = ["Win32_Globalization", "Win32_Networking_WinSock", "Win32_Security_Cryptography", "Win32_Storage_FileSystem", "Win32_System_Com", "Win32_System_Console", "Win32_System_Diagnostics_Debug", "Win32_System_SystemInformation", "Win32_System_SystemServices", "Win32_UI_Shell"] }
+windows-sys-d4189bed749088b6 = { package = "windows-sys", version = "0.61", features = ["Wdk_Foundation", "Wdk_Storage_FileSystem", "Wdk_System_IO", "Win32_Networking_WinSock", "Win32_Security_Authorization", "Win32_Storage_FileSystem", "Win32_System_Console", "Win32_System_IO", "Win32_System_JobObjects", "Win32_System_Kernel", "Win32_System_Pipes", "Win32_System_SystemServices", "Win32_System_Threading", "Win32_System_WindowsProgramming", "Win32_UI_Input_KeyboardAndMouse"] }
 
 [target.aarch64-pc-windows-msvc.build-dependencies]
 cc = { version = "1", default-features = false, features = ["parallel"] }

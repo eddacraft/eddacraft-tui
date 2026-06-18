@@ -28,7 +28,7 @@ workspace-hack.workspace = true
 
 [dev-dependencies]
 tempfile = { workspace = true }
-jsonschema = "0.45"
+jsonschema = "0.46"
 
 [lints]
 workspace = true

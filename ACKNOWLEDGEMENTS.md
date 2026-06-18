@@ -138,7 +138,7 @@ used under the terms of its respective licence, reproduced in full below.
 
 ## Licence: MIT License
 
-Used by 341 crates. See the inventory table at the bottom of this file for the complete list.
+Used by 342 crates. See the inventory table at the bottom of this file for the complete list.
 
 <details>
 <summary>Licence text</summary>
@@ -1284,6 +1284,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `windows-strings` | 0.4.2 | MIT License | https://github.com/microsoft/windows-rs |
 | `windows-strings` | 0.5.1 | MIT License | https://github.com/microsoft/windows-rs |
 | `windows-sys` | 0.52.0 | MIT License | https://github.com/microsoft/windows-rs |
+| `windows-sys` | 0.59.0 | MIT License | https://github.com/microsoft/windows-rs |
 | `windows-sys` | 0.60.2 | MIT License | https://github.com/microsoft/windows-rs |
 | `windows-sys` | 0.61.2 | MIT License | https://github.com/microsoft/windows-rs |
 | `windows-targets` | 0.52.6 | MIT License | https://github.com/microsoft/windows-rs |
