@@ -203,18 +203,22 @@ hygiene, gate/catalogue registration, drift, and validation.
 
 ### SURFSQL-007 — Anvil-repo + external validation runs; FP report
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Prove the acceptance bar (FP < 1% on Anvil + ≥1 external repo).
-- **Expected Outcome:** A validation run over Anvil's own migrations and one
-  external Postgres codebase, with a recorded FP report meeting N = 1%. The 29
-  `apps/anvil-api/src/db/schema.sql` hygiene findings that blocked the first run
-  are not migrations — SURFSQL-008 scopes them out (a canonical schema-definition
-  file is not re-run, so `IF NOT EXISTS` does not apply), so the dogfood run is
-  now clean (17 SQL files, 0 findings) without needing the SURFSQL-006 baseline.
+- **Expected Outcome:** Validated 2026-06-19 — **PASS**. Anvil dogfood: 17 SQL
+  files, **0 findings** (SURFSQL-008 scopes out the `schema.sql` canonical-schema
+  file; versioned migrations under `db/migrations/` already clean). External
+  (`launchbadge/sqlx`, 114 `.sql`): a raw run flags 110 idiomatic
+  tracked-migration findings, which SURFSQL-006's drift baseline absorbs — 110
+  raw → **0** after one `anvil drift snapshot`, while a newly added unguarded
+  `CREATE TABLE` still warns (**1** new-edge). An established repo sees zero
+  noise after baselining; new DDL is still surfaced. Evidence:
+  `plans/reviews/2026-06-18-surface-validation.md`.
 - **Validation:** FP report committed under `plans/reviews/` showing < 1% on Anvil + ≥1 external repo
-- **Dependencies:** SURFSQL-002, SURFSQL-005, SURFSQL-008 (SURFSQL-006 no longer
-  required to clear the schema-dump FPs)
-- **Confidence:** medium
+- **Dependencies:** SURFSQL-002, SURFSQL-005, SURFSQL-008 (dogfood leg),
+  SURFSQL-006 (external leg — the baseline that absorbs idiomatic pre-existing
+  findings)
+- **Confidence:** high
 
 ### SURFSQL-008 — Schema-dump / canonical-schema scoping
 

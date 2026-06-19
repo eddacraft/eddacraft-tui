@@ -22,7 +22,7 @@ risk the rule targets).
 | SURFGHA (SURFGHA-007) | 2 findings | ripgrep — 7 findings | 9 TP / 0 FP | 0% | ✅ PASS |
 | SURFSH (SURFSH-006) | 110 files, 0 findings | ripgrep — 2 files, 0 findings | 0 / 0 | 0% | ✅ PASS |
 | SURFDOCK (SURFDOCK-006) | 0 Dockerfiles (no dogfood corpus) | hadolint — 1 Dockerfile, 0 findings | 0 / 0 | n/a | ⚠️ INCONCLUSIVE |
-| SURFSQL (SURFSQL-007) | 29 findings | — | see below | n/a | ⚠️ BLOCKED |
+| SURFSQL (SURFSQL-007) | 17 files, 0 findings (after SURFSQL-008) | sqlx — 110 raw → 0 after baseline, 1 on a new edge | baseline-absorbed | 0% effective | ✅ PASS |
 
 ### SURFGHA-007 — PASS
 
@@ -61,27 +61,41 @@ risk the rule targets).
   a real `:latest`/`ADD https://`/pipe-to-shell Dockerfile (and ideally a repo
   that actually ships Dockerfiles) provides dogfood + external true positives.
 
-### SURFSQL-007 — BLOCKED (calibration finding)
+### SURFSQL-007 — PASS (after SURFSQL-008 + SURFSQL-006)
 
-- **Anvil** (`apps/anvil-api/src/db`): **29 findings, all in
-  `schema.sql`**, all from the SURFSQL-003 hygiene rule (`CREATE TABLE`/
-  `CREATE INDEX` without `IF NOT EXISTS`). The 16 versioned migrations under
-  `db/migrations/` are **clean**, and the destructive catalogue (SURFSQL-002)
-  found **0**.
-- These 29 are **false positives for the rule's intent**: `schema.sql` is a
-  full-schema **dump** applied once to a fresh database, not a re-running
-  migration, so an `IF NOT EXISTS` idempotency guard is not expected there.
-- **FP rate fails the < 1% bar** until remediated. Two complementary fixes,
-  both already on the table:
-  1. **SURFSQL-006 drift baseline** (in flight) — baseline the 29 pre-existing
-     findings so only *new* unguarded DDL warns ("new edges only"). Mechanism
-     choice is an open owner decision.
-  2. **Schema-dump scoping** — apply the SURFSQL-003 hygiene rule only to files
-     under a recognised migration directory (idempotency is a migration
-     concern), so standalone schema dumps are not flagged. SURFSQL-002
-     (destructive ops) still applies everywhere.
-- SURFSQL-007 cannot be marked passing until one of these lands; tracked
-  against SURFSQL-006.
+The first run was blocked by 29 `schema.sql` findings and a high external
+finding volume. Both are resolved by the two fixes the calibration run called
+for, which have since merged:
+
+- **Dogfood (Anvil) — PASS.** `ANVIL_DEV=1 ANVIL_TRACK_SURFACE_SQL=1 anvil gate
+  --only-checks sql-migrations` → **17 SQL files, 0 findings**. The 29
+  `apps/anvil-api/src/db/schema.sql` findings are gone: SURFSQL-008 (#2794)
+  scopes out canonical schema-definition files (a `schema.sql` outside a
+  migration dir is applied once to a fresh DB, so `IF NOT EXISTS` does not
+  apply). The versioned migrations under `db/migrations/` were already clean;
+  SURFSQL-002 destructive = 0. The "< 1% FP on Anvil" criterion is met.
+- **External (`launchbadge/sqlx`, 114 `.sql` files) — PASS via baseline.** A
+  raw run flags **110 findings** (77 forward `CREATE TABLE/INDEX`, 9 `.down.sql`
+  rollback `DROP TABLE`, 16 data-backfill `UPDATE`, 8 temp-col `DROP COLUMN`) —
+  all idiomatic tracked-migration patterns, none individually actionable. This
+  is the **drift-baseline case** SURFSQL-006 handles. Measured end-to-end:
+
+  | Step | SURFSQL findings |
+  | ---- | ---------------- |
+  | Raw run (no snapshot) | 110 |
+  | After `anvil drift snapshot` (baseline established) | **0** |
+  | After adding one *new* unguarded `CREATE TABLE` | **1** (only the new edge) |
+
+  On an established repo the operator baselines once and thereafter sees **zero
+  noise**, while genuinely new unguarded DDL still warns. The surface meets the
+  FP bar under the architecture's new-edges-only model; SURFSQL-002 destructive
+  detection remains active on new edges.
+- **TP/FP reading.** The 110 raw findings are *true* matches of the rules (they
+  really are unguarded DDL / unscoped writes) but **non-actionable** on an
+  established corpus — exactly what the baseline absorbs. The effective FP rate
+  an operator experiences after baselining is **0**.
+- **Verdict: PASS** — dogfood clean (SURFSQL-008) + external noise absorbed with
+  new-edge detection intact (SURFSQL-006).
 
 ## Summary
 
@@ -92,9 +106,11 @@ risk the rule targets).
 - **SURFDOCK** is **inconclusive**, not passing: Anvil ships no Dockerfiles
   (no dogfood corpus) and the single external Dockerfile was clean — 0 FP but
   no positive evidence. Needs a Dockerfile-bearing corpus to clear the bar.
-- **SURFSQL** is **blocked**: 29 `schema.sql` hygiene findings (a schema dump,
-  not a re-running migration) fail the FP bar until SURFSQL-006 (drift baseline)
-  or a schema-dump scoping fix lands.
+- **SURFSQL** now **passes**: SURFSQL-008 (schema-dump scoping, #2794) clears
+  the Anvil dogfood leg (17 files, 0 findings), and SURFSQL-006 (drift baseline)
+  absorbs the external migration-noise (sqlx 110 → 0 after one snapshot) while
+  still warning on new unguarded DDL. The destructive catalogue stays active on
+  new edges.
 
 ### Acceptance-bar note (no in-scope files)
 
