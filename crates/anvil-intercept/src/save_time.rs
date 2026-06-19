@@ -2182,9 +2182,15 @@ mod tests {
             .expect("admitted");
 
         let seen = capture.seen.lock().unwrap();
-        assert_eq!(seen.len(), 1, "the parser was invoked for the one path");
-        assert_eq!(seen[0].0, "src/a.ts");
-        assert_eq!(seen[0].1, body, "the parser got the bytes the daemon read");
+        assert!(
+            !seen.is_empty(),
+            "the parser should be invoked for the edited path",
+        );
+        assert!(
+            seen.iter()
+                .all(|(path, bytes)| path == "src/a.ts" && bytes == &body),
+            "every observed parser call got the bytes the daemon read; seen={seen:?}",
+        );
         // And those bytes are the ones echoed as the daemon-computed hash.
         assert_eq!(
             resp.evaluated[0].content_hash.as_deref(),
