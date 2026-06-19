@@ -118,14 +118,16 @@ gate registration + flag, then validation.
 
 ### SURFDOCK-006-validation — Anvil + external validation runs
 
-- **Status:** In Progress
+- **Status:** In Progress (validation inconclusive — bar not yet met)
 - **Intent:** Prove the acceptance bar (FP < 1% on Anvil + ≥1 external repo).
-- **Expected Outcome:** Validated 2026-06-18 — Anvil has no Dockerfiles;
-  `hadolint/hadolint` external Dockerfile scanned with **0 findings → 0% FP,
-  PASS** (FP criterion). External true-positive confirmation is light (the one
-  external Dockerfile is clean) — a follow-up run against a repo with a
-  `:latest`/`ADD https://`/pipe-to-shell Dockerfile would strengthen it.
-  Evidence: `plans/reviews/2026-06-18-surface-validation.md`.
+- **Expected Outcome:** Run 2026-06-18 was **inconclusive, not a pass**: Anvil
+  ships no Dockerfiles (no dogfood corpus, so the Anvil FP-rate half of the bar
+  cannot be measured), and the single `hadolint/hadolint` external Dockerfile
+  was clean (0 findings → no true-positive confirmation). 0 FP observed but no
+  positive evidence the detectors fire in the wild. Remains In Progress pending
+  a run against a Dockerfile-bearing corpus with a real
+  `:latest`/`ADD https://`/pipe-to-shell case. Evidence:
+  `plans/reviews/2026-06-18-surface-validation.md`.
 - **Validation:** FP report committed under `plans/reviews/`.
 - **Dependencies:** SURFDOCK-002, SURFDOCK-005
 - **Confidence:** medium

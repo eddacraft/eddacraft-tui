@@ -21,7 +21,7 @@ risk the rule targets).
 | -------------- | --------------- | ------------- | ------- | ------- | ------- |
 | SURFGHA (SURFGHA-007) | 2 findings | ripgrep — 7 findings | 9 TP / 0 FP | 0% | ✅ PASS |
 | SURFSH (SURFSH-006) | 110 files, 0 findings | ripgrep — 2 files, 0 findings | 0 / 0 | 0% | ✅ PASS |
-| SURFDOCK (SURFDOCK-006) | 0 Dockerfiles (none in repo) | hadolint — 1 Dockerfile, 0 findings | 0 / 0 | 0% | ✅ PASS |
+| SURFDOCK (SURFDOCK-006) | 0 Dockerfiles (no dogfood corpus) | hadolint — 1 Dockerfile, 0 findings | 0 / 0 | n/a | ⚠️ INCONCLUSIVE |
 | SURFSQL (SURFSQL-007) | 29 findings | — | see below | n/a | ⚠️ BLOCKED |
 
 ### SURFGHA-007 — PASS
@@ -46,16 +46,20 @@ risk the rule targets).
   tests cover the detection; a future run against a repo with known-dangerous
   scripts would strengthen the external TP evidence.)
 
-### SURFDOCK-006 — PASS
+### SURFDOCK-006 — INCONCLUSIVE (not yet a pass)
 
-- **Anvil**: no Dockerfiles in the repo → no dogfood corpus.
+- **Anvil**: no Dockerfiles in the repo → **no dogfood corpus**, so the
+  "Anvil FP rate" half of the bar cannot be measured (it is vacuously 0, not
+  evidence).
 - **External** (`hadolint/hadolint`): 1 Dockerfile, **0 findings** (a
-  well-formed, pinned Dockerfile — expected clean).
-- **0 false positives**. Bar met for the FP criterion, but external
-  **true-positive** confirmation is light (the one external Dockerfile is
-  clean). A follow-up run against a repo with a `:latest`/`ADD https://`/
-  pipe-to-shell Dockerfile would confirm the detectors fire externally; the
-  unit tests already cover each rule.
+  well-formed, pinned Dockerfile — expected clean), so no true-positive
+  confirmation either.
+- **0 false positives observed, but the run is inconclusive**: no dogfood
+  corpus and a clean single external file give no positive evidence the
+  detectors fire correctly in the wild. The unit tests cover each rule, but
+  SURFDOCK-006 should **not** be marked passing until a run against a repo with
+  a real `:latest`/`ADD https://`/pipe-to-shell Dockerfile (and ideally a repo
+  that actually ships Dockerfiles) provides dogfood + external true positives.
 
 ### SURFSQL-007 — BLOCKED (calibration finding)
 
@@ -81,7 +85,21 @@ risk the rule targets).
 
 ## Summary
 
-3 of 4 surfaces (SURFGHA, SURFSH, SURFDOCK) meet the §16.5 #9 acceptance bar
-(0% FP, dogfood + ≥1 external). SURFSQL is the lone outstanding item, blocked on
-the SURFSQL-006 baseline (or a schema-dump scoping fix) to clear the
-`schema.sql` hygiene false positives.
+- **SURFGHA** and **SURFSH** meet the §16.5 #9 bar: a real dogfood corpus
+  (27 workflows / 110 scripts) + an external repo, **0% FP**. SURFGHA also has
+  external true positives (the ripgrep `@master` refs); SURFSH's TP evidence is
+  unit-test-only (neither corpus had a dangerous command).
+- **SURFDOCK** is **inconclusive**, not passing: Anvil ships no Dockerfiles
+  (no dogfood corpus) and the single external Dockerfile was clean — 0 FP but
+  no positive evidence. Needs a Dockerfile-bearing corpus to clear the bar.
+- **SURFSQL** is **blocked**: 29 `schema.sql` hygiene findings (a schema dump,
+  not a re-running migration) fail the FP bar until SURFSQL-006 (drift baseline)
+  or a schema-dump scoping fix lands.
+
+### Acceptance-bar note (no in-scope files)
+
+A surface with **no in-scope files** in a corpus is **inconclusive** for that
+corpus, not a pass: absence of files yields a vacuous 0% FP and no evidence the
+detector behaves correctly. A pass requires a real corpus with a measured FP
+rate under the threshold (SURFGHA/SURFSH), ideally plus a true-positive
+confirmation.

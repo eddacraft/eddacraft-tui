@@ -126,7 +126,7 @@ Delivered as slices mirroring the other surfaces. T1 (Scanned).
 
 ### SURFSH-006-validation — Anvil + external validation runs
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-18 via PR #2791
 - **Intent:** Prove the acceptance bar (FP < 1% on Anvil + ≥1 external repo).
 - **Expected Outcome:** Validated 2026-06-18 — Anvil (110 in-scope shell
   scripts, 0 findings) + `BurntSushi/ripgrep` (2 scripts, 0 findings),

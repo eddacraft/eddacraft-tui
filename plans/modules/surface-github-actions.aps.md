@@ -127,7 +127,7 @@ registration + flag, then validation.
 
 ### SURFGHA-007 — Anvil + external validation runs
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-18 via PR #2791
 - **Intent:** Prove the acceptance bar (FP < 1% on Anvil + ≥1 external repo).
 - **Expected Outcome:** Validated 2026-06-18 — Anvil (27 workflows, 2 true
   positives) + `BurntSushi/ripgrep` (7 true-positive unpinned `@master` refs),
