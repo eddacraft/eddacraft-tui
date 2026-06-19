@@ -139,6 +139,63 @@ mod tests {
         assert!((rounded_entropy("abcd") - 2.0).abs() < f64::EPSILON);
     }
 
+    // Public record identifiers — ULIDs — are dense Crockford-base32 runs
+    // that appear all over real codebases (databases, logs, diagnostics).
+    // A maximally-diverse 26-char ULID reaches entropy log2(26) ≈ 4.70,
+    // above the 4.5 default threshold, so the heuristic flags it as a
+    // secret. A real secret is never *exactly* a 26-char Crockford ULID, so
+    // allowlisting the anchored shape is safe (same rationale as the
+    // existing hex-hash entries in `DEFAULT_SHAPE_ALLOWLIST`).
+
+    #[test]
+    fn does_not_flag_bare_ulid() {
+        // High-diversity 26-char Crockford base32 ULID (entropy ≈ 4.70).
+        let config = SecretCheckConfig::default();
+        let content = "const id = '0123456789ABCDEFGHJKMNPQRS';";
+        let findings = detect_high_entropy_strings(content, "src/record.ts", &config);
+        assert!(
+            findings.is_empty(),
+            "bare ULID should not be flagged as a secret, got: {:?}",
+            findings
+                .iter()
+                .map(|f| &f.redacted_match)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn uuid_is_inherently_below_threshold() {
+        // Characterisation guard: a hex UUID draws from a 16-symbol
+        // alphabet (max entropy log2(16) = 4.0 < 4.5), so it can never trip
+        // the entropy detector and needs no allowlist entry. If the default
+        // threshold ever drops below 4.0 this test fails loudly, flagging
+        // that a UUID shape rule becomes necessary.
+        let config = SecretCheckConfig::default();
+        let content = "const id = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';";
+        let findings = detect_high_entropy_strings(content, "src/record.ts", &config);
+        assert!(
+            findings.is_empty(),
+            "UUID unexpectedly flagged, got: {:?}",
+            findings
+                .iter()
+                .map(|f| &f.redacted_match)
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn still_flags_secret_when_a_ulid_sits_on_the_same_line() {
+        // The ULID allowlist must suppress only the ULID itself, not a
+        // genuine secret elsewhere on the line.
+        let config = SecretCheckConfig {
+            entropy_threshold: 3.5,
+            ..SecretCheckConfig::default()
+        };
+        let content = "const token = '9xY7qW2vK8mN4pR6sT1uV3wX';";
+        let findings = detect_high_entropy_strings(content, "src/auth.ts", &config);
+        assert!(!findings.is_empty(), "real secret must still fire");
+    }
+
     #[test]
     fn detects_high_entropy_from_quoted_and_assignment_values() {
         let config = SecretCheckConfig {

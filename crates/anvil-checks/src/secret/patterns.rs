@@ -147,12 +147,17 @@ pub const SECRET_PATTERNS: [SecretPattern; 21] = [
 /// header (`data:image/…;base64,`). Applies to *all* patterns including
 /// high-confidence ones, because a 40-char hex string really is just an
 /// SHA-1 hash regardless of where it appears.
-pub const DEFAULT_SHAPE_ALLOWLIST: [&str; 5] = [
+pub const DEFAULT_SHAPE_ALLOWLIST: [&str; 6] = [
     r"^[a-f0-9]{32}$",
     r"^[a-f0-9]{40}$",
     r"^[a-f0-9]{64}$",
     r"^0x[a-f0-9]+$",
     r"^data:image\/[a-z]+;base64,",
+    // ULID: 26-char Crockford base32 (excludes I, L, O, U). A maximally
+    // diverse ULID reaches entropy ≈ 4.70 and trips the detector; it is a
+    // public record identifier, never a secret. UUIDs need no entry — their
+    // 16-symbol hex alphabet caps entropy at 4.0, below the 4.5 threshold.
+    r"^[0-9A-HJKMNP-TV-Z]{26}$",
 ];
 
 /// Keyword allowlist: suppresses fuzzy detections (entropy + low-confidence
@@ -172,12 +177,13 @@ pub const DEFAULT_KEYWORD_ALLOWLIST: [&str; 6] = [
 /// Combined default allowlist — preserved for back-compat with the
 /// pre-#1800 single-list contract. New code should prefer the
 /// shape / keyword split above.
-pub const DEFAULT_ALLOWLIST: [&str; 11] = [
+pub const DEFAULT_ALLOWLIST: [&str; 12] = [
     r"^[a-f0-9]{32}$",
     r"^[a-f0-9]{40}$",
     r"^[a-f0-9]{64}$",
     r"^0x[a-f0-9]+$",
     r"^data:image\/[a-z]+;base64,",
+    r"^[0-9A-HJKMNP-TV-Z]{26}$",
     r"placeholder",
     r"example",
     r"test",
@@ -579,7 +585,7 @@ mod tests {
         assert!(matcher.is_allowlisted("placeholder"));
         assert!(matcher.is_allowlisted("my-safe-value"));
         assert!(!matcher.is_allowlisted("ghp_abcdefghijklmnopqrstuvwxyz1234567890abc"));
-        assert_eq!(DEFAULT_ALLOWLIST.len(), 11);
+        assert_eq!(DEFAULT_ALLOWLIST.len(), 12);
 
         // Pin the back-compat contract structurally, not just by length:
         // `DEFAULT_ALLOWLIST` MUST be the in-order concatenation of the
