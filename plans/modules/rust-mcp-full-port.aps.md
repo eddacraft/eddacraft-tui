@@ -2,7 +2,7 @@
 
 | ID    | Owner | Status | Progress |
 | ----- | ----- | ------ | -------- |
-| RMCPF | —     | In Progress | 6/10     |
+| RMCPF | —     | In Progress | 7/10     |
 
 **Last reviewed:** 2026-06-19
 
@@ -438,11 +438,9 @@ retirement decisions:
 
 #### RMCPF-020: Port MCP resources
 
-- **Status:** In Progress (2026-06-19 — readiness pass passed and work started
-  on the `anvil://` resources; RMCPF-002 Done; inventory dispositions all eight
-  resources to Rust-owned sources; every named source reader exists in the Rust
-  tree (see Readiness note); validation harness already present. Reconciled
-  against GCTX-030.)
+- **Status:** Merged 2026-06-19 via PR #2809 (readiness pass + GCTX-030
+  reconciliation in the Readiness note below; seven `anvil://` resources ported +
+  `file/{path}/warnings` retired; closeout and validation evidence below).
 - **Readiness (2026-06-19):** GCTX-030 (Merged 2026-06-18 via #2772) already
   shipped the MCP **resources substrate** this item assumed it would build:
   the `resources` capability is advertised at `initialize`, and `resources/list`
@@ -620,6 +618,6 @@ retirement decisions:
 | ----- | ----- | ------ |
 | 0 — Inventory and Compatibility | 3 | 3/3 done |
 | 1 — Tool Parity | 3 | 3/3 done (RMCPF-010 Complete; RMCPF-011/-012 Merged via PR #1558) |
-| 2 — Resources and Transports | 2 | 0/2 done (RMCPF-020 Ready; RMCPF-021 Draft) |
+| 2 — Resources and Transports | 2 | 1/2 done (RMCPF-020 Merged via #2809; RMCPF-021 Draft) |
 | 3 — Cutover | 2 | 0/2 (Draft) |
-| **Total** | **10** | **6/10 done** |
+| **Total** | **10** | **7/10 done** |
