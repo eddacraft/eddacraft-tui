@@ -850,6 +850,7 @@ pub enum StopOutcome {
 /// inject-the-effect style used by [`default_pid_file_path_from`] and the
 /// `ensure` primitive).
 #[derive(Debug, PartialEq, Eq)]
+#[cfg_attr(windows, allow(dead_code))]
 enum StopPlan {
     NotRunning,
     Signal { pid: u32 },
@@ -858,6 +859,7 @@ enum StopPlan {
     Unproven,
 }
 
+#[cfg_attr(windows, allow(dead_code))]
 fn parse_pid_record(record: &str) -> Option<u32> {
     record
         .lines()
@@ -865,6 +867,7 @@ fn parse_pid_record(record: &str) -> Option<u32> {
         .and_then(|line| line.trim().parse::<u32>().ok())
 }
 
+#[cfg_attr(windows, allow(dead_code))]
 fn plan_stop(record: Option<&str>, classify: impl Fn(&str) -> ExistingPidStatus) -> StopPlan {
     let Some(record) = record else {
         return StopPlan::NotRunning;
