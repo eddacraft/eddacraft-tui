@@ -206,7 +206,7 @@ fn classify(norm: &str) -> Vec<DockerRisk> {
         if (norm.contains("curl") || norm.contains("wget")) && pipes_to_shell(norm) {
             risks.push(DockerRisk::PipeToShell);
         }
-        if norm.contains("sudo ") {
+        if runs_sudo_command(norm) {
             risks.push(DockerRisk::SudoInRun);
         }
         if norm.contains("apt-get install") && !norm.contains("--no-install-recommends") {
@@ -217,6 +217,18 @@ fn classify(norm: &str) -> Vec<DockerRisk> {
         risks.push(DockerRisk::LatestBaseImage);
     }
     risks
+}
+
+/// True when a `RUN` layer actually *invokes* `sudo` as a command, rather
+/// than merely mentioning the token (e.g. `apt install … sudo …`, where `sudo`
+/// is a package name). We strip the `run ` keyword and check each
+/// `&&`/`||`/`;`/`|`-separated command segment for a leading `sudo`, so
+/// `RUN sudo apt-get update` is flagged but `RUN apt install -y sudo` is not.
+fn runs_sudo_command(norm: &str) -> bool {
+    let body = norm.strip_prefix("run ").unwrap_or(norm);
+    body.split(['&', '|', ';'])
+        .map(str::trim_start)
+        .any(|seg| seg == "sudo" || seg.starts_with("sudo "))
 }
 
 /// True when a `from …` instruction pins an explicit `:latest` tag on its
@@ -355,6 +367,22 @@ mod tests {
             vec![DockerRisk::AptMissingNoRecommends]
         );
         assert!(risks("RUN apt-get install -y --no-install-recommends nginx\n").is_empty());
+    }
+
+    #[test]
+    fn sudo_as_a_package_name_is_not_flagged() {
+        // SURFDOCK-006 external validation (nvm): `sudo` installed as an apt
+        // package must NOT trip SudoInRun — the rule targets sudo *invocation*,
+        // not the token appearing in a package list.
+        assert!(
+            !risks("RUN apt install -y vim sudo htop\n").contains(&DockerRisk::SudoInRun),
+            "sudo as a package argument is not a sudo invocation"
+        );
+        // But sudo after a command separator IS an invocation.
+        assert!(
+            risks("RUN apt-get update && sudo make install\n").contains(&DockerRisk::SudoInRun),
+            "sudo in command position is still flagged"
+        );
     }
 
     #[test]
