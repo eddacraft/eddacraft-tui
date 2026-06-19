@@ -704,20 +704,7 @@ fn run_check_secret(
     // Surface allowlist suppressions so a withheld match is never silent.
     let suppression_suffix = crate::util::secret_suppression_suffix(&result.suppressions);
 
-    let pattern_errors_suffix = if result.pattern_errors.is_empty() {
-        String::new()
-    } else {
-        format!(
-            "\n\n⚠ {} custom secret pattern(s) failed to compile and were skipped:\n{}",
-            result.pattern_errors.len(),
-            result
-                .pattern_errors
-                .iter()
-                .map(|err| format!("  - {err}"))
-                .collect::<Vec<_>>()
-                .join("\n")
-        )
-    };
+    let pattern_errors_suffix = secret_pattern_errors_suffix(&result.pattern_errors);
 
     if result.passed {
         CheckResult {
@@ -747,6 +734,22 @@ fn run_check_secret(
             requires_config: false,
         }
     }
+}
+
+fn secret_pattern_errors_suffix(pattern_errors: &[String]) -> String {
+    if pattern_errors.is_empty() {
+        return String::new();
+    }
+
+    format!(
+        "\n\n⚠ {} custom secret pattern(s) failed to compile and were skipped:\n{}",
+        pattern_errors.len(),
+        pattern_errors
+            .iter()
+            .map(|err| format!("  - {err}"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    )
 }
 
 /// SURFSQL (Track 3) — scan SQL migration files for destructive patterns.
