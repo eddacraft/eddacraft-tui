@@ -206,7 +206,7 @@ hygiene, gate/catalogue registration, drift, and validation.
 
 ### SURFSQL-008 — Schema-dump / canonical-schema scoping
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-19 via PR #2794
 - **Intent:** Stop SURFSQL firing on schema dumps and canonical schema-definition
   files, which are not incremental migrations.
 - **Expected Outcome:** `scan_sql_all` skips a file identified as a schema dump
