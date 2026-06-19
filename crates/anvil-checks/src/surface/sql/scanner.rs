@@ -145,6 +145,12 @@ pub struct SqlFinding {
     /// The offending statement, whitespace-collapsed and truncated for
     /// display — never the whole file.
     pub statement: String,
+    /// Move-resistant identity over the **full** (untruncated) normalised
+    /// statement plus the rule kind (SURFSQL-006). Used by the drift baseline
+    /// so two long statements that share a truncated-display prefix do not
+    /// collide; computed here because the untruncated statement is only
+    /// available at scan time.
+    pub fingerprint: String,
     pub suppressed: bool,
     pub suppression_reason: Option<String>,
 }
@@ -181,6 +187,7 @@ pub fn scan_sql_all(
                 line: statement.line,
                 kind,
                 statement: truncate_statement(&statement.normalised),
+                fingerprint: statement_fingerprint(&format!("D:{kind:?}"), &statement.normalised),
                 suppressed,
                 suppression_reason: reason,
             });
@@ -193,6 +200,7 @@ pub fn scan_sql_all(
                 line: statement.line,
                 kind,
                 statement: truncate_statement(&statement.normalised),
+                fingerprint: statement_fingerprint(&format!("H:{kind:?}"), &statement.normalised),
                 suppressed,
                 suppression_reason: reason,
             });
@@ -240,6 +248,9 @@ pub struct SqlHygieneFinding {
     pub line: usize,
     pub kind: HygieneKind,
     pub statement: String,
+    /// Move-resistant identity over the **full** normalised statement plus the
+    /// rule kind (SURFSQL-006); see [`SqlFinding::fingerprint`].
+    pub fingerprint: String,
     pub suppressed: bool,
     pub suppression_reason: Option<String>,
 }
@@ -301,6 +312,28 @@ fn classify_hygiene(norm: &str) -> Vec<HygieneKind> {
 /// Display cap for the echoed statement so a multi-line `CREATE TABLE`
 /// doesn't bloat the finding payload.
 const STATEMENT_DISPLAY_CAP: usize = 120;
+
+/// Move-resistant identity for a finding (SURFSQL-006): a 16-hex FNV-1a digest
+/// of `tag` (a rule discriminator) plus the **full** normalised statement. The
+/// statement reaching here is already upper-cased + whitespace-collapsed, so
+/// re-indenting or re-casing a flagged statement keeps the same fingerprint,
+/// while two distinct long statements never collide (the whole statement is
+/// hashed, not the truncated display form). Allocation-light: bytes are hashed
+/// in place, with no intermediate buffers. Deterministic across platforms
+/// (unlike `DefaultHasher`).
+#[must_use]
+pub(crate) fn statement_fingerprint(tag: &str, normalised: &str) -> String {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325; // FNV-1a 64-bit offset basis.
+    for byte in tag
+        .bytes()
+        .chain(std::iter::once(b'|'))
+        .chain(normalised.bytes())
+    {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3); // FNV prime.
+    }
+    format!("{hash:016x}")
+}
 
 fn truncate_statement(normalised: &str) -> String {
     if normalised.len() <= STATEMENT_DISPLAY_CAP {
@@ -506,6 +539,42 @@ mod tests {
             .into_iter()
             .map(|f| f.kind)
             .collect()
+    }
+
+    #[test]
+    fn finding_fingerprint_is_move_resistant() {
+        // Same statement, different whitespace/case → same fingerprint, so
+        // re-indenting a flagged statement is not a new edge (SURFSQL-006).
+        let a = scan_sql_file("m.sql", "DROP TABLE users;");
+        let b = scan_sql_file("m.sql", "drop   table\n   users;");
+        assert_eq!(a.len(), 1);
+        assert_eq!(a[0].fingerprint, b[0].fingerprint);
+        assert_eq!(a[0].fingerprint.len(), 16, "16-hex digest");
+        // A different table → a different fingerprint.
+        let c = scan_sql_file("m.sql", "DROP TABLE accounts;");
+        assert_ne!(a[0].fingerprint, c[0].fingerprint);
+    }
+
+    #[test]
+    fn finding_fingerprint_does_not_collide_on_shared_display_prefix() {
+        // Two long CREATE TABLEs that share the truncated (120-char) display
+        // prefix but differ in their tail must not collide — the fingerprint
+        // hashes the FULL statement, not the truncated display form.
+        let prefix = format!("CREATE TABLE t ({}", "col_aaaaaaaa INT, ".repeat(9));
+        let (_, h1) = scan_sql_all("m.sql", &format!("{prefix} unique_alpha INT);"));
+        let (_, h2) = scan_sql_all("m.sql", &format!("{prefix} unique_omega INT);"));
+        assert_eq!(h1.len(), 1);
+        assert_eq!(h2.len(), 1);
+        // Display statements collide (shared 120-char prefix) ...
+        assert_eq!(
+            h1[0].statement, h2[0].statement,
+            "display forms share the prefix"
+        );
+        // ... but the full-statement fingerprints must not.
+        assert_ne!(
+            h1[0].fingerprint, h2[0].fingerprint,
+            "distinct long statements must not share a baseline identity"
+        );
     }
 
     #[test]

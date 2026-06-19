@@ -589,25 +589,6 @@ fn snapshots_dir(workspace: &Path) -> PathBuf {
     workspace.join(ANVIL_DIR).join(SNAPSHOTS_DIR)
 }
 
-/// Move-resistant identity for a SURFSQL finding (SURFSQL-006): a 16-hex
-/// FNV-1a digest of `rule_id` plus the whitespace-normalised statement. Line
-/// and surrounding formatting are deliberately excluded so re-indenting or
-/// shifting a flagged statement does not read as a new edge. Deterministic
-/// across runs and platforms (unlike `DefaultHasher`).
-pub(crate) fn sql_finding_fingerprint(rule_id: &str, statement: &str) -> String {
-    let normalised: String = statement.split_whitespace().collect::<Vec<_>>().join(" ");
-    let mut hash: u64 = 0xcbf2_9ce4_8422_2325; // FNV-1a 64-bit offset basis.
-    for byte in rule_id
-        .bytes()
-        .chain(b"|".iter().copied())
-        .chain(normalised.to_ascii_uppercase().bytes().collect::<Vec<_>>())
-    {
-        hash ^= u64::from(byte);
-        hash = hash.wrapping_mul(0x0000_0100_0000_01b3); // FNV prime.
-    }
-    format!("{hash:016x}")
-}
-
 /// The set of SURFSQL fingerprints baselined by the latest drift snapshot.
 /// `None` means there is no readable snapshot at all (so the gate warns on all
 /// findings and hints to create one); `Some(set)` means a snapshot exists —
@@ -965,25 +946,29 @@ fn collect_antipatterns(
     (antipatterns, suppressions, ap_result)
 }
 
-/// Stable rule identity + fingerprint for a destructive SURFSQL finding. Both
-/// the drift snapshot writer (`collect_sql_findings`) and the gate reader
-/// (`run_check_sql_migrations`) call this so a baselined finding and the live
-/// finding it baselines produce the *same* fingerprint (SURFSQL-006).
+/// Human-readable rule id + the move-resistant fingerprint for a destructive
+/// SURFSQL finding. The fingerprint is computed by the scanner over the *full*
+/// (untruncated) normalised statement, so the drift snapshot writer
+/// (`collect_sql_findings`) and the gate reader (`run_check_sql_migrations`)
+/// agree without re-deriving it from the truncated display statement
+/// (SURFSQL-006).
 pub(crate) fn destructive_finding_id(
     f: &anvil_checks::surface::sql::SqlFinding,
 ) -> (String, String) {
-    let rule_id = format!("surfsql-destructive:{:?}", f.kind);
-    let fingerprint = sql_finding_fingerprint(&rule_id, &f.statement);
-    (rule_id, fingerprint)
+    (
+        format!("surfsql-destructive:{:?}", f.kind),
+        f.fingerprint.clone(),
+    )
 }
 
 /// As [`destructive_finding_id`] for a schema-hygiene finding.
 pub(crate) fn hygiene_finding_id(
     f: &anvil_checks::surface::sql::SqlHygieneFinding,
 ) -> (String, String) {
-    let rule_id = format!("surfsql-hygiene:{:?}", f.kind);
-    let fingerprint = sql_finding_fingerprint(&rule_id, &f.statement);
-    (rule_id, fingerprint)
+    (
+        format!("surfsql-hygiene:{:?}", f.kind),
+        f.fingerprint.clone(),
+    )
 }
 
 /// Discover SQL migration files under `workspace` and collect their
@@ -1259,22 +1244,20 @@ mod tests {
     // ── SURFSQL-006 drift baseline ───────────────────────────────
 
     #[test]
-    fn sql_fingerprint_is_move_and_format_resistant() {
-        // Same rule + statement modulo whitespace/case → same fingerprint, so
-        // re-indenting or shifting a flagged statement is not a "new edge".
-        let a = sql_finding_fingerprint("surfsql-destructive:DropTable", "DROP TABLE users");
-        let b = sql_finding_fingerprint("surfsql-destructive:DropTable", "drop   table\n  users");
-        assert_eq!(a, b);
-        assert_eq!(a.len(), 16, "16-hex digest");
-        // Different rule or statement → different fingerprint.
-        assert_ne!(
-            a,
-            sql_finding_fingerprint("surfsql-destructive:DropTable", "DROP TABLE accounts")
+    fn finding_id_passes_through_scanner_fingerprint_and_labels_rule() {
+        use anvil_checks::surface::sql::run_surfsql_check;
+        let scan = run_surfsql_check(&[(
+            std::path::PathBuf::from("0001.sql"),
+            "DROP TABLE users;".to_string(),
+        )]);
+        let f = &scan.destructive[0];
+        let (rule_id, fp) = destructive_finding_id(f);
+        assert_eq!(rule_id, format!("surfsql-destructive:{:?}", f.kind));
+        assert_eq!(
+            fp, f.fingerprint,
+            "fingerprint comes straight from the scanner"
         );
-        assert_ne!(
-            a,
-            sql_finding_fingerprint("surfsql-hygiene:MissingIfNotExists", "DROP TABLE users")
-        );
+        assert_eq!(fp.len(), 16, "16-hex digest");
     }
 
     #[test]
