@@ -35,7 +35,7 @@ See: plans/aps-rules.md
 
 | ID    | Owner | Status      | Progress |
 | ----- | ----- | ----------- | -------- |
-| V060F | —     | In Progress | 20/25    |
+| V060F | —     | In Progress | 21/25    |
 
 **Last reviewed:** 2026-06-19 (full triage pass + Wave 1 shipped — re-verified
 all 21 open items against HEAD; 8 closed as resolved-elsewhere:
@@ -640,12 +640,17 @@ discovery.
   cleaner; (b) is a stopgap.
 - **Confidence:** high (the retirement path is documented; the
   attribution drift is a small Node-CLI fix)
-- **Status:** Open (scope reduced 2026-06-19) — the `X-Admin-Actor`
-  attribution drift is **resolved by design**: `admin-auth.ts` now derives
-  the actor from the key material and ignores the header (ADMINCLIH-002).
-  Remaining work is purely option (a): **retire** the Node `apps/admin-cli/`
-  now that the Rust `anvil admin` surface is release-grade. Hygiene, not a
-  correctness fix.
+- **Status:** Done (Wave 2, 2026-06-19) — took option (a): `git mv
+  apps/admin-cli → archive/admin-cli-node` (28 files, history preserved),
+  mirroring `archive/anvil-cli-node`. The `!archive/**` workspace exclusion
+  drops it from the pnpm workspace (33 → 32 projects); also removed the root
+  `tsconfig.json` project reference + the `pnpm admin` script and
+  regenerated `pnpm-lock.yaml` (−28 lines, the importer block only — zero
+  version churn). Added an archive README retirement banner and a runbook
+  note. Verified: nothing imports `@eddacraft/admin-cli` (leaf bin, no
+  reverse deps), `tsc -b --dry` exits 0. The `X-Admin-Actor` attribution
+  drift was already resolved by design (ADMINCLIH-002); this closes the
+  retirement.
 
 ---
 
@@ -861,7 +866,7 @@ Disjoint single-file edits; no code-build risk. All five shipped together.
   resolved); BMAD version aligned to test-pinned `0.1.2` in the README
 - **V060F-024** ✅ — `archive/eddacraft-tui-local/README.md` historical banner
 
-### Wave 2 — operator surface & UX correctness (4 items, parallel, disjoint crates)
+### Wave 2 — operator surface & UX correctness ✅ COMPLETE (2026-06-19)
 
 - **V060F-002** ✅ (2026-06-19) — `anvil intercept stop` subcommand + the
   `anvil_intercept::request_daemon_stop` lookup-and-signal primitive
@@ -870,7 +875,8 @@ Disjoint single-file edits; no code-build risk. All five shipped together.
   fence-telemetry skew (runtime proof on the apple-darwin CI leg)
 - **V060F-018** ✅ (2026-06-19) — stale premise: production already renders
   Ratatui via `render_shell`; aligned the vestigial `TuiBackend` stub default
-- **V060F-019** — retire Node `apps/admin-cli/` (attribution drift already
+- **V060F-019** ✅ (2026-06-19) — retired Node `apps/admin-cli/` → `archive/`
+  (attribution drift already
   resolved; pure retirement remains)
 
 ### Wave 3 — activation seams (2 items, coordinate — shared `anvil-cli` dirs)
@@ -907,10 +913,10 @@ or sequence to avoid collisions on the command modules.
 | Deferrals (v0.5.0-beta)              | 0     | —                                                      |
 | Nominations                          | 1     | Complete (V060F-001)                                   |
 | As-built sweep follow-ups (batch 1)  | 10    | 8 Done / 2 Open (triage closed 003/005/010/011; Wave 1 closed 008/009; Wave 2 closed 002/004) |
-| As-built sweep follow-ups (batch 2)  | 8     | 5 Done / 3 Open (triage closed 012/013/017; Wave 1 closed 014; Wave 2 closed 018) |
+| As-built sweep follow-ups (batch 2)  | 8     | 6 Done / 2 Open (triage closed 012/013/017; Wave 1 closed 014; Wave 2 closed 018 + 019) |
 | As-built sweep follow-ups (batch 3)  | 5     | 5 Done / 0 Open (020/021/022; Wave 1 closed 023/024) |
 | OPA runtime refresh                  | 1     | Complete (V060F-025, 2026-05-08)                      |
-| **Total**                            | **25** | 20 Done / 5 Open (Wave 2 V060F-002 + V060F-004 + V060F-018) |
+| **Total**                            | **25** | 21 Done / 4 Open (Wave 2 complete: V060F-002/004/018/019; remaining = Wave 3 006/007 + Wave 4 015/016) |
 
 Batch 1 (intercept / activation / MCP shim / checks / kernel as-builts) split:
 

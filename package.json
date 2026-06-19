@@ -83,8 +83,7 @@
     "generate:package": "nx g @eddacraft/anvil-generators:package",
     "generate:anvil-package": "nx g @eddacraft/anvil-generators:anvil-package",
     "generate:command": "nx g @eddacraft/anvil-generators:command",
-    "agent:run": "bash tools/local-agent-run.sh",
-    "admin": "tsx apps/admin-cli/src/index.ts"
+    "agent:run": "bash tools/local-agent-run.sh"
   },
   "private": true,
   "devDependencies": {

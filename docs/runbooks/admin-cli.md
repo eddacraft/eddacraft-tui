@@ -16,6 +16,13 @@ beta.
 This runbook covers install, configuration, every command with an example, the
 exit-code taxonomy, and troubleshooting.
 
+> **Legacy Node CLI retired (V060F-019, 2026-06-19).** The original Node
+> operator CLI (`anvil-admin`, formerly `apps/admin-cli/`) has been archived to
+> `archive/admin-cli-node/`. `anvil admin` is now the only supported surface —
+> RCLI2-009 ported all of its subcommands and the Node tool's `X-Admin-Actor`
+> attribution no longer matches the live API (ADMINCLIH-002). Do not run the
+> archived tool.
+
 ## Install
 
 `anvil admin` ships as part of the Rust `anvil` binary. Operators can use an

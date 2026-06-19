@@ -64,9 +64,6 @@
       "path": "./apps/docs-shell"
     },
     {
-      "path": "./apps/admin-cli"
-    },
-    {
       "path": "./packages/shared/admin-contracts"
     },
     {
