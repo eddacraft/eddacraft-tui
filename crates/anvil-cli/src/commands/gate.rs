@@ -633,9 +633,17 @@ fn run_check_secret(
             // agent worktrees (`.claude`, `.worktrees`), flooding the report
             // with high-entropy generated chunks. The lockfile skip lives in
             // `run_secret_check`.
-            e.file_name()
-                .to_str()
-                .is_none_or(|name| !crate::util::is_ignored_dir_name(name))
+            //
+            // Prune only *directories* whose name is ignored — never skip a
+            // file that happens to share a name with an ignore-dir. This
+            // matches audit/check/drift, which gate the same check on
+            // `is_dir()`.
+            if e.file_type().is_some_and(|ft| ft.is_dir())
+                && let Some(name) = e.file_name().to_str()
+            {
+                return !crate::util::is_ignored_dir_name(name);
+            }
+            true
         });
     if plan_files.is_empty() {
         walker_builder.max_depth(Some(SECRET_SCAN_MAX_DEPTH));
