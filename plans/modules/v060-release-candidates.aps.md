@@ -277,7 +277,23 @@ discovery.
   unsupported-language skip without affecting the cross-language
   secret scan (which already runs on all files).
 - **Confidence:** medium
-- **Status:** Open
+- **Status:** Open — **premise stale, re-triaged 2026-06-19** (Wave 3). The
+  claimed opt-in surface (`.anvilrc` `extensions:`) **never existed** —
+  there is no `extensions` key in `anvil-config`. The real opt-in is
+  `anvil check --extensions .py`, which sets the antipattern allowlist
+  (`AntipatternCheckConfig.extensions`), so a user **can already** get
+  language-specific antipattern checks on opted-in extensions. The other
+  two seams no longer apply: `commands/watch.rs` **defers** evaluation
+  (emits change events; eval via daemon / manual re-run — see V060F-009),
+  so it runs no language-specific antipattern checks inline; and
+  `commands/audit.rs` runs **cross-language** secret detection, which the
+  partition is explicitly forbidden to touch. `partition_for_language_specific_checks`
+  remains activation-flow scaffolding (`#[allow(dead_code)]`), and the
+  init path already surfaces its skip-ledger honestly. **Recommendation:**
+  close as overtaken-by-architecture, or re-scope to the only salvageable
+  kernel — wire the skip-ledger into `anvil check`'s _output_ so it
+  honestly reports skipped unsupported-language files (a new behaviour,
+  not the originally-claimed fix). Owner decision.
 
 ---
 
@@ -298,7 +314,18 @@ discovery.
   against a known-recent file event in the foreground process. Once
   wired, the protection-loop tutorial copy can drop the watch caveat.
 - **Confidence:** medium
-- **Status:** Open
+- **Status:** Open — **re-scoped 2026-06-19** (Wave 3). Still genuinely
+  open, but the original framing predates the daemon era. `--verify` is
+  **read-only** and never spawns a watcher, so there is no in-process
+  watcher to probe — the "known-recent file event in the foreground
+  process" option is a dead end. The tractable daemon-era approach: when a
+  save-time daemon is live (DLIFE), probe its status via the existing
+  `query_daemon_status_with_timeout` (the MLP2-051f daemon-evidence path)
+  to confirm it is actually watching, and only then reflect
+  `WatchTier::Running`. **Constraint:** this touches the council-locked
+  "never claim `protecting`/`running` falsely" diagnostic, so it needs a
+  focused implementation that confirms the daemon status genuinely exposes
+  active-watch state before claiming it — not a tail-end change.
 
 ---
 
@@ -879,14 +906,20 @@ Disjoint single-file edits; no code-build risk. All five shipped together.
   (attribution drift already
   resolved; pure retirement remains)
 
-### Wave 3 — activation seams (2 items, coordinate — shared `anvil-cli` dirs)
+### Wave 3 — activation seams ⚠️ RE-TRIAGED (2026-06-19) — premises overtaken
 
-Both touch `crates/anvil-cli/src/{commands,activation}/`; assign to one owner
-or sequence to avoid collisions on the command modules.
+Pre-implementation re-verification (2026-06-19) found both items predate the
+current architecture; **neither is the quick wiring task the original framing
+implies** (see each item's Status note for the evidence). No code shipped.
 
-- **V060F-006** — honour `extensions:` opt-in in `check`/`watch`/`audit`
-- **V060F-007** — real watch-liveness probe in `start --verify` (today
-  `WatchTier::Running` is synthesised, not probed)
+- **V060F-006** — ⚠️ **premise stale**: the `.anvilrc` `extensions:` opt-in
+  surface never existed; `anvil check --extensions` already opts in; `watch`
+  defers eval and `audit` is cross-language secrets, so neither has a
+  language-specific seam. Recommend close-as-overtaken or re-scope to
+  "skip-ledger in `check` output". Owner decision.
+- **V060F-007** — re-scoped: `--verify` is read-only (no in-process watcher to
+  probe); the tractable path is probing the live save-time daemon's status,
+  but it touches the council-locked honesty diagnostic — needs a focused PR.
 
 ### Wave 4 — design-gated / blocked (2 items, NOT RC quick-wins)
 
