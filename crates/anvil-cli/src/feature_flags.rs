@@ -239,7 +239,7 @@ pub fn is_dev_bypass(details: &ResolutionDetails) -> bool {
 
 /// Env var that overrides the SURFSQL governance surface for the session
 /// (SURFSQL-005). `=1` forces `track.surface.sql` to `"enabled"` and `=0`
-/// forces it `"disabled"`, via a local override routed through the resolver —
+/// forces it to `"disabled"`, via a local override routed through the resolver —
 /// not a bespoke env read — so the FLAGCAT flag stays the single source of
 /// truth (OPSUP-005).
 pub const TRACK_SURFACE_SQL_ENV_VAR: &str = "ANVIL_TRACK_SURFACE_SQL";
