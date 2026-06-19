@@ -65,14 +65,16 @@ pub fn list() -> Vec<Value> {
             "The workspace architecture baseline (`.anvil/architecture.json`): \
              schema version, entry points, layer definitions, boundary rules, \
              and the baseline violation snapshot. Returns `{ \"error\": \
-             \"no-baseline\" }` when no baseline exists.",
+             \"no-baseline\" }` when no baseline exists, or `{ \"error\": \
+             \"baseline-load-failed\" }` when the baseline cannot be loaded.",
         ),
         descriptor(
             URI_BOUNDARIES,
             "Architecture boundaries",
             "Layer definitions and explicit boundary rules derived from the \
              architecture baseline. Returns `{ \"error\": \"no-baseline\" }` \
-             when no baseline exists.",
+             when no baseline exists, or `{ \"error\": \"baseline-load-failed\" \
+             }` when the baseline cannot be loaded.",
         ),
         descriptor(
             URI_PATTERNS,
@@ -100,7 +102,8 @@ pub fn list() -> Vec<Value> {
             "Constraint bundle",
             "The aggregated constraint bundle — boundaries, layers, \
              anti-patterns, conventions, and active suppressions with metadata \
-             — identical to `anvil export constraints`. The one-call context \
+             — matching `anvil export constraints` except \
+             `metadata.workspace_root` is redacted to `.`. The one-call context \
              pack for architecture-aware generation.",
         ),
         descriptor(
@@ -109,7 +112,8 @@ pub fn list() -> Vec<Value> {
             "Drift state from `.anvil/snapshots/`: `no-snapshots`, \
              `single-snapshot` (with the latest metrics), or `ok` with a \
              comparison of the two most recent snapshots (metric deltas and \
-             overall trend).",
+             overall trend). Returns `snapshot-load-failed` when a snapshot \
+             cannot be loaded.",
         ),
     ]
 }
@@ -390,6 +394,26 @@ mod tests {
             assert_eq!(resource["mimeType"], MIME_JSON);
             assert_eq!(resource["annotations"]["readOnlyHint"], json!(true));
         }
+    }
+
+    #[test]
+    fn list_describes_in_band_error_shapes_and_redaction() {
+        let resources = list();
+        let description = |uri: &str| {
+            resources
+                .iter()
+                .find(|resource| resource["uri"] == uri)
+                .and_then(|resource| resource["description"].as_str())
+                .expect("resource description exists")
+        };
+
+        assert!(description(URI_BASELINE).contains("baseline-load-failed"));
+        assert!(description(URI_BOUNDARIES).contains("baseline-load-failed"));
+        assert!(
+            description(URI_CONSTRAINTS).contains("metadata.workspace_root")
+                && description(URI_CONSTRAINTS).contains("redacted to `.`")
+        );
+        assert!(description(URI_DRIFT).contains("snapshot-load-failed"));
     }
 
     #[test]
