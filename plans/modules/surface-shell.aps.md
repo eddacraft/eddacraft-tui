@@ -126,8 +126,14 @@ Delivered as slices mirroring the other surfaces. T1 (Scanned).
 
 ### SURFSH-006-validation — Anvil + external validation runs
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Prove the acceptance bar (FP < 1% on Anvil + ≥1 external repo).
+- **Expected Outcome:** Validated 2026-06-18 — Anvil (110 in-scope shell
+  scripts, 0 findings) + `BurntSushi/ripgrep` (2 scripts, 0 findings),
+  **0% FP → PASS**. Evidence:
+  `plans/reviews/2026-06-18-surface-validation.md`. (No dangerous-command
+  corpus in either repo — external true-positive confirmation is light; unit
+  tests cover detection.)
 - **Validation:** FP report committed under `plans/reviews/`.
 - **Dependencies:** SURFSH-002, SURFSH-005
 - **Confidence:** medium
