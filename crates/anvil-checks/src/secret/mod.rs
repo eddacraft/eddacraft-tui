@@ -20,6 +20,6 @@ pub use scanner::{
     scan_content_with_stats, scan_lockfile_url_credentials,
 };
 pub use types::{
-    EntropyFinding, FindingType, SecretCheckConfig, SecretCheckResult, SecretFinding,
-    SecretPatternDef,
+    AllowlistProvenance, EntropyFinding, FindingType, SecretCheckConfig, SecretCheckResult,
+    SecretFinding, SecretPatternDef, Suppression,
 };

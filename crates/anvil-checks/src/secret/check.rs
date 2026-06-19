@@ -8,7 +8,9 @@ use rayon::prelude::*;
 use crate::secret::git_scanner::scan_git_history;
 use crate::secret::patterns::compile_custom_patterns;
 use crate::secret::scanner::scan_content_with_compiled_patterns;
-use crate::secret::types::{FindingType, SecretCheckConfig, SecretCheckResult, SecretFinding};
+use crate::secret::types::{
+    FindingType, SecretCheckConfig, SecretCheckResult, SecretFinding, Suppression,
+};
 
 /// Maximum file size to scan (1 MiB). Files of this size or larger are
 /// skipped to avoid excessive memory usage on binaries or generated artefacts.
@@ -36,7 +38,7 @@ pub fn run_secret_check(
     // simply drop out of the collected findings stream. Deterministic
     // ordering is restored downstream after dedupe via `sort_findings`.
     let lines_skipped_atomic = AtomicUsize::new(0);
-    let per_file: Vec<Vec<SecretFinding>> = files
+    let per_file: Vec<(Vec<SecretFinding>, Vec<Suppression>)> = files
         .par_iter()
         .filter_map(|file| {
             if should_skip_file(file, config) {
@@ -61,14 +63,19 @@ pub fn run_secret_check(
             match scan_result {
                 Ok((file_findings, stats)) => {
                     lines_skipped_atomic.fetch_add(stats.lines_skipped_oversize, Ordering::Relaxed);
-                    Some(file_findings)
+                    Some((file_findings, stats.suppressions))
                 }
                 Err(_) => None,
             }
         })
         .collect();
 
-    let mut findings: Vec<SecretFinding> = per_file.into_iter().flatten().collect();
+    let mut findings: Vec<SecretFinding> = Vec::new();
+    let mut suppressions: Vec<Suppression> = Vec::new();
+    for (file_findings, file_suppressions) in per_file {
+        findings.extend(file_findings);
+        suppressions.extend(file_suppressions);
+    }
     let mut lines_skipped_oversize = lines_skipped_atomic.load(Ordering::Relaxed);
 
     if config.scan_git_history {
@@ -84,6 +91,7 @@ pub fn run_secret_check(
     }
 
     let findings = sort_findings(deduplicate_findings(findings));
+    let suppressions = finalize_suppressions(suppressions);
     let passed = findings.is_empty();
     let pattern_count = findings
         .iter()
@@ -120,7 +128,30 @@ pub fn run_secret_check(
         findings,
         pattern_errors,
         lines_skipped_oversize,
+        suppressions,
     }
+}
+
+/// Deterministically order and de-duplicate suppression records. Parallel
+/// collection interleaves files, and the entropy detector's dual
+/// quoted/assignment match records the same candidate twice (mirrors
+/// `deduplicate_findings`).
+fn finalize_suppressions(mut suppressions: Vec<Suppression>) -> Vec<Suppression> {
+    suppressions.sort_by(|a, b| {
+        a.file
+            .cmp(&b.file)
+            .then(a.line.cmp(&b.line))
+            .then(a.rule_name.cmp(&b.rule_name))
+            .then(a.redacted_match.cmp(&b.redacted_match))
+    });
+    suppressions.dedup_by(|a, b| {
+        a.file == b.file
+            && a.line == b.line
+            && a.rule_name == b.rule_name
+            && a.redacted_match == b.redacted_match
+            && a.provenance == b.provenance
+    });
+    suppressions
 }
 
 fn should_skip_file(file: &str, config: &SecretCheckConfig) -> bool {

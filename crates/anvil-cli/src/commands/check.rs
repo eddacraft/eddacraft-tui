@@ -325,7 +325,9 @@ pub fn run(args: &CheckArgs, global: &GlobalArgs) -> Result<()> {
                 checks_run.push((*check_name).to_string());
             }
             "secret-detection" => {
-                let config = SecretCheckConfig::default();
+                let config = crate::util::secret_check_config(std::path::Path::new(
+                    workspace_root.as_deref().unwrap_or("."),
+                ));
                 // `run_secret_check` silently drops files by extension
                 // (`config.skip_extensions`) and by size (`MAX_FILE_SIZE`).
                 // Pre-filter so the "0 scanned" guard below stays honest

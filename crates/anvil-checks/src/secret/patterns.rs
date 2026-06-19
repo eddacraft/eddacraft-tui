@@ -2,7 +2,7 @@ use std::sync::LazyLock;
 
 use regex::Regex;
 
-use crate::secret::types::SecretPatternDef;
+use crate::secret::types::{AllowlistProvenance, SecretPatternDef};
 
 pub struct SecretPattern {
     pub name: &'static str,
@@ -310,7 +310,10 @@ pub fn compile_custom_patterns(
 pub struct PatternMatcher {
     default_shape_allowlist: Vec<Regex>,
     default_keyword_allowlist: Vec<Regex>,
-    custom_allowlist: Vec<Regex>,
+    /// Source pattern paired with its compiled regex so a suppression can be
+    /// traced back to the exact operator-configured opt-out
+    /// ([`AllowlistProvenance::Custom`]).
+    custom_allowlist: Vec<(String, Regex)>,
 }
 
 impl PatternMatcher {
@@ -325,7 +328,11 @@ impl PatternMatcher {
             .collect();
         let custom_allowlist = custom_allowlist
             .iter()
-            .filter_map(|pattern| Regex::new(&format!("(?i){pattern}")).ok())
+            .filter_map(|pattern| {
+                Regex::new(&format!("(?i){pattern}"))
+                    .ok()
+                    .map(|re| (pattern.clone(), re))
+            })
             .collect();
 
         Self {
@@ -338,17 +345,38 @@ impl PatternMatcher {
     /// Full allowlist check — used for entropy findings and low-confidence
     /// patterns where fuzzy keyword suppression is desirable.
     pub fn is_allowlisted(&self, value: &str) -> bool {
-        self.default_shape_allowlist
+        self.matched_allowlist(value).is_some()
+    }
+
+    /// Like [`PatternMatcher::is_allowlisted`] but returns *which* allowlist
+    /// tier matched, so the caller can record the suppression's provenance.
+    /// Tiers are checked shape → keyword → custom; the first match wins.
+    #[must_use]
+    pub fn matched_allowlist(&self, value: &str) -> Option<AllowlistProvenance> {
+        if self
+            .default_shape_allowlist
             .iter()
             .any(|pattern| pattern.is_match(value))
-            || self
-                .default_keyword_allowlist
-                .iter()
-                .any(|pattern| pattern.is_match(value))
-            || self
-                .custom_allowlist
-                .iter()
-                .any(|pattern| pattern.is_match(value))
+        {
+            return Some(AllowlistProvenance::BuiltinShape);
+        }
+        if self
+            .default_keyword_allowlist
+            .iter()
+            .any(|pattern| pattern.is_match(value))
+        {
+            return Some(AllowlistProvenance::BuiltinKeyword);
+        }
+        self.matched_custom(value)
+    }
+
+    fn matched_custom(&self, value: &str) -> Option<AllowlistProvenance> {
+        self.custom_allowlist
+            .iter()
+            .find(|(_, re)| re.is_match(value))
+            .map(|(pattern, _)| AllowlistProvenance::Custom {
+                pattern: pattern.clone(),
+            })
     }
 
     /// Allowlist check for high-confidence shape-specific patterns
@@ -359,13 +387,20 @@ impl PatternMatcher {
     /// defaults (hex hashes, `0x…`, data URIs) and any user-supplied
     /// `custom_allowlist` entries so legitimate opt-outs keep working.
     pub fn is_shape_or_custom_allowlisted(&self, value: &str) -> bool {
-        self.default_shape_allowlist
+        self.matched_shape_or_custom(value).is_some()
+    }
+
+    /// Provenance-returning form of [`PatternMatcher::is_shape_or_custom_allowlisted`].
+    #[must_use]
+    pub fn matched_shape_or_custom(&self, value: &str) -> Option<AllowlistProvenance> {
+        if self
+            .default_shape_allowlist
             .iter()
             .any(|pattern| pattern.is_match(value))
-            || self
-                .custom_allowlist
-                .iter()
-                .any(|pattern| pattern.is_match(value))
+        {
+            return Some(AllowlistProvenance::BuiltinShape);
+        }
+        self.matched_custom(value)
     }
 
     pub fn looks_like_code(&self, value: &str) -> bool {

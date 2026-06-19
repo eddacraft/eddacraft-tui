@@ -697,9 +697,12 @@ fn run_check_secret(
     }
 
     let file_refs: Vec<&str> = files_to_scan.iter().map(String::as_str).collect();
-    let config = anvil_checks::secret::SecretCheckConfig::default();
+    let config = crate::util::secret_check_config(root);
     let root_str = root.to_string_lossy();
     let result = anvil_checks::secret::run_secret_check(&file_refs, &config, Some(&root_str));
+
+    // Surface allowlist suppressions so a withheld match is never silent.
+    let suppression_suffix = crate::util::secret_suppression_suffix(&result.suppressions);
 
     let pattern_errors_suffix = if result.pattern_errors.is_empty() {
         String::new()
@@ -721,7 +724,9 @@ fn run_check_secret(
             name: name.to_string(),
             passed: true,
             score: 100.0,
-            message: format!("No hardcoded secrets found{pattern_errors_suffix}"),
+            message: format!(
+                "No hardcoded secrets found{suppression_suffix}{pattern_errors_suffix}"
+            ),
             requires_config: false,
         }
     } else {
@@ -735,7 +740,7 @@ fn run_check_secret(
             passed: false,
             score: f64::from(result.score),
             message: format!(
-                "Potential secrets found in {} location(s):\n{}{pattern_errors_suffix}",
+                "Potential secrets found in {} location(s):\n{}{suppression_suffix}{pattern_errors_suffix}",
                 result.findings.len(),
                 locations.join("\n")
             ),

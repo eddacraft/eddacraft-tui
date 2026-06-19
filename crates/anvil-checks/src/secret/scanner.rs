@@ -6,7 +6,9 @@ use crate::secret::entropy::detect_high_entropy_strings_with_line_filter_and_lim
 use crate::secret::patterns::{
     CompiledPattern, DEFAULT_COMPILED_PATTERNS, PatternMatcher, compile_custom_patterns,
 };
-use crate::secret::types::{FindingType, SecretCheckConfig, SecretFinding};
+use crate::secret::types::{
+    AllowlistProvenance, FindingType, SecretCheckConfig, SecretFinding, Suppression,
+};
 
 /// Matches a credential embedded in a URL's userinfo: `scheme://user:secret@host`.
 ///
@@ -208,13 +210,23 @@ fn is_generic_secret_false_positive(matched_value: &str) -> bool {
     false
 }
 
-fn should_skip_pattern_match(
+/// Why a pattern match was withheld. Distinguishes a deliberate *allowlist*
+/// suppression (recorded with provenance so it can be surfaced) from a
+/// heuristic non-match (a value the scanner judged not to be a real secret —
+/// `looks_like_code`, generic-secret / credit-card false-positive filters),
+/// which is not a suppression worth reporting.
+enum SkipReason {
+    Allowlisted(AllowlistProvenance),
+    Heuristic,
+}
+
+fn pattern_skip_reason(
     pattern: &CompiledPattern,
     matcher: &PatternMatcher,
     line: &str,
     match_start: usize,
     match_end: usize,
-) -> bool {
+) -> Option<SkipReason> {
     let matched_value = &line[match_start..match_end];
 
     if pattern.high_confidence {
@@ -224,14 +236,63 @@ fn should_skip_pattern_match(
         // like the canonical AWS `AKIAIOSFODNN7EXAMPLE` access key
         // (issue #1800). Only shape-anchored allowlist entries and
         // user-supplied `custom_allowlist` opt-outs apply here.
-        return matcher.is_shape_or_custom_allowlisted(matched_value);
+        return matcher
+            .matched_shape_or_custom(matched_value)
+            .map(SkipReason::Allowlisted);
     }
 
-    matcher.is_allowlisted(matched_value)
-        || matcher.looks_like_code(matched_value)
+    if let Some(provenance) = matcher.matched_allowlist(matched_value) {
+        return Some(SkipReason::Allowlisted(provenance));
+    }
+
+    let heuristic_skip = matcher.looks_like_code(matched_value)
         || (pattern.name == "Generic Secret" && is_generic_secret_false_positive(matched_value))
         || (pattern.name == "Credit Card"
-            && is_credit_card_false_positive(line, match_start, match_end))
+            && is_credit_card_false_positive(line, match_start, match_end));
+    heuristic_skip.then_some(SkipReason::Heuristic)
+}
+
+/// Decide whether a pattern match should be skipped, recording an allowlist
+/// suppression (with provenance) into `stats` when it is. Returns `true` when
+/// the match must not become a finding (allowlisted *or* heuristic non-match).
+#[allow(clippy::too_many_arguments)] // a focused skip-and-record seam
+fn skip_and_record(
+    stats: &mut ScanStats,
+    matcher: &PatternMatcher,
+    pattern: &CompiledPattern,
+    file_path: &str,
+    line: &str,
+    line_number: usize,
+    range: &std::ops::Range<usize>,
+) -> bool {
+    match pattern_skip_reason(pattern, matcher, line, range.start, range.end) {
+        Some(SkipReason::Allowlisted(provenance)) => {
+            // Don't drop it silently — record what was suppressed and which
+            // allowlist tier did it.
+            stats.suppressions.push(Suppression {
+                file: file_path.to_string(),
+                line: line_number,
+                rule_name: pattern.name.clone(),
+                redacted_match: matcher.redact_secret(&line[range.clone()]),
+                provenance,
+            });
+            true
+        }
+        Some(SkipReason::Heuristic) => true,
+        None => false,
+    }
+}
+
+/// Boolean form for callers that only need "would this match be skipped?"
+/// (e.g. the entropy line-filter), without recording a suppression.
+fn should_skip_pattern_match(
+    pattern: &CompiledPattern,
+    matcher: &PatternMatcher,
+    line: &str,
+    match_start: usize,
+    match_end: usize,
+) -> bool {
+    pattern_skip_reason(pattern, matcher, line, match_start, match_end).is_some()
 }
 
 /// CIB-063: one credential, one finding. A low-confidence keyword pattern
@@ -256,12 +317,17 @@ pub(crate) fn suppressed_by_high_confidence_overlap(
 /// SCAN-002: per-call stats returned alongside findings. Currently exposes
 /// the count of lines that exceeded `SecretCheckConfig::max_line_bytes` and
 /// were therefore skipped before regex evaluation.
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Default, Clone)]
 pub struct ScanStats {
     /// Number of lines skipped because they exceeded the per-line length
     /// guard. A non-zero value means a pathological line was present and
     /// neither pattern matching nor entropy scanning ran for it.
     pub lines_skipped_oversize: usize,
+    /// Candidates that matched a secret rule but were withheld because they
+    /// also matched an allowlist entry, with the provenance of the entry that
+    /// suppressed them. Lets callers surface "we suppressed N would-be
+    /// secrets via the allowlist" instead of dropping them silently.
+    pub suppressions: Vec<Suppression>,
 }
 
 /// SCAN-002: scan content and report any oversize-line skips. The
@@ -390,16 +456,19 @@ pub fn scan_content_with_compiled_patterns(
         let mut line_matches: Vec<(&CompiledPattern, std::ops::Range<usize>)> = Vec::new();
         for pattern in patterns_iter() {
             for matched_range in pattern.regex.find_iter(line) {
-                if should_skip_pattern_match(
-                    pattern,
+                let range = matched_range.range();
+                if skip_and_record(
+                    &mut stats,
                     &matcher,
+                    pattern,
+                    file_path,
                     line,
-                    matched_range.start(),
-                    matched_range.end(),
+                    line_number,
+                    &range,
                 ) {
                     continue;
                 }
-                line_matches.push((pattern, matched_range.range()));
+                line_matches.push((pattern, range));
             }
         }
 
@@ -425,6 +494,7 @@ pub fn scan_content_with_compiled_patterns(
 
     if config.enable_entropy {
         let remaining = limit.saturating_sub(findings.len());
+        let mut entropy_suppressions = Vec::new();
         let entropy_findings = detect_high_entropy_strings_with_line_filter_and_limit(
             content,
             file_path,
@@ -453,8 +523,10 @@ pub fn scan_content_with_compiled_patterns(
                     })
                 })
             },
+            &mut entropy_suppressions,
         );
         findings.extend(entropy_findings);
+        stats.suppressions.append(&mut entropy_suppressions);
     }
 
     (findings, stats)
@@ -510,7 +582,99 @@ mod tests {
         luhn_valid, scan_content, scan_content_with_compiled_patterns,
         scan_content_with_pattern_errors_and_stats, scan_content_with_stats,
     };
-    use crate::secret::types::{FindingType, SecretCheckConfig};
+    use crate::secret::types::{AllowlistProvenance, FindingType, SecretCheckConfig};
+
+    // ── Suppression provenance: allowlisted candidates are recorded, not
+    //    silently dropped (so a `.anvilrc` opt-out can never hide a real
+    //    credential without the operator seeing it called out). ───────────
+
+    #[test]
+    fn custom_allowlist_records_a_suppression_with_provenance() {
+        // A high-entropy token covered by a user `custom_allowlist` entry is
+        // withheld from findings but surfaced as a `Custom` suppression that
+        // names the exact opt-out pattern.
+        let config = SecretCheckConfig {
+            entropy_threshold: 3.5,
+            custom_allowlist: vec!["9xY7qW2vK8mN4pR6".to_string()],
+            ..SecretCheckConfig::default()
+        };
+        let content = "const token = '9xY7qW2vK8mN4pR6sT1uV3wX';";
+        let (findings, stats) = scan_content_with_stats(content, "src/auth.ts", &config);
+
+        assert!(
+            findings.is_empty(),
+            "allowlisted value must not be a finding, got: {findings:?}"
+        );
+        // The entropy detector matches both its quoted and assignment forms,
+        // so the low-level scan records the candidate once per form (the same
+        // pre-dedup duplication the findings path has). Assert on properties,
+        // not an exact count.
+        assert!(
+            !stats.suppressions.is_empty(),
+            "suppression must be recorded"
+        );
+        let s = &stats.suppressions[0];
+        assert_eq!(s.rule_name, "High Entropy String");
+        assert_eq!(s.file, "src/auth.ts");
+        assert_eq!(
+            s.provenance,
+            AllowlistProvenance::Custom {
+                pattern: "9xY7qW2vK8mN4pR6".to_string()
+            }
+        );
+        assert!(s.provenance.is_operator_configured());
+        assert!(
+            stats
+                .suppressions
+                .iter()
+                .all(|s| !s.redacted_match.contains("9xY7qW2vK8mN4pR6sT1uV3wX")),
+            "raw value must not leak into the suppression record"
+        );
+    }
+
+    #[test]
+    fn high_confidence_pattern_suppressed_by_custom_allowlist_is_recorded() {
+        // The canonical AWS key is a high-confidence shape; a user opt-out
+        // still withholds it, but the suppression is recorded so it is never
+        // silent — under the precise rule name.
+        let config = SecretCheckConfig {
+            custom_allowlist: vec!["AKIAIOSFODNN7EXAMPLE".to_string()],
+            ..SecretCheckConfig::default()
+        };
+        let content = "const k = \"AKIAIOSFODNN7EXAMPLE\";";
+        let (findings, stats) = scan_content_with_stats(content, "src/aws.ts", &config);
+
+        assert!(
+            !findings.iter().any(|f| f.pattern_name == "AWS Key"),
+            "allowlisted AWS key must be withheld"
+        );
+        assert!(
+            stats
+                .suppressions
+                .iter()
+                .any(|s| s.rule_name == "AWS Key" && s.provenance.is_operator_configured()),
+            "AWS-key suppression must be recorded with Custom provenance, got: {:?}",
+            stats.suppressions
+        );
+    }
+
+    #[test]
+    fn unmatched_secret_produces_no_suppression() {
+        // A genuine secret with no allowlist coverage flags normally and
+        // records nothing as suppressed.
+        let config = SecretCheckConfig {
+            entropy_threshold: 3.5,
+            ..SecretCheckConfig::default()
+        };
+        let content = "const token = '9xY7qW2vK8mN4pR6sT1uV3wX';";
+        let (findings, stats) = scan_content_with_stats(content, "src/auth.ts", &config);
+        assert!(!findings.is_empty(), "unallowlisted secret must flag");
+        assert!(
+            stats.suppressions.is_empty(),
+            "nothing should be recorded as suppressed, got: {:?}",
+            stats.suppressions
+        );
+    }
 
     // Issue #1800 — textbook AWS access keys (`AKIA…`) used to be
     // suppressed by both `looks_like_code` (`^[A-Z][A-Z0-9_]+$`) and the

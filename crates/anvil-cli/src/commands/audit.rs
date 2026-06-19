@@ -169,7 +169,7 @@ pub fn run_audit(root: &Path) -> AuditData {
     // canonical secret-detection check from `anvil_checks::secret` over
     // the same candidate set so its summary cannot disagree with gate
     // on hardcoded secrets.
-    scan_for_hardcoded_secrets(&candidates, &mut issues);
+    scan_for_hardcoded_secrets(root, &candidates, &mut issues);
 
     // Deterministic order: severity descending, then file ascending, line
     // ascending, message ascending — without this the rayon collect order
@@ -271,6 +271,7 @@ const SECRET_SCAN_EXTS: &[&str] = &["ts", "js", "rs", "json", "yaml", "yml", "to
 /// `anvil_checks::secret::normalise_file_path` from leaking into audit
 /// output across the secret/non-secret boundary.
 fn scan_for_hardcoded_secrets(
+    root: &Path,
     candidates: &[(std::path::PathBuf, String)],
     issues: &mut Vec<AuditIssue>,
 ) {
@@ -313,7 +314,7 @@ fn scan_for_hardcoded_secrets(
         .collect();
 
     let file_refs: Vec<&str> = scannable.iter().map(|(abs, _)| abs.as_str()).collect();
-    let config = anvil_checks::secret::SecretCheckConfig::default();
+    let config = crate::util::secret_check_config(root);
     let result = anvil_checks::secret::run_secret_check(&file_refs, &config, None);
 
     for finding in result.findings {

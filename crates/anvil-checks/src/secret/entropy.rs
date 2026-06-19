@@ -1,7 +1,7 @@
 use regex::Regex;
 
 use crate::secret::patterns::PatternMatcher;
-use crate::secret::types::{FindingType, SecretCheckConfig, SecretFinding};
+use crate::secret::types::{FindingType, SecretCheckConfig, SecretFinding, Suppression};
 
 pub fn calculate_entropy(value: &str) -> f64 {
     if value.is_empty() {
@@ -40,9 +40,14 @@ pub fn detect_high_entropy_strings_with_limit(
     config: &SecretCheckConfig,
     limit: usize,
 ) -> Vec<SecretFinding> {
-    detect_high_entropy_strings_with_line_filter_and_limit(content, file, config, limit, |_, _| {
-        true
-    })
+    detect_high_entropy_strings_with_line_filter_and_limit(
+        content,
+        file,
+        config,
+        limit,
+        |_, _| true,
+        &mut Vec::new(),
+    )
 }
 
 pub(crate) fn detect_high_entropy_strings_with_line_filter_and_limit(
@@ -51,6 +56,7 @@ pub(crate) fn detect_high_entropy_strings_with_line_filter_and_limit(
     config: &SecretCheckConfig,
     limit: usize,
     mut include_line: impl FnMut(usize, &str) -> bool,
+    suppressions: &mut Vec<Suppression>,
 ) -> Vec<SecretFinding> {
     if limit == 0 {
         return Vec::new();
@@ -91,30 +97,45 @@ pub(crate) fn detect_high_entropy_strings_with_line_filter_and_limit(
             if candidate.len() < config.min_entropy_length {
                 continue;
             }
-            if matcher.is_allowlisted(candidate) {
-                continue;
-            }
             if matcher.looks_like_code(candidate) {
                 continue;
             }
 
             let entropy = calculate_entropy(candidate);
-            if entropy >= config.entropy_threshold {
-                findings.push(SecretFinding {
+            if entropy < config.entropy_threshold {
+                continue;
+            }
+
+            // The candidate is high-entropy enough to flag. If an allowlist
+            // entry covers it, withhold it but record the suppression with
+            // provenance rather than dropping it silently — the allowlist
+            // check runs *after* the threshold test so only genuine would-be
+            // findings are reported as suppressed.
+            if let Some(provenance) = matcher.matched_allowlist(candidate) {
+                suppressions.push(Suppression {
                     file: file.to_string(),
                     line: line_number,
-                    finding_type: FindingType::Entropy,
-                    pattern_name: "High Entropy String".to_string(),
+                    rule_name: "High Entropy String".to_string(),
                     redacted_match: matcher.redact_secret(candidate),
-                    redacted_line: matcher.redact_range_in_line(
-                        line,
-                        candidate_match.start(),
-                        candidate_match.end(),
-                    ),
+                    provenance,
                 });
-                if findings.len() == limit {
-                    return findings;
-                }
+                continue;
+            }
+
+            findings.push(SecretFinding {
+                file: file.to_string(),
+                line: line_number,
+                finding_type: FindingType::Entropy,
+                pattern_name: "High Entropy String".to_string(),
+                redacted_match: matcher.redact_secret(candidate),
+                redacted_line: matcher.redact_range_in_line(
+                    line,
+                    candidate_match.start(),
+                    candidate_match.end(),
+                ),
+            });
+            if findings.len() == limit {
+                return findings;
             }
         }
     }

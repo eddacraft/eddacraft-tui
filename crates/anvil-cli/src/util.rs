@@ -10,6 +10,67 @@ use anyhow::{Context, Result};
 /// not here.
 pub(crate) use anvil_kernel::watcher::filter::is_ignored_dir_name;
 
+/// Build the [`anvil_checks::secret::SecretCheckConfig`] used by the
+/// secret-scan surfaces (`audit`, `check`, `gate`) for a project rooted at
+/// `root`.
+///
+/// This is the **single seam** through which project-level secret-scan
+/// configuration flows. Today it returns the defaults, but consolidating the
+/// three call sites here means the planned `.anvilrc` allowlist/exclude
+/// surface becomes a change to *this one function* — the commands never need
+/// to touch it again.
+///
+/// When that surface lands, map the project config's allowlist entries into
+/// `SecretCheckConfig::custom_allowlist`. Suppressions from those entries are
+/// already recorded with `AllowlistProvenance::Custom` and surfaced at scan
+/// time (see [`secret_suppression_note`]), so an `.anvilrc` opt-out can never
+/// silently hide a real credential — the operator sees every allowlisted match
+/// called out, with the pattern that suppressed it.
+#[must_use]
+pub(crate) fn secret_check_config(_root: &Path) -> anvil_checks::secret::SecretCheckConfig {
+    // EXTENSION POINT: load `.anvilrc` from `_root` and fold its secret-scan
+    // allowlist into `custom_allowlist` here.
+    anvil_checks::secret::SecretCheckConfig::default()
+}
+
+/// Render a one-line, non-noisy callout summarising allowlist suppressions
+/// from a secret scan, or `None` when nothing was suppressed. Keeps the raw
+/// total terse but breaks out the operator-configured (`.anvilrc`) count,
+/// since those are the suppressions that can mask a genuine credential and so
+/// must never pass unseen. Full per-entry provenance lives in the structured
+/// `SecretCheckResult::suppressions` for callers that surface it.
+#[must_use]
+pub(crate) fn secret_suppression_note(
+    suppressions: &[anvil_checks::secret::Suppression],
+) -> Option<String> {
+    if suppressions.is_empty() {
+        return None;
+    }
+    let operator = suppressions
+        .iter()
+        .filter(|s| s.provenance.is_operator_configured())
+        .count();
+    let detail = if operator > 0 {
+        format!(" ({operator} via project allowlist)")
+    } else {
+        String::new()
+    };
+    Some(format!(
+        "ℹ {} match(es) withheld by allowlist (not flagged){detail}",
+        suppressions.len()
+    ))
+}
+
+/// [`secret_suppression_note`] rendered as a message suffix: a `\n\n`-separated
+/// block ready to append to a check message, or an empty string when nothing
+/// was suppressed.
+#[must_use]
+pub(crate) fn secret_suppression_suffix(
+    suppressions: &[anvil_checks::secret::Suppression],
+) -> String {
+    secret_suppression_note(suppressions).map_or(String::new(), |note| format!("\n\n{note}"))
+}
+
 /// Resolve the user's home directory, honouring the platform's home
 /// environment variable before the OS known-folder API.
 ///
@@ -337,7 +398,53 @@ fn restrict_windows_permissions(path: &Path) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anvil_checks::secret::{AllowlistProvenance, Suppression};
     use anvil_kernel::watcher::filter::IGNORE_DIRS;
+
+    fn suppression(provenance: AllowlistProvenance) -> Suppression {
+        Suppression {
+            file: "src/x.rs".to_string(),
+            line: 1,
+            rule_name: "High Entropy String".to_string(),
+            redacted_match: "ab...yz".to_string(),
+            provenance,
+        }
+    }
+
+    #[test]
+    fn suppression_note_is_none_when_empty() {
+        assert!(secret_suppression_note(&[]).is_none());
+    }
+
+    #[test]
+    fn suppression_note_counts_total_and_omits_operator_detail_for_builtins() {
+        let note = secret_suppression_note(&[
+            suppression(AllowlistProvenance::BuiltinShape),
+            suppression(AllowlistProvenance::BuiltinKeyword),
+        ])
+        .expect("note for non-empty suppressions");
+        assert!(note.contains("2 match(es)"), "got: {note}");
+        assert!(
+            !note.contains("project allowlist"),
+            "built-in-only suppressions must not claim a project allowlist: {note}"
+        );
+    }
+
+    #[test]
+    fn suppression_note_breaks_out_operator_configured_count() {
+        let note = secret_suppression_note(&[
+            suppression(AllowlistProvenance::BuiltinShape),
+            suppression(AllowlistProvenance::Custom {
+                pattern: "diag_".to_string(),
+            }),
+        ])
+        .expect("note");
+        assert!(note.contains("2 match(es)"), "got: {note}");
+        assert!(
+            note.contains("1 via project allowlist"),
+            "operator-configured suppressions must be called out: {note}"
+        );
+    }
 
     #[test]
     fn is_ignored_dir_name_matches_full_list() {

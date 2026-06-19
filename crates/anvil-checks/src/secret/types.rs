@@ -89,6 +89,50 @@ pub enum FindingType {
     Entropy,
 }
 
+/// Why a candidate that matched a secret pattern (or the entropy heuristic)
+/// was withheld from the findings. Recorded so suppression is never silent:
+/// the scanner reports *what* it chose not to flag and *which* allowlist tier
+/// made that call. The security-relevant tier is [`AllowlistProvenance::Custom`]
+/// — a user-supplied opt-out (today `SecretCheckConfig::custom_allowlist`, and
+/// the entry point through which a future project-config allowlist surface will
+/// flow). Surfacing those means a `.anvilrc` entry can never silently hide a
+/// real credential without the operator seeing it called out at scan time.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum AllowlistProvenance {
+    /// A built-in shape-anchored entry (hex hash, `0x…`, data URI, ULID).
+    BuiltinShape,
+    /// A built-in documentation/test keyword (`example`, `test`, `dummy`, …).
+    BuiltinKeyword,
+    /// A user-supplied `custom_allowlist` entry. `pattern` is the source
+    /// regex so the operator can trace the suppression back to the exact
+    /// opt-out they configured.
+    Custom { pattern: String },
+}
+
+impl AllowlistProvenance {
+    /// `true` for operator-configured opt-outs — the tier worth calling out
+    /// in detail, because it can mask a genuine credential.
+    #[must_use]
+    pub fn is_operator_configured(&self) -> bool {
+        matches!(self, AllowlistProvenance::Custom { .. })
+    }
+}
+
+/// A secret candidate that matched a pattern/entropy rule but was withheld
+/// because it also matched an allowlist entry. Carries enough context to
+/// surface "we suppressed a would-be `AWS Key` at foo.rs:12 via your
+/// `.anvilrc` allowlist" without leaking the raw value (`redacted_match`).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Suppression {
+    pub file: String,
+    pub line: usize,
+    /// The rule that *would* have fired (e.g. `"AWS Key"`, `"High Entropy String"`).
+    pub rule_name: String,
+    pub redacted_match: String,
+    pub provenance: AllowlistProvenance,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EntropyFinding {
     pub file: String,
@@ -115,4 +159,10 @@ pub struct SecretCheckResult {
     /// backward-compatible.
     #[serde(default)]
     pub lines_skipped_oversize: usize,
+    /// Candidates that matched a secret rule but were withheld because they
+    /// also matched an allowlist entry. Recorded so suppression is observable
+    /// rather than silent — operators can see what the scanner chose not to
+    /// flag and why. `serde(default)` keeps the field backward-compatible.
+    #[serde(default)]
+    pub suppressions: Vec<Suppression>,
 }
