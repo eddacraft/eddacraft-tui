@@ -194,10 +194,35 @@ hygiene, gate/catalogue registration, drift, and validation.
 - **Status:** Ready
 - **Intent:** Prove the acceptance bar (FP < 1% on Anvil + ≥1 external repo).
 - **Expected Outcome:** A validation run over Anvil's own migrations and one
-  external Postgres codebase, with a recorded FP report meeting N = 1%.
+  external Postgres codebase, with a recorded FP report meeting N = 1%. The 29
+  `apps/anvil-api/src/db/schema.sql` hygiene findings that blocked the first run
+  are not migrations — SURFSQL-008 scopes them out (a canonical schema-definition
+  file is not re-run, so `IF NOT EXISTS` does not apply), so the dogfood run is
+  now clean (17 SQL files, 0 findings) without needing the SURFSQL-006 baseline.
 - **Validation:** FP report committed under `plans/reviews/` showing < 1% on Anvil + ≥1 external repo
-- **Dependencies:** SURFSQL-002, SURFSQL-005, SURFSQL-006
+- **Dependencies:** SURFSQL-002, SURFSQL-005, SURFSQL-008 (SURFSQL-006 no longer
+  required to clear the schema-dump FPs)
 - **Confidence:** medium
+
+### SURFSQL-008 — Schema-dump / canonical-schema scoping
+
+- **Status:** In Progress
+- **Intent:** Stop SURFSQL firing on schema dumps and canonical schema-definition
+  files, which are not incremental migrations.
+- **Expected Outcome:** `scan_sql_all` skips a file identified as a schema dump
+  or canonical schema-definition: a `schema.sql`/`structure.sql` basename
+  outside any migration directory, or any file carrying a dump-tool header
+  marker (`PostgreSQL database dump`, `Dumped from database version`,
+  `MySQL dump`, `MariaDB dump`). A `schema.sql` *inside* a migration directory,
+  and versioned migration names, are unaffected. Deterministic, warn-only,
+  new-edges-only-preserving (it only ever removes false findings). Clears the 29
+  `schema.sql` FPs that blocked SURFSQL-007 (verified: 17 SQL files, 0 findings).
+- **Files:** `crates/anvil-checks/src/surface/sql/scanner.rs`,
+  `crates/anvil-cli/src/commands/gate.rs` (test rename only)
+- **Validation:** `cargo test -p eddacraft-anvil-checks --lib surface::sql` +
+  `cargo test -p eddacraft-anvil --bins sql_migrations_check`
+- **Dependencies:** SURFSQL-003
+- **Confidence:** high
 
 ## Risks
 

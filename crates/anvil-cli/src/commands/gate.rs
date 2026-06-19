@@ -2818,13 +2818,15 @@ mod tests {
     #[test]
     fn sql_migrations_check_clean_on_guarded_migration() {
         let tmp = tempfile::TempDir::new().unwrap();
+        // A versioned migration name, not `schema.sql`, so this exercises the
+        // guarded-migration path rather than the SURFSQL-008 dump skip.
         std::fs::write(
-            tmp.path().join("schema.sql"),
+            tmp.path().join("001_init.sql"),
             "CREATE TABLE IF NOT EXISTS t (id int);\n",
         )
         .unwrap();
         let result =
-            run_check_sql_migrations("sql-migrations", tmp.path(), &["schema.sql".to_string()]);
+            run_check_sql_migrations("sql-migrations", tmp.path(), &["001_init.sql".to_string()]);
         assert!(result.passed);
         assert!(result.message.contains("No destructive or schema-hygiene"));
     }

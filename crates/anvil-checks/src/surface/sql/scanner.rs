@@ -58,6 +58,47 @@ pub fn is_sql_migration_file(path: &Path) -> bool {
     })
 }
 
+/// Canonical *full-schema definition* basenames. A file with one of these
+/// names that does **not** live under a migration directory is a
+/// generated or applied-once-to-a-fresh-database schema snapshot (Rails
+/// `structure.sql`, sqlx/Ecto output, and hand-rolled `schema.sql`), not an
+/// incremental migration. A file literally named `schema.sql` *inside* a
+/// migration directory is still a migration step and is scanned normally.
+const SCHEMA_DEFINITION_BASENAMES: &[&str] = &["schema.sql", "structure.sql"];
+
+/// Header markers emitted by database dump tools. Their presence anywhere in
+/// the file marks tool-generated output regardless of filename — likewise not
+/// an authored migration.
+const DUMP_CONTENT_MARKERS: &[&str] = &[
+    "PostgreSQL database dump",
+    "Dumped from database version",
+    "MySQL dump",
+    "MariaDB dump",
+];
+
+/// True when `display_path`/`content` identify a **schema dump or canonical
+/// schema-definition file** rather than an incremental migration.
+///
+/// Such files are generated, or applied once to a fresh database; running the
+/// migration-hygiene (SURFSQL-003) or destructive (SURFSQL-002) catalogues
+/// against them is a false positive — a fresh-schema `CREATE TABLE`
+/// legitimately omits `IF NOT EXISTS` because it is never re-run. The SURFSQL
+/// surface governs *migrations*; a non-migration is out of its scope, so
+/// [`scan_sql_all`] skips these files entirely. To have such a file scanned,
+/// place it under a migration directory or give it a versioned migration name.
+#[must_use]
+pub fn is_schema_dump(display_path: &str, content: &str) -> bool {
+    let normalised = display_path.replace('\\', "/").to_ascii_lowercase();
+    let basename = normalised.rsplit('/').next().unwrap_or(normalised.as_str());
+    let under_migration_dir = MIGRATION_DIRS.iter().any(|dir| {
+        normalised.contains(&format!("/{dir}/")) || normalised.starts_with(&format!("{dir}/"))
+    });
+    if SCHEMA_DEFINITION_BASENAMES.contains(&basename) && !under_migration_dir {
+        return true;
+    }
+    DUMP_CONTENT_MARKERS.iter().any(|m| content.contains(m))
+}
+
 /// The kind of destructive operation a [`SqlFinding`] reports.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -122,6 +163,11 @@ pub fn scan_sql_all(
     display_path: &str,
     content: &str,
 ) -> (Vec<SqlFinding>, Vec<SqlHygieneFinding>) {
+    // Schema dumps / canonical schema-definition files are not migrations;
+    // scanning them produces false positives (SURFSQL-008).
+    if is_schema_dump(display_path, content) {
+        return (Vec::new(), Vec::new());
+    }
     let lines: Vec<&str> = content.lines().collect();
     let mut destructive = Vec::new();
     let mut hygiene = Vec::new();
@@ -763,5 +809,63 @@ mod tests {
             findings[0].suppression_reason.as_deref(),
             Some("one-shot bootstrap table")
         );
+    }
+
+    // ── SURFSQL-008: schema-dump / canonical-schema scoping ─────────
+
+    #[test]
+    fn schema_definition_file_outside_migrations_is_skipped() {
+        // The real Anvil case: a hand-authored full-schema file with bare
+        // CREATE TABLEs at `db/schema.sql` is not an incremental migration,
+        // so SURFSQL-003 must not fire (these were the 29 SURFSQL-007 FPs).
+        let content = "-- Beta Access System Schema\nCREATE EXTENSION IF NOT EXISTS citext;\nCREATE TABLE beta_users (id uuid PRIMARY KEY);\nCREATE TABLE access_tokens (id uuid PRIMARY KEY);\n";
+        let path = "apps/anvil-api/src/db/schema.sql";
+        assert!(is_schema_dump(path, content));
+        let (destructive, hygiene) = scan_sql_all(path, content);
+        assert!(destructive.is_empty());
+        assert!(
+            hygiene.is_empty(),
+            "a canonical schema.sql must not fire SURFSQL-003"
+        );
+    }
+
+    #[test]
+    fn structure_sql_is_treated_as_schema_definition() {
+        // Rails / Ecto generated `structure.sql`.
+        assert!(is_schema_dump(
+            "db/structure.sql",
+            "CREATE TABLE t (id int);"
+        ));
+    }
+
+    #[test]
+    fn schema_sql_under_migration_dir_is_still_scanned() {
+        // A migration step that happens to be named schema.sql is a real
+        // migration — scoping must not skip it.
+        let content = "CREATE TABLE users (id int);";
+        assert!(!is_schema_dump("db/migrations/schema.sql", content));
+        let (_d, hygiene) = scan_sql_all("db/migrations/schema.sql", content);
+        assert_eq!(
+            hygiene.len(),
+            1,
+            "schema.sql inside a migration dir is still governed"
+        );
+    }
+
+    #[test]
+    fn pg_dump_header_marks_dump_regardless_of_filename() {
+        // Tool-generated dump detected by header even when oddly named.
+        let content = "--\n-- PostgreSQL database dump\n--\nCREATE TABLE t (id int);\n";
+        assert!(is_schema_dump("backups/2026-06-18.sql", content));
+        let (_d, hygiene) = scan_sql_all("backups/2026-06-18.sql", content);
+        assert!(hygiene.is_empty());
+    }
+
+    #[test]
+    fn ordinary_migration_is_unaffected_by_dump_scoping() {
+        let content = "CREATE TABLE users (id int);";
+        assert!(!is_schema_dump("migrations/001_init.sql", content));
+        let (_d, hygiene) = scan_sql_all("migrations/001_init.sql", content);
+        assert_eq!(hygiene.len(), 1);
     }
 }
