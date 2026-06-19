@@ -135,7 +135,7 @@ gate registration + flag, then validation.
 
 ### SURFDOCK-007 — BuildKit heredoc `RUN` body support
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-19 via PR #2801
 - **Intent:** Close a false negative found during validation — `RUN`-family
   rules (`apt-get`, pipe-to-shell, `sudo`) were silently skipped inside
   `BuildKit` heredoc blocks (`RUN <<EOF … EOF`).
