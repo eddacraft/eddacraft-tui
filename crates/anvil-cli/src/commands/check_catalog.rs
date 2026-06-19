@@ -148,12 +148,11 @@ pub(crate) const CHECK_DEFINITIONS: &[CheckDefinition] = &[
         wall_time_soft_budget_secs: None,
     },
     // SURFSQL (Track 3) — the first governance-surface check in the registry.
-    // Dispatchable (in GATE_INTERNAL_CHECKS) but gated dark behind the
-    // `track.surface.sql` flag (SURFSQL-005), so the default gate run is
-    // behaviourally unchanged until an operator opts in
-    // (ANVIL_TRACK_SURFACE_SQL=1) or the flag default flips post-release.
-    // `gate_config_supported=false`: activation is flag-driven, not via the
-    // `.anvil` checks list, so it stays out of the default editable config.
+    // Dispatchable (in GATE_INTERNAL_CHECKS) and on by default behind the
+    // `track.surface.sql` flag (SURFSQL-005), which graduated to default-on
+    // after the v0.8.1-beta clean release; `ANVIL_TRACK_SURFACE_SQL=0` opts a
+    // session out. `gate_config_supported=false`: activation is flag-driven,
+    // not via the `.anvil` checks list, so it stays out of the editable config.
     CheckDefinition {
         stable_id: "ANV-SURF-SQL-001",
         canonical_name: "sql-migrations",
@@ -174,9 +173,9 @@ pub(crate) const CHECK_DEFINITIONS: &[CheckDefinition] = &[
         ],
         wall_time_soft_budget_secs: Some(30),
     },
-    // SURFGHA (Track 3) — same opt-in contract as SURFSQL: dispatchable but
-    // gated dark behind `track.surface.gha` (SURFGHA-006); flag-driven
-    // activation, so out of the init wizard and the default editable config.
+    // SURFGHA (Track 3) — same contract as SURFSQL: dispatchable and default-on
+    // behind `track.surface.gha` (SURFGHA-006, graduated post-v0.8.1-beta);
+    // flag-driven activation, so out of the init wizard and editable config.
     CheckDefinition {
         stable_id: "ANV-SURF-GHA-001",
         canonical_name: "github-actions",
@@ -196,7 +195,9 @@ pub(crate) const CHECK_DEFINITIONS: &[CheckDefinition] = &[
     // `Dockerfile`/`Containerfile` (no extension) at arbitrary depth and the
     // case-insensitive `*.Dockerfile`/suffixed `Dockerfile.<v>` variants can't
     // be expressed. The check self-filters via `is_dockerfile` over the walked
-    // files (cheap), and the `track.surface.dock` flag gate skips it when off.
+    // files (cheap), and the `track.surface.dock` flag gate skips it when an
+    // operator opts the session out (ANVIL_TRACK_SURFACE_DOCK=0); it is
+    // default-on (graduated post-v0.8.1-beta).
     CheckDefinition {
         stable_id: "ANV-SURF-DOCK-001",
         canonical_name: "dockerfile",
@@ -210,8 +211,8 @@ pub(crate) const CHECK_DEFINITIONS: &[CheckDefinition] = &[
         file_shape_globs: &[],
         wall_time_soft_budget_secs: Some(30),
     },
-    // SURFSH (Track 3, T1) — same opt-in contract. Reuses the shared
-    // command_safety catalogue; gated behind `track.surface.sh`.
+    // SURFSH (Track 3, T1) — same contract; default-on behind `track.surface.sh`
+    // (graduated post-v0.8.1-beta). Reuses the shared command_safety catalogue.
     CheckDefinition {
         stable_id: "ANV-SURF-SH-001",
         canonical_name: "shell-scripts",
@@ -240,8 +241,9 @@ pub(crate) const GATE_INTERNAL_CHECKS: &[&str] = &[
     "architecture",
     "policy",
     "command-safety",
-    // Track 3 governance surfaces: dispatchable + in the default loop, but
-    // gated dark behind their `track.surface.*` flag until opt-in.
+    // Track 3 governance surfaces: dispatchable + in the default loop, on by
+    // default behind their `track.surface.*` flag (graduated post-v0.8.1-beta;
+    // ANVIL_TRACK_SURFACE_<X>=0 opts a session out).
     "sql-migrations",
     "github-actions",
     "dockerfile",

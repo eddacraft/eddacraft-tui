@@ -237,95 +237,129 @@ pub fn is_dev_bypass(details: &ResolutionDetails) -> bool {
     details.reason == ResolutionReason::LocalOverride && details.variant == "enabled"
 }
 
-/// Env var that opts into the SURFSQL governance surface for the session
-/// (SURFSQL-005). `=1` forces `track.surface.sql` to `"enabled"` via a local
-/// override routed through the resolver — not a bespoke env read — so the
-/// FLAGCAT flag stays the single source of truth (OPSUP-005).
+/// Env var that overrides the SURFSQL governance surface for the session
+/// (SURFSQL-005). `=1` forces `track.surface.sql` to `"enabled"` and `=0`
+/// forces it `"disabled"`, via a local override routed through the resolver —
+/// not a bespoke env read — so the FLAGCAT flag stays the single source of
+/// truth (OPSUP-005).
 pub const TRACK_SURFACE_SQL_ENV_VAR: &str = "ANVIL_TRACK_SURFACE_SQL";
 
 /// Whether the SURFSQL gate check is active this session.
 ///
-/// Default-off: per OPSUP-005 a Track 3 surface ships opt-in for one release.
-/// `ANVIL_TRACK_SURFACE_SQL=1` forces it on for the session; resolution goes
-/// through the shared resolver against the generated `track.surface.sql`
-/// definition so a future default flip (manifest edit) needs no code change.
+/// Default-on: graduated after the v0.8.1-beta clean release (OPSUP-005).
+/// `ANVIL_TRACK_SURFACE_SQL=0` forces it off for the session; `=1` forces it
+/// on. Resolution goes through the shared resolver against the generated
+/// `track.surface.sql` definition so the manifest default stays authoritative.
 #[must_use]
 pub fn track_surface_sql_enabled() -> bool {
     use anvil_kernel_types::feature_flags_catalogue::track_surface_sql;
 
     let mut overrides = FlagOverrides::default();
-    if std::env::var(TRACK_SURFACE_SQL_ENV_VAR).as_deref() == Ok("1") {
-        overrides
-            .local
-            .insert(track_surface_sql::KEY.into(), "enabled".into());
+    match std::env::var(TRACK_SURFACE_SQL_ENV_VAR).as_deref() {
+        Ok("1") => {
+            overrides
+                .local
+                .insert(track_surface_sql::KEY.into(), "enabled".into());
+        }
+        Ok("0") => {
+            overrides
+                .local
+                .insert(track_surface_sql::KEY.into(), "disabled".into());
+        }
+        _ => {}
     }
     let definition = track_surface_sql::definition();
     let context = cli_evaluation_context("gate-session", None);
     resolve_flag(&definition, &context, Some(&overrides)).variant == "enabled"
 }
 
-/// Env var that opts into the SURFGHA governance surface for the session
-/// (SURFGHA-006); mirrors [`TRACK_SURFACE_SQL_ENV_VAR`].
+/// Env var that overrides the SURFGHA governance surface for the session
+/// (SURFGHA-006); mirrors [`TRACK_SURFACE_SQL_ENV_VAR`] (`=1` on, `=0` off).
 pub const TRACK_SURFACE_GHA_ENV_VAR: &str = "ANVIL_TRACK_SURFACE_GHA";
 
-/// Whether the SURFGHA gate check is active this session. Default-off
-/// (opt-in for one release per OPSUP-005); `ANVIL_TRACK_SURFACE_GHA=1` forces
-/// it on via the shared resolver against the generated `track.surface.gha`
-/// definition.
+/// Whether the SURFGHA gate check is active this session. Default-on
+/// (graduated after the v0.8.1-beta clean release per OPSUP-005);
+/// `ANVIL_TRACK_SURFACE_GHA=0` forces it off and `=1` forces it on via the
+/// shared resolver against the generated `track.surface.gha` definition.
 #[must_use]
 pub fn track_surface_gha_enabled() -> bool {
     use anvil_kernel_types::feature_flags_catalogue::track_surface_gha;
 
     let mut overrides = FlagOverrides::default();
-    if std::env::var(TRACK_SURFACE_GHA_ENV_VAR).as_deref() == Ok("1") {
-        overrides
-            .local
-            .insert(track_surface_gha::KEY.into(), "enabled".into());
+    match std::env::var(TRACK_SURFACE_GHA_ENV_VAR).as_deref() {
+        Ok("1") => {
+            overrides
+                .local
+                .insert(track_surface_gha::KEY.into(), "enabled".into());
+        }
+        Ok("0") => {
+            overrides
+                .local
+                .insert(track_surface_gha::KEY.into(), "disabled".into());
+        }
+        _ => {}
     }
     let definition = track_surface_gha::definition();
     let context = cli_evaluation_context("gate-session", None);
     resolve_flag(&definition, &context, Some(&overrides)).variant == "enabled"
 }
 
-/// Env var that opts into the SURFDOCK governance surface for the session
-/// (SURFDOCK-005); mirrors [`TRACK_SURFACE_SQL_ENV_VAR`].
+/// Env var that overrides the SURFDOCK governance surface for the session
+/// (SURFDOCK-005); mirrors [`TRACK_SURFACE_SQL_ENV_VAR`] (`=1` on, `=0` off).
 pub const TRACK_SURFACE_DOCK_ENV_VAR: &str = "ANVIL_TRACK_SURFACE_DOCK";
 
-/// Whether the SURFDOCK gate check is active this session. Default-off
-/// (opt-in for one release per OPSUP-005); `ANVIL_TRACK_SURFACE_DOCK=1` forces
-/// it on via the shared resolver against the generated `track.surface.dock`
-/// definition.
+/// Whether the SURFDOCK gate check is active this session. Default-on
+/// (graduated after the v0.8.1-beta clean release per OPSUP-005);
+/// `ANVIL_TRACK_SURFACE_DOCK=0` forces it off and `=1` forces it on via the
+/// shared resolver against the generated `track.surface.dock` definition.
 #[must_use]
 pub fn track_surface_dock_enabled() -> bool {
     use anvil_kernel_types::feature_flags_catalogue::track_surface_dock;
 
     let mut overrides = FlagOverrides::default();
-    if std::env::var(TRACK_SURFACE_DOCK_ENV_VAR).as_deref() == Ok("1") {
-        overrides
-            .local
-            .insert(track_surface_dock::KEY.into(), "enabled".into());
+    match std::env::var(TRACK_SURFACE_DOCK_ENV_VAR).as_deref() {
+        Ok("1") => {
+            overrides
+                .local
+                .insert(track_surface_dock::KEY.into(), "enabled".into());
+        }
+        Ok("0") => {
+            overrides
+                .local
+                .insert(track_surface_dock::KEY.into(), "disabled".into());
+        }
+        _ => {}
     }
     let definition = track_surface_dock::definition();
     let context = cli_evaluation_context("gate-session", None);
     resolve_flag(&definition, &context, Some(&overrides)).variant == "enabled"
 }
 
-/// Env var that opts into the SURFSH governance surface for the session
-/// (SURFSH-005); mirrors [`TRACK_SURFACE_SQL_ENV_VAR`].
+/// Env var that overrides the SURFSH governance surface for the session
+/// (SURFSH-005); mirrors [`TRACK_SURFACE_SQL_ENV_VAR`] (`=1` on, `=0` off).
 pub const TRACK_SURFACE_SH_ENV_VAR: &str = "ANVIL_TRACK_SURFACE_SH";
 
-/// Whether the SURFSH gate check is active this session. Default-off (opt-in
-/// for one release per OPSUP-005); `ANVIL_TRACK_SURFACE_SH=1` forces it on via
-/// the shared resolver against the generated `track.surface.sh` definition.
+/// Whether the SURFSH gate check is active this session. Default-on (graduated
+/// after the v0.8.1-beta clean release per OPSUP-005); `ANVIL_TRACK_SURFACE_SH=0`
+/// forces it off and `=1` forces it on via the shared resolver against the
+/// generated `track.surface.sh` definition.
 #[must_use]
 pub fn track_surface_sh_enabled() -> bool {
     use anvil_kernel_types::feature_flags_catalogue::track_surface_sh;
 
     let mut overrides = FlagOverrides::default();
-    if std::env::var(TRACK_SURFACE_SH_ENV_VAR).as_deref() == Ok("1") {
-        overrides
-            .local
-            .insert(track_surface_sh::KEY.into(), "enabled".into());
+    match std::env::var(TRACK_SURFACE_SH_ENV_VAR).as_deref() {
+        Ok("1") => {
+            overrides
+                .local
+                .insert(track_surface_sh::KEY.into(), "enabled".into());
+        }
+        Ok("0") => {
+            overrides
+                .local
+                .insert(track_surface_sh::KEY.into(), "disabled".into());
+        }
+        _ => {}
     }
     let definition = track_surface_sh::definition();
     let context = cli_evaluation_context("gate-session", None);
@@ -539,116 +573,156 @@ mod tests {
         });
     }
 
-    // ── SURFSQL-005: track.surface.sql opt-in ───────────────────────
+    // ── SURFSQL-005: track.surface.sql default-on + opt-out ─────────
 
     #[test]
-    fn track_surface_sql_disabled_by_default() {
+    fn track_surface_sql_enabled_by_default() {
         temp_env::with_var(TRACK_SURFACE_SQL_ENV_VAR, None::<&str>, || {
             assert!(
-                !track_surface_sql_enabled(),
-                "Track 3 surface ships opt-in (default disabled)"
+                track_surface_sql_enabled(),
+                "Track 3 surface graduated to default-on (OPSUP-005)"
             );
         });
     }
 
     #[test]
-    fn track_surface_sql_enabled_via_env_opt_in() {
+    fn track_surface_sql_force_on_via_env() {
         temp_env::with_var(TRACK_SURFACE_SQL_ENV_VAR, Some("1"), || {
             assert!(track_surface_sql_enabled());
         });
     }
 
     #[test]
-    fn track_surface_sql_ignores_non_one_values() {
-        for value in ["true", "0", "", "1 ", "yes"] {
+    fn track_surface_sql_force_off_via_env() {
+        temp_env::with_var(TRACK_SURFACE_SQL_ENV_VAR, Some("0"), || {
+            assert!(
+                !track_surface_sql_enabled(),
+                "ANVIL_TRACK_SURFACE_SQL=0 forces the surface off"
+            );
+        });
+    }
+
+    #[test]
+    fn track_surface_sql_ignores_non_zero_one_values() {
+        for value in ["true", "", "1 ", "yes"] {
             temp_env::with_var(TRACK_SURFACE_SQL_ENV_VAR, Some(value), || {
                 assert!(
-                    !track_surface_sql_enabled(),
-                    "ANVIL_TRACK_SURFACE_SQL={value:?} must not enable the surface"
+                    track_surface_sql_enabled(),
+                    "ANVIL_TRACK_SURFACE_SQL={value:?} must not change the default-on surface"
                 );
             });
         }
     }
 
-    // ── SURFGHA-006: track.surface.gha opt-in ───────────────────────
+    // ── SURFGHA-006: track.surface.gha default-on + opt-out ─────────
 
     #[test]
-    fn track_surface_gha_disabled_by_default() {
+    fn track_surface_gha_enabled_by_default() {
         temp_env::with_var(TRACK_SURFACE_GHA_ENV_VAR, None::<&str>, || {
-            assert!(!track_surface_gha_enabled());
+            assert!(track_surface_gha_enabled());
         });
     }
 
     #[test]
-    fn track_surface_gha_enabled_via_env_opt_in() {
+    fn track_surface_gha_force_on_via_env() {
         temp_env::with_var(TRACK_SURFACE_GHA_ENV_VAR, Some("1"), || {
             assert!(track_surface_gha_enabled());
         });
     }
 
     #[test]
-    fn track_surface_gha_ignores_non_one_values() {
-        for value in ["true", "0", "", "1 ", "yes"] {
+    fn track_surface_gha_force_off_via_env() {
+        temp_env::with_var(TRACK_SURFACE_GHA_ENV_VAR, Some("0"), || {
+            assert!(
+                !track_surface_gha_enabled(),
+                "ANVIL_TRACK_SURFACE_GHA=0 forces the surface off"
+            );
+        });
+    }
+
+    #[test]
+    fn track_surface_gha_ignores_non_zero_one_values() {
+        for value in ["true", "", "1 ", "yes"] {
             temp_env::with_var(TRACK_SURFACE_GHA_ENV_VAR, Some(value), || {
                 assert!(
-                    !track_surface_gha_enabled(),
-                    "ANVIL_TRACK_SURFACE_GHA={value:?} must not enable the surface"
+                    track_surface_gha_enabled(),
+                    "ANVIL_TRACK_SURFACE_GHA={value:?} must not change the default-on surface"
                 );
             });
         }
     }
 
-    // ── SURFDOCK-005: track.surface.dock opt-in ─────────────────────
+    // ── SURFDOCK-005: track.surface.dock default-on + opt-out ───────
 
     #[test]
-    fn track_surface_dock_disabled_by_default() {
+    fn track_surface_dock_enabled_by_default() {
         temp_env::with_var(TRACK_SURFACE_DOCK_ENV_VAR, None::<&str>, || {
-            assert!(!track_surface_dock_enabled());
+            assert!(track_surface_dock_enabled());
         });
     }
 
     #[test]
-    fn track_surface_dock_enabled_via_env_opt_in() {
+    fn track_surface_dock_force_on_via_env() {
         temp_env::with_var(TRACK_SURFACE_DOCK_ENV_VAR, Some("1"), || {
             assert!(track_surface_dock_enabled());
         });
     }
 
     #[test]
-    fn track_surface_dock_ignores_non_one_values() {
-        for value in ["true", "0", "", "1 ", "yes"] {
+    fn track_surface_dock_force_off_via_env() {
+        temp_env::with_var(TRACK_SURFACE_DOCK_ENV_VAR, Some("0"), || {
+            assert!(
+                !track_surface_dock_enabled(),
+                "ANVIL_TRACK_SURFACE_DOCK=0 forces the surface off"
+            );
+        });
+    }
+
+    #[test]
+    fn track_surface_dock_ignores_non_zero_one_values() {
+        for value in ["true", "", "1 ", "yes"] {
             temp_env::with_var(TRACK_SURFACE_DOCK_ENV_VAR, Some(value), || {
                 assert!(
-                    !track_surface_dock_enabled(),
-                    "ANVIL_TRACK_SURFACE_DOCK={value:?} must not enable the surface"
+                    track_surface_dock_enabled(),
+                    "ANVIL_TRACK_SURFACE_DOCK={value:?} must not change the default-on surface"
                 );
             });
         }
     }
 
-    // ── SURFSH-005: track.surface.sh opt-in ─────────────────────────
+    // ── SURFSH-005: track.surface.sh default-on + opt-out ───────────
 
     #[test]
-    fn track_surface_sh_disabled_by_default() {
+    fn track_surface_sh_enabled_by_default() {
         temp_env::with_var(TRACK_SURFACE_SH_ENV_VAR, None::<&str>, || {
-            assert!(!track_surface_sh_enabled());
+            assert!(track_surface_sh_enabled());
         });
     }
 
     #[test]
-    fn track_surface_sh_enabled_via_env_opt_in() {
+    fn track_surface_sh_force_on_via_env() {
         temp_env::with_var(TRACK_SURFACE_SH_ENV_VAR, Some("1"), || {
             assert!(track_surface_sh_enabled());
         });
     }
 
     #[test]
-    fn track_surface_sh_ignores_non_one_values() {
-        for value in ["true", "0", "", "1 ", "yes"] {
+    fn track_surface_sh_force_off_via_env() {
+        temp_env::with_var(TRACK_SURFACE_SH_ENV_VAR, Some("0"), || {
+            assert!(
+                !track_surface_sh_enabled(),
+                "ANVIL_TRACK_SURFACE_SH=0 forces the surface off"
+            );
+        });
+    }
+
+    #[test]
+    fn track_surface_sh_ignores_non_zero_one_values() {
+        for value in ["true", "", "1 ", "yes"] {
             temp_env::with_var(TRACK_SURFACE_SH_ENV_VAR, Some(value), || {
                 assert!(
-                    !track_surface_sh_enabled(),
-                    "ANVIL_TRACK_SURFACE_SH={value:?} must not enable the surface"
+                    track_surface_sh_enabled(),
+                    "ANVIL_TRACK_SURFACE_SH={value:?} must not change the default-on surface"
                 );
             });
         }

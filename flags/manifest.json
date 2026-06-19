@@ -149,11 +149,11 @@
         { "key": "enabled", "value": true },
         { "key": "disabled", "value": false }
       ],
-      "defaultVariant": "disabled",
+      "defaultVariant": "enabled",
       "status": "active",
       "createdFor": "OPSUP-005",
       "expiryOrReviewDate": "2026-12-31T00:00:00Z",
-      "description": "Per-track flag taxonomy (OPSUP-005). Disables noisy Track 3 governance surfaces without rolling back the release. Ships opt-in for one release, then the default flips on; per-surface leaf overrides (e.g. track.surface.sql) are added by the owning surface module and inherit this umbrella.",
+      "description": "Per-track flag taxonomy (OPSUP-005). Gates Track 3 governance surfaces; per-surface leaf overrides (e.g. track.surface.sql) inherit this umbrella. Graduated to default-on after the v0.8.1-beta clean release, now that all Track 3 surfaces (SQL/GHA/Dockerfile/shell) validate at <1% FP (plans/reviews/2026-06-18-surface-validation.md).",
       "primaryGroup": "track-surface"
     },
     {
@@ -166,11 +166,11 @@
         { "key": "enabled", "value": true },
         { "key": "disabled", "value": false }
       ],
-      "defaultVariant": "disabled",
+      "defaultVariant": "enabled",
       "status": "active",
       "createdFor": "SURFDOCK-005",
       "expiryOrReviewDate": "2026-12-31T00:00:00Z",
-      "description": "Per-surface leaf flag under the track.surface umbrella (OPSUP-005). Ships opt-in (disabled); ANVIL_TRACK_SURFACE_DOCK=1 forces it on for a session via a local override routed through the resolver. The default flips to enabled after a clean release.",
+      "description": "Per-surface leaf flag under the track.surface umbrella (OPSUP-005). Graduated to default-on after the v0.8.1-beta clean release (SURFDOCK-006 validation PASS on a real external Dockerfile corpus). ANVIL_TRACK_SURFACE_DOCK=0 forces it off for a session via a local override routed through the resolver; =1 forces on.",
       "primaryGroup": "track-surface"
     },
     {
@@ -183,11 +183,11 @@
         { "key": "enabled", "value": true },
         { "key": "disabled", "value": false }
       ],
-      "defaultVariant": "disabled",
+      "defaultVariant": "enabled",
       "status": "active",
       "createdFor": "SURFGHA-006",
       "expiryOrReviewDate": "2026-12-31T00:00:00Z",
-      "description": "Per-surface leaf flag under the track.surface umbrella (OPSUP-005). Ships opt-in (disabled); ANVIL_TRACK_SURFACE_GHA=1 forces it on for a session via a local override routed through the resolver. The default flips to enabled after a clean release.",
+      "description": "Per-surface leaf flag under the track.surface umbrella (OPSUP-005). Graduated to default-on after the v0.8.1-beta clean release (SURFGHA-007 validation PASS, 0% FP with external true positives). ANVIL_TRACK_SURFACE_GHA=0 forces it off for a session via a local override routed through the resolver; =1 forces on.",
       "primaryGroup": "track-surface"
     },
     {
@@ -200,11 +200,11 @@
         { "key": "enabled", "value": true },
         { "key": "disabled", "value": false }
       ],
-      "defaultVariant": "disabled",
+      "defaultVariant": "enabled",
       "status": "active",
       "createdFor": "SURFSH-005",
       "expiryOrReviewDate": "2026-12-31T00:00:00Z",
-      "description": "Per-surface leaf flag under the track.surface umbrella (OPSUP-005). Ships opt-in (disabled); ANVIL_TRACK_SURFACE_SH=1 forces it on for a session via a local override routed through the resolver. The default flips to enabled after a clean release.",
+      "description": "Per-surface leaf flag under the track.surface umbrella (OPSUP-005). Graduated to default-on after the v0.8.1-beta clean release (SURFSH-006 validation PASS, 0% FP). ANVIL_TRACK_SURFACE_SH=0 forces it off for a session via a local override routed through the resolver; =1 forces on.",
       "primaryGroup": "track-surface"
     },
     {
@@ -217,11 +217,11 @@
         { "key": "enabled", "value": true },
         { "key": "disabled", "value": false }
       ],
-      "defaultVariant": "disabled",
+      "defaultVariant": "enabled",
       "status": "active",
       "createdFor": "SURFSQL-005",
       "expiryOrReviewDate": "2026-12-31T00:00:00Z",
-      "description": "Per-surface leaf flag under the track.surface umbrella (OPSUP-005). Ships opt-in (disabled); ANVIL_TRACK_SURFACE_SQL=1 forces it on for a session via a local override routed through the resolver. The default flips to enabled after a clean release.",
+      "description": "Per-surface leaf flag under the track.surface umbrella (OPSUP-005). Graduated to default-on after the v0.8.1-beta clean release (SURFSQL-007 validation PASS after SURFSQL-008 schema-dump scoping + SURFSQL-006 drift baseline). ANVIL_TRACK_SURFACE_SQL=0 forces it off for a session via a local override routed through the resolver; =1 forces on.",
       "primaryGroup": "track-surface"
     },
     {
