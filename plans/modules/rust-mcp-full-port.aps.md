@@ -4,7 +4,7 @@
 | ----- | ----- | ------ | -------- |
 | RMCPF | —     | In Progress | 6/10     |
 
-**Last reviewed:** 2026-05-14
+**Last reviewed:** 2026-06-19
 
 > **Plan change (2026-04-29, [ADR-033](../decisions/033-park-ide-mcp-retire-ts-scanner.md)):**
 > The TypeScript MCP server (`archive/anvil-mcp-server/`) is now
@@ -438,12 +438,34 @@ retirement decisions:
 
 #### RMCPF-020: Port MCP resources
 
-- **Status:** Draft
+- **Status:** Ready (2026-06-19 — readiness pass: RMCPF-002 Done; inventory
+  dispositions all eight resources to Rust-owned sources; every named source
+  reader exists in the Rust tree (see Readiness note); validation harness
+  already present. Reconciled against GCTX-030.)
+- **Readiness (2026-06-19):** GCTX-030 (Merged 2026-06-18 via #2772) already
+  shipped the MCP **resources substrate** this item assumed it would build:
+  the `resources` capability is advertised at `initialize`, and `resources/list`
+  / `resources/read` are routed in `crates/anvil-cli/src/commands/mcp.rs`
+  (`:248`–`:249`, `:374`, `:386`) to `crate::mcp::resources::{list,read}` in
+  `crates/anvil-cli/src/mcp/resources/mod.rs`. RMCPF-020's scope therefore
+  **narrows from "create a resources surface" to "extend the existing
+  dispatch"** — add the eight `anvil://` descriptors to `resources::list()` and
+  the eight URI arms to `resources::read()`, coexisting with the GCTX `graph://`
+  scheme already served there. Source readers are all confirmed present:
+  baseline (`crates/anvil-cli/src/activation/baseline.rs` /
+  `anvil-architecture` baseline model), config (`crates/anvil-config`),
+  patterns (`crates/anvil-checks/src/antipattern/check.rs`), suppressions
+  (`crates/anvil-cli/src/services/suppressions.rs`), constraints
+  (`crates/anvil-cli/src/commands/export.rs`), drift
+  (`crates/anvil-cli/src/commands/drift.rs`), file-warnings (the `anvil_check`
+  path). No open dependency remains.
 - **Intent:** Move existing MCP resources to Rust or retire those that no longer
   fit the post-daemon architecture.
 - **Expected Outcome:** Baseline, boundaries, patterns, suppressions, config,
   constraints, drift, and file-warning resources have Rust equivalents or
-  documented retirement. Rust MCP resources must not treat the archived TS
+  documented retirement. The new `anvil://` resources are added to the existing
+  GCTX-030 `resources::list`/`resources::read` dispatch (they do not introduce a
+  second resources surface). Rust MCP resources must not treat the archived TS
   `runtime-export` collector as the active contract: `anvil://constraints` is
   sourced from the Rust CLI constraint exporter
   (`crates/anvil-cli/src/commands/export.rs`), drift resources are sourced from
@@ -451,12 +473,21 @@ retirement decisions:
   and suppressions are sourced from the same active `.anvil/suppressions.json`
   readers used by Rust CLI surfaces. Archived TS resource shapes are fixture
   evidence for compatibility review only.
-- **Validation:** Resource listing and read tests match the inventory matrix
-- **Files:** `crates/anvil-cli/src/mcp/resources/`,
-  `archive/anvil-mcp-server/src/resources/`
-- **Confidence:** medium
+- **Validation:** Resource listing and read tests match the inventory matrix,
+  extending the existing `crates/anvil-cli/src/mcp/resources/tests.rs` unit
+  coverage and the `crates/anvil-cli/tests/mcp_serve_stdio.rs` integration suite
+  (`resources/list` exposes the `anvil://` set beside `graph://`; `resources/read`
+  returns each ported resource's parity payload). `anvil://file/{path}/warnings`
+  reuses the `anvil_check` workspace-containment + redaction contract.
+- **Files:** `crates/anvil-cli/src/mcp/resources/` (extend `mod.rs` dispatch +
+  `tests.rs`), `crates/anvil-cli/src/commands/mcp.rs` (no new routing needed —
+  GCTX-030 already wired `resources/list`/`resources/read`),
+  `archive/anvil-mcp-server/src/resources/` (frozen reference)
+- **Confidence:** medium (substrate now exists via GCTX-030, lowering risk; the
+  remaining work is eight per-resource read handlers over already-present Rust
+  source readers)
 - **Priority:** High
-- **Dependencies:** RMCPF-002
+- **Dependencies:** RMCPF-002, GCTX-030 (resources dispatch substrate — Merged)
 
 ---
 
@@ -545,6 +576,6 @@ retirement decisions:
 | ----- | ----- | ------ |
 | 0 — Inventory and Compatibility | 3 | 3/3 done |
 | 1 — Tool Parity | 3 | 3/3 done (RMCPF-010 Complete; RMCPF-011/-012 Merged via PR #1558) |
-| 2 — Resources and Transports | 2 | 0/2 (Draft) |
+| 2 — Resources and Transports | 2 | 0/2 done (RMCPF-020 Ready; RMCPF-021 Draft) |
 | 3 — Cutover | 2 | 0/2 (Draft) |
 | **Total** | **10** | **6/10 done** |
