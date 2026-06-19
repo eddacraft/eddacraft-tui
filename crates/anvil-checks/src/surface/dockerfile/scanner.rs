@@ -161,8 +161,9 @@ fn logical_instructions(lines: &[&str]) -> Vec<Instruction> {
 
         // Inside a heredoc body: absorb every line into the current instruction
         // until the closing delimiter (a line equal to the delimiter token),
-        // which ends the instruction. Body lines are kept verbatim so rules
-        // (apt-get / pipe-to-shell / sudo) see commands written there.
+        // which ends the instruction. Body lines are appended (trimmed; the
+        // later `flush` collapses whitespace) so rules (apt-get / pipe-to-shell
+        // / sudo) see the commands written there.
         if let Some(delim) = heredoc.as_deref() {
             let body = raw.trim();
             if body == delim {
@@ -199,8 +200,8 @@ fn logical_instructions(lines: &[&str]) -> Vec<Instruction> {
         // instruction prefix before the `<<` redirect so the folded body reads
         // as a clean `RUN <commands>` (the `<<EOT bash` noise would otherwise
         // break command-position rules like sudo).
-        if let Some(delim) = heredoc_delimiter(body) {
-            let prefix = body[..body.find("<<").unwrap_or(body.len())].trim_end();
+        if let Some((pos, delim)) = heredoc_opener(body) {
+            let prefix = body[..pos].trim_end();
             if !prefix.is_empty() {
                 if !buf.is_empty() {
                     buf.push(' ');
@@ -225,28 +226,49 @@ fn logical_instructions(lines: &[&str]) -> Vec<Instruction> {
     out
 }
 
-/// Extract a heredoc delimiter from an instruction line if it opens one.
+/// If `line` opens a heredoc, return the byte offset of the `<<` redirect and
+/// the closing delimiter word.
 ///
-/// Recognises the `BuildKit` forms `<<WORD`, `<<-WORD` and a quoted `<<"WORD"` /
-/// `<<'WORD'`. The delimiter must be an identifier (letter/underscore start)
-/// so an arithmetic/shift `<<` (e.g. `$((1<<2))`) is not mistaken for a
-/// heredoc. Anything after the delimiter on the opener (e.g. `<<EOT bash`) is
-/// ignored — only the closing-delimiter word matters.
-fn heredoc_delimiter(line: &str) -> Option<String> {
-    let after = &line[line.find("<<")? + 2..];
-    let after = after.strip_prefix('-').unwrap_or(after).trim_start();
-    let token: String = after.chars().take_while(|c| !c.is_whitespace()).collect();
-    let token = token.trim_matches(|c| c == '"' || c == '\'');
-    let mut chars = token.chars();
-    match chars.next() {
-        Some(c) if c.is_ascii_alphabetic() || c == '_' => {}
-        _ => return None,
+/// Recognises the `BuildKit` forms `<<WORD`, `<<-WORD` and a quoted
+/// `<<"WORD"` / `<<'WORD'` (including `<<EOT bash`, where the trailing command
+/// is ignored). To avoid mistaking shell text for a heredoc, the `<<` must be a
+/// redirect operator — **preceded by whitespace** and **not inside quotes** —
+/// and the delimiter must be an identifier. So `RUN echo '<<EOF'` (quoted),
+/// `RUN echo "x <<y"` (inside quotes) and `RUN echo $((1<<2))` (a shift, no
+/// preceding space) are not openers and do not swallow following lines. All
+/// markers here are ASCII, so byte indexing is sound.
+fn heredoc_opener(line: &str) -> Option<(usize, String)> {
+    let b = line.as_bytes();
+    let (mut single, mut double) = (false, false);
+    let mut i = 0;
+    while i < b.len() {
+        match b[i] {
+            b'\'' if !double => single = !single,
+            b'"' if !single => double = !double,
+            b'<' if !single && !double && b.get(i + 1) == Some(&b'<') => {
+                let preceded_by_ws = i == 0 || b[i - 1].is_ascii_whitespace();
+                if preceded_by_ws {
+                    let mut j = i + 2;
+                    if b.get(j) == Some(&b'-') {
+                        j += 1;
+                    }
+                    while matches!(b.get(j), Some(&(b'"' | b'\''))) {
+                        j += 1;
+                    }
+                    let start = j;
+                    while j < b.len() && (b[j].is_ascii_alphanumeric() || b[j] == b'_') {
+                        j += 1;
+                    }
+                    if start < j && (b[start].is_ascii_alphabetic() || b[start] == b'_') {
+                        return Some((i, line[start..j].to_string()));
+                    }
+                }
+            }
+            _ => {}
+        }
+        i += 1;
     }
-    if chars.all(|c| c.is_ascii_alphanumeric() || c == '_') {
-        Some(token.to_string())
-    } else {
-        None
-    }
+    None
 }
 
 fn flush(out: &mut Vec<Instruction>, buf: &mut String, start: &mut Option<usize>) {
@@ -530,5 +552,19 @@ mod tests {
         let content = "RUN echo $((1<<2))\nADD https://example.com/x /tmp/\n";
         // The ADD on the next line must still be seen (not absorbed).
         assert_eq!(risks(content), vec![DockerRisk::AddRemoteFetch]);
+    }
+
+    #[test]
+    fn quoted_heredoc_marker_is_not_an_opener() {
+        // `<<EOF` inside quotes (or otherwise not a redirect) must not enter
+        // heredoc mode and swallow subsequent instructions.
+        let single = "RUN echo '<<EOF'\nADD https://example.com/x /tmp/\nEOF\n";
+        assert_eq!(risks(single), vec![DockerRisk::AddRemoteFetch]);
+        let double = "RUN echo \"text <<EOF more\"\nADD https://example.com/y /tmp/\n";
+        assert_eq!(risks(double), vec![DockerRisk::AddRemoteFetch]);
+        // No preceding whitespace → not a redirect operator.
+        assert!(heredoc_opener("run echo a<<eof").is_none());
+        // Genuine opener still detected, with the redirect's byte offset.
+        assert_eq!(heredoc_opener("run <<eof"), Some((4, "eof".to_string())));
     }
 }
