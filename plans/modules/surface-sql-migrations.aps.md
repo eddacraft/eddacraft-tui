@@ -180,7 +180,7 @@ hygiene, gate/catalogue registration, drift, and validation.
 
 ### SURFSQL-006 — Drift baseline default-on for `.sql`
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-19 via PR #2793
 - **Intent:** Baseline existing destructive ops; warn only on new edges.
 - **Decision (owner-settled):** reuse the existing OPSUP-003 `anvil drift`
   baseline subsystem rather than build a SURFSQL-specific store or a git-diff
