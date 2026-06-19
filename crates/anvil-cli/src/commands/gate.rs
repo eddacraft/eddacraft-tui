@@ -772,39 +772,76 @@ fn run_check_sql_migrations(name: &str, root: &Path, walked_files: &[String]) ->
     };
 
     let result = run_surfsql_check(&sql_files);
+
+    // SURFSQL-006: warn only on *new* edges. Each unsuppressed finding carries
+    // the same fingerprint the drift snapshot stored (shared derivation in
+    // `commands::drift`), so a finding present in the latest `anvil drift
+    // snapshot` is baselined and omitted. `None` = no snapshot exists at all,
+    // so every finding is surfaced — the pre-baseline warn-on-all behaviour
+    // (warnings over blocks). `Some(set)` = a snapshot exists (its SQL set may
+    // be empty, when the repo was clean at snapshot time).
+    let baseline = crate::commands::drift::latest_sql_baseline_fingerprints(root);
+    let has_baseline = baseline.is_some();
+    let baseline = baseline.unwrap_or_default();
+
     // SURFSQL-002 destructive + SURFSQL-003 schema-hygiene, unsuppressed.
-    let mut locations: Vec<String> = Vec::new();
+    let mut new_locations: Vec<String> = Vec::new();
+    let mut baselined = 0usize;
     for f in result.destructive.iter().filter(|f| !f.suppressed) {
-        locations.push(format!(
-            "{}:{} [{}] {}",
-            f.file,
-            f.line,
-            rule_label(f.kind),
-            f.statement
-        ));
+        let (_, fingerprint) = crate::commands::drift::destructive_finding_id(f);
+        if baseline.contains(&fingerprint) {
+            baselined += 1;
+        } else {
+            new_locations.push(format!(
+                "{}:{} [{}] {}",
+                f.file,
+                f.line,
+                rule_label(f.kind),
+                f.statement
+            ));
+        }
     }
     for f in result.hygiene.iter().filter(|f| !f.suppressed) {
-        locations.push(format!(
-            "{}:{} [{}] {}",
-            f.file,
-            f.line,
-            hygiene_label(f.kind),
-            f.statement
-        ));
+        let (_, fingerprint) = crate::commands::drift::hygiene_finding_id(f);
+        if baseline.contains(&fingerprint) {
+            baselined += 1;
+        } else {
+            new_locations.push(format!(
+                "{}:{} [{}] {}",
+                f.file,
+                f.line,
+                hygiene_label(f.kind),
+                f.statement
+            ));
+        }
     }
 
-    if locations.is_empty() {
+    if new_locations.is_empty() {
+        let scanned = sql_files.len() + unreadable;
+        let summary = if has_baseline {
+            format!(
+                "No new SQL migration issues vs drift baseline ({baselined} baselined) across {scanned} file(s){unreadable_note}"
+            )
+        } else {
+            format!(
+                "No destructive or schema-hygiene SQL migration issues found across {scanned} file(s){unreadable_note}"
+            )
+        };
         return CheckResult {
             name: name.to_string(),
             passed: true,
             score: 100.0,
-            message: format!(
-                "No destructive or schema-hygiene SQL migration issues found across {} file(s){unreadable_note}",
-                sql_files.len() + unreadable
-            ),
+            message: summary,
             requires_config: false,
         };
     }
+
+    let baseline_note = if has_baseline {
+        format!(" ({baselined} baselined)")
+    } else {
+        " (no drift baseline — run `anvil drift snapshot` to baseline existing findings)"
+            .to_string()
+    };
 
     CheckResult {
         name: name.to_string(),
@@ -812,11 +849,10 @@ fn run_check_sql_migrations(name: &str, root: &Path, walked_files: &[String]) ->
         passed: true,
         score: 100.0,
         message: format!(
-            "⚠ {} SQL migration issue(s) flagged (warn-only; baseline lands in \
-             SURFSQL-006){}:\n{}",
-            locations.len(),
+            "⚠ {} new SQL migration issue(s) flagged (warn-only{baseline_note}){}:\n{}",
+            new_locations.len(),
             unreadable_note,
-            locations.join("\n")
+            new_locations.join("\n")
         ),
         requires_config: false,
     }
@@ -2845,6 +2881,109 @@ mod tests {
             "hygiene finding surfaced: {}",
             result.message
         );
+    }
+
+    #[test]
+    fn sql_migrations_check_baselines_existing_and_warns_only_on_new() {
+        use anvil_checks::surface::sql::run_surfsql_check;
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("0001.sql"), "DROP TABLE users;\n").unwrap();
+        let files = ["0001.sql".to_string()];
+
+        // No drift snapshot → warn-on-all, with a hint to baseline.
+        let r1 = run_check_sql_migrations("sql-migrations", tmp.path(), &files);
+        assert!(r1.passed);
+        assert!(
+            r1.message.contains("new SQL migration issue"),
+            "{}",
+            r1.message
+        );
+        assert!(r1.message.contains("no drift baseline"), "{}", r1.message);
+
+        // Baseline every existing finding by writing a snapshot carrying their
+        // fingerprints (shared derivation via commands::drift).
+        let scan = run_surfsql_check(&[(
+            std::path::PathBuf::from("0001.sql"),
+            "DROP TABLE users;\n".to_string(),
+        )]);
+        let mut fps: Vec<String> = Vec::new();
+        for f in scan.destructive.iter().filter(|f| !f.suppressed) {
+            fps.push(crate::commands::drift::destructive_finding_id(f).1);
+        }
+        for f in scan.hygiene.iter().filter(|f| !f.suppressed) {
+            fps.push(crate::commands::drift::hygiene_finding_id(f).1);
+        }
+        let entries: String = fps
+            .iter()
+            .map(|fp| {
+                format!(
+                    r#"{{"fingerprint":"{fp}","rule_id":"surfsql","file":"0001.sql","line":1}}"#
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        let snap_dir = tmp.path().join(".anvil").join("snapshots");
+        std::fs::create_dir_all(&snap_dir).unwrap();
+        let snapshot = format!(
+            r#"{{"schema_version":"1.1.0","created_at":"2026-01-01T00:00:00+00:00","metrics":{{"boundary_violations":0,"antipattern_count":0,"suppression_count":0,"expired_suppressions":0,"files_analysed":1}},"violations":[],"antipatterns":[],"suppressions":[],"sql_findings":[{entries}]}}"#
+        );
+        std::fs::write(snap_dir.join("snapshot-base.json"), snapshot).unwrap();
+
+        // Baselined finding is now silent.
+        let r2 = run_check_sql_migrations("sql-migrations", tmp.path(), &files);
+        assert!(
+            r2.message
+                .contains("No new SQL migration issues vs drift baseline"),
+            "{}",
+            r2.message
+        );
+
+        // A genuinely new destructive op warns; the baselined one stays silent.
+        std::fs::write(tmp.path().join("0002.sql"), "DROP TABLE accounts;\n").unwrap();
+        let r3 = run_check_sql_migrations(
+            "sql-migrations",
+            tmp.path(),
+            &["0001.sql".to_string(), "0002.sql".to_string()],
+        );
+        assert!(
+            r3.message.contains("1 new SQL migration issue"),
+            "{}",
+            r3.message
+        );
+        // Statements are surfaced normalised to upper-case.
+        assert!(
+            r3.message.to_uppercase().contains("ACCOUNTS"),
+            "{}",
+            r3.message
+        );
+        assert!(r3.message.contains("1 baselined"), "{}", r3.message);
+    }
+
+    #[test]
+    fn sql_migrations_check_with_sql_empty_snapshot_does_not_claim_missing_baseline() {
+        // A snapshot exists but carries no SQL findings (repo was SQL-clean at
+        // snapshot time). A finding introduced afterwards must warn, but the
+        // message must NOT tell the user to run a snapshot they already have.
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("0001.sql"), "DROP TABLE users;\n").unwrap();
+        let snap_dir = tmp.path().join(".anvil").join("snapshots");
+        std::fs::create_dir_all(&snap_dir).unwrap();
+        // Snapshot with an empty (omitted) sql_findings set.
+        let snapshot = r#"{"schema_version":"1.1.0","created_at":"2026-01-01T00:00:00+00:00","metrics":{"boundary_violations":0,"antipattern_count":0,"suppression_count":0,"expired_suppressions":0,"files_analysed":0},"violations":[],"antipatterns":[],"suppressions":[]}"#;
+        std::fs::write(snap_dir.join("snapshot-empty.json"), snapshot).unwrap();
+
+        let r = run_check_sql_migrations("sql-migrations", tmp.path(), &["0001.sql".to_string()]);
+        assert!(
+            r.message.contains("new SQL migration issue"),
+            "{}",
+            r.message
+        );
+        assert!(
+            !r.message.contains("no drift baseline"),
+            "a snapshot exists; must not claim none: {}",
+            r.message
+        );
+        assert!(r.message.contains("0 baselined"), "{}", r.message);
     }
 
     #[test]

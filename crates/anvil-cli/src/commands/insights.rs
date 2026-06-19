@@ -212,6 +212,7 @@ mod tests {
             violations,
             antipatterns: Vec::new(),
             suppressions: Vec::new(),
+            sql_findings: Vec::new(),
             git_ref: None,
         }
     }

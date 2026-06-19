@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -127,6 +127,15 @@ const FIELD_DECLARATIONS: &[FieldDeclaration] = &[
         fields: &["suppressions"],
         introduced_in: SchemaVersion::new(1, 0, 0),
     },
+    FieldDeclaration {
+        // SURFSQL-006: the SQL governance surface contributes its findings to
+        // the drift baseline so the gate can warn only on *new* edges. Added
+        // additively, so a v1.0.0 baseline still reads (the field defaults to
+        // empty) and shipping this surface advances the schema to v1.1.0.
+        surface: "sql-migrations",
+        fields: &["sql_findings"],
+        introduced_in: SchemaVersion::new(1, 1, 0),
+    },
 ];
 
 /// The schema version a registry describes: the highest `introduced_in`
@@ -208,6 +217,11 @@ pub struct DriftSnapshot {
     pub violations: Vec<SnapshotViolation>,
     pub antipatterns: Vec<SnapshotAntipattern>,
     pub suppressions: Vec<SnapshotSuppression>,
+    /// SURFSQL-006 (schema v1.1.0): baselined SQL governance findings. Absent
+    /// in a v1.0.0 baseline (`default` keeps that readable) and omitted from
+    /// the JSON when empty so pre-SURFSQL snapshots round-trip byte-stable.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sql_findings: Vec<SnapshotSqlFinding>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub git_ref: Option<String>,
 }
@@ -242,6 +256,19 @@ pub struct SnapshotAntipattern {
     pub line: usize,
     pub pattern: String,
     pub severity: String,
+}
+
+/// A baselined SURFSQL finding (SURFSQL-006). `fingerprint` is the move-
+/// resistant identity used by the gate's new-edges-only filter — it hashes the
+/// rule plus the whitespace-normalised statement, so re-indenting or moving a
+/// flagged statement does not re-warn. `file`/`line` are retained for the
+/// human-readable drift report only.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SnapshotSqlFinding {
+    pub fingerprint: String,
+    pub rule_id: String,
+    pub file: String,
+    pub line: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -371,6 +398,11 @@ fn run_snapshot(name: Option<&str>, global: &GlobalArgs) -> Result<()> {
     // Run antipattern scan and collect results.
     let (antipatterns, suppressions, ap_result) = collect_antipatterns(&files, &cwd);
 
+    // SURFSQL-006: capture SQL governance findings so the gate can baseline
+    // them and warn only on new edges. Independent walk — SQL migration files
+    // are outside the antipattern extension set.
+    let sql_findings = collect_sql_findings(&cwd);
+
     // Build antipattern breakdown.
     let mut breakdown: BTreeMap<String, usize> = BTreeMap::new();
     for ap in &antipatterns {
@@ -398,6 +430,7 @@ fn run_snapshot(name: Option<&str>, global: &GlobalArgs) -> Result<()> {
         violations,
         antipatterns,
         suppressions,
+        sql_findings,
         git_ref,
     };
 
@@ -554,6 +587,46 @@ fn run_list(limit: Option<usize>, global: &GlobalArgs) -> Result<()> {
 
 fn snapshots_dir(workspace: &Path) -> PathBuf {
     workspace.join(ANVIL_DIR).join(SNAPSHOTS_DIR)
+}
+
+/// Move-resistant identity for a SURFSQL finding (SURFSQL-006): a 16-hex
+/// FNV-1a digest of `rule_id` plus the whitespace-normalised statement. Line
+/// and surrounding formatting are deliberately excluded so re-indenting or
+/// shifting a flagged statement does not read as a new edge. Deterministic
+/// across runs and platforms (unlike `DefaultHasher`).
+pub(crate) fn sql_finding_fingerprint(rule_id: &str, statement: &str) -> String {
+    let normalised: String = statement.split_whitespace().collect::<Vec<_>>().join(" ");
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325; // FNV-1a 64-bit offset basis.
+    for byte in rule_id
+        .bytes()
+        .chain(b"|".iter().copied())
+        .chain(normalised.to_ascii_uppercase().bytes().collect::<Vec<_>>())
+    {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x0000_0100_0000_01b3); // FNV prime.
+    }
+    format!("{hash:016x}")
+}
+
+/// The set of SURFSQL fingerprints baselined by the latest drift snapshot.
+/// `None` means there is no readable snapshot at all (so the gate warns on all
+/// findings and hints to create one); `Some(set)` means a snapshot exists —
+/// possibly with an empty SQL set, when the repo was clean at snapshot time —
+/// so the gate baselines against it and does *not* claim a baseline is absent.
+/// Read-only and total: any I/O or parse failure yields `None` so the gate
+/// degrades to warn-on-all rather than erroring (warnings over blocks).
+/// Consumed by the SURFSQL gate check to surface only new findings (SURFSQL-006).
+pub(crate) fn latest_sql_baseline_fingerprints(workspace: &Path) -> Option<BTreeSet<String>> {
+    match get_latest_snapshot(workspace) {
+        Ok(Some(snapshot)) => Some(
+            snapshot
+                .sql_findings
+                .into_iter()
+                .map(|f| f.fingerprint)
+                .collect(),
+        ),
+        _ => None,
+    }
 }
 
 fn sanitise_name(name: &str) -> String {
@@ -892,6 +965,84 @@ fn collect_antipatterns(
     (antipatterns, suppressions, ap_result)
 }
 
+/// Stable rule identity + fingerprint for a destructive SURFSQL finding. Both
+/// the drift snapshot writer (`collect_sql_findings`) and the gate reader
+/// (`run_check_sql_migrations`) call this so a baselined finding and the live
+/// finding it baselines produce the *same* fingerprint (SURFSQL-006).
+pub(crate) fn destructive_finding_id(
+    f: &anvil_checks::surface::sql::SqlFinding,
+) -> (String, String) {
+    let rule_id = format!("surfsql-destructive:{:?}", f.kind);
+    let fingerprint = sql_finding_fingerprint(&rule_id, &f.statement);
+    (rule_id, fingerprint)
+}
+
+/// As [`destructive_finding_id`] for a schema-hygiene finding.
+pub(crate) fn hygiene_finding_id(
+    f: &anvil_checks::surface::sql::SqlHygieneFinding,
+) -> (String, String) {
+    let rule_id = format!("surfsql-hygiene:{:?}", f.kind);
+    let fingerprint = sql_finding_fingerprint(&rule_id, &f.statement);
+    (rule_id, fingerprint)
+}
+
+/// Discover SQL migration files under `workspace` and collect their
+/// unsuppressed SURFSQL findings as baseline entries (SURFSQL-006). Mirrors
+/// `get_source_files`' walk shape but selects `.sql` migration files via the
+/// surface's own `is_sql_migration_file`. Suppressed findings are dropped —
+/// an author's explicit `--` acknowledgement disqualifies them from the
+/// baseline, exactly as antipattern suppressions are dropped above.
+fn collect_sql_findings(workspace: &Path) -> Vec<SnapshotSqlFinding> {
+    use anvil_checks::surface::sql::{is_sql_migration_file, run_surfsql_check};
+
+    let walker = ignore::WalkBuilder::new(workspace)
+        .follow_links(false)
+        .standard_filters(false)
+        .hidden(false)
+        .filter_entry(|e| {
+            if e.file_type().is_some_and(|ft| ft.is_dir()) {
+                !is_ignored_dir_name(&e.file_name().to_string_lossy())
+            } else {
+                true
+            }
+        })
+        .build();
+
+    let mut sql_files: Vec<(PathBuf, String)> = walker
+        .filter_map(std::result::Result::ok)
+        .filter(|e| e.file_type().is_some_and(|ft| ft.is_file()))
+        .filter(|e| is_sql_migration_file(e.path()))
+        .filter_map(|e| {
+            std::fs::read_to_string(e.path())
+                .ok()
+                .map(|content| (e.path().to_path_buf(), content))
+        })
+        .collect();
+    sql_files.sort_by(|a, b| a.0.cmp(&b.0)); // Deterministic snapshot ordering.
+
+    let result = run_surfsql_check(&sql_files);
+    let mut findings: Vec<SnapshotSqlFinding> = Vec::new();
+    for f in result.destructive.iter().filter(|f| !f.suppressed) {
+        let (rule_id, fingerprint) = destructive_finding_id(f);
+        findings.push(SnapshotSqlFinding {
+            fingerprint,
+            rule_id,
+            file: f.file.clone(),
+            line: f.line,
+        });
+    }
+    for f in result.hygiene.iter().filter(|f| !f.suppressed) {
+        let (rule_id, fingerprint) = hygiene_finding_id(f);
+        findings.push(SnapshotSqlFinding {
+            fingerprint,
+            rule_id,
+            file: f.file.clone(),
+            line: f.line,
+        });
+    }
+    findings
+}
+
 // SCAN-001: drift discovery uses `ignore::WalkBuilder` to share the
 // noise-pruning walk shape (skips target/, node_modules/, etc) with the
 // welcome flow. `.gitignore` is intentionally NOT honoured — drift
@@ -1062,6 +1213,7 @@ mod tests {
             violations: Vec::new(),
             antipatterns: Vec::new(),
             suppressions: Vec::new(),
+            sql_findings: Vec::new(),
             git_ref: None,
         }
     }
@@ -1102,6 +1254,87 @@ mod tests {
         assert_eq!(parsed.name, Some("test".to_string()));
         assert_eq!(parsed.metrics.boundary_violations, 3);
         assert_eq!(parsed.metrics.antipattern_count, 7);
+    }
+
+    // ── SURFSQL-006 drift baseline ───────────────────────────────
+
+    #[test]
+    fn sql_fingerprint_is_move_and_format_resistant() {
+        // Same rule + statement modulo whitespace/case → same fingerprint, so
+        // re-indenting or shifting a flagged statement is not a "new edge".
+        let a = sql_finding_fingerprint("surfsql-destructive:DropTable", "DROP TABLE users");
+        let b = sql_finding_fingerprint("surfsql-destructive:DropTable", "drop   table\n  users");
+        assert_eq!(a, b);
+        assert_eq!(a.len(), 16, "16-hex digest");
+        // Different rule or statement → different fingerprint.
+        assert_ne!(
+            a,
+            sql_finding_fingerprint("surfsql-destructive:DropTable", "DROP TABLE accounts")
+        );
+        assert_ne!(
+            a,
+            sql_finding_fingerprint("surfsql-hygiene:MissingIfNotExists", "DROP TABLE users")
+        );
+    }
+
+    #[test]
+    fn sql_findings_survive_snapshot_round_trip() {
+        let mut snap = make_snapshot("sql", 0, 0, 0);
+        snap.sql_findings = vec![SnapshotSqlFinding {
+            fingerprint: "deadbeefdeadbeef".to_string(),
+            rule_id: "surfsql-destructive:DropTable".to_string(),
+            file: "db/0001.sql".to_string(),
+            line: 12,
+        }];
+        let json = serde_json::to_string(&snap).unwrap();
+        let parsed: DriftSnapshot = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.sql_findings, snap.sql_findings);
+    }
+
+    #[test]
+    fn v1_0_0_baseline_without_sql_field_still_reads() {
+        // A pre-SURFSQL (v1.0.0) snapshot has no `sql_findings` key; `default`
+        // must keep it loadable as an empty baseline (additive schema).
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(snapshots_dir(dir.path())).unwrap();
+        let legacy = r#"{
+  "schema_version": "1.0.0",
+  "created_at": "2026-01-01T00:00:00+00:00",
+  "name": "legacy",
+  "metrics": {"boundary_violations":0,"antipattern_count":0,"suppression_count":0,"expired_suppressions":0,"files_analysed":0},
+  "violations": [],
+  "antipatterns": [],
+  "suppressions": []
+}"#;
+        let path = snapshots_dir(dir.path()).join("snapshot-legacy.json");
+        std::fs::write(&path, legacy).unwrap();
+        let loaded = load_snapshot_file(&path).unwrap();
+        assert!(loaded.sql_findings.is_empty());
+        // A v1.0.0 snapshot still counts as a baseline that exists (Some), just
+        // with an empty SQL set — so the gate does not claim "no baseline".
+        assert_eq!(
+            latest_sql_baseline_fingerprints(dir.path()),
+            Some(BTreeSet::new())
+        );
+    }
+
+    #[test]
+    fn latest_sql_baseline_returns_snapshot_fingerprints() {
+        let dir = tempfile::tempdir().unwrap();
+        // No snapshot at all → None (gate falls back to warn-on-all + hint).
+        assert_eq!(latest_sql_baseline_fingerprints(dir.path()), None);
+
+        let mut snap = make_snapshot("base", 0, 0, 0);
+        snap.sql_findings = vec![SnapshotSqlFinding {
+            fingerprint: "abc123abc123abc1".to_string(),
+            rule_id: "surfsql-destructive:DropTable".to_string(),
+            file: "db/0001.sql".to_string(),
+            line: 1,
+        }];
+        save_snapshot(dir.path(), &snap, Some("base")).unwrap();
+
+        let baseline = latest_sql_baseline_fingerprints(dir.path()).expect("snapshot exists");
+        assert!(baseline.contains("abc123abc123abc1"));
     }
 
     // ── Schema versioning (OPSUP-003) ────────────────────────────

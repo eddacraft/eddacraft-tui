@@ -180,12 +180,24 @@ hygiene, gate/catalogue registration, drift, and validation.
 
 ### SURFSQL-006 — Drift baseline default-on for `.sql`
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Baseline existing destructive ops; warn only on new edges.
+- **Decision (owner-settled):** reuse the existing OPSUP-003 `anvil drift`
+  baseline subsystem rather than build a SURFSQL-specific store or a git-diff
+  comparison. SURFSQL adds a `sql-migrations` `FieldDeclaration` (advancing the
+  schema additively `1.0.0 → 1.1.0`) and contributes a `sql_findings` array to
+  `DriftSnapshot`; `anvil drift snapshot` captures the current findings, and the
+  gate's SURFSQL render consults the latest snapshot and warns only on findings
+  absent from it. With no snapshot the baseline is empty and every finding is
+  surfaced (warn-on-all — the pre-baseline behaviour; warnings over blocks).
 - **Expected Outcome:** SURFSQL declares its drift baseline fields via the
   OPSUP-003 schema-versioned model; pre-existing findings are baselined so only
-  newly introduced destructive ops warn.
-- **Validation:** `cargo test -p eddacraft-anvil drift` (SURFSQL baseline round-trip + new-edge-only warn)
+  newly introduced destructive ops warn. Finding identity is a move-resistant
+  fingerprint (rule + whitespace-/case-normalised statement, line excluded) so
+  re-indenting a flagged statement is not a new edge.
+- **Validation:** `cargo test -p eddacraft-anvil drift` (SURFSQL baseline
+  round-trip + new-edge-only warn) + a gate test proving a snapshotted finding
+  is silenced and a genuinely new one still warns.
 - **Dependencies:** SURFSQL-002, OPSUP-003 (Merged)
 - **Confidence:** medium
 

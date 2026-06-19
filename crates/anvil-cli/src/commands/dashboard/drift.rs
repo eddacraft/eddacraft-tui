@@ -322,6 +322,7 @@ mod tests {
             violations,
             antipatterns: vec![],
             suppressions: vec![],
+            sql_findings: vec![],
             git_ref: None,
         }
     }
