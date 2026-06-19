@@ -203,7 +203,7 @@ hygiene, gate/catalogue registration, drift, and validation.
 
 ### SURFSQL-007 — Anvil-repo + external validation runs; FP report
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-19 via PR #2797
 - **Intent:** Prove the acceptance bar (FP < 1% on Anvil + ≥1 external repo).
 - **Expected Outcome:** Validated 2026-06-19 — **PASS**. Anvil dogfood: 17 SQL
   files, **0 findings** (SURFSQL-008 scopes out the `schema.sql` canonical-schema
