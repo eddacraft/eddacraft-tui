@@ -604,16 +604,6 @@ fn run_check_test(name: &str, root: &Path) -> CheckResult {
     }
 }
 
-const SECRET_SCAN_IGNORE: &[&str] = &[
-    "node_modules",
-    "dist",
-    "build",
-    "target",
-    ".git",
-    ".anvil",
-    "coverage",
-];
-
 /// Maximum directory depth for the secret scan walk. Prevents runaway
 /// recursion into deeply nested or symlink-heavy trees.
 const SECRET_SCAN_MAX_DEPTH: usize = 20;
@@ -636,8 +626,16 @@ fn run_check_secret(
         .standard_filters(false)
         .hidden(false)
         .filter_entry(|e| {
-            let name = e.file_name().to_string_lossy();
-            !SECRET_SCAN_IGNORE.iter().any(|&ig| name == ig)
+            // ADOPT-004: prune via the kernel-canonical ignore-dir list so
+            // the gate secret walk stays in lock-step with audit/check/drift
+            // (and the watcher). The previous hand-rolled `SECRET_SCAN_IGNORE`
+            // omitted framework build trees (`.next`, `.nx`, `.turbo`) and
+            // agent worktrees (`.claude`, `.worktrees`), flooding the report
+            // with high-entropy generated chunks. The lockfile skip lives in
+            // `run_secret_check`.
+            e.file_name()
+                .to_str()
+                .is_none_or(|name| !crate::util::is_ignored_dir_name(name))
         });
     if plan_files.is_empty() {
         walker_builder.max_depth(Some(SECRET_SCAN_MAX_DEPTH));
