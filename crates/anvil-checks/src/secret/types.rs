@@ -97,7 +97,7 @@ pub enum FindingType {
 /// the entry point through which a future project-config allowlist surface will
 /// flow). Surfacing those means a `.anvilrc` entry can never silently hide a
 /// real credential without the operator seeing it called out at scan time.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum AllowlistProvenance {
     /// A built-in shape-anchored entry (hex hash, `0x…`, data URI, ULID).

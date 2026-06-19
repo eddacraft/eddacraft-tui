@@ -137,12 +137,15 @@ pub fn run_secret_check(
 /// quoted/assignment match records the same candidate twice (mirrors
 /// `deduplicate_findings`).
 fn finalize_suppressions(mut suppressions: Vec<Suppression>) -> Vec<Suppression> {
+    // Sort key includes every field the dedup compares (provenance last) so
+    // true duplicates are always adjacent regardless of which tier matched.
     suppressions.sort_by(|a, b| {
         a.file
             .cmp(&b.file)
             .then(a.line.cmp(&b.line))
             .then(a.rule_name.cmp(&b.rule_name))
             .then(a.redacted_match.cmp(&b.redacted_match))
+            .then(a.provenance.cmp(&b.provenance))
     });
     suppressions.dedup_by(|a, b| {
         a.file == b.file
