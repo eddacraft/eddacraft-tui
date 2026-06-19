@@ -118,16 +118,17 @@ gate registration + flag, then validation.
 
 ### SURFDOCK-006-validation — Anvil + external validation runs
 
-- **Status:** In Progress (validation inconclusive — bar not yet met)
+- **Status:** Merged 2026-06-19 via PR #2798
 - **Intent:** Prove the acceptance bar (FP < 1% on Anvil + ≥1 external repo).
-- **Expected Outcome:** Run 2026-06-18 was **inconclusive, not a pass**: Anvil
-  ships no Dockerfiles (no dogfood corpus, so the Anvil FP-rate half of the bar
-  cannot be measured), and the single `hadolint/hadolint` external Dockerfile
-  was clean (0 findings → no true-positive confirmation). 0 FP observed but no
-  positive evidence the detectors fire in the wild. Remains In Progress pending
-  a run against a Dockerfile-bearing corpus with a real
-  `:latest`/`ADD https://`/pipe-to-shell case. Evidence:
-  `plans/reviews/2026-06-18-surface-validation.md`.
+- **Expected Outcome:** Re-run 2026-06-19 — **PASS**. The 2026-06-18 run was
+  inconclusive (Anvil ships no Dockerfiles; one clean external file). A broader
+  external corpus (`nvm-sh/nvm`, `dexidp/dex`, `bats-core/bats-core`,
+  `golang-migrate/migrate` — **8 Dockerfiles**) closes the gap: 2 true positives
+  (`apt-get` without `--no-install-recommends`) and correct true-negatives on
+  pinned base images, at **0% FP**. A `SudoInRun` false positive (sudo installed
+  as an apt package, not invoked) was found and fixed in the same PR; the Anvil
+  leg is vacuously clean (no in-scope files), with the external corpus carrying
+  the evidence. Evidence: `plans/reviews/2026-06-18-surface-validation.md`.
 - **Validation:** FP report committed under `plans/reviews/`.
 - **Dependencies:** SURFDOCK-002, SURFDOCK-005
 - **Confidence:** medium

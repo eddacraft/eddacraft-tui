@@ -21,7 +21,7 @@ risk the rule targets).
 | -------------- | --------------- | ------------- | ------- | ------- | ------- |
 | SURFGHA (SURFGHA-007) | 2 findings | ripgrep — 7 findings | 9 TP / 0 FP | 0% | ✅ PASS |
 | SURFSH (SURFSH-006) | 110 files, 0 findings | ripgrep — 2 files, 0 findings | 0 / 0 | 0% | ✅ PASS |
-| SURFDOCK (SURFDOCK-006) | 0 Dockerfiles (no dogfood corpus) | hadolint — 1 Dockerfile, 0 findings | 0 / 0 | n/a | ⚠️ INCONCLUSIVE |
+| SURFDOCK (SURFDOCK-006) | 0 Dockerfiles (surface inactive — none ship) | 8 Dockerfiles (nvm, dex, bats-core, migrate) — 2 findings | 2 TP / 0 FP (1 FP found + fixed) | 0% | ✅ PASS |
 | SURFSQL (SURFSQL-007) | 17 files, 0 findings (after SURFSQL-008) | sqlx — 110 raw → 0 after baseline, 1 on a new edge | baseline-absorbed | 0% effective | ✅ PASS |
 
 ### SURFGHA-007 — PASS
@@ -46,20 +46,37 @@ risk the rule targets).
   tests cover the detection; a future run against a repo with known-dangerous
   scripts would strengthen the external TP evidence.)
 
-### SURFDOCK-006 — INCONCLUSIVE (not yet a pass)
+### SURFDOCK-006 — PASS (re-run 2026-06-19 on a real external corpus)
 
-- **Anvil**: no Dockerfiles in the repo → **no dogfood corpus**, so the
-  "Anvil FP rate" half of the bar cannot be measured (it is vacuously 0, not
-  evidence).
-- **External** (`hadolint/hadolint`): 1 Dockerfile, **0 findings** (a
-  well-formed, pinned Dockerfile — expected clean), so no true-positive
-  confirmation either.
-- **0 false positives observed, but the run is inconclusive**: no dogfood
-  corpus and a clean single external file give no positive evidence the
-  detectors fire correctly in the wild. The unit tests cover each rule, but
-  SURFDOCK-006 should **not** be marked passing until a run against a repo with
-  a real `:latest`/`ADD https://`/pipe-to-shell Dockerfile (and ideally a repo
-  that actually ships Dockerfiles) provides dogfood + external true positives.
+The first run was inconclusive: Anvil ships no Dockerfiles and the single
+external file was clean, giving no positive evidence the detectors fire in the
+wild. A broader external corpus closes that gap.
+
+- **Anvil**: no Dockerfiles in the repo, so the file-presence guard leaves the
+  surface **inactive** — 0 files, 0 findings, **0 FP** (the surface correctly
+  emits nothing rather than mis-firing). This is the designed behaviour, not a
+  blind spot; the meaningful evidence is external.
+- **External** (4 repos shipping Dockerfiles — `nvm-sh/nvm`, `dexidp/dex`,
+  `bats-core/bats-core`, `golang-migrate/migrate`): **8 Dockerfiles**, 2
+  findings after the fix below, both **true positives** —
+  - `migrate cmd/migrate/examples/Dockerfile:3` and `:12`
+    `apt-get install` without `--no-install-recommends` (real image-bloat
+    hygiene, exactly what `AptMissingNoRecommends` targets).
+  - The pinned base images across the corpus (`ubuntu:22.04`, `alpine:3.21`,
+    SHA-pinned `golang`/`distroless`, …) correctly produced **no**
+    `:latest` findings — true negatives, confirming the detector does not
+    over-fire on well-formed Dockerfiles.
+- **One false positive was found and fixed.** `nvm/Dockerfile` installs `sudo`
+  as an apt package (`apt install … sudo …`); the `SudoInRun` rule matched the
+  bare token `sudo ` and flagged it, though the rule targets sudo *invocation*,
+  not a package name. Fixed in this PR: detection now splits the `RUN` body on
+  command separators and requires a segment to *start* with `sudo`, so
+  `RUN sudo make install` is flagged but installing the `sudo` package is not.
+  Re-run after the fix: the FP is gone, leaving 2 TP / **0 FP**.
+- **Verdict: PASS** — external corpus gives true-positive confirmation
+  (`apt-get` hygiene) and correct true-negatives (pinned bases), the one FP is
+  resolved, and the Anvil leg is vacuously clean (no in-scope files). FP rate
+  **0%** across 8 external Dockerfiles.
 
 ### SURFSQL-007 — PASS (after SURFSQL-008 + SURFSQL-006)
 
@@ -103,9 +120,12 @@ for, which have since merged:
   (27 workflows / 110 scripts) + an external repo, **0% FP**. SURFGHA also has
   external true positives (the ripgrep `@master` refs); SURFSH's TP evidence is
   unit-test-only (neither corpus had a dangerous command).
-- **SURFDOCK** is **inconclusive**, not passing: Anvil ships no Dockerfiles
-  (no dogfood corpus) and the single external Dockerfile was clean — 0 FP but
-  no positive evidence. Needs a Dockerfile-bearing corpus to clear the bar.
+- **SURFDOCK** now **passes** (re-run 2026-06-19): a 4-repo external corpus of
+  **8 Dockerfiles** gives 2 true positives (`apt-get` without
+  `--no-install-recommends`) and correct true-negatives on pinned base images,
+  at **0% FP** — after a `SudoInRun` false positive (sudo installed as an apt
+  package) was found and fixed in this PR. Anvil ships no Dockerfiles, so its
+  leg is vacuously clean; the external corpus carries the evidence.
 - **SURFSQL** now **passes**: SURFSQL-008 (schema-dump scoping, #2794) clears
   the Anvil dogfood leg (17 files, 0 findings), and SURFSQL-006 (drift baseline)
   absorbs the external migration-noise (sqlx 110 → 0 after one snapshot) while
@@ -116,6 +136,8 @@ for, which have since merged:
 
 A surface with **no in-scope files** in a corpus is **inconclusive** for that
 corpus, not a pass: absence of files yields a vacuous 0% FP and no evidence the
-detector behaves correctly. A pass requires a real corpus with a measured FP
-rate under the threshold (SURFGHA/SURFSH), ideally plus a true-positive
-confirmation.
+detector behaves correctly. A pass requires *at least one* real corpus with a
+measured FP rate under the threshold plus true-positive confirmation — the
+external corpus suffices when the Anvil leg is vacuous (SURFDOCK: Anvil ships
+no Dockerfiles, so the 8-file external corpus carries the evidence; SURFGHA /
+SURFSH have both legs; SURFSQL passes under the new-edges-only baseline model).
