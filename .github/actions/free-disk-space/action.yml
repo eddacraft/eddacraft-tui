@@ -1,10 +1,10 @@
 name: 'Free disk space'
 description: >-
   Reclaim disk on GitHub-hosted ubuntu runners by removing preinstalled toolchains that the repo CI
-  jobs do not use (dotnet, GHC/ghcup, Android SDK, CodeQL bundles, Swift). The stock ubuntu-latest image
-  leaves limited free space on /, which large dependency/cache restores and build artifacts can
-  exhaust — surfacing as intermittent "No space left on device" failures that kill jobs mid-setup,
-  on a different job each run. Linux-only; a no-op on macOS/Windows.
+  jobs do not use (dotnet, GHC/ghcup, Android SDK, CodeQL bundles, Swift). The stock ubuntu-latest
+  image leaves limited free space on /, which large dependency/cache restores and build artifacts
+  can exhaust — surfacing as intermittent "No space left on device" failures that kill jobs
+  mid-setup, on a different job each run. Linux-only; a no-op on macOS/Windows.
 
 runs:
   using: composite
