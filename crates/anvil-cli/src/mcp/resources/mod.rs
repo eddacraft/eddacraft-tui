@@ -23,6 +23,12 @@ use anvil_intercept_proto::protocol::{
     GctxSearchSymbolsRequest, GctxSearchSymbolsResponse,
 };
 
+/// RMCPF-020 — the local-state `anvil://` resources (architecture baseline,
+/// suppressions, config, drift, constraints, anti-pattern catalogue). They read
+/// workspace files directly rather than forwarding to the daemon, so they live
+/// apart from the GCTX `graph://` egress code in this module.
+pub mod anvil;
+
 /// `graph://symbols` — all resident symbols, identity-only (reuses the
 /// `search_symbols` surface with no filters).
 pub const URI_SYMBOLS: &str = "graph://symbols";
@@ -36,7 +42,7 @@ const MIME_JSON: &str = "application/json";
 /// The `resources/list` descriptors for the three `graph://` resources.
 #[must_use]
 pub fn list() -> Vec<Value> {
-    vec![
+    let mut resources = vec![
         descriptor(
             URI_SYMBOLS,
             "Workspace symbols",
@@ -63,7 +69,11 @@ pub fn list() -> Vec<Value> {
              names — just totals. Same daemon/degradation contract as the other \
              `graph://` resources.",
         ),
-    ]
+    ];
+    // RMCPF-020: the local-state anvil:// resources are advertised alongside the
+    // graph:// ones in a single `resources/list`.
+    resources.extend(anvil::list());
+    resources
 }
 
 /// A [`read`] failure, classified for the JSON-RPC error code the dispatcher
@@ -100,6 +110,11 @@ impl ReadError {
 /// (unavailable/warming/disabled) is **not** an error — it rides in the sealed
 /// outcome the resource content carries (CE-7).
 pub fn read(uri: &str) -> Result<Value, ReadError> {
+    // RMCPF-020: the anvil:// resources read workspace-local state; route them
+    // to their own handler before the graph:// daemon-forwarding dispatch.
+    if uri.starts_with("anvil://") {
+        return anvil::read(uri);
+    }
     let (base, query) = split_uri(uri);
     let payload = match base {
         URI_SYMBOLS => read_symbols(&query)?,

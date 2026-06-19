@@ -454,7 +454,7 @@ fn extract_phases(lines: &[&str]) -> Vec<ApsPhase> {
 // =============================================================================
 
 #[derive(Debug, Serialize)]
-struct ConstraintData {
+pub(crate) struct ConstraintData {
     boundaries: Vec<BoundaryEntry>,
     layers: Vec<LayerEntry>,
     anti_patterns: Vec<AntiPatternEntry>,
@@ -554,7 +554,7 @@ fn default_conventions() -> Vec<ConventionEntry> {
     ]
 }
 
-fn collect_constraints(workspace_root: &std::path::Path) -> ConstraintData {
+pub(crate) fn collect_constraints(workspace_root: &std::path::Path) -> ConstraintData {
     let now = chrono::Utc::now().to_rfc3339();
     let root_str = workspace_root.to_string_lossy().to_string();
 

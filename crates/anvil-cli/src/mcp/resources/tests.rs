@@ -5,13 +5,23 @@
 use super::*;
 
 #[test]
-fn list_advertises_the_three_graph_resources() {
+fn list_advertises_the_graph_resources() {
     let uris: Vec<String> = list()
         .iter()
         .filter_map(|r| r.get("uri").and_then(Value::as_str).map(str::to_string))
         .collect();
-    assert_eq!(uris, vec![URI_SYMBOLS, URI_EDGES, URI_STATS]);
-    // Every resource is advertised read-only and JSON.
+    // The graph:// trio leads the aggregated `resources/list`; the RMCPF-020
+    // anvil:// resources follow (covered by the `anvil` submodule tests).
+    assert_eq!(
+        &uris[..3],
+        &[
+            URI_SYMBOLS.to_string(),
+            URI_EDGES.to_string(),
+            URI_STATS.to_string(),
+        ]
+    );
+    // Every advertised resource — graph:// and anvil:// alike — is read-only
+    // and JSON.
     for resource in list() {
         assert_eq!(resource["mimeType"], MIME_JSON);
         assert_eq!(resource["annotations"]["readOnlyHint"], json!(true));

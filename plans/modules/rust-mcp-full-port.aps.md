@@ -438,10 +438,11 @@ retirement decisions:
 
 #### RMCPF-020: Port MCP resources
 
-- **Status:** Ready (2026-06-19 — readiness pass: RMCPF-002 Done; inventory
-  dispositions all eight resources to Rust-owned sources; every named source
-  reader exists in the Rust tree (see Readiness note); validation harness
-  already present. Reconciled against GCTX-030.)
+- **Status:** In Progress (2026-06-19 — readiness pass passed and work started
+  on the `anvil://` resources; RMCPF-002 Done; inventory dispositions all eight
+  resources to Rust-owned sources; every named source reader exists in the Rust
+  tree (see Readiness note); validation harness already present. Reconciled
+  against GCTX-030.)
 - **Readiness (2026-06-19):** GCTX-030 (Merged 2026-06-18 via #2772) already
   shipped the MCP **resources substrate** this item assumed it would build:
   the `resources` capability is advertised at `initialize`, and `resources/list`
@@ -488,6 +489,49 @@ retirement decisions:
   source readers)
 - **Priority:** High
 - **Dependencies:** RMCPF-002, GCTX-030 (resources dispatch substrate — Merged)
+- **Closeout evidence (2026-06-19):** Seven state resources **ported** into a new
+  `crate::mcp::resources::anvil` submodule and advertised in `resources/list`
+  beside the GCTX `graph://` trio — `anvil://baseline`, `anvil://boundaries`,
+  `anvil://patterns`, `anvil://suppressions`, `anvil://config`,
+  `anvil://constraints`, `anvil://drift` — each sourced from its canonical Rust
+  reader (`anvil_architecture::baseline`, `anvil_checks::antipattern::patterns`,
+  `services::suppressions`, `anvil_config`, the `anvil export constraints`
+  aggregator, and the `commands::drift` snapshot readers). The local-state
+  `anvil://` resources are kept architecturally separate from the daemon-
+  forwarding, CE-5-gated `graph://` egress resources, but reuse the parent
+  module's URI/error helpers and the MCP tools' session-pinned-cwd root contract.
+  `anvil://file/{path}/warnings` is **retired** — folded into the shipped
+  `anvil_check` tool (the inventory-sanctioned disposition), so all eight archived
+  resources are dispositioned (7 ported + 1 retired). Three private readers were
+  widened to `pub(crate)` to keep one source of truth (no behaviour change):
+  `export::collect_constraints`/`ConstraintData`, `drift::compare_snapshots`/
+  `ComparisonOutput`, and a new `suppressions::load_suppressions_report`
+  (active set + total/active/expired summary; `load_suppressions` now delegates).
+  Streamable HTTP transport stays out of scope (RMCPF-021).
+- **Validation Evidence:** `cargo test -p eddacraft-anvil --bin anvil
+  mcp::resources` (13 unit) + `cargo test -p eddacraft-anvil --test
+  mcp_serve_stdio resources` (10 integration, incl. the 7 new `anvil://` cases
+  and the pre-existing graph cases) green on 2026-06-19; widened-module
+  regressions clean (`commands::drift::tests` 27, `commands::export::tests` 36,
+  `services::suppressions::tests` 3). `cargo clippy --workspace --all-targets --
+  -D warnings` and `cargo fmt --all --check` both clean. Parity deltas vs the
+  archived TS shapes (Rust-owned source models) are recorded in
+  `plans/specs/rust-mcp-full-port-inventory.md` for the RMCPF-030 harness.
+- **Council (2026-06-19):** Batch review (kernel-maintainer + adversarial). No
+  correctness bugs; the drift comparison ordering and the `load_suppressions`
+  delegation were confirmed equivalent. Egress findings **fixed in-PR**: absolute
+  workspace paths are now redacted from `config`/`baseline`/`drift` in-band error
+  messages and from `constraints` `metadata.workspace_root` (mirroring the MCP
+  tools' redaction); the drift corrupt-second-snapshot path now still returns
+  `latest`; unknown-URI is reported before query validation. The full-config
+  egress of `anvil://config` is a **conscious decision** (documented in code) —
+  it mirrors the archived contract and the `anvil config` surface, and `.anvil.*`
+  is architecture/check config, not a secret store. **Deferred follow-up
+  (recommend a CIB intake):** read size/count caps for the shared `load_baseline` /
+  drift-snapshot readers (a hostile local workspace with a huge or very-numerous
+  snapshot/baseline file is an unbounded read) — best fixed at the reader level so
+  `anvil drift`/baseline loading benefit too; out of scope for the MCP-resource
+  port and pre-existing in the CLI readers.
 
 ---
 

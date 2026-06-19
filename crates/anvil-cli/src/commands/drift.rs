@@ -292,7 +292,7 @@ struct MetricDelta {
 }
 
 #[derive(Debug, Serialize)]
-struct ComparisonOutput {
+pub(crate) struct ComparisonOutput {
     before: SnapshotRef,
     after: SnapshotRef,
     duration_days: f64,
@@ -788,7 +788,7 @@ fn list_snapshots(workspace: &Path) -> Result<Vec<SnapshotListEntry>> {
 
 // ── Comparison logic ────────────────────────────────────────────────
 
-fn compare_snapshots(before: &DriftSnapshot, after: &DriftSnapshot) -> ComparisonOutput {
+pub(crate) fn compare_snapshots(before: &DriftSnapshot, after: &DriftSnapshot) -> ComparisonOutput {
     #[allow(clippy::cast_precision_loss)] // duration in days — precision loss is acceptable
     let duration = chrono::DateTime::parse_from_rfc3339(&after.created_at)
         .ok()

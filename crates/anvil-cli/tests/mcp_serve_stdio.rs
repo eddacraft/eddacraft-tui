@@ -1616,6 +1616,192 @@ fn mcp_serve_stdio_oversize_frame_returns_protocol_error() {
     assert_eq!(parsed["error"]["code"], -32600);
 }
 
+// ── RMCPF-020: anvil:// resources ────────────────────────────────────
+
+/// Send a single `resources/read` for `uri` to a server rooted at `cwd` and
+/// return the parsed JSON-RPC response.
+fn read_anvil_resource(cwd: &Path, id: i64, uri: &str) -> Value {
+    let mut child = spawn_mcp_server_in(cwd);
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(
+            stdin,
+            "{}",
+            json!({
+                "jsonrpc": "2.0",
+                "id": id,
+                "method": "resources/read",
+                "params": { "uri": uri }
+            })
+        )
+        .expect("failed to send resources/read frame");
+    }
+    drop(child.stdin.take());
+
+    let line = recv_stdout_line(&mut child, &stdout_rx);
+    let status = wait_for_exit(&mut child);
+    assert!(
+        status.success(),
+        "mcp server must exit cleanly; status: {status:?}"
+    );
+    serde_json::from_str(&line).expect("resources/read response is JSON")
+}
+
+/// Extract and parse the JSON payload carried in a resource read's
+/// `contents[0].text`, asserting the envelope shape.
+fn anvil_resource_payload(parsed: &Value, uri: &str) -> Value {
+    let contents = parsed["result"]["contents"]
+        .as_array()
+        .unwrap_or_else(|| panic!("contents array for {uri}: {parsed}"));
+    assert_eq!(contents.len(), 1);
+    assert_eq!(contents[0]["uri"], uri);
+    assert_eq!(contents[0]["mimeType"], "application/json");
+    let text = contents[0]["text"]
+        .as_str()
+        .expect("contents text is a string");
+    serde_json::from_str(text).expect("contents text is JSON")
+}
+
+#[test]
+fn mcp_serve_stdio_resources_list_advertises_anvil_resources() {
+    let mut child = spawn_mcp_server();
+    let stdout = child.stdout.take().expect("child stdout is piped");
+    let stdout_rx = spawn_stdout_reader(stdout);
+    {
+        let stdin = child.stdin.as_mut().expect("child stdin is piped");
+        writeln!(
+            stdin,
+            "{}",
+            json!({ "jsonrpc": "2.0", "id": 40, "method": "resources/list" })
+        )
+        .expect("failed to send resources/list frame");
+    }
+    drop(child.stdin.take());
+
+    let line = recv_stdout_line(&mut child, &stdout_rx);
+    let status = wait_for_exit(&mut child);
+    assert!(
+        status.success(),
+        "mcp server must exit cleanly; status: {status:?}"
+    );
+
+    let parsed: Value = serde_json::from_str(&line).expect("resources/list response is JSON");
+    let uris: Vec<&str> = parsed["result"]["resources"]
+        .as_array()
+        .expect("resources is an array")
+        .iter()
+        .filter_map(|r| r["uri"].as_str())
+        .collect();
+    for expected in [
+        "anvil://baseline",
+        "anvil://boundaries",
+        "anvil://patterns",
+        "anvil://suppressions",
+        "anvil://config",
+        "anvil://constraints",
+        "anvil://drift",
+    ] {
+        assert!(uris.contains(&expected), "{expected} missing from {uris:?}");
+    }
+    // The graph:// resources are still advertised alongside.
+    assert!(uris.contains(&"graph://stats"), "got {uris:?}");
+}
+
+#[test]
+fn mcp_serve_stdio_resources_read_patterns_returns_catalogue() {
+    let workspace = tempfile::tempdir().expect("workspace dir exists");
+    let parsed = read_anvil_resource(workspace.path(), 41, "anvil://patterns");
+    let payload = anvil_resource_payload(&parsed, "anvil://patterns");
+    let count = payload["count"].as_u64().expect("count is a number");
+    assert!(count > 0, "catalogue should not be empty");
+    assert_eq!(
+        count,
+        u64::try_from(
+            payload["patterns"]
+                .as_array()
+                .expect("patterns array")
+                .len()
+        )
+        .expect("len fits u64")
+    );
+}
+
+#[test]
+fn mcp_serve_stdio_resources_read_baseline_reports_no_baseline_when_absent() {
+    let workspace = tempfile::tempdir().expect("workspace dir exists");
+    let parsed = read_anvil_resource(workspace.path(), 42, "anvil://baseline");
+    let payload = anvil_resource_payload(&parsed, "anvil://baseline");
+    assert_eq!(payload["error"], "no-baseline", "{payload}");
+}
+
+#[test]
+fn mcp_serve_stdio_resources_read_suppressions_summarises_active_and_expired() {
+    let workspace = tempfile::tempdir().expect("workspace dir exists");
+    std::fs::create_dir_all(workspace.path().join(".anvil")).expect("anvil dir is writable");
+    std::fs::write(
+        workspace.path().join(".anvil/suppressions.json"),
+        r#"{
+            "version": 1,
+            "suppressions": [
+                { "pattern_id": "AP-001", "file": "a.ts", "scope": "file", "reason": "active", "expires_at": "2099-12-31T00:00:00Z" },
+                { "pattern_id": "AP-002", "file": "b.ts", "scope": "file", "reason": "stale", "expires_at": "2020-01-01T00:00:00Z" }
+            ]
+        }"#,
+    )
+    .expect("suppressions file is writable");
+
+    let parsed = read_anvil_resource(workspace.path(), 43, "anvil://suppressions");
+    let payload = anvil_resource_payload(&parsed, "anvil://suppressions");
+    assert_eq!(payload["summary"]["total"], 2, "{payload}");
+    assert_eq!(payload["summary"]["active"], 1, "{payload}");
+    assert_eq!(payload["summary"]["expired"], 1, "{payload}");
+    assert_eq!(
+        payload["suppressions"].as_array().expect("array").len(),
+        1,
+        "only the active suppression is listed"
+    );
+}
+
+#[test]
+fn mcp_serve_stdio_resources_read_config_is_default_when_absent() {
+    let workspace = tempfile::tempdir().expect("workspace dir exists");
+    let parsed = read_anvil_resource(workspace.path(), 44, "anvil://config");
+    let payload = anvil_resource_payload(&parsed, "anvil://config");
+    assert_eq!(payload["isDefault"], true, "{payload}");
+    assert_eq!(payload["errors"].as_array().expect("errors array").len(), 0);
+}
+
+#[test]
+fn mcp_serve_stdio_resources_read_drift_reports_no_snapshots_when_empty() {
+    let workspace = tempfile::tempdir().expect("workspace dir exists");
+    let parsed = read_anvil_resource(workspace.path(), 45, "anvil://drift");
+    let payload = anvil_resource_payload(&parsed, "anvil://drift");
+    assert_eq!(payload["status"], "no-snapshots", "{payload}");
+    assert_eq!(payload["snapshotCount"], 0);
+}
+
+#[test]
+fn mcp_serve_stdio_resources_read_constraints_aggregates_without_baseline() {
+    let workspace = tempfile::tempdir().expect("workspace dir exists");
+    let parsed = read_anvil_resource(workspace.path(), 46, "anvil://constraints");
+    let payload = anvil_resource_payload(&parsed, "anvil://constraints");
+    // No baseline in a bare workspace, but the catalogue-sourced anti-patterns
+    // and metadata are always present.
+    assert_eq!(payload["metadata"]["has_baseline"], false, "{payload}");
+    // The absolute workspace root is redacted to the session-relative `.` before
+    // egress (council ADV-2).
+    assert_eq!(payload["metadata"]["workspace_root"], ".", "{payload}");
+    assert!(
+        !payload["anti_patterns"]
+            .as_array()
+            .expect("anti_patterns array")
+            .is_empty(),
+        "anti-pattern catalogue should populate constraints"
+    );
+}
+
 fn spawn_mcp_server() -> Child {
     Command::new(ANVIL_BIN)
         .arg("--no-tui")

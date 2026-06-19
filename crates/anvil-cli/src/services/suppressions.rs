@@ -33,26 +33,59 @@ struct RawSuppression {
     expires_at: Option<String>,
 }
 
+/// The active suppressions plus the active/expired counts over the whole store.
+///
+/// `anvil export` and the dashboard only need the active set, but the
+/// `anvil://suppressions` MCP resource surfaces the totals too (RMCPF-020), so
+/// the report keeps the expired tally that `load_suppressions` discards.
+#[derive(Debug, Clone)]
+pub(crate) struct SuppressionsReport {
+    /// Active (unexpired, well-formed expiry) suppressions.
+    pub(crate) active: Vec<SuppressionEntry>,
+    /// Total entries in the store (active + expired/malformed).
+    pub(crate) total: usize,
+    /// Entries dropped because their `expires_at` is in the past or malformed.
+    pub(crate) expired: usize,
+}
+
 /// Load active suppressions from `.anvil/suppressions.json`.
 ///
 /// Returns an empty vec when the file is absent or unparseable, and filters out
 /// entries whose `expires_at` is in the past or malformed (treated as expired).
 pub(crate) fn load_suppressions(workspace_root: &Path) -> Vec<SuppressionEntry> {
+    load_suppressions_report(workspace_root).active
+}
+
+/// Load the suppression store as an active-plus-counts [`SuppressionsReport`].
+///
+/// Same parse/expiry semantics as [`load_suppressions`] (absent/unparseable →
+/// an empty report; past or malformed `expires_at` counts as expired), but it
+/// retains the total and expired counts the active-only loader discards.
+pub(crate) fn load_suppressions_report(workspace_root: &Path) -> SuppressionsReport {
     let path = workspace_root.join(".anvil").join("suppressions.json");
     let Ok(content) = std::fs::read_to_string(&path) else {
-        return Vec::new();
+        return SuppressionsReport {
+            active: Vec::new(),
+            total: 0,
+            expired: 0,
+        };
     };
 
     let store: SuppressionStore = match serde_json::from_str(&content) {
         Ok(s) => s,
         Err(e) => {
             eprintln!("warning: could not parse {}: {e}", path.display());
-            return Vec::new();
+            return SuppressionsReport {
+                active: Vec::new(),
+                total: 0,
+                expired: 0,
+            };
         }
     };
 
     let now = chrono::Utc::now();
-    store
+    let total = store.suppressions.len();
+    let active: Vec<SuppressionEntry> = store
         .suppressions
         .into_iter()
         .filter(|s| match s.expires_at.as_ref() {
@@ -67,7 +100,14 @@ pub(crate) fn load_suppressions(workspace_root: &Path) -> Vec<SuppressionEntry> 
             reason: s.reason,
             expires_at: s.expires_at,
         })
-        .collect()
+        .collect();
+    let expired = total - active.len();
+
+    SuppressionsReport {
+        active,
+        total,
+        expired,
+    }
 }
 
 #[cfg(test)]
