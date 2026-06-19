@@ -55,12 +55,7 @@ pub fn resolve_python_import(
     // outside `workspace_root` (the `relative_slash` strip_prefix would drop
     // the result anyway, but reject early rather than rely on the last layer —
     // matching `rust_resolve`'s `from_file.starts_with(src_root)` precheck).
-    let from = Path::new(from_file);
-    if from.is_absolute()
-        || from
-            .components()
-            .any(|c| matches!(c, std::path::Component::ParentDir))
-    {
+    if !is_workspace_relative_slash_path(from_file) {
         return None;
     }
     if module.starts_with('.') {
@@ -132,6 +127,20 @@ fn existing_module_file(workspace_root: &Path, rel: &Path) -> Option<String> {
         return relative_slash(workspace_root, &workspace_root.join(&as_pkg));
     }
     None
+}
+
+fn is_workspace_relative_slash_path(path: &str) -> bool {
+    if path.starts_with('/') || path.starts_with('\\') || has_windows_drive_prefix(path) {
+        return false;
+    }
+    !Path::new(path)
+        .components()
+        .any(|c| matches!(c, std::path::Component::ParentDir))
+}
+
+fn has_windows_drive_prefix(path: &str) -> bool {
+    let bytes = path.as_bytes();
+    bytes.len() >= 2 && bytes[1] == b':' && bytes[0].is_ascii_alphabetic()
 }
 
 /// Whether `s` is a non-empty `.`-separated chain of ASCII Python identifiers.
@@ -290,6 +299,14 @@ mod tests {
         touch(tmp.path(), "app/x.py");
         assert_eq!(
             resolve_python_import(tmp.path(), "/etc/passwd", "app.x"),
+            None
+        );
+        assert_eq!(
+            resolve_python_import(tmp.path(), "\\etc\\passwd", "app.x"),
+            None
+        );
+        assert_eq!(
+            resolve_python_import(tmp.path(), "C:\\outside\\mod.py", "app.x"),
             None
         );
         assert_eq!(
