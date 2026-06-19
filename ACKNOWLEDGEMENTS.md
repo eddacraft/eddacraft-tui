@@ -138,7 +138,7 @@ used under the terms of its respective licence, reproduced in full below.
 
 ## Licence: MIT License
 
-Used by 342 crates. See the inventory table at the bottom of this file for the complete list.
+Used by 341 crates. See the inventory table at the bottom of this file for the complete list.
 
 <details>
 <summary>Licence text</summary>
@@ -1266,7 +1266,6 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `tree-sitter-cpp` | 0.23.4 | MIT License | https://github.com/tree-sitter/tree-sitter-cpp |
 | `tree-sitter-java` | 0.23.5 | MIT License | https://github.com/tree-sitter/tree-sitter-java |
 | `tree-sitter-kotlin-ng` | 1.1.0 | MIT License | https://github.com/tree-sitter-grammars/tree-sitter-kotlin |
-| `tree-sitter-python` | 0.25.0 | MIT License | https://github.com/tree-sitter/tree-sitter-python |
 | `tree-sitter-typescript` | 0.23.2 | MIT License | https://github.com/tree-sitter/tree-sitter-typescript |
 | `uuid-simd` | 0.8.0 | MIT License | https://github.com/Nugine/simd |
 | `vsimd` | 0.8.0 | MIT License | https://github.com/Nugine/simd |
@@ -1284,7 +1283,6 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `windows-strings` | 0.4.2 | MIT License | https://github.com/microsoft/windows-rs |
 | `windows-strings` | 0.5.1 | MIT License | https://github.com/microsoft/windows-rs |
 | `windows-sys` | 0.52.0 | MIT License | https://github.com/microsoft/windows-rs |
-| `windows-sys` | 0.59.0 | MIT License | https://github.com/microsoft/windows-rs |
 | `windows-sys` | 0.60.2 | MIT License | https://github.com/microsoft/windows-rs |
 | `windows-sys` | 0.61.2 | MIT License | https://github.com/microsoft/windows-rs |
 | `windows-targets` | 0.52.6 | MIT License | https://github.com/microsoft/windows-rs |
@@ -1368,6 +1366,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `kasuari` | 0.4.12 | MIT License | https://github.com/ratatui/kasuari |
 | `derive_more-impl` | 2.1.1 | MIT License | https://github.com/JelteF/derive_more |
 | `derive_more` | 2.1.1 | MIT License | https://github.com/JelteF/derive_more |
+| `tree-sitter-python` | 0.25.0 | MIT License | https://github.com/tree-sitter/tree-sitter-python |
 | `same-file` | 1.0.6 | MIT License | https://github.com/BurntSushi/same-file |
 | `winapi-util` | 0.1.11 | MIT License | https://github.com/BurntSushi/winapi-util |
 | `console` | 0.16.3 | MIT License | https://github.com/console-rs/console |
