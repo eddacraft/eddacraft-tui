@@ -133,6 +133,26 @@ gate registration + flag, then validation.
 - **Dependencies:** SURFDOCK-002, SURFDOCK-005
 - **Confidence:** medium
 
+### SURFDOCK-007 — BuildKit heredoc `RUN` body support
+
+- **Status:** In Progress
+- **Intent:** Close a false negative found during validation — `RUN`-family
+  rules (`apt-get`, pipe-to-shell, `sudo`) were silently skipped inside
+  `BuildKit` heredoc blocks (`RUN <<EOF … EOF`).
+- **Expected Outcome:** The instruction assembler folds a heredoc body into its
+  opening `RUN`, recognising `<<WORD`, `<<-WORD`, quoted `<<"WORD"`/`<<'WORD'`
+  and `<<EOT bash` openers, and closing on the delimiter line. The `<<` redirect
+  token is stripped so the folded instruction reads as a clean `RUN <commands>`
+  (command-position rules like `sudo` still resolve). An arithmetic/shift `<<`
+  (`$((1<<2))`) is not mistaken for a heredoc. Found via `docker/awesome-compose`
+  (5 real `apt-get`-in-heredoc findings previously missed); no new FPs.
+- **Files:** `crates/anvil-checks/src/surface/dockerfile/scanner.rs`
+- **Validation:** `cargo test -p eddacraft-anvil-checks --lib surface::dockerfile`
+  (6 new heredoc cases) + re-scan of `docker/awesome-compose` (2 → 7 findings,
+  all true positives).
+- **Dependencies:** SURFDOCK-002
+- **Confidence:** high
+
 ### Deferred risk families
 
 Root-user (missing `USER`) needs whole-file / final-stage analysis (multi-stage

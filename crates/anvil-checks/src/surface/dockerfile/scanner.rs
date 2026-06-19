@@ -144,16 +144,39 @@ struct Instruction {
 }
 
 /// Assemble logical instructions from raw lines: skip full-line `#` comments
-/// (Dockerfile comments must start the line) and join `\`-continued lines
-/// into one instruction. The start line is the first non-comment line.
+/// (Dockerfile comments must start the line), join `\`-continued lines into one
+/// instruction, and fold `BuildKit` heredoc bodies (`RUN <<EOF … EOF`) into the
+/// opening instruction so rules see the script they run. The start line is the
+/// first non-comment line.
 fn logical_instructions(lines: &[&str]) -> Vec<Instruction> {
     let mut out = Vec::new();
     let mut buf = String::new();
     let mut start: Option<usize> = None;
     let mut continuing = false;
+    // When inside a heredoc, the closing delimiter we are scanning for.
+    let mut heredoc: Option<String> = None;
 
     for (idx, raw) in lines.iter().enumerate() {
         let line_number = idx + 1;
+
+        // Inside a heredoc body: absorb every line into the current instruction
+        // until the closing delimiter (a line equal to the delimiter token),
+        // which ends the instruction. Body lines are kept verbatim so rules
+        // (apt-get / pipe-to-shell / sudo) see commands written there.
+        if let Some(delim) = heredoc.as_deref() {
+            let body = raw.trim();
+            if body == delim {
+                heredoc = None;
+                flush(&mut out, &mut buf, &mut start);
+            } else if !body.is_empty() {
+                if !buf.is_empty() {
+                    buf.push(' ');
+                }
+                buf.push_str(body);
+            }
+            continue;
+        }
+
         let trimmed = raw.trim();
         // A full-line comment only breaks a non-continued instruction; inside
         // a continuation it is skipped (Dockerfile allows comment lines there).
@@ -170,6 +193,25 @@ fn logical_instructions(lines: &[&str]) -> Vec<Instruction> {
             start = Some(line_number);
         }
         let body = trimmed.strip_suffix('\\').map_or(trimmed, str::trim_end);
+
+        // A heredoc opener (`RUN <<EOF`, `<<-EOF`, `<<"EOF"`, `… <<EOT bash`)
+        // suspends flushing until the closing delimiter. Keep only the
+        // instruction prefix before the `<<` redirect so the folded body reads
+        // as a clean `RUN <commands>` (the `<<EOT bash` noise would otherwise
+        // break command-position rules like sudo).
+        if let Some(delim) = heredoc_delimiter(body) {
+            let prefix = body[..body.find("<<").unwrap_or(body.len())].trim_end();
+            if !prefix.is_empty() {
+                if !buf.is_empty() {
+                    buf.push(' ');
+                }
+                buf.push_str(prefix);
+            }
+            heredoc = Some(delim);
+            continuing = false;
+            continue;
+        }
+
         if !buf.is_empty() {
             buf.push(' ');
         }
@@ -181,6 +223,30 @@ fn logical_instructions(lines: &[&str]) -> Vec<Instruction> {
     }
     flush(&mut out, &mut buf, &mut start);
     out
+}
+
+/// Extract a heredoc delimiter from an instruction line if it opens one.
+///
+/// Recognises the `BuildKit` forms `<<WORD`, `<<-WORD` and a quoted `<<"WORD"` /
+/// `<<'WORD'`. The delimiter must be an identifier (letter/underscore start)
+/// so an arithmetic/shift `<<` (e.g. `$((1<<2))`) is not mistaken for a
+/// heredoc. Anything after the delimiter on the opener (e.g. `<<EOT bash`) is
+/// ignored — only the closing-delimiter word matters.
+fn heredoc_delimiter(line: &str) -> Option<String> {
+    let after = &line[line.find("<<")? + 2..];
+    let after = after.strip_prefix('-').unwrap_or(after).trim_start();
+    let token: String = after.chars().take_while(|c| !c.is_whitespace()).collect();
+    let token = token.trim_matches(|c| c == '"' || c == '\'');
+    let mut chars = token.chars();
+    match chars.next() {
+        Some(c) if c.is_ascii_alphabetic() || c == '_' => {}
+        _ => return None,
+    }
+    if chars.all(|c| c.is_ascii_alphanumeric() || c == '_') {
+        Some(token.to_string())
+    } else {
+        None
+    }
 }
 
 fn flush(out: &mut Vec<Instruction>, buf: &mut String, start: &mut Option<usize>) {
@@ -412,5 +478,57 @@ mod tests {
         let content =
             "FROM node:20.11-alpine AS build\nWORKDIR /app\nCOPY . .\nRUN npm ci\nUSER node\n";
         assert!(scan_dockerfile("Dockerfile", content).is_empty());
+    }
+
+    // ── SURFDOCK-007: BuildKit heredoc RUN bodies ───────────────────
+
+    #[test]
+    fn heredoc_run_body_is_scanned_for_apt_recommends() {
+        // The awesome-compose false negative: apt-get inside `RUN <<EOF`.
+        let content = "RUN <<EOF\napt-get update\napt-get install -y git\nEOF\n";
+        assert_eq!(risks(content), vec![DockerRisk::AptMissingNoRecommends]);
+    }
+
+    #[test]
+    fn heredoc_run_body_is_scanned_for_pipe_to_shell() {
+        // A `<<EOT bash` opener with a pipe-to-shell install in the body.
+        let content = "RUN <<EOT bash\n    set -ex\n    curl -sSf https://example.com/install.sh | bash\nEOT\n";
+        assert_eq!(risks(content), vec![DockerRisk::PipeToShell]);
+    }
+
+    #[test]
+    fn heredoc_dash_and_quoted_delimiters_close_correctly() {
+        // `<<-EOF` (indent-stripping) and quoted `<<"EOF"` both close on EOF.
+        assert_eq!(
+            risks("RUN <<-EOF\n\tsudo apt-get update\nEOF\n"),
+            vec![DockerRisk::SudoInRun]
+        );
+        assert_eq!(
+            risks("RUN <<\"EOF\"\napt-get install -y nginx\nEOF\n"),
+            vec![DockerRisk::AptMissingNoRecommends]
+        );
+    }
+
+    #[test]
+    fn instruction_after_heredoc_resumes_normally() {
+        // Lines after the closing delimiter are ordinary instructions again.
+        let content = "RUN <<EOF\necho hi\nEOF\nRUN apt-get install -y curl\n";
+        assert_eq!(risks(content), vec![DockerRisk::AptMissingNoRecommends]);
+    }
+
+    #[test]
+    fn guarded_heredoc_body_is_clean() {
+        // `--no-install-recommends` inside the heredoc clears the apt rule.
+        let content =
+            "RUN <<EOF\napt-get update\napt-get install -y --no-install-recommends git\nEOF\n";
+        assert!(risks(content).is_empty());
+    }
+
+    #[test]
+    fn shift_operator_is_not_mistaken_for_a_heredoc() {
+        // A bash arithmetic shift must not open a heredoc and swallow lines.
+        let content = "RUN echo $((1<<2))\nADD https://example.com/x /tmp/\n";
+        // The ADD on the next line must still be seen (not absorbed).
+        assert_eq!(risks(content), vec![DockerRisk::AddRemoteFetch]);
     }
 }

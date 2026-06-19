@@ -78,6 +78,17 @@ wild. A broader external corpus closes that gap.
   resolved, and the Anvil leg is vacuously clean (no in-scope files). FP rate
   **0%** across 8 external Dockerfiles.
 
+#### Follow-up: heredoc false negative (SURFDOCK-007)
+
+A further corpus (`docker/awesome-compose`, 35 Dockerfiles) surfaced a **false
+negative**: `RUN`-family rules were silently skipped inside `BuildKit` heredoc
+blocks (`RUN <<EOF … EOF`), so `apt-get`/pipe-to-shell commands written there
+were missed (2 of 35 files use heredocs, the `# syntax=docker/dockerfile:1.4`
+form). SURFDOCK-007 folds the heredoc body into its opening `RUN`. After the
+fix the same corpus reports **7 findings, all true positives** (5 previously
+missed `apt-get`-in-heredoc + the 2 already-caught pipe-to-shell), still **0
+FP** — the fix recovers real coverage without over-firing.
+
 ### SURFSQL-007 — PASS (after SURFSQL-008 + SURFSQL-006)
 
 The first run was blocked by 29 `schema.sql` findings and a high external
