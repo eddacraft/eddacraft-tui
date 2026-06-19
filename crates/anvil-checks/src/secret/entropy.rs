@@ -184,16 +184,27 @@ mod tests {
     }
 
     #[test]
-    fn still_flags_secret_when_a_ulid_sits_on_the_same_line() {
-        // The ULID allowlist must suppress only the ULID itself, not a
-        // genuine secret elsewhere on the line.
-        let config = SecretCheckConfig {
-            entropy_threshold: 3.5,
-            ..SecretCheckConfig::default()
-        };
-        let content = "const token = '9xY7qW2vK8mN4pR6sT1uV3wX';";
+    fn ulid_is_suppressed_but_a_real_secret_still_flags() {
+        // Exercise the allowlist path directly: a ULID (line 1) must be
+        // withheld while a genuine high-entropy secret (line 2) still fires —
+        // the allowlist must suppress only the ULID, nothing else. Uses the
+        // default threshold so it reflects production behaviour.
+        let config = SecretCheckConfig::default();
+        let content = "const id = '0123456789ABCDEFGHJKMNPQRS';\n\
+                       const token = '7kQ2mZ9pV4xL8nB3rW6tC1yH5jD0sF';";
         let findings = detect_high_entropy_strings(content, "src/auth.ts", &config);
-        assert!(!findings.is_empty(), "real secret must still fire");
+        assert!(
+            findings.iter().any(|f| f.line == 2),
+            "real secret on line 2 must still flag, got: {:?}",
+            findings
+                .iter()
+                .map(|f| (f.line, &f.redacted_match))
+                .collect::<Vec<_>>()
+        );
+        assert!(
+            !findings.iter().any(|f| f.line == 1),
+            "ULID on line 1 must be suppressed by the allowlist"
+        );
     }
 
     #[test]

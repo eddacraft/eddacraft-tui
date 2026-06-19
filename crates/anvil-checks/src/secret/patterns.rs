@@ -157,7 +157,13 @@ pub const DEFAULT_SHAPE_ALLOWLIST: [&str; 6] = [
     // diverse ULID reaches entropy ≈ 4.70 and trips the detector; it is a
     // public record identifier, never a secret. UUIDs need no entry — their
     // 16-symbol hex alphabet caps entropy at 4.0, below the 4.5 threshold.
-    r"^[0-9A-HJKMNP-TV-Z]{26}$",
+    //
+    // Anchored to the ULID-spec timestamp constraint — the first character
+    // encodes the high bits of the 48-bit millisecond timestamp and is `0`–`7`
+    // for any ULID minted before the year ~10889 — so an arbitrary 26-char
+    // Crockford run starting `8`–`Z` is *not* allowlisted, keeping the
+    // suppression as narrow as possible.
+    r"^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
 ];
 
 /// Keyword allowlist: suppresses fuzzy detections (entropy + low-confidence
@@ -183,7 +189,7 @@ pub const DEFAULT_ALLOWLIST: [&str; 12] = [
     r"^[a-f0-9]{64}$",
     r"^0x[a-f0-9]+$",
     r"^data:image\/[a-z]+;base64,",
-    r"^[0-9A-HJKMNP-TV-Z]{26}$",
+    r"^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
     r"placeholder",
     r"example",
     r"test",
