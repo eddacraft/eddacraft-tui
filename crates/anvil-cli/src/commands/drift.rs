@@ -726,38 +726,49 @@ pub(crate) fn list_snapshot_files(workspace: &Path) -> Result<Vec<PathBuf>> {
 /// [`list_snapshot_files`] with an explicit scan cap, so the count guard is
 /// testable without creating thousands of fixtures.
 fn list_snapshot_files_capped(workspace: &Path, cap: usize) -> Result<Vec<PathBuf>> {
+    use std::cmp::Reverse;
+    use std::collections::BinaryHeap;
+    use std::time::SystemTime;
+
     let dir = snapshots_dir(workspace);
     if !dir.exists() {
         return Ok(Vec::new());
     }
 
-    let mut files: Vec<PathBuf> = std::fs::read_dir(&dir)?
-        .filter_map(std::result::Result::ok)
-        .map(|e| e.path())
-        .filter(|p| {
-            p.extension().is_some_and(|e| e == "json")
-                && p.file_name()
-                    .is_some_and(|n| n.to_string_lossy().starts_with(SNAPSHOT_PREFIX))
-        })
-        .collect();
-
-    // CIB-084: bound the number of snapshots we read+parse to sort. A
-    // pathological `.anvil/snapshots/` (thousands of files) would otherwise force
-    // an unbounded number of per-file reads. Keep the most recent `cap` by mtime
-    // — a cheap stat, no file open — so the comparison and the created_at sort
-    // below operate on the genuinely newest snapshots, not arbitrary read_dir
-    // order.
-    if files.len() > cap {
-        let total = files.len();
-        files.sort_by_cached_key(|p| std::fs::metadata(p).and_then(|m| m.modified()).ok());
-        files.reverse(); // newest first; unreadable-mtime files sort last (dropped first)
-        files.truncate(cap);
+    // CIB-084: keep only the `cap` most-recent snapshots (by mtime) in memory as
+    // we scan, so a pathological `.anvil/snapshots/` can force neither an
+    // unbounded path list here nor an unbounded number of content reads below.
+    // mtime is a cheap stat (no file open); the authoritative `created_at` sort
+    // runs on the bounded set. Unreadable mtimes sort oldest (evicted first).
+    let mut newest: BinaryHeap<Reverse<(SystemTime, PathBuf)>> = BinaryHeap::new();
+    let mut total = 0usize;
+    for entry in std::fs::read_dir(&dir)?.filter_map(std::result::Result::ok) {
+        let path = entry.path();
+        let is_snapshot = path.extension().is_some_and(|e| e == "json")
+            && path
+                .file_name()
+                .is_some_and(|n| n.to_string_lossy().starts_with(SNAPSHOT_PREFIX));
+        if !is_snapshot {
+            continue;
+        }
+        total += 1;
+        let mtime = entry
+            .metadata()
+            .and_then(|m| m.modified())
+            .unwrap_or(SystemTime::UNIX_EPOCH);
+        newest.push(Reverse((mtime, path)));
+        if newest.len() > cap {
+            newest.pop(); // evict the oldest, so memory never exceeds `cap`
+        }
+    }
+    if total > cap {
         eprintln!(
             "warning: {total} drift snapshots in {}; using the {cap} most recent \
              (older snapshots ignored)",
             dir.display(),
         );
     }
+    let files: Vec<PathBuf> = newest.into_iter().map(|Reverse((_, p))| p).collect();
 
     // Sort by the `created_at` timestamp embedded in each snapshot's JSON
     // (descending — newest first). Named snapshots don't encode a timestamp
