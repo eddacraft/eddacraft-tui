@@ -2,16 +2,19 @@
 
 | ID   | Owner      | Status      | Progress |
 | ---- | ---------- | ----------- | -------- |
-| TCOV | @eddacraft | In Progress | 19/25    |
+| TCOV | @eddacraft | In Progress | 22/25    |
 
 ## Progress (as of 2026-06-20)
 
-- **Ready surface delivered 2026-06-20.** All five Ready items merged: TCOV-015
-  (#2819), TCOV-016 (#2820), TCOV-017 (#2817), TCOV-018 (#2818), and TCOV-025
-  (#2816). Done count 14 → 19/25. Remaining six are Blocked: TCOV-019..-021
-  (`needs decision` — archived mcp-server target under ADR-033) and
-  TCOV-022..-024 (`scope drift` — anvil-tui rename needs a scope-refresh design
-  call). No further Ready work remains in this module without an owner decision.
+- **Ready surface delivered + MCP items reconciled 2026-06-20.** All five Ready
+  items merged: TCOV-015 (#2819), TCOV-016 (#2820), TCOV-017 (#2817), TCOV-018
+  (#2818), TCOV-025 (#2816). The three mcp-server items (TCOV-019..-021) were
+  resolved as **Complete (covered by the Rust RMCPF port, #2809)** — the MCP
+  capability returned in Rust already comprehensively tested, so the archived TS
+  targets are retired rather than re-tested (owner decision). Done count 14 →
+  22/25. The only remaining open items are TCOV-022..-024 (`scope drift` —
+  anvil-tui rename needs a scope-refresh design call), still Blocked pending
+  that design decision.
 
 ## Progress (as of 2026-05-28)
 
@@ -344,17 +347,18 @@ Change status to **Ready** when:
 
 ### Phase 3 — TypeScript Package Coverage
 
-> **mcp-server items re-classified 2026-05-28 (needs decision).** TCOV-019,
-> -020, and -021 target `archive/anvil-mcp-server/`, which was **archived under
-> ADR-033 (2026-04-29)** and is **excluded from the pnpm workspace**
-> (`pnpm-workspace.yaml:51` — `!archive/**`); it is no longer an nx project and
-> is not built or tested in CI. The original Phase 3 progress note
-> (2026-04-21) predates that archival. Raising coverage on archived,
-> out-of-workspace code is almost certainly not worth doing — but **retire vs
-> keep is a scope decision**, so these three items are marked
-> `Blocked — needs decision` rather than fleshed to Ready. The
-> edda-stack and kindling-integration items (TCOV-014..-018) are unaffected and
-> are Ready. Phase 3 Ready surface is therefore TCOV-015..-018 (TCOV-014 Done).
+> **mcp-server items resolved 2026-06-20 (covered by RMCPF).** TCOV-019, -020,
+> and -021 targeted `archive/anvil-mcp-server/`, archived under **ADR-033
+> (2026-04-29)** and excluded from the pnpm workspace (`pnpm-workspace.yaml:51`
+> — `!archive/**`). They sat `Blocked — needs decision` until the MCP capability
+> returned **in Rust** via the RMCPF port (#2809): `crates/anvil-cli/src/mcp/`
+> now provides the `anvil://` resources and MCP tools, with the editor-config
+> install path in `util.rs`. That port arrived already covered — ~304 MCP tests
+> plus 21 install-path tests — so the original coverage intent is met without
+> re-testing the dead TS surface. **Owner decision 2026-06-20: reconcile all
+> three as Complete (covered-by-RMCPF); the archived TS targets stay retired.**
+> The edda-stack and kindling-integration items (TCOV-014..-018) shipped
+> separately (TCOV-014 Done earlier; TCOV-015..-018 Merged 2026-06-20).
 
 #### TCOV-014: edda-stack contracts layer tests
 
@@ -456,9 +460,15 @@ Change status to **Ready** when:
 - **Validation:** Each resource test file passes independently; combined
   coverage ≥80%.
 - **Confidence:** high
-- **Status:** Blocked — needs decision. Target is archived under ADR-033 and
-  excluded from the workspace; retire this item or keep it pending an owner
-  call (see the Phase 3 callout above).
+- **Status:** Complete 2026-06-20 — superseded by the Rust MCP server (RMCPF,
+  #2809). The archived TS `*.resource.ts` target stays retired under ADR-033;
+  the equivalent coverage now lives in `crates/anvil-cli/src/mcp/resources/`
+  (`anvil.rs` + `tests.rs`, 14 tests) covering each `anvil://` resource
+  (baseline, boundaries, patterns, suppressions, config, constraints, drift) as
+  part of the ~304-test MCP suite (`cargo test -p eddacraft-anvil --bins mcp`).
+  `anvil://file/{path}/warnings` was deliberately retired in the port. Owner
+  decision 2026-06-20: reconcile as covered-by-RMCPF rather than re-test the
+  dead TS surface.
 
 #### TCOV-020: mcp-server config generator tests
 
@@ -472,8 +482,12 @@ Change status to **Ready** when:
 - **Dependencies:** —
 - **Validation:** Config module reaches ≥80% line coverage.
 - **Confidence:** high
-- **Status:** Blocked — needs decision (archived target under ADR-033,
-  excluded from the workspace; see the Phase 3 callout above).
+- **Status:** Complete 2026-06-20 — superseded by the Rust MCP server (RMCPF,
+  #2809). The TS per-editor generators stay retired under ADR-033; the live
+  Rust analog is the MCP-config install path (`crates/anvil-cli/src/util.rs`,
+  writing `~/.cursor/mcp.json` / `~/.claude.json`), covered by 21 tests
+  including the symlink-safety threat model (LAUNCH-009.5). Owner decision
+  2026-06-20: reconcile as covered-by-RMCPF.
 
 #### TCOV-021: mcp-server transport and entry point tests
 
@@ -489,8 +503,12 @@ Change status to **Ready** when:
 - **Dependencies:** —
 - **Validation:** ≥80% line coverage for the mcp-server package.
 - **Confidence:** medium — entry points may need process-level testing
-- **Status:** Blocked — needs decision (archived target under ADR-033,
-  excluded from the workspace; see the Phase 3 callout above).
+- **Status:** Complete 2026-06-20 — superseded by the Rust MCP server (RMCPF,
+  #2809). The archived TS transport/entry points stay retired under ADR-033;
+  the Rust MCP server runs in-process under `anvil-cli` (no separate
+  `streamable-http`/`bin` surface), and the tools/enforcement/validation paths
+  carry ~304 MCP tests. Owner decision 2026-06-20: reconcile as
+  covered-by-RMCPF.
 
 ### Phase 4 — Rust TUI Coverage
 
