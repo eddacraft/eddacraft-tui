@@ -1149,13 +1149,13 @@ fn run_start(args: &StartArgs) -> Result<()> {
         // daemon still serves, just without these observation rows.
         #[cfg(any(unix, windows))]
         let opts = {
-            let (em, sink) = crate::usage::daemon_observation_producers();
+            let (em, sink, include_paths) = crate::usage::daemon_observation_producers();
             let opts = match em {
                 Some(e) => opts.with_observation_emitter(e),
                 None => opts,
             };
             match sink {
-                Some(s) => opts.with_observation_sink(s),
+                Some(s) => opts.with_observation_sink(s, include_paths),
                 None => opts,
             }
         };

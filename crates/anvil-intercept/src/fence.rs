@@ -279,6 +279,11 @@ struct FenceTelemetry {
 struct FenceObservation {
     sink: Arc<dyn crate::kindling_observation::KindlingObservationSink>,
     daemon_session_id: String,
+    /// DPO-002 (council C): whether the absolute worktree path may appear
+    /// on the `constraint_applied` row. Threaded from the same
+    /// `ANVIL_OBSERVATION_INCLUDE_PATHS` posture the save-time emitter
+    /// uses; when `false` the row's `worktree` field is redacted.
+    include_paths: bool,
 }
 
 impl FenceStore {
@@ -298,13 +303,18 @@ impl FenceStore {
     /// [`Self::with_telemetry`] builder pattern; independent of telemetry so a
     /// host can wire either, both, or neither. Production wires this from
     /// `anvil-cli` alongside the other observation surfaces.
+    ///
+    /// `include_paths` (council C) gates whether the row carries the real
+    /// absolute worktree path; pass the same value the save-time emitter
+    /// derives from `ANVIL_OBSERVATION_INCLUDE_PATHS`.
     #[must_use]
     pub fn with_observation_sink(
         self,
         sink: Arc<dyn crate::kindling_observation::KindlingObservationSink>,
         daemon_session_id: String,
+        include_paths: bool,
     ) -> Self {
-        self.set_observation_sink(sink, daemon_session_id);
+        self.set_observation_sink(sink, daemon_session_id, include_paths);
         self
     }
 
@@ -314,6 +324,7 @@ impl FenceStore {
         &self,
         sink: Arc<dyn crate::kindling_observation::KindlingObservationSink>,
         daemon_session_id: String,
+        include_paths: bool,
     ) {
         *self
             .observation
@@ -321,6 +332,7 @@ impl FenceStore {
             .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(FenceObservation {
             sink,
             daemon_session_id,
+            include_paths,
         });
     }
 
@@ -556,10 +568,15 @@ impl FenceStore {
         // `from_fence`).
         //
         // Emit BEFORE the fence-file persist (ADR-088 / council T4):
-        // fence rows are audit-grade, so we accept a rare duplicate on a
-        // crash between emit and persist over silently losing the engage
-        // record. The sink contract is non-blocking and errors are
-        // swallowed, so this cannot fail or stall the persist below.
+        // emitting first gives best-effort ORDERING (the row tends to
+        // precede the persisted state). The row itself is BEST-EFFORT, not
+        // guaranteed (council D): it crosses the non-blocking sink boundary
+        // and can be dropped on a full channel. The authoritative record of
+        // which worktrees are fenced is the persistent fence-state file
+        // written by `save()` below — the observation row is a queryable
+        // signal, not the source of truth. The sink contract is
+        // non-blocking and errors are swallowed, so this cannot fail or
+        // stall the persist.
         let constraint_reason = if cascade_engaged {
             crate::telemetry::DEGRADED_FENCE_CASCADE
         } else {
@@ -590,6 +607,7 @@ impl FenceStore {
             &worktree.display().to_string(),
             reason,
             cascade,
+            observation.include_paths,
         );
         if let Err(err) = observation.sink.try_emit_constraint_applied(row) {
             tracing::warn!(
@@ -1640,6 +1658,7 @@ mod tests {
         let store = store_in(&temp).with_observation_sink(
             Arc::clone(&recorder) as Arc<dyn KindlingObservationSink>,
             "daemon-session-fence".to_string(),
+            true,
         );
 
         store
@@ -1657,6 +1676,62 @@ mod tests {
             "free-form reason must normalise to the bounded token",
         );
         assert!(!row.cascade, "an ordinary engage is not a cascade");
+        assert_ne!(
+            row.worktree, "<redacted>",
+            "include_paths=true keeps the real worktree path on the row",
+        );
+    }
+
+    /// DPO-002 (council C): with `include_paths=false` the engage row's
+    /// worktree is redacted to the schema-stable placeholder; with
+    /// `include_paths=true` the real canonical path is present. Pins the
+    /// path-suppression gate that mirrors the save-time `gate_evaluated`
+    /// `ANVIL_OBSERVATION_INCLUDE_PATHS` posture.
+    #[test]
+    fn fence_engage_redacts_worktree_when_include_paths_false() {
+        use crate::kindling_observation::{
+            KindlingObservationSink, RecordingKindlingObservationSink,
+        };
+
+        // include_paths = false → worktree redacted.
+        let temp = tempfile::tempdir().expect("tempdir");
+        let worktree = make_worktree();
+        let recorder = Arc::new(RecordingKindlingObservationSink::new());
+        let store = store_in(&temp).with_observation_sink(
+            Arc::clone(&recorder) as Arc<dyn KindlingObservationSink>,
+            "daemon-session-fence".to_string(),
+            false,
+        );
+        store
+            .fence_worktree(worktree.path(), "rule violation")
+            .expect("fence worktree");
+        let rows = recorder.recorded_constraints();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(
+            rows[0].worktree, "<redacted>",
+            "include_paths=false must redact the worktree path",
+        );
+
+        // include_paths = true → worktree present (the canonical path).
+        let temp_on = tempfile::tempdir().expect("tempdir");
+        let worktree_on = make_worktree();
+        let canonical = worktree_on.path().canonicalize().expect("canonicalise");
+        let recorder_on = Arc::new(RecordingKindlingObservationSink::new());
+        let store_on = store_in(&temp_on).with_observation_sink(
+            Arc::clone(&recorder_on) as Arc<dyn KindlingObservationSink>,
+            "daemon-session-fence".to_string(),
+            true,
+        );
+        store_on
+            .fence_worktree(worktree_on.path(), "rule violation")
+            .expect("fence worktree");
+        let rows_on = recorder_on.recorded_constraints();
+        assert_eq!(rows_on.len(), 1);
+        assert_eq!(
+            rows_on[0].worktree,
+            canonical.display().to_string(),
+            "include_paths=true must keep the real worktree path",
+        );
     }
 
     /// DPO-002: a cascade-engaging fire (the 5th within 60s) emits a row with
@@ -1675,6 +1750,7 @@ mod tests {
         let store = store_in(&temp).with_observation_sink(
             Arc::clone(&recorder) as Arc<dyn KindlingObservationSink>,
             "daemon-session-fence".to_string(),
+            true,
         );
 
         for i in 0..5 {
@@ -1712,6 +1788,7 @@ mod tests {
         let store = store_in(&temp).with_observation_sink(
             Arc::clone(&recorder) as Arc<dyn KindlingObservationSink>,
             "daemon-session-fence".to_string(),
+            true,
         );
 
         let record = store

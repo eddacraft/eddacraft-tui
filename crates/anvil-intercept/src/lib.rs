@@ -335,6 +335,13 @@ pub struct ForegroundOpts {
     /// via [`Self::with_observation_sink`].
     #[cfg(any(unix, windows))]
     observation_sink: Option<Arc<dyn kindling_observation::KindlingObservationSink>>,
+    /// DPO-002 (council C): whether the fence `constraint_applied` row may
+    /// carry the absolute worktree path. Set alongside [`Self::observation_sink`]
+    /// by [`Self::with_observation_sink`]; defaults to `false` (path
+    /// suppressed) so a host that wires a sink without opting into paths
+    /// never leaks one.
+    #[cfg(any(unix, windows))]
+    observation_include_paths: bool,
     #[cfg(unix)]
     ipc_socket: Option<PathBuf>,
     #[cfg(windows)]
@@ -359,6 +366,8 @@ impl ForegroundOpts {
             observation_emitter: None,
             #[cfg(any(unix, windows))]
             observation_sink: None,
+            #[cfg(any(unix, windows))]
+            observation_include_paths: false,
             #[cfg(unix)]
             ipc_socket: None,
             #[cfg(windows)]
@@ -383,6 +392,7 @@ impl ForegroundOpts {
             usage_emitter: None,
             observation_emitter: None,
             observation_sink: None,
+            observation_include_paths: false,
             ipc_socket: Some(ipc_socket.into()),
         }
     }
@@ -404,6 +414,7 @@ impl ForegroundOpts {
             usage_emitter: None,
             observation_emitter: None,
             observation_sink: None,
+            observation_include_paths: false,
             ipc_pipe_name: Some(ipc_pipe_name.into()),
         }
     }
@@ -510,13 +521,20 @@ impl ForegroundOpts {
     /// emitter writes through, so both producers fan into one drain
     /// thread. Without it fence engages produce no observation row (the
     /// default). Mirrors [`Self::with_usage_emitter`].
+    ///
+    /// `include_paths` (council C) gates whether the engage row carries the
+    /// absolute worktree path; `anvil-cli` passes the same value the
+    /// save-time emitter derives from `ANVIL_OBSERVATION_INCLUDE_PATHS` so
+    /// both surfaces honour one privacy posture.
     #[cfg(any(unix, windows))]
     #[must_use]
     pub fn with_observation_sink(
         mut self,
         sink: Arc<dyn kindling_observation::KindlingObservationSink>,
+        include_paths: bool,
     ) -> Self {
         self.observation_sink = Some(sink);
+        self.observation_include_paths = include_paths;
         self
     }
 
@@ -1308,9 +1326,11 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
                 || uuid::Uuid::new_v4().to_string(),
                 |e| e.daemon_session_id().to_owned(),
             );
-            daemon_state
-                .fence_store
-                .set_observation_sink(sink, daemon_session_id);
+            daemon_state.fence_store.set_observation_sink(
+                sink,
+                daemon_session_id,
+                opts.observation_include_paths,
+            );
         }
         // INTD-011: the production status provider reads sessions from
         // the daemon's registry, fences from the persisted store, and

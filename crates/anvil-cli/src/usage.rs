@@ -369,22 +369,43 @@ fn trim_usage_sidecar(path: &Path) {
 
 /// Testable core of [`trim_usage_sidecar`] with an injected clock. `now`
 /// drives the age cut-off so tests can age rows deterministically.
+///
+/// Best-effort observability housekeeping (council A): the
+/// read→write-tmp→rename rewrite races with concurrent `O_APPEND` writers
+/// (the non-blocking drain thread and any separate CLI process). A row
+/// appended during the rewrite window can be lost. This is ACCEPTED — the
+/// usage sidecar holds best-effort observability rows, not
+/// billing/audit-critical state; the authoritative records live elsewhere
+/// (the kindling store once KDS lands, and the persistent fence-state file
+/// for fence engages). No file lock is taken (no new dependency); council
+/// B's fast-path gate keeps the rewrite rare (only near the cap or with a
+/// stale head), shrinking the race window further.
 fn trim_usage_sidecar_at(path: &Path, now: chrono::DateTime<Utc>) {
     let Ok(meta) = fs::metadata(path) else {
         return; // No file yet — nothing to trim.
     };
     let size = meta.len();
-    // Fast path: a small file with no possibility of stale leading rows is
-    // still cheap to age-check, but skip the read entirely when it's well
-    // under the byte cap AND empty.
     if size == 0 {
         return;
     }
+    let cutoff = now - chrono::Duration::from_std(USAGE_SIDECAR_MAX_AGE).unwrap_or_default();
+
+    // Council B fast-path: avoid reading + rewriting the whole file on every
+    // append. The full read is only needed when EITHER a size trim is due
+    // (file at/over the byte cap) OR an age trim might be due (the FIRST,
+    // oldest line is stale). Reading just the first line is cheap; if the
+    // file is under the cap AND the head line is not stale, there is nothing
+    // to trim, so return without the full read. A malformed/unreadable first
+    // line falls through to the full read (correctness over the fast path).
+    let needs_size_trim = size >= USAGE_SIDECAR_MAX_BYTES;
+    if !needs_size_trim && !first_line_is_stale(path, cutoff) {
+        return;
+    }
+
     let Ok(contents) = fs::read_to_string(path) else {
         return; // Unreadable (or non-UTF8) — leave it untouched.
     };
     let lines: Vec<&str> = contents.lines().collect();
-    let cutoff = now - chrono::Duration::from_std(USAGE_SIDECAR_MAX_AGE).unwrap_or_default();
 
     // Index of the first line to KEEP after dropping stale leading rows.
     let mut start = 0usize;
@@ -418,10 +439,45 @@ fn trim_usage_sidecar_at(path: &Path, now: chrono::DateTime<Utc>) {
     // Best-effort atomic-ish replace: write a temp sibling then rename.
     // A failure leaves the original intact (retention is housekeeping).
     let tmp = path.with_extension("ndjson.trim.tmp");
+    // Council A: apply the same symlink-refusal guard the sidecar itself
+    // uses to the trim temp path — a pre-planted symlink at the `.trim.tmp`
+    // location must not be allowed to redirect the truncating write to an
+    // attacker-chosen target. Refuse and bail (best-effort housekeeping
+    // never escalates to a write through a symlink).
+    if let Ok(meta) = fs::symlink_metadata(&tmp)
+        && meta.file_type().is_symlink()
+    {
+        return;
+    }
     if write_private_file(&tmp, rewritten.as_bytes()).is_ok() {
         let _ = fs::rename(&tmp, path);
     } else {
         let _ = fs::remove_file(&tmp);
+    }
+}
+
+/// Council B fast-path helper: cheaply test whether the FIRST (oldest) line
+/// of the sidecar is older than `cutoff`, reading only that line rather
+/// than the whole file. Returns `false` when the file cannot be opened, the
+/// first line cannot be read, or the line is not stale — and `true` only
+/// when the head line parses to a `timestamp` strictly older than `cutoff`.
+///
+/// A malformed/unreadable first line returns `false`; the caller treats
+/// that as "fast-path inconclusive" and falls through to the full read,
+/// which has the authoritative malformed-line-keeps semantics. So a
+/// malformed head never causes data loss here either.
+fn first_line_is_stale(path: &Path, cutoff: chrono::DateTime<Utc>) -> bool {
+    use std::io::BufRead as _;
+
+    let Ok(file) = fs::File::open(path) else {
+        return false;
+    };
+    let mut reader = io::BufReader::new(file);
+    let mut first = String::new();
+    match reader.read_line(&mut first) {
+        Ok(n) if n > 0 => line_is_older_than(first.trim_end_matches('\n'), cutoff),
+        // Empty file (0 bytes) or read error: inconclusive — fall through.
+        _ => false,
     }
 }
 
@@ -677,6 +733,9 @@ impl KindlingObservationSink for DaemonUsageSink {
 /// behind the [`NonBlockingObservationSink`] decorator it is logged on
 /// the drain thread and dropped, never coupling the verdict / engage hot
 /// path to sink health.
+// KDS-005: retire alongside DaemonUsageSink when the kindling daemon store
+// lands (the NDJSON sidecar is the interim transport until the SQLite
+// bridge exists).
 #[derive(Debug)]
 struct DaemonObservationSink {
     path: PathBuf,
@@ -748,13 +807,36 @@ pub fn daemon_usage_emitter() -> Option<Arc<CommandInvokedEmitter>> {
 ///
 /// `include_paths` is OFF unless `ANVIL_OBSERVATION_INCLUDE_PATHS=1`
 /// (default-off: a clean verdict records only the path count, not the
-/// validated paths). On an unresolvable usage path returns `(None, None)`
-/// so a daemon on a host without a resolvable state dir still starts.
+/// validated paths) and is returned as the third tuple element so the
+/// fence surface can apply the SAME posture to its `constraint_applied`
+/// worktree field (council C). On an unresolvable usage path returns
+/// `(None, None, false)` so a daemon on a host without a resolvable state
+/// dir still starts.
+///
+/// Whole-DPO kill-switch (council J): when
+/// `ANVIL_INTERCEPT_DISABLE_OBSERVATION=1` is set, this returns
+/// `(None, None, false)` with a `tracing::warn!` — no producers are wired
+/// at all, mirroring the `ANVIL_INTERCEPT_DISABLE_SYMBOL_PARSER`
+/// break-glass for the verdict path. This is the single env toggle that
+/// silences both the save-time `gate_evaluated` and the fence
+/// `constraint_applied` producers without a redeploy.
 #[must_use]
 pub fn daemon_observation_producers() -> (
     Option<Arc<SaveTimeObservationEmitter>>,
     Option<Arc<dyn KindlingObservationSink>>,
+    bool,
 ) {
+    // Whole-DPO kill-switch (council J): one env toggle disables every DPO
+    // producer. Read fresh so an operator can flip it per daemon start.
+    if env::var_os("ANVIL_INTERCEPT_DISABLE_OBSERVATION").is_some_and(|v| v == "1") {
+        tracing::warn!(
+            target: "anvil::usage",
+            "ANVIL_INTERCEPT_DISABLE_OBSERVATION=1 — save-time + fence observation \
+             producers disabled (break-glass)",
+        );
+        return (None, None, false);
+    }
+
     let Some(path) = default_usage_log_path()
         .map_err(|err| {
             tracing::warn!(
@@ -765,7 +847,7 @@ pub fn daemon_observation_producers() -> (
         })
         .ok()
     else {
-        return (None, None);
+        return (None, None, false);
     };
 
     let include_paths = env::var_os("ANVIL_OBSERVATION_INCLUDE_PATHS").is_some_and(|v| v == "1");
@@ -773,10 +855,20 @@ pub fn daemon_observation_producers() -> (
 
     // ONE inner sink, ONE non-blocking decorator, shared by both producers.
     let inner = Arc::new(DaemonObservationSink { path }) as Arc<dyn KindlingObservationSink>;
-    let shared_sink = Arc::new(NonBlockingObservationSink::new(
-        inner,
-        DEFAULT_OBSERVATION_CHANNEL_CAPACITY,
-    )) as Arc<dyn KindlingObservationSink>;
+    // The drain thread spawn is fallible (council G): a `None` sink means
+    // the host could not start the drain thread, so degrade to no
+    // observation export rather than crashing the daemon at startup.
+    let Some(non_blocking) =
+        NonBlockingObservationSink::new(inner, DEFAULT_OBSERVATION_CHANNEL_CAPACITY)
+    else {
+        tracing::warn!(
+            target: "anvil::usage",
+            "save-time/fence observation export disabled: could not start the \
+             non-blocking observation drain thread",
+        );
+        return (None, None, false);
+    };
+    let shared_sink = Arc::new(non_blocking) as Arc<dyn KindlingObservationSink>;
 
     let emitter = Arc::new(SaveTimeObservationEmitter::new(
         Arc::clone(&shared_sink),
@@ -788,7 +880,7 @@ pub fn daemon_observation_producers() -> (
         include_paths,
     ));
 
-    (Some(emitter), Some(shared_sink))
+    (Some(emitter), Some(shared_sink), include_paths)
 }
 
 /// DPO-001: bound on the shared non-blocking observation channel. Past
@@ -1198,6 +1290,7 @@ mod tests {
             "/work/tree",
             "operator",
             false,
+            true,
         );
         sink.try_emit_constraint_applied(row)
             .expect("persist constraint row");
@@ -1324,6 +1417,52 @@ mod tests {
         // Must not panic or create the file.
         trim_usage_sidecar_at(&path, Utc::now());
         assert!(!path.exists());
+    }
+
+    /// Council B fast-path: a small file whose head line is fresh and which
+    /// is well under the byte cap is NOT rewritten — the trim returns before
+    /// the full read+rewrite. Proven by asserting the file's mtime is
+    /// unchanged across the call (a rewrite would replace the file via
+    /// rename, changing the mtime), and that no `.trim.tmp` sibling is left.
+    #[test]
+    fn trim_does_not_rewrite_small_fresh_file() {
+        let dir = tempdir().expect("tempdir");
+        let path = dir.path().join("usage.ndjson");
+        let now = Utc::now();
+        let recent = now.to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+
+        let mut buf = String::new();
+        writeln!(buf, "{{\"timestamp\":\"{recent}\",\"tag\":\"a\"}}").expect("w");
+        writeln!(buf, "{{\"timestamp\":\"{recent}\",\"tag\":\"b\"}}").expect("w");
+        fs::write(&path, &buf).expect("seed");
+
+        let before = fs::metadata(&path)
+            .expect("stat")
+            .modified()
+            .expect("mtime");
+        let before_contents = fs::read_to_string(&path).expect("read");
+
+        // Sleep a touch so a rewrite would produce a distinguishable mtime.
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        trim_usage_sidecar_at(&path, now);
+
+        let after = fs::metadata(&path)
+            .expect("stat")
+            .modified()
+            .expect("mtime");
+        let after_contents = fs::read_to_string(&path).expect("read");
+        assert_eq!(
+            before, after,
+            "a small fresh file must not be rewritten (mtime changed)",
+        );
+        assert_eq!(
+            before_contents, after_contents,
+            "a small fresh file's content must be untouched",
+        );
+        assert!(
+            !path.with_extension("ndjson.trim.tmp").exists(),
+            "no trim temp sibling should be created on the fast path",
+        );
     }
 
     #[test]

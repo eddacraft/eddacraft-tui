@@ -780,8 +780,13 @@ pub fn from_audit_chain(
 // a worktree. Pre-DPO-002 only the *rate-limited cascade transition*
 // surfaced as telemetry; an ordinary engage produced no observation,
 // leaving a producer-coverage gap (the council fix). This kind makes
-// every engage an audit-grade row, distinct from `gate_evaluated` so a
+// every engage a queryable row, distinct from `gate_evaluated` so a
 // consumer can filter constraints without parsing gate rows.
+//
+// The row is BEST-EFFORT, not audit-grade (council D): it travels
+// through the non-blocking sink boundary and can be dropped on a full
+// channel. The authoritative record of which worktrees are fenced is
+// the persistent fence-state file, NOT this observation stream.
 
 /// DPO-002: pinned Kindling observation kind for a daemon-applied
 /// constraint (a fence engage). Distinct from [`KIND_GATE_EVALUATED`]
@@ -808,6 +813,13 @@ pub const FENCE_REASON_OPERATOR: &str = "operator";
 /// observation timeline.
 #[must_use]
 pub fn normalise_fence_reason(reason: &str) -> String {
+    // Known control-lane pass-through constants:
+    //   - `crate::telemetry::DEGRADED_FENCE_CASCADE`
+    //   - `crate::telemetry::DEGRADED_SPOOFED_ATTRIBUTION`
+    // This allow-list is exhaustive BY CONVENTION, not enforced by the
+    // compiler: adding a new control-lane reason constant that should
+    // survive onto the observation timeline REQUIRES adding it here too,
+    // otherwise it collapses to `FENCE_REASON_OPERATOR`.
     if reason == crate::telemetry::DEGRADED_FENCE_CASCADE
         || reason == crate::telemetry::DEGRADED_SPOOFED_ATTRIBUTION
     {
@@ -844,6 +856,19 @@ pub struct ConstraintAppliedObservation {
 /// engage. Pure converter — the caller owns identity (daemon session
 /// id) and the clock (`timestamp`). The `reason` is normalised here so
 /// no call site can bypass the bounded-token policy.
+///
+/// Emitting before the fence-file persist gives best-effort *ordering*
+/// (the row tends to precede the persisted state), but the row itself is
+/// BEST-EFFORT (council D): it crosses the non-blocking sink boundary and
+/// can be dropped on a full channel. Do not treat it as a guaranteed
+/// record — the persistent fence-state file is the authoritative source
+/// of which worktrees are fenced.
+///
+/// `include_paths` gates the absolute worktree path (council C): the same
+/// `ANVIL_OBSERVATION_INCLUDE_PATHS` posture that suppresses paths on
+/// save-time `gate_evaluated` rows applies here. When `false` the
+/// `worktree` field is set to [`REDACTED_WORKTREE`] (kept present for
+/// schema stability) rather than the real absolute path.
 #[must_use]
 pub fn from_fence(
     daemon_session_id: &str,
@@ -851,6 +876,7 @@ pub fn from_fence(
     worktree: &str,
     reason: &str,
     cascade: bool,
+    include_paths: bool,
 ) -> ConstraintAppliedObservation {
     ConstraintAppliedObservation {
         kind: KIND_CONSTRAINT_APPLIED.to_string(),
@@ -858,11 +884,21 @@ pub fn from_fence(
         timestamp: timestamp.to_string(),
         constraint_id: FENCE_GATE_ID.to_string(),
         gate_id: FENCE_GATE_ID.to_string(),
-        worktree: worktree.to_string(),
+        worktree: if include_paths {
+            worktree.to_string()
+        } else {
+            REDACTED_WORKTREE.to_string()
+        },
         reason: normalise_fence_reason(reason),
         cascade,
     }
 }
+
+/// DPO-002 (council C): placeholder recorded in the `worktree` field of a
+/// `constraint_applied` row when the path-include gate
+/// (`ANVIL_OBSERVATION_INCLUDE_PATHS`) is off. The field stays present for
+/// wire-schema stability; only its value is suppressed.
+pub const REDACTED_WORKTREE: &str = "<redacted>";
 
 /// Errors a [`KindlingObservationSink`] can surface back to the
 /// emitter. The emitter logs and drops these — the scan response
@@ -893,8 +929,10 @@ pub enum KindlingSinkError {
 ///
 /// `Debug` is a supertrait so a sink can live inside a `#[derive(Debug)]`
 /// struct held behind `Arc<dyn KindlingObservationSink>` (e.g.
-/// `ForegroundOpts`'s injected sink). Every concrete sink is cheap to
-/// `Debug` (no row contents are formatted).
+/// `ForegroundOpts`'s injected sink). `Debug` is REQUIRED of every
+/// implementor (not merely a convenience existing sinks happen to
+/// satisfy); a new sink MUST derive or implement it. Keep `Debug` cheap
+/// and content-free — no row contents should be formatted.
 pub trait KindlingObservationSink: std::fmt::Debug + Send + Sync {
     fn try_emit(&self, observation: GateEvaluatedObservation) -> Result<(), KindlingSinkError>;
 
@@ -1208,11 +1246,17 @@ impl NonBlockingObservationSink {
     /// spawn the single drain thread. `capacity` bounds how many rows can
     /// queue while the drain is behind a slow inner sink; beyond it, rows
     /// are dropped (counted) rather than blocking the producer.
+    ///
+    /// Returns `None` when the drain thread cannot be spawned (e.g. the
+    /// host is out of thread handles): a `tracing::warn!` is logged and the
+    /// caller is expected to degrade to no observation export rather than
+    /// crash the daemon at startup. The old `expect`-on-spawn was a
+    /// daemon-crash-at-startup hazard (council G).
     #[must_use]
-    pub fn new(inner: Arc<dyn KindlingObservationSink>, capacity: usize) -> Self {
+    pub fn new(inner: Arc<dyn KindlingObservationSink>, capacity: usize) -> Option<Self> {
         let (tx, rx) = sync_channel::<ObservationEnvelope>(capacity);
         let dropped = Arc::new(AtomicU64::new(0));
-        let drain = std::thread::Builder::new()
+        let drain = match std::thread::Builder::new()
             .name("anvil-observation-drain".to_owned())
             .spawn(move || {
                 // Exits when every sender is dropped (the channel
@@ -1234,13 +1278,22 @@ impl NonBlockingObservationSink {
                         );
                     }
                 }
-            })
-            .expect("spawn observation drain thread");
-        Self {
+            }) {
+            Ok(handle) => handle,
+            Err(err) => {
+                tracing::warn!(
+                    target: "anvil_intercept::kindling_observation",
+                    error = %err,
+                    "could not spawn observation drain thread; observation export disabled",
+                );
+                return None;
+            }
+        };
+        Some(Self {
             tx: Some(tx),
             dropped,
             drain: Some(drain),
-        }
+        })
     }
 
     /// Number of rows dropped because the channel was full or the drain
@@ -1253,16 +1306,39 @@ impl NonBlockingObservationSink {
 
     /// Enqueue `envelope`, or count a drop. Never blocks, never errors —
     /// the shared invariant behind every `try_emit*` override below.
+    ///
+    /// A drop (channel full or disconnected) is RATE-LIMITED-warned (council
+    /// E + D): the daemon hot path stays silent on the success path, but a
+    /// saturating drain must not be invisible — silent saturation would let
+    /// a stuck sidecar quietly shed audit rows. We warn on the first drop
+    /// and then every 1024th drop thereafter, keyed off the running counter
+    /// so a flood produces a handful of log lines, not one per dropped row.
     fn enqueue(&self, envelope: ObservationEnvelope) {
         // `tx` is `Some` for the whole live span of the sink; it is only
         // taken in `Drop`, after which no `try_emit*` can run. A defensive
         // `None` (impossible in practice) counts a drop, never panics.
         let Some(tx) = self.tx.as_ref() else {
-            self.dropped.fetch_add(1, Ordering::Relaxed);
+            self.record_drop();
             return;
         };
         if let Err(TrySendError::Full(_) | TrySendError::Disconnected(_)) = tx.try_send(envelope) {
-            self.dropped.fetch_add(1, Ordering::Relaxed);
+            self.record_drop();
+        }
+    }
+
+    /// Increment the dropped counter and emit a rate-limited warn so a
+    /// saturating drain is visible in the logs without flooding them. Warns
+    /// on the 1st drop (count transitions 0 → 1) and every 1024th after.
+    fn record_drop(&self) {
+        let prior = self.dropped.fetch_add(1, Ordering::Relaxed);
+        let total = prior + 1;
+        if total == 1 || total.is_multiple_of(1024) {
+            tracing::warn!(
+                target: "anvil_intercept::kindling_observation",
+                dropped_total = total,
+                "non-blocking observation sink dropped a row (channel full or drain gone); \
+                 observation rows are best-effort and the persistent record lives elsewhere",
+            );
         }
     }
 }
@@ -1316,12 +1392,33 @@ impl Drop for NonBlockingObservationSink {
         // only after this body returns.
         drop(self.tx.take());
         // Join the drain so any rows already accepted into the channel are
-        // forwarded to the inner sink before we return. The drain exits
-        // promptly once disconnected, so this is cheap; on a poisoned /
-        // panicked drain we swallow the join error rather than double-
-        // panic during unwind.
+        // forwarded to the inner sink before we return — but with a BOUNDED
+        // deadline (council F). An unconditional `join()` would hang the
+        // whole shutdown if the inner sink is wedged on a stalled disk; we
+        // poll `is_finished()` up to ~2s (matching the tone of the 1s
+        // listener-join timeout in `run_foreground`) and then detach. A
+        // poisoned / panicked drain's join error is swallowed rather than
+        // double-panicking during unwind.
         if let Some(handle) = self.drain.take() {
-            let _ = handle.join();
+            let deadline = Instant::now() + Duration::from_secs(2);
+            loop {
+                if handle.is_finished() {
+                    let _ = handle.join();
+                    break;
+                }
+                if Instant::now() >= deadline {
+                    // Detach: drop the handle without joining. The drain
+                    // thread keeps running (it cannot be force-killed
+                    // safely) but shutdown is no longer blocked on it.
+                    tracing::warn!(
+                        target: "anvil_intercept::kindling_observation",
+                        "observation drain did not exit within 2s of shutdown; \
+                         detaching (likely a stalled sink/disk)",
+                    );
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(10));
+            }
         }
     }
 }
@@ -2879,6 +2976,7 @@ mod tests {
             "/work/tree",
             crate::telemetry::DEGRADED_FENCE_CASCADE,
             true,
+            true,
         );
         assert_eq!(cascade.kind, KIND_CONSTRAINT_APPLIED);
         assert_eq!(cascade.gate_id, FENCE_GATE_ID);
@@ -2893,9 +2991,37 @@ mod tests {
             "/work/tree",
             crate::telemetry::DEGRADED_SPOOFED_ATTRIBUTION,
             false,
+            true,
         );
         assert_eq!(spoof.reason, crate::telemetry::DEGRADED_SPOOFED_ATTRIBUTION);
         assert!(!spoof.cascade);
+    }
+
+    /// DPO-002 (council C): `from_fence` redacts the worktree to the
+    /// schema-stable placeholder when `include_paths=false`, and keeps the
+    /// real path when `true`.
+    #[test]
+    fn from_fence_redacts_worktree_when_include_paths_false() {
+        let redacted = from_fence(
+            SESSION_UUID,
+            "2026-06-19T10:00:00Z",
+            "/work/tree",
+            crate::telemetry::DEGRADED_FENCE_CASCADE,
+            false,
+            false,
+        );
+        assert_eq!(redacted.worktree, REDACTED_WORKTREE);
+        assert_eq!(redacted.worktree, "<redacted>");
+
+        let present = from_fence(
+            SESSION_UUID,
+            "2026-06-19T10:00:00Z",
+            "/work/tree",
+            crate::telemetry::DEGRADED_FENCE_CASCADE,
+            false,
+            true,
+        );
+        assert_eq!(present.worktree, "/work/tree");
     }
 
     #[test]
@@ -2906,6 +3032,7 @@ mod tests {
             "/work/tree",
             "manual review: see ticket /home/op/notes.txt",
             false,
+            true,
         );
         assert_eq!(
             row.reason, FENCE_REASON_OPERATOR,
@@ -2939,6 +3066,7 @@ mod tests {
             "/work/tree",
             crate::telemetry::DEGRADED_FENCE_CASCADE,
             true,
+            true,
         );
         sink.try_emit_constraint_applied(row).expect("record");
         let rows = sink.recorded_constraints();
@@ -2958,6 +3086,7 @@ mod tests {
             "/work/tree",
             crate::telemetry::DEGRADED_FENCE_CASCADE,
             false,
+            true,
         );
         assert!(sink.try_emit_constraint_applied(row).is_err());
         assert!(sink.recorded_constraints().is_empty());
@@ -3009,7 +3138,8 @@ mod tests {
         // synchronous. Capacity is generous so none are dropped; we only
         // measure that the producer-side calls return fast.
         let (inner, _seen) = SlowSink::new(Duration::from_millis(50));
-        let sink = NonBlockingObservationSink::new(inner as Arc<dyn KindlingObservationSink>, 64);
+        let sink = NonBlockingObservationSink::new(inner as Arc<dyn KindlingObservationSink>, 64)
+            .expect("spawn");
 
         let start = Instant::now();
         for _ in 0..20 {
@@ -3030,7 +3160,8 @@ mod tests {
         // A very slow inner sink keeps the single drain thread busy on the
         // first row, so the bounded channel fills and excess rows drop.
         let (inner, _seen) = SlowSink::new(Duration::from_millis(200));
-        let sink = NonBlockingObservationSink::new(inner as Arc<dyn KindlingObservationSink>, 1);
+        let sink = NonBlockingObservationSink::new(inner as Arc<dyn KindlingObservationSink>, 1)
+            .expect("spawn");
 
         // Fire many more than capacity while the drain is blocked.
         for _ in 0..100 {
@@ -3051,7 +3182,8 @@ mod tests {
         let sink = NonBlockingObservationSink::new(
             Arc::clone(&recorder) as Arc<dyn KindlingObservationSink>,
             256,
-        );
+        )
+        .expect("spawn");
         for _ in 0..20 {
             sink.try_emit(sample_gate_row()).expect("ok");
         }
@@ -3069,7 +3201,8 @@ mod tests {
         let sink = NonBlockingObservationSink::new(
             Arc::clone(&recorder) as Arc<dyn KindlingObservationSink>,
             64,
-        );
+        )
+        .expect("spawn");
         sink.try_emit(sample_gate_row()).expect("gate");
         sink.try_emit_command_invoked(from_command_invocation(
             &CommandInvocationContext {
@@ -3093,6 +3226,7 @@ mod tests {
             "2026-06-19T10:00:00Z",
             "/work/tree",
             crate::telemetry::DEGRADED_FENCE_CASCADE,
+            true,
             true,
         ))
         .expect("constraint");
