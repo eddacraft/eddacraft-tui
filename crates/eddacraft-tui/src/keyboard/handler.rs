@@ -190,4 +190,115 @@ mod tests {
             assert!(!binding.label.is_empty(), "human label is empty");
         }
     }
+
+    fn with_mods(code: KeyCode, mods: KeyModifiers) -> KeyEvent {
+        KeyEvent::new(code, mods)
+    }
+
+    #[test]
+    fn editing_keys_map_to_their_actions() {
+        assert_eq!(KeyHandler::map(key(KeyCode::Backspace)), Action::Backspace);
+        assert_eq!(KeyHandler::map(key(KeyCode::Delete)), Action::Delete);
+        assert_eq!(KeyHandler::map(key(KeyCode::Home)), Action::Home);
+        assert_eq!(KeyHandler::map(key(KeyCode::End)), Action::End);
+        assert_eq!(KeyHandler::map(key(KeyCode::PageUp)), Action::PageUp);
+        assert_eq!(KeyHandler::map(key(KeyCode::PageDown)), Action::PageDown);
+    }
+
+    #[test]
+    fn printable_chars_fall_through_to_character() {
+        // Any non-binding character is returned verbatim as Action::Character.
+        for c in ['a', 'Z', '1', '?'] {
+            assert_eq!(
+                KeyHandler::map(key(KeyCode::Char(c))),
+                Action::Character(c),
+                "char {c:?}",
+            );
+        }
+        // Uppercase variants of binding chars are NOT bindings — the match arms
+        // are case-sensitive, so they fall through to Character.
+        assert_eq!(
+            KeyHandler::map(key(KeyCode::Char('J'))),
+            Action::Character('J'),
+        );
+        assert_eq!(
+            KeyHandler::map(key(KeyCode::Char('Q'))),
+            Action::Character('Q'),
+        );
+    }
+
+    #[test]
+    fn binding_chars_take_precedence_over_character() {
+        // The vim/quit/toggle chars must resolve to their action, never to
+        // Action::Character — the specific arms win over the catch-all.
+        for (c, expected) in [
+            ('k', Action::Up),
+            ('j', Action::Down),
+            ('h', Action::Left),
+            ('l', Action::Right),
+            ('q', Action::Quit),
+            (' ', Action::Toggle),
+        ] {
+            assert_eq!(
+                KeyHandler::map(key(KeyCode::Char(c))),
+                expected,
+                "binding char {c:?}",
+            );
+        }
+    }
+
+    #[test]
+    fn unmapped_keys_return_none() {
+        for code in [
+            KeyCode::Tab,
+            KeyCode::BackTab,
+            KeyCode::Insert,
+            KeyCode::F(1),
+            KeyCode::Null,
+            KeyCode::CapsLock,
+        ] {
+            assert_eq!(
+                KeyHandler::map(key(code)),
+                Action::None,
+                "unmapped {code:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn control_modifier_only_maps_ctrl_c() {
+        // Ctrl+C is the sole Control binding.
+        assert_eq!(KeyHandler::map(ctrl(KeyCode::Char('c'))), Action::Quit);
+        // Every other Control combination short-circuits to None — including
+        // keys that WOULD map to an action without the Control modifier.
+        for code in [
+            KeyCode::Char('a'),
+            KeyCode::Char('j'), // 'j' alone is Down; with Ctrl it is None
+            KeyCode::Char('q'), // 'q' alone is Quit; with Ctrl it is None
+            KeyCode::Char('C'), // uppercase 'C' is not the bound 'c'
+            KeyCode::Up,
+            KeyCode::Enter,
+            KeyCode::Backspace,
+        ] {
+            assert_eq!(KeyHandler::map(ctrl(code)), Action::None, "ctrl+{code:?}");
+        }
+    }
+
+    #[test]
+    fn non_control_modifiers_pass_through_to_base_mapping() {
+        // Only the Control modifier is inspected; Alt/Shift are ignored and the
+        // base key mapping applies.
+        assert_eq!(
+            KeyHandler::map(with_mods(KeyCode::Char('j'), KeyModifiers::ALT)),
+            Action::Down,
+        );
+        assert_eq!(
+            KeyHandler::map(with_mods(KeyCode::Down, KeyModifiers::SHIFT)),
+            Action::Down,
+        );
+        assert_eq!(
+            KeyHandler::map(with_mods(KeyCode::Enter, KeyModifiers::ALT)),
+            Action::Select,
+        );
+    }
 }
