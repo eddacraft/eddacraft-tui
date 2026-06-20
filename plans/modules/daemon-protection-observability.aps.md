@@ -259,6 +259,39 @@ registry); fence emit-before-persist can produce a rare duplicate row on crash.
 - **Dependencies:** DPO-003, KDS
 - **Confidence:** low
 
+## Implementation notes
+
+DPO-001 + DPO-002 implemented and activated end-to-end on
+`feat/dpo-producer-coverage` (Option C). Status stays In Progress until the PR
+merges (then Merged via the PR).
+
+- **Producers** (`anvil-intercept`): `from_validate_paths` + `SaveTimeObservationEmitter`
+  (fail always emitted, pass sampled per-worktree via `RateWindow`), emitted at
+  the `ANVIL_VALIDATE_PATHS` arm; `constraint_applied` kind + `from_fence`
+  emitted on every fence engage (cascade flagged), before persist.
+- **Non-blocking boundary** (council T2 / ADR-031): `NonBlockingObservationSink`
+  — bounded channel + one background drain thread owning the inner sink;
+  `try_emit*` is a non-blocking `try_send` (drop-on-full + rate-limited warn).
+  Verified by a slow-sink latency test. `std` thread + `mpsc` only (ADR-064).
+- **Activation** (`anvil-cli`): `DaemonObservationSink` persists save-time
+  `gate.evaluated` (gate-id-filtered) + `constraint_applied` to `usage.ndjson`,
+  **extending the USAGE-004 sink contract**, with 7-day/64 MiB lazy
+  trim-on-append retention **until KDS-005 retires the NDJSON writer** (the
+  sink, retention, and views are KDS-004/-005 coordination points).
+- **Privacy**: file paths (save-time `changed_files`, fence `worktree`) gated
+  off by default behind `ANVIL_OBSERVATION_INCLUDE_PATHS`; fence `reason`
+  always normalised.
+- **Operability**: `ANVIL_INTERCEPT_DISABLE_OBSERVATION` kill-switch;
+  `ANVIL_USAGE_SIDECAR_NO_TRIM` retention escape hatch; dropped-row warns.
+- **Validation**: `cargo test -p eddacraft-anvil-intercept -p eddacraft-anvil`
+  green, `clippy --all-targets -D warnings` clean, `fmt --check` clean; design
+  reviewed by council `plan-a50aa93d` (kernel/adversarial/operations), MAJOR
+  findings addressed.
+- **Deferred follow-ups** (council MINORs, tracked for a later item): emit an
+  `Outcome::Error` row on the `validate_paths` `Err` path; per-path length cap
+  when paths are included; surface `dropped_count` in `intercept status`
+  (`DaemonStatusV1`); an IPC-level integration test for the save-time emit path.
+
 ## Risks
 
 | Risk                                                              | Impact | Mitigation                                                                                          |
