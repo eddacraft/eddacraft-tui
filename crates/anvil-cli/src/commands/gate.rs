@@ -4504,9 +4504,12 @@ rules: []
         let msg = err.to_string();
 
         assert!(msg.contains("lnt"), "error must name the bad input: {msg}");
+        // Assert the full suggestion phrase, not just "lint" — the available
+        // list also contains "lint", so a bare substring check would pass even
+        // if the did-you-mean suggestion regressed.
         assert!(
-            msg.contains("lint"),
-            "error must suggest the closest registered id: {msg}"
+            msg.contains("did you mean 'lint'?"),
+            "error must carry the closest-ID suggestion: {msg}"
         );
     }
 

@@ -139,8 +139,19 @@ fn run_toggle(workspace: &Path, check_name: &str, enable: bool, mode: OutputMode
 
     let Some(check) = check else {
         let available: Vec<&str> = config.checks.iter().map(|c| c.name.as_str()).collect();
-        // OPSUP-002: point at the closest registered ID rather than only a
-        // flat dump — `gate-config enable/disable` is the in-config disable path.
+        // A check the registry knows but that is not in the editable config
+        // list (e.g. a flag-driven Track 3 surface, `gate_config_supported =
+        // false`) is not a typo — say so plainly rather than emitting a
+        // self-suggesting "did you mean" for the same identifier.
+        if let Some(canonical) = canonical_check_name(check_name) {
+            bail!(
+                "Check \"{canonical}\" is not configurable via gate-config \
+                 (its activation is flag-driven). Configurable: {}",
+                available.join(", ")
+            );
+        }
+        // OPSUP-002: a genuinely unknown identifier points at the closest
+        // registered ID rather than only a flat dump.
         let suggestion = closest_registered_id(check_name)
             .map(|s| format!(" (did you mean \"{s}\"?)"))
             .unwrap_or_default();
@@ -305,6 +316,41 @@ mod tests {
             .find(|c| c.name == "secret-detection")
             .unwrap();
         assert!(!check.enabled);
+    }
+
+    #[test]
+    fn toggle_unknown_check_suggests_closest_id() {
+        let dir = tempfile::tempdir().unwrap();
+        save_config(dir.path(), &default_config()).unwrap();
+
+        let err = run_toggle(dir.path(), "lnt", false, OutputMode::Plain).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("Unknown check"), "got: {msg}");
+        assert!(
+            msg.contains("did you mean \"lint\"?"),
+            "a genuine typo must get a did-you-mean: {msg}"
+        );
+    }
+
+    #[test]
+    fn toggle_known_but_non_configurable_check_is_not_a_typo() {
+        // `sql-migrations` is registry-known but flag-driven
+        // (`gate_config_supported = false`), so it is not in the editable
+        // config list. The error must say it is not configurable rather than
+        // emitting a self-suggesting "did you mean 'sql-migrations'?".
+        let dir = tempfile::tempdir().unwrap();
+        save_config(dir.path(), &default_config()).unwrap();
+
+        let err = run_toggle(dir.path(), "sql-migrations", false, OutputMode::Plain).unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("not configurable via gate-config"),
+            "known-but-non-configurable must get a clear message: {msg}"
+        );
+        assert!(
+            !msg.contains("did you mean"),
+            "must not self-suggest the same identifier: {msg}"
+        );
     }
 
     #[test]
