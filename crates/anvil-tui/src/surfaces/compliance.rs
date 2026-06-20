@@ -28,7 +28,7 @@ mod tests {
     use ratatui::Terminal;
     use ratatui::backend::TestBackend;
     use std::collections::VecDeque;
-    use tempfile::tempdir;
+    use tempfile::{TempDir, tempdir};
 
     use crate::surface::Surface;
     use crate::surfaces::audit::{
@@ -60,10 +60,15 @@ mod tests {
 
     // ---------------------------------------------------------------------------
     // Number of `impl Surface` blocks under crates/anvil-tui/src/surfaces/.
-    // Run: grep -rn "impl .*Surface for" crates/anvil-tui/src/surfaces/ | wc -l
+    // Run: grep -rnE '^impl .*Surface for' crates/anvil-tui/src/surfaces/ | wc -l
+    // (anchored to the line start so backticked mentions of "impl Surface for"
+    // in comments — including this one — are not counted).
     // Update this constant whenever a new surface is added.
     // ---------------------------------------------------------------------------
     const EXPECTED_SURFACE_COUNT: usize = 22;
+
+    /// Temp-dir guards (kept alive for the test) plus the labelled surfaces.
+    type SurfaceRegistry = (Vec<TempDir>, Vec<(&'static str, Box<dyn Surface>)>);
 
     // ---------------------------------------------------------------------------
     // Minimal fixture builders
@@ -197,22 +202,27 @@ mod tests {
 
     /// Build one instance of every surface that implements `Surface`.
     ///
+    /// Returns the temp-dir guards alongside the surfaces: some surfaces capture
+    /// a filesystem path at construction, so the `TempDir`s must outlive the
+    /// surfaces. The caller binds the returned guards for the test's lifetime;
+    /// they drop normally (cleaning `/tmp`) when the test ends.
+    ///
     /// Surfaces that genuinely cannot be constructed without production changes
     /// are documented inline with a `// SKIPPED:` comment.
-    fn all_surfaces() -> Vec<(&'static str, Box<dyn Surface>)> {
+    fn all_surfaces() -> SurfaceRegistry {
         // SpecDashboardState needs a real (or temp) root directory for binding.
         let tmp = tempdir().expect("tempdir");
         let spec_root = tmp.path().to_path_buf();
-        // Leak the TempDir so the path stays valid for the life of the Vec.
-        std::mem::forget(tmp);
 
         // HooksState inspects the filesystem; we give it a temp dir so it
         // constructs cleanly without touching the real project tree.
         let hooks_tmp = tempdir().expect("hooks-tempdir");
         let hooks_path = hooks_tmp.path().to_path_buf();
-        std::mem::forget(hooks_tmp);
 
-        vec![
+        // Held by the caller so the temp dirs outlive the surfaces, then drop.
+        let guards = vec![tmp, hooks_tmp];
+
+        let surfaces: Vec<(&'static str, Box<dyn Surface>)> = vec![
             ("WelcomeState", Box::new(WelcomeState::new())),
             ("TutorialState", Box::new(TutorialState::new())),
             (
@@ -277,7 +287,9 @@ mod tests {
                 )),
             ),
             ("WizardState", Box::new(WizardState::new(vec![]))),
-        ]
+        ];
+
+        (guards, surfaces)
     }
 
     // ---------------------------------------------------------------------------
@@ -319,11 +331,12 @@ mod tests {
 
         let theme = EddaCraftTheme;
 
-        // 2. render() must not panic.
-        let mut terminal = Terminal::new(TestBackend::new(80, 24)).expect("TestBackend::new");
+        // 2. render() must not error.
+        let mut terminal =
+            Terminal::new(TestBackend::new(80, 24)).expect("Terminal::new(TestBackend) failed");
         terminal
             .draw(|frame| surface.render(frame, frame.area(), &theme))
-            .unwrap_or_else(|e| panic!("{label}: initial render panicked: {e}"));
+            .unwrap_or_else(|e| panic!("{label}: initial draw returned Err: {e}"));
 
         // 3. handle_key() over all Action variants must not panic.
         for &action in ALL_ACTIONS {
@@ -333,10 +346,10 @@ mod tests {
         // 4. reset() must not panic.
         surface.reset();
 
-        // 5. Re-render after interaction must not panic.
+        // 5. Re-render after interaction must not error.
         terminal
             .draw(|frame| surface.render(frame, frame.area(), &theme))
-            .unwrap_or_else(|e| panic!("{label}: post-interaction render panicked: {e}"));
+            .unwrap_or_else(|e| panic!("{label}: post-interaction draw returned Err: {e}"));
     }
 
     // ---------------------------------------------------------------------------
@@ -349,7 +362,8 @@ mod tests {
     /// selects it.
     #[test]
     fn surface_compliance_all_registered() {
-        let mut surfaces = all_surfaces();
+        // `_guards` keeps the temp dirs alive for the duration of the test.
+        let (_guards, mut surfaces) = all_surfaces();
         assert!(!surfaces.is_empty(), "surface registry must not be empty");
         for (label, surface) in &mut surfaces {
             assert_surface_contract(label, surface.as_mut());
@@ -362,7 +376,7 @@ mod tests {
     /// Update `EXPECTED_SURFACE_COUNT` and add your surface to `all_surfaces()`.
     #[test]
     fn surface_registry_covers_all_impls() {
-        let surfaces = all_surfaces();
+        let (_guards, surfaces) = all_surfaces();
         assert_eq!(
             surfaces.len(),
             EXPECTED_SURFACE_COUNT,
