@@ -129,4 +129,54 @@ mod tests {
             theme.border_unfocused()
         );
     }
+
+    #[test]
+    fn all_style_methods_populate_fg() {
+        // The trait contract: every style method returns a Style with fg set.
+        let t = EddaCraftTheme;
+        let styles = [
+            ("base", t.base()),
+            ("highlighted", t.highlighted()),
+            ("highlight_inactive", t.highlight_inactive()),
+            ("title", t.title()),
+            ("border_focused", t.border_focused()),
+            ("border_unfocused", t.border_unfocused()),
+            ("status_ok", t.status_ok()),
+            ("status_error", t.status_error()),
+            ("status_warning", t.status_warning()),
+            ("disabled", t.disabled()),
+        ];
+        for (name, style) in styles {
+            assert!(style.fg.is_some(), "{name} must set fg per Theme contract");
+        }
+    }
+
+    #[test]
+    fn highlight_styles_set_bg_and_bold() {
+        use ratatui::style::Modifier;
+        let t = EddaCraftTheme;
+        for (name, style) in [
+            ("highlighted", t.highlighted()),
+            ("highlight_inactive", t.highlight_inactive()),
+        ] {
+            assert!(style.bg.is_some(), "{name} must set bg");
+            assert!(
+                style.add_modifier.contains(Modifier::BOLD),
+                "{name} must be bold",
+            );
+        }
+    }
+
+    #[test]
+    fn palette_methods_match_documented_colours() {
+        let t = EddaCraftTheme;
+        assert_eq!(t.bg(), VOID);
+        assert_eq!(t.fg(), OFF_WHITE);
+        assert_eq!(t.accent(), ANVIL_EMBER);
+        assert_eq!(t.success(), EDDA_GROWTH);
+        assert_eq!(t.error(), BRICK_RED);
+        assert_eq!(t.warning(), DULL_AMBER);
+        assert_eq!(t.muted(), GHOST_GREY);
+        assert_eq!(t.border(), STRUCTURE);
+    }
 }

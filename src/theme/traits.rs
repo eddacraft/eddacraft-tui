@@ -114,3 +114,84 @@ pub trait Theme {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A minimal implementor that defines only the eight required palette
+    /// colours and relies entirely on the trait's default style-method bodies.
+    /// Proves the default bodies satisfy the documented contract for *any*
+    /// implementor, not just `EddaCraftTheme`.
+    struct MinimalTheme;
+
+    impl Theme for MinimalTheme {
+        fn bg(&self) -> Color {
+            Color::Black
+        }
+        fn fg(&self) -> Color {
+            Color::White
+        }
+        fn accent(&self) -> Color {
+            Color::Cyan
+        }
+        fn success(&self) -> Color {
+            Color::Green
+        }
+        fn error(&self) -> Color {
+            Color::Red
+        }
+        fn warning(&self) -> Color {
+            Color::Yellow
+        }
+        fn muted(&self) -> Color {
+            Color::Gray
+        }
+        fn border(&self) -> Color {
+            Color::DarkGray
+        }
+    }
+
+    #[test]
+    fn default_style_methods_populate_fg_for_any_impl() {
+        let t = MinimalTheme;
+        let styles = [
+            ("base", t.base()),
+            ("highlighted", t.highlighted()),
+            ("highlight_inactive", t.highlight_inactive()),
+            ("title", t.title()),
+            ("border_focused", t.border_focused()),
+            ("border_unfocused", t.border_unfocused()),
+            ("status_ok", t.status_ok()),
+            ("status_error", t.status_error()),
+            ("status_warning", t.status_warning()),
+            ("disabled", t.disabled()),
+        ];
+        for (name, style) in styles {
+            assert!(style.fg.is_some(), "default {name} must populate fg");
+        }
+    }
+
+    #[test]
+    fn role_style_dispatches_every_role_for_any_impl() {
+        let t = MinimalTheme;
+        for role in [
+            Role::Primary,
+            Role::Secondary,
+            Role::Accent,
+            Role::Highlight,
+            Role::HighlightInactive,
+            Role::Success,
+            Role::Warning,
+            Role::Error,
+            Role::BorderSubtle,
+            Role::BorderEmphasis,
+        ] {
+            let style = t.role_style(role);
+            assert!(
+                style.fg.is_some() || style.bg.is_some(),
+                "role {role:?} should resolve to a non-empty style",
+            );
+        }
+    }
+}
