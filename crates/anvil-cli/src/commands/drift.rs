@@ -200,32 +200,57 @@ fn backup_path(path: &Path) -> PathBuf {
     path.with_file_name(name)
 }
 
-/// The first backup path that does not yet exist: `<file>.bak`, then
-/// `<file>.bak.1`, `<file>.bak.2`, … This guarantees migration *always* writes
-/// the pre-migration content to a fresh file (never skipping the backup) while
-/// *never* overwriting an existing backup (a prior migration's rollback copy,
-/// or an unrelated stale `.bak`). Both halves matter: skipping would lose the
-/// original; clobbering would destroy a backup the spec promises to retain.
-fn next_free_backup_path(path: &Path) -> PathBuf {
+/// Write `content` to the first backup path that does not yet exist —
+/// `<file>.bak`, then `<file>.bak.1`, `<file>.bak.2`, … — creating it
+/// **exclusively** (`O_EXCL`). Returns the path written.
+///
+/// Migration *always* writes the pre-migration content to a fresh file (never
+/// skipping the backup) and *never* overwrites an existing backup (a prior
+/// migration's rollback copy, or an unrelated stale `.bak`). The never-clobber
+/// guarantee is enforced atomically by the OS via exclusive create, not a racy
+/// `exists()` pre-check, and an exhausted candidate space is a hard error
+/// rather than a silent fall back to clobbering. The original file is untouched
+/// until after this returns, so a crash mid-backup loses nothing — a re-run
+/// simply writes the next free candidate.
+fn write_fresh_backup(path: &Path, content: &[u8]) -> Result<PathBuf> {
+    use std::io::Write as _;
+
     let base = backup_path(path);
-    if !base.exists() {
-        return base;
-    }
     let base_name = base
         .file_name()
         .unwrap_or_default()
         .to_string_lossy()
         .into_owned();
+
     // Bounded so a directory already full of `.bak.N` files can't spin forever.
-    for n in 1..=10_000 {
-        let candidate = base.with_file_name(format!("{base_name}.{n}"));
-        if !candidate.exists() {
-            return candidate;
+    for n in 0..=10_000 {
+        let candidate = if n == 0 {
+            base.clone()
+        } else {
+            base.with_file_name(format!("{base_name}.{n}"))
+        };
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&candidate)
+        {
+            Ok(mut file) => {
+                file.write_all(content)
+                    .with_context(|| format!("writing backup {}", candidate.display()))?;
+                return Ok(candidate);
+            }
+            // Candidate taken — try the next suffix.
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(e) => {
+                return Err(anyhow::Error::new(e)
+                    .context(format!("creating backup {}", candidate.display())));
+            }
         }
     }
-    // Exhausted (pathological) — fall back to the base path; the caller's write
-    // will surface any error rather than silently looping.
-    base
+    bail!(
+        "could not create a backup for {}: too many existing .bak files",
+        path.display()
+    );
 }
 
 /// One-line hint emitted when a loaded baseline is on an older schema than this
@@ -315,14 +340,13 @@ fn migrate_snapshots(workspace: &Path) -> Result<MigrateReport> {
 /// patch) is preserved rather than dropped.
 ///
 /// The pre-migration content is **always** written to a fresh backup path
-/// ([`next_free_backup_path`]) before the in-place write — so the original is
-/// never lost — and an existing backup is **never** clobbered, so a prior
-/// migration's rollback copy survives. `serde_json` is built with
+/// ([`write_fresh_backup`], exclusive-create) before the in-place write — so
+/// the original is never lost — and an existing backup is **never** clobbered,
+/// so a prior migration's rollback copy survives. `serde_json` is built with
 /// `preserve_order` workspace-wide, so the `Value` round-trip keeps field
 /// order: the migrated file differs from the original only in `schema_version`.
 fn migrate_one(path: &Path, original_content: &str, current: SchemaVersion) -> Result<()> {
-    let backup = next_free_backup_path(path);
-    crate::util::atomic_write(&backup, original_content.as_bytes())
+    write_fresh_backup(path, original_content.as_bytes())
         .with_context(|| format!("backing up {} before migration", path.display()))?;
 
     let mut value: serde_json::Value = serde_json::from_str(original_content)
@@ -1768,6 +1792,29 @@ mod tests {
             load_snapshot_file(&path).unwrap().schema_version,
             current_schema().to_string()
         );
+    }
+
+    #[test]
+    fn write_fresh_backup_chains_past_existing_backups_without_clobbering() {
+        // With `.bak` and `.bak.1` already present, the exclusive-create write
+        // must land on `.bak.2` and leave both existing backups untouched.
+        let dir = tempfile::tempdir().unwrap();
+        let path = write_snapshot_at_version(dir.path(), "x", "1.0.0");
+        let base = backup_path(&path);
+        let bak1 =
+            base.with_file_name(format!("{}.1", base.file_name().unwrap().to_string_lossy()));
+        std::fs::write(&base, b"BAK0").unwrap();
+        std::fs::write(&bak1, b"BAK1").unwrap();
+
+        let written = write_fresh_backup(&path, b"FRESH").unwrap();
+
+        assert_eq!(
+            written.file_name().unwrap().to_string_lossy(),
+            format!("{}.2", base.file_name().unwrap().to_string_lossy())
+        );
+        assert_eq!(std::fs::read_to_string(&base).unwrap(), "BAK0");
+        assert_eq!(std::fs::read_to_string(&bak1).unwrap(), "BAK1");
+        assert_eq!(std::fs::read_to_string(&written).unwrap(), "FRESH");
     }
 
     #[test]
