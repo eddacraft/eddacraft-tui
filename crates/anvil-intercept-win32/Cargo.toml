@@ -17,7 +17,14 @@ tokio = { workspace = true }
 thiserror = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = [
+# Pinned to an exact patch (`=`) on purpose: windows-sys republishes new
+# patch versions on its latest (0.61) line frequently, and each republish
+# re-resolves the lock and churns the generated `workspace-hack` manifest,
+# turning `Hakari verify` red on main for unrelated PRs. This is the only
+# first-party direct dep on the volatile 0.61 line, so pinning it here
+# freezes that line until we deliberately bump it. (The 0.52/0.60 lines are
+# dormant older releases pulled only by third-party transitive deps.)
+windows-sys = { version = "=0.61.2", features = [
   "Win32_Foundation",
   "Win32_Security",
   "Win32_Security_Authorization",
