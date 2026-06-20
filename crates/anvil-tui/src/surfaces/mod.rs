@@ -1,5 +1,7 @@
 pub mod audit;
 pub mod browser;
+#[cfg(test)]
+mod compliance;
 pub mod dashboard;
 pub mod doctor;
 pub mod fix_request;
