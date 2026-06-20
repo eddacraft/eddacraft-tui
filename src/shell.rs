@@ -334,4 +334,85 @@ mod tests {
 
         assert!(footer.contains("[‡] a n v i l  v1.2.3"));
     }
+
+    /// Render at the given size and return the footer row (bottom row) as text.
+    fn footer_row(width: u16, height: u16, help: &str) -> String {
+        let backend = TestBackend::new(width, height);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let theme = EddaCraftTheme;
+        terminal
+            .draw(|frame| {
+                render_shell(
+                    frame,
+                    frame.area(),
+                    ShellBranding::Anvil,
+                    "anvil",
+                    "Home",
+                    help,
+                    &theme,
+                    "1.2.3",
+                );
+            })
+            .unwrap();
+        let last = height - 1;
+        (0..width)
+            .map(|x| terminal.backend().buffer()[(x, last)].symbol().to_string())
+            .collect()
+    }
+
+    #[test]
+    fn help_text_shown_in_full_when_it_fits() {
+        // Wide terminal: short help fits alongside the watermark, untruncated.
+        let footer = footer_row(80, 5, "j/k move");
+        assert!(footer.contains("j/k move"), "help missing: {footer:?}");
+        assert!(footer.contains("v1.2.3"), "watermark missing: {footer:?}");
+    }
+
+    #[test]
+    fn long_help_is_truncated_but_watermark_survives() {
+        // Narrow terminal + overlong help: the watermark is prioritised and
+        // always rendered; the help tail is elided.
+        let long = "AAAAAAAAAA BBBBBBBBBB CCCCCCCCCC DDDDDDDDDD EEEEEEEEEE ZZZEND";
+        let footer = footer_row(50, 5, long);
+        assert!(
+            footer.contains("a n v i l"),
+            "watermark missing: {footer:?}"
+        );
+        assert!(footer.contains("v1.2.3"), "version missing: {footer:?}");
+        assert!(
+            !footer.contains("ZZZEND"),
+            "help tail should be truncated: {footer:?}",
+        );
+    }
+
+    #[test]
+    fn help_truncation_respects_char_width() {
+        // The truncation loop accounts for unicode display width — a CJK help
+        // string is elided on a width boundary without panicking or overflowing.
+        let footer = footer_row(40, 5, "これはとても長いヘルプ文字列です");
+        assert!(footer.contains("v1.2.3"), "watermark missing: {footer:?}");
+    }
+
+    #[test]
+    fn degenerate_sizes_do_not_panic() {
+        let theme = EddaCraftTheme;
+        for (w, h) in [(1u16, 1u16), (1, 3), (2, 3), (3, 3), (5, 3), (10, 4)] {
+            let backend = TestBackend::new(w, h);
+            let mut terminal = Terminal::new(backend).unwrap();
+            terminal
+                .draw(|frame| {
+                    render_shell(
+                        frame,
+                        frame.area(),
+                        ShellBranding::Anvil,
+                        "anvil",
+                        "S",
+                        "help text that far exceeds the available width",
+                        &theme,
+                        "1.2.3",
+                    );
+                })
+                .unwrap();
+        }
+    }
 }
