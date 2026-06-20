@@ -520,8 +520,8 @@ Change status to **Ready** when:
 > **Phase 4 re-scoped 2026-06-20 (crate correction).** The earlier "scope
 > drift" call looked at the wrong crate. The `anvil-tui` split moved the **app
 > surfaces** to `crates/anvil-tui/` but kept the **primitives** in
-> `crates/eddacraft-tui/` (cargo name `eddacraft-tui`, v0.4.0) — which still
-> holds the exact targets TCOV-022..-024 named:
+> `crates/eddacraft-tui/` (cargo name `eddacraft-tui`; version per its
+> `Cargo.toml`) — which still holds the exact targets TCOV-022..-024 named:
 >
 > - `crates/eddacraft-tui/src/widgets/` has 23 widgets including the original
 >   `text_input.rs` / `select.rs` / `confirm.rs` / `log_panel.rs` set — so
