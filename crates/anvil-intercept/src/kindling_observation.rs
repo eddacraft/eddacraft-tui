@@ -2893,8 +2893,13 @@ mod tests {
         let (emitter, recorder) = SaveTimeObservationEmitter::with_recorder(SESSION_UUID, true);
         let paths = vec!["src/lib.rs".to_string()];
         // Pass row.
-        let pass =
-            emitter.try_emit(&sample_save_time_request(), &[], paths.len(), &paths, Instant::now());
+        let pass = emitter.try_emit(
+            &sample_save_time_request(),
+            &[],
+            paths.len(),
+            &paths,
+            Instant::now(),
+        );
         assert_eq!(pass, EmissionOutcome::Emitted { pending_drops: 0 });
         // Fail row.
         let diags = vec![make_diag("err-1", Severity::Error)];
@@ -2940,7 +2945,13 @@ mod tests {
         // A fail still flows despite the saturated pass window.
         let diags = vec![make_diag("err-1", Severity::Error)];
         assert_eq!(
-            emitter.try_emit(&sample_save_time_request(), &diags, paths.len(), &paths, now),
+            emitter.try_emit(
+                &sample_save_time_request(),
+                &diags,
+                paths.len(),
+                &paths,
+                now
+            ),
             EmissionOutcome::Emitted { pending_drops: 0 },
         );
         let rows = recorder.recorded();
