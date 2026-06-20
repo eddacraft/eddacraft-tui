@@ -228,7 +228,7 @@ Remaining non-registry slices move to **Ready** when:
 
 ### OPSUP-004 — Drift migration command
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Add `anvil drift migrate` and an on-upgrade migration path for
   existing baselines.
 - **Expected Outcome:** `anvil drift migrate` upgrades an existing drift

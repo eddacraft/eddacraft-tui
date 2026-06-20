@@ -177,6 +177,210 @@ fn ensure_readable(baseline: SchemaVersion, current: SchemaVersion) -> Result<()
     Ok(())
 }
 
+// ── Drift baseline migration (OPSUP-004) ────────────────────────────
+
+/// Outcome counts from a `anvil drift migrate` run.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+struct MigrateReport {
+    /// Baselines upgraded from an older schema to the current one.
+    migrated: usize,
+    /// Baselines already on the current schema — left untouched.
+    already_current: usize,
+    /// Baselines written by a newer anvil — skipped, never downgraded.
+    newer: usize,
+}
+
+/// The base backup path for a baseline: a `<file>.bak` sibling so it sorts
+/// next to the original and is obviously a backup. Retained for one release as
+/// a manual rollback escape hatch. Extension is `bak` (not `json`) so a backup
+/// is never re-discovered as a snapshot by [`list_snapshot_files`].
+fn backup_path(path: &Path) -> PathBuf {
+    let mut name = path.file_name().unwrap_or_default().to_os_string();
+    name.push(".bak");
+    path.with_file_name(name)
+}
+
+/// The first backup path that does not yet exist: `<file>.bak`, then
+/// `<file>.bak.1`, `<file>.bak.2`, … This guarantees migration *always* writes
+/// the pre-migration content to a fresh file (never skipping the backup) while
+/// *never* overwriting an existing backup (a prior migration's rollback copy,
+/// or an unrelated stale `.bak`). Both halves matter: skipping would lose the
+/// original; clobbering would destroy a backup the spec promises to retain.
+fn next_free_backup_path(path: &Path) -> PathBuf {
+    let base = backup_path(path);
+    if !base.exists() {
+        return base;
+    }
+    let base_name = base
+        .file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .into_owned();
+    // Bounded so a directory already full of `.bak.N` files can't spin forever.
+    for n in 1..=10_000 {
+        let candidate = base.with_file_name(format!("{base_name}.{n}"));
+        if !candidate.exists() {
+            return candidate;
+        }
+    }
+    // Exhausted (pathological) — fall back to the base path; the caller's write
+    // will surface any error rather than silently looping.
+    base
+}
+
+/// One-line hint emitted when a loaded baseline is on an older schema than this
+/// binary writes, pointing the user at `anvil drift migrate` rather than
+/// leaving the staleness implicit (OPSUP-004). Returns `None` for a baseline
+/// that is current (or newer, which is handled by [`ensure_readable`]).
+fn outdated_schema_hint(snapshot: &DriftSnapshot) -> Option<String> {
+    let baseline = SchemaVersion::parse(&snapshot.schema_version).ok()?;
+    (baseline < current_schema()).then(|| {
+        format!(
+            "note: drift baseline schema {baseline} is older than this anvil \
+             ({}); run `anvil drift migrate` to upgrade it",
+            current_schema()
+        )
+    })
+}
+
+/// Emit the OPSUP-004 one-line migrate hint to stderr if any of the loaded
+/// `snapshots` is on an older schema. Stderr so it never corrupts `--json`
+/// stdout; once per command (a single line, per the spec). Shared by the
+/// `report` and `compare` read paths — both load baselines that may be stale.
+fn emit_stale_baseline_hint(snapshots: &[&DriftSnapshot]) {
+    if let Some(hint) = snapshots.iter().copied().find_map(outdated_schema_hint) {
+        eprintln!("{hint}");
+    }
+}
+
+/// Migrate every drift baseline in `workspace` that is on an older schema
+/// version to the current one, backing up the original first. Pure of the
+/// write-gate and output concerns so it is unit-testable; `run_migrate` wraps
+/// it with the ADR-060 write guard and rendering.
+fn migrate_snapshots(workspace: &Path) -> Result<MigrateReport> {
+    let mut report = MigrateReport::default();
+    let current = current_schema();
+
+    for path in list_snapshot_files(workspace)? {
+        // Read + parse directly rather than via `load_snapshot_file`: that
+        // helper bails on a future schema, but migrate must *skip* such a
+        // baseline (it cannot be downgraded) without aborting the whole run.
+        let content = match read_to_string_capped(&path, MAX_SNAPSHOT_BYTES) {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!(
+                    "warning: skipping unreadable snapshot {}: {e}",
+                    path.display()
+                );
+                continue;
+            }
+        };
+        let snapshot: DriftSnapshot = match serde_json::from_str(&content) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("warning: skipping corrupt snapshot {}: {e}", path.display());
+                continue;
+            }
+        };
+        let Ok(version) = SchemaVersion::parse(&snapshot.schema_version) else {
+            eprintln!(
+                "warning: skipping snapshot with unparseable schema version {}",
+                path.display()
+            );
+            continue;
+        };
+
+        // The struct parse above validated the baseline and read its version;
+        // the in-place rewrite works on the raw JSON so unknown/custom fields
+        // are preserved rather than silently dropped by a struct round-trip.
+        match version.cmp(&current) {
+            std::cmp::Ordering::Equal => report.already_current += 1,
+            std::cmp::Ordering::Greater => report.newer += 1,
+            std::cmp::Ordering::Less => {
+                migrate_one(&path, &content, current)?;
+                report.migrated += 1;
+            }
+        }
+    }
+
+    Ok(report)
+}
+
+/// Back up `original_content`, then write it back re-stamped at `current`
+/// schema in place.
+///
+/// The rewrite is done on the raw JSON value (only `schema_version` is
+/// changed) so additive schema evolution stays lossless — any field not in the
+/// current `DriftSnapshot` struct (a user annotation, a field from a future
+/// patch) is preserved rather than dropped.
+///
+/// The pre-migration content is **always** written to a fresh backup path
+/// ([`next_free_backup_path`]) before the in-place write — so the original is
+/// never lost — and an existing backup is **never** clobbered, so a prior
+/// migration's rollback copy survives. `serde_json` is built with
+/// `preserve_order` workspace-wide, so the `Value` round-trip keeps field
+/// order: the migrated file differs from the original only in `schema_version`.
+fn migrate_one(path: &Path, original_content: &str, current: SchemaVersion) -> Result<()> {
+    let backup = next_free_backup_path(path);
+    crate::util::atomic_write(&backup, original_content.as_bytes())
+        .with_context(|| format!("backing up {} before migration", path.display()))?;
+
+    let mut value: serde_json::Value = serde_json::from_str(original_content)
+        .with_context(|| format!("re-parsing {} for migration", path.display()))?;
+    value["schema_version"] = serde_json::Value::String(current.to_string());
+    let json = serde_json::to_string_pretty(&value)?;
+    crate::util::atomic_write(path, json.as_bytes())
+        .with_context(|| format!("writing migrated baseline {}", path.display()))?;
+    Ok(())
+}
+
+fn run_migrate(global: &GlobalArgs) -> Result<()> {
+    // DISTRIB-006 (ADR-060): migration rewrites durable `.anvil/snapshots/*.json`
+    // in place. Refuse under a gated ANVIL_HOME without `--touch-project-state`.
+    crate::install_root::ensure_project_write_allowed("drift migrate")?;
+
+    let mode = OutputMode::from_global(global);
+    let cwd = std::env::current_dir()?;
+    let report = migrate_snapshots(&cwd)?;
+
+    match mode {
+        OutputMode::Json => output::json::print(&serde_json::json!({
+            "migrated": report.migrated,
+            "already_current": report.already_current,
+            "newer": report.newer,
+        }))?,
+        OutputMode::Plain | OutputMode::Tui | OutputMode::Sarif => {
+            let total = report.migrated + report.already_current + report.newer;
+            if total == 0 {
+                output::plain::info("No drift baselines found — nothing to migrate");
+            } else if report.migrated == 0 && report.newer == 0 {
+                output::plain::success("Drift baselines already current — nothing to migrate");
+            } else {
+                if report.migrated > 0 {
+                    output::plain::success(&format!(
+                        "Migrated {} drift baseline(s) to schema {} (originals backed up to .bak)",
+                        report.migrated,
+                        current_schema()
+                    ));
+                }
+                if report.already_current > 0 {
+                    output::plain::info(&format!(
+                        "{} baseline(s) already current",
+                        report.already_current
+                    ));
+                }
+                if report.newer > 0 {
+                    output::plain::warn(&format!(
+                        "{} baseline(s) from a newer anvil were skipped (cannot downgrade)",
+                        report.newer
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 #[derive(Debug, Args)]
 pub struct DriftArgs {
     #[command(subcommand)]
@@ -210,6 +414,12 @@ enum DriftCommand {
         #[arg(long)]
         limit: Option<usize>,
     },
+    /// Upgrade drift baselines on an older schema version to the current one.
+    ///
+    /// Each baseline is backed up to `<file>.bak` before any in-place write.
+    /// Baselines already on the current schema are left untouched; baselines
+    /// from a newer anvil are skipped rather than downgraded.
+    Migrate,
 }
 
 // ── Snapshot types (JSON-serialisable, parity with Node.js) ─────────
@@ -363,6 +573,7 @@ pub fn run(args: &DriftArgs, global: &GlobalArgs) -> Result<()> {
         } => run_compare(snapshot1, snapshot2, global),
         DriftCommand::Report { since } => run_report(since.as_deref(), global),
         DriftCommand::List { limit } => run_list(*limit, global),
+        DriftCommand::Migrate => run_migrate(global),
     }
 }
 
@@ -476,6 +687,8 @@ fn run_compare(name1: &str, name2: &str, global: &GlobalArgs) -> Result<()> {
     let after = load_snapshot(&cwd, name2)?
         .ok_or_else(|| anyhow::anyhow!("Snapshot not found: {name2}"))?;
 
+    emit_stale_baseline_hint(&[&before, &after]);
+
     let comparison = compare_snapshots(&before, &after);
 
     match mode {
@@ -521,6 +734,10 @@ fn run_report(since: Option<&str>, global: &GlobalArgs) -> Result<()> {
         }
         (valid[1].clone(), valid[0].clone())
     };
+
+    // OPSUP-004: if either baseline is on an older schema, surface a one-line
+    // migrate hint rather than leaving the staleness implicit.
+    emit_stale_baseline_hint(&[&before, &after]);
 
     let comparison = compare_snapshots(&before, &after);
 
@@ -1437,6 +1654,192 @@ mod tests {
         assert!(
             chain.contains("upgrade"),
             "expected an upgrade hint, got: {chain}"
+        );
+    }
+
+    // ── Migration (OPSUP-004) ────────────────────────────────────
+
+    /// Write a snapshot file at an explicit schema version into a workspace's
+    /// snapshots dir, returning its path.
+    fn write_snapshot_at_version(workspace: &Path, name: &str, version: &str) -> PathBuf {
+        let mut snap = make_snapshot(name, 1, 2, 0);
+        snap.schema_version = version.to_string();
+        let dir = snapshots_dir(workspace);
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(format!("snapshot-{name}.json"));
+        std::fs::write(&path, serde_json::to_string_pretty(&snap).unwrap()).unwrap();
+        path
+    }
+
+    #[test]
+    fn migrate_upgrades_older_baseline_and_writes_backup() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = write_snapshot_at_version(dir.path(), "old", "1.0.0");
+        let original = std::fs::read_to_string(&path).unwrap();
+
+        let report = migrate_snapshots(dir.path()).unwrap();
+
+        assert_eq!(report.migrated, 1);
+        assert_eq!(report.already_current, 0);
+
+        // Backup retains the original bytes before the in-place write.
+        let backup = backup_path(&path);
+        assert!(backup.exists(), "backup must be written");
+        assert_eq!(std::fs::read_to_string(&backup).unwrap(), original);
+
+        // The upgraded file now carries the current schema version.
+        let upgraded = load_snapshot_file(&path).unwrap();
+        assert_eq!(upgraded.schema_version, current_schema().to_string());
+    }
+
+    #[test]
+    fn migrate_current_baseline_is_a_noop() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = write_snapshot_at_version(dir.path(), "cur", &current_schema().to_string());
+
+        let report = migrate_snapshots(dir.path()).unwrap();
+
+        assert_eq!(report.migrated, 0);
+        assert_eq!(report.already_current, 1);
+        assert!(
+            !backup_path(&path).exists(),
+            "an already-current baseline must not be backed up or rewritten"
+        );
+    }
+
+    #[test]
+    fn migrate_preserves_unknown_fields() {
+        // Additive schema evolution must be lossless: a field not in the
+        // current `DriftSnapshot` struct (a user annotation, a future-patch
+        // field) survives migration rather than being dropped by a struct
+        // round-trip.
+        let dir = tempfile::tempdir().unwrap();
+        let mut snap = make_snapshot("annotated", 1, 2, 0);
+        snap.schema_version = "1.0.0".to_string();
+        let mut value = serde_json::to_value(&snap).unwrap();
+        value["ci_run_id"] = serde_json::Value::String("run-42".to_string());
+        let sdir = snapshots_dir(dir.path());
+        std::fs::create_dir_all(&sdir).unwrap();
+        let path = sdir.join("snapshot-annotated.json");
+        std::fs::write(&path, serde_json::to_string_pretty(&value).unwrap()).unwrap();
+
+        migrate_snapshots(dir.path()).unwrap();
+
+        let migrated: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(migrated["schema_version"], current_schema().to_string());
+        assert_eq!(
+            migrated["ci_run_id"], "run-42",
+            "unknown field must be preserved through migration"
+        );
+    }
+
+    #[test]
+    fn migrate_never_clobbers_an_existing_backup_and_still_backs_up_the_original() {
+        // The backup is the spec's one-release rollback copy. With a `.bak`
+        // already present, migration must (a) NOT overwrite it, and (b) STILL
+        // back up the current pre-migration content to a fresh path — skipping
+        // the backup would lose the original.
+        let dir = tempfile::tempdir().unwrap();
+        let path = write_snapshot_at_version(dir.path(), "old", "1.0.0");
+        let original = std::fs::read_to_string(&path).unwrap();
+        let base_backup = backup_path(&path);
+        std::fs::write(&base_backup, b"PRIOR-BACKUP").unwrap();
+
+        let report = migrate_snapshots(dir.path()).unwrap();
+
+        assert_eq!(report.migrated, 1, "the baseline still migrates");
+        assert_eq!(
+            std::fs::read_to_string(&base_backup).unwrap(),
+            "PRIOR-BACKUP",
+            "an existing backup must never be clobbered"
+        );
+        // The pre-migration content was preserved to the next free backup.
+        let fresh_backup = base_backup.with_file_name(format!(
+            "{}.1",
+            base_backup.file_name().unwrap().to_string_lossy()
+        ));
+        assert_eq!(
+            std::fs::read_to_string(&fresh_backup).unwrap(),
+            original,
+            "the original must be backed up to a fresh path, never skipped"
+        );
+        assert_eq!(
+            load_snapshot_file(&path).unwrap().schema_version,
+            current_schema().to_string()
+        );
+    }
+
+    #[test]
+    fn migrate_changes_only_the_schema_version_field() {
+        // `preserve_order` (workspace-wide) keeps the Value round-trip stable,
+        // so a migrated baseline differs from the original by exactly the
+        // schema_version value — no field reordering or drops.
+        let dir = tempfile::tempdir().unwrap();
+        let path = write_snapshot_at_version(dir.path(), "old", "1.0.0");
+        let mut before: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+
+        migrate_snapshots(dir.path()).unwrap();
+
+        let after: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        // Normalise the one field that is meant to change, then require equality.
+        before["schema_version"] = serde_json::Value::String(current_schema().to_string());
+        assert_eq!(
+            before, after,
+            "migration must change only schema_version, preserving every other field"
+        );
+    }
+
+    #[test]
+    fn backup_files_are_not_picked_up_as_snapshots() {
+        // Guards the load-bearing invariant that `<file>.json.bak` is excluded
+        // from snapshot discovery — otherwise a migrate run would re-migrate
+        // its own backups.
+        let dir = tempfile::tempdir().unwrap();
+        let path = write_snapshot_at_version(dir.path(), "x", &current_schema().to_string());
+        std::fs::write(backup_path(&path), b"{}").unwrap();
+
+        let files = list_snapshot_files(dir.path()).unwrap();
+        assert!(
+            files
+                .iter()
+                .all(|p| p.extension().and_then(|e| e.to_str()) == Some("json")),
+            "no .bak file should be discovered as a snapshot, got: {files:?}"
+        );
+    }
+
+    #[test]
+    fn migrate_skips_future_baseline_without_downgrading() {
+        let dir = tempfile::tempdir().unwrap();
+        let future = SchemaVersion::new(current_schema().major + 1, 0, 0);
+        let path = write_snapshot_at_version(dir.path(), "future", &future.to_string());
+        let original = std::fs::read_to_string(&path).unwrap();
+
+        let report = migrate_snapshots(dir.path()).unwrap();
+
+        assert_eq!(report.migrated, 0);
+        assert_eq!(report.newer, 1);
+        // A future baseline is left untouched — never downgraded.
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+        assert!(!backup_path(&path).exists());
+    }
+
+    #[test]
+    fn outdated_baseline_emits_migrate_hint_but_current_does_not() {
+        let mut old = make_snapshot("old", 0, 0, 0);
+        old.schema_version = "1.0.0".to_string();
+        let hint = outdated_schema_hint(&old).expect("older baseline should hint");
+        assert!(
+            hint.contains("anvil drift migrate"),
+            "hint must point at the migrate command: {hint}"
+        );
+
+        let current = make_snapshot("cur", 0, 0, 0);
+        assert!(
+            outdated_schema_hint(&current).is_none(),
+            "a current baseline must not emit a migrate hint"
         );
     }
 
