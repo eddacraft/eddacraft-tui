@@ -55,3 +55,70 @@ pub(crate) fn atomic_write(path: &Path, content: &[u8]) -> Result<(), std::io::E
 
     Ok(())
 }
+
+/// Read `path` into a string, refusing files larger than `cap` bytes.
+///
+/// A pre-read `fstat` rejects an over-cap file before any allocation, and the
+/// read itself is `take`-limited to `cap + 1` so a file that grows past the cap
+/// between the stat and the read is still caught (mirrors
+/// `anvil_config::read_to_string_bounded`, but with a caller-chosen cap). The
+/// over-cap case surfaces as [`std::io::ErrorKind::InvalidData`] so callers fold
+/// it into their existing IO-error handling.
+///
+/// This bounds the memory a CLI command or MCP resource commits when a
+/// (possibly hostile or corrupt) workspace file is unexpectedly large (CIB-084).
+pub fn read_to_string_capped(path: &Path, cap: u64) -> std::io::Result<String> {
+    use std::io::Read;
+
+    let file = std::fs::File::open(path)?;
+    let size = file.metadata()?.len();
+    if size > cap {
+        return Err(over_cap(path, cap));
+    }
+    // `size <= cap`, so the capacity hint is bounded; the `+ 1` on the read still
+    // catches a file that grew past the cap between the stat and the read.
+    let mut contents = String::with_capacity(usize::try_from(size).unwrap_or(0));
+    file.take(cap.saturating_add(1))
+        .read_to_string(&mut contents)?;
+    if contents.len() as u64 > cap {
+        return Err(over_cap(path, cap));
+    }
+    Ok(contents)
+}
+
+fn over_cap(path: &Path, cap: u64) -> std::io::Error {
+    std::io::Error::new(
+        std::io::ErrorKind::InvalidData,
+        format!("{} exceeds the {cap}-byte read cap", path.display()),
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn write_temp(bytes: &[u8]) -> tempfile::NamedTempFile {
+        let tmp = tempfile::NamedTempFile::new().expect("temp file");
+        std::fs::write(tmp.path(), bytes).expect("write temp");
+        tmp
+    }
+
+    #[test]
+    fn reads_a_file_under_the_cap() {
+        let tmp = write_temp(b"hello");
+        assert_eq!(read_to_string_capped(tmp.path(), 1024).unwrap(), "hello");
+    }
+
+    #[test]
+    fn reads_a_file_exactly_at_the_cap() {
+        let tmp = write_temp(b"abcd");
+        assert_eq!(read_to_string_capped(tmp.path(), 4).unwrap(), "abcd");
+    }
+
+    #[test]
+    fn rejects_a_file_over_the_cap() {
+        let tmp = write_temp(b"0123456789");
+        let err = read_to_string_capped(tmp.path(), 4).unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+    }
+}

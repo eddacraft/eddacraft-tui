@@ -7,7 +7,7 @@ use anyhow::{Context, Result, bail};
 use clap::Args;
 use serde::{Deserialize, Serialize};
 
-use anvil_architecture::load_baseline;
+use anvil_architecture::{load_baseline, read_to_string_capped};
 use anvil_checks::antipattern::{AntipatternCheckConfig, run_antipattern_check};
 
 use crate::GlobalArgs;
@@ -17,6 +17,15 @@ use crate::util::is_ignored_dir_name;
 const SNAPSHOTS_DIR: &str = "snapshots";
 const ANVIL_DIR: &str = ".anvil";
 const SNAPSHOT_PREFIX: &str = "snapshot-";
+/// Maximum size of a single drift snapshot JSON the readers load into memory
+/// (CIB-084). An over-cap file is skipped/errored rather than committing
+/// unbounded memory.
+const MAX_SNAPSHOT_BYTES: u64 = 16 * 1024 * 1024;
+/// Maximum number of snapshot files [`list_snapshot_files`] scans before sorting
+/// (CIB-084). Bounds the per-file read+parse work a pathological
+/// `.anvil/snapshots/` directory can force; excess files are dropped with a
+/// logged warning.
+const MAX_SNAPSHOTS_SCANNED: usize = 1000;
 
 // ── Drift baseline schema versioning (OPSUP-003) ────────────────────
 //
@@ -682,7 +691,7 @@ fn load_snapshot(workspace: &Path, name: &str) -> Result<Option<DriftSnapshot>> 
 }
 
 pub(crate) fn load_snapshot_file(path: &Path) -> Result<DriftSnapshot> {
-    let content = std::fs::read_to_string(path)
+    let content = read_to_string_capped(path, MAX_SNAPSHOT_BYTES)
         .with_context(|| format!("reading snapshot {}", path.display()))?;
     let snapshot: DriftSnapshot = serde_json::from_str(&content)
         .with_context(|| format!("parsing snapshot {}", path.display()))?;
@@ -711,12 +720,18 @@ fn get_latest_snapshot(workspace: &Path) -> Result<Option<DriftSnapshot>> {
 }
 
 pub(crate) fn list_snapshot_files(workspace: &Path) -> Result<Vec<PathBuf>> {
+    list_snapshot_files_capped(workspace, MAX_SNAPSHOTS_SCANNED)
+}
+
+/// [`list_snapshot_files`] with an explicit scan cap, so the count guard is
+/// testable without creating thousands of fixtures.
+fn list_snapshot_files_capped(workspace: &Path, cap: usize) -> Result<Vec<PathBuf>> {
     let dir = snapshots_dir(workspace);
     if !dir.exists() {
         return Ok(Vec::new());
     }
 
-    let files: Vec<PathBuf> = std::fs::read_dir(&dir)?
+    let mut files: Vec<PathBuf> = std::fs::read_dir(&dir)?
         .filter_map(std::result::Result::ok)
         .map(|e| e.path())
         .filter(|p| {
@@ -725,6 +740,24 @@ pub(crate) fn list_snapshot_files(workspace: &Path) -> Result<Vec<PathBuf>> {
                     .is_some_and(|n| n.to_string_lossy().starts_with(SNAPSHOT_PREFIX))
         })
         .collect();
+
+    // CIB-084: bound the number of snapshots we read+parse to sort. A
+    // pathological `.anvil/snapshots/` (thousands of files) would otherwise force
+    // an unbounded number of per-file reads. Keep the most recent `cap` by mtime
+    // — a cheap stat, no file open — so the comparison and the created_at sort
+    // below operate on the genuinely newest snapshots, not arbitrary read_dir
+    // order.
+    if files.len() > cap {
+        let total = files.len();
+        files.sort_by_cached_key(|p| std::fs::metadata(p).and_then(|m| m.modified()).ok());
+        files.reverse(); // newest first; unreadable-mtime files sort last (dropped first)
+        files.truncate(cap);
+        eprintln!(
+            "warning: {total} drift snapshots in {}; using the {cap} most recent \
+             (older snapshots ignored)",
+            dir.display(),
+        );
+    }
 
     // Sort by the `created_at` timestamp embedded in each snapshot's JSON
     // (descending — newest first). Named snapshots don't encode a timestamp
@@ -757,6 +790,26 @@ pub(crate) fn list_snapshot_files(workspace: &Path) -> Result<Vec<PathBuf>> {
     let files: Vec<PathBuf> = keyed.into_iter().map(|(p, _)| p).collect();
 
     Ok(files)
+}
+
+/// Count snapshot files in `.anvil/snapshots/` cheaply — no per-file reads and no
+/// scan cap — so callers can report the true total even when
+/// [`list_snapshot_files`] caps how many it scans (CIB-084).
+pub(crate) fn count_snapshot_files(workspace: &Path) -> Result<usize> {
+    let dir = snapshots_dir(workspace);
+    if !dir.exists() {
+        return Ok(0);
+    }
+    let count = std::fs::read_dir(&dir)?
+        .filter_map(std::result::Result::ok)
+        .filter(|e| {
+            let p = e.path();
+            p.extension().is_some_and(|x| x == "json")
+                && p.file_name()
+                    .is_some_and(|n| n.to_string_lossy().starts_with(SNAPSHOT_PREFIX))
+        })
+        .count();
+    Ok(count)
 }
 
 fn list_snapshots(workspace: &Path) -> Result<Vec<SnapshotListEntry>> {
@@ -1082,7 +1135,7 @@ fn get_source_files(workspace: &Path) -> Result<Vec<String>> {
 /// schema than this binary understands — so the caller falls back to
 /// filename ordering and never sorts on an unguarded future baseline.
 fn read_created_at(path: &Path) -> Option<chrono::DateTime<chrono::FixedOffset>> {
-    let content = std::fs::read_to_string(path).ok()?;
+    let content = read_to_string_capped(path, MAX_SNAPSHOT_BYTES).ok()?;
     let snap: DriftSnapshot = serde_json::from_str(&content).ok()?;
     let baseline = SchemaVersion::parse(&snap.schema_version).ok()?;
     ensure_readable(baseline, current_schema()).ok()?;
@@ -1489,6 +1542,39 @@ mod tests {
             Ok(None) | Err(_) => {} // file doesn't exist or path escape caught — safe
             Ok(Some(_)) => panic!("should not load file outside snapshots dir"),
         }
+    }
+
+    #[test]
+    fn list_snapshot_files_keeps_the_most_recent_when_capped() {
+        use std::time::{Duration, SystemTime};
+        // CIB-084: over the cap, the most-recent snapshots (by mtime) are kept;
+        // below the cap, every snapshot is returned.
+        let dir = tempfile::tempdir().unwrap();
+        let now = SystemTime::now();
+        for (name, age_secs) in [("oldest", 3000u64), ("middle", 2000), ("newest", 1000)] {
+            let snap = make_snapshot(name, 1, 1, 0);
+            let filename = save_snapshot(dir.path(), &snap, Some(name)).unwrap();
+            let path = snapshots_dir(dir.path()).join(filename);
+            std::fs::File::options()
+                .write(true)
+                .open(&path)
+                .unwrap()
+                .set_modified(now - Duration::from_secs(age_secs))
+                .unwrap();
+        }
+
+        let kept = list_snapshot_files_capped(dir.path(), 2).unwrap();
+        let names: Vec<String> = kept
+            .iter()
+            .map(|p| p.file_name().unwrap().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(kept.len(), 2, "{names:?}");
+        assert!(names.iter().any(|n| n.contains("newest")), "{names:?}");
+        assert!(names.iter().any(|n| n.contains("middle")), "{names:?}");
+        assert!(!names.iter().any(|n| n.contains("oldest")), "{names:?}");
+
+        // Below the cap, all three are returned.
+        assert_eq!(list_snapshot_files_capped(dir.path(), 10).unwrap().len(), 3);
     }
 
     // ── Clap parsing ────────────────────────────────────────────

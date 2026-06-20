@@ -31,6 +31,7 @@ pub use types::{
     LayerAssignment, Layers, create_default_boundaries, create_default_layers, create_violation_id,
     is_existing_violation,
 };
+pub use util::read_to_string_capped;
 pub use validator::{
     ImportEdge, ValidationResult, assign_layers, collect_source_files, validate,
     validate_with_edges, validate_with_files_and_edges,

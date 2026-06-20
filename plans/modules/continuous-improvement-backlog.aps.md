@@ -2290,7 +2290,7 @@ archive.
 
 ### CIB-084: bound read size/count for baseline + drift-snapshot readers
 
-- **Status:** Proposed 2026-06-19
+- **Status:** In Progress 2026-06-20
 - **Intent:** Cap read size and file count in the architecture-baseline and
   drift-snapshot readers, which currently use bare `std::fs::read_to_string`
   with no bound — unlike `anvil_config::parse_file`, which caps reads via

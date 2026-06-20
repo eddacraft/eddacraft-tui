@@ -314,8 +314,11 @@ fn read_drift() -> Result<Value, ReadError> {
         }));
     }
 
-    // `list_snapshot_files` returns newest-first. `snapshotCount` is the total
-    // on disk; the comparison is always of the two most recent.
+    // `list_snapshot_files` returns newest-first; the comparison is always of the
+    // two most recent. `snapshotCount` reports the true number on disk even when a
+    // pathological snapshot directory caps how many are scanned (CIB-084).
+    let total = drift::count_snapshot_files(&root)
+        .map_err(|err| ReadError::Internal(format!("counting drift snapshots failed: {err}")))?;
     let latest = match drift::load_snapshot_file(&files[0]) {
         Ok(snapshot) => snapshot,
         Err(err) => {
@@ -351,7 +354,7 @@ fn read_drift() -> Result<Value, ReadError> {
 
     Ok(json!({
         "status": "ok",
-        "snapshotCount": files.len(),
+        "snapshotCount": total,
         "latest": snapshot_summary(&latest),
         "comparison": serde_json::to_value(&comparison).expect("drift comparison serialises"),
     }))

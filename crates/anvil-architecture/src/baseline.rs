@@ -42,6 +42,20 @@ pub fn baseline_exists(workspace_root: &Path) -> bool {
 ///
 /// Returns `Ok(None)` if the file does not exist.
 pub fn load_baseline(workspace_root: &Path) -> Result<Option<ArchitectureBaseline>, BaselineError> {
+    load_baseline_capped(workspace_root, MAX_BASELINE_BYTES)
+}
+
+/// Maximum size of `.anvil/architecture.json` that [`load_baseline`] reads into
+/// memory (CIB-084). A baseline larger than this is almost certainly corrupt or
+/// hostile; the read is refused rather than committing unbounded memory.
+pub const MAX_BASELINE_BYTES: u64 = 16 * 1024 * 1024;
+
+/// [`load_baseline`] with an explicit read cap, so the size guard is testable
+/// without writing a multi-megabyte fixture.
+fn load_baseline_capped(
+    workspace_root: &Path,
+    cap: u64,
+) -> Result<Option<ArchitectureBaseline>, BaselineError> {
     let path = get_baseline_path(workspace_root);
 
     if !path.exists() {
@@ -49,10 +63,11 @@ pub fn load_baseline(workspace_root: &Path) -> Result<Option<ArchitectureBaselin
     }
 
     let path_str = path.display().to_string();
-    let content = std::fs::read_to_string(&path).map_err(|e| BaselineError::Io {
-        path: path_str.clone(),
-        source: e,
-    })?;
+    let content =
+        crate::util::read_to_string_capped(&path, cap).map_err(|e| BaselineError::Io {
+            path: path_str,
+            source: e,
+        })?;
 
     let baseline: ArchitectureBaseline =
         serde_json::from_str(&content).map_err(|e| BaselineError::InvalidJson(e.to_string()))?;
@@ -176,6 +191,17 @@ mod tests {
     fn baseline_exists_returns_false_for_missing() {
         let tmp = tempfile::TempDir::new().unwrap();
         assert!(!baseline_exists(tmp.path()));
+    }
+
+    #[test]
+    fn load_baseline_rejects_a_file_over_the_read_cap() {
+        // CIB-084: an over-cap architecture.json is refused (as an IO error)
+        // before it is read into memory or parsed.
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::create_dir_all(tmp.path().join(ANVIL_DIR)).unwrap();
+        std::fs::write(get_baseline_path(tmp.path()), "{}").unwrap();
+        let err = load_baseline_capped(tmp.path(), 1).unwrap_err();
+        assert!(matches!(err, BaselineError::Io { .. }), "{err:?}");
     }
 
     #[test]
