@@ -188,9 +188,11 @@ mod tests {
             Role::BorderEmphasis,
         ] {
             let style = t.role_style(role);
+            // The trait contract requires fg to be set; role_style is built from
+            // the style methods, so every role must resolve to an fg-bearing style.
             assert!(
-                style.fg.is_some() || style.bg.is_some(),
-                "role {role:?} should resolve to a non-empty style",
+                style.fg.is_some(),
+                "role {role:?} should resolve to a style with fg set",
             );
         }
     }

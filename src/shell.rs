@@ -354,7 +354,9 @@ mod tests {
                 );
             })
             .unwrap();
-        let last = height - 1;
+        // `saturating_sub` keeps the helper panic-free even if a future caller
+        // passes height == 0 (the footer row is the bottom row otherwise).
+        let last = height.saturating_sub(1);
         (0..width)
             .map(|x| terminal.backend().buffer()[(x, last)].symbol().to_string())
             .collect()
@@ -391,6 +393,12 @@ mod tests {
         // string is elided on a width boundary without panicking or overflowing.
         let footer = footer_row(40, 5, "これはとても長いヘルプ文字列です");
         assert!(footer.contains("v1.2.3"), "watermark missing: {footer:?}");
+        // The wide help string is too long for the available space, so its tail
+        // is elided — exercising the width-aware truncation path.
+        assert!(
+            !footer.contains("です"),
+            "wide-char help tail should be truncated: {footer:?}",
+        );
     }
 
     #[test]
