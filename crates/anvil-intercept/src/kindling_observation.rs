@@ -79,6 +79,14 @@ pub const KIND_GATE_EVALUATED: &str = "gate_evaluated";
 /// share the `gate_evaluated` kind but live at different layers.
 pub const MIDEDIT_GATE_ID: &str = "midEdit";
 
+/// DPO-001: pinned `gate_id` for save-time `validate_paths` verdicts.
+/// Distinguishes L2 save-time rows from mid-edit / pre-commit /
+/// pre-push / audit rows that share the `gate_evaluated` kind but live
+/// at different layers. Unlike the mid-edit path, save-time emits on
+/// **both** pass and fail (the producer-coverage gap DPO-001 closes),
+/// so a clean save is a queryable `Pass` row, not silence.
+pub const SAVE_TIME_GATE_ID: &str = "save-time";
+
 /// MLP2-008: the canonical `gate_eval_id` join key, extracted from a
 /// W3C `traceparent`.
 ///
@@ -453,6 +461,83 @@ pub fn from_midedit_response(
     })
 }
 
+/// DPO-001: convert a save-time `validate_paths` verdict into a
+/// Kindling `gate_evaluated` observation. Unlike [`from_midedit_response`]
+/// this **always** builds a row — a clean save (empty diagnostics)
+/// produces an `Outcome::Pass` row, closing the save-time producer-
+/// coverage gap (the mid-edit path stays silent on a pass; save-time
+/// does not, because a passing save is the signal operators want to
+/// query for coverage).
+///
+/// The caller supplies the per-evaluation [`ObservationContext`]
+/// (session id, timestamp, etc) and the multi-path verdict inputs, so
+/// this helper stays a pure converter — testable without a clock or
+/// UUID source. `ctx.file_path` is unused on this path (save-time is
+/// multi-path); the changed-file set comes from `paths`.
+///
+/// `include_paths` gates whether the validated paths populate
+/// `inputs.changed_files` (paths-only, no content). When `false` the
+/// set is empty and only the `file_count` is recorded — the host's
+/// privacy posture decides which.
+#[must_use]
+pub fn from_validate_paths(
+    ctx: &ObservationContext<'_>,
+    diagnostics: &[Diagnostic],
+    paths: &[String],
+    include_paths: bool,
+) -> GateEvaluatedObservation {
+    let outcome = if diagnostics.is_empty() {
+        Outcome::Pass
+    } else {
+        Outcome::Fail
+    };
+    // `enforcement_for` returns `Informational` on an empty batch and
+    // `counts_for` returns `(0, 0)`, so a pass row carries the right
+    // zeroed counts without a special case.
+    let enforcement = enforcement_for(diagnostics);
+    let (violation_count, warning_count) = counts_for(diagnostics);
+    let rules_evaluated: Vec<String> = diagnostics
+        .iter()
+        .map(|d| d.source.rule_id.clone())
+        .collect();
+    let rules_violated: Vec<String> = diagnostics
+        .iter()
+        .filter(|d| matches!(d.severity, Severity::Error | Severity::Warning))
+        .map(|d| d.source.rule_id.clone())
+        .collect();
+
+    GateEvaluatedObservation {
+        kind: KIND_GATE_EVALUATED.to_string(),
+        session_id: ctx.session_id.to_string(),
+        timestamp: ctx.timestamp.to_string(),
+        gate_eval_id: ctx.gate_eval_id.to_string(),
+        gate_id: SAVE_TIME_GATE_ID.to_string(),
+        inputs: ObservationInputs {
+            file_count: u32::try_from(paths.len()).unwrap_or(u32::MAX),
+            changed_files: if include_paths {
+                paths.to_vec()
+            } else {
+                Vec::new()
+            },
+            baseline_hash: None,
+        },
+        outcome,
+        rules_evaluated,
+        rules_violated: if rules_violated.is_empty() {
+            None
+        } else {
+            Some(rules_violated)
+        },
+        enforcement,
+        duration_ms: ctx.duration_ms,
+        violation_count: Some(violation_count),
+        warning_count: Some(warning_count),
+        // Save-time verdicts run the full path set to completion; the
+        // partial-walk flag is an audit-chain concern only.
+        partial: false,
+    }
+}
+
 fn enforcement_for(diagnostics: &[Diagnostic]) -> Enforcement {
     let mut worst = Enforcement::Informational;
     for diag in diagnostics {
@@ -687,6 +772,96 @@ pub fn from_audit_chain(
 //   tests can observe the drop, but the call signature is infallible
 //   from the caller's perspective.
 
+// DPO-002: fence-engage `constraint_applied` builder --------------
+//
+// Every successful fence engage is a constraint the daemon applied to
+// a worktree. Pre-DPO-002 only the *rate-limited cascade transition*
+// surfaced as telemetry; an ordinary engage produced no observation,
+// leaving a producer-coverage gap (the council fix). This kind makes
+// every engage an audit-grade row, distinct from `gate_evaluated` so a
+// consumer can filter constraints without parsing gate rows.
+
+/// DPO-002: pinned Kindling observation kind for a daemon-applied
+/// constraint (a fence engage). Distinct from [`KIND_GATE_EVALUATED`]
+/// so consumers query constraints as their own stream.
+pub const KIND_CONSTRAINT_APPLIED: &str = "constraint_applied";
+
+/// DPO-002: pinned `gate_id` (and `constraint_id`) for fence-engage
+/// rows. Identifies the daemon fence surface as the constraint source.
+pub const FENCE_GATE_ID: &str = "daemon.fence";
+
+/// DPO-002: bounded fallback token for any fence reason that is not a
+/// known control-lane constant. Operator / rule free-text is never
+/// echoed verbatim onto an observation (it could carry path fragments
+/// or operator notes); it collapses to this opaque token.
+pub const FENCE_REASON_OPERATOR: &str = "operator";
+
+/// DPO-002: normalise a fence `reason` to a bounded, non-leaking token.
+///
+/// The two known control-lane reasons (cascade engage and spoofed-
+/// attribution) are pinned constants and pass through unchanged so a
+/// consumer can filter on them. Anything else — an operator-supplied
+/// or rule-supplied free-text reason — collapses to
+/// [`FENCE_REASON_OPERATOR`] so no free-form text reaches the
+/// observation timeline.
+#[must_use]
+pub fn normalise_fence_reason(reason: &str) -> String {
+    if reason == crate::telemetry::DEGRADED_FENCE_CASCADE
+        || reason == crate::telemetry::DEGRADED_SPOOFED_ATTRIBUTION
+    {
+        reason.to_string()
+    } else {
+        FENCE_REASON_OPERATOR.to_string()
+    }
+}
+
+/// DPO-002: Kindling `constraint_applied` observation payload. Serde
+/// JSON wire shape is `snake_case`; emitted once per successful fence
+/// engage.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ConstraintAppliedObservation {
+    pub kind: String,
+    pub session_id: String,
+    pub timestamp: String,
+    /// Stable constraint identifier ([`FENCE_GATE_ID`]); the join key a
+    /// consumer groups fence constraints by.
+    pub constraint_id: String,
+    /// The daemon surface that applied the constraint ([`FENCE_GATE_ID`]).
+    pub gate_id: String,
+    /// Canonical worktree path the fence was applied to.
+    pub worktree: String,
+    /// Normalised reason (see [`normalise_fence_reason`]) — never raw
+    /// operator free-text.
+    pub reason: String,
+    /// `true` when this engage also engaged the rate-limited cascade
+    /// (5 fences in 60 s); `false` for an ordinary engage.
+    pub cascade: bool,
+}
+
+/// DPO-002: build a [`ConstraintAppliedObservation`] for a fence
+/// engage. Pure converter — the caller owns identity (daemon session
+/// id) and the clock (`timestamp`). The `reason` is normalised here so
+/// no call site can bypass the bounded-token policy.
+#[must_use]
+pub fn from_fence(
+    daemon_session_id: &str,
+    timestamp: &str,
+    worktree: &str,
+    reason: &str,
+    cascade: bool,
+) -> ConstraintAppliedObservation {
+    ConstraintAppliedObservation {
+        kind: KIND_CONSTRAINT_APPLIED.to_string(),
+        session_id: daemon_session_id.to_string(),
+        timestamp: timestamp.to_string(),
+        constraint_id: FENCE_GATE_ID.to_string(),
+        gate_id: FENCE_GATE_ID.to_string(),
+        worktree: worktree.to_string(),
+        reason: normalise_fence_reason(reason),
+        cascade,
+    }
+}
+
 /// Errors a [`KindlingObservationSink`] can surface back to the
 /// emitter. The emitter logs and drops these — the scan response
 /// always succeeds regardless of sink health (MLP2-006 expected
@@ -740,6 +915,18 @@ pub trait KindlingObservationSink: Send + Sync {
     ) -> Result<(), KindlingSinkError> {
         Ok(())
     }
+
+    /// DPO-002: deliver a `constraint_applied` row produced by the
+    /// fence-engage surface. Defaulted to `Ok(())` for the same reason
+    /// as the other extension methods — existing sinks (Noop, custom
+    /// impls) auto-satisfy the extended trait; only sinks that consume
+    /// constraint rows override.
+    fn try_emit_constraint_applied(
+        &self,
+        _observation: ConstraintAppliedObservation,
+    ) -> Result<(), KindlingSinkError> {
+        Ok(())
+    }
 }
 
 /// Default sink used when the daemon was started without a Kindling
@@ -764,9 +951,11 @@ pub struct RecordingKindlingObservationSink {
     observations: Mutex<Vec<GateEvaluatedObservation>>,
     actions: Mutex<Vec<ActionExecutedObservation>>,
     commands: Mutex<Vec<CommandInvokedObservation>>,
+    constraints: Mutex<Vec<ConstraintAppliedObservation>>,
     fail_next: Mutex<Option<KindlingSinkError>>,
     fail_next_action: Mutex<Option<KindlingSinkError>>,
     fail_next_command: Mutex<Option<KindlingSinkError>>,
+    fail_next_constraint: Mutex<Option<KindlingSinkError>>,
 }
 
 impl RecordingKindlingObservationSink {
@@ -834,6 +1023,29 @@ impl RecordingKindlingObservationSink {
         self.commands.lock().expect("commands mutex").len()
     }
 
+    /// DPO-002: inject a one-shot failure for the next
+    /// [`Self::try_emit_constraint_applied`] call so tests can exercise
+    /// the fence-side sink-error swallow path.
+    pub fn fail_next_constraint_with(&self, error: KindlingSinkError) {
+        *self
+            .fail_next_constraint
+            .lock()
+            .expect("fail_next_constraint mutex") = Some(error);
+    }
+
+    /// DPO-002: snapshot the recorded `constraint_applied` observations
+    /// in arrival order.
+    #[must_use]
+    pub fn recorded_constraints(&self) -> Vec<ConstraintAppliedObservation> {
+        self.constraints.lock().expect("constraints mutex").clone()
+    }
+
+    /// DPO-002: number of `constraint_applied` observations recorded.
+    #[must_use]
+    pub fn constraints_len(&self) -> usize {
+        self.constraints.lock().expect("constraints mutex").len()
+    }
+
     /// Number of `gate_evaluated` observations recorded.
     #[must_use]
     pub fn len(&self) -> usize {
@@ -849,7 +1061,10 @@ impl RecordingKindlingObservationSink {
     /// True when no observations of any kind have been recorded.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.len() == 0 && self.actions_len() == 0 && self.commands_len() == 0
+        self.len() == 0
+            && self.actions_len() == 0
+            && self.commands_len() == 0
+            && self.constraints_len() == 0
     }
 }
 
@@ -899,6 +1114,25 @@ impl KindlingObservationSink for RecordingKindlingObservationSink {
         self.commands
             .lock()
             .expect("commands mutex")
+            .push(observation);
+        Ok(())
+    }
+
+    fn try_emit_constraint_applied(
+        &self,
+        observation: ConstraintAppliedObservation,
+    ) -> Result<(), KindlingSinkError> {
+        if let Some(err) = self
+            .fail_next_constraint
+            .lock()
+            .expect("fail_next_constraint mutex")
+            .take()
+        {
+            return Err(err);
+        }
+        self.constraints
+            .lock()
+            .expect("constraints mutex")
             .push(observation);
         Ok(())
     }
@@ -1077,6 +1311,196 @@ impl std::fmt::Debug for MidEditObservationEmitter {
         f.debug_struct("MidEditObservationEmitter")
             .field("daemon_session_id", &self.daemon_session_id)
             .field("rate_window", &self.rate_window)
+            .finish_non_exhaustive()
+    }
+}
+
+// DPO-001: save-time `gate_evaluated` emitter ----------------------
+//
+// The save-time `validate_paths` verb produces a verdict on every
+// editor save. The mid-edit emitter stays silent on a pass (volume
+// control); save-time does NOT — a passing save is the coverage signal
+// operators query, so it must produce a row. But an unbounded pass
+// stream would still flood the sink on a save-heavy workspace, so the
+// volume policy is asymmetric:
+//
+// - A **fail** (non-empty diagnostics) is ALWAYS emitted, never rate-
+//   checked. A finding is audit-grade and must not be dropped.
+// - A **pass** (empty diagnostics) is admitted only when the pass
+//   rate window allows it; throttled passes are dropped (the next save
+//   produces a fresh pass row anyway).
+
+/// DPO-001: per-call inputs the IPC handler supplies for each save-time
+/// emission. Unlike [`MidEditEmissionRequest`] there is no `file_path` —
+/// save-time is multi-path and the path set travels separately.
+#[derive(Debug, Clone, Copy)]
+pub struct SaveTimeEmissionRequest<'a> {
+    /// Unique evaluation id for joining the row back to the
+    /// originating telemetry span. Callers derive this from the W3C
+    /// `traceparent` (the same `derive_gate_eval_id` the mid-edit path
+    /// uses).
+    pub gate_eval_id: &'a str,
+    /// ISO 8601 datetime — when the daemon observed this verdict
+    /// completing.
+    pub timestamp: &'a str,
+    /// Wall-clock duration the daemon spent on the underlying
+    /// `validate_paths` call.
+    pub duration_ms: u64,
+}
+
+/// DPO-001: default rate-window capacity for the save-time emitter's
+/// **pass** stream. Fails bypass the window entirely; this only caps
+/// how many clean-save rows reach the sink per window.
+pub const DEFAULT_SAVE_TIME_PASS_CAPACITY: usize = 20;
+
+/// DPO-001: default rate-window duration paired with
+/// [`DEFAULT_SAVE_TIME_PASS_CAPACITY`] — 20 pass rows per minute. Wider
+/// than the mid-edit window because save-time fires far less often than
+/// a keystroke storm.
+pub const DEFAULT_SAVE_TIME_PASS_WINDOW: Duration = Duration::from_mins(1);
+
+/// DPO-001: daemon-side fan-out that converts a save-time
+/// `validate_paths` verdict into a Kindling `gate_evaluated` row,
+/// throttles the **pass** stream via a [`RateWindow`], always lets
+/// **fail** rows through, and writes through the configured
+/// [`KindlingObservationSink`].
+///
+/// Mirrors [`MidEditObservationEmitter`]'s ownership model: it holds
+/// the daemon-stable `session_id` and a sink behind an `Arc<dyn …>`.
+/// `include_paths` is fixed at construction (the host's privacy
+/// posture) and passed through to [`from_validate_paths`].
+pub struct SaveTimeObservationEmitter {
+    sink: Arc<dyn KindlingObservationSink>,
+    pass_rate_window: RateWindow,
+    daemon_session_id: String,
+    include_paths: bool,
+}
+
+impl SaveTimeObservationEmitter {
+    /// Construct an emitter with an explicit sink + pass rate window.
+    /// Production callers wire a real sink + a custom cap; tests use
+    /// [`Self::with_recorder`] for a recording sink.
+    pub fn new(
+        sink: Arc<dyn KindlingObservationSink>,
+        pass_rate_window: RateWindow,
+        daemon_session_id: String,
+        include_paths: bool,
+    ) -> Self {
+        Self {
+            sink,
+            pass_rate_window,
+            daemon_session_id,
+            include_paths,
+        }
+    }
+
+    /// Construct a recording-sink emitter with the default pass rate
+    /// window. Returns `(emitter, recorder)` so the test can hold a
+    /// clone of the recorder to assert against. Reserved for tests.
+    #[must_use]
+    pub fn with_recorder(
+        daemon_session_id: impl Into<String>,
+        include_paths: bool,
+    ) -> (Self, Arc<RecordingKindlingObservationSink>) {
+        let recorder = Arc::new(RecordingKindlingObservationSink::new());
+        let emitter = Self::new(
+            Arc::clone(&recorder) as Arc<dyn KindlingObservationSink>,
+            RateWindow::new(
+                DEFAULT_SAVE_TIME_PASS_CAPACITY,
+                DEFAULT_SAVE_TIME_PASS_WINDOW,
+            ),
+            daemon_session_id.into(),
+            include_paths,
+        );
+        (emitter, recorder)
+    }
+
+    /// Daemon-process-stable `session_id` the emitter stamps on every
+    /// row.
+    #[must_use]
+    pub fn daemon_session_id(&self) -> &str {
+        &self.daemon_session_id
+    }
+
+    /// Build + emit a `gate_evaluated` row for a completed save-time
+    /// verdict.
+    ///
+    /// A fail (non-empty `diagnostics`) is always emitted. A pass is
+    /// admitted only when the pass rate window allows it; on throttle
+    /// the row is dropped and [`EmissionOutcome::Throttled`] returned.
+    /// Sink errors are logged via `tracing::warn!` and surfaced as
+    /// [`EmissionOutcome::SinkError`] — never propagated, so the verdict
+    /// response always reaches the client.
+    ///
+    /// `now` drives the pass rate window; production callers pass
+    /// `Instant::now()` (kept as a parameter so tests drive the window
+    /// deterministically).
+    pub fn try_emit(
+        &self,
+        request: &SaveTimeEmissionRequest<'_>,
+        diagnostics: &[Diagnostic],
+        paths: &[String],
+        now: Instant,
+    ) -> EmissionOutcome {
+        // A fail is audit-grade — never rate-checked. Only the pass
+        // stream consults the window.
+        let pending_drops = if diagnostics.is_empty() {
+            match self.pass_rate_window.record(now) {
+                RateDecision::Throttle { drops } => {
+                    tracing::debug!(
+                        target: "anvil_intercept::kindling_observation",
+                        drops,
+                        "save-time pass gate_evaluated emit throttled by rate window"
+                    );
+                    return EmissionOutcome::Throttled { drops };
+                }
+                RateDecision::Allow { pending_drops } => {
+                    if pending_drops > 0 {
+                        tracing::warn!(
+                            target: "anvil_intercept::kindling_observation",
+                            pending_drops,
+                            "save-time pass gate_evaluated emit followed throttle burst",
+                        );
+                    }
+                    pending_drops
+                }
+            }
+        } else {
+            // Fails bypass the window; no drops are attributable to a
+            // fail emission.
+            0
+        };
+
+        let ctx = ObservationContext {
+            session_id: &self.daemon_session_id,
+            timestamp: request.timestamp,
+            gate_eval_id: request.gate_eval_id,
+            // Unused on the save-time path (multi-path); the changed
+            // set comes from `paths`.
+            file_path: "",
+            duration_ms: request.duration_ms,
+        };
+        let observation = from_validate_paths(&ctx, diagnostics, paths, self.include_paths);
+        match self.sink.try_emit(observation) {
+            Ok(()) => EmissionOutcome::Emitted { pending_drops },
+            Err(err) => {
+                tracing::warn!(
+                    target: "anvil_intercept::kindling_observation",
+                    error = %err,
+                    "save-time gate_evaluated emit dropped: sink failure",
+                );
+                EmissionOutcome::SinkError
+            }
+        }
+    }
+}
+
+impl std::fmt::Debug for SaveTimeObservationEmitter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SaveTimeObservationEmitter")
+            .field("daemon_session_id", &self.daemon_session_id)
+            .field("pass_rate_window", &self.pass_rate_window)
+            .field("include_paths", &self.include_paths)
             .finish_non_exhaustive()
     }
 }
@@ -2092,6 +2516,263 @@ mod tests {
     fn emitter_exposes_daemon_session_id_for_host_introspection() {
         let (emitter, _) = MidEditObservationEmitter::with_recorder(SESSION_UUID);
         assert_eq!(emitter.daemon_session_id(), SESSION_UUID);
+    }
+
+    // ----- DPO-001: save-time gate_evaluated builder + emitter -----
+
+    #[test]
+    fn from_validate_paths_pass_verdict_emits_pass_outcome() {
+        let ctx = sample_ctx();
+        let paths = vec!["src/a.rs".to_string(), "src/b.rs".to_string()];
+        let obs = from_validate_paths(&ctx, &[], &paths, false);
+        assert_eq!(obs.outcome, Outcome::Pass);
+        assert_eq!(obs.gate_id, SAVE_TIME_GATE_ID);
+        assert_eq!(obs.kind, KIND_GATE_EVALUATED);
+        assert_eq!(obs.enforcement, Enforcement::Informational);
+        assert_eq!(obs.violation_count, Some(0));
+        assert_eq!(obs.warning_count, Some(0));
+        assert!(obs.rules_violated.is_none());
+        assert!(obs.rules_evaluated.is_empty());
+        assert_eq!(obs.inputs.file_count, 2);
+        assert!(
+            obs.inputs.changed_files.is_empty(),
+            "include_paths=false must omit the path set",
+        );
+    }
+
+    #[test]
+    fn from_validate_paths_populates_changed_files_when_include_paths() {
+        let ctx = sample_ctx();
+        let paths = vec!["src/a.rs".to_string(), "src/b.rs".to_string()];
+        let obs = from_validate_paths(&ctx, &[], &paths, true);
+        assert_eq!(obs.inputs.changed_files, paths);
+        assert_eq!(obs.inputs.file_count, 2);
+    }
+
+    #[test]
+    fn from_validate_paths_fail_verdict_emits_fail_outcome_with_rules() {
+        let ctx = sample_ctx();
+        let paths = vec!["src/lib.rs".to_string()];
+        let diags = vec![
+            make_diag("info-1", Severity::Info),
+            make_diag("warn-1", Severity::Warning),
+            make_diag("err-1", Severity::Error),
+        ];
+        let obs = from_validate_paths(&ctx, &diags, &paths, true);
+        assert_eq!(obs.outcome, Outcome::Fail);
+        assert_eq!(obs.gate_id, SAVE_TIME_GATE_ID);
+        assert_eq!(obs.enforcement, Enforcement::Blocking);
+        assert_eq!(obs.violation_count, Some(1));
+        assert_eq!(obs.warning_count, Some(1));
+        assert_eq!(
+            obs.rules_violated.expect("rules_violated present"),
+            vec!["warn-1".to_string(), "err-1".to_string()],
+        );
+        assert_eq!(
+            obs.rules_evaluated,
+            vec![
+                "info-1".to_string(),
+                "warn-1".to_string(),
+                "err-1".to_string()
+            ],
+        );
+    }
+
+    fn sample_save_time_request() -> SaveTimeEmissionRequest<'static> {
+        SaveTimeEmissionRequest {
+            gate_eval_id: "gate-eval-save-1",
+            timestamp: "2026-06-19T10:00:00Z",
+            duration_ms: 33,
+        }
+    }
+
+    #[test]
+    fn save_time_emitter_emits_pass_and_fail_rows() {
+        let (emitter, recorder) = SaveTimeObservationEmitter::with_recorder(SESSION_UUID, true);
+        let paths = vec!["src/lib.rs".to_string()];
+        // Pass row.
+        let pass = emitter.try_emit(&sample_save_time_request(), &[], &paths, Instant::now());
+        assert_eq!(pass, EmissionOutcome::Emitted { pending_drops: 0 });
+        // Fail row.
+        let diags = vec![make_diag("err-1", Severity::Error)];
+        let fail = emitter.try_emit(&sample_save_time_request(), &diags, &paths, Instant::now());
+        assert_eq!(fail, EmissionOutcome::Emitted { pending_drops: 0 });
+
+        let rows = recorder.recorded();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].outcome, Outcome::Pass);
+        assert_eq!(rows[0].session_id, SESSION_UUID);
+        assert_eq!(rows[0].gate_id, SAVE_TIME_GATE_ID);
+        assert_eq!(rows[1].outcome, Outcome::Fail);
+    }
+
+    #[test]
+    fn save_time_emitter_always_emits_fail_even_when_pass_window_saturated() {
+        // Capacity-1 pass window over a long window: the first pass admits,
+        // every later pass throttles — but fails must bypass the window.
+        let recorder = Arc::new(RecordingKindlingObservationSink::new());
+        let emitter = SaveTimeObservationEmitter::new(
+            Arc::clone(&recorder) as Arc<dyn KindlingObservationSink>,
+            RateWindow::new(1, Duration::from_mins(1)),
+            SESSION_UUID.to_string(),
+            false,
+        );
+        let paths = vec!["src/lib.rs".to_string()];
+        let now = Instant::now();
+        // Saturate the pass window.
+        assert_eq!(
+            emitter.try_emit(&sample_save_time_request(), &[], &paths, now),
+            EmissionOutcome::Emitted { pending_drops: 0 },
+        );
+        assert!(matches!(
+            emitter.try_emit(&sample_save_time_request(), &[], &paths, now),
+            EmissionOutcome::Throttled { .. },
+        ));
+        // A fail still flows despite the saturated pass window.
+        let diags = vec![make_diag("err-1", Severity::Error)];
+        assert_eq!(
+            emitter.try_emit(&sample_save_time_request(), &diags, &paths, now),
+            EmissionOutcome::Emitted { pending_drops: 0 },
+        );
+        let rows = recorder.recorded();
+        assert_eq!(rows.len(), 2, "one pass + one fail must reach the sink");
+        assert_eq!(rows[0].outcome, Outcome::Pass);
+        assert_eq!(rows[1].outcome, Outcome::Fail);
+    }
+
+    #[test]
+    fn save_time_emitter_throttles_passes_after_capacity_within_window() {
+        let recorder = Arc::new(RecordingKindlingObservationSink::new());
+        let emitter = SaveTimeObservationEmitter::new(
+            Arc::clone(&recorder) as Arc<dyn KindlingObservationSink>,
+            RateWindow::new(2, Duration::from_mins(1)),
+            SESSION_UUID.to_string(),
+            false,
+        );
+        let paths = vec!["src/lib.rs".to_string()];
+        let now = Instant::now();
+        assert_eq!(
+            emitter.try_emit(&sample_save_time_request(), &[], &paths, now),
+            EmissionOutcome::Emitted { pending_drops: 0 },
+        );
+        assert_eq!(
+            emitter.try_emit(&sample_save_time_request(), &[], &paths, now),
+            EmissionOutcome::Emitted { pending_drops: 0 },
+        );
+        assert_eq!(
+            emitter.try_emit(&sample_save_time_request(), &[], &paths, now),
+            EmissionOutcome::Throttled { drops: 1 },
+        );
+        assert_eq!(
+            recorder.len(),
+            2,
+            "throttled passes must not reach the sink"
+        );
+    }
+
+    #[test]
+    fn save_time_emitter_swallows_sink_error() {
+        let (emitter, recorder) = SaveTimeObservationEmitter::with_recorder(SESSION_UUID, true);
+        recorder.fail_next_with(KindlingSinkError::Unavailable("db locked".into()));
+        let paths = vec!["src/lib.rs".to_string()];
+        let diags = vec![make_diag("err-1", Severity::Error)];
+        let outcome = emitter.try_emit(&sample_save_time_request(), &diags, &paths, Instant::now());
+        assert_eq!(outcome, EmissionOutcome::SinkError);
+        assert!(recorder.is_empty(), "failed emit must not record the row");
+    }
+
+    // ----- DPO-002: fence constraint_applied builder -----
+
+    #[test]
+    fn from_fence_preserves_known_reasons() {
+        let cascade = from_fence(
+            SESSION_UUID,
+            "2026-06-19T10:00:00Z",
+            "/work/tree",
+            crate::telemetry::DEGRADED_FENCE_CASCADE,
+            true,
+        );
+        assert_eq!(cascade.kind, KIND_CONSTRAINT_APPLIED);
+        assert_eq!(cascade.gate_id, FENCE_GATE_ID);
+        assert_eq!(cascade.constraint_id, FENCE_GATE_ID);
+        assert_eq!(cascade.worktree, "/work/tree");
+        assert_eq!(cascade.reason, crate::telemetry::DEGRADED_FENCE_CASCADE);
+        assert!(cascade.cascade);
+
+        let spoof = from_fence(
+            SESSION_UUID,
+            "2026-06-19T10:00:00Z",
+            "/work/tree",
+            crate::telemetry::DEGRADED_SPOOFED_ATTRIBUTION,
+            false,
+        );
+        assert_eq!(spoof.reason, crate::telemetry::DEGRADED_SPOOFED_ATTRIBUTION);
+        assert!(!spoof.cascade);
+    }
+
+    #[test]
+    fn from_fence_normalises_arbitrary_operator_reason() {
+        let row = from_fence(
+            SESSION_UUID,
+            "2026-06-19T10:00:00Z",
+            "/work/tree",
+            "manual review: see ticket /home/op/notes.txt",
+            false,
+        );
+        assert_eq!(
+            row.reason, FENCE_REASON_OPERATOR,
+            "free-form operator text must collapse to the bounded token",
+        );
+        let json = serde_json::to_string(&row).expect("serialise");
+        assert!(
+            !json.contains("notes.txt"),
+            "operator free-text leaked into the row: {json}",
+        );
+    }
+
+    #[test]
+    fn normalise_fence_reason_maps_unknown_to_operator() {
+        assert_eq!(
+            normalise_fence_reason("rule violation"),
+            FENCE_REASON_OPERATOR
+        );
+        assert_eq!(
+            normalise_fence_reason(crate::telemetry::DEGRADED_FENCE_CASCADE),
+            crate::telemetry::DEGRADED_FENCE_CASCADE,
+        );
+    }
+
+    #[test]
+    fn recording_sink_records_constraint_applied_rows() {
+        let sink = RecordingKindlingObservationSink::new();
+        let row = from_fence(
+            SESSION_UUID,
+            "2026-06-19T10:00:00Z",
+            "/work/tree",
+            crate::telemetry::DEGRADED_FENCE_CASCADE,
+            true,
+        );
+        sink.try_emit_constraint_applied(row).expect("record");
+        let rows = sink.recorded_constraints();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].constraint_id, FENCE_GATE_ID);
+        assert!(rows[0].cascade);
+        assert!(!sink.is_empty());
+    }
+
+    #[test]
+    fn recording_sink_constraint_fail_next_is_swallowed_by_emitter_callers() {
+        let sink = RecordingKindlingObservationSink::new();
+        sink.fail_next_constraint_with(KindlingSinkError::Rejected("dup".into()));
+        let row = from_fence(
+            SESSION_UUID,
+            "2026-06-19T10:00:00Z",
+            "/work/tree",
+            crate::telemetry::DEGRADED_FENCE_CASCADE,
+            false,
+        );
+        assert!(sink.try_emit_constraint_applied(row).is_err());
+        assert!(sink.recorded_constraints().is_empty());
     }
 
     // ----- MLP2-010: post-hook action_executed emission -----

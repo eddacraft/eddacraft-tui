@@ -71,6 +71,7 @@ use crate::confinement::Confinement;
 use crate::full_scan_executor::{ScanContext, ScanCoordinator, prepare_scan};
 use crate::ipc::{GctxDispatch, SaveTimeDispatch, SaveTimeError};
 use crate::kernel_cache::KernelGraphCache;
+use crate::kindling_observation::SaveTimeObservationEmitter;
 use crate::rule_cache::WorktreeKey;
 use crate::telemetry::{TelemetryCorrelation, TelemetryEmitter};
 use crate::validate_paths::{ValidateEnv, validate_paths as run_validate_paths};
@@ -191,6 +192,11 @@ pub struct SaveTimeState {
     /// (default-off). `None` makes every persistence operation a no-op, so the
     /// daemon's behaviour is byte-for-byte today's rebuild-on-restart.
     snapshot_dir: Option<PathBuf>,
+    /// DPO-001: the save-time `gate_evaluated` emitter. When present, every
+    /// `validate_paths` verdict produces a Kindling row (pass and fail) through
+    /// the IPC arm. `None` (the default) keeps the daemon silent — the emitter
+    /// is wired from `anvil-cli` alongside the other observation surfaces.
+    observation_emitter: Option<Arc<SaveTimeObservationEmitter>>,
 }
 
 impl SaveTimeState {
@@ -223,6 +229,7 @@ impl SaveTimeState {
             telemetry: Mutex::new(TelemetryEmitter::new()),
             coordinator: ScanCoordinator::new(),
             snapshot_dir: None,
+            observation_emitter: None,
         }
     }
 
@@ -266,6 +273,24 @@ impl SaveTimeState {
     pub fn with_broadcaster(mut self, broadcaster: Arc<TelemetryBroadcaster>) -> Self {
         self.broadcaster = Some(broadcaster);
         self
+    }
+
+    /// DPO-001: attach the save-time `gate_evaluated` emitter. With it wired,
+    /// every `validate_paths` verdict produces a Kindling row (pass and fail);
+    /// without it the daemon stays silent (tests, embedded listeners). The
+    /// emitter is decoupled from the DSV-044 telemetry correlation/session gate
+    /// — it fires on the verdict alone.
+    #[must_use]
+    pub fn with_observation_emitter(mut self, emitter: Arc<SaveTimeObservationEmitter>) -> Self {
+        self.observation_emitter = Some(emitter);
+        self
+    }
+
+    /// DPO-001: the wired save-time `gate_evaluated` emitter, if any. The IPC
+    /// `validate_paths` arm reads this to emit a row after each verdict.
+    #[must_use]
+    pub fn observation_emitter(&self) -> Option<&Arc<SaveTimeObservationEmitter>> {
+        self.observation_emitter.as_ref()
     }
 
     /// Whether a parser is wired (used by `run_foreground` to warn on a
@@ -775,6 +800,12 @@ impl<'a> SaveTimeConn<'a> {
 }
 
 impl SaveTimeDispatch for SaveTimeConn<'_> {
+    /// DPO-001: delegate to the shared state so the IPC `validate_paths` arm can
+    /// reach the save-time emitter through the per-connection dispatch object.
+    fn observation_emitter(&self) -> Option<&Arc<SaveTimeObservationEmitter>> {
+        self.state.observation_emitter()
+    }
+
     fn set_originating_session(&mut self, session_id: &str, worktree: &Path) {
         let Ok(worktree) = std::fs::canonicalize(worktree) else {
             self.originating_session = None;

@@ -239,6 +239,17 @@ pub trait SaveTimeDispatch: GctxDispatch + Send {
         &mut self,
         request: &RequestFullScanRequest,
     ) -> Result<RequestFullScanResponse, SaveTimeError>;
+
+    /// DPO-001: the save-time `gate_evaluated` emitter wired on the shared
+    /// state, if any. Defaulted to `None` so test / embedded dispatch impls
+    /// auto-satisfy the trait; the production `SaveTimeConn` overrides it to
+    /// delegate to the shared state. The IPC `validate_paths` arm reads this to
+    /// emit a Kindling row after each verdict.
+    fn observation_emitter(
+        &self,
+    ) -> Option<&Arc<crate::kindling_observation::SaveTimeObservationEmitter>> {
+        None
+    }
 }
 
 use crate::ShutdownToken;
@@ -246,6 +257,7 @@ use crate::dos::{IpcLimits, RpsBucket};
 use crate::enforcement::CONTENT_SIZE_CAP_BYTES_USIZE;
 use crate::fence::FenceStore;
 use crate::kindling_observation::MidEditEmissionRequest;
+use crate::kindling_observation::SaveTimeEmissionRequest;
 use crate::kindling_observation::{CommandInvokedEmissionRequest, CommandInvokedEmitter};
 use crate::midedit::{self, ScanBufferMode, ScanBufferRequest, ScanBufferService, SpoofBlockInfo};
 use crate::registry::{Cross, SessionDispatcher, SessionRegistry};
@@ -3131,7 +3143,35 @@ fn handle_save_time_jsonrpc(
     if method == anvil_intercept_proto::protocol::ANVIL_VALIDATE_PATHS {
         match serde_json::from_value::<ValidatePathsRequest>(params.clone()) {
             Ok(request) => {
-                save_time_result(dispatch.validate_paths(&request), response_id, traceparent)
+                // DPO-001: measure the verdict and, on success, emit a save-time
+                // `gate_evaluated` Kindling row (pass and fail). Decoupled from
+                // the DSV-044 telemetry correlation/session gate — it fires on
+                // the verdict alone. Emission is bounded + non-blocking: the
+                // sink trait returns immediately and failure is swallowed inside
+                // the emitter, so the verdict response always reaches the client.
+                let started = Instant::now();
+                let result = dispatch.validate_paths(&request);
+                if let Ok(ref response) = result
+                    && let Some(emitter) = dispatch.observation_emitter()
+                {
+                    let elapsed = started.elapsed();
+                    let duration_ms = u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX);
+                    let timestamp =
+                        chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+                    let gate_eval_id = derive_gate_eval_id(traceparent);
+                    let emission = SaveTimeEmissionRequest {
+                        gate_eval_id: &gate_eval_id,
+                        timestamp: &timestamp,
+                        duration_ms,
+                    };
+                    // `request.paths` is a change-descriptor set; the row records
+                    // the root-relative path strings only (no content, no change
+                    // kind), matching the paths-only privacy contract.
+                    let paths: Vec<String> = request.paths.iter().map(|c| c.path.clone()).collect();
+                    let _ =
+                        emitter.try_emit(&emission, &response.diagnostics, &paths, Instant::now());
+                }
+                save_time_result(result, response_id, traceparent)
             }
             Err(err) => save_time_invalid_params(response_id, traceparent, &err),
         }

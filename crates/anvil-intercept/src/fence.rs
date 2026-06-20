@@ -259,12 +259,26 @@ pub struct FenceStore {
     /// on first fire for a worktree.
     cascade_windows: CascadeWindows,
     telemetry: Arc<Mutex<Option<Arc<FenceTelemetry>>>>,
+    /// DPO-002: the Kindling sink + daemon session id for
+    /// `constraint_applied` rows. Stored parallel to `telemetry` (its
+    /// own Mutex-held slot) so a fence engage produces an audit-grade
+    /// constraint row even when the cross-session telemetry fan-out is
+    /// not wired. `None` (the default) keeps fence engages silent.
+    observation: Arc<Mutex<Option<FenceObservation>>>,
 }
 
 struct FenceTelemetry {
     registry: Arc<SessionRegistry>,
     broadcaster: Arc<crate::broadcaster::TelemetryBroadcaster>,
     emitter: Mutex<TelemetryEmitter>,
+}
+
+/// DPO-002: the constraint-observation collaborators a [`FenceStore`]
+/// holds — the Kindling sink and the daemon-stable session id stamped
+/// onto every `constraint_applied` row.
+struct FenceObservation {
+    sink: Arc<dyn crate::kindling_observation::KindlingObservationSink>,
+    daemon_session_id: String,
 }
 
 impl FenceStore {
@@ -275,7 +289,39 @@ impl FenceStore {
             loaded_state: Arc::new(Mutex::new(None)),
             cascade_windows: Arc::new(Mutex::new(HashMap::new())),
             telemetry: Arc::new(Mutex::new(None)),
+            observation: Arc::new(Mutex::new(None)),
         }
+    }
+
+    /// DPO-002: inject the Kindling sink (and daemon session id) so every
+    /// successful fence engage emits one `constraint_applied` row. Mirrors the
+    /// [`Self::with_telemetry`] builder pattern; independent of telemetry so a
+    /// host can wire either, both, or neither. Production wires this from
+    /// `anvil-cli` alongside the other observation surfaces.
+    #[must_use]
+    pub fn with_observation_sink(
+        self,
+        sink: Arc<dyn crate::kindling_observation::KindlingObservationSink>,
+        daemon_session_id: String,
+    ) -> Self {
+        self.set_observation_sink(sink, daemon_session_id);
+        self
+    }
+
+    /// DPO-002: set the Kindling sink in place (the non-consuming form of
+    /// [`Self::with_observation_sink`], mirroring [`Self::set_telemetry`]).
+    pub fn set_observation_sink(
+        &self,
+        sink: Arc<dyn crate::kindling_observation::KindlingObservationSink>,
+        daemon_session_id: String,
+    ) {
+        *self
+            .observation
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(FenceObservation {
+            sink,
+            daemon_session_id,
+        });
     }
 
     #[must_use]
@@ -483,7 +529,9 @@ impl FenceStore {
         let mut state = self.load()?;
         state.upsert(record.clone());
 
-        if matches!(decision, RateDecision::Throttle { .. }) && !state.is_cascaded(&canonical) {
+        let cascade_engaged =
+            matches!(decision, RateDecision::Throttle { .. }) && !state.is_cascaded(&canonical);
+        if cascade_engaged {
             state.upsert_cascade(CascadeRecord {
                 worktree: canonical.clone(),
                 since_unix: now_unix,
@@ -498,9 +546,59 @@ impl FenceStore {
             );
         }
 
+        // DPO-002: every successful engage produces exactly one
+        // `constraint_applied` row (the council producer-coverage fix —
+        // pre-DPO-002 only the rate-limited cascade transition surfaced). Emit
+        // once per call, not per excess fire; `cascade` flags whether this same
+        // call engaged the cascade. On a cascade engage the row carries the
+        // pinned cascade reason (matching the persisted `CascadeRecord`); an
+        // ordinary engage carries the engage's own reason (normalised by
+        // `from_fence`).
+        //
+        // Emit BEFORE the fence-file persist (ADR-088 / council T4):
+        // fence rows are audit-grade, so we accept a rare duplicate on a
+        // crash between emit and persist over silently losing the engage
+        // record. The sink contract is non-blocking and errors are
+        // swallowed, so this cannot fail or stall the persist below.
+        let constraint_reason = if cascade_engaged {
+            crate::telemetry::DEGRADED_FENCE_CASCADE
+        } else {
+            record.reason.as_str()
+        };
+        self.emit_constraint_applied(&canonical, constraint_reason, cascade_engaged);
+
         self.save(&state)?;
         self.emit_fence_transition(&canonical, FenceTransition::ActiveToFenced);
         Ok(record)
+    }
+
+    /// DPO-002: emit one `constraint_applied` Kindling row for a successful
+    /// fence engage. No-op when no sink is wired. Sink errors are logged and
+    /// swallowed — a fence is persisted regardless of observation-sink health.
+    fn emit_constraint_applied(&self, worktree: &Path, reason: &str, cascade: bool) {
+        let observation = self
+            .observation
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let Some(observation) = observation.as_ref() else {
+            return;
+        };
+        let timestamp = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+        let row = crate::kindling_observation::from_fence(
+            &observation.daemon_session_id,
+            &timestamp,
+            &worktree.display().to_string(),
+            reason,
+            cascade,
+        );
+        if let Err(err) = observation.sink.try_emit_constraint_applied(row) {
+            tracing::warn!(
+                target: "anvil_intercept::fence",
+                error = %err,
+                worktree = %worktree.display(),
+                "constraint_applied emit dropped: sink failure",
+            );
+        }
     }
 
     /// MLP2-025b: convenience over [`Self::fence_worktree`] that pins
@@ -1520,6 +1618,109 @@ mod tests {
         assert!(
             store_after_restart.is_cascaded(worktree.path()),
             "cascade record must survive daemon restart",
+        );
+    }
+
+    // ----- DPO-002: fence constraint_applied emission -----
+
+    /// DPO-002: a single (non-cascading) fence engage produces exactly one
+    /// `constraint_applied` row — the critical council producer-coverage fix.
+    /// The reason normalises to the bounded token and the cascade flag is
+    /// `false`.
+    #[test]
+    fn single_fence_engage_emits_exactly_one_constraint_row() {
+        use crate::kindling_observation::{
+            FENCE_GATE_ID, FENCE_REASON_OPERATOR, KindlingObservationSink,
+            RecordingKindlingObservationSink,
+        };
+
+        let temp = tempfile::tempdir().expect("tempdir");
+        let worktree = make_worktree();
+        let recorder = Arc::new(RecordingKindlingObservationSink::new());
+        let store = store_in(&temp).with_observation_sink(
+            Arc::clone(&recorder) as Arc<dyn KindlingObservationSink>,
+            "daemon-session-fence".to_string(),
+        );
+
+        store
+            .fence_worktree(worktree.path(), "rule violation")
+            .expect("fence worktree");
+
+        let rows = recorder.recorded_constraints();
+        assert_eq!(rows.len(), 1, "one engage must produce exactly one row");
+        let row = &rows[0];
+        assert_eq!(row.constraint_id, FENCE_GATE_ID);
+        assert_eq!(row.gate_id, FENCE_GATE_ID);
+        assert_eq!(row.session_id, "daemon-session-fence");
+        assert_eq!(
+            row.reason, FENCE_REASON_OPERATOR,
+            "free-form reason must normalise to the bounded token",
+        );
+        assert!(!row.cascade, "an ordinary engage is not a cascade");
+    }
+
+    /// DPO-002: a cascade-engaging fire (the 5th within 60s) emits a row with
+    /// `cascade = true` and the pinned cascade reason. Each engage in the run
+    /// produces exactly one row (emit-once per engage), so five fires yield
+    /// five rows with exactly one cascade row.
+    #[test]
+    fn cascade_engage_sets_cascade_flag_true() {
+        use crate::kindling_observation::{
+            KindlingObservationSink, RecordingKindlingObservationSink,
+        };
+
+        let temp = tempfile::tempdir().expect("tempdir");
+        let worktree = tempfile::tempdir().expect("worktree tempdir");
+        let recorder = Arc::new(RecordingKindlingObservationSink::new());
+        let store = store_in(&temp).with_observation_sink(
+            Arc::clone(&recorder) as Arc<dyn KindlingObservationSink>,
+            "daemon-session-fence".to_string(),
+        );
+
+        for i in 0..5 {
+            store
+                .fence_worktree(worktree.path(), format!("fire {i}"))
+                .expect("fence");
+        }
+
+        let rows = recorder.recorded_constraints();
+        assert_eq!(rows.len(), 5, "one row per engage");
+        let cascade_rows: Vec<_> = rows.iter().filter(|r| r.cascade).collect();
+        assert_eq!(
+            cascade_rows.len(),
+            1,
+            "exactly the cascade-engaging fire sets cascade=true",
+        );
+        assert_eq!(
+            cascade_rows[0].reason,
+            crate::telemetry::DEGRADED_FENCE_CASCADE,
+        );
+    }
+
+    /// DPO-002: a sink error on the constraint emit is logged + swallowed — the
+    /// fence is still persisted (the engage succeeds regardless of sink health).
+    #[test]
+    fn fence_engage_survives_constraint_sink_error() {
+        use crate::kindling_observation::{
+            KindlingObservationSink, KindlingSinkError, RecordingKindlingObservationSink,
+        };
+
+        let temp = tempfile::tempdir().expect("tempdir");
+        let worktree = make_worktree();
+        let recorder = Arc::new(RecordingKindlingObservationSink::new());
+        recorder.fail_next_constraint_with(KindlingSinkError::Unavailable("db locked".into()));
+        let store = store_in(&temp).with_observation_sink(
+            Arc::clone(&recorder) as Arc<dyn KindlingObservationSink>,
+            "daemon-session-fence".to_string(),
+        );
+
+        let record = store
+            .fence_worktree(worktree.path(), "rule violation")
+            .expect("fence still persists despite sink error");
+        assert!(store.load().expect("reload").is_fenced(&record.worktree));
+        assert!(
+            recorder.recorded_constraints().is_empty(),
+            "failed emit must not record the row",
         );
     }
 }
