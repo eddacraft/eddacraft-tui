@@ -1532,6 +1532,14 @@ a backlog. Promote repeated friction or executable follow-up work to
   triage report output by status/path before filing any follow-up work.
 - **Follow-up:** none
 
+### 2026-06-20 — other
+
+- **Task:** Address CIB-085 PR review feedback on gctx impact capping under lock.
+- **Outcome:** Reworked affected-symbol capping to keep a sorted bounded vector while streaming symbols; deterministic output retained.
+- **Worked:** Existing order-independence and cap tests were sufficient to validate behaviour after the refactor.
+- **Failed:** none.
+- **Friction:** The previous collect-then-truncate approach looked deterministic but silently removed lock-budget guarantees.
+- **Improvement:** For lock-held paths, enforce caps during collection rather than in post-processing.
 ### 2026-06-20 — opencode
 
 - **Task:** Public-facing Anvil documentation pass.

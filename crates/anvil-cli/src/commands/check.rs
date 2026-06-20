@@ -596,13 +596,13 @@ impl SarifAccumulator {
         // `startColumn` is 1-based and the schema rejects 0; column is optional
         // in our pinned subset, so we emit line-only regions rather than risk an
         // invalid (or semantically wrong) `startColumn`.
-        let region = sarif::Region::line(line);
+        let region = sarif::Region::try_line(line);
         let fingerprint = w.fingerprint.clone().unwrap_or_else(|| {
             sarif::stable_fingerprint(&w.id, &w.location.file, Some(line), &w.message)
         });
         let mut result =
             sarif::SarifResult::new(w.id.clone(), sarif_level(w.severity), w.message.clone())
-                .location(sarif::Location::new(w.location.file.clone(), Some(region)))
+                .location(sarif::Location::new(w.location.file.clone(), region))
                 .fingerprint("anvilFingerprint/v1", fingerprint);
         if let Some(s) = &w.suppressed {
             // `check` suppressions are in-source (`@anvil-ignore`) markers.
@@ -626,7 +626,7 @@ impl SarifAccumulator {
             sarif::SarifResult::new(id.clone(), sarif::Level::Error, f.redacted_line.clone())
                 .location(sarif::Location::new(
                     file.clone(),
-                    Some(sarif::Region::line(line)),
+                    sarif::Region::try_line(line),
                 ))
                 .fingerprint(
                     "anvilFingerprint/v1",

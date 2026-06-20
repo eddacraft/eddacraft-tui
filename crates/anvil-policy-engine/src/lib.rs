@@ -356,17 +356,7 @@ impl Engine {
                 .map_err(|e| EngineError::Regorus(e.to_string()))
         })?;
 
-        let value = match results.result.first().and_then(|qr| qr.expressions.first()) {
-            // Preserve the Rego undefined vs. null distinction: Rego
-            // `undefined` (no expression result, or `Value::Undefined`)
-            // collapses to `None`; an explicit JSON `null` stays `Some(Null)`.
-            None => None,
-            Some(expr) if matches!(expr.value, RegorusValue::Undefined) => None,
-            Some(expr) => Some(
-                serde_json::to_value(&expr.value)
-                    .map_err(|e| EngineError::Regorus(e.to_string()))?,
-            ),
-        };
+        let value = extract_primary_eval_value(&results)?;
 
         let coverage = if self.config.collect_coverage {
             let report = self.guard("get_coverage_report", |inner| {
@@ -410,6 +400,33 @@ impl Engine {
             .value
             .unwrap_or(serde_json::Value::Null);
         Ok(result::post_process(&raw, input, opts)?)
+    }
+}
+
+/// The facade exposes a single primary JSON value. Reject semicolon-separated
+/// multi-expression queries that would silently drop trailing expressions.
+/// Multi-row comprehension results (one expression, many bindings) keep the first
+/// row for `value`; use [`EvalResult::trace`] for the full binding set.
+fn extract_primary_eval_value(
+    results: &regorus::QueryResults,
+) -> Result<Option<serde_json::Value>, EngineError> {
+    let Some(query_result) = results.result.first() else {
+        return Ok(None);
+    };
+    if query_result.expressions.len() > 1 {
+        return Err(EngineError::Regorus(
+            "query produced multiple expressions; use a single data-path query or one binding"
+                .into(),
+        ));
+    }
+    match query_result.expressions.first() {
+        // Preserve the Rego undefined vs. null distinction: Rego `undefined`
+        // collapses to `None`; an explicit JSON `null` stays `Some(Null)`.
+        None => Ok(None),
+        Some(expr) if matches!(expr.value, RegorusValue::Undefined) => Ok(None),
+        Some(expr) => Ok(Some(
+            serde_json::to_value(&expr.value).map_err(|e| EngineError::Regorus(e.to_string()))?,
+        )),
     }
 }
 
@@ -484,6 +501,21 @@ explicit_null := null
     /// pipeline parsers with no error envelope). After a caught panic the
     /// engine is poisoned and refuses further evaluation rather than operate on
     /// possibly-inconsistent regorus state.
+    #[test]
+    fn eval_rejects_multi_expression_queries() {
+        let mut engine = Engine::new(EngineConfig::default()).expect("engine");
+        engine
+            .add_policy("t.rego", "package t\nimport rego.v1\n")
+            .expect("add_policy");
+        let err = engine
+            .eval(&PolicyInput::default(), "1 + 2; 3 + 4")
+            .expect_err("multi-expression query must be rejected");
+        assert!(
+            matches!(err, EngineError::Regorus(ref msg) if msg.contains("multiple expressions")),
+            "got {err:?}"
+        );
+    }
+
     #[test]
     fn eval_catches_panic_and_poisons_engine() {
         /// A builtin whose `call` panics instead of returning.

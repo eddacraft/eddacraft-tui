@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 48/84    |
+| CIB | —     | In Progress | 48/85    |
 
 ## Purpose
 
@@ -2331,3 +2331,48 @@ archive.
   in-PR. Pre-existing unbounded reads in `architecture.rs::parse_architecture`
   (CLI-only) and `collect_sql_findings` are out of scope and noted for future
   intake.
+
+### CIB-085: Clawpatch Rust contract batch (gctx, policy-engine, sarif)
+
+- **Status:** In Progress
+- **Intent:** Close the five medium-severity contract/correctness findings left
+  on the shipping Rust product after the 2026-06-20 clawpatch triage and JS/TS
+  retirement verdict — deterministic gctx impact reporting, structured invalid
+  query handling, multi-query Rego eval, and SARIF region invariants.
+- **Expected Outcome:**
+  1. **`anvil-gctx-egress`** — affected-symbol cap is input-order independent
+     (stable sort or canonical ordering before truncation); when
+     `find_dependents` hits the node cap it surfaces truncation explicitly
+     instead of silently omitting dependents.
+  2. **`anvil-gctx-types`** — deserialising an empty `ImpactQuery` routes to
+     the structured `InvalidQuery` path, not an opaque serde failure.
+  3. **`anvil-policy-engine`** — `Eval` processes every Rego query expression
+     (or returns a contract error if multi-query input is unsupported —
+     document the chosen behaviour).
+  4. **`anvil-sarif`** — region builders reject or normalise zero line/column
+     values so emitted SARIF cannot violate the schema.
+  5. **Clawpatch closeout** — revalidate the five finding IDs below; mark
+     `fixed` or `wont-fix` with note when merged.
+- **Out of scope (separate intake):** the 56 open `crates/` `test-gap` tail
+  (future hardening batch); CLAWP-005 / `midedit_contract.rs` (#1737); napi
+  `.node` freshness residuals (verify against CLAWP-019 / PR #2181 before any
+  fix); `start --verify` auth bypass (`fnd_sig-feat-cli-command-ba5ccdd3a6-_8f848cf67e`)
+  — CIB-049 merged via PR #2474; revalidate and close the clawpatch finding if
+  still open.
+- **Clawpatch finding IDs:**
+  - `fnd_sig-feat-library-ab71aa0329-31f3_a7852997e3` — gctx-egress cap ordering
+  - `fnd_sig-feat-library-ab71aa0329-323b_24572b45a5` — gctx-egress silent truncation
+  - `fnd_sig-feat-library-d12dc3b89f-d086_132cc413ae` — gctx-types empty query
+  - `fnd_sig-feat-library-cf04c15e28-21c6_b62c4d5a74` — policy-engine multi-query
+  - `fnd_sig-feat-library-9fdc01f86c-c265_1f2e438476` — sarif zero line/column
+- **Files:** `crates/anvil-gctx-egress/src/lib.rs`,
+  `crates/anvil-gctx-types/src/lib.rs`, `crates/anvil-policy-engine/src/lib.rs`,
+  `crates/anvil-sarif/src/lib.rs`; focused unit/integration tests per crate.
+- **Validation:** `cargo test -p eddacraft-anvil-gctx-egress -p eddacraft-anvil-gctx-types -p eddacraft-anvil-policy-engine -p eddacraft-anvil-sarif`;
+  each fix has a failing test proven against current `main` before implementation.
+- **Identified From:** `plans/reviews/2026-06-20-clawpatch-triage.md` §A (Rust
+  product-actionable); audit `plans/audits/2026-06-20-clawpatch-periodic-scan.json`.
+- **Coordinates with:** `feat/gctx-020` and other in-flight gctx work — reconcile
+  file overlap before implementation; do not race duplicate fixes.
+- **Confidence:** medium — root causes are localised; gctx-egress cap/truncation
+  behaviour needs an explicit product call on truncation signalling.

@@ -313,6 +313,11 @@ pub struct FindDependentsProjection {
     pub next_cursor: Option<OpaqueCursor>,
     /// Counts-only elision summary (CE-11).
     pub redaction_summary: RedactionSummary,
+    /// `true` when the node-budget bound the lock-held walk — the returned set may
+    /// be incomplete even when `redaction_summary.truncated` is `false` on the
+    /// final page (that flag means "more pages follow", not budget exhaustion).
+    #[serde(default)]
+    pub partial: bool,
 }
 
 /// The status-tagged outcome of a dependents traversal.
@@ -512,13 +517,42 @@ pub const MAX_CHANGED_FILES: usize = 200;
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ImpactQuery {
     /// Workspace-root-relative changed file paths (deduplicated daemon-side).
-    /// Capped at [`MAX_CHANGED_FILES`]; an over-cap input is rejected.
+    /// Capped at [`MAX_CHANGED_FILES`]; an over-cap input is rejected. Absent in
+    /// JSON deserialises to an empty vector so daemon validation can return a
+    /// structured [`InvalidQuery`](ImpactOutcome::InvalidQuery).
+    #[serde(default)]
     pub changed_files: Vec<String>,
     /// Reverse-impact traversal depth in hops for the dependent closure. Clamped
     /// daemon-side to the GV2-026 `MAX_REVERSE_IMPACT_DEPTH` ceiling; absent
     /// defaults to a 1-hop walk.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_depth: Option<u32>,
+}
+
+impl ImpactQuery {
+    /// Structural rejection before path hygiene (empty set, over-cap, empty path
+    /// strings). Daemon handlers combine this with relative-path validation.
+    #[must_use]
+    pub fn structural_invalid_reason(&self) -> Option<String> {
+        invalid_changed_files_structure(&self.changed_files)
+    }
+}
+
+/// Shared CE-6 change-set structural checks for impact/affected-tests queries.
+#[must_use]
+pub fn invalid_changed_files_structure(changed_files: &[String]) -> Option<String> {
+    if changed_files.is_empty() {
+        return Some("changed_files must not be empty".to_string());
+    }
+    if changed_files.len() > MAX_CHANGED_FILES {
+        return Some(format!(
+            "changed_files exceeds the {MAX_CHANGED_FILES}-file cap"
+        ));
+    }
+    if changed_files.iter().any(String::is_empty) {
+        return Some("a changed file path must not be empty".to_string());
+    }
+    None
 }
 
 /// Counts-only summary of an impact report (CE-5 safe — totals, no names/paths).
@@ -1200,6 +1234,7 @@ mod tests {
                 returned: 1,
                 truncated: false,
             },
+            partial: false,
         }
     }
 
@@ -1424,6 +1459,7 @@ mod tests {
                     dependents: Vec::new(),
                     next_cursor: None,
                     redaction_summary: RedactionSummary::default(),
+                    partial: false,
                 }),
                 "miss",
             ),
@@ -1508,6 +1544,16 @@ mod tests {
             &[
                 "span", "byte", "text", "body", "snippet", "trust", "content", "id",
             ],
+        );
+    }
+
+    #[test]
+    fn impact_query_empty_object_deserialises_for_structured_rejection() {
+        let q: ImpactQuery = serde_json::from_str("{}").expect("absent changed_files defaults");
+        assert_eq!(q, ImpactQuery::default());
+        assert_eq!(
+            q.structural_invalid_reason().as_deref(),
+            Some("changed_files must not be empty")
         );
     }
 

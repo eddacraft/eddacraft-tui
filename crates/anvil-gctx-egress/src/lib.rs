@@ -203,13 +203,23 @@ impl GctxProjector {
         dep: &DependencyGraph,
         file: &str,
         depth: u32,
-    ) -> Vec<DependentSummary> {
+    ) -> (Vec<DependentSummary>, bool) {
+        Self::collect_dependents_with_budget(dep, file, depth, MAX_DEPENDENTS_WALK)
+    }
+
+    fn collect_dependents_with_budget(
+        dep: &DependencyGraph,
+        file: &str,
+        depth: u32,
+        max_walk: usize,
+    ) -> (Vec<DependentSummary>, bool) {
         debug_assert!(
             depth <= anvil_graph_cache::MAX_REVERSE_IMPACT_DEPTH,
             "dependents walk depth {depth} exceeds the ADR-063 cap {} (caller must clamp)",
             anvil_graph_cache::MAX_REVERSE_IMPACT_DEPTH,
         );
         let mut out: Vec<DependentSummary> = Vec::new();
+        let mut walk_truncated = false;
         let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
         // The origin is excluded from its own dependent set and seeded so a cycle
         // back through `file` does not re-add it.
@@ -238,7 +248,8 @@ impl GctxProjector {
                             distance: hop,
                         });
                         next.push(importer);
-                        if out.len() >= MAX_DEPENDENTS_WALK {
+                        if out.len() >= max_walk {
+                            walk_truncated = true;
                             break 'walk;
                         }
                     }
@@ -252,7 +263,7 @@ impl GctxProjector {
             next.sort_unstable();
             frontier = next;
         }
-        out
+        (out, walk_truncated)
     }
 
     /// Sort, paginate, and seal collected dependents into the egress projection.
@@ -272,6 +283,7 @@ impl GctxProjector {
         mut candidates: Vec<DependentSummary>,
         query: &FindDependentsQuery,
         depth: u32,
+        walk_truncated: bool,
     ) -> Result<FindDependentsProjection, String> {
         candidates.sort_by(|a, b| a.file.cmp(&b.file));
         let matched = candidates.len();
@@ -318,6 +330,7 @@ impl GctxProjector {
             },
             dependents: page,
             next_cursor,
+            partial: walk_truncated,
         })
     }
 
@@ -468,55 +481,73 @@ impl GctxProjector {
         changed_files: &[String],
         depth: u32,
     ) -> CollectedImpact {
+        Self::collect_impact_with_budget(sym, dep, changed_files, depth, MAX_AFFECTED_SYMBOLS)
+    }
+
+    fn collect_impact_with_budget(
+        sym: &SymbolGraph,
+        dep: &DependencyGraph,
+        changed_files: &[String],
+        depth: u32,
+        max_affected: usize,
+    ) -> CollectedImpact {
         debug_assert!(
             depth <= anvil_graph_cache::MAX_REVERSE_IMPACT_DEPTH,
             "impact walk depth {depth} exceeds the ADR-063 cap {} (caller must clamp)",
             anvil_graph_cache::MAX_REVERSE_IMPACT_DEPTH,
         );
 
-        // Affected symbols: identity summaries of the symbols defined in each
-        // changed file (the change surface). Absolute paths are dropped (CE-5).
-        let mut affected: Vec<SymbolSummary> = Vec::new();
+        // Seed every distinct non-absolute changed file before collecting symbols
+        // or walking dependents — the affected-symbol cap must not skip seeds.
         let mut truncated = false;
-        // `seen` doubles as the change-set membership for dependent exclusion;
-        // after this loop, `seen.len()` is the distinct non-absolute seed count.
         let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
         for file in changed_files {
-            // Always seed every distinct non-absolute changed file — this drives
-            // the dependent BFS and the `changed_files` count regardless of the
-            // affected-symbol cap below.
-            if is_absolute_path_like(file) || !seen.insert(file.clone()) {
-                continue;
-            }
-            // Bound only the affected-symbol *collection* (the lock-held
-            // allocation on a pathological 200-files-×-thousands-of-symbols change
-            // set). Keep iterating so later files are still seeded above.
-            if affected.len() >= MAX_AFFECTED_SYMBOLS {
-                truncated = true;
-                continue;
-            }
-            let symbols = sym.symbols_in_file(file);
-            let identities = SymbolIdentity::for_file_symbols(&symbols);
-            for (node, identity) in symbols.iter().zip(identities) {
-                affected.push(SymbolSummary {
-                    identity,
-                    visibility: node.visibility,
-                });
-                if affected.len() >= MAX_AFFECTED_SYMBOLS {
-                    truncated = true;
-                    break;
-                }
+            if !is_absolute_path_like(file) {
+                seen.insert(file.clone());
             }
         }
         let changed_count = seen.len();
+        let mut seed_files: Vec<String> = seen.iter().cloned().collect();
+        seed_files.sort_unstable();
+
+        // Keep a sorted, capped affected set as we stream symbols so lock-held
+        // memory remains bounded while still preserving deterministic identity
+        // order (input file order must not decide which symbols survive the cap).
+        let mut affected: Vec<SymbolSummary> = Vec::new();
+        for file in &seed_files {
+            let symbols = sym.symbols_in_file(file);
+            let identities = SymbolIdentity::for_file_symbols(&symbols);
+            for (node, identity) in symbols.iter().zip(identities) {
+                let summary = SymbolSummary {
+                    identity,
+                    visibility: node.visibility,
+                };
+
+                if max_affected == 0 {
+                    truncated = true;
+                    continue;
+                }
+
+                let insert_at = affected
+                    .binary_search_by(|probe| probe.identity.cmp(&summary.identity))
+                    .unwrap_or_else(|idx| idx);
+
+                if affected.len() < max_affected {
+                    affected.insert(insert_at, summary);
+                    continue;
+                }
+
+                if insert_at < max_affected {
+                    affected.insert(insert_at, summary);
+                    affected.pop();
+                }
+                truncated = true;
+            }
+        }
 
         // Dependent closure: one multi-source BFS over all seeds.
         let mut dependents: Vec<DependentSummary> = Vec::new();
-        let mut frontier: Vec<String> = {
-            let mut f: Vec<String> = seen.iter().cloned().collect();
-            f.sort_unstable();
-            f
-        };
+        let mut frontier = seed_files;
         'walk: for hop in 1..=depth {
             let mut next: Vec<String> = Vec::new();
             for current in &frontier {
@@ -1824,8 +1855,9 @@ mod tests {
         depth: u32,
         query: &FindDependentsQuery,
     ) -> FindDependentsProjection {
-        let candidates = GctxProjector::collect_dependents(dep, file, depth);
-        GctxProjector::project_dependents(candidates, query, depth).expect("valid query")
+        let (candidates, walk_truncated) = GctxProjector::collect_dependents(dep, file, depth);
+        GctxProjector::project_dependents(candidates, query, depth, walk_truncated)
+            .expect("valid query")
     }
 
     fn files_and_distances(p: &FindDependentsProjection) -> Vec<(String, u32)> {
@@ -1982,8 +2014,8 @@ mod tests {
             cursor: Some(cursor),
             ..Default::default()
         };
-        let candidates = GctxProjector::collect_dependents(&g, "src/a.ts", 2);
-        let result = GctxProjector::project_dependents(candidates, &mismatched, 2);
+        let (candidates, walk_truncated) = GctxProjector::collect_dependents(&g, "src/a.ts", 2);
+        let result = GctxProjector::project_dependents(candidates, &mismatched, 2, walk_truncated);
         assert!(
             result.is_err(),
             "a cursor is only valid for the depth it was minted at",
@@ -2016,8 +2048,8 @@ mod tests {
             ..Default::default()
         };
         // Same depth, different-case file → different fingerprint → rejected.
-        let candidates = GctxProjector::collect_dependents(&g, "SRC/A.TS", 1);
-        let result = GctxProjector::project_dependents(candidates, &cross_case, 1);
+        let (candidates, walk_truncated) = GctxProjector::collect_dependents(&g, "SRC/A.TS", 1);
+        let result = GctxProjector::project_dependents(candidates, &cross_case, 1, walk_truncated);
         assert!(
             result.is_err(),
             "a cursor is bound to the exact case of its target file",
@@ -2027,7 +2059,7 @@ mod tests {
     #[test]
     fn dependents_malformed_and_oversized_cursors_are_rejected() {
         let g = dep_graph(&[("src/b.ts", "src/a.ts")]);
-        let candidates = GctxProjector::collect_dependents(&g, "src/a.ts", 1);
+        let (candidates, walk_truncated) = GctxProjector::collect_dependents(&g, "src/a.ts", 1);
         let malformed = GctxProjector::project_dependents(
             candidates.clone(),
             &FindDependentsQuery {
@@ -2035,6 +2067,7 @@ mod tests {
                 ..Default::default()
             },
             1,
+            walk_truncated,
         );
         assert!(malformed.is_err(), "a malformed cursor must be rejected");
 
@@ -2045,6 +2078,7 @@ mod tests {
                 ..Default::default()
             },
             1,
+            walk_truncated,
         );
         assert!(oversized.is_err(), "an oversized cursor must be rejected");
     }
@@ -2107,7 +2141,7 @@ mod tests {
         .expect("a search cursor");
 
         let dep = dep_graph(&[("src/b.ts", "src/a.ts")]);
-        let candidates = GctxProjector::collect_dependents(&dep, "src/a.ts", 1);
+        let (candidates, walk_truncated) = GctxProjector::collect_dependents(&dep, "src/a.ts", 1);
         let result = GctxProjector::project_dependents(
             candidates,
             &FindDependentsQuery {
@@ -2116,6 +2150,7 @@ mod tests {
                 ..Default::default()
             },
             1,
+            walk_truncated,
         );
         assert!(
             result.is_err(),
@@ -2304,14 +2339,16 @@ mod tests {
         // `file` string (vs a `SymbolIdentity` here) so decode fails, and the
         // domain-separated surface tag is a second guard.
         let dep = dep_graph(&[("src/b.ts", "src/a.ts"), ("src/c.ts", "src/a.ts")]);
+        let (candidates, walk_truncated) = GctxProjector::collect_dependents(&dep, "src/a.ts", 1);
         let dependents_cursor = GctxProjector::project_dependents(
-            GctxProjector::collect_dependents(&dep, "src/a.ts", 1),
+            candidates,
             &FindDependentsQuery {
                 file: Some("src/a.ts".into()),
                 limit: Some(1),
                 ..Default::default()
             },
             1,
+            walk_truncated,
         )
         .expect("valid query")
         .next_cursor
@@ -2602,6 +2639,71 @@ mod tests {
             "a later changed file must still seed the dependent walk despite the cap",
         );
         assert_eq!(report.summary.changed_files, 2, "both files are counted");
+    }
+
+    #[test]
+    fn impact_affected_cap_is_independent_of_input_file_order() {
+        let mut nodes = Vec::new();
+        for i in 0..4 {
+            nodes.push(node(
+                i,
+                &format!("z{i}"),
+                "a.ts",
+                SymbolKind::Function,
+                Visibility::Public,
+            ));
+        }
+        for i in 4..8 {
+            nodes.push(node(
+                i,
+                &format!("y{i}"),
+                "b.ts",
+                SymbolKind::Function,
+                Visibility::Public,
+            ));
+        }
+        let sym = graph_of(nodes);
+        let dep = dep_graph(&[]);
+        let order_ab: Vec<String> = vec!["a.ts".into(), "b.ts".into()];
+        let order_ba: Vec<String> = vec!["b.ts".into(), "a.ts".into()];
+        let first = GctxProjector::project_impact(GctxProjector::collect_impact_with_budget(
+            &sym, &dep, &order_ab, 1, 3,
+        ));
+        let second = GctxProjector::project_impact(GctxProjector::collect_impact_with_budget(
+            &sym, &dep, &order_ba, 1, 3,
+        ));
+        assert_eq!(first, second);
+        assert!(first.summary.truncated);
+        assert_eq!(first.affected_symbols.len(), 3);
+    }
+
+    #[test]
+    fn dependents_walk_budget_sets_partial_on_final_page() {
+        let edges: Vec<(String, String)> = (0..5)
+            .map(|i| (format!("src/imp{i}.ts"), "src/a.ts".to_string()))
+            .collect();
+        let edge_refs: Vec<(&str, &str)> = edges
+            .iter()
+            .map(|(from, to)| (from.as_str(), to.as_str()))
+            .collect();
+        let g = dep_graph(&edge_refs);
+        let (candidates, walk_truncated) =
+            GctxProjector::collect_dependents_with_budget(&g, "src/a.ts", 1, 3);
+        assert_eq!(candidates.len(), 3);
+        assert!(walk_truncated);
+        let projection = GctxProjector::project_dependents(
+            candidates,
+            &FindDependentsQuery {
+                file: Some("src/a.ts".into()),
+                ..Default::default()
+            },
+            1,
+            walk_truncated,
+        )
+        .expect("valid query");
+        assert!(projection.partial);
+        assert!(!projection.redaction_summary.truncated);
+        assert!(projection.next_cursor.is_none());
     }
 
     #[test]

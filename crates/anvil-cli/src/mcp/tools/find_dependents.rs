@@ -393,6 +393,7 @@ mod tests {
                 dependents: Vec::new(),
                 next_cursor: None,
                 redaction_summary: RedactionSummary::default(),
+                partial: false,
             }
         )));
         assert!(!should_rewarm(&FindDependentsOutcome::Unavailable));

@@ -802,7 +802,7 @@ fn build_audit_sarif(data: &AuditData) -> crate::output::sarif::SarifLog {
         // SARIF `startLine` has `minimum: 1`, so omit the region in that case
         // and point at the artifact only.
         let line = (issue.line > 0).then(|| u32::try_from(issue.line).unwrap_or(u32::MAX));
-        let region = line.map(sarif::Region::line);
+        let region = line.and_then(sarif::Region::try_line);
         results.push(
             sarif::SarifResult::new(
                 issue.category.clone(),

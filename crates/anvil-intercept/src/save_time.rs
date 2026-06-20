@@ -50,8 +50,7 @@ use anvil_gctx_egress::GctxProjector;
 use anvil_gctx_types::{
     AffectedTestsOutcome, AffectedTestsQuery, FindCallersOutcome, FindCallersQuery,
     FindDependentsOutcome, FindDependentsQuery, GraphEdgesOutcome, GraphEdgesQuery,
-    GraphStatsOutcome, ImpactOutcome, ImpactQuery, MAX_CHANGED_FILES, SearchSymbolsOutcome,
-    SearchSymbolsQuery,
+    GraphStatsOutcome, ImpactOutcome, ImpactQuery, SearchSymbolsOutcome, SearchSymbolsQuery,
 };
 use anvil_graph_cache::clamp_reverse_impact_depth;
 use anvil_intercept_proto::protocol::{
@@ -1454,12 +1453,17 @@ fn gctx_find_dependents_outcome(
         },
         AssuranceState::Clean | AssuranceState::Stale | AssuranceState::Bounded => {
             // C2: collect under the lock, project after release.
-            let candidates = state.cache.with_graphs(key, |_sym, dep| {
+            let collected = state.cache.with_graphs(key, |_sym, dep| {
                 GctxProjector::collect_dependents(dep, &file, depth)
             });
-            match candidates {
-                Some(candidates) => {
-                    match GctxProjector::project_dependents(candidates, query, depth) {
+            match collected {
+                Some((candidates, walk_truncated)) => {
+                    match GctxProjector::project_dependents(
+                        candidates,
+                        query,
+                        depth,
+                        walk_truncated,
+                    ) {
                         Ok(projection) => FindDependentsOutcome::Ready(projection),
                         // A malformed / cross-query pagination cursor (CE-6).
                         Err(reason) => FindDependentsOutcome::InvalidQuery { reason },
@@ -1847,18 +1851,10 @@ fn gctx_affected_tests_outcome(
 /// graph is read, reusing [`invalid_relative_path_reason`] per path. Returns the
 /// rejection reason, or `None`.
 fn invalid_changed_files_reason(changed_files: &[String]) -> Option<String> {
-    if changed_files.is_empty() {
-        return Some("changed_files must not be empty".to_string());
-    }
-    if changed_files.len() > MAX_CHANGED_FILES {
-        return Some(format!(
-            "changed_files exceeds the {MAX_CHANGED_FILES}-file cap"
-        ));
+    if let Some(reason) = anvil_gctx_types::invalid_changed_files_structure(changed_files) {
+        return Some(reason);
     }
     for file in changed_files {
-        if file.is_empty() {
-            return Some("a changed file path must not be empty".to_string());
-        }
         if let Some(reason) = invalid_relative_path_reason("changed file path", file) {
             return Some(reason);
         }
@@ -1965,6 +1961,7 @@ fn authorise_root<'f>(
 mod tests {
     use super::*;
     use crate::fanout::{CrossSessionPolicy, Fanout, OwnershipResolver, SubscriberId};
+    use anvil_gctx_types::MAX_CHANGED_FILES;
     use anvil_graph_cache::MAX_REVERSE_IMPACT_DEPTH;
     use anvil_graph_cache::certify::ChangeKind;
     use anvil_intercept_proto::protocol::{

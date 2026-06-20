@@ -122,11 +122,11 @@ pub fn collect_diagnostics(
 /// emitter and this mapper together (GITGOV-009+); none is silently lost
 /// today because v0 carries no real diagnostics.
 fn diagnostic_to_result(diag: &Diagnostic) -> SarifResult {
-    let region = diag.location.line.map(|line| {
-        let region = Region::line(line);
+    let region = diag.location.line.and_then(|line| {
+        let region = Region::try_line(line)?;
         match diag.location.column {
-            Some(column) => region.column(column),
-            None => region,
+            Some(column) => region.try_column(column).or_else(|| Region::try_line(line)),
+            None => Some(region),
         }
     });
     let location = Location::new(diag.location.file.clone(), region);

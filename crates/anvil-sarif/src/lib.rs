@@ -29,6 +29,8 @@
 
 use std::collections::BTreeMap;
 
+use std::num::NonZeroU32;
+
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
@@ -288,24 +290,37 @@ struct ArtifactLocation {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Region {
-    start_line: u32,
+    start_line: NonZeroU32,
     #[serde(skip_serializing_if = "Option::is_none")]
-    start_column: Option<u32>,
+    start_column: Option<NonZeroU32>,
 }
 
 impl Region {
-    /// A region covering `start_line` (1-based).
+    /// A region covering `start_line` (1-based, non-zero per SARIF §3.36).
     #[must_use]
-    pub fn line(start_line: u32) -> Self {
+    pub fn line(start_line: NonZeroU32) -> Self {
         Self {
             start_line,
             start_column: None,
         }
     }
 
-    /// Add a 1-based `startColumn`.
+    /// Build a region from a 1-based line, rejecting zero.
     #[must_use]
-    pub fn column(mut self, start_column: u32) -> Self {
+    pub fn try_line(start_line: u32) -> Option<Self> {
+        NonZeroU32::new(start_line).map(Self::line)
+    }
+
+    /// Add a 1-based `startColumn`, rejecting zero.
+    #[must_use]
+    pub fn try_column(mut self, start_column: u32) -> Option<Self> {
+        self.start_column = NonZeroU32::new(start_column);
+        self.start_column.map(|_| self)
+    }
+
+    /// Add a 1-based `startColumn` (non-zero).
+    #[must_use]
+    pub fn column(mut self, start_column: NonZeroU32) -> Self {
         self.start_column = Some(start_column);
         self
     }
@@ -398,17 +413,30 @@ mod tests {
             SarifResult::new("ANV-PAT-001", Level::Warning, "Example finding")
                 .location(Location::new(
                     "src/lib.rs",
-                    Some(Region::line(42).column(5)),
+                    Some(
+                        Region::line(NonZeroU32::new(42).expect("line"))
+                            .column(NonZeroU32::new(5).expect("column")),
+                    ),
                 ))
                 .fingerprint(
                     "anvilFingerprint/v1",
                     stable_fingerprint("ANV-PAT-001", "src/lib.rs", Some(42), "Example finding"),
                 ),
             SarifResult::new("secret-detection", Level::Error, "Suppressed at baseline")
-                .location(Location::new("src/config.rs", Some(Region::line(7))))
+                .location(Location::new(
+                    "src/config.rs",
+                    Some(Region::line(NonZeroU32::new(7).expect("line"))),
+                ))
                 .suppression(Suppression::new(SuppressionKind::External).justification("baseline")),
         ];
         SarifLog::new(Run::new(rules, results))
+    }
+
+    #[test]
+    fn zero_line_and_column_are_unrepresentable() {
+        assert!(Region::try_line(0).is_none());
+        let region = Region::try_line(1).expect("valid line");
+        assert!(region.try_column(0).is_none());
     }
 
     #[test]
@@ -435,8 +463,10 @@ mod tests {
         let log = SarifLog::new(Run::new(
             vec![ReportingDescriptor::new("ANV-PAT-001")],
             vec![
-                SarifResult::new("ANV-PAT-001", Level::Warning, "hi")
-                    .location(Location::new("a.rs", Some(Region::line(1)))),
+                SarifResult::new("ANV-PAT-001", Level::Warning, "hi").location(Location::new(
+                    "a.rs",
+                    Some(Region::line(NonZeroU32::new(1).expect("line"))),
+                )),
             ],
         ));
         let json = serde_json::to_string_pretty(&log).expect("serialise");

@@ -1280,6 +1280,7 @@ mod tests {
                 dependents: Vec::new(),
                 next_cursor: None,
                 redaction_summary: anvil_gctx_types::RedactionSummary::default(),
+                partial: false,
             }),
             FindDependentsOutcome::NotReady {
                 recovery_hint: "warming".into(),
