@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 47/84    |
+| CIB | —     | In Progress | 48/84    |
 
 ## Purpose
 
@@ -2290,7 +2290,7 @@ archive.
 
 ### CIB-084: bound read size/count for baseline + drift-snapshot readers
 
-- **Status:** In Progress 2026-06-20
+- **Status:** Merged 2026-06-20 via PR #2815
 - **Intent:** Cap read size and file count in the architecture-baseline and
   drift-snapshot readers, which currently use bare `std::fs::read_to_string`
   with no bound — unlike `anvil_config::parse_file`, which caps reads via
@@ -2321,3 +2321,13 @@ archive.
 - **Confidence:** medium — the bounded-read primitive already exists
   (`read_to_string_bounded`); the count cap needs a sensible default and a
   truncation log.
+- **Closeout (2026-06-20, PR #2815):** added `anvil_architecture::read_to_string_capped`
+  (one helper reused across both crates, no new dep); `load_baseline`,
+  `load_snapshot_file`, and `read_created_at` cap at 16 MiB; `list_snapshot_files`
+  caps the scan at 1000 files keeping the **most recent by mtime** before the
+  `created_at` sort (council fix — the first cut truncated in arbitrary `read_dir`
+  order and could drop the newest); `anvil://drift` reports the true total via a
+  new `count_snapshot_files`. Council (kernel + adversarial) one MAJOR fixed
+  in-PR. Pre-existing unbounded reads in `architecture.rs::parse_architecture`
+  (CLI-only) and `collect_sql_findings` are out of scope and noted for future
+  intake.
