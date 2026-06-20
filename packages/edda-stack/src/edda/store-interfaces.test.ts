@@ -113,13 +113,17 @@ class InMemoryStore implements IMemoryStoreOperations {
   async queryMemories(query: MemoryQuery): Promise<MemoryQueryResult> {
     let results = Array.from(this.data.values());
 
-    if (query.statuses && query.statuses.length > 0) {
+    const hasExplicitStatuses = Boolean(query.statuses && query.statuses.length > 0);
+    if (hasExplicitStatuses) {
       results = results.filter((m) => query.statuses!.includes(m.status));
     }
     if (query.types && query.types.length > 0) {
       results = results.filter((m) => query.types!.includes(m.type));
     }
-    if (!query.include_superseded) {
+    // Mirror the real MemoryStore: superseded items are excluded by default
+    // only when the caller did not ask for specific statuses. An explicit
+    // `statuses` filter (e.g. ['superseded']) is honoured verbatim.
+    if (!query.include_superseded && !hasExplicitStatuses) {
       results = results.filter((m) => m.status !== 'superseded');
     }
 
@@ -235,6 +239,10 @@ class InMemoryStore implements IMemoryStoreOperations {
 class InMemoryVersionTracker implements IVersionTracker {
   private initialised = false;
   private readonly history = new Map<string, VersionEntry[]>();
+  // Monotonic counter so each tracked change gets a distinct hash, even for
+  // consecutive calls within the same millisecond (Date.now() alone collides
+  // under fast/parallel test runs).
+  private changeSeq = 0;
 
   async init(): Promise<void> {
     this.initialised = true;
@@ -244,7 +252,7 @@ class InMemoryVersionTracker implements IVersionTracker {
     if (!this.initialised) {
       await this.init();
     }
-    const hash = `hash-${Date.now()}`;
+    const hash = `hash-${Date.now()}-${++this.changeSeq}`;
     const entry: VersionEntry = {
       hash,
       message,
