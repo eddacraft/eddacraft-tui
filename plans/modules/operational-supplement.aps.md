@@ -12,7 +12,7 @@ Cross-cutting convention: see plans/aps-rules.md#cross-cutting-modules.
 
 | ID    | Owner   | Status      | Progress |
 | ----- | ------- | ----------- | -------- |
-| OPSUP | OpenCode | In Progress | 4/7      |
+| OPSUP | OpenCode | In Progress | 6/7      |
 
 **Last reviewed:** 2026-06-18
 
@@ -172,7 +172,7 @@ Remaining non-registry slices move to **Ready** when:
 
 ### OPSUP-002 — Registry-backed skip and disable resolution
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-20 via PR #2824
 - **Intent:** Resolve skip and disable paths against the stable check registry
   wherever durable IDs are required.
 - **Expected Outcome:** `--skip-checks` and the `.anvil.<ext>` `checks:` list
@@ -228,7 +228,7 @@ Remaining non-registry slices move to **Ready** when:
 
 ### OPSUP-004 — Drift migration command
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-20 via PR #2826
 - **Intent:** Add `anvil drift migrate` and an on-upgrade migration path for
   existing baselines.
 - **Expected Outcome:** `anvil drift migrate` upgrades an existing drift
