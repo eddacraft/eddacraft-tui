@@ -525,7 +525,7 @@ retirement decisions:
   egress of `anvil://config` is a **conscious decision** (documented in code) —
   it mirrors the archived contract and the `anvil config` surface, and `.anvil.*`
   is architecture/check config, not a secret store. **Deferred follow-up
-  (recommend a CIB intake):** read size/count caps for the shared `load_baseline` /
+  — filed as CIB-084:** read size/count caps for the shared `load_baseline` /
   drift-snapshot readers (a hostile local workspace with a huge or very-numerous
   snapshot/baseline file is an unbounded read) — best fixed at the reader level so
   `anvil drift`/baseline loading benefit too; out of scope for the MCP-resource

@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 47/83    |
+| CIB | —     | In Progress | 47/84    |
 
 ## Purpose
 
@@ -2287,3 +2287,36 @@ archive.
 - **Confidence:** medium — the correct design is known (a frame stack); the risk
   is the false-negative class a naive version reintroduces, so it needs careful
   fixtures.
+
+### CIB-084: bound read size/count for baseline + drift-snapshot readers
+
+- **Status:** Proposed 2026-06-19
+- **Intent:** Cap read size and file count in the architecture-baseline and
+  drift-snapshot readers, which currently use bare `std::fs::read_to_string`
+  with no bound — unlike `anvil_config::parse_file`, which caps reads via
+  `read_to_string_bounded` (1 MiB, MLP2-060). `load_baseline`
+  (`crates/anvil-architecture/src/baseline.rs`) and `load_snapshot_file`
+  (`crates/anvil-cli/src/commands/drift.rs`) read whole files unbounded, and
+  `list_snapshot_files` reads + deserialises *every* snapshot in
+  `.anvil/snapshots/` to sort by `created_at` with no count cap. A hostile or
+  corrupt local workspace (a 500 MB `architecture.json`, or 10k snapshot files)
+  forces an unbounded read into process memory — reachable over the
+  `anvil://baseline` / `anvil://drift` MCP resources as well as the CLI.
+- **Expected Outcome:** `load_baseline` and `load_snapshot_file` use the existing
+  `read_to_string_bounded` pattern (8–16 MiB cap), and `list_snapshot_files`
+  caps the number of files scanned before sorting (e.g. 1000) and `log`s when it
+  truncates (no silent cap). Both the CLI (`anvil drift`, baseline loading) and
+  the `anvil://baseline`/`anvil://drift` MCP resources benefit.
+- **Files:** `crates/anvil-architecture/src/baseline.rs`,
+  `crates/anvil-cli/src/commands/drift.rs`.
+- **Validation:** unit tests asserting an over-cap baseline/snapshot file is
+  rejected with a bounded error (not OOM) and a snapshot dir over the count cap
+  is truncated with a logged warning; `cargo test -p eddacraft-anvil
+  commands::drift` and `-p eddacraft-anvil-architecture` green.
+- **Identified From:** RMCPF-020 council review (adversarial reviewer, MAJOR
+  #3/#4) while porting the `anvil://` MCP resources (PR #2809). The readers are
+  shared with the CLI and the unbounded read pre-dates the resources, so the fix
+  belongs at the reader level rather than the MCP layer.
+- **Confidence:** medium — the bounded-read primitive already exists
+  (`read_to_string_bounded`); the count cap needs a sensible default and a
+  truncation log.
