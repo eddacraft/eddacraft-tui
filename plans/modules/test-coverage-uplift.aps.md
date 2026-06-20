@@ -2,7 +2,7 @@
 
 | ID   | Owner      | Status      | Progress |
 | ---- | ---------- | ----------- | -------- |
-| TCOV | @eddacraft | In Progress | 22/25    |
+| TCOV | @eddacraft | In Progress | 23/25    |
 
 ## Progress (as of 2026-06-20)
 
@@ -20,6 +20,9 @@
   three items are repointed there against measured current coverage and promoted
   to **Ready** (no count change — Ready is not terminal). The module now has no
   Blocked items: 22/25 done + TCOV-022/023/024 Ready.
+- **TCOV-024 implemented 2026-06-20 (#2828).** Keymap edge-case tests landed in
+  `eddacraft-tui/src/keyboard/handler.rs` (every `map()` arm now covered). Done
+  count 22 → 23/25; TCOV-022/023 remain Ready.
 
 ## Progress (as of 2026-05-28)
 
@@ -601,7 +604,11 @@ Change status to **Ready** when:
 - **Validation:** `cargo test -p eddacraft-tui -- keyboard` passes; llvm-cov ≥80%
   line for `handler.rs`; every `KeyCode` arm and the modifier branch covered.
 - **Confidence:** high — small, pure, fully testable surface.
-- **Status:** Ready
+- **Status:** Merged 2026-06-20 via #2828 — 6 edge-case tests added to
+  `keyboard/handler.rs` (editing keys, `Char`→`Character` fallthrough incl.
+  case-sensitivity, unmapped→`None`, Ctrl-only-maps-`Ctrl+C`, Alt/Shift
+  pass-through). Every `map()` arm now exercised; `cargo test -p eddacraft-tui
+  -- keyboard` 12 passed. Dropped the stale "rapid input" premise (map is pure).
 
 #### TCOV-025: anvil-tui surface trait compliance tests — Merged
 
