@@ -77,12 +77,12 @@ memory never leaks between repositories. See
 
 ### Options
 
-| Flag             | Description                                              |
-| ---------------- | -------------------------------------------------------- |
-| `--db <path>`    | Use an explicit database path instead of the per-project default. |
-| `--claude-code`  | Detect and (when available) configure Claude Code integration.    |
-| `--skip-db`      | Configure integration only; do not create the database.  |
-| `--json`         | Emit machine-readable JSON instead of human output.      |
+| Flag            | Description                                                       |
+| --------------- | ----------------------------------------------------------------- |
+| `--db <path>`   | Use an explicit database path instead of the per-project default. |
+| `--claude-code` | Detect and (when available) configure Claude Code integration.    |
+| `--skip-db`     | Configure integration only; do not create the database.           |
+| `--json`        | Emit machine-readable JSON instead of human output.               |
 
 ## Verify the setup
 

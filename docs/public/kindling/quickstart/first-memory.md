@@ -1,15 +1,18 @@
 ---
 id: first-memory
 title: Your First Memory
-description: Capture observations, group them into a capsule, and search your memory from the CLI.
+description:
+  Capture observations, group them into a capsule, and search your memory from
+  the CLI.
 sidebar_position: 2
 ---
 
 # Your First Memory
 
 This walkthrough uses the CLI to capture context, organise it into a capsule,
-and retrieve it. It assumes you have [installed Kindling](/kindling/quickstart/install)
-and run `kindling init` in your project.
+and retrieve it. It assumes you have
+[installed Kindling](/kindling/quickstart/install) and run `kindling init` in
+your project.
 
 ## Capture an observation
 

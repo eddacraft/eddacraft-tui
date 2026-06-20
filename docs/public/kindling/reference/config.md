@@ -1,7 +1,8 @@
 ---
 id: config
 title: Configuration
-description: Environment variables, data locations, and how kindling resolves them.
+description:
+  Environment variables, data locations, and how kindling resolves them.
 sidebar_position: 2
 ---
 
@@ -27,12 +28,12 @@ full directory layout.
 
 ## Environment variables
 
-| Variable               | Default                       | Effect                                                                 |
-| ---------------------- | ----------------------------- | ---------------------------------------------------------------------- |
-| `KINDLING_DB_PATH`     | per-project default           | Explicit database path. Overridden only by `--db`.                     |
-| `KINDLING_SOCK`        | `~/.kindling/kindling.sock`   | Daemon Unix domain socket path (used by clients and hooks).            |
-| `KINDLING_REPO_ROOT`   | detected from cwd             | Override the project root used to pick the database. Applied only when the working directory is under it (prevents cross-project leakage). |
-| `KINDLING_MAX_CONTEXT` | `10`                          | Maximum recent observations injected on Claude Code `SessionStart`.    |
+| Variable               | Default                     | Effect                                                                                                                                     |
+| ---------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `KINDLING_DB_PATH`     | per-project default         | Explicit database path. Overridden only by `--db`.                                                                                         |
+| `KINDLING_SOCK`        | `~/.kindling/kindling.sock` | Daemon Unix domain socket path (used by clients and hooks).                                                                                |
+| `KINDLING_REPO_ROOT`   | detected from cwd           | Override the project root used to pick the database. Applied only when the working directory is under it (prevents cross-project leakage). |
+| `KINDLING_MAX_CONTEXT` | `10`                        | Maximum recent observations injected on Claude Code `SessionStart`.                                                                        |
 
 `HOME` (or `USERPROFILE` on Windows) is used to locate the kindling home when no
 explicit path is given.
@@ -42,21 +43,20 @@ explicit path is given.
 The [daemon](/kindling/concepts/storage#the-daemon) is configured via `serve`
 flags rather than environment:
 
-| Flag                    | Default                       |
-| ----------------------- | ----------------------------- |
-| `--socket <path>`       | `~/.kindling/kindling.sock`   |
-| `--idle-timeout <secs>` | `1800` (30 minutes)           |
-| `--kindling-home <path>`| `~/.kindling`                 |
+| Flag                     | Default                     |
+| ------------------------ | --------------------------- |
+| `--socket <path>`        | `~/.kindling/kindling.sock` |
+| `--idle-timeout <secs>`  | `1800` (30 minutes)         |
+| `--kindling-home <path>` | `~/.kindling`               |
 
-By convention the daemon also writes a PID file at
-`~/.kindling/kindling.pid`.
+By convention the daemon also writes a PID file at `~/.kindling/kindling.pid`.
 
 ## Choosing in-process vs daemon
 
-By default the CLI opens the database **in-process**. To route the
-daemon-backed verbs (`log`, `capsule`, `search`, `pin`, `unpin`, `forget`)
-through the running daemon instead — for safe concurrent access from multiple
-tools — pass the global `--via-daemon` flag:
+By default the CLI opens the database **in-process**. To route the daemon-backed
+verbs (`log`, `capsule`, `search`, `pin`, `unpin`, `forget`) through the running
+daemon instead — for safe concurrent access from multiple tools — pass the
+global `--via-daemon` flag:
 
 ```bash
 kindling --via-daemon search "auth"

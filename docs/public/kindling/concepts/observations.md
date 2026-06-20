@@ -7,8 +7,8 @@ sidebar_position: 1
 
 # Observations
 
-An **observation** is the atomic unit of memory in Kindling: a single,
-immutable record of something that happened during development.
+An **observation** is the atomic unit of memory in Kindling: a single, immutable
+record of something that happened during development.
 
 ## Structure
 
@@ -16,13 +16,13 @@ Every observation has the same shape:
 
 ```typescript
 interface Observation {
-  id: string;            // unique identifier (UUID)
+  id: string; // unique identifier (UUID)
   kind: ObservationKind; // what happened
-  content: string;       // the captured text
-  provenance: object;    // source-specific metadata (free-form JSON)
-  ts: number;            // epoch milliseconds
-  scopeIds: ScopeIds;    // session / repo / agent / user / task
-  redacted: boolean;     // whether the content has been forgotten
+  content: string; // the captured text
+  provenance: object; // source-specific metadata (free-form JSON)
+  ts: number; // epoch milliseconds
+  scopeIds: ScopeIds; // session / repo / agent / user / task
+  redacted: boolean; // whether the content has been forgotten
 }
 ```
 
@@ -35,17 +35,17 @@ record.
 The set of kinds is fixed. There are no free-form tags or custom kinds; this
 keeps retrieval and adapters predictable across every tool.
 
-| Kind          | Captures                                            |
-| ------------- | --------------------------------------------------- |
-| `tool_call`   | An AI tool invocation (Read, Edit, Bash, …).        |
+| Kind          | Captures                                              |
+| ------------- | ----------------------------------------------------- |
+| `tool_call`   | An AI tool invocation (Read, Edit, Bash, …).          |
 | `command`     | A shell command, typically with its exit code/output. |
-| `file_diff`   | A file change, with the affected path(s).           |
-| `error`       | An error, often with a stack trace.                 |
-| `message`     | A user or assistant message. The CLI default.       |
-| `node_start`  | A workflow node began executing.                    |
-| `node_output` | A workflow node produced output.                    |
-| `node_error`  | A workflow node failed.                              |
-| `node_end`    | A workflow node finished (success or failure).      |
+| `file_diff`   | A file change, with the affected path(s).             |
+| `error`       | An error, often with a stack trace.                   |
+| `message`     | A user or assistant message. The CLI default.         |
+| `node_start`  | A workflow node began executing.                      |
+| `node_output` | A workflow node produced output.                      |
+| `node_error`  | A workflow node failed.                               |
+| `node_end`    | A workflow node finished (success or failure).        |
 
 The first five are produced both manually (via `kindling log`) and by the
 [Claude Code](/kindling/adapters/claude-code) and
@@ -68,9 +68,9 @@ kindling log --kind error "API returns 500 when payload exceeds 1MB"
 ## Provenance
 
 `provenance` is a free-form JSON object carrying source-specific metadata —
-whatever the producer wants to attach. Adapters populate it richly; for
-example, a `command` observation may carry its exit code, a `tool_call` may
-carry the tool name and arguments, and an `error` may carry a stack trace.
+whatever the producer wants to attach. Adapters populate it richly; for example,
+a `command` observation may carry its exit code, a `tool_call` may carry the
+tool name and arguments, and an `error` may carry a stack trace.
 
 Provenance is also where retrieval explainability comes from: it travels with
 the observation so you can always answer "where did this come from?".
@@ -80,13 +80,13 @@ the observation so you can always answer "where did this come from?".
 Every observation carries a `ScopeIds` record. All fields are optional, so an
 observation can be globally visible or narrowly scoped:
 
-| Field       | Meaning                          |
-| ----------- | -------------------------------- |
-| `sessionId` | The session that produced it.    |
-| `repoId`    | The repository it belongs to.    |
-| `agentId`   | The agent that produced it.      |
-| `userId`    | The user it belongs to.          |
-| `taskId`    | The task it belongs to.          |
+| Field       | Meaning                       |
+| ----------- | ----------------------------- |
+| `sessionId` | The session that produced it. |
+| `repoId`    | The repository it belongs to. |
+| `agentId`   | The agent that produced it.   |
+| `userId`    | The user it belongs to.       |
+| `taskId`    | The task it belongs to.       |
 
 Scope is how [search](/kindling/concepts/retrieval) is narrowed:
 
@@ -105,8 +105,8 @@ kindling log --kind error "JWT validation failed: token expired"
 kindling log --capsule cap_8a3f… "found the root cause"
 ```
 
-Adapters capture them automatically — see [Automatic
-Capture](/kindling/quickstart/automatic-capture).
+Adapters capture them automatically — see
+[Automatic Capture](/kindling/quickstart/automatic-capture).
 
 ## Forgetting
 
@@ -116,9 +116,9 @@ To redact an observation, use its exact ID:
 kindling forget <observation-id>
 ```
 
-This sets `redacted: true` and masks the content. The record remains (so
-history stays consistent), but it is excluded from results unless redacted
-items are explicitly requested.
+This sets `redacted: true` and masks the content. The record remains (so history
+stays consistent), but it is excluded from results unless redacted items are
+explicitly requested.
 
 ## Next
 

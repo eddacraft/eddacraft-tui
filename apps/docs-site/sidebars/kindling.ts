@@ -7,11 +7,7 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Quickstart',
       collapsed: false,
-      items: [
-        'quickstart/install',
-        'quickstart/first-memory',
-        'quickstart/automatic-capture',
-      ],
+      items: ['quickstart/install', 'quickstart/first-memory', 'quickstart/automatic-capture'],
     },
     {
       type: 'category',
@@ -39,12 +35,7 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Reference',
       collapsed: true,
-      items: [
-        'reference/cli',
-        'reference/config',
-        'reference/formats',
-        'reference/crates',
-      ],
+      items: ['reference/cli', 'reference/config', 'reference/formats', 'reference/crates'],
     },
   ],
 };

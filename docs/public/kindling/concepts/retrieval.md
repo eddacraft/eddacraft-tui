@@ -1,7 +1,9 @@
 ---
 id: retrieval
 title: Retrieval
-description: Deterministic, explainable three-tier retrieval — pins, current summary, and ranked hits.
+description:
+  Deterministic, explainable three-tier retrieval — pins, current summary, and
+  ranked hits.
 sidebar_position: 3
 ---
 
@@ -40,8 +42,8 @@ kindling pin summary <id>
 kindling unpin <pin-id>
 ```
 
-A pin may carry a `--note` explaining why it matters and an optional `--ttl`
-(in milliseconds) after which it expires.
+A pin may carry a `--note` explaining why it matters and an optional `--ttl` (in
+milliseconds) after which it expires.
 
 ### Current summary
 

@@ -1,7 +1,8 @@
 ---
 id: storage
 title: Storage
-description: How and where Kindling stores memory — per-project SQLite with WAL and FTS5.
+description:
+  How and where Kindling stores memory — per-project SQLite with WAL and FTS5.
 sidebar_position: 4
 ---
 
@@ -35,8 +36,8 @@ for the same project, so they share one database.
 
 Each `kindling.db` is a standard SQLite database using:
 
-- **WAL (write-ahead logging)** for safe concurrent access — multiple tools
-  (and the daemon) can read and write at once.
+- **WAL (write-ahead logging)** for safe concurrent access — multiple tools (and
+  the daemon) can read and write at once.
 - **FTS5 full-text search** over observation and summary content, which powers
   the ranked candidate tier of [retrieval](/kindling/concepts/retrieval).
 
@@ -61,8 +62,8 @@ listening on /home/you/.kindling/kindling.sock
 The daemon routes each request to the right per-project database using the
 project root supplied by the caller. Clients (including
 [`kindling-client`](/kindling/reference/crates)) auto-spawn the daemon on first
-use if it is not already running, and it shuts itself down after an idle
-timeout (default 30 minutes).
+use if it is not already running, and it shuts itself down after an idle timeout
+(default 30 minutes).
 
 CLI verbs run **in-process** against the database by default. Pass
 `--via-daemon` to route the daemon-backed verbs (`log`, `capsule`, `search`,

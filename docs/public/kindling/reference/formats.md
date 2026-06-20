@@ -1,7 +1,8 @@
 ---
 id: formats
 title: Formats
-description: JSON shapes for observations, capsules, and the export/import bundle.
+description:
+  JSON shapes for observations, capsules, and the export/import bundle.
 sidebar_position: 3
 ---
 
@@ -26,15 +27,15 @@ milliseconds** unless noted. JSON keys are `camelCase`.
 }
 ```
 
-| Field        | Type            | Notes                                                        |
-| ------------ | --------------- | ------------------------------------------------------------ |
-| `id`         | string          | Unique identifier (UUID).                                    |
-| `kind`       | enum            | See [kinds](#observation-kinds).                             |
-| `content`    | string          | The captured text.                                           |
-| `provenance` | object          | Free-form, source-specific metadata.                         |
-| `ts`         | number          | Epoch milliseconds.                                          |
-| `scopeIds`   | object          | Any of `sessionId`, `repoId`, `agentId`, `userId`, `taskId`. |
-| `redacted`   | boolean         | Whether the content has been forgotten.                      |
+| Field        | Type    | Notes                                                        |
+| ------------ | ------- | ------------------------------------------------------------ |
+| `id`         | string  | Unique identifier (UUID).                                    |
+| `kind`       | enum    | See [kinds](#observation-kinds).                             |
+| `content`    | string  | The captured text.                                           |
+| `provenance` | object  | Free-form, source-specific metadata.                         |
+| `ts`         | number  | Epoch milliseconds.                                          |
+| `scopeIds`   | object  | Any of `sessionId`, `repoId`, `agentId`, `userId`, `taskId`. |
+| `redacted`   | boolean | Whether the content has been forgotten.                      |
 
 ### Observation kinds
 
@@ -61,13 +62,13 @@ See [Observations](/kindling/concepts/observations#kinds) for what each means.
 }
 ```
 
-| Field            | Type     | Notes                                            |
-| ---------------- | -------- | ------------------------------------------------ |
-| `type`           | enum     | `session` or `pocketflow_node`.                  |
-| `status`         | enum     | `open` or `closed`.                              |
-| `closedAt`       | number?  | Present only once closed.                        |
-| `observationIds` | string[] | Member observation IDs, in order.               |
-| `summaryId`      | string?  | Set when a summary is produced on close.        |
+| Field            | Type     | Notes                                    |
+| ---------------- | -------- | ---------------------------------------- |
+| `type`           | enum     | `session` or `pocketflow_node`.          |
+| `status`         | enum     | `open` or `closed`.                      |
+| `closedAt`       | number?  | Present only once closed.                |
+| `observationIds` | string[] | Member observation IDs, in order.        |
+| `summaryId`      | string?  | Set when a summary is produced on close. |
 
 ## Export bundle
 
@@ -81,10 +82,18 @@ See [Observations](/kindling/concepts/observations#kinds) for what each means.
     "version": "1.0",
     "exportedAt": 1750416700000,
     "scope": { "repoId": "my-project" },
-    "observations": [ /* Observation[] */ ],
-    "capsules": [ /* Capsule[] */ ],
-    "summaries": [ /* Summary[] */ ],
-    "pins": [ /* Pin[] */ ]
+    "observations": [
+      /* Observation[] */
+    ],
+    "capsules": [
+      /* Capsule[] */
+    ],
+    "summaries": [
+      /* Summary[] */
+    ],
+    "pins": [
+      /* Pin[] */
+    ]
   },
   "metadata": {
     "description": "Kindling memory export",
@@ -93,13 +102,13 @@ See [Observations](/kindling/concepts/observations#kinds) for what each means.
 }
 ```
 
-| Field                | Notes                                                              |
-| -------------------- | ------------------------------------------------------------------ |
-| `bundleVersion`      | Bundle format version (`"1.0"`).                                   |
-| `exportedAt`         | Epoch milliseconds.                                                |
-| `dataset`            | The entity payload. Entities are ordered deterministically (observations by `ts`, capsules by `openedAt`, etc.). |
-| `dataset.scope`      | The scope filter applied, when `--session`/`--repo` was given. Omitted otherwise. |
-| `metadata`           | Optional. Carries a human description and an ISO-8601 `exportedAt`. |
+| Field           | Notes                                                                                                            |
+| --------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `bundleVersion` | Bundle format version (`"1.0"`).                                                                                 |
+| `exportedAt`    | Epoch milliseconds.                                                                                              |
+| `dataset`       | The entity payload. Entities are ordered deterministically (observations by `ts`, capsules by `openedAt`, etc.). |
+| `dataset.scope` | The scope filter applied, when `--session`/`--repo` was given. Omitted otherwise.                                |
+| `metadata`      | Optional. Carries a human description and an ISO-8601 `exportedAt`.                                              |
 
 Redacted observations are excluded from exports.
 

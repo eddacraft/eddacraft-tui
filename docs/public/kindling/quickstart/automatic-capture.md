@@ -1,7 +1,8 @@
 ---
 id: automatic-capture
 title: Automatic Capture
-description: Capture context hands-free through an adapter instead of logging manually.
+description:
+  Capture context hands-free through an adapter instead of logging manually.
 sidebar_position: 3
 ---
 
@@ -13,12 +14,12 @@ lifecycle, map its events to observations, and manage capsules for you.
 
 ## Adapters at a glance
 
-| Adapter                                       | Captures                                                        |
-| --------------------------------------------- | --------------------------------------------------------------- |
+| Adapter                                       | Captures                                                                                                       |
+| --------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | [Claude Code](/kindling/adapters/claude-code) | Tool calls, file edits, commands, your prompts, subagent results — and injects prior context on session start. |
-| [OpenCode](/kindling/adapters/opencode)       | Session events and tool activity, with secret redaction.        |
-| [PocketFlow](/kindling/adapters/pocketflow)   | Workflow node lifecycle and outputs, with intent inference.     |
-| [Custom](/kindling/adapters/custom)           | Build your own on the Rust or TypeScript APIs.                  |
+| [OpenCode](/kindling/adapters/opencode)       | Session events and tool activity, with secret redaction.                                                       |
+| [PocketFlow](/kindling/adapters/pocketflow)   | Workflow node lifecycle and outputs, with intent inference.                                                    |
+| [Custom](/kindling/adapters/custom)           | Build your own on the Rust or TypeScript APIs.                                                                 |
 
 ## The fastest path: Claude Code
 

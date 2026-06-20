@@ -13,15 +13,15 @@ or the client.
 
 ## Which crate should I use?
 
-| Crate              | Use it when                                                                                          |
-| ------------------ | ---------------------------------------------------------------------------------------------------- |
-| `kindling`         | You want the CLI binary: `kindling init`, `log`, `search`, `serve`, and Claude Code hook support.    |
-| `kindling-client`  | You are building a Rust integration that should talk to the daemon safely across concurrent tools. **The default SDK choice.** |
-| `kindling-service` | You need embedded, in-process access to capsule lifecycle, observation capture, retrieval, and pins. |
-| `kindling-server`  | You are extending or embedding the daemon/runtime layer. Most users run `kindling serve` instead.    |
-| `kindling-store`   | You are working directly with the SQLite persistence layer.                                          |
-| `kindling-provider`| You are working on deterministic local retrieval and ranking.                                        |
-| `kindling-types`   | You need the shared domain types directly. Client users get these re-exported from `kindling-client`. |
+| Crate               | Use it when                                                                                                                    |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `kindling`          | You want the CLI binary: `kindling init`, `log`, `search`, `serve`, and Claude Code hook support.                              |
+| `kindling-client`   | You are building a Rust integration that should talk to the daemon safely across concurrent tools. **The default SDK choice.** |
+| `kindling-service`  | You need embedded, in-process access to capsule lifecycle, observation capture, retrieval, and pins.                           |
+| `kindling-server`   | You are extending or embedding the daemon/runtime layer. Most users run `kindling serve` instead.                              |
+| `kindling-store`    | You are working directly with the SQLite persistence layer.                                                                    |
+| `kindling-provider` | You are working on deterministic local retrieval and ranking.                                                                  |
+| `kindling-types`    | You need the shared domain types directly. Client users get these re-exported from `kindling-client`.                          |
 
 ## Dependency flow
 

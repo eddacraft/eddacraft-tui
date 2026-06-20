@@ -20,8 +20,8 @@ to the `kindling` binary.
 ## Prerequisite: the `kindling` binary
 
 The hooks run `kindling hook <type>`, so the `kindling` binary must be on your
-`PATH`. Install it through any channel from the [install
-guide](/kindling/quickstart/install):
+`PATH`. Install it through any channel from the
+[install guide](/kindling/quickstart/install):
 
 ```bash
 cargo install kindling
@@ -64,15 +64,15 @@ The plugin registers a hook per Claude Code lifecycle event. Each runs
 `kindling hook <type>`, reads the hook context as JSON on stdin, and always
 exits 0.
 
-| Claude Code event      | Command                               | Purpose                              |
-| ---------------------- | ------------------------------------- | ------------------------------------ |
-| `SessionStart`         | `kindling hook session-start`         | Open the capsule, inject prior context. |
-| `UserPromptSubmit`     | `kindling hook user-prompt-submit`    | Capture your prompt as an observation.  |
-| `PostToolUse`          | `kindling hook post-tool-use`         | Capture tool calls, edits, commands.    |
-| `PostToolUseFailure`   | `kindling hook post-tool-use-failure` | Capture tool failures as errors.        |
-| `SubagentStop`         | `kindling hook subagent-stop`         | Capture subagent completion.            |
-| `PreCompact`           | `kindling hook pre-compact`           | Capture context before compaction.     |
-| `Stop`                 | `kindling hook stop`                  | Close the capsule.                      |
+| Claude Code event    | Command                               | Purpose                                 |
+| -------------------- | ------------------------------------- | --------------------------------------- |
+| `SessionStart`       | `kindling hook session-start`         | Open the capsule, inject prior context. |
+| `UserPromptSubmit`   | `kindling hook user-prompt-submit`    | Capture your prompt as an observation.  |
+| `PostToolUse`        | `kindling hook post-tool-use`         | Capture tool calls, edits, commands.    |
+| `PostToolUseFailure` | `kindling hook post-tool-use-failure` | Capture tool failures as errors.        |
+| `SubagentStop`       | `kindling hook subagent-stop`         | Capture subagent completion.            |
+| `PreCompact`         | `kindling hook pre-compact`           | Capture context before compaction.      |
+| `Stop`               | `kindling hook stop`                  | Close the capsule.                      |
 
 You normally never configure these by hand — installing the plugin wires them
 up. The same binary can also be invoked as `kindling-hook <type>` (drop-in
@@ -82,25 +82,25 @@ program name).
 
 The plugin adds slash commands for working with memory from inside a session:
 
-| Command                          | Description                          |
-| -------------------------------- | ------------------------------------ |
-| `/memory search <query>`         | Search past sessions in this project.|
-| `/memory status`                 | Show database statistics.            |
-| `/memory pin [note] [--ttl 7d]`  | Pin the last observation, optionally with a note and TTL. |
-| `/memory pins`                   | List all pins.                       |
-| `/memory unpin <id>`             | Remove a pin.                        |
-| `/memory forget <id>`            | Redact an observation.               |
+| Command                         | Description                                               |
+| ------------------------------- | --------------------------------------------------------- |
+| `/memory search <query>`        | Search past sessions in this project.                     |
+| `/memory status`                | Show database statistics.                                 |
+| `/memory pin [note] [--ttl 7d]` | Pin the last observation, optionally with a note and TTL. |
+| `/memory pins`                  | List all pins.                                            |
+| `/memory unpin <id>`            | Remove a pin.                                             |
+| `/memory forget <id>`           | Redact an observation.                                    |
 
 ## Configuration
 
 The hooks honour these environment variables:
 
-| Variable              | Default        | Effect                                                       |
-| --------------------- | -------------- | ------------------------------------------------------------ |
-| `KINDLING_REPO_ROOT`  | detected       | Override the project root used to select the database. Only applied when the working directory is under it. |
-| `KINDLING_MAX_CONTEXT`| `10`           | Maximum number of recent observations injected on `SessionStart`. |
-| `KINDLING_SOCK`       | `~/.kindling/kindling.sock` | Daemon socket path override.                    |
-| `KINDLING_DB_PATH`    | per-project    | Explicit database path override.                             |
+| Variable               | Default                     | Effect                                                                                                      |
+| ---------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `KINDLING_REPO_ROOT`   | detected                    | Override the project root used to select the database. Only applied when the working directory is under it. |
+| `KINDLING_MAX_CONTEXT` | `10`                        | Maximum number of recent observations injected on `SessionStart`.                                           |
+| `KINDLING_SOCK`        | `~/.kindling/kindling.sock` | Daemon socket path override.                                                                                |
+| `KINDLING_DB_PATH`     | per-project                 | Explicit database path override.                                                                            |
 
 See [Configuration](/kindling/reference/config) for the full list.
 

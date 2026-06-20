@@ -8,15 +8,16 @@ sidebar_position: 4
 # Custom Integrations
 
 If your tool isn't covered by the [Claude Code](/kindling/adapters/claude-code),
-[OpenCode](/kindling/adapters/opencode), or [PocketFlow](/kindling/adapters/pocketflow)
-adapters, you can integrate directly against Kindling's APIs. There are three
-ways in, depending on your language and concurrency needs.
+[OpenCode](/kindling/adapters/opencode), or
+[PocketFlow](/kindling/adapters/pocketflow) adapters, you can integrate directly
+against Kindling's APIs. There are three ways in, depending on your language and
+concurrency needs.
 
-| Approach            | Use when                                                            |
-| ------------------- | ------------------------------------------------------------------- |
-| **Rust, daemon**    | A Rust integration that should share a project safely with other tools. The default choice. |
-| **Rust, embedded**  | A Rust process that wants in-process access with no daemon.         |
-| **TypeScript**      | A Node integration; builds on the `@eddacraft/kindling` package.    |
+| Approach           | Use when                                                                                    |
+| ------------------ | ------------------------------------------------------------------------------------------- |
+| **Rust, daemon**   | A Rust integration that should share a project safely with other tools. The default choice. |
+| **Rust, embedded** | A Rust process that wants in-process access with no daemon.                                 |
+| **TypeScript**     | A Node integration; builds on the `@eddacraft/kindling` package.                            |
 
 The shape is always the same: **open a capsule, append observations, retrieve,
 close with a summary.** See [Observations](/kindling/concepts/observations),
@@ -25,8 +26,8 @@ close with a summary.** See [Observations](/kindling/concepts/observations),
 
 ## Rust, daemon-backed
 
-[`kindling-client`](/kindling/reference/crates) is a thin async client that talks
-to the [daemon](/kindling/concepts/storage#the-daemon) over a Unix domain
+[`kindling-client`](/kindling/reference/crates) is a thin async client that
+talks to the [daemon](/kindling/concepts/storage#the-daemon) over a Unix domain
 socket, and auto-spawns it on first call. This is the recommended choice for
 concurrent, multi-tool access.
 
@@ -125,7 +126,7 @@ service.appendObservation(
     ts: Date.now(),
     redacted: false,
   },
-  { capsuleId: capsule.id },
+  { capsuleId: capsule.id }
 );
 
 // Retrieve
@@ -149,12 +150,14 @@ instead.
 
 ## Guidelines
 
-- **Map events to the fixed [observation kinds](/kindling/concepts/observations#kinds).**
-  There are no custom kinds; pick the closest of `tool_call`, `command`,
-  `file_diff`, `error`, or `message`.
+- **Map events to the fixed
+  [observation kinds](/kindling/concepts/observations#kinds).** There are no
+  custom kinds; pick the closest of `tool_call`, `command`, `file_diff`,
+  `error`, or `message`.
 - **Filter secrets before capture.** Never write credentials into observation
-  content — see how the [OpenCode adapter](/kindling/adapters/opencode#content-filtering)
-  masks secrets and excludes sensitive paths.
+  content — see how the
+  [OpenCode adapter](/kindling/adapters/opencode#content-filtering) masks
+  secrets and excludes sensitive paths.
 - **Scope everything.** Set `sessionId`/`repoId` so retrieval can be narrowed.
 - **Close capsules with a summary** so the conclusion surfaces in the
   current-summary retrieval tier.

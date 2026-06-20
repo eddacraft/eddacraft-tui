@@ -12,18 +12,18 @@ one artefact. This page documents every command, flag, and default.
 
 ## Global options
 
-| Option         | Description                                                          |
-| -------------- | ------------------------------------------------------------------- |
+| Option         | Description                                                                                                                                                                                          |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--via-daemon` | Route the daemon-backed verbs (`log`, `capsule`, `search`, `pin`, `unpin`, `forget`) through the running [daemon](/kindling/concepts/storage#the-daemon) instead of opening the database in-process. |
-| `--help`       | Show help.                                                           |
-| `--version`    | Show the version.                                                   |
+| `--help`       | Show help.                                                                                                                                                                                           |
+| `--version`    | Show the version.                                                                                                                                                                                    |
 
 Most verbs also accept these shared options:
 
-| Option        | Description                                                                   |
-| ------------- | ----------------------------------------------------------------------------- |
-| `--db <path>` | Database path. Overrides `KINDLING_DB_PATH` and the per-project default.       |
-| `--json`      | Emit machine-readable JSON instead of human-readable output.                   |
+| Option        | Description                                                              |
+| ------------- | ------------------------------------------------------------------------ |
+| `--db <path>` | Database path. Overrides `KINDLING_DB_PATH` and the per-project default. |
+| `--json`      | Emit machine-readable JSON instead of human-readable output.             |
 
 ## init
 
@@ -34,12 +34,12 @@ configure Claude Code.
 kindling init [--db <path>] [--claude-code] [--skip-db] [--json]
 ```
 
-| Flag            | Description                                              |
-| --------------- | -------------------------------------------------------- |
+| Flag            | Description                                                       |
+| --------------- | ----------------------------------------------------------------- |
 | `--db <path>`   | Use an explicit database path instead of the per-project default. |
 | `--claude-code` | Detect and (when available) configure Claude Code integration.    |
-| `--skip-db`     | Configure integration only; do not create the database.   |
-| `--json`        | JSON output (`{ directory, database, claudeCode }`).     |
+| `--skip-db`     | Configure integration only; do not create the database.           |
+| `--json`        | JSON output (`{ directory, database, claudeCode }`).              |
 
 ## log
 
@@ -49,13 +49,13 @@ Log an observation to memory.
 kindling log <content> [--kind <kind>] [--session <id>] [--repo <id>] [--capsule <id>]
 ```
 
-| Argument / flag    | Description                                                              |
-| ------------------ | ------------------------------------------------------------------------ |
-| `<content>`        | The observation content (positional, required).                          |
-| `--kind <kind>`    | Observation kind. Default `message`. One of `tool_call`, `command`, `file_diff`, `error`, `message`, `node_start`, `node_end`, `node_output`, `node_error`. |
-| `--session <id>`   | Session scope ID.                                                        |
-| `--repo <id>`      | Repository scope ID.                                                     |
-| `--capsule <id>`   | Attach to an existing capsule.                                           |
+| Argument / flag  | Description                                                                                                                                                 |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<content>`      | The observation content (positional, required).                                                                                                             |
+| `--kind <kind>`  | Observation kind. Default `message`. One of `tool_call`, `command`, `file_diff`, `error`, `message`, `node_start`, `node_end`, `node_output`, `node_error`. |
+| `--session <id>` | Session scope ID.                                                                                                                                           |
+| `--repo <id>`    | Repository scope ID.                                                                                                                                        |
+| `--capsule <id>` | Attach to an existing capsule.                                                                                                                              |
 
 ```bash
 kindling log "JWT tokens expire after 15 minutes, not 1 hour"
@@ -72,12 +72,12 @@ Manage capsules. Two subcommands: `open` and `close`.
 kindling capsule open --intent <text> [--type <type>] [--session <id>] [--repo <id>]
 ```
 
-| Flag             | Description                                          |
-| ---------------- | ---------------------------------------------------- |
-| `--intent <text>`| Purpose of the capsule (required).                   |
-| `--type <type>`  | Capsule type. Default `session`.                     |
-| `--session <id>` | Session scope ID.                                    |
-| `--repo <id>`    | Repository scope ID.                                 |
+| Flag              | Description                        |
+| ----------------- | ---------------------------------- |
+| `--intent <text>` | Purpose of the capsule (required). |
+| `--type <type>`   | Capsule type. Default `session`.   |
+| `--session <id>`  | Session scope ID.                  |
+| `--repo <id>`     | Repository scope ID.               |
 
 ### capsule close
 
@@ -85,10 +85,10 @@ kindling capsule open --intent <text> [--type <type>] [--session <id>] [--repo <
 kindling capsule close <id> [--summary <text>]
 ```
 
-| Argument / flag   | Description                                |
-| ----------------- | ------------------------------------------ |
-| `<id>`            | Capsule ID to close (positional, required).|
-| `--summary <text>`| Summary text attached to the capsule.      |
+| Argument / flag    | Description                                 |
+| ------------------ | ------------------------------------------- |
+| `<id>`             | Capsule ID to close (positional, required). |
+| `--summary <text>` | Summary text attached to the capsule.       |
 
 ## status
 
@@ -108,12 +108,12 @@ summary, and ranked candidates. See [Retrieval](/kindling/concepts/retrieval).
 kindling search <query> [--session <id>] [--repo <id>] [--max <n>]
 ```
 
-| Argument / flag  | Description                                  |
-| ---------------- | -------------------------------------------- |
-| `<query>`        | Query string (positional, required).         |
-| `--session <id>` | Filter by session ID.                        |
-| `--repo <id>`    | Filter by repository ID.                     |
-| `--max <n>`      | Maximum candidates to return. Default `10`.  |
+| Argument / flag  | Description                                 |
+| ---------------- | ------------------------------------------- |
+| `<query>`        | Query string (positional, required).        |
+| `--session <id>` | Filter by session ID.                       |
+| `--repo <id>`    | Filter by repository ID.                    |
+| `--max <n>`      | Maximum candidates to return. Default `10`. |
 
 ## list
 
@@ -123,12 +123,12 @@ List entities.
 kindling list <entity> [--session <id>] [--repo <id>] [--limit <n>]
 ```
 
-| Argument / flag  | Description                                       |
-| ---------------- | ------------------------------------------------- |
-| `<entity>`       | One of `capsules`, `pins`, `observations`.        |
-| `--session <id>` | Filter by session ID.                             |
-| `--repo <id>`    | Filter by repository ID.                          |
-| `--limit <n>`    | Maximum results. Default `20`.                    |
+| Argument / flag  | Description                                |
+| ---------------- | ------------------------------------------ |
+| `<entity>`       | One of `capsules`, `pins`, `observations`. |
+| `--session <id>` | Filter by session ID.                      |
+| `--repo <id>`    | Filter by repository ID.                   |
+| `--limit <n>`    | Maximum results. Default `20`.             |
 
 `list capsules` additionally accepts `--status open` / `--status closed` for
 filtering by lifecycle state.
@@ -142,11 +142,11 @@ evicted.
 kindling pin <type> <id> [--note <text>] [--ttl <ms>]
 ```
 
-| Argument / flag | Description                                         |
-| --------------- | --------------------------------------------------- |
-| `<type>`        | Target type: `observation` or `summary`.            |
-| `<id>`          | Target ID.                                          |
-| `--note <text>` | Note describing why this is pinned.                 |
+| Argument / flag | Description                                                    |
+| --------------- | -------------------------------------------------------------- |
+| `<type>`        | Target type: `observation` or `summary`.                       |
+| `<id>`          | Target ID.                                                     |
+| `--note <text>` | Note describing why this is pinned.                            |
 | `--ttl <ms>`    | Time-to-live in **milliseconds**, after which the pin expires. |
 
 ## unpin
@@ -159,8 +159,8 @@ kindling unpin <id>
 
 ## forget
 
-Redact (forget) an observation by its exact ID. Masks the content; the record
-is retained.
+Redact (forget) an observation by its exact ID. Masks the content; the record is
+retained.
 
 ```bash
 kindling forget <id>
@@ -174,12 +174,12 @@ Export memory to a JSON file.
 kindling export [output] [--session <id>] [--repo <id>] [--pretty]
 ```
 
-| Argument / flag  | Description                                                            |
-| ---------------- | --------------------------------------------------------------------- |
-| `[output]`       | Output file. Default `kindling-export-<timestamp>.json`.              |
-| `--session <id>` | Export only a specific session.                                       |
-| `--repo <id>`    | Export only a specific repository.                                    |
-| `--pretty`       | Pretty-print the JSON.                                                 |
+| Argument / flag  | Description                                              |
+| ---------------- | -------------------------------------------------------- |
+| `[output]`       | Output file. Default `kindling-export-<timestamp>.json`. |
+| `--session <id>` | Export only a specific session.                          |
+| `--repo <id>`    | Export only a specific repository.                       |
+| `--pretty`       | Pretty-print the JSON.                                   |
 
 See [Formats](/kindling/reference/formats) for the bundle shape.
 
@@ -191,10 +191,10 @@ Import memory from an export file.
 kindling import <file> [--dry-run]
 ```
 
-| Argument / flag | Description                          |
-| --------------- | ------------------------------------ |
-| `<file>`        | Bundle file to import.               |
-| `--dry-run`     | Validate without importing.          |
+| Argument / flag | Description                 |
+| --------------- | --------------------------- |
+| `<file>`        | Bundle file to import.      |
+| `--dry-run`     | Validate without importing. |
 
 ## serve
 
@@ -204,12 +204,12 @@ Start the kindling daemon (HTTP/1 over a Unix domain socket).
 kindling serve [--socket <path>] [--idle-timeout <secs>] [--kindling-home <path>] [--daemonize]
 ```
 
-| Flag                    | Description                                                              |
-| ----------------------- | ------------------------------------------------------------------------ |
-| `--socket <path>`       | Unix domain socket to bind. Default `~/.kindling/kindling.sock`.          |
-| `--idle-timeout <secs>` | Seconds idle before the daemon shuts itself down. Default `1800`.        |
-| `--kindling-home <path>`| Root of per-project databases. Default `~/.kindling` (or the parent of `--socket`). |
-| `--daemonize`           | Suppress the human-readable startup banner (used when auto-spawned).     |
+| Flag                     | Description                                                                         |
+| ------------------------ | ----------------------------------------------------------------------------------- |
+| `--socket <path>`        | Unix domain socket to bind. Default `~/.kindling/kindling.sock`.                    |
+| `--idle-timeout <secs>`  | Seconds idle before the daemon shuts itself down. Default `1800`.                   |
+| `--kindling-home <path>` | Root of per-project databases. Default `~/.kindling` (or the parent of `--socket`). |
+| `--daemonize`            | Suppress the human-readable startup banner (used when auto-spawned).                |
 
 ## hook
 

@@ -121,9 +121,7 @@
       "broken link \"../planning/MONITOR_FEATURE.md\" — target file does not exist",
       "broken link \"../planning/PLAN.md\" — target file does not exist"
     ],
-    "docs/archive/status/README.md": [
-      "broken link \"../INDEX.md\" — target file does not exist"
-    ],
+    "docs/archive/status/README.md": ["broken link \"../INDEX.md\" — target file does not exist"],
     "docs/guides/command-safety.md": [
       "broken anchor \"../architecture/overview.md#gate-layer\" — file exists but heading \"#gate-layer\" not found"
     ],
