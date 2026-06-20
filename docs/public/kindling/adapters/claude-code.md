@@ -24,7 +24,7 @@ The hooks run `kindling hook <type>`, so the `kindling` binary must be on your
 [install guide](/kindling/quickstart/install):
 
 ```bash
-cargo install kindling
+cargo install eddacraft-kindling   # the published crate; the binary is `kindling`
 # verify
 kindling --version
 ```

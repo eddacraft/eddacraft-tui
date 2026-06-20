@@ -13,31 +13,38 @@ channel suits you.
 
 ## Install the binary
 
-### Rust / Cargo (canonical)
+### Prebuilt binary (recommended)
 
-```bash
-cargo install kindling
-```
-
-This builds and installs the `kindling` binary from
-[crates.io](https://crates.io/crates/kindling).
-
-### One-line installer (Linux / macOS)
+The one-line installer downloads the prebuilt `kindling` binary for your
+platform — no Node.js or Rust toolchain required (Linux / macOS):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/eddacraft/kindling/main/install.sh | sh
 ```
 
-### npm
+### Rust / Cargo
 
-A prebuilt-binary npm package is also published. Node.js >= 20 is required.
+The CLI is published as the
+[`eddacraft-kindling`](https://crates.io/crates/eddacraft-kindling) crate (the
+bare `kindling` name on crates.io is taken). The installed binary is still
+`kindling`:
 
 ```bash
-npm install -g @eddacraft/kindling-cli
-# or: pnpm add -g @eddacraft/kindling-cli
-# or: yarn global add @eddacraft/kindling-cli
-# or: bun add -g @eddacraft/kindling-cli
+cargo install eddacraft-kindling
 ```
+
+### Node.js
+
+The canonical CLI is the Rust binary above. For Node applications, the npm
+package `@eddacraft/kindling` is a **thin client library** that talks to the
+same Rust daemon — it is not a global CLI:
+
+```bash
+npm install @eddacraft/kindling
+```
+
+> The older standalone CLI package `@eddacraft/kindling-cli` is **deprecated**;
+> use the prebuilt installer or `cargo install eddacraft-kindling` for the CLI.
 
 ### Verify
 
