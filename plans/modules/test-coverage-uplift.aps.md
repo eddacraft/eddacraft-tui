@@ -2,7 +2,16 @@
 
 | ID   | Owner      | Status      | Progress |
 | ---- | ---------- | ----------- | -------- |
-| TCOV | @eddacraft | In Progress | 14/25    |
+| TCOV | @eddacraft | In Progress | 19/25    |
+
+## Progress (as of 2026-06-20)
+
+- **Ready surface delivered 2026-06-20.** All five Ready items merged: TCOV-015
+  (#2819), TCOV-016 (#2820), TCOV-017 (#2817), TCOV-018 (#2818), and TCOV-025
+  (#2816). Done count 14 → 19/25. Remaining six are Blocked: TCOV-019..-021
+  (`needs decision` — archived mcp-server target under ADR-033) and
+  TCOV-022..-024 (`scope drift` — anvil-tui rename needs a scope-refresh design
+  call). No further Ready work remains in this module without an owner decision.
 
 ## Progress (as of 2026-05-28)
 
@@ -379,7 +388,8 @@ Change status to **Ready** when:
 - **Validation:** `pnpm vitest run packages/edda-stack` passes; the ports
   layer shows ≥80% line coverage.
 - **Confidence:** high
-- **Status:** Ready
+- **Status:** Merged 2026-06-20 via #2819 — port contract bound to a real
+  conforming mock (compile-time + runtime), `testing/mocks` layer 99.6%.
 
 #### TCOV-016: edda-stack store interfaces and migration tests
 
@@ -394,7 +404,8 @@ Change status to **Ready** when:
 - **Validation:** `pnpm vitest run packages/edda-stack` shows ≥80% line
   coverage for the store-interfaces and migration modules.
 - **Confidence:** medium
-- **Status:** Ready
+- **Status:** Merged 2026-06-20 via #2820 — concrete in-memory store/version
+  tracker drives the type-only contracts; migration branch coverage 100%.
 
 #### TCOV-017: kindling-integration emitter tests
 
@@ -409,7 +420,8 @@ Change status to **Ready** when:
 - **Validation:** `pnpm vitest run packages/kindling-integration` shows ≥80%
   line coverage; each emitter has a dedicated test file.
 - **Confidence:** high
-- **Status:** Ready
+- **Status:** Merged 2026-06-20 via #2817 — dedicated test file per emitter;
+  `emitters/` layer 0% → 100%.
 
 #### TCOV-018: kindling-integration service and adapter tests
 
@@ -428,7 +440,8 @@ Change status to **Ready** when:
 - **Validation:** `pnpm vitest run packages/kindling-integration` shows ≥80%
   line coverage for the package.
 - **Confidence:** medium
-- **Status:** Ready
+- **Status:** Merged 2026-06-20 via #2818 — service/adapter/config/query/
+  retention/status all ≥94% (most 100%); secure `mkdtempSync` config fixtures.
 
 #### TCOV-019: mcp-server per-resource isolation tests
 
@@ -545,9 +558,12 @@ Change status to **Ready** when:
 - **Confidence:** low — file path no longer exists
 - **Status:** Blocked — scope refresh
 
-#### TCOV-025: anvil-tui surface trait compliance tests — Ready
+#### TCOV-025: anvil-tui surface trait compliance tests — Merged
 
-- **Status:** Ready — the one Phase 4 item whose premise survived the rename.
+- **Status:** Merged 2026-06-20 via #2816 — single parameterised runtime
+  compliance test over all 22 registered surfaces (non-empty name/help,
+  render/handle_key/reset without error) plus a registry-count guard. Was the
+  one Phase 4 item whose premise survived the rename.
   The `Surface` trait is defined in `crates/eddacraft-tui/src/surface.rs:13`
   (`pub trait Surface<T: Theme = EddaCraftTheme>`) and re-exported via the
   3-line shim `crates/anvil-tui/src/surface.rs`; `crates/anvil-tui/src/surfaces/`
