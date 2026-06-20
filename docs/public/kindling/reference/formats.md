@@ -97,7 +97,7 @@ See [Observations](/kindling/concepts/observations#kinds) for what each means.
   },
   "metadata": {
     "description": "Kindling memory export",
-    "exportedAt": "2026-06-20T11:05:00.000Z"
+    "exportedAt": "2025-06-20T11:05:00.000Z"
   }
 }
 ```
