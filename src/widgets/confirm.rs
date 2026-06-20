@@ -133,4 +133,30 @@ mod tests {
         state.reset();
         assert_eq!(state.is_confirmed(), None);
     }
+
+    #[test]
+    fn default_state_selects_yes_and_is_unconfirmed() {
+        let state = ConfirmState::default();
+        assert!(state.selected, "default selection should be yes");
+        assert_eq!(state.is_confirmed(), None);
+    }
+
+    #[test]
+    fn confirm_captures_the_toggled_selection() {
+        // Confirming after a toggle commits the *current* selection, not yes.
+        let mut state = ConfirmState::default();
+        state.toggle(); // selected = no
+        state.confirm();
+        assert_eq!(state.is_confirmed(), Some(false));
+    }
+
+    #[test]
+    fn reset_preserves_selection() {
+        let mut state = ConfirmState::default();
+        state.toggle(); // selected = no
+        state.confirm();
+        state.reset();
+        assert_eq!(state.is_confirmed(), None);
+        assert!(!state.selected, "reset must not change the selection");
+    }
 }
