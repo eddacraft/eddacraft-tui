@@ -2304,8 +2304,9 @@ archive.
   `anvil://baseline` / `anvil://drift` MCP resources as well as the CLI.
 - **Expected Outcome:** `load_baseline` and `load_snapshot_file` use the existing
   `read_to_string_bounded` pattern (8–16 MiB cap), and `list_snapshot_files`
-  caps the number of files scanned before sorting (e.g. 1000) and `log`s when it
-  truncates (no silent cap). Both the CLI (`anvil drift`, baseline loading) and
+  caps the number of files scanned before sorting (e.g. 1000) and logs a warning
+  when it truncates (no silent cap). Both the CLI (`anvil drift`, baseline
+  loading) and
   the `anvil://baseline`/`anvil://drift` MCP resources benefit.
 - **Files:** `crates/anvil-architecture/src/baseline.rs`,
   `crates/anvil-cli/src/commands/drift.rs`.
