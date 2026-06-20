@@ -1531,3 +1531,18 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** Run `clawpatch fix` one finding at a time from a clean tree, and
   triage report output by status/path before filing any follow-up work.
 - **Follow-up:** none
+
+### 2026-06-20 — opencode
+
+- **Task:** Public-facing Anvil documentation pass.
+- **Outcome:** Corrected stale CLI claims, unreleased-version framing, public doc
+  links, and policy-test wording across `docs/public/anvil`.
+- **Worked:** Pairing a quick public-doc audit with source checks caught concrete
+  command drift without widening into a full content rewrite.
+- **Failed:** A Docusaurus custom heading id fixed the site build but failed the
+  repo docs checker, so the self-anchor was removed instead.
+- **Friction:** The repo link checker and Docusaurus slug handling do not recognise
+  the same anchor forms.
+- **Improvement:** For public docs, prefer nearby prose over self-anchor links when
+  the target is in the same short section.
+- **Follow-up:** none

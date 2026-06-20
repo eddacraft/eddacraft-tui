@@ -7,7 +7,8 @@ sidebar_position: 2
 # Custom Policies
 
 anvil evaluates custom rules written in OPA/Rego. This tutorial walks through
-creating, testing, and running a policy that limits file length.
+creating, checking, and running a policy that enforces a service-file naming
+convention.
 
 ## Prerequisites
 
@@ -31,52 +32,55 @@ anvil loads every `.rego` file in this directory automatically.
 
 ## 2. Write the Policy
 
-Create `.anvil/policies/max_file_length.rego`:
+Create `.anvil/policies/service_names.rego`:
 
 ```rego
-package anvil.policies.max_file_length
+package anvil.policies.service_names
 
-import future.keywords.if
+import rego.v1
 
-default max_lines := 300
+warn contains finding if {
+  some file in input.files
+  startswith(file, "src/services/")
+  not endswith(file, ".service.ts")
+  not endswith(file, ".service.tsx")
 
-max_lines := input.config.max_lines if {
-  input.config.max_lines
-}
-
-violation[msg] {
-  count(input.file.lines) > max_lines
-  msg := sprintf("%s exceeds %d lines (%d)",
-    [input.file.path, max_lines,
-     count(input.file.lines)])
+  finding := {
+    "message": sprintf("service file should use .service.ts suffix: %s", [file]),
+    "path": file,
+    "severity": "warning",
+  }
 }
 ```
 
 How it works:
 
-- `max_lines` defaults to 300 but can be overridden via `input.config`
-- The `violation` rule fires when a file exceeds the threshold
-- anvil treats every string in the `violation` set as a warning
+- `input.files` is the list of policy-relevant workspace-relative paths anvil
+  passes to OPA
+- `warn` emits advisory findings; use `violation` or `deny` for error-severity
+  findings
+- each object can include `message`, `path`, and `severity` fields so anvil can
+  display a useful finding
 
-## 3. Test the Policy
+## 3. Check Policy Tests
 
-Run the built-in policy test harness:
+Ask anvil to discover policy test files:
 
 ```bash
 anvil policy test
 ```
 
 ```
-Testing policies...
-  .anvil/policies/max_file_length.rego
-    PASS  violation fires when file exceeds max_lines
-    PASS  no violation when file is within limit
-    PASS  respects config override
-
-All policy tests passed.
+Found 1 test file(s) in '.anvil/policies' but policy test execution is not yet implemented
 ```
 
-:::tip Add your own test cases in `.anvil/policies/max_file_length_test.rego`
+To execute Rego tests today, use OPA directly:
+
+```bash
+opa test .anvil/policies
+```
+
+:::tip Add your own test cases in `.anvil/policies/service_names_test.rego`
 using standard OPA test conventions. :::
 
 ## 4. Run the Policy
@@ -87,33 +91,23 @@ anvil gate --only-checks policy
 
 ```
 Checking policies...
-  [POLICY] max_file_length
-    src/services/legacy-handler.ts exceeds 300 lines (487)
+  [POLICY] service_names
+    service file should use .service.ts suffix: src/services/legacy-handler.ts
 
 1 policy warning found.
 ```
 
-## 5. Customise the Threshold
+## 5. Available Input
 
-Override the default in `.anvilrc`:
+Custom policies receive a compact project snapshot:
 
-```json
-{
-  "gates": {
-    "policies": {
-      "enabled": true,
-      "config": {
-        "max_file_length": {
-          "max_lines": 500
-        }
-      }
-    }
-  }
-}
-```
+- `input.workspace` — absolute workspace root
+- `input.files` — policy-relevant workspace-relative files
+- `input.changed_files` — files changed according to Git, when available
+- `input.profile` — active gate profile, such as `default`, `dev`, or `ci`
 
-You can also set per-directory thresholds using gate-config.json files placed
-alongside the code they govern.
+Policies do not receive file contents by default. For content-sensitive checks,
+prefer built-in gates or run OPA directly with an explicit input document.
 
 ## Ideas for More Policies
 

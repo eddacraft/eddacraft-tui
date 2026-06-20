@@ -62,9 +62,9 @@ hints for a verdict.
 
 ## Daemon lifecycle
 
-From `v0.9.0-beta`, daemon-backed protection is the normal path rather than an
-operator-only foreground ceremony. `anvil start` and `anvil watch` manage the
-per-user daemon for you on Linux and macOS:
+In the upcoming `v0.9.0-beta`, daemon-backed protection becomes the normal path
+rather than an operator-only foreground ceremony. `anvil start` and
+`anvil watch` manage the per-user daemon for you on Linux and macOS:
 
 - **`anvil start`** — in an interactive terminal it auto-starts the daemon and
   reports the result on a `daemon:` line (`started…`, or `reusing…` when one is
@@ -85,8 +85,7 @@ Opting out and non-interactive behaviour:
 - **`ANVIL_NO_DAEMON`** — the environment equivalent of `--no-daemon` for
   `anvil start`.
 - **`ANVIL_WATCH_DAEMON=0`** — the hard opt-out for watch: no start, no offer,
-  and **no reuse** even of a live daemon (see
-  [Routing control](#routing-control-anvilwatchdaemon)).
+  and **no reuse** even of a live daemon. The routing values are listed below.
 - **Headless, `--json`, CI, hooks, and piped output never start, offer, or
   prompt.** They fall back deterministically to the scoped check, so automation
   never hangs waiting for consent or pollutes a JSON stream.

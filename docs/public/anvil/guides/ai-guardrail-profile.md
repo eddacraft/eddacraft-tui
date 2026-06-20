@@ -81,7 +81,7 @@ spec][envelope-spec] and exported from
 `crates/anvil-kernel-types/src/diagnostics.rs`.
 
 [envelope-spec]:
-  https://github.com/eddacraft/anvil-001/blob/dev/plans/specs/2026-04-26-diagnostic-envelope-coordination.md
+  https://github.com/eddacraft/anvil-001/blob/main/plans/specs/2026-04-26-diagnostic-envelope-coordination.md
 
 ### Example Invocation
 

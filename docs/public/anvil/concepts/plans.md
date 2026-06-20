@@ -148,7 +148,7 @@ A unit of authorised work:
 When anvil runs, it can validate that changes align with an active plan:
 
 ```bash
-anvil plan validate plans/index.aps.md
+anvil validate plans/index.aps.md
 ```
 
 anvil checks:
@@ -167,7 +167,8 @@ anvil works without plans too. In this mode, it only runs gate checks
 Plans can be created:
 
 - **Manually** — write APS markdown
-- **Via CLI** — `anvil plan create`
+- **With agent/tooling support** — generate APS markdown, then validate it with
+  `anvil validate`
 - **From external formats** — anvil adapters convert SpecKit, BMAD, etc.
 
 ---

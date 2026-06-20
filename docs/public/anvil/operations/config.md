@@ -423,7 +423,7 @@ By default `anvil watch` uses daemon-backed save-time validation when a resident
 intercept daemon is already live and serving the save-time verbs. The daemon
 validates the changed-path delta against one warm model rather than spawning a
 per-save subprocess, so `anvil watch` and the editor/agent MCP
-`anvil_validate_write` tool converge on the same verdict path. From
+`anvil_validate_write` tool converge on the same verdict path. In the upcoming
 `v0.9.0-beta`, an interactive `anvil start` auto-starts the daemon and an
 interactive `anvil watch` offers to start one when none is answering (Linux and
 macOS) — pass `--no-daemon`, or set `ANVIL_NO_DAEMON=1` for `start`, to suppress

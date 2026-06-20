@@ -2,17 +2,17 @@
 id: wow-start-demo
 title: The Wow-Start Demo
 description:
-  install → cd repo → anvil start. The first-minute story for v0.6.0-beta.
+  install → cd repo → anvil start. The first-minute story for the current beta.
 sidebar_position: 1
 ---
 
 # The Wow-Start Demo
 
-This is the canonical first-minute story for `v0.6.0-beta`:
+This is the canonical first-minute story for the current beta:
 
 ```bash
 curl -fsSL https://install.eddacraft.ai | sh   # install anvil
-cd ~/Projects/your-real-repo                   # a real TS / JS repo
+cd ~/Projects/your-real-repo                   # a real TS / JS / Rust repo
 anvil start                                    # the wow-start
 ```
 

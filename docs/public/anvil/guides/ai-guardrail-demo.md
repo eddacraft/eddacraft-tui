@@ -26,7 +26,7 @@ guide assumes.
 
 ## Prerequisites
 
-- A current anvil install (see [Install](/anvil/quickstart#install))
+- A current anvil install (see [Install](../quickstart.md#1-install))
 - Either **Cursor** or **Claude Code** already installed
 - A throwaway directory you don't mind a small Git repo living in
 

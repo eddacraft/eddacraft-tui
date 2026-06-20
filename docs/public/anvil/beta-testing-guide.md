@@ -26,11 +26,11 @@ pre-write attachment is not available.
 The current tagged cut is `0.8.1-beta`. These are the highest-leverage flows. If
 you only have a short session, these are the right places to spend it.
 
-### New in `v0.9.0-beta` — daemon lifecycle
+### Upcoming in `v0.9.0-beta` — daemon lifecycle
 
-`anvil start` and `anvil watch` now manage the per-user save-time daemon, so
-daemon-backed protection is the normal path rather than an operator-only
-foreground ceremony (Linux and macOS).
+The next beta will let `anvil start` and `anvil watch` manage the per-user
+save-time daemon, so daemon-backed protection becomes the normal path rather
+than an operator-only foreground ceremony (Linux and macOS).
 
 - **`anvil start` auto-starts the daemon.** In an interactive terminal it starts
   the daemon and reports the result on a `daemon:` line (`started…` or
@@ -354,11 +354,11 @@ anvil watch --source
 From `v0.8.0-beta`, when a live daemon answers, watch routes save-time
 validation through the daemon by default. `ANVIL_WATCH_DAEMON=0` opts out, `=1`
 forces daemon routing, and `anvil status` states the save-time posture unless
-you opted out. From `v0.9.0-beta`, when no daemon answers, an interactive
-`anvil watch` offers to start one (pass `--no-daemon` to skip the offer);
-headless, `--json`, CI, hook, and piped runs never prompt. If the daemon stops
-mid-session, watch should warn once and fall back to a scoped check that names
-`anvil start` as the recovery step.
+you opted out. In the upcoming `v0.9.0-beta`, when no daemon answers, an
+interactive `anvil watch` offers to start one (pass `--no-daemon` to skip the
+offer); headless, `--json`, CI, hook, and piped runs never prompt. If the daemon
+stops mid-session, watch should warn once and fall back to a scoped check that
+names `anvil start` as the recovery step.
 
 Save a file. Watch should print the active scope and respond when files change.
 On large repos it should print startup feedback immediately while warm-up runs,
@@ -610,12 +610,12 @@ One sentence describing what happened.
   `v0.7.1-beta` patch adds owner-only named-pipe parity so
   `anvil_validate_write` can return `available`, `unavailable`, and
   `protection_claim` on Windows too.
-- **`anvil start` / `anvil watch` manage the daemon.** From `v0.9.0-beta`, an
-  interactive `anvil start` auto-starts the per-user daemon in the background
-  and an interactive `anvil watch` offers to start one (Linux and macOS); a
-  daemon already running is reused. `anvil intercept start --foreground` remains
-  the operator/debug surface — run it in headless sessions, and it is the only
-  launch mode on Windows until background launch lands there.
+- **`anvil start` / `anvil watch` manage the daemon.** In the upcoming
+  `v0.9.0-beta`, an interactive `anvil start` auto-starts the per-user daemon in
+  the background and an interactive `anvil watch` offers to start one (Linux and
+  macOS); a daemon already running is reused. `anvil intercept start
+  --foreground` remains the operator/debug surface — run it in headless sessions,
+  and it is the only launch mode on Windows until background launch lands there.
 - **Fences survive daemon restart.** On Unix, use
   `anvil intercept unblock --worktree <PATH>` for worktree-scoped recovery. On
   Windows, worktree-scoped unblock is not supported yet; stop and restart the
