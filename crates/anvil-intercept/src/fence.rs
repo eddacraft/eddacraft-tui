@@ -610,10 +610,17 @@ impl FenceStore {
             observation.include_paths,
         );
         if let Err(err) = observation.sink.try_emit_constraint_applied(row) {
+            // Honour the same path-redaction posture as the row itself: the
+            // absolute worktree path only appears when paths are opted in.
+            let worktree_field = if observation.include_paths {
+                worktree.display().to_string()
+            } else {
+                crate::kindling_observation::REDACTED_WORKTREE.to_string()
+            };
             tracing::warn!(
                 target: "anvil_intercept::fence",
                 error = %err,
-                worktree = %worktree.display(),
+                worktree = %worktree_field,
                 "constraint_applied emit dropped: sink failure",
             );
         }

@@ -274,7 +274,8 @@ merges (then Merged via the PR).
   `try_emit*` is a non-blocking `try_send` (drop-on-full + rate-limited warn).
   Verified by a slow-sink latency test. `std` thread + `mpsc` only (ADR-064).
 - **Activation** (`anvil-cli`): `DaemonObservationSink` persists save-time
-  `gate.evaluated` (gate-id-filtered) + `constraint_applied` to `usage.ndjson`,
+  `gate_evaluated` rows (wire `kind`; gate-id-filtered) + `constraint_applied`
+  to `usage.ndjson`,
   **extending the USAGE-004 sink contract**, with 7-day/64 MiB lazy
   trim-on-append retention **until KDS-005 retires the NDJSON writer** (the
   sink, retention, and views are KDS-004/-005 coordination points).

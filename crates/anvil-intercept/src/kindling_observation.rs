@@ -485,6 +485,10 @@ pub fn from_midedit_response(
 pub fn from_validate_paths(
     ctx: &ObservationContext<'_>,
     diagnostics: &[Diagnostic],
+    // `file_count` is passed separately from `paths` so the caller can skip
+    // cloning the path strings on the verdict hot path when paths are not
+    // opted in (the default) while still recording the true count.
+    file_count: usize,
     paths: &[String],
     include_paths: bool,
 ) -> GateEvaluatedObservation {
@@ -515,7 +519,7 @@ pub fn from_validate_paths(
         gate_eval_id: ctx.gate_eval_id.to_string(),
         gate_id: SAVE_TIME_GATE_ID.to_string(),
         inputs: ObservationInputs {
-            file_count: u32::try_from(paths.len()).unwrap_or(u32::MAX),
+            file_count: u32::try_from(file_count).unwrap_or(u32::MAX),
             changed_files: if include_paths {
                 paths.to_vec()
             } else {
@@ -1707,6 +1711,14 @@ impl SaveTimeObservationEmitter {
         &self.daemon_session_id
     }
 
+    /// Whether this emitter records file paths in the row. The IPC caller
+    /// reads this to skip cloning the path strings on the verdict hot path
+    /// when paths are not opted in (the default privacy posture).
+    #[must_use]
+    pub fn include_paths(&self) -> bool {
+        self.include_paths
+    }
+
     /// Build + emit a `gate_evaluated` row for a completed save-time
     /// verdict.
     ///
@@ -1724,6 +1736,9 @@ impl SaveTimeObservationEmitter {
         &self,
         request: &SaveTimeEmissionRequest<'_>,
         diagnostics: &[Diagnostic],
+        // The true number of changed paths in the verdict, recorded even when
+        // `paths` is empty because the caller skipped the clone (paths off).
+        file_count: usize,
         paths: &[String],
         now: Instant,
     ) -> EmissionOutcome {
@@ -1765,7 +1780,8 @@ impl SaveTimeObservationEmitter {
             file_path: "",
             duration_ms: request.duration_ms,
         };
-        let observation = from_validate_paths(&ctx, diagnostics, paths, self.include_paths);
+        let observation =
+            from_validate_paths(&ctx, diagnostics, file_count, paths, self.include_paths);
         match self.sink.try_emit(observation) {
             Ok(()) => EmissionOutcome::Emitted { pending_drops },
             Err(err) => {
@@ -2808,8 +2824,9 @@ mod tests {
     #[test]
     fn from_validate_paths_pass_verdict_emits_pass_outcome() {
         let ctx = sample_ctx();
-        let paths = vec!["src/a.rs".to_string(), "src/b.rs".to_string()];
-        let obs = from_validate_paths(&ctx, &[], &paths, false);
+        // Mirror the hot path when paths are off: the count is passed but
+        // the path slice is empty (the caller skipped the clone).
+        let obs = from_validate_paths(&ctx, &[], 2, &[], false);
         assert_eq!(obs.outcome, Outcome::Pass);
         assert_eq!(obs.gate_id, SAVE_TIME_GATE_ID);
         assert_eq!(obs.kind, KIND_GATE_EVALUATED);
@@ -2829,7 +2846,7 @@ mod tests {
     fn from_validate_paths_populates_changed_files_when_include_paths() {
         let ctx = sample_ctx();
         let paths = vec!["src/a.rs".to_string(), "src/b.rs".to_string()];
-        let obs = from_validate_paths(&ctx, &[], &paths, true);
+        let obs = from_validate_paths(&ctx, &[], paths.len(), &paths, true);
         assert_eq!(obs.inputs.changed_files, paths);
         assert_eq!(obs.inputs.file_count, 2);
     }
@@ -2843,7 +2860,7 @@ mod tests {
             make_diag("warn-1", Severity::Warning),
             make_diag("err-1", Severity::Error),
         ];
-        let obs = from_validate_paths(&ctx, &diags, &paths, true);
+        let obs = from_validate_paths(&ctx, &diags, paths.len(), &paths, true);
         assert_eq!(obs.outcome, Outcome::Fail);
         assert_eq!(obs.gate_id, SAVE_TIME_GATE_ID);
         assert_eq!(obs.enforcement, Enforcement::Blocking);
@@ -2876,11 +2893,18 @@ mod tests {
         let (emitter, recorder) = SaveTimeObservationEmitter::with_recorder(SESSION_UUID, true);
         let paths = vec!["src/lib.rs".to_string()];
         // Pass row.
-        let pass = emitter.try_emit(&sample_save_time_request(), &[], &paths, Instant::now());
+        let pass =
+            emitter.try_emit(&sample_save_time_request(), &[], paths.len(), &paths, Instant::now());
         assert_eq!(pass, EmissionOutcome::Emitted { pending_drops: 0 });
         // Fail row.
         let diags = vec![make_diag("err-1", Severity::Error)];
-        let fail = emitter.try_emit(&sample_save_time_request(), &diags, &paths, Instant::now());
+        let fail = emitter.try_emit(
+            &sample_save_time_request(),
+            &diags,
+            paths.len(),
+            &paths,
+            Instant::now(),
+        );
         assert_eq!(fail, EmissionOutcome::Emitted { pending_drops: 0 });
 
         let rows = recorder.recorded();
@@ -2906,17 +2930,17 @@ mod tests {
         let now = Instant::now();
         // Saturate the pass window.
         assert_eq!(
-            emitter.try_emit(&sample_save_time_request(), &[], &paths, now),
+            emitter.try_emit(&sample_save_time_request(), &[], paths.len(), &paths, now),
             EmissionOutcome::Emitted { pending_drops: 0 },
         );
         assert!(matches!(
-            emitter.try_emit(&sample_save_time_request(), &[], &paths, now),
+            emitter.try_emit(&sample_save_time_request(), &[], paths.len(), &paths, now),
             EmissionOutcome::Throttled { .. },
         ));
         // A fail still flows despite the saturated pass window.
         let diags = vec![make_diag("err-1", Severity::Error)];
         assert_eq!(
-            emitter.try_emit(&sample_save_time_request(), &diags, &paths, now),
+            emitter.try_emit(&sample_save_time_request(), &diags, paths.len(), &paths, now),
             EmissionOutcome::Emitted { pending_drops: 0 },
         );
         let rows = recorder.recorded();
@@ -2937,15 +2961,15 @@ mod tests {
         let paths = vec!["src/lib.rs".to_string()];
         let now = Instant::now();
         assert_eq!(
-            emitter.try_emit(&sample_save_time_request(), &[], &paths, now),
+            emitter.try_emit(&sample_save_time_request(), &[], paths.len(), &paths, now),
             EmissionOutcome::Emitted { pending_drops: 0 },
         );
         assert_eq!(
-            emitter.try_emit(&sample_save_time_request(), &[], &paths, now),
+            emitter.try_emit(&sample_save_time_request(), &[], paths.len(), &paths, now),
             EmissionOutcome::Emitted { pending_drops: 0 },
         );
         assert_eq!(
-            emitter.try_emit(&sample_save_time_request(), &[], &paths, now),
+            emitter.try_emit(&sample_save_time_request(), &[], paths.len(), &paths, now),
             EmissionOutcome::Throttled { drops: 1 },
         );
         assert_eq!(
@@ -2961,7 +2985,13 @@ mod tests {
         recorder.fail_next_with(KindlingSinkError::Unavailable("db locked".into()));
         let paths = vec!["src/lib.rs".to_string()];
         let diags = vec![make_diag("err-1", Severity::Error)];
-        let outcome = emitter.try_emit(&sample_save_time_request(), &diags, &paths, Instant::now());
+        let outcome = emitter.try_emit(
+            &sample_save_time_request(),
+            &diags,
+            paths.len(),
+            &paths,
+            Instant::now(),
+        );
         assert_eq!(outcome, EmissionOutcome::SinkError);
         assert!(recorder.is_empty(), "failed emit must not record the row");
     }
@@ -3126,7 +3156,7 @@ mod tests {
     }
 
     fn sample_gate_row() -> GateEvaluatedObservation {
-        from_validate_paths(&sample_ctx(), &[], &["src/lib.rs".to_string()], false)
+        from_validate_paths(&sample_ctx(), &[], 1, &["src/lib.rs".to_string()], false)
     }
 
     /// (a) The decorator's `try_emit` returns in well under the summed

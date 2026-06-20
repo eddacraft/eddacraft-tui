@@ -3166,10 +3166,22 @@ fn handle_save_time_jsonrpc(
                     };
                     // `request.paths` is a change-descriptor set; the row records
                     // the root-relative path strings only (no content, no change
-                    // kind), matching the paths-only privacy contract.
-                    let paths: Vec<String> = request.paths.iter().map(|c| c.path.clone()).collect();
-                    let _ =
-                        emitter.try_emit(&emission, &response.diagnostics, &paths, Instant::now());
+                    // kind), matching the paths-only privacy contract. Skip the
+                    // clone entirely when paths are not opted in (the default) —
+                    // the count is still recorded.
+                    let file_count = request.paths.len();
+                    let paths: Vec<String> = if emitter.include_paths() {
+                        request.paths.iter().map(|c| c.path.clone()).collect()
+                    } else {
+                        Vec::new()
+                    };
+                    let _ = emitter.try_emit(
+                        &emission,
+                        &response.diagnostics,
+                        file_count,
+                        &paths,
+                        Instant::now(),
+                    );
                 }
                 save_time_result(result, response_id, traceparent)
             }

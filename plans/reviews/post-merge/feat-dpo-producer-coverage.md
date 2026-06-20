@@ -14,8 +14,8 @@ Verified: <!-- filled by cleanup agent -->
 - [ ] Confirm `cargo test -p eddacraft-anvil-intercept -p eddacraft-anvil` green
       on `main` post-merge (agent: yes)
 - [ ] Manual: with a live daemon, save a clean file then one with a finding;
-      confirm `usage.ndjson` gains a save-time `gate.evaluated` row (Pass then
-      Fail) and that file paths are ABSENT by default (no
+      confirm `usage.ndjson` gains a save-time `gate_evaluated` row (the wire
+      `kind` value; Pass then Fail) and that file paths are ABSENT by default (no
       `ANVIL_OBSERVATION_INCLUDE_PATHS`) (human required)
 - [ ] Manual: trigger a fence engage; confirm exactly one `constraint_applied`
       row with a normalised `reason` and `worktree: "<redacted>"` (paths off)

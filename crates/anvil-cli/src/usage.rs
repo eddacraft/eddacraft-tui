@@ -450,7 +450,13 @@ fn trim_usage_sidecar_at(path: &Path, now: chrono::DateTime<Utc>) {
         return;
     }
     if write_private_file(&tmp, rewritten.as_bytes()).is_ok() {
-        let _ = fs::rename(&tmp, path);
+        // `fs::rename` replaces an existing destination on both Unix and
+        // Windows (the latter via `MoveFileExW` + `REPLACE_EXISTING`). If it
+        // still fails (e.g. a transient Windows sharing violation), drop the
+        // temp so it cannot accumulate — retention is best-effort housekeeping.
+        if fs::rename(&tmp, path).is_err() {
+            let _ = fs::remove_file(&tmp);
+        }
     } else {
         let _ = fs::remove_file(&tmp);
     }
@@ -1241,7 +1247,7 @@ mod tests {
             file_path: "",
             duration_ms: 10,
         };
-        from_validate_paths(&ctx, &[], paths, false)
+        from_validate_paths(&ctx, &[], paths.len(), paths, false)
     }
 
     #[test]
