@@ -613,9 +613,10 @@ One sentence describing what happened.
 - **`anvil start` / `anvil watch` manage the daemon.** In the upcoming
   `v0.9.0-beta`, an interactive `anvil start` auto-starts the per-user daemon in
   the background and an interactive `anvil watch` offers to start one (Linux and
-  macOS); a daemon already running is reused. `anvil intercept start
-  --foreground` remains the operator/debug surface — run it in headless sessions,
-  and it is the only launch mode on Windows until background launch lands there.
+  macOS); a daemon already running is reused.
+  `anvil intercept start --foreground` remains the operator/debug surface — run
+  it in headless sessions, and it is the only launch mode on Windows until
+  background launch lands there.
 - **Fences survive daemon restart.** On Unix, use
   `anvil intercept unblock --worktree <PATH>` for worktree-scoped recovery. On
   Windows, worktree-scoped unblock is not supported yet; stop and restart the
