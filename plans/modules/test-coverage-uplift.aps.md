@@ -2,7 +2,7 @@
 
 | ID   | Owner      | Status      | Progress |
 | ---- | ---------- | ----------- | -------- |
-| TCOV | @eddacraft | In Progress | 23/25    |
+| TCOV | @eddacraft | In Progress | 24/25    |
 
 ## Progress (as of 2026-06-20)
 
@@ -23,6 +23,10 @@
 - **TCOV-024 implemented 2026-06-20 (#2828).** Keymap edge-case tests landed in
   `eddacraft-tui/src/keyboard/handler.rs` (every `map()` arm now covered). Done
   count 22 → 23/25; TCOV-022/023 remain Ready.
+- **TCOV-023 implemented 2026-06-20 (#2829).** Shell footer truncation/watermark-
+  priority/degenerate-size tests + theme `fg`-contract tests (incl. a second
+  `MinimalTheme` implementor) in `eddacraft-tui/src/{shell,theme}`. Done count
+  23 → 24/25; only TCOV-022 (interactive widgets) remains Ready.
 
 ## Progress (as of 2026-05-28)
 
@@ -583,7 +587,10 @@ Change status to **Ready** when:
   proven panic-free.
 - **Confidence:** medium — shell truncation math is the main subject; theme
   traits may be largely accessor-only (assert contract, don't pad).
-- **Status:** Ready
+- **Status:** Merged 2026-06-20 via #2829 — shell footer truncation/watermark-
+  priority/degenerate-size tests + theme `fg`-contract tests (incl. a second
+  `MinimalTheme` implementor exercising the trait's default methods).
+  `cargo test -p eddacraft-tui -- shell theme` 22 passed.
 
 #### TCOV-024: eddacraft-tui keyboard mapper edge cases
 
