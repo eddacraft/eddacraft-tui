@@ -4,7 +4,7 @@
 
 | ID  | Owner      | Status   | Progress |
 | --- | ---------- | -------- | -------- |
-| DPO | @eddacraft | In Progress | 0/5   |
+| DPO | @eddacraft | In Progress | 2/5   |
 
 > **DRAFT** — authored via planning-workflow on 2026-06-20 (producer-first
 > sequencing, new-module placement); design-gated by planning council
@@ -187,7 +187,7 @@ registry); fence emit-before-persist can produce a rare duplicate row on crash.
   fails survive a saturated window while passes are sampled; a CI latency check
   on `validate_paths` with an **injected deliberately-slow sink** confirming the
   ADR-031 budget holds; the `daemon_dep_boundary` guard stays green.
-- **Status:** In Progress
+- **Status:** Merged 2026-06-20 via PR #2833
 - **Files:** `crates/anvil-intercept/src/kindling_observation.rs`,
   `crates/anvil-intercept/src/save_time.rs`, `crates/anvil-intercept/src/ipc.rs`
 - **Dependencies:** ADR-088 ratification (kind/`gate_id` taxonomy)
@@ -209,7 +209,7 @@ registry); fence emit-before-persist can produce a rare duplicate row on crash.
   produces one `constraint_applied` row, and a cascade engage adds a flagged row;
   a test asserting a normalised `reason` (no verbatim operator text); boundary
   guard green.
-- **Status:** In Progress
+- **Status:** Merged 2026-06-20 via PR #2833
 - **Files:** `crates/anvil-intercept/src/fence.rs`,
   `crates/anvil-intercept/src/kindling_observation.rs`
 - **Dependencies:** ADR-088 ratification (defines the `constraint_applied` kind);
@@ -262,8 +262,8 @@ registry); fence emit-before-persist can produce a rare duplicate row on crash.
 ## Implementation notes
 
 DPO-001 + DPO-002 implemented and activated end-to-end on
-`feat/dpo-producer-coverage` (Option C). Status stays In Progress until the PR
-merges (then Merged via the PR).
+`feat/dpo-producer-coverage` (Option C), Merged 2026-06-20 via PR #2833. The
+module stays In Progress until DPO-003/-004/-005 (Blocked on KDS) land.
 
 - **Producers** (`anvil-intercept`): `from_validate_paths` + `SaveTimeObservationEmitter`
   (fail always emitted, pass sampled per-worktree via `RateWindow`), emitted at
