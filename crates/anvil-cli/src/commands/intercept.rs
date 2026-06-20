@@ -1142,6 +1142,23 @@ fn run_start(args: &StartArgs) -> Result<()> {
             Some(emitter) => opts.with_usage_emitter(emitter),
             None => opts,
         };
+        // DPO-001 / DPO-002: inject the save-time gate_evaluated producer
+        // and the shared fence constraint_applied sink so the daemon
+        // records save-time verdict rows and fence-engage constraint rows
+        // to the same usage sidecar. `None` (unresolvable state dir) ⇒ the
+        // daemon still serves, just without these observation rows.
+        #[cfg(any(unix, windows))]
+        let opts = {
+            let (em, sink) = crate::usage::daemon_observation_producers();
+            let opts = match em {
+                Some(e) => opts.with_observation_emitter(e),
+                None => opts,
+            };
+            match sink {
+                Some(s) => opts.with_observation_sink(s),
+                None => opts,
+            }
+        };
         // DSV-005: inject the kernel-backed symbol parser so the daemon can
         // return Certified verdicts (ADR-064: tree-sitter links into this
         // binary, never the `anvil-intercept` crate). Unix-only — the verdict

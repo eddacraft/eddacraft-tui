@@ -321,6 +321,20 @@ pub struct ForegroundOpts {
     /// NDJSON-backed emitter via [`Self::with_usage_emitter`].
     #[cfg(any(unix, windows))]
     usage_emitter: Option<Arc<kindling_observation::CommandInvokedEmitter>>,
+    /// DPO-001: the save-time `gate_evaluated` producer the daemon emits a
+    /// row through after every `validate_paths` verdict. `None` ⇒ no
+    /// save-time observation export (the default; tests, embedded mode).
+    /// `anvil-cli` injects an NDJSON-backed emitter via
+    /// [`Self::with_observation_emitter`].
+    #[cfg(any(unix, windows))]
+    observation_emitter: Option<Arc<kindling_observation::SaveTimeObservationEmitter>>,
+    /// DPO-002: the Kindling sink the fence surface emits a
+    /// `constraint_applied` row through on every successful engage. `None`
+    /// ⇒ no fence observation export (the default). `anvil-cli` injects the
+    /// same shared non-blocking sink the save-time emitter writes through
+    /// via [`Self::with_observation_sink`].
+    #[cfg(any(unix, windows))]
+    observation_sink: Option<Arc<dyn kindling_observation::KindlingObservationSink>>,
     #[cfg(unix)]
     ipc_socket: Option<PathBuf>,
     #[cfg(windows)]
@@ -341,6 +355,10 @@ impl ForegroundOpts {
             symbol_parser: None,
             #[cfg(any(unix, windows))]
             usage_emitter: None,
+            #[cfg(any(unix, windows))]
+            observation_emitter: None,
+            #[cfg(any(unix, windows))]
+            observation_sink: None,
             #[cfg(unix)]
             ipc_socket: None,
             #[cfg(windows)]
@@ -363,6 +381,8 @@ impl ForegroundOpts {
             enforcement_config: config::Resolved::default(),
             symbol_parser: None,
             usage_emitter: None,
+            observation_emitter: None,
+            observation_sink: None,
             ipc_socket: Some(ipc_socket.into()),
         }
     }
@@ -382,6 +402,8 @@ impl ForegroundOpts {
             enforcement_config: config::Resolved::default(),
             symbol_parser: None,
             usage_emitter: None,
+            observation_emitter: None,
+            observation_sink: None,
             ipc_pipe_name: Some(ipc_pipe_name.into()),
         }
     }
@@ -463,6 +485,38 @@ impl ForegroundOpts {
         emitter: Arc<kindling_observation::CommandInvokedEmitter>,
     ) -> Self {
         self.usage_emitter = Some(emitter);
+        self
+    }
+
+    /// DPO-001: inject the save-time `gate_evaluated` producer. `anvil-cli`
+    /// builds an NDJSON-backed emitter (see
+    /// `usage::daemon_observation_producers`) and wires it here so the
+    /// daemon records a row after every `validate_paths` verdict (pass and
+    /// fail). Without it the daemon serves normally and records no
+    /// save-time rows (the default). Mirrors [`Self::with_usage_emitter`].
+    #[cfg(any(unix, windows))]
+    #[must_use]
+    pub fn with_observation_emitter(
+        mut self,
+        emitter: Arc<kindling_observation::SaveTimeObservationEmitter>,
+    ) -> Self {
+        self.observation_emitter = Some(emitter);
+        self
+    }
+
+    /// DPO-002: inject the Kindling sink the fence surface emits
+    /// `constraint_applied` rows through on every successful engage.
+    /// `anvil-cli` passes the same shared non-blocking sink the save-time
+    /// emitter writes through, so both producers fan into one drain
+    /// thread. Without it fence engages produce no observation row (the
+    /// default). Mirrors [`Self::with_usage_emitter`].
+    #[cfg(any(unix, windows))]
+    #[must_use]
+    pub fn with_observation_sink(
+        mut self,
+        sink: Arc<dyn kindling_observation::KindlingObservationSink>,
+    ) -> Self {
+        self.observation_sink = Some(sink);
         self
     }
 
@@ -1241,6 +1295,23 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
         // USAGE-004: the command-invocation usage producer, injected by
         // `anvil-cli`. `None` ⇒ no usage rows.
         let usage_emitter = opts.usage_emitter.clone();
+        // DPO-002: wire the fence-engage constraint_applied producer when
+        // the host injected a sink. The fence's `set_telemetry` runs in
+        // `DaemonState::new` (no access to `opts`), so the observation sink
+        // is set here on the same store. The daemon session id is shared
+        // with the save-time emitter where one is wired, so a
+        // `gate_evaluated(save-time)` row and a `constraint_applied` row
+        // from the same daemon process carry an identical `session_id`; if
+        // no save-time emitter is present a fence-local UUID is minted.
+        if let Some(sink) = opts.observation_sink.clone() {
+            let daemon_session_id = opts.observation_emitter.as_ref().map_or_else(
+                || uuid::Uuid::new_v4().to_string(),
+                |e| e.daemon_session_id().to_owned(),
+            );
+            daemon_state
+                .fence_store
+                .set_observation_sink(sink, daemon_session_id);
+        }
         // INTD-011: the production status provider reads sessions from
         // the daemon's registry, fences from the persisted store, and
         // the latency rollup from the same `ScanBufferService` the
@@ -1326,6 +1397,13 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
                 state = state.with_parser(parser);
             }
             state = state.with_broadcaster(Arc::clone(&daemon_state.broadcaster));
+            // DPO-001: wire the save-time gate_evaluated producer when the
+            // host injected one. With it, every validate_paths verdict
+            // emits a Kindling row (pass and fail) through the shared
+            // non-blocking sink; without it the daemon stays silent.
+            if let Some(emitter) = opts.observation_emitter.clone() {
+                state = state.with_observation_emitter(emitter);
+            }
             // DSV-030 (ADR-069 §7): warm-graph persistence, **default-off +
             // fail-closed**. Only an affirmative `ANVIL_PERSIST_GRAPH` with a
             // resolvable state dir wires the snapshot directory; unset/garbage/no

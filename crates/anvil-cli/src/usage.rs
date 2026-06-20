@@ -62,11 +62,16 @@ use std::env;
 use std::fs;
 use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use anvil_intercept::kindling_observation::{
-    CommandInvocationContext, CommandInvokedEmitter, CommandInvokedObservation, FlagSetEntry,
-    GateEvaluatedObservation, KindlingObservationSink, KindlingSinkError, from_command_invocation,
+    CommandInvocationContext, CommandInvokedEmitter, CommandInvokedObservation,
+    ConstraintAppliedObservation, DEFAULT_SAVE_TIME_PASS_CAPACITY, DEFAULT_SAVE_TIME_PASS_WINDOW,
+    FlagSetEntry, GateEvaluatedObservation, KindlingObservationSink, KindlingSinkError,
+    NonBlockingObservationSink, SAVE_TIME_GATE_ID, SaveTimeObservationEmitter,
+    from_command_invocation,
 };
+use anvil_intercept::rate_window::RateWindow;
 use anvil_kernel::feature_flags::{CapturedResolution, ResolutionReason, take_captured_flags};
 use anvil_observability::TraceContext;
 use anvil_observability::redaction::{ArgShape, redact_arg};
@@ -250,6 +255,37 @@ pub fn arg_shapes_from_argv(argv: &[String]) -> Vec<ArgShape> {
 /// usage history. A symlinked target is refused (no `O_NOFOLLOW` dep
 /// needed) so a pre-planted symlink can't redirect the append.
 fn append_usage_observation_to(path: &Path, obs: &CommandInvokedObservation) -> Result<()> {
+    append_observation_to(path, obs)
+}
+
+/// DPO-001: append a `gate_evaluated` row to the shared usage sidecar.
+/// Reuses the same private-dir + symlink-refusal + `0600` + retention
+/// pattern as [`append_usage_observation_to`]; only `gate_evaluated`
+/// rows whose `gate_id` is `save-time` reach this helper (the
+/// [`DaemonObservationSink`] gate keeps mid-edit / audit rows out).
+fn append_gate_evaluated_to(path: &Path, obs: &GateEvaluatedObservation) -> Result<()> {
+    append_observation_to(path, obs)
+}
+
+/// DPO-002: append a `constraint_applied` (fence-engage) row to the
+/// shared usage sidecar, with the same write posture + retention.
+fn append_constraint_applied_to(path: &Path, obs: &ConstraintAppliedObservation) -> Result<()> {
+    append_observation_to(path, obs)
+}
+
+/// Append one observation as a single NDJSON line to `path`, creating the
+/// parent directory if needed, generic over any serialisable row so the
+/// three kinds (`command.invoked`, `gate_evaluated(save-time)`,
+/// `constraint_applied`) share one write path.
+///
+/// The sidecar holds per-invocation principals and argument metadata, so
+/// it is created owner-only (`0600`) under an owner-only parent (`0700`)
+/// on Unix — matching the salt's posture so a shared host can't read the
+/// usage history. A symlinked target is refused (no `O_NOFOLLOW` dep
+/// needed) so a pre-planted symlink can't redirect the append. Before the
+/// append the sidecar is lazily trimmed (see [`trim_usage_sidecar`]) to
+/// the 7-day / 64 MiB retention bounds (council T5).
+fn append_observation_to<T: serde::Serialize>(path: &Path, obs: &T) -> Result<()> {
     if let Some(parent) = path.parent() {
         create_private_dir(parent)
             .with_context(|| format!("create kindling dir {}", parent.display()))?;
@@ -263,6 +299,9 @@ fn append_usage_observation_to(path: &Path, obs: &CommandInvokedObservation) -> 
             path.display()
         );
     }
+    // Retention (council T5): trim before the append so the sidecar stays
+    // bounded. Best-effort — a trim failure must not block the write.
+    trim_usage_sidecar(path);
     let serialised = serde_json::to_string(obs).context("serialise usage observation")?;
     let mut opts = fs::OpenOptions::new();
     opts.create(true).append(true);
@@ -285,6 +324,136 @@ fn append_usage_observation_to(path: &Path, obs: &CommandInvokedObservation) -> 
     writeln!(f, "{serialised}")
         .with_context(|| format!("append usage row to {}", path.display()))?;
     Ok(())
+}
+
+/// DPO retention (council T5): the maximum age a usage sidecar row is
+/// kept. Rows whose ISO-8601 `timestamp` is older than this are dropped
+/// from the front of the file on the next append.
+///
+/// Built from a seconds constant rather than `Duration::from_days` —
+/// `from_days` is still unstable on Rust 1.95 (same workaround as
+/// `commands::status`); routing through the named constant also keeps the
+/// literal away from the `clippy::duration_suboptimal_units` lint.
+const USAGE_SIDECAR_MAX_AGE: Duration = {
+    const DAY_SECS: u64 = 86_400;
+    Duration::from_secs(7 * DAY_SECS)
+};
+
+/// DPO retention (council T5): the maximum size the usage sidecar may
+/// reach before the oldest lines are dropped. 64 MiB.
+const USAGE_SIDECAR_MAX_BYTES: u64 = 64 * 1024 * 1024;
+
+/// Env escape hatch: any non-empty value disables sidecar trimming.
+const USAGE_SIDECAR_NO_TRIM_ENV: &str = "ANVIL_USAGE_SIDECAR_NO_TRIM";
+
+/// DPO retention (council T5): lazily trim the usage sidecar to the
+/// [`USAGE_SIDECAR_MAX_AGE`] (7-day) and [`USAGE_SIDECAR_MAX_BYTES`]
+/// (64 MiB) bounds. Best-effort and deterministic:
+///
+/// - Drops leading lines whose parsed `timestamp` is older than the
+///   max-age cut-off (computed from `now`).
+/// - If the file still exceeds the byte cap, drops further oldest lines
+///   until it is under.
+/// - A line without a parseable `timestamp` is treated as recent and
+///   KEPT (never crashed on, never silently dropped on a parse miss) so a
+///   malformed row can't trigger data loss.
+///
+/// Disabled entirely when `ANVIL_USAGE_SIDECAR_NO_TRIM=1` is set. Any IO
+/// error is swallowed — retention is housekeeping, never a write blocker.
+fn trim_usage_sidecar(path: &Path) {
+    if env::var_os(USAGE_SIDECAR_NO_TRIM_ENV).is_some_and(|v| !v.is_empty()) {
+        return;
+    }
+    trim_usage_sidecar_at(path, Utc::now());
+}
+
+/// Testable core of [`trim_usage_sidecar`] with an injected clock. `now`
+/// drives the age cut-off so tests can age rows deterministically.
+fn trim_usage_sidecar_at(path: &Path, now: chrono::DateTime<Utc>) {
+    let Ok(meta) = fs::metadata(path) else {
+        return; // No file yet — nothing to trim.
+    };
+    let size = meta.len();
+    // Fast path: a small file with no possibility of stale leading rows is
+    // still cheap to age-check, but skip the read entirely when it's well
+    // under the byte cap AND empty.
+    if size == 0 {
+        return;
+    }
+    let Ok(contents) = fs::read_to_string(path) else {
+        return; // Unreadable (or non-UTF8) — leave it untouched.
+    };
+    let lines: Vec<&str> = contents.lines().collect();
+    let cutoff = now - chrono::Duration::from_std(USAGE_SIDECAR_MAX_AGE).unwrap_or_default();
+
+    // Index of the first line to KEEP after dropping stale leading rows.
+    let mut start = 0usize;
+    for (idx, line) in lines.iter().enumerate() {
+        if line_is_older_than(line, cutoff) {
+            start = idx + 1;
+        } else {
+            // A kept (recent or unparseable) line ends the leading-stale
+            // run — the file is append-ordered so nothing older follows.
+            break;
+        }
+    }
+
+    // If still over the byte cap, drop further oldest lines until under.
+    // Each line costs its bytes plus the newline.
+    let mut remaining: u64 = lines[start..].iter().map(|l| l.len() as u64 + 1).sum();
+    while remaining > USAGE_SIDECAR_MAX_BYTES && start < lines.len() {
+        remaining -= lines[start].len() as u64 + 1;
+        start += 1;
+    }
+
+    if start == 0 {
+        return; // Nothing trimmed — avoid a needless rewrite.
+    }
+
+    let kept = &lines[start..];
+    let mut rewritten = kept.join("\n");
+    if !rewritten.is_empty() {
+        rewritten.push('\n');
+    }
+    // Best-effort atomic-ish replace: write a temp sibling then rename.
+    // A failure leaves the original intact (retention is housekeeping).
+    let tmp = path.with_extension("ndjson.trim.tmp");
+    if write_private_file(&tmp, rewritten.as_bytes()).is_ok() {
+        let _ = fs::rename(&tmp, path);
+    } else {
+        let _ = fs::remove_file(&tmp);
+    }
+}
+
+/// Whether an NDJSON line's parsed `timestamp` is strictly older than
+/// `cutoff`. A line that does not parse, or has no `timestamp`, or has an
+/// unparseable timestamp, returns `false` (KEEP it) so a malformed row is
+/// never the cause of data loss.
+fn line_is_older_than(line: &str, cutoff: chrono::DateTime<Utc>) -> bool {
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(line) else {
+        return false;
+    };
+    let Some(ts) = value.get("timestamp").and_then(serde_json::Value::as_str) else {
+        return false;
+    };
+    match chrono::DateTime::parse_from_rfc3339(ts) {
+        Ok(parsed) => parsed.with_timezone(&Utc) < cutoff,
+        Err(_) => false,
+    }
+}
+
+/// Write `bytes` to `path` owner-only (`0600` on Unix), truncating any
+/// existing file. Used for the retention temp file.
+fn write_private_file(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    let mut opts = fs::OpenOptions::new();
+    opts.create(true).write(true).truncate(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
+    }
+    let mut f = opts.open(path)?;
+    f.write_all(bytes)
 }
 
 /// Create a directory (and parents) owner-only (`0700`) on Unix.
@@ -460,23 +629,25 @@ pub fn default_usage_log_path() -> Result<PathBuf> {
 /// user-scoped `usage.ndjson` sidecar the CLI producer writes (resolved
 /// via the CLI-owned [`default_usage_log_path`], so the daemon and CLI
 /// never diverge on the path — the credentials/`ANVIL_HOME` re-rooting
-/// logic lives only here). Only `command.invoked` is consumed; the
-/// daemon does not route `gate_evaluated` / `action_executed` rows
-/// through this sink.
+/// logic lives only here). Only `command.invoked` is consumed by this
+/// sink; the `gate_evaluated(save-time)` and `constraint_applied` kinds
+/// are persisted to the SAME sidecar through the DPO sink
+/// [`DaemonObservationSink`].
 ///
 /// The path is resolved once at construction so a per-call resolution
 /// failure cannot occur on the dispatch hot path; a write failure is
 /// surfaced as [`KindlingSinkError::Unavailable`] and swallowed by the
 /// emitter (logged, row dropped — dispatch is never coupled to sink
 /// health).
+#[derive(Debug)]
 struct DaemonUsageSink {
     path: PathBuf,
 }
 
 impl KindlingObservationSink for DaemonUsageSink {
     fn try_emit(&self, _observation: GateEvaluatedObservation) -> Result<(), KindlingSinkError> {
-        // The daemon does not export gate_evaluated rows through the
-        // usage sink — USAGE-004 owns command.invoked only.
+        // This sink owns command.invoked only; gate_evaluated is persisted
+        // through `DaemonObservationSink` (DPO-001).
         Ok(())
     }
 
@@ -485,6 +656,49 @@ impl KindlingObservationSink for DaemonUsageSink {
         observation: CommandInvokedObservation,
     ) -> Result<(), KindlingSinkError> {
         append_usage_observation_to(&self.path, &observation)
+            .map_err(|err| KindlingSinkError::Unavailable(err.to_string()))
+    }
+}
+
+/// DPO-001 / DPO-002: a [`KindlingObservationSink`] that persists the two
+/// newly-activated producer kinds — `gate_evaluated(save-time)` and
+/// `constraint_applied` — to the SAME user-scoped `usage.ndjson` sidecar
+/// the CLI / USAGE-004 producers write, with the same private-dir +
+/// symlink-refusal + `0600` + retention posture.
+///
+/// `try_emit` persists a `gate_evaluated` row ONLY when its `gate_id`
+/// equals [`SAVE_TIME_GATE_ID`] (`save-time`); rows from other gates
+/// (mid-edit, audit-chain) are silently ignored so this sink never
+/// scoops up rows from surfaces DPO does not own. `command.invoked` rows
+/// are NOT consumed here (the [`DaemonUsageSink`] owns those) so a sink
+/// shared between both producers does not double-write usage rows.
+///
+/// A write failure is surfaced as [`KindlingSinkError::Unavailable`];
+/// behind the [`NonBlockingObservationSink`] decorator it is logged on
+/// the drain thread and dropped, never coupling the verdict / engage hot
+/// path to sink health.
+#[derive(Debug)]
+struct DaemonObservationSink {
+    path: PathBuf,
+}
+
+impl KindlingObservationSink for DaemonObservationSink {
+    fn try_emit(&self, observation: GateEvaluatedObservation) -> Result<(), KindlingSinkError> {
+        // Only the save-time gate is DPO's to persist here; ignore every
+        // other gate_id so mid-edit / audit rows are never silently
+        // grabbed onto the usage sidecar.
+        if observation.gate_id != SAVE_TIME_GATE_ID {
+            return Ok(());
+        }
+        append_gate_evaluated_to(&self.path, &observation)
+            .map_err(|err| KindlingSinkError::Unavailable(err.to_string()))
+    }
+
+    fn try_emit_constraint_applied(
+        &self,
+        observation: ConstraintAppliedObservation,
+    ) -> Result<(), KindlingSinkError> {
+        append_constraint_applied_to(&self.path, &observation)
             .map_err(|err| KindlingSinkError::Unavailable(err.to_string()))
     }
 }
@@ -513,9 +727,81 @@ pub fn daemon_usage_emitter() -> Option<Arc<CommandInvokedEmitter>> {
     )))
 }
 
+/// DPO-001 / DPO-002: build the daemon-side save-time + fence observation
+/// producers, both fanning into ONE shared non-blocking sink over the
+/// shared `usage.ndjson` sidecar.
+///
+/// Returns `(save_time_emitter, shared_sink)`:
+///
+/// - The save-time emitter (DPO-001) the daemon attaches to its
+///   `validate_paths` verdict path so each verdict (pass and fail)
+///   produces a `gate_evaluated(save-time)` row.
+/// - The shared sink (DPO-002) the daemon also hands to the fence surface
+///   so each successful engage produces a `constraint_applied` row.
+///
+/// Both share ONE [`DaemonObservationSink`] wrapped in ONE
+/// [`NonBlockingObservationSink`] (council T2: the producer hot path is
+/// never back-pressured by the sidecar's blocking IO — a single drain
+/// thread owns the write). Both also share ONE per-startup
+/// `daemon_session_id` (a fresh v4 UUID) so a save-time row and a fence
+/// row from the same daemon process carry an identical `session_id`.
+///
+/// `include_paths` is OFF unless `ANVIL_OBSERVATION_INCLUDE_PATHS=1`
+/// (default-off: a clean verdict records only the path count, not the
+/// validated paths). On an unresolvable usage path returns `(None, None)`
+/// so a daemon on a host without a resolvable state dir still starts.
+#[must_use]
+pub fn daemon_observation_producers() -> (
+    Option<Arc<SaveTimeObservationEmitter>>,
+    Option<Arc<dyn KindlingObservationSink>>,
+) {
+    let Some(path) = default_usage_log_path()
+        .map_err(|err| {
+            tracing::warn!(
+                target: "anvil::usage",
+                error = %err,
+                "save-time/fence observation export disabled: could not resolve usage sidecar path",
+            );
+        })
+        .ok()
+    else {
+        return (None, None);
+    };
+
+    let include_paths = env::var_os("ANVIL_OBSERVATION_INCLUDE_PATHS").is_some_and(|v| v == "1");
+    let daemon_session_id = Uuid::new_v4().to_string();
+
+    // ONE inner sink, ONE non-blocking decorator, shared by both producers.
+    let inner = Arc::new(DaemonObservationSink { path }) as Arc<dyn KindlingObservationSink>;
+    let shared_sink = Arc::new(NonBlockingObservationSink::new(
+        inner,
+        DEFAULT_OBSERVATION_CHANNEL_CAPACITY,
+    )) as Arc<dyn KindlingObservationSink>;
+
+    let emitter = Arc::new(SaveTimeObservationEmitter::new(
+        Arc::clone(&shared_sink),
+        RateWindow::new(
+            DEFAULT_SAVE_TIME_PASS_CAPACITY,
+            DEFAULT_SAVE_TIME_PASS_WINDOW,
+        ),
+        daemon_session_id,
+        include_paths,
+    ));
+
+    (Some(emitter), Some(shared_sink))
+}
+
+/// DPO-001: bound on the shared non-blocking observation channel. Past
+/// this many queued rows the drain is far enough behind that dropping is
+/// the right call (the next verdict / engage produces a fresh row); the
+/// producer hot path never blocks. Sized generously so only a genuinely
+/// stuck sidecar trips it.
+const DEFAULT_OBSERVATION_CHANNEL_CAPACITY: usize = 1024;
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fmt::Write as _;
     use tempfile::tempdir;
 
     #[test]
@@ -848,6 +1134,196 @@ mod tests {
     fn disabled_reason_maps_to_default_source() {
         let fs = flag_set_from_captured(vec![cap("d", "off", ResolutionReason::Disabled, false)]);
         assert_eq!(fs[0].source, "default");
+    }
+
+    // --- DPO-001 / DPO-002: DaemonObservationSink + retention ---
+
+    use anvil_intercept::kindling_observation::{from_fence, from_validate_paths};
+
+    fn save_time_row(paths: &[String]) -> GateEvaluatedObservation {
+        // Build a save-time `gate_evaluated` row (gate_id = save-time).
+        let ctx = anvil_intercept::kindling_observation::ObservationContext {
+            session_id: "00000000-0000-4000-8000-000000000000",
+            timestamp: "2026-06-19T10:00:00.000Z",
+            gate_eval_id: "gate-eval-1",
+            file_path: "",
+            duration_ms: 10,
+        };
+        from_validate_paths(&ctx, &[], paths, false)
+    }
+
+    #[test]
+    fn daemon_observation_sink_persists_save_time_gate_rows() {
+        let dir = tempdir().expect("tempdir");
+        let path = dir.path().join("kindling").join(USAGE_NDJSON);
+        let sink = DaemonObservationSink { path: path.clone() };
+
+        sink.try_emit(save_time_row(&["src/lib.rs".to_string()]))
+            .expect("persist save-time row");
+
+        let contents = fs::read_to_string(&path).expect("read sidecar");
+        let lines: Vec<&str> = contents.lines().collect();
+        assert_eq!(lines.len(), 1, "one save-time row appended");
+        let parsed: GateEvaluatedObservation = serde_json::from_str(lines[0]).expect("valid row");
+        assert_eq!(parsed.gate_id, SAVE_TIME_GATE_ID);
+        assert_eq!(parsed.kind, "gate_evaluated");
+    }
+
+    #[test]
+    fn daemon_observation_sink_ignores_non_save_time_gate_rows() {
+        let dir = tempdir().expect("tempdir");
+        let path = dir.path().join("kindling").join(USAGE_NDJSON);
+        let sink = DaemonObservationSink { path: path.clone() };
+
+        // A mid-edit gate row must NOT be persisted by this sink.
+        let mut row = save_time_row(&["src/lib.rs".to_string()]);
+        row.gate_id = "midEdit".to_string();
+        sink.try_emit(row).expect("ignored, returns Ok");
+
+        assert!(
+            !path.exists() || fs::read_to_string(&path).unwrap().is_empty(),
+            "non-save-time gate rows must not be persisted to the usage sidecar",
+        );
+    }
+
+    #[test]
+    fn daemon_observation_sink_persists_constraint_rows() {
+        let dir = tempdir().expect("tempdir");
+        let path = dir.path().join("kindling").join(USAGE_NDJSON);
+        let sink = DaemonObservationSink { path: path.clone() };
+
+        let row = from_fence(
+            "00000000-0000-4000-8000-000000000000",
+            "2026-06-19T10:00:00.000Z",
+            "/work/tree",
+            "operator",
+            false,
+        );
+        sink.try_emit_constraint_applied(row)
+            .expect("persist constraint row");
+
+        let contents = fs::read_to_string(&path).expect("read sidecar");
+        let lines: Vec<&str> = contents.lines().collect();
+        assert_eq!(lines.len(), 1, "one constraint row appended");
+        let parsed: ConstraintAppliedObservation =
+            serde_json::from_str(lines[0]).expect("valid row");
+        assert_eq!(parsed.kind, "constraint_applied");
+    }
+
+    /// Retention: a file over the byte cap is trimmed to under it; the
+    /// oldest lines are dropped and recent lines survive.
+    #[test]
+    fn trim_drops_oldest_lines_when_over_byte_cap() {
+        let dir = tempdir().expect("tempdir");
+        let path = dir.path().join("usage.ndjson");
+
+        // Recent timestamp so the age cut-off does not fire — isolate the
+        // byte-cap behaviour. Each line is padded to a known size.
+        let now = Utc::now();
+        let recent = now.to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+        let pad = "x".repeat(1024);
+        let mut buf = String::new();
+        // Write ~80 MiB so we're comfortably over the 64 MiB cap.
+        let line_count = (USAGE_SIDECAR_MAX_BYTES / 1024) + 16_000;
+        for i in 0..line_count {
+            writeln!(
+                buf,
+                "{{\"timestamp\":\"{recent}\",\"i\":{i},\"pad\":\"{pad}\"}}"
+            )
+            .expect("write line");
+        }
+        fs::write(&path, &buf).expect("seed oversized sidecar");
+        assert!(
+            fs::metadata(&path).unwrap().len() > USAGE_SIDECAR_MAX_BYTES,
+            "precondition: file starts over the byte cap"
+        );
+
+        trim_usage_sidecar_at(&path, now);
+
+        let after = fs::metadata(&path).unwrap().len();
+        assert!(
+            after <= USAGE_SIDECAR_MAX_BYTES,
+            "trim must bring the file under the byte cap; got {after}"
+        );
+        // The newest line (highest `i`) must survive.
+        let contents = fs::read_to_string(&path).expect("read trimmed");
+        let last: serde_json::Value =
+            serde_json::from_str(contents.lines().last().expect("a surviving line"))
+                .expect("valid json");
+        assert_eq!(
+            last["i"].as_u64(),
+            Some(line_count - 1),
+            "the most recent row must survive the byte-cap trim"
+        );
+    }
+
+    /// Retention: lines older than the max age are dropped while recent
+    /// lines survive; a malformed line is kept (never crashed on).
+    #[test]
+    fn trim_drops_lines_older_than_max_age_and_keeps_malformed() {
+        let dir = tempdir().expect("tempdir");
+        let path = dir.path().join("usage.ndjson");
+
+        let now = Utc::now();
+        let old =
+            (now - chrono::Duration::days(30)).to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+        let recent =
+            (now - chrono::Duration::hours(1)).to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+
+        let mut buf = String::new();
+        writeln!(buf, "{{\"timestamp\":\"{old}\",\"tag\":\"old1\"}}").expect("w");
+        writeln!(buf, "{{\"timestamp\":\"{old}\",\"tag\":\"old2\"}}").expect("w");
+        writeln!(buf, "{{\"timestamp\":\"{recent}\",\"tag\":\"recent1\"}}").expect("w");
+        writeln!(buf, "{{\"timestamp\":\"{recent}\",\"tag\":\"recent2\"}}").expect("w");
+        fs::write(&path, &buf).expect("seed aged sidecar");
+
+        trim_usage_sidecar_at(&path, now);
+
+        let contents = fs::read_to_string(&path).expect("read trimmed");
+        assert!(
+            !contents.contains("old1"),
+            "stale leading row must be dropped"
+        );
+        assert!(
+            !contents.contains("old2"),
+            "stale leading row must be dropped"
+        );
+        assert!(contents.contains("recent1"), "recent row must survive");
+        assert!(contents.contains("recent2"), "recent row must survive");
+    }
+
+    #[test]
+    fn trim_keeps_malformed_leading_line() {
+        let dir = tempdir().expect("tempdir");
+        let path = dir.path().join("usage.ndjson");
+        let now = Utc::now();
+        let recent = now.to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+
+        // A malformed leading line (not JSON) followed by a recent row.
+        // The malformed line parses as "not older" → KEPT, and ends the
+        // leading-stale scan, so nothing is dropped.
+        let mut buf = String::new();
+        buf.push_str("this is not json\n");
+        writeln!(buf, "{{\"timestamp\":\"{recent}\",\"tag\":\"recent\"}}").expect("w");
+        fs::write(&path, &buf).expect("seed");
+
+        trim_usage_sidecar_at(&path, now);
+
+        let contents = fs::read_to_string(&path).expect("read");
+        assert!(
+            contents.contains("this is not json"),
+            "a malformed line must be kept, not crashed on or dropped"
+        );
+        assert!(contents.contains("recent"));
+    }
+
+    #[test]
+    fn trim_is_noop_on_missing_file() {
+        let dir = tempdir().expect("tempdir");
+        let path = dir.path().join("does-not-exist.ndjson");
+        // Must not panic or create the file.
+        trim_usage_sidecar_at(&path, Utc::now());
+        assert!(!path.exists());
     }
 
     #[test]

@@ -56,6 +56,8 @@
 //!
 //! See `plans/modules/multilayer-protection.aps.md` task MLP-016.
 
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::mpsc::{SyncSender, TrySendError, sync_channel};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -888,7 +890,12 @@ pub enum KindlingSinkError {
 /// background work (channel send, IPC frame enqueue) and return
 /// immediately. The emitter does not await sink work — by contract,
 /// `try_emit` returns before the row reaches its destination.
-pub trait KindlingObservationSink: Send + Sync {
+///
+/// `Debug` is a supertrait so a sink can live inside a `#[derive(Debug)]`
+/// struct held behind `Arc<dyn KindlingObservationSink>` (e.g.
+/// `ForegroundOpts`'s injected sink). Every concrete sink is cheap to
+/// `Debug` (no row contents are formatted).
+pub trait KindlingObservationSink: std::fmt::Debug + Send + Sync {
     fn try_emit(&self, observation: GateEvaluatedObservation) -> Result<(), KindlingSinkError>;
 
     /// MLP2-010: deliver an `action_executed` row produced by the
@@ -1135,6 +1142,187 @@ impl KindlingObservationSink for RecordingKindlingObservationSink {
             .expect("constraints mutex")
             .push(observation);
         Ok(())
+    }
+}
+
+// DPO-001 (council T2: producer-hot-path boundary) -------------------
+//
+// The save-time / fence producers run on the daemon's verdict + engage
+// paths. A real Kindling sink (the NDJSON sidecar, or a future IPC
+// frame) does blocking IO — a slow disk or a contended lock would, with
+// a direct sink, back-pressure the verdict response, coupling the hot
+// path to sink health. ADR-031 forbids that coupling.
+//
+// [`NonBlockingObservationSink`] is the decorator that severs it: a
+// single background drain thread owns the inner sink, and every producer
+// call only does a non-blocking `try_send` onto a bounded channel. When
+// the channel is full (the drain is behind) the row is dropped and a
+// counter incremented — the producer NEVER blocks and NEVER errors. This
+// is the ADR-031 acceptance boundary for DPO-001.
+
+/// DPO-001: a tagged union of every observation kind the daemon
+/// produces, so a single bounded channel can carry all of them to the
+/// shared drain thread. One variant per `try_emit*` method on
+/// [`KindlingObservationSink`].
+#[derive(Debug, Clone)]
+pub enum ObservationEnvelope {
+    /// A `gate_evaluated` row (mid-edit / save-time / audit-chain).
+    Gate(GateEvaluatedObservation),
+    /// A `command.invoked` row (CLI / JSON-RPC dispatch).
+    Command(CommandInvokedObservation),
+    /// An `action_executed` row (post-hook surface).
+    Action(ActionExecutedObservation),
+    /// A `constraint_applied` row (fence engage).
+    Constraint(ConstraintAppliedObservation),
+}
+
+/// DPO-001: a [`KindlingObservationSink`] decorator that guarantees the
+/// producer hot path cannot be back-pressured by a slow or blocking
+/// inner sink (council T2 boundary; the ADR-031 acceptance for DPO-001).
+///
+/// Construction spawns ONE background thread that owns `inner` and drains
+/// a bounded [`sync_channel`]. Each `try_emit*` wraps the row in an
+/// [`ObservationEnvelope`] and `try_send`s it: on success the drain
+/// thread forwards it to the matching `inner.try_emit*` (any error is
+/// logged via `tracing::warn!` and swallowed). On a full or disconnected
+/// channel the row is dropped, the [`Self::dropped_count`] counter is
+/// incremented, and `Ok(())` is returned — the producer never blocks and
+/// never sees an error, regardless of inner-sink health.
+///
+/// No networking and no async runtime: a plain `std::thread` plus an
+/// `mpsc` channel, so ADR-064 (the daemon never grows a transport
+/// dependency on the hot path) stays clean.
+pub struct NonBlockingObservationSink {
+    /// `Option` so `Drop` can take (and thereby close) the sender BEFORE
+    /// joining the drain thread — closing it is what makes the drain's
+    /// `recv()` return `Err` and the loop exit.
+    tx: Option<SyncSender<ObservationEnvelope>>,
+    dropped: Arc<AtomicU64>,
+    /// Join handle for the drain thread; taken on `Drop` so the sink can
+    /// join after the sender is closed. `Option` so `Drop` can move it out.
+    drain: Option<std::thread::JoinHandle<()>>,
+}
+
+impl NonBlockingObservationSink {
+    /// Wrap `inner` behind a bounded channel of `capacity` envelopes and
+    /// spawn the single drain thread. `capacity` bounds how many rows can
+    /// queue while the drain is behind a slow inner sink; beyond it, rows
+    /// are dropped (counted) rather than blocking the producer.
+    #[must_use]
+    pub fn new(inner: Arc<dyn KindlingObservationSink>, capacity: usize) -> Self {
+        let (tx, rx) = sync_channel::<ObservationEnvelope>(capacity);
+        let dropped = Arc::new(AtomicU64::new(0));
+        let drain = std::thread::Builder::new()
+            .name("anvil-observation-drain".to_owned())
+            .spawn(move || {
+                // Exits when every sender is dropped (the channel
+                // disconnects) — see `Drop`.
+                while let Ok(envelope) = rx.recv() {
+                    let result = match envelope {
+                        ObservationEnvelope::Gate(obs) => inner.try_emit(obs),
+                        ObservationEnvelope::Command(obs) => inner.try_emit_command_invoked(obs),
+                        ObservationEnvelope::Action(obs) => inner.try_emit_action_executed(obs),
+                        ObservationEnvelope::Constraint(obs) => {
+                            inner.try_emit_constraint_applied(obs)
+                        }
+                    };
+                    if let Err(err) = result {
+                        tracing::warn!(
+                            target: "anvil_intercept::kindling_observation",
+                            error = %err,
+                            "non-blocking observation drain: inner sink rejected a row",
+                        );
+                    }
+                }
+            })
+            .expect("spawn observation drain thread");
+        Self {
+            tx: Some(tx),
+            dropped,
+            drain: Some(drain),
+        }
+    }
+
+    /// Number of rows dropped because the channel was full or the drain
+    /// thread had exited. Tests assert on this to prove the drop-on-full
+    /// contract; production may surface it as a degraded-counter signal.
+    #[must_use]
+    pub fn dropped_count(&self) -> u64 {
+        self.dropped.load(Ordering::Relaxed)
+    }
+
+    /// Enqueue `envelope`, or count a drop. Never blocks, never errors —
+    /// the shared invariant behind every `try_emit*` override below.
+    fn enqueue(&self, envelope: ObservationEnvelope) {
+        // `tx` is `Some` for the whole live span of the sink; it is only
+        // taken in `Drop`, after which no `try_emit*` can run. A defensive
+        // `None` (impossible in practice) counts a drop, never panics.
+        let Some(tx) = self.tx.as_ref() else {
+            self.dropped.fetch_add(1, Ordering::Relaxed);
+            return;
+        };
+        if let Err(TrySendError::Full(_) | TrySendError::Disconnected(_)) = tx.try_send(envelope) {
+            self.dropped.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+}
+
+impl KindlingObservationSink for NonBlockingObservationSink {
+    fn try_emit(&self, observation: GateEvaluatedObservation) -> Result<(), KindlingSinkError> {
+        self.enqueue(ObservationEnvelope::Gate(observation));
+        Ok(())
+    }
+
+    fn try_emit_command_invoked(
+        &self,
+        observation: CommandInvokedObservation,
+    ) -> Result<(), KindlingSinkError> {
+        self.enqueue(ObservationEnvelope::Command(observation));
+        Ok(())
+    }
+
+    fn try_emit_action_executed(
+        &self,
+        observation: ActionExecutedObservation,
+    ) -> Result<(), KindlingSinkError> {
+        self.enqueue(ObservationEnvelope::Action(observation));
+        Ok(())
+    }
+
+    fn try_emit_constraint_applied(
+        &self,
+        observation: ConstraintAppliedObservation,
+    ) -> Result<(), KindlingSinkError> {
+        self.enqueue(ObservationEnvelope::Constraint(observation));
+        Ok(())
+    }
+}
+
+impl std::fmt::Debug for NonBlockingObservationSink {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NonBlockingObservationSink")
+            .field("dropped", &self.dropped_count())
+            .finish_non_exhaustive()
+    }
+}
+
+impl Drop for NonBlockingObservationSink {
+    fn drop(&mut self) {
+        // Graceful shutdown: close the sender FIRST so the channel
+        // disconnects and the drain's `recv()` returns `Err`, ending its
+        // loop. Taking `tx` here (the struct holds the only sender) drops
+        // it now, before the join below — without this ordering a join
+        // would deadlock because the field-drop that closes `tx` runs
+        // only after this body returns.
+        drop(self.tx.take());
+        // Join the drain so any rows already accepted into the channel are
+        // forwarded to the inner sink before we return. The drain exits
+        // promptly once disconnected, so this is cheap; on a poisoned /
+        // panicked drain we swallow the join error rather than double-
+        // panic during unwind.
+        if let Some(handle) = self.drain.take() {
+            let _ = handle.join();
+        }
     }
 }
 
@@ -2773,6 +2961,146 @@ mod tests {
         );
         assert!(sink.try_emit_constraint_applied(row).is_err());
         assert!(sink.recorded_constraints().is_empty());
+    }
+
+    // ----- DPO-001: NonBlockingObservationSink (council T2 boundary) -----
+
+    /// A sink whose `try_emit` sleeps a fixed duration, optionally
+    /// recording rows. Used to prove the decorator's calls return without
+    /// waiting for the (slow) inner sink, and that rows eventually arrive.
+    #[derive(Debug)]
+    struct SlowSink {
+        delay: Duration,
+        seen: Arc<AtomicU64>,
+    }
+
+    impl SlowSink {
+        fn new(delay: Duration) -> (Arc<Self>, Arc<AtomicU64>) {
+            let seen = Arc::new(AtomicU64::new(0));
+            let sink = Arc::new(Self {
+                delay,
+                seen: Arc::clone(&seen),
+            });
+            (sink, seen)
+        }
+    }
+
+    impl KindlingObservationSink for SlowSink {
+        fn try_emit(
+            &self,
+            _observation: GateEvaluatedObservation,
+        ) -> Result<(), KindlingSinkError> {
+            std::thread::sleep(self.delay);
+            self.seen.fetch_add(1, Ordering::Relaxed);
+            Ok(())
+        }
+    }
+
+    fn sample_gate_row() -> GateEvaluatedObservation {
+        from_validate_paths(&sample_ctx(), &[], &["src/lib.rs".to_string()], false)
+    }
+
+    /// (a) The decorator's `try_emit` returns in well under the summed
+    /// inner latency — proving the producer hot path is never blocked on
+    /// the slow inner sink (the ADR-031 acceptance for DPO-001).
+    #[test]
+    fn non_blocking_sink_returns_without_waiting_on_slow_inner() {
+        // 20 calls × 50 ms inner sleep = 1 s of inner work if it were
+        // synchronous. Capacity is generous so none are dropped; we only
+        // measure that the producer-side calls return fast.
+        let (inner, _seen) = SlowSink::new(Duration::from_millis(50));
+        let sink = NonBlockingObservationSink::new(inner as Arc<dyn KindlingObservationSink>, 64);
+
+        let start = Instant::now();
+        for _ in 0..20 {
+            sink.try_emit(sample_gate_row()).expect("never errors");
+        }
+        let elapsed = start.elapsed();
+        assert!(
+            elapsed < Duration::from_millis(25),
+            "producer calls must not block on the slow inner sink; took {elapsed:?}",
+        );
+    }
+
+    /// (b) With a tiny capacity and the drain stuck on a slow inner sink,
+    /// the excess calls increment `dropped_count` and STILL return `Ok` —
+    /// drop-on-full, never block, never error.
+    #[test]
+    fn non_blocking_sink_drops_on_full_and_never_errors() {
+        // A very slow inner sink keeps the single drain thread busy on the
+        // first row, so the bounded channel fills and excess rows drop.
+        let (inner, _seen) = SlowSink::new(Duration::from_millis(200));
+        let sink = NonBlockingObservationSink::new(inner as Arc<dyn KindlingObservationSink>, 1);
+
+        // Fire many more than capacity while the drain is blocked.
+        for _ in 0..100 {
+            sink.try_emit(sample_gate_row()).expect("always returns Ok");
+        }
+        assert!(
+            sink.dropped_count() > 0,
+            "excess rows past a full channel must be counted as dropped",
+        );
+    }
+
+    /// (c) A fast inner sink eventually receives every forwarded row once
+    /// the decorator is dropped (Drop closes the sender and joins the
+    /// drain, flushing the queue).
+    #[test]
+    fn non_blocking_sink_forwards_all_rows_to_a_fast_inner() {
+        let recorder = Arc::new(RecordingKindlingObservationSink::new());
+        let sink = NonBlockingObservationSink::new(
+            Arc::clone(&recorder) as Arc<dyn KindlingObservationSink>,
+            256,
+        );
+        for _ in 0..20 {
+            sink.try_emit(sample_gate_row()).expect("ok");
+        }
+        // Dropping the decorator closes the channel and joins the drain,
+        // so every queued row is forwarded before `drop` returns.
+        drop(sink);
+        assert_eq!(recorder.len(), 20, "fast inner must receive every row");
+        assert_eq!(recorder.recorded_constraints().len(), 0);
+    }
+
+    /// All four envelope variants route to the matching inner method.
+    #[test]
+    fn non_blocking_sink_routes_every_kind() {
+        let recorder = Arc::new(RecordingKindlingObservationSink::new());
+        let sink = NonBlockingObservationSink::new(
+            Arc::clone(&recorder) as Arc<dyn KindlingObservationSink>,
+            64,
+        );
+        sink.try_emit(sample_gate_row()).expect("gate");
+        sink.try_emit_command_invoked(from_command_invocation(
+            &CommandInvocationContext {
+                session_id: SESSION_UUID,
+                timestamp: "2026-06-19T10:00:00Z",
+                command: "check",
+                principal: "anonymous",
+                traceparent: None,
+            },
+            Vec::new(),
+            Vec::new(),
+        ))
+        .expect("command");
+        sink.try_emit_action_executed(from_post_hook(
+            SESSION_UUID,
+            &sample_post_hook_request(PostHookAction::PostCommit),
+        ))
+        .expect("action");
+        sink.try_emit_constraint_applied(from_fence(
+            SESSION_UUID,
+            "2026-06-19T10:00:00Z",
+            "/work/tree",
+            crate::telemetry::DEGRADED_FENCE_CASCADE,
+            true,
+        ))
+        .expect("constraint");
+        drop(sink);
+        assert_eq!(recorder.len(), 1, "one gate row");
+        assert_eq!(recorder.commands_len(), 1, "one command row");
+        assert_eq!(recorder.actions_len(), 1, "one action row");
+        assert_eq!(recorder.constraints_len(), 1, "one constraint row");
     }
 
     // ----- MLP2-010: post-hook action_executed emission -----
