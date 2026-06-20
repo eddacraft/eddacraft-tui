@@ -4,7 +4,7 @@
 
 | ID  | Owner      | Status   | Progress |
 | --- | ---------- | -------- | -------- |
-| DPO | @eddacraft | Ready    | 0/5      |
+| DPO | @eddacraft | In Progress | 0/5   |
 
 > **DRAFT** — authored via planning-workflow on 2026-06-20 (producer-first
 > sequencing, new-module placement); design-gated by planning council
@@ -14,8 +14,8 @@
 > surface**. The observation-kind taxonomy is decided in
 > [ADR-088](../decisions/088-dpo-observation-kind-taxonomy.md) (**Accepted**
 > 2026-06-20); the remaining design resolutions are in
-> [Design decisions](#design-decisions) below. DPO-001/-002 are **Ready**;
-> DPO-003/-004/-005 stay Blocked on KDS.
+> [Design decisions](#design-decisions) below. DPO-001/-002 are **In Progress**
+> (`feat/dpo-producer-coverage`); DPO-003/-004/-005 stay Blocked on KDS.
 
 ## Cross-cutting convention
 
@@ -165,9 +165,9 @@ registry); fence emit-before-persist can produce a rare duplicate row on crash.
 
 ## Work Items
 
-> DPO-001/-002 are Ready (design-complete per ADR-088 + council `plan-a50aa93d`;
-> they emit through the existing sink trait). DPO-003/-004/-005 are Blocked on
-> KDS per the producer-first sequencing decision.
+> DPO-001/-002 are In Progress (design-complete per ADR-088 + council
+> `plan-a50aa93d`; they emit through the existing sink trait). DPO-003/-004/-005
+> are Blocked on KDS per the producer-first sequencing decision.
 
 ### DPO-001: Emit save-time validation verdicts as `gate.evaluated`
 
@@ -187,7 +187,7 @@ registry); fence emit-before-persist can produce a rare duplicate row on crash.
   fails survive a saturated window while passes are sampled; a CI latency check
   on `validate_paths` with an **injected deliberately-slow sink** confirming the
   ADR-031 budget holds; the `daemon_dep_boundary` guard stays green.
-- **Status:** Ready
+- **Status:** In Progress
 - **Files:** `crates/anvil-intercept/src/kindling_observation.rs`,
   `crates/anvil-intercept/src/save_time.rs`, `crates/anvil-intercept/src/ipc.rs`
 - **Dependencies:** ADR-088 ratification (kind/`gate_id` taxonomy)
@@ -209,7 +209,7 @@ registry); fence emit-before-persist can produce a rare duplicate row on crash.
   produces one `constraint_applied` row, and a cascade engage adds a flagged row;
   a test asserting a normalised `reason` (no verbatim operator text); boundary
   guard green.
-- **Status:** Ready
+- **Status:** In Progress
 - **Files:** `crates/anvil-intercept/src/fence.rs`,
   `crates/anvil-intercept/src/kindling_observation.rs`
 - **Dependencies:** ADR-088 ratification (defines the `constraint_applied` kind);
