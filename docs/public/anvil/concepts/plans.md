@@ -145,17 +145,17 @@ A unit of authorised work:
 
 ### Validation Against Plans
 
-When anvil runs, it can validate that changes align with an active plan:
+Use the CLI to validate APS document structure before sharing a plan:
 
 ```bash
 anvil validate plans/index.aps.md
 ```
 
-anvil checks:
+anvil checks the plan document itself:
 
-- Are the modified files within an active task's scope?
-- Does the change align with the task's stated outcome?
-- Are steps being completed in order?
+- Does the Markdown use the expected APS sections?
+- Are work item IDs and required fields well-formed?
+- Are optional integrity hashes valid when present?
 
 ### Plan-less Mode
 

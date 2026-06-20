@@ -139,7 +139,7 @@ editing concurrently. Set `ANVIL_WATCH_DAEMON=0` to opt out, or
 story, assurance states, and fallback behaviour.
 
 In an agent or headless harness, bring the daemon up explicitly with
-`anvil intercept start --foreground`. The upcoming `v0.9.0-beta` auto-start in
+`anvil intercept start --foreground`. The `v0.8.1-beta` auto-start in
 `anvil start` and the `anvil watch` offer are both deliberately suppressed in
 headless, `--json`, CI, hook, and piped contexts, so neither starts a daemon
 unattended — only an interactive (at-the-keyboard) `anvil start` auto-starts

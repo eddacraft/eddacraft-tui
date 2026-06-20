@@ -46,7 +46,7 @@ warn contains finding if {
   not endswith(file, ".service.tsx")
 
   finding := {
-    "message": sprintf("service file should use .service.ts suffix: %s", [file]),
+    "message": sprintf("service file should use .service.ts or .service.tsx suffix: %s", [file]),
     "path": file,
     "severity": "warning",
   }
@@ -92,7 +92,7 @@ anvil gate --only-checks policy
 ```
 Checking policies...
   [POLICY] service_names
-    service file should use .service.ts suffix: src/services/legacy-handler.ts
+    service file should use .service.ts or .service.tsx suffix: src/services/legacy-handler.ts
 
 1 policy warning found.
 ```

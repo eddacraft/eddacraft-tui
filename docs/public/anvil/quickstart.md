@@ -126,10 +126,10 @@ anvil start
 `anvil start` is the activation entrypoint. It runs `anvil init` if needed,
 baselines the repo, wires Cursor and Claude Code MCP entries (writing
 `~/.cursor/mcp.json` and `~/.claude.json`), and ends in one literal protection
-state. In the upcoming `v0.9.0-beta`, an interactive terminal will also
-auto-start the per-user save-time daemon (Linux and macOS) and report the result
-on a `daemon:` line; pass `--no-daemon` (or set `ANVIL_NO_DAEMON=1`) to suppress
-that auto-start — a daemon already running is still reused — and note `--verify`
+state. As of `v0.8.1-beta`, an interactive terminal also auto-starts the
+per-user save-time daemon (Linux and macOS) and reports the result on a
+`daemon:` line; pass `--no-daemon` (or set `ANVIL_NO_DAEMON=1`) to suppress that
+auto-start — a daemon already running is still reused — and note `--verify`
 never starts a daemon. The protection state is one of:
 
 - `protecting` — MCP pre-write validation is live
@@ -176,11 +176,11 @@ output when stdin or stdout is not a terminal.
 From `v0.8.0-beta`, when a live anvil daemon answers, `anvil watch` routes
 save-time validation through the daemon by default — faster verdicts and a
 workspace assurance state you can read at any time with `anvil status`. Set
-`ANVIL_WATCH_DAEMON=0` to opt out, or `=1` to force daemon routing. In the
-upcoming `v0.9.0-beta`, if no daemon is running, an interactive `anvil watch`
-offers to start one (`anvil start` auto-starts it instead); pass `--no-daemon`
-to skip the offer, or `ANVIL_WATCH_DAEMON=0` to also disable reuse of a live
-daemon. See `anvil watch --help` for the routing and lifecycle details.
+`ANVIL_WATCH_DAEMON=0` to opt out, or `=1` to force daemon routing. As of
+`v0.8.1-beta`, if no daemon is running, an interactive `anvil watch` offers to
+start one (`anvil start` auto-starts it instead); pass `--no-daemon` to skip the
+offer, or `ANVIL_WATCH_DAEMON=0` to also disable reuse of a live daemon. See
+`anvil watch --help` for the routing and lifecycle details.
 
 To walk this path end to end — activation, a deliberately bad save, and reading
 the finding anvil raises in your own repo — follow

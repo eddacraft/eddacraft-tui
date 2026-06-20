@@ -118,14 +118,14 @@ actionable activation failures now surface at that level.
 
 ### Starting and stopping the daemon
 
-In the upcoming `v0.9.0-beta`, an interactive `anvil start` auto-starts the
-per-user daemon in the background and an interactive `anvil watch` offers to
-start one (Linux and macOS) — this becomes the normal path, and a daemon already
-running is always reused. `anvil intercept start --foreground` remains the
-low-level operator and debugging surface: output goes to the operator's terminal
-and the daemon stays attached to the controlling TTY. It is the way to run the
-daemon in a headless session, and the only launch mode on Windows until
-background launch lands there.
+As of `v0.8.1-beta`, an interactive `anvil start` auto-starts the per-user
+daemon in the background and an interactive `anvil watch` offers to start one
+(Linux and macOS) — this is the normal path, and a daemon already running is
+always reused. `anvil intercept start --foreground` remains the low-level
+operator and debugging surface: output goes to the operator's terminal and the
+daemon stays attached to the controlling TTY. It is the way to run the daemon in
+a headless session, and the only launch mode on Windows until background launch
+lands there.
 
 If a start fails with "address already in use" or a stale-PID complaint, a prior
 instance is the most likely cause. The `anvil intercept stop` CLI subcommand is
