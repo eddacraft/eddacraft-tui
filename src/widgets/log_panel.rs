@@ -558,4 +558,83 @@ mod tests {
         state.jump_to_top();
         assert_eq!(state.selected_index, 0);
     }
+
+    #[test]
+    fn filtered_indices_respects_level_filter() {
+        let entries = sample_entries(); // [Info, Error]
+        let mut state = LogPanelState::default();
+        // Disable the Error level → only the Info entry (index 0) survives.
+        state.toggle_level(LogLevel::Error);
+        assert_eq!(state.filtered_indices(&entries), vec![0]);
+    }
+
+    #[test]
+    fn filtered_indices_combines_level_and_search() {
+        let entries = sample_entries();
+        let mut state = LogPanelState::default();
+        state.set_search("parse"); // matches only the Error entry (index 1)…
+        state.toggle_level(LogLevel::Error); // …which the level filter then hides
+        assert!(state.filtered_indices(&entries).is_empty());
+    }
+
+    #[test]
+    fn next_match_cycles_and_wraps() {
+        let entries = sample_entries(); // 2 entries match the default filter
+        let mut state = LogPanelState::default();
+        assert_eq!(state.selected_index, 0);
+        assert!(state.next_match(&entries));
+        assert_eq!(state.selected_index, 1);
+        // Wraps back to the first match.
+        assert!(state.next_match(&entries));
+        assert_eq!(state.selected_index, 0);
+    }
+
+    #[test]
+    fn prev_match_wraps_to_last() {
+        let entries = sample_entries();
+        let mut state = LogPanelState::default();
+        // From index 0, prev wraps to the last match (index 1).
+        assert!(state.prev_match(&entries));
+        assert_eq!(state.selected_index, 1);
+        assert!(state.prev_match(&entries));
+        assert_eq!(state.selected_index, 0);
+    }
+
+    #[test]
+    fn match_navigation_returns_false_and_resets_when_no_matches() {
+        let entries = sample_entries();
+        let mut state = LogPanelState::default();
+        state.set_search("no-such-text");
+
+        state.selected_index = 5;
+        assert!(!state.next_match(&entries));
+        assert_eq!(state.selected_index, 0);
+
+        state.selected_index = 5;
+        assert!(!state.prev_match(&entries));
+        assert_eq!(state.selected_index, 0);
+    }
+
+    #[test]
+    fn jump_to_bottom_sets_scroll_offset_and_handles_empty() {
+        let mut state = LogPanelState::default();
+        state.jump_to_bottom(5);
+        assert_eq!(state.selected_index, 4);
+        assert_eq!(state.scroll_offset, 4);
+
+        // An empty viewport collapses both cursors to the top.
+        state.jump_to_bottom(0);
+        assert_eq!(state.selected_index, 0);
+        assert_eq!(state.scroll_offset, 0);
+    }
+
+    #[test]
+    fn scroll_down_with_no_visible_rows_stays_at_zero() {
+        let mut state = LogPanelState {
+            selected_index: 3,
+            ..Default::default()
+        };
+        state.scroll_down(0);
+        assert_eq!(state.selected_index, 0);
+    }
 }
