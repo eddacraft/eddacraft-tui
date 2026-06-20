@@ -319,31 +319,40 @@ Remaining non-registry slices move to **Ready** when:
 
 ### OPSUP-007 — False-positive reporting channel
 
-- **Status:** Draft
+- **Status:** Ready
 - **Intent:** Define the CLI and telemetry path for users to report false
   positives without shipping source content by default.
 - **Expected Outcome (CLI surface, deterministic):** `anvil report-fp
   <check-id> <file:line>` records a structured false-positive report keyed on
-  the OPSUP-001 stable check ID. The report includes the check ID, a hashed
-  file path (no plaintext path), and the rule context — never source content by
-  default. Source snippets are opt-in only and never enabled in the default
-  config (fail-closed on anonymisation).
-- **Scopes:** the `report-fp` CLI command and the anonymisation policy.
+  the OPSUP-001 stable check ID, **as a new `false_positive_reported` Kindling
+  observation kind written to the local Kindling record (ADR-089)**. The report
+  includes the check ID, a hashed file path (no plaintext path), and the rule
+  context — never source content by default. Source snippets are opt-in only
+  and never enabled in the default config (fail-closed on anonymisation). The
+  command makes **no network call** (air-gap-safe).
+- **Scopes:** the `report-fp` CLI command, the `false_positive_reported`
+  observation kind, and the anonymisation policy.
 - **Non-scope:** analytics dashboards over the collected data (a dashboard
-  module concern); the registry itself (OPSUP-001).
+  module concern); the registry itself (OPSUP-001); **off-machine egress of FP
+  reports — deferred to a separate opt-in work item per ADR-089** (the air-gap
+  boundary). This item is local-record-only.
 - **Files:**
   - `crates/anvil-cli/src/commands/` (new `report_fp` command)
   - `crates/anvil-cli/src/commands/mod.rs` (subcommand wiring)
+  - `packages/kindling-integration/src/observation-contract.ts` (12th
+    observation kind)
 - **Validation:**
   - New test: `report-fp` hashes the path and omits source content under the
     default config
   - New test: an unknown check ID is rejected against the registry
+  - The command stays inside the air-gap test harness (no network call)
 - **Dependencies:** OPSUP-001 (Done)
 - **Confidence:** medium
-- **Blocked-on (design):** the telemetry **destination** is unresolved —
-  Kindling pipeline reuse vs a new endpoint (see Open Questions). The CLI
-  surface and anonymisation policy above are decidable now; the destination is
-  a cross-cutting infra decision that gates this item moving to Ready.
+- **Design resolved (2026-06-21, ADR-089, owner):** the telemetry **destination
+  is the local Kindling record**; no telemetry leaves the machine as part of
+  this item. Egress is explicitly deferred to a separate opt-in work item with
+  its own ADR (not a new always-on endpoint). The blocker is cleared; the item
+  is Ready.
 
 ## Risks
 
@@ -357,7 +366,10 @@ Remaining non-registry slices move to **Ready** when:
 
 ## Open Questions
 
-- [ ] Hosting the FP telemetry — Kindling pipeline reuse or new endpoint?
+- [x] Hosting the FP telemetry — **resolved 2026-06-21 (ADR-089, owner):**
+      the local Kindling record (a new `false_positive_reported` observation
+      kind); no off-machine egress in OPSUP-007 (deferred to a separate opt-in
+      work item, preserving the air-gap guarantee). Not a new endpoint.
 - [x] Per-track flag default policy — **resolved 2026-06-18** (owner-overridable):
       opt-in for one release then flip on (OPSUP-005 Resolution).
 - [ ] How do legacy check names map to the new registry IDs — via
