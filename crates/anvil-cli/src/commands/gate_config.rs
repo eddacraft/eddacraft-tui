@@ -7,7 +7,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::GlobalArgs;
 use crate::commands::check_catalog::{
-    canonical_check_name, default_gate_config_checks, definition_by_canonical,
+    canonical_check_name, closest_registered_id, default_gate_config_checks,
+    definition_by_canonical,
 };
 use crate::output::{self, OutputMode};
 
@@ -138,8 +139,13 @@ fn run_toggle(workspace: &Path, check_name: &str, enable: bool, mode: OutputMode
 
     let Some(check) = check else {
         let available: Vec<&str> = config.checks.iter().map(|c| c.name.as_str()).collect();
+        // OPSUP-002: point at the closest registered ID rather than only a
+        // flat dump — `gate-config enable/disable` is the in-config disable path.
+        let suggestion = closest_registered_id(check_name)
+            .map(|s| format!(" (did you mean \"{s}\"?)"))
+            .unwrap_or_default();
         bail!(
-            "Unknown check: \"{check_name}\". Available: {}",
+            "Unknown check: \"{check_name}\"{suggestion}. Available: {}",
             available.join(", ")
         );
     };

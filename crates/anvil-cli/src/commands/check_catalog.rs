@@ -282,6 +282,84 @@ pub(crate) fn canonical_check_name(name: &str) -> Option<&'static str> {
     definition_by_name(name).map(|def| def.canonical_name)
 }
 
+/// Suggest the registered identifier closest to an unknown `input`, or
+/// `None` when nothing is near enough to be a useful "did you mean…".
+///
+/// OPSUP-002: an unknown `--skip-checks` / `.anvil.<ext>` `checks:` entry must
+/// produce a deterministic error that names the closest registered ID rather
+/// than silently skipping nothing.
+///
+/// Each definition contributes its canonical name, its stable `ANV-*` ID, and
+/// its legacy aliases as *match targets*. When the closest target is a name or
+/// alias the suggestion is the definition's **canonical** name (steering toward
+/// the recommended form, not a legacy alias); when it is the stable ID the
+/// suggestion is the ID itself.
+///
+/// Matching is by Levenshtein distance computed case-insensitively (so a
+/// wrong-cased `anv-core-005` or `LINT` is still pointed at the right form),
+/// gated by a per-target threshold of `max(len, 3) / 3` — the same
+/// length-relative heuristic rustc uses — so a short input cannot be dragged
+/// toward an unrelated short check (`dep` must not "correct" to `test`). Ties
+/// resolve to the first match in registry order, so the result is
+/// deterministic.
+pub(crate) fn closest_registered_id(input: &str) -> Option<&'static str> {
+    if input.is_empty() {
+        return None;
+    }
+    let needle = input.to_ascii_lowercase();
+
+    let mut best: Option<(usize, &'static str)> = None;
+    for def in CHECK_DEFINITIONS {
+        // (match target, suggestion). Aliases map to the canonical name.
+        let targets = [
+            (def.canonical_name, def.canonical_name),
+            (def.stable_id, def.stable_id),
+        ]
+        .into_iter()
+        .chain(def.aliases.iter().map(|alias| (*alias, def.canonical_name)));
+
+        for (target, suggestion) in targets {
+            let distance = levenshtein(&needle, &target.to_ascii_lowercase());
+            let max_distance = std::cmp::max(target.chars().count(), 3) / 3;
+            if distance <= max_distance && best.is_none_or(|(d, _)| distance < d) {
+                best = Some((distance, suggestion));
+            }
+        }
+    }
+
+    best.map(|(_, suggestion)| suggestion)
+}
+
+/// Levenshtein edit distance over Unicode scalar values. The inputs here are
+/// short ASCII check identifiers, so the simple two-row DP is more than fast
+/// enough and avoids pulling in a dependency for a handful of comparisons.
+fn levenshtein(a: &str, b: &str) -> usize {
+    let a: Vec<char> = a.chars().collect();
+    let b: Vec<char> = b.chars().collect();
+    if a.is_empty() {
+        return b.len();
+    }
+    if b.is_empty() {
+        return a.len();
+    }
+
+    let mut prev: Vec<usize> = (0..=b.len()).collect();
+    let mut curr: Vec<usize> = vec![0; b.len() + 1];
+
+    for (i, &ca) in a.iter().enumerate() {
+        curr[0] = i + 1;
+        for (j, &cb) in b.iter().enumerate() {
+            let cost = usize::from(ca != cb);
+            curr[j + 1] = (prev[j + 1] + 1) // deletion
+                .min(curr[j] + 1) // insertion
+                .min(prev[j] + cost); // substitution
+        }
+        std::mem::swap(&mut prev, &mut curr);
+    }
+
+    prev[b.len()]
+}
+
 pub(crate) fn gate_internal_name(name: &str) -> Option<&'static str> {
     definition_by_name(name)
         .filter(|def| def.gate_supported)
@@ -341,6 +419,70 @@ mod tests {
     use std::collections::HashSet;
 
     use super::*;
+
+    #[test]
+    fn closest_registered_id_suggests_near_canonical_typo() {
+        // A one-character typo of a canonical name resolves to it.
+        assert_eq!(closest_registered_id("lnt"), Some("lint"));
+        assert_eq!(closest_registered_id("coverage-"), Some("coverage"));
+    }
+
+    #[test]
+    fn closest_registered_id_suggests_near_stable_id_typo() {
+        // A near-miss of a stable ID suggests the stable ID, not a flat list.
+        assert_eq!(
+            closest_registered_id("ANV-SURF-SQL-01"),
+            Some("ANV-SURF-SQL-001")
+        );
+    }
+
+    #[test]
+    fn closest_registered_id_returns_none_for_far_input() {
+        // An input nowhere near any registered identifier yields no
+        // suggestion rather than a misleading one.
+        assert_eq!(closest_registered_id("totally-different-xyz"), None);
+    }
+
+    #[test]
+    fn closest_registered_id_does_not_suggest_for_empty() {
+        assert_eq!(closest_registered_id(""), None);
+    }
+
+    #[test]
+    fn closest_registered_id_does_not_drag_short_abbreviations_to_short_checks() {
+        // The length-relative threshold must stop a short abbreviation from
+        // "correcting" to an unrelated short check at edit distance 2-3
+        // (`dep`/`sec` previously dragged to `test`).
+        for abbrev in ["dep", "sec"] {
+            assert_eq!(
+                closest_registered_id(abbrev),
+                None,
+                "{abbrev} must not be dragged to an unrelated short check"
+            );
+        }
+        // A near-neighbour suggestion is still fine — `sect` is two edits from
+        // the `secret` alias, so it steers to that canonical, never to the
+        // unrelated `test`. Asserted positively so a future registry change
+        // can't silently regress it back toward a wrong short check.
+        assert_eq!(closest_registered_id("sect"), Some("secret-detection"));
+    }
+
+    #[test]
+    fn closest_registered_id_is_case_insensitive() {
+        // A wrong-cased identifier is pointed at the correctly-cased form.
+        assert_eq!(closest_registered_id("LINT"), Some("lint"));
+        assert_eq!(closest_registered_id("anv-core-005"), Some("ANV-CORE-005"));
+    }
+
+    #[test]
+    fn closest_registered_id_suggests_canonical_for_alias_typo() {
+        // A typo of a legacy alias steers toward the canonical name, not the
+        // alias. `architecture` is the legacy alias for `import-boundaries`.
+        assert_eq!(
+            closest_registered_id("architecure"),
+            Some("import-boundaries")
+        );
+    }
 
     #[test]
     fn registry_assigns_unique_stable_ids() {

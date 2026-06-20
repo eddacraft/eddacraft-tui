@@ -172,7 +172,7 @@ Remaining non-registry slices move to **Ready** when:
 
 ### OPSUP-002 — Registry-backed skip and disable resolution
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Resolve skip and disable paths against the stable check registry
   wherever durable IDs are required.
 - **Expected Outcome:** `--skip-checks` and the `.anvil.<ext>` `checks:` list

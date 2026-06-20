@@ -13,7 +13,7 @@ use serde::Serialize;
 
 use crate::GlobalArgs;
 use crate::commands::check_catalog::{
-    GATE_INTERNAL_CHECKS, canonical_check_name, definition_by_internal,
+    GATE_INTERNAL_CHECKS, canonical_check_name, closest_registered_id, definition_by_internal,
     gate_canonical_name_from_internal, gate_canonical_names, gate_internal_name,
 };
 use crate::commands::check_guards::{WallTimeGuard, evaluate_file_presence, evaluate_wall_time};
@@ -2222,20 +2222,37 @@ fn parse_anvilrc_contents(contents: &str, path: &Path) -> Result<serde_json::Val
 }
 
 fn validate_check_names(names: &std::collections::HashSet<&str>) -> Result<()> {
-    let unknown: Vec<&&str> = names
+    let mut unknown: Vec<&str> = names
         .iter()
+        .copied()
         .filter(|n| gate_internal_name(n).is_none())
         .collect();
     if !unknown.is_empty() {
-        let unknown_str: Vec<&str> = unknown.into_iter().copied().collect();
+        // Deterministic ordering so the error message is stable across runs
+        // (the input is a HashSet).
+        unknown.sort_unstable();
         let available = gate_canonical_names();
         bail!(
             "unknown check(s): {}; available: {}",
-            unknown_str.join(", "),
+            unknown
+                .iter()
+                .map(|n| describe_unknown_check(n))
+                .collect::<Vec<_>>()
+                .join(", "),
             available.join(", ")
         );
     }
     Ok(())
+}
+
+/// Render an unknown check identifier with a registry-backed "did you mean…"
+/// suggestion when one is near enough (OPSUP-002). Falls back to the bare name
+/// when nothing in the registry is close.
+fn describe_unknown_check(name: &str) -> String {
+    match closest_registered_id(name) {
+        Some(suggestion) => format!("'{name}' (did you mean '{suggestion}'?)"),
+        None => format!("'{name}'"),
+    }
 }
 
 fn normalize_gate_check_set(
@@ -2263,16 +2280,21 @@ fn resolve_anvilrc_check_filter(
 
     let anvilrc_checks = read_anvilrc_checks(root)?;
     if let Some(ref rc) = anvilrc_checks {
-        let unknown: Vec<&str> = rc
+        let mut unknown: Vec<&str> = rc
             .iter()
             .filter(|n| gate_internal_name(n).is_none())
             .map(String::as_str)
             .collect();
         if !unknown.is_empty() {
+            unknown.sort_unstable();
             let valid = gate_canonical_names();
             eprintln!(
                 "Warning: .anvilrc#checks contains unknown check(s): {}. Valid: {}",
-                unknown.join(", "),
+                unknown
+                    .iter()
+                    .map(|n| describe_unknown_check(n))
+                    .collect::<Vec<_>>()
+                    .join(", "),
                 valid.join(", ")
             );
         }
@@ -4454,6 +4476,38 @@ rules: []
 
         assert!(normalised.contains("secret"));
         assert!(normalised.contains("architecture"));
+    }
+
+    #[test]
+    fn normalize_gate_check_set_resolves_check_by_stable_id_only() {
+        // OPSUP-002: a check that is absent from the legacy name map (no
+        // alias) but present by `ANV-*` ID resolves and is skippable — so a
+        // newly shipped check is skippable by ID without a binary downgrade.
+        // ANV-CORE-003 (antipattern-scan) has no aliases.
+        let names: std::collections::HashSet<&str> = ["ANV-CORE-003"].into_iter().collect();
+
+        let normalised = normalize_gate_check_set(&names).unwrap();
+
+        assert!(
+            normalised.contains("antipattern-scan"),
+            "stable-ID-only check must resolve to its internal name, got: {normalised:?}"
+        );
+    }
+
+    #[test]
+    fn normalize_gate_check_set_unknown_errors_with_suggestion() {
+        // OPSUP-002: an unknown identifier produces a deterministic error
+        // that names the closest registered ID rather than a flat dump.
+        let names: std::collections::HashSet<&str> = ["lnt"].into_iter().collect();
+
+        let err = normalize_gate_check_set(&names).unwrap_err();
+        let msg = err.to_string();
+
+        assert!(msg.contains("lnt"), "error must name the bad input: {msg}");
+        assert!(
+            msg.contains("lint"),
+            "error must suggest the closest registered id: {msg}"
+        );
     }
 
     #[test]
