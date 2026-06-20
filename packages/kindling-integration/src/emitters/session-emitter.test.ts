@@ -4,8 +4,9 @@
  * Covers emitSessionStart and emitSessionEnd.
  * Sessions are the spine — every other observation links to a session_id.
  *
- * Strategy: spy on KindlingService.emit to capture the observation passed,
- * then assert event shape, required fields, optional fields, and return value.
+ * Strategy: inject a recording IKindlingStore at the store boundary to capture
+ * the observation the emitter writes, then assert event shape, required fields,
+ * optional fields, and return value.
  */
 
 import { describe, it, expect } from 'vitest';
