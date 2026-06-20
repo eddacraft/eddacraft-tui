@@ -1,204 +1,109 @@
 ---
 id: formats
 title: Formats
-description: Observation and export format specifications.
-sidebar_position: 1
+description: JSON shapes for observations, capsules, and the export/import bundle.
+sidebar_position: 3
 ---
 
 # Formats
 
-Specification of Kindling's data formats.
+The wire and on-disk JSON shapes Kindling uses. All timestamps are **epoch
+milliseconds** unless noted. JSON keys are `camelCase`.
 
-## Observation Format
-
-### JSON Structure
+## Observation
 
 ```json
 {
-  "id": "obs_abc123xyz789",
-  "content": "The API rate limits at 100 requests per minute",
-  "kind": "gotcha",
-  "tags": ["api", "rate-limit", "performance"],
-  "source": {
-    "type": "manual",
-    "actor": "alice@example.com"
-  },
-  "context": {
-    "file": "src/api/client.ts",
-    "line": 42
-  },
+  "id": "9c20f3a1-2b4d-4f8e-9a1c-7e0d5b6f2a33",
+  "kind": "error",
+  "content": "JWT validation failed: token expired",
   "provenance": {
-    "timestamp": "2024-01-15T10:30:00.000Z",
-    "environment": {
-      "os": "darwin",
-      "shell": "zsh"
-    }
+    "stack": "Error: Token expired\n  at validateToken.ts:42"
   },
-  "capsule": "api-project",
-  "createdAt": "2024-01-15T10:30:00.000Z",
-  "updatedAt": null
+  "ts": 1750416064123,
+  "scopeIds": { "sessionId": "session-1", "repoId": "my-project" },
+  "redacted": false
 }
 ```
 
-### Field Descriptions
+| Field        | Type            | Notes                                                        |
+| ------------ | --------------- | ------------------------------------------------------------ |
+| `id`         | string          | Unique identifier (UUID).                                    |
+| `kind`       | enum            | See [kinds](#observation-kinds).                             |
+| `content`    | string          | The captured text.                                           |
+| `provenance` | object          | Free-form, source-specific metadata.                         |
+| `ts`         | number          | Epoch milliseconds.                                          |
+| `scopeIds`   | object          | Any of `sessionId`, `repoId`, `agentId`, `userId`, `taskId`. |
+| `redacted`   | boolean         | Whether the content has been forgotten.                      |
 
-| Field        | Type     | Required | Description                 |
-| ------------ | -------- | -------- | --------------------------- |
-| `id`         | string   | Yes      | Unique identifier (obs\_\*) |
-| `content`    | string   | Yes      | Observation content         |
-| `kind`       | enum     | Yes      | Type of observation         |
-| `tags`       | string[] | No       | Categorisation tags         |
-| `source`     | object   | Yes      | Origin information          |
-| `context`    | object   | No       | Location context            |
-| `provenance` | object   | Yes      | Full origin metadata        |
-| `capsule`    | string   | Yes      | Parent capsule              |
-| `createdAt`  | ISO8601  | Yes      | Creation timestamp          |
-| `updatedAt`  | ISO8601  | No       | Last update timestamp       |
+### Observation kinds
 
-### Kind Values
-
-```typescript
-type ObservationKind =
-  | 'discovery' // Something learned
-  | 'decision' // Choice made
-  | 'gotcha' // Warning/pitfall
-  | 'reference' // Link/citation
-  | 'question' // Open question
-  | 'todo'; // Follow-up action
+```
+tool_call | command | file_diff | error | message
+node_start | node_end | node_output | node_error
 ```
 
-### Source Types
+See [Observations](/kindling/concepts/observations#kinds) for what each means.
 
-```typescript
-interface Source {
-  type: 'manual' | 'tool' | 'import' | 'adapter';
-  actor?: string;
-  name?: string;
-  version?: string;
-  file?: string;
-}
-```
-
-## Export Formats
-
-### Markdown
-
-```markdown
-# api-project Observations
-
-## 2024-01-15
-
-### The API rate limits at 100 requests per minute
-
-- **Kind:** gotcha
-- **Tags:** api, rate-limit
-- **Source:** manual
-
-Exceeding the rate limit returns HTTP 429 Too Many Requests. Use exponential
-backoff with jitter for retries.
-
----
-```
-
-### JSON Export
+## Capsule
 
 ```json
 {
-  "capsule": "api-project",
-  "exportedAt": "2024-01-15T16:00:00.000Z",
-  "observations": [
-    { ... },
-    { ... }
-  ],
-  "meta": {
-    "count": 42,
-    "dateRange": {
-      "from": "2024-01-10T00:00:00.000Z",
-      "to": "2024-01-15T16:00:00.000Z"
-    }
+  "id": "cap_8a3f...",
+  "type": "session",
+  "intent": "investigating the memory leak",
+  "status": "closed",
+  "openedAt": 1750416000000,
+  "closedAt": 1750416600000,
+  "scopeIds": { "repoId": "my-project" },
+  "observationIds": ["9c20f3a1-...", "5f1c..."],
+  "summaryId": "sum_1b2c..."
+}
+```
+
+| Field            | Type     | Notes                                            |
+| ---------------- | -------- | ------------------------------------------------ |
+| `type`           | enum     | `session` or `pocketflow_node`.                  |
+| `status`         | enum     | `open` or `closed`.                              |
+| `closedAt`       | number?  | Present only once closed.                        |
+| `observationIds` | string[] | Member observation IDs, in order.               |
+| `summaryId`      | string?  | Set when a summary is produced on close.        |
+
+## Export bundle
+
+`kindling export` writes a bundle that round-trips through `kindling import`:
+
+```json
+{
+  "bundleVersion": "1.0",
+  "exportedAt": 1750416700000,
+  "dataset": {
+    "version": "1.0",
+    "exportedAt": 1750416700000,
+    "scope": { "repoId": "my-project" },
+    "observations": [ /* Observation[] */ ],
+    "capsules": [ /* Capsule[] */ ],
+    "summaries": [ /* Summary[] */ ],
+    "pins": [ /* Pin[] */ ]
+  },
+  "metadata": {
+    "description": "Kindling memory export",
+    "exportedAt": "2026-06-20T11:05:00.000Z"
   }
 }
 ```
 
-### Context Format
+| Field                | Notes                                                              |
+| -------------------- | ------------------------------------------------------------------ |
+| `bundleVersion`      | Bundle format version (`"1.0"`).                                   |
+| `exportedAt`         | Epoch milliseconds.                                                |
+| `dataset`            | The entity payload. Entities are ordered deterministically (observations by `ts`, capsules by `openedAt`, etc.). |
+| `dataset.scope`      | The scope filter applied, when `--session`/`--repo` was given. Omitted otherwise. |
+| `metadata`           | Optional. Carries a human description and an ISO-8601 `exportedAt`. |
 
-For LLM consumption:
+Redacted observations are excluded from exports.
 
-```
-# Context from api-project (42 observations)
+## Next
 
-## Recent Discoveries
-
-- The API rate limits at 100 requests per minute
-- Authentication uses OAuth2 with PKCE flow
-- Webhook payloads are signed with HMAC-SHA256
-
-## Key Decisions
-
-- Chose Redis for caching due to built-in TTL support
-- Using exponential backoff for all retries
-
-## Known Gotchas
-
-- Rate limit doesn't reset on new requests
-- Webhook signature uses raw body, not parsed JSON
-```
-
-### CSV Export
-
-```csv
-id,content,kind,tags,created_at
-obs_abc123,"API rate limits at 100 req/min",gotcha,"api,rate-limit",2024-01-15T10:30:00Z
-obs_def456,"OAuth2 with PKCE flow",discovery,"auth,oauth",2024-01-15T10:25:00Z
-```
-
-## Import Formats
-
-### Kindling JSON
-
-Native format:
-
-```json
-{
-  "version": "1.0",
-  "observations": [
-    { ... }
-  ]
-}
-```
-
-### Plain Text
-
-One observation per line:
-
-```
-The API uses OAuth2
-Rate limit is 100 req/min
-Webhook signature required
-```
-
-Import:
-
-```bash
-kindling import notes.txt --kind discovery
-```
-
-### Markdown Notes
-
-```markdown
-# API Notes
-
-- The API uses OAuth2 #auth
-- Rate limit is 100 req/min #api #limits
-- Webhook signature required #security
-```
-
-Import:
-
-```bash
-kindling import notes.md --parse-tags
-```
-
----
-
-**Next:** [CLI reference →](/kindling/reference/cli)
+- [Core concepts: observations →](/kindling/concepts/observations)
+- [CLI: export / import →](/kindling/reference/cli#export)

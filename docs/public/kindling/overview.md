@@ -2,157 +2,111 @@
 id: overview
 title: Kindling Overview
 description:
-  Capture and store structured observations from development sessions.
+  Local-first memory and continuity for AI-assisted development — capture,
+  organise, and deterministically retrieve development context.
 sidebar_position: 1
 ---
 
 # Kindling
 
-Kindling is an open-source tool for capturing structured observations from
-development sessions.
+**Local-first memory and continuity for AI-assisted development.**
 
-## What is Kindling?
+Kindling gives AI coding tools — and you — a memory of what happened: tool
+calls, file edits, commands, errors, decisions, summaries, and pinned findings.
+It stores that context locally in SQLite, organises it into meaningful sessions,
+and retrieves it later with deterministic, explainable results.
 
-Kindling captures the _context_ that matters—decisions made, problems solved,
-patterns discovered—without drowning in noise.
+You can use Kindling from the command line, as a daemon-backed Rust SDK, or as
+an embedded in-process library.
+
+## The model
+
+Kindling has a small, deliberate data model:
 
 ```
-Session → Observations → Capsule → Retrieval
+Events → Observations → Capsules → Retrieval
 ```
 
-**Session:** You're working on a feature, debugging, or learning.
+- **Observations** are atomic, immutable records of something that happened: a
+  tool call, a shell command, a file diff, an error, or a message.
+- **Capsules** are bounded groups of observations — a session, a workflow run —
+  each with an _intent_ and an open/close lifecycle.
+- **Retrieval** returns context in three predictable tiers: pins, the current
+  summary, and ranked search hits, each with provenance.
 
-**Observations:** Kindling captures structured notes about what happened.
+## Why Kindling
 
-**Capsule:** Observations are stored in a searchable container.
+Development sessions generate valuable context that is normally lost — chat
+history disappears, terminal scrollback clears, and reasoning fades. Kindling
+captures that context as it happens and makes it retrievable later, so you (or
+your assistant) can resume work without re-explaining everything.
 
-**Retrieval:** Later, you (or your tools) can query that knowledge.
+It is built around three principles:
 
-## Why Kindling?
+- **Local-first.** Project memory lives on your machine in SQLite. No server, no
+  account, no network round-trip.
+- **Deterministic retrieval.** Pins, the current summary, and ranked provider
+  hits are returned in a predictable, explainable order — you get back what you
+  stored, not what an opaque model guessed.
+- **Tool-agnostic.** Capture context manually with the CLI, automatically
+  through an adapter (Claude Code, OpenCode, PocketFlow), or programmatically
+  from your own Rust or TypeScript code.
 
-### The Problem
-
-Development sessions generate valuable context:
-
-- "This approach didn't work because..."
-- "The API expects this specific format..."
-- "This error means you need to..."
-
-But that context is lost:
-
-- Chat history disappears
-- Terminal scrollback clears
-- Memory fades
-
-### The Solution
-
-Kindling captures observations _as you work_:
+## A quick taste
 
 ```bash
-kindling observe "The retry logic needs exponential backoff; linear fails under load"
+# Initialise memory for this project
+kindling init
+
+# Capture context as you work
+kindling log "JWT tokens expire after 15 minutes, not 1 hour"
+kindling log --kind error "segfault in auth middleware after the upgrade"
+
+# Get it back later, ranked and explainable
+kindling search "JWT"
 ```
 
-Later:
+```
+Search Results for: "JWT"
+==================================================
 
-```bash
-kindling search "retry"
+Candidates (1):
+
+1. 5f1c… (score: 1.83)
+   Type: observation
+   Content: JWT tokens expire after 15 minutes, not 1 hour
+   Time: 2026-06-20 10:31:04
 ```
 
-```
-[2024-01-15] The retry logic needs exponential backoff; linear fails under load
-  Source: manual observation
-  Capsule: payment-integration
-  Tags: retry, performance
-```
-
-## Core Concepts
-
-### Capsules
-
-A capsule is a container for related observations:
-
-```bash
-kindling capsule create payment-integration
-```
-
-Think of it as a project folder for knowledge.
-
-### Observations
-
-An observation is a single piece of captured context:
-
-```typescript
-{
-  content: "API rate limits at 100 req/min, need to batch",
-  kind: "discovery",
-  source: "manual",
-  timestamp: "2024-01-15T10:30:00Z",
-  tags: ["api", "rate-limit"]
-}
-```
-
-Observations have:
-
-- **Content** — the actual knowledge
-- **Kind** — what type of observation
-- **Source** — where it came from
-- **Provenance** — origin metadata
-
-### Storage
-
-By default, Kindling stores observations in SQLite:
+## How it fits together
 
 ```
-~/.kindling/
-├── capsules/
-│   ├── payment-integration.db
-│   └── auth-refactor.db
-└── config.json
+        You / AI coding tools
+   ┌───────────┬───────────┬───────────────┐
+   │   CLI     │  Adapters │   SDK crates  │
+   │ kindling  │  (hooks)  │ kindling-*    │
+   └─────┬─────┴─────┬─────┴───────┬───────┘
+         └───────────┼─────────────┘
+                     ▼
+            kindling daemon / service
+                     ▼
+        SQLite (per project, WAL + FTS5)
 ```
 
-Portable. No server required.
+The same store backs every entry point. A CLI invocation, a Claude Code hook,
+and a Rust client all read and write the same per-project database.
 
-## How It Fits
+## What Kindling is not
 
-Kindling is part of the **Edda Stack**:
+- **Not a note-taking app** — it captures structured observations, not freeform
+  prose.
+- **Not a chat logger** — it stores knowledge and events, not transcripts.
+- **Not a semantic black box** — retrieval is mechanical full-text search with
+  explainable ranking, not embeddings guessing at intent.
 
-```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│  Kindling   │ ──▶ │   Ember     │ ──▶ │    Edda    │
-│  (Capture)  │     │ (Candidate) │     │  (Curated) │
-└─────────────┘     └─────────────┘     └─────────────┘
-     Now              Coming Soon         Coming Soon
-```
+## Where to go next
 
-Kindling captures raw observations. Ember (planned) promotes valuable ones. Edda
-(planned) curates verified knowledge.
-
-## Quick Example
-
-```bash
-# Create a capsule for your current work
-kindling capsule create api-migration
-
-# Capture observations as you work
-kindling observe "Legacy API uses XML, new API uses JSON"
-kindling observe "Need to handle both formats during transition"
-
-# Search later
-kindling search "XML"
-
-# Export for use in prompts
-kindling export --capsule api-migration --format markdown
-```
-
-## What Kindling Doesn't Do
-
-Kindling is focused:
-
-- **Not a note-taking app** — structured observations, not freeform notes
-- **Not a chat logger** — captures knowledge, not conversation
-- **Not a database** — simple storage, not a query engine
-- **Not AI-powered** — mechanical storage and retrieval (AI optional)
-
----
-
-**Next:** [Install Kindling →](/kindling/quickstart/install)
+- [Install Kindling →](/kindling/quickstart/install)
+- [Your first memory →](/kindling/quickstart/first-memory)
+- [Core concepts: observations →](/kindling/concepts/observations)
+- [CLI reference →](/kindling/reference/cli)

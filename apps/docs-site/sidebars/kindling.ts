@@ -9,9 +9,8 @@ const sidebars: SidebarsConfig = {
       collapsed: false,
       items: [
         'quickstart/install',
-        'quickstart/create-capsule',
-        'quickstart/write-observations',
-        'quickstart/search-export',
+        'quickstart/first-memory',
+        'quickstart/automatic-capture',
       ],
     },
     {
@@ -19,29 +18,33 @@ const sidebars: SidebarsConfig = {
       label: 'Core Concepts',
       collapsed: false,
       items: [
-        'concepts/capsules',
         'concepts/observations',
-        'concepts/storage',
+        'concepts/capsules',
         'concepts/retrieval',
+        'concepts/storage',
       ],
     },
     {
       type: 'category',
       label: 'Adapters',
       collapsed: true,
-      items: ['adapters/custom'],
-    },
-    {
-      type: 'category',
-      label: 'Commands',
-      collapsed: true,
-      items: ['commands/memory'],
+      items: [
+        'adapters/claude-code',
+        'adapters/opencode',
+        'adapters/pocketflow',
+        'adapters/custom',
+      ],
     },
     {
       type: 'category',
       label: 'Reference',
       collapsed: true,
-      items: ['reference/formats', 'reference/cli', 'reference/config'],
+      items: [
+        'reference/cli',
+        'reference/config',
+        'reference/formats',
+        'reference/crates',
+      ],
     },
   ],
 };

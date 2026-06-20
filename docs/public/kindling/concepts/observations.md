@@ -1,242 +1,126 @@
 ---
 id: observations
 title: Observations
-description: Understanding observation structure and types in Kindling.
-sidebar_position: 2
+description: The atomic, immutable unit of captured context in Kindling.
+sidebar_position: 1
 ---
 
 # Observations
 
-Observations are individual pieces of captured knowledge.
+An **observation** is the atomic unit of memory in Kindling: a single,
+immutable record of something that happened during development.
 
-## Observation Structure
+## Structure
 
-Every observation has:
+Every observation has the same shape:
 
 ```typescript
 interface Observation {
-  id: string; // Unique identifier
-  content: string; // The actual knowledge
-  kind: ObservationKind;
-  tags: string[];
-  source: Source;
-  context?: Context;
-  createdAt: Date;
-  capsule: string;
+  id: string;            // unique identifier (UUID)
+  kind: ObservationKind; // what happened
+  content: string;       // the captured text
+  provenance: object;    // source-specific metadata (free-form JSON)
+  ts: number;            // epoch milliseconds
+  scopeIds: ScopeIds;    // session / repo / agent / user / task
+  redacted: boolean;     // whether the content has been forgotten
 }
 ```
 
-## Content
-
-The core knowledge being captured:
-
-```bash
-kindling observe "Stripe webhooks require signature verification using the raw request body"
-```
-
-### Content Guidelines
-
-**Be specific:**
-
-```bash
-# ❌ Vague
-kindling observe "API thing"
-
-# ✓ Specific
-kindling observe "API returns 429 after 100 requests per minute"
-```
-
-**Include reasoning:**
-
-```bash
-# ❌ Just the what
-kindling observe "Use Redis"
-
-# ✓ Include why
-kindling observe "Use Redis for session storage - it handles our 10k concurrent users better than in-memory"
-```
-
-**Note exceptions:**
-
-```bash
-kindling observe "All API calls need auth EXCEPT /health and /metrics"
-```
+Observations are **immutable**. The only field that ever changes is `redacted` —
+set via [forgetting](#forgetting) — which masks the content without deleting the
+record.
 
 ## Kinds
 
-Observations have kinds that indicate their nature:
+The set of kinds is fixed. There are no free-form tags or custom kinds; this
+keeps retrieval and adapters predictable across every tool.
 
-### Discovery
+| Kind          | Captures                                            |
+| ------------- | --------------------------------------------------- |
+| `tool_call`   | An AI tool invocation (Read, Edit, Bash, …).        |
+| `command`     | A shell command, typically with its exit code/output. |
+| `file_diff`   | A file change, with the affected path(s).           |
+| `error`       | An error, often with a stack trace.                 |
+| `message`     | A user or assistant message. The CLI default.       |
+| `node_start`  | A workflow node began executing.                    |
+| `node_output` | A workflow node produced output.                    |
+| `node_error`  | A workflow node failed.                              |
+| `node_end`    | A workflow node finished (success or failure).      |
 
-Something you learned:
+The first five are produced both manually (via `kindling log`) and by the
+[Claude Code](/kindling/adapters/claude-code) and
+[OpenCode](/kindling/adapters/opencode) adapters. The `node_*` kinds are
+produced by the [PocketFlow](/kindling/adapters/pocketflow) adapter.
 
-```bash
-kindling observe "The retry mechanism uses exponential backoff with jitter" --kind discovery
-```
+## Content
 
-### Decision
-
-A choice made with reasoning:
-
-```bash
-kindling observe "Chose PostgreSQL over MongoDB for ACID transactions" --kind decision
-```
-
-### Gotcha
-
-A pitfall or warning:
-
-```bash
-kindling observe "Don't call the API during the maintenance window (2-3 AM UTC)" --kind gotcha
-```
-
-### Reference
-
-A link or citation:
+`content` is the human-readable text of the observation — the thing you will
+search for later. When logging manually, be specific and self-contained:
 
 ```bash
-kindling observe "See RFC 6749 for OAuth 2.0 spec: https://tools.ietf.org/html/rfc6749" --kind reference
-```
+# Vague
+kindling log "API issue"
 
-### Question
-
-Something to investigate:
-
-```bash
-kindling observe "Why does the cache invalidation take 30 seconds?" --kind question
-```
-
-### Todo
-
-A follow-up action:
-
-```bash
-kindling observe "Add rate limiting to the webhook endpoint" --kind todo
-```
-
-## Tags
-
-Tags enable categorisation and filtering:
-
-```bash
-kindling observe "Use content-type: application/json" --tag api --tag headers
-```
-
-### Tag Conventions
-
-Establish consistent tags:
-
-| Tag         | Use for                 |
-| ----------- | ----------------------- |
-| `#api`      | API-related knowledge   |
-| `#security` | Security considerations |
-| `#perf`     | Performance insights    |
-| `#bug`      | Bug findings            |
-| `#config`   | Configuration details   |
-| `#debug`    | Debugging techniques    |
-
-### Inline Tags
-
-Tags can be inline:
-
-```bash
-kindling observe "Rate limit is 100 req/min #api #limits"
-```
-
-## Source
-
-Where the observation came from:
-
-### Manual
-
-Direct input:
-
-```bash
-kindling observe "..." --source manual
-```
-
-### Tool
-
-From an integrated tool:
-
-```typescript
-{
-  source: {
-    type: "tool",
-    name: "vscode",
-    version: "1.85.0"
-  }
-}
-```
-
-### Import
-
-From external data:
-
-```typescript
-{
-  source: {
-    type: "import",
-    file: "notes.md",
-    importedAt: "2024-01-15T10:00:00Z"
-  }
-}
-```
-
-## Context
-
-Optional context about where the observation applies:
-
-```bash
-kindling observe "This function is O(n²)" \
-  --context "src/utils/sort.ts:42"
-```
-
-### Context Types
-
-```typescript
-interface Context {
-  file?: string; // File path
-  line?: number; // Line number
-  function?: string; // Function name
-  commit?: string; // Git commit
-  url?: string; // URL reference
-}
+# Specific
+kindling log --kind error "API returns 500 when payload exceeds 1MB"
 ```
 
 ## Provenance
 
-Full origin tracking:
+`provenance` is a free-form JSON object carrying source-specific metadata —
+whatever the producer wants to attach. Adapters populate it richly; for
+example, a `command` observation may carry its exit code, a `tool_call` may
+carry the tool name and arguments, and an `error` may carry a stack trace.
 
-```typescript
-{
-  provenance: {
-    actor: "alice@example.com",
-    timestamp: "2024-01-15T10:30:00Z",
-    source: "manual",
-    environment: {
-      os: "darwin",
-      shell: "zsh",
-      cwd: "/Users/alice/project"
-    }
-  }
-}
-```
+Provenance is also where retrieval explainability comes from: it travels with
+the observation so you can always answer "where did this come from?".
 
-Provenance enables:
+## Scope
 
-- Attribution
-- Timeline reconstruction
-- Audit trails
+Every observation carries a `ScopeIds` record. All fields are optional, so an
+observation can be globally visible or narrowly scoped:
 
-## Relationships
+| Field       | Meaning                          |
+| ----------- | -------------------------------- |
+| `sessionId` | The session that produced it.    |
+| `repoId`    | The repository it belongs to.    |
+| `agentId`   | The agent that produced it.      |
+| `userId`    | The user it belongs to.          |
+| `taskId`    | The task it belongs to.          |
 
-Observations can reference each other:
+Scope is how [search](/kindling/concepts/retrieval) is narrowed:
 
 ```bash
-kindling observe "Follow-up: see obs_abc123 for root cause" --related obs_abc123
+kindling log "rate limit is 100 req/min" --session s-1 --repo ./my-project
+kindling search "rate limit" --session s-1 --repo ./my-project
 ```
 
----
+## Capturing observations
 
-**Next:** [Storage →](/kindling/concepts/storage)
+```bash
+# Manually
+kindling log --kind error "JWT validation failed: token expired"
+
+# Attached to an open capsule
+kindling log --capsule cap_8a3f… "found the root cause"
+```
+
+Adapters capture them automatically — see [Automatic
+Capture](/kindling/quickstart/automatic-capture).
+
+## Forgetting
+
+To redact an observation, use its exact ID:
+
+```bash
+kindling forget <observation-id>
+```
+
+This sets `redacted: true` and masks the content. The record remains (so
+history stays consistent), but it is excluded from results unless redacted
+items are explicitly requested.
+
+## Next
+
+- [Capsules — grouping observations →](/kindling/concepts/capsules)
+- [Retrieval — getting them back →](/kindling/concepts/retrieval)

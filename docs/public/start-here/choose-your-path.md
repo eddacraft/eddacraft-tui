@@ -45,7 +45,7 @@ You need to capture session context and turn it into reusable team knowledge.
 | Goal                                 | Start here                                              |
 | ------------------------------------ | ------------------------------------------------------- |
 | Get Kindling running                 | [Install Kindling](/kindling/quickstart/install)        |
-| Create your first capsule            | [Create a Capsule](/kindling/quickstart/create-capsule) |
+| Capture your first memory            | [Your First Memory](/kindling/quickstart/first-memory) |
 | Connect to your workflow             | [Custom Adapters](/kindling/adapters/custom)            |
 | Understand the data model            | [Observations](/kindling/concepts/observations)         |
 | Understand review + canonical memory | [Memory System Overview](/edda-stack/overview)          |

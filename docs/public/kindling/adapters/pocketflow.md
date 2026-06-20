@@ -2,7 +2,7 @@
 id: pocketflow
 title: PocketFlow Adapter
 description: Capture workflow node executions as Kindling observations.
-sidebar_position: 2
+sidebar_position: 3
 ---
 
 # PocketFlow Adapter
@@ -12,6 +12,8 @@ The PocketFlow adapter integrates Kindling with
 run automatically gets its own capsule, and the full lifecycle (start, output,
 error, end) is captured as observations with intent inference and confidence
 tracking.
+
+It is a TypeScript package that builds on `@eddacraft/kindling`:
 
 ```bash
 npm install @eddacraft/kindling-adapter-pocketflow
@@ -195,6 +197,6 @@ const tracker = new ConfidenceTracker({
 });
 ```
 
----
+## Next
 
-**Next:** [Custom Adapters ->](/kindling/adapters/custom)
+- [Build a custom integration →](/kindling/adapters/custom)

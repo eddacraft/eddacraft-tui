@@ -1,11 +1,4 @@
 {
-  "metadata": {},
-  "tags": {
-    "plans/archive/modules/ink-to-ratatui-port.aps.md": [
-      "malformed tag \"overlaps with RATS-002 (watch dashboard) — this task ports the Ink\" (expected lowercase kebab-case, e.g. \"agent\" or \"cross-platform\")",
-      "malformed tag \"overlaps with RATS-003 (gate result viewer) — coordinate scope\" (expected lowercase kebab-case, e.g. \"agent\" or \"cross-platform\")"
-    ]
-  },
   "links": {
     "docs/architecture/kernel-benchmarking-spec.md": [
       "broken link \"../../plans/modules/rust-kernel.aps.md\" — target file does not exist"
@@ -128,7 +121,9 @@
       "broken link \"../planning/MONITOR_FEATURE.md\" — target file does not exist",
       "broken link \"../planning/PLAN.md\" — target file does not exist"
     ],
-    "docs/archive/status/README.md": ["broken link \"../INDEX.md\" — target file does not exist"],
+    "docs/archive/status/README.md": [
+      "broken link \"../INDEX.md\" — target file does not exist"
+    ],
     "docs/guides/command-safety.md": [
       "broken anchor \"../architecture/overview.md#gate-layer\" — file exists but heading \"#gate-layer\" not found"
     ],
@@ -303,8 +298,25 @@
     "docs/public/edda-stack/roadmap.md": [
       "broken link \"/edda-stack/overview\" — target file does not exist"
     ],
+    "docs/public/kindling/adapters/claude-code.md": [
+      "broken link \"/kindling/adapters/opencode\" — target file does not exist",
+      "broken link \"/kindling/concepts/retrieval\" — target file does not exist",
+      "broken link \"/kindling/concepts/storage\" — target file does not exist",
+      "broken link \"/kindling/quickstart/install\" — target file does not exist",
+      "broken link \"/kindling/reference/config\" — target file does not exist"
+    ],
     "docs/public/kindling/adapters/custom.md": [
-      "broken link \"/kindling/commands/memory\" — target file does not exist"
+      "broken link \"/kindling/adapters/claude-code\" — target file does not exist",
+      "broken link \"/kindling/adapters/opencode\" — target file does not exist",
+      "broken link \"/kindling/adapters/opencode#content-filtering\" — target file does not exist",
+      "broken link \"/kindling/adapters/pocketflow\" — target file does not exist",
+      "broken link \"/kindling/concepts/capsules\" — target file does not exist",
+      "broken link \"/kindling/concepts/observations\" — target file does not exist",
+      "broken link \"/kindling/concepts/observations#kinds\" — target file does not exist",
+      "broken link \"/kindling/concepts/retrieval\" — target file does not exist",
+      "broken link \"/kindling/concepts/storage#the-daemon\" — target file does not exist",
+      "broken link \"/kindling/reference/cli\" — target file does not exist",
+      "broken link \"/kindling/reference/crates\" — target file does not exist"
     ],
     "docs/public/kindling/adapters/opencode.md": [
       "broken link \"/kindling/adapters/pocketflow\" — target file does not exist"
@@ -312,44 +324,80 @@
     "docs/public/kindling/adapters/pocketflow.md": [
       "broken link \"/kindling/adapters/custom\" — target file does not exist"
     ],
-    "docs/public/kindling/commands/memory.md": [
-      "broken link \"/kindling/reference/formats\" — target file does not exist"
-    ],
     "docs/public/kindling/concepts/capsules.md": [
-      "broken link \"/kindling/concepts/observations\" — target file does not exist"
-    ],
-    "docs/public/kindling/concepts/observations.md": [
+      "broken link \"/kindling/adapters/claude-code\" — target file does not exist",
+      "broken link \"/kindling/adapters/opencode\" — target file does not exist",
+      "broken link \"/kindling/adapters/pocketflow\" — target file does not exist",
+      "broken link \"/kindling/concepts/observations\" — target file does not exist",
+      "broken link \"/kindling/concepts/retrieval\" — target file does not exist",
       "broken link \"/kindling/concepts/storage\" — target file does not exist"
     ],
+    "docs/public/kindling/concepts/observations.md": [
+      "broken link \"/kindling/adapters/claude-code\" — target file does not exist",
+      "broken link \"/kindling/adapters/opencode\" — target file does not exist",
+      "broken link \"/kindling/adapters/pocketflow\" — target file does not exist",
+      "broken link \"/kindling/concepts/capsules\" — target file does not exist",
+      "broken link \"/kindling/concepts/retrieval\" — target file does not exist",
+      "broken link \"/kindling/quickstart/automatic-capture\" — target file does not exist"
+    ],
     "docs/public/kindling/concepts/retrieval.md": [
-      "broken link \"/kindling/adapters/custom\" — target file does not exist"
+      "broken link \"/kindling/concepts/capsules#close\" — target file does not exist",
+      "broken link \"/kindling/concepts/storage\" — target file does not exist",
+      "broken link \"/kindling/reference/cli#search\" — target file does not exist"
     ],
     "docs/public/kindling/concepts/storage.md": [
-      "broken link \"/kindling/concepts/retrieval\" — target file does not exist"
+      "broken link \"/kindling/concepts/retrieval\" — target file does not exist",
+      "broken link \"/kindling/reference/config\" — target file does not exist",
+      "broken link \"/kindling/reference/crates\" — target file does not exist",
+      "broken link \"/kindling/reference/formats\" — target file does not exist"
     ],
     "docs/public/kindling/overview.md": [
-      "broken link \"/kindling/quickstart/install\" — target file does not exist"
+      "broken link \"/kindling/concepts/observations\" — target file does not exist",
+      "broken link \"/kindling/quickstart/first-memory\" — target file does not exist",
+      "broken link \"/kindling/quickstart/install\" — target file does not exist",
+      "broken link \"/kindling/reference/cli\" — target file does not exist"
     ],
-    "docs/public/kindling/quickstart/create-capsule.md": [
-      "broken link \"/kindling/quickstart/write-observations\" — target file does not exist"
+    "docs/public/kindling/quickstart/automatic-capture.md": [
+      "broken link \"/kindling/adapters/claude-code\" — target file does not exist",
+      "broken link \"/kindling/adapters/custom\" — target file does not exist",
+      "broken link \"/kindling/adapters/opencode\" — target file does not exist",
+      "broken link \"/kindling/adapters/pocketflow\" — target file does not exist",
+      "broken link \"/kindling/concepts/capsules\" — target file does not exist",
+      "broken link \"/kindling/quickstart/install\" — target file does not exist",
+      "broken link \"/kindling/reference/crates\" — target file does not exist"
+    ],
+    "docs/public/kindling/quickstart/first-memory.md": [
+      "broken link \"/kindling/concepts/observations\" — target file does not exist",
+      "broken link \"/kindling/concepts/retrieval\" — target file does not exist",
+      "broken link \"/kindling/quickstart/automatic-capture\" — target file does not exist",
+      "broken link \"/kindling/quickstart/install\" — target file does not exist",
+      "broken link \"/kindling/reference/cli\" — target file does not exist"
     ],
     "docs/public/kindling/quickstart/install.md": [
-      "broken link \"/kindling/quickstart/create-capsule\" — target file does not exist"
-    ],
-    "docs/public/kindling/quickstart/search-export.md": [
-      "broken link \"/kindling/concepts/capsules\" — target file does not exist"
-    ],
-    "docs/public/kindling/quickstart/write-observations.md": [
-      "broken link \"/kindling/quickstart/search-export\" — target file does not exist"
-    ],
-    "docs/public/kindling/reference/cli.md": [
+      "broken link \"/kindling/concepts/storage\" — target file does not exist",
+      "broken link \"/kindling/quickstart/automatic-capture\" — target file does not exist",
+      "broken link \"/kindling/quickstart/first-memory\" — target file does not exist",
       "broken link \"/kindling/reference/config\" — target file does not exist"
     ],
+    "docs/public/kindling/reference/cli.md": [
+      "broken link \"/kindling/adapters/claude-code\" — target file does not exist",
+      "broken link \"/kindling/concepts/retrieval\" — target file does not exist",
+      "broken link \"/kindling/concepts/storage#the-daemon\" — target file does not exist",
+      "broken link \"/kindling/reference/config\" — target file does not exist",
+      "broken link \"/kindling/reference/formats\" — target file does not exist"
+    ],
     "docs/public/kindling/reference/config.md": [
-      "broken link \"/kindling/overview\" — target file does not exist"
+      "broken link \"/kindling/concepts/storage\" — target file does not exist",
+      "broken link \"/kindling/concepts/storage#the-daemon\" — target file does not exist",
+      "broken link \"/kindling/reference/cli\" — target file does not exist"
+    ],
+    "docs/public/kindling/reference/crates.md": [
+      "broken link \"/kindling/adapters/custom\" — target file does not exist"
     ],
     "docs/public/kindling/reference/formats.md": [
-      "broken link \"/kindling/reference/cli\" — target file does not exist"
+      "broken link \"/kindling/concepts/observations\" — target file does not exist",
+      "broken link \"/kindling/concepts/observations#kinds\" — target file does not exist",
+      "broken link \"/kindling/reference/cli#export\" — target file does not exist"
     ],
     "docs/public/start-here/choose-your-path.md": [
       "broken link \"/anvil/first-project\" — target file does not exist",
@@ -369,7 +417,7 @@
       "broken link \"/kindling/adapters/custom\" — target file does not exist",
       "broken link \"/kindling/concepts/observations\" — target file does not exist",
       "broken link \"/kindling/overview\" — target file does not exist",
-      "broken link \"/kindling/quickstart/create-capsule\" — target file does not exist",
+      "broken link \"/kindling/quickstart/first-memory\" — target file does not exist",
       "broken link \"/kindling/quickstart/install\" — target file does not exist"
     ],
     "docs/public/start-here/what-is-eddacraft.md": [
@@ -437,7 +485,6 @@
       "broken link \"../../docs/runbooks/main-first-cutover.md\" — target file does not exist",
       "broken link \"../aps-rules.md#cross-cutting-modules\" — target file does not exist",
       "broken link \"../audits/2026-05-11-opmodel-012-workflow-audit.md\" — target file does not exist",
-      "broken link \"../execution/opmodel-012.steps.md\" — target file does not exist",
       "broken link \"../specs/2026-05-09-agentic-execution-ecosystem-architecture.md\" — target file does not exist",
       "broken link \"../specs/2026-05-09-council-agent-skill-change-proposal.md\" — target file does not exist",
       "broken link \"../specs/2026-05-09-plan-build-release-operating-model.md\" — target file does not exist",
@@ -531,6 +578,13 @@
     ],
     "plans/specs/anvil-driver-framework/editor-and-mcp-driver-design.md": [
       "broken link \"../../modules/rust-mcp-launch-shim.aps.md\" — target file does not exist"
+    ]
+  },
+  "metadata": {},
+  "tags": {
+    "plans/archive/modules/ink-to-ratatui-port.aps.md": [
+      "malformed tag \"overlaps with RATS-002 (watch dashboard) — this task ports the Ink\" (expected lowercase kebab-case, e.g. \"agent\" or \"cross-platform\")",
+      "malformed tag \"overlaps with RATS-003 (gate result viewer) — coordinate scope\" (expected lowercase kebab-case, e.g. \"agent\" or \"cross-platform\")"
     ]
   },
   "asbuilt-paths": {}

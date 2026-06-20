@@ -1,229 +1,68 @@
 ---
 id: config
 title: Configuration
-description: Kindling configuration reference.
-sidebar_position: 3
+description: Environment variables, data locations, and how kindling resolves them.
+sidebar_position: 2
 ---
 
 # Configuration
 
-Complete configuration reference for Kindling.
+Kindling is configured by **flags and environment variables**, not a config
+file. There is no `config.json` to manage — the defaults are derived from your
+home directory and the current project.
 
-## Configuration File
+## Database path resolution
 
-Location: `~/.kindling/config.json`
+When a command needs a database, kindling resolves the path in this order:
 
-```json
-{
-  "version": "1.0",
-  "dataDir": "~/.kindling",
-  "defaultCapsule": "default",
-  "storage": {
-    "type": "sqlite"
-  },
-  "search": {
-    "defaultLimit": 20,
-    "highlightMatches": true
-  },
-  "adapters": {},
-  "aliases": {}
-}
-```
+1. an explicit **`--db <path>`** flag;
+2. the **`KINDLING_DB_PATH`** environment variable;
+3. the **per-project default** under the kindling home —
+   `<kindling_home>/projects/<hash>/kindling.db`, where `<hash>` is the first 12
+   hex characters of the SHA-256 of the project root path.
 
-## Core Settings
+The kindling home is `~/.kindling` by default (resolved from `HOME`, or
+`USERPROFILE` on Windows). See [Storage](/kindling/concepts/storage) for the
+full directory layout.
 
-### dataDir
+## Environment variables
 
-Directory for Kindling data.
+| Variable               | Default                       | Effect                                                                 |
+| ---------------------- | ----------------------------- | ---------------------------------------------------------------------- |
+| `KINDLING_DB_PATH`     | per-project default           | Explicit database path. Overridden only by `--db`.                     |
+| `KINDLING_SOCK`        | `~/.kindling/kindling.sock`   | Daemon Unix domain socket path (used by clients and hooks).            |
+| `KINDLING_REPO_ROOT`   | detected from cwd             | Override the project root used to pick the database. Applied only when the working directory is under it (prevents cross-project leakage). |
+| `KINDLING_MAX_CONTEXT` | `10`                          | Maximum recent observations injected on Claude Code `SessionStart`.    |
 
-```json
-{ "dataDir": "~/.kindling" }
-```
+`HOME` (or `USERPROFILE` on Windows) is used to locate the kindling home when no
+explicit path is given.
 
-Or use environment:
+## Daemon configuration
 
-```bash
-export KINDLING_DATA_DIR=/path/to/data
-```
+The [daemon](/kindling/concepts/storage#the-daemon) is configured via `serve`
+flags rather than environment:
 
-### defaultCapsule
+| Flag                    | Default                       |
+| ----------------------- | ----------------------------- |
+| `--socket <path>`       | `~/.kindling/kindling.sock`   |
+| `--idle-timeout <secs>` | `1800` (30 minutes)           |
+| `--kindling-home <path>`| `~/.kindling`                 |
 
-Default capsule for operations.
+By convention the daemon also writes a PID file at
+`~/.kindling/kindling.pid`.
 
-```json
-{ "defaultCapsule": "my-project" }
-```
+## Choosing in-process vs daemon
 
-### version
-
-Config schema version.
-
-```json
-{ "version": "1.0" }
-```
-
-## Storage Settings
-
-### sqlite (default)
-
-```json
-{
-  "storage": {
-    "type": "sqlite",
-    "options": {
-      "journalMode": "wal",
-      "synchronous": "normal"
-    }
-  }
-}
-```
-
-### json
-
-```json
-{
-  "storage": {
-    "type": "json",
-    "options": {
-      "pretty": true
-    }
-  }
-}
-```
-
-## Search Settings
-
-```json
-{
-  "search": {
-    "defaultLimit": 20,
-    "highlightMatches": true,
-    "fuzzyMatch": false,
-    "caseSensitive": false
-  }
-}
-```
-
-| Option             | Type    | Default | Description           |
-| ------------------ | ------- | ------- | --------------------- |
-| `defaultLimit`     | number  | 20      | Default result limit  |
-| `highlightMatches` | boolean | true    | Highlight matches     |
-| `fuzzyMatch`       | boolean | false   | Enable fuzzy matching |
-| `caseSensitive`    | boolean | false   | Case-sensitive search |
-
-## Adapter Settings
-
-Per-adapter configuration:
-
-```json
-{
-  "adapters": {
-    "opencode": {
-      "enabled": true,
-      "capsule": "coding-sessions",
-      "capture": {
-        "decisions": true,
-        "discoveries": true
-      }
-    },
-    "pocketflow": {
-      "enabled": true,
-      "defaultCapsule": "workflows"
-    }
-  }
-}
-```
-
-## Aliases
-
-Command shortcuts:
-
-```json
-{
-  "aliases": {
-    "/m": "memory",
-    "/ma": "memory add",
-    "/ms": "memory search",
-    "obs": "observe",
-    "s": "search"
-  }
-}
-```
-
-## Display Settings
-
-```json
-{
-  "display": {
-    "dateFormat": "relative",
-    "colors": true,
-    "maxContentLength": 200,
-    "showTags": true,
-    "showSource": true
-  }
-}
-```
-
-| Option             | Values                     | Description      |
-| ------------------ | -------------------------- | ---------------- |
-| `dateFormat`       | `relative`, `iso`, `local` | Timestamp format |
-| `colors`           | boolean                    | ANSI colors      |
-| `maxContentLength` | number                     | Truncate content |
-| `showTags`         | boolean                    | Display tags     |
-| `showSource`       | boolean                    | Display source   |
-
-## Export Settings
-
-```json
-{
-  "export": {
-    "defaultFormat": "markdown",
-    "includeMetadata": true,
-    "dateFormat": "iso"
-  }
-}
-```
-
-## Environment Variables
-
-| Variable                   | Description      |
-| -------------------------- | ---------------- |
-| `KINDLING_DATA_DIR`        | Data directory   |
-| `KINDLING_CONFIG`          | Config file path |
-| `KINDLING_DEFAULT_CAPSULE` | Default capsule  |
-| `KINDLING_NO_COLOR`        | Disable colors   |
-| `KINDLING_VERBOSE`         | Verbose output   |
-
-## Project-Local Config
-
-Create `.kindling/config.json` in project root:
-
-```json
-{
-  "defaultCapsule": "project-local",
-  "storage": {
-    "type": "sqlite",
-    "path": ".kindling/observations.db"
-  }
-}
-```
-
-This overrides global settings for the project.
-
-## Config Validation
-
-Validate configuration:
+By default the CLI opens the database **in-process**. To route the
+daemon-backed verbs (`log`, `capsule`, `search`, `pin`, `unpin`, `forget`)
+through the running daemon instead — for safe concurrent access from multiple
+tools — pass the global `--via-daemon` flag:
 
 ```bash
-kindling config validate
+kindling --via-daemon search "auth"
 ```
 
-Reset to defaults:
+## Next
 
-```bash
-kindling config reset
-```
-
----
-
-**Back to:** [Kindling Overview →](/kindling/overview)
+- [Storage layout →](/kindling/concepts/storage)
+- [Full CLI reference →](/kindling/reference/cli)

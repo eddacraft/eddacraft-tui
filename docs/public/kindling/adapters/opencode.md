@@ -2,7 +2,7 @@
 id: opencode
 title: OpenCode Adapter
 description: Capture observations from OpenCode development sessions.
-sidebar_position: 1
+sidebar_position: 2
 ---
 
 # OpenCode Adapter
@@ -11,6 +11,8 @@ The OpenCode adapter captures observations from [OpenCode](https://opencode.ai)
 development sessions. It maps OpenCode events to Kindling observations, manages
 session capsule lifecycles, and includes content filtering with automatic secret
 redaction.
+
+It is a TypeScript package that builds on `@eddacraft/kindling`:
 
 ```bash
 npm install @eddacraft/kindling-adapter-opencode
@@ -167,6 +169,6 @@ from within OpenCode sessions:
 - **forget** — Remove observations or capsules
 - **export** — Export capsule contents
 
----
+## Next
 
-**Next:** [PocketFlow Adapter →](/kindling/adapters/pocketflow)
+- [PocketFlow adapter →](/kindling/adapters/pocketflow)

@@ -1,219 +1,132 @@
 ---
 id: retrieval
 title: Retrieval
-description: Philosophy and methods for retrieving observations.
-sidebar_position: 4
+description: Deterministic, explainable three-tier retrieval — pins, current summary, and ranked hits.
+sidebar_position: 3
 ---
 
 # Retrieval
 
-How to get knowledge back out of Kindling.
+Retrieval is where Kindling earns its keep: getting the right context back out,
+predictably. It is **mechanical and explainable** — full-text search over what
+you actually stored, with a fixed ranking order and provenance on every result.
+There are no embeddings and no opaque relevance model.
 
-## Retrieval Philosophy
+## The three tiers
 
-Kindling follows a **mechanical-first** approach:
+A single retrieval returns results in three tiers, always in this order:
 
-1. **Exact search** — find what you explicitly stored
-2. **Filtered search** — narrow by tags, dates, kinds
-3. **Full-text search** — find by content keywords
-4. **AI-assisted** — optional semantic search (future)
+1. **Pins** — user-marked priority items. Non-evictable; always first.
+2. **Current summary** — the active session/capsule summary, when one applies.
+3. **Candidates** — ranked full-text search hits over observations and
+   summaries.
 
-This is intentional. You should find exactly what you stored, not what an
-algorithm thinks you want.
+```
+kindling search "authentication token"
+        │
+        ├─ Pins              (always returned, never evicted)
+        ├─ Current Summary   (active context, if present)
+        └─ Candidates        (ranked FTS hits, with scores + provenance)
+```
 
-## Search Methods
+### Pins
 
-### Exact Match
+Pins are how you guarantee something is always surfaced. Pin an observation or a
+summary by ID:
 
 ```bash
-kindling search "rate limit"
+kindling pin observation <id> --note "root cause — keep handy"
+kindling pin summary <id>
+kindling unpin <pin-id>
 ```
 
-Returns observations containing "rate limit".
+A pin may carry a `--note` explaining why it matters and an optional `--ttl`
+(in milliseconds) after which it expires.
 
-### Tag Filter
+### Current summary
 
-```bash
-kindling search --tag api --tag security
-```
+When a relevant capsule has a summary (produced on
+[close](/kindling/concepts/capsules#close)), it is returned as the current
+summary — the distilled conclusion of an episode of work, surfaced ahead of raw
+observations.
 
-Returns observations with both tags.
+### Candidates
 
-### Kind Filter
+Everything else is ranked full-text search over observation and summary content,
+backed by SQLite FTS5. Each candidate carries a relevance `score` and an
+optional `matchContext` snippet showing _why_ it matched.
 
-```bash
-kindling search --kind gotcha
-```
+## Result shape
 
-Returns all gotchas.
-
-### Date Range
-
-```bash
-kindling search --since 2024-01-01 --until 2024-01-31
-```
-
-### Combined
-
-```bash
-kindling search "authentication" \
-  --capsule auth-project \
-  --tag security \
-  --kind gotcha \
-  --since 30d
-```
-
-## Search Syntax
-
-### Boolean Operators
-
-```bash
-# AND (implicit)
-kindling search "rate limit"
-
-# OR
-kindling search "rate OR limit"
-
-# NOT
-kindling search "api -deprecated"
-```
-
-### Exact Phrase
-
-```bash
-kindling search '"Content-Type header"'
-```
-
-### Wildcard
-
-```bash
-kindling search "auth*"  # auth, authentication, authorise
-```
-
-## Result Ranking
-
-Results are ordered by:
-
-1. **Recency** — newer observations first
-2. **Match quality** — exact matches over partial
-3. **Relevance** — title matches over body
-
-Override with:
-
-```bash
-kindling search "api" --sort created-asc
-kindling search "api" --sort relevance
-```
-
-## Retrieval Use Cases
-
-### During Development
-
-Quick lookup:
-
-```bash
-kindling search "error code 422"
-```
-
-### For Documentation
-
-Export for README:
-
-```bash
-kindling search --tag api-docs --export markdown
-```
-
-### For AI Context
-
-Generate LLM context:
-
-```bash
-kindling export --capsule current-project --format context
-```
-
-Output:
-
-```
-Relevant context from development:
-- The API uses OAuth2 with PKCE flow
-- Rate limit is 100 requests per minute
-- Errors include request ID in X-Request-ID header
-```
-
-### For Code Review
-
-Find related decisions:
-
-```bash
-kindling search --kind decision --since 7d
-```
-
-## Proactive Retrieval
-
-### Watch Mode (Future)
-
-Kindling watches your work and surfaces relevant observations:
-
-```
-You're editing: src/auth/login.ts
-
-Related observations:
-- "JWT tokens expire after 1 hour"
-- "Always validate token signature server-side"
-```
-
-### MCP Integration
-
-AI assistants can query Kindling:
-
-```json
-{
-  "tool": "kindling_search",
-  "arguments": {
-    "query": "authentication",
-    "capsule": "current-project"
-  }
+```typescript
+interface RetrieveResult {
+  pins: { pin: Pin; target: Observation | Summary }[];
+  currentSummary?: Summary;
+  candidates: {
+    entity: Observation | Summary;
+    score: number;
+    matchContext?: string;
+  }[];
+  provenance: {
+    query: string;
+    scopeIds: ScopeIds;
+    totalCandidates: number;
+    returnedCandidates: number;
+    truncatedDueToTokenBudget: boolean;
+    providerUsed: string;
+  };
 }
 ```
 
-## When Retrieval Fails
+The `provenance` block makes every retrieval auditable: the exact query and
+scope used, how many candidates matched versus were returned, and which provider
+served the request.
 
-If you can't find something:
-
-### Check Capsule
-
-```bash
-# List all capsules
-kindling capsule list --all
-
-# Search across capsules
-kindling search "query" --all-capsules
-```
-
-### Broaden Search
+## Searching from the CLI
 
 ```bash
-# Remove filters
-kindling search "auth"  # instead of "authentication"
+# Basic search
+kindling search "authentication error"
 
-# Check similar terms
-kindling search "login OR auth OR session"
+# Narrow by scope
+kindling search "auth" --session s-1 --repo ./my-project
+
+# Cap the number of candidates (default 10)
+kindling search "auth" --max 5
 ```
 
-### Check Archived
+Human output groups results by tier:
 
-```bash
-kindling search "query" --include-archived
+```
+Search Results for: "authentication error"
+==================================================
+
+Pins (1):
+
+1. [PIN] 9c20…
+   Type: observation
+   Content: JWT validation failed: token expired
+   Note: root cause — keep handy
+
+Candidates (2):
+
+1. 5f1c… (score: 1.83)
+   Type: observation
+   Content: auth middleware rejects valid tokens after the upgrade
+   Time: 2026-06-20 10:31:04
 ```
 
-### List Recent
+Add `--json` for the full structured `RetrieveResult`, including scores and
+provenance.
 
-Sometimes browsing is easier:
+## Why mechanical retrieval
 
-```bash
-kindling recent -n 50
-```
+You should be able to find exactly what you stored, and understand why each
+result came back. Deterministic ranking plus provenance means results are
+reproducible and debuggable — important when an AI agent is consuming them as
+context rather than a human eyeballing a list.
 
----
+## Next
 
-**Next:** [Custom Adapters →](/kindling/adapters/custom)
+- [Storage — the SQLite layer behind retrieval →](/kindling/concepts/storage)
+- [CLI reference: search →](/kindling/reference/cli#search)

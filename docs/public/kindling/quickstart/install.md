@@ -1,158 +1,102 @@
 ---
 id: install
 title: Install
-description: Installing Kindling on your system.
+description: Install the kindling binary and initialise project memory.
 sidebar_position: 1
 ---
 
 # Install Kindling
 
-Get Kindling running on your system.
+Kindling ships as a single binary, `kindling`, that provides the CLI, the
+background daemon, and Claude Code hook support. Install it through whichever
+channel suits you.
 
-## Requirements
+## Install the binary
 
-- **Node.js** >= 20.19.0
-- A package manager: **pnpm**, **npm**, **yarn**, or **bun**
-
-## Installation
-
-:::info Closed beta
-
-Kindling is part of the Edda stack and currently in early access.
-[Request access](https://eddacraft.ai/#waitlist) if you don't have an invite
-yet.
-
-:::
-
-### Global Install (Recommended)
+### Rust / Cargo (canonical)
 
 ```bash
-# Using pnpm
-pnpm add -g @eddacraft/kindling
-
-# Using npm
-npm install -g @eddacraft/kindling
-
-# Using yarn
-yarn global add @eddacraft/kindling
-
-# Using bun
-bun add -g @eddacraft/kindling
-
-# Or run without installing
-npx @eddacraft/kindling --help
+cargo install kindling
 ```
 
-Verify installation:
+This builds and installs the `kindling` binary from
+[crates.io](https://crates.io/crates/kindling).
+
+### One-line installer (Linux / macOS)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/eddacraft/kindling/main/install.sh | sh
+```
+
+### npm
+
+A prebuilt-binary npm package is also published. Node.js >= 20 is required.
+
+```bash
+npm install -g @eddacraft/kindling-cli
+# or: pnpm add -g @eddacraft/kindling-cli
+# or: yarn global add @eddacraft/kindling-cli
+# or: bun add -g @eddacraft/kindling-cli
+```
+
+### Verify
 
 ```bash
 kindling --version
 ```
 
-### Project Install
+## Initialise a project
 
-Add to a project:
-
-```bash
-pnpm add -D @eddacraft/kindling
-```
-
-Run via:
-
-```bash
-pnpm kindling --help
-```
-
-## Initial Setup
-
-After installation, initialise Kindling:
+From your project directory, run:
 
 ```bash
 kindling init
 ```
 
-This creates:
-
-- `~/.kindling/` — data directory
-- `~/.kindling/config.json` — configuration
-- Default capsule — for immediate use
-
-**Output:**
+This creates the per-project database (running its migrations) under your
+kindling home:
 
 ```
-Kindling initialised.
+Kindling Setup
+==============
 
-Data directory: ~/.kindling
-Default capsule: default
+Created directory /home/you/.kindling/projects/f33aa9244af5
+Created database  /home/you/.kindling/projects/f33aa9244af5/kindling.db
+
+Kindling is ready!
 
 Next steps:
-  kindling capsule create my-project
-  kindling observe "First observation"
-  kindling search "observation"
+  kindling status     - Check database status
+  kindling search     - Search your memory
+  kindling serve      - Start the daemon
 ```
 
-## Verify Installation
+Each project gets its own database, keyed by a hash of the project root path, so
+memory never leaks between repositories. See
+[Storage](/kindling/concepts/storage) for the full layout.
 
-Test that everything works:
+### Options
+
+| Flag             | Description                                              |
+| ---------------- | -------------------------------------------------------- |
+| `--db <path>`    | Use an explicit database path instead of the per-project default. |
+| `--claude-code`  | Detect and (when available) configure Claude Code integration.    |
+| `--skip-db`      | Configure integration only; do not create the database.  |
+| `--json`         | Emit machine-readable JSON instead of human output.      |
+
+## Verify the setup
 
 ```bash
-# Create a test observation
-kindling observe "Test observation"
-
-# Search for it
-kindling search "test"
+kindling log "First observation"
+kindling search "first"
+kindling status
 ```
 
-**Expected output:**
+`kindling status` reports the database path, size, and counts of capsules,
+observations, and pins.
 
-```
-[2024-01-15T10:30:00Z] Test observation
-  Capsule: default
-  Source: manual
-```
+## Next steps
 
-## Configuration
-
-View current config:
-
-```bash
-kindling config show
-```
-
-Default configuration:
-
-```json
-{
-  "dataDir": "~/.kindling",
-  "defaultCapsule": "default",
-  "storage": {
-    "type": "sqlite"
-  }
-}
-```
-
-### Change Data Directory
-
-```bash
-kindling config set dataDir /path/to/data
-```
-
-### Change Default Capsule
-
-```bash
-kindling config set defaultCapsule my-project
-```
-
-## Uninstall
-
-```bash
-# Remove the package
-pnpm remove -g @eddacraft/kindling
-
-# Optionally remove data
-rm -rf ~/.kindling
-```
-
----
-
-**Next:** [Create a capsule →](/kindling/quickstart/create-capsule)
+- [Capture and search your first memory →](/kindling/quickstart/first-memory)
+- [Set up automatic capture →](/kindling/quickstart/automatic-capture)
+- [Configuration & data locations →](/kindling/reference/config)

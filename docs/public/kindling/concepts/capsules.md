@@ -1,210 +1,85 @@
 ---
 id: capsules
 title: Capsules
-description: Understanding Kindling capsules as containers for observations.
-sidebar_position: 1
+description: Bounded groups of observations with an intent and an open/close lifecycle.
+sidebar_position: 2
 ---
 
 # Capsules
 
-Capsules are the primary organisational unit in Kindling.
+A **capsule** is a bounded unit of meaning: a group of related observations with
+an _intent_ and a lifecycle. Where an [observation](/kindling/concepts/observations)
+records a single event, a capsule captures a whole episode of work — a session,
+or a single workflow node run.
 
-## What is a Capsule?
+## Structure
 
-A capsule is a container for related observations. Think of it as a folder for
-knowledge about a specific context:
-
-```
-Capsule: payment-integration
-├── Observation: "Stripe uses cents, not dollars"
-├── Observation: "Webhook signature verification required"
-├── Observation: "Test cards: 4242..."
-└── Observation: "Idempotency keys prevent duplicates"
-```
-
-## Why Capsules?
-
-### Bounded Context
-
-Observations make sense within their context. "Use the new API" means different
-things in different projects.
-
-Capsules provide that context.
-
-### Search Scope
-
-Searching within a capsule returns relevant results:
-
-```bash
-kindling search "API" --capsule payment-integration
-# Returns payment-related API knowledge
-
-kindling search "API" --capsule auth-system
-# Returns auth-related API knowledge
-```
-
-### Portability
-
-Each capsule is a standalone SQLite database. You can:
-
-- Back up individual capsules
-- Share capsules with teammates
-- Archive completed projects
-- Move capsules between machines
-
-## Capsule Lifecycle
-
-### 1. Create
-
-When starting new work:
-
-```bash
-kindling capsule create feature-auth
-```
-
-### 2. Use
-
-Set as active:
-
-```bash
-kindling capsule use feature-auth
-```
-
-### 3. Populate
-
-Record observations during work:
-
-```bash
-kindling observe "JWT tokens stored in httpOnly cookies"
-```
-
-### 4. Query
-
-Retrieve knowledge:
-
-```bash
-kindling search "cookie"
-```
-
-### 5. Archive
-
-When work completes:
-
-```bash
-kindling capsule archive feature-auth
-```
-
-### 6. Export (Optional)
-
-Extract for documentation:
-
-```bash
-kindling export --capsule feature-auth --format markdown
-```
-
-## Capsule Types
-
-### Global Capsules
-
-Stored in `~/.kindling/capsules/`:
-
-```bash
-kindling capsule create my-capsule
-```
-
-Available everywhere on your machine.
-
-### Project-Local Capsules
-
-Stored in project directory:
-
-```bash
-kindling capsule create --local .
-```
-
-Creates `.kindling/` in current directory. Benefits:
-
-- Version controlled
-- Team shared
-- Project-specific
-
-### Temporary Capsules
-
-For throwaway exploration:
-
-```bash
-kindling capsule create --temp
-```
-
-Automatically deleted after 24 hours.
-
-## Capsule Metadata
-
-Each capsule stores metadata:
-
-```json
-{
-  "name": "payment-integration",
-  "created": "2024-01-10T09:00:00Z",
-  "lastUpdated": "2024-01-15T16:30:00Z",
-  "observationCount": 42,
-  "status": "active",
-  "tags": ["project:shop", "team:payments"]
+```typescript
+interface Capsule {
+  id: string;             // unique identifier
+  type: CapsuleType;      // "session" | "pocketflow_node"
+  intent: string;         // why this capsule exists
+  status: CapsuleStatus;  // "open" | "closed"
+  openedAt: number;       // epoch milliseconds
+  closedAt?: number;      // set when closed
+  scopeIds: ScopeIds;     // session / repo / agent / user / task
+  observationIds: string[]; // members, in order
+  summaryId?: string;     // summary produced on close
 }
 ```
 
-### Custom Metadata
+## Types
 
-Add project-specific metadata:
+| Type              | Created by                                                      |
+| ----------------- | --------------------------------------------------------------- |
+| `session`         | Interactive development sessions — the CLI default, and what the [Claude Code](/kindling/adapters/claude-code) and [OpenCode](/kindling/adapters/opencode) adapters open. |
+| `pocketflow_node` | A single [PocketFlow](/kindling/adapters/pocketflow) workflow node execution. |
 
-```bash
-kindling capsule set payment-integration \
-  --meta project=shop \
-  --meta team=payments
-```
+## Intent
 
-## Best Practices
+Every capsule has an `intent` — a short statement of _why_ it exists
+("investigating the memory leak", "implement token refresh"). Intent is
+required when opening a capsule and helps organise and rank retrieved context.
 
-### One Capsule Per Context
+## Lifecycle
 
-```bash
-# ✓ Good: specific context
-kindling capsule create api-v2-migration
-kindling capsule create security-audit-2024
+Capsules move through two states: **open** → **closed**.
 
-# ✗ Avoid: too broad
-kindling capsule create work
-kindling capsule create notes
-```
-
-### Descriptive Names
+### Open
 
 ```bash
-# ✓ Good: descriptive
-kindling capsule create stripe-integration
-kindling capsule create auth-refresh-tokens
-
-# ✗ Avoid: cryptic
-kindling capsule create proj1
-kindling capsule create temp
+kindling capsule open --intent "debug authentication issue" --repo ./my-project
 ```
 
-### Archive When Done
+`--type` defaults to `session`. While a capsule is open, observations can be
+attached to it with `kindling log --capsule <id>`.
 
-Don't delete—archive. You might need it later:
+### Close
 
 ```bash
-kindling capsule archive completed-feature
+kindling capsule close <id> --summary "Fixed JWT expiration check in middleware"
 ```
 
-### Review Periodically
+Closing records `closedAt` and, when a summary is provided, attaches it as the
+capsule's summary. That summary feeds the **current summary** tier of
+[retrieval](/kindling/concepts/retrieval), so a closed capsule's conclusion
+surfaces ahead of raw observations.
 
-List capsules and clean up:
+## Scope
+
+Like observations, capsules carry a `ScopeIds` record (`sessionId`, `repoId`,
+`agentId`, `userId`, `taskId`). Scope set on a capsule is how its work is later
+isolated during search.
+
+## Listing capsules
 
 ```bash
-kindling capsule list --all
+kindling list capsules                 # all
+kindling list capsules --status open   # only open
+kindling list capsules --repo ./my-project
 ```
 
----
+## Next
 
-**Next:** [Observations →](/kindling/concepts/observations)
+- [Retrieval — pins, summaries, and ranked hits →](/kindling/concepts/retrieval)
+- [Storage — where capsules live →](/kindling/concepts/storage)

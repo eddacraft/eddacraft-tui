@@ -1,221 +1,104 @@
 ---
 id: storage
 title: Storage
-description: How Kindling stores observations.
-sidebar_position: 3
+description: How and where Kindling stores memory — per-project SQLite with WAL and FTS5.
+sidebar_position: 4
 ---
 
 # Storage
 
-Kindling uses simple, portable storage by default.
+Kindling stores everything locally in SQLite. There is no server to run, no
+account, and no network dependency — memory is just files on your machine.
 
-## SQLite Storage
+## Per-project databases
 
-Each capsule is a SQLite database:
-
-```
-~/.kindling/
-├── capsules/
-│   ├── project-alpha.db
-│   ├── auth-refactor.db
-│   └── default.db
-└── config.json
-```
-
-### Why SQLite?
-
-- **No server required** — just files
-- **Portable** — copy/move databases freely
-- **Reliable** — battle-tested, ACID compliant
-- **Queryable** — SQL when you need it
-- **Compact** — efficient storage
-
-### Database Schema
-
-```sql
-CREATE TABLE observations (
-  id TEXT PRIMARY KEY,
-  content TEXT NOT NULL,
-  kind TEXT NOT NULL,
-  tags TEXT,  -- JSON array
-  source TEXT,  -- JSON object
-  context TEXT,  -- JSON object
-  created_at TEXT NOT NULL,
-  updated_at TEXT
-);
-
-CREATE INDEX idx_observations_kind ON observations(kind);
-CREATE INDEX idx_observations_created ON observations(created_at);
-
--- Full-text search
-CREATE VIRTUAL TABLE observations_fts USING fts5(
-  content,
-  tags,
-  content='observations'
-);
-```
-
-## File Locations
-
-### Global Data
+Each project gets its own database, so memory never bleeds between repositories.
+Databases live under your **kindling home** (`~/.kindling` by default), keyed by
+a stable hash of the project root path:
 
 ```
 ~/.kindling/
-├── capsules/           # Capsule databases
-├── config.json         # Global configuration
-└── cache/              # Search index cache
+├── projects/
+│   ├── f33aa9244af5/
+│   │   └── kindling.db      # one project
+│   └── 9b1c0e7a42d1/
+│       └── kindling.db      # another project
+├── kindling.sock            # daemon Unix domain socket
+└── kindling.pid             # daemon PID file
 ```
 
-### Project-Local Data
+The `<hash>` is the first 12 hex characters of the SHA-256 of the project root
+path. The CLI, the daemon, and the Claude Code hooks all derive the same hash
+for the same project, so they share one database.
 
-```
-project/
-├── .kindling/
-│   └── local.db        # Project capsule
-└── ...
-```
+## SQLite with WAL and FTS5
 
-### Custom Location
+Each `kindling.db` is a standard SQLite database using:
 
-Configure in `config.json`:
+- **WAL (write-ahead logging)** for safe concurrent access — multiple tools
+  (and the daemon) can read and write at once.
+- **FTS5 full-text search** over observation and summary content, which powers
+  the ranked candidate tier of [retrieval](/kindling/concepts/retrieval).
 
-```json
-{
-  "dataDir": "/path/to/kindling/data"
-}
-```
+Because it is plain SQLite, a database is portable: copy the file to back it up,
+move it between machines, or inspect it with any SQLite tool.
 
-Or via environment:
+## The daemon
+
+For concurrent, multi-tool access, Kindling runs a background **daemon** that
+owns the databases and serves requests over a Unix domain socket (HTTP/1 over
+UDS):
 
 ```bash
-export KINDLING_DATA_DIR=/path/to/data
+kindling serve
 ```
 
-## Backup
+```
+kindling home: /home/you/.kindling
+listening on /home/you/.kindling/kindling.sock
+```
 
-### Manual Backup
+The daemon routes each request to the right per-project database using the
+project root supplied by the caller. Clients (including
+[`kindling-client`](/kindling/reference/crates)) auto-spawn the daemon on first
+use if it is not already running, and it shuts itself down after an idle
+timeout (default 30 minutes).
+
+CLI verbs run **in-process** against the database by default. Pass
+`--via-daemon` to route the daemon-backed verbs (`log`, `capsule`, `search`,
+`pin`, `unpin`, `forget`) through the running daemon instead — useful when
+several tools touch the same project at once.
+
+## Choosing the database path
+
+Kindling resolves which database to use in this order:
+
+1. an explicit `--db <path>` flag;
+2. the `KINDLING_DB_PATH` environment variable;
+3. the per-project default under the kindling home.
+
+See [Configuration](/kindling/reference/config) for all environment variables
+and paths.
+
+## Backup, restore, and migration
+
+The portable option is the export bundle:
 
 ```bash
-# Backup single capsule
-cp ~/.kindling/capsules/my-project.db ~/backups/
-
-# Backup all
-cp -r ~/.kindling ~/backups/kindling-$(date +%Y%m%d)
+kindling export ./backup.json --pretty   # whole store (or --session / --repo)
+kindling import ./backup.json
 ```
 
-### Export Backup
+Or copy the SQLite file directly:
 
 ```bash
-kindling export --all --format json > kindling-backup.json
+cp ~/.kindling/projects/f33aa9244af5/kindling.db ~/backups/
 ```
 
-### Restore
+Schema migrations run automatically when a database is opened (including on
+`kindling init`), so upgrading the binary keeps existing databases current.
 
-```bash
-kindling import kindling-backup.json
-```
+## Next
 
-## Migration
-
-### Between Machines
-
-```bash
-# On source machine
-cp ~/.kindling/capsules/my-project.db /transfer/
-
-# On target machine
-cp /transfer/my-project.db ~/.kindling/capsules/
-kindling capsule list  # Verify
-```
-
-### Version Upgrades
-
-Kindling handles schema migrations automatically:
-
-```bash
-kindling capsule migrate my-project
-```
-
-## Data Integrity
-
-### Verification
-
-```bash
-kindling capsule verify my-project
-```
-
-Output:
-
-```
-Verifying my-project...
-  ✓ Database integrity
-  ✓ Schema version: 2
-  ✓ Observation count: 42
-  ✓ FTS index synced
-
-Capsule is healthy.
-```
-
-### Repair
-
-If corruption occurs:
-
-```bash
-kindling capsule repair my-project
-```
-
-## Size Management
-
-### Check Size
-
-```bash
-kindling capsule size my-project
-```
-
-```
-my-project: 2.4 MB
-  Observations: 42
-  Average size: 57 KB
-```
-
-### Compact
-
-Remove deleted records:
-
-```bash
-kindling capsule compact my-project
-```
-
-### Prune Old Data
-
-```bash
-# Remove observations older than 1 year
-kindling capsule prune my-project --older-than 365d
-```
-
-## Alternative Storage
-
-### JSON Files
-
-For simplicity or version control:
-
-```json
-{
-  "storage": {
-    "type": "json",
-    "path": ".kindling/observations.json"
-  }
-}
-```
-
-### Remote Storage (Future)
-
-Planned support for:
-
-- S3/GCS buckets
-- PostgreSQL
-- Custom backends
-
----
-
-**Next:** [Retrieval philosophy →](/kindling/concepts/retrieval)
+- [Configuration & environment variables →](/kindling/reference/config)
+- [Export / import format →](/kindling/reference/formats)

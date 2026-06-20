@@ -1,282 +1,231 @@
 ---
 id: cli
 title: CLI Reference
-description: Complete Kindling CLI command reference.
-sidebar_position: 2
+description: Complete reference for the kindling command-line interface.
+sidebar_position: 1
 ---
 
 # CLI Reference
 
-Complete reference for the Kindling command-line interface.
+The `kindling` binary is the CLI, the daemon, and the Claude Code hook runner in
+one artefact. This page documents every command, flag, and default.
 
-## Global Options
+## Global options
 
-```
---help, -h       Show help
---version, -v    Show version
---verbose        Verbose output
---quiet, -q      Suppress output
---config PATH    Config file path
-```
+| Option         | Description                                                          |
+| -------------- | ------------------------------------------------------------------- |
+| `--via-daemon` | Route the daemon-backed verbs (`log`, `capsule`, `search`, `pin`, `unpin`, `forget`) through the running [daemon](/kindling/concepts/storage#the-daemon) instead of opening the database in-process. |
+| `--help`       | Show help.                                                           |
+| `--version`    | Show the version.                                                   |
 
-## observe
+Most verbs also accept these shared options:
 
-Record an observation.
+| Option        | Description                                                                   |
+| ------------- | ----------------------------------------------------------------------------- |
+| `--db <path>` | Database path. Overrides `KINDLING_DB_PATH` and the per-project default.       |
+| `--json`      | Emit machine-readable JSON instead of human-readable output.                   |
 
-```bash
-kindling observe <content> [options]
-```
+## init
 
-### Options
-
-| Option          | Short | Description            |
-| --------------- | ----- | ---------------------- |
-| `--kind`        | `-k`  | Observation kind       |
-| `--tag`         | `-t`  | Add tag (repeatable)   |
-| `--capsule`     | `-c`  | Target capsule         |
-| `--source`      | `-s`  | Source identifier      |
-| `--context`     |       | File/line context      |
-| `--file`        | `-f`  | Read content from file |
-| `--clipboard`   |       | Read from clipboard    |
-| `--interactive` | `-i`  | Interactive mode       |
-
-### Examples
+Initialise kindling: create the database (running migrations) and optionally
+configure Claude Code.
 
 ```bash
-kindling observe "API uses OAuth2"
-kindling observe "Rate limit" --kind gotcha --tag api
-kindling observe --file notes.md --capsule my-project
-kindling observe --interactive
+kindling init [--db <path>] [--claude-code] [--skip-db] [--json]
 ```
 
-## search
+| Flag            | Description                                              |
+| --------------- | -------------------------------------------------------- |
+| `--db <path>`   | Use an explicit database path instead of the per-project default. |
+| `--claude-code` | Detect and (when available) configure Claude Code integration.    |
+| `--skip-db`     | Configure integration only; do not create the database.   |
+| `--json`        | JSON output (`{ directory, database, claudeCode }`).     |
 
-Search observations.
+## log
+
+Log an observation to memory.
 
 ```bash
-kindling search [query] [options]
+kindling log <content> [--kind <kind>] [--session <id>] [--repo <id>] [--capsule <id>]
 ```
 
-### Options
-
-| Option           | Short | Description         |
-| ---------------- | ----- | ------------------- |
-| `--capsule`      | `-c`  | Search in capsule   |
-| `--all-capsules` | `-a`  | Search all capsules |
-| `--tag`          | `-t`  | Filter by tag       |
-| `--kind`         | `-k`  | Filter by kind      |
-| `--since`        |       | After date/duration |
-| `--until`        |       | Before date         |
-| `--limit`        | `-n`  | Max results         |
-| `--export`       | `-e`  | Export format       |
-
-### Examples
+| Argument / flag    | Description                                                              |
+| ------------------ | ------------------------------------------------------------------------ |
+| `<content>`        | The observation content (positional, required).                          |
+| `--kind <kind>`    | Observation kind. Default `message`. One of `tool_call`, `command`, `file_diff`, `error`, `message`, `node_start`, `node_end`, `node_output`, `node_error`. |
+| `--session <id>`   | Session scope ID.                                                        |
+| `--repo <id>`      | Repository scope ID.                                                     |
+| `--capsule <id>`   | Attach to an existing capsule.                                           |
 
 ```bash
-kindling search "authentication"
-kindling search --tag api --since 7d
-kindling search "error" --kind gotcha --limit 10
-kindling search "api" --export markdown
+kindling log "JWT tokens expire after 15 minutes, not 1 hour"
+kindling log --kind error "segfault in auth middleware after the upgrade"
 ```
 
 ## capsule
 
-Manage capsules.
+Manage capsules. Two subcommands: `open` and `close`.
+
+### capsule open
 
 ```bash
-kindling capsule <command> [options]
+kindling capsule open --intent <text> [--type <type>] [--session <id>] [--repo <id>]
 ```
 
-### Subcommands
+| Flag             | Description                                          |
+| ---------------- | ---------------------------------------------------- |
+| `--intent <text>`| Purpose of the capsule (required).                   |
+| `--type <type>`  | Capsule type. Default `session`.                     |
+| `--session <id>` | Session scope ID.                                    |
+| `--repo <id>`    | Repository scope ID.                                 |
 
-| Command          | Description          |
-| ---------------- | -------------------- |
-| `list`           | List capsules        |
-| `create <name>`  | Create capsule       |
-| `use <name>`     | Set default capsule  |
-| `show <name>`    | Show capsule details |
-| `archive <name>` | Archive capsule      |
-| `delete <name>`  | Delete capsule       |
-| `export <name>`  | Export capsule       |
-
-### Examples
+### capsule close
 
 ```bash
-kindling capsule list
-kindling capsule create my-project
-kindling capsule use my-project
-kindling capsule show my-project
-kindling capsule archive old-project
+kindling capsule close <id> [--summary <text>]
+```
+
+| Argument / flag   | Description                                |
+| ----------------- | ------------------------------------------ |
+| `<id>`            | Capsule ID to close (positional, required).|
+| `--summary <text>`| Summary text attached to the capsule.      |
+
+## status
+
+Show database status and statistics (path, size, and counts of capsules,
+observations, and pins).
+
+```bash
+kindling status [--db <path>] [--json]
+```
+
+## search
+
+Search for relevant context. Returns the three retrieval tiers — pins, current
+summary, and ranked candidates. See [Retrieval](/kindling/concepts/retrieval).
+
+```bash
+kindling search <query> [--session <id>] [--repo <id>] [--max <n>]
+```
+
+| Argument / flag  | Description                                  |
+| ---------------- | -------------------------------------------- |
+| `<query>`        | Query string (positional, required).         |
+| `--session <id>` | Filter by session ID.                        |
+| `--repo <id>`    | Filter by repository ID.                     |
+| `--max <n>`      | Maximum candidates to return. Default `10`.  |
+
+## list
+
+List entities.
+
+```bash
+kindling list <entity> [--session <id>] [--repo <id>] [--limit <n>]
+```
+
+| Argument / flag  | Description                                       |
+| ---------------- | ------------------------------------------------- |
+| `<entity>`       | One of `capsules`, `pins`, `observations`.        |
+| `--session <id>` | Filter by session ID.                             |
+| `--repo <id>`    | Filter by repository ID.                          |
+| `--limit <n>`    | Maximum results. Default `20`.                    |
+
+`list capsules` additionally accepts `--status open` / `--status closed` for
+filtering by lifecycle state.
+
+## pin
+
+Pin an observation or a summary so it is always returned first and never
+evicted.
+
+```bash
+kindling pin <type> <id> [--note <text>] [--ttl <ms>]
+```
+
+| Argument / flag | Description                                         |
+| --------------- | --------------------------------------------------- |
+| `<type>`        | Target type: `observation` or `summary`.            |
+| `<id>`          | Target ID.                                          |
+| `--note <text>` | Note describing why this is pinned.                 |
+| `--ttl <ms>`    | Time-to-live in **milliseconds**, after which the pin expires. |
+
+## unpin
+
+Remove a pin by ID.
+
+```bash
+kindling unpin <id>
+```
+
+## forget
+
+Redact (forget) an observation by its exact ID. Masks the content; the record
+is retained.
+
+```bash
+kindling forget <id>
 ```
 
 ## export
 
-Export observations.
+Export memory to a JSON file.
 
 ```bash
-kindling export [options]
+kindling export [output] [--session <id>] [--repo <id>] [--pretty]
 ```
 
-### Options
+| Argument / flag  | Description                                                            |
+| ---------------- | --------------------------------------------------------------------- |
+| `[output]`       | Output file. Default `kindling-export-<timestamp>.json`.              |
+| `--session <id>` | Export only a specific session.                                       |
+| `--repo <id>`    | Export only a specific repository.                                    |
+| `--pretty`       | Pretty-print the JSON.                                                 |
 
-| Option      | Short | Description       |
-| ----------- | ----- | ----------------- |
-| `--capsule` | `-c`  | Capsule to export |
-| `--format`  | `-f`  | Output format     |
-| `--since`   |       | After date        |
-| `--until`   |       | Before date       |
-| `--output`  | `-o`  | Output file       |
-
-### Formats
-
-- `json` — Full JSON export
-- `markdown` — Readable markdown
-- `context` — LLM context format
-- `csv` — Spreadsheet format
-
-### Examples
-
-```bash
-kindling export --capsule my-project --format markdown
-kindling export --format json --output backup.json
-kindling export --since 7d --format context
-```
+See [Formats](/kindling/reference/formats) for the bundle shape.
 
 ## import
 
-Import observations.
+Import memory from an export file.
 
 ```bash
-kindling import <file> [options]
+kindling import <file> [--dry-run]
 ```
 
-### Options
+| Argument / flag | Description                          |
+| --------------- | ------------------------------------ |
+| `<file>`        | Bundle file to import.               |
+| `--dry-run`     | Validate without importing.          |
 
-| Option         | Description               |
-| -------------- | ------------------------- |
-| `--capsule`    | Target capsule            |
-| `--kind`       | Default kind              |
-| `--parse-tags` | Extract inline tags       |
-| `--dry-run`    | Preview without importing |
+## serve
 
-### Examples
+Start the kindling daemon (HTTP/1 over a Unix domain socket).
 
 ```bash
-kindling import backup.json
-kindling import notes.md --capsule my-project --parse-tags
-kindling import data.csv --dry-run
+kindling serve [--socket <path>] [--idle-timeout <secs>] [--kindling-home <path>] [--daemonize]
 ```
 
-## recent
+| Flag                    | Description                                                              |
+| ----------------------- | ------------------------------------------------------------------------ |
+| `--socket <path>`       | Unix domain socket to bind. Default `~/.kindling/kindling.sock`.          |
+| `--idle-timeout <secs>` | Seconds idle before the daemon shuts itself down. Default `1800`.        |
+| `--kindling-home <path>`| Root of per-project databases. Default `~/.kindling` (or the parent of `--socket`). |
+| `--daemonize`           | Suppress the human-readable startup banner (used when auto-spawned).     |
 
-Show recent observations.
+## hook
+
+Run a Claude Code lifecycle hook. Reads the hook context as JSON on stdin and
+always exits 0. You normally don't call this directly — the
+[Claude Code plugin](/kindling/adapters/claude-code) wires it up.
 
 ```bash
-kindling recent [options]
+kindling hook <type>
 ```
 
-### Options
+`<type>` is one of: `session-start`, `post-tool-use`, `post-tool-use-failure`,
+`user-prompt-submit`, `subagent-stop`, `stop`, `pre-compact`. The binary also
+responds to `<type>` when invoked under the program name `kindling-hook`.
 
-| Option      | Short | Description                  |
-| ----------- | ----- | ---------------------------- |
-| `--capsule` | `-c`  | From capsule                 |
-| `--limit`   | `-n`  | Number to show (default: 10) |
-| `--source`  |       | Filter by source             |
+## Next
 
-### Examples
-
-```bash
-kindling recent
-kindling recent -n 20 --capsule my-project
-kindling recent --source opencode
-```
-
-## show
-
-Show observation details.
-
-```bash
-kindling show <id>
-```
-
-### Examples
-
-```bash
-kindling show obs_abc123
-```
-
-## stats
-
-Show statistics.
-
-```bash
-kindling stats [options]
-```
-
-### Options
-
-| Option      | Short | Description  |
-| ----------- | ----- | ------------ |
-| `--capsule` | `-c`  | For capsule  |
-| `--all`     | `-a`  | All capsules |
-
-### Examples
-
-```bash
-kindling stats
-kindling stats --capsule my-project
-```
-
-## config
-
-Manage configuration.
-
-```bash
-kindling config <command> [options]
-```
-
-### Subcommands
-
-| Command             | Description        |
-| ------------------- | ------------------ |
-| `show`              | Show configuration |
-| `set <key> <value>` | Set value          |
-| `get <key>`         | Get value          |
-| `reset`             | Reset to defaults  |
-
-### Examples
-
-```bash
-kindling config show
-kindling config set defaultCapsule my-project
-kindling config get dataDir
-```
-
-## adapter
-
-Manage adapters.
-
-```bash
-kindling adapter <command> [options]
-```
-
-### Subcommands
-
-| Command          | Description       |
-| ---------------- | ----------------- |
-| `list`           | List installed    |
-| `install <name>` | Install adapter   |
-| `remove <name>`  | Remove adapter    |
-| `<name> config`  | Configure adapter |
-
-### Examples
-
-```bash
-kindling adapter list
-kindling adapter install opencode
-kindling adapter opencode config --capsule my-project
-```
-
----
-
-**Next:** [Configuration reference →](/kindling/reference/config)
+- [Configuration & environment variables →](/kindling/reference/config)
+- [Export / import format →](/kindling/reference/formats)

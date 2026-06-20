@@ -1,210 +1,165 @@
 ---
 id: custom
-title: Custom Adapters
-description: Building your own Kindling adapter.
-sidebar_position: 3
+title: Custom Integrations
+description: Build your own integration on the Rust or TypeScript APIs.
+sidebar_position: 4
 ---
 
-# Custom Adapters
+# Custom Integrations
 
-Build adapters to integrate Kindling with your tools.
+If your tool isn't covered by the [Claude Code](/kindling/adapters/claude-code),
+[OpenCode](/kindling/adapters/opencode), or [PocketFlow](/kindling/adapters/pocketflow)
+adapters, you can integrate directly against Kindling's APIs. There are three
+ways in, depending on your language and concurrency needs.
 
-## Adapter Interface
+| Approach            | Use when                                                            |
+| ------------------- | ------------------------------------------------------------------- |
+| **Rust, daemon**    | A Rust integration that should share a project safely with other tools. The default choice. |
+| **Rust, embedded**  | A Rust process that wants in-process access with no daemon.         |
+| **TypeScript**      | A Node integration; builds on the `@eddacraft/kindling` package.    |
 
-Adapters implement a simple interface:
+The shape is always the same: **open a capsule, append observations, retrieve,
+close with a summary.** See [Observations](/kindling/concepts/observations),
+[Capsules](/kindling/concepts/capsules), and
+[Retrieval](/kindling/concepts/retrieval) for the model.
 
-```typescript
-interface KindlingAdapter {
-  name: string;
-  version: string;
+## Rust, daemon-backed
 
-  // Lifecycle
-  init(config: AdapterConfig): Promise<void>;
-  destroy(): Promise<void>;
+[`kindling-client`](/kindling/reference/crates) is a thin async client that talks
+to the [daemon](/kindling/concepts/storage#the-daemon) over a Unix domain
+socket, and auto-spawns it on first call. This is the recommended choice for
+concurrent, multi-tool access.
 
-  // Capture
-  capture(event: CaptureEvent): Promise<Observation>;
-
-  // Optional: Query
-  search?(query: SearchQuery): Promise<Observation[]>;
-}
+```toml
+[dependencies]
+kindling-client = "0.1"
 ```
 
-## Basic Adapter
+```rust
+use kindling_client::{Client, CapsuleType, ScopeIds};
 
-```typescript
-import { KindlingAdapter, Observation } from '@eddacraft/kindling';
+# async fn run() -> Result<(), kindling_client::ClientError> {
+let client = Client::new()?;
 
-export class MyToolAdapter implements KindlingAdapter {
-  name = 'my-tool';
-  version = '1.0.0';
-
-  private capsule: string;
-
-  async init(config: AdapterConfig): Promise<void> {
-    this.capsule = config.capsule || 'default';
-  }
-
-  async destroy(): Promise<void> {
-    // Cleanup
-  }
-
-  async capture(event: CaptureEvent): Promise<Observation> {
-    return {
-      content: event.content,
-      kind: event.kind || 'discovery',
-      tags: [...(event.tags || []), 'my-tool'],
-      source: {
-        type: 'tool',
-        name: 'my-tool',
-        version: this.version,
-      },
-      capsule: this.capsule,
-    };
-  }
-}
+// Open a session capsule
+let capsule = client
+    .open_capsule(CapsuleType::Session, "investigate bug", ScopeIds::default(), None)
+    .await?;
+# let _ = capsule;
+# Ok(())
+# }
 ```
 
-## Registration
+Domain types (`CapsuleType`, `ScopeIds`, `Observation`, …) are re-exported from
+`kindling-client`, so you don't need to depend on `kindling-types` directly.
 
-### Package Export
+### The v1 wire contract
 
-```typescript
-// index.ts
-export { MyToolAdapter } from './adapter';
+The client (and any other HTTP/1-over-UDS caller) speaks this endpoint set,
+sending an `X-Kindling-Project` header on every data endpoint to route to the
+right per-project database:
+
+```text
+GET    /v1/health                  → { version, schemaVersion, projects }
+POST   /v1/capsules                → Capsule
+GET    /v1/capsules/open?sessionId → Capsule | null
+PATCH  /v1/capsules/:id/close      → Capsule
+POST   /v1/observations            → Observation
+POST   /v1/observations/:id/forget → 204
+POST   /v1/retrieve                → RetrieveResult
+POST   /v1/pins                    → Pin
+DELETE /v1/pins/:id                → 204
+POST   /v1/context/session-start   → { additionalContext }
+POST   /v1/context/pre-compact     → { additionalContext }
 ```
 
-### Package.json
+## Rust, embedded
 
-```json
-{
-  "name": "kindling-adapter-mytool",
-  "kindling": {
-    "adapter": true,
-    "entry": "./dist/index.js"
-  }
-}
+When you explicitly want single-process, in-process access with no daemon, use
+[`kindling-service`](/kindling/reference/crates). Its method surface mirrors the
+client, so you can swap between embedded and daemon-backed access.
+
+```toml
+[dependencies]
+kindling-service = "0.1"
 ```
 
-### Install
+## TypeScript
+
+The `@eddacraft/kindling` package bundles the service, the SQLite store, and the
+local FTS provider.
 
 ```bash
-kindling adapter install kindling-adapter-mytool
+npm install @eddacraft/kindling
 ```
 
-## Event Sources
-
-### Polling
-
-Periodically check for new data:
-
 ```typescript
-class PollingAdapter implements KindlingAdapter {
-  private interval: NodeJS.Timer;
+import { randomUUID } from 'node:crypto';
+import {
+  KindlingService,
+  openDatabase,
+  SqliteKindlingStore,
+  LocalFtsProvider,
+} from '@eddacraft/kindling';
 
-  async init(config: AdapterConfig): Promise<void> {
-    this.interval = setInterval(() => this.poll(), 60000);
-  }
+const db = openDatabase({ path: './my-memory.db' });
+const store = new SqliteKindlingStore(db);
+const provider = new LocalFtsProvider(db);
+const service = new KindlingService({ store, provider });
 
-  private async poll(): Promise<void> {
-    const data = await fetchFromMyTool();
-    for (const item of data) {
-      await this.capture(item);
-    }
-  }
-
-  async destroy(): Promise<void> {
-    clearInterval(this.interval);
-  }
-}
-```
-
-### Webhook
-
-Receive events via HTTP:
-
-```typescript
-class WebhookAdapter implements KindlingAdapter {
-  private server: http.Server;
-
-  async init(config: AdapterConfig): Promise<void> {
-    this.server = http.createServer((req, res) => {
-      // Parse webhook payload
-      // Call this.capture()
-    });
-    this.server.listen(config.port || 3456);
-  }
-}
-```
-
-### File Watcher
-
-Watch for file changes:
-
-```typescript
-class FileAdapter implements KindlingAdapter {
-  private watcher: FSWatcher;
-
-  async init(config: AdapterConfig): Promise<void> {
-    this.watcher = watch(config.watchPath, async (event, filename) => {
-      const content = await readFile(filename, 'utf-8');
-      await this.capture({ content, kind: 'discovery' });
-    });
-  }
-}
-```
-
-## Configuration Schema
-
-Define adapter configuration:
-
-```typescript
-import { z } from 'zod';
-
-export const MyToolConfigSchema = z.object({
-  capsule: z.string().default('default'),
-  apiKey: z.string(),
-  pollInterval: z.number().default(60000),
-  tags: z.array(z.string()).default([]),
+// Open a session capsule
+const capsule = service.openCapsule({
+  type: 'session',
+  intent: 'debug authentication issue',
+  scopeIds: { sessionId: 'session-1', repoId: 'my-project' },
 });
 
-type MyToolConfig = z.infer<typeof MyToolConfigSchema>;
-```
+// Capture an observation
+service.appendObservation(
+  {
+    id: randomUUID(),
+    kind: 'error',
+    content: 'JWT validation failed: token expired',
+    provenance: { stack: 'Error: Token expired\n  at validateToken.ts:42' },
+    scopeIds: { sessionId: 'session-1' },
+    ts: Date.now(),
+    redacted: false,
+  },
+  { capsuleId: capsule.id },
+);
 
-## Testing
-
-```typescript
-import { describe, it, expect } from 'vitest';
-import { MyToolAdapter } from './adapter';
-
-describe('MyToolAdapter', () => {
-  it('captures observations', async () => {
-    const adapter = new MyToolAdapter();
-    await adapter.init({ capsule: 'test' });
-
-    const obs = await adapter.capture({
-      content: 'Test observation',
-      kind: 'discovery',
-    });
-
-    expect(obs.content).toBe('Test observation');
-    expect(obs.tags).toContain('my-tool');
-  });
+// Retrieve
+const results = await service.retrieve({
+  query: 'authentication token',
+  scopeIds: { sessionId: 'session-1' },
 });
+
+// Close with a summary
+service.closeCapsule(capsule.id, {
+  generateSummary: true,
+  summaryContent: 'Fixed JWT expiration check in token validation middleware',
+});
+
+db.close();
 ```
 
-## Publishing
+Adapter authors who only need the domain types and service (for example to
+target the browser) can depend on the lighter `@eddacraft/kindling-core`
+instead.
 
-```bash
-npm publish kindling-adapter-mytool
-```
+## Guidelines
 
-Users install with:
+- **Map events to the fixed [observation kinds](/kindling/concepts/observations#kinds).**
+  There are no custom kinds; pick the closest of `tool_call`, `command`,
+  `file_diff`, `error`, or `message`.
+- **Filter secrets before capture.** Never write credentials into observation
+  content — see how the [OpenCode adapter](/kindling/adapters/opencode#content-filtering)
+  masks secrets and excludes sensitive paths.
+- **Scope everything.** Set `sessionId`/`repoId` so retrieval can be narrowed.
+- **Close capsules with a summary** so the conclusion surfaces in the
+  current-summary retrieval tier.
 
-```bash
-kindling adapter install kindling-adapter-mytool
-```
+## Next
 
----
-
-**Next:** [Memory commands →](/kindling/commands/memory)
+- [Which crate should I use? →](/kindling/reference/crates)
+- [CLI reference →](/kindling/reference/cli)
