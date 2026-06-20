@@ -12,9 +12,14 @@
   resolved as **Complete (covered by the Rust RMCPF port, #2809)** — the MCP
   capability returned in Rust already comprehensively tested, so the archived TS
   targets are retired rather than re-tested (owner decision). Done count 14 →
-  22/25. The only remaining open items are TCOV-022..-024 (`scope drift` —
-  anvil-tui rename needs a scope-refresh design call), still Blocked pending
-  that design decision.
+  22/25.
+- **Phase 4 re-scoped 2026-06-20.** TCOV-022..-024 were unblocked: the earlier
+  "scope drift" call inspected the wrong crate. The targets live in
+  `crates/eddacraft-tui/` (the primitives crate that kept the widgets/theme/
+  keyboard after the `anvil-tui` app-layer split), not `crates/anvil-tui/`. The
+  three items are repointed there against measured current coverage and promoted
+  to **Ready** (no count change — Ready is not terminal). The module now has no
+  Blocked items: 22/25 done + TCOV-022/023/024 Ready.
 
 ## Progress (as of 2026-05-28)
 
@@ -512,69 +517,91 @@ Change status to **Ready** when:
 
 ### Phase 4 — Rust TUI Coverage
 
-> **Scope refresh required — confirmed still needed 2026-05-28 (needs
-> design).** The crate split into `eddacraft-tui` (released crate, owns the
-> `Surface` trait + `Theme`) re-exported by `crates/anvil-tui` (cargo name
-> `eddacraft-anvil-tui`). The current `crates/anvil-tui/src/` layout does
-> **not** match TCOV-022..-024:
+> **Phase 4 re-scoped 2026-06-20 (crate correction).** The earlier "scope
+> drift" call looked at the wrong crate. The `anvil-tui` split moved the **app
+> surfaces** to `crates/anvil-tui/` but kept the **primitives** in
+> `crates/eddacraft-tui/` (cargo name `eddacraft-tui`, v0.4.0) — which still
+> holds the exact targets TCOV-022..-024 named:
 >
-> - The widget set is `widgets/quick_wins_panel.rs` +
->   `widgets/results_dashboard.rs` (both already carry `#[cfg(test)]`
->   modules) — there is no text_input / select / confirm / log_panel widget,
->   so TCOV-022's "each interactive widget" target has no concrete subject.
-> - There is **no `theme/` subdirectory** in `anvil-tui` (theming lives in
->   the `eddacraft-tui` crate), so TCOV-023's theme-coverage premise is stale.
-> - There is **no `keyboard/handler.rs`**, so TCOV-024's target file does not
->   exist.
+> - `crates/eddacraft-tui/src/widgets/` has 23 widgets including the original
+>   `text_input.rs` / `select.rs` / `confirm.rs` / `log_panel.rs` set — so
+>   TCOV-022's interactive-widget target is concrete after all.
+> - `crates/eddacraft-tui/src/theme/` **exists** (`mod.rs`, `traits.rs`,
+>   `eddacraft.rs`) — TCOV-023's theme premise holds.
+> - `crates/eddacraft-tui/src/keyboard/handler.rs` **exists**
+>   (`Keymap::map(KeyEvent) -> Action`) — TCOV-024's target file is real.
 >
-> Deciding what Phase 4 should actually cover against the two-widget +
-> trait-re-export reality (and whether widget-interaction / theme / keyboard
-> coverage is even the right shape now that `eddacraft-tui` owns the
-> primitives) is a **scope-refresh design call**, not something to invent
-> here. TCOV-022, -023, and -024 stay `Blocked — scope drift` pending that
-> refresh. **TCOV-025 (surface trait compliance) survived the rename and is
-> promoted to Ready** below — its `surface.rs` / `surfaces/` premise still
-> holds.
+> The three items are therefore **repointed to `crates/eddacraft-tui/`** and
+> scoped against measured current coverage (the gap is interaction-flow,
+> shell-layout-by-size, theme-trait, and keymap-edge-case tests), then promoted
+> to **Ready**. `eddacraft-tui` is OSS-cleared (ADR-018) and already a module
+> dependency, so this stays in original scope. **TCOV-025 (surface trait
+> compliance) covered the `anvil-tui` app-surface side and is Merged via #2816.**
 
-#### TCOV-022: anvil-tui widget interaction tests
+#### TCOV-022: eddacraft-tui interactive-widget state/key tests
 
-- **Intent:** Widgets have unit tests for rendering but not for user
-  interaction flows (key handling, state transitions, focus cycling).
-- **Expected Outcome:** Each interactive widget has interaction tests
-  covering key sequences. (Widget list to be redrawn against current
-  `crates/anvil-tui/src/widgets/`.)
+- **Intent:** `crates/eddacraft-tui/src/widgets/` (23 widgets) is mostly
+  render-tested, but **stateful interaction flows** (key sequence → state
+  transition, selection/focus/scroll) are thin on the genuinely interactive
+  widgets. Cover those flows so a regression in key-driven state is caught.
+- **Expected Outcome:** Interaction tests (key/event → asserted state change)
+  for the interactive widgets that lack them — `select.rs` (move/wrap/select),
+  `confirm.rs` (yes/no toggle + default), `data_table.rs` (row nav/paging),
+  `tree.rs` (expand/collapse/navigate), `log_panel.rs` (scroll/follow).
+  `editor.rs` (51 tests) and `text_input.rs` (9) are already adequate — only
+  add untested edit edge cases there, do not pad.
 - **Files:**
-  - `crates/anvil-tui/src/widgets/`
+  - `crates/eddacraft-tui/src/widgets/{select,confirm,data_table,tree,log_panel}.rs`
 - **Dependencies:** —
-- **Validation:** `cargo test -p eddacraft-anvil-tui` passes; llvm-cov shows ≥80%.
-- **Confidence:** low — original widget list is stale
-- **Status:** Blocked — scope refresh
+- **Validation:** `cargo test -p eddacraft-tui -- widgets` passes; llvm-cov ≥80%
+  line for each targeted widget; each interactive widget has ≥1 state-transition
+  test (not render-only).
+- **Confidence:** high — files exist; pattern established by `editor.rs`/`tree.rs`.
+- **Status:** Ready
 
-#### TCOV-023: anvil-tui shell and theme coverage
+#### TCOV-023: eddacraft-tui shell layout + theme tests
 
-- **Intent:** The `shell` module has snapshot tests; theme styling needs
-  coverage. (Note: no `theme/` subdir exists today — confirm whether theming
-  lives elsewhere or this item should be retired.)
-- **Expected Outcome:** Shell tested for responsive layout at different
-  terminal sizes; theme handling, if present, tested for correct application.
+- **Intent:** `crates/eddacraft-tui/src/shell.rs::render_shell` does responsive
+  header/content/footer layout with width-driven help-text truncation and
+  watermark fitting (8 tests). The theme layer (`theme/mod.rs`, `theme/traits.rs`)
+  has **0 tests** (only `theme/eddacraft.rs`, 4). Cover shell layout across
+  terminal sizes and the `Theme` trait's colour/style accessors.
+- **Expected Outcome:** Shell tested at varying `Rect` widths/heights — help-text
+  truncation boundary (fits vs elided), watermark gap math, and degenerate small
+  sizes (1×1, zero-width) without panic. `EddaCraftTheme` asserted against the
+  `Theme` trait contract (every accessor returns a usable style; default theme
+  internally consistent).
 - **Files:**
-  - `crates/anvil-tui/src/shell.rs`
+  - `crates/eddacraft-tui/src/shell.rs`
+  - `crates/eddacraft-tui/src/theme/{mod,traits,eddacraft}.rs`
 - **Dependencies:** —
-- **Validation:** Combined module coverage ≥80%.
-- **Confidence:** low — theme module presumed to exist but was not found
-- **Status:** Blocked — scope refresh
+- **Validation:** `cargo test -p eddacraft-tui -- shell theme` passes; llvm-cov
+  ≥80% line for `shell.rs` and the `theme/` module; small/zero-size renders
+  proven panic-free.
+- **Confidence:** medium — shell truncation math is the main subject; theme
+  traits may be largely accessor-only (assert contract, don't pad).
+- **Status:** Ready
 
-#### TCOV-024: anvil-tui keyboard handler edge cases
+#### TCOV-024: eddacraft-tui keyboard mapper edge cases
 
-- **Intent:** Keyboard handling for modifier combinations, unmapped keys, and
-  rapid input.
-- **Expected Outcome:** Tests for modifier combinations, unmapped keys, and
-  rapid sequential input.
-- **Files:** to be identified — no `keyboard/handler.rs` in current crate.
+- **Intent:** `crates/eddacraft-tui/src/keyboard/handler.rs::Keymap::map(KeyEvent)
+  -> Action` is the central key→action mapper (6 tests). Cover its mapping edge
+  cases. **Re-scope note:** the original "rapid sequential input" premise is
+  dropped — `map` is a *pure, stateless* function, so rapid input is just
+  repeated calls with no state to corrupt; the real edge cases are modifiers and
+  unmapped keys.
+- **Expected Outcome:** Tests for modifier handling (`Ctrl+C` → `Quit`; other
+  `Ctrl`/`Alt`/`Shift` combos → their intended action or `None`), every mapped
+  `KeyCode` → expected `Action`, and unmapped keys → `Action::None`. Locks the
+  keymap contract that `Surface::handle_key` consumers depend on.
+- **Files:**
+  - `crates/eddacraft-tui/src/keyboard/handler.rs`
+  - `crates/eddacraft-tui/src/keyboard/mod.rs` (if it carries logic)
 - **Dependencies:** —
-- **Validation:** Handler module at ≥80% line coverage.
-- **Confidence:** low — file path no longer exists
-- **Status:** Blocked — scope refresh
+- **Validation:** `cargo test -p eddacraft-tui -- keyboard` passes; llvm-cov ≥80%
+  line for `handler.rs`; every `KeyCode` arm and the modifier branch covered.
+- **Confidence:** high — small, pure, fully testable surface.
+- **Status:** Ready
 
 #### TCOV-025: anvil-tui surface trait compliance tests — Merged
 
