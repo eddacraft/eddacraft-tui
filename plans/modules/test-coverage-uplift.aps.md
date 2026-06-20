@@ -2,7 +2,7 @@
 
 | ID   | Owner      | Status      | Progress |
 | ---- | ---------- | ----------- | -------- |
-| TCOV | @eddacraft | In Progress | 24/25    |
+| TCOV | @eddacraft | In Progress | 25/25    |
 
 ## Progress (as of 2026-06-20)
 
@@ -27,6 +27,13 @@
   priority/degenerate-size tests + theme `fg`-contract tests (incl. a second
   `MinimalTheme` implementor) in `eddacraft-tui/src/{shell,theme}`. Done count
   23 → 24/25; only TCOV-022 (interactive widgets) remains Ready.
+- **TCOV-022 implemented 2026-06-20 (#2831) — module fully delivered.**
+  `confirm` + `log_panel` state-transition tests (the thin widgets; the
+  already-covered `select`/`data_table`/`tree` were not padded). Done count
+  24 → **25/25 — every work item is now done.** The module status stays
+  `In Progress` until the Complete flip + archive cascade is done as its own
+  release-tag-verified PR (per the APS archive process); no Blocked or Ready
+  items remain.
 
 ## Progress (as of 2026-05-28)
 
@@ -564,7 +571,11 @@ Change status to **Ready** when:
   line for each targeted widget; each interactive widget has ≥1 state-transition
   test (not render-only).
 - **Confidence:** high — files exist; pattern established by `editor.rs`/`tree.rs`.
-- **Status:** Ready
+- **Status:** Merged 2026-06-20 via #2831 — added state-transition tests for the
+  thin widgets (`confirm` default/confirm/reset; `log_panel` filter/match-nav/
+  jump/scroll-bounds). `select`/`data_table`/`tree` already carried their
+  interaction tests, so they were not padded. `cargo test -p eddacraft-tui` 287
+  passed.
 
 #### TCOV-023: eddacraft-tui shell layout + theme tests
 
