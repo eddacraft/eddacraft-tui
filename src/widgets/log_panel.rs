@@ -606,13 +606,18 @@ mod tests {
         let mut state = LogPanelState::default();
         state.set_search("no-such-text");
 
+        // No matches → both cursors reset to the top and the call returns false.
         state.selected_index = 5;
+        state.scroll_offset = 4;
         assert!(!state.next_match(&entries));
         assert_eq!(state.selected_index, 0);
+        assert_eq!(state.scroll_offset, 0);
 
         state.selected_index = 5;
+        state.scroll_offset = 4;
         assert!(!state.prev_match(&entries));
         assert_eq!(state.selected_index, 0);
+        assert_eq!(state.scroll_offset, 0);
     }
 
     #[test]
@@ -629,7 +634,7 @@ mod tests {
     }
 
     #[test]
-    fn scroll_down_with_no_visible_rows_stays_at_zero() {
+    fn scroll_down_with_no_visible_rows_resets_to_zero() {
         let mut state = LogPanelState {
             selected_index: 3,
             ..Default::default()
