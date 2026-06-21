@@ -584,25 +584,22 @@ pub(crate) fn resolve_import(
         format!("{resolved_str}/index.js"),
     ];
 
+    // `resolved_str` is the fully-normalised workspace-root-relative target path,
+    // and both `from_file` and `known_files` are workspace-root-relative, so an
+    // EXACT match is the only sound resolution (CIB-093 / N7). A path-suffix
+    // fallback (`f.ends_with("/<candidate>")`) would let `./utils` from
+    // `src/main.ts` silently rebind to `packages/app/src/utils.ts` when the true
+    // `src/utils.ts` target is deleted, corrupting the reverse-impact index with a
+    // same-named lookalike in a different directory. Leaving a relative import
+    // unresolved is correct; rebinding it to a lookalike is not.
     for candidate in &candidates {
-        // Normalise path separators for comparison
+        // Normalise path separators for comparison (Windows-authored paths).
         let normalised = candidate.replace('\\', "/");
 
-        // Collect all matching files, preferring exact matches then shortest path
-        // (most specific) to avoid nondeterministic resolution when multiple
-        // files share a suffix (e.g. src/utils.ts vs packages/app/src/utils.ts).
-        let mut matches: Vec<&String> = known_files
+        if let Some(file_path) = known_files
             .iter()
-            .filter(|f| {
-                let f_norm = f.replace('\\', "/");
-                f_norm == normalised || f_norm.ends_with(&format!("/{normalised}"))
-            })
-            .collect();
-
-        if !matches.is_empty() {
-            // Prefer exact match, then shortest path (most specific)
-            matches.sort_by_key(|f| f.len());
-            let file_path = matches[0];
+            .find(|f| f.replace('\\', "/") == normalised)
+        {
             // O(1) file-index lookup, not an O(total-graph-nodes) scan (ADV-4).
             return graph.symbols_in_file(file_path).first().map(|s| s.id);
         }
@@ -623,13 +620,14 @@ pub fn re_resolve_imports(graph: &mut SymbolGraph, imports: &[ImportEdge]) {
 /// actually added (this generation's `(from, to, EdgeType)` ids).
 ///
 /// GV2-011: re-resolution can re-bind a *surviving* import of a file other than
-/// the one being updated — e.g. when the file a specifier previously resolved to
-/// is deleted, a different candidate now wins (`resolve_import` matches by path
-/// suffix with shortest-path tie-breaking). An incremental consumer that
-/// maintains derived state (the dependency graph) cannot see those edge changes
-/// from the updated file's `GraphDelta` alone, so it would silently diverge from
-/// a cold rebuild. Returning the added edges lets the consumer refresh exactly
-/// the affected source files instead of re-deriving the whole graph.
+/// the one being updated — e.g. a specifier that could not resolve during the
+/// initial scan (its target had not been parsed yet) binds once that exact target
+/// appears (`resolve_import` matches the fully-normalised target path exactly;
+/// CIB-093/N7). An incremental consumer that maintains derived state (the
+/// dependency graph) cannot see those edge changes from the updated file's
+/// `GraphDelta` alone, so it would silently diverge from a cold rebuild. Returning
+/// the added edges lets the consumer refresh exactly the affected source files
+/// instead of re-deriving the whole graph.
 ///
 /// Only *additions* are reported: this function never removes edges (an edge
 /// that ceased to resolve is dropped by `remove_file`/`update_file` removing the
@@ -1579,10 +1577,11 @@ mod tests {
     }
 
     #[test]
-    fn ambiguous_relative_import_resolves_to_shortest_path() {
+    fn relative_import_resolves_to_the_exact_target_not_a_lookalike() {
         let mut g = SymbolGraph::new();
 
-        // Two files that both end with "src/utils.ts"
+        // The exact target of `./utils` from `src/main.ts` is `src/utils.ts`, plus
+        // a same-named lookalike in another package directory.
         g.add_symbol(SymbolNode {
             id: 50,
             kind: SymbolKind::Function,
@@ -1628,7 +1627,56 @@ mod tests {
         assert_eq!(delta.added_edges.len(), 1, "should resolve the import");
         assert_eq!(
             delta.added_edges[0].1, 50,
-            "should resolve to shortest path (src/utils.ts, id=50)"
+            "should resolve to the exact target src/utils.ts (id=50), never the \
+             cross-directory lookalike"
+        );
+    }
+
+    #[test]
+    fn relative_import_does_not_rebind_to_a_lookalike_when_exact_target_absent() {
+        // CIB-093 / N7: `./utils` from `src/main.ts` resolves ONLY to `src/utils.ts`.
+        // When that exact target is absent (e.g. deleted), the import must be left
+        // UNRESOLVED — it must not silently rebind to a same-named file in another
+        // directory (`packages/app/src/utils.ts`), which would corrupt the
+        // reverse-impact index with a wrong dependency edge.
+        let mut g = SymbolGraph::new();
+        g.add_symbol(SymbolNode {
+            id: 51,
+            kind: SymbolKind::Function,
+            name: "long_helper".to_string(),
+            visibility: Visibility::Internal,
+            file: "packages/app/src/utils.ts".to_string(),
+            trust_level: TrustLevel::Unknown,
+        })
+        .unwrap();
+
+        let syms = FileSymbols {
+            file: "src/main.ts".to_string(),
+            symbols: vec![SymbolNode {
+                id: 1,
+                kind: SymbolKind::Function,
+                name: "app".to_string(),
+                visibility: Visibility::Internal,
+                file: "src/main.ts".to_string(),
+                trust_level: TrustLevel::Unknown,
+            }],
+            imports: vec![ImportEdge {
+                from_file: "src/main.ts".to_string(),
+                to_source: "./utils".to_string(),
+                line: 0,
+            }],
+            reexports: Vec::new(),
+            calls: Vec::new(),
+            calls_partial: false,
+            has_unresolved_dynamic_import: false,
+        };
+
+        let delta = update_file(&mut g, syms);
+
+        assert!(
+            delta.added_edges.is_empty(),
+            "an absent exact target must leave the import unresolved, not rebind \
+             to the cross-directory lookalike packages/app/src/utils.ts"
         );
     }
 

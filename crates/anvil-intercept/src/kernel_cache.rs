@@ -1877,17 +1877,18 @@ mod tests {
         }
     }
 
-    /// GV2-011 regression (council CRITICAL): re-resolution can re-bind a
-    /// *surviving* import of a file other than the one being saved. Here `main.ts`
-    /// imports `./a`, which suffix-matches both `a.ts` (shortest — wins) and
-    /// `nested/a.ts`. Deleting `a.ts` and then saving an unrelated file makes
-    /// `re_resolve_imports` re-bind `main.ts` to `nested/a.ts` in the symbol
-    /// graph; the incremental dependency graph must follow even though `main.ts`
-    /// was neither the saved file nor a dependent of it. Before the
-    /// `re_resolve_imports_tracked` fix the warm graph kept `main.ts` with no
-    /// outgoing edge while the cold rebuild had `main.ts → nested/a.ts`.
+    /// GV2-011 + CIB-093/N7: re-resolution can change a *surviving* import of a
+    /// file other than the one being saved, and the incremental dependency graph
+    /// must follow (the GV2-011 council CRITICAL). Here `main.ts` imports `./a`,
+    /// whose exact target is the same-directory `a.ts`; `nested/a.ts` is a
+    /// same-named lookalike in another directory. Deleting `a.ts` and saving an
+    /// unrelated file re-resolves `main.ts`'s import: it must become **unresolved**
+    /// — NOT silently rebind to `nested/a.ts` (the N7 corruption). The warm
+    /// dependency graph must reflect the edge *removal* for `main.ts`, matching a
+    /// cold rebuild (which now also leaves the import unresolved), even though
+    /// `main.ts` was neither the saved file nor a dependent of it.
     #[test]
-    fn re_resolution_rebinds_surviving_import_after_target_delete() {
+    fn re_resolution_drops_surviving_import_to_deleted_target_without_lookalike_rebind() {
         let k = key("rebind");
         let cache = KernelGraphCache::new();
 
@@ -1902,7 +1903,7 @@ mod tests {
             ChangeKind::Create,
             file_symbols("main.ts", &["app"], &["./a"], 20),
         );
-        // main.ts → a.ts (shortest-path winner).
+        // main.ts → a.ts (the exact same-directory target).
         let before = cache
             .with_graphs(&k, |_, dep| {
                 dep.dependencies_of("main.ts")
@@ -1913,7 +1914,8 @@ mod tests {
             .unwrap();
         assert_eq!(before, vec!["a.ts".to_string()], "setup: main imports a.ts");
 
-        // Delete the winner, then save an unrelated file to trigger re-resolution.
+        // Delete the exact target, then save an unrelated file to trigger
+        // re-resolution of main.ts's surviving import.
         cache.apply_delta(&k, ChangeKind::Delete, file_symbols("a.ts", &[], &[], 30));
         cache.apply_delta(
             &k,
@@ -1929,10 +1931,10 @@ mod tests {
                     .collect::<Vec<_>>()
             })
             .unwrap();
-        assert_eq!(
-            deps,
-            vec!["nested/a.ts".to_string()],
-            "main.ts must re-bind to nested/a.ts after a.ts is deleted"
+        assert!(
+            deps.is_empty(),
+            "main.ts's `./a` import must become unresolved after a.ts is deleted, \
+             not rebind to the cross-directory lookalike nested/a.ts (got {deps:?})"
         );
         let dependents = cache
             .with_graphs(&k, |_, dep| {
@@ -1942,10 +1944,10 @@ mod tests {
                     .collect::<Vec<_>>()
             })
             .unwrap();
-        assert_eq!(
-            dependents,
-            vec!["main.ts".to_string()],
-            "reverse index (the certify path's input) must show main.ts"
+        assert!(
+            dependents.is_empty(),
+            "nested/a.ts must NOT gain main.ts as a dependent via a lookalike rebind \
+             (got {dependents:?})"
         );
     }
 
