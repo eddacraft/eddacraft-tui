@@ -133,29 +133,28 @@ pub(crate) fn reexported_privileged_modules(graph: &SymbolGraph, file: &str) -> 
     found
 }
 
-/// Per-file privileged module specifiers reached through re-export edges,
-/// transitively (GV2-031) — computed in a single graph pass.
+/// The file-level re-export graph used by [`reexport_privileged_files`]: the
+/// per-file `reached` seeds (files that re-export a privileged module directly),
+/// the reverse `re_exported_by` edges, and the initial propagation worklist.
 ///
-/// This is the whole-graph companion to [`reexported_privileged_modules`] (which
-/// answers the same question for *one* file). `annotate_trust` runs on every
-/// save over the whole warm graph, so calling the per-file walk once per file
-/// would be O(files²) on a re-export-heavy graph (barrel files). Instead this
-/// scans every `Reexports` edge once to build the file-level re-export graph,
-/// seeds each file with the privileged specifiers it re-exports directly, then
-/// propagates those specifier sets backwards along re-export edges to a fixpoint
-/// — O(nodes + re-export edges). A `from_file == to_file` self-edge is ignored
-/// (it cannot widen reach).
-///
-/// The result maps each file to the **set of privileged module specifiers** it
-/// reaches (the values [`reexported_privileged_modules`] would return for that
-/// file); a file with no privileged re-export reach is absent. CIB-093b memoises
-/// this onto the [`SymbolGraph`] so `certify::export_surface_diff` reads the
-/// per-file set instead of re-walking the BFS on every `ContentModify` verdict.
-fn reexport_privileged_files(graph: &SymbolGraph) -> HashMap<String, BTreeSet<String>> {
+/// `re_exported_by[t]` maps each target file `t` to the set of files that
+/// re-export it. It is a [`BTreeSet`] (not a `Vec`) so a **multi-symbol
+/// re-exporter** — one file whose several symbols all re-export into the same
+/// target file — is recorded exactly ONCE (CIB-093 regression). A `Vec` here
+/// accumulated one duplicate entry per re-exporting symbol, which made the
+/// backward-propagation step re-process the same source redundantly; the set both
+/// deduplicates and keeps a deterministic iteration order.
+type ReexportEdges = (
+    HashMap<String, BTreeSet<String>>,
+    HashMap<String, BTreeSet<String>>,
+    Vec<String>,
+);
+
+fn build_reexport_edges(graph: &SymbolGraph) -> ReexportEdges {
     // `reached[f]` = privileged specifiers file `f` reaches by re-export.
     let mut reached: HashMap<String, BTreeSet<String>> = HashMap::new();
-    // `re_exported_by[t]` = files that re-export file `t` (reverse edges).
-    let mut re_exported_by: HashMap<String, Vec<String>> = HashMap::new();
+    // `re_exported_by[t]` = files that re-export file `t` (reverse edges), deduped.
+    let mut re_exported_by: HashMap<String, BTreeSet<String>> = HashMap::new();
     // Files whose `reached` set grew and must propagate to their re-exporters.
     let mut worklist: Vec<String> = Vec::new();
 
@@ -185,10 +184,35 @@ fn reexport_privileged_files(graph: &SymbolGraph) -> HashMap<String, BTreeSet<St
                 re_exported_by
                     .entry(target.file.clone())
                     .or_default()
-                    .push(node.file.clone());
+                    .insert(node.file.clone());
             }
         }
     }
+    (reached, re_exported_by, worklist)
+}
+
+/// Per-file privileged module specifiers reached through re-export edges,
+/// transitively (GV2-031) — computed in a single graph pass.
+///
+/// This is the whole-graph companion to [`reexported_privileged_modules`] (which
+/// answers the same question for *one* file). `annotate_trust` runs on every
+/// save over the whole warm graph, so calling the per-file walk once per file
+/// would be O(files²) on a re-export-heavy graph (barrel files). Instead this
+/// scans every `Reexports` edge once to build the file-level re-export graph,
+/// seeds each file with the privileged specifiers it re-exports directly, then
+/// propagates those specifier sets backwards along re-export edges to a fixpoint
+/// — O(nodes + re-export edges). A `from_file == to_file` self-edge is ignored
+/// (it cannot widen reach).
+///
+/// The result maps each file to the **set of privileged module specifiers** it
+/// reaches (the values [`reexported_privileged_modules`] would return for that
+/// file); a file with no privileged re-export reach is absent. CIB-093b memoises
+/// this onto the [`SymbolGraph`] so `certify::export_surface_diff` reads the
+/// per-file set instead of re-walking the BFS on every `ContentModify` verdict.
+fn reexport_privileged_files(graph: &SymbolGraph) -> HashMap<String, BTreeSet<String>> {
+    // Build the file-level re-export graph: the direct privileged-specifier seeds
+    // and the reverse (`re_exported_by`) edges, deduped per file.
+    let (mut reached, re_exported_by, mut worklist) = build_reexport_edges(graph);
 
     // Backward propagation: a file that re-exports file `f` reaches everything
     // `f` reaches. Propagate specifier sets along reverse edges until no set
@@ -1293,6 +1317,49 @@ mod tests {
             g.get_symbol(1).unwrap().trust_level,
             TrustLevel::Boundary,
             "a benign local re-export must not escalate to Privileged"
+        );
+    }
+
+    #[test]
+    fn multi_symbol_reexporter_appears_once_in_propagation_set() {
+        // CIB-093 regression: a barrel file whose *two* symbols both re-export the
+        // SAME intermediary file must be recorded ONCE in that intermediary's
+        // reverse (`re_exported_by`) set — a `Vec` previously accumulated one
+        // duplicate per re-exporting symbol, doing redundant propagation work.
+        let mut g = SymbolGraph::new();
+        // barrel.ts has two public symbols, both re-exporting mid.ts.
+        g.add_symbol(make_symbol(1, "a", "barrel.ts", Visibility::Public))
+            .unwrap();
+        g.add_symbol(make_symbol(2, "b", "barrel.ts", Visibility::Public))
+            .unwrap();
+        // mid.ts re-exports node:fs (so barrel.ts reaches it transitively).
+        g.add_symbol(make_symbol(3, "mid", "mid.ts", Visibility::Public))
+            .unwrap();
+        g.add_symbol(external_module(4, "node:fs")).unwrap();
+        add_reexport(&mut g, 1, 3); // barrel symbol a → mid
+        add_reexport(&mut g, 2, 3); // barrel symbol b → mid (same target file)
+        add_reexport(&mut g, 3, 4); // mid → node:fs
+
+        let (_reached, re_exported_by, _worklist) = build_reexport_edges(&g);
+        let into_mid = re_exported_by
+            .get("mid.ts")
+            .expect("mid.ts has re-exporters");
+        assert_eq!(
+            into_mid
+                .iter()
+                .filter(|f| f.as_str() == "barrel.ts")
+                .count(),
+            1,
+            "a multi-symbol re-exporter must appear once in the propagation set, got {into_mid:?}",
+        );
+
+        // The dedup is a redundancy fix, not a semantic change: barrel.ts still
+        // resolves to Privileged via the transitive re-export.
+        annotate_trust(&mut g, &[]);
+        assert_eq!(
+            g.get_symbol(1).unwrap().trust_level,
+            TrustLevel::Privileged,
+            "barrel re-exporting an intermediary that reaches node:fs stays Privileged",
         );
     }
 

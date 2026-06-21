@@ -41,6 +41,14 @@ the substrate for the assistant-facing graph in the v0.9 window.
   window's beta-signal fixes (auth output on stderr, format handling, Nx graph
   exclusions for docs tooling, RELEASE-PLAN formatting).
 
+### Upgrade notes
+
+- **Warm-start snapshots rebuild once after upgrading.** Persistence warm-start
+  snapshots are rebuilt once on first run after upgrading to `v0.9.0-beta` (the
+  snapshot filename hash changed). Opted-in users (`ANVIL_PERSIST_GRAPH=1`) pay
+  a single cold rebuild; this is a default-off feature with no correctness or
+  security impact.
+
 See [Engineering History](./ENGINEERING-HISTORY.md) for the Graph V2 (GV2-020,
 GV2-023, GV2-026, GV2-030, GV2-031), GCTX (ADR-083, PV-9, GCTX-001), USAGE
 analytics foundation, daemon lifecycle (DLIFE), and full technical detail.

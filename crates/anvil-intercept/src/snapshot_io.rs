@@ -226,7 +226,8 @@ pub fn load_snapshot(
     dir: &Path,
     canonical_root: &Path,
 ) -> Result<SnapshotPayload, SnapshotReadError> {
-    let path = dir.join(snapshot_filename(canonical_root));
+    let filename = snapshot_filename(canonical_root);
+    let path = dir.join(&filename);
 
     let metadata = match fs::symlink_metadata(&path) {
         Ok(m) => m,
@@ -257,8 +258,7 @@ pub fn load_snapshot(
     // be redirected by a same-uid swap of an intermediate directory in the
     // stat→open window. The `metadata.len()` pre-cap above is a cheap fast-reject;
     // the held fd below is the security-bearing read.
-    let file = open_snapshot_for_read(dir, &snapshot_filename(canonical_root))
-        .map_err(SnapshotReadError::Io)?;
+    let file = open_snapshot_for_read(dir, &filename).map_err(SnapshotReadError::Io)?;
     // Cap the actual READ at the open fd, not just the pre-stat size: a file that
     // grew between `symlink_metadata` and `open` (a TOCTOU on a network/FUSE
     // mount) cannot drive `read_to_end` past the cap. `take(MAX + 1)` lets a

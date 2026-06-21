@@ -2171,22 +2171,37 @@ fn invalid_find_callers_query_reason(query: &FindCallersQuery) -> Option<String>
 /// CIB-091b (CE-6 gap): validate a client-supplied `workspace_root` *before* it
 /// reaches `PathBuf::from`/`canonicalize`. Rejects a NUL byte (which would make
 /// `canonicalize` fail with an opaque IO error → `-32603 Internal`) and a value
-/// over the same CE-6 [`MAX_FILTER_BYTES`] (512-byte) cap the relative filter
-/// params apply. Returns the rejection reason, or `None` when acceptable. The
-/// per-verb admission gate (`authorise_root`) still runs afterwards; this only
-/// guards the raw-string preconditions canonicalisation cannot express cleanly.
+/// over the [`MAX_WORKSPACE_ROOT_BYTES`] cap. Returns the rejection reason, or
+/// `None` when acceptable. The per-verb admission gate (`authorise_root`) still
+/// runs afterwards; this only guards the raw-string preconditions canonicalisation
+/// cannot express cleanly.
+///
+/// CIB-091b refinement: a workspace ROOT is an absolute filesystem path, not a
+/// substring query filter, so it is bounded by `PATH_MAX` (4096), not the 512-byte
+/// per-param [`MAX_FILTER_BYTES`] query cap. The 512B cap stays on the actual
+/// query/filter params (`invalid_relative_path_reason`, `invalid_query_reason`);
+/// only this root check uses the larger `PATH_MAX`-appropriate bound so a
+/// legitimately deep root is not wrongly rejected.
 fn invalid_workspace_root_reason(workspace_root: &str) -> Option<String> {
     if workspace_root.is_empty() {
         return Some("workspace_root must not be empty".to_string());
     }
-    if workspace_root.len() > MAX_FILTER_BYTES {
-        return Some(format!("workspace_root exceeds {MAX_FILTER_BYTES} bytes"));
+    if workspace_root.len() > MAX_WORKSPACE_ROOT_BYTES {
+        return Some(format!(
+            "workspace_root exceeds {MAX_WORKSPACE_ROOT_BYTES} bytes"
+        ));
     }
     if workspace_root.contains('\0') {
         return Some("workspace_root must not contain a NUL byte".to_string());
     }
     None
 }
+
+/// `PATH_MAX`-appropriate cap for a `workspace_root` (CIB-091b refinement). A
+/// root is an absolute filesystem path, so it is bounded by the conventional
+/// `PATH_MAX` (4096) rather than the 512-byte per-param query-filter cap
+/// ([`MAX_FILTER_BYTES`]) — a 512B bound wrongly rejected legitimately deep roots.
+const MAX_WORKSPACE_ROOT_BYTES: usize = 4096;
 
 /// The CE-7 assurance snapshot to ride along with a GCTX response when the
 /// `workspace_root` is rejected before any state read (CIB-091b): the daemon
@@ -3119,21 +3134,38 @@ mod tests {
         );
     }
 
-    /// CIB-091b (CE-6 gap): a `workspace_root` over the 512-byte cap is rejected
-    /// as a structured `InvalidQuery` before any canonicalisation/admission.
+    /// CIB-091b refinement: a `workspace_root` over the PATH_MAX-appropriate cap
+    /// (4096 bytes) is rejected as a structured `InvalidQuery` before any
+    /// canonicalisation/admission. A root is an absolute filesystem path, not a
+    /// 512-byte query filter, so the bound is `PATH_MAX`, not `MAX_FILTER_BYTES`.
     #[test]
     fn gctx_search_rejects_oversized_workspace_root() {
         let state = state();
         let mut conn = SaveTimeConn::new(&state);
         let request = GctxSearchSymbolsRequest {
-            workspace_root: format!("/tmp/{}", "a".repeat(600)),
+            // > 4096 bytes: over the PATH_MAX-appropriate root cap.
+            workspace_root: format!("/tmp/{}", "a".repeat(4100)),
             query: SearchSymbolsQuery::default(),
         };
         let resp = conn.search_symbols(&request).expect("validated in-band");
         assert!(
             matches!(resp.outcome, SearchSymbolsOutcome::InvalidQuery { .. }),
-            "an over-cap workspace_root must be a structured InvalidQuery: {:?}",
+            "an over-cap (>4096B) workspace_root must be a structured InvalidQuery: {:?}",
             resp.outcome
+        );
+    }
+
+    /// CIB-091b refinement: a legitimately deep `workspace_root` (~1KB — well over
+    /// the old 512-byte filter cap but under `PATH_MAX`) is NOT rejected by the
+    /// pre-canonicalise size check. It is a non-existent path, so admission later
+    /// degrades it to a CE-7 `Unavailable`/`DaemonAbsent` outcome — what matters
+    /// here is that it is NOT an `InvalidQuery` size rejection.
+    #[test]
+    fn gctx_search_accepts_deep_workspace_root_under_path_max() {
+        assert_eq!(
+            invalid_workspace_root_reason(&format!("/tmp/{}", "a".repeat(1000))),
+            None,
+            "a ~1KB root (over 512B, under PATH_MAX) must not be size-rejected"
         );
     }
 
