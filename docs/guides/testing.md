@@ -353,7 +353,7 @@ it('should detect valid spec with high confidence', async () => {
 });
 ```
 
-### CLI (`archive/anvil-cli-node/` — legacy TypeScript)
+### CLI (`anvil-archive/anvil-cli-node/` — legacy TypeScript)
 
 - **Focus:** Command structure, argument parsing, user interaction
 - **Pattern:** Mock external deps (inquirer, ora, chalk), use test workspaces

@@ -134,7 +134,7 @@ Same skip behaviour.
 ### Current real-binary coverage
 
 The historical TypeScript gate-pipeline integration test moved under
-`archive/anvil-ts-scanner/` when the TypeScript scanner/runtime gate was
+`anvil-archive/anvil-ts-scanner/` when the TypeScript scanner/runtime gate was
 retired. Current real-binary coverage is the direct OPA fixture suite, the
 TypeScript policy executor suite, and the Rust policy executor suite above.
 

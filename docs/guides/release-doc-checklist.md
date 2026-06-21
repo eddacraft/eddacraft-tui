@@ -84,9 +84,9 @@ Only update packages that changed in this release.
 - [ ] `apps/anvil-api/README.md` — API route changes
 
 > The Node MCP server and VS Code extension were archived per ADR-033
-> (`archive/anvil-mcp-server/`, `archive/anvil-vscode-extension/`); they no
-> longer participate in release cuts. The live MCP path is the Rust shim under
-> `crates/anvil-cli/src/commands/mcp.rs`.
+> (`anvil-archive/anvil-mcp-server/`, `anvil-archive/anvil-vscode-extension/`);
+> they no longer participate in release cuts. The live MCP path is the Rust shim
+> under `crates/anvil-cli/src/commands/mcp.rs`.
 
 ### Pre-release: CI and deployment
 
