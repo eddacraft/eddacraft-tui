@@ -669,8 +669,9 @@ discovery.
   attribution drift is a small Node-CLI fix)
 - **Status:** Done (Wave 2, 2026-06-19) — took option (a): `git mv
   apps/admin-cli → archive/admin-cli-node` (28 files, history preserved),
-  mirroring `archive/anvil-cli-node`. The `!archive/**` workspace exclusion
-  drops it from the pnpm workspace (33 → 32 projects); also removed the root
+  mirroring `archive/anvil-cli-node`; the later archive cleanup moved both
+  historical packages to the sibling `eddacraft/anvil-archive` repository,
+  outside this pnpm workspace. Also removed the root
   `tsconfig.json` project reference + the `pnpm admin` script and
   regenerated `pnpm-lock.yaml` (−28 lines, the importer block only — zero
   version churn). Added an archive README retirement banner and a runbook

@@ -100,11 +100,12 @@ These corrections were doc-only; no workflow changes accompanied this pass.
 Workflow follow-up (demoting the corrected packages out of integration-readiness
 aggregation, or archiving them) is a separate decision.
 
-## Archived surfaces (excluded from the workspace)
+## Archived surfaces (separate repository)
 
-The following ship from `archive/` and are **excluded** from
-`pnpm-workspace.yaml` via `'!archive/**'`. They do **not** run in release CI;
-references in the repo are documentation comments only (see `vitest.config.ts`,
+The following were moved out of this workspace into the sibling
+`eddacraft/anvil-archive` repository. They do **not** run in release CI because
+they are no longer pnpm/Nx workspace members; references in this repo are
+documentation comments only (see `vitest.config.ts`,
 `apps/e2e/vitest.config.ts`, `packages/anvil/runtime/src/index.ts`,
 `packages/libs/render/specs/architecture-health.dashboard.json`).
 

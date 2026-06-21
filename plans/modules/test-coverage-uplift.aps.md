@@ -367,9 +367,10 @@ Change status to **Ready** when:
 ### Phase 3 — TypeScript Package Coverage
 
 > **mcp-server items resolved 2026-06-20 (covered by RMCPF).** TCOV-019, -020,
-> and -021 targeted `archive/anvil-mcp-server/`, archived under **ADR-033
-> (2026-04-29)** and excluded from the pnpm workspace (`pnpm-workspace.yaml:51`
-> — `!archive/**`). They sat `Blocked — needs decision` until the MCP capability
+> and -021 targeted `anvil-archive/anvil-mcp-server/`, archived under
+> **ADR-033 (2026-04-29)** and now living in the sibling
+> `eddacraft/anvil-archive` repository outside this pnpm workspace. They sat
+> `Blocked — needs decision` until the MCP capability
 > returned **in Rust** via the RMCPF port (#2809): `crates/anvil-cli/src/mcp/`
 > now provides the `anvil://` resources and MCP tools, with the editor-config
 > install path in `util.rs`. That port arrived already covered — ~304 MCP tests

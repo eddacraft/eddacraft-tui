@@ -39,7 +39,7 @@ These define how Anvil behaves by default. All features must align.
 | [012](012-rust-cli-replacement.md) | Single `anvil` Rust binary replaces Node.js CLI; big bang, no hybrid period | Accepted |
 | [017](017-crates-io-naming.md) | Publish crates under `eddacraft-anvil-*` namespace to avoid collisions | Accepted |
 | [026](026-rust-scanner-authoritative.md) | Rust scanner is authoritative; `patterns/compiled/registry.json` is the contract; TS scanner stays only for in-process IDE/MCP surfaces until a napi-rs migration retires it | Accepted (amended by ADR-033) |
-| [033](033-park-ide-mcp-retire-ts-scanner.md) | Archive VSCode extension and TS MCP server (`archive/anvil-vscode-extension/`, `archive/anvil-mcp-server/`); archive TS scanner, TS suppression parser, and parity harness to `archive/anvil-ts-scanner/`; CI excluded via `'!archive/**'`; napi crate stays as build canary; surfaces return as new active packages via DRVR / RMCPF / future ADR | Proposed |
+| [033](033-park-ide-mcp-retire-ts-scanner.md) | Archive VSCode extension and TS MCP server (now in sibling `eddacraft/anvil-archive` at `anvil-archive/anvil-vscode-extension/`, `anvil-archive/anvil-mcp-server/`); archive TS scanner, TS suppression parser, and parity harness to `anvil-archive/anvil-ts-scanner/`; napi crate stays as build canary; surfaces return as new active packages via DRVR / RMCPF / future ADR | Proposed |
 | [040](040-rust-policy-engine-regorus.md) | Adopt `regorus` as the embedded Rust policy engine behind `crates/anvil-policy-engine` facade; amends ADR-006 engine half (Dependency-Cruiser unaffected); POLENG-008 bench gate validates parity vs. Go OPA reference | Accepted |
 
 ## Product and Distribution

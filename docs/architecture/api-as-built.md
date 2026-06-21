@@ -698,10 +698,10 @@ API key rather than the `X-Admin-Actor` header the Node CLI emitted (the API
 ignores it — `src/middleware/admin-auth.ts:88-108`, ADMINCLIH-002).
 
 **Resolved 2026-06-19 (V060F-019):** the Node binary was moved out of the
-workspace to `anvil-archive/admin-cli-node/` (excluded via `!archive/**`),
-dropped from the root `tsconfig.json` references and the `pnpm admin` script.
-`anvil admin` is now the only supported operator surface; the archived tool
-carries a retirement banner.
+workspace to the sibling `eddacraft/anvil-archive` repository at
+`anvil-archive/admin-cli-node/`, dropped from the root `tsconfig.json`
+references and the `pnpm admin` script. `anvil admin` is now the only supported
+operator surface; the archived tool carries a retirement banner.
 
 ### G-05: `_migrations` runner has no rollback path
 

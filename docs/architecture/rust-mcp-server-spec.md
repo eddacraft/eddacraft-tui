@@ -1,12 +1,12 @@
 # Rust MCP Server Parity Spec
 
-| Type | Authority     | Owner     | Status | Freshness                                                                                                                                                                                      |
-| ---- | ------------- | --------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Spec | Authoritative | RMCPF-002 | Ready  | Last reviewed 2026-05-14 against `plans/modules/rust-mcp-full-port.aps.md`, `plans/specs/anvil-driver-framework/editor-and-mcp-driver-design.md` §4.3-4.4, and `archive/anvil-mcp-server/src/` |
+| Type | Authority     | Owner     | Status | Freshness                                                                                                                                                                                            |
+| ---- | ------------- | --------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Spec | Authoritative | RMCPF-002 | Ready  | Last reviewed 2026-05-14 against `plans/modules/rust-mcp-full-port.aps.md`, `plans/specs/anvil-driver-framework/editor-and-mcp-driver-design.md` §4.3-4.4, and `anvil-archive/anvil-mcp-server/src/` |
 
-| Upstream                                                                                              | Downstream                                                                  |
-| ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| ADR-033, DRVR-006/DRVR-007, `docs/architecture/mcp-shim-as-built.md`, `archive/anvil-mcp-server/src/` | RMCPF-010, RMCPF-011, RMCPF-012, RMCPF-020, RMCPF-021, RMCPF-030, RMCPF-031 |
+| Upstream                                                                                                    | Downstream                                                                  |
+| ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| ADR-033, DRVR-006/DRVR-007, `docs/architecture/mcp-shim-as-built.md`, `anvil-archive/anvil-mcp-server/src/` | RMCPF-010, RMCPF-011, RMCPF-012, RMCPF-020, RMCPF-021, RMCPF-030, RMCPF-031 |
 
 This spec defines the target architecture for porting the archived TypeScript
 MCP server into the Rust `anvil` binary. It does not change the shipped narrow
@@ -18,7 +18,7 @@ for save-time validation, as documented in
 
 - Preserve the single-binary MCP story established by RMCP.
 - Port or explicitly retire the archived TypeScript MCP tools, resources, and
-  prompts from `archive/anvil-mcp-server/src/`.
+  prompts from `anvil-archive/anvil-mcp-server/src/`.
 - Keep daemon authority narrow: MCP handlers either translate to existing daemon
   RPCs or compose locally against Rust CLI/library code.
 - Keep graph-context expansion out of RMCPF; new graph tools remain owned by
@@ -196,8 +196,8 @@ document the migration path.
 
 ## TypeScript Server Retirement Gates
 
-`archive/anvil-mcp-server/` remains frozen reference material until RMCPF-031.
-Retirement requires all of the following:
+`anvil-archive/anvil-mcp-server/` remains frozen reference material until
+RMCPF-031. Retirement requires all of the following:
 
 - RMCPF-010, RMCPF-011, RMCPF-012, RMCPF-020, and RMCPF-021 have either shipped
   parity or recorded retirements.

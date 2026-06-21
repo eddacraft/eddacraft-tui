@@ -64,12 +64,12 @@ different: surfaces pausing, not migration completing.
 
 The VSCode extension and TypeScript MCP server are **archived**, and
 the TypeScript scanner stack that exists to feed them is **archived
-alongside them** — all three under the project's existing
+alongside them**. They originally used the project's then-current
 `archive/<name>/` convention (precedent: `archive/anvil-cli-node/`
-from ADR-012, `archive/anvil-tui-ink/` from ADR-011a). The
-`pnpm-workspace.yaml` `'!archive/**'` glob already excludes archived
-packages from build, lint, test, and publish; no new build-skip
-machinery is needed.
+from ADR-012, `archive/anvil-tui-ink/` from ADR-011a). As of the
+2026-06-21 archive cleanup, those historical packages live in the
+sibling `eddacraft/anvil-archive` repository instead of this workspace,
+so no pnpm/Nx exclusion glob is required here.
 
 Concretely:
 
@@ -353,9 +353,9 @@ which scanner consumers exist.
   `crates/anvil-checks-napi/`
 - Archive convention reference: `archive/anvil-cli-node/` (Node
   CLI archived under ADR-012) and `archive/anvil-tui-ink/` (Ink
-  TUI archived under ADR-011a) — same `git mv` pattern, README
-  Archived banner, `pnpm-workspace.yaml` exclusion via
-  `'!archive/**'`
+  TUI archived under ADR-011a) — same original `git mv` pattern
+  and README Archived banner; these historical packages now live in
+  `eddacraft/anvil-archive`, outside this pnpm/Nx workspace.
 - Strategic frame:
   [`plans/next-steps.md`](../next-steps.md) — H1/H2/H3 sequencing,
   RTAI as headline, RMCP as launch MCP path

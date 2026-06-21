@@ -7,9 +7,9 @@
 **Last reviewed:** 2026-06-19
 
 > **Plan change (2026-04-29, [ADR-033](../decisions/033-park-ide-mcp-retire-ts-scanner.md)):**
-> The TypeScript MCP server (`archive/anvil-mcp-server/`) is now
-> **archived** — moved out of `packages/mcp-server/` per the
-> project's archive convention. RMCPF still owns full Rust-side
+> The TypeScript MCP server (`anvil-archive/anvil-mcp-server/`) is now
+> **archived** — moved out of `packages/mcp-server/` and then moved to
+> the sibling `eddacraft/anvil-archive` repository. RMCPF still owns full Rust-side
 > parity, but its starting state changes:
 >
 > - Inventory work (RMCPF-001) reads the archived TS package as a
@@ -27,7 +27,7 @@
 >   port.
 > - RMCPF-031 ("Retire or archive TypeScript MCP server") is
 >   partially executed by ADR-033 — the package is already in
->   `archive/anvil-mcp-server/`. RMCPF-031 closes out by deciding
+>   `anvil-archive/anvil-mcp-server/`. RMCPF-031 closes out by deciding
 >   whether the archive remains as historical reference or is
 >   deleted once parity ships.
 
@@ -38,7 +38,7 @@ existing TypeScript MCP server functionality into the Rust `anvil` binary so MCP
 is no longer split across a launch-critical Rust path and a legacy Node/TS
 sidecar.
 
-**Why:** RMCP deliberately does not port `archive/anvil-mcp-server`. It ships only
+**Why:** RMCP deliberately does not port `anvil-archive/anvil-mcp-server`. It ships only
 the A1 pre-write validation path. The next release can then do the slower,
 parity-focused work: existing tools, resources, prompts, transports, tests, and
 compatibility behaviour move behind the Rust binary without jeopardising the
@@ -47,14 +47,14 @@ runs against a frozen reference — not a moving sidecar.
 
 ## In Scope
 
-- Inventory and compatibility matrix for all current `archive/anvil-mcp-server`
+- Inventory and compatibility matrix for all current `anvil-archive/anvil-mcp-server`
   tools, resources, prompts, and transports
 - Rust implementations of existing MCP tool contracts
 - Rust implementations of existing MCP resource contracts where still needed
 - Rust implementations or documented retirement of existing prompts
 - Streamable HTTP transport parity if still required by supported clients
 - Compatibility tests comparing TS and Rust MCP responses on fixture workspaces
-- Deprecation/retirement path for `archive/anvil-mcp-server` once parity is reached
+- Deprecation/retirement path for `anvil-archive/anvil-mcp-server` once parity is reached
 - Migration documentation for users who previously launched the TS MCP server
 
 ## Out of Scope
@@ -72,13 +72,13 @@ runs against a frozen reference — not a moving sidecar.
 - RMCP — current-release Rust MCP stdio launch path
 - DRVR / ADR-030 — driver and daemon direction for integration surfaces
 - GV2/GCTX where graph context tools are introduced
-- `archive/anvil-mcp-server` — compatibility source of truth until retirement
+- `anvil-archive/anvil-mcp-server` — compatibility source of truth until retirement
 - `crates/anvil-cli` — Rust command host
 
 **Exposes:**
 
 - Full Rust MCP server surface under `anvil mcp serve`
-- Migration plan for retiring or archiving `archive/anvil-mcp-server`
+- Migration plan for retiring or archiving `anvil-archive/anvil-mcp-server`
 - Compatibility report for existing MCP users
 
 ## Constraints

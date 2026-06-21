@@ -32,5 +32,5 @@ apps/
 ## Notes
 
 - The shipped end-user CLI is the Rust binary in `crates/anvil-cli/`.
-- The TypeScript CLI now lives in `archive/anvil-cli-node/` and is retained for
-  history only.
+- The TypeScript CLI now lives in `eddacraft/anvil-archive` at
+  `anvil-archive/anvil-cli-node/` and is retained for history only.
