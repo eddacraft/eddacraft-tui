@@ -1,7 +1,7 @@
 /**
  * Observation Contract (v1)
  *
- * Defines the 11 observation kinds that Anvil must emit to Kindling.
+ * Defines the 13 observation kinds that Anvil must emit to Kindling.
  * This is the write-only contract - what gets recorded, not how it's queried.
  *
  * Based on: "What Kindling is used for in Anvil v1" specification
@@ -432,6 +432,38 @@ export const CommandInvokedObservationSchema = z
 export type CommandInvokedObservation = z.infer<typeof CommandInvokedObservationSchema>;
 
 // =============================================================================
+// False-Positive Reported (OPSUP-007 / ADR-089)
+// =============================================================================
+
+export const FalsePositiveReportedObservationSchema = z
+  .object({
+    kind: z.literal('false_positive_reported'),
+    session_id: z.string().uuid(),
+    timestamp: z.string().datetime(),
+
+    check_id: z.string().describe('Stable ANV-* check ID the false positive is reported against'),
+    hashed_path: z
+      .string()
+      .describe('One-way hash of the file path; the plaintext path is never recorded'),
+    line: z.number().int().min(1).describe('1-based line number the report points at'),
+    principal: z
+      .string()
+      .describe('Anonymised principal — one-way hash, or "anonymous"; never the raw identity'),
+    snippet: z
+      .string()
+      .optional()
+      .describe('Opt-in source snippet; absent by default (fail-closed on anonymisation)'),
+    traceparent: z.string().optional().describe('W3C traceparent for cross-pipe correlation'),
+  })
+  // Reject unknown keys so a producer that accidentally adds a raw path or
+  // source field fails validation instead of silently passing.
+  .strict();
+
+export type FalsePositiveReportedObservation = z.infer<
+  typeof FalsePositiveReportedObservationSchema
+>;
+
+// =============================================================================
 // Observation (Union Type)
 // =============================================================================
 
@@ -451,6 +483,7 @@ export const ObservationSchema = z.discriminatedUnion('kind', [
   HumanInputObservationSchema,
   ErrorObservationSchema,
   CommandInvokedObservationSchema,
+  FalsePositiveReportedObservationSchema,
 ]);
 
 export type Observation =
@@ -465,7 +498,8 @@ export type Observation =
   | ConstraintAppliedObservation
   | HumanInputObservation
   | ErrorObservation
-  | CommandInvokedObservation;
+  | CommandInvokedObservation
+  | FalsePositiveReportedObservation;
 
 // =============================================================================
 // Observation Emission Contract

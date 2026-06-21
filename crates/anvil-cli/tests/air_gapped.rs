@@ -479,6 +479,23 @@ fn anvil_l4_validate_exits_cleanly_with_no_network() {
     );
 }
 
+/// `anvil report-fp <check-id> <file:line>` (OPSUP-007 / ADR-089) records a
+/// false-positive report to the **local** Kindling sidecar only. ADR-089
+/// makes the local record the destination — nothing leaves the machine — so
+/// the command must complete off-network.
+#[test]
+fn anvil_report_fp_exits_cleanly_with_no_network() {
+    let Some(out) = run_air_gapped(&["--no-tui", "report-fp", "ANV-CORE-001", "src/x.rs:1"]) else {
+        return;
+    };
+    assert!(
+        out.status.code().is_some(),
+        "anvil report-fp was killed by signal under air-gap: {:?}\nstderr={}",
+        out.status,
+        String::from_utf8_lossy(&out.stderr),
+    );
+}
+
 /// `anvil hook pre-push` (MLP-004) reads git's pre-push stdin contract
 /// and validates the pushed range against local policy. With no stdin
 /// supplied (`Command::output` closes it) there are zero refs to walk,

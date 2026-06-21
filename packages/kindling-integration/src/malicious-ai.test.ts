@@ -730,7 +730,7 @@ describe('Observation schema validation (correctness boundary)', () => {
     expect(result.success).toBe(false);
   });
 
-  it('validates all 11 observation kinds are accepted', () => {
+  it('validates all observation kinds are accepted', () => {
     const kinds = [
       'session_start',
       'session_end',
@@ -743,6 +743,8 @@ describe('Observation schema validation (correctness boundary)', () => {
       'constraint_applied',
       'human_input',
       'error',
+      'command.invoked',
+      'false_positive_reported',
     ];
     // Just verify the schema discriminator recognises all kinds
     for (const kind of kinds) {

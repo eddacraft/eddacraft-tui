@@ -904,6 +904,82 @@ pub fn from_fence(
 /// wire-schema stability; only its value is suppressed.
 pub const REDACTED_WORKTREE: &str = "<redacted>";
 
+/// Pinned Kindling observation kind for a user-reported false positive
+/// (OPSUP-007 / ADR-089). Schema-matches
+/// `FalsePositiveReportedObservationSchema.kind` in
+/// `packages/kindling-integration/src/observation-contract.ts`.
+pub const KIND_FALSE_POSITIVE_REPORTED: &str = "false_positive_reported";
+
+/// Per-report identity and already-anonymised location the caller supplies,
+/// so this module stays a pure converter (no clock, hashing, or registry
+/// access of its own).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FalsePositiveReportContext<'a> {
+    /// Per-report UUID v4 string.
+    pub session_id: &'a str,
+    /// RFC 3339 / ISO 8601 datetime when the report was made.
+    pub timestamp: &'a str,
+    /// Stable `ANV-*` check ID the false positive is reported against —
+    /// the caller has already validated it against the OPSUP-001 registry.
+    pub check_id: &'a str,
+    /// One-way hash of the file path. The plaintext path MUST NOT appear.
+    pub hashed_path: &'a str,
+    /// 1-based line number the report points at.
+    pub line: u32,
+    /// Anonymised principal — a one-way hash, or `anonymous`. The raw
+    /// principal MUST NOT appear.
+    pub principal: &'a str,
+    /// W3C `traceparent` for cross-pipe correlation when bound; else `None`.
+    pub traceparent: Option<&'a str>,
+}
+
+/// Kindling `false_positive_reported` observation payload (OPSUP-007).
+///
+/// Records *that* a check fired a false positive at a hashed location —
+/// never the plaintext path, and never source content by default (ADR-089).
+/// `snippet` is opt-in only: it is absent unless the operator explicitly
+/// opted in, so the default record is fail-closed on anonymisation.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FalsePositiveReportedObservation {
+    pub kind: String,
+    pub session_id: String,
+    pub timestamp: String,
+    /// Stable `ANV-*` check ID.
+    pub check_id: String,
+    /// One-way hash of the file path. No plaintext path is ever recorded.
+    pub hashed_path: String,
+    pub line: u32,
+    pub principal: String,
+    /// Opt-in source snippet. Absent by default (fail-closed on
+    /// anonymisation); present only when the operator explicitly opts in.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub snippet: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub traceparent: Option<String>,
+}
+
+/// Build a [`FalsePositiveReportedObservation`] from already-anonymised
+/// report context. Pure: the caller owns identity minting, path hashing,
+/// registry validation, and the opt-in snippet decision, so this helper is
+/// testable without a clock, a hasher, or the registry.
+#[must_use]
+pub fn from_fp_report(
+    ctx: &FalsePositiveReportContext<'_>,
+    snippet: Option<String>,
+) -> FalsePositiveReportedObservation {
+    FalsePositiveReportedObservation {
+        kind: KIND_FALSE_POSITIVE_REPORTED.to_string(),
+        session_id: ctx.session_id.to_string(),
+        timestamp: ctx.timestamp.to_string(),
+        check_id: ctx.check_id.to_string(),
+        hashed_path: ctx.hashed_path.to_string(),
+        line: ctx.line,
+        principal: ctx.principal.to_string(),
+        snippet,
+        traceparent: ctx.traceparent.map(ToString::to_string),
+    }
+}
+
 /// Errors a [`KindlingObservationSink`] can surface back to the
 /// emitter. The emitter logs and drops these — the scan response
 /// always succeeds regardless of sink health (MLP2-006 expected

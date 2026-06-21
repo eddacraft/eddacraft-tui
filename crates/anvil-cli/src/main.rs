@@ -160,6 +160,15 @@ enum Commands {
     /// `import-boundaries`, `command-safety`, `lint`, `test`, `coverage`,
     /// `dependency`) live under `anvil gate`.
     Check(commands::check::CheckArgs),
+    /// Report a false positive against a check.
+    ///
+    /// Records `anvil report-fp <check-id> <file:line>` to the local
+    /// Kindling record only — nothing leaves the machine (ADR-089). The
+    /// file path is recorded as a one-way salted hash, never plaintext, and
+    /// source content is never included unless `--include-snippet` is set.
+    /// The check identifier is validated against the stable-ID registry.
+    #[command(name = "report-fp")]
+    ReportFp(commands::report_fp::ReportFpArgs),
     /// Run diagnostic checks on your environment.
     Doctor(commands::doctor::DoctorArgs),
     /// Show, set, and convert Anvil project config.
@@ -288,6 +297,7 @@ fn command_canonical_name(cmd: &Commands) -> &'static str {
         Commands::Audit(_) => "audit",
         Commands::AuditChain(_) => "audit-chain",
         Commands::Check(_) => "check",
+        Commands::ReportFp(_) => "report-fp",
         Commands::Doctor(_) => "doctor",
         Commands::Config(_) => "config",
         Commands::Drift(_) => "drift",
@@ -1153,6 +1163,7 @@ fn main() -> ExitCode {
         Commands::Audit(args) => commands::audit::run(args, &cli.global),
         Commands::AuditChain(args) => commands::audit_chain::run(args, &cli.global),
         Commands::Check(args) => commands::check::run(args, &cli.global),
+        Commands::ReportFp(args) => commands::report_fp::run(args, &cli.global),
         Commands::Doctor(args) => commands::doctor::run(args, &cli.global),
         Commands::Config(args) => commands::config::run(args, &cli.global),
         Commands::Drift(args) => commands::drift::run(args, &cli.global),

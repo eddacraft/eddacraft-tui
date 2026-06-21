@@ -319,7 +319,7 @@ Remaining non-registry slices move to **Ready** when:
 
 ### OPSUP-007 — False-positive reporting channel
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Define the CLI and telemetry path for users to report false
   positives without shipping source content by default.
 - **Expected Outcome (CLI surface, deterministic):** `anvil report-fp
@@ -339,7 +339,7 @@ Remaining non-registry slices move to **Ready** when:
 - **Files:**
   - `crates/anvil-cli/src/commands/` (new `report_fp` command)
   - `crates/anvil-cli/src/commands/mod.rs` (subcommand wiring)
-  - `packages/kindling-integration/src/observation-contract.ts` (12th
+  - `packages/kindling-integration/src/observation-contract.ts` (13th
     observation kind)
 - **Validation:**
   - New test: `report-fp` hashes the path and omits source content under the

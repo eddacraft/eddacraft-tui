@@ -6,7 +6,7 @@
  * Three surfaces:
  *
  * 1. Observation Contract (Write-Only)
- *    - 11 observation kinds covering session, plan, gate, action, constraint, human, error
+ *    - 13 observation kinds covering session, plan, gate, action, constraint, human, error
  *    - Immutable, timestamped, linked facts
  *
  * 2. Query Contract (Read-Only)
@@ -47,6 +47,7 @@ export {
   HumanInputObservationSchema,
   ErrorObservationSchema,
   CommandInvokedObservationSchema,
+  FalsePositiveReportedObservationSchema,
   ArgShapeSchema,
   FlagSetEntrySchema,
 
@@ -66,6 +67,7 @@ export {
   type HumanInputObservation,
   type ErrorObservation,
   type CommandInvokedObservation,
+  type FalsePositiveReportedObservation,
   type ArgShape,
   type FlagSetEntry,
   type Observation,

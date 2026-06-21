@@ -1,7 +1,7 @@
 /**
  * Anvil-Kindling Adapter
  *
- * Maps Anvil's 11 observation kinds (rich, domain-specific schemas)
+ * Maps Anvil's 13 observation kinds (rich, domain-specific schemas)
  * to Kindling core's generic observation model for storage and retrieval.
  *
  * Anvil observation data is serialized to `content` as JSON.
@@ -33,6 +33,7 @@ const KIND_MAP: Record<AnvilObservation['kind'], string> = {
   human_input: 'message',
   error: 'error',
   'command.invoked': 'command',
+  false_positive_reported: 'message',
 };
 
 export interface AnvilKindlingAdapterConfig {

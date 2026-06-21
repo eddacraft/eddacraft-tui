@@ -67,9 +67,9 @@ use std::time::Duration;
 use anvil_intercept::kindling_observation::{
     CommandInvocationContext, CommandInvokedEmitter, CommandInvokedObservation,
     ConstraintAppliedObservation, DEFAULT_SAVE_TIME_PASS_CAPACITY, DEFAULT_SAVE_TIME_PASS_WINDOW,
-    FlagSetEntry, GateEvaluatedObservation, KindlingObservationSink, KindlingSinkError,
-    NonBlockingObservationSink, SAVE_TIME_GATE_ID, SaveTimeObservationEmitter,
-    from_command_invocation,
+    FalsePositiveReportContext, FlagSetEntry, GateEvaluatedObservation, KindlingObservationSink,
+    KindlingSinkError, NonBlockingObservationSink, SAVE_TIME_GATE_ID, SaveTimeObservationEmitter,
+    from_command_invocation, from_fp_report,
 };
 use anvil_intercept::rate_window::RateWindow;
 use anvil_kernel::feature_flags::{CapturedResolution, ResolutionReason, take_captured_flags};
@@ -686,6 +686,80 @@ pub fn default_usage_log_path() -> Result<PathBuf> {
     Ok(usage_log_path(&state_dir))
 }
 
+// ── False-positive reporting (OPSUP-007 / ADR-089) ──────────────────────
+
+/// NDJSON sidecar filename for false-positive reports — a sibling of
+/// `usage.ndjson` under the same `kindling/` dir.
+const FALSE_POSITIVE_NDJSON: &str = "false-positives.ndjson";
+
+/// One-way, salted hash of a file path for a false-positive report. Uses
+/// the per-deployment usage salt so the digest is unjoinable across
+/// deployments and the plaintext path is never recorded (OPSUP-007). A
+/// distinct domain separator from the principal hash keeps the two
+/// keyspaces independent.
+fn hash_file_path(path: &str, salt: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(salt);
+    hasher.update(b":fp-path:");
+    hasher.update(path.as_bytes());
+    hex::encode(hasher.finalize())
+}
+
+/// Resolve the false-positive NDJSON path under the user-scoped state dir.
+fn fp_log_path(state_dir: &Path) -> PathBuf {
+    state_dir.join("kindling").join(FALSE_POSITIVE_NDJSON)
+}
+
+/// OPSUP-007 / ADR-089: record a false-positive report to the local
+/// Kindling sidecar — the destination is the local record; nothing leaves
+/// the machine (no network call, air-gap-safe).
+///
+/// Mirrors [`record_invocation`]'s anonymisation posture: a salted-hash
+/// principal and a **salted-hash file path** (never the plaintext path),
+/// and **no source content** unless the caller supplies an opt-in
+/// `snippet` (fail-closed: `None` by default). `check_id` is expected to be
+/// an already-resolved stable `ANV-*` ID (the command validates it against
+/// the OPSUP-001 registry before calling).
+pub fn record_false_positive(
+    check_id: &str,
+    path: &str,
+    line: u32,
+    snippet: Option<String>,
+) -> Result<()> {
+    let state_dir = credentials::credentials_dir().context("resolve usage state directory")?;
+    record_false_positive_in(&state_dir, check_id, path, line, snippet)
+}
+
+/// Testable core of [`record_false_positive`] under an explicit state dir
+/// (mirrors the `*_in` split used for the principal/salt logic).
+fn record_false_positive_in(
+    state_dir: &Path,
+    check_id: &str,
+    path: &str,
+    line: u32,
+    snippet: Option<String>,
+) -> Result<()> {
+    let salt = load_or_create_salt_in(state_dir)?;
+    let principal = resolve_principal_in(state_dir)?;
+    let hashed_path = hash_file_path(path, &salt);
+
+    let session_id = Uuid::new_v4().to_string();
+    let timestamp = Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+    let traceparent = incoming_traceparent();
+
+    let ctx = FalsePositiveReportContext {
+        session_id: &session_id,
+        timestamp: &timestamp,
+        check_id,
+        hashed_path: &hashed_path,
+        line,
+        principal: &principal,
+        traceparent: traceparent.as_deref(),
+    };
+    let obs = from_fp_report(&ctx, snippet);
+    append_observation_to(&fp_log_path(state_dir), &obs)
+}
+
 /// USAGE-004: a [`KindlingObservationSink`] that appends `command.invoked`
 /// rows produced by the JSON-RPC daemon dispatch to the *same*
 /// user-scoped `usage.ndjson` sidecar the CLI producer writes (resolved
@@ -901,6 +975,70 @@ mod tests {
     use super::*;
     use std::fmt::Write as _;
     use tempfile::tempdir;
+
+    // ── False-positive reporting (OPSUP-007 / ADR-089) ──────────────
+
+    #[test]
+    fn record_false_positive_hashes_path_and_omits_source_by_default() {
+        let dir = tempdir().expect("tempdir");
+        let plaintext_path = "src/secrets/loader.rs";
+
+        record_false_positive_in(dir.path(), "ANV-CORE-001", plaintext_path, 42, None)
+            .expect("record fp");
+
+        let sidecar = fp_log_path(dir.path());
+        let content = std::fs::read_to_string(&sidecar).expect("read sidecar");
+        let row: serde_json::Value = serde_json::from_str(content.trim()).expect("one ndjson row");
+
+        assert_eq!(row["kind"], "false_positive_reported");
+        assert_eq!(row["check_id"], "ANV-CORE-001");
+        assert_eq!(row["line"], 42);
+        // The plaintext path must never appear; the hash must be present.
+        assert!(
+            !content.contains(plaintext_path),
+            "plaintext path leaked into the record: {content}"
+        );
+        assert_eq!(
+            row["hashed_path"],
+            hash_file_path(plaintext_path, &load_or_create_salt_in(dir.path()).unwrap())
+        );
+        // No source content by default — the snippet field is omitted.
+        assert!(
+            row.get("snippet").is_none(),
+            "source snippet must be omitted under the default config: {content}"
+        );
+    }
+
+    #[test]
+    fn record_false_positive_includes_snippet_only_when_opted_in() {
+        let dir = tempdir().expect("tempdir");
+        record_false_positive_in(
+            dir.path(),
+            "ANV-CORE-002",
+            "a/b.rs",
+            7,
+            Some("let x = 1;".to_string()),
+        )
+        .expect("record fp");
+
+        let content = std::fs::read_to_string(fp_log_path(dir.path())).expect("read");
+        let row: serde_json::Value = serde_json::from_str(content.trim()).expect("row");
+        assert_eq!(row["snippet"], "let x = 1;");
+    }
+
+    #[test]
+    fn fp_path_hash_is_salted_and_deterministic() {
+        let dir = tempdir().expect("tempdir");
+        let salt = load_or_create_salt_in(dir.path()).expect("salt");
+        let a = hash_file_path("src/x.rs", &salt);
+        let b = hash_file_path("src/x.rs", &salt);
+        let other = hash_file_path("src/y.rs", &salt);
+        assert_eq!(a, b, "same path + salt hashes identically");
+        assert_ne!(a, other, "different paths hash differently");
+        assert!(!a.contains("src/x.rs"), "hash must not embed the path");
+        // Distinct domain from the principal hash for the same input bytes.
+        assert_ne!(a, anonymise_principal(Some("src/x.rs"), &salt));
+    }
 
     #[test]
     fn anonymise_principal_is_anonymous_without_email() {

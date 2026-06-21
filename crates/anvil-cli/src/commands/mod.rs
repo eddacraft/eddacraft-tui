@@ -34,6 +34,7 @@ pub mod new;
 pub mod plan;
 pub mod policy;
 pub mod protection_claim_section;
+pub mod report_fp;
 pub mod start;
 pub mod status;
 pub mod tutorial;
