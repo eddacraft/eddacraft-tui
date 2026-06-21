@@ -5,9 +5,13 @@
 
 | ID   | Owner      | Status   | Progress |
 | ---- | ---------- | -------- | -------- |
-| TUIN | joshuaboys | In Progress | 5/13     |
+| TUIN | joshuaboys | In Progress | 6/13     |
 
-**Last reviewed:** 2026-06-21 (TUIN-003 landed): D-TUIN-002 Accepted (operator)
+**Last reviewed:** 2026-06-22 (TUIN-004 landed): the dedicated panic-restore
+integration test (`crates/eddacraft-tui/tests/lifecycle_panic.rs`) closed
+TUIN-004's only remaining delta (the implementation shipped earlier via
+TUIN-012). Module 5/13 → **6/13**.
+Prior: 2026-06-21 (TUIN-003 landed): D-TUIN-002 Accepted (operator)
 and TUIN-003 delivered — `crates/eddacraft-tui/src/mode/` ships the `TtyKind` /
 `AltScreenSupport` / `ColourDepth` typed-enum probes (pure cores + live-env
 wrappers, zero new deps, full unit-test matrix), and Anvil's central `OutputMode`
@@ -421,15 +425,17 @@ TUIN module resolve.
 
 ### TUIN-004: Implement lifecycle helpers behind opt-in feature flag
 
-- **Status:** Ready — **implementation landed via TUIN-012** (D-TUIN-003
+- **Status:** Done 2026-06-22 — implementation landed via TUIN-012 (D-TUIN-003
   Accepted): `crates/eddacraft-tui/src/lifecycle.rs` ships behind
   `#[cfg(feature = "lifecycle")]` with `TerminalGuard` (raw-mode + alt-screen
   enter/leave, `Drop` cleanup), `restore_terminal`, and an `install_panic_hook`
   panic-restore handler; `Cargo.toml` declares `lifecycle = []` (no transitive
-  pulls); `examples/runner_shell.rs` exercises it transitively. **Remaining
-  delta:** the dedicated panic-restore integration test
-  (`tests/lifecycle_panic.rs`) named in the Validation criterion, and
-  (optional) a lifecycle-specific example. Scoped, unblocked.
+  pulls); `examples/runner_shell.rs` exercises it transitively. The dedicated
+  panic-restore integration test named in the Validation criterion now landed —
+  `tests/lifecycle_panic.rs` runs the restore-then-chain scenario in a fresh
+  subprocess (process-global hook + `OnceLock` + no CI TTY) and asserts the
+  child unwound and the chained sentinel hook ran, plus an in-process
+  `restore_terminal()` idempotency check.
 - **Intent:** Land the `lifecycle` feature flag in `eddacraft-tui` with
   alt-screen enter/exit, raw mode set/clear, panic-restore handler, and
   signal-driven cleanup helpers per D-TUIN-003.
