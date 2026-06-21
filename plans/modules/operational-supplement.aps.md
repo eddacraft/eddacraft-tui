@@ -12,7 +12,7 @@ Cross-cutting convention: see plans/aps-rules.md#cross-cutting-modules.
 
 | ID    | Owner   | Status      | Progress |
 | ----- | ------- | ----------- | -------- |
-| OPSUP | OpenCode | In Progress | 6/7      |
+| OPSUP | OpenCode | In Progress | 7/7      |
 
 **Last reviewed:** 2026-06-18
 
@@ -319,7 +319,7 @@ Remaining non-registry slices move to **Ready** when:
 
 ### OPSUP-007 — False-positive reporting channel
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-21 via PR #2840
 - **Intent:** Define the CLI and telemetry path for users to report false
   positives without shipping source content by default.
 - **Expected Outcome (CLI surface, deterministic):** `anvil report-fp
