@@ -1286,6 +1286,109 @@ mod tests {
         }
     }
 
+    // ── 094c: full-registry usage-producer coverage ─────────────────
+    //
+    // The USAGE-001 dossier claims the conformance test iterates the
+    // registered command list so that adding a command without an
+    // observation fails CI. The end-to-end test
+    // (`every_runnable_sampled_command_emits_exactly_one_row` in
+    // `tests/usage_observation.rs`) can only cover the commands that parse
+    // and run with no extra args from an out-of-process spawn. This
+    // in-process test closes the gap by iterating the WHOLE registry: it
+    // asserts that every registered top-level command maps to a non-empty
+    // canonical name via `command_canonical_name` — the value the
+    // unconditional `record_invocation` producer stamps on the row. A new
+    // subcommand added to `Commands` without a parse recipe here fails the
+    // completeness assertion, forcing a deliberate decision (the spec's
+    // "adding a command without an observation fails the test" guarantee).
+
+    /// Minimal CLI tokens that make each registered top-level command parse
+    /// to a `Commands` variant. Parent commands that require a subcommand
+    /// get one; commands that need a positional get a throwaway value.
+    /// `command_canonical_name` keys off the top-level variant only, so the
+    /// specific subcommand/positional does not affect the recorded name.
+    fn parse_recipe(command: &str) -> Vec<&'static str> {
+        match command {
+            "audit" => vec!["audit"],
+            "audit-chain" => vec!["audit-chain"],
+            "check" => vec!["check", "--all"],
+            "report-fp" => vec!["report-fp", "ANV-CORE-001", "src/x.rs:1"],
+            "doctor" => vec!["doctor"],
+            "config" => vec!["config", "show"],
+            "drift" => vec!["drift", "snapshot"],
+            "edda" => vec!["edda", "list"],
+            "ember" => vec!["ember", "list"],
+            "start" => vec!["start"],
+            "status" => vec!["status"],
+            "tutorial" => vec!["tutorial"],
+            "welcome" => vec!["welcome"],
+            "init" => vec!["init"],
+            "insights" => vec!["insights"],
+            "kindling" => vec!["kindling", "usage", "top"],
+            "migrate" => vec!["migrate", "format"],
+            "intercept" => vec!["intercept", "status"],
+            "workspace" => vec!["workspace", "mode", "open"],
+            "l4-validate" => vec!["l4-validate", "HEAD~1..HEAD"],
+            "licenses" => vec!["licenses"],
+            "mcp-config" => vec!["mcp-config", "--target", "claude-code"],
+            "mcp" => vec!["mcp", "serve"],
+            "plan" => vec!["plan", "dashboard"],
+            "dashboard" => vec!["dashboard"],
+            "new" => vec!["new", "demo"],
+            "wizard" => vec!["wizard"],
+            "admin" => vec!["admin", "list"],
+            "gate" => vec!["gate"],
+            "gate-config" => vec!["gate-config"],
+            "watch" => vec!["watch"],
+            "export" => vec!["export"],
+            "hooks" => vec!["hooks", "install"],
+            "hook" => vec!["hook", "pre-commit"],
+            "baseline" => vec!["baseline", "verify"],
+            "capsule" => vec![
+                "capsule",
+                "create",
+                "--range",
+                "HEAD~1..HEAD",
+                "--out",
+                "cap.tar",
+            ],
+            "architecture" => vec!["architecture", "validate"],
+            "auth" => vec!["auth", "login"],
+            "policy" => vec!["policy", "eval", "policy.yaml"],
+            "update" => vec!["update"],
+            "uninstall" => vec!["uninstall"],
+            "validate" => vec!["validate", "plan.aps.md"],
+            "version" => vec!["version"],
+            // Unknown command: no recipe — the completeness assertion below
+            // turns this into a hard failure so a new command cannot be
+            // added without confirming the usage producer covers it.
+            _ => Vec::new(),
+        }
+    }
+
+    #[test]
+    fn registered_commands_all_have_canonical_names() {
+        for command in registered_command_names() {
+            let recipe = parse_recipe(&command);
+            assert!(
+                !recipe.is_empty(),
+                "new registered command {command:?} has no parse recipe in \
+                 `parse_recipe`: add one so the usage-producer coverage test \
+                 (094c) confirms `record_invocation` records a row for it",
+            );
+            let mut tokens = vec!["anvil"];
+            tokens.extend_from_slice(&recipe);
+            let cli = Cli::try_parse_from(&tokens)
+                .unwrap_or_else(|e| panic!("recipe for {command:?} must parse: {e}"));
+            let canonical = command_canonical_name(&cli.command);
+            assert!(
+                !canonical.is_empty(),
+                "command {command:?} resolved to an empty canonical name; the \
+                 usage producer would record a nameless row",
+            );
+        }
+    }
+
     // ── requires_auth: commands that MUST require auth ──────────────
 
     #[test]

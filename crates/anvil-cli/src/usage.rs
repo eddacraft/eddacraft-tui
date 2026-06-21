@@ -402,10 +402,34 @@ fn trim_usage_sidecar_at(path: &Path, now: chrono::DateTime<Utc>) {
         return;
     }
 
-    let Ok(contents) = fs::read_to_string(path) else {
-        return; // Unreadable (or non-UTF8) — leave it untouched.
+    // Read line-by-line through a `BufReader`, skipping non-UTF-8
+    // (`InvalidData`) lines rather than aborting the whole trim on the first
+    // torn byte. A single corrupt line (e.g. a write that split a multi-byte
+    // codepoint) previously made `fs::read_to_string` return `Err`, which
+    // bailed silently here — so the file could never be trimmed again and
+    // grew past the 64 MiB cap. This mirrors `usage_views::load_rows`, which
+    // already skips `InvalidData` lines on the read path.
+    let lines: Vec<String> = {
+        use std::io::BufRead as _;
+        let Ok(file) = fs::File::open(path) else {
+            return; // Unreadable — leave it untouched.
+        };
+        let mut collected = Vec::new();
+        for line in io::BufReader::new(file).lines() {
+            match line {
+                Ok(line) => collected.push(line),
+                // A non-UTF-8 line is corrupt data for that line only — skip
+                // it (it is dropped from the rewritten file) but keep
+                // trimming the rest.
+                Err(err) if err.kind() == io::ErrorKind::InvalidData => {}
+                // A genuine I/O failure mid-read bails (best-effort
+                // housekeeping never escalates).
+                Err(_) => return,
+            }
+        }
+        collected
     };
-    let lines: Vec<&str> = contents.lines().collect();
+    let lines: Vec<&str> = lines.iter().map(String::as_str).collect();
 
     // Index of the first line to KEEP after dropping stale leading rows.
     let mut start = 0usize;
@@ -602,7 +626,38 @@ pub fn attach_principal(frame: &mut serde_json::Value) {
     }
 }
 
+/// Whether the operator has opted out of CLI usage collection.
+///
+/// 094a: the CLI `command.invoked` producer ([`record_invocation`]) is the
+/// one usage producer with no kill-switch — the daemon DPO producers honour
+/// `ANVIL_INTERCEPT_DISABLE_OBSERVATION`, but that never reached the CLI
+/// path. This consults, in order, the dedicated CLI opt-out
+/// (`ANVIL_USAGE_DISABLE`), the cross-cutting whole-observation break-glass
+/// (`ANVIL_INTERCEPT_DISABLE_OBSERVATION`, so a single toggle silences both
+/// the daemon and the CLI), and the cross-tool `DO_NOT_TRACK` consent
+/// convention. Any of them set to `1` (the explicit opt-out value the
+/// daemon kill-switch already uses) declines collection. Read fresh each
+/// call so an operator can flip it without a code change.
+#[must_use]
+pub fn usage_collection_disabled() -> bool {
+    const OPT_OUT_VARS: [&str; 3] = [
+        "ANVIL_USAGE_DISABLE",
+        "ANVIL_INTERCEPT_DISABLE_OBSERVATION",
+        "DO_NOT_TRACK",
+    ];
+    OPT_OUT_VARS
+        .iter()
+        .any(|var| env::var_os(var).is_some_and(|v| v == "1"))
+}
+
 pub fn record_invocation(command_name: &str) -> Result<()> {
+    // 094a operator kill-switch: decline CLI usage collection entirely when
+    // opted out. Returns `Ok(())` (not an error) so the best-effort caller
+    // path is unaffected — no row is written and nothing is logged as a
+    // failure.
+    if usage_collection_disabled() {
+        return Ok(());
+    }
     let state_dir = credentials::credentials_dir().context("resolve usage state directory")?;
     let principal = resolve_principal_in(&state_dir)?;
 
@@ -859,7 +914,31 @@ pub fn daemon_usage_emitter() -> Option<Arc<CommandInvokedEmitter>> {
             );
         })
         .ok()?;
-    let sink = Arc::new(DaemonUsageSink { path }) as Arc<dyn KindlingObservationSink>;
+    // N2 (cross-ref): the daemon runs on a `new_current_thread` tokio
+    // runtime, and `try_emit_command_invoked` does a full sidecar read +
+    // trim + `writeln!` synchronously. Wired RAW (as it was), that blocking
+    // file I/O ran on the single event-loop thread inside async
+    // `handle_connection`, so under disk pressure every allowlisted GCTX
+    // tool call / operator unblock stalled the whole loop. Wrap the sink in
+    // the SAME `NonBlockingObservationSink` decorator the save-time / fence
+    // producers use (`daemon_observation_producers`): one drain thread owns
+    // the blocking write, the dispatch path only `try_send`s an envelope and
+    // returns. Semantics preserved: at-most-once (a full/disconnected
+    // channel drops + counts the row, never duplicates it) and FIFO
+    // ordering per the single bounded `sync_channel`, matching the
+    // best-effort, drop-don't-block contract the save-time sink already has.
+    let inner = Arc::new(DaemonUsageSink { path }) as Arc<dyn KindlingObservationSink>;
+    let Some(non_blocking) =
+        NonBlockingObservationSink::new(inner, DEFAULT_OBSERVATION_CHANNEL_CAPACITY)
+    else {
+        tracing::warn!(
+            target: "anvil::usage",
+            "usage export disabled: could not start the non-blocking usage \
+             drain thread",
+        );
+        return None;
+    };
+    let sink = Arc::new(non_blocking) as Arc<dyn KindlingObservationSink>;
     Some(Arc::new(CommandInvokedEmitter::new(
         sink,
         Uuid::new_v4().to_string(),
@@ -1232,6 +1311,60 @@ mod tests {
         assert_eq!(parsed.principal, "deadbeefcafe");
     }
 
+    /// N2 (cross-ref): the daemon usage sink must be wrapped in the
+    /// `NonBlockingObservationSink` decorator so its blocking sidecar read +
+    /// trim + write runs on a drain thread, NOT inline on the single-thread
+    /// tokio event loop. This mirrors the save-time sink's non-blocking
+    /// test: emit a `command.invoked` row through the SAME wiring
+    /// `daemon_usage_emitter` builds (`DaemonUsageSink` →
+    /// `NonBlockingObservationSink` → `CommandInvokedEmitter`), then drop the
+    /// decorator to flush the drain and assert the row landed in the sidecar
+    /// exactly once. This proves
+    /// the offload preserves the at-most-once / forward-all-on-flush
+    /// semantics the decorator guarantees.
+    #[test]
+    fn daemon_usage_sink_is_wrapped_non_blocking_and_forwards_the_row() {
+        let dir = tempdir().expect("tempdir");
+        let path = dir.path().join("kindling").join(USAGE_NDJSON);
+
+        // Build the production wiring with an explicit temp path.
+        let inner =
+            Arc::new(DaemonUsageSink { path: path.clone() }) as Arc<dyn KindlingObservationSink>;
+        let non_blocking =
+            NonBlockingObservationSink::new(inner, 16).expect("spawn non-blocking usage drain");
+        let sink = Arc::new(non_blocking) as Arc<dyn KindlingObservationSink>;
+
+        let ctx = CommandInvocationContext {
+            session_id: "daemon-startup-2",
+            timestamp: "2026-06-18T12:00:00Z",
+            command: "unblock-worktree",
+            principal: "abc123",
+            traceparent: None,
+        };
+        let obs = from_command_invocation(&ctx, Vec::new(), Vec::new());
+
+        // The decorator's emit returns Ok immediately (offloaded to the
+        // drain) — it never surfaces the inner write outcome.
+        sink.try_emit_command_invoked(obs)
+            .expect("non-blocking emit always returns Ok");
+
+        // Drop the only sink handle: closing the channel + joining the drain
+        // flushes the queued row to the inner sidecar write before returning.
+        drop(sink);
+
+        let contents = fs::read_to_string(&path).expect("read usage log after flush");
+        let lines: Vec<&str> = contents.lines().collect();
+        assert_eq!(
+            lines.len(),
+            1,
+            "exactly one row forwarded through the drain"
+        );
+        let parsed: CommandInvokedObservation =
+            serde_json::from_str(lines[0]).expect("valid NDJSON row");
+        assert_eq!(parsed.kind, "command.invoked");
+        assert_eq!(parsed.command, "unblock-worktree");
+    }
+
     #[test]
     fn argv_shapes_capture_global_flag_before_subcommand() {
         // `anvil --json version`: the global flag precedes the
@@ -1552,6 +1685,58 @@ mod tests {
             "a malformed line must be kept, not crashed on or dropped"
         );
         assert!(contents.contains("recent"));
+    }
+
+    /// 094b: a non-UTF-8 byte mid-file must not defeat retention. Before the
+    /// fix, `fs::read_to_string` returned `Err` on the first invalid byte and
+    /// the trim bailed silently — so a torn write blocked every subsequent
+    /// trim and the file grew past the cap forever. The trim now reads
+    /// line-by-line and skips the corrupt line, so stale leading rows are
+    /// still dropped.
+    #[test]
+    fn trim_skips_non_utf8_line_and_still_trims() {
+        let dir = tempdir().expect("tempdir");
+        let path = dir.path().join("usage.ndjson");
+
+        let now = Utc::now();
+        let old =
+            (now - chrono::Duration::days(30)).to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+        let recent =
+            (now - chrono::Duration::hours(1)).to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+
+        // Seed: two stale rows, then a row carrying a raw non-UTF-8 byte
+        // (0xFF — invalid in UTF-8, a torn-write signature), then a recent
+        // row. The stale leading rows must still be dropped; the corrupt
+        // line is dropped from the rewrite; the recent row survives.
+        let mut buf: Vec<u8> = Vec::new();
+        buf.extend_from_slice(format!("{{\"timestamp\":\"{old}\",\"tag\":\"old1\"}}\n").as_bytes());
+        buf.extend_from_slice(format!("{{\"timestamp\":\"{old}\",\"tag\":\"old2\"}}\n").as_bytes());
+        buf.extend_from_slice(b"{\"timestamp\":\"");
+        buf.extend_from_slice(recent.as_bytes());
+        buf.extend_from_slice(b"\",\"tag\":\"corr\xff\"}\n");
+        buf.extend_from_slice(
+            format!("{{\"timestamp\":\"{recent}\",\"tag\":\"recent\"}}\n").as_bytes(),
+        );
+        fs::write(&path, &buf).expect("seed sidecar with a non-UTF-8 byte");
+
+        trim_usage_sidecar_at(&path, now);
+
+        // The file must have been rewritten (the trim was not defeated).
+        let after = fs::read(&path).expect("read trimmed");
+        let after_str = String::from_utf8_lossy(&after);
+        assert!(
+            !after_str.contains("old1") && !after_str.contains("old2"),
+            "stale leading rows must be dropped despite the corrupt line: {after_str}"
+        );
+        assert!(
+            after_str.contains("recent"),
+            "the recent row must survive: {after_str}"
+        );
+        // The corrupt byte must not remain in the rewritten file.
+        assert!(
+            !after.contains(&0xff),
+            "the non-UTF-8 byte must be dropped from the rewrite"
+        );
     }
 
     #[test]

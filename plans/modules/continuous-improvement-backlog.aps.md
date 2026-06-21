@@ -2571,7 +2571,7 @@ archive.
 
 ### CIB-094: USAGE producer controls & robustness (v0.9.0 council)
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** Close the USAGE-analytics mediums from the v0.9.0 council. The CLI
   `command.invoked` producer has no operator kill-switch (asymmetric with the
   daemon DPO opt-out), a non-UTF-8 byte permanently defeats retention trimming,

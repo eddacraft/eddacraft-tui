@@ -158,11 +158,41 @@ fn run_stop() -> Result<()> {
 }
 
 fn run_unblock(args: &UnblockArgs) -> Result<()> {
-    match resolve_unblock_mode(args)? {
-        UnblockMode::Cascade(path) => run_unblock_cascade(&path),
-        UnblockMode::PerFence(path) => run_unblock_per_fence(&path, args.dry_run),
+    let mode = resolve_unblock_mode(args)?;
+    let result = match &mode {
+        UnblockMode::Cascade(path) => run_unblock_cascade(path),
+        UnblockMode::PerFence(path) => run_unblock_per_fence(path, args.dry_run),
         UnblockMode::AllFences => run_unblock_all(args.dry_run),
+    };
+
+    // 094d: a non-dry-run unblock has its CLI `command.invoked` row
+    // suppressed in `main` (`suppresses_cli_usage_row`) on the assumption
+    // that the daemon dispatch records the authoritative row instead. When
+    // the daemon is DOWN (or otherwise unreachable), the dispatch fails
+    // before any daemon row is written — so the operator action would be
+    // recorded nowhere at all and become invisible to the usage views. On
+    // that failure path we emit the CLI-side row as a fallback so a
+    // daemon-down unblock still produces exactly one usage row. The
+    // happy-path (daemon answered) keeps the single daemon row — this
+    // fallback only fires when the dispatch errored, so there is no
+    // double-count. Dry-run never reaches here (its CLI row is not
+    // suppressed). Strictly best-effort: a usage-write failure is logged
+    // and dropped, never masking the underlying dispatch error.
+    // `!args.dry_run` is exactly the condition under which `main` suppressed
+    // the CLI row (see `InterceptArgs::suppresses_cli_usage_row`); a dry-run
+    // unblock keeps its CLI row and never needs this fallback.
+    if result.is_err()
+        && !args.dry_run
+        && let Err(usage_err) = crate::usage::record_invocation("intercept")
+    {
+        tracing::warn!(
+            target: "anvil_cli",
+            error = %usage_err,
+            "usage: failed to record fallback intercept-unblock observation after \
+             daemon dispatch failure; continuing",
+        );
     }
+    result
 }
 
 /// Resolved CLI mode after exclusivity + completeness checks.

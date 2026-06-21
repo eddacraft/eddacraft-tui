@@ -209,15 +209,28 @@ fn non_gated_command_has_empty_flag_set() {
 }
 
 #[test]
-fn every_sampled_command_emits_exactly_one_row() {
-    // A spread across the registered command surface. The producer is
-    // command-agnostic and wired once above dispatch, so every one of
-    // these must yield exactly one row with its canonical name.
+fn every_runnable_sampled_command_emits_exactly_one_row() {
+    // 094c (behavioural half): a broad spread across the registered command
+    // surface that parses + dispatches with no extra arguments. The producer
+    // is command-agnostic and wired once above dispatch, so each must yield
+    // exactly one row carrying its canonical name. This is the *runtime*
+    // guarantee; the *full-registry* guarantee (every registered command has
+    // a canonical name so the producer can never record an empty `command`)
+    // is enforced in-process by `tests::registered_commands_all_have_canonical_names`
+    // in `main.rs`, which iterates the WHOLE registry — the binary-only crate
+    // (no library target) cannot drive every command to a successful parse
+    // from an out-of-process integration test, and most commands need
+    // subcommands/args that would mutate state, so the registry-coverage
+    // half lives where it can run cheaply and exhaustively.
     for (args, canonical) in [
         (vec!["version"], "version"),
         (vec!["doctor"], "doctor"),
         (vec!["licenses"], "licenses"),
         (vec!["status"], "status"),
+        (vec!["insights"], "insights"),
+        (vec!["gate-config"], "gate-config"),
+        (vec!["welcome"], "welcome"),
+        (vec!["tutorial"], "tutorial"),
     ] {
         let home = tempdir().expect("anvil home");
         let out = run_anvil(home.path(), &args);
@@ -232,4 +245,91 @@ fn every_sampled_command_emits_exactly_one_row() {
             "row must carry the canonical command name"
         );
     }
+}
+
+#[test]
+fn usage_disable_env_suppresses_the_cli_producer() {
+    // 094a operator kill-switch: with `ANVIL_USAGE_DISABLE=1` set, the CLI
+    // `command.invoked` producer writes nothing — the sidecar is never
+    // created — while an unset run records the usual single row.
+    let home = tempdir().expect("anvil home");
+    let mut cmd = Command::new(ANVIL_BIN);
+    cmd.args(["version"])
+        .current_dir(home.path())
+        .env("ANVIL_HOME", home.path())
+        .env("HOME", home.path())
+        .env("USERPROFILE", home.path())
+        .env("ANVIL_DEV", "1")
+        .env("ANVIL_SKIP_WELCOME", "1")
+        .env("ANVIL_USAGE_DISABLE", "1");
+    cmd.env_remove("ANVIL_TOUCH_PROJECT_STATE");
+    cmd.env_remove("TRACEPARENT");
+    let out = cmd.output().expect("spawn anvil");
+    assert!(
+        out.status.success(),
+        "version must still succeed with usage disabled"
+    );
+    assert!(
+        !usage_log(home.path()).exists(),
+        "no usage sidecar may be written when ANVIL_USAGE_DISABLE=1"
+    );
+
+    // Control: the same command WITHOUT the kill-switch records one row, so
+    // the suppression above is the env var's doing, not a broken harness.
+    let home2 = tempdir().expect("anvil home");
+    run_anvil(home2.path(), &["version"]);
+    assert_eq!(read_rows(home2.path()).len(), 1);
+}
+
+#[test]
+fn do_not_track_env_suppresses_the_cli_producer() {
+    // 094a: the cross-tool `DO_NOT_TRACK=1` consent convention is honoured
+    // as an alias for the dedicated opt-out, so an operator who already
+    // sets it gets no usage collection without an Anvil-specific knob.
+    let home = tempdir().expect("anvil home");
+    let mut cmd = Command::new(ANVIL_BIN);
+    cmd.args(["version"])
+        .current_dir(home.path())
+        .env("ANVIL_HOME", home.path())
+        .env("HOME", home.path())
+        .env("USERPROFILE", home.path())
+        .env("ANVIL_DEV", "1")
+        .env("ANVIL_SKIP_WELCOME", "1")
+        .env("DO_NOT_TRACK", "1");
+    cmd.env_remove("ANVIL_TOUCH_PROJECT_STATE");
+    cmd.env_remove("TRACEPARENT");
+    let out = cmd.output().expect("spawn anvil");
+    assert!(out.status.success());
+    assert!(
+        !usage_log(home.path()).exists(),
+        "no usage sidecar may be written when DO_NOT_TRACK=1"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn daemon_down_unblock_still_records_one_usage_row() {
+    // 094d: a non-dry-run `intercept unblock` has its CLI usage row
+    // suppressed (the daemon is meant to record the authoritative row). If
+    // the daemon is DOWN, dispatch fails before any daemon row is written —
+    // so without the fallback the operator action would be recorded
+    // nowhere. The hermetic temp `ANVIL_HOME` resolves a per-user socket
+    // under the temp dir where no daemon is listening, so the unblock
+    // dispatch fails; the fallback must then record exactly one CLI-side
+    // row carrying the canonical `intercept` command name.
+    let home = tempdir().expect("anvil home");
+    let out = run_anvil(home.path(), &["intercept", "unblock", "--all"]);
+    // The command itself fails (daemon down) — that is expected; what
+    // matters is that the invocation is still observed exactly once.
+    let rows = read_rows(home.path());
+    assert_eq!(
+        rows.len(),
+        1,
+        "a daemon-down unblock must still record exactly one usage row; out: {out}"
+    );
+    assert_eq!(
+        rows[0]["command"], "intercept",
+        "the fallback row carries the canonical CLI command name; row: {}",
+        rows[0]
+    );
 }

@@ -179,24 +179,24 @@ Crate(s): `anvil-graph-cache` (trust/certify/incremental/snapshot), `anvil-inter
 
 Crate(s): `anvil-cli` (usage.rs, usage_views.rs, main.rs, intercept.rs), docs.
 
-- [ ] **094a Operator kill-switch for CLI `command.invoked` producer** —
+- [x] **094a Operator kill-switch for CLI `command.invoked` producer** —
       _medium._ `record_invocation` (`main.rs:1102`→`usage.rs:605`) fires
       unconditionally; `ANVIL_INTERCEPT_DISABLE_OBSERVATION` guards daemon DPO
       only. **Fix:** add `ANVIL_USAGE_DISABLE=1` (or consult the existing knob).
-- [ ] **094b Non-UTF-8 byte defeats retention trimming** — _medium._
+- [x] **094b Non-UTF-8 byte defeats retention trimming** — _medium._
       `trim_usage_sidecar_at` (`usage.rs:405`) uses `read_to_string`, returns
       silently on non-UTF-8 → file grows past the 64 MiB cap. **Fix:**
       `BufReader::lines()` skipping `InvalidData`; add a mid-file non-UTF-8 trim
       test.
-- [ ] **094c Conformance test coverage** — _medium._
+- [x] **094c Conformance test coverage** — _medium._
       `tests/usage_observation.rs:212` samples only 4 of ~40 commands but claims
       full coverage. **Fix:** iterate `registered_command_names()`, or correct
       the dossier claim.
-- [ ] **094d Daemon-down non-dry-run Unblock → zero rows** — _medium._
+- [x] **094d Daemon-down non-dry-run Unblock → zero rows** — _medium._
       `intercept.rs:36-38` suppresses the CLI row; if the daemon is down no
       daemon row is written either. **Fix:** check daemon connectivity before
       suppressing, or emit the CLI row on IPC failure.
-- [ ] **094e Retention/operator-control docs** — _medium._
+- [x] **094e Retention/operator-control docs** — _medium._
       `docs/observability/usage-analytics.md:111-115` says "no built-in
       rotation" though a 7-day/64 MiB trim is live; three env knobs are
       code-comment-only. **Fix:** document the trim + knobs in docs + namespace
@@ -255,7 +255,7 @@ independently reproduced at HEAD; these are net-new gaps).
       `privileged_module_token` lowercases + strips case-insensitive `node:`
       before the `PRIVILEGED_MODULES` lookup (`'FS'`, `'NODE:fs'` now caught).
 - [x] **N4 `matched`/substring-filter existence oracle** — _MED → CIB-091a._
-      Verified already closed: sensitive files are dropped at the file-index
+      Confirmed closed (anvil:2.1, cross-checked vs 020cc6cda): sensitive files are dropped at the file-index
       level BEFORE the substring filter and the `matched` count (collect_candidates).
 - [ ] **N2 blocking file I/O on the single-thread runtime** — _MED → CIB-094 (usage
       sink non-blocking) + CIB-095 (`persist_all_on_shutdown` → `spawn_blocking`)._

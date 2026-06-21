@@ -108,11 +108,40 @@ The salt and the state directory are created on **first run regardless of
 authentication** — running any command (including help/probe commands)
 materialises them, recording an `anonymous` row when no identity is present.
 
-Retention defers to Kindling's policy. The sidecar grows by one line per
-invocation with no built-in rotation today. _Open: confirm Kindling's retention
-policy is acceptable for usage rows specifically, and add a size/line cap or
-rotation if heavy CLI use makes unbounded growth a concern (tracked as a
-follow-up)._
+Retention is enforced by a **lazy in-process trim** applied before each append:
+the sidecar is bounded to a rolling **7-day** age window and a **64 MiB** size
+cap, whichever is tighter. Stale leading rows (older than the age window) are
+dropped first; if the file is still over the byte cap the oldest remaining rows
+are dropped until it fits. The trim is best-effort housekeeping (a failure
+leaves the existing file intact) and rare on the hot path — a fast-path check
+reads only the file's first line and skips the full read+rewrite unless a size
+trim is due or the oldest line is already stale. A malformed or non-UTF-8 line
+is skipped rather than aborting the trim, so a torn write cannot wedge retention
+and let the file grow unbounded. The trim never rewrites through a symlink.
+
+A long-lived consumer (the Kindling integration) is still expected to tail and
+archive rows before they age out of this local window; the trim bounds the
+on-disk sidecar, it is not the system of record.
+
+### Operator controls (environment variables)
+
+The producers honour a small set of environment variables. They are read fresh
+per invocation (CLI) or per daemon start, so an operator can change behaviour
+without a code change or redeploy. Unless noted otherwise the opt-out value is
+the literal `1`.
+
+| Variable                              | Scope              | Effect                                                                                                                                                                                                       |
+| ------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `ANVIL_USAGE_DISABLE`                 | CLI producer       | `=1` declines CLI usage collection: the `command.invoked` producer writes nothing (no sidecar is created).                                                                                                   |
+| `DO_NOT_TRACK`                        | CLI producer       | `=1` is honoured as an alias for `ANVIL_USAGE_DISABLE`, following the cross-tool [Console Do Not Track](https://consoledonottrack.com/) consent convention, so an operator who already sets it is opted out. |
+| `ANVIL_INTERCEPT_DISABLE_OBSERVATION` | CLI + daemon       | `=1` is the whole-observation break-glass: it disables the daemon save-time / fence producers AND, for parity, the CLI `command.invoked` producer — one toggle silences every usage producer.                |
+| `ANVIL_USAGE_SIDECAR_NO_TRIM`         | All sidecar writes | Any non-empty value disables the lazy retention trim described above, so the sidecar grows unbounded (for an operator who archives it externally and does not want the local trim mutating it).              |
+| `ANVIL_OBSERVATION_INCLUDE_PATHS`     | Daemon producers   | `=1` **changes the privacy posture**: the daemon save-time `gate_evaluated` and fence `constraint_applied` rows then record the **absolute validated paths**, not just the path count. Off by default.       |
+
+> **Privacy note — `ANVIL_OBSERVATION_INCLUDE_PATHS`.** With this set, absolute
+> filesystem paths from the validated workspace are written into the usage
+> sidecar. This is a deliberate diagnostics opt-in; leave it unset for the
+> default count-only posture in any shared or privacy-sensitive environment.
 
 ## Dev-investment query views (USAGE-003)
 
