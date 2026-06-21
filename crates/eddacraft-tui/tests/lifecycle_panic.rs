@@ -81,9 +81,10 @@ fn run_child_scenario() {
     }));
 
     // 2. `enter()` installs the lifecycle panic hook on top of our sentinel. Its
-    //    `enable_raw_mode()` fails on the non-TTY child stdout, so it returns
-    //    `Err` — but the panic hook is installed *before* that call, which is the
-    //    behaviour under test. We deliberately ignore the result.
+    //    `enable_raw_mode()` fails because the child has no controlling terminal
+    //    (it acts on the tty, not stdout), so `enter()` returns `Err` — but the
+    //    panic hook is installed *before* that call, which is the behaviour under
+    //    test. We deliberately ignore the result.
     let _ = eddacraft_tui::lifecycle::TerminalGuard::enter();
 
     // 3. Panic. The chain is: lifecycle hook (restore_terminal) -> sentinel.
