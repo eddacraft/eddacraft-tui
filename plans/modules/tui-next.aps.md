@@ -9,7 +9,7 @@
 
 **Last reviewed:** 2026-06-21 (gate reconciliation): the Ready-Checklist drift
 gate is **met** — D-TUIR-018 mirror-drift-check green for 15+ consecutive daily
-runs (2026-06-10..2026-06-21), well past the 7 required; the ADR-slot and
+runs (2026-06-08..2026-06-21), well past the 7 required; the ADR-slot and
 feature-flag-collision checklist items are also ticked (ADR-050 Accepted via
 TUIN-001; `lifecycle`/`runner` shipped via TUIN-012 without collision). TUIN-004
 reconciled to **Ready** — its implementation landed via TUIN-012
@@ -722,7 +722,7 @@ a subcommand and `--config` path handoff.
       from canonical source verified.
 - [x] Drift check (D-TUIR-018) green for at least 7 consecutive runs
       before TUIN promotes any task to Ready. **Met 2026-06-21** — 15+
-      consecutive green daily runs (2026-06-10..2026-06-21).
+      consecutive green daily runs (2026-06-08..2026-06-21).
 - [ ] Downstream consumer list from TUIR-001 baseline imported into
       TUIN-002 survey scope.
 - [x] Next ADR slot confirmed — ADR-050 Accepted; TUIN-001 Merged
