@@ -6,7 +6,7 @@
 
 | Upstream                                            | Downstream                                                                                                                                 |
 | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `apps/anvil-api`, `archive/admin-cli-node`, ADR-018 | anvil CLI (auth flows, license refresh, update-check), operator admin CLI, anvil admin Rust command (RCLI2-009), eddacraft.ai install site |
+| `apps/anvil-api`, `anvil-archive/admin-cli-node`, ADR-018 | anvil CLI (auth flows, license refresh, update-check), operator admin CLI, anvil admin Rust command (RCLI2-009), eddacraft.ai install site |
 
 > **Status:** Live (beta) **Last reviewed:** 2026-06-10 (targeted delta review:
 > broadcast generalisation, middleware, migrations 012-015) against main
@@ -20,7 +20,7 @@
 > operator CLI; RCLI2-009
 > (`plans/modules/rust-cli-tier2.aps.md#rcli2-009-admin-command-parity-listshowrevokeauditsend-migrationemail-update`)
 > ports it into `anvil admin` **Used by:** `anvil` CLI (auth flows, license
-> refresh, update-check), `archive/admin-cli-node/` (Node `anvil-admin` operator
+> refresh, update-check), `anvil-archive/admin-cli-node/` (Node `anvil-admin` operator
 > CLI — being retired into `anvil admin`),
 > `crates/anvil-cli/src/commands/admin.rs` (Rust admin parity), the eddacraft.ai
 > install/landing site (waitlist intake)
@@ -28,7 +28,7 @@
 > **Auth flows are documented in [`auth-as-built.md`](auth-as-built.md).** This
 > doc covers everything else in `apps/anvil-api`: non-auth admin surfaces,
 > health / observability, the migration runner, middleware stack, DB layer,
-> deploy posture, plus the historical `archive/admin-cli-node/` and its
+> deploy posture, plus the historical `anvil-archive/admin-cli-node/` and its
 > retirement path.
 
 ## 1. Overview
@@ -530,18 +530,18 @@ The limiter sets `X-RateLimit-Limit` / `X-RateLimit-Remaining` /
 the README env table (`apps/anvil-api/README.md:31-46`) is the canonical
 operator-facing list.
 
-## 11. `archive/admin-cli-node/` — historical Node operator CLI
+## 11. `anvil-archive/admin-cli-node/` — historical Node operator CLI
 
-`archive/admin-cli-node` is a thin Commander-based Node CLI
+`anvil-archive/admin-cli-node` is a thin Commander-based Node CLI
 (`@eddacraft/admin-cli`, binary `anvil-admin`) that pre-dates the Rust CLI admin
 surface. Authentication uses `Bearer ${ANVIL_ADMIN_KEY}` directly — no
 user-credential bypass, no auth subsystem
-(`archive/admin-cli-node/src/client.ts:72-82`). It is the canonical contract
+(`anvil-archive/admin-cli-node/src/client.ts:72-82`). It is the canonical contract
 that RCLI2-009 ports.
 
 ### 11.1 Surface (7 subcommands)
 
-`archive/admin-cli-node/src/index.ts:32-147` registers exactly seven
+`anvil-archive/admin-cli-node/src/index.ts:32-147` registers exactly seven
 subcommands. All seven have been ported to `anvil admin` under RCLI2-009
 (Status: Complete — `plans/modules/rust-cli-tier2.aps.md:302-360`).
 
@@ -566,12 +566,12 @@ API directly.
 
 RCLI2-009 declared parity Complete. The retirement plan (per its Notes block,
 `plans/modules/rust-cli-tier2.aps.md:354-360`) is to archive
-`archive/admin-cli-node/` alongside `archive/anvil-cli-node/` once the Rust
+`anvil-archive/admin-cli-node/` alongside `anvil-archive/anvil-cli-node/` once the Rust
 binary is a release-grade replacement, leaving one operator surface. Until that
 archival lands, both CLIs are functional and both target the same `/admin/*`
 API. Auth contract is identical: `ANVIL_ADMIN_KEY` (or per-operator key) on
 `Authorization: Bearer …`. Note that the Node CLI still sends `X-Admin-Actor`
-(`archive/admin-cli-node/src/client.ts:74`), which the API now ignores by design
+(`anvil-archive/admin-cli-node/src/client.ts:74`), which the API now ignores by design
 (`adminAuth` middleware §5.3) — attribution comes from the key itself, not the
 header.
 
@@ -698,7 +698,7 @@ API key rather than the `X-Admin-Actor` header the Node CLI emitted (the API
 ignores it — `src/middleware/admin-auth.ts:88-108`, ADMINCLIH-002).
 
 **Resolved 2026-06-19 (V060F-019):** the Node binary was moved out of the
-workspace to `archive/admin-cli-node/` (excluded via `!archive/**`), dropped
+workspace to `anvil-archive/admin-cli-node/` (excluded via `!archive/**`), dropped
 from the root `tsconfig.json` references and the `pnpm admin` script.
 `anvil admin` is now the only supported operator surface; the archived tool
 carries a retirement banner.
@@ -770,7 +770,7 @@ one-shot data-cleanup migration once the dual-auth window closes.
 | `package.json`                                 | —     | Engine pin (Node ≥22.13), `migrate` / `migrate:dry-run` scripts                                                                                   |
 | `README.md`                                    | 109   | Operator-facing endpoint + env var reference                                                                                                      |
 
-### `archive/admin-cli-node/`
+### `anvil-archive/admin-cli-node/`
 
 | File                             | Lines | Role                                                   |
 | -------------------------------- | ----- | ------------------------------------------------------ |

@@ -65,7 +65,7 @@ That left `main` with a bounded but important tail of release-only work:
 While `main` acted as the release target, `dev` continued to change the actual
 shape of the repository:
 
-- Node CLI archived to `archive/anvil-cli-node/`
+- Node CLI archived to `anvil-archive/anvil-cli-node/`
 - old packages removed or restructured
 - `.claude/` and workflow setup cleaned up
 - WELCOME and DOCSAUTH work continued
@@ -109,7 +109,7 @@ The branch audit produced these high-level facts:
 The 491 main-only files are concentrated in:
 
 - apps/anvil-cli/ (341, since removed): the old Node CLI; `dev` archived this to
-  `archive/anvil-cli-node/` and `main` never received the cleanup
+  `anvil-archive/anvil-cli-node/` and `main` never received the cleanup
 - packages/platform/ (28, since removed): old package; removed on `dev`
 - `crates/eddacraft-tui/` (27): old crate; removed on `dev`
 - `plans/execution/` (22), old `plans/modules/` (15): plan reorg on `dev`
