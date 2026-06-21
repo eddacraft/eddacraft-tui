@@ -104,9 +104,14 @@ pub const SNAPSHOT_FORMAT_VERSION: u32 = 1;
 /// swapped, invalidating all pre-swap snapshots. No migration code is ever
 /// written — a mismatch is one cold rebuild ([`SnapshotLoadError::VersionMismatch`]).
 ///
-/// Seeded from the sibling [`crate::incremental`] schema version so the two move
-/// together; bump explicitly here when the persisted backing shape changes.
-pub const SNAPSHOT_BACKING_SCHEMA_VERSION: u32 = crate::incremental::GRAPH_DELTA_SCHEMA_VERSION;
+/// CIB-093e: bump this ONLY when the persisted snapshot DTO layout changes — it
+/// is deliberately independent of [`crate::incremental::GRAPH_DELTA_SCHEMA_VERSION`].
+/// A delta-wire bump that leaves the on-disk DTO unchanged must NOT invalidate
+/// every warm-start snapshot (which would force needless cold rebuilds), so this
+/// version owns its own value. It starts at `1` — the value it effectively had
+/// when aliased to the delta-wire version — so existing snapshots stay valid and
+/// the committed golden wire bytes do not shift.
+pub const SNAPSHOT_BACKING_SCHEMA_VERSION: u32 = 1;
 
 /// Fixed snapshot-header length, in bytes: magic(8) + `format_version`(4) +
 /// `backing_schema_version`(4) + node-count(8) + edge-count(8) + CRC-32(4). The
@@ -1033,6 +1038,28 @@ mod tests {
             SnapshotPayload::from_bytes(EXPECTED).expect("golden bytes decode"),
             golden_fixture(),
             "committed golden bytes must round-trip through from_bytes",
+        );
+    }
+
+    /// CIB-093e: the persisted-DTO schema version owns its own value and is NOT
+    /// aliased to the delta-wire `GRAPH_DELTA_SCHEMA_VERSION`. It starts at `1` so
+    /// existing snapshots (written when the two were equal) stay valid, and so the
+    /// committed golden bytes — which embed it in the header at offset 12 — do not
+    /// shift. A delta-wire bump must not silently invalidate warm-start snapshots.
+    #[test]
+    fn snapshot_backing_schema_version_is_independent_and_stable() {
+        assert_eq!(
+            SNAPSHOT_BACKING_SCHEMA_VERSION, 1,
+            "persisted-DTO schema version must stay at its current value (1); \
+             bump only on a real on-disk DTO layout change"
+        );
+        // The header bytes still embed exactly this value (le u32 at offset 12),
+        // so decoupling it from the delta-wire version did not move the golden bytes.
+        let header = &golden_fixture().to_bytes()[12..16];
+        assert_eq!(
+            u32::from_le_bytes(header.try_into().unwrap()),
+            SNAPSHOT_BACKING_SCHEMA_VERSION,
+            "header backing_schema_version must equal the const"
         );
     }
 

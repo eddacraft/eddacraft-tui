@@ -311,10 +311,21 @@ pub fn export_surface_diff(sym: &SymbolGraph, delta: &GraphDelta) -> ExportSurfa
         })
         .map(|t| t.file.clone())
         .collect();
-    current_privileged.extend(crate::trust::reexported_privileged_modules(
-        sym,
-        &delta.file,
-    ));
+    // CIB-093b: the re-export-reached privileged specifiers for this file. On the
+    // daemon hot path `annotate_trust` has already computed the whole-graph
+    // re-export-privilege map and memoised it onto the graph, so read it in O(1)
+    // instead of re-walking a per-file `Reexports` BFS under the cache Mutex on
+    // every ContentModify verdict. When the memo is absent (a direct
+    // `export_surface_diff` call that never ran `annotate_trust`, or a post-memo
+    // mutation invalidated it) fall back to the on-demand BFS — same result,
+    // never a stale verdict.
+    match sym.reexport_privileged_for(&delta.file) {
+        Some(memoised) => current_privileged.extend(memoised),
+        None => current_privileged.extend(crate::trust::reexported_privileged_modules(
+            sym,
+            &delta.file,
+        )),
+    }
 
     // Monotone add-only diff: a privileged module the file did not reach before
     // — by import (`previously_imported`) or by re-export
@@ -918,6 +929,131 @@ mod tests {
 
         let diff = export_surface_diff(&sym, &delta_for("a.ts", &["entry"], &[]));
         assert_eq!(diff.newly_privileged_imports, vec!["node:fs".to_string()]);
+    }
+
+    /// CIB-093b: the certify hot path reads the re-export-privilege set from the
+    /// memo `annotate_trust` stamps onto the graph, not a per-file BFS — and the
+    /// verdict is byte-identical to the un-memoised (BFS-fallback) path. This
+    /// pins that the optimisation is verdict-preserving for a re-exported
+    /// privileged import.
+    #[test]
+    fn reexport_privilege_memo_matches_bfs_verdict() {
+        use anvil_kernel_types::{EdgeType, SymbolEdge};
+
+        // barrel.ts re-exports mid.ts; mid.ts re-exports node:fs (a transitive
+        // chain, so the BFS does real work — not just a direct edge).
+        let build = || {
+            let mut sym = sym_with(
+                "barrel.ts",
+                &[("api", Visibility::Public, TrustLevel::Unknown)],
+            );
+            sym.add_symbol(SymbolNode {
+                id: 50,
+                kind: SymbolKind::Function,
+                name: "mid".to_string(),
+                visibility: Visibility::Public,
+                file: "mid.ts".to_string(),
+                trust_level: TrustLevel::Unknown,
+            })
+            .unwrap();
+            sym.add_symbol(SymbolNode {
+                id: 100,
+                kind: SymbolKind::Module,
+                name: "node:fs".to_string(),
+                visibility: Visibility::Public,
+                file: "node:fs".to_string(),
+                trust_level: TrustLevel::External,
+            })
+            .unwrap();
+            // barrel(0) -> mid(50) -> node:fs(100)
+            sym.add_edge(SymbolEdge {
+                from: 0,
+                to: 50,
+                edge_type: EdgeType::Reexports,
+            })
+            .unwrap();
+            sym.add_edge(SymbolEdge {
+                from: 50,
+                to: 100,
+                edge_type: EdgeType::Reexports,
+            })
+            .unwrap();
+            sym
+        };
+
+        let delta = delta_for("barrel.ts", &["api"], &[]);
+
+        // BFS path: no annotate_trust, so the memo is absent and certify falls
+        // back to `reexported_privileged_modules`.
+        let bfs_graph = build();
+        assert!(
+            bfs_graph.reexport_privileged_for("barrel.ts").is_none(),
+            "memo must be absent before annotate_trust runs"
+        );
+        let bfs = export_surface_diff(&bfs_graph, &delta);
+
+        // Memo path: annotate_trust stamps the per-file memo; certify reads it.
+        let mut memo_graph = build();
+        crate::trust::annotate_trust(&mut memo_graph, &[]);
+        // The substitution is exact: the memo holds precisely what the per-file
+        // BFS would return for the same (annotated) graph — so swapping the BFS
+        // for the memo read cannot change the certify verdict.
+        assert_eq!(
+            memo_graph.reexport_privileged_for("barrel.ts").unwrap(),
+            crate::trust::reexported_privileged_modules(&memo_graph, "barrel.ts"),
+            "the memo must equal the BFS result on the same annotated graph"
+        );
+        assert_eq!(
+            memo_graph.reexport_privileged_for("barrel.ts"),
+            Some(["node:fs".to_string()].into_iter().collect()),
+            "annotate_trust must memoise the transitive re-export reach"
+        );
+        let memoised = export_surface_diff(&memo_graph, &delta);
+
+        assert_eq!(
+            bfs.newly_privileged_imports,
+            vec!["node:fs".to_string()],
+            "the transitive re-export still surfaces node:fs"
+        );
+        // The memo feeds exactly the `newly_privileged_imports` dimension, so that
+        // is where the memo path and BFS path must be byte-identical. (The other
+        // fields can differ only because the memo path also ran `annotate_trust`,
+        // which stamps the re-exporting file's symbols `Privileged` and so adds
+        // them to `added_privileged` — an orthogonal symbol-identity effect, not
+        // the re-export-module dimension the memo optimises.)
+        assert_eq!(
+            memoised.newly_privileged_imports, bfs.newly_privileged_imports,
+            "the memoised re-export-privilege set must match the BFS set exactly"
+        );
+    }
+
+    /// CIB-093b: a graph mutation after `annotate_trust` invalidates the memo, so
+    /// certify falls back to the BFS rather than serving a stale set.
+    #[test]
+    fn reexport_privilege_memo_invalidated_by_mutation() {
+        let mut sym = sym_with(
+            "a.ts",
+            &[("entry", Visibility::Public, TrustLevel::Unknown)],
+        );
+        crate::trust::annotate_trust(&mut sym, &[]);
+        assert!(
+            sym.reexport_privileged_for("a.ts").is_some(),
+            "memo present after annotate_trust"
+        );
+        // Any structural mutation clears it.
+        sym.add_symbol(SymbolNode {
+            id: 9,
+            kind: SymbolKind::Function,
+            name: "x".to_string(),
+            visibility: Visibility::Internal,
+            file: "b.ts".to_string(),
+            trust_level: TrustLevel::Unknown,
+        })
+        .unwrap();
+        assert!(
+            sym.reexport_privileged_for("a.ts").is_none(),
+            "a graph mutation must invalidate the memo"
+        );
     }
 
     /// GV2-031 monotonicity: a privileged module the file *already* re-exported

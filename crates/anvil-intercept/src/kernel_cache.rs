@@ -52,6 +52,7 @@
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::Mutex;
+use std::time::Instant;
 
 use anvil_graph_cache::certify::ChangeKind;
 use anvil_graph_cache::{
@@ -70,6 +71,54 @@ use crate::rule_cache::WorktreeKey;
 /// ([`crate::rule_cache::DEFAULT_RULE_SET_CACHE_CAPACITY`]) — both are bounded
 /// by the same per-daemon concurrent-worktree cap.
 pub const DEFAULT_KERNEL_CACHE_CAPACITY: usize = 1024;
+
+/// CIB-093d: WARN threshold for the per-save `annotate_trust` whole-graph pass.
+///
+/// `apply_delta` runs `annotate_trust` unconditionally under the cache Mutex on
+/// every save — two O(N) whole-graph passes (symbol-info + the GV2-031 re-export
+/// privilege pass). That work is **outside** the GV2-025 / ADR-031 latency gate,
+/// which covers only the four hot-read ops, so a degradation here is invisible
+/// until it trips ADR-031 indirectly. The span below records elapsed time and the
+/// node count on every save; when the pass exceeds this budget it escalates to a
+/// WARN so an operator can see (and rate-track) the trust pass dominating the
+/// save-time hot path before it breaches the ms-denominated ADR-031 SLO. 5ms is a
+/// few multiples of the sub-millisecond hot-read budget — comfortably above a
+/// healthy whole-graph pass, low enough to flag a real regression.
+const ANNOTATE_TRUST_WARN_MS: u128 = 5;
+
+/// CIB-093d: run [`annotate_trust`] under a latency-observing span.
+///
+/// Records elapsed time and the graph node count on every save, escalating to a
+/// WARN when the pass exceeds [`ANNOTATE_TRUST_WARN_MS`] so an operator can see
+/// (and rate-track) the trust pass dominating the save-time hot path before it
+/// breaches the ms-denominated ADR-031 SLO. Counts/durations only — never
+/// identity or path values (PV-10).
+fn annotate_trust_instrumented(sym: &mut SymbolGraph, imports: &[ImportEdge]) {
+    let span = tracing::debug_span!(target: "anvil_intercept::kernel_cache", "annotate_trust");
+    let _guard = span.enter();
+    let started = Instant::now();
+    annotate_trust(sym, imports);
+    let elapsed = started.elapsed();
+    let node_count = sym.inner().node_count();
+    // `Duration::as_millis`/`as_micros` are u128; clamp to u64 for the tracing
+    // field without a truncating cast (a pass over u64::MAX µs is unreachable).
+    let elapsed_us = u64::try_from(elapsed.as_micros()).unwrap_or(u64::MAX);
+    if elapsed.as_millis() >= ANNOTATE_TRUST_WARN_MS {
+        tracing::warn!(
+            target: "anvil_intercept::kernel_cache",
+            elapsed_us,
+            node_count,
+            "annotate_trust exceeded the save-time budget"
+        );
+    } else {
+        tracing::debug!(
+            target: "anvil_intercept::kernel_cache",
+            elapsed_us,
+            node_count,
+            "annotate_trust completed"
+        );
+    }
+}
 
 /// Identifies the resident backing the save-time daemon certifies against,
 /// behind the frozen `validate_paths` wire (ADR-061).
@@ -534,7 +583,11 @@ impl KernelGraphCache {
         // `certify` reads and the baseline the next `update_file` captures carry
         // live trust. Disjoint field borrows (`sym` mut, `all_imports` shared)
         // mirror `annotate_trust(&mut state.graph, &state.all_imports)`.
-        annotate_trust(&mut entry.sym, &entry.all_imports);
+        //
+        // CIB-093d: instrument this whole-graph trust pass (it runs under the
+        // cache Mutex on every save, outside the GV2-025/ADR-031 hot-read latency
+        // gate). See `annotate_trust_instrumented`.
+        annotate_trust_instrumented(&mut entry.sym, &entry.all_imports);
 
         let generation = guard.generations.get(key).copied().unwrap_or(0);
         ApplyOutcome {
@@ -955,6 +1008,56 @@ mod tests {
         assert!(
             matches!(verdict, Certifiability::Partial { .. }),
             "a change newly importing node:fs must not certify clean, got {verdict:?}"
+        );
+    }
+
+    /// CIB-093a + 093d smoke: a save that newly imports a spawn/sandbox-escape
+    /// built-in (`node:worker_threads`) must withhold a clean verdict — proving
+    /// the extended `PRIVILEGED_MODULES` reaches the warm certify path — and that
+    /// the instrumented `annotate_trust` call (093d) leaves `apply_delta` working.
+    #[test]
+    fn privilege_certify_withholds_clean_on_new_worker_threads_import() {
+        use anvil_graph_cache::certify::{Certifiability, certify};
+
+        let symbols = |imports: &[&str], base: u64| FileSymbols {
+            file: "worker.ts".to_string(),
+            symbols: vec![SymbolNode {
+                id: base,
+                kind: SymbolKind::Function,
+                name: "spawn_worker".to_string(),
+                visibility: Visibility::Internal,
+                file: "worker.ts".to_string(),
+                trust_level: TrustLevel::Unknown,
+            }],
+            imports: imports
+                .iter()
+                .map(|src| ImportEdge {
+                    from_file: "worker.ts".to_string(),
+                    to_source: (*src).to_string(),
+                    line: 0,
+                })
+                .collect(),
+            reexports: Vec::new(),
+            calls: Vec::new(),
+            calls_partial: false,
+        };
+
+        let cache = KernelGraphCache::new();
+        let k = key("wsvc");
+        cache.apply_delta(&k, ChangeKind::Create, symbols(&[], 0));
+        let outcome = cache.apply_delta(
+            &k,
+            ChangeKind::ContentModify,
+            symbols(&["node:worker_threads"], 10),
+        );
+        let verdict = cache
+            .with_graphs(&k, |sym, dep| {
+                certify(sym, dep, &ChangeKind::ContentModify, &outcome.delta, 64, 1)
+            })
+            .expect("warm key present after apply");
+        assert!(
+            matches!(verdict, Certifiability::Partial { .. }),
+            "a change newly importing node:worker_threads must not certify clean, got {verdict:?}"
         );
     }
 

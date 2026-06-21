@@ -154,23 +154,23 @@ Crate(s): `anvil-graph-cache` (snapshot/io), `anvil-intercept` (save_time, full_
 
 Crate(s): `anvil-graph-cache` (trust/certify/incremental/snapshot), `anvil-intercept/src/kernel_cache.rs`.
 
-- [ ] **093a Extend `PRIVILEGED_MODULES`** — _medium (false-certify)._
+- [x] **093a Extend `PRIVILEGED_MODULES`** — _medium (false-certify)._
       `trust.rs:16`. Add spawn/exec/sandbox-escape Node built-ins
       (`worker_threads`, `vm`, `v8`, `dns`, `tls`, `dgram`) — the load-bearing
       privilege gate currently certifies them CLEAN.
-- [ ] **093b Memoise reexport-privilege on certify hot path** — _medium._
+- [x] **093b Memoise reexport-privilege on certify hot path** — _medium._
       `certify.rs:314` re-walks Reexports BFS per-file every ContentModify after
       `annotate_trust` already stamped `trust_level`. **Fix:** read `trust_level`
       off the file's symbols, or memoise the set onto GraphDelta/warm-cache.
-- [ ] **093c `known_files` via O(files) index not O(symbols) scan** — _medium._
+- [x] **093c `known_files` via O(files) index not O(symbols) scan** — _medium._
       `incremental.rs:686-693, 626-637` use `node_weights()` scan; sibling
       `re_resolve_calls_tracked` (~906) already uses `file_names()`. **Fix:**
       swap both to `file_names()`.
-- [ ] **093d `annotate_trust` latency signal** — _medium._
+- [x] **093d `annotate_trust` latency signal** — _medium._
       `kernel_cache.rs:537`. Whole-graph O(N) pass under the Mutex on every save
       with no tracing span/WARN threshold; outside the GV2-025 gate. **Fix:**
       add a debug span + WARN threshold.
-- [ ] **093e Independent `SNAPSHOT_BACKING_SCHEMA_VERSION`** — _medium._
+- [x] **093e Independent `SNAPSHOT_BACKING_SCHEMA_VERSION`** — _medium._
       `snapshot.rs:110` aliases it to `GRAPH_DELTA_SCHEMA_VERSION`; a delta-wire
       bump that leaves the DTO layout unchanged forces spurious cold rebuilds.
       **Fix:** give it its own independent const.

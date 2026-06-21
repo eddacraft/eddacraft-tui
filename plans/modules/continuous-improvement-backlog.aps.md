@@ -2548,7 +2548,7 @@ archive.
 
 ### CIB-093: GV2 substrate hot-path & trust correctness (v0.9.0 council)
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** Close the GV2 graph-substrate mediums from the v0.9.0 council. The
   load-bearing one is the privilege gate: `PRIVILEGED_MODULES` omits
   spawn/sandbox-escape Node built-ins (`worker_threads`, `vm`, `v8`, `dns`,

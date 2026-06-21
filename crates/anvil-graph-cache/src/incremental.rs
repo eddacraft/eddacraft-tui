@@ -628,10 +628,14 @@ fn re_resolve_imports_inner(
     imports: &[ImportEdge],
     mut on_add: impl FnMut(u64, u64, EdgeType),
 ) {
+    // CIB-093c: enumerate the distinct resident files via the O(files) per-file
+    // index (`file_names`), not an O(symbols) `node_weights()` scan — this runs
+    // under the cache Mutex on every re-resolution. Sibling
+    // `re_resolve_calls_tracked` already uses `file_names()`; both yield the same
+    // distinct-file set.
     let known_files: Vec<String> = graph
-        .inner()
-        .node_weights()
-        .map(|s| s.file.clone())
+        .file_names()
+        .map(ToString::to_string)
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect();
@@ -684,10 +688,11 @@ fn re_resolve_imports_inner(
 /// re-exports never feed that graph. A future re-export-driven feature that
 /// needs the added-edge list should add the tracked variant then.
 pub fn re_resolve_reexports(graph: &mut SymbolGraph, reexports: &[ReexportEdge]) {
+    // CIB-093c: O(files) `file_names()` index, not an O(symbols) `node_weights()`
+    // scan (runs under the cache Mutex). Same distinct-file set, lower constant.
     let known_files: Vec<String> = graph
-        .inner()
-        .node_weights()
-        .map(|s| s.file.clone())
+        .file_names()
+        .map(ToString::to_string)
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect();
@@ -1321,6 +1326,72 @@ mod tests {
         assert_eq!(delta.added_edges[0].1, 50);
         assert_eq!(delta.added_edges[0].2, EdgeType::Imports);
         assert_eq!(g.edge_count(), 1);
+    }
+
+    #[test]
+    fn reresolve_imports_file_enumeration_unchanged_by_index_swap() {
+        // CIB-093c: `re_resolve_imports` enumerates known files via `file_names()`
+        // (O(files)) rather than a `node_weights()` scan. The resolved set must be
+        // identical: a forward-referenced relative import still binds once its
+        // target file lands, and the known-file set equals the distinct files of
+        // the resident symbols.
+        let mut g = SymbolGraph::new();
+        // The importer lands first; its './util' target does not exist yet.
+        update_file(
+            &mut g,
+            FileSymbols {
+                file: "src/api.ts".to_string(),
+                symbols: vec![SymbolNode {
+                    id: 1,
+                    kind: SymbolKind::Function,
+                    name: "handler".to_string(),
+                    visibility: Visibility::Internal,
+                    file: "src/api.ts".to_string(),
+                    trust_level: TrustLevel::Unknown,
+                }],
+                imports: vec![ImportEdge {
+                    from_file: "src/api.ts".to_string(),
+                    to_source: "./util".to_string(),
+                    line: 0,
+                }],
+                reexports: Vec::new(),
+                calls: Vec::new(),
+                calls_partial: false,
+            },
+        );
+        // No edge yet — the target file was not resident at parse time.
+        assert_eq!(g.edge_count(), 0);
+
+        // The target lands. The known-file set the swapped enumeration builds must
+        // equal the distinct resident files, so the forward reference resolves.
+        update_file(
+            &mut g,
+            make_file_symbols("src/util.ts", vec![(2, "u", SymbolKind::Function)]),
+        );
+        re_resolve_imports(
+            &mut g,
+            &[ImportEdge {
+                from_file: "src/api.ts".to_string(),
+                to_source: "./util".to_string(),
+                line: 0,
+            }],
+        );
+
+        // The enumeration via `file_names()` agrees with the `node_weights()` set.
+        let via_index: BTreeSet<String> = g.file_names().map(ToString::to_string).collect();
+        let via_scan: BTreeSet<String> = g.inner().node_weights().map(|s| s.file.clone()).collect();
+        assert_eq!(
+            via_index, via_scan,
+            "file_names() must equal the node_weights() file set"
+        );
+
+        // And the forward reference is now resolved (the optimisation is behaviour-
+        // preserving).
+        assert_eq!(
+            g.edge_count(),
+            1,
+            "forward-referenced import resolves after target lands"
+        );
     }
 
     #[test]

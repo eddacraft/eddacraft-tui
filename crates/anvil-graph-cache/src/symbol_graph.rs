@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use anvil_kernel_types::{SymbolEdge, SymbolNode};
 use petgraph::graph::{DiGraph, NodeIndex};
@@ -30,6 +30,17 @@ pub struct SymbolGraph {
     /// allocators can never collide. Never decremented on `remove_file` —
     /// ids must stay unique across the lifetime of the graph.
     next_id: u64,
+    /// CIB-093b: memoised per-file re-export-reached privileged module
+    /// specifiers, stamped by `trust::annotate_trust` in a single whole-graph
+    /// pass. The certify hot path (`certify::export_surface_diff`) reads this
+    /// instead of re-walking a per-file `Reexports` BFS on every `ContentModify`
+    /// verdict under the cache Mutex.
+    ///
+    /// `None` = not computed (or invalidated by a mutation) ⇒ the reader falls
+    /// back to the on-demand BFS, so the optimisation can never serve a stale or
+    /// missing verdict. `Some(map)` = authoritative; a file absent from the map
+    /// reaches no privileged module by re-export. Any graph mutation clears it.
+    reexport_privileged: Option<HashMap<String, BTreeSet<String>>>,
 }
 
 impl SymbolGraph {
@@ -39,10 +50,12 @@ impl SymbolGraph {
             index: HashMap::new(),
             files: HashMap::new(),
             next_id: 0,
+            reexport_privileged: None,
         }
     }
 
     pub fn add_symbol(&mut self, node: SymbolNode) -> Result<NodeIndex, GraphError> {
+        self.reexport_privileged = None;
         if self.index.contains_key(&node.id) {
             return Err(GraphError::DuplicateSymbol(node.id));
         }
@@ -86,6 +99,7 @@ impl SymbolGraph {
             .copied()
             .ok_or(GraphError::SymbolNotFound(edge.to))?;
         self.graph.add_edge(from_idx, to_idx, edge);
+        self.reexport_privileged = None;
         Ok(())
     }
 
@@ -105,7 +119,31 @@ impl SymbolGraph {
     }
 
     pub fn get_symbol_mut(&mut self, id: u64) -> Option<&mut SymbolNode> {
+        // A caller may mutate `trust_level`/`file`, which the re-export-privilege
+        // memo (CIB-093b) derives from. Invalidate conservatively; `annotate_trust`
+        // re-stamps the memo via `set_reexport_privileged` after its own
+        // `get_symbol_mut` loop completes.
+        self.reexport_privileged = None;
         self.index.get(&id).map(|idx| &mut self.graph[*idx])
+    }
+
+    /// CIB-093b: install the memoised per-file re-export-reached privileged module
+    /// specifiers. Called by [`crate::trust::annotate_trust`] after its whole-graph
+    /// trust pass; the certify hot path reads it via
+    /// [`Self::reexport_privileged_for`] instead of re-walking the per-file BFS.
+    pub(crate) fn set_reexport_privileged(&mut self, map: HashMap<String, BTreeSet<String>>) {
+        self.reexport_privileged = Some(map);
+    }
+
+    /// CIB-093b: the memoised re-export-reached privileged module specifiers for
+    /// `file`, or `None` when the memo is absent/invalidated (the caller must then
+    /// fall back to the on-demand BFS). A `Some(empty)` means the memo is present
+    /// and `file` reaches no privileged module by re-export.
+    #[must_use]
+    pub(crate) fn reexport_privileged_for(&self, file: &str) -> Option<BTreeSet<String>> {
+        self.reexport_privileged
+            .as_ref()
+            .map(|map| map.get(file).cloned().unwrap_or_default())
     }
 
     /// The distinct files with at least one resident symbol, in arbitrary order.
@@ -131,6 +169,7 @@ impl SymbolGraph {
     }
 
     pub fn remove_file(&mut self, file: &str) -> Vec<u64> {
+        self.reexport_privileged = None;
         let ids = self.files.remove(file).unwrap_or_default();
 
         // Collect all NodeIndex values up-front before any removal.

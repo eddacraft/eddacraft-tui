@@ -13,7 +13,29 @@ use super::symbol_graph::SymbolGraph;
 /// Sensitive module names that indicate privileged access.
 /// Matched by exact module token (or `node:` prefix), not substring, to avoid
 /// false positives on packages like `fsevents` or `http-errors`.
-const PRIVILEGED_MODULES: &[&str] = &["fs", "child_process", "net", "http", "https", "crypto"];
+///
+/// CIB-093a: the spawn/exec (`worker_threads`) and sandbox-escape (`vm`, `v8`)
+/// built-ins, plus the lower-level network built-ins (`dns`, `tls`, `dgram`),
+/// are included alongside the classic capability surfaces — they grant
+/// equivalent privilege and previously certified CLEAN. This list is the single
+/// source of truth for what the GV2-027 certify path treats as newly privileged
+/// (and what GV2-031 follows re-export chains to), so every entry here must also
+/// map to exactly one [`SideEffectSurface`] in [`import_surface`] (enforced by
+/// `trust_graph_import_surface_covers_all_privileged_modules`).
+const PRIVILEGED_MODULES: &[&str] = &[
+    "fs",
+    "child_process",
+    "net",
+    "http",
+    "https",
+    "crypto",
+    "worker_threads",
+    "vm",
+    "v8",
+    "dns",
+    "tls",
+    "dgram",
+];
 
 /// External module patterns (not relative imports).
 fn is_external_import(source: &str) -> bool {
@@ -83,21 +105,30 @@ pub(crate) fn reexported_privileged_modules(graph: &SymbolGraph, file: &str) -> 
     found
 }
 
-/// The set of files that reach a privileged external module through re-export
-/// edges, transitively (GV2-031) — computed in a single graph pass.
+/// Per-file privileged module specifiers reached through re-export edges,
+/// transitively (GV2-031) — computed in a single graph pass.
 ///
 /// This is the whole-graph companion to [`reexported_privileged_modules`] (which
 /// answers the same question for *one* file). `annotate_trust` runs on every
 /// save over the whole warm graph, so calling the per-file walk once per file
 /// would be O(files²) on a re-export-heavy graph (barrel files). Instead this
 /// scans every `Reexports` edge once to build the file-level re-export graph,
-/// seeds the files that re-export a privileged module directly, then propagates
-/// privilege backwards along re-export edges to a fixpoint — O(nodes + re-export
-/// edges). A `from_file == to_file` self-edge is ignored (it cannot widen reach).
-fn reexport_privileged_files(graph: &SymbolGraph) -> HashSet<String> {
-    let mut privileged: HashSet<String> = HashSet::new();
+/// seeds each file with the privileged specifiers it re-exports directly, then
+/// propagates those specifier sets backwards along re-export edges to a fixpoint
+/// — O(nodes + re-export edges). A `from_file == to_file` self-edge is ignored
+/// (it cannot widen reach).
+///
+/// The result maps each file to the **set of privileged module specifiers** it
+/// reaches (the values [`reexported_privileged_modules`] would return for that
+/// file); a file with no privileged re-export reach is absent. CIB-093b memoises
+/// this onto the [`SymbolGraph`] so `certify::export_surface_diff` reads the
+/// per-file set instead of re-walking the BFS on every `ContentModify` verdict.
+fn reexport_privileged_files(graph: &SymbolGraph) -> HashMap<String, BTreeSet<String>> {
+    // `reached[f]` = privileged specifiers file `f` reaches by re-export.
+    let mut reached: HashMap<String, BTreeSet<String>> = HashMap::new();
     // `re_exported_by[t]` = files that re-export file `t` (reverse edges).
     let mut re_exported_by: HashMap<String, Vec<String>> = HashMap::new();
+    // Files whose `reached` set grew and must propagate to their re-exporters.
     let mut worklist: Vec<String> = Vec::new();
 
     for node in graph.inner().node_weights() {
@@ -115,7 +146,11 @@ fn reexport_privileged_files(graph: &SymbolGraph) -> HashSet<String> {
                 && target.trust_level == TrustLevel::External
                 && is_privileged_import(&target.file)
             {
-                if privileged.insert(node.file.clone()) {
+                if reached
+                    .entry(node.file.clone())
+                    .or_default()
+                    .insert(target.file.clone())
+                {
                     worklist.push(node.file.clone());
                 }
             } else {
@@ -127,21 +162,31 @@ fn reexport_privileged_files(graph: &SymbolGraph) -> HashSet<String> {
         }
     }
 
-    // Backward propagation: a file that re-exports a privileged file is itself
-    // privileged. The visited guard (`insert` returns false on revisit) bounds
-    // re-export cycles.
+    // Backward propagation: a file that re-exports file `f` reaches everything
+    // `f` reaches. Propagate specifier sets along reverse edges until no set
+    // grows. A file is re-queued only when it gained a new specifier, so the
+    // fixpoint terminates (the universe of specifiers is finite) even on a
+    // re-export cycle.
     while let Some(file) = worklist.pop() {
+        let Some(specs) = reached.get(&file).cloned() else {
+            continue;
+        };
         if let Some(sources) = re_exported_by.get(&file) {
-            for source in sources {
-                if !privileged.contains(source) {
-                    let source = source.clone();
-                    privileged.insert(source.clone());
+            for source in sources.clone() {
+                let entry = reached.entry(source.clone()).or_default();
+                let mut grew = false;
+                for spec in &specs {
+                    if entry.insert(spec.clone()) {
+                        grew = true;
+                    }
+                }
+                if grew {
                     worklist.push(source);
                 }
             }
         }
     }
-    privileged
+    reached
 }
 
 /// Annotate trust levels on all symbols in the graph based on heuristics.
@@ -174,7 +219,11 @@ pub fn annotate_trust(graph: &mut SymbolGraph, imports: &[ImportEdge]) {
     // `re_resolve_reexports` have already placed in the graph by the time the
     // certify path calls `annotate_trust`. One whole-graph pass, not a per-file
     // walk (see `reexport_privileged_files`).
-    let reexport_privileged = reexport_privileged_files(graph);
+    let reexport_privileged_map = reexport_privileged_files(graph);
+    // The set of files that reach *some* privileged module by re-export — the
+    // keys of the per-file map (a file is only inserted when it reaches one).
+    let reexport_privileged: HashSet<&str> =
+        reexport_privileged_map.keys().map(String::as_str).collect();
 
     for (id, file, visibility) in symbol_info {
         // Preserve TrustLevel::External on synthetic external module nodes created
@@ -206,6 +255,13 @@ pub fn annotate_trust(graph: &mut SymbolGraph, imports: &[ImportEdge]) {
             node.trust_level = trust;
         }
     }
+
+    // CIB-093b: install the per-file re-export-privilege memo computed above so
+    // the certify hot path reads it instead of re-walking the per-file BFS. The
+    // `get_symbol_mut` loop just cleared any previous memo, so this is the fresh,
+    // authoritative set for the post-update graph. `reexport_privileged` (a
+    // borrow of the map) is no longer used past the loop, so the map moves in.
+    graph.set_reexport_privileged(reexport_privileged_map);
 }
 
 /// Map a privileged import source to the side-effect surface it reaches.
@@ -218,8 +274,12 @@ fn import_surface(source: &str) -> Option<SideEffectSurface> {
     let token = module.split('/').next().unwrap_or(module);
     match token {
         "fs" => Some(SideEffectSurface::Filesystem),
-        "child_process" => Some(SideEffectSurface::Process),
-        "net" | "http" | "https" => Some(SideEffectSurface::Network),
+        // CIB-093a: worker_threads spawns/execs worker isolates; vm/v8 grant raw
+        // code execution / VM-internal access — all process-control capabilities.
+        "child_process" | "worker_threads" | "vm" | "v8" => Some(SideEffectSurface::Process),
+        // CIB-093a: dns/tls/dgram are lower-level network built-ins alongside the
+        // classic net/http/https surface.
+        "net" | "http" | "https" | "dns" | "tls" | "dgram" => Some(SideEffectSurface::Network),
         "crypto" => Some(SideEffectSurface::Crypto),
         _ => None,
     }
@@ -621,6 +681,87 @@ mod tests {
             g.get_symbol(1).unwrap().trust_level,
             TrustLevel::External,
             "http-errors should not be classified as Privileged"
+        );
+    }
+
+    #[test]
+    fn spawn_and_sandbox_escape_builtins_are_privileged() {
+        // CIB-093a: worker_threads (spawn+exec) and vm/v8 (sandbox escape), plus
+        // dns/tls/dgram (network), are spawn/sandbox-escape Node built-ins that
+        // previously certified CLEAN. Both bare and `node:`-prefixed forms must
+        // classify Privileged.
+        for spec in [
+            "worker_threads",
+            "node:worker_threads",
+            "vm",
+            "node:vm",
+            "v8",
+            "node:v8",
+            "dns",
+            "node:dns",
+            "tls",
+            "node:tls",
+            "dgram",
+            "node:dgram",
+        ] {
+            let mut g = SymbolGraph::new();
+            g.add_symbol(make_symbol(1, "f", "a.ts", Visibility::Internal))
+                .unwrap();
+            let imports = vec![ImportEdge {
+                from_file: "a.ts".to_string(),
+                to_source: spec.to_string(),
+                line: 0,
+            }];
+            annotate_trust(&mut g, &imports);
+            assert_eq!(
+                g.get_symbol(1).unwrap().trust_level,
+                TrustLevel::Privileged,
+                "{spec} should be classified Privileged"
+            );
+        }
+    }
+
+    #[test]
+    fn worker_threads_certifies_as_newly_privileged() {
+        // CIB-093a: a symbol that imports node:worker_threads must surface as a
+        // newly-privileged escalation through the certify side-effect dimension,
+        // not certify clean.
+        use crate::certify::export_surface_diff;
+
+        let mut g = SymbolGraph::new();
+        g.add_symbol(make_symbol(1, "run", "a.ts", Visibility::Internal))
+            .unwrap();
+        // The synthetic external module node update_file would stamp for the
+        // resolved import target, plus the Imports edge to it.
+        g.add_symbol(external_module(2, "node:worker_threads"))
+            .unwrap();
+        g.add_edge(anvil_kernel_types::SymbolEdge {
+            from: 1,
+            to: 2,
+            edge_type: EdgeType::Imports,
+        })
+        .unwrap();
+        annotate_trust(
+            &mut g,
+            &[ImportEdge {
+                from_file: "a.ts".to_string(),
+                to_source: "node:worker_threads".to_string(),
+                line: 0,
+            }],
+        );
+
+        // A fresh file with no prior privileged surface: the new import is newly
+        // privileged.
+        let delta = GraphDelta {
+            file: "a.ts".to_string(),
+            ..GraphDelta::default()
+        };
+        let diff = export_surface_diff(&g, &delta);
+        assert!(
+            diff.newly_privileged_imports
+                .contains(&"node:worker_threads".to_string()),
+            "node:worker_threads must be a newly-privileged surface, got {:?}",
+            diff.newly_privileged_imports
         );
     }
 
