@@ -278,12 +278,12 @@ and tooling.
 
 Archived integrations retained for historical context:
 
-| Directory                        | Former package                | Status                                            |
-| -------------------------------- | ----------------------------- | ------------------------------------------------- |
-| `archive/anvil-vscode-extension` | `anvil-vscode`                | Archived per ADR-033; not release-active          |
-| `archive/anvil-mcp-server`       | `@eddacraft/anvil-mcp-server` | Archived TypeScript MCP server; Rust shim is live |
-| `packages/libs/render`           | `@eddacraft/render`           | Retained package; not part of the active release  |
-| `packages/shared`                | —                             | Retained shared utilities                         |
+| Directory                              | Former package                | Status                                            |
+| -------------------------------------- | ----------------------------- | ------------------------------------------------- |
+| `anvil-archive/anvil-vscode-extension` | `anvil-vscode`                | Archived per ADR-033; not release-active          |
+| `anvil-archive/anvil-mcp-server`       | `@eddacraft/anvil-mcp-server` | Archived TypeScript MCP server; Rust shim is live |
+| `packages/libs/render`                 | `@eddacraft/render`           | Retained package; not part of the active release  |
+| `packages/shared`                      | —                             | Retained shared utilities                         |
 
 ### Packages — Tooling
 

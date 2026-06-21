@@ -1103,7 +1103,7 @@ track and are explicitly carved out of the protection claim.
   doctor acknowledges `f` to fix; tutorial path selection has more room for
   wrapped options.
 - **TypeScript scanner retirement** — the archived TypeScript scanner stack and
-  parity harness now live under `archive/anvil-ts-scanner/`, with the Rust
+  parity harness now live under `anvil-archive/anvil-ts-scanner/`, with the Rust
   scanner remaining authoritative; stale scanner-era package subpath exports
   were removed from `@eddacraft/anvil-core` and `@eddacraft/anvil-runtime`.
 - **PR base guard** — a release-sensitive PR base guard workflow now detects the
