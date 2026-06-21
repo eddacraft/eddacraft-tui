@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 48/90    |
+| CIB | —     | In Progress | 49/90    |
 
 ## Purpose
 
@@ -2334,7 +2334,16 @@ archive.
 
 ### CIB-085: Clawpatch Rust contract batch (gctx, policy-engine, sarif)
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-20 via PR #2823
+- **Summary:** Closed four medium-severity Rust contract findings from the
+  2026-06-20 clawpatch triage: gctx impact cap is now identity-order independent;
+  `find_dependents` surfaces walk budget truncation via `partial`; empty
+  `ImpactQuery` deserialises to structured `InvalidQuery`; SARIF regions reject
+  zero line/column via `NonZeroU32`. Policy-engine multi-expression queries are
+  rejected with a contract error; multi-row comprehensions keep the first binding
+  for `EvalResult.value` (full set in trace) — clawpatch finding
+  `fnd_sig-feat-library-cf04c15e28-21c6_b62c4d5a74` triaged `wont-fix` with that
+  documented contract.
 - **Intent:** Close the five medium-severity contract/correctness findings left
   on the shipping Rust product after the 2026-06-20 clawpatch triage and JS/TS
   retirement verdict — deterministic gctx impact reporting, structured invalid

@@ -142,9 +142,10 @@ separate issues.
 2. **Do not treat the remaining open backlog as a blocking gate.** After hygiene
    and JS/TS retirement verdicts, **85 open** findings remain — almost all
    `crates/` test-gap and a handful of tooling items.
-3. **Rust fixes:** file a small CIB batch for the §A contract/correctness items
-   (6 findings, no Windows-only deps). Defer test-gap (56) to a dedicated
-   hardening batch.
+3. **Rust fixes:** ~~file a small CIB batch for the §A contract/correctness items~~
+   **Done** — CIB-085 merged via PR #2823 (2026-06-20); four findings
+   `fixed`, one policy-engine multi-row binding triaged `wont-fix` with
+   documented contract. Defer test-gap (56) to a dedicated hardening batch.
 4. **Tooling:** optional CIB items for `scripts/dogfood` (2) and `infra/` (3)
    if those surfaces outlive JS/TS retirement; otherwise Ship with the stack.
 5. **`clawpatch fix`:** run one finding at a time from a **clean tree** only;

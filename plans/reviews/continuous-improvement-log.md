@@ -1532,6 +1532,23 @@ a backlog. Promote repeated friction or executable follow-up work to
   triage report output by status/path before filing any follow-up work.
 - **Follow-up:** none
 
+### 2026-06-21 — clawpatch
+
+- **Task:** CIB-085 post-merge closeout — APS Merged + clawpatch revalidate.
+- **Outcome:** PR #2823 merged; four medium findings revalidated `fixed`; policy-
+  engine multi-row binding finding triaged `wont-fix` (documented first-binding
+  contract for `EvalResult.value`, full set in trace). Open clawpatch count
+  85 → 80 on canonical tree.
+- **Worked:** `clawpatch revalidate --finding` per ID gave actionable reasoning
+  without re-running the full 715-finding corpus.
+- **Failed:** none.
+- **Friction:** Revalidate is slow (~85–130s per finding) when run serially for
+  a batch of five.
+- **Improvement:** Schedule clawpatch closeout revalidates in the same PR branch
+  before merge when the APS item lists explicit finding IDs.
+- **Follow-up:** optional `wt remove` for `fix/cib-085-clawpatch-rust-contracts`
+  worktree; `clawpatch map` after stale worktree cleanup.
+
 ### 2026-06-20 — other
 
 - **Task:** Address CIB-085 PR review feedback on gctx impact capping under lock.
