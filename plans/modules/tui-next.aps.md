@@ -19,11 +19,13 @@ feature-flag-collision checklist items are also ticked (ADR-050 Accepted via
 TUIN-001; `lifecycle`/`runner` shipped via TUIN-012 without collision). TUIN-004
 reconciled to **Ready** — its implementation landed via TUIN-012
 (`src/lifecycle.rs` + `lifecycle` feature + `TerminalGuard`/`restore_terminal`/
-panic hook); only the dedicated `tests/lifecycle_panic.rs` test remains. TUIN-003
-stays **open/Blocked** on D-TUIN-002 (mode-detection ownership), still `Proposed`
-— accept that decision to unblock it. TUIR is now archived
+panic hook); only the dedicated `tests/lifecycle_panic.rs` test remains. At
+reconciliation time TUIN-003 was **open/Blocked** on D-TUIN-002 (mode-detection
+ownership), still `Proposed` (D-TUIN-002 has since been Accepted and TUIN-003
+delivered — see the entry above). TUIR is now archived
 ([`plans/archive/modules/tui-reintegration.aps.md`](../archive/modules/tui-reintegration.aps.md)).
-No done/total change (4/13). Prior: 2026-06-09 (TUIN-013 added Proposed: first-class public
+This reconciliation pass itself made no done/total change (4/13 at the time; the
+count moved to 5/13 with TUIN-003). Prior: 2026-06-09 (TUIN-013 added Proposed: first-class public
 docs-site section for `eddacraft-tui`, sibling to `/aps` and `/kindling`,
 narrative-only with API reference linked to docs.rs; surfaced alongside the
 runner BYO-parser docs PR #2462). Prior: 2026-06-08 (TUIN-012 Done:
