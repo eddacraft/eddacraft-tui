@@ -325,9 +325,9 @@ The mirror is read-only by policy and force-pushes `main` only — release tags
 (`eddacraft-tui-v*`) are pushed by the separate publish workflow
 (`publish-eddacraft-tui.yml`), so existing tags on the mirror (including
 pre-cutover unprefixed `v0.x.y` tags per D-TUIR-011) are never overwritten by
-the mirror job (D-TUIR-009). See `plans/modules/tui-reintegration.aps.md`
-(D-TUIR-004, D-TUIR-009, D-TUIR-012) and
-`docs/policies/eddacraft-tui-mirror.md`.
+the mirror job (D-TUIR-009). See
+`plans/archive/modules/tui-reintegration.aps.md` (D-TUIR-004, D-TUIR-009,
+D-TUIR-012) and `docs/policies/eddacraft-tui-mirror.md`.
 
 ### `release-drafter.yml`
 

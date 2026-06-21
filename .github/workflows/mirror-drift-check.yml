@@ -67,7 +67,7 @@
 # (returns `a/b` for `a/b/c/.`). GitHub Actions `ubuntu-latest` ships GNU
 # coreutils and is unaffected (same constraint as the mirror workflow).
 #
-# See plans/modules/tui-reintegration.aps.md (TUIR-010, D-TUIR-018, D-TUIR-009,
+# See plans/archive/modules/tui-reintegration.aps.md (TUIR-010, D-TUIR-018, D-TUIR-009,
 # D-TUIR-012) and the mirror workflow `.github/workflows/mirror-eddacraft-tui.yml`.
 
 name: Mirror drift — eddacraft-tui crate

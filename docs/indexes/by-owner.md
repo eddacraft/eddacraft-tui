@@ -401,11 +401,11 @@
 | [Local Tracing](../../docs/observability/local-tracing.md)                               | `docs/observability/local-tracing.md`         | Guide    | Derived       | TRACE | Live   |
 | [anvil-observability — As-Built](../../docs/architecture/observability-as-built.md)      | `docs/architecture/observability-as-built.md` | As-built | Derived       | TRACE | Live   |
 
-## TUIR (plans/modules/tui-reintegration.aps.md) and ADR-047 / ADR-050
+## TUIR (plans/archive/modules/tui-reintegration.aps.md) and ADR-047 / ADR-050
 
-| Document                                                                                           | Path                                    | Type  | Authority     | Owner                                                               | Status |
-| -------------------------------------------------------------------------------------------------- | --------------------------------------- | ----- | ------------- | ------------------------------------------------------------------- | ------ |
-| [eddacraft-tui Mirror, CI Gates, and Backport Policy](../../docs/policies/eddacraft-tui-mirror.md) | `docs/policies/eddacraft-tui-mirror.md` | Guide | Authoritative | TUIR (plans/modules/tui-reintegration.aps.md) and ADR-047 / ADR-050 | Live   |
+| Document                                                                                           | Path                                    | Type  | Authority     | Owner                                                                       | Status |
+| -------------------------------------------------------------------------------------------------- | --------------------------------------- | ----- | ------------- | --------------------------------------------------------------------------- | ------ |
+| [eddacraft-tui Mirror, CI Gates, and Backport Policy](../../docs/policies/eddacraft-tui-mirror.md) | `docs/policies/eddacraft-tui-mirror.md` | Guide | Authoritative | TUIR (plans/archive/modules/tui-reintegration.aps.md) and ADR-047 / ADR-050 | Live   |
 
 ## UJ (plans/archive/modules/user-journey.aps.md)
 

@@ -1,7 +1,7 @@
 # TUIR-001: eddacraft-tui pre-migration baseline
 
 **Captured:** 2026-05-22
-**TUIR module:** [`tui-reintegration`](../modules/tui-reintegration.aps.md)
+**TUIR module:** [`tui-reintegration`](../archive/modules/tui-reintegration.aps.md)
 **Work item:** TUIR-001 — Lock the import baseline
 **Companion artefact:** [`2026-05-22-tui-reintegration-baseline/package-list.txt`](./2026-05-22-tui-reintegration-baseline/package-list.txt)
 

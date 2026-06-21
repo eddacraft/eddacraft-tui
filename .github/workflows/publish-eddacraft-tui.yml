@@ -49,7 +49,7 @@
 # procedure, verification, rollback, and token rotation for both
 # secrets named above.
 #
-# See plans/modules/tui-reintegration.aps.md (D-TUIR-002, D-TUIR-005,
+# See plans/archive/modules/tui-reintegration.aps.md (D-TUIR-002, D-TUIR-005,
 # D-TUIR-006, D-TUIR-007, D-TUIR-009, D-TUIR-011) and the standalone
 # repo's `release.yml` (eddacraft/eddacraft-tui) as the immediate
 # predecessor being replaced.

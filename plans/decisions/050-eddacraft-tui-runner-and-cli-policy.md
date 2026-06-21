@@ -443,6 +443,6 @@ the swap is a TUIN-003 implementation note rather than a new ADR.
     runner's minimal `ExitCode` surface should align with where it
     overlaps (`EXIT_OK`, `EXIT_ERROR`).
 - Out-of-scope clauses:
-  [TUIR Out of Scope](../modules/tui-reintegration.aps.md#out-of-scope)
+  [TUIR Out of Scope](../archive/modules/tui-reintegration.aps.md#out-of-scope)
   — "Adding `clap` (or any argument-parser) as a dependency of
   `eddacraft-tui` core" — upheld and carried forward by this ADR.

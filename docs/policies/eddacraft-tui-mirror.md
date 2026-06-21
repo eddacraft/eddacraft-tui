@@ -1,12 +1,12 @@
 # `eddacraft-tui` Mirror, CI Gates, and Backport Policy
 
-| Type  | Authority     | Owner                                                                                                                 | Status | Freshness                                                                                            |
-| ----- | ------------- | --------------------------------------------------------------------------------------------------------------------- | ------ | ---------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | TUIR ([`plans/modules/tui-reintegration.aps.md`](../../plans/modules/tui-reintegration.aps.md)) and ADR-047 / ADR-050 | Live   | Last reviewed 2026-05-23 against [TUIR-006 / TUIR-007](../../plans/modules/tui-reintegration.aps.md) |
+| Type  | Authority     | Owner                                                                                                                                 | Status | Freshness                                                                                                    |
+| ----- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------ |
+| Guide | Authoritative | TUIR ([`plans/archive/modules/tui-reintegration.aps.md`](../../plans/archive/modules/tui-reintegration.aps.md)) and ADR-047 / ADR-050 | Live   | Last reviewed 2026-05-23 against [TUIR-006 / TUIR-007](../../plans/archive/modules/tui-reintegration.aps.md) |
 
-| Upstream                                                                                                                                                                                                                | Downstream                                                                                                                                                                                                                                                                                          |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [ADR-047](../../plans/decisions/047-eddacraft-tui-canonical-source-mirror.md), [ADR-050](../../plans/decisions/050-eddacraft-tui-runner-and-cli-policy.md), [TUIR module](../../plans/modules/tui-reintegration.aps.md) | [`crates/eddacraft-tui/CONTRIBUTING.md`](../../crates/eddacraft-tui/CONTRIBUTING.md), [`crates/eddacraft-tui/SECURITY.md`](../../crates/eddacraft-tui/SECURITY.md), [`crates/eddacraft-tui/MIRROR-README.md`](../../crates/eddacraft-tui/MIRROR-README.md), Anvil-side and mirror-side CI workflows |
+| Upstream                                                                                                                                                                                                                        | Downstream                                                                                                                                                                                                                                                                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [ADR-047](../../plans/decisions/047-eddacraft-tui-canonical-source-mirror.md), [ADR-050](../../plans/decisions/050-eddacraft-tui-runner-and-cli-policy.md), [TUIR module](../../plans/archive/modules/tui-reintegration.aps.md) | [`crates/eddacraft-tui/CONTRIBUTING.md`](../../crates/eddacraft-tui/CONTRIBUTING.md), [`crates/eddacraft-tui/SECURITY.md`](../../crates/eddacraft-tui/SECURITY.md), [`crates/eddacraft-tui/MIRROR-README.md`](../../crates/eddacraft-tui/MIRROR-README.md), Anvil-side and mirror-side CI workflows |
 
 This is the canonical statement of how the `eddacraft-tui` crate is governed
 across its two surfaces — the canonical source in this monorepo at
@@ -226,8 +226,8 @@ triggers a check of the other two.
   — canonical-source + public-mirror model.
 - [ADR-050](../../plans/decisions/050-eddacraft-tui-runner-and-cli-policy.md) —
   `runner` feature flag + CLI/parser policy (post-TUIR, TUIN-scoped).
-- [TUIR module](../../plans/modules/tui-reintegration.aps.md) — the migration
-  plan, including D-TUIR-007 (CI gate split, ratified here), D-TUIR-009
-  (backport / mirror conflict policy, expanded in the section above when
-  TUIR-007 lands), D-TUIR-012 (banner mechanism), D-TUIR-018 (mirror drift
+- [TUIR module](../../plans/archive/modules/tui-reintegration.aps.md) — the
+  migration plan, including D-TUIR-007 (CI gate split, ratified here),
+  D-TUIR-009 (backport / mirror conflict policy, expanded in the section above
+  when TUIR-007 lands), D-TUIR-012 (banner mechanism), D-TUIR-018 (mirror drift
   verification).

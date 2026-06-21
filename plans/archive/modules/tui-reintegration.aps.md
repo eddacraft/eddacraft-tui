@@ -3,9 +3,21 @@
 
 # TUI Reintegration
 
-| ID   | Owner      | Status      | Progress |
-| ---- | ---------- | ----------- | -------- |
-| TUIR | joshuaboys | Done | 10/10     |
+| ID   | Owner      | Status   | Progress |
+| ---- | ---------- | -------- | -------- |
+| TUIR | joshuaboys | Complete | 10/10    |
+
+> **Archived 2026-06-21 — Complete (10/10 delivered).** The eddacraft-tui
+> canonical source reintegration is done: the source lives in
+> [`crates/eddacraft-tui/`](../../../crates/eddacraft-tui/), publishes to
+> crates.io from Anvil via `eddacraft-tui-v*` tags, and mirrors read-only to
+> `eddacraft/eddacraft-tui` (ADR-047). All ten work items
+> Merged/Done. This file is retained as historical planning context; the
+> live release mechanics are owned by
+> [`docs/runbooks/eddacraft-tui-release.md`](../../../docs/runbooks/eddacraft-tui-release.md)
+> and [`docs/policies/eddacraft-tui-mirror.md`](../../../docs/policies/eddacraft-tui-mirror.md).
+> Follow-on design work continues under
+> [`tui-next`](../../modules/tui-next.aps.md) (TUIN).
 
 **Last reviewed:** 2026-06-08 — TUIR-008 `Done` by operator evidence:
 canonical publishes from Anvil are proven, the mirror is healthy and
@@ -62,9 +74,9 @@ converge on the org-owned credential.
 > **Execution gate:** Implements ADR-047 (Accepted 2026-05-22). Module
 > is In Progress. TUIR-001 (baseline capture) is `Done` — baseline
 > spec landed at
-> [`plans/specs/2026-05-22-tui-reintegration-baseline.md`](../specs/2026-05-22-tui-reintegration-baseline.md)
+> [`plans/specs/2026-05-22-tui-reintegration-baseline.md`](../../specs/2026-05-22-tui-reintegration-baseline.md)
 > with the byte-exact published-tarball file list at
-> [`plans/specs/2026-05-22-tui-reintegration-baseline/package-list.txt`](../specs/2026-05-22-tui-reintegration-baseline/package-list.txt).
+> [`plans/specs/2026-05-22-tui-reintegration-baseline/package-list.txt`](../../specs/2026-05-22-tui-reintegration-baseline/package-list.txt).
 > Subsequent tasks (TUIR-002..TUIR-008) keep `Status: open` and become
 > executable as their own prerequisites land (mirror PAT for TUIR-004,
 > crates.io token for TUIR-005, MIRROR-README + docs/policies drafts
@@ -77,7 +89,7 @@ converge on the org-owned credential.
 > normalisation (drift-check accepts it; the underlying execution token
 > is still `completed`).
 >
-> **Supersedes:** [`eddacraft-tui-canonical-source`](../archive/modules/eddacraft-tui-canonical-source.aps.md)
+> **Supersedes:** [`eddacraft-tui-canonical-source`](./eddacraft-tui-canonical-source.aps.md)
 > (TUIMIRROR, 0/8, Superseded — archived 2026-06-08 via TUIR-008). TUIR
 > carried the same intent at a higher resolution — the policy questions left
 > implicit in TUIMIRROR (read-only vs release mirror, sync direction,
@@ -140,7 +152,7 @@ trust surface and crates.io contract.
 
 **Depends on:**
 
-- [ADR-047](../decisions/047-eddacraft-tui-canonical-source-mirror.md) —
+- [ADR-047](../../decisions/047-eddacraft-tui-canonical-source-mirror.md) —
   canonical-source + public-mirror decision; pending acceptance.
 - ATTRIB-011 mirror precedent —
   `.github/workflows/mirror-acknowledgements-starter.yml` and the
@@ -345,7 +357,7 @@ trust surface and crates.io contract.
     and the conflicting tag is either renamed or yanked from crates.io.
 - **Status:** Accepted 2026-05-23 — ratified by TUIR-007 (PR #1886) via
   [`docs/policies/eddacraft-tui-mirror.md` §Backport and Conflict
-  Policy](../../docs/policies/eddacraft-tui-mirror.md#backport-and-conflict-policy).
+  Policy](../../../docs/policies/eddacraft-tui-mirror.md#backport-and-conflict-policy).
   The policy doc expands each bullet above into a sub-section and adds
   an ongoing-mirror-history-rewrite sub-policy (per D-TUIR-020) that
   belongs alongside the four conflict cases originally listed here.

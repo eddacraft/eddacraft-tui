@@ -4,9 +4,9 @@
 | ------- | ------------- | ------ | ------ | ----------------------------------------- |
 | Runbook | Authoritative | @aneki | Live   | First filed 2026-05-25 alongside TUIR-005 |
 
-| Upstream                                                                                                                                                                                                                                                                                                    | Downstream                                                                                                                                                                                                                                                                                                                                                       |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [TUIR module](../../plans/modules/tui-reintegration.aps.md), [ADR-047](../../plans/decisions/047-eddacraft-tui-canonical-source-mirror.md), [`docs/policies/eddacraft-tui-mirror.md`](../policies/eddacraft-tui-mirror.md), [TUIR-001 baseline](../../plans/specs/2026-05-22-tui-reintegration-baseline.md) | [`.github/workflows/publish-eddacraft-tui.yml`](../../.github/workflows/publish-eddacraft-tui.yml), [`.github/workflows/mirror-eddacraft-tui.yml`](../../.github/workflows/mirror-eddacraft-tui.yml), [`crates/eddacraft-tui/CHANGELOG.md`](../../crates/eddacraft-tui/CHANGELOG.md), [`crates/eddacraft-tui/Cargo.toml`](../../crates/eddacraft-tui/Cargo.toml) |
+| Upstream                                                                                                                                                                                                                                                                                                            | Downstream                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [TUIR module](../../plans/archive/modules/tui-reintegration.aps.md), [ADR-047](../../plans/decisions/047-eddacraft-tui-canonical-source-mirror.md), [`docs/policies/eddacraft-tui-mirror.md`](../policies/eddacraft-tui-mirror.md), [TUIR-001 baseline](../../plans/specs/2026-05-22-tui-reintegration-baseline.md) | [`.github/workflows/publish-eddacraft-tui.yml`](../../.github/workflows/publish-eddacraft-tui.yml), [`.github/workflows/mirror-eddacraft-tui.yml`](../../.github/workflows/mirror-eddacraft-tui.yml), [`crates/eddacraft-tui/CHANGELOG.md`](../../crates/eddacraft-tui/CHANGELOG.md), [`crates/eddacraft-tui/Cargo.toml`](../../crates/eddacraft-tui/Cargo.toml) |
 
 ## TL;DR
 
@@ -710,8 +710,8 @@ multi-segment prefix and is broken under uutils coreutils 0.2.2's `dirname`
 `git subtree split` — only the mirror content workflow does — so local
 reproduction of the publish flow is unaffected by uutils. If you need to repro
 the mirror workflow locally on a uutils box, see the `/tmp/gnu-shim/dirname`
-shim noted in `plans/modules/tui-reintegration.aps.md` (D-TUIR-004 runner
-constraint).
+shim noted in `plans/archive/modules/tui-reintegration.aps.md` (D-TUIR-004
+runner constraint).
 
 To dry-run the publish-side gates locally without publishing:
 

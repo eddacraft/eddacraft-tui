@@ -7,7 +7,7 @@
 **Last reviewed:** 2026-06-08 (archived by TUIR-008). Prior: 2026-05-20.
 
 > **Archived 2026-06-08 by TUIR-008. Superseded by:**
-> [`tui-reintegration`](../../modules/tui-reintegration.aps.md) (TUIR).
+> [`tui-reintegration`](./tui-reintegration.aps.md) (TUIR).
 > TUIR carried the same ADR-047 intent at higher resolution — the policy
 > questions left implicit here (read-only vs release mirror, sync direction,
 > versioning ownership, CI gate split, backport policy) became first-class work

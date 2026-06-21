@@ -59,7 +59,7 @@
 # *content* here MUST be mirrored in `mirror-drift-check.yml` in the same
 # PR, or the watchdog reports false drift.
 #
-# See plans/modules/tui-reintegration.aps.md (D-TUIR-004, D-TUIR-009,
+# See plans/archive/modules/tui-reintegration.aps.md (D-TUIR-004, D-TUIR-009,
 # D-TUIR-012, D-TUIR-018) and the ATTRIB-011 precedent
 # (.github/workflows/mirror-acknowledgements-starter.yml).
 
