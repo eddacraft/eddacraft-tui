@@ -51,13 +51,16 @@ impl GctxProjector {
     pub fn collect_candidates(
         graph: &SymbolGraph,
         query: &SearchSymbolsQuery,
-    ) -> Vec<SymbolSummary> {
+    ) -> (Vec<SymbolSummary>, usize) {
         // Lower-case the filters ONCE, not per node, so the lock-held loop does
         // no avoidable allocation (ADR-084 C2).
         let name_lc = query.name.as_deref().map(str::to_lowercase);
         let file_lc = query.file.as_deref().map(str::to_lowercase);
 
         let mut out = Vec::new();
+        // CIB-091a (CE-3): count files dropped by the sensitive-path deny-list so
+        // the projection's `omitted_sensitive_paths` is honest.
+        let mut omitted_sensitive = 0usize;
         // Iterate the file index (O(files)) rather than every node (O(symbols))
         // to rediscover the file set — the final order is imposed by `project`,
         // so file-visit order is irrelevant here.
@@ -67,6 +70,13 @@ impl GctxProjector {
             // paths, so an absolute path should never be resident — but if one
             // is, drop it rather than leak an absolute filesystem location.
             if is_absolute_path_like(file) {
+                continue;
+            }
+            // CIB-091a (CE-3): the substrate scans with `standard_filters(false)`,
+            // so secret/dotfile paths are resident — drop them before they egress
+            // as identity-only paths, and count the drop.
+            if is_sensitive_egress_path(file) {
+                omitted_sensitive += 1;
                 continue;
             }
             if let Some(filter) = file_lc.as_deref()
@@ -90,7 +100,7 @@ impl GctxProjector {
                 }
             }
         }
-        out
+        (out, omitted_sensitive)
     }
 
     /// Sort, paginate, and seal collected candidates into the egress projection.
@@ -117,6 +127,7 @@ impl GctxProjector {
     pub fn project(
         mut candidates: Vec<SymbolSummary>,
         query: &SearchSymbolsQuery,
+        omitted_sensitive: usize,
     ) -> Result<SearchSymbolsProjection, String> {
         candidates.sort_by(|a, b| a.identity.cmp(&b.identity));
         let matched = candidates.len();
@@ -168,6 +179,7 @@ impl GctxProjector {
                 matched,
                 returned,
                 truncated: next_cursor.is_some(),
+                omitted_sensitive_paths: omitted_sensitive,
             },
             symbols: page,
             next_cursor,
@@ -203,7 +215,7 @@ impl GctxProjector {
         dep: &DependencyGraph,
         file: &str,
         depth: u32,
-    ) -> (Vec<DependentSummary>, bool) {
+    ) -> (Vec<DependentSummary>, bool, usize) {
         Self::collect_dependents_with_budget(dep, file, depth, MAX_DEPENDENTS_WALK)
     }
 
@@ -212,7 +224,7 @@ impl GctxProjector {
         file: &str,
         depth: u32,
         max_walk: usize,
-    ) -> (Vec<DependentSummary>, bool) {
+    ) -> (Vec<DependentSummary>, bool, usize) {
         debug_assert!(
             depth <= anvil_graph_cache::MAX_REVERSE_IMPACT_DEPTH,
             "dependents walk depth {depth} exceeds the ADR-063 cap {} (caller must clamp)",
@@ -220,6 +232,7 @@ impl GctxProjector {
         );
         let mut out: Vec<DependentSummary> = Vec::new();
         let mut walk_truncated = false;
+        let mut omitted_sensitive = 0usize;
         let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
         // The origin is excluded from its own dependent set and seeded so a cycle
         // back through `file` does not re-add it.
@@ -238,6 +251,14 @@ impl GctxProjector {
                     // CE-5 defence in depth: never emit an absolute path, even if
                     // one were resident in the dependency index.
                     if is_absolute_path_like(importer) {
+                        continue;
+                    }
+                    // CIB-091a (CE-3): drop a sensitive importer before it egresses
+                    // and count it; seed `seen` so it is not revisited.
+                    if is_sensitive_egress_path(importer) {
+                        if seen.insert(importer.to_string()) {
+                            omitted_sensitive += 1;
+                        }
                         continue;
                     }
                     // First (smallest) distance wins; a re-seen file is skipped.
@@ -263,7 +284,7 @@ impl GctxProjector {
             next.sort_unstable();
             frontier = next;
         }
-        (out, walk_truncated)
+        (out, walk_truncated, omitted_sensitive)
     }
 
     /// Sort, paginate, and seal collected dependents into the egress projection.
@@ -284,6 +305,7 @@ impl GctxProjector {
         query: &FindDependentsQuery,
         depth: u32,
         walk_truncated: bool,
+        omitted_sensitive: usize,
     ) -> Result<FindDependentsProjection, String> {
         candidates.sort_by(|a, b| a.file.cmp(&b.file));
         let matched = candidates.len();
@@ -327,6 +349,7 @@ impl GctxProjector {
                 matched,
                 returned,
                 truncated: next_cursor.is_some(),
+                omitted_sensitive_paths: omitted_sensitive,
             },
             dependents: page,
             next_cursor,
@@ -352,8 +375,9 @@ impl GctxProjector {
         graph: &SymbolGraph,
         target: &SymbolIdentity,
         depth: u32,
-    ) -> (Vec<CallerSummary>, bool) {
+    ) -> (Vec<CallerSummary>, bool, usize) {
         let report = anvil_graph_cache::callers_of(graph, target, depth);
+        let mut omitted_sensitive = 0usize;
         let callers = report
             .callers
             .into_iter()
@@ -362,13 +386,23 @@ impl GctxProjector {
             // drop the caller rather than egress an absolute filesystem location
             // via `CallerSummary.caller.file` (mirrors `collect_dependents`).
             .filter(|c| !is_absolute_path_like(&c.caller.file))
+            // CIB-091a (CE-3): drop a sensitive-path caller before it egresses and
+            // count it.
+            .filter(|c| {
+                if is_sensitive_egress_path(&c.caller.file) {
+                    omitted_sensitive += 1;
+                    false
+                } else {
+                    true
+                }
+            })
             .map(|c| CallerSummary {
                 caller: c.caller,
                 distance: c.distance,
                 heuristic: c.heuristic,
             })
             .collect();
-        (callers, report.truncated)
+        (callers, report.truncated, omitted_sensitive)
     }
 
     /// Sort, paginate, and seal collected callers into the egress projection
@@ -401,6 +435,7 @@ impl GctxProjector {
         depth: u32,
         walk_truncated: bool,
         callers_incomplete: bool,
+        omitted_sensitive: usize,
     ) -> Result<FindCallersProjection, String> {
         candidates.sort_by(|a, b| a.caller.cmp(&b.caller));
         let matched = candidates.len();
@@ -444,6 +479,7 @@ impl GctxProjector {
                 matched,
                 returned,
                 truncated: next_cursor.is_some(),
+                omitted_sensitive_paths: omitted_sensitive,
             },
             callers: page,
             next_cursor,
@@ -497,23 +533,45 @@ impl GctxProjector {
             anvil_graph_cache::MAX_REVERSE_IMPACT_DEPTH,
         );
 
-        // Seed every distinct non-absolute changed file before collecting symbols
-        // or walking dependents — the affected-symbol cap must not skip seeds.
+        // Seed every distinct non-absolute, non-sensitive changed file before
+        // collecting symbols or walking dependents — the affected-symbol cap must
+        // not skip seeds. CIB-091a (CE-3): a sensitive changed-file seed is dropped
+        // (no affected symbols, no dependent walk) and counted.
         let mut truncated = false;
+        let mut omitted_sensitive = 0usize;
         let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
         for file in changed_files {
-            if !is_absolute_path_like(file) {
-                seen.insert(file.clone());
+            if is_absolute_path_like(file) {
+                continue;
             }
+            if is_sensitive_egress_path(file) {
+                if seen.insert(file.clone()) {
+                    omitted_sensitive += 1;
+                }
+                continue;
+            }
+            seen.insert(file.clone());
         }
-        let changed_count = seen.len();
-        let mut seed_files: Vec<String> = seen.iter().cloned().collect();
+        // The sensitive seeds were inserted into `seen` so they are not walked, but
+        // they are not part of the change surface the report is computed over.
+        let changed_count = seen.len() - omitted_sensitive;
+        let mut seed_files: Vec<String> = seen
+            .iter()
+            .filter(|f| !is_sensitive_egress_path(f))
+            .cloned()
+            .collect();
         seed_files.sort_unstable();
 
-        // Keep a sorted, capped affected set as we stream symbols so lock-held
-        // memory remains bounded while still preserving deterministic identity
-        // order (input file order must not decide which symbols survive the cap).
-        let mut affected: Vec<SymbolSummary> = Vec::new();
+        // CIB-091c: collect affected symbols into a bounded max-heap keyed by
+        // identity (O(log n) push) so the lock-held pass does work bounded by the
+        // cap — no O(n) `Vec::insert` shift of up to `MAX_AFFECTED_SYMBOLS` per
+        // symbol under the cache lock. The heap keeps the identity-SMALLEST
+        // `max_affected` summaries (a max-heap pops the largest once over cap),
+        // preserving the existing "keep the lowest-identity-ordered prefix"
+        // truncation semantics. The final sort happens in `project_impact` after
+        // the lock releases.
+        let mut affected_heap: std::collections::BinaryHeap<HeapSummary> =
+            std::collections::BinaryHeap::new();
         for file in &seed_files {
             let symbols = sym.symbols_in_file(file);
             let identities = SymbolIdentity::for_file_symbols(&symbols);
@@ -528,22 +586,25 @@ impl GctxProjector {
                     continue;
                 }
 
-                let insert_at = affected
-                    .binary_search_by(|probe| probe.identity.cmp(&summary.identity))
-                    .unwrap_or_else(|idx| idx);
-
-                if affected.len() < max_affected {
-                    affected.insert(insert_at, summary);
+                if affected_heap.len() < max_affected {
+                    affected_heap.push(HeapSummary(summary));
                     continue;
                 }
 
-                if insert_at < max_affected {
-                    affected.insert(insert_at, summary);
-                    affected.pop();
+                // At cap: keep the new summary only if it is smaller than the
+                // current largest (the heap root), evicting that root.
+                if affected_heap
+                    .peek()
+                    .is_some_and(|largest| summary.identity < largest.0.identity)
+                {
+                    affected_heap.pop();
+                    affected_heap.push(HeapSummary(summary));
                 }
                 truncated = true;
             }
         }
+        // Unwrap the heap into an unsorted Vec; `project_impact` sorts it.
+        let affected: Vec<SymbolSummary> = affected_heap.into_iter().map(|h| h.0).collect();
 
         // Dependent closure: one multi-source BFS over all seeds.
         let mut dependents: Vec<DependentSummary> = Vec::new();
@@ -555,6 +616,14 @@ impl GctxProjector {
                 importers.sort_unstable();
                 for importer in importers {
                     if is_absolute_path_like(importer) {
+                        continue;
+                    }
+                    // CIB-091a (CE-3): drop a sensitive importer before it egresses
+                    // and count it; seed `seen` so it is not revisited.
+                    if is_sensitive_egress_path(importer) {
+                        if seen.insert(importer.to_string()) {
+                            omitted_sensitive += 1;
+                        }
                         continue;
                     }
                     if seen.insert(importer.to_string()) {
@@ -585,6 +654,7 @@ impl GctxProjector {
             dependents,
             changed_count,
             truncated,
+            omitted_sensitive,
         }
     }
 
@@ -604,6 +674,7 @@ impl GctxProjector {
             mut dependents,
             changed_count,
             truncated,
+            omitted_sensitive,
         } = collected;
         // Identities are already distinct (each changed file is seeded once and
         // `for_file_symbols` assigns distinct ordinals), so a sort suffices — no
@@ -623,6 +694,7 @@ impl GctxProjector {
             dependent_files: dependents.len(),
             known_tests: known_tests.len(),
             truncated,
+            omitted_sensitive_paths: omitted_sensitive,
         };
         ImpactReport {
             affected_symbols: affected,
@@ -678,12 +750,20 @@ impl GctxProjector {
         );
 
         // Distinct, non-absolute changed seeds. This set doubles as change-set
-        // membership for evidence-edge and coverage tests.
+        // membership for evidence-edge and coverage tests. CIB-091a (CE-3): a
+        // sensitive changed file is excluded from the change set (so it can never
+        // surface as an evidence edge or coverage gap) and counted.
+        let mut omitted_sensitive = 0usize;
         let mut changed_set: std::collections::HashSet<String> = std::collections::HashSet::new();
         for file in changed_files {
-            if !is_absolute_path_like(file) {
-                changed_set.insert(file.clone());
+            if is_absolute_path_like(file) {
+                continue;
             }
+            if is_sensitive_egress_path(file) {
+                omitted_sensitive += 1;
+                continue;
+            }
+            changed_set.insert(file.clone());
         }
         let changed_count = changed_set.len();
 
@@ -705,6 +785,14 @@ impl GctxProjector {
                 importers.sort_unstable();
                 for importer in importers {
                     if is_absolute_path_like(importer) {
+                        continue;
+                    }
+                    // CIB-091a (CE-3): drop a sensitive importer before it can
+                    // egress (as a test path or evidence edge) and count it.
+                    if is_sensitive_egress_path(importer) {
+                        if seen.insert(importer.to_string()) {
+                            omitted_sensitive += 1;
+                        }
                         continue;
                     }
                     if seen.insert(importer.to_string()) {
@@ -763,6 +851,7 @@ impl GctxProjector {
             depth,
             &mut walked,
             &mut truncated,
+            &mut omitted_sensitive,
         );
 
         // Coverage gaps: changed non-test files no test reaches within the bound.
@@ -777,6 +866,7 @@ impl GctxProjector {
             coverage_gaps,
             changed_count,
             truncated,
+            omitted_sensitive,
         }
     }
 
@@ -795,6 +885,7 @@ impl GctxProjector {
             mut coverage_gaps,
             changed_count,
             truncated,
+            omitted_sensitive,
         } = collected;
         tests.sort_by(|a, b| a.file.cmp(&b.file));
         coverage_gaps.sort_unstable();
@@ -806,6 +897,7 @@ impl GctxProjector {
             evidence_edges,
             coverage_gaps: coverage_gaps.len(),
             truncated,
+            omitted_sensitive_paths: omitted_sensitive,
         };
         AffectedTestsReport {
             tests,
@@ -865,15 +957,22 @@ impl GctxProjector {
     pub fn collect_all_edges(
         graph: &SymbolGraph,
         file_filter: Option<&str>,
-    ) -> (Vec<EdgeSummary>, bool) {
+    ) -> (Vec<EdgeSummary>, bool, usize) {
         // Pass 1: one `symbols_in_file` per file (cached for pass 2), building the
         // global node id → identity map. Files held in a Vec so pass 2 can visit
-        // them in a deterministic sorted order.
+        // them in a deterministic sorted order. CIB-091a (CE-3): a sensitive file
+        // is excluded from the identity map, so neither its symbols (as `from`)
+        // nor any edge targeting them (as `to`) can resolve — the edge is dropped.
         let mut by_file: Vec<(&str, Vec<&SymbolNode>)> = Vec::new();
         let mut identities: std::collections::HashMap<u64, SymbolIdentity> =
             std::collections::HashMap::new();
+        let mut omitted_sensitive = 0usize;
         for file in graph.file_names() {
             if is_absolute_path_like(file) {
+                continue;
+            }
+            if is_sensitive_egress_path(file) {
+                omitted_sensitive += 1;
                 continue;
             }
             let symbols = graph.symbols_in_file(file);
@@ -922,7 +1021,7 @@ impl GctxProjector {
                 }
             }
         }
-        (out, bounded)
+        (out, bounded, omitted_sensitive)
     }
 
     /// Sort, paginate, and seal collected edges into the `graph://edges`
@@ -941,6 +1040,7 @@ impl GctxProjector {
         mut candidates: Vec<EdgeSummary>,
         query: &GraphEdgesQuery,
         bounded: bool,
+        omitted_sensitive: usize,
     ) -> Result<GraphEdgesProjection, String> {
         candidates.sort();
         candidates.dedup();
@@ -985,6 +1085,7 @@ impl GctxProjector {
                 matched,
                 returned,
                 truncated: next_cursor.is_some(),
+                omitted_sensitive_paths: omitted_sensitive,
             },
             edges: page,
             next_cursor,
@@ -1009,6 +1110,9 @@ pub struct CollectedAffectedTests {
     pub changed_count: usize,
     /// Whether the shared [`MAX_DEPENDENTS_WALK`] budget bound either walk.
     pub truncated: bool,
+    /// CIB-091a (CE-3): identity-only paths dropped by the sensitive-path egress
+    /// deny-list across the reverse/forward walks and the change set.
+    pub omitted_sensitive: usize,
 }
 
 /// Forward multi-source breadth-first walk from `test_files`, returning the
@@ -1028,6 +1132,7 @@ fn covered_changed_files(
     depth: u32,
     walked: &mut usize,
     truncated: &mut bool,
+    omitted_sensitive: &mut usize,
 ) -> std::collections::HashSet<String> {
     let mut covered: std::collections::HashSet<String> = std::collections::HashSet::new();
     let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -1054,6 +1159,15 @@ fn covered_changed_files(
                 if is_absolute_path_like(dep_file) {
                     continue;
                 }
+                // CIB-091a (CE-3): a sensitive dependency node is likewise never
+                // in the (sensitive-free) `changed_set`; drop it before it burns
+                // budget and count it.
+                if is_sensitive_egress_path(dep_file) {
+                    if seen.insert(dep_file.to_string()) {
+                        *omitted_sensitive += 1;
+                    }
+                    continue;
+                }
                 // Mark coverage regardless of whether `dep_file` is re-expanded —
                 // a changed file reached by two tests is covered all the same.
                 if changed_set.contains(dep_file) {
@@ -1078,6 +1192,31 @@ fn covered_changed_files(
     covered
 }
 
+/// A [`SymbolSummary`] wrapper ordered by [`SymbolIdentity`] only, so a
+/// [`std::collections::BinaryHeap`] can keep the identity-smallest `max_affected`
+/// summaries with O(log n) pushes under the cache lock (CIB-091c) — replacing the
+/// O(n) sorted `Vec::insert` that shifted up to [`MAX_AFFECTED_SYMBOLS`] per
+/// symbol while the lock was held. A `BinaryHeap` is a max-heap, so the root is
+/// the LARGEST identity; over cap we evict it, retaining the smallest prefix.
+struct HeapSummary(SymbolSummary);
+
+impl PartialEq for HeapSummary {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.identity == other.0.identity
+    }
+}
+impl Eq for HeapSummary {}
+impl PartialOrd for HeapSummary {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for HeapSummary {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.0.identity.cmp(&other.0.identity)
+    }
+}
+
 /// The owned, identity-only pieces [`GctxProjector::collect_impact`] gathers
 /// under the cache lock, handed to [`GctxProjector::project_impact`] after the
 /// lock releases (ADR-084 C2).
@@ -1093,6 +1232,9 @@ pub struct CollectedImpact {
     /// Whether a budget ([`MAX_AFFECTED_SYMBOLS`] or [`MAX_DEPENDENTS_WALK`])
     /// bound the walk.
     pub truncated: bool,
+    /// CIB-091a (CE-3): identity-only paths dropped by the sensitive-path egress
+    /// deny-list (sensitive changed-file seeds + sensitive importers).
+    pub omitted_sensitive: usize,
 }
 
 /// Best-effort, heuristic test-file recognition over a workspace-relative path
@@ -1384,6 +1526,61 @@ fn is_absolute_path_like(file: &str) -> bool {
     bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':'
 }
 
+/// CE-3 sensitive-path egress deny-list (CIB-091a).
+///
+/// The graph substrate scans with `standard_filters(false)`, so secret and
+/// dotfile paths (`.env`, private keys, `.git/`, `secrets/`, …) are graph-
+/// resident and would otherwise leak as identity-only paths in every projection
+/// (`graph://symbols` file fields, `graph://edges` endpoints, `find_dependents`,
+/// `find_callers`, `impact_of_change`, `affected_tests`). This predicate returns
+/// `true` for any path the projector must drop **before** sealing the DTO.
+///
+/// A path is sensitive when **any** segment (split on both `/` and `\`) matches
+/// the deny-list:
+/// - a segment exactly (case-insensitively) one of `.git`, `secrets`, `.aws`,
+///   `.ssh`, `.gnupg` (the common secret-bearing directories);
+/// - a basename starting with `.env` (covers `.env`, `.env.production`,
+///   `.env.local`);
+/// - a basename starting with `id_rsa` (covers `id_rsa`, `id_rsa.pub` —
+///   key material and its public half both stay private);
+/// - a basename whose extension is `pem`, `key`, or `p12`.
+///
+/// Matching is case-insensitive on the segment. The extension check looks at the
+/// final `.`-delimited component, so `keys.ts` (extension `ts`) is **not**
+/// matched while `private.key` (extension `key`) is.
+fn is_sensitive_egress_path(file: &str) -> bool {
+    for segment in file.split(['/', '\\']) {
+        if segment.is_empty() {
+            continue;
+        }
+        let lower = segment.to_ascii_lowercase();
+
+        // Exact secret-directory segments.
+        if matches!(
+            lower.as_str(),
+            ".git" | "secrets" | ".aws" | ".ssh" | ".gnupg"
+        ) {
+            return true;
+        }
+
+        // Basename-prefix matches (segments are path components, so every
+        // segment is a candidate basename; the deny-list is checked per segment
+        // rather than only on the final one so a `secrets/.env.production`-style
+        // path matches on the directory segment too).
+        if lower.starts_with(".env") || lower.starts_with("id_rsa") {
+            return true;
+        }
+
+        // Extension matches: the final `.`-delimited component of the segment.
+        if let Some(ext) = Path::new(&lower).extension().and_then(|e| e.to_str())
+            && matches!(ext, "pem" | "key" | "p12")
+        {
+            return true;
+        }
+    }
+    false
+}
+
 /// Map a file extension to a coarse language token. `None` for unknown
 /// extensions (which then never match a `language` filter).
 fn language_of(file: &str) -> Option<&'static str> {
@@ -1423,8 +1620,8 @@ mod tests {
     fn run(graph: &SymbolGraph, query: &SearchSymbolsQuery) -> SearchSymbolsProjection {
         // Mirror the daemon call sequence: collect under (a notional) lock, then
         // project after release.
-        let candidates = GctxProjector::collect_candidates(graph, query);
-        GctxProjector::project(candidates, query).expect("valid query")
+        let (candidates, omitted) = GctxProjector::collect_candidates(graph, query);
+        GctxProjector::project(candidates, query, omitted).expect("valid query")
     }
 
     #[test]
@@ -1724,21 +1921,23 @@ mod tests {
             cursor: Some(cursor),
             ..Default::default()
         };
-        let candidates = GctxProjector::collect_candidates(&g, &mismatched);
-        let result = GctxProjector::project(candidates, &mismatched);
+        let (candidates, _omitted) = GctxProjector::collect_candidates(&g, &mismatched);
+        let result = GctxProjector::project(candidates, &mismatched, 0);
         assert!(result.is_err(), "a cursor is only valid for its own query");
     }
 
     #[test]
     fn malformed_cursor_is_rejected() {
         let g = five_symbol_graph();
-        let candidates = GctxProjector::collect_candidates(&g, &SearchSymbolsQuery::default());
+        let (candidates, _omitted) =
+            GctxProjector::collect_candidates(&g, &SearchSymbolsQuery::default());
         let result = GctxProjector::project(
             candidates,
             &SearchSymbolsQuery {
                 cursor: Some(OpaqueCursor::new("not-hex-zzzz".into())),
                 ..Default::default()
             },
+            0,
         );
         assert!(result.is_err(), "a malformed cursor must be rejected");
     }
@@ -1817,8 +2016,8 @@ mod tests {
             cursor: Some(cursor),
             ..Default::default()
         };
-        let candidates = GctxProjector::collect_candidates(&g, &resumed);
-        let page2 = GctxProjector::project(candidates, &resumed)
+        let (candidates, _omitted) = GctxProjector::collect_candidates(&g, &resumed);
+        let page2 = GctxProjector::project(candidates, &resumed, 0)
             .expect("a case-only filter change keeps the cursor valid");
         assert_eq!(page2.symbols.len(), 1);
         assert_eq!(page2.symbols[0].identity.file, "src/b.ts");
@@ -1827,13 +2026,15 @@ mod tests {
     #[test]
     fn oversized_cursor_is_rejected() {
         let g = five_symbol_graph();
-        let candidates = GctxProjector::collect_candidates(&g, &SearchSymbolsQuery::default());
+        let (candidates, _omitted) =
+            GctxProjector::collect_candidates(&g, &SearchSymbolsQuery::default());
         let result = GctxProjector::project(
             candidates,
             &SearchSymbolsQuery {
                 cursor: Some(OpaqueCursor::new("a".repeat(MAX_CURSOR_BYTES + 1))),
                 ..Default::default()
             },
+            0,
         );
         assert!(result.is_err(), "an oversized cursor must be rejected");
     }
@@ -1855,8 +2056,9 @@ mod tests {
         depth: u32,
         query: &FindDependentsQuery,
     ) -> FindDependentsProjection {
-        let (candidates, walk_truncated) = GctxProjector::collect_dependents(dep, file, depth);
-        GctxProjector::project_dependents(candidates, query, depth, walk_truncated)
+        let (candidates, walk_truncated, omitted) =
+            GctxProjector::collect_dependents(dep, file, depth);
+        GctxProjector::project_dependents(candidates, query, depth, walk_truncated, omitted)
             .expect("valid query")
     }
 
@@ -2014,8 +2216,10 @@ mod tests {
             cursor: Some(cursor),
             ..Default::default()
         };
-        let (candidates, walk_truncated) = GctxProjector::collect_dependents(&g, "src/a.ts", 2);
-        let result = GctxProjector::project_dependents(candidates, &mismatched, 2, walk_truncated);
+        let (candidates, walk_truncated, _omitted) =
+            GctxProjector::collect_dependents(&g, "src/a.ts", 2);
+        let result =
+            GctxProjector::project_dependents(candidates, &mismatched, 2, walk_truncated, 0);
         assert!(
             result.is_err(),
             "a cursor is only valid for the depth it was minted at",
@@ -2048,8 +2252,10 @@ mod tests {
             ..Default::default()
         };
         // Same depth, different-case file → different fingerprint → rejected.
-        let (candidates, walk_truncated) = GctxProjector::collect_dependents(&g, "SRC/A.TS", 1);
-        let result = GctxProjector::project_dependents(candidates, &cross_case, 1, walk_truncated);
+        let (candidates, walk_truncated, _omitted) =
+            GctxProjector::collect_dependents(&g, "SRC/A.TS", 1);
+        let result =
+            GctxProjector::project_dependents(candidates, &cross_case, 1, walk_truncated, 0);
         assert!(
             result.is_err(),
             "a cursor is bound to the exact case of its target file",
@@ -2059,7 +2265,8 @@ mod tests {
     #[test]
     fn dependents_malformed_and_oversized_cursors_are_rejected() {
         let g = dep_graph(&[("src/b.ts", "src/a.ts")]);
-        let (candidates, walk_truncated) = GctxProjector::collect_dependents(&g, "src/a.ts", 1);
+        let (candidates, walk_truncated, _omitted) =
+            GctxProjector::collect_dependents(&g, "src/a.ts", 1);
         let malformed = GctxProjector::project_dependents(
             candidates.clone(),
             &FindDependentsQuery {
@@ -2068,6 +2275,7 @@ mod tests {
             },
             1,
             walk_truncated,
+            0,
         );
         assert!(malformed.is_err(), "a malformed cursor must be rejected");
 
@@ -2079,6 +2287,7 @@ mod tests {
             },
             1,
             walk_truncated,
+            0,
         );
         assert!(oversized.is_err(), "an oversized cursor must be rejected");
     }
@@ -2130,18 +2339,21 @@ mod tests {
                     limit: Some(1),
                     ..Default::default()
                 },
-            ),
+            )
+            .0,
             &SearchSymbolsQuery {
                 limit: Some(1),
                 ..Default::default()
             },
+            0,
         )
         .expect("more pages")
         .next_cursor
         .expect("a search cursor");
 
         let dep = dep_graph(&[("src/b.ts", "src/a.ts")]);
-        let (candidates, walk_truncated) = GctxProjector::collect_dependents(&dep, "src/a.ts", 1);
+        let (candidates, walk_truncated, _omitted) =
+            GctxProjector::collect_dependents(&dep, "src/a.ts", 1);
         let result = GctxProjector::project_dependents(
             candidates,
             &FindDependentsQuery {
@@ -2151,6 +2363,7 @@ mod tests {
             },
             1,
             walk_truncated,
+            0,
         );
         assert!(
             result.is_err(),
@@ -2214,9 +2427,15 @@ mod tests {
                 cursor: cursor.clone(),
                 ..Default::default()
             };
-            let p =
-                GctxProjector::project_callers(caller_candidates(&files), &query, 1, false, false)
-                    .expect("valid query");
+            let p = GctxProjector::project_callers(
+                caller_candidates(&files),
+                &query,
+                1,
+                false,
+                false,
+                0,
+            )
+            .expect("valid query");
             assert!(p.callers.len() <= 2);
             assert_eq!(p.redaction_summary.matched, 5);
             assert_eq!(p.redaction_summary.truncated, p.next_cursor.is_some());
@@ -2249,6 +2468,7 @@ mod tests {
             1,
             false,
             false,
+            0,
         )
         .expect("valid query")
         .next_cursor
@@ -2261,8 +2481,14 @@ mod tests {
             cursor: Some(cursor),
             ..Default::default()
         };
-        let result =
-            GctxProjector::project_callers(caller_candidates(&files), &mismatched, 2, false, false);
+        let result = GctxProjector::project_callers(
+            caller_candidates(&files),
+            &mismatched,
+            2,
+            false,
+            false,
+            0,
+        );
         assert!(
             result.is_err(),
             "a cursor is only valid for the depth it was minted at",
@@ -2284,6 +2510,7 @@ mod tests {
             1,
             false,
             false,
+            0,
         )
         .expect("valid query")
         .next_cursor
@@ -2295,8 +2522,14 @@ mod tests {
             cursor: Some(cursor),
             ..Default::default()
         };
-        let result =
-            GctxProjector::project_callers(caller_candidates(&files), &mismatched, 1, false, false);
+        let result = GctxProjector::project_callers(
+            caller_candidates(&files),
+            &mismatched,
+            1,
+            false,
+            false,
+            0,
+        );
         assert!(
             result.is_err(),
             "a cursor is bound to the exact target symbol it was minted for",
@@ -2316,6 +2549,7 @@ mod tests {
             1,
             false,
             false,
+            0,
         );
         assert!(malformed.is_err(), "a malformed cursor must be rejected");
 
@@ -2329,6 +2563,7 @@ mod tests {
             1,
             false,
             false,
+            0,
         );
         assert!(oversized.is_err(), "an oversized cursor must be rejected");
     }
@@ -2339,7 +2574,8 @@ mod tests {
         // `file` string (vs a `SymbolIdentity` here) so decode fails, and the
         // domain-separated surface tag is a second guard.
         let dep = dep_graph(&[("src/b.ts", "src/a.ts"), ("src/c.ts", "src/a.ts")]);
-        let (candidates, walk_truncated) = GctxProjector::collect_dependents(&dep, "src/a.ts", 1);
+        let (candidates, walk_truncated, _omitted) =
+            GctxProjector::collect_dependents(&dep, "src/a.ts", 1);
         let dependents_cursor = GctxProjector::project_dependents(
             candidates,
             &FindDependentsQuery {
@@ -2349,6 +2585,7 @@ mod tests {
             },
             1,
             walk_truncated,
+            0,
         )
         .expect("valid query")
         .next_cursor
@@ -2364,6 +2601,7 @@ mod tests {
             1,
             false,
             false,
+            0,
         );
         assert!(
             result.is_err(),
@@ -2377,19 +2615,25 @@ mod tests {
             target: Some(target_identity("hot")),
             ..Default::default()
         };
-        let clean =
-            GctxProjector::project_callers(caller_candidates(&["src/b.ts"]), &q, 1, false, false)
-                .expect("valid");
+        let clean = GctxProjector::project_callers(
+            caller_candidates(&["src/b.ts"]),
+            &q,
+            1,
+            false,
+            false,
+            0,
+        )
+        .expect("valid");
         assert!(
             !clean.partial,
             "a complete walk on a clean graph is not partial"
         );
         let walk_bound =
-            GctxProjector::project_callers(caller_candidates(&["src/b.ts"]), &q, 1, true, false)
+            GctxProjector::project_callers(caller_candidates(&["src/b.ts"]), &q, 1, true, false, 0)
                 .expect("valid");
         assert!(walk_bound.partial, "a node-budget-bound walk is partial");
         let unclean =
-            GctxProjector::project_callers(caller_candidates(&["src/b.ts"]), &q, 1, false, true)
+            GctxProjector::project_callers(caller_candidates(&["src/b.ts"]), &q, 1, false, true, 0)
                 .expect("valid");
         assert!(unclean.partial, "a non-Clean graph is partial");
     }
@@ -2441,7 +2685,7 @@ mod tests {
             name: "callee".into(),
             ordinal: 0,
         };
-        let (callers, _truncated) = GctxProjector::collect_callers(&g, &callee, 1);
+        let (callers, _truncated, _omitted) = GctxProjector::collect_callers(&g, &callee, 1);
         let files: Vec<&str> = callers.iter().map(|c| c.caller.file.as_str()).collect();
         assert_eq!(files, ["src/rel.ts"], "the absolute-path caller is dropped");
         assert!(
@@ -2677,6 +2921,63 @@ mod tests {
         assert_eq!(first.affected_symbols.len(), 3);
     }
 
+    /// CIB-091c: the bounded max-heap that replaced the O(n) sorted `Vec::insert`
+    /// under the cache lock must preserve the existing semantics — when over the
+    /// affected-symbol cap, keep the identity-SMALLEST prefix (not insertion or
+    /// input order). Symbols are inserted in a deliberately non-sorted graph order;
+    /// with a cap of 3 the report must hold the three smallest identities.
+    #[test]
+    fn impact_affected_cap_keeps_identity_smallest_prefix() {
+        // One file `m.ts` defines five functions whose names sort `n0..n4`. The
+        // identity order is by (file, kind, name, ordinal); same file + kind, so
+        // the tie-break is name then ordinal. Insert them out of name order.
+        let sym = graph_of(vec![
+            node(3, "n3", "m.ts", SymbolKind::Function, Visibility::Public),
+            node(1, "n1", "m.ts", SymbolKind::Function, Visibility::Public),
+            node(4, "n4", "m.ts", SymbolKind::Function, Visibility::Public),
+            node(0, "n0", "m.ts", SymbolKind::Function, Visibility::Public),
+            node(2, "n2", "m.ts", SymbolKind::Function, Visibility::Public),
+        ]);
+        let dep = dep_graph(&[]);
+        let changed = vec!["m.ts".to_string()];
+        // Cap at 3 → keep the three identity-smallest. `for_file_symbols` assigns
+        // ordinals in the file's parse order, so the surviving prefix is the three
+        // smallest by the full identity order.
+        let report = GctxProjector::project_impact(GctxProjector::collect_impact_with_budget(
+            &sym, &dep, &changed, 1, 3,
+        ));
+        assert!(
+            report.summary.truncated,
+            "the cap must mark the report truncated"
+        );
+        assert_eq!(report.affected_symbols.len(), 3);
+        // The result is identity-sorted by `project_impact`; assert it is exactly
+        // the three smallest of the five identities present.
+        let all = GctxProjector::project_impact(GctxProjector::collect_impact_with_budget(
+            &sym,
+            &dep,
+            &changed,
+            1,
+            MAX_AFFECTED_SYMBOLS,
+        ));
+        assert_eq!(all.affected_symbols.len(), 5);
+        let expected_prefix: Vec<_> = all
+            .affected_symbols
+            .iter()
+            .take(3)
+            .map(|s| s.identity.clone())
+            .collect();
+        let got: Vec<_> = report
+            .affected_symbols
+            .iter()
+            .map(|s| s.identity.clone())
+            .collect();
+        assert_eq!(
+            got, expected_prefix,
+            "cap must keep the identity-smallest prefix"
+        );
+    }
+
     #[test]
     fn dependents_walk_budget_sets_partial_on_final_page() {
         let edges: Vec<(String, String)> = (0..5)
@@ -2687,7 +2988,7 @@ mod tests {
             .map(|(from, to)| (from.as_str(), to.as_str()))
             .collect();
         let g = dep_graph(&edge_refs);
-        let (candidates, walk_truncated) =
+        let (candidates, walk_truncated, _omitted) =
             GctxProjector::collect_dependents_with_budget(&g, "src/a.ts", 1, 3);
         assert_eq!(candidates.len(), 3);
         assert!(walk_truncated);
@@ -2699,6 +3000,7 @@ mod tests {
             },
             1,
             walk_truncated,
+            0,
         )
         .expect("valid query");
         assert!(projection.partial);
@@ -2933,7 +3235,7 @@ mod tests {
     #[test]
     fn collect_all_edges_resolves_both_endpoints_to_identity() {
         let g = edges_graph();
-        let (edges, bounded) = GctxProjector::collect_all_edges(&g, None);
+        let (edges, bounded, _omitted) = GctxProjector::collect_all_edges(&g, None);
         // Both edges resolve (every endpoint is a resident, relative-path symbol).
         assert_eq!(edges.len(), 2);
         assert!(!bounded);
@@ -2950,9 +3252,9 @@ mod tests {
         // walk must yield byte-identical results on repeat calls, even though the
         // underlying file_names()/outgoing_edges() iteration order is unspecified.
         let g = edges_graph();
-        let (first, _) = GctxProjector::collect_all_edges(&g, None);
+        let (first, _, _) = GctxProjector::collect_all_edges(&g, None);
         for _ in 0..8 {
-            let (again, _) = GctxProjector::collect_all_edges(&g, None);
+            let (again, _, _) = GctxProjector::collect_all_edges(&g, None);
             assert_eq!(first, again, "collect_all_edges must be deterministic");
         }
     }
@@ -2960,7 +3262,7 @@ mod tests {
     #[test]
     fn project_edges_orders_and_paginates_deterministically() {
         let g = edges_graph();
-        let (candidates, bounded) = GctxProjector::collect_all_edges(&g, None);
+        let (candidates, bounded, _omitted) = GctxProjector::collect_all_edges(&g, None);
         let page1 = GctxProjector::project_edges(
             candidates.clone(),
             &GraphEdgesQuery {
@@ -2968,6 +3270,7 @@ mod tests {
                 ..Default::default()
             },
             bounded,
+            0,
         )
         .unwrap();
         assert_eq!(page1.edges.len(), 1);
@@ -2984,6 +3287,7 @@ mod tests {
                 ..Default::default()
             },
             bounded,
+            0,
         )
         .unwrap();
         assert_eq!(page2.edges.len(), 1);
@@ -2995,9 +3299,9 @@ mod tests {
     #[test]
     fn project_edges_propagates_bounded_flag() {
         let g = edges_graph();
-        let (candidates, _) = GctxProjector::collect_all_edges(&g, None);
+        let (candidates, _, _) = GctxProjector::collect_all_edges(&g, None);
         let p =
-            GctxProjector::project_edges(candidates, &GraphEdgesQuery::default(), true).unwrap();
+            GctxProjector::project_edges(candidates, &GraphEdgesQuery::default(), true, 0).unwrap();
         assert!(
             p.bounded,
             "the collection-bound signal must reach the projection"
@@ -3007,7 +3311,7 @@ mod tests {
     #[test]
     fn project_edges_rejects_cursor_from_a_different_filter() {
         let g = edges_graph();
-        let (candidates, bounded) = GctxProjector::collect_all_edges(&g, None);
+        let (candidates, bounded, _omitted) = GctxProjector::collect_all_edges(&g, None);
         let page1 = GctxProjector::project_edges(
             candidates.clone(),
             &GraphEdgesQuery {
@@ -3015,6 +3319,7 @@ mod tests {
                 ..Default::default()
             },
             bounded,
+            0,
         )
         .unwrap();
         let cursor = page1.next_cursor.unwrap();
@@ -3027,6 +3332,7 @@ mod tests {
                 ..Default::default()
             },
             bounded,
+            0,
         )
         .unwrap_err();
         assert!(err.contains("does not match"), "{err}");
@@ -3036,7 +3342,7 @@ mod tests {
     fn collect_all_edges_file_filter_scopes_to_source_file() {
         let g = edges_graph();
         // Only edges whose source symbol is in src/a.ts: a→b (id 1) and c→b (id 3).
-        let (edges, _) = GctxProjector::collect_all_edges(&g, Some("src/a.ts"));
+        let (edges, _, _) = GctxProjector::collect_all_edges(&g, Some("src/a.ts"));
         assert_eq!(edges.len(), 2);
         assert!(edges.iter().all(|e| e.from.file == "src/a.ts"));
         // A filter matching no source file yields nothing.
@@ -3045,5 +3351,284 @@ mod tests {
                 .0
                 .is_empty()
         );
+    }
+
+    // --- CIB-091a: CE-3 sensitive-path egress deny-list ---
+
+    #[test]
+    fn is_sensitive_egress_path_matches_deny_list() {
+        // Secret-directory segments (case-insensitive), anywhere in the path.
+        for p in [
+            ".git/config",
+            "src/.git/HEAD",
+            "secrets/token.txt",
+            "config/secrets/db",
+            ".aws/credentials",
+            "home/.ssh/known_hosts",
+            ".gnupg/pubring.kbx",
+            "SECRETS/api",
+            ".GIT/config",
+        ] {
+            assert!(is_sensitive_egress_path(p), "expected sensitive: {p}");
+        }
+
+        // `.env*` basenames (including dotted suffixes) anywhere in the path.
+        for p in [
+            ".env",
+            ".env.production",
+            "app/.env.local",
+            "secrets/.env.production",
+        ] {
+            assert!(is_sensitive_egress_path(p), "expected sensitive: {p}");
+        }
+
+        // `id_rsa*` basenames — private key and its public half both stay private.
+        for p in [".ssh/id_rsa", "keys/id_rsa", "id_rsa.pub"] {
+            assert!(is_sensitive_egress_path(p), "expected sensitive: {p}");
+        }
+
+        // pem / key / p12 extensions.
+        for p in [
+            "lib/private.pem",
+            "keys/app.key",
+            "certs/bundle.p12",
+            "deep/dir/x.PEM",
+        ] {
+            assert!(is_sensitive_egress_path(p), "expected sensitive: {p}");
+        }
+    }
+
+    #[test]
+    fn is_sensitive_egress_path_allows_ordinary_paths() {
+        // Negatives: ordinary source files, including ones whose *stem* looks
+        // secret-ish but whose extension/segment does not match.
+        for p in [
+            "config/app.ts",
+            "src/handler.ts",
+            "keys.ts",            // ext is `ts`, not `key`
+            "src/keystore.ts",    // segment is not exactly `secrets`/`.ssh`/...
+            "src/environment.ts", // basename does not start with `.env`
+            "src/git/repo.ts",    // `git` segment, not `.git`
+            "lib/awscli.ts",      // not the `.aws` segment
+            "README.md",
+        ] {
+            assert!(!is_sensitive_egress_path(p), "expected NOT sensitive: {p}");
+        }
+    }
+
+    /// CIB-091a structural no-leak: build symbol + dependency graphs containing
+    /// sensitive files alongside ordinary ones, run every projection, and assert
+    /// no sensitive path appears in ANY emitted field — and that the
+    /// `omitted_sensitive_paths` counter is non-zero where drops occurred.
+    #[test]
+    #[allow(clippy::too_many_lines)] // one end-to-end gate across all six projections
+    fn no_projection_egresses_a_sensitive_path() {
+        use anvil_kernel_types::{EdgeType, SymbolEdge};
+
+        const SENSITIVE: &[&str] = &[
+            "secrets/.env.production",
+            "lib/private.pem",
+            ".ssh/id_rsa",
+            "keys/app.key",
+        ];
+        let is_sensitive = |s: &str| SENSITIVE.iter().any(|p| s.contains(p));
+
+        // Symbol graph: a normal callee, a normal caller, and one caller per
+        // sensitive file all calling the callee.
+        let mut sym = graph_of(vec![
+            node(
+                1,
+                "callee",
+                "src/callee.ts",
+                SymbolKind::Function,
+                Visibility::Public,
+            ),
+            node(
+                2,
+                "relCaller",
+                "src/caller.ts",
+                SymbolKind::Function,
+                Visibility::Public,
+            ),
+            node(
+                3,
+                "secretEnv",
+                "secrets/.env.production",
+                SymbolKind::Function,
+                Visibility::Public,
+            ),
+            node(
+                4,
+                "secretPem",
+                "lib/private.pem",
+                SymbolKind::Function,
+                Visibility::Public,
+            ),
+            node(
+                5,
+                "secretKeyf",
+                ".ssh/id_rsa",
+                SymbolKind::Function,
+                Visibility::Public,
+            ),
+            node(
+                6,
+                "secretKey",
+                "keys/app.key",
+                SymbolKind::Function,
+                Visibility::Public,
+            ),
+        ]);
+        for from in [2u64, 3, 4, 5, 6] {
+            sym.add_edge(SymbolEdge {
+                from,
+                to: 1,
+                edge_type: EdgeType::Calls,
+            })
+            .unwrap();
+        }
+
+        // search_symbols: no sensitive file in the symbol set.
+        let search = run(&sym, &SearchSymbolsQuery::default());
+        assert!(
+            search
+                .symbols
+                .iter()
+                .all(|s| !is_sensitive(&s.identity.file)),
+            "search_symbols leaked a sensitive path",
+        );
+        assert!(
+            search.redaction_summary.omitted_sensitive_paths >= SENSITIVE.len(),
+            "search must count the dropped sensitive symbols",
+        );
+
+        // find_callers: only the relative caller survives; the count records the
+        // four sensitive callers dropped.
+        let callee = SymbolIdentity {
+            file: "src/callee.ts".into(),
+            kind: SymbolKind::Function,
+            name: "callee".into(),
+            ordinal: 0,
+        };
+        let (caller_candidates, walk_truncated, callers_omitted) =
+            GctxProjector::collect_callers(&sym, &callee, 1);
+        assert_eq!(
+            callers_omitted,
+            SENSITIVE.len(),
+            "all four sensitive callers dropped"
+        );
+        let callers = GctxProjector::project_callers(
+            caller_candidates,
+            &FindCallersQuery::default(),
+            1,
+            walk_truncated,
+            false,
+            callers_omitted,
+        )
+        .expect("valid");
+        assert!(
+            callers
+                .callers
+                .iter()
+                .all(|c| !is_sensitive(&c.caller.file)),
+            "find_callers leaked a sensitive path",
+        );
+        assert!(callers.redaction_summary.omitted_sensitive_paths >= SENSITIVE.len());
+
+        // graph://edges: neither endpoint of any edge is a sensitive file.
+        let (edge_candidates, bounded, edges_omitted) =
+            GctxProjector::collect_all_edges(&sym, None);
+        assert!(
+            edges_omitted >= SENSITIVE.len(),
+            "edges must count sensitive drops"
+        );
+        let edges = GctxProjector::project_edges(
+            edge_candidates,
+            &GraphEdgesQuery::default(),
+            bounded,
+            edges_omitted,
+        )
+        .expect("valid");
+        assert!(
+            edges
+                .edges
+                .iter()
+                .all(|e| { !is_sensitive(&e.from.file) && !is_sensitive(&e.to.file) }),
+            "graph://edges leaked a sensitive path",
+        );
+        assert!(edges.redaction_summary.omitted_sensitive_paths >= SENSITIVE.len());
+
+        // Dependency graph: each sensitive file imports `app.ts`, plus one normal
+        // importer; and `app.ts` imports a sensitive file (forward edge for the
+        // affected-tests coverage walk).
+        let dep = dep_graph(&[
+            ("src/importer.ts", "src/app.ts"),
+            ("secrets/.env.production", "src/app.ts"),
+            ("lib/private.pem", "src/app.ts"),
+            (".ssh/id_rsa", "src/app.ts"),
+            ("keys/app.key", "src/app.ts"),
+        ]);
+
+        // find_dependents: only the relative importer survives.
+        let (dep_candidates, dep_truncated, dep_omitted) =
+            GctxProjector::collect_dependents(&dep, "src/app.ts", 1);
+        assert_eq!(
+            dep_omitted,
+            SENSITIVE.len(),
+            "all four sensitive importers dropped"
+        );
+        let dependents = GctxProjector::project_dependents(
+            dep_candidates,
+            &FindDependentsQuery::default(),
+            1,
+            dep_truncated,
+            dep_omitted,
+        )
+        .expect("valid");
+        assert!(
+            dependents.dependents.iter().all(|d| !is_sensitive(&d.file)),
+            "find_dependents leaked a sensitive path",
+        );
+        assert!(dependents.redaction_summary.omitted_sensitive_paths >= SENSITIVE.len());
+
+        // impact_of_change: changed sensitive seeds contribute no affected symbol
+        // and no dependent; the count records them.
+        let changed: Vec<String> = SENSITIVE.iter().map(ToString::to_string).collect();
+        let impact =
+            GctxProjector::project_impact(GctxProjector::collect_impact(&sym, &dep, &changed, 1));
+        assert!(
+            impact
+                .affected_symbols
+                .iter()
+                .all(|s| !is_sensitive(&s.identity.file)),
+            "impact affected_symbols leaked a sensitive path",
+        );
+        assert!(
+            impact
+                .dependent_files
+                .iter()
+                .all(|d| !is_sensitive(&d.file)),
+            "impact dependent_files leaked a sensitive path",
+        );
+        assert!(
+            impact.summary.omitted_sensitive_paths >= SENSITIVE.len(),
+            "impact must count the dropped sensitive seeds",
+        );
+
+        // affected_tests: a sensitive changed file yields no test/gap leakage.
+        let tests = GctxProjector::project_affected_tests(GctxProjector::collect_affected_tests(
+            &dep, &changed, 1,
+        ));
+        assert!(
+            tests.tests.iter().all(|t| {
+                !is_sensitive(&t.file) && t.changed_dependencies.iter().all(|d| !is_sensitive(d))
+            }),
+            "affected_tests leaked a sensitive path",
+        );
+        assert!(
+            tests.coverage_gaps.iter().all(|g| !is_sensitive(g)),
+            "affected_tests coverage_gaps leaked a sensitive path",
+        );
+        assert!(tests.summary.omitted_sensitive_paths >= SENSITIVE.len());
     }
 }

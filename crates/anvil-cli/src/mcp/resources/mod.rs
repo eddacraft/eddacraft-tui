@@ -14,6 +14,8 @@
 //! (`graph://edges?file=src/a.ts&cursor=…`). Daemon-required; degrades gracefully
 //! to a structured `unavailable`/`not_ready`/`disabled` outcome (CE-7).
 
+use std::sync::atomic::{AtomicU64, Ordering};
+
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 
@@ -76,6 +78,43 @@ pub fn list() -> Vec<Value> {
     resources
 }
 
+/// CIB-091d (CE-6): per-session byte ceiling for `graph://` resource reads.
+///
+/// `resources/read` page sizes are individually capped ([`MAX_PAGE_LIMIT`] = 200),
+/// but nothing bounded the *aggregate* bytes a single assistant session could
+/// pull, so an assistant could reassemble the whole graph across many
+/// round-trips. The stdio MCP server is **one process per client session**
+/// (`mcp_serve_stdio` runs a single synchronous loop over the session's stdio),
+/// so a process-global credit is naturally per-session: this counter accumulates
+/// the serialised byte size of every `graph://` payload served and refuses once
+/// the credit is spent.
+///
+/// 8 MiB comfortably covers any honest interactive use (each identity-only page
+/// is small — a few KiB) while bounding bulk reassembly; the assistant can still
+/// page until the ceiling, then receives a structured `quota_exceeded`.
+const GRAPH_EGRESS_CREDIT_BYTES: u64 = 8 << 20;
+
+/// Bytes of `graph://` payload already served this session (process). Saturating
+/// fetch-add; never reset for the life of the process (= the session).
+static GRAPH_EGRESS_SPENT: AtomicU64 = AtomicU64::new(0);
+
+/// CIB-091d: deduct `payload_bytes` from this session's `graph://` egress credit.
+/// Returns [`ReadError::QuotaExceeded`] once the cumulative total exceeds
+/// [`GRAPH_EGRESS_CREDIT_BYTES`] — the read that crosses the ceiling is refused
+/// (the page is not served), so the budget is a hard cap, not a soft one. Only
+/// `graph://` reads are charged; the `anvil://` local-state resources are not.
+fn charge_graph_egress(payload_bytes: u64) -> Result<(), ReadError> {
+    let previously_spent = GRAPH_EGRESS_SPENT.fetch_add(payload_bytes, Ordering::Relaxed);
+    let total = previously_spent.saturating_add(payload_bytes);
+    if total > GRAPH_EGRESS_CREDIT_BYTES {
+        return Err(ReadError::QuotaExceeded(format!(
+            "graph:// read quota exhausted for this session ({GRAPH_EGRESS_CREDIT_BYTES} bytes); \
+             reconnect to reset"
+        )));
+    }
+    Ok(())
+}
+
 /// A [`read`] failure, classified for the JSON-RPC error code the dispatcher
 /// returns (council CR-2): a client mistake (unknown URI / malformed query) vs a
 /// server-side fault (daemon transport failure). Daemon **degradation**
@@ -88,6 +127,9 @@ pub enum ReadError {
     /// Daemon transport/protocol failure or an inaccessible server cwd →
     /// JSON-RPC `-32603`.
     Internal(String),
+    /// CIB-091d: the session's cumulative `graph://` egress credit is exhausted →
+    /// JSON-RPC `-32603` with a `quota_exceeded` reason.
+    QuotaExceeded(String),
 }
 
 impl ReadError {
@@ -95,7 +137,9 @@ impl ReadError {
     #[must_use]
     pub fn reason(&self) -> &str {
         match self {
-            Self::BadRequest(reason) | Self::Internal(reason) => reason,
+            Self::BadRequest(reason) | Self::Internal(reason) | Self::QuotaExceeded(reason) => {
+                reason
+            }
         }
     }
 }
@@ -126,6 +170,11 @@ pub fn read(uri: &str) -> Result<Value, ReadError> {
             )));
         }
     };
+    // CIB-091d (CE-6): charge this session's per-session graph:// egress credit by
+    // the serialised payload size; refuse the read that crosses the ceiling so a
+    // session cannot reassemble the whole graph across many round-trips.
+    let payload_bytes = serde_json::to_vec(&payload).map_or(0, |v| v.len() as u64);
+    charge_graph_egress(payload_bytes)?;
     Ok(contents(uri, &payload))
 }
 

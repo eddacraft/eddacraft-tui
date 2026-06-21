@@ -983,6 +983,15 @@ impl GctxDispatch for SaveTimeConn<'_> {
         &mut self,
         request: &GctxSearchSymbolsRequest,
     ) -> Result<GctxSearchSymbolsResponse, SaveTimeError> {
+        // CIB-091b (CE-6 gap): validate the raw root (NUL + size cap) before it
+        // reaches `PathBuf::from`/`canonicalize`, returning a structured
+        // `InvalidQuery` rather than a generic `-32603 Internal`.
+        if let Some(reason) = invalid_workspace_root_reason(&request.workspace_root) {
+            return Ok(GctxSearchSymbolsResponse {
+                workspace_assurance: unavailable_assurance(),
+                outcome: SearchSymbolsOutcome::InvalidQuery { reason },
+            });
+        }
         let root = PathBuf::from(&request.workspace_root);
         let originating_session = self.originating_session.clone();
         let state = self.state;
@@ -1044,6 +1053,13 @@ impl GctxDispatch for SaveTimeConn<'_> {
         &mut self,
         request: &GctxFindDependentsRequest,
     ) -> Result<GctxFindDependentsResponse, SaveTimeError> {
+        // CIB-091b (CE-6 gap): validate the raw root before canonicalisation.
+        if let Some(reason) = invalid_workspace_root_reason(&request.workspace_root) {
+            return Ok(GctxFindDependentsResponse {
+                workspace_assurance: unavailable_assurance(),
+                outcome: FindDependentsOutcome::InvalidQuery { reason },
+            });
+        }
         let root = PathBuf::from(&request.workspace_root);
         let originating_session = self.originating_session.clone();
         let state = self.state;
@@ -1092,6 +1108,13 @@ impl GctxDispatch for SaveTimeConn<'_> {
         &mut self,
         request: &GctxFindCallersRequest,
     ) -> Result<GctxFindCallersResponse, SaveTimeError> {
+        // CIB-091b (CE-6 gap): validate the raw root before canonicalisation.
+        if let Some(reason) = invalid_workspace_root_reason(&request.workspace_root) {
+            return Ok(GctxFindCallersResponse {
+                workspace_assurance: unavailable_assurance(),
+                outcome: FindCallersOutcome::InvalidQuery { reason },
+            });
+        }
         let root = PathBuf::from(&request.workspace_root);
         let originating_session = self.originating_session.clone();
         let state = self.state;
@@ -1140,6 +1163,16 @@ impl GctxDispatch for SaveTimeConn<'_> {
         &mut self,
         request: &GctxGraphStatsRequest,
     ) -> Result<GctxGraphStatsResponse, SaveTimeError> {
+        // CIB-091b (CE-6 gap): validate the raw root before canonicalisation.
+        // `graph://stats` takes no query and so has no `InvalidQuery` arm; a
+        // malformed root degrades to `Unavailable` (the named no-graph surface)
+        // rather than a generic `-32603 Internal`.
+        if invalid_workspace_root_reason(&request.workspace_root).is_some() {
+            return Ok(GctxGraphStatsResponse {
+                workspace_assurance: unavailable_assurance(),
+                outcome: GraphStatsOutcome::Unavailable,
+            });
+        }
         let root = PathBuf::from(&request.workspace_root);
         let originating_session = self.originating_session.clone();
         let state = self.state;
@@ -1173,6 +1206,13 @@ impl GctxDispatch for SaveTimeConn<'_> {
         &mut self,
         request: &GctxGraphEdgesRequest,
     ) -> Result<GctxGraphEdgesResponse, SaveTimeError> {
+        // CIB-091b (CE-6 gap): validate the raw root before canonicalisation.
+        if let Some(reason) = invalid_workspace_root_reason(&request.workspace_root) {
+            return Ok(GctxGraphEdgesResponse {
+                workspace_assurance: unavailable_assurance(),
+                outcome: GraphEdgesOutcome::InvalidQuery { reason },
+            });
+        }
         let root = PathBuf::from(&request.workspace_root);
         let originating_session = self.originating_session.clone();
         let state = self.state;
@@ -1221,6 +1261,13 @@ impl GctxDispatch for SaveTimeConn<'_> {
         &mut self,
         request: &GctxImpactOfChangeRequest,
     ) -> Result<GctxImpactOfChangeResponse, SaveTimeError> {
+        // CIB-091b (CE-6 gap): validate the raw root before canonicalisation.
+        if let Some(reason) = invalid_workspace_root_reason(&request.workspace_root) {
+            return Ok(GctxImpactOfChangeResponse {
+                workspace_assurance: unavailable_assurance(),
+                outcome: ImpactOutcome::InvalidQuery { reason },
+            });
+        }
         let root = PathBuf::from(&request.workspace_root);
         let originating_session = self.originating_session.clone();
         let state = self.state;
@@ -1273,6 +1320,13 @@ impl GctxDispatch for SaveTimeConn<'_> {
         &mut self,
         request: &GctxAffectedTestsRequest,
     ) -> Result<GctxAffectedTestsResponse, SaveTimeError> {
+        // CIB-091b (CE-6 gap): validate the raw root before canonicalisation.
+        if let Some(reason) = invalid_workspace_root_reason(&request.workspace_root) {
+            return Ok(GctxAffectedTestsResponse {
+                workspace_assurance: unavailable_assurance(),
+                outcome: AffectedTestsOutcome::InvalidQuery { reason },
+            });
+        }
         let root = PathBuf::from(&request.workspace_root);
         let originating_session = self.originating_session.clone();
         let state = self.state;
@@ -1389,10 +1443,12 @@ fn gctx_search_outcome(
             match candidates {
                 // A malformed / cross-query pagination cursor surfaces here as a
                 // structured `InvalidQuery` (CE-6).
-                Some(candidates) => match GctxProjector::project(candidates, query) {
-                    Ok(projection) => SearchSymbolsOutcome::Ready(projection),
-                    Err(reason) => SearchSymbolsOutcome::InvalidQuery { reason },
-                },
+                Some((candidates, omitted_sensitive)) => {
+                    match GctxProjector::project(candidates, query, omitted_sensitive) {
+                        Ok(projection) => SearchSymbolsOutcome::Ready(projection),
+                        Err(reason) => SearchSymbolsOutcome::InvalidQuery { reason },
+                    }
+                }
                 None => SearchSymbolsOutcome::NotReady {
                     recovery_hint: concat!(
                         "the workspace graph is not yet populated; ",
@@ -1457,12 +1513,13 @@ fn gctx_find_dependents_outcome(
                 GctxProjector::collect_dependents(dep, &file, depth)
             });
             match collected {
-                Some((candidates, walk_truncated)) => {
+                Some((candidates, walk_truncated, omitted_sensitive)) => {
                     match GctxProjector::project_dependents(
                         candidates,
                         query,
                         depth,
                         walk_truncated,
+                        omitted_sensitive,
                     ) {
                         Ok(projection) => FindDependentsOutcome::Ready(projection),
                         // A malformed / cross-query pagination cursor (CE-6).
@@ -1556,13 +1613,14 @@ fn gctx_find_callers_outcome(
                 GctxProjector::collect_callers(sym, &target, depth)
             });
             match collected {
-                Some((candidates, walk_truncated)) => {
+                Some((candidates, walk_truncated, omitted_sensitive)) => {
                     match GctxProjector::project_callers(
                         candidates,
                         query,
                         depth,
                         walk_truncated,
                         callers_incomplete,
+                        omitted_sensitive,
                     ) {
                         Ok(projection) => FindCallersOutcome::Ready(projection),
                         Err(reason) => FindCallersOutcome::InvalidQuery { reason },
@@ -1647,8 +1705,13 @@ fn gctx_graph_edges_outcome(
                 GctxProjector::collect_all_edges(sym, query.file.as_deref())
             });
             match collected {
-                Some((candidates, bounded)) => {
-                    match GctxProjector::project_edges(candidates, query, bounded) {
+                Some((candidates, bounded, omitted_sensitive)) => {
+                    match GctxProjector::project_edges(
+                        candidates,
+                        query,
+                        bounded,
+                        omitted_sensitive,
+                    ) {
                         Ok(projection) => GraphEdgesOutcome::Ready(projection),
                         Err(reason) => GraphEdgesOutcome::InvalidQuery { reason },
                     }
@@ -1690,6 +1753,40 @@ fn invalid_find_callers_query_reason(query: &FindCallersQuery) -> Option<String>
         return Some("target.file must not be empty".to_string());
     }
     invalid_relative_path_reason("target.file", &target.file)
+}
+
+/// CIB-091b (CE-6 gap): validate a client-supplied `workspace_root` *before* it
+/// reaches `PathBuf::from`/`canonicalize`. Rejects a NUL byte (which would make
+/// `canonicalize` fail with an opaque IO error → `-32603 Internal`) and a value
+/// over the same CE-6 [`MAX_FILTER_BYTES`] (512-byte) cap the relative filter
+/// params apply. Returns the rejection reason, or `None` when acceptable. The
+/// per-verb admission gate (`authorise_root`) still runs afterwards; this only
+/// guards the raw-string preconditions canonicalisation cannot express cleanly.
+fn invalid_workspace_root_reason(workspace_root: &str) -> Option<String> {
+    if workspace_root.is_empty() {
+        return Some("workspace_root must not be empty".to_string());
+    }
+    if workspace_root.len() > MAX_FILTER_BYTES {
+        return Some(format!("workspace_root exceeds {MAX_FILTER_BYTES} bytes"));
+    }
+    if workspace_root.contains('\0') {
+        return Some("workspace_root must not contain a NUL byte".to_string());
+    }
+    None
+}
+
+/// The CE-7 assurance snapshot to ride along with a GCTX response when the
+/// `workspace_root` is rejected before any state read (CIB-091b): the daemon
+/// never reached the assurance machine, so it reports `Unavailable` /
+/// `DaemonAbsent` — the same shape an absent graph carries.
+fn unavailable_assurance() -> WorkspaceAssurance {
+    WorkspaceAssurance {
+        state: AssuranceState::Unavailable,
+        reason: Some(StaleReason::DaemonAbsent),
+        generation: 0,
+        last_full_scan: None,
+        scan_coverage: None,
+    }
 }
 
 /// CE-6 per-path hygiene shared by the GCTX traversal verbs: a workspace-relative
@@ -2587,6 +2684,44 @@ mod tests {
         assert!(
             matches!(resp.outcome, SearchSymbolsOutcome::InvalidQuery { .. }),
             "a `..` file filter must be rejected: {:?}",
+            resp.outcome
+        );
+    }
+
+    /// CIB-091b (CE-6 gap): a `workspace_root` carrying a NUL byte is rejected as
+    /// a structured `InvalidQuery` *before* `canonicalize`, not surfaced as a
+    /// generic `-32603 Internal` (which a raw `canonicalize` of a NUL path would
+    /// produce).
+    #[test]
+    fn gctx_search_rejects_nul_workspace_root() {
+        let state = state();
+        let mut conn = SaveTimeConn::new(&state);
+        let request = GctxSearchSymbolsRequest {
+            workspace_root: "/tmp/proj\0/evil".to_string(),
+            query: SearchSymbolsQuery::default(),
+        };
+        let resp = conn.search_symbols(&request).expect("validated in-band");
+        assert!(
+            matches!(resp.outcome, SearchSymbolsOutcome::InvalidQuery { .. }),
+            "a NUL-bearing workspace_root must be a structured InvalidQuery: {:?}",
+            resp.outcome
+        );
+    }
+
+    /// CIB-091b (CE-6 gap): a `workspace_root` over the 512-byte cap is rejected
+    /// as a structured `InvalidQuery` before any canonicalisation/admission.
+    #[test]
+    fn gctx_search_rejects_oversized_workspace_root() {
+        let state = state();
+        let mut conn = SaveTimeConn::new(&state);
+        let request = GctxSearchSymbolsRequest {
+            workspace_root: format!("/tmp/{}", "a".repeat(600)),
+            query: SearchSymbolsQuery::default(),
+        };
+        let resp = conn.search_symbols(&request).expect("validated in-band");
+        assert!(
+            matches!(resp.outcome, SearchSymbolsOutcome::InvalidQuery { .. }),
+            "an over-cap workspace_root must be a structured InvalidQuery: {:?}",
             resp.outcome
         );
     }

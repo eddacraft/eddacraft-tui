@@ -125,6 +125,14 @@ pub struct RedactionSummary {
     /// [`SearchSymbolsProjection::next_cursor`] is `Some`). `false` on the final
     /// page of a multi-page walk, even though `matched` still exceeds `returned`.
     pub truncated: bool,
+    /// Identity-only paths dropped by the CE-3 sensitive-path egress deny-list
+    /// (a `.git`/`secrets`/`.aws`/`.ssh`/`.gnupg` segment, a `.env*`/`id_rsa*`
+    /// basename, or a `pem`/`key`/`p12` extension). Counts-only — the dropped
+    /// path itself is never surfaced — so this stays CE-5 safe. The substrate
+    /// scans with `standard_filters(false)`, so such files are graph-resident;
+    /// this records how many were withheld from the projection.
+    #[serde(default)]
+    pub omitted_sensitive_paths: usize,
 }
 
 /// The identity-only projection returned when the graph is readable.
@@ -571,6 +579,11 @@ pub struct ImpactSummary {
     /// set or the dependent-closure walk hit its node budget. The returned sets
     /// are then a deterministic, path-ordered prefix, never a silent full cutoff.
     pub truncated: bool,
+    /// Identity-only paths dropped by the CE-3 sensitive-path egress deny-list
+    /// across the affected-symbol seed scan and the dependent closure. Counts-only
+    /// (CE-5 safe); the dropped path is never surfaced.
+    #[serde(default)]
+    pub omitted_sensitive_paths: usize,
 }
 
 /// The identity-only blast-radius report for a change set.
@@ -708,6 +721,11 @@ pub struct AffectedTestsSummary {
     /// coverage gap may be over-reported (a test that would have covered it was
     /// beyond the bound) — never a silent full cutoff.
     pub truncated: bool,
+    /// Identity-only paths dropped by the CE-3 sensitive-path egress deny-list
+    /// across the reverse/forward dependency walks. Counts-only (CE-5 safe); the
+    /// dropped path is never surfaced.
+    #[serde(default)]
+    pub omitted_sensitive_paths: usize,
 }
 
 /// The identity-only test-attribution report for a change set.
@@ -965,6 +983,7 @@ mod tests {
                 matched: 1,
                 returned: 1,
                 truncated: false,
+                omitted_sensitive_paths: 0,
             },
         }
     }
@@ -1233,6 +1252,7 @@ mod tests {
                 matched: 1,
                 returned: 1,
                 truncated: false,
+                omitted_sensitive_paths: 0,
             },
             partial: false,
         }
@@ -1295,6 +1315,7 @@ mod tests {
                 matched: 1,
                 returned: 1,
                 truncated: false,
+                omitted_sensitive_paths: 0,
             },
             partial: true,
         }
@@ -1497,6 +1518,7 @@ mod tests {
                 dependent_files: 1,
                 known_tests: 1,
                 truncated: false,
+                omitted_sensitive_paths: 0,
             },
         }
     }
@@ -1530,6 +1552,7 @@ mod tests {
                 "changed_files",
                 "dependent_files",
                 "known_tests",
+                "omitted_sensitive_paths",
                 "truncated"
             ]
         );
@@ -1652,6 +1675,7 @@ mod tests {
                 evidence_edges: 1,
                 coverage_gaps: 1,
                 truncated: false,
+                omitted_sensitive_paths: 0,
             },
         }
     }
@@ -1681,6 +1705,7 @@ mod tests {
                 "changed_files",
                 "coverage_gaps",
                 "evidence_edges",
+                "omitted_sensitive_paths",
                 "tests",
                 "truncated"
             ]
@@ -1801,6 +1826,7 @@ mod tests {
                 matched: 5,
                 returned: 1,
                 truncated: true,
+                omitted_sensitive_paths: 0,
             },
             bounded: false,
         }

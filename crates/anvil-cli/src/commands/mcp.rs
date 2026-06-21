@@ -399,6 +399,14 @@ fn resources_read_response(id: &Value, message: &Value) -> Value {
             "Internal error",
             &json!({ "reason": err.reason(), "uri": uri }),
         ),
+        // CIB-091d: the per-session graph:// egress credit is exhausted — a
+        // structured `quota_exceeded` resource-exhaustion error.
+        Err(err @ crate::mcp::resources::ReadError::QuotaExceeded(_)) => error_response_with_data(
+            id,
+            -32603,
+            "Internal error",
+            &json!({ "reason": err.reason(), "uri": uri, "kind": "quota_exceeded" }),
+        ),
     }
 }
 

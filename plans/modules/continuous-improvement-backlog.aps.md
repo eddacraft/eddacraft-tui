@@ -2496,7 +2496,7 @@ archive.
 
 ### CIB-091: GCTX assistant-facing egress hardening (v0.9.0 council, cut-blocker)
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** Close the GCTX egress findings that survived the 2026-06-21
   v0.9.0-beta release council's skeptic. Headline is **CE-3**: the
   sensitive-path egress deny-list is entirely unimplemented, so on a fresh

@@ -28,7 +28,7 @@
 
 Crate(s): `anvil-gctx-egress`, `anvil-cli/src/mcp`, `anvil-intercept/src/save_time.rs`.
 
-- [ ] **091a CE-3 sensitive-path egress deny-list** — _high, CONFIRMED, cut-blocker._
+- [x] **091a CE-3 sensitive-path egress deny-list** — _high, CONFIRMED, cut-blocker._
       `crates/anvil-gctx-egress/src/lib.rs`. The substrate scans with
       `standard_filters(false)`, so `secrets/.env.production` etc. are in the
       graph; their identity-only paths are emitted in `graph://symbols` file
@@ -39,19 +39,19 @@ Crate(s): `anvil-gctx-egress`, `anvil-cli/src/mcp`, `anvil-intercept/src/save_ti
       paths; drop matches before sealing the DTO; count drops in
       `RedactionSummary.omitted_sensitive_paths`; structural test asserting
       those paths never appear in any projection. (PV-9 APPROVE-WITH-CONDITIONS.)
-- [ ] **091b workspace_root size-cap + NUL validation** — _medium (CE-6 gap)._
+- [x] **091b workspace_root size-cap + NUL validation** — _medium (CE-6 gap)._
       `save_time.rs:986`. `workspace_root` taken as raw `String` →
       `canonicalize` uncapped/unchecked; NUL yields `-32603 Internal` instead of
       the contract `InvalidQuery`. **Fix:** validate NUL + 512B cap in the
       GctxDispatch impls before `PathBuf::from`; return structured
       `InvalidQuery`.
-- [ ] **091c O(n) Vec::insert under cache Mutex in `collect_impact_with_budget`**
+- [x] **091c O(n) Vec::insert under cache Mutex in `collect_impact_with_budget`**
       — _medium (ADR-031 lock budget)._ `lib.rs:531-544`. Sorted insert under
       `with_graphs` shifts up to `MAX_AFFECTED_SYMBOLS=20_000` per symbol.
       **Fix:** collect unsorted (O(1) push, bounded by cap) under the lock,
       sort/dedupe after release in `project_impact` (mirror
       `collect_candidates`/`project`), or bounded max-heap.
-- [ ] **091d CE-6 per-session byte ceiling for `graph://` reads** — _medium._
+- [x] **091d CE-6 per-session byte ceiling for `graph://` reads** — _medium._
       `crates/anvil-cli/src/mcp/resources/mod.rs`. Page size (200) capped but no
       per-session byte accumulator; an assistant can reassemble the whole graph
       across many `resources/read` round-trips. **Fix:** per-MCP-session

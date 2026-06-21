@@ -109,3 +109,35 @@ fn unknown_query_key_is_rejected() {
     let (_, ok) = split_uri("graph://edges?file=src/a.ts&cursor=ab");
     assert!(ensure_known_query_keys(&ok, &["file", "cursor", "limit"]).is_ok());
 }
+
+#[test]
+fn graph_egress_credit_refuses_once_exhausted() {
+    // CIB-091d: the per-session graph:// byte credit refuses a read once the
+    // cumulative payload exceeds the ceiling. The accumulator is a process-global
+    // static (one process == one stdio session), so this test spends the whole
+    // ceiling in a single charge — deterministic regardless of any small charges
+    // other tests in the same process may have made first.
+    let under = charge_graph_egress(1);
+    assert!(
+        under.is_ok(),
+        "a tiny first read is within budget: {under:?}"
+    );
+
+    // A single charge larger than the whole credit must be refused with a
+    // structured quota error.
+    let over = charge_graph_egress(GRAPH_EGRESS_CREDIT_BYTES + 1);
+    assert!(
+        matches!(over, Err(ReadError::QuotaExceeded(_))),
+        "an over-ceiling charge must be refused: {over:?}"
+    );
+    if let Err(err) = over {
+        assert!(err.reason().contains("quota"), "{}", err.reason());
+    }
+
+    // Once exhausted, even a zero-byte read stays refused (the cumulative total
+    // is already over the ceiling).
+    assert!(matches!(
+        charge_graph_egress(0),
+        Err(ReadError::QuotaExceeded(_))
+    ));
+}
