@@ -457,10 +457,10 @@ mod tests {
 
     #[test]
     fn closest_registered_id_caps_pathological_input_without_running_levenshtein() {
-        // A huge input (e.g. a multi-MB `.anvilrc#checks` value) must short-
-        // circuit to None rather than running the O(n·m) DP over the registry.
-        let huge = "x".repeat(5 * 1024 * 1024);
-        assert_eq!(closest_registered_id(&huge), None);
+        // Any input beyond the cap must short-circuit to None rather than
+        // running the O(n·m) DP over the registry.
+        let over_cap = "x".repeat(65);
+        assert_eq!(closest_registered_id(&over_cap), None);
     }
 
     #[test]
