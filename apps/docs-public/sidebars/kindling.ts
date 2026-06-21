@@ -7,12 +7,7 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Quickstart',
       collapsed: false,
-      items: [
-        'quickstart/install',
-        'quickstart/create-capsule',
-        'quickstart/write-observations',
-        'quickstart/search-export',
-      ],
+      items: ['quickstart/install', 'quickstart/first-memory', 'quickstart/automatic-capture'],
     },
     {
       type: 'category',
@@ -29,19 +24,18 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Adapters',
       collapsed: true,
-      items: ['adapters/custom'],
-    },
-    {
-      type: 'category',
-      label: 'Commands',
-      collapsed: true,
-      items: ['commands/memory'],
+      items: [
+        'adapters/claude-code',
+        'adapters/opencode',
+        'adapters/pocketflow',
+        'adapters/custom',
+      ],
     },
     {
       type: 'category',
       label: 'Reference',
       collapsed: true,
-      items: ['reference/formats', 'reference/cli', 'reference/config'],
+      items: ['reference/formats', 'reference/cli', 'reference/config', 'reference/crates'],
     },
   ],
 };
