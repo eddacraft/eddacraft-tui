@@ -351,8 +351,8 @@ Remaining non-registry slices move to **Ready** when:
 - **Design resolved (2026-06-21, ADR-089, owner):** the telemetry **destination
   is the local Kindling record**; no telemetry leaves the machine as part of
   this item. Egress is explicitly deferred to a separate opt-in work item with
-  its own ADR (not a new always-on endpoint). The blocker is cleared; the item
-  is Ready.
+  its own ADR (not a new always-on endpoint). The blocker was cleared and the
+  item delivered via PR #2840.
 
 ## Risks
 
