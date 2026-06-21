@@ -65,7 +65,7 @@ export interface WarningSummary {
  * via the `ports` `CheckDetails` shape.
  *
  * Matches the archived zod-derived `WarningResultSchema` from
- * `archive/anvil-ts-scanner/core-antipattern/types.ts`. Carried here as a
+ * `anvil-archive/anvil-ts-scanner/core-antipattern/types.ts`. Carried here as a
  * plain interface so active consumers (`@eddacraft/anvil-ports`,
  * runtime gate adapters) can refer to the shape without pulling zod.
  */

@@ -2,7 +2,7 @@
 //!
 //! RMCPF-011 MCP-driver-local composition: applies non-heuristic
 //! line-by-line transforms in-process. The Rust handler matches the
-//! archived TS fixer contract (`archive/anvil-mcp-server/src/tools/
+//! archived TS fixer contract (`anvil-archive/anvil-mcp-server/src/tools/
 //! fix.tool.ts`) for the deterministic patterns the TS server shipped:
 //!
 //! | Warning | Transform                                                                          |

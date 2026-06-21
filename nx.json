@@ -41,7 +41,7 @@
   "plugins": [
     {
       "plugin": "@nx/js/typescript",
-      "exclude": ["archive/**", "tools/test-harness/**"],
+      "exclude": ["tools/test-harness/**"],
       "options": {
         "typecheck": {
           "targetName": "typecheck"
@@ -55,14 +55,14 @@
     },
     {
       "plugin": "@nx/eslint/plugin",
-      "exclude": ["archive/**", "tools/test-harness/**"],
+      "exclude": ["tools/test-harness/**"],
       "options": {
         "targetName": "lint"
       }
     },
     {
       "plugin": "@nx/vite/plugin",
-      "exclude": ["archive/**", "tools/test-harness/**"],
+      "exclude": ["tools/test-harness/**"],
       "options": {
         "testTarget": "test"
       }

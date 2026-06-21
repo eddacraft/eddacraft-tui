@@ -1,7 +1,7 @@
 //! RMCPF-020 — read-only `anvil://` MCP resources.
 //!
 //! These are the local workspace-state resources ported from the archived
-//! TypeScript MCP server (`archive/anvil-mcp-server/src/resources/`). Unlike the
+//! TypeScript MCP server (`anvil-archive/anvil-mcp-server/src/resources/`). Unlike the
 //! GCTX `graph://` resources in the parent module — which forward a sealed
 //! request to the daemon and are identity-only under the CE-5 egress gate —
 //! these read workspace-local files directly (the architecture baseline,

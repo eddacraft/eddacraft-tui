@@ -6,7 +6,7 @@
 //! under the workspace's layered architecture rules. No daemon round-
 //! trip — this is local read-only state that the daemon does not own.
 //!
-//! Behaviour parity with `archive/anvil-mcp-server/src/tools/
+//! Behaviour parity with `anvil-archive/anvil-mcp-server/src/tools/
 //! query-boundary.tool.ts`:
 //!
 //! - `no-baseline`: workspace has no `.anvil/architecture.json` —

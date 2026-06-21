@@ -1010,7 +1010,7 @@ export function go(){return [k,s];}";
 
     #[test]
     fn does_not_flag_bare_identifier_as_secret() {
-        // From archive/anvil-cli-node/src/commands/policy/bundle.ts:296
+        // From anvil-archive/anvil-cli-node/src/commands/policy/bundle.ts:296
         let config = SecretCheckConfig::default();
         let content = "    auth.password = configuredPassword;";
         let findings = scan_content(content, "src/bundle.ts", &config);

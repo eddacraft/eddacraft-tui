@@ -8,15 +8,15 @@
  * This package handles I/O operations that @eddacraft/anvil-core does not.
  *
  * Note: The TypeScript gate runner and constraint-export utilities
- * were archived to `archive/anvil-ts-scanner/runtime-gate/` and
- * `archive/anvil-ts-scanner/runtime-export/` under ADR-033 (2026-04-29).
+ * were archived to `anvil-archive/anvil-ts-scanner/runtime-gate/` and
+ * `anvil-archive/anvil-ts-scanner/runtime-export/` under ADR-033 (2026-04-29).
  * The Rust scanner / CLI / RMCP shim are now the gate-evaluation path.
  *
  * @module @eddacraft/anvil-runtime
  */
 
 // Gate runner + constraint-export archived under ADR-033
-// → archive/anvil-ts-scanner/runtime-gate/ and runtime-export/.
+// → anvil-archive/anvil-ts-scanner/runtime-gate/ and runtime-export/.
 
 // Cache providers
 export * from './cache/index.js';
@@ -59,7 +59,7 @@ export type {
 } from './watch/index.js';
 
 // Export utilities (llms.txt, MCP resource formatter, prompt
-// formatter) archived under ADR-033 → archive/anvil-ts-scanner/runtime-export/.
+// formatter) archived under ADR-033 → anvil-archive/anvil-ts-scanner/runtime-export/.
 
 // Multi-agent concurrency coordination
 export {

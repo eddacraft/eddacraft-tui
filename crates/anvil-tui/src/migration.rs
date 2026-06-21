@@ -4,7 +4,7 @@
 /// The shipped `anvil` binary no longer consults this enum: every surface
 /// renders through [`crate::shell::render_shell`] (a thin wrapper over
 /// `eddacraft_tui::shell::render_shell`, i.e. Ratatui), and the legacy
-/// `Ink` renderer was the retired Node process (`archive/anvil-cli-node/`).
+/// `Ink` renderer was the retired Node process (`anvil-archive/anvil-cli-node/`).
 /// The default is therefore `Ratatui`, matching shipped reality (V060F-018);
 /// `Ink` is retained only so a historical `--tui=ink` argument still parses
 /// and errors with a clear "handled by the Node.js process" message.

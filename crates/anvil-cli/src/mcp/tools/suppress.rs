@@ -10,7 +10,7 @@
 //! contract change.
 //!
 //! Behaviour parity with
-//! `archive/anvil-mcp-server/src/tools/suppress.tool.ts`:
+//! `anvil-archive/anvil-mcp-server/src/tools/suppress.tool.ts`:
 //!
 //! - Validates `filePath` is workspace-relative, rejects `..` escapes
 //!   and absolute paths, canonicalises the joined path, and re-verifies

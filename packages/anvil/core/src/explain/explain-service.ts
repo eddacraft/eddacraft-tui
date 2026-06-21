@@ -16,7 +16,7 @@
  *   IDs only.
  *
  * The TS anti-pattern explainer was archived under ADR-033
- * (2026-04-29) → `archive/anvil-ts-scanner/core-explain-antipattern.ts`.
+ * (2026-04-29) → `anvil-archive/anvil-ts-scanner/core-explain-antipattern.ts`.
  * The capability has not been reimplemented; the Rust scanner
  * publishes the canonical anti-pattern catalogue, and consumers
  * needing AP-* explanations should consult that catalogue rather

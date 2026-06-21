@@ -13,9 +13,6 @@ packages:
   - packages/edda-stack
   - packages/eslint-plugin-anvil
   - packages/kindling-integration
-  # mcp-server and vscode-extension archived under ADR-033
-  # (2026-04-29) → archive/anvil-mcp-server, archive/anvil-vscode-extension.
-  # Excluded by '!archive/**' below.
   # Shared infrastructure (ADR-015)
   - packages/shared/*
   # Shared libraries (ADR-015)
@@ -45,8 +42,6 @@ packages:
   # Native binding crates that ship as npm packages (Rust source lives in
   # the cargo workspace; pnpm picks them up here for `pnpm --filter` access).
   - crates/anvil-checks-napi
-  # Exclude archived packages
-  - '!archive/**'
 
 ignoredBuiltDependencies:
   - '@devm33/node-pty'

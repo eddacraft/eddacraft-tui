@@ -22,7 +22,7 @@ export {
 } from './template-loader.js';
 
 // Anti-pattern explainer archived under ADR-033 (2026-04-29)
-// → archive/anvil-ts-scanner/core-explain-antipattern.ts.
+// → anvil-archive/anvil-ts-scanner/core-explain-antipattern.ts.
 
 export {
   registerBoundaryTemplates,

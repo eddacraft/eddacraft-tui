@@ -65,17 +65,17 @@ export const IMPORT_REWRITES: Record<string, string> = {
   '@eddacraft/anvil-core/validation': '@eddacraft/anvil-contracts',
 
   // antipattern + suppression archived under ADR-033
-  // → archive/anvil-ts-scanner/. Use the anvil CLI / RMCP instead.
+  // → anvil-archive/anvil-ts-scanner/. Use the anvil CLI / RMCP instead.
   '@eddacraft/anvil-core/provenance': '@eddacraft/anvil-core/provenance',
   '@eddacraft/anvil-core/warnings': '@eddacraft/anvil-core/warnings',
   '@eddacraft/anvil-core/explain': '@eddacraft/anvil-core/explain',
   '@eddacraft/anvil-core/architecture': '@eddacraft/anvil-core/architecture',
-  // drift archived under ADR-033 → archive/anvil-ts-scanner/core-drift/.
+  // drift archived under ADR-033 → anvil-archive/anvil-ts-scanner/core-drift/.
 
   '@eddacraft/anvil-core/cache': '@eddacraft/anvil-runtime/cache',
   '@eddacraft/anvil-core/watch': '@eddacraft/anvil-runtime/watch',
   // gate + export archived under ADR-033
-  // → archive/anvil-ts-scanner/runtime-gate/, runtime-export/.
+  // → anvil-archive/anvil-ts-scanner/runtime-gate/, runtime-export/.
 
   '@eddacraft/anvil-core/crypto': '@eddacraft/anvil-platform/crypto',
   '@eddacraft/anvil-core/utils': '@eddacraft/anvil-shared/util',

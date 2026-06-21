@@ -154,7 +154,7 @@ describe('Smoke › @eddacraft/anvil-contracts', () => {
 
 describe('Smoke › @eddacraft/anvil-core', () => {
   // antipattern scanner + drift detection archived under ADR-033
-  // → archive/anvil-ts-scanner/. The Rust scanner is the sole engine;
+  // → anvil-archive/anvil-ts-scanner/. The Rust scanner is the sole engine;
   // drift was scoped to anti-pattern deltas and has no live equivalent.
 
   it('exports validation', async () => {
@@ -172,7 +172,7 @@ describe('Smoke › @eddacraft/anvil-core', () => {
 
 describe('Smoke › @eddacraft/anvil-runtime', () => {
   // Gate runner + export utilities archived under ADR-033
-  // → archive/anvil-ts-scanner/runtime-gate/, runtime-export/.
+  // → anvil-archive/anvil-ts-scanner/runtime-gate/, runtime-export/.
   // The Rust CLI / RMCP shim are the gate-evaluation path now.
 
   it('exports cache providers', async () => {
@@ -216,7 +216,7 @@ describe('Smoke › @eddacraft/anvil-adapters', () => {
 
 // ─── Surface: MCP Server (archived per ADR-033) ─────────────────
 // Smoke tests for `@eddacraft/anvil-mcp-server` removed —
-// package archived to `archive/anvil-mcp-server/`. The launch MCP
+// package archived to `anvil-archive/anvil-mcp-server/`. The launch MCP
 // path runs through RMCP (`anvil mcp serve --stdio` in the Rust
 // binary); RMCPF will replace these contracts in Rust and own its
 // own smoke tests.

@@ -9,7 +9,7 @@
  *
  * Note: the TS components that previously provided anti-pattern
  * detection, suppression parsing, and drift snapshot/compare were
- * archived to `archive/anvil-ts-scanner/` under ADR-033 (2026-04-29).
+ * archived to `anvil-archive/anvil-ts-scanner/` under ADR-033 (2026-04-29).
  * For anti-pattern detection and suppression handling, the Rust
  * scanner (`crates/anvil-checks/`) is now authoritative — invoke via
  * the `anvil` CLI / RMCP. Drift snapshot/compare has no current
@@ -30,7 +30,7 @@ export * from './contracts/index.js';
 export * from './config/index.js';
 
 // The TS anti-pattern detector and suppression parser were archived
-// under ADR-033 → archive/anvil-ts-scanner/. The capabilities are
+// under ADR-033 → anvil-archive/anvil-ts-scanner/. The capabilities are
 // now served by the Rust scanner; this package no longer exposes
 // them.
 
@@ -38,7 +38,7 @@ export * from './config/index.js';
 export * from './architecture/index.js';
 
 // The TS drift snapshot/compare components were archived under
-// ADR-033 → archive/anvil-ts-scanner/core-drift/. They were coupled
+// ADR-033 → anvil-archive/anvil-ts-scanner/core-drift/. They were coupled
 // to the archived anti-pattern + suppression layers; no active
 // replacement is shipped here. Drift detection as a capability may
 // return in Rust on the daemon path; not in scope for this archive.
