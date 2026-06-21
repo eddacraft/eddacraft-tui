@@ -3,7 +3,8 @@
 //!
 //! These are **core** API (not behind the `lifecycle` feature flag) per
 //! D-TUIN-002: every consumer that decides how to render needs them, and they
-//! carry zero new dependencies (stdlib [`std::io::IsTerminal`] + [`std::env`]).
+//! carry zero new dependencies (stdlib [`std::io::IsTerminal`] + the
+//! [`std::env`](mod@std::env) module).
 //! Returning typed enums rather than raw capability bits forces consumers to
 //! handle the cases the crate decides matter (the [`ColourDepth`] steps, the
 //! [`TtyKind`] variants) instead of leaking probe internals.
