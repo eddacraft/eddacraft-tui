@@ -19,6 +19,11 @@ use std::process::Command;
 use tempfile::tempdir;
 
 const ANVIL_BIN: &str = env!("CARGO_BIN_EXE_anvil");
+// Retention trims rows older than seven days before each append; keep
+// fixtures stable instead of tied to the wall clock.
+const FIXTURE_TS_0: &str = "2099-06-14T10:00:00Z";
+const FIXTURE_TS_1: &str = "2099-06-14T10:01:00Z";
+const FIXTURE_TS_2: &str = "2099-06-14T10:02:00Z";
 
 fn usage_log(anvil_home: &Path) -> PathBuf {
     anvil_home
@@ -70,9 +75,9 @@ fn top_view_ranks_seeded_commands() {
     seed_usage_log(
         home.path(),
         &[
-            &row("check", "p1", "2026-06-14T10:00:00Z"),
-            &row("check", "p1", "2026-06-14T10:01:00Z"),
-            &row("status", "p2", "2026-06-14T10:02:00Z"),
+            &row("check", "p1", FIXTURE_TS_0),
+            &row("check", "p1", FIXTURE_TS_1),
+            &row("status", "p2", FIXTURE_TS_2),
         ],
     );
 
@@ -97,10 +102,7 @@ fn top_view_ranks_seeded_commands() {
 fn unused_view_lists_never_invoked_commands() {
     let home = tempdir().expect("home");
     // Seed only `version`; many registered commands remain unused.
-    seed_usage_log(
-        home.path(),
-        &[&row("version", "p1", "2026-06-14T10:00:00Z")],
-    );
+    seed_usage_log(home.path(), &[&row("version", "p1", FIXTURE_TS_0)]);
 
     let stdout = run_anvil_stdout(home.path(), &["kindling", "usage", "unused", "--json"]);
     let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
@@ -120,8 +122,10 @@ fn unused_view_lists_never_invoked_commands() {
 #[test]
 fn flags_view_reports_observed_flag_paths() {
     let home = tempdir().expect("home");
-    let gated = r#"{"kind":"command.invoked","session_id":"s","timestamp":"2026-06-14T10:00:00Z","command":"status","principal":"p1","args":[],"flag_set":[{"key":"cli.licence-gate","variant":"enabled","source":"override","gate_affecting":true}]}"#;
-    seed_usage_log(home.path(), &[gated]);
+    let gated = format!(
+        r#"{{"kind":"command.invoked","session_id":"s","timestamp":"{FIXTURE_TS_0}","command":"status","principal":"p1","args":[],"flag_set":[{{"key":"cli.licence-gate","variant":"enabled","source":"override","gate_affecting":true}}]}}"#
+    );
+    seed_usage_log(home.path(), &[&gated]);
 
     let stdout = run_anvil_stdout(home.path(), &["kindling", "usage", "flags", "--json"]);
     let parsed: serde_json::Value = serde_json::from_str(&stdout).expect("valid JSON");
@@ -141,9 +145,9 @@ fn principals_view_ranks_by_activity() {
     seed_usage_log(
         home.path(),
         &[
-            &row("check", "alice", "2026-06-14T10:00:00Z"),
-            &row("status", "alice", "2026-06-14T10:01:00Z"),
-            &row("version", "bob", "2026-06-14T10:02:00Z"),
+            &row("check", "alice", FIXTURE_TS_0),
+            &row("status", "alice", FIXTURE_TS_1),
+            &row("version", "bob", FIXTURE_TS_2),
         ],
     );
 

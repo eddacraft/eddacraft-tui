@@ -1164,7 +1164,7 @@ mod tests {
         );
         let ctx = CommandInvocationContext {
             session_id: "33333333-3333-4333-8333-333333333333",
-            timestamp: "2026-06-14T10:00:00Z",
+            timestamp: "2099-06-14T10:00:00Z",
             command: "check",
             principal: &principal,
             traceparent: None,
