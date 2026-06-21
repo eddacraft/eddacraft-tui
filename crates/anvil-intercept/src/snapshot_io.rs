@@ -145,9 +145,9 @@ pub fn write_snapshot(
     let tmp_path = dir.join(&tmp_name);
     let final_path = dir.join(&final_name);
 
-    // TODO(CIB-092d): anchor the temp create + rename to the validated `O_PATH`
-    // dirfd (`open_workspace_dirfd(dir)` + `openat(O_CREAT|O_EXCL|O_NOFOLLOW)` +
-    // `renameat` + a dirfd `fsync`), mirroring the read path's openat2 discipline.
+    // Deferred under CIB-092d: anchor the temp create + rename to the validated
+    // `O_PATH` dirfd (`open_workspace_dirfd(dir)` + `openat(O_CREAT|O_EXCL|O_NOFOLLOW)`
+    // + `renameat` + a dirfd `fsync`), mirroring the read path's openat2 discipline.
     // Deferred (not the read fix): the shipped `path_safety` helpers cover only the
     // *read* side (`read_under`/`read_under_openat2`), so the write would need a new
     // hand-rolled `openat`/`renameat` ladder — a larger change than this slice

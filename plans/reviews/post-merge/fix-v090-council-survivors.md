@@ -1,6 +1,6 @@
 # Post-merge: fix-v090-council-survivors
 
-PR: #NNN
+PR: #2852
 Branch: `fix/v090-council-survivors`
 APS: CIB-091..095 (continuous-improvement-backlog)
 Merged: <!-- filled by cleanup agent -->
@@ -45,6 +45,6 @@ Verified: <!-- filled by cleanup agent -->
   `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`
   (7195 passed / 0 failed), and a final convergent council.
 - Deferred-in-PR: 092d snapshot **write**-side `openat2` anchor (no shipped
-  dirfd-create helper; read-side done, `TODO(CIB-092d)` left); 092h notification
+  dirfd-create helper; read-side done, write-side tracked under CIB-092d); 092h notification
   delivery (fanout hard-denies session-less envelopes by INTD-015 design — WARN +
   metrics log is the operator signal).

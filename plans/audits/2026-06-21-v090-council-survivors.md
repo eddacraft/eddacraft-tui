@@ -91,7 +91,7 @@ Crate(s): `anvil-graph-cache` (snapshot/io), `anvil-intercept` (save_time, full_
       - _Council survivor follow-up (item 3 — daemon wiring DEFERRED, honestly
         tracked):_ the function is **provided + empty-guarded** (a runtime guard
         returns 0 without deleting when the registered-root set is empty, and each
-        root is canonicalized before hashing — see 092 council items 2 below), but
+        root is canonicalised before hashing — see 092 council items 2 below), but
         it is **not wired into the daemon**. There is no safe call site: cold boot
         (`lib.rs:1465`, beside `sweep_snapshot_temps_on_start`) runs with an empty
         session registry, and the only available faithful set —

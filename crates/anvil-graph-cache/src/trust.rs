@@ -224,7 +224,11 @@ fn reexport_privileged_files(graph: &SymbolGraph) -> HashMap<String, BTreeSet<St
             continue;
         };
         if let Some(sources) = re_exported_by.get(&file) {
-            for source in sources.clone() {
+            // Iterate by reference — only `reached`/`worklist` are mutated in this
+            // loop, never `re_exported_by`, so cloning the whole set is avoidable;
+            // each `source` is cloned only when an owned key/worklist entry is
+            // actually needed.
+            for source in sources {
                 let entry = reached.entry(source.clone()).or_default();
                 let mut grew = false;
                 for spec in &specs {
@@ -233,7 +237,7 @@ fn reexport_privileged_files(graph: &SymbolGraph) -> HashMap<String, BTreeSet<St
                     }
                 }
                 if grew {
-                    worklist.push(source);
+                    worklist.push(source.clone());
                 }
             }
         }

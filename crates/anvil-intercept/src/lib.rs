@@ -1577,9 +1577,10 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
                 if let Err(err) =
                     tokio::task::spawn_blocking(move || state.persist_all_on_shutdown()).await
                 {
+                    let detail = err.to_string();
                     tracing::warn!(
                         target: "anvil_intercept::snapshot",
-                        error = %err,
+                        error = %detail,
                         "shutdown snapshot flush task panicked",
                     );
                 }
