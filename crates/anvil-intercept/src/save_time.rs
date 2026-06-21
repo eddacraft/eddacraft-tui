@@ -542,9 +542,12 @@ impl SaveTimeState {
                 match result {
                     Ok(()) => written += 1,
                     // ADR-069 §10: a write failure is surfaced (WARN + counter),
-                    // never silent loss — even on the shutdown flush. When
-                    // persistence is explicitly enabled it also raises an ADR-035
-                    // Notification (CIB-092h) so an opted-in user sees degradation.
+                    // never silent loss — even on the shutdown flush. The WARN here
+                    // plus the cumulative-metrics info! below are the real
+                    // operator-visible signal (CIB-092 item 1). The ADR-035 envelope
+                    // built by `notify_persist_write_failure` is NOT delivered for a
+                    // daemon-internal write (no originating session ⇒ INTD-015
+                    // fanout denies it); see that fn's doc (CIB-092h item 4).
                     Err(err) => {
                         failed += 1;
                         tracing::warn!(
@@ -565,6 +568,13 @@ impl SaveTimeState {
                     "persisted warm graph snapshots on shutdown"
                 );
             }
+            // CIB-092 council survivor (item 1): emit the FULL cumulative snapshot
+            // I/O counters as a structured event at shutdown so the §7b soak's
+            // "zero SnapshotLoadError::Corrupt across the soak" graduation criterion
+            // is scrapeable from outside the process — the counters otherwise live
+            // only in process memory and vanish at exit. Unconditional (even a
+            // write-only or load-only run carries a meaningful corrupt/io readout).
+            emit_cumulative_snapshot_metrics(&self.snapshot_metrics.snapshot());
         }
     }
 
@@ -575,12 +585,15 @@ impl SaveTimeState {
     /// whose key is not in `registered_roots`, returning the count removed. No-op
     /// when persistence is off.
     ///
-    /// **Caller contract:** pass the live set of canonical roots the daemon
-    /// currently knows about. It must NOT be called with an empty set at a cold
-    /// boot (the session registry is empty then) — that would delete every
-    /// snapshot and defeat warm-start. It is safe to run whenever a faithful
-    /// registered-set is in hand (e.g. on registry change, or a periodic reclaim
-    /// once sessions have attached).
+    /// **Empty-guard (CIB-092 council survivor):** an empty `registered_roots` set
+    /// deletes **nothing** — the underlying sweep short-circuits to `0` before any
+    /// `read_dir`. The function name `on_start` is exactly when the session registry
+    /// is empty, so this guard is the safety net that lets the daemon wire the sweep
+    /// without a cold-boot wipe. Roots are canonicalized inside the sweep before
+    /// hashing, so a non-canonical form (trailing slash, symlink) never deletes a
+    /// live snapshot. Pass the live set of roots the daemon currently knows about;
+    /// it is safe to run whenever a faithful registered-set is in hand (e.g. on
+    /// registry change, or a periodic reclaim once sessions have attached).
     pub fn sweep_stale_snapshots_on_start<I, P>(&self, registered_roots: I) -> usize
     where
         I: IntoIterator<Item = P>,
@@ -751,10 +764,18 @@ impl SaveTimeState {
     /// only the `io::ErrorKind` discriminant — never a path or identity byte.
     ///
     /// Daemon-internal writes (shutdown flush / background scan) carry no
-    /// originating session, so the INTD-015 fanout default-denies external
-    /// delivery — the same same-uid-local limitation the assurance broadcast notes.
-    /// The envelope is still built + offered to the broadcaster so a future
-    /// session-correlated producer (or an in-process subscriber) observes it.
+    /// originating session, so the INTD-015 fanout (`fanout.rs::decide`)
+    /// **hard-denies this envelope to every subscriber** — an envelope with no
+    /// `originating_session_id` fails the originator check before the
+    /// ownership/cross-session branches even run. There is no daemon-local health
+    /// sink that bypasses the session-deny (it is a deliberate INTD-015 invariant),
+    /// so **this notification is never delivered to an operator today**. The
+    /// real, user-visible operator signal for a degraded persist is the
+    /// `tracing::warn!` per failed write PLUS the cumulative snapshot-metrics
+    /// shutdown `info!` log (CIB-092 item 1) — NOT this notification. The envelope
+    /// is still built + offered to the broadcaster only so a *future*
+    /// session-correlated producer (or an in-process subscriber) can observe it; it
+    /// costs nothing and the broadcaster simply drops it now (CIB-092h item 4).
     fn notify_persist_write_failure(
         &self,
         workspace_root: &Path,
@@ -889,6 +910,27 @@ fn emit_assurance_transition(workspace_root: &Path, transition: &AssuranceTransi
             "workspace assurance transition",
         );
     }
+}
+
+/// CIB-092 council survivor (item 1): emit the cumulative snapshot I/O counters as
+/// one structured `tracing::info!` so the §7b soak's "zero `Corrupt`" graduation
+/// signal survives process exit and is scrapeable. Every field of
+/// [`SnapshotMetricsSnapshot`] rides the event (load ok/absent/corrupt/version/io,
+/// write ok/error) — no path, key, or decoded byte (PV-10: counts only). Split out
+/// of [`SaveTimeState::persist_all_on_shutdown`] so the emission site is a single,
+/// directly-testable function.
+fn emit_cumulative_snapshot_metrics(metrics: &SnapshotMetricsSnapshot) {
+    tracing::info!(
+        target: "anvil_intercept::snapshot",
+        load_ok = metrics.load_ok,
+        load_absent = metrics.load_absent,
+        load_corrupt = metrics.load_corrupt,
+        load_version_mismatch = metrics.load_version_mismatch,
+        load_io = metrics.load_io,
+        write_ok = metrics.write_ok,
+        write_error = metrics.write_error,
+        "cumulative snapshot I/O metrics at shutdown (ADR-069 §10)",
+    );
 }
 
 /// Load a snapshot for `key` and restore it into `cache` for reads (DSV-030 /
@@ -4198,6 +4240,121 @@ mod tests {
         assert!(
             !state.cache.contains(&key),
             "a corrupt load is a cold-rebuild no-op"
+        );
+    }
+
+    /// CIB-092 council survivor (item 1): the cumulative-metrics emitter carries
+    /// EVERY counter so a soak harness scraping the shutdown event reads the full
+    /// `SnapshotMetricsSnapshot`. A field-capturing tracing layer asserts the
+    /// `"anvil_intercept::snapshot"` event fires with the exact cumulative values.
+    #[test]
+    fn cumulative_metrics_emit_carries_every_counter() {
+        use std::sync::{Arc as StdArc, Mutex as StdMutex};
+        use tracing::field::{Field, Visit};
+        use tracing::subscriber::with_default;
+        use tracing_subscriber::Layer;
+        use tracing_subscriber::layer::SubscriberExt;
+
+        // A layer that captures u64 fields + the message of any event on the
+        // snapshot target, so the test asserts on structured values not text.
+        #[derive(Default)]
+        struct Captured {
+            fields: std::collections::HashMap<String, u64>,
+            message: String,
+            fired: bool,
+        }
+        struct CaptureLayer(StdArc<StdMutex<Captured>>);
+        struct FieldVisitor<'a>(&'a mut Captured);
+        impl Visit for FieldVisitor<'_> {
+            fn record_u64(&mut self, field: &Field, value: u64) {
+                self.0.fields.insert(field.name().to_string(), value);
+            }
+            fn record_i64(&mut self, field: &Field, value: i64) {
+                if let Ok(v) = u64::try_from(value) {
+                    self.0.fields.insert(field.name().to_string(), v);
+                }
+            }
+            fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
+                if field.name() == "message" {
+                    self.0.message = format!("{value:?}");
+                }
+            }
+        }
+        impl<S: tracing::Subscriber> Layer<S> for CaptureLayer {
+            fn enabled(
+                &self,
+                _metadata: &tracing::Metadata<'_>,
+                _ctx: tracing_subscriber::layer::Context<'_, S>,
+            ) -> bool {
+                true
+            }
+            fn max_level_hint(&self) -> Option<tracing::level_filters::LevelFilter> {
+                Some(tracing::level_filters::LevelFilter::TRACE)
+            }
+            fn on_event(
+                &self,
+                event: &tracing::Event<'_>,
+                _ctx: tracing_subscriber::layer::Context<'_, S>,
+            ) {
+                if event.metadata().target() != "anvil_intercept::snapshot" {
+                    return;
+                }
+                let mut cap = self.0.lock().unwrap();
+                // Only the cumulative-metrics event carries `load_corrupt`.
+                let mut probe = Captured::default();
+                event.record(&mut FieldVisitor(&mut probe));
+                if probe.fields.contains_key("load_corrupt") {
+                    cap.fields = probe.fields;
+                    cap.message = probe.message;
+                    cap.fired = true;
+                }
+            }
+        }
+
+        let captured = StdArc::new(StdMutex::new(Captured::default()));
+        let subscriber =
+            tracing_subscriber::registry().with(CaptureLayer(StdArc::clone(&captured)));
+
+        with_default(subscriber, || {
+            // Seed the counters with a mixed cumulative state, then drive a real
+            // shutdown flush (one successful write) so the emit reflects reality.
+            let tmp = tempfile::tempdir().expect("tempdir");
+            let dir = tmp.path().join("graph-cache");
+            let key = WorktreeKey::from_canonical(std::path::PathBuf::from("/ws-emit"));
+            let state = state().with_snapshot_dir(dir);
+            // Pre-bump load counters so the emit must carry non-zero cumulative load
+            // values, not just the write it does itself.
+            state
+                .snapshot_metrics
+                .record_load(&Err(crate::snapshot_io::SnapshotReadError::NotFound));
+            state.snapshot_metrics.record_load(&Err(
+                crate::snapshot_io::SnapshotReadError::Rejected(
+                    anvil_graph_cache::snapshot::SnapshotLoadError::Corrupt,
+                ),
+            ));
+            state.cache.apply_delta(
+                &key,
+                ChangeKind::Create,
+                file_symbols("src/a.ts", &["alpha"], 0),
+            );
+            state.persist_all_on_shutdown();
+        });
+
+        let cap = captured.lock().unwrap();
+        assert!(cap.fired, "the cumulative-metrics shutdown event must fire");
+        assert_eq!(cap.fields.get("write_ok"), Some(&1), "write_ok cumulative");
+        assert_eq!(cap.fields.get("write_error"), Some(&0));
+        assert_eq!(cap.fields.get("load_absent"), Some(&1));
+        assert_eq!(
+            cap.fields.get("load_corrupt"),
+            Some(&1),
+            "the soak's graduation-blocking counter must ride the shutdown event",
+        );
+        assert_eq!(cap.fields.get("load_ok"), Some(&0));
+        assert!(
+            cap.message.contains("cumulative snapshot I/O metrics"),
+            "the event message identifies the soak readout: {}",
+            cap.message,
         );
     }
 

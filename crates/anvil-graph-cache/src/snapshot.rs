@@ -686,22 +686,36 @@ mod tests {
 
     /// Committed ADR-069 §6 golden wire bytes for [`golden_fixture`]. Regenerated
     /// deliberately on a wire-format change (see `snapshot_wire_bytes_match_committed_golden`).
-    /// 147 bytes: the 36-byte header (magic/versions/counts/CRC) + the postcard body.
+    /// 281 bytes: the 36-byte header (magic/versions/counts/CRC) + the postcard body.
+    /// CIB-092 council survivor (item 5): the fixture now exercises **every** variant
+    /// of `SymbolKind`/`Visibility`/`TrustLevel`/`EdgeType`, so a postcard
+    /// variant-reorder or insertion on any one of them shifts these bytes.
     #[rustfmt::skip]
     const GOLDEN_SNAPSHOT_BYTES: &[u8] = &[
         0x41, 0x4e, 0x56, 0x49, 0x4c, 0x47, 0x43, 0x31, 0x01, 0x00, 0x00, 0x00,
-        0x01, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x1c, 0x57, 0x9e,
-        0x03, 0x01, 0x00, 0x05, 0x61, 0x6c, 0x70, 0x68, 0x61, 0x00, 0x08, 0x73,
-        0x72, 0x63, 0x2f, 0x61, 0x2e, 0x74, 0x73, 0x01, 0x02, 0x00, 0x05, 0x61,
+        0x01, 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x9c, 0xc4, 0x4c, 0x44,
+        0x09, 0x01, 0x00, 0x05, 0x61, 0x6c, 0x70, 0x68, 0x61, 0x00, 0x08, 0x73,
+        0x72, 0x63, 0x2f, 0x61, 0x2e, 0x74, 0x73, 0x00, 0x02, 0x00, 0x05, 0x61,
         0x6c, 0x70, 0x68, 0x61, 0x00, 0x08, 0x73, 0x72, 0x63, 0x2f, 0x61, 0x2e,
-        0x74, 0x73, 0x01, 0x03, 0x00, 0x06, 0x72, 0x65, 0x6e, 0x64, 0x65, 0x72,
-        0x00, 0x08, 0x73, 0x72, 0x63, 0x2f, 0x62, 0x2e, 0x74, 0x73, 0x01, 0x02,
-        0x01, 0x03, 0x02, 0x03, 0x01, 0x01, 0x02, 0x08, 0x73, 0x72, 0x63, 0x2f,
-        0x61, 0x2e, 0x74, 0x73, 0x02, 0x01, 0x02, 0x08, 0x73, 0x72, 0x63, 0x2f,
-        0x62, 0x2e, 0x74, 0x73, 0x01, 0x03, 0x04, 0x01, 0x08, 0x73, 0x72, 0x63,
-        0x2f, 0x61, 0x2e, 0x74, 0x73, 0x01, 0x08, 0x73, 0x72, 0x63, 0x2f, 0x62,
-        0x2e, 0x74, 0x73,
+        0x74, 0x73, 0x01, 0x03, 0x01, 0x06, 0x57, 0x69, 0x64, 0x67, 0x65, 0x74,
+        0x00, 0x08, 0x73, 0x72, 0x63, 0x2f, 0x61, 0x2e, 0x74, 0x73, 0x02, 0x04,
+        0x02, 0x04, 0x6d, 0x6f, 0x64, 0x78, 0x01, 0x08, 0x73, 0x72, 0x63, 0x2f,
+        0x61, 0x2e, 0x74, 0x73, 0x03, 0x05, 0x03, 0x02, 0x65, 0x78, 0x00, 0x08,
+        0x73, 0x72, 0x63, 0x2f, 0x61, 0x2e, 0x74, 0x73, 0x04, 0x06, 0x04, 0x05,
+        0x53, 0x68, 0x61, 0x70, 0x65, 0x01, 0x08, 0x73, 0x72, 0x63, 0x2f, 0x62,
+        0x2e, 0x74, 0x73, 0x00, 0x07, 0x05, 0x05, 0x41, 0x6c, 0x69, 0x61, 0x73,
+        0x00, 0x08, 0x73, 0x72, 0x63, 0x2f, 0x62, 0x2e, 0x74, 0x73, 0x01, 0x08,
+        0x06, 0x06, 0x43, 0x6f, 0x6c, 0x6f, 0x75, 0x72, 0x00, 0x08, 0x73, 0x72,
+        0x63, 0x2f, 0x62, 0x2e, 0x74, 0x73, 0x02, 0x09, 0x07, 0x0d, 0x57, 0x69,
+        0x64, 0x67, 0x65, 0x74, 0x2e, 0x72, 0x65, 0x6e, 0x64, 0x65, 0x72, 0x01,
+        0x08, 0x73, 0x72, 0x63, 0x2f, 0x62, 0x2e, 0x74, 0x73, 0x04, 0x05, 0x01,
+        0x09, 0x02, 0x03, 0x01, 0x00, 0x04, 0x06, 0x03, 0x05, 0x07, 0x04, 0x09,
+        0x01, 0x01, 0x02, 0x08, 0x73, 0x72, 0x63, 0x2f, 0x61, 0x2e, 0x74, 0x73,
+        0x05, 0x01, 0x02, 0x03, 0x04, 0x05, 0x08, 0x73, 0x72, 0x63, 0x2f, 0x62,
+        0x2e, 0x74, 0x73, 0x04, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x01, 0x08, 0x73,
+        0x72, 0x63, 0x2f, 0x61, 0x2e, 0x74, 0x73, 0x01, 0x08, 0x73, 0x72, 0x63,
+        0x2f, 0x62, 0x2e, 0x74, 0x73,
     ];
 
     fn node(id: u64, name: &str, file: &str, kind: SymbolKind) -> SymbolNode {
@@ -901,31 +915,89 @@ mod tests {
         assert_eq!(a, b);
     }
 
+    /// Build a fully-specified node — unlike [`node`], every enum-valued field is
+    /// caller-chosen so the golden fixture can exercise each `Visibility` /
+    /// `TrustLevel` variant, not just the `(Public, Internal)` default pair.
+    fn golden_node(
+        id: u64,
+        name: &str,
+        file: &str,
+        kind: SymbolKind,
+        visibility: Visibility,
+        trust_level: TrustLevel,
+    ) -> SymbolNode {
+        SymbolNode {
+            id,
+            kind,
+            name: name.to_owned(),
+            visibility,
+            file: file.to_owned(),
+            trust_level,
+        }
+    }
+
     /// A *fully hand-pinned* snapshot fixture, kept deliberately independent of
     /// [`fixture`] so a future tweak to that shared fixture cannot silently shift
-    /// the golden wire bytes below. Two files, three symbols (incl. an overload
-    /// pair so per-file ordering is exercised), two edge kinds, and one dependency
-    /// edge — small but structurally exercising every wire field.
+    /// the golden wire bytes below.
+    ///
+    /// CIB-092 council survivor (item 5): the fixture exercises **every** variant of
+    /// the wire-bearing enums so a postcard variant-reorder/insertion on any single
+    /// variant shifts the golden bytes and fails CI — the whole point of pinning.
+    /// - `SymbolKind`: all 8 (Function ×2 as an overload pair so per-file ordering
+    ///   is exercised, plus Class/Module/Export/Interface/TypeAlias/Enum/Method).
+    /// - `Visibility`: both Public and Internal.
+    /// - `TrustLevel`: all 5 (Unknown/Internal/Boundary/External/Privileged).
+    /// - `EdgeType`: all 5 (Contains/References/Calls/Imports/Reexports).
+    ///
+    /// Ids and files are fixed and the inputs are added in a stable order so the
+    /// emitted bytes stay deterministic.
     fn golden_fixture() -> SnapshotPayload {
+        use SymbolKind::{Class, Enum, Export, Function, Interface, Method, Module, TypeAlias};
+        use TrustLevel::{Boundary, External, Internal, Privileged, Unknown};
+        use Visibility::{Internal as VInternal, Public};
+
         let mut sym = SymbolGraph::new();
-        sym.add_symbol(node(1, "alpha", "src/a.ts", SymbolKind::Function))
+        // Each tuple: (id, name, file, kind, visibility, trust_level). The kinds
+        // cover all 8 variants; the visibility column hits both variants; the trust
+        // column hits all 5. `alpha`/`alpha` on src/a.ts is the overload pair.
+        let nodes = [
+            (1, "alpha", "src/a.ts", Function, Public, Unknown),
+            (2, "alpha", "src/a.ts", Function, Public, Internal), // overload of (1)
+            (3, "Widget", "src/a.ts", Class, Public, Boundary),
+            (4, "modx", "src/a.ts", Module, VInternal, External),
+            (5, "ex", "src/a.ts", Export, Public, Privileged),
+            (6, "Shape", "src/b.ts", Interface, VInternal, Unknown),
+            (7, "Alias", "src/b.ts", TypeAlias, Public, Internal),
+            (8, "Colour", "src/b.ts", Enum, Public, Boundary),
+            (
+                9,
+                "Widget.render",
+                "src/b.ts",
+                Method,
+                VInternal,
+                Privileged,
+            ),
+        ];
+        for (id, name, file, kind, vis, trust) in nodes {
+            sym.add_symbol(golden_node(id, name, file, kind, vis, trust))
+                .unwrap();
+        }
+        // One edge per `EdgeType` variant (all 5), in a fixed order.
+        let edges = [
+            (3, 1, EdgeType::Contains),
+            (9, 1, EdgeType::References),
+            (1, 9, EdgeType::Calls),
+            (4, 6, EdgeType::Imports),
+            (5, 7, EdgeType::Reexports),
+        ];
+        for (from, to, edge_type) in edges {
+            sym.add_edge(SymbolEdge {
+                from,
+                to,
+                edge_type,
+            })
             .unwrap();
-        sym.add_symbol(node(2, "alpha", "src/a.ts", SymbolKind::Function))
-            .unwrap(); // overload of (1)
-        sym.add_symbol(node(3, "render", "src/b.ts", SymbolKind::Function))
-            .unwrap();
-        sym.add_edge(SymbolEdge {
-            from: 1,
-            to: 3,
-            edge_type: EdgeType::Calls,
-        })
-        .unwrap();
-        sym.add_edge(SymbolEdge {
-            from: 3,
-            to: 1,
-            edge_type: EdgeType::References,
-        })
-        .unwrap();
+        }
         let mut dep = DependencyGraph::new();
         dep.add_dependency("src/a.ts".to_owned(), "src/b.ts".to_owned());
         SnapshotPayload::from_graphs(&sym, &dep).unwrap()
@@ -962,6 +1034,67 @@ mod tests {
             golden_fixture(),
             "committed golden bytes must round-trip through from_bytes",
         );
+    }
+
+    /// CIB-092 council survivor (item 5): the golden fixture must keep exercising
+    /// **every** variant of each wire-bearing enum, or a postcard variant-reorder on
+    /// an un-exercised variant would slip past the golden-bytes pin. This guards the
+    /// fixture itself against a future trim that drops a variant's coverage.
+    #[test]
+    fn golden_fixture_exercises_every_wire_enum_variant() {
+        let payload = golden_fixture();
+
+        // `Vec::contains` (not `HashSet`) — `TrustLevel` is not `Hash`. The fixture
+        // is tiny, so the linear scan is irrelevant.
+        let kinds: Vec<SymbolKind> = payload.nodes.iter().map(|n| n.kind).collect();
+        for kind in [
+            SymbolKind::Function,
+            SymbolKind::Class,
+            SymbolKind::Module,
+            SymbolKind::Export,
+            SymbolKind::Interface,
+            SymbolKind::TypeAlias,
+            SymbolKind::Enum,
+            SymbolKind::Method,
+        ] {
+            assert!(kinds.contains(&kind), "golden fixture must cover {kind:?}");
+        }
+
+        let visibilities: Vec<Visibility> = payload.nodes.iter().map(|n| n.visibility).collect();
+        for vis in [Visibility::Public, Visibility::Internal] {
+            assert!(
+                visibilities.contains(&vis),
+                "golden fixture must cover {vis:?}"
+            );
+        }
+
+        let trust: Vec<TrustLevel> = payload.nodes.iter().map(|n| n.trust_level).collect();
+        for level in [
+            TrustLevel::Unknown,
+            TrustLevel::Internal,
+            TrustLevel::Boundary,
+            TrustLevel::External,
+            TrustLevel::Privileged,
+        ] {
+            assert!(
+                trust.contains(&level),
+                "golden fixture must cover {level:?}"
+            );
+        }
+
+        let edge_types: Vec<EdgeType> = payload.edges.iter().map(|e| e.edge_type).collect();
+        for edge in [
+            EdgeType::Contains,
+            EdgeType::References,
+            EdgeType::Calls,
+            EdgeType::Imports,
+            EdgeType::Reexports,
+        ] {
+            assert!(
+                edge_types.contains(&edge),
+                "golden fixture must cover {edge:?}"
+            );
+        }
     }
 
     /// M-2: a session that inserted then removed high ids has `next_id` above any

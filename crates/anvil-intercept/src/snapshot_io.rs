@@ -160,11 +160,12 @@ pub fn write_snapshot(
     // default-umask-then-chmod window, and a planted symlink/pre-created temp
     // fails the create rather than redirecting the write.
     //
-    // Returns `true` once the `rename` has succeeded (the new snapshot is
-    // **published** — visible at `final_path`), so the caller can tell a pre-rename
-    // failure (nothing published; clean up the temp) from a post-rename one (the
-    // file IS durable enough to serve; see the `fsync_dir` note below).
-    let create_to_rename = (|| -> io::Result<bool> {
+    // Returns `Ok(())` once the `rename` has succeeded (the new snapshot is
+    // **published** — visible at `final_path`). The closure's `?` short-circuits a
+    // pre-rename failure into the `Err` arm below (nothing published; clean up the
+    // temp); reaching `Ok(())` means the file IS durable enough to serve (see the
+    // `fsync_dir` note below).
+    let create_to_rename = (|| -> io::Result<()> {
         let mut file = OpenOptions::new()
             .write(true)
             .create_new(true)
@@ -176,27 +177,22 @@ pub fn write_snapshot(
         // Atomic publish: temp and target share `dir`, so `rename` is atomic and
         // cannot return EXDEV.
         fs::rename(&tmp_path, &final_path)?;
-        Ok(true)
+        Ok(())
     })();
 
-    match create_to_rename {
-        Err(err) => {
-            // Failure *before* the rename published anything: best-effort cleanup
-            // of the orphaned temp (the rename may already have consumed it on some
-            // paths, so ignore a NotFound), then surface the failure.
-            let _ = fs::remove_file(&tmp_path);
-            Err(err)
-        }
-        Ok(true) => {
-            // The rename succeeded — the snapshot is published at `final_path`.
-            // Whether the directory fsync then succeeds or not, the published file
-            // is durable-enough to serve (CIB-092g); `note_publish_durability` folds
-            // a fsync failure to a WARN rather than a hard error.
-            note_publish_durability(fsync_dir(dir));
-            Ok(())
-        }
-        // `create_to_rename` only ever yields `Ok(true)` on success.
-        Ok(false) => unreachable!("write helper returns Ok(true) only after a successful rename"),
+    if let Err(err) = create_to_rename {
+        // Failure *before* the rename published anything: best-effort cleanup
+        // of the orphaned temp (the rename may already have consumed it on some
+        // paths, so ignore a NotFound), then surface the failure.
+        let _ = fs::remove_file(&tmp_path);
+        Err(err)
+    } else {
+        // The rename succeeded — the snapshot is published at `final_path`.
+        // Whether the directory fsync then succeeds or not, the published file
+        // is durable-enough to serve (CIB-092g); `note_publish_durability` folds
+        // a fsync failure to a WARN rather than a hard error.
+        note_publish_durability(fsync_dir(dir));
+        Ok(())
     }
 }
 
@@ -319,22 +315,48 @@ pub fn sweep_orphan_temps(dir: &Path) -> usize {
 /// hook never fired) otherwise leaves its `.snap` on disk forever; this reclaims
 /// it. Snapshots for currently-registered worktrees are kept.
 ///
-/// `registered_roots` are the **canonical** roots the daemon knows about; each is
-/// mapped through [`snapshot_filename`] to the on-disk name it would own, and only
-/// those names are kept. A `.snap` whose name matches no registered root is an
-/// orphan and is removed. Best-effort: an unreadable dir or a file that vanishes
-/// mid-sweep is skipped, never fatal; a missing `dir` is a no-op. `*.tmp` files are
-/// left to [`sweep_orphan_temps`] — this sweep only touches `*.snap`.
+/// `registered_roots` are the roots the daemon knows about. Each is **canonicalized
+/// inside the sweep before hashing** (mirroring the write path, which hashes a
+/// canonicalized root) — a caller that passes a non-canonical form (trailing slash,
+/// unresolved symlink) must not cause a live snapshot to be misclassified as an
+/// orphan and deleted. When a root cannot be canonicalized (e.g. it transiently
+/// vanished) the raw form is kept in the keep-set as well, so the failure can only
+/// ever *retain* a snapshot, never delete a live one. Each kept name is the on-disk
+/// name [`snapshot_filename`] would own; a `.snap` whose name matches no registered
+/// root is an orphan and is removed.
+///
+/// **Runtime empty-guard (CIB-092 council survivor):** if `registered_roots` is
+/// empty the sweep returns `0` immediately **without deleting anything**. The
+/// function name `on_start` is exactly when the daemon's session registry is empty,
+/// and an empty keep-set would otherwise reclaim *every* warm-start snapshot — the
+/// opposite of the intent. A faithful, non-empty registered set is the caller's
+/// contract; an empty one is treated as "nothing is known yet, touch nothing".
+///
+/// Best-effort: an unreadable dir or a file that vanishes mid-sweep is skipped,
+/// never fatal; a missing `dir` is a no-op. `*.tmp` files are left to
+/// [`sweep_orphan_temps`] — this sweep only touches `*.snap`.
 pub fn sweep_stale_snapshots_on_start<I, P>(dir: &Path, registered_roots: I) -> usize
 where
     I: IntoIterator<Item = P>,
     P: AsRef<Path>,
 {
     use std::collections::HashSet;
+    // Canonicalize each root before hashing (the write path canonicalizes), but
+    // keep the raw form too so a canonicalize failure can only ever retain — never
+    // delete — a snapshot.
     let keep: HashSet<String> = registered_roots
         .into_iter()
-        .map(|root| snapshot_filename(root.as_ref()))
+        .flat_map(|root| {
+            let raw = root.as_ref().to_path_buf();
+            let canonical = fs::canonicalize(&raw).unwrap_or_else(|_| raw.clone());
+            [snapshot_filename(&raw), snapshot_filename(&canonical)]
+        })
         .collect();
+    // Empty-guard: no registered roots ⇒ delete nothing (a doc-comment is not a
+    // guard; the on-start registry is empty at exactly the catastrophic moment).
+    if keep.is_empty() {
+        return 0;
+    }
     let Ok(entries) = fs::read_dir(dir) else {
         return 0;
     };
@@ -641,17 +663,57 @@ mod tests {
     }
 
     #[test]
-    fn sweep_stale_snapshots_with_no_registered_roots_removes_all_snaps() {
+    fn sweep_stale_snapshots_with_no_registered_roots_deletes_nothing() {
+        // CIB-092 council survivor (item 2): an EMPTY registered-root set is the
+        // catastrophic case — the function name `on_start` is exactly when the
+        // session registry is empty. A runtime guard must short-circuit to 0
+        // WITHOUT deleting anything, so a fresh-boot call cannot wipe every
+        // warm-start snapshot. (This INVERTS the prior destructive behaviour.)
         let tmp = tempfile::tempdir().unwrap();
         let dir = tmp.path();
         fs::write(dir.join(snapshot_filename(Path::new("/a"))), b"a").unwrap();
         fs::write(dir.join(snapshot_filename(Path::new("/b"))), b"b").unwrap();
         let empty: [&Path; 0] = [];
-        assert_eq!(sweep_stale_snapshots_on_start(dir, empty), 2);
+        assert_eq!(
+            sweep_stale_snapshots_on_start(dir, empty),
+            0,
+            "an empty registered set must delete NOTHING (empty-guard)",
+        );
         assert_eq!(
             fs::read_dir(dir).unwrap().count(),
-            0,
-            "no registered roots ⇒ every orphan .snap is reclaimed",
+            2,
+            "no registered roots ⇒ the guard keeps every snapshot on disk",
+        );
+    }
+
+    #[test]
+    fn sweep_stale_snapshots_keeps_a_root_passed_with_a_trailing_slash() {
+        // CIB-092 council survivor (item 2): the write path hashes a *canonicalized*
+        // root, but the sweep is handed whatever roots a caller has. A caller that
+        // passes a non-canonical form (trailing slash) must NOT cause the LIVE
+        // snapshot — written under the canonical name — to be misclassified as an
+        // orphan and deleted. The sweep canonicalizes each root before hashing.
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path().join("graph-cache");
+        // A real, canonical worktree directory that exists (so canonicalize resolves).
+        let worktree = tmp.path().join("live-worktree");
+        fs::create_dir(&worktree).unwrap();
+        let canonical = fs::canonicalize(&worktree).unwrap();
+        // The snapshot on disk is written under the CANONICAL filename (write path).
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join(snapshot_filename(&canonical)), b"live").unwrap();
+
+        // The caller hands the sweep the same root but with a trailing-slash
+        // (non-canonical) form. The live snapshot must be kept, not reclaimed.
+        let with_slash = PathBuf::from(format!("{}/", worktree.display()));
+        let removed = sweep_stale_snapshots_on_start(&dir, [with_slash]);
+        assert_eq!(
+            removed, 0,
+            "a trailing-slash root must still keep its snapshot"
+        );
+        assert!(
+            dir.join(snapshot_filename(&canonical)).exists(),
+            "the live snapshot survives a non-canonical registered root",
         );
     }
 

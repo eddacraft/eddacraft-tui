@@ -88,6 +88,22 @@ Crate(s): `anvil-graph-cache` (snapshot/io), `anvil-intercept` (save_time, full_
       high), CONFIRMED._ `save_time.rs:1463-1465`. `sweep_snapshot_temps_on_start`
       removes only `*.tmp`; a worktree deleted while the daemon was down leaves
       its `.snap` forever. **Fix:** `sweep_stale_snapshots_on_start(registered_roots)`.
+      - _Council survivor follow-up (item 3 — daemon wiring DEFERRED, honestly
+        tracked):_ the function is **provided + empty-guarded** (a runtime guard
+        returns 0 without deleting when the registered-root set is empty, and each
+        root is canonicalized before hashing — see 092 council items 2 below), but
+        it is **not wired into the daemon**. There is no safe call site: cold boot
+        (`lib.rs:1465`, beside `sweep_snapshot_temps_on_start`) runs with an empty
+        session registry, and the only available faithful set —
+        `SessionRegistry::active_sessions()` — lists *currently-sessioned*
+        worktrees, NOT *warm worktrees with a valid persisted snapshot*. Using it as
+        the keep-set would reclaim the snapshot of a warm-but-idle worktree (no live
+        session right now) — defeating warm-start for exactly the reattach case the
+        snapshot exists for. A faithful registered-set source (a "warm worktrees
+        seen this run" set distinct from "currently-sessioned") is a larger
+        lifecycle change. **Daemon wiring deferred to a follow-up needing that
+        faithful registered-set source.** The empty-guard is the safety net that
+        lets a future caller wire it without a cold-boot wipe.
 - [~] **092d openat2 RESOLVE_NO_SYMLINKS|RESOLVE_BENEATH discipline (ADR-069 §4)**
       — _medium._ `snapshot_io.rs:152-157,210-213`. Path-based open with
       leaf-only `O_NOFOLLOW`; ADR-069 §4 mandates `openat` relative to an
@@ -112,6 +128,27 @@ Crate(s): `anvil-graph-cache` (snapshot/io), `anvil-intercept` (save_time, full_
       write failure should raise an ADR-035 Notification, not only `warn!`.
       **Fix:** emit via existing `TelemetryBroadcaster`/`NotificationEnvelope`
       when `persistence_enabled()`.
+      - _Council survivor follow-up (item 4 — honest downgrade, NOT a delivered
+        notification):_ the persist-failure envelope is built with
+        `TelemetryCorrelation::default()` (no `originating_session_id`), and the
+        INTD-015 fanout (`fanout.rs::decide`) **hard-denies** any envelope whose
+        `originating_session_id` is absent — to **every** subscriber, including the
+        owner (the owner check `is_authorised(subscriber, originator)` itself needs
+        an originator). A daemon-internal shutdown/background write has no
+        originating session, so this envelope is **never delivered to anyone**. We
+        searched `fanout.rs` / `broadcaster.rs` / `telemetry.rs` for a daemon-local
+        health sink or any delivery path that bypasses the session-deny: **there is
+        none** — every delivery routes through `Fanout::route`, and the session-deny
+        is a deliberate INTD-015 invariant (the whole point of moving the
+        access-control check daemon-side). So the **real, user-visible operator
+        signal is the `tracing::warn!` per failed write PLUS the new cumulative
+        snapshot-metrics shutdown `info!` log (item 1)** — not a delivered
+        notification. The envelope is **kept** only because it is the correct shape
+        for a *future* session-correlated producer / in-process subscriber (it costs
+        nothing; the broadcaster simply drops it today); the code comments on
+        `notify_persist_write_failure` / `PersistFailureNotifier::notify` already
+        state this same-uid-local limitation plainly. **No overclaim:** 092h does
+        not deliver a notification to an operator today.
 
 ## CIB-093 — GV2 substrate hot-path & trust correctness
 
