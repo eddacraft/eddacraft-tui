@@ -394,7 +394,7 @@ TUIN module resolve.
 
 - **Status:** Done 2026-06-21 — D-TUIN-002 Accepted; `crates/eddacraft-tui/src/mode/`
   ships `TtyKind`, `AltScreenSupport`, and `ColourDepth` typed-enum probes (pure
-  `resolve_*` cores + live-env wrappers, zero new deps — std `IsTerminal` + env),
+  `resolve` cores + live-env wrappers, zero new deps — std `IsTerminal` + env),
   with a full unit-test matrix. Anvil's central mode resolver
   (`anvil-cli/src/output/mod.rs` `OutputMode::from_global`/`from_command_format`)
   delegates its TTY probe to `mode::TtyKind`; the pure `OutputMode::resolve`
