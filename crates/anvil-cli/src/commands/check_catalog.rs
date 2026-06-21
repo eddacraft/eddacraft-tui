@@ -303,7 +303,14 @@ pub(crate) fn canonical_check_name(name: &str) -> Option<&'static str> {
 /// resolve to the first match in registry order, so the result is
 /// deterministic.
 pub(crate) fn closest_registered_id(input: &str) -> Option<&'static str> {
-    if input.is_empty() {
+    /// No legitimate check identifier is anywhere near this long. Capping the
+    /// needle before the O(n·m) Levenshtein DP stops a pathological input — e.g.
+    /// a multi-megabyte string in a cloned repo's `.anvilrc#checks` — from
+    /// burning CPU on every `anvil gate` run. Anything this far from a ~16-char
+    /// identifier is past the suggestion threshold anyway.
+    const MAX_NEEDLE_LEN: usize = 64;
+
+    if input.is_empty() || input.len() > MAX_NEEDLE_LEN {
         return None;
     }
     let needle = input.to_ascii_lowercase();
@@ -446,6 +453,14 @@ mod tests {
     #[test]
     fn closest_registered_id_does_not_suggest_for_empty() {
         assert_eq!(closest_registered_id(""), None);
+    }
+
+    #[test]
+    fn closest_registered_id_caps_pathological_input_without_running_levenshtein() {
+        // A huge input (e.g. a multi-MB `.anvilrc#checks` value) must short-
+        // circuit to None rather than running the O(n·m) DP over the registry.
+        let huge = "x".repeat(5 * 1024 * 1024);
+        assert_eq!(closest_registered_id(&huge), None);
     }
 
     #[test]

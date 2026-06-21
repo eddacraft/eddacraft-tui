@@ -149,9 +149,9 @@ Remaining non-registry slices move to **Ready** when:
 - [x] Per-track flag taxonomy aligns with existing flag governance — OPSUP-005
       authored against FLAGCAT + `feature-flag-governance.md`; default-policy
       open question recorded inline.
-- [ ] FP reporting destination confirmed (Kindling vs other) — OPSUP-007 CLI
-      surface + anonymisation policy authored, but the telemetry **destination**
-      remains a design decision (stays Draft until resolved).
+- [x] FP reporting destination confirmed (Kindling vs other) — **resolved
+      2026-06-21 (ADR-089):** the local Kindling record; OPSUP-007 delivered
+      (PR #2840). Off-machine egress is a separate deferred opt-in item.
 
 ## Work Items
 
@@ -372,7 +372,9 @@ Remaining non-registry slices move to **Ready** when:
       work item, preserving the air-gap guarantee). Not a new endpoint.
 - [x] Per-track flag default policy — **resolved 2026-06-18** (owner-overridable):
       opt-in for one release then flip on (OPSUP-005 Resolution).
-- [ ] How do legacy check names map to the new registry IDs — via
-      alias table or one-shot rename in a major release?
+- [x] How do legacy check names map to the new registry IDs — **resolved:**
+      via an explicit alias table on each `CheckDefinition` (OPSUP-001), not a
+      one-shot rename; legacy names and stable `ANV-*` IDs both resolve through
+      `definition_by_name` (OPSUP-002).
 - [x] Wall-time budget — OPSUP-006 chose per-check soft budgets; no global
       default is declared for current core checks.

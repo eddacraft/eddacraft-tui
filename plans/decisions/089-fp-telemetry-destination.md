@@ -50,9 +50,10 @@ telemetry leaves the user's machine as part of OPSUP-007.**
 Concretely:
 
 - `anvil report-fp` records a new `false_positive_reported` Kindling
-  observation kind (the 12th, alongside the existing 11), carrying: the stable
-  `ANV-*` check ID, a **hashed** file path (one-way digest via the existing
-  `sha256_hex` helper / USAGE-001 salt model — never a plaintext path), the
+  observation kind (the 13th, alongside the existing 12), carrying: the stable
+  `ANV-*` check ID, a **hashed** file path (a salted, domain-separated SHA-256
+  digest under the USAGE-001 per-deployment salt — never a plaintext path; see
+  `usage::hash_file_path`), the
   rule context, and a timestamp. Source snippets are opt-in only and never
   enabled in the default config (fail-closed on anonymisation).
 - The report is validated against the OPSUP-001 registry: an unknown check ID
@@ -72,7 +73,8 @@ privacy posture, and it is the smallest correct scope that unblocks OPSUP-007:
 
 - It reuses infrastructure that already exists and is already air-gap-safe —
   the Kindling observation contract, redaction deny-lists, `ArgShape` shape-only
-  encoding, and `sha256_hex` — rather than building a new outbound surface.
+  encoding, and the USAGE-001 salted-hash model — rather than building a new
+  outbound surface.
 - It keeps the decidable parts of OPSUP-007 (CLI surface, anonymisation policy)
   shippable now, and isolates the genuinely cross-cutting, harder-to-reverse
   part (data leaving the machine) behind an explicit, deferred, opt-in decision.
@@ -113,5 +115,6 @@ privacy posture, and it is the smallest correct scope that unblocks OPSUP-007:
 - Related: USAGE-001 usage analytics (`docs/observability/usage-analytics.md`),
   air-gap guarantee (`docs/runbooks/anvil-air-gapped.md`), Kindling integration
   (`packages/kindling-integration/`)
-- Anonymisation: `sha256_hex` (`crates/anvil-capsule/src/canonical.rs`),
+- Anonymisation: `usage::hash_file_path` + `anonymise_principal`
+  (`crates/anvil-cli/src/usage.rs`, USAGE-001 salt model),
   redaction (`crates/anvil-observability/src/redaction.rs`)

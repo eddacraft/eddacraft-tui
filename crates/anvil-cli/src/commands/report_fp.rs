@@ -34,7 +34,9 @@ pub struct ReportFpArgs {
     location: String,
 
     /// Opt in to recording the single source line as a snippet. Off by
-    /// default — source content is never included unless this is set.
+    /// default — source content is never included unless this is set. The line
+    /// is stored verbatim and is NOT redacted, so do not opt in when the
+    /// flagged line contains a real secret.
     #[arg(long)]
     include_snippet: bool,
 }
@@ -60,9 +62,9 @@ fn parse_location(location: &str) -> Result<(&str, u32)> {
     if path.is_empty() {
         bail!("location is missing a file path: '{location}'");
     }
-    let line: u32 = line
-        .parse()
-        .map_err(|_| anyhow::anyhow!("location line must be a number, got '{line}'"))?;
+    let line: u32 = line.parse().map_err(|_| {
+        anyhow::anyhow!("location line must be a 1-based number that fits in u32, got '{line}'")
+    })?;
     if line == 0 {
         bail!("location line is 1-based; got 0");
     }

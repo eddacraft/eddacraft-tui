@@ -69,8 +69,12 @@ impl SchemaVersion {
             bail!("schema version '{s}' must be major.minor.patch");
         };
         let component = |p: &str| -> Result<u32> {
-            p.parse::<u32>()
-                .map_err(|_| anyhow::anyhow!("schema version '{s}' has a non-numeric component"))
+            p.parse::<u32>().map_err(|_| {
+                anyhow::anyhow!(
+                    "schema version '{s}' has a component that is not a u32 \
+                     (non-numeric or out of range)"
+                )
+            })
         };
         Ok(Self::new(
             component(major)?,
