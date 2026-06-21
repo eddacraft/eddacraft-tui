@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 48/85    |
+| CIB | —     | In Progress | 48/90    |
 
 ## Purpose
 
@@ -2376,3 +2376,111 @@ archive.
   file overlap before implementation; do not race duplicate fixes.
 - **Confidence:** medium — root causes are localised; gctx-egress cap/truncation
   behaviour needs an explicit product call on truncation signalling.
+
+### CIB-086: False-positive report off-machine egress bridge
+
+- **Status:** Proposed
+- **Intent:** Build the deferred, **opt-in** path for transmitting locally
+  recorded false-positive reports off the machine, so Anvil can learn from
+  aggregate FP signal (the second half of OPSUP-007's stated purpose).
+- **Expected Outcome:** A new ADR decides the egress mechanism and destination
+  (e.g. an `anvil report-fp export --to <dest>` bridge, or a managed upload)
+  under an explicit opt-in contract that preserves the air-gap guarantee —
+  egress only on deliberate operator action, never default-on. Reads the
+  already-anonymised local `false-positives.ndjson` record (hashed paths, no
+  source by default), so redaction is fixed at record time, not re-derived at
+  the egress boundary.
+- **Out of scope:** changing the local-record format or the anonymisation
+  policy (fixed by ADR-089); analytics over the collected data.
+- **Files:** new ADR under `plans/decisions/`; `crates/anvil-cli/src/commands/`
+  (egress subcommand); the egress destination/transport.
+- **Validation:** egress is off by default and requires explicit opt-in; the
+  air-gap test harness still passes for `report-fp` and the default path.
+- **Identified From:** OPSUP milestone Council review
+  (`plans/reviews/2026-06-21-opsup-council.md`, pragmatic-lead MAJOR); deferred
+  by ADR-089.
+- **Confidence:** medium — destination/transport is a product + privacy
+  decision that the ADR must settle first.
+
+### CIB-087: False-positive report local read path
+
+- **Status:** Proposed
+- **Intent:** Give operators a way to see what `anvil report-fp` has recorded
+  locally — today the `false-positives.ndjson` sidecar is write-only with no
+  CLI read surface.
+- **Expected Outcome:** A read command (e.g. `anvil report-fp --list` or a
+  Kindling query view) lists the local FP reports (check ID, hashed path, line,
+  timestamp; never the plaintext path), with `--json`. Useful independently of
+  CIB-086 egress: it lets a user verify their reports and assemble a support
+  bundle.
+- **Files:** `crates/anvil-cli/src/commands/report_fp.rs` (or a Kindling read
+  view); reuses the existing sidecar.
+- **Validation:** new test: the read path lists recorded reports and never
+  surfaces a plaintext path; empty/absent sidecar is a clean "none".
+- **Identified From:** OPSUP milestone Council review (operations MAJOR).
+- **Confidence:** high — small local read over an existing NDJSON sidecar.
+
+### CIB-088: `anvil drift migrate` operability — backup retention + partial-failure reporting
+
+- **Status:** Proposed
+- **Intent:** Close two operability gaps in `drift migrate`: (a) `.bak`/`.bak.N`
+  backups accumulate unbounded ("retained for one release" is comment-only, not
+  enforced); (b) skipped corrupt/unreadable/future-version baselines are not
+  reported in the count or exit code, so CI can't detect a partial migration.
+- **Expected Outcome:**
+  1. A prune path for stale backups (e.g. `anvil drift migrate --prune-backups`
+     or an age/count bound) so backups can't grow without limit across releases;
+     the "one release" retention is enforced or the limitation is documented.
+  2. `MigrateReport` carries a `skipped` count (by reason); `run_migrate`
+     surfaces it in both plain and `--json` output and returns a non-zero exit
+     when any baseline was skipped, so a CI step can tell clean from partial.
+- **Files:** `crates/anvil-cli/src/commands/drift.rs` (`MigrateReport`,
+  `migrate_snapshots`, `run_migrate`, backup helpers).
+- **Validation:** new tests: a skipped corrupt baseline is counted and changes
+  the exit code; a prune run removes only eligible backups and never the live
+  baseline.
+- **Identified From:** OPSUP milestone Council review (operations MAJOR×2;
+  adversarial flagged the disk-full `.bak.N` chain).
+- **Confidence:** high — localised to the migrate command.
+
+### CIB-089: Reconcile unknown-check-ID resolution semantics across surfaces
+
+- **Status:** Proposed
+- **Intent:** `--skip-checks` / `--only-checks` reject an unknown check ID with
+  a fatal error, while `.anvilrc#checks` warns-and-continues with the known
+  subset. The same class of user error (a typo'd check ID) has divergent
+  outcomes; OPSUP-002's "deterministic error" intent doesn't distinguish the
+  config-file path.
+- **Expected Outcome:** A deliberate, documented decision: either make
+  `.anvilrc#checks` fatal on unknown IDs (matching the CLI flags), or formalise
+  the warn-and-continue posture for the config file in the spec and code
+  comment. Both paths already emit the OPSUP-002 did-you-mean suggestion; the
+  decision is about fatal-vs-warn, tested either way.
+- **Files:** `crates/anvil-cli/src/commands/gate.rs`
+  (`resolve_anvilrc_check_filter` vs `validate_check_names`); the OPSUP-002 spec
+  note.
+- **Validation:** a test pins the chosen behaviour (and the suggestion text) for
+  each surface.
+- **Identified From:** OPSUP milestone Council review (general-quality MAJOR).
+- **Confidence:** high — small; mostly a product call on fatal-vs-warn.
+
+### CIB-090: `O_NOFOLLOW` hardening for the Kindling NDJSON sidecar writes
+
+- **Status:** Proposed
+- **Intent:** Close the TOCTOU symlink race in `append_observation_to`: it does
+  `symlink_metadata` then a separate `open`, with no `O_NOFOLLOW` between them,
+  so a writer to the parent dir on a multi-user host could redirect the append.
+  Affects both `usage.ndjson` and the OPSUP-007 `false-positives.ndjson` (shared
+  helper), plus the trim temp file and `write_private_file`.
+- **Expected Outcome:** The append/write opens use `O_NOFOLLOW`
+  (`OpenOptionsExt::custom_flags(libc::O_NOFOLLOW)` on Linux; the platform
+  equivalent elsewhere) so the open atomically refuses a symlinked target,
+  removing the check-then-open window. The `0600`/`0700` posture is unchanged.
+- **Files:** `crates/anvil-cli/src/usage.rs` (`append_observation_to`,
+  `trim` temp path, `write_private_file`).
+- **Validation:** new test: a pre-planted symlink at the sidecar path is refused
+  at open time rather than followed.
+- **Identified From:** OPSUP milestone Council review (adversarial MAJOR;
+  security-adjacent). Pre-existing in the shared usage path, surfaced by the FP
+  reuse.
+- **Confidence:** high — a focused flag change on the existing open paths.
