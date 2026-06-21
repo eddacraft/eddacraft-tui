@@ -371,8 +371,22 @@ where
     // cross-path parity gate holds regardless of per-path encounter order.
     sort_diagnostics(&mut diagnostics);
 
-    let graph_certified = outcomes.iter().all(|o| o.graph_certified);
-    let first_stale = outcomes.iter().find_map(|o| o.stale_reason);
+    // CIB-095b: a restored-but-not-reconciled warm-start stand-in carries an
+    // empty `all_imports` accumulator, so `apply_delta`'s `annotate_trust` pass
+    // ran over near-empty imports and may have cleared a cross-file `Privileged`
+    // trust the snapshot restored — a `certify` over that window can miss a
+    // cross-file privilege escalation and falsely report self-contained. The
+    // assurance machine is already `Stale` in this window (the client signal),
+    // but the per-path `Certified` coverage is computed from graph certifiability
+    // alone, so without this guard the API could still attest `Certified`. Force
+    // the verdict non-`Certified` (and the per-path graph signal stale) until the
+    // reconcile full scan re-applies every on-disk file and clears the flag.
+    let restored_window = cache.is_restored(&key);
+    let graph_certified = !restored_window && outcomes.iter().all(|o| o.graph_certified);
+    let first_stale = outcomes
+        .iter()
+        .find_map(|o| o.stale_reason)
+        .or_else(|| restored_window.then_some(StaleReason::CrossFileResolutionNeeded));
 
     // Workspace assurance is driven by GRAPH certifiability only.
     assurance.record_verdict(graph_certified, first_stale);
@@ -905,6 +919,79 @@ mod tests {
             "a self-contained body-only edit with a clean antipattern scan is certified"
         );
         assert_eq!(resp.check_families, vec![CheckFamily::Antipattern]);
+    }
+
+    /// CIB-095b: a verdict landing in the restore→reconcile window must NOT be
+    /// `Certified`. A restored stand-in seeds an empty `all_imports`, so a
+    /// save-time `apply_delta`'s `annotate_trust` runs over near-empty imports
+    /// and may have cleared a cross-file `Privileged` trust the snapshot held —
+    /// certifying then would falsely attest self-contained. The exact same
+    /// body-only edit certifies once the entry is warmed by `apply_delta`
+    /// (`validate_paths_certified_clean_for_self_contained_edit`); the only
+    /// difference here is the restored stand-in, isolating the guard.
+    #[test]
+    fn validate_paths_restored_window_cannot_certify() {
+        use anvil_graph_cache::{DependencyGraph, SymbolGraph};
+
+        // A restored snapshot graph holding `foo` for src/a.ts. `restore` marks
+        // the entry a stand-in (empty accumulators) — the window 095b closes.
+        let mut sym = SymbolGraph::new();
+        sym.add_symbol(SymbolNode {
+            id: 0,
+            kind: SymbolKind::Function,
+            name: "foo".to_string(),
+            visibility: Visibility::Public,
+            file: "src/a.ts".to_string(),
+            trust_level: TrustLevel::Unknown,
+        })
+        .expect("add symbol");
+
+        let cache = KernelGraphCache::new();
+        assert!(
+            cache.restore(&wt(), sym, DependencyGraph::new()),
+            "restore must insert into the cold cache"
+        );
+        assert!(cache.is_restored(&wt()), "the entry is a restored stand-in");
+
+        let clean = b"export function foo() { return 1; }".to_vec();
+        let reads: HashMap<String, Vec<u8>> = HashMap::from([("src/a.ts".to_string(), clean)]);
+        // Same public surface (foo) — a body-only change that would otherwise
+        // certify self-contained.
+        let fed = |p: &str, _: &[u8]| {
+            (p == "src/a.ts").then(|| file_symbols("src/a.ts", &["foo"], &[], 0))
+        };
+
+        let mut assurance = AssuranceMachine::new();
+        let resp = validate_paths(
+            &request(vec![desc("src/a.ts", ChangeKindWire::Modified, None)]),
+            &cache,
+            &mut assurance,
+            |p| {
+                reads
+                    .get(p)
+                    .cloned()
+                    .ok_or(std::io::ErrorKind::NotFound.into())
+            },
+            fed,
+            &ValidateEnv {
+                config: &AntipatternCheckConfig::default(),
+                pool: &pool(),
+                budget: 64,
+                reverse_impact_depth: 1,
+                caps: &DosCaps::default(),
+            },
+        );
+        assert_eq!(
+            resp.coverage,
+            Coverage::Partial,
+            "a verdict in the restore→reconcile window must not be Certified \
+             (empty all_imports may have cleared cross-file trust)"
+        );
+        assert_ne!(
+            resp.workspace_assurance.state,
+            anvil_intercept_proto::protocol::AssuranceState::Clean,
+            "the workspace stays non-Clean until the reconcile completes"
+        );
     }
 
     #[test]

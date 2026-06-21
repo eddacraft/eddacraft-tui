@@ -2592,7 +2592,7 @@ archive.
 
 ### CIB-095: Intercept hot-path follow-through (v0.9.0 council)
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** Close the intercept/save-time follow-through mediums from the
   v0.9.0 council (surface gate was PASS — no blockers). `search_symbols` omits
   the UNC-path filter its sibling verbs enforce; the restore→reconcile window

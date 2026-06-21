@@ -189,6 +189,20 @@ struct Entry {
     /// Generation at this entry's most recent access; the lowest in the map is
     /// the LRU victim.
     last_used: u64,
+    /// CIB-095b: `true` while this entry is a **restored-but-not-reconciled**
+    /// warm-start stand-in (DSV-030 / ADR-069 §3). [`restore`](KernelGraphCache::restore)
+    /// seeds the import/re-export/call accumulators **empty** (the snapshot
+    /// carries resolved graphs for reads, not the per-file edge lists), so the
+    /// next save-time `apply_delta` re-runs `annotate_trust` over a near-empty
+    /// `all_imports` and reclassifies every symbol — clearing any cross-file
+    /// `Privileged` trust the snapshot restored. A `certify` over that window can
+    /// therefore miss a cross-file privilege escalation and falsely return
+    /// `Certified`. The flag forces `validate_paths` to a non-`Certified`
+    /// coverage until the reconcile full scan re-applies every on-disk file and
+    /// completes — at which point [`clear_restored`](KernelGraphCache::clear_restored)
+    /// resets it. A save-time `apply_delta` (one file) does NOT clear it: it does
+    /// not rebuild the whole-worktree `all_imports` the trust pass needs.
+    restored: bool,
 }
 
 #[derive(Debug, Default)]
@@ -447,6 +461,7 @@ impl KernelGraphCache {
             unresolved_callees: HashSet::new(),
             capped_files: HashSet::new(),
             last_used: recency,
+            restored: false,
         });
         entry.last_used = recency;
 
@@ -636,9 +651,32 @@ impl KernelGraphCache {
                 unresolved_callees: HashSet::new(),
                 capped_files: HashSet::new(),
                 last_used: recency,
+                // CIB-095b: mark this entry a restored stand-in so a verdict in
+                // the restore→reconcile window cannot certify over the empty
+                // `all_imports` (which would clear cross-file trust). Cleared by
+                // `clear_restored` on reconcile completion.
+                restored: true,
             },
         );
         true
+    }
+
+    /// CIB-095b: whether `key`'s warm entry is a restored-but-not-reconciled
+    /// stand-in (see [`Entry::restored`]). `false` for a cold key or a
+    /// reconciled/save-warmed entry.
+    #[must_use]
+    pub fn is_restored(&self, key: &WorktreeKey) -> bool {
+        self.lock().map.get(key).is_some_and(|entry| entry.restored)
+    }
+
+    /// CIB-095b: clear the restored stand-in flag for `key` once the reconcile
+    /// full scan has re-applied every on-disk file and completed — the warm
+    /// `all_imports`/trust are now authoritative, so a verdict may certify again.
+    /// A no-op when the key is cold or already reconciled.
+    pub fn clear_restored(&self, key: &WorktreeKey) {
+        if let Some(entry) = self.lock().map.get_mut(key) {
+            entry.restored = false;
+        }
     }
 
     /// The keys of every currently-warm worktree (DSV-030: snapshot every warm

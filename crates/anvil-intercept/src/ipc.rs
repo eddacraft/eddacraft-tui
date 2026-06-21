@@ -3503,6 +3503,11 @@ fn save_time_result<T: serde::Serialize>(
             )
         }
         Err(SaveTimeError::Io(err)) => {
+            // N5 / CIB-091b follow-up: the raw `io::Error` Display can confirm the
+            // existence/accessibility of a probed absolute path (an existence
+            // oracle pairing with 091b). Log the OS detail server-side only — as
+            // the `NotAdmitted` arm already does — and return a STATIC wire reason,
+            // never `err.to_string()`.
             tracing::warn!(
                 target: "anvil_intercept::save_time",
                 error = %err,
@@ -3514,7 +3519,7 @@ fn save_time_result<T: serde::Serialize>(
                 false,
                 -32603,
                 "Internal error",
-                json!({"error": err.to_string()}),
+                json!({"error": "workspace-io-error"}),
             )
         }
     }
@@ -8449,5 +8454,41 @@ mod tests {
             2,
             "rate window must cap recorded emissions at the configured capacity",
         );
+    }
+
+    /// N5 / CIB-091b follow-up: the `SaveTimeError::Io` arm must return a STATIC
+    /// wire reason — never the raw `io::Error` Display, which leaks an OS string
+    /// that can confirm the existence/accessibility of a probed absolute path.
+    #[test]
+    fn save_time_io_error_returns_static_wire_reason_not_os_string() {
+        // An io::Error whose Display embeds a probed absolute path — the leak the
+        // old `err.to_string()` would have surfaced on the wire.
+        let secret_path = "/secret/.env.production";
+        let err = std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("No such file or directory: {secret_path}"),
+        );
+
+        let response = save_time_result::<()>(Err(SaveTimeError::Io(err)), Some(json!(7)), None)
+            .expect("a non-notification Io error yields a response");
+
+        let data = &response["error"]["data"];
+        assert_eq!(
+            data["error"], "workspace-io-error",
+            "the Io arm must return a static reason, got: {data:?}",
+        );
+        // The whole serialised envelope must not echo the probed path or the raw
+        // OS message anywhere.
+        let serialised = response.to_string();
+        assert!(
+            !serialised.contains(secret_path),
+            "the wire must not echo a probed absolute path: {serialised}",
+        );
+        assert!(
+            !serialised.contains("No such file or directory"),
+            "the wire must not echo the raw OS error string: {serialised}",
+        );
+        // The error code is preserved.
+        assert_eq!(response["error"]["code"], -32603);
     }
 }

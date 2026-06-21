@@ -90,6 +90,15 @@ const SAVE_TIME_CERTIFY_BUDGET: usize = 256;
 /// unset or unparseable folds to the 1-hop default.
 const REVERSE_IMPACT_DEPTH_ENV: &str = "ANVIL_REVERSE_IMPACT_DEPTH";
 
+/// CIB-095c scoped opt-out for the **implicit** background-scan trigger. Setting
+/// it to `0` stops a cold-key `validate_paths`/`workspace_status`/GCTX
+/// first-contact from spawning an auto-warm scan, while keeping the daemon
+/// serving (unlike `ANVIL_WATCH_DAEMON=0`, which bypasses the daemon entirely).
+/// An **explicit** `request_full_scan` (`ScanPriority::Interactive`) is never
+/// suppressed — only the opportunistic `Background` auto-warm. Trimmed before
+/// comparison so `" 0"`/`"0\n"` still disable (no silent fail-open).
+const WATCH_DAEMON_SCAN_ENV: &str = "ANVIL_WATCH_DAEMON_SCAN";
+
 /// The default reverse-impact hop depth when the lever is unset (ADR-063 §3:
 /// "Default 1 hop", the ADR-061 §6 certifiability closure).
 const DEFAULT_REVERSE_IMPACT_DEPTH: u32 = 1;
@@ -225,6 +234,14 @@ impl SnapshotMetrics {
             &self.write_error
         };
         counter.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// CIB-095f: count a snapshot that was DROPPED before the write attempt — a
+    /// `from_graphs` build rejection (a non-workspace-relative path, ADR-069 §8)
+    /// loses the snapshot just as a failed write does, so it must be observable
+    /// in `write_error` rather than silently skipped.
+    pub(crate) fn record_write_error(&self) {
+        self.write_error.fetch_add(1, Ordering::Relaxed);
     }
 
     /// A consistent point-in-time read of every counter.
@@ -533,8 +550,27 @@ impl SaveTimeState {
                 let built = self.cache.with_graphs(&key, |sym, dep| {
                     anvil_graph_cache::snapshot::SnapshotPayload::from_graphs(sym, dep)
                 });
-                let Some(Ok(payload)) = built else {
-                    continue;
+                let payload = match built {
+                    Some(Ok(payload)) => payload,
+                    // CIB-095f / cross-ref: a `from_graphs` build rejection (a
+                    // non-workspace-relative path, ADR-069 §8) drops the snapshot.
+                    // Surface it consistently with `persist_after_scan` (WARN) and
+                    // count it as a lost write rather than the previous SILENT
+                    // skip, so an operator sees it in the cumulative metrics.
+                    Some(Err(_)) => {
+                        failed += 1;
+                        self.snapshot_metrics.record_write_error();
+                        tracing::warn!(
+                            target: "anvil_intercept::snapshot",
+                            workspace_root = %key.as_path().display(),
+                            "snapshot build rejected a non-relative path on shutdown; \
+                             skipped persisting (no persistence for this key)",
+                        );
+                        continue;
+                    }
+                    // The entry was evicted between `warm_keys` and here — nothing
+                    // to write, not a failure.
+                    None => continue,
                 };
                 let result = crate::snapshot_io::write_snapshot(dir, key.as_path(), &payload);
                 // ADR-069 §10 (CIB-092b): count every write attempt by outcome.
@@ -652,6 +688,29 @@ impl SaveTimeState {
     /// Coalesced and self-gating via [`prepare_scan`]; the job runs on the
     /// background pool so it never touches the interactive verdict budget.
     fn spawn_scan(&self, key: &WorktreeKey, root: &Path, priority: ScanPriority) {
+        self.spawn_scan_gated(
+            key,
+            root,
+            priority,
+            implicit_scan_disabled(std::env::var(WATCH_DAEMON_SCAN_ENV).ok().as_deref()),
+        );
+    }
+
+    /// CIB-095c: `spawn_scan` with the scoped opt-out decision injected (testable
+    /// without mutating process env). When `implicit_scan_disabled` is set, an
+    /// **implicit** `Background` auto-warm is suppressed — no scan is enqueued and
+    /// the machine is left untouched — while an **explicit** `Interactive`
+    /// `request_full_scan` is always honoured.
+    fn spawn_scan_gated(
+        &self,
+        key: &WorktreeKey,
+        root: &Path,
+        priority: ScanPriority,
+        implicit_scan_disabled: bool,
+    ) {
+        if implicit_scan_disabled && priority == ScanPriority::Background {
+            return;
+        }
         let ctx = self.scan_context();
         let machine = self.machine_handle(key);
         if let Some(job) = prepare_scan(&ctx, &machine, key, root, priority) {
@@ -1367,6 +1426,14 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
 
+        // N8 (CIB-095): trigger the first-contact warm-start restore on every
+        // graph-reading GCTX verb, not just `search_symbols` — so a fresh session
+        // reading via `find_dependents`/`find_callers`/`graph_stats`/
+        // `graph_edges`/`impact_of_change`/`affected_tests` is served the restored
+        // (stale) graph rather than `NotReady`. Background + self-gating: a no-op
+        // when persistence is off, the key is already warm, or a scan is enqueued.
+        state.spawn_restore(&key, key.as_path());
+
         // CE-7: the assurance snapshot always rides along.
         let workspace_assurance =
             state.with_machine(&key, correlation, |machine| machine.snapshot());
@@ -1421,6 +1488,14 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let canonical = canonical_root(&root)?;
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
+
+        // N8 (CIB-095): trigger the first-contact warm-start restore on every
+        // graph-reading GCTX verb, not just `search_symbols` — so a fresh session
+        // reading via `find_dependents`/`find_callers`/`graph_stats`/
+        // `graph_edges`/`impact_of_change`/`affected_tests` is served the restored
+        // (stale) graph rather than `NotReady`. Background + self-gating: a no-op
+        // when persistence is off, the key is already warm, or a scan is enqueued.
+        state.spawn_restore(&key, key.as_path());
 
         // CE-7: the assurance snapshot always rides along.
         let workspace_assurance =
@@ -1480,6 +1555,14 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
 
+        // N8 (CIB-095): trigger the first-contact warm-start restore on every
+        // graph-reading GCTX verb, not just `search_symbols` — so a fresh session
+        // reading via `find_dependents`/`find_callers`/`graph_stats`/
+        // `graph_edges`/`impact_of_change`/`affected_tests` is served the restored
+        // (stale) graph rather than `NotReady`. Background + self-gating: a no-op
+        // when persistence is off, the key is already warm, or a scan is enqueued.
+        state.spawn_restore(&key, key.as_path());
+
         // CE-7: the assurance snapshot always rides along.
         let workspace_assurance =
             state.with_machine(&key, correlation, |machine| machine.snapshot());
@@ -1519,6 +1602,14 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let canonical = canonical_root(&root)?;
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
+
+        // N8 (CIB-095): trigger the first-contact warm-start restore on every
+        // graph-reading GCTX verb, not just `search_symbols` — so a fresh session
+        // reading via `find_dependents`/`find_callers`/`graph_stats`/
+        // `graph_edges`/`impact_of_change`/`affected_tests` is served the restored
+        // (stale) graph rather than `NotReady`. Background + self-gating: a no-op
+        // when persistence is off, the key is already warm, or a scan is enqueued.
+        state.spawn_restore(&key, key.as_path());
 
         // CE-7: the assurance snapshot always rides along.
         let workspace_assurance =
@@ -1574,6 +1665,14 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let canonical = canonical_root(&root)?;
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
+
+        // N8 (CIB-095): trigger the first-contact warm-start restore on every
+        // graph-reading GCTX verb, not just `search_symbols` — so a fresh session
+        // reading via `find_dependents`/`find_callers`/`graph_stats`/
+        // `graph_edges`/`impact_of_change`/`affected_tests` is served the restored
+        // (stale) graph rather than `NotReady`. Background + self-gating: a no-op
+        // when persistence is off, the key is already warm, or a scan is enqueued.
+        state.spawn_restore(&key, key.as_path());
 
         // CE-7: the assurance snapshot always rides along.
         let workspace_assurance =
@@ -1634,6 +1733,14 @@ impl GctxDispatch for SaveTimeConn<'_> {
         let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
         let key = WorktreeKey::from_canonical(canonical);
 
+        // N8 (CIB-095): trigger the first-contact warm-start restore on every
+        // graph-reading GCTX verb, not just `search_symbols` — so a fresh session
+        // reading via `find_dependents`/`find_callers`/`graph_stats`/
+        // `graph_edges`/`impact_of_change`/`affected_tests` is served the restored
+        // (stale) graph rather than `NotReady`. Background + self-gating: a no-op
+        // when persistence is off, the key is already warm, or a scan is enqueued.
+        state.spawn_restore(&key, key.as_path());
+
         // CE-7: the assurance snapshot always rides along.
         let workspace_assurance =
             state.with_machine(&key, correlation, |machine| machine.snapshot());
@@ -1687,6 +1794,14 @@ fn gctx_egress_disabled() -> bool {
 /// the snippet opt-in `1`) leaves identity egress on. Trimming avoids a silent
 /// fail-open when an operator sets `" 0"` or a trailing-newline `"0\n"`.
 fn gctx_egress_disabled_from(raw: Option<&str>) -> bool {
+    raw.map(str::trim) == Some("0")
+}
+
+/// CIB-095c: pure resolution of the [`WATCH_DAEMON_SCAN_ENV`] scoped opt-out.
+/// The (whitespace-trimmed) value `0` disables the implicit background-scan
+/// trigger; unset or any other value leaves it on. Trimming avoids a silent
+/// fail-open when an operator sets `" 0"` or a trailing-newline `"0\n"`.
+fn implicit_scan_disabled(raw: Option<&str>) -> bool {
     raw.map(str::trim) == Some("0")
 }
 
@@ -2289,17 +2404,14 @@ fn invalid_query_reason(query: &SearchSymbolsQuery) -> Option<String> {
         }
     }
     if let Some(file) = query.file.as_deref() {
-        if Path::new(file).is_absolute() || has_windows_drive_absolute_prefix(file) {
-            return Some("file filter must be a workspace-relative path".to_string());
-        }
-        if Path::new(file)
-            .components()
-            .any(|c| matches!(c, std::path::Component::ParentDir))
-        {
-            return Some("file filter must not contain a `..` component".to_string());
-        }
-        if has_uri_scheme_prefix(file) {
-            return Some("file filter must not be scheme-prefixed (e.g. npm:, https:)".to_string());
+        // 095a: route the path-like `file` filter through the shared per-path
+        // hygiene so `search_symbols` rejects the same rooted forms the sibling
+        // GCTX verbs (e.g. `impact_of_change`) do — including a leading-slash /
+        // backslash `\\server\share` UNC root, which `Path::is_absolute` does
+        // NOT flag on Unix. The byte-cap / NUL checks above are retained because
+        // they also cover the non-path `name`/`language` filters.
+        if let Some(reason) = invalid_relative_path_reason("file filter", file) {
+            return Some(reason);
         }
     }
     None
@@ -3045,6 +3157,28 @@ mod tests {
             "a Windows absolute file filter must be rejected: {:?}",
             resp.outcome
         );
+    }
+
+    /// 095a: a `\\server\share\…` UNC root must be rejected by `search_symbols`
+    /// the same way `impact_of_change` rejects it. `Path::is_absolute` is false
+    /// for a UNC root on Unix, so the rejection relies on the leading-separator
+    /// check the sibling `invalid_relative_path_reason` already applies.
+    #[test]
+    fn gctx_search_rejects_unc_file_filter() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        for bad in ["\\\\server\\share\\x.ts", "/abs.ts"] {
+            let outcome = gctx_invalid_query(
+                tmp.path(),
+                SearchSymbolsQuery {
+                    file: Some(bad.to_string()),
+                    ..Default::default()
+                },
+            );
+            assert!(
+                matches!(outcome, SearchSymbolsOutcome::InvalidQuery { .. }),
+                "a rooted/UNC file filter {bad:?} must be rejected: {outcome:?}",
+            );
+        }
     }
 
     fn gctx_invalid_query(root: &Path, query: SearchSymbolsQuery) -> SearchSymbolsOutcome {
@@ -3881,6 +4015,57 @@ mod tests {
         assert!(!gctx_egress_disabled_from(Some("00")));
     }
 
+    /// CIB-095c: pure resolution of the scoped scan opt-out mirrors the egress
+    /// kill-switch contract — trimmed `0` disables; unset/other leaves it on.
+    #[test]
+    fn implicit_scan_disabled_only_on_trimmed_zero() {
+        assert!(implicit_scan_disabled(Some("0")));
+        assert!(implicit_scan_disabled(Some(" 0")));
+        assert!(implicit_scan_disabled(Some("0\n")));
+        assert!(!implicit_scan_disabled(None)); // unset → scan on (default)
+        assert!(!implicit_scan_disabled(Some("1")));
+        assert!(!implicit_scan_disabled(Some("")));
+        assert!(!implicit_scan_disabled(Some("false")));
+    }
+
+    /// CIB-095c: with the scoped opt-out set, a cold-key implicit `Background`
+    /// auto-warm does NOT enqueue a scan (the machine is left at its prior
+    /// `Stale` state); an explicit `Interactive` request is still honoured.
+    #[test]
+    fn implicit_background_scan_is_suppressed_by_scoped_opt_out() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = state();
+        let key =
+            WorktreeKey::from_canonical(std::fs::canonicalize(tmp.path()).expect("canonical"));
+
+        // A fresh cold key is `Stale` (never clean before a scan, B6).
+        assert_eq!(
+            state.machine_handle(&key).lock().expect("lock").state(),
+            AssuranceState::Stale,
+        );
+
+        // Opt-out set → the implicit Background auto-warm is a no-op: no enqueue,
+        // machine untouched.
+        state.spawn_scan_gated(&key, tmp.path(), ScanPriority::Background, true);
+        assert!(
+            !state.scan_coordinator().is_enqueued(&key),
+            "the scoped opt-out must suppress the implicit background scan",
+        );
+        assert_eq!(
+            state.machine_handle(&key).lock().expect("lock").state(),
+            AssuranceState::Stale,
+            "a suppressed scan must not transition the machine to Pending",
+        );
+
+        // An explicit Interactive request is never suppressed by the opt-out.
+        state.spawn_scan_gated(&key, tmp.path(), ScanPriority::Interactive, true);
+        assert_ne!(
+            state.machine_handle(&key).lock().expect("lock").state(),
+            AssuranceState::Stale,
+            "an explicit request_full_scan must still be honoured under the opt-out",
+        );
+    }
+
     /// CE-10: a readable result classifies `hit`/`miss` by content; the daemon
     /// telemetry binds to that PII-free enum.
     #[test]
@@ -4132,6 +4317,54 @@ mod tests {
             resp.workspace_assurance.state,
             AssuranceState::Stale,
             "a restored-but-not-reconciled worktree must serve Stale, never Certified/Clean",
+        );
+    }
+
+    /// N8 (CIB-095): a graph-reading GCTX verb OTHER than `search_symbols`
+    /// (`find_dependents` here) triggers the first-contact warm-start restore on a
+    /// cold key — previously only `search_symbols` did. With a staged snapshot the
+    /// background restore warms the cache so a follow-up read is served the
+    /// restored graph rather than `NotReady`.
+    #[cfg(unix)]
+    #[test]
+    fn gctx_find_dependents_triggers_first_contact_restore() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let dir = tmp.path().join("graph-cache");
+        let canonical = std::fs::canonicalize(tmp.path()).expect("canonicalize");
+        let key = WorktreeKey::from_canonical(canonical.clone());
+
+        // Stage a snapshot on disk for this worktree.
+        let writer = state().with_snapshot_dir(dir.clone());
+        writer.cache.apply_delta(
+            &key,
+            ChangeKind::Create,
+            file_symbols("src/a.ts", &["alpha"], 0),
+        );
+        writer.persist_all_on_shutdown();
+
+        // A fresh daemon (cold cache) wired to the same snapshot dir.
+        let state = state().with_snapshot_dir(dir.clone());
+        assert!(!state.cache.contains(&key), "fresh daemon starts cold");
+
+        // `find_dependents` on the cold key must now kick off the background
+        // restore (N8: not just `search_symbols`).
+        let mut conn = SaveTimeConn::new(&state);
+        let _ = conn
+            .find_dependents(&dependents_request(tmp.path(), "src/a.ts", None))
+            .expect("admitted");
+
+        // The restore runs on the background pool; poll briefly for it to land.
+        let warmed = (0..200).any(|_| {
+            if state.cache.contains(&key) {
+                true
+            } else {
+                std::thread::sleep(std::time::Duration::from_millis(5));
+                false
+            }
+        });
+        assert!(
+            warmed,
+            "find_dependents on a cold key must trigger the warm-start restore",
         );
     }
 
@@ -4470,5 +4703,72 @@ mod tests {
         let m = state.snapshot_metrics();
         assert_eq!(m.write_error, 1, "a failed shutdown write must be counted");
         assert_eq!(m.write_ok, 0);
+    }
+
+    /// N2 / CIB-095d: the shutdown flush still persists when offloaded to
+    /// `spawn_blocking` (the exact pattern `run_foreground` now uses on both exit
+    /// paths) — the blocking task is awaited, so the writes complete before exit.
+    #[cfg(unix)]
+    #[test]
+    fn persist_on_shutdown_via_spawn_blocking_still_writes() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let dir = tmp.path().join("graph-cache");
+        let key = WorktreeKey::from_canonical(std::path::PathBuf::from("/ws-blocking"));
+
+        let state = std::sync::Arc::new(state().with_snapshot_dir(dir.clone()));
+        state.cache.apply_delta(
+            &key,
+            ChangeKind::Create,
+            file_symbols("src/a.ts", &["alpha"], 0),
+        );
+
+        // Mirror `run_foreground`'s shutdown offload: persist on a blocking pool
+        // thread, awaited on a current-thread runtime.
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        rt.block_on(async {
+            let state = std::sync::Arc::clone(&state);
+            tokio::task::spawn_blocking(move || state.persist_all_on_shutdown())
+                .await
+                .expect("blocking persist task");
+        });
+
+        assert!(
+            std::fs::read_dir(&dir).unwrap().next().is_some(),
+            "the offloaded shutdown flush must still write a snapshot",
+        );
+        assert_eq!(state.snapshot_metrics().write_ok, 1);
+    }
+
+    /// CIB-095f / cross-ref: a key whose resident graph carries a
+    /// non-workspace-relative path makes `from_graphs` reject the build. The
+    /// shutdown flush must NOT silently skip it — it increments `write_error`
+    /// (the snapshot is lost) and warns, consistent with `persist_after_scan`.
+    #[cfg(unix)]
+    #[test]
+    fn shutdown_from_graphs_build_error_counts_write_error_not_silent_skip() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let dir = tmp.path().join("graph-cache");
+        let key = WorktreeKey::from_canonical(std::path::PathBuf::from("/ws-build-reject"));
+        let state = state().with_snapshot_dir(dir);
+        assert!(state.persistence_enabled());
+
+        // An ABSOLUTE file path in a resident symbol → `from_graphs` rejects it
+        // with `NonRelativePath` (ADR-069 §8).
+        state.cache.apply_delta(
+            &key,
+            ChangeKind::Create,
+            file_symbols("/abs/escape.ts", &["a"], 0),
+        );
+
+        state.persist_all_on_shutdown();
+        let m = state.snapshot_metrics();
+        assert_eq!(
+            m.write_error, 1,
+            "a from_graphs build rejection must be counted, not silently skipped",
+        );
+        assert_eq!(m.write_ok, 0, "nothing was successfully written");
     }
 }

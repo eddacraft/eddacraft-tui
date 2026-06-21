@@ -1565,11 +1565,35 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
             listener.serve(listener_token).await
         }));
         let mut tick = tokio::time::interval(Duration::from_millis(250));
+        // CIB-095d + N2: persist every warm worktree's graph on **either** exit
+        // path (graceful `token.cancelled()` AND listener-failure) so a warm
+        // graph is never silently lost when persistence is enabled. Offloaded to
+        // `spawn_blocking` (N2) so the synchronous snapshot writes never block the
+        // single-thread tokio runtime; awaited so shutdown still completes the
+        // writes before exit. No-op when persistence is off.
+        let persist_on_shutdown = || {
+            let state = Arc::clone(&save_time_state);
+            async move {
+                if let Err(err) =
+                    tokio::task::spawn_blocking(move || state.persist_all_on_shutdown()).await
+                {
+                    tracing::warn!(
+                        target: "anvil_intercept::snapshot",
+                        error = %err,
+                        "shutdown snapshot flush task panicked",
+                    );
+                }
+            }
+        };
         loop {
             tokio::select! {
                 biased;
                 () = token.cancelled() => break,
                 result = listener_handle.join() => {
+                    // CIB-095d: persist before propagating the listener failure —
+                    // this path previously `return`ed without flushing, dropping
+                    // every warm graph even with persistence enabled.
+                    persist_on_shutdown().await;
                     result
                         .context("intercept IPC listener task panicked")?
                         .context("intercept IPC listener failed")?;
@@ -1590,10 +1614,9 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
 
         // DSV-030 (ADR-069 §4): graceful shutdown (the `token.cancelled()` path
         // above) — persist every warm worktree's graph so the next start re-warms
-        // from disk. No-op when persistence is off. Not reached on the
-        // listener-failure path (which `return`s inside the loop); a crash skips
-        // it too, so a crash-then-restart still pays one cold rebuild per key.
-        save_time_state.persist_all_on_shutdown();
+        // from disk. No-op when persistence is off. A crash skips it, so a
+        // crash-then-restart still pays one cold rebuild per key.
+        persist_on_shutdown().await;
 
         if let Ok(result) =
             tokio::time::timeout(Duration::from_secs(1), listener_handle.join()).await

@@ -449,6 +449,24 @@ admitted-workspace allow-list. With the variable unset and no daemon live,
 `anvil status` prints an explicit off-state line naming `anvil start`; only an
 explicit `ANVIL_WATCH_DAEMON=0` opt-out hides the save-time line.
 
+### Implicit background scans
+
+The daemon now warms a worktree's graph **opportunistically** on first contact:
+`anvil status` (`workspace_status`) and the GCTX assistant queries spawn a
+background full scan when they hit a cold key, so the next query need not wait
+for a manual save. This means `workspace_status` went from a read-only probe to
+a scan-triggering call.
+
+Set `ANVIL_WATCH_DAEMON_SCAN=0` to disable **only** that implicit
+background-scan trigger while keeping the daemon serving — reads still answer
+from whatever warm state exists, but a cold key is no longer auto-warmed by a
+probe. This is the scoped lever for operators who want the daemon's read surface
+without the first-contact scan cost; `ANVIL_WATCH_DAEMON=0` remains the
+full-bypass lever (no daemon routing at all). An **explicit** `anvil scan` /
+`request_full_scan` is never suppressed by `ANVIL_WATCH_DAEMON_SCAN=0` — only
+the opportunistic auto-warm. The value is trimmed before matching, so `" 0"` /
+`"0\n"` also disable; any other value (or unset) leaves the auto-warm on.
+
 ## Workspace confinement
 
 The intercept daemon serves save-time validation for a set of workspace roots.
@@ -554,6 +572,11 @@ configuration, including:
   (no routing, reuse, start, or offer), or `1` (or `true`/`on`/`yes`) to force
   routing for diagnostics. See
   [Save-time validation through the daemon](#save-time-validation-through-the-daemon)
+- `ANVIL_WATCH_DAEMON_SCAN` — set `0` to disable only the **implicit**
+  background-scan trigger (the first-contact auto-warm fired by `anvil status` /
+  GCTX queries on a cold key) while keeping the daemon serving; an explicit
+  `request_full_scan` is never suppressed. See
+  [Implicit background scans](#implicit-background-scans)
 - `ANVIL_NO_DAEMON` — set to a non-empty value to stop `anvil start` from
   auto-starting the per-user save-time daemon (the environment equivalent of
   `--no-daemon`); a daemon already running is still reused. See the

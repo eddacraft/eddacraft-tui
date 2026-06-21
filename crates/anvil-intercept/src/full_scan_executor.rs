@@ -47,8 +47,8 @@ use std::panic::AssertUnwindSafe;
 // coordinator maps.
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError, mpsc};
-use std::time::Duration;
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::time::{Duration, Instant};
 
 use anvil_graph_cache::certify::ChangeKind;
 use anvil_intercept_proto::protocol::{AssuranceState, ScanCoverage, StaleReason};
@@ -280,35 +280,23 @@ impl PreparedScan {
             guard,
         } = self;
 
-        // ADR-085 Decision 1 watchdog: a sibling thread fires the scan's cancel
-        // (via the coordinator) and sets `timed_out` if the scan overruns
-        // `SCAN_TIMEOUT`. The scan loop observes `timed_out` at its next chunk
-        // boundary and aborts to `Stale(ScanTimeout)`. The job signals `done` on
-        // exit (completion or panic) so the watchdog returns promptly instead of
-        // lingering for the full budget.
+        // ADR-085 Decision 1 timeout (CIB-095e): an in-loop deadline replaces the
+        // former per-job watchdog OS thread (one spawn+join per sub-second scan).
+        // The scan body checks `Instant::now() >= deadline` at the SAME
+        // chunk-boundary granularity the old watchdog's `cancel` took effect at
+        // (`run_chunked_scan` polls `is_cancelled` per chunk), so the timeout
+        // bound and the `timed_out`-vs-interactive-preemption distinction are
+        // preserved — without a raw thread, channel, or join. On overrun the body
+        // trips `timed_out` and fires the segment's own cancel, so the chunk loop
+        // yields at its next boundary and `run_scan_loop` aborts to
+        // `Stale(ScanTimeout)`. A scan that finishes before the deadline simply
+        // never trips it.
         let timed_out = Arc::new(AtomicBool::new(false));
-        let (done_tx, done_rx) = mpsc::channel::<()>();
-        let watchdog = {
-            let coordinator = ctx.coordinator.clone();
-            let key = key.clone();
-            let timed_out = Arc::clone(&timed_out);
-            std::thread::spawn(move || {
-                if done_rx.recv_timeout(SCAN_TIMEOUT).is_err() {
-                    // Timed out (or the job dropped the sender mid-flight): trip
-                    // the flag, then cancel so the chunk loop yields and observes it.
-                    timed_out.store(true, Ordering::Release);
-                    coordinator.cancel(&key);
-                }
-            })
-        };
+        let deadline = Instant::now() + SCAN_TIMEOUT;
 
         let outcome = std::panic::catch_unwind(AssertUnwindSafe(|| {
-            run_scan_loop(&ctx, &machine, &key, &root, &timed_out);
+            run_scan_loop(&ctx, &machine, &key, &root, &timed_out, deadline);
         }));
-
-        // Stop the watchdog (idempotent if it already fired).
-        let _ = done_tx.send(());
-        let _ = watchdog.join();
 
         if outcome.is_err() {
             // The scan panicked mid-flight (e.g. a parser bug). The graph is
@@ -425,6 +413,7 @@ fn run_segments(
     anchor: &WorkspaceAnchor,
     files: &[PathBuf],
     timed_out: &AtomicBool,
+    deadline: Instant,
 ) -> bool {
     let mut start = 0usize;
     loop {
@@ -433,6 +422,17 @@ fn run_segments(
         with_locked_machine_trace(machine, root, |m| m.start_scan(now_rfc3339()));
 
         let outcome = run_chunked_scan(&files[start..], SCAN_CHUNK, &cancel, |path| {
+            // CIB-095e: enforce the scan-timeout deadline inline (replacing the
+            // per-job watchdog thread). Checked per file; on overrun trip
+            // `timed_out` and request the segment's own cancel so `run_chunked_scan`
+            // yields at its next chunk boundary — identical to the old watchdog's
+            // `coordinator.cancel(key)` effect, but with no extra thread. The
+            // `is_cancelled` short-circuit keeps the post-deadline cost to one
+            // bool load per remaining file (no repeated `Instant::now`).
+            if !cancel.is_cancelled() && Instant::now() >= deadline {
+                timed_out.store(true, Ordering::Release);
+                cancel.cancel();
+            }
             apply_file(
                 &ctx.cache,
                 key,
@@ -475,6 +475,7 @@ fn run_scan_loop(
     key: &WorktreeKey,
     root: &Path,
     timed_out: &AtomicBool,
+    deadline: Instant,
 ) {
     // Decision 3: no parser → abort to `Stale`, never start a scan / produce an
     // empty `Clean` graph.
@@ -531,6 +532,7 @@ fn run_scan_loop(
             &anchor,
             files,
             timed_out,
+            deadline,
         ) {
             with_locked_machine_trace(machine, root, AssuranceMachine::scan_timeout);
             tracing::warn!(
@@ -574,6 +576,12 @@ fn run_scan_loop(
 
         match completion {
             ScanCompletion::Clean | ScanCompletion::Bounded => {
+                // CIB-095b: the reconcile re-applied every on-disk file (so the
+                // warm `all_imports` + cross-file trust are now authoritative) and
+                // pruned anything gone from disk. Clear the restored stand-in flag
+                // so verdicts may certify again — the empty-`all_imports` window
+                // that could drop cross-file `Privileged` trust is closed.
+                ctx.cache.clear_restored(key);
                 // DSV-030 (ADR-069 §4): persist the freshly-built warm graph
                 // after a successful scan (never per-save). Best-effort — a write
                 // failure logs and degrades, never wedges the scan.
@@ -1288,11 +1296,77 @@ mod tests {
         );
         let machine = machine();
 
-        run_scan_loop(&ctx, &machine, &key, root, &timed_out);
+        // A far-future deadline so this test exercises the EXTERNAL cancel +
+        // `timed_out` path (an interactive/watchdog-style trip), not the inline
+        // deadline — proving that path is unchanged by CIB-095e.
+        let deadline = Instant::now() + Duration::from_hours(1);
+        run_scan_loop(&ctx, &machine, &key, root, &timed_out, deadline);
 
         let snap = lock(&machine).snapshot();
         assert_eq!(snap.state, AssuranceState::Stale);
         assert_eq!(snap.reason, Some(StaleReason::ScanTimeout));
+    }
+
+    /// CIB-095e: the inline deadline (replacing the per-job watchdog OS thread)
+    /// trips `Stale(ScanTimeout)` on overrun with no extra thread. A deadline in
+    /// the past fires on the first file's per-file check, cancels the segment, and
+    /// the chunk loop yields → `run_scan_loop` aborts to `ScanTimeout`.
+    #[test]
+    fn inline_deadline_aborts_to_stale_scan_timeout() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        let n = SCAN_CHUNK + 10;
+        for i in 0..n {
+            write(root, &format!("f{i}.ts"), &format!("export s{i}"));
+        }
+
+        let ctx = line_ctx();
+        let key = key_for(root);
+        let machine = machine();
+        let timed_out = Arc::new(AtomicBool::new(false));
+
+        // Deadline already in the past → the first per-file check trips it.
+        let deadline = Instant::now()
+            .checked_sub(Duration::from_secs(1))
+            .expect("deadline in the past");
+        run_scan_loop(&ctx, &machine, &key, root, &timed_out, deadline);
+
+        let snap = lock(&machine).snapshot();
+        assert_eq!(snap.state, AssuranceState::Stale);
+        assert_eq!(
+            snap.reason,
+            Some(StaleReason::ScanTimeout),
+            "an overrun past the inline deadline must abort to ScanTimeout",
+        );
+        assert!(
+            timed_out.load(Ordering::Acquire),
+            "the inline deadline must trip the timed_out flag",
+        );
+        // No watchdog thread to join — the scan ran entirely on this thread.
+        assert!(!ctx.coordinator.is_enqueued(&key));
+    }
+
+    /// CIB-095e: a scan that finishes before the deadline completes normally —
+    /// the inline timeout never trips.
+    #[test]
+    fn inline_deadline_not_tripped_on_a_fast_scan() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        write(root, "a.ts", "export a");
+
+        let ctx = line_ctx();
+        let key = key_for(root);
+        let machine = machine();
+        let timed_out = Arc::new(AtomicBool::new(false));
+
+        let deadline = Instant::now() + Duration::from_hours(1);
+        run_scan_loop(&ctx, &machine, &key, root, &timed_out, deadline);
+
+        assert_eq!(lock(&machine).state(), AssuranceState::Clean);
+        assert!(
+            !timed_out.load(Ordering::Acquire),
+            "a fast scan must not trip the deadline",
+        );
     }
 
     #[test]
@@ -1336,6 +1410,46 @@ mod tests {
         assert!(
             !files.contains(&"dead.ts".to_string()),
             "a file deleted while down must be pruned, not survive into Clean: {files:?}",
+        );
+    }
+
+    /// CIB-095b: the reconcile full scan clears the restored stand-in flag once
+    /// it completes `Clean`, so post-reconcile verdicts may certify again (the
+    /// empty-`all_imports` trust window is closed by the authoritative rebuild).
+    #[test]
+    fn reconcile_scan_clears_the_restored_flag() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let root = tmp.path();
+        write(root, "a.ts", "export a");
+
+        let ctx = line_ctx();
+        let key = key_for(root);
+
+        let mut sym = SymbolGraph::new();
+        sym.add_symbol(SymbolNode {
+            id: 1,
+            kind: SymbolKind::Function,
+            name: "s".to_string(),
+            visibility: Visibility::Public,
+            file: "a.ts".to_string(),
+            trust_level: TrustLevel::Unknown,
+        })
+        .unwrap();
+        assert!(ctx.cache.restore(&key, sym, DependencyGraph::new()));
+        assert!(
+            ctx.cache.is_restored(&key),
+            "a freshly restored entry is a stand-in"
+        );
+
+        let machine = machine();
+        prepare_scan(&ctx, &machine, &key, root, ScanPriority::Background)
+            .expect("enqueue")
+            .run();
+
+        assert_eq!(lock(&machine).state(), AssuranceState::Clean);
+        assert!(
+            !ctx.cache.is_restored(&key),
+            "the reconcile scan must clear the restored flag on completion"
         );
     }
 
