@@ -69,14 +69,15 @@ crates.io publication exists (tags `eddacraft-tui-v0.2.x`, `-v0.3.0`) but is the
 crate. File references in this doc to upstream code use the
 `crates/eddacraft-tui/src/...` path prefix.
 
-`anvil-archive/eddacraft-tui-local/` is the **historical** local fork, kept read-only
-for reference. It was the pre-TUIEXTRACT in-monorepo crate before the upstream
-moved to a separate repository (`eddacraft/eddacraft`) and was first published
-on crates.io (`plans/archive/modules/eddacraft-tui-shared.aps.md:10-12`); the
-crate has since returned to the monorepo as a path crate (ADR-047). The archive
-diverges from the live crate — most notably it does **not** contain the `editor`
-widget, which was added after extraction. Treat the archive as a git fossil; the
-path crate is the source of truth.
+`anvil-archive/eddacraft-tui-local/` is the **historical** local fork, kept
+read-only for reference. It was the pre-TUIEXTRACT in-monorepo crate before the
+upstream moved to a separate repository (`eddacraft/eddacraft`) and was first
+published on crates.io
+(`plans/archive/modules/eddacraft-tui-shared.aps.md:10-12`); the crate has since
+returned to the monorepo as a path crate (ADR-047). The archive diverges from
+the live crate — most notably it does **not** contain the `editor` widget, which
+was added after extraction. Treat the archive as a git fossil; the path crate is
+the source of truth.
 
 ## Architecture diagram
 
@@ -851,11 +852,11 @@ terminals — see Known gaps G-03.
 
 The live `eddacraft-tui` (path crate, v0.3.0) includes
 `crates/eddacraft-tui/src/widgets/editor.rs` (1005 lines), but the
-`anvil-archive/eddacraft-tui-local/` fork does **not** contain an `editor.rs` file —
-confirmed via `find` over the archive tree. The TUIEXTRACT module is marked
-Complete (`plans/archive/modules/eddacraft-tui-shared.aps.md:10-12`), but the
-archive snapshot pre-dates the editor's introduction. Future readers diffing the
-archive against the live crate will see this as a real divergence, not just
+`anvil-archive/eddacraft-tui-local/` fork does **not** contain an `editor.rs`
+file — confirmed via `find` over the archive tree. The TUIEXTRACT module is
+marked Complete (`plans/archive/modules/eddacraft-tui-shared.aps.md:10-12`), but
+the archive snapshot pre-dates the editor's introduction. Future readers diffing
+the archive against the live crate will see this as a real divergence, not just
 whitespace drift.
 
 **Risk:** Low — the live path crate is the source of truth; the archive is not

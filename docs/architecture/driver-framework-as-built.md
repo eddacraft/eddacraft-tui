@@ -813,9 +813,9 @@ and where they don't:
    (telemetry mirror), RTAI-009 (architecture doc + ADR cross-links), and
    DRVR-003 (VSCode editor driver) are out of cut per ADR-033 — the IDE/MCP
    surfaces are archived (`anvil-archive/anvil-vscode-extension/`,
-   `anvil-archive/anvil-mcp-server/`). DRVR-003 stays deferred until a new extension
-   package is created on the daemon-driver path; the rest of DRVR (DRVR-001,
-   -002, -005) continues against existing INTD dependencies. Ref:
+   `anvil-archive/anvil-mcp-server/`). DRVR-003 stays deferred until a new
+   extension package is created on the daemon-driver path; the rest of DRVR
+   (DRVR-001, -002, -005) continues against existing INTD dependencies. Ref:
    `plans/decisions/033-park-ide-mcp-retire-ts-scanner.md`,
    `plans/archive/modules/surface-drivers.aps.md:17-29`.
 2. **Driver-version negotiation that survives daemon restart not addressed.** v1
