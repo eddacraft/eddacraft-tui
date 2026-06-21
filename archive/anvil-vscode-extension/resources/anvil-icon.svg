@@ -1,4 +1,0 @@
-<svg width="256" height="256" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
-  <path fill="currentColor" d="M0 0h8v4H4v24h4v4H0V0zm24 0h8v32h-8v-4h4V4h-4V0z"/>
-  <path fill="currentColor" d="M10 7h4v2h4V7h4v8h-4v-2h-4v2h-4V7zm0 10h4v2h4v-2h4v8h-4v-2h-4v2h-4v-8z"/>
-</svg>
