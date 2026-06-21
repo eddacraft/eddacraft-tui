@@ -15,6 +15,7 @@
     ".clawpatch/**",
     ".worktrees/**",
     ".claude/worktrees/**",
+    "archive/**",
     "coverage/**",
     "out-tsc/**",
     "tmp/**",
