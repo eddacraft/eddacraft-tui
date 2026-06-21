@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 49/90    |
+| CIB | —     | In Progress | 49/95    |
 
 ## Purpose
 
@@ -2493,3 +2493,121 @@ archive.
   security-adjacent). Pre-existing in the shared usage path, surfaced by the FP
   reuse.
 - **Confidence:** high — a focused flag change on the existing open paths.
+
+### CIB-091: GCTX assistant-facing egress hardening (v0.9.0 council, cut-blocker)
+
+- **Status:** Proposed
+- **Intent:** Close the GCTX egress findings that survived the 2026-06-21
+  v0.9.0-beta release council's skeptic. Headline is **CE-3**: the
+  sensitive-path egress deny-list is entirely unimplemented, so on a fresh
+  install the workspace-relative paths of secret/credential files (`.env*`,
+  `*.pem`, `secrets/`, `id_rsa`, `.aws/`, `.ssh/`) reach the connected assistant
+  as identity (the substrate scans with `standard_filters(false)`). This is a
+  PV-9 APPROVE-WITH-CONDITIONS condition and the v0.9.0 cut-blocker.
+- **Expected Outcome:** `is_sensitive_egress_path` applied across all six
+  `collect_*` projection paths, matches dropped before the DTO is sealed,
+  counted in `RedactionSummary.omitted_sensitive_paths`, with a structural
+  never-appears test (091a). Plus: `workspace_root` 512B/NUL validation →
+  `InvalidQuery` (091b); `collect_impact_with_budget` sort moved off the cache
+  Mutex (091c); a per-MCP-session byte ceiling for `graph://` reads, or a
+  tracked Phase-1 limitation (091d).
+- **Files:** `crates/anvil-gctx-egress/src/lib.rs`,
+  `crates/anvil-intercept/src/save_time.rs`,
+  `crates/anvil-cli/src/mcp/resources/mod.rs`.
+- **Validation:** structural test that sensitive paths never appear in any
+  projection; `InvalidQuery` classification test; impact-path latency unchanged.
+- **Identified From:** v0.9.0-beta release council (CE-3 verifier-confirmed high;
+  details in `plans/audits/2026-06-21-v090-council-survivors.md`).
+- **Confidence:** high — CE-3 is well-scoped; 091d may be deferred with a note.
+
+### CIB-092: Persistence / warm-start wire-integrity & observability (v0.9.0 council)
+
+- **Status:** Proposed
+- **Intent:** Close the warm-start persistence findings (default-off,
+  `ANVIL_PERSIST_GRAPH`) from the v0.9.0 council. Headline highs: the ADR-069 §6
+  golden wire-bytes fixture is missing (writer+reader drift together, so a
+  postcard/codec change silently loads a valid-but-wrong warm graph with no CI
+  signal), and the §10 metric counters are absent (the §7 graduation gate is
+  unverifiable — graduation-blocker for the default-on flip, not the cut).
+- **Expected Outcome:** golden `&[u8]` fixture asserts `to_bytes()` of the
+  standard fixture, forcing a `SNAPSHOT_BACKING_SCHEMA_VERSION` bump on drift
+  (092a); `snapshot_load_result`/`snapshot_write_result` counters via the
+  `TelemetryEmitter` fanout (092b); orphan `.snap` startup sweep (092c); ADR-069
+  §4 openat2 discipline on snapshot I/O (092d); drop the undeclared `sha2` dep
+  for a non-crypto hash (092e); §3 verdict-gate end-to-end test (092f);
+  fsync_dir-after-rename semi-success (092g); ADR-035 notification on persist
+  write failure (092h).
+- **Files:** `crates/anvil-graph-cache/src/{snapshot.rs,snapshot_io.rs}`,
+  `crates/anvil-graph-cache/Cargo.toml`,
+  `crates/anvil-intercept/src/{save_time.rs,full_scan_executor.rs}`.
+- **Validation:** committed wire-bytes fixture + drift test; counter-emission
+  test; orphan-sweep test; verdict-gate restore-window test.
+- **Identified From:** v0.9.0-beta release council (092a/092b verifier-confirmed
+  high; details in `plans/audits/2026-06-21-v090-council-survivors.md`).
+- **Confidence:** high for 092a/092b/092c/092e; medium for the rest.
+
+### CIB-093: GV2 substrate hot-path & trust correctness (v0.9.0 council)
+
+- **Status:** Proposed
+- **Intent:** Close the GV2 graph-substrate mediums from the v0.9.0 council. The
+  load-bearing one is the privilege gate: `PRIVILEGED_MODULES` omits
+  spawn/sandbox-escape Node built-ins (`worker_threads`, `vm`, `v8`, `dns`,
+  `tls`, `dgram`), so a newly imported/re-exported privileged capability
+  certifies CLEAN. The rest are hot-path constant-factor regressions under the
+  cache Mutex and a snapshot-version aliasing bug.
+- **Expected Outcome:** `PRIVILEGED_MODULES` extended (093a); reexport-privilege
+  read off `trust_level` / memoised rather than re-walked per file (093b);
+  `known_files` built via O(files) `file_names()` not O(symbols)
+  `node_weights()` (093c); a latency span + WARN threshold on `annotate_trust`
+  (093d); an independent `SNAPSHOT_BACKING_SCHEMA_VERSION` const (093e).
+- **Files:** `crates/anvil-graph-cache/src/{trust.rs,certify.rs,incremental.rs,snapshot.rs}`,
+  `crates/anvil-intercept/src/kernel_cache.rs`.
+- **Validation:** trust-gate test covering the new privileged modules;
+  micro-benchmark/parity unchanged; snapshot-version independence test.
+- **Identified From:** v0.9.0-beta release council (all medium; details in
+  `plans/audits/2026-06-21-v090-council-survivors.md`).
+- **Confidence:** high — 093a is a product call + list edit; the rest are
+  localised hot-path swaps.
+
+### CIB-094: USAGE producer controls & robustness (v0.9.0 council)
+
+- **Status:** Proposed
+- **Intent:** Close the USAGE-analytics mediums from the v0.9.0 council. The CLI
+  `command.invoked` producer has no operator kill-switch (asymmetric with the
+  daemon DPO opt-out), a non-UTF-8 byte permanently defeats retention trimming,
+  the conformance test overstates its coverage, a daemon-down unblock goes
+  unrecorded, and the operator-control docs are stale.
+- **Expected Outcome:** `ANVIL_USAGE_DISABLE` kill-switch consulted by
+  `record_invocation` (094a); `trim_usage_sidecar_at` switched to a
+  line-skipping reader + non-UTF-8 test (094b); conformance test iterates the
+  registered command list or the claim is corrected (094c); CLI row emitted on
+  daemon-down unblock (094d); retention + env-knob docs refreshed (094e).
+- **Files:** `crates/anvil-cli/src/{usage.rs,usage_views.rs,main.rs,commands/intercept.rs}`,
+  `docs/observability/usage-analytics.md`.
+- **Validation:** kill-switch test; non-UTF-8 mid-file trim test; full-coverage
+  conformance iteration; daemon-down row test.
+- **Identified From:** v0.9.0-beta release council (all medium; details in
+  `plans/audits/2026-06-21-v090-council-survivors.md`).
+- **Confidence:** high — small, well-scoped CLI changes.
+
+### CIB-095: Intercept hot-path follow-through (v0.9.0 council)
+
+- **Status:** Proposed
+- **Intent:** Close the intercept/save-time follow-through mediums from the
+  v0.9.0 council (surface gate was PASS — no blockers). `search_symbols` omits
+  the UNC-path filter its sibling verbs enforce; the restore→reconcile window
+  needs a certify-verdict guard; the new implicit background scan needs a scoped
+  opt-out + doc; the listener-failure exit loses warm graphs; a per-job watchdog
+  thread and a shutdown write-failure counter are loose ends.
+- **Expected Outcome:** `search_symbols` routed through
+  `invalid_relative_path_reason` (095a); confirm + guard non-certifiable
+  restore window (095b); `ANVIL_WATCH_DAEMON_SCAN=0` scoped opt-out + release
+  note (095c); `persist_all_on_shutdown()` on the listener-failure exit (095d);
+  watchdog via the existing cancel channel (095e); `dropped_snapshot_writes`
+  observation pairing with CIB-092b (095f).
+- **Files:** `crates/anvil-intercept/src/{save_time.rs,kernel_cache.rs,lib.rs,full_scan_executor.rs}`.
+- **Validation:** UNC-rejection test for `search_symbols`; restore-window
+  verdict test; listener-failure persist test.
+- **Identified From:** v0.9.0-beta release council (all medium/low; details in
+  `plans/audits/2026-06-21-v090-council-survivors.md`).
+- **Confidence:** high — localised, each with a clear test.
