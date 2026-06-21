@@ -261,7 +261,6 @@ independently reproduced at HEAD; these are net-new gaps).
       sink non-blocking) + CIB-095 (`persist_all_on_shutdown` → `spawn_blocking`)._
 - [x] **N5 raw `io::Error` Display on the `Io` arm reaches the wire** — _MED →
       CIB-091b follow-up: static reason, detail server-side._
-- [ ] **N6 CRC-32 sole snapshot integrity gate** — _MED → CIB-092: accept under
-      same-uid boundary, document CRC-32 as non-integrity-bearing._
-- [ ] **N7 suffix-match import re-bind** — _MED → CIB-093 follow-up / tracked._
+- [x] **N6 CRC-32 sole snapshot integrity gate** — _MED → CIB-092: accepted under the same-uid boundary; CRC-32 documented as a corruption check, NOT integrity/authenticity, in snapshot.rs (strong digest deferred unless the boundary moves)._
+- [ ] **N7 suffix-match import re-bind** — _MED → CIB-093 TRACKED FOLLOW-UP (resolution-correctness, not a privilege bypass; needs careful nearest-path disambiguation in incremental.rs — deferred to its own change, not blocking the cut)._
 - [x] **N8 `spawn_restore` dead no-op + verb coverage** — _LOW → CIB-095._

@@ -24,6 +24,15 @@
 //! that still decodes cleanly (e.g. an enum-discriminant shift) would otherwise
 //! survive the content-hash reconcile unchallenged.
 //!
+//! **CRC-32 is a corruption check, NOT an integrity/authenticity guarantee
+//! (CIB-092 / N6).** It is not collision-resistant: a same-uid writer to the
+//! graph-cache dir can forge a body with a valid CRC. The accepted control is
+//! the machine-local, owner-only, same-uid persistence boundary (snapshots are
+//! default-off, `0600`, written under a `0700` state dir) — see PV-12. Do not
+//! treat a valid CRC as proof the snapshot was written by this daemon. Any move
+//! off that boundary (shared CI container, off-machine transfer) needs a
+//! keyed/strong digest and a fresh privacy review before it is relied upon.
+//!
 //! # The allowlist (PV-6 / PV-7d — every `String`-typed field, and why each is
 //! identity-only)
 //!
