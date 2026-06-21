@@ -114,9 +114,10 @@ fn unknown_query_key_is_rejected() {
 fn graph_egress_credit_refuses_once_exhausted() {
     // CIB-091d: the per-session graph:// byte credit refuses a read once the
     // cumulative payload exceeds the ceiling. The accumulator is a process-global
-    // static (one process == one stdio session), so this test spends the whole
-    // ceiling in a single charge — deterministic regardless of any small charges
-    // other tests in the same process may have made first.
+    // static (one process == one stdio session); the test guard serialises the
+    // credit-touching tests and zeroes the counter so this starts from a known
+    // fresh budget regardless of run order or parallelism.
+    let _guard = lock_and_reset_graph_egress_for_test();
     let under = charge_graph_egress(1);
     assert!(
         under.is_ok(),

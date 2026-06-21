@@ -58,6 +58,16 @@ Crate(s): `anvil-gctx-egress`, `anvil-cli/src/mcp`, `anvil-intercept/src/save_ti
       read-credit counter (~8 MiB); deduct serialized size; structured
       `quota_exceeded` on exhaustion. (If deferred: document as a tracked
       Phase-1 limitation.)
+      - _Council survivor follow-up:_ the byte ceiling now also covers the GCTX
+        **tool-call** surface (`anvil_search_symbols`, `find_dependents`,
+        `find_callers`, `impact_of_change`, `affected_tests`). Those carry the
+        same identity data and were previously bounded only by per-page
+        pagination caps, so an assistant could reassemble the graph via
+        `tools/call` past the resource cap. The dispatch
+        (`commands/mcp.rs::tools_call_response`) now charges each GCTX tool's
+        successful payload against the **same** `GRAPH_EGRESS_SPENT` credit
+        (`charges_graph_egress` flag on `ToolDefinition`) and returns the same
+        `quota_exceeded` result on exhaustion.
 
 ## CIB-092 — Persistence / warm-start wire-integrity & observability
 

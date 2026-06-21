@@ -53,7 +53,10 @@ impl GctxProjector {
         query: &SearchSymbolsQuery,
     ) -> (Vec<SymbolSummary>, usize) {
         // Lower-case the filters ONCE, not per node, so the lock-held loop does
-        // no avoidable allocation (ADR-084 C2).
+        // no avoidable *filter* allocation (ADR-084 C2). The deny-list check
+        // (`is_sensitive_egress_path`) still allocates a lowercased String per
+        // path segment per file under the lock — a deliberate, security-necessary
+        // per-file cost (CE-3), not avoidable here without a case-folding rewrite.
         let name_lc = query.name.as_deref().map(str::to_lowercase);
         let file_lc = query.file.as_deref().map(str::to_lowercase);
 
@@ -537,29 +540,33 @@ impl GctxProjector {
         // collecting symbols or walking dependents — the affected-symbol cap must
         // not skip seeds. CIB-091a (CE-3): a sensitive changed-file seed is dropped
         // (no affected symbols, no dependent walk) and counted.
+        //
+        // The non-sensitive seeds are captured directly here (in `seed_files`),
+        // and the sensitive ones still fence the BFS by joining `seen`, so the
+        // deny-list predicate runs exactly once per changed file — no second
+        // under-lock re-filter pass over `seen` (CIB-091 LOW perf follow-up).
         let mut truncated = false;
         let mut omitted_sensitive = 0usize;
         let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut seed_files: Vec<String> = Vec::new();
         for file in changed_files {
             if is_absolute_path_like(file) {
                 continue;
             }
-            if is_sensitive_egress_path(file) {
-                if seen.insert(file.clone()) {
-                    omitted_sensitive += 1;
-                }
+            if !seen.insert(file.clone()) {
+                // A duplicate changed-file entry: already classified.
                 continue;
             }
-            seen.insert(file.clone());
+            if is_sensitive_egress_path(file) {
+                // Counted once and kept in `seen` to fence the BFS, but excluded
+                // from the change surface the report is computed over.
+                omitted_sensitive += 1;
+                continue;
+            }
+            seed_files.push(file.clone());
         }
-        // The sensitive seeds were inserted into `seen` so they are not walked, but
-        // they are not part of the change surface the report is computed over.
-        let changed_count = seen.len() - omitted_sensitive;
-        let mut seed_files: Vec<String> = seen
-            .iter()
-            .filter(|f| !is_sensitive_egress_path(f))
-            .cloned()
-            .collect();
+        // Distinct, non-sensitive seeds — the change surface the report covers.
+        let changed_count = seed_files.len();
         seed_files.sort_unstable();
 
         // CIB-091c: collect affected symbols into a bounded max-heap keyed by
@@ -1541,9 +1548,10 @@ fn is_absolute_path_like(file: &str) -> bool {
 ///   `.ssh`, `.gnupg` (the common secret-bearing directories);
 /// - a basename starting with `.env` (covers `.env`, `.env.production`,
 ///   `.env.local`);
-/// - a basename starting with `id_rsa` (covers `id_rsa`, `id_rsa.pub` —
-///   key material and its public half both stay private);
-/// - a basename whose extension is `pem`, `key`, or `p12`.
+/// - a basename starting with one of the SSH private-key conventions
+///   `id_rsa`, `id_dsa`, `id_ecdsa`, `id_ed25519` (covers the key material
+///   and its `.pub` half — both stay private);
+/// - a basename whose extension is `pem`, `key`, `p12`, `pfx`, or `p8`.
 ///
 /// Matching is case-insensitive on the segment. The extension check looks at the
 /// final `.`-delimited component, so `keys.ts` (extension `ts`) is **not**
@@ -1567,13 +1575,18 @@ fn is_sensitive_egress_path(file: &str) -> bool {
         // segment is a candidate basename; the deny-list is checked per segment
         // rather than only on the final one so a `secrets/.env.production`-style
         // path matches on the directory segment too).
-        if lower.starts_with(".env") || lower.starts_with("id_rsa") {
+        if lower.starts_with(".env")
+            || lower.starts_with("id_rsa")
+            || lower.starts_with("id_dsa")
+            || lower.starts_with("id_ecdsa")
+            || lower.starts_with("id_ed25519")
+        {
             return true;
         }
 
         // Extension matches: the final `.`-delimited component of the segment.
         if let Some(ext) = Path::new(&lower).extension().and_then(|e| e.to_str())
-            && matches!(ext, "pem" | "key" | "p12")
+            && matches!(ext, "pem" | "key" | "p12" | "pfx" | "p8")
         {
             return true;
         }
@@ -3382,17 +3395,26 @@ mod tests {
             assert!(is_sensitive_egress_path(p), "expected sensitive: {p}");
         }
 
-        // `id_rsa*` basenames — private key and its public half both stay private.
-        for p in [".ssh/id_rsa", "keys/id_rsa", "id_rsa.pub"] {
+        // SSH private-key basenames — private key and its public half both stay
+        // private, across the modern key-type conventions.
+        for p in [
+            ".ssh/id_rsa",
+            "keys/id_rsa",
+            "id_rsa.pub",
+            "deploy/id_ecdsa",
+            "ci/id_ed25519",
+        ] {
             assert!(is_sensitive_egress_path(p), "expected sensitive: {p}");
         }
 
-        // pem / key / p12 extensions.
+        // pem / key / p12 / pfx / p8 extensions.
         for p in [
             "lib/private.pem",
             "keys/app.key",
             "certs/bundle.p12",
             "deep/dir/x.PEM",
+            "cert.pfx",
+            "key.p8",
         ] {
             assert!(is_sensitive_egress_path(p), "expected sensitive: {p}");
         }

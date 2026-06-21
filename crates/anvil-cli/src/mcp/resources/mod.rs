@@ -94,8 +94,11 @@ pub fn list() -> Vec<Value> {
 /// page until the ceiling, then receives a structured `quota_exceeded`.
 const GRAPH_EGRESS_CREDIT_BYTES: u64 = 8 << 20;
 
-/// Bytes of `graph://` payload already served this session (process). Saturating
-/// fetch-add; never reset for the life of the process (= the session).
+/// Bytes of `graph://` payload already served this session (process). Charged
+/// with a wrapping `fetch_add` (the only `AtomicU64` add primitive), but the
+/// ceiling check uses a `saturating_add` on the returned prior total so a
+/// pathological u64 wrap can never read as "under budget"; never reset for the
+/// life of the process (= the session).
 static GRAPH_EGRESS_SPENT: AtomicU64 = AtomicU64::new(0);
 
 /// CIB-091d: deduct `payload_bytes` from this session's `graph://` egress credit.
@@ -104,15 +107,63 @@ static GRAPH_EGRESS_SPENT: AtomicU64 = AtomicU64::new(0);
 /// (the page is not served), so the budget is a hard cap, not a soft one. Only
 /// `graph://` reads are charged; the `anvil://` local-state resources are not.
 fn charge_graph_egress(payload_bytes: u64) -> Result<(), ReadError> {
+    if try_charge_graph_egress(payload_bytes) {
+        Ok(())
+    } else {
+        Err(ReadError::QuotaExceeded(graph_egress_quota_reason()))
+    }
+}
+
+/// CIB-091d: the same per-session `graph://` egress credit, shared with the GCTX
+/// **tool-call** surface (`anvil_search_symbols`, `find_dependents`,
+/// `find_callers`, `impact_of_change`, `affected_tests`). The tool handlers carry
+/// the same identity data as the `graph://` resources, so without this they would
+/// be an unbounded back door past the resource byte ceiling — an assistant could
+/// reassemble the graph via `tools/call` instead of `resources/read`. Both paths
+/// charge the **same** [`GRAPH_EGRESS_SPENT`] accumulator.
+///
+/// Returns `true` when the read is within budget (and the bytes have been
+/// charged), `false` once the cumulative total would exceed
+/// [`GRAPH_EGRESS_CREDIT_BYTES`] — the caller refuses the over-ceiling payload.
+#[must_use]
+pub fn try_charge_graph_egress(payload_bytes: u64) -> bool {
     let previously_spent = GRAPH_EGRESS_SPENT.fetch_add(payload_bytes, Ordering::Relaxed);
     let total = previously_spent.saturating_add(payload_bytes);
-    if total > GRAPH_EGRESS_CREDIT_BYTES {
-        return Err(ReadError::QuotaExceeded(format!(
-            "graph:// read quota exhausted for this session ({GRAPH_EGRESS_CREDIT_BYTES} bytes); \
-             reconnect to reset"
-        )));
-    }
-    Ok(())
+    total <= GRAPH_EGRESS_CREDIT_BYTES
+}
+
+/// The structured reason text for an exhausted per-session `graph://` egress
+/// credit (shared by the resource and tool-call surfaces).
+#[must_use]
+pub fn graph_egress_quota_reason() -> String {
+    format!(
+        "graph:// egress quota exhausted for this session ({GRAPH_EGRESS_CREDIT_BYTES} bytes); \
+         reconnect to reset"
+    )
+}
+
+/// Test-only: serialise + reset the process-global egress credit so the few
+/// tests that drive it to exhaustion (here and in the GCTX `tools/call`
+/// dispatch) are deterministic regardless of test run order or parallelism. The
+/// returned guard holds the lock for the test's duration; the counter is zeroed
+/// on acquire so the credit always starts fresh.
+#[cfg(test)]
+pub(crate) fn lock_and_reset_graph_egress_for_test() -> std::sync::MutexGuard<'static, ()> {
+    static TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let guard = TEST_LOCK
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    GRAPH_EGRESS_SPENT.store(0, Ordering::Relaxed);
+    guard
+}
+
+/// Test-only: drive the process-global egress credit straight past the ceiling
+/// (a `store`, so it cannot wrap the counter low the way a `u64::MAX` `fetch_add`
+/// would) so the next charge on any surface refuses. Call under the
+/// [`lock_and_reset_graph_egress_for_test`] guard.
+#[cfg(test)]
+pub(crate) fn exhaust_graph_egress_for_test() {
+    GRAPH_EGRESS_SPENT.store(GRAPH_EGRESS_CREDIT_BYTES + 1, Ordering::Relaxed);
 }
 
 /// A [`read`] failure, classified for the JSON-RPC error code the dispatcher

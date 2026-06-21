@@ -8,6 +8,11 @@ use super::{
 pub struct ToolDefinition {
     pub name: &'static str,
     pub requires_auth: bool,
+    /// CIB-091d: this tool projects identity-only graph data (the GCTX read
+    /// surface), so its successful payload is charged against the per-session
+    /// `graph://` egress byte ceiling — the same credit `resources/read` spends —
+    /// closing the `tools/call` reassembly back door past the resource cap.
+    pub charges_graph_egress: bool,
     descriptor: fn() -> Value,
     call: fn(&Value) -> Value,
 }
@@ -26,36 +31,42 @@ static TOOLS: &[ToolDefinition] = &[
     ToolDefinition {
         name: validate_write::TOOL_NAME,
         requires_auth: true,
+        charges_graph_egress: false,
         descriptor: validate_write::descriptor,
         call: validate_write::call,
     },
     ToolDefinition {
         name: apply_patch::TOOL_NAME,
         requires_auth: true,
+        charges_graph_egress: false,
         descriptor: apply_patch::descriptor,
         call: apply_patch::call,
     },
     ToolDefinition {
         name: status::TOOL_NAME,
         requires_auth: false,
+        charges_graph_egress: false,
         descriptor: status::descriptor,
         call: status::call,
     },
     ToolDefinition {
         name: check::TOOL_NAME,
         requires_auth: false,
+        charges_graph_egress: false,
         descriptor: check::descriptor,
         call: check::call,
     },
     ToolDefinition {
         name: gate::TOOL_NAME,
         requires_auth: false,
+        charges_graph_egress: false,
         descriptor: gate::descriptor,
         call: gate::call,
     },
     ToolDefinition {
         name: query_boundary::TOOL_NAME,
         requires_auth: false,
+        charges_graph_egress: false,
         descriptor: query_boundary::descriptor,
         call: query_boundary::call,
     },
@@ -67,12 +78,14 @@ static TOOLS: &[ToolDefinition] = &[
     ToolDefinition {
         name: suppress::TOOL_NAME,
         requires_auth: false,
+        charges_graph_egress: false,
         descriptor: suppress::descriptor,
         call: suppress::call,
     },
     ToolDefinition {
         name: fix::TOOL_NAME,
         requires_auth: false,
+        charges_graph_egress: false,
         descriptor: fix::descriptor,
         call: fix::call,
     },
@@ -83,6 +96,7 @@ static TOOLS: &[ToolDefinition] = &[
     ToolDefinition {
         name: search_symbols::TOOL_NAME,
         requires_auth: false,
+        charges_graph_egress: true,
         descriptor: search_symbols::descriptor,
         call: search_symbols::call,
     },
@@ -92,6 +106,7 @@ static TOOLS: &[ToolDefinition] = &[
     ToolDefinition {
         name: find_dependents::TOOL_NAME,
         requires_auth: false,
+        charges_graph_egress: true,
         descriptor: find_dependents::descriptor,
         call: find_dependents::call,
     },
@@ -100,6 +115,7 @@ static TOOLS: &[ToolDefinition] = &[
     ToolDefinition {
         name: find_callers::TOOL_NAME,
         requires_auth: false,
+        charges_graph_egress: true,
         descriptor: find_callers::descriptor,
         call: find_callers::call,
     },
@@ -108,6 +124,7 @@ static TOOLS: &[ToolDefinition] = &[
     ToolDefinition {
         name: impact_of_change::TOOL_NAME,
         requires_auth: false,
+        charges_graph_egress: true,
         descriptor: impact_of_change::descriptor,
         call: impact_of_change::call,
     },
@@ -116,6 +133,7 @@ static TOOLS: &[ToolDefinition] = &[
     ToolDefinition {
         name: affected_tests::TOOL_NAME,
         requires_auth: false,
+        charges_graph_egress: true,
         descriptor: affected_tests::descriptor,
         call: affected_tests::call,
     },

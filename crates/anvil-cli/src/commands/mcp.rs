@@ -438,7 +438,56 @@ fn tools_call_response(id: &Value, message: &Value) -> Value {
         return success_response(id, &mcp_tool_auth_required_result(tool, arguments));
     }
 
-    success_response(id, &tool.call(arguments))
+    let result = tool.call(arguments);
+
+    // CIB-091d: a GCTX tool projects the same identity-only graph data as the
+    // `graph://` resources, so its successful payload is charged against the SAME
+    // per-session egress byte ceiling — otherwise `tools/call` would be an
+    // unbounded back door past the resource cap, letting an assistant reassemble
+    // the whole graph. The read that crosses the ceiling is refused (the payload
+    // is replaced with a structured `quota_exceeded` result), so the budget is a
+    // hard cap, not a soft one.
+    if tool.charges_graph_egress && !gctx_tool_result_is_error(&result) {
+        let payload_bytes = serde_json::to_vec(&result).map_or(0, |v| v.len() as u64);
+        if !crate::mcp::resources::try_charge_graph_egress(payload_bytes) {
+            return success_response(id, &gctx_quota_exceeded_result(tool.name));
+        }
+    }
+
+    success_response(id, &result)
+}
+
+/// A GCTX tool result is an error when its MCP envelope carries `isError: true`
+/// (a parse error, a daemon failure). A degraded `unavailable`/`not_ready`
+/// outcome is *not* an error (it is a successful, in-band degradation) but it
+/// carries no graph identity data, so it is harmless to charge — only a genuine
+/// error is excluded so a failed call never burns the egress budget.
+fn gctx_tool_result_is_error(result: &Value) -> bool {
+    result
+        .get("isError")
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
+}
+
+/// CIB-091d: the structured `quota_exceeded` MCP tool result returned once a
+/// session's shared `graph://` egress credit is exhausted. Mirrors the
+/// resource-surface `quota_exceeded` error so a client sees one vocabulary across
+/// both GCTX surfaces; `isError` is `true` so the assistant stops paging.
+fn gctx_quota_exceeded_result(tool_name: &str) -> Value {
+    let reason = crate::mcp::resources::graph_egress_quota_reason();
+    json!({
+        "content": [
+            {
+                "type": "text",
+                "text": serde_json::to_string(&json!({
+                    "error": reason,
+                    "kind": "quota_exceeded",
+                    "tool": tool_name,
+                })).expect("quota-exceeded payload serialises")
+            }
+        ],
+        "isError": true
+    })
 }
 
 fn mcp_tool_auth_required_result(tool: &registry::ToolDefinition, arguments: &Value) -> Value {
@@ -654,7 +703,8 @@ mod tests {
 
     use super::{
         EDICT_VERIFY_CACHE_TTL, EdictAuthCacheEntry, Frame, MAX_STDIO_FRAME_BYTES,
-        edict_auth_cache, handle_message, read_frame,
+        edict_auth_cache, gctx_quota_exceeded_result, gctx_tool_result_is_error, handle_message,
+        read_frame,
     };
     use std::time::{Duration, Instant};
 
@@ -874,6 +924,95 @@ mod tests {
         assert!(
             s.contains("diagnostics"),
             "instructions must tell agents `block` is paired with diagnostics"
+        );
+    }
+
+    #[test]
+    fn gctx_tool_result_error_classification() {
+        // CIB-091d: only a genuine tool error (`isError: true`) is excluded from
+        // the egress charge. A success and a missing/false flag both charge.
+        assert!(gctx_tool_result_is_error(
+            &json!({ "content": [], "isError": true })
+        ));
+        assert!(!gctx_tool_result_is_error(
+            &json!({ "content": [], "isError": false })
+        ));
+        // A missing flag is treated as not-an-error (so a payload still charges).
+        assert!(!gctx_tool_result_is_error(&json!({ "content": [] })));
+    }
+
+    #[test]
+    fn gctx_quota_exceeded_result_is_structured_error() {
+        // CIB-091d: the shared-credit refusal returned to a GCTX `tools/call`.
+        let result = gctx_quota_exceeded_result("anvil_search_symbols");
+        assert_eq!(result["isError"], true, "exhaustion stops the assistant");
+        let text = result["content"][0]["text"].as_str().expect("text");
+        let payload: serde_json::Value = serde_json::from_str(text).unwrap();
+        assert_eq!(payload["kind"], "quota_exceeded");
+        assert_eq!(payload["tool"], "anvil_search_symbols");
+        assert!(
+            payload["error"].as_str().unwrap().contains("quota"),
+            "{}",
+            payload["error"]
+        );
+    }
+
+    #[test]
+    fn gctx_tool_call_is_refused_once_the_shared_egress_credit_is_exhausted() {
+        // CIB-091d: a GCTX `tools/call` charges the SAME per-session graph://
+        // egress credit as `resources/read`, closing the reassembly back door.
+        // The credit is a process-global static; the shared test guard serialises
+        // the credit-touching tests and zeroes the counter, so this starts fresh
+        // and never leaves the credit poisoned for an order-sensitive sibling.
+        let _guard = crate::mcp::resources::lock_and_reset_graph_egress_for_test();
+
+        // A valid workspace root so the tool call itself is NOT an error: with no
+        // daemon it degrades to a successful `unavailable` outcome (isError:false),
+        // which reaches the egress-charge step.
+        let cwd = std::env::current_dir().expect("cwd");
+        let workspace = tempfile::tempdir_in(&cwd).expect("workspace");
+
+        // Sanity: a fresh credit serves the GCTX tool call (charged, under budget).
+        let ok = handle_message(&json!({
+            "jsonrpc": "2.0",
+            "id": 6,
+            "method": "tools/call",
+            "params": {
+                "name": "anvil_search_symbols",
+                "arguments": { "workspaceRoot": workspace.path() }
+            }
+        }))
+        .expect("request should produce a response");
+        assert_eq!(
+            ok["result"]["isError"], false,
+            "a GCTX tool call under budget is served (the degraded unavailable outcome)"
+        );
+
+        // Now exhaust the shared credit and re-issue: the SAME charge point must
+        // refuse with a structured quota_exceeded — proving the tool-call surface
+        // shares the resource byte ceiling.
+        crate::mcp::resources::exhaust_graph_egress_for_test();
+        let response = handle_message(&json!({
+            "jsonrpc": "2.0",
+            "id": 7,
+            "method": "tools/call",
+            "params": {
+                "name": "anvil_search_symbols",
+                "arguments": { "workspaceRoot": workspace.path() }
+            }
+        }))
+        .expect("request should produce a response");
+
+        let result = &response["result"];
+        assert_eq!(
+            result["isError"], true,
+            "an exhausted egress credit refuses the GCTX tool call"
+        );
+        let text = result["content"][0]["text"].as_str().expect("text");
+        let payload: serde_json::Value = serde_json::from_str(text).unwrap();
+        assert_eq!(
+            payload["kind"], "quota_exceeded",
+            "the refusal carries the shared quota_exceeded vocabulary"
         );
     }
 }
