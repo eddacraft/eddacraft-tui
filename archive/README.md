@@ -1,8 +1,9 @@
-# archive/ — moved to `anvil-archive`
+# archive/ — moved to `eddacraft/anvil-archive`
 
-The retired code that used to live here has been **moved to a sibling
-repository**: [`anvil-archive`](../../anvil-archive) (`../anvil-archive`
-relative to the repo root).
+The retired code that used to live here has been **moved to a separate
+repository**:
+[`eddacraft/anvil-archive`](https://github.com/eddacraft/anvil-archive)
+(private). Locally it sits alongside this repo at `../anvil-archive`.
 
 Nothing in this directory builds or ships — it was reference-only dead code
 (`pnpm-workspace.yaml` and `nx.json` already excluded `archive/**`). It was
