@@ -43,6 +43,7 @@
 use std::collections::HashMap;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use anvil_checks::antipattern::types::AntipatternCheckConfig;
@@ -72,7 +73,7 @@ use crate::ipc::{GctxDispatch, SaveTimeDispatch, SaveTimeError};
 use crate::kernel_cache::KernelGraphCache;
 use crate::kindling_observation::SaveTimeObservationEmitter;
 use crate::rule_cache::WorktreeKey;
-use crate::telemetry::{TelemetryCorrelation, TelemetryEmitter};
+use crate::telemetry::{NotificationEnvelope, TelemetryCorrelation, TelemetryEmitter};
 use crate::validate_paths::{ValidateEnv, validate_paths as run_validate_paths};
 use crate::workspace_admission::AdmittedRoots;
 use crate::workspace_anchor::WorkspaceAnchor;
@@ -145,6 +146,140 @@ pub trait SymbolParser: Send + Sync + std::fmt::Debug {
     fn parse(&self, path: &Path, bytes: &[u8]) -> Option<FileSymbols>;
 }
 
+/// ADR-069 §10 structured snapshot I/O counters. One cumulative counter per
+/// outcome, labelled by the [`SnapshotReadError`](crate::snapshot_io::SnapshotReadError)
+/// variant on the load path (`absent` / `corrupt` / `version_mismatch` / `io`) and
+/// `ok` for an accepted load, plus `write_ok` / `write_error` on the write path.
+///
+/// These exist so the §7b graduation criterion — **"zero
+/// `SnapshotLoadError::Corrupt` across the soak"** — is *verifiable* rather than
+/// only being WARN-logged. Plain `AtomicU64`s (matching the broadcaster's
+/// `dropped_envelopes` and the mid-edit in-flight counters) so they are lock-free
+/// on the load/write path and snapshot-able for the soak query. The labels are the
+/// outcome name only — never a path, key, or any decoded byte (PV-10 / verdict
+/// N-3: the only label a counter may bind is the variant name).
+#[derive(Debug, Default)]
+pub struct SnapshotMetrics {
+    /// A snapshot loaded and passed the integrity gate.
+    load_ok: AtomicU64,
+    /// No snapshot file for the key (the normal cold-start case).
+    load_absent: AtomicU64,
+    /// The integrity gate rejected the bytes as corrupt/oversized/torn
+    /// (`SnapshotLoadError::{BadMagic, ChecksumMismatch, CountMismatch, Oversized, Corrupt}`)
+    /// — the soak's graduation-blocking class.
+    load_corrupt: AtomicU64,
+    /// The envelope `format`/`backing` version did not match this build (expected
+    /// once after a schema bump, not an error).
+    load_version_mismatch: AtomicU64,
+    /// A disk error reading the file (not a decode failure).
+    load_io: AtomicU64,
+    /// A snapshot was durably written.
+    write_ok: AtomicU64,
+    /// A snapshot write failed (the temp was cleaned up; the key degrades to
+    /// no-persistence).
+    write_error: AtomicU64,
+}
+
+/// A point-in-time read of [`SnapshotMetrics`] for assertions / the soak query.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct SnapshotMetricsSnapshot {
+    pub load_ok: u64,
+    pub load_absent: u64,
+    pub load_corrupt: u64,
+    pub load_version_mismatch: u64,
+    pub load_io: u64,
+    pub write_ok: u64,
+    pub write_error: u64,
+}
+
+impl SnapshotMetrics {
+    /// Record the outcome of a [`load_snapshot`](crate::snapshot_io::load_snapshot)
+    /// call: the `Ok` arm is `ok`, each error maps to its labelled counter.
+    fn record_load(
+        &self,
+        result: &Result<
+            anvil_graph_cache::snapshot::SnapshotPayload,
+            crate::snapshot_io::SnapshotReadError,
+        >,
+    ) {
+        use crate::snapshot_io::SnapshotReadError;
+        use anvil_graph_cache::snapshot::SnapshotLoadError;
+        let counter = match result {
+            Ok(_) => &self.load_ok,
+            Err(SnapshotReadError::NotFound) => &self.load_absent,
+            Err(SnapshotReadError::Io(_)) => &self.load_io,
+            Err(SnapshotReadError::Rejected(SnapshotLoadError::VersionMismatch { .. })) => {
+                &self.load_version_mismatch
+            }
+            Err(SnapshotReadError::Rejected(_)) => &self.load_corrupt,
+        };
+        counter.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Record the outcome of a [`write_snapshot`](crate::snapshot_io::write_snapshot)
+    /// call (`ok` / `error`).
+    pub(crate) fn record_write(&self, result: &io::Result<()>) {
+        let counter = if result.is_ok() {
+            &self.write_ok
+        } else {
+            &self.write_error
+        };
+        counter.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// A consistent point-in-time read of every counter.
+    #[must_use]
+    pub fn snapshot(&self) -> SnapshotMetricsSnapshot {
+        SnapshotMetricsSnapshot {
+            load_ok: self.load_ok.load(Ordering::Relaxed),
+            load_absent: self.load_absent.load(Ordering::Relaxed),
+            load_corrupt: self.load_corrupt.load(Ordering::Relaxed),
+            load_version_mismatch: self.load_version_mismatch.load(Ordering::Relaxed),
+            load_io: self.load_io.load(Ordering::Relaxed),
+            write_ok: self.write_ok.load(Ordering::Relaxed),
+            write_error: self.write_error.load(Ordering::Relaxed),
+        }
+    }
+}
+
+/// ADR-035 (CIB-092h): a cheap-to-clone handle the DSV-045 background executor
+/// uses to raise the same persist-failure Notification the shutdown flush does,
+/// without borrowing the whole [`SaveTimeState`]. Bundles the broadcaster with a
+/// dedicated [`TelemetryEmitter`] (its own producer-instance id + seq stream — the
+/// background scan has no per-connection emitter to share). Present only when a
+/// broadcaster is wired AND persistence is enabled.
+#[derive(Clone)]
+pub(crate) struct PersistFailureNotifier {
+    broadcaster: Arc<TelemetryBroadcaster>,
+    emitter: Arc<Mutex<TelemetryEmitter>>,
+}
+
+impl PersistFailureNotifier {
+    fn new(broadcaster: Arc<TelemetryBroadcaster>) -> Self {
+        Self {
+            broadcaster,
+            emitter: Arc::new(Mutex::new(TelemetryEmitter::new())),
+        }
+    }
+
+    /// Build + broadcast the ADR-035 degradation Notification for a failed write.
+    /// Returns the envelope so callers/tests can assert on it. Echoes only the
+    /// `io::ErrorKind` discriminant (PV-10).
+    pub(crate) fn notify(&self, workspace_root: &Path, err: &io::Error) -> NotificationEnvelope {
+        let message = format!("snapshot write failed ({})", err.kind());
+        let envelope = {
+            let mut emitter = self.emitter.lock().unwrap_or_else(PoisonError::into_inner);
+            emitter.persist_failure_health_envelope(
+                TelemetryCorrelation::default(),
+                workspace_root,
+                message,
+            )
+        };
+        let _ = self.broadcaster.broadcast(&envelope);
+        envelope
+    }
+}
+
 /// Shared, cross-connection save-time state. Held in an `Arc` on the
 /// `IpcListener` and cloned per connection; every interior field is safe to
 /// share (`KernelGraphCache` and the assurance map carry their own locks, the
@@ -196,6 +331,11 @@ pub struct SaveTimeState {
     /// the IPC arm. `None` (the default) keeps the daemon silent — the emitter
     /// is wired from `anvil-cli` alongside the other observation surfaces.
     observation_emitter: Option<Arc<SaveTimeObservationEmitter>>,
+    /// DSV-030 / ADR-069 §10 (CIB-092b): cumulative snapshot load/write outcome
+    /// counters. Always present (cheap, lock-free); they stay `0` while
+    /// persistence is off. The §7b soak's "zero `Corrupt`" graduation check reads
+    /// `load_corrupt` here.
+    snapshot_metrics: Arc<SnapshotMetrics>,
 }
 
 impl SaveTimeState {
@@ -229,7 +369,15 @@ impl SaveTimeState {
             coordinator: ScanCoordinator::new(),
             snapshot_dir: None,
             observation_emitter: None,
+            snapshot_metrics: Arc::new(SnapshotMetrics::default()),
         }
+    }
+
+    /// DSV-030 / ADR-069 §10: the cumulative snapshot I/O outcome counters
+    /// (CIB-092b). Read for assertions and the §7b soak graduation check.
+    #[must_use]
+    pub fn snapshot_metrics(&self) -> SnapshotMetricsSnapshot {
+        self.snapshot_metrics.snapshot()
     }
 
     /// Enable warm-graph persistence (DSV-030 / ADR-069) by injecting the
@@ -318,12 +466,23 @@ impl SaveTimeState {
     /// the `DoS` caps, and the coordinator.
     #[must_use]
     pub(crate) fn scan_context(&self) -> ScanContext {
+        // CIB-092b/h: hand the executor the shared snapshot counters and, when
+        // persistence is enabled with a broadcaster wired, a persist-failure
+        // notifier so its background write path observes + surfaces failures the
+        // same way the shutdown flush does.
+        let notifier = self
+            .broadcaster
+            .as_ref()
+            .filter(|_| self.persistence_enabled())
+            .map(|b| Arc::new(PersistFailureNotifier::new(Arc::clone(b))));
         ScanContext::new(
             Arc::clone(&self.cache),
             self.parser.clone(),
             self.caps,
             self.coordinator.clone(),
             self.snapshot_dir.clone(),
+            Arc::clone(&self.snapshot_metrics),
+            notifier,
         )
     }
 
@@ -346,10 +505,11 @@ impl SaveTimeState {
             }
             let cache = Arc::clone(&self.cache);
             let coordinator = self.coordinator.clone();
+            let metrics = Arc::clone(&self.snapshot_metrics);
             let key = key.clone();
             let root = canonical_root.to_path_buf();
             self.scheduler.background().spawn(move || {
-                restore_snapshot_into_cache(&cache, &coordinator, &dir, &key, &root);
+                restore_snapshot_into_cache(&cache, &coordinator, &metrics, &dir, &key, &root);
             });
         }
         #[cfg(not(unix))]
@@ -376,11 +536,15 @@ impl SaveTimeState {
                 let Some(Ok(payload)) = built else {
                     continue;
                 };
-                match crate::snapshot_io::write_snapshot(dir, key.as_path(), &payload) {
+                let result = crate::snapshot_io::write_snapshot(dir, key.as_path(), &payload);
+                // ADR-069 §10 (CIB-092b): count every write attempt by outcome.
+                self.snapshot_metrics.record_write(&result);
+                match result {
                     Ok(()) => written += 1,
-                    // ADR-069 §10: a write failure is surfaced (WARN), never silent
-                    // loss — even on the shutdown flush. (The per-fleet counter +
-                    // ADR-035 notification are a documented follow-up.)
+                    // ADR-069 §10: a write failure is surfaced (WARN + counter),
+                    // never silent loss — even on the shutdown flush. When
+                    // persistence is explicitly enabled it also raises an ADR-035
+                    // Notification (CIB-092h) so an opted-in user sees degradation.
                     Err(err) => {
                         failed += 1;
                         tracing::warn!(
@@ -389,6 +553,7 @@ impl SaveTimeState {
                             error = %err,
                             "snapshot write failed on shutdown; skipping (no persistence for this key)",
                         );
+                        self.notify_persist_write_failure(key.as_path(), &err);
                     }
                 }
             }
@@ -400,6 +565,46 @@ impl SaveTimeState {
                     "persisted warm graph snapshots on shutdown"
                 );
             }
+        }
+    }
+
+    /// Reclaim stale `*.snap` snapshots whose worktree is no longer registered
+    /// (ADR-069 §10, CIB-092c). A worktree deleted while the daemon was down never
+    /// fires its unregister hook (which is the normal `remove_snapshot` path), so
+    /// its snapshot would otherwise linger forever; this sweep drops any `.snap`
+    /// whose key is not in `registered_roots`, returning the count removed. No-op
+    /// when persistence is off.
+    ///
+    /// **Caller contract:** pass the live set of canonical roots the daemon
+    /// currently knows about. It must NOT be called with an empty set at a cold
+    /// boot (the session registry is empty then) — that would delete every
+    /// snapshot and defeat warm-start. It is safe to run whenever a faithful
+    /// registered-set is in hand (e.g. on registry change, or a periodic reclaim
+    /// once sessions have attached).
+    pub fn sweep_stale_snapshots_on_start<I, P>(&self, registered_roots: I) -> usize
+    where
+        I: IntoIterator<Item = P>,
+        P: AsRef<Path>,
+    {
+        #[cfg(unix)]
+        {
+            let Some(dir) = self.snapshot_dir.as_deref() else {
+                return 0;
+            };
+            let removed = crate::snapshot_io::sweep_stale_snapshots_on_start(dir, registered_roots);
+            if removed > 0 {
+                tracing::info!(
+                    target: "anvil_intercept::snapshot",
+                    removed,
+                    "reclaimed stale snapshots for unregistered worktrees on start",
+                );
+            }
+            removed
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = registered_roots;
+            0
         }
     }
 
@@ -537,6 +742,51 @@ impl SaveTimeState {
         result
     }
 
+    /// ADR-035 (CIB-092h): raise an operator-facing degradation Notification when
+    /// **persistence is explicitly enabled** but a snapshot write failed. A
+    /// disabled-persistence write never happens (the dir is `None`), so this is a
+    /// no-op unless the operator opted in. Built + broadcast through the same
+    /// `TelemetryBroadcaster` the assurance path uses; returns the envelope (when
+    /// one was built) so the behaviour is directly assertable. The message echoes
+    /// only the `io::ErrorKind` discriminant — never a path or identity byte.
+    ///
+    /// Daemon-internal writes (shutdown flush / background scan) carry no
+    /// originating session, so the INTD-015 fanout default-denies external
+    /// delivery — the same same-uid-local limitation the assurance broadcast notes.
+    /// The envelope is still built + offered to the broadcaster so a future
+    /// session-correlated producer (or an in-process subscriber) observes it.
+    fn notify_persist_write_failure(
+        &self,
+        workspace_root: &Path,
+        err: &io::Error,
+    ) -> Option<NotificationEnvelope> {
+        if !self.persistence_enabled() {
+            return None;
+        }
+        let broadcaster = self.broadcaster.as_ref()?;
+        let message = format!("snapshot write failed ({})", err.kind());
+        let envelope = {
+            let mut emitter = self
+                .telemetry
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            emitter.persist_failure_health_envelope(
+                TelemetryCorrelation::default(),
+                workspace_root,
+                message,
+            )
+        };
+        let outcome = broadcaster.broadcast(&envelope);
+        tracing::debug!(
+            target: "anvil_intercept::snapshot",
+            workspace_root = %workspace_root.display(),
+            delivered = outcome.delivered,
+            dropped = outcome.dropped,
+            "persist-failure notification raised (ADR-035)",
+        );
+        Some(envelope)
+    }
+
     fn broadcast_assurance_transition(
         &self,
         workspace_root: &Path,
@@ -651,6 +901,7 @@ fn emit_assurance_transition(workspace_root: &Path, transition: &AssuranceTransi
 fn restore_snapshot_into_cache(
     cache: &KernelGraphCache,
     coordinator: &ScanCoordinator,
+    metrics: &SnapshotMetrics,
     dir: &Path,
     key: &WorktreeKey,
     canonical_root: &Path,
@@ -658,7 +909,12 @@ fn restore_snapshot_into_cache(
     if cache.contains(key) || coordinator.is_enqueued(key) {
         return;
     }
-    let payload = match crate::snapshot_io::load_snapshot(dir, canonical_root) {
+    let result = crate::snapshot_io::load_snapshot(dir, canonical_root);
+    // ADR-069 §10 (CIB-092b): one counter increment per load, labelled by outcome,
+    // before the WARN/INFO/DEBUG mirror — so the §7b "zero Corrupt" soak check is
+    // a counter read, not a log scrape.
+    metrics.record_load(&result);
+    let payload = match result {
         Ok(payload) => payload,
         // No snapshot is the normal first-run case; a rejected snapshot is logged
         // per ADR-069 §10 severity. Either way ⇒ cold rebuild, no-op here.
@@ -3694,7 +3950,14 @@ mod tests {
         let state2 = state().with_snapshot_dir(dir.clone());
         assert!(!state2.cache.contains(&key), "fresh daemon starts cold");
 
-        restore_snapshot_into_cache(&state2.cache, state2.scan_coordinator(), &dir, &key, &root);
+        restore_snapshot_into_cache(
+            &state2.cache,
+            state2.scan_coordinator(),
+            &state2.snapshot_metrics,
+            &dir,
+            &key,
+            &root,
+        );
         assert!(
             state2.cache.contains(&key),
             "warm-start restored the indexes"
@@ -3765,10 +4028,289 @@ mod tests {
         restore_snapshot_into_cache(
             &state.cache,
             state.scan_coordinator(),
+            &state.snapshot_metrics,
             dir.path(),
             &key,
             std::path::Path::new("/ws-none"),
         );
         assert!(!state.cache.contains(&key), "no snapshot ⇒ stays cold");
+    }
+
+    // ---- CIB-092f: ADR-069 §3 verdict-gate end-to-end ----
+
+    /// The §3 safety property, end-to-end: after a snapshot is restored into the
+    /// cache, a `validate_paths` in the **restore→reconcile window** (before any
+    /// reconcile scan has certified) serves a **non-Certified** (`Stale`) verdict —
+    /// the restored graph is a read-only stand-in, never trusted as certified. The
+    /// restore populates the cache, but the assurance machine stays `Stale`, so the
+    /// verdict is re-derived rather than carried across the restart.
+    #[cfg(unix)]
+    #[test]
+    fn restored_snapshot_serves_stale_verdict_until_reconcile() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let src = tmp.path().join("src");
+        fs::create_dir(&src).expect("mkdir");
+        fs::write(src.join("a.ts"), b"export function alpha() {}").expect("write");
+        let dir = tmp.path().join("graph-cache");
+        // The cache + machine key on the CANONICAL root (what validate_paths uses).
+        let canonical = std::fs::canonicalize(tmp.path()).expect("canonicalize");
+        let key = WorktreeKey::from_canonical(canonical.clone());
+
+        // Stage a snapshot on disk for this worktree, then restore it.
+        let writer = state().with_snapshot_dir(dir.clone());
+        writer.cache.apply_delta(
+            &key,
+            ChangeKind::Create,
+            file_symbols("src/a.ts", &["alpha"], 0),
+        );
+        writer.persist_all_on_shutdown();
+
+        let state = state().with_snapshot_dir(dir.clone());
+        restore_snapshot_into_cache(
+            &state.cache,
+            state.scan_coordinator(),
+            &state.snapshot_metrics,
+            &dir,
+            &key,
+            &canonical,
+        );
+        assert!(state.cache.contains(&key), "restore populated the cache");
+
+        // The verdict in the restore→reconcile window must NOT be Certified — the
+        // restored entry is stale until a reconcile scan rebuilds it.
+        let mut conn = SaveTimeConn::new(&state);
+        let resp = conn
+            .validate_paths(&ValidatePathsRequest {
+                workspace_root: tmp.path().to_string_lossy().into_owned(),
+                paths: vec![modified("src/a.ts")],
+            })
+            .expect("admitted");
+        assert_eq!(
+            resp.workspace_assurance.state,
+            AssuranceState::Stale,
+            "a restored-but-not-reconciled worktree must serve Stale, never Certified/Clean",
+        );
+    }
+
+    // ---- CIB-092c: orphan `.snap` startup reclaim ----
+
+    /// A snapshot for a still-registered worktree is kept; a snapshot for a
+    /// worktree deleted while the daemon was down (not in the registered set) is
+    /// reclaimed. Off-by-default: no dir wired ⇒ a no-op.
+    #[cfg(unix)]
+    #[test]
+    fn sweep_stale_snapshots_keeps_registered_drops_orphans() {
+        use anvil_graph_cache::snapshot::snapshot_filename;
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let dir = tmp.path().to_path_buf();
+        let registered = std::path::PathBuf::from("/ws/registered");
+        let orphan = std::path::PathBuf::from("/ws/gone");
+        fs::write(dir.join(snapshot_filename(&registered)), b"keep").unwrap();
+        fs::write(dir.join(snapshot_filename(&orphan)), b"orphan").unwrap();
+
+        // Off-by-default: with no dir wired the sweep does nothing.
+        let off = state();
+        assert_eq!(off.sweep_stale_snapshots_on_start([&registered]), 0);
+
+        let on = state().with_snapshot_dir(dir.clone());
+        let removed = on.sweep_stale_snapshots_on_start([registered.as_path()]);
+        assert_eq!(
+            removed, 1,
+            "only the unregistered worktree's snapshot drops"
+        );
+        assert!(dir.join(snapshot_filename(&registered)).exists());
+        assert!(!dir.join(snapshot_filename(&orphan)).exists());
+    }
+
+    // ---- CIB-092b: ADR-069 §10 snapshot I/O metric counters ----
+
+    /// A successful write (shutdown flush) then a successful load (warm-start
+    /// restore) each advance the right counter; nothing else moves. This is the
+    /// happy path the §7b soak measures `load_ok`/`write_ok` against.
+    #[cfg(unix)]
+    #[test]
+    fn metrics_count_a_successful_write_then_load() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let dir = tmp.path().join("graph-cache");
+        let root = std::path::PathBuf::from("/ws-metrics-ok");
+        let key = WorktreeKey::from_canonical(root.clone());
+
+        let writer = state().with_snapshot_dir(dir.clone());
+        writer.cache.apply_delta(
+            &key,
+            ChangeKind::Create,
+            file_symbols("src/a.ts", &["alpha"], 0),
+        );
+        writer.persist_all_on_shutdown();
+        let m = writer.snapshot_metrics();
+        assert_eq!(m.write_ok, 1, "one successful write counted");
+        assert_eq!(m.write_error, 0);
+
+        // Fresh daemon: restore from the same dir → one `load_ok`.
+        let reader = state().with_snapshot_dir(dir.clone());
+        restore_snapshot_into_cache(
+            &reader.cache,
+            reader.scan_coordinator(),
+            &reader.snapshot_metrics,
+            &dir,
+            &key,
+            &root,
+        );
+        let m = reader.snapshot_metrics();
+        assert_eq!(m.load_ok, 1, "one accepted load counted");
+        assert_eq!(
+            (
+                m.load_corrupt,
+                m.load_absent,
+                m.load_io,
+                m.load_version_mismatch
+            ),
+            (0, 0, 0, 0),
+            "an accepted load must not trip any error counter",
+        );
+    }
+
+    /// A planted-garbage `.snap` increments `load_corrupt` — the soak's
+    /// graduation-blocking class — and the restore is a no-op (cold rebuild).
+    #[cfg(unix)]
+    #[test]
+    fn metrics_count_a_corrupt_load() {
+        use anvil_graph_cache::snapshot::snapshot_filename;
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let dir = tmp.path().to_path_buf();
+        let root = std::path::PathBuf::from("/ws-metrics-corrupt");
+        let key = WorktreeKey::from_canonical(root.clone());
+        // A file at the snapshot path that is not a valid snapshot ⇒ Rejected(Corrupt).
+        fs::write(dir.join(snapshot_filename(&root)), b"not a snapshot").unwrap();
+
+        let state = state().with_snapshot_dir(dir.clone());
+        restore_snapshot_into_cache(
+            &state.cache,
+            state.scan_coordinator(),
+            &state.snapshot_metrics,
+            &dir,
+            &key,
+            &root,
+        );
+        let m = state.snapshot_metrics();
+        assert_eq!(m.load_corrupt, 1, "a corrupt snapshot must be counted");
+        assert_eq!(m.load_ok, 0);
+        assert!(
+            !state.cache.contains(&key),
+            "a corrupt load is a cold-rebuild no-op"
+        );
+    }
+
+    /// A missing snapshot (the normal first-run case) counts as `absent`, never
+    /// `corrupt` — so it never pollutes the §7b "zero Corrupt" graduation signal.
+    #[cfg(unix)]
+    #[test]
+    fn metrics_count_an_absent_load_as_absent_not_corrupt() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let dir = tmp.path().to_path_buf();
+        let root = std::path::PathBuf::from("/ws-absent");
+        let key = WorktreeKey::from_canonical(root.clone());
+        let state = state().with_snapshot_dir(dir.clone());
+        restore_snapshot_into_cache(
+            &state.cache,
+            state.scan_coordinator(),
+            &state.snapshot_metrics,
+            &dir,
+            &key,
+            &root,
+        );
+        let m = state.snapshot_metrics();
+        assert_eq!(m.load_absent, 1);
+        assert_eq!(m.load_corrupt, 0);
+    }
+
+    // ---- CIB-092h: ADR-035 Notification on persist write failure ----
+
+    fn deny_all_broadcaster() -> Arc<TelemetryBroadcaster> {
+        // A fanout that authorises nobody (no subscriber registered) — the
+        // envelope is still *built* and offered; we assert on the returned
+        // envelope, not on delivery (daemon-internal writes carry no session, so
+        // the fanout default-denies external delivery by design).
+        let fanout = Arc::new(Fanout::with_cross_session_policy(
+            Box::new(SingleOwnerResolver {
+                subscriber: SubscriberId::new("none"),
+                session_id: "none".to_string(),
+            }),
+            CrossSessionPolicy::Deny,
+        ));
+        Arc::new(TelemetryBroadcaster::new(fanout))
+    }
+
+    /// With persistence enabled and a broadcaster wired, a write failure raises an
+    /// ADR-035 `Health`/`High` degradation Notification (not only a WARN).
+    #[test]
+    fn enabled_persistence_write_failure_raises_adr035_notification() {
+        use anvil_kernel_types::{NotificationClass, NotificationPriority};
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let dir = tmp.path().join("graph-cache");
+        let state = state()
+            .with_snapshot_dir(dir)
+            .with_broadcaster(deny_all_broadcaster());
+        assert!(state.persistence_enabled());
+
+        let err = io::Error::new(io::ErrorKind::PermissionDenied, "denied");
+        let envelope = state
+            .notify_persist_write_failure(std::path::Path::new("/ws-fail"), &err)
+            .expect("an enabled-persistence write failure must raise a notification");
+        assert_eq!(envelope.notification.class, NotificationClass::Health);
+        assert_eq!(envelope.notification.priority, NotificationPriority::High);
+        assert_eq!(
+            envelope.correlation.worktree.as_deref(),
+            Some("/ws-fail"),
+            "the worktree rides the correlation",
+        );
+        // PV-10: the message carries only the ErrorKind discriminant, no path/bytes.
+        assert!(
+            !envelope.notification.message.contains("/ws-fail"),
+            "the notification message must not echo the worktree path",
+        );
+    }
+
+    /// Disabled persistence never raises the notification (the write never happens).
+    #[test]
+    fn disabled_persistence_write_failure_raises_no_notification() {
+        let state = state().with_broadcaster(deny_all_broadcaster());
+        assert!(!state.persistence_enabled());
+        let err = io::Error::new(io::ErrorKind::PermissionDenied, "denied");
+        assert!(
+            state
+                .notify_persist_write_failure(std::path::Path::new("/ws"), &err)
+                .is_none(),
+            "persistence-off must not raise a degradation notification",
+        );
+    }
+
+    /// End-to-end: a real failed shutdown write (a symlinked, security-rejected
+    /// snapshot dir) increments `write_error` AND, with persistence enabled + a
+    /// broadcaster, the write-failure path is exercised through `persist_all_on_shutdown`.
+    #[cfg(unix)]
+    #[test]
+    fn shutdown_write_failure_counts_error_and_notifies() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        // A symlinked `graph-cache` dir is refused by the writer's dir-security
+        // check (InvalidData), so the write fails deterministically.
+        let real = tmp.path().join("real");
+        fs::create_dir(&real).unwrap();
+        let link = tmp.path().join("graph-cache");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+
+        let key = WorktreeKey::from_canonical(std::path::PathBuf::from("/ws-shutdown-fail"));
+        let state = state()
+            .with_snapshot_dir(link)
+            .with_broadcaster(deny_all_broadcaster());
+        state.cache.apply_delta(
+            &key,
+            ChangeKind::Create,
+            file_symbols("src/a.ts", &["a"], 0),
+        );
+        state.persist_all_on_shutdown();
+        let m = state.snapshot_metrics();
+        assert_eq!(m.write_error, 1, "a failed shutdown write must be counted");
+        assert_eq!(m.write_ok, 0);
     }
 }

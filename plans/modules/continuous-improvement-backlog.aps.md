@@ -2522,7 +2522,7 @@ archive.
 
 ### CIB-092: Persistence / warm-start wire-integrity & observability (v0.9.0 council)
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** Close the warm-start persistence findings (default-off,
   `ANVIL_PERSIST_GRAPH`) from the v0.9.0 council. Headline highs: the ADR-069 §6
   golden wire-bytes fixture is missing (writer+reader drift together, so a

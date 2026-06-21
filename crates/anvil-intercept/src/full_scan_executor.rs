@@ -56,7 +56,9 @@ use anvil_intercept_proto::protocol::{AssuranceState, ScanCoverage, StaleReason}
 use crate::assurance::{AssuranceMachine, ScanCompletion, ScanPriority};
 use crate::kernel_cache::KernelGraphCache;
 use crate::rule_cache::WorktreeKey;
-use crate::save_time::{SymbolParser, trace_machine_transition};
+use crate::save_time::{
+    PersistFailureNotifier, SnapshotMetrics, SymbolParser, trace_machine_transition,
+};
 use crate::workspace_anchor::WorkspaceAnchor;
 use crate::workspace_pool::{DosCaps, ScanCancel, ScanOutcome, run_chunked_scan, walk_gitignored};
 
@@ -214,17 +216,26 @@ pub struct ScanContext {
     /// is enabled, else `None` (default-off — no snapshot written). The executor
     /// writes a fresh snapshot here after a `Clean`/`Bounded` scan completion.
     snapshot_dir: Option<PathBuf>,
+    /// CIB-092b: shared ADR-069 §10 snapshot I/O counters; the executor's write
+    /// records its `ok`/`error` outcome here.
+    snapshot_metrics: Arc<SnapshotMetrics>,
+    /// CIB-092h: ADR-035 persist-failure notifier; `Some` only when persistence is
+    /// enabled with a broadcaster wired. A write failure raises a degradation
+    /// Notification through it.
+    persist_notifier: Option<Arc<PersistFailureNotifier>>,
 }
 
 impl ScanContext {
     /// Assemble a scan context from the daemon's shared collaborators.
     #[must_use]
-    pub fn new(
+    pub(crate) fn new(
         cache: Arc<KernelGraphCache>,
         parser: Option<Arc<dyn SymbolParser>>,
         caps: DosCaps,
         coordinator: ScanCoordinator,
         snapshot_dir: Option<PathBuf>,
+        snapshot_metrics: Arc<SnapshotMetrics>,
+        persist_notifier: Option<Arc<PersistFailureNotifier>>,
     ) -> Self {
         Self {
             cache,
@@ -232,6 +243,8 @@ impl ScanContext {
             caps,
             coordinator,
             snapshot_dir,
+            snapshot_metrics,
+            persist_notifier,
         }
     }
 
@@ -625,18 +638,29 @@ fn persist_after_scan(ctx: &ScanContext, key: &WorktreeKey, root: &Path) {
             // The entry was evicted between completion and here — nothing to write.
             None => return,
         };
-        match crate::snapshot_io::write_snapshot(dir, root, &payload) {
+        let result = crate::snapshot_io::write_snapshot(dir, root, &payload);
+        // CIB-092b: count the write outcome (ok/error).
+        ctx.snapshot_metrics.record_write(&result);
+        match result {
             Ok(()) => tracing::debug!(
                 target: "anvil_intercept::full_scan",
                 workspace_root = %root.display(),
                 "warm graph snapshot written",
             ),
-            Err(err) => tracing::warn!(
-                target: "anvil_intercept::full_scan",
-                workspace_root = %root.display(),
-                error = %err,
-                "warm graph snapshot write failed; continuing without persistence",
-            ),
+            Err(err) => {
+                tracing::warn!(
+                    target: "anvil_intercept::full_scan",
+                    workspace_root = %root.display(),
+                    error = %err,
+                    "warm graph snapshot write failed; continuing without persistence",
+                );
+                // CIB-092h: persistence is enabled here (a `snapshot_dir` was set),
+                // so surface the degradation as an ADR-035 Notification too, not
+                // only a WARN — when a broadcaster is wired.
+                if let Some(notifier) = ctx.persist_notifier.as_ref() {
+                    notifier.notify(root, &err);
+                }
+            }
         }
     }
 }
@@ -835,6 +859,8 @@ mod tests {
             parser,
             caps,
             ScanCoordinator::new(),
+            None,
+            Arc::new(SnapshotMetrics::default()),
             None,
         )
     }
@@ -1254,6 +1280,8 @@ mod tests {
             Some(parser),
             DosCaps::default(),
             coordinator,
+            None,
+            Arc::new(SnapshotMetrics::default()),
             None,
         );
         let machine = machine();

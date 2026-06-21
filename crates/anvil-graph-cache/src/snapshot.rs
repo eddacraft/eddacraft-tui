@@ -85,7 +85,6 @@ use std::collections::BTreeSet;
 use std::path::Path;
 
 use anvil_kernel_types::{EdgeType, SymbolEdge, SymbolKind, SymbolNode, TrustLevel, Visibility};
-use sha2::{Digest, Sha256};
 
 use crate::dependency::DependencyGraph;
 use crate::symbol_graph::SymbolGraph;
@@ -589,10 +588,21 @@ pub fn is_workspace_root_relative(path: &str) -> bool {
 }
 
 /// Derive the snapshot filename for a workspace from its **canonical root path**
-/// (PV-8, ADR-069 §2). A named, stable, one-way hash (SHA-256 hex) of the
-/// canonical root's **raw OS bytes**, suffixed `.snap` — never the rendered path,
-/// never the default (randomly-seeded) hasher. Worktree identity persists *only*
-/// as this filename key-hash; no absolute path appears in the result.
+/// (PV-8, ADR-069 §2). A named, stable, dependency-free **128-bit FNV-1a** digest
+/// of the canonical root's **raw OS bytes**, rendered as 32 lowercase hex chars +
+/// `.snap` — never the rendered path, never the default (randomly-seeded) hasher.
+/// Worktree identity persists *only* as this filename key-hash; no absolute path
+/// appears in the result.
+///
+/// The hash needs only to be **stable** (same root → same filename across runs and
+/// releases) and **collision-resistant enough** to disambiguate the handful of
+/// workspace roots one machine sees — not cryptographic. The former SHA-256 carried
+/// a `sha2` (+ `cpufeatures`/`libc`) dependency on this deliberately-lean crate
+/// (ADR-064) for **no crypto benefit**: the digest is unsalted, so it never
+/// resisted correlation (PV-12). FNV-1a hand-rolled keeps the property that
+/// matters with zero dependencies (CIB-092e). 128 bits (two independently-seeded
+/// FNV-1a lanes) keeps the birthday-collision probability negligible across any
+/// realistic worktree count, far better than the 64-bit single-lane minimum.
 ///
 /// Hashes [`std::ffi::OsStr::as_encoded_bytes`] (not `to_string_lossy`) so two
 /// distinct non-UTF-8 roots cannot lossy-collapse to the same filename (a
@@ -603,19 +613,32 @@ pub fn is_workspace_root_relative(path: &str) -> bool {
 ///
 /// Note (PV-12): the hash is unsalted and therefore cross-machine correlatable —
 /// the same exposure class as a git blob hash, accepted under the machine-local
-/// boundary (see module docs).
+/// boundary (see module docs). The same property held for the prior SHA-256.
 #[must_use]
 pub fn snapshot_filename(canonical_workspace_root: &Path) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(canonical_workspace_root.as_os_str().as_encoded_bytes());
-    let digest = hasher.finalize();
-    let mut hex = String::with_capacity(digest.len() * 2 + 5);
-    for byte in digest {
-        use std::fmt::Write as _;
-        let _ = write!(hex, "{byte:02x}");
+    let bytes = canonical_workspace_root.as_os_str().as_encoded_bytes();
+    // Two independently-seeded FNV-1a lanes → a 128-bit digest. The second lane
+    // is offset-seeded so it is not a trivial function of the first.
+    let hi = fnv1a64(bytes, FNV_OFFSET_BASIS);
+    let lo = fnv1a64(bytes, FNV_OFFSET_BASIS ^ 0x517c_c1b7_2722_0a95);
+    format!("{hi:016x}{lo:016x}.snap")
+}
+
+/// FNV-1a 64-bit prime (`0x100000001b3`).
+const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
+/// FNV-1a 64-bit offset basis (`0xcbf29ce484222325`).
+const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
+
+/// One FNV-1a 64-bit lane over `bytes`, starting from `seed`. Pure, stable across
+/// releases (unlike `std::hash::DefaultHasher`, which is `SipHash` with a
+/// process-random key and is explicitly **not** persistence-stable).
+fn fnv1a64(bytes: &[u8], seed: u64) -> u64 {
+    let mut hash = seed;
+    for &b in bytes {
+        hash ^= u64::from(b);
+        hash = hash.wrapping_mul(FNV_PRIME);
     }
-    hex.push_str(".snap");
-    hex
+    hash
 }
 
 /// Whether warm-graph persistence is enabled (PV-11, ADR-069 §7) — **default
@@ -660,6 +683,26 @@ fn crc32(data: &[u8]) -> u32 {
 mod tests {
     use super::*;
     use anvil_kernel_types::{EdgeType, SymbolKind, TrustLevel, Visibility};
+
+    /// Committed ADR-069 §6 golden wire bytes for [`golden_fixture`]. Regenerated
+    /// deliberately on a wire-format change (see `snapshot_wire_bytes_match_committed_golden`).
+    /// 147 bytes: the 36-byte header (magic/versions/counts/CRC) + the postcard body.
+    #[rustfmt::skip]
+    const GOLDEN_SNAPSHOT_BYTES: &[u8] = &[
+        0x41, 0x4e, 0x56, 0x49, 0x4c, 0x47, 0x43, 0x31, 0x01, 0x00, 0x00, 0x00,
+        0x01, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x1c, 0x57, 0x9e,
+        0x03, 0x01, 0x00, 0x05, 0x61, 0x6c, 0x70, 0x68, 0x61, 0x00, 0x08, 0x73,
+        0x72, 0x63, 0x2f, 0x61, 0x2e, 0x74, 0x73, 0x01, 0x02, 0x00, 0x05, 0x61,
+        0x6c, 0x70, 0x68, 0x61, 0x00, 0x08, 0x73, 0x72, 0x63, 0x2f, 0x61, 0x2e,
+        0x74, 0x73, 0x01, 0x03, 0x00, 0x06, 0x72, 0x65, 0x6e, 0x64, 0x65, 0x72,
+        0x00, 0x08, 0x73, 0x72, 0x63, 0x2f, 0x62, 0x2e, 0x74, 0x73, 0x01, 0x02,
+        0x01, 0x03, 0x02, 0x03, 0x01, 0x01, 0x02, 0x08, 0x73, 0x72, 0x63, 0x2f,
+        0x61, 0x2e, 0x74, 0x73, 0x02, 0x01, 0x02, 0x08, 0x73, 0x72, 0x63, 0x2f,
+        0x62, 0x2e, 0x74, 0x73, 0x01, 0x03, 0x04, 0x01, 0x08, 0x73, 0x72, 0x63,
+        0x2f, 0x61, 0x2e, 0x74, 0x73, 0x01, 0x08, 0x73, 0x72, 0x63, 0x2f, 0x62,
+        0x2e, 0x74, 0x73,
+    ];
 
     fn node(id: u64, name: &str, file: &str, kind: SymbolKind) -> SymbolNode {
         SymbolNode {
@@ -858,6 +901,69 @@ mod tests {
         assert_eq!(a, b);
     }
 
+    /// A *fully hand-pinned* snapshot fixture, kept deliberately independent of
+    /// [`fixture`] so a future tweak to that shared fixture cannot silently shift
+    /// the golden wire bytes below. Two files, three symbols (incl. an overload
+    /// pair so per-file ordering is exercised), two edge kinds, and one dependency
+    /// edge — small but structurally exercising every wire field.
+    fn golden_fixture() -> SnapshotPayload {
+        let mut sym = SymbolGraph::new();
+        sym.add_symbol(node(1, "alpha", "src/a.ts", SymbolKind::Function))
+            .unwrap();
+        sym.add_symbol(node(2, "alpha", "src/a.ts", SymbolKind::Function))
+            .unwrap(); // overload of (1)
+        sym.add_symbol(node(3, "render", "src/b.ts", SymbolKind::Function))
+            .unwrap();
+        sym.add_edge(SymbolEdge {
+            from: 1,
+            to: 3,
+            edge_type: EdgeType::Calls,
+        })
+        .unwrap();
+        sym.add_edge(SymbolEdge {
+            from: 3,
+            to: 1,
+            edge_type: EdgeType::References,
+        })
+        .unwrap();
+        let mut dep = DependencyGraph::new();
+        dep.add_dependency("src/a.ts".to_owned(), "src/b.ts".to_owned());
+        SnapshotPayload::from_graphs(&sym, &dep).unwrap()
+    }
+
+    /// ADR-069 §6 **golden wire-bytes** fixture. The round-trip tests above only
+    /// compare `to_bytes()` against another `to_bytes()` from the *same* binary, so
+    /// a postcard/field/header/codec change drifts the writer and reader together
+    /// and slips through undetected. This test pins `to_bytes()` of a fixed
+    /// hand-built fixture against bytes **committed** to the source tree.
+    ///
+    /// ⚠️ **If this test fails, the on-disk snapshot wire format changed.** That is
+    /// a breaking change to every persisted snapshot. Bump
+    /// [`SNAPSHOT_BACKING_SCHEMA_VERSION`] (or [`SNAPSHOT_FORMAT_VERSION`] for an
+    /// envelope/codec change) **deliberately**, then regenerate `EXPECTED` below by
+    /// temporarily printing `golden_fixture().to_bytes()` and re-pinning. Do NOT
+    /// "fix" the test by blindly pasting the new bytes without that version bump —
+    /// the bump is what tells a deployed daemon to discard the now-incompatible
+    /// snapshots and cold-rebuild instead of trusting a mis-shaped one.
+    #[test]
+    fn snapshot_wire_bytes_match_committed_golden() {
+        // Generated once from the current code (see the regeneration note above).
+        const EXPECTED: &[u8] = GOLDEN_SNAPSHOT_BYTES;
+        let got = golden_fixture().to_bytes();
+        assert_eq!(
+            got, EXPECTED,
+            "snapshot wire format changed — bump SNAPSHOT_BACKING_SCHEMA_VERSION \
+             deliberately and regenerate the committed golden bytes (see the test doc)"
+        );
+        // Sanity: the committed bytes must themselves still pass the integrity gate
+        // and round-trip, so a regenerated fixture cannot pin a broken artefact.
+        assert_eq!(
+            SnapshotPayload::from_bytes(EXPECTED).expect("golden bytes decode"),
+            golden_fixture(),
+            "committed golden bytes must round-trip through from_bytes",
+        );
+    }
+
     /// M-2: a session that inserted then removed high ids has `next_id` above any
     /// surviving node; the snapshot must restore that floor so reload does not
     /// re-issue a spent id.
@@ -1052,9 +1158,24 @@ mod tests {
         assert!(!a.contains('\\'));
         assert!(!a.contains("home"));
         assert!(!a.contains("project"));
-        assert_eq!(a.len(), 64 + 5);
-        assert!(a[..64].bytes().all(|c| c.is_ascii_hexdigit()));
+        // PV-8: a 128-bit FNV-1a digest, rendered as 32 lowercase hex chars +
+        // `.snap` (replacing the former SHA-256 64-hex digest; the unsalted hash
+        // had no crypto benefit, PV-12, so the crypto dep was dropped — CIB-092e).
+        assert_eq!(a.len(), 32 + 5);
+        assert!(a[..32].bytes().all(|c| c.is_ascii_hexdigit()));
         assert_ne!(a, snapshot_filename(Path::new("/home/user/other")));
+    }
+
+    #[test]
+    fn snapshot_filename_pinned_for_a_known_root() {
+        // Pin a concrete digest so an accidental change to the (now in-crate,
+        // dependency-free) hash is caught. Regenerate deliberately if the hash
+        // function is ever changed — but note that changes the on-disk key for
+        // every worktree (a one-time cold rebuild, not a correctness hazard).
+        assert_eq!(
+            snapshot_filename(Path::new("/home/user/project")),
+            "f8a71a04e8340307da890832f332fb1e.snap",
+        );
     }
 
     #[test]

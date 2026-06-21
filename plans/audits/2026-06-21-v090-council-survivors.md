@@ -73,41 +73,41 @@ Crate(s): `anvil-gctx-egress`, `anvil-cli/src/mcp`, `anvil-intercept/src/save_ti
 
 Crate(s): `anvil-graph-cache` (snapshot/io), `anvil-intercept` (save_time, full_scan_executor).
 
-- [ ] **092a ADR-069 §6 golden wire-bytes fixture** — _high, CONFIRMED._
+- [x] **092a ADR-069 §6 golden wire-bytes fixture** — _high, CONFIRMED._
       `snapshot.rs:820-865`. Shipped tests compare two calls from the same
       binary; writer+reader drift together so a postcard/field/codec change
       slips through with no `SNAPSHOT_BACKING_SCHEMA_VERSION` bump. **Fix:** pin
       `to_bytes()` of the standard fixture against a committed `&[u8]`/`.bin` so
       any wire change fails CI.
-- [ ] **092b ADR-069 §10 metric counters** (`snapshot_load_result` /
+- [x] **092b ADR-069 §10 metric counters** (`snapshot_load_result` /
       `snapshot_write_result`) — _high, CONFIRMED, graduation-blocker (not the
       default-off cut)._ `save_time.rs:383`. **Fix:** one increment per
       `load_snapshot` (labelled by `SnapshotReadError` variant) and per write
       (ok/error) via the existing `SaveTimeState` `TelemetryEmitter` fanout.
-- [ ] **092c ADR-069 §10 orphan `.snap` startup sweep** — _low (corrected from
+- [x] **092c ADR-069 §10 orphan `.snap` startup sweep** — _low (corrected from
       high), CONFIRMED._ `save_time.rs:1463-1465`. `sweep_snapshot_temps_on_start`
       removes only `*.tmp`; a worktree deleted while the daemon was down leaves
       its `.snap` forever. **Fix:** `sweep_stale_snapshots_on_start(registered_roots)`.
-- [ ] **092d openat2 RESOLVE_NO_SYMLINKS|RESOLVE_BENEATH discipline (ADR-069 §4)**
+- [~] **092d openat2 RESOLVE_NO_SYMLINKS|RESOLVE_BENEATH discipline (ADR-069 §4)**
       — _medium._ `snapshot_io.rs:152-157,210-213`. Path-based open with
       leaf-only `O_NOFOLLOW`; ADR-069 §4 mandates `openat` relative to an
       `O_PATH` fd (repo already ships `open_workspace_dirfd`/`read_under_openat2`
       in `path_safety.rs`). **Fix:** anchor temp create + read to the validated
       dirfd.
-- [ ] **092e `sha2` undeclared dep on lean `anvil-graph-cache`** — _medium
+- [x] **092e `sha2` undeclared dep on lean `anvil-graph-cache`** — _medium
       (ADR-064/069 dep budget)._ `Cargo.toml:42`. Sole use is
       `snapshot_filename` hashing the workspace-root path (unsalted, PV-12) —
       no crypto benefit. **Fix:** replace with FNV-1a/SipHash (or crate-internal
       crc32), or add to workspace deps with justification.
-- [ ] **092f ADR-069 §3 verdict-gate end-to-end test** — _medium (coverage)._
+- [x] **092f ADR-069 §3 verdict-gate end-to-end test** — _medium (coverage)._
       `save_time.rs:651-911`. Live path is safe but untested: assert
       `validate_paths` serves `Stale` (not `Clean`/`Certified`) in the
       restore→reconcile window.
-- [ ] **092g fsync_dir-failed-after-rename mislabels persistence-failed** —
+- [x] **092g fsync_dir-failed-after-rename mislabels persistence-failed** —
       _medium._ `snapshot_io.rs:162`. After `fs::rename` succeeds a failing
       `fsync_dir(dir)?` reports "persistence failed" for a durably-published
       file. **Fix:** treat rename-succeeded/fsync_dir-failed as semi-success.
-- [ ] **092h ADR-035 Notification on persist write failure** — _medium._
+- [x] **092h ADR-035 Notification on persist write failure** — _medium._
       `save_time.rs:383`, `full_scan_executor.rs:634`. With persistence enabled a
       write failure should raise an ADR-035 Notification, not only `warn!`.
       **Fix:** emit via existing `TelemetryBroadcaster`/`NotificationEnvelope`

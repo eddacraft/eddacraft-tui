@@ -212,6 +212,33 @@ impl TelemetryEmitter {
         envelope(&context, Some(attempted_decision), notification, None)
     }
 
+    /// DSV-030 / ADR-069 §10 + ADR-035 (CIB-092h): build the operator-facing
+    /// degradation notification raised when warm-graph **persistence is explicitly
+    /// enabled** but a snapshot write fails. A `Health`/`High` envelope (the same
+    /// class as a failed control-lane delivery) so an opted-in user sees that the
+    /// warm cache is no longer being durably persisted — not only a buried
+    /// `tracing::warn!`. The `worktree` rides the correlation; the `message` must
+    /// not echo any path/identity bytes from the snapshot (PV-10).
+    pub fn persist_failure_health_envelope(
+        &mut self,
+        mut correlation: TelemetryCorrelation,
+        worktree: &Path,
+        message: impl Into<String>,
+    ) -> NotificationEnvelope {
+        correlation.worktree = Some(worktree.display().to_string());
+        let context = self.next_context(correlation);
+        let notification = Notification::new(
+            NotificationClass::Health,
+            NotificationPriority::High,
+            "warm-graph snapshot persistence degraded",
+            message,
+        )
+        .with_context(notification_context(None));
+        // No `ControlDecision` — this is a daemon-side health signal, not a control
+        // verdict, so the mirror is absent.
+        envelope(&context, None, notification, None)
+    }
+
     pub fn envelope_for_fence_transition(
         &mut self,
         mut correlation: TelemetryCorrelation,

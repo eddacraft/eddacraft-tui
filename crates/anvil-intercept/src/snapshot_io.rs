@@ -145,10 +145,26 @@ pub fn write_snapshot(
     let tmp_path = dir.join(&tmp_name);
     let final_path = dir.join(&final_name);
 
+    // TODO(CIB-092d): anchor the temp create + rename to the validated `O_PATH`
+    // dirfd (`open_workspace_dirfd(dir)` + `openat(O_CREAT|O_EXCL|O_NOFOLLOW)` +
+    // `renameat` + a dirfd `fsync`), mirroring the read path's openat2 discipline.
+    // Deferred (not the read fix): the shipped `path_safety` helpers cover only the
+    // *read* side (`read_under`/`read_under_openat2`), so the write would need a new
+    // hand-rolled `openat`/`renameat` ladder — a larger change than this slice
+    // carries. The current write is already symlink-safe at the leaf
+    // (`O_EXCL | O_NOFOLLOW`, randomised temp) and `validate_secure_dir` rejects a
+    // symlinked / non-owned / group-writable `dir` before any write, so the
+    // residual gap is only the dir-component-swap atomicity the read path now closes.
+    //
     // Create `O_CREAT | O_EXCL | O_NOFOLLOW` at 0600 from the first syscall — no
     // default-umask-then-chmod window, and a planted symlink/pre-created temp
     // fails the create rather than redirecting the write.
-    let write_result = (|| -> io::Result<()> {
+    //
+    // Returns `true` once the `rename` has succeeded (the new snapshot is
+    // **published** — visible at `final_path`), so the caller can tell a pre-rename
+    // failure (nothing published; clean up the temp) from a post-rename one (the
+    // file IS durable enough to serve; see the `fsync_dir` note below).
+    let create_to_rename = (|| -> io::Result<bool> {
         let mut file = OpenOptions::new()
             .write(true)
             .create_new(true)
@@ -160,18 +176,47 @@ pub fn write_snapshot(
         // Atomic publish: temp and target share `dir`, so `rename` is atomic and
         // cannot return EXDEV.
         fs::rename(&tmp_path, &final_path)?;
-        // Durably commit the directory entry so the rename survives a crash (a
-        // file fsync alone does not guarantee this on ext4).
-        fsync_dir(dir)?;
-        Ok(())
+        Ok(true)
     })();
 
-    if write_result.is_err() {
-        // Best-effort cleanup of the orphaned temp; the rename may already have
-        // consumed it, so ignore a NotFound.
-        let _ = fs::remove_file(&tmp_path);
+    match create_to_rename {
+        Err(err) => {
+            // Failure *before* the rename published anything: best-effort cleanup
+            // of the orphaned temp (the rename may already have consumed it on some
+            // paths, so ignore a NotFound), then surface the failure.
+            let _ = fs::remove_file(&tmp_path);
+            Err(err)
+        }
+        Ok(true) => {
+            // The rename succeeded — the snapshot is published at `final_path`.
+            // Whether the directory fsync then succeeds or not, the published file
+            // is durable-enough to serve (CIB-092g); `note_publish_durability` folds
+            // a fsync failure to a WARN rather than a hard error.
+            note_publish_durability(fsync_dir(dir));
+            Ok(())
+        }
+        // `create_to_rename` only ever yields `Ok(true)` on success.
+        Ok(false) => unreachable!("write helper returns Ok(true) only after a successful rename"),
     }
-    write_result
+}
+
+/// Note the post-rename durability outcome (CIB-092g / ADR-069 §4). The rename has
+/// already published the snapshot at its final path, so a failing **directory**
+/// fsync is a *semi-success*: the file is durably written and visible; only the
+/// directory entry's crash-durability is unconfirmed (worst case: one cold rebuild
+/// after an ill-timed crash, which the ADR accepts). It is therefore logged at WARN
+/// and never propagated as a "persistence failed" write error for an
+/// already-published file — so the write call still reports `Ok`. Returns nothing
+/// (the write is already a success) but is split out so the fold is unit-testable
+/// without forcing a real `fsync` failure.
+fn note_publish_durability(fsync_dir_result: io::Result<()>) {
+    if let Err(err) = fsync_dir_result {
+        tracing::warn!(
+            target: "anvil_intercept::snapshot",
+            error = %err,
+            "snapshot published but directory fsync failed; durable-but-not-crash-guaranteed (ADR-069 §4)",
+        );
+    }
 }
 
 /// Load and validate the snapshot for `canonical_root` from `dir` (ADR-069
@@ -207,10 +252,16 @@ pub fn load_snapshot(
         return Err(SnapshotReadError::Rejected(SnapshotLoadError::Oversized));
     }
 
-    let file = OpenOptions::new()
-        .read(true)
-        .custom_flags(nix::libc::O_NOFOLLOW | nix::libc::O_CLOEXEC)
-        .open(&path)
+    // ADR-069 §4 (CIB-092d): anchor the read to an `O_PATH` dirfd held on the
+    // graph-cache dir and open the single-component snapshot name **relative to
+    // it** under `openat2(RESOLVE_NO_SYMLINKS | RESOLVE_BENEATH)` (with the
+    // `O_NOFOLLOW`-`openat` ladder fallback where `openat2` is unavailable), rather
+    // than a path-based `open` with only a leaf-`O_NOFOLLOW`. This refuses a
+    // symlinked snapshot *and* a symlinked/`..`-escaping dir component, and cannot
+    // be redirected by a same-uid swap of an intermediate directory in the
+    // stat→open window. The `metadata.len()` pre-cap above is a cheap fast-reject;
+    // the held fd below is the security-bearing read.
+    let file = open_snapshot_for_read(dir, &snapshot_filename(canonical_root))
         .map_err(SnapshotReadError::Io)?;
     // Cap the actual READ at the open fd, not just the pre-stat size: a file that
     // grew between `symlink_metadata` and `open` (a TOCTOU on a network/FUSE
@@ -256,6 +307,53 @@ pub fn sweep_orphan_temps(dir: &Path) -> usize {
         if path.extension().and_then(|e| e.to_str()) == Some(TMP_EXT)
             && fs::remove_file(&path).is_ok()
         {
+            removed += 1;
+        }
+    }
+    removed
+}
+
+/// Sweep stale `*.snap` snapshots on daemon start (ADR-069 §10, CIB-092c): remove
+/// any snapshot whose worktree key is **not** in `registered_roots`, returning the
+/// count removed. A worktree deleted while the daemon was down (so its unregister
+/// hook never fired) otherwise leaves its `.snap` on disk forever; this reclaims
+/// it. Snapshots for currently-registered worktrees are kept.
+///
+/// `registered_roots` are the **canonical** roots the daemon knows about; each is
+/// mapped through [`snapshot_filename`] to the on-disk name it would own, and only
+/// those names are kept. A `.snap` whose name matches no registered root is an
+/// orphan and is removed. Best-effort: an unreadable dir or a file that vanishes
+/// mid-sweep is skipped, never fatal; a missing `dir` is a no-op. `*.tmp` files are
+/// left to [`sweep_orphan_temps`] — this sweep only touches `*.snap`.
+pub fn sweep_stale_snapshots_on_start<I, P>(dir: &Path, registered_roots: I) -> usize
+where
+    I: IntoIterator<Item = P>,
+    P: AsRef<Path>,
+{
+    use std::collections::HashSet;
+    let keep: HashSet<String> = registered_roots
+        .into_iter()
+        .map(|root| snapshot_filename(root.as_ref()))
+        .collect();
+    let Ok(entries) = fs::read_dir(dir) else {
+        return 0;
+    };
+    let mut removed = 0;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        // Only `*.snap` files; `*.tmp` is the temp-sweep's job, and a subdir is
+        // never a snapshot.
+        if path.extension().and_then(|e| e.to_str()) != Some("snap") {
+            continue;
+        }
+        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        // A registered worktree's snapshot is kept; anything else is an orphan.
+        if keep.contains(name) {
+            continue;
+        }
+        if fs::remove_file(&path).is_ok() {
             removed += 1;
         }
     }
@@ -309,6 +407,70 @@ fn validate_secure_dir(dir: &Path) -> io::Result<()> {
 /// read-only and `fsync`-ing the fd is the portable POSIX idiom.
 fn fsync_dir(dir: &Path) -> io::Result<()> {
     File::open(dir)?.sync_all()
+}
+
+/// Open the snapshot `name` (a single, separator-free component) **relative to an
+/// `O_PATH` dirfd** held on `dir`, for reading (ADR-069 §4 / CIB-092d). Uses the
+/// shipped [`open_workspace_dirfd`](crate::path_safety::open_workspace_dirfd) as
+/// the anchor, then `openat2(RESOLVE_NO_SYMLINKS | RESOLVE_BENEATH)` on Linux
+/// (falling back to an `O_NOFOLLOW` `openat` where `openat2` is unavailable —
+/// `ENOSYS`/`EPERM` — and on non-Linux Unix). A symlinked leaf or a symlinked dir
+/// is refused (`ELOOP`); the name cannot escape `dir`.
+fn open_snapshot_for_read(dir: &Path, name: &str) -> io::Result<File> {
+    let dirfd = crate::path_safety::open_workspace_dirfd(dir)?;
+    let leaf_fd = open_leaf_under_dirfd(&dirfd, name)?;
+    // `File::from(OwnedFd)` takes sole ownership of the fd — no `unsafe`.
+    Ok(File::from(leaf_fd))
+}
+
+/// Open a single, separator-free `name` for reading beneath `dirfd`, refusing a
+/// symlinked leaf or escape. Linux: one `openat2` (with the `O_NOFOLLOW`-`openat`
+/// fallback on `ENOSYS`/`EPERM`); other Unix: `O_NOFOLLOW` `openat`. Mirrors the
+/// platform discipline in [`crate::path_safety::read_under`].
+fn open_leaf_under_dirfd(
+    dirfd: &std::os::fd::OwnedFd,
+    name: &str,
+) -> io::Result<std::os::fd::OwnedFd> {
+    use nix::fcntl::{OFlag, openat};
+    use nix::sys::stat::Mode;
+    use std::os::fd::AsFd;
+
+    let nofollow_openat = |fd: std::os::fd::BorrowedFd<'_>| -> io::Result<std::os::fd::OwnedFd> {
+        openat(
+            fd,
+            name,
+            OFlag::O_RDONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
+            Mode::empty(),
+        )
+        .map_err(io::Error::from)
+    };
+
+    #[cfg(target_os = "linux")]
+    {
+        use nix::errno::Errno;
+        use nix::fcntl::{OpenHow, ResolveFlag, openat2};
+        let how = OpenHow::new()
+            .flags(OFlag::O_RDONLY | OFlag::O_CLOEXEC)
+            .resolve(ResolveFlag::RESOLVE_NO_SYMLINKS | ResolveFlag::RESOLVE_BENEATH);
+        match openat2(dirfd.as_fd(), name, how) {
+            // `openat2` absent (pre-5.6 kernel ENOSYS, or a seccomp EPERM on the
+            // unknown syscall) ⇒ fall back to the `O_NOFOLLOW` `openat`, exactly as
+            // `path_safety::read_under` does.
+            Err(err)
+                if matches!(
+                    err as i32,
+                    code if code == Errno::ENOSYS as i32 || code == Errno::EPERM as i32
+                ) =>
+            {
+                nofollow_openat(dirfd.as_fd())
+            }
+            other => other.map_err(io::Error::from),
+        }
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        nofollow_openat(dirfd.as_fd())
+    }
 }
 
 /// `<final>.<rand-hex>.tmp` — a randomised suffix so a same-uid attacker cannot
@@ -445,6 +607,111 @@ mod tests {
         assert_eq!(sweep_orphan_temps(tmp.path()), 2);
         assert!(tmp.path().join("a.snap").exists(), "real snapshot kept");
         assert!(!tmp.path().join("a.snap.deadbeef.tmp").exists());
+    }
+
+    #[test]
+    fn sweep_stale_snapshots_removes_only_unregistered() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path();
+        let registered = Path::new("/ws/registered");
+        let orphan = Path::new("/ws/deleted-while-down");
+        // Two real snapshot files (one for a still-registered worktree, one for a
+        // worktree deleted while the daemon was down) + a temp the .snap sweep
+        // must not touch.
+        fs::write(dir.join(snapshot_filename(registered)), b"keep").unwrap();
+        fs::write(dir.join(snapshot_filename(orphan)), b"orphan").unwrap();
+        let leftover_tmp = dir.join(format!("{}.deadbeef.tmp", snapshot_filename(orphan)));
+        fs::write(&leftover_tmp, b"temp").unwrap();
+
+        let removed = sweep_stale_snapshots_on_start(dir, [registered]);
+
+        assert_eq!(removed, 1, "only the unregistered .snap is removed");
+        assert!(
+            dir.join(snapshot_filename(registered)).exists(),
+            "a registered worktree's snapshot is kept",
+        );
+        assert!(
+            !dir.join(snapshot_filename(orphan)).exists(),
+            "the orphaned snapshot is reclaimed",
+        );
+        assert!(
+            leftover_tmp.exists(),
+            "the .snap sweep must not touch *.tmp files"
+        );
+    }
+
+    #[test]
+    fn sweep_stale_snapshots_with_no_registered_roots_removes_all_snaps() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path();
+        fs::write(dir.join(snapshot_filename(Path::new("/a"))), b"a").unwrap();
+        fs::write(dir.join(snapshot_filename(Path::new("/b"))), b"b").unwrap();
+        let empty: [&Path; 0] = [];
+        assert_eq!(sweep_stale_snapshots_on_start(dir, empty), 2);
+        assert_eq!(
+            fs::read_dir(dir).unwrap().count(),
+            0,
+            "no registered roots ⇒ every orphan .snap is reclaimed",
+        );
+    }
+
+    #[test]
+    fn sweep_stale_snapshots_missing_dir_is_a_noop() {
+        let tmp = tempfile::tempdir().unwrap();
+        let missing = tmp.path().join("does-not-exist");
+        assert_eq!(
+            sweep_stale_snapshots_on_start(&missing, [Path::new("/ws")]),
+            0,
+        );
+    }
+
+    #[test]
+    fn open_snapshot_for_read_is_anchored_and_refuses_a_symlinked_leaf() {
+        // CIB-092d: the read opens the leaf relative to an O_PATH dirfd under
+        // openat2(RESOLVE_NO_SYMLINKS|RESOLVE_BENEATH) (or the O_NOFOLLOW openat
+        // fallback). A real file opens; a symlinked leaf is refused.
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path();
+        fs::write(dir.join("real.snap"), b"bytes").unwrap();
+        let mut got = Vec::new();
+        open_snapshot_for_read(dir, "real.snap")
+            .expect("a real leaf opens under the dirfd")
+            .read_to_end(&mut got)
+            .unwrap();
+        assert_eq!(got, b"bytes");
+
+        // A symlinked leaf is refused (ELOOP under RESOLVE_NO_SYMLINKS / O_NOFOLLOW).
+        std::os::unix::fs::symlink(dir.join("real.snap"), dir.join("link.snap")).unwrap();
+        assert!(
+            open_snapshot_for_read(dir, "link.snap").is_err(),
+            "a symlinked snapshot leaf must be refused by the anchored open",
+        );
+    }
+
+    #[test]
+    fn note_publish_durability_never_panics_on_fsync_failure() {
+        // CIB-092g: after the rename has published the file, a failing directory
+        // fsync is folded to a WARN (durable-but-not-crash-guaranteed), never a hard
+        // write error — `note_publish_durability` returns `()` either way, so the
+        // surrounding `write_snapshot` still reports `Ok`.
+        note_publish_durability(Ok(()));
+        note_publish_durability(Err(io::Error::other("fsync EIO")));
+    }
+
+    #[test]
+    fn write_reports_ok_and_publishes_despite_post_rename_fsync() {
+        // The happy path publishes a loadable snapshot AND reports Ok — the 092g
+        // regression guard: a post-rename fsync_dir failure is no longer a write
+        // failure (and the rename, not the fsync, is what makes the file readable).
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = gc(&tmp);
+        let root = Path::new("/ws-092g");
+        write_snapshot(&dir, root, &payload()).expect("a published write reports Ok");
+        assert!(
+            dir.join(snapshot_filename(root)).exists(),
+            "snapshot published"
+        );
+        load_snapshot(&dir, root).expect("the published snapshot loads");
     }
 
     #[test]
