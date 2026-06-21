@@ -123,7 +123,7 @@
         "columns": ["From", "To", "Rule", "Severity"],
         "rows": [
           [
-            "archive/anvil-mcp-server/src/tools/fix.tool.ts",
+            "anvil-archive/anvil-mcp-server/src/tools/fix.tool.ts",
             "packages/anvil/runtime/src/gate/checks/policy.check.ts",
             "mcp-must-not-import-runtime-internals",
             "error"
@@ -147,7 +147,7 @@
             "warning"
           ],
           [
-            "archive/anvil-mcp-server/src/tools/fix.tool.ts",
+            "anvil-archive/anvil-mcp-server/src/tools/fix.tool.ts",
             "packages/anvil/core/src/config/loader.ts",
             "mcp-should-use-runtime-facade",
             "warning"
