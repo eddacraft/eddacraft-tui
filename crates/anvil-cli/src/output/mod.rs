@@ -123,8 +123,10 @@ impl OutputMode {
     /// `--format` flag of their own (everything except the finding-emitting
     /// commands), so it can never yield [`OutputMode::Sarif`].
     pub fn from_global(global: &crate::GlobalArgs) -> Self {
-        use std::io::IsTerminal;
-        Self::resolve(global.json, global.no_tui, std::io::stdout().is_terminal())
+        // Delegate the TTY probe to the shared `eddacraft-tui` mode helper
+        // (TUIN-003) rather than calling `is_terminal()` inline.
+        let is_tty = eddacraft_tui::mode::TtyKind::stdout().is_interactive();
+        Self::resolve(global.json, global.no_tui, is_tty)
     }
 
     /// Resolve a finding-emitting command's local `--format` against the global
@@ -135,13 +137,10 @@ impl OutputMode {
     /// collide. The precedence + alias semantics are identical to a global
     /// selector — `--format` wins, then `--json`, then `--no-tui` / non-TTY.
     pub fn from_command_format(format: Option<Format>, global: &crate::GlobalArgs) -> Self {
-        use std::io::IsTerminal;
-        Self::resolve_format(
-            format,
-            global.json,
-            global.no_tui,
-            std::io::stdout().is_terminal(),
-        )
+        // Delegate the TTY probe to the shared `eddacraft-tui` mode helper
+        // (TUIN-003) rather than calling `is_terminal()` inline.
+        let is_tty = eddacraft_tui::mode::TtyKind::stdout().is_interactive();
+        Self::resolve_format(format, global.json, global.no_tui, is_tty)
     }
 }
 

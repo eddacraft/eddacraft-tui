@@ -31,6 +31,7 @@
 //! | [`surface`] | `Surface` trait for multi-screen TUI applications |
 //! | [`shell`] | Branded header/footer chrome renderer |
 //! | [`compat`] | Terminal detection and minimum-size validation |
+//! | [`mode`] | TTY / alt-screen / colour-depth probes returning typed enums (zero new deps) |
 //! | `json_render` (feature `json-render`) | Parser, catalogue validation, and the component registry/trait for the `@json-render/core` flat element spec format |
 //! | `test_utils` (feature `test-utils`) | Snapshot testing helpers for style-aware buffer serialisation |
 
@@ -45,6 +46,7 @@ pub mod keyboard;
 #[cfg(feature = "lifecycle")]
 #[cfg_attr(docsrs, doc(cfg(feature = "lifecycle")))]
 pub mod lifecycle;
+pub mod mode;
 pub mod pretext;
 #[cfg(feature = "runner")]
 #[cfg_attr(docsrs, doc(cfg(feature = "runner")))]
@@ -65,6 +67,7 @@ pub mod prelude {
     #[cfg(feature = "lifecycle")]
     #[cfg_attr(docsrs, doc(cfg(feature = "lifecycle")))]
     pub use crate::lifecycle::{TerminalGuard, restore_terminal};
+    pub use crate::mode::{AltScreenSupport, ColourDepth, TtyKind};
     pub use crate::pretext::{ExclusionZone, LayoutResult, PositionedWord, PreparedText};
     pub use crate::shell::{ShellBranding, render_shell};
     pub use crate::surface::Surface;

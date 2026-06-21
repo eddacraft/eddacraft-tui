@@ -5,9 +5,14 @@
 
 | ID   | Owner      | Status   | Progress |
 | ---- | ---------- | -------- | -------- |
-| TUIN | joshuaboys | In Progress | 4/13     |
+| TUIN | joshuaboys | In Progress | 5/13     |
 
-**Last reviewed:** 2026-06-21 (gate reconciliation): the Ready-Checklist drift
+**Last reviewed:** 2026-06-21 (TUIN-003 landed): D-TUIN-002 Accepted (operator)
+and TUIN-003 delivered — `crates/eddacraft-tui/src/mode/` ships the `TtyKind` /
+`AltScreenSupport` / `ColourDepth` typed-enum probes (pure cores + live-env
+wrappers, zero new deps, full unit-test matrix), and Anvil's central `OutputMode`
+resolver delegates its TTY probe to `mode::TtyKind`. Module 4/13 → **5/13**.
+Prior: 2026-06-21 (gate reconciliation): the Ready-Checklist drift
 gate is **met** — D-TUIR-018 mirror-drift-check green for 15+ consecutive daily
 runs (2026-06-08..2026-06-21), well past the 7 required; the ADR-slot and
 feature-flag-collision checklist items are also ticked (ADR-050 Accepted via
@@ -204,7 +209,7 @@ surface.
 
 **D-TUIN-002:** CLI mode-detection helpers ownership
 
-- **Proposed resolution:** TTY / alt-screen / terminfo / colour-depth
+- **Accepted resolution:** TTY / alt-screen / terminfo / colour-depth
   probes live in `eddacraft-tui` core as small, parser-free helpers
   with zero new dependencies (stdlib + `crossterm` or whatever the
   crate already pulls). They are NOT behind a feature flag — they form
@@ -213,7 +218,7 @@ surface.
   enums, not raw capability bits — typed enums force consumers to
   handle the cases the crate decides matter (TtyKind variants,
   ColourDepth steps) rather than leaking probe internals.
-- **Status:** Proposed.
+- **Status:** Accepted 2026-06-21 (operator); implemented by TUIN-003.
 
 **D-TUIN-003:** Terminal lifecycle ownership
 
@@ -385,10 +390,14 @@ TUIN module resolve.
 
 ### TUIN-003: Implement CLI mode-detection helpers in core
 
-- **Status:** open — **Blocked:** D-TUIN-002 (mode-detection ownership) is
-  still `Proposed`; its resolution (probes in `eddacraft-tui` core, parser-free,
-  zero new deps, typed enums) must be Accepted before this promotes to Ready.
-  `crates/eddacraft-tui/src/mode/` does not yet exist (genuinely unstarted).
+- **Status:** Done 2026-06-21 — D-TUIN-002 Accepted; `crates/eddacraft-tui/src/mode/`
+  ships `TtyKind`, `AltScreenSupport`, and `ColourDepth` typed-enum probes (pure
+  `resolve_*` cores + live-env wrappers, zero new deps — std `IsTerminal` + env),
+  with a full unit-test matrix. Anvil's central mode resolver
+  (`anvil-cli/src/output/mod.rs` `OutputMode::from_global`/`from_command_format`)
+  delegates its TTY probe to `mode::TtyKind`; the pure `OutputMode::resolve`
+  tests are unchanged and still pass. Remaining scattered `is_terminal()`
+  interaction-gates (admin prompts etc.) are not mode-resolution and stay as-is.
 - **Intent:** Land TTY / alt-screen capability / colour-depth / terminfo
   probes in `eddacraft-tui` core per D-TUIN-002, with zero new
   dependencies and typed-enum return values.
