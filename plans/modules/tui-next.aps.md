@@ -7,7 +7,18 @@
 | ---- | ---------- | -------- | -------- |
 | TUIN | joshuaboys | In Progress | 4/13     |
 
-**Last reviewed:** 2026-06-09 (TUIN-013 added Proposed: first-class public
+**Last reviewed:** 2026-06-21 (gate reconciliation): the Ready-Checklist drift
+gate is **met** — D-TUIR-018 mirror-drift-check green for 15+ consecutive daily
+runs (2026-06-10..2026-06-21), well past the 7 required; the ADR-slot and
+feature-flag-collision checklist items are also ticked (ADR-050 Accepted via
+TUIN-001; `lifecycle`/`runner` shipped via TUIN-012 without collision). TUIN-004
+reconciled to **Ready** — its implementation landed via TUIN-012
+(`src/lifecycle.rs` + `lifecycle` feature + `TerminalGuard`/`restore_terminal`/
+panic hook); only the dedicated `tests/lifecycle_panic.rs` test remains. TUIN-003
+stays **open/Blocked** on D-TUIN-002 (mode-detection ownership), still `Proposed`
+— accept that decision to unblock it. TUIR is now archived
+([`plans/archive/modules/tui-reintegration.aps.md`](../archive/modules/tui-reintegration.aps.md)).
+No done/total change (4/13). Prior: 2026-06-09 (TUIN-013 added Proposed: first-class public
 docs-site section for `eddacraft-tui`, sibling to `/aps` and `/kindling`,
 narrative-only with API reference linked to docs.rs; surfaced alongside the
 runner BYO-parser docs PR #2462). Prior: 2026-06-08 (TUIN-012 Done:
@@ -374,7 +385,10 @@ TUIN module resolve.
 
 ### TUIN-003: Implement CLI mode-detection helpers in core
 
-- **Status:** open
+- **Status:** open — **Blocked:** D-TUIN-002 (mode-detection ownership) is
+  still `Proposed`; its resolution (probes in `eddacraft-tui` core, parser-free,
+  zero new deps, typed enums) must be Accepted before this promotes to Ready.
+  `crates/eddacraft-tui/src/mode/` does not yet exist (genuinely unstarted).
 - **Intent:** Land TTY / alt-screen capability / colour-depth / terminfo
   probes in `eddacraft-tui` core per D-TUIN-002, with zero new
   dependencies and typed-enum return values.
@@ -396,7 +410,15 @@ TUIN module resolve.
 
 ### TUIN-004: Implement lifecycle helpers behind opt-in feature flag
 
-- **Status:** open
+- **Status:** Ready — **implementation landed via TUIN-012** (D-TUIN-003
+  Accepted): `crates/eddacraft-tui/src/lifecycle.rs` ships behind
+  `#[cfg(feature = "lifecycle")]` with `TerminalGuard` (raw-mode + alt-screen
+  enter/leave, `Drop` cleanup), `restore_terminal`, and an `install_panic_hook`
+  panic-restore handler; `Cargo.toml` declares `lifecycle = []` (no transitive
+  pulls); `examples/runner_shell.rs` exercises it transitively. **Remaining
+  delta:** the dedicated panic-restore integration test
+  (`tests/lifecycle_panic.rs`) named in the Validation criterion, and
+  (optional) a lifecycle-specific example. Scoped, unblocked.
 - **Intent:** Land the `lifecycle` feature flag in `eddacraft-tui` with
   alt-screen enter/exit, raw mode set/clear, panic-restore handler, and
   signal-driven cleanup helpers per D-TUIN-003.
@@ -698,15 +720,16 @@ a subcommand and `--config` path handoff.
 - [x] TUIR-008 closed: canonical source live in
       `crates/eddacraft-tui/`, mirror healthy, first crates.io publish
       from canonical source verified.
-- [ ] Drift check (D-TUIR-018) green for at least 7 consecutive runs
-      before TUIN promotes any task to Ready.
+- [x] Drift check (D-TUIR-018) green for at least 7 consecutive runs
+      before TUIN promotes any task to Ready. **Met 2026-06-21** — 15+
+      consecutive green daily runs (2026-06-10..2026-06-21).
 - [ ] Downstream consumer list from TUIR-001 baseline imported into
       TUIN-002 survey scope.
-- [ ] Next ADR slot confirmed (slot `050` at drafting; verify in
-      `DECISION-LOG.md` before opening TUIN-001).
-- [ ] Proposed feature-flag names (`lifecycle`, plus any names
-      introduced by ADR-050) checked against existing
-      `crates/eddacraft-tui/Cargo.toml` features for collisions.
+- [x] Next ADR slot confirmed — ADR-050 Accepted; TUIN-001 Merged
+      2026-05-23 via PR #1883.
+- [x] Proposed feature-flag names checked against existing
+      `crates/eddacraft-tui/Cargo.toml` features for collisions — `lifecycle`
+      and `runner` landed via TUIN-012 with no collisions.
 - [ ] Stability annotation mechanism (rustdoc convention vs stability
       crate) chosen before TUIN-006 starts.
 - [ ] No emergency P1 against a TUIN-scoped surface is active in
