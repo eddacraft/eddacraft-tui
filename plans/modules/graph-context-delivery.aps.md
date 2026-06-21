@@ -2,9 +2,14 @@
 
 | ID   | Owner | Status | Progress |
 | ---- | ----- | ------ | -------- |
-| GCTX | —     | In Progress | 8/14 |
+| GCTX | —     | In Progress | 9/14 |
 
-**Last reviewed:** 2026-06-18 (Phase 0 — Delivery Contract — complete. **GCTX-001 (projection contract) Merged 2026-06-15 via #2628** — the spec [`graph-context-delivery-spec.md`](../../docs/architecture/graph-context-delivery-spec.md) folds the context-egress privacy review (PV-9) conditions CE-1..CE-12 onto the GV2-023 consumer query contract. **GCTX-002 (MCP delivery target) Merged 2026-06-15 via #2619** — discharged by [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) **Accepted** (Rust RMCPF `anvil mcp serve` surface); RMCPF defers GCTX work by design, so no edit to rust-mcp-full-port. Module **In Progress, 8/14** (GCTX-010 pilot Merged 2026-06-16 via #2657; GCTX-011 `find_dependents` Merged 2026-06-16 via #2685; GCTX-012 `anvil_impact_of_change` Merged 2026-06-17 via #2693; **GCTX-013 `anvil_affected_tests` Merged 2026-06-17 via #2700** — test attribution + coverage gaps over the same spine, no new substrate; reuses GCTX-012's `is_test_file` + the dependency graph's forward `dependencies_of` edges for evidence; **GCTX-014 `anvil_find_callers` Merged 2026-06-17 via #2715** — symbol-level caller traversal projecting the GCALL-003 `callers_of` read API, completing the Phase 1 tool surface (010..014); **GCTX-030 (`graph://` MCP resources) Merged 2026-06-18 via #2772** — the read-only `graph://stats`/`symbols`/`edges` resource surface, identity-only, with CE-6 pagination and a `bounded` edges flag). With the Phase 1 tool queue + the resource surface complete, the remaining Phase-2 snippet items (021..023) stay Draft; all build on the CE-5 sealed egress DTO + `GctxProjector` + structural no-leak spine that GCTX-010 established, using the daemon-RPC graph-handle path settled by ADR-084.)
+**Last reviewed:** 2026-06-20 (Phase 0 — Delivery Contract — complete. **GCTX-001 (projection contract) Merged 2026-06-15 via #2628** — the spec [`graph-context-delivery-spec.md`](../../docs/architecture/graph-context-delivery-spec.md) folds the context-egress privacy review (PV-9) conditions CE-1..CE-12 onto the GV2-023 consumer query contract. **GCTX-002 (MCP delivery target) Merged 2026-06-15 via #2619** — discharged by [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) **Accepted** (Rust RMCPF `anvil mcp serve` surface); RMCPF defers GCTX work by design, so no edit to rust-mcp-full-port. Module **In Progress, 9/14** (GCTX-010 pilot Merged 2026-06-16 via #2657; GCTX-011 `find_dependents` Merged 2026-06-16 via #2685; GCTX-012 `anvil_impact_of_change` Merged 2026-06-17 via #2693; **GCTX-013 `anvil_affected_tests` Merged 2026-06-17 via #2700** — test attribution + coverage gaps over the same spine, no new substrate; reuses GCTX-012's `is_test_file` + the dependency graph's forward `dependencies_of` edges for evidence; **GCTX-014 `anvil_find_callers` Merged 2026-06-17 via #2715** — symbol-level caller traversal projecting the GCALL-003 `callers_of` read API, completing the Phase 1 tool surface (010..014); **GCTX-030 (`graph://` MCP resources) Merged 2026-06-18 via #2772** — the read-only `graph://stats`/`symbols`/`edges` resource surface, identity-only, with CE-6 pagination and a `bounded` edges flag; **GCTX-020 Done 2026-06-20** — parser-free conservative token estimator in `anvil-graph-cache`, with deterministic fixed-corpus and input-cap tests). With the Phase 1 tool queue + resource surface complete and GCTX-020 done, the remaining Phase-2 snippet items (021..023) stay Draft; all build on the CE-5 sealed egress DTO + `GctxProjector` + structural no-leak spine that GCTX-010 established, using the daemon-RPC graph-handle path settled by ADR-084.)
+
+**Readiness update 2026-06-20:** GCTX-020 is **Done**. It is a non-egress
+estimator slice that unlocks the snippet line without returning source text
+itself; GCTX-021..023 remain Draft until their CE-1/CE-2/CE-3/CE-5/CE-7 snippet
+gates are written into item text.
 
 > **Scoped to v0.9, not v0.8.0-beta (2026-06-08, [ADR-075](../decisions/075-v080-graph-product-scope.md),
 > Accepted via council).** GCTX was considered for the v0.8.0 window but the
@@ -612,16 +617,40 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-020: Token-count estimator
 
-- **Status:** Draft
+- **Status:** Done 2026-06-20 — implemented as the parser-free
+  `anvil_graph_cache::estimate_gctx_tokens` API, re-exported through
+  `anvil_kernel::graph`, with deterministic fixed-corpus and oversized-input
+  tests. This item emits counts and metadata only; snippet source text remains
+  gated to GCTX-021/022/023.
 - **Intent:** Provide a deterministic token estimator for source snippets and
   graph summaries.
-- **Expected Outcome:** Estimator documents its accuracy envelope across model
-  families and is fast enough for interactive MCP calls.
-- **Validation:** Unit tests compare against a fixed corpus of known counts
-- **Files:** `crates/anvil-kernel/src/graph/tokens.rs` or Rust MCP target
+- **Expected Outcome:** A small Rust estimator returns deterministic,
+  conservative token estimates for source snippets and identity-only graph
+  summaries, documents its accuracy envelope across model families, and is fast
+  enough for interactive MCP planning calls. It has no provider network
+  dependency, no source-text logging or telemetry, bounded input handling, and a
+  stable corpus fixture that future slicer work can reuse.
+- **Acceptance criteria:**
+  - Determinism — identical input bytes, language hint, and estimator version
+    return identical counts across runs and platforms.
+  - Conservative budget posture — the estimator may over-count within the
+    documented envelope, but must not under-count the fixed corpus against its
+    recorded reference counts.
+  - Boundary safety — this item exposes counts and metadata only; it does not
+    enable snippet text egress, read arbitrary files, or bypass the GCTX-021/022
+    redaction path.
+  - Bounded cost — large inputs are capped or rejected with structured metadata,
+    and the implementation is linear in accepted input size.
+  - Fixture contract — the fixed corpus and expected counts are checked in so
+    GCTX-022 can prove slices stay under budget without inventing a second
+    estimator.
+- **Validation:** `cargo test --workspace gctx_token_estimator` plus the fixed
+  corpus unit tests compare against known counts and cover cap/rejection cases
+- **Files:** `crates/anvil-graph-cache/src/tokens.rs`,
+  `crates/anvil-graph-cache/src/lib.rs`
 - **Confidence:** medium
 - **Priority:** High
-- **Dependencies:** GCTX-001
+- **Dependencies:** GCTX-001 (Merged 2026-06-15 via #2628)
 
 ---
 
@@ -775,6 +804,6 @@ blockers — they are resolved during execution, not before promotion:
 | ----- | ----- | ------ |
 | 0 — Delivery Contract | 2 | Complete (GCTX-001 Merged #2628, GCTX-002 Merged #2619) |
 | 1 — Graph Query Tools | 5 | GCTX-010 Merged #2657 (pilot); GCTX-011 Merged #2685 (`find_dependents`); GCTX-012 Merged #2693 (`impact_of_change`); GCTX-013 Merged #2700 (`affected_tests`); GCTX-014 Merged #2715 (`find_callers`) |
-| 2 — Context Slicing | 4 | Draft |
-| 3 — Resources, Benchmarks, Docs | 3 | Draft |
-| **Total** | **14** | **7/14** |
+| 2 — Context Slicing | 4 | GCTX-020 Done; GCTX-021..023 Draft |
+| 3 — Resources, Benchmarks, Docs | 3 | GCTX-030 Merged #2772; GCTX-031/032 Draft |
+| **Total** | **14** | **9/14** |

@@ -1542,6 +1542,21 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** For lock-held paths, enforce caps during collection rather than in post-processing.
 ### 2026-06-20 — opencode
 
+- **Task:** Complete GCTX-020 token-count estimator.
+- **Outcome:** Added a parser-free conservative estimator in `anvil-graph-cache`,
+  exported it through the graph module, and closed GCTX-020 as Done.
+- **Worked:** A compile-failing red test was enough to pin the public API and keep
+  the implementation dependency-free.
+- **Failed:** `cargo fmt --all --check` initially caught one long error-attribute
+  line after the green step.
+- **Friction:** The APS index generator updated only the count, not the stale
+  prose on the same row.
+- **Improvement:** After generated APS count updates, read the surrounding index
+  prose for stale item ranges before closing the task.
+- **Follow-up:** none
+
+### 2026-06-20 — opencode
+
 - **Task:** Public-facing Anvil documentation pass.
 - **Outcome:** Corrected stale CLI claims, unreleased-version framing, public doc
   links, and policy-test wording across `docs/public/anvil`.

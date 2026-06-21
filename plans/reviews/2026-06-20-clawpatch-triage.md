@@ -109,26 +109,16 @@ The majority of open `crates/` findings are `test-gap`. Candidates for a future
 test-hardening batch (same pattern as CLAWP #1740 → PRs #2261 / #2265 / #2267).
 None block shipping.
 
-## Triage — JS/TS workspace + apps (161 open)
+## Triage — JS/TS workspace + apps (161 → Ship)
 
-### High-severity — Ship under #1826 (do not re-file)
+**Owner decision (2026-06-20):** JS/TS is being retired. All **161** open
+`packages/` and `apps/` findings are marked `wont-fix` with note
+`JS/TS retirement — Ship under #1826`. Do not re-file or fix-forward unless
+retirement scope is explicitly reversed.
 
-| Finding | Path |
-| ------- | ---- |
-| Detected API-key and token secrets can still be persisted unredacted | `packages/kindling-integration/src/kindling-service.ts` |
-| AnvilKindlingAdapter bypasses observation validation and redaction | `packages/kindling-integration/src/index.ts` |
-| Sensitive observations can still be persisted unredacted | `packages/kindling-integration/src/observation-contract.ts` |
-| Device activation submits a legacy unauthenticated payload | `apps/website/app/auth/activate/page.tsx` |
-
-### Deployed-surface medium findings — owner decision
-
-If `apps/anvil-api` or other JS/TS apps remain deployed, **~20 medium** findings
-there (auth-session token-rotation races, licence claim validation, rate-limit
-X-Forwarded-For trust, admin invite scope persistence) are real for that surface.
-This triage does not adjudicate retirement scope — route to the surface owner.
-Do not bulk-convert to APS without an explicit fix-forward call.
-
-Remaining medium/low JS/TS findings are advisory backlog on the retiring surface.
+The four highs (kindling secret persistence ×3, website device-activation ×1)
+and all `anvil-api` medium findings are covered by this verdict — no separate
+clustered issue required.
 
 ## Triage — tooling (`scripts/` + `infra/`, 6 open)
 
@@ -149,16 +139,15 @@ separate issues.
 1. **Keep `.claude/worktrees/**` excluded** — re-run `clawpatch map` after
    removing stale worktrees (`wt remove`) so future scans do not re-accumulate
    duplicate features.
-2. **Do not treat 246 open findings as a blocking gate.** Clawpatch remains
-   advisory per the daily-workflow brainstorm and CPTA posture.
+2. **Do not treat the remaining open backlog as a blocking gate.** After hygiene
+   and JS/TS retirement verdicts, **85 open** findings remain — almost all
+   `crates/` test-gap and a handful of tooling items.
 3. **Rust fixes:** file a small CIB batch for the §A contract/correctness items
    (6 findings, no Windows-only deps). Defer test-gap (56) to a dedicated
    hardening batch.
-4. **JS/TS highs:** keep under #1826; owner decides retire vs fix-forward.
-5. **anvil-api mediums:** if the API is still deployed, open one clustered GH
-   issue for auth-session rotation + rate-limit trust — not one issue per
-   finding.
-6. **`clawpatch fix`:** run one finding at a time from a **clean tree** only;
+4. **Tooling:** optional CIB items for `scripts/dogfood` (2) and `infra/` (3)
+   if those surfaces outlive JS/TS retirement; otherwise Ship with the stack.
+5. **`clawpatch fix`:** run one finding at a time from a **clean tree** only;
    prefer manual TDD using `suggestedRegressionTest` for non-trivial items.
 
 ## Evidence
@@ -166,6 +155,8 @@ separate issues.
 - `clawpatch status` (post-hygiene): 686 features, 715 findings, **246 open**, 0
   active locks, last run `20260618T190747-355c1c`.
 - Worktree noise removed: **302** findings → `wont-fix`.
+- JS/TS retirement verdict: **161** findings → `wont-fix` (Ship under #1826).
+- **Open after both passes: 85** (primarily `crates/`).
 - Config change: `.clawpatch/config.json` excludes `.claude/worktrees/**`.
 - `clawpatch fix` was **not** run (config + triage-only pass).
 - Tracker: `clawpatch-pre-tag-v0.7.0-beta` is **archived** (CIB-039). New work

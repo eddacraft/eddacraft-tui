@@ -15,6 +15,7 @@ pub mod incremental;
 pub mod registry;
 pub mod snapshot;
 pub mod symbol_graph;
+pub mod tokens;
 pub mod trust;
 
 pub use call_graph::{CallerResult, CallersReport, MAX_CALLERS_WALK, callers_of};
@@ -37,4 +38,8 @@ pub use snapshot::{
     persist_graph_enabled, snapshot_filename,
 };
 pub use symbol_graph::{GraphError, GraphStats, SymbolGraph};
+pub use tokens::{
+    GCTX_TOKEN_ESTIMATOR_VERSION, MAX_GCTX_TOKEN_ESTIMATOR_INPUT_BYTES, TokenEstimate,
+    TokenEstimateError, estimate_gctx_tokens,
+};
 pub use trust::{TrustGraph, TrustPostureChange, annotate_trust, policy_profiles};
