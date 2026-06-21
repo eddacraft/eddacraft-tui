@@ -42,6 +42,34 @@ fn is_external_import(source: &str) -> bool {
     !source.starts_with('.') && !source.starts_with('/')
 }
 
+/// Reduce an import specifier to the lowercase top-level module token the
+/// privileged-module heuristics match against (CIB-093 N3).
+///
+/// Node's built-in module resolution is case-sensitive on the *resolver*, but a
+/// case-insensitive filesystem (macOS/Windows default) still loads the real
+/// module for a mis-cased specifier: `import 'FS'` / `'Fs'` resolves `fs`, and
+/// `'NODE:fs'` / `'Node:fs'` reaches the `node:`-prefixed built-in. A byte-exact
+/// check missed all of these and false-certified CLEAN. Strip a case-insensitive
+/// `node:` prefix, take the segment before the first `/` subpath, then lowercase
+/// — so the lookup against the (lowercase) `PRIVILEGED_MODULES` table is
+/// case-insensitive while a legitimate lowercase specifier is unchanged.
+fn privileged_module_token(source: &str) -> String {
+    let module = source
+        .strip_prefix("node:")
+        .or_else(|| {
+            // Case-insensitive `node:` prefix strip without allocating on the
+            // common lowercase path.
+            source
+                .get(..5)
+                .filter(|p| p.eq_ignore_ascii_case("node:"))
+                .map(|_| &source[5..])
+        })
+        .unwrap_or(source);
+    // Only match the top-level module name (before any `/` subpath).
+    let token = module.split('/').next().unwrap_or(module);
+    token.to_ascii_lowercase()
+}
+
 /// Check whether an import source refers to a privileged Node.js module.
 /// Matches the bare name (`"fs"`) or the `node:` prefixed form (`"node:fs"`)
 /// as an exact token so that unrelated packages (e.g. `fsevents`, `http-errors`)
@@ -51,10 +79,10 @@ fn is_external_import(source: &str) -> bool {
 /// *module* imports directly (GV2-029) — the side-effect-surface dimension that
 /// is orthogonal to the symbol-identity trust diff.
 pub(crate) fn is_privileged_import(source: &str) -> bool {
-    let module = source.strip_prefix("node:").unwrap_or(source);
-    // Only match the top-level module name (before any `/` subpath).
-    let token = module.split('/').next().unwrap_or(module);
-    PRIVILEGED_MODULES.contains(&token)
+    // CIB-093 N3: case-fold the specifier (and the `node:` prefix) before the
+    // lookup so a mis-cased import on a case-insensitive filesystem does not
+    // false-certify CLEAN. `privileged_module_token` mirrors `import_surface`.
+    PRIVILEGED_MODULES.contains(&privileged_module_token(source).as_str())
 }
 
 /// Collect the privileged external module specifiers a file reaches through
@@ -266,13 +294,14 @@ pub fn annotate_trust(graph: &mut SymbolGraph, imports: &[ImportEdge]) {
 
 /// Map a privileged import source to the side-effect surface it reaches.
 ///
-/// Token extraction mirrors [`is_privileged_import`] exactly (strip `node:`,
-/// take the segment before the first `/`), so the two stay consistent: any
-/// source that `is_privileged_import` accepts maps to exactly one surface here.
+/// Token extraction mirrors [`is_privileged_import`] exactly (via
+/// [`privileged_module_token`]: case-insensitive `node:` strip, segment before
+/// the first `/`, lowercased), so the two stay consistent: any source that
+/// `is_privileged_import` accepts maps to exactly one surface here.
 fn import_surface(source: &str) -> Option<SideEffectSurface> {
-    let module = source.strip_prefix("node:").unwrap_or(source);
-    let token = module.split('/').next().unwrap_or(module);
-    match token {
+    // CIB-093 N3: same case-folding as `is_privileged_import` so the two
+    // heuristics cannot drift (the covers-all check pins this).
+    match privileged_module_token(source).as_str() {
         "fs" => Some(SideEffectSurface::Filesystem),
         // CIB-093a: worker_threads spawns/execs worker isolates; vm/v8 grant raw
         // code execution / VM-internal access — all process-control capabilities.
@@ -662,6 +691,64 @@ mod tests {
             TrustLevel::External,
             "fsevents should not be classified as Privileged"
         );
+    }
+
+    #[test]
+    fn case_insensitive_specifier_classifies_privileged() {
+        // N3 (CIB-093): on a case-insensitive filesystem `import FS from 'FS'`
+        // loads the real `fs`, but a byte-exact lookup misses it and certifies
+        // CLEAN. The specifier must be lowercased (and a `node:` prefix stripped
+        // case-insensitively) before the PRIVILEGED_MODULES lookup.
+        for spec in [
+            "FS",
+            "Fs",
+            "NODE:child_process",
+            "Node:worker_threads",
+            "Node:FS",
+            "node:DGRAM",
+        ] {
+            let mut g = SymbolGraph::new();
+            g.add_symbol(make_symbol(1, "f", "a.ts", Visibility::Internal))
+                .unwrap();
+            let imports = vec![ImportEdge {
+                from_file: "a.ts".to_string(),
+                to_source: spec.to_string(),
+                line: 0,
+            }];
+            annotate_trust(&mut g, &imports);
+            assert_eq!(
+                g.get_symbol(1).unwrap().trust_level,
+                TrustLevel::Privileged,
+                "{spec} must classify Privileged regardless of case"
+            );
+        }
+    }
+
+    #[test]
+    fn case_insensitive_specifier_maps_to_surface() {
+        // The side-effect-surface map must follow the same case-folding so the
+        // two heuristics stay consistent (the import_surface covers-all check).
+        assert_eq!(
+            import_surface("FS"),
+            Some(SideEffectSurface::Filesystem),
+            "uppercase fs maps to the filesystem surface"
+        );
+        assert_eq!(
+            import_surface("NODE:child_process"),
+            Some(SideEffectSurface::Process),
+            "uppercase node:-prefixed child_process maps to the process surface"
+        );
+    }
+
+    #[test]
+    fn lowercase_specifier_still_matches() {
+        // Regression guard: case-folding must not break the legitimate lowercase
+        // path the import-surface/matching already supports.
+        assert!(is_privileged_import("fs"));
+        assert!(is_privileged_import("node:fs"));
+        assert!(is_privileged_import("node:fs/promises"));
+        assert!(!is_privileged_import("fsevents"));
+        assert!(!is_privileged_import("express"));
     }
 
     #[test]

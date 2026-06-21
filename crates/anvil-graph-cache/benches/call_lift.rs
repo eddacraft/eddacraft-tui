@@ -256,6 +256,7 @@ fn cap_ceiling_file_symbols() -> FileSymbols {
         // exactly this call count. (The lift ignores the flag; it is set here only
         // so the fixture is a faithful capped-file shape, not for the bench logic.)
         calls_partial: true,
+        has_unresolved_dynamic_import: false,
     }
 }
 
@@ -415,6 +416,7 @@ fn hot_file_symbols() -> FileSymbols {
         reexports: Vec::<ReexportEdge>::new(),
         calls,
         calls_partial: false,
+        has_unresolved_dynamic_import: false,
     }
 }
 

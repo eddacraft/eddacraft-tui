@@ -214,6 +214,22 @@ pub struct FileSymbols {
     /// `FileSymbols` (pre-cap) still deserialize and an uncapped file is honest.
     #[serde(default)]
     pub calls_partial: bool,
+    /// `true` when this file contains a **dynamic** import whose target could not
+    /// be resolved to a string-literal specifier — a computed `require(someVar)`
+    /// or `import(`./${x}`)` (CIB-093 N1). A literal dynamic import
+    /// (`require('fs')`, `import('fs')`) is extracted as a normal [`ImportEdge`]
+    /// and does **not** set this; only the unknowable computed form does.
+    ///
+    /// The trust pass operates on static import/re-export edges only, so a
+    /// privileged module reached through a computed dynamic import produces no
+    /// edge and would certify CLEAN. The daemon folds this flag onto the
+    /// `GraphDelta` so the save-time certify path fails closed (degrades to
+    /// `Partial`) rather than silently certifying a file that may reach a
+    /// privileged built-in at runtime. Defaults `false` so older serialized
+    /// `FileSymbols` still deserialize and a file with no dynamic import is
+    /// honest.
+    #[serde(default)]
+    pub has_unresolved_dynamic_import: bool,
 }
 
 /// A file-local reference to a symbol within its own file (GCALL-001 / ADR-086).

@@ -238,3 +238,30 @@ Crate(s): `anvil-intercept` (save_time, kernel_cache, lib, full_scan_executor).
 Each cluster lands as its own dev-workflow unit (TDD → fresh Council → commit),
 honouring the single-purpose boundary. CE-3 (091a) is the release-gating item
 and lands first. Status here is the source of truth; tick boxes as each lands.
+
+---
+
+## Net-new items (sibling `anvil:2.1` cross-ref, 2026-06-21)
+
+Source: `plans/audits/2026-06-21-v090-netnew-crossref.md` (all CIB-091..095
+independently reproduced at HEAD; these are net-new gaps).
+
+- [x] **N1 dynamic `require()`/`import()` invisible to the trust pass** — _HIGH,
+      structural → CIB-093._ Literal `require('fs')`/`import('fs')` now flow
+      through `is_privileged_import`; a computed/unresolved dynamic import sets
+      `has_unresolved_dynamic_import`, threaded parser→GraphDelta→certify, forcing
+      `Partial(ExportSurfaceChange)` instead of silent `Certified`.
+- [x] **N3 case/`node:`-prefix privilege bypass** — _MED → CIB-093._
+      `privileged_module_token` lowercases + strips case-insensitive `node:`
+      before the `PRIVILEGED_MODULES` lookup (`'FS'`, `'NODE:fs'` now caught).
+- [x] **N4 `matched`/substring-filter existence oracle** — _MED → CIB-091a._
+      Verified already closed: sensitive files are dropped at the file-index
+      level BEFORE the substring filter and the `matched` count (collect_candidates).
+- [ ] **N2 blocking file I/O on the single-thread runtime** — _MED → CIB-094 (usage
+      sink non-blocking) + CIB-095 (`persist_all_on_shutdown` → `spawn_blocking`)._
+- [ ] **N5 raw `io::Error` Display on the `Io` arm reaches the wire** — _MED →
+      CIB-091b follow-up: static reason, detail server-side._
+- [ ] **N6 CRC-32 sole snapshot integrity gate** — _MED → CIB-092: accept under
+      same-uid boundary, document CRC-32 as non-integrity-bearing._
+- [ ] **N7 suffix-match import re-bind** — _MED → CIB-093 follow-up / tracked._
+- [ ] **N8 `spawn_restore` dead no-op + verb coverage** — _LOW → CIB-095._

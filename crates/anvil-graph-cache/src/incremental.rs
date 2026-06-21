@@ -133,6 +133,19 @@ pub struct GraphDelta {
     /// privileged module access — `annotate_trust` assigns it to every
     /// public symbol outside privileged files).
     pub previously_boundary: HashSet<SymbolIdentity>,
+    /// `true` when this file contains a dynamic import whose target could not be
+    /// statically resolved to a string-literal specifier — a computed
+    /// `require(someVar)` or `import(`./${x}`)` (CIB-093 N1). Such a call can
+    /// reach a privileged built-in (`require(pickModule())`) with **no** static
+    /// import edge, so the trust pass never marks the file `Privileged` and the
+    /// export-surface diff stays empty. The certify path treats this as a
+    /// fail-closed gate: a `ContentModify` carrying it can never certify clean,
+    /// degrading to `Partial(ExportSurfaceChange)` instead of silently CLEAN. A
+    /// *literal* dynamic import (`require('fs')`, `import('fs')`) does **not**
+    /// set this — it produces a real `ImportEdge` and flows through
+    /// `is_privileged_import` like a static import. Defaults `false` so older
+    /// serialized deltas stay honest.
+    pub has_unresolved_dynamic_import: bool,
     pub file: String,
 }
 
@@ -152,6 +165,7 @@ impl Default for GraphDelta {
             previously_public: HashSet::new(),
             previously_privileged: HashSet::new(),
             previously_boundary: HashSet::new(),
+            has_unresolved_dynamic_import: false,
             file: String::new(),
         }
     }
@@ -317,9 +331,17 @@ fn lift_file_edges(
 /// 1. Remove all symbols and edges for the file
 /// 2. Add new symbols from the re-parsed file
 /// 3. Return the delta for downstream consumers (policy engine)
+// Linear remove-then-re-add orchestrator: the steps are sequential and share the
+// `added_ids`/`errors`/baseline locals, so splitting it would only scatter that
+// shared state across helpers. One field thread-through (CIB-093 N1) tips it one
+// line over the lint's budget.
+#[allow(clippy::too_many_lines)]
 pub fn update_file(graph: &mut SymbolGraph, new_symbols: FileSymbols) -> GraphDelta {
     let file = new_symbols.file.clone();
-
+    // CIB-093 N1: carry the parser's unresolved-dynamic-import signal onto the
+    // delta (captured before `new_symbols` is consumed) so certify fails closed
+    // on a computed `require(...)`/`import(...)` no static edge can represent.
+    let has_unresolved_dynamic_import = new_symbols.has_unresolved_dynamic_import;
     // Snapshot everything about the file's prior state that `remove_file` is
     // about to destroy (baselines, prior identities, incident edges).
     let before = PriorState::capture(graph, &file);
@@ -453,6 +475,7 @@ pub fn update_file(graph: &mut SymbolGraph, new_symbols: FileSymbols) -> GraphDe
         previously_public,
         previously_privileged,
         previously_boundary,
+        has_unresolved_dynamic_import,
         file,
     }
 }
@@ -1145,6 +1168,7 @@ mod tests {
             reexports: Vec::new(),
             calls: Vec::new(),
             calls_partial: false,
+            has_unresolved_dynamic_import: false,
         }
     }
 
@@ -1158,6 +1182,25 @@ mod tests {
     }
 
     /// GV2-031: `update_file` lifts `FileSymbols.reexports` into `Reexports`
+    /// CIB-093 N1: `update_file` carries the parser's unresolved-dynamic-import
+    /// signal through onto the delta, where `certify` reads it to fail closed.
+    #[test]
+    fn update_file_propagates_unresolved_dynamic_import_signal() {
+        let mut g = SymbolGraph::new();
+        let mut syms = make_file_symbols("a.ts", vec![(1, "f", SymbolKind::Function)]);
+        syms.has_unresolved_dynamic_import = true;
+        let delta = update_file(&mut g, syms);
+        assert!(
+            delta.has_unresolved_dynamic_import,
+            "the delta must carry the parser's unresolved-dynamic-import signal"
+        );
+
+        // And the converse: a file with no dynamic import does not set it.
+        let clean = make_file_symbols("b.ts", vec![(2, "g", SymbolKind::Function)]);
+        let clean_delta = update_file(&mut g, clean);
+        assert!(!clean_delta.has_unresolved_dynamic_import);
+    }
+
     /// edges. A bare specifier (`node:fs`) resolves to a synthetic external
     /// module node, mirroring an import.
     #[test]
@@ -1317,6 +1360,7 @@ mod tests {
             reexports: Vec::new(),
             calls: Vec::new(),
             calls_partial: false,
+            has_unresolved_dynamic_import: false,
         };
 
         let delta = update_file(&mut g, syms);
@@ -1357,6 +1401,7 @@ mod tests {
                 reexports: Vec::new(),
                 calls: Vec::new(),
                 calls_partial: false,
+                has_unresolved_dynamic_import: false,
             },
         );
         // No edge yet — the target file was not resident at parse time.
@@ -1426,6 +1471,7 @@ mod tests {
             reexports: Vec::new(),
             calls: Vec::new(),
             calls_partial: false,
+            has_unresolved_dynamic_import: false,
         };
 
         let delta = update_file(&mut g, syms);
@@ -1459,6 +1505,7 @@ mod tests {
             reexports: Vec::new(),
             calls: Vec::new(),
             calls_partial: false,
+            has_unresolved_dynamic_import: false,
         };
 
         let delta = update_file(&mut g, syms);
@@ -1494,6 +1541,7 @@ mod tests {
             reexports: Vec::new(),
             calls: Vec::new(),
             calls_partial: false,
+            has_unresolved_dynamic_import: false,
         };
         let delta1 = update_file(&mut g, syms);
         assert!(
@@ -1520,6 +1568,7 @@ mod tests {
             reexports: Vec::new(),
             calls: Vec::new(),
             calls_partial: false,
+            has_unresolved_dynamic_import: false,
         };
         let delta2 = update_file(&mut g, syms2);
 
@@ -1571,6 +1620,7 @@ mod tests {
             reexports: Vec::new(),
             calls: Vec::new(),
             calls_partial: false,
+            has_unresolved_dynamic_import: false,
         };
 
         let delta = update_file(&mut g, syms);
@@ -1607,6 +1657,7 @@ mod tests {
             reexports: Vec::new(),
             calls: Vec::new(),
             calls_partial: false,
+            has_unresolved_dynamic_import: false,
         };
         let delta1 = update_file(&mut g, main_syms);
         assert!(
@@ -1629,6 +1680,7 @@ mod tests {
             reexports: Vec::new(),
             calls: Vec::new(),
             calls_partial: false,
+            has_unresolved_dynamic_import: false,
         };
         update_file(&mut g, util_syms);
 
@@ -1726,6 +1778,7 @@ mod tests {
             reexports: Vec::new(),
             calls: Vec::new(),
             calls_partial: false,
+            has_unresolved_dynamic_import: false,
         };
         let delta_a = update_file(&mut g, a);
         assert!(delta_a.errors.is_empty(), "first file inserts cleanly");
@@ -1765,6 +1818,7 @@ mod tests {
             reexports: Vec::new(),
             calls: Vec::new(),
             calls_partial: false,
+            has_unresolved_dynamic_import: false,
         };
         let delta_b = update_file(&mut g, b);
         assert!(
@@ -1821,6 +1875,7 @@ mod tests {
             reexports: Vec::new(),
             calls: Vec::new(),
             calls_partial: false,
+            has_unresolved_dynamic_import: false,
         };
 
         let delta = update_file(&mut g, syms);
@@ -2099,6 +2154,7 @@ mod tests {
                 reexports: Vec::new(),
                 calls: Vec::new(),
                 calls_partial: false,
+                has_unresolved_dynamic_import: false,
             },
         );
         let batch = vec![
@@ -2162,6 +2218,7 @@ mod tests {
                     line: 1,
                 }],
                 calls_partial: false,
+                has_unresolved_dynamic_import: false,
             },
         );
         // The edge is already resident from update_file; re-resolving the same

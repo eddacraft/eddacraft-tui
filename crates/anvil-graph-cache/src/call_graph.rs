@@ -331,6 +331,7 @@ mod tests {
                 reexports: Vec::new(),
                 calls,
                 calls_partial: false,
+                has_unresolved_dynamic_import: false,
             },
         );
         g
@@ -399,6 +400,7 @@ mod tests {
                     },
                 ],
                 calls_partial: false,
+                has_unresolved_dynamic_import: false,
             },
         );
         // callers_of(t#0): the caller is heuristic (fan-out to t#0 + t#1).
@@ -467,6 +469,7 @@ mod tests {
                     line: 1,
                 }],
                 calls_partial: false,
+                has_unresolved_dynamic_import: false,
             },
         );
         let report = callers_of(&g, &identity_in("r.ts", "a"), 2);
@@ -506,6 +509,7 @@ mod tests {
                     },
                 ],
                 calls_partial: false,
+                has_unresolved_dynamic_import: false,
             },
         );
         let report = callers_of(&g, &identity_in("m.ts", "a"), 2);
@@ -577,6 +581,7 @@ mod tests {
                     },
                 ],
                 calls_partial: false,
+                has_unresolved_dynamic_import: false,
             },
         );
         let report = callers_of(&g, &identity_in("n.ts", "m"), 2);

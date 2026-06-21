@@ -268,6 +268,7 @@ impl SymbolParser for BenchParser {
             reexports: Vec::new(),
             calls: Vec::new(),
             calls_partial: false,
+            has_unresolved_dynamic_import: false,
         })
     }
 }

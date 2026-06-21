@@ -98,6 +98,10 @@ impl LanguageExtractor for PythonExtractor {
             reexports: Vec::<ReexportEdge>::new(),
             calls,
             calls_partial: false,
+            // `importlib.import_module(...)` dynamic imports are out of scope for
+            // the static walk (CIB-093 N1 is a JS/TS require()/import() concept);
+            // a missed signal is conservative-safe.
+            has_unresolved_dynamic_import: false,
         }
     }
 }

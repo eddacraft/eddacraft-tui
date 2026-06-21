@@ -64,6 +64,7 @@ fn file_symbols(file: &str, s: &FileSpec, base: u64) -> FileSymbols {
         reexports: Vec::new(),
         calls: Vec::new(),
         calls_partial: false,
+        has_unresolved_dynamic_import: false,
     }
 }
 
@@ -412,6 +413,7 @@ fn file_symbols_overloads(file: &str, names: &[&str], base: u64) -> FileSymbols 
         reexports: Vec::new(),
         calls: Vec::new(),
         calls_partial: false,
+        has_unresolved_dynamic_import: false,
     }
 }
 

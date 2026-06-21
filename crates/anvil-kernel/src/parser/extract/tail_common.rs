@@ -80,6 +80,10 @@ pub(super) fn finish(
         reexports: Vec::new(),
         calls: Vec::new(),
         calls_partial: false,
+        // Tail languages do not model JS/TS dynamic require()/import() (CIB-093
+        // N1); a missed signal is conservative-safe (it never under-fires the
+        // certify gate for the dimension it covers).
+        has_unresolved_dynamic_import: false,
     }
 }
 

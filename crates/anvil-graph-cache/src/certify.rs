@@ -639,6 +639,27 @@ pub fn certify(
                     reason: CertifyStale::UnreliableGraph,
                 };
             }
+            // CIB-093 N1: fail-closed on an unresolved dynamic import. The trust
+            // pass only sees statically-declared import/re-export edges, so a
+            // computed `require(someVar)` / `import(`./${x}`)` that may reach a
+            // privileged built-in at runtime produces NO static edge — the
+            // surface diff is empty and the file would certify CLEAN, a silent
+            // privileged-access hole. With the target unknowable, the only sound
+            // verdict is `Partial`: withhold clean and let the affected set be
+            // revalidated. A *literal* dynamic import (`require('fs')`) does not
+            // set this flag — it is a real `ImportEdge` and flows through the
+            // surface diff normally. Routed through `ExportSurfaceChange` (the
+            // generic surface-uncertainty reason) so the daemon's existing
+            // `StaleReason` mapping covers it without a new wire variant.
+            if delta.has_unresolved_dynamic_import {
+                tracing::warn!(
+                    target: "anvil_graph_cache::certify",
+                    "certify withholding clean: unresolved dynamic import (computed require/import)"
+                );
+                return Certifiability::Partial {
+                    reason: CertifyStale::ExportSurfaceChange,
+                };
+            }
             let surface = export_surface_diff(sym, delta);
             if surface.is_empty() {
                 return Certifiability::Certified {
@@ -1092,6 +1113,36 @@ mod tests {
             diff.newly_privileged_imports.is_empty(),
             "a pre-existing privileged re-export must not re-fire, got {:?}",
             diff.newly_privileged_imports
+        );
+    }
+
+    #[test]
+    fn unresolved_dynamic_import_forces_partial() {
+        // N1 (CIB-093): a file whose only change is a computed/unresolvable
+        // dynamic import (`require(someVar)` / `import(`./${x}`)`) produces no
+        // static privileged import edge, so the surface diff is empty and the
+        // file would certify CLEAN — a silent privileged-access hole. The
+        // unresolved-dynamic-import signal must degrade the verdict to Partial.
+        let sym = sym_with("a.ts", &[("foo", Visibility::Public, TrustLevel::Unknown)]);
+        let mut delta = delta_for("a.ts", &["foo"], &[]);
+        delta.has_unresolved_dynamic_import = true;
+        // Sanity: without the dynamic-import signal this would certify clean.
+        assert!(export_surface_diff(&sym, &delta).is_empty());
+
+        let v = certify(
+            &sym,
+            &DependencyGraph::new(),
+            &ChangeKind::ContentModify,
+            &delta,
+            64,
+            1,
+        );
+        assert_eq!(
+            v,
+            Certifiability::Partial {
+                reason: CertifyStale::ExportSurfaceChange
+            },
+            "an unresolved dynamic import must never certify clean"
         );
     }
 

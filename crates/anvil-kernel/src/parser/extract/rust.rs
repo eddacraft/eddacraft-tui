@@ -83,6 +83,8 @@ impl LanguageExtractor for RustExtractor {
             reexports,
             calls,
             calls_partial: false,
+            // Rust has no JS/TS dynamic require()/import() (CIB-093 N1).
+            has_unresolved_dynamic_import: false,
         }
     }
 }

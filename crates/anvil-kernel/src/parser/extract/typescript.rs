@@ -34,6 +34,12 @@ impl LanguageExtractor for TypeScriptExtractor {
         let mut symbols = Vec::new();
         let mut imports = Vec::new();
         let mut reexports = Vec::new();
+        // CIB-093 N1: set when a dynamic `require(...)`/`import(...)` call has a
+        // non-string-literal argument, so its target cannot be resolved to a
+        // static import edge. Threaded through the walker like the other
+        // accumulators; the daemon folds it onto the GraphDelta so certify fails
+        // closed on an unknowable (possibly privileged) dynamic import.
+        let mut has_unresolved_dynamic_import = false;
         let mut next_id = id_offset;
         // GCALL-002: the byte range of each emitted symbol's defining node, kept
         // strictly parallel to `symbols`. Pass 2 attributes a call to the
@@ -50,6 +56,7 @@ impl LanguageExtractor for TypeScriptExtractor {
             &mut spans,
             &mut imports,
             &mut reexports,
+            &mut has_unresolved_dynamic_import,
             &mut next_id,
         );
         debug_assert_eq!(
@@ -70,6 +77,7 @@ impl LanguageExtractor for TypeScriptExtractor {
             reexports,
             calls,
             calls_partial: false,
+            has_unresolved_dynamic_import,
         }
     }
 }
@@ -86,6 +94,7 @@ fn extract_from_node(
     spans: &mut Vec<std::ops::Range<usize>>,
     imports: &mut Vec<ImportEdge>,
     reexports: &mut Vec<ReexportEdge>,
+    has_unresolved_dynamic_import: &mut bool,
     next_id: &mut u64,
 ) {
     match node.kind() {
@@ -127,11 +136,21 @@ fn extract_from_node(
         }
         "export_statement" => {
             extract_export(
-                node, source, file, symbols, spans, imports, reexports, next_id,
+                node,
+                source,
+                file,
+                symbols,
+                spans,
+                imports,
+                reexports,
+                has_unresolved_dynamic_import,
+                next_id,
             );
         }
         "import_statement" => extract_import(node, source, file, imports),
-        "call_expression" => extract_require(node, source, file, imports),
+        "call_expression" => {
+            extract_dynamic_import(node, source, file, imports, has_unresolved_dynamic_import);
+        }
         "assignment_expression" => extract_cjs_export(node, source, file, symbols, spans, next_id),
         "lexical_declaration" => extract_lexical(node, source, file, symbols, spans, next_id),
         _ => {}
@@ -158,7 +177,15 @@ fn extract_from_node(
         for i in 0..u32::try_from(node.named_child_count()).unwrap_or(0) {
             if let Some(child) = node.named_child(i) {
                 extract_from_node(
-                    child, source, file, symbols, spans, imports, reexports, next_id,
+                    child,
+                    source,
+                    file,
+                    symbols,
+                    spans,
+                    imports,
+                    reexports,
+                    has_unresolved_dynamic_import,
+                    next_id,
                 );
             }
         }
@@ -275,12 +302,21 @@ fn extract_export(
     spans: &mut Vec<std::ops::Range<usize>>,
     imports: &mut Vec<ImportEdge>,
     reexports: &mut Vec<ReexportEdge>,
+    has_unresolved_dynamic_import: &mut bool,
     next_id: &mut u64,
 ) {
     if let Some(decl) = node.child_by_field_name("declaration") {
         let before = symbols.len();
         extract_from_node(
-            decl, source, file, symbols, spans, imports, reexports, next_id,
+            decl,
+            source,
+            file,
+            symbols,
+            spans,
+            imports,
+            reexports,
+            has_unresolved_dynamic_import,
+            next_id,
         );
         for sym in &mut symbols[before..] {
             sym.visibility = Visibility::Public;
@@ -464,17 +500,53 @@ fn extract_import(
     }
 }
 
-fn extract_require(
+/// Handle a CJS `require(...)` call or an ESM dynamic `import(...)` expression
+/// (CIB-093 N1).
+///
+/// Both are `call_expression` nodes; the callee is the `identifier` `require`
+/// for CJS, and the bare `import` keyword node (kind `"import"`) for a dynamic
+/// import. A non-dynamic-import call (`compute(x)`, `foo.bar()`) is ignored.
+///
+/// Two sub-cases, mirroring the static-vs-unknown split the trust pass needs:
+///
+/// - **Literal specifier** (`require('fs')`, `import('fs')`): a determinable
+///   static import. Emit an [`ImportEdge`] so it flows through
+///   `is_privileged_import` exactly like a top-level `import … from 'fs'`.
+/// - **Computed specifier** (`require(x)`, `import(`./${x}`)`,
+///   `require(a + b)`): the target is unknowable statically, so it MUST NOT be
+///   emitted as an edge (that would invent a garbage `to_source`) and MUST set
+///   `has_unresolved_dynamic_import` so the certify path fails closed — a
+///   computed dynamic import can reach a privileged built-in with no static edge
+///   for the trust pass to see.
+fn extract_dynamic_import(
     node: tree_sitter::Node,
     source: &[u8],
     file: &str,
     imports: &mut Vec<ImportEdge>,
+    has_unresolved_dynamic_import: &mut bool,
 ) {
-    if let Some(func) = node.child_by_field_name("function")
-        && node_text(func, source) == "require"
-        && let Some(args) = node.child_by_field_name("arguments")
-        && let Some(arg) = args.named_child(0)
-    {
+    let Some(func) = node.child_by_field_name("function") else {
+        return;
+    };
+    // The callee is either the `require` identifier or the `import` keyword node.
+    let is_dynamic_import = func.kind() == "import" || node_text(func, source) == "require";
+    if !is_dynamic_import {
+        return;
+    }
+    let Some(args) = node.child_by_field_name("arguments") else {
+        return;
+    };
+    let Some(arg) = args.named_child(0) else {
+        // `require()` / `import()` with no argument — nothing determinable, but
+        // nothing reachable either; leave it alone.
+        return;
+    };
+
+    // A string-literal argument is the one statically determinable shape. In the
+    // tree-sitter TS/JS grammar a literal specifier is a `string` node; anything
+    // else (identifier, template_string, member_expression, binary_expression…)
+    // is computed and unknowable.
+    if arg.kind() == "string" {
         let raw = node_text(arg, source);
         let module_path = raw.trim_matches(|c| c == '\'' || c == '"');
         if !module_path.is_empty() {
@@ -484,6 +556,9 @@ fn extract_require(
                 line: node_line(node),
             });
         }
+    } else {
+        // Computed/unresolvable dynamic import — fail closed downstream.
+        *has_unresolved_dynamic_import = true;
     }
 }
 
@@ -1424,6 +1499,96 @@ module.exports = { foo };
             .find(|i| i.to_source == "path")
             .unwrap();
         assert_eq!(path_req.line, 2, "second require on line 2");
+    }
+
+    // --- CIB-093 N1: dynamic require()/import() ---
+
+    #[test]
+    fn literal_require_does_not_flag_unresolved_dynamic_import() {
+        // A string-literal require is a determinable static import — captured as
+        // an ImportEdge, not flagged as unresolved.
+        let source = b"const cp = require('child_process');\n";
+        let mut parser = Parser::new();
+        let result = parser.parse_bytes(Path::new("a.js"), source).unwrap();
+        let symbols = extract_symbols(&result.tree, source, Path::new("a.js"), 0);
+        assert!(
+            symbols
+                .imports
+                .iter()
+                .any(|i| i.to_source == "child_process"),
+            "literal require must produce an ImportEdge"
+        );
+        assert!(
+            !symbols.has_unresolved_dynamic_import,
+            "a literal require is fully resolved"
+        );
+    }
+
+    #[test]
+    fn literal_dynamic_import_is_captured_as_import_edge() {
+        // (a): a string-literal `import('fs')` IS a determinable privileged
+        // import — model it the same as a static import so it flows through
+        // is_privileged_import, not as an unknown.
+        let source = b"const fs = await import('fs');\n";
+        let mut parser = Parser::new();
+        let result = parser.parse_bytes(Path::new("a.js"), source).unwrap();
+        let symbols = extract_symbols(&result.tree, source, Path::new("a.js"), 0);
+        assert!(
+            symbols.imports.iter().any(|i| i.to_source == "fs"),
+            "literal import('fs') must produce an ImportEdge, got {:?}",
+            symbols.imports
+        );
+        assert!(
+            !symbols.has_unresolved_dynamic_import,
+            "a literal dynamic import is fully resolved"
+        );
+    }
+
+    #[test]
+    fn computed_require_flags_unresolved_dynamic_import() {
+        // (b): `require(someVar)` — the target is unknowable statically. It must
+        // NOT emit a garbage `someVar` import edge, and it MUST set the
+        // unresolved-dynamic-import signal so the certify path fails closed.
+        let source = b"const mod = require(pickModule());\n";
+        let mut parser = Parser::new();
+        let result = parser.parse_bytes(Path::new("a.js"), source).unwrap();
+        let symbols = extract_symbols(&result.tree, source, Path::new("a.js"), 0);
+        assert!(
+            symbols.has_unresolved_dynamic_import,
+            "a computed require must flag an unresolved dynamic import"
+        );
+        assert!(
+            symbols.imports.is_empty(),
+            "a computed require must not emit a garbage import edge, got {:?}",
+            symbols.imports
+        );
+    }
+
+    #[test]
+    fn computed_dynamic_import_flags_unresolved_dynamic_import() {
+        // (b): a template-string `import(`./${x}`)` is unresolvable.
+        let source = b"const m = import(`./${name}`);\n";
+        let mut parser = Parser::new();
+        let result = parser.parse_bytes(Path::new("a.js"), source).unwrap();
+        let symbols = extract_symbols(&result.tree, source, Path::new("a.js"), 0);
+        assert!(
+            symbols.has_unresolved_dynamic_import,
+            "a computed dynamic import must flag unresolved"
+        );
+    }
+
+    #[test]
+    fn identifier_named_require_call_is_not_a_dynamic_import() {
+        // Defensive: only a `require`/`import` callee is a dynamic import; an
+        // ordinary call like `compute(x)` must not flag anything.
+        let source = b"function f() { return compute(x); }\n";
+        let mut parser = Parser::new();
+        let result = parser.parse_bytes(Path::new("a.js"), source).unwrap();
+        let symbols = extract_symbols(&result.tree, source, Path::new("a.js"), 0);
+        assert!(
+            !symbols.has_unresolved_dynamic_import,
+            "an ordinary call must not flag a dynamic import"
+        );
     }
 
     #[test]
