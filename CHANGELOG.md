@@ -9,6 +9,18 @@ minor version bump indicates a breaking change.
 
 ## [Unreleased]
 
+### Changed
+
+- Public API items now declare a `# Stability` grade (`stable` / `unstable` /
+  `experimental`) in their rustdoc (D-TUIN-005, TUIN-006). The downstream
+  extension surface — the `Theme` override hook and the `Surface` trait — is
+  **stable**; the `test_utils` snapshot harness and the unproven `mode`
+  colour/alt-screen probes are **experimental**, and the rest default to
+  **unstable** until graded. This is a soft documentation commitment — no
+  version bump. A warn-only CI check
+  (`scripts/check-stability-markers.mjs`, baselined) flags new public items that
+  lack a grade.
+
 ## [0.4.0] - 2026-06-11
 
 ### Added

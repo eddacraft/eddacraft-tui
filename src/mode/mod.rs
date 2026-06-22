@@ -17,6 +17,11 @@
 use std::io::IsTerminal;
 
 /// Whether a stream is connected to an interactive terminal.
+///
+/// # Stability
+///
+/// **unstable** (D-TUIN-005). Recently added; the surface may change before it
+/// is graded stable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TtyKind {
     /// The stream is an interactive terminal (a human is likely watching).
@@ -64,6 +69,11 @@ impl TtyKind {
 /// A few legacy `$TERM` values (e.g. `vt52`) report `Supported` without truly
 /// implementing the `\e[?1049h` alternate-screen sequence. Treat it as "very
 /// likely" and fall back gracefully if entering the alternate screen fails.
+///
+/// # Stability
+///
+/// **experimental** (D-TUIN-005). Heuristic with no consumer yet; depend on it
+/// at your own risk.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AltScreenSupport {
     /// An alternate screen can very likely be entered (heuristic).
@@ -108,6 +118,11 @@ impl AltScreenSupport {
 /// CI systems request) is intentionally **not** honoured in this iteration; it is
 /// a deliberate follow-up so its level semantics (`0`=off, `1/2/3`=tiers) land
 /// with a real consumer rather than ahead of one.
+///
+/// # Stability
+///
+/// **experimental** (D-TUIN-005). No consumer yet and the `FORCE_COLOR` gap is
+/// deferred; the grade and tiers may change once a consumer lands.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[non_exhaustive]
 pub enum ColourDepth {
