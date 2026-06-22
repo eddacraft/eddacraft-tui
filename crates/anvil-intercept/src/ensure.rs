@@ -27,10 +27,10 @@
 //! [`crate::ipc::IpcListener`] bind unlinks any stale socket it owns, so this
 //! primitive never unlinks an endpoint itself.
 //!
-//! Unix-first: Windows background launch follows the existing save-time Windows
-//! gap (DSV-010/011). On Windows the primitive returns
-//! [`NoStartReason::PlatformUnsupported`] deterministically; the caller preserves
-//! the scoped ADR-061 fallback.
+//! Unix-first landing (DLIFE-002); Windows background launch followed in
+//! CIB-072 once the named-pipe IPC and save-time verb surface were proven
+//! (DSV-010b). Platforms without a detached launcher still return
+//! [`NoStartReason::PlatformUnsupported`] deterministically.
 //!
 //! [`Reused`]: EnsureOutcome::Reused
 //! [`Started`]: EnsureOutcome::Started
@@ -39,24 +39,24 @@
 
 use std::io;
 use std::path::Path;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 use std::path::PathBuf;
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 use std::time::{Duration, Instant};
 
 /// Per-request wall-clock budget for the status probe. A listener that accepts
 /// the connection but does not answer within this window is treated as
 /// *live-but-slow* (never torn down), matching the save-time client budget.
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 const PROBE_TIMEOUT: Duration = Duration::from_secs(2);
 
 /// How long to wait for a freshly-spawned daemon to bind its endpoint and answer
 /// the status verb before declaring the launch [`EnsureOutcome::Failed`].
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 const DAEMON_BIND_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Poll cadence while bound-waiting for a spawned daemon to come up.
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 const BIND_POLL_INTERVAL: Duration = Duration::from_millis(50);
 
 /// Why a caller must not spawn a daemon, even though no live one was found.
@@ -71,8 +71,7 @@ pub enum NoStartReason {
     /// No consent surface to start in: headless / `--json` / CI / MCP / hook /
     /// `--verify`. Never spawns or prompts.
     NonInteractive,
-    /// Background launch is not yet implemented for this platform (Windows;
-    /// follows DSV-010/011).
+    /// Background launch is not yet implemented for this platform.
     PlatformUnsupported,
 }
 
@@ -123,7 +122,7 @@ pub enum EnsureOutcome {
 }
 
 /// The liveness of the per-user daemon endpoint as seen by a single probe.
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Liveness {
     /// Connected and received a valid status answer — a healthy daemon.
@@ -139,9 +138,9 @@ pub(crate) enum Liveness {
 }
 
 /// Reads the liveness of the per-user daemon endpoint. Abstracted so the ensure
-/// state machine is tested without real sockets. Internal — callers consume the
-/// typed [`EnsureOutcome`], not the probe.
-#[cfg(unix)]
+/// state machine is tested without real sockets/pipes. Internal — callers consume
+/// the typed [`EnsureOutcome`], not the probe.
+#[cfg(any(unix, windows))]
 pub(crate) trait DaemonProbe {
     /// Perform one liveness probe of the endpoint.
     fn probe(&self) -> Liveness;
@@ -157,9 +156,8 @@ pub trait DaemonLauncher {
 }
 
 /// The deterministic outcome of `ensure_daemon` on platforms without background
-/// launch support (currently Windows; follows DSV-010/011). Exposed so the
-/// documented Unix-first split is asserted on every platform's test run, not only
-/// the Windows CI leg.
+/// launch support. Exposed so the documented platform split is asserted on every
+/// platform's test run, not only the Windows CI leg.
 #[must_use]
 pub fn platform_unsupported_outcome() -> EnsureOutcome {
     EnsureOutcome::NoStart {
@@ -177,8 +175,7 @@ pub fn platform_unsupported_outcome() -> EnsureOutcome {
 ///
 /// `launcher` is how a detached daemon is spawned; the CLI passes a
 /// [`DetachedCommandLauncher`] built from `current_exe()` and
-/// `intercept start --foreground`. On Windows this returns
-/// [`NoStartReason::PlatformUnsupported`] without touching `launcher`.
+/// `intercept start --foreground`.
 #[cfg(unix)]
 pub fn ensure_daemon(capability: StartCapability, launcher: &dyn DaemonLauncher) -> EnsureOutcome {
     let Ok(socket_path) = crate::ipc::resolve_socket_path() else {
@@ -214,10 +211,42 @@ pub fn ensure_daemon(capability: StartCapability, launcher: &dyn DaemonLauncher)
     ensure_with(&params, capability)
 }
 
-/// Windows entry: deterministic no-start (DLIFE-002 is Unix-first; background
-/// launch follows DSV-010/011). A live Windows daemon is still used through the
-/// caller's own status probe, independent of this primitive.
-#[cfg(not(unix))]
+/// Windows entry: same state machine as Unix, probing the per-user named pipe
+/// instead of the Unix socket (CIB-072 / GH #2609).
+#[cfg(windows)]
+pub fn ensure_daemon(capability: StartCapability, launcher: &dyn DaemonLauncher) -> EnsureOutcome {
+    let Ok(pipe_name) = anvil_intercept_win32::pipe_name_for_current_user() else {
+        return EnsureOutcome::Failed {
+            recovery: "could not resolve the per-user intercept daemon pipe name; \
+                       check that the current user SID is readable"
+                .to_owned(),
+        };
+    };
+    let Ok(pid_path) = crate::default_pid_file_path() else {
+        return EnsureOutcome::Failed {
+            recovery: "could not resolve the per-user runtime directory; \
+                       check %LOCALAPPDATA% / %USERPROFILE% or set ANVIL_HOME"
+                .to_owned(),
+        };
+    };
+    let runtime_dir = pid_path.parent().unwrap_or_else(|| Path::new("."));
+    let lock_path = runtime_dir.join("intercept.ensure.lock");
+    let log_path = runtime_dir.join("intercept.daemon.log");
+
+    let probe = PipeProbe::new(pipe_name);
+    let params = EnsureParams {
+        probe: &probe,
+        launcher,
+        lock_path: &lock_path,
+        log_path: &log_path,
+        bind_timeout: DAEMON_BIND_TIMEOUT,
+        poll_interval: BIND_POLL_INTERVAL,
+    };
+    ensure_with(&params, capability)
+}
+
+/// Platforms without a detached launcher implementation.
+#[cfg(all(not(unix), not(windows)))]
 pub fn ensure_daemon(
     _capability: StartCapability,
     _launcher: &dyn DaemonLauncher,
@@ -226,7 +255,7 @@ pub fn ensure_daemon(
 }
 
 /// Inputs to the platform-agnostic ensure state machine.
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 struct EnsureParams<'a> {
     probe: &'a dyn DaemonProbe,
     launcher: &'a dyn DaemonLauncher,
@@ -238,7 +267,7 @@ struct EnsureParams<'a> {
 
 /// The platform-agnostic ensure state machine. Pure but for the lock file, the
 /// injected probe, and the injected launcher — so every branch is unit-tested.
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 fn ensure_with(params: &EnsureParams<'_>, capability: StartCapability) -> EnsureOutcome {
     // 1. Probe is read-only and always allowed, even for non-spawning callers:
     //    a live daemon is reused regardless of capability.
@@ -300,7 +329,7 @@ fn ensure_with(params: &EnsureParams<'_>, capability: StartCapability) -> Ensure
 
 /// `true` when a probe shows a daemon endpoint we must reuse rather than spawn
 /// over: either a healthy answer or a present-but-slow listener.
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 fn reuse_if_live(probe: &dyn DaemonProbe) -> bool {
     matches!(
         probe.probe(),
@@ -316,7 +345,7 @@ fn reuse_if_live(probe: &dyn DaemonProbe) -> bool {
 /// once the budget is spent; a probe already in flight when the deadline passes
 /// can still overrun by at most one `PROBE_TIMEOUT` (the in-flight socket read),
 /// so the effective wall-clock ceiling is `timeout + PROBE_TIMEOUT`.
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 fn wait_until_answered(probe: &dyn DaemonProbe, timeout: Duration, interval: Duration) -> bool {
     let deadline = Instant::now() + timeout;
     loop {
@@ -338,7 +367,7 @@ fn wait_until_answered(probe: &dyn DaemonProbe, timeout: Duration, interval: Dur
 /// The lock file is opened with the default close-on-exec flag, so a detached
 /// daemon child spawned while the lock is held never inherits (and therefore
 /// never wedges) it.
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 fn acquire_ensure_lock(lock_path: &Path) -> io::Result<std::fs::File> {
     use std::fs::OpenOptions;
 
@@ -558,6 +587,231 @@ impl DaemonLauncher for DetachedCommandLauncher {
         // Detached: deliberately drop the Child handle without waiting. The
         // parent bound-waits via the probe, not via the child; the daemon
         // outlives a short-lived `start` and reparents to init on parent exit.
+        let _child = cmd.spawn()?;
+        Ok(())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Real Windows probe + launcher (CIB-072 / GH #2609)
+// ---------------------------------------------------------------------------
+
+/// Probes the per-user Windows named pipe with a workspace-independent
+/// `anvil/status/query` round-trip, mirroring [`SocketProbe`]'s stale-detection
+/// contract on the Unix socket path.
+///
+/// Windows-only integration coverage lives in
+/// `crates/anvil-cli/src/activation/daemon_evidence.rs`
+/// (`end_to_end_against_real_named_pipe_promotes_to_live_validation`).
+#[cfg(windows)]
+pub(crate) struct PipeProbe {
+    pipe_name: String,
+    timeout: Duration,
+}
+
+#[cfg(windows)]
+impl PipeProbe {
+    #[must_use]
+    pub(crate) fn new(pipe_name: String) -> Self {
+        Self {
+            pipe_name,
+            timeout: PROBE_TIMEOUT,
+        }
+    }
+
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn with_timeout(pipe_name: String, timeout: Duration) -> Self {
+        Self { pipe_name, timeout }
+    }
+}
+
+#[cfg(windows)]
+impl DaemonProbe for PipeProbe {
+    fn probe(&self) -> Liveness {
+        use std::sync::mpsc;
+        use std::thread;
+        use std::time::Instant;
+
+        // Connect failure is the *only* signal that the endpoint is absent or
+        // stale (no listener) — the case it is safe to respawn over. Mirrors
+        // [`SocketProbe`] and the CLI's `query_daemon_status_windows_at_with_timeout`
+        // connect/read timeout split (CIB-072 / Copilot review #1840).
+        let deadline_started = Instant::now();
+        let connect_timeout = self.timeout;
+
+        let pipe_name = self.pipe_name.clone();
+        let (connect_tx, connect_rx) = mpsc::sync_channel::<std::io::Result<_>>(1);
+        let connect_thread = thread::spawn(move || {
+            let _ = connect_tx.send(anvil_intercept_win32::connect_owner_only_pipe_client(
+                &pipe_name,
+            ));
+        });
+        let connect_outcome = match connect_rx.recv_timeout(connect_timeout) {
+            Ok(outcome) => outcome,
+            Err(mpsc::RecvTimeoutError::Timeout) | Err(mpsc::RecvTimeoutError::Disconnected) => {
+                // The connect worker may still be blocked in WaitNamedPipe; detach
+                // so the JoinHandle does not wedge this probe (mirrors the CLI's
+                // single-shot exit semantics — probe cadence is low in watch).
+                connect_thread.detach();
+                // A hung or busy pipe server is present-but-unusable, not absent.
+                return Liveness::ConnectedNoAnswer;
+            }
+        };
+        let _ = connect_thread.join();
+
+        let mut client = match connect_outcome {
+            Ok(client) => client,
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+                return Liveness::Unreachable;
+            }
+            // ERROR_PIPE_BUSY — every server instance is talking to another client.
+            Err(err) if err.raw_os_error() == Some(231) => {
+                return Liveness::ConnectedNoAnswer;
+            }
+            Err(_) => return Liveness::ConnectedNoAnswer,
+        };
+
+        // A listener accepted us: from here on, any failure is
+        // `ConnectedNoAnswer` (present-but-unusable), never `Unreachable`.
+        let request_timeout = self.timeout.saturating_sub(deadline_started.elapsed());
+        match pipe_status_query_round_trip(client, request_timeout) {
+            Ok(()) => Liveness::Answered,
+            Err(()) => Liveness::ConnectedNoAnswer,
+        }
+    }
+}
+
+/// Send one NDJSON `anvil/status/query` request over a connected pipe client
+/// and confirm a well-formed, id-matched `result` came back. Mirrors the Unix
+/// [`status_query_round_trip`] helper — duplicated here because
+/// `anvil-intercept` cannot depend upward on `anvil-cli`.
+///
+/// `timeout` is the remaining wall-clock budget for write + read (connect is
+/// handled by the caller). Synchronous `ReadFile` has no native timeout, so the
+/// read runs on a worker thread with `recv_timeout`, matching the CLI client.
+#[cfg(windows)]
+fn pipe_status_query_round_trip(
+    mut client: anvil_intercept_win32::OwnerOnlyPipeClient,
+    timeout: Duration,
+) -> Result<(), ()> {
+    use std::sync::mpsc;
+    use std::thread;
+
+    use anvil_intercept_proto::protocol::ANVIL_STATUS_QUERY;
+
+    const RESPONSE_LINE_BYTES: u64 = 1 << 20;
+    const PROBE_ID: &str = "anvil-ensure-probe";
+
+    let frame = serde_json::json!({
+        "jsonrpc": "2.0",
+        "method": ANVIL_STATUS_QUERY,
+        "id": PROBE_ID,
+    });
+    let mut payload = serde_json::to_vec(&frame).map_err(|_| ())?;
+    payload.push(b'\n');
+    client.write_all(&payload).map_err(|_| ())?;
+
+    let (read_tx, read_rx) = mpsc::sync_channel::<Result<Vec<u8>, ()>>(1);
+    let read_thread = thread::spawn(move || {
+        let mut buf: Vec<u8> = Vec::with_capacity(4096);
+        let mut chunk = [0_u8; 4096];
+        // Scan cursor: only search bytes appended this iteration (Copilot #1848).
+        let mut scan_from = 0_usize;
+        let outcome = loop {
+            let n = match client.read(&mut chunk) {
+                Ok(n) => n,
+                Err(_) => break Err(()),
+            };
+            if n == 0 {
+                break Err(());
+            }
+            buf.extend_from_slice(&chunk[..n]);
+            if let Some(rel_idx) = buf[scan_from..].iter().position(|b| *b == b'\n') {
+                let newline_idx = scan_from + rel_idx;
+                buf.truncate(newline_idx + 1);
+                break Ok(buf);
+            }
+            scan_from = buf.len();
+            if (buf.len() as u64) > RESPONSE_LINE_BYTES {
+                break Err(());
+            }
+        };
+        let _ = read_tx.send(outcome);
+    });
+
+    let buf = match read_rx.recv_timeout(timeout) {
+        Ok(Ok(buf)) => buf,
+        Ok(Err(())) => {
+            let _ = read_thread.join();
+            return Err(());
+        }
+        Err(_) => {
+            // ReadFile has no native timeout; the worker may stay blocked until
+            // the daemon responds. Detach rather than wedge the probe caller.
+            read_thread.detach();
+            return Err(());
+        }
+    };
+    let _ = read_thread.join();
+
+    let line = String::from_utf8(buf).map_err(|_| ())?;
+    let envelope: serde_json::Value = serde_json::from_str(&line).map_err(|_| ())?;
+    if envelope.get("id").and_then(serde_json::Value::as_str) != Some(PROBE_ID) {
+        return Err(());
+    }
+    if envelope.get("result").is_none() {
+        return Err(());
+    }
+    Ok(())
+}
+
+/// Spawns the daemon as a detached background child on Windows (`CREATE_NO_WINDOW`),
+/// redirecting stdout/stderr to the daemon log beside the PID file.
+#[cfg(windows)]
+pub struct DetachedCommandLauncher {
+    program: PathBuf,
+    args: Vec<std::ffi::OsString>,
+}
+
+#[cfg(windows)]
+impl DetachedCommandLauncher {
+    #[must_use]
+    pub fn new(program: PathBuf, args: Vec<std::ffi::OsString>) -> Self {
+        Self { program, args }
+    }
+}
+
+#[cfg(windows)]
+impl DaemonLauncher for DetachedCommandLauncher {
+    fn spawn_detached(&self, log_path: &Path) -> io::Result<()> {
+        use std::fs::OpenOptions;
+        use std::os::windows::process::CommandExt;
+        use std::process::{Command, Stdio};
+
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+        if let Some(parent) = log_path.parent() {
+            crate::ensure_secure_runtime_dir(parent)
+                .map_err(|err| io::Error::other(format!("{err:#}")))?;
+        }
+        if log_path.exists() {
+            let mut rotated = log_path.as_os_str().to_owned();
+            rotated.push(".1");
+            let _ = std::fs::rename(log_path, PathBuf::from(rotated));
+        }
+        let log = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(log_path)?;
+        let log_err = log.try_clone()?;
+
+        let mut cmd = Command::new(&self.program);
+        cmd.args(&self.args)
+            .stdin(Stdio::null())
+            .stdout(Stdio::from(log))
+            .stderr(Stdio::from(log_err))
+            .creation_flags(CREATE_NO_WINDOW);
         let _child = cmd.spawn()?;
         Ok(())
     }

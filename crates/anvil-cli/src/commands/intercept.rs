@@ -306,13 +306,11 @@ pub(crate) fn query_daemon_status_with_timeout(
 /// `anvil intercept start --foreground` (the operator daemon surface
 /// the bail at [`run_start`] still guards for direct callers).
 ///
-/// On Unix the launcher is a [`DetachedCommandLauncher`] over
+/// On Unix and Windows the launcher is a [`DetachedCommandLauncher`] over
 /// `current_exe()`; if `current_exe()` cannot be resolved the ensure
 /// degrades to [`EnsureOutcome::Failed`] with an actionable hint rather
-/// than spawning a daemon from an unknown path. On non-Unix the ensure
-/// primitive returns [`NoStartReason::PlatformUnsupported`] without
-/// touching a launcher (background launch follows DSV-010/011), so the
-/// wrapper forwards the deterministic platform-unsupported outcome.
+/// than spawning a daemon from an unknown path. Other platforms forward
+/// the deterministic [`NoStartReason::PlatformUnsupported`] outcome.
 #[cfg(unix)]
 pub(crate) fn ensure_save_time_daemon(
     capability: anvil_intercept::ensure::StartCapability,
@@ -337,12 +335,34 @@ pub(crate) fn ensure_save_time_daemon(
     ensure_daemon(capability, &launcher)
 }
 
-/// Non-Unix entry: background launch is not yet implemented (it follows
-/// the save-time Windows gap DSV-010/011), so the ensure primitive
-/// returns the deterministic platform-unsupported outcome. A live
-/// daemon is still *used* through the caller's own status probe — this
-/// only governs whether the CLI may *start* one.
-#[cfg(not(unix))]
+/// Windows entry: same detached re-exec launcher as Unix, probing the
+/// per-user named pipe (CIB-072 / GH #2609).
+#[cfg(windows)]
+pub(crate) fn ensure_save_time_daemon(
+    capability: anvil_intercept::ensure::StartCapability,
+) -> anvil_intercept::ensure::EnsureOutcome {
+    use anvil_intercept::ensure::{DetachedCommandLauncher, EnsureOutcome, ensure_daemon};
+
+    let exe = match std::env::current_exe() {
+        Ok(exe) => exe,
+        Err(err) => {
+            return EnsureOutcome::Failed {
+                recovery: format!(
+                    "could not resolve the anvil executable to launch the daemon ({err}); \
+                     run `anvil intercept start --foreground` to start it manually"
+                ),
+            };
+        }
+    };
+    let launcher = DetachedCommandLauncher::new(
+        exe,
+        vec!["intercept".into(), "start".into(), "--foreground".into()],
+    );
+    ensure_daemon(capability, &launcher)
+}
+
+/// Platforms without a detached launcher implementation.
+#[cfg(all(not(unix), not(windows)))]
 pub(crate) fn ensure_save_time_daemon(
     _capability: anvil_intercept::ensure::StartCapability,
 ) -> anvil_intercept::ensure::EnsureOutcome {
