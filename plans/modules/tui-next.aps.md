@@ -7,7 +7,11 @@
 | ---- | ---------- | -------- | -------- |
 | TUIN | joshuaboys | In Progress | 6/13     |
 
-**Last reviewed:** 2026-06-22 (TUIN-004 landed): the dedicated panic-restore
+**Last reviewed:** 2026-06-22 (D-TUIN-005 accepted): operator picked the
+stability-annotation mechanism — rustdoc `# Stability` section + warn-only CI
+grep (stability crate and `unstable` feature-gating rejected). Ready-Checklist
+gate ticked; **TUIN-006 promoted open → Ready**. No done/total change (6/13).
+Prior: 2026-06-22 (TUIN-004 landed): the dedicated panic-restore
 integration test (`crates/eddacraft-tui/tests/lifecycle_panic.rs`) closed
 TUIN-004's only remaining delta (the implementation shipped earlier via
 TUIN-012). Module 5/13 → **6/13**.
@@ -260,14 +264,24 @@ surface.
 
 **D-TUIN-005:** Downstream extension-surface stability
 
-- **Proposed resolution:** Widget trait surface and theme override hook
+- **Accepted resolution:** Widget trait surface and theme override hook
   are documented as stable post-TUIR. Breaking changes require a major
   version bump AND an ADR. Snapshot harness exposure (`test-utils`
   feature) stays explicitly unstable; consumers depend on it at their
-  own risk. Stability markers land via docs convention initially
-  (`# Stability` rustdoc section); switching to a stability crate is a
-  separate decision.
-- **Status:** Proposed.
+  own risk.
+- **Mechanism (operator pick, 2026-06-22): rustdoc `# Stability` section +
+  warn-only CI grep.** Each public item's doc comment carries a `# Stability`
+  section graded `stable` / `unstable` / `experimental`; `test-utils` snapshot
+  items are `experimental`; **new public items default to `unstable`** until
+  explicitly graded `stable`. A CI grep flags new `pub` items missing the
+  section, **warn-only** (Anvil's warnings-over-blocks). Enforcement teeth are
+  the release runbook's breaking-change checklist keyed to the markers; the
+  CHANGELOG records stability as a soft commitment. Chosen over a stability
+  crate (rejected: adds a dependency, against the crate's zero-dep posture) and
+  `#[cfg(feature = "unstable")]` gating (rejected: intrusive; experimental →
+  stable becomes a breaking feature removal). Switching to a stability crate
+  later remains a separate decision if the documentary approach proves too weak.
+- **Status:** Accepted 2026-06-22 (operator); implemented by TUIN-006.
 
 **D-TUIN-006:** Post-migration API stability checkpoint
 
@@ -476,7 +490,10 @@ TUIN module resolve.
 
 ### TUIN-006: Mark widget / theme extension surface stability
 
-- **Status:** open
+- **Status:** Ready — unblocked 2026-06-22 (D-TUIN-005 Accepted; mechanism
+  chosen: rustdoc `# Stability` section + warn-only CI grep). New public items
+  default `unstable`; widget trait + theme hook graded `stable`; `test-utils`
+  snapshot items `experimental`.
 - **Intent:** Annotate stable vs unstable items on the widget trait
   surface and theme override hook per D-TUIN-005. Establish a docs
   convention so reviewers can spot drift.
@@ -747,8 +764,9 @@ a subcommand and `--config` path handoff.
 - [x] Proposed feature-flag names checked against existing
       `crates/eddacraft-tui/Cargo.toml` features for collisions — `lifecycle`
       and `runner` landed via TUIN-012 with no collisions.
-- [ ] Stability annotation mechanism (rustdoc convention vs stability
-      crate) chosen before TUIN-006 starts.
+- [x] Stability annotation mechanism chosen before TUIN-006 starts —
+      **rustdoc `# Stability` section + warn-only CI grep** (D-TUIN-005 Accepted
+      2026-06-22; stability crate and feature-gating rejected).
 - [ ] No emergency P1 against a TUIN-scoped surface is active in
       issues (open P1s get routed to a TUIR follow-up, not into TUIN
       pre-emptively).
