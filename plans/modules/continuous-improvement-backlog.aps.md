@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 56/101   |
+| CIB | —     | In Progress | 56/102  |
 
 ## Purpose
 
@@ -2764,3 +2764,31 @@ archive.
   hygiene.
 - **Confidence:** medium — Windows pipe re-root may coordinate with CIB-100/INTD
   pipe work; uninstall cleanup is localised.
+
+### CIB-102: Anchor the snapshot delete/sweep paths to a validated dirfd (CIB-097 follow-up)
+
+- **Status:** Proposed
+- **Intent:** CIB-097 (PR #2865) anchored the snapshot **write** path to a
+  validated directory fd, but the **delete** paths are still path-based:
+  `remove_snapshot` (`fs::remove_file(&path)`), `sweep_orphan_temps`, and
+  `sweep_stale_snapshots_on_start` (`fs::read_dir(dir)` + `fs::remove_file(&path)`)
+  in `crates/anvil-intercept/src/snapshot_io.rs`. A same-uid attacker who swaps
+  the `dir` (or plants a symlink at a `.snap`/`.tmp` path) between the `read_dir`
+  and the `unlink` can redirect the delete — a data-destruction vector (the daemon
+  deletes a file outside the cache), distinct from the write-through gap CIB-097
+  closed. Flagged by the CIB-097 council as out of scope for that PR.
+- **Expected Outcome:** the delete/sweep paths open the state dir once via
+  `open_workspace_dir_for_fsync` (the validated, fstat-checked real dirfd from
+  CIB-097) and use `unlinkat` relative to that fd (and `readdir` anchored to it
+  where the sweep enumerates), so a swapped component cannot redirect the unlink.
+  Mirrors the write path's dirfd discipline.
+- **Files:** `crates/anvil-intercept/src/snapshot_io.rs` (`remove_snapshot`,
+  `sweep_orphan_temps`, `sweep_stale_snapshots_on_start`), reusing
+  `crate::path_safety::open_workspace_dir_for_fsync`.
+- **Validation:** a test that a symlink planted at a `.snap` path is not followed
+  by the sweep/remove (the symlink target is left intact; only the entry under the
+  cache dir is removed).
+- **Identified From:** CIB-097 council review (adversarial, low/out-of-scope) —
+  the delete-path counterpart to the write-path anchoring.
+- **Confidence:** high — the validated dirfd + `unlinkat` primitives already exist
+  from CIB-097; this extends them to the delete paths.
