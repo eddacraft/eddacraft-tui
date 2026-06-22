@@ -35,8 +35,12 @@ it out):
 - [x] **CIB-097** — anchor the snapshot **write** path to a validated
       `O_DIRECTORY` dirfd (092d) — **DONE** (Merged 2026-06-22 via PR #2865;
       `fstat`-validated, real fsync-able fd).
-- [ ] **CIB-098** — deliver the persist-failure degradation signal to opted-in
-      operators (092h; fanout currently hard-denies session-less envelopes).
+- [x] **CIB-098** — persist-failure degradation signal delivered to opted-in
+      operators by worktree scoping (092h; ADR-090) — **DONE** (Merged 2026-06-22
+      via PR #2887).
+- [x] **CIB-102** — snapshot delete/sweep paths anchored to a dirfd (the
+      delete-path counterpart to CIB-097, flagged by the CIB-097 council) —
+      **DONE** (Merged 2026-06-22 via PR #2884).
 - [x] **N7** _(not a CIB item)_ — suffix-match import re-bind in `incremental.rs`
       — **DONE** in PR #2852 (exact-match-only resolution).
 

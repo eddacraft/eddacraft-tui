@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 58/102  |
+| CIB | —     | In Progress | 60/102  |
 
 ## Purpose
 
@@ -2677,7 +2677,7 @@ archive.
 
 ### CIB-098: Deliver the persist-failure degradation signal to opted-in operators (092h follow-up)
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-22 via PR #2887
 - **Intent:** CIB-092h (PR #2852) builds an ADR-035 persist-failure
   `NotificationEnvelope` on a snapshot write failure when `persistence_enabled()`,
   but the INTD-015 fanout **hard-denies any envelope without an
@@ -2772,7 +2772,7 @@ archive.
 
 ### CIB-102: Anchor the snapshot delete/sweep paths to a validated dirfd (CIB-097 follow-up)
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-22 via PR #2884
 - **Intent:** CIB-097 (PR #2865) anchored the snapshot **write** path to a
   validated directory fd, but the **delete** paths are still path-based:
   `remove_snapshot` (`fs::remove_file(&path)`), `sweep_orphan_temps`, and
