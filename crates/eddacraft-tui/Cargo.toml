@@ -1,6 +1,6 @@
 [package]
 name = "eddacraft-tui"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2024"
 rust-version = "1.88"
 license = "Apache-2.0"
@@ -9,6 +9,9 @@ repository = "https://github.com/eddacraft/eddacraft-tui"
 readme = "README.md"
 keywords = ["tui", "ratatui", "widgets", "terminal"]
 categories = ["command-line-interface"]
+# Internal CI tooling (the TUIN-006 stability-marker baseline) — not part of the
+# published library surface.
+exclude = ["stability-baseline.txt"]
 
 # Build all features and surface `doc(cfg(...))` badges on docs.rs so feature-
 # gated widgets (image, big-text) are discoverable. Locally, `cargo doc

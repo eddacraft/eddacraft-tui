@@ -47,6 +47,7 @@ src/keyboard/handler.rs
 src/keyboard/mod.rs
 src/lib.rs
 src/lifecycle.rs
+src/mode/mod.rs
 src/pretext/exclusion.rs
 src/pretext/layout.rs
 src/pretext/mod.rs
@@ -92,3 +93,4 @@ tests/fixtures/json_render/catalog-names.json
 tests/fixtures/json_render/gate-summary.dashboard.json
 tests/fixtures/json_render/watch-session.dashboard.json
 tests/json_render_specs.rs
+tests/lifecycle_panic.rs
