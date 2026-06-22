@@ -586,13 +586,13 @@ configuration, including:
   `DO_NOT_TRACK=1` is honoured as an alias, and the whole-observation
   break-glass `ANVIL_INTERCEPT_DISABLE_OBSERVATION=1` disables both the CLI and
   daemon usage producers. See the
-  [usage-analytics operator controls](../../../observability/usage-analytics.md#operator-controls-environment-variables)
+  `docs/observability/usage-analytics.md#operator-controls-environment-variables`
 - `ANVIL_USAGE_SIDECAR_NO_TRIM` — any non-empty value disables the lazy 7-day /
   64 MiB retention trim on the usage sidecar (the sidecar then grows unbounded)
 - `ANVIL_OBSERVATION_INCLUDE_PATHS` — set `1` to make the daemon save-time /
   fence observation rows record absolute validated paths instead of only a path
   count. **Changes the privacy posture; off by default.** See the
-  [usage-analytics privacy note](../../../observability/usage-analytics.md#operator-controls-environment-variables)
+  `docs/observability/usage-analytics.md#operator-controls-environment-variables`
 
 Legacy Node.js environment variables (`ANVIL_CI`, `ANVIL_FAIL_ON_WARNINGS`) are
 not supported.

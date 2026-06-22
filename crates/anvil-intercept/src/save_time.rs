@@ -204,6 +204,7 @@ pub struct SnapshotMetricsSnapshot {
 impl SnapshotMetrics {
     /// Record the outcome of a [`load_snapshot`](crate::snapshot_io::load_snapshot)
     /// call: the `Ok` arm is `ok`, each error maps to its labelled counter.
+    #[cfg(unix)]
     fn record_load(
         &self,
         result: &Result<
@@ -4513,6 +4514,7 @@ mod tests {
     /// EVERY counter so a soak harness scraping the shutdown event reads the full
     /// `SnapshotMetricsSnapshot`. A field-capturing tracing layer asserts the
     /// `"anvil_intercept::snapshot"` event fires with the exact cumulative values.
+    #[cfg(unix)]
     #[test]
     fn cumulative_metrics_emit_carries_every_counter() {
         use std::sync::{Arc as StdArc, Mutex as StdMutex};
