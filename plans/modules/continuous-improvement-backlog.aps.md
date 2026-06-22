@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 54/101   |
+| CIB | —     | In Progress | 55/101   |
 
 ## Purpose
 
@@ -1545,7 +1545,7 @@ archive.
 
 ### CIB-060: auth wall points users without beta access at the request channel
 
-- **Status:** In Progress (2026-06-11)
+- **Status:** Done (2026-06-22)
 - **Intent:** the not-logged-in gate message says only "Authentication
   required. Run `anvil auth login` to authenticate." — a user without a
   beta invite dead-ends with no pointer to how to get access.

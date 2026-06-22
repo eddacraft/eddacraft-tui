@@ -81,6 +81,30 @@ pub const EXIT_VERSION_MISMATCH: u8 = 7;
 /// ADR amendment.
 pub const EXIT_DISCOVERY_FAILED: u8 = 10;
 
+/// Early-access request channel surfaced on the not-logged-in auth gate
+/// (CIB-060). Matches README ("Early access at eddacraft.ai").
+const EARLY_ACCESS_URL: &str = "https://eddacraft.ai";
+
+const AUTH_NOT_AUTHENTICATED_MESSAGE: &str = "Authentication required. Run `anvil auth login` to authenticate. Early access: https://eddacraft.ai";
+
+const AUTH_SESSION_EXPIRED_MESSAGE: &str =
+    "Session expired. Run `anvil auth login` to re-authenticate.";
+
+const AUTH_INVALID_EDICT_MESSAGE: &str =
+    "Early-access edict is invalid or revoked. Run `anvil auth login --edict` to authenticate.";
+
+/// Which `EXIT_AUTH_REQUIRED` path fired — drives JSON envelope copy while
+/// keeping expired-session and invalid-edict messages unchanged (CIB-060).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AuthRequiredKind {
+    NotAuthenticated,
+    SessionExpired,
+    InvalidEdict,
+}
+
+type AuthCheckFailure = (u8, Option<AuthRequiredKind>);
+type AuthCheckResult = Result<(), AuthCheckFailure>;
+
 /// Global arguments available to every subcommand.
 // Each field is an independent CLI flag, not coupled state — a state machine /
 // two-variant-enum refactor would obscure, not clarify, the clap surface.
@@ -449,10 +473,19 @@ fn is_auth_state_probe(cmd: &Commands) -> bool {
 /// the stream policy in `docs/guides/cli-output-streams.md`) — or
 /// `(exit_code, None)` in text mode, where `check_auth` already
 /// emitted the human-readable message to stderr.
+fn auth_required_message(kind: AuthRequiredKind) -> &'static str {
+    match kind {
+        AuthRequiredKind::NotAuthenticated => AUTH_NOT_AUTHENTICATED_MESSAGE,
+        AuthRequiredKind::SessionExpired => AUTH_SESSION_EXPIRED_MESSAGE,
+        AuthRequiredKind::InvalidEdict => AUTH_INVALID_EDICT_MESSAGE,
+    }
+}
+
 fn auth_required_response(
     cmd: &Commands,
     code: u8,
     json_mode: bool,
+    kind: Option<AuthRequiredKind>,
 ) -> (u8, Option<serde_json::Value>) {
     // Anything other than EXIT_AUTH_REQUIRED is a real failure that
     // happened to surface from `check_auth` (today: a failed login
@@ -469,11 +502,25 @@ fn auth_required_response(
     } else if is_probe {
         Some(serde_json::json!({"error": "authentication_required"}))
     } else {
-        Some(serde_json::json!({
+        let (message, early_access_url) = match kind {
+            Some(AuthRequiredKind::NotAuthenticated) => {
+                (AUTH_NOT_AUTHENTICATED_MESSAGE, Some(EARLY_ACCESS_URL))
+            }
+            Some(other) => (auth_required_message(other), None),
+            None => (
+                "Authentication required. Run `anvil auth login` to authenticate.",
+                None,
+            ),
+        };
+        let mut envelope = serde_json::json!({
             "state": "authRequired",
-            "message": "Authentication required. Run `anvil auth login` to authenticate.",
+            "message": message,
             "next": "anvil auth login",
-        }))
+        });
+        if let Some(url) = early_access_url {
+            envelope["earlyAccessUrl"] = serde_json::Value::String(url.to_owned());
+        }
+        Some(envelope)
     };
     (exit_code, envelope)
 }
@@ -489,32 +536,30 @@ fn evaluate_auth(
     loaded: &anyhow::Result<Option<auth::credentials::Credentials>>,
     verbose: bool,
     emit_human_messages: bool,
-) -> Result<(), u8> {
+) -> AuthCheckResult {
     match loaded {
         Ok(Some(creds)) if auth::credentials::is_expired(creds) => {
             if emit_human_messages {
-                eprintln!("Session expired. Run `anvil auth login` to re-authenticate.");
+                eprintln!("{AUTH_SESSION_EXPIRED_MESSAGE}");
             }
-            Err(EXIT_AUTH_REQUIRED)
+            Err((EXIT_AUTH_REQUIRED, Some(AuthRequiredKind::SessionExpired)))
         }
         Ok(Some(creds)) if auth::credentials::is_edict(creds) => {
             if verify_edict_auth(creds, verbose, emit_human_messages) {
                 Ok(())
             } else {
                 if emit_human_messages {
-                    eprintln!(
-                        "Early-access edict is invalid or revoked. Run `anvil auth login --edict` to authenticate."
-                    );
+                    eprintln!("{AUTH_INVALID_EDICT_MESSAGE}");
                 }
-                Err(EXIT_AUTH_REQUIRED)
+                Err((EXIT_AUTH_REQUIRED, Some(AuthRequiredKind::InvalidEdict)))
             }
         }
         Ok(Some(_)) => Ok(()),
         Ok(None) => {
             if emit_human_messages {
-                eprintln!("Authentication required. Run `anvil auth login` to authenticate.");
+                eprintln!("{AUTH_NOT_AUTHENTICATED_MESSAGE}");
             }
-            Err(EXIT_AUTH_REQUIRED)
+            Err((EXIT_AUTH_REQUIRED, Some(AuthRequiredKind::NotAuthenticated)))
         }
         Err(err) => {
             let msg = if verbose {
@@ -540,7 +585,7 @@ fn evaluate_auth(
             // normal exit-0/auth-required path. `load()` already folds a
             // missing file into `Ok(None)`, so reaching this arm means the
             // credential store exists but could not be read.
-            Err(EXIT_CONFIG_ERROR)
+            Err((EXIT_CONFIG_ERROR, None))
         }
     }
 }
@@ -776,7 +821,7 @@ fn run_interactive_login() -> anyhow::Result<()> {
 /// problem is missing or expired credentials, offers to launch the
 /// device-code login flow inline so first-time users don't bounce off a
 /// terse "Run `anvil auth login`" error.
-fn check_auth(global: &GlobalArgs, allow_interactive: bool, wants_json: bool) -> Result<(), u8> {
+fn check_auth(global: &GlobalArgs, allow_interactive: bool, wants_json: bool) -> AuthCheckResult {
     // `wants_json` folds the global `--json` flag together with a
     // per-command `--format json|sarif` request: both mean a machine is
     // reading the output, so human-readable auth chatter must be
@@ -877,12 +922,19 @@ fn check_auth(global: &GlobalArgs, allow_interactive: bool, wants_json: bool) ->
                     // failure, not the "you haven't logged in yet"
                     // state — issue #1822 / PR #1824 review feedback.
                     eprintln!("Login failed: {err:#}");
-                    return Err(EXIT_ERROR);
+                    return Err((EXIT_ERROR, None));
                 }
             },
             Ok(false) => {
                 eprintln!("Run `anvil auth login` when you're ready.");
-                return Err(EXIT_AUTH_REQUIRED);
+                return Err((
+                    EXIT_AUTH_REQUIRED,
+                    Some(if expired {
+                        AuthRequiredKind::SessionExpired
+                    } else {
+                        AuthRequiredKind::NotAuthenticated
+                    }),
+                ));
             }
             Err(err) => {
                 // Fall through to the non-interactive error below.
@@ -899,7 +951,7 @@ fn check_auth(global: &GlobalArgs, allow_interactive: bool, wants_json: bool) ->
         // Silent refresh already explained the failure; no need for
         // `evaluate_auth` to repeat itself with the generic "Session
         // expired" line.
-        return Err(EXIT_AUTH_REQUIRED);
+        return Err((EXIT_AUTH_REQUIRED, Some(AuthRequiredKind::SessionExpired)));
     }
 
     evaluate_auth(&loaded, global.verbose, !json_mode)
@@ -1107,14 +1159,26 @@ fn main() -> ExitCode {
         );
     }
 
-    if let Err(code) = auth_outcome {
-        // CIB-061: `info`, not `warn` — auth-required is an expected
-        // state (issue #1822) and `check_auth` already put the human
-        // message on stderr; at `warn` the event passed the CLI's
-        // default filter and leaked a raw JSON line under that message.
-        // `ANVIL_LOG=info` still surfaces it for operators.
-        tracing::info!(target: "anvil_cli", "cli command authentication required");
-        let (exit_code, json_envelope) = auth_required_response(&cli.command, code, wants_json);
+    if let Err((code, kind)) = auth_outcome {
+        if code == EXIT_AUTH_REQUIRED {
+            // CIB-061: `info`, not `warn` — auth-required is an expected
+            // state (issue #1822) and `check_auth` already put the human
+            // message on stderr; at `warn` the event passed the CLI's
+            // default filter and leaked a raw JSON line under that message.
+            // `ANVIL_LOG=info` still surfaces it for operators.
+            tracing::info!(target: "anvil_cli", "cli command authentication required");
+        } else {
+            // Real runtime failures from `check_auth` (failed interactive
+            // login, credential-store read fault) — distinct from the
+            // expected "not logged in yet" state.
+            tracing::warn!(
+                target: "anvil_cli",
+                exit_code = code,
+                "cli auth check failed"
+            );
+        }
+        let (exit_code, json_envelope) =
+            auth_required_response(&cli.command, code, wants_json, kind);
         if let Some(envelope) = json_envelope {
             // CIB-049: the envelope only exists under `--json` / `--format
             // json`, and structured output belongs on stdout (stream policy,
@@ -1732,8 +1796,12 @@ mod tests {
             &["audit"][..],
             &["watch"][..],
         ] {
-            let (code, envelope) =
-                auth_required_response(&parse_command(tokens), EXIT_AUTH_REQUIRED, false);
+            let (code, envelope) = auth_required_response(
+                &parse_command(tokens),
+                EXIT_AUTH_REQUIRED,
+                false,
+                Some(AuthRequiredKind::NotAuthenticated),
+            );
             assert_eq!(
                 code, EXIT_OK,
                 "{tokens:?} should exit 0 on auth-required (informational)"
@@ -1750,8 +1818,12 @@ mod tests {
         // The canonical preflight: `whoami` / `auth whoami` carry the
         // auth signal in the exit code so scripts have a stable check.
         for tokens in [&["whoami"][..], &["auth", "whoami"][..]] {
-            let (code, _) =
-                auth_required_response(&parse_command(tokens), EXIT_AUTH_REQUIRED, false);
+            let (code, _) = auth_required_response(
+                &parse_command(tokens),
+                EXIT_AUTH_REQUIRED,
+                false,
+                Some(AuthRequiredKind::NotAuthenticated),
+            );
             assert_eq!(
                 code, EXIT_AUTH_REQUIRED,
                 "{tokens:?} is an auth-state probe and must exit 3"
@@ -1761,17 +1833,22 @@ mod tests {
 
     #[test]
     fn auth_required_response_action_json_envelope_shape() {
-        let (code, envelope) =
-            auth_required_response(&parse_command(&["start"]), EXIT_AUTH_REQUIRED, true);
+        let (code, envelope) = auth_required_response(
+            &parse_command(&["start"]),
+            EXIT_AUTH_REQUIRED,
+            true,
+            Some(AuthRequiredKind::NotAuthenticated),
+        );
         assert_eq!(code, EXIT_OK);
         let envelope = envelope.expect("--json mode must emit an envelope");
         assert_eq!(envelope["state"], "authRequired");
         assert_eq!(envelope["next"], "anvil auth login");
+        assert_eq!(envelope["earlyAccessUrl"], EARLY_ACCESS_URL);
         assert!(
-            envelope["message"]
-                .as_str()
-                .is_some_and(|m| m.contains("Authentication required")),
-            "envelope must carry the human-readable message"
+            envelope["message"].as_str().is_some_and(
+                |m| m.contains("Authentication required") && m.contains(EARLY_ACCESS_URL)
+            ),
+            "envelope must carry the human-readable message with early-access pointer"
         );
         // No `error` key on the informational envelope — distinguishes
         // the informational shape from the probe's error shape so
@@ -1780,9 +1857,26 @@ mod tests {
     }
 
     #[test]
+    fn auth_required_response_action_json_omits_early_access_for_expired() {
+        let (_, envelope) = auth_required_response(
+            &parse_command(&["start"]),
+            EXIT_AUTH_REQUIRED,
+            true,
+            Some(AuthRequiredKind::SessionExpired),
+        );
+        let envelope = envelope.expect("--json mode must emit an envelope");
+        assert_eq!(envelope["message"], AUTH_SESSION_EXPIRED_MESSAGE);
+        assert!(envelope.get("earlyAccessUrl").is_none());
+    }
+
+    #[test]
     fn auth_required_response_probe_json_envelope_shape() {
-        let (code, envelope) =
-            auth_required_response(&parse_command(&["whoami"]), EXIT_AUTH_REQUIRED, true);
+        let (code, envelope) = auth_required_response(
+            &parse_command(&["whoami"]),
+            EXIT_AUTH_REQUIRED,
+            true,
+            Some(AuthRequiredKind::NotAuthenticated),
+        );
         assert_eq!(code, EXIT_AUTH_REQUIRED);
         let envelope = envelope.expect("--json mode must emit an envelope");
         // Probe keeps the existing error-shaped envelope for backward
@@ -1800,7 +1894,7 @@ mod tests {
         for cmd_tokens in [&["start"][..], &["whoami"][..]] {
             for incoming in [EXIT_ERROR, EXIT_GATE_FAIL, EXIT_CONFIG_ERROR] {
                 let (code, envelope) =
-                    auth_required_response(&parse_command(cmd_tokens), incoming, false);
+                    auth_required_response(&parse_command(cmd_tokens), incoming, false, None);
                 assert_eq!(
                     code, incoming,
                     "{cmd_tokens:?} with incoming {incoming} must pass through"
@@ -1815,7 +1909,8 @@ mod tests {
         // Under --json the pass-through path emits a distinct error
         // envelope so structured consumers can tell a check failure
         // apart from the informational `authRequired` state.
-        let (code, envelope) = auth_required_response(&parse_command(&["start"]), EXIT_ERROR, true);
+        let (code, envelope) =
+            auth_required_response(&parse_command(&["start"]), EXIT_ERROR, true, None);
         assert_eq!(code, EXIT_ERROR);
         let envelope = envelope.expect("--json mode must emit an envelope");
         assert_eq!(envelope["error"], "auth_check_failed");
@@ -1897,15 +1992,22 @@ mod tests {
     fn evaluate_auth_returns_err_when_no_credentials() {
         assert_eq!(
             evaluate_auth(&Ok(None), false, true),
-            Err(EXIT_AUTH_REQUIRED)
+            Err((EXIT_AUTH_REQUIRED, Some(AuthRequiredKind::NotAuthenticated),))
         );
+    }
+
+    #[test]
+    fn auth_not_authenticated_message_names_early_access_channel() {
+        assert!(AUTH_NOT_AUTHENTICATED_MESSAGE.contains(EARLY_ACCESS_URL));
+        assert!(!AUTH_SESSION_EXPIRED_MESSAGE.contains(EARLY_ACCESS_URL));
+        assert!(!AUTH_INVALID_EDICT_MESSAGE.contains(EARLY_ACCESS_URL));
     }
 
     #[test]
     fn evaluate_auth_returns_err_when_expired() {
         assert_eq!(
             evaluate_auth(&Ok(Some(expired_creds())), false, true),
-            Err(EXIT_AUTH_REQUIRED),
+            Err((EXIT_AUTH_REQUIRED, Some(AuthRequiredKind::SessionExpired))),
         );
     }
 
@@ -1918,7 +2020,7 @@ mod tests {
         // `Err` arm only ever represents a real fault.
         assert_eq!(
             evaluate_auth(&Err(anyhow::anyhow!("disk failure")), false, true),
-            Err(EXIT_CONFIG_ERROR),
+            Err((EXIT_CONFIG_ERROR, None)),
         );
     }
 
@@ -1958,7 +2060,7 @@ mod tests {
             || {
                 assert_eq!(
                     check_auth(&GlobalArgs::default(), true, false),
-                    Err(EXIT_AUTH_REQUIRED)
+                    Err((EXIT_AUTH_REQUIRED, Some(AuthRequiredKind::NotAuthenticated),))
                 );
             },
         );
