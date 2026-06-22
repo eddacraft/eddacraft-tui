@@ -1104,10 +1104,118 @@ mod tests {
     /// `mcp/validation.rs::tests::local_daemon_client_returns_scan_buffer_diagnostics_with_embedded_parity`
     /// which gates MLP2-051b's MCP shim with the same pattern.
     ///
+    /// CIB-072 / GH #2609: end-to-end against a **real** Windows named pipe.
+    /// Mirrors `end_to_end_against_real_unix_socket_promotes_to_live_validation`
+    /// so the activation IPC fetch + promotion wire-up cannot regress to
+    /// MLP2-025b's "spec implemented, zero callers" failure on Windows.
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn end_to_end_against_real_named_pipe_promotes_to_live_validation() {
+        use std::sync::Arc;
+        use std::time::{Duration as StdDuration, Instant};
+
+        use anvil_intercept::Shutdown;
+        use anvil_intercept::ipc::{IpcListener, NoopDispatcher};
+        use anvil_intercept::status::{DaemonStatus, IpcState, StatusProvider, build_status};
+
+        struct Fixture {
+            worktree: PathBuf,
+        }
+        impl StatusProvider for Fixture {
+            fn query_status(&self) -> DaemonStatus {
+                let session = anvil_intercept_proto::SessionRecord {
+                    id: anvil_intercept_proto::SessionId::new("sess-cib072-e2e"),
+                    worktree: self.worktree.clone(),
+                    pid: Some(4242),
+                    pgid: Some(4242),
+                    started_at_unix: 1_716_336_000,
+                    last_heartbeat_unix: now_unix_seconds(),
+                    status: anvil_intercept_proto::SessionStatus::Active,
+                    agent_tag: None,
+                    daemon_issued_tag: None,
+                };
+                let started = Instant::now();
+                build_status(
+                    vec![session],
+                    &[],
+                    &[],
+                    None,
+                    started,
+                    started + StdDuration::from_secs(1),
+                    "0.0.0-cib072-e2e",
+                    IpcState::Serving,
+                    None,
+                    None,
+                    SystemTime::now()
+                        .duration_since(SystemTime::UNIX_EPOCH)
+                        .map_or(0, |d| d.as_secs()),
+                )
+            }
+        }
+
+        let worktree_dir = tempfile::tempdir().expect("tempdir");
+        let worktree = std::fs::canonicalize(worktree_dir.path()).expect("worktree canonical");
+
+        let pipe_name = format!(
+            r"\\.\pipe\anvil-cib072-daemon-evidence-test-{}",
+            std::process::id(),
+        );
+
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(1)
+            .enable_all()
+            .build()
+            .expect("tokio runtime");
+        let _guard = runtime.enter();
+        let listener = IpcListener::bind(&pipe_name, NoopDispatcher)
+            .expect("daemon pipe binds")
+            .with_status_provider(Arc::new(Fixture {
+                worktree: worktree.clone(),
+            }));
+        let (shutdown, token) = Shutdown::new();
+        let server = runtime.spawn(listener.serve(token));
+
+        let snapshot = crate::commands::intercept::query_daemon_status_windows_at_with_timeout(
+            &pipe_name,
+            ACTIVATION_DAEMON_QUERY_TIMEOUT,
+        )
+        .expect("fixture daemon responds within the activation budget");
+
+        let mut map = handshake_verified_pair();
+        let attestation = evaluate_and_promote(&mut map, &snapshot, &worktree, SystemTime::now());
+
+        shutdown.trigger();
+        runtime.block_on(async {
+            server
+                .await
+                .expect("daemon task joins")
+                .expect("daemon exits cleanly");
+        });
+
+        assert_eq!(
+            attestation,
+            DaemonAttestation::Promoted,
+            "real-pipe fixture attests the worktree; attestation must be Promoted",
+        );
+        assert_eq!(
+            map[&McpClientId::ClaudeCode].tier,
+            McpTier::LiveValidation,
+            "real-pipe fixture attests the worktree; client must reach LiveValidation",
+        );
+    }
+
+    #[cfg(target_os = "windows")]
+    fn now_unix_seconds() -> u64 {
+        SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs())
+    }
+
     /// Linux-only because the fixture uses `IpcListener::bind` against
-    /// a Unix domain socket. The Windows path is exercised
-    /// platform-natively by the MLP2-075 pipe-bind tests in
-    /// `crates/anvil-cli/src/mcp/validation.rs`.
+    /// a Unix domain socket. The Windows path is pinned by
+    /// `end_to_end_against_real_named_pipe_promotes_to_live_validation`
+    /// above; MLP2-075 additionally exercises the MCP protection-claim
+    /// client in `crates/anvil-cli/src/mcp/validation.rs`.
     #[cfg(target_os = "linux")]
     #[test]
     fn end_to_end_against_real_unix_socket_promotes_to_live_validation() {

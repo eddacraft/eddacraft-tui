@@ -1924,7 +1924,7 @@ archive.
 
 ### CIB-072: clear `ready_restart_required` on Windows when daemon attestation is Unreachable
 
-- **Status:** Proposed
+- **Status:** In Progress (implementation complete on `fix/cib-072`; PR pending)
 - **Intent:** the same Windows/Scoop/PowerShell beta user who raised #1831
   still hits a stuck `ready_restart_required` on Anvil 0.8.1 (#2583). #1840
   (MLP2-051f) added the daemon-evidence promotion path that graduates a

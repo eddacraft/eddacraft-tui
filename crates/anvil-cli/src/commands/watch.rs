@@ -498,8 +498,8 @@ enum WatchFallbackReason {
     /// Headless / `--json` / CI / hook / piped: a deterministic context with
     /// no interactive consent surface.
     NonInteractive,
-    /// This platform cannot background-launch a daemon yet (Windows follows
-    /// DSV-010/011), so there is nothing to offer even in a TTY.
+    /// This platform cannot background-launch a daemon yet, so there is
+    /// nothing to offer even in a TTY.
     PlatformUnsupported,
 }
 
@@ -523,8 +523,8 @@ struct WatchDaemonContext {
     interactive: bool,
     /// A live daemon already answered the worktree probe this run.
     daemon_live: bool,
-    /// This platform can actually background-launch a daemon (Unix-first;
-    /// Windows follows DSV-010/011). When false, the ensure primitive returns
+    /// This platform can actually background-launch a daemon (Unix and Windows
+    /// since CIB-072). When false, the ensure primitive returns
     /// `PlatformUnsupported` regardless, so offering to start one would ask a
     /// question that cannot change the outcome — the planner skips the prompt.
     platform_can_spawn: bool,
@@ -702,10 +702,10 @@ fn ensure_watch_daemon(
         json,
         interactive: watch_is_interactive(),
         daemon_live,
-        // Only Unix can background-launch the daemon today; on other platforms
+        // Unix and Windows can background-launch the daemon; on other platforms
         // the ensure primitive returns `PlatformUnsupported`, so the planner
         // renders that honestly instead of prompting for nothing.
-        platform_can_spawn: cfg!(unix),
+        platform_can_spawn: cfg!(any(unix, windows)),
     });
 
     let line = match plan {
