@@ -31,7 +31,9 @@ item that has since landed (N7 is **not** a CIB item, listed here only to close
 it out):
 
 - [ ] **CIB-096** — wire the orphan-`.snap` startup sweep into the daemon (092c).
-- [ ] **CIB-097** — anchor the snapshot **write** path to an `O_PATH` dirfd (092d).
+- [x] **CIB-097** — anchor the snapshot **write** path to a validated
+      `O_DIRECTORY` dirfd (092d) — **DONE** (Merged 2026-06-22 via PR #2865;
+      `fstat`-validated, real fsync-able fd).
 - [ ] **CIB-098** — deliver the persist-failure degradation signal to opted-in
       operators (092h; fanout currently hard-denies session-less envelopes).
 - [x] **N7** _(not a CIB item)_ — suffix-match import re-bind in `incremental.rs`

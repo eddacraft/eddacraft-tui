@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 56/102  |
+| CIB | —     | In Progress | 57/102  |
 
 ## Purpose
 
@@ -2642,7 +2642,7 @@ archive.
 
 ### CIB-097: Anchor the snapshot WRITE path to a validated directory fd (092d follow-up)
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-22 via PR #2865
 - **Intent:** CIB-092d (PR #2852) anchored the snapshot **read** path to a
   validated `O_PATH` dirfd via `open_workspace_dirfd` + `openat2`
   (`RESOLVE_NO_SYMLINKS|RESOLVE_BENEATH`) with an `O_NOFOLLOW` fallback, but the
