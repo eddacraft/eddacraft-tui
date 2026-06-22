@@ -735,7 +735,7 @@ fn create_leaf_under_dirfd(dirfd: &std::os::fd::OwnedFd, name: &str) -> io::Resu
         "create_leaf_under_dirfd requires a separator-free leaf name, got {name:?}",
     );
 
-    let mode = Mode::from_bits_truncate(FILE_MODE);
+    let mode = Mode::from_bits_truncate(FILE_MODE as nix::libc::mode_t);
     let create_flags =
         OFlag::O_CREAT | OFlag::O_EXCL | OFlag::O_WRONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC;
 
