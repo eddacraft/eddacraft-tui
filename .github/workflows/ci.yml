@@ -99,7 +99,8 @@ jobs:
         if: |
           github.event_name == 'pull_request' &&
           needs.detect-changes.result == 'success' &&
-          needs.detect-changes.outputs.markdownlint-required != 'true'
+          needs.detect-changes.outputs.markdownlint-required != 'true' &&
+          needs.detect-changes.outputs.source-changed != 'true'
         run: |
           echo "Skipped — no .md changes detected (CIB-038)"
           echo '::notice title=Docs Lint (filler)::Job concluded success without executing docs lint/format/docs:check/APS checks. Provides the single required "Docs Lint" conclusion for docs-only PRs so the main ruleset sees CLEAN (no success+skipped duplicate). Real work only on markdownlint-required paths.'
@@ -107,13 +108,15 @@ jobs:
       - name: Checkout repository
         if:
           needs.detect-changes.result != 'success' ||
-          needs.detect-changes.outputs.markdownlint-required == 'true'
+          needs.detect-changes.outputs.markdownlint-required == 'true' ||
+          needs.detect-changes.outputs.source-changed == 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Setup workspace
         if:
           needs.detect-changes.result != 'success' ||
-          needs.detect-changes.outputs.markdownlint-required == 'true'
+          needs.detect-changes.outputs.markdownlint-required == 'true' ||
+          needs.detect-changes.outputs.source-changed == 'true'
         uses: ./.github/actions/setup-workspace
 
       - name: Run markdown lint
@@ -149,7 +152,8 @@ jobs:
       - name: Check eddacraft-tui stability markers (TUIN-006, warn-only)
         if:
           needs.detect-changes.result != 'success' ||
-          needs.detect-changes.outputs.markdownlint-required == 'true'
+          needs.detect-changes.outputs.markdownlint-required == 'true' ||
+          needs.detect-changes.outputs.source-changed == 'true'
         run: node scripts/check-stability-markers.mjs
         continue-on-error: true
 

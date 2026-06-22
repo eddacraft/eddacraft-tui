@@ -63,11 +63,26 @@ const found = [];
 for (const rel of files) {
   const content = await readFile(resolve(root, rel), 'utf8');
   const lines = content.split('\n');
+  // Track brace depth so inherent `impl` methods are skipped — stability is
+  // declared at the type/trait/free-fn level and methods inherit it. Naive
+  // brace counting (comment text stripped) is a good-enough heuristic for a
+  // warn-only check.
+  let depth = 0;
+  const implOpenDepths = [];
   for (let i = 0; i < lines.length; i++) {
-    const m = PUB_ITEM.exec(lines[i]);
-    if (!m) continue;
-    if (hasStabilitySection(lines, i)) continue;
-    found.push(`${rel}::${m[1]} ${m[2]}`);
+    const line = lines[i];
+    const m = PUB_ITEM.exec(line);
+    if (m && implOpenDepths.length === 0 && !hasStabilitySection(lines, i)) {
+      found.push(`${rel}::${m[1]} ${m[2]}`);
+    }
+    const code = line.replace(/\/\/.*$/, ''); // drop line/doc-comment braces
+    const opens = (code.match(/\{/g) || []).length;
+    const closes = (code.match(/\}/g) || []).length;
+    if (/^\s*(?:unsafe\s+)?impl\b/.test(line) && opens > closes) implOpenDepths.push(depth);
+    depth += opens - closes;
+    while (implOpenDepths.length && depth <= implOpenDepths[implOpenDepths.length - 1]) {
+      implOpenDepths.pop();
+    }
   }
 }
 // Keys are file+kind+name (line-independent, so the baseline is stable across
