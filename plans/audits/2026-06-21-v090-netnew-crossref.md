@@ -62,16 +62,22 @@ reviewers flagged blocking file I/O on that single event-loop thread:
 **Fix direction:** wrap `DaemonUsageSink` in the existing non-blocking offload
 (mirror the save-time sink) and move the shutdown flush to `spawn_blocking`.
 
-### N3 — Case/prefix privilege bypass false-certifies on Windows/macOS (MED)
+### N3 — Case/prefix privilege-match normalisation (MED, defense-in-depth)
 
 Folds into **CIB-093**. File: `crates/anvil-graph-cache/src/trust.rs:32-35`.
 
 `is_privileged_import` does a byte-exact `PRIVILEGED_MODULES.contains(&token)`
-and a byte-exact `strip_prefix("node:")`. On case-insensitive filesystems
-`import FS from 'FS'` / `'Fs'` loads the real `fs` at runtime but the check
-returns false; likewise `'NODE:fs'` / `'Node:fs'` is not stripped. Both
-false-certify. **Fix direction:** lowercase the specifier (and the `node:`
-prefix) before matching.
+and a byte-exact `strip_prefix("node:")`. Note Node's own builtin resolver is
+**case-sensitive**: `'FS'` / `'NODE:fs'` do not resolve to the `fs` builtin at
+runtime (they `MODULE_NOT_FOUND`), so this is **not a confirmed Node bypass** —
+the earlier "loads the real `fs` on case-insensitive filesystems" framing
+overstated it. It is a defense-in-depth gap: the trust gate should not bind to
+exact-case matching, since bundlers/loaders and non-Node runtimes may normalise
+specifier case, and any upstream normalisation could let a case-variant reach the
+gate. The fix is fail-safe regardless — lowercasing only ever errs toward
+`Privileged` (over-flag), never under-flags, so it cannot weaken certify.
+**Fix direction:** lowercase the specifier (and the `node:` prefix) before
+matching.
 
 ### N4 — 091a deny-list must redact the `matched` count + substring-match set, not just emitted rows (MED)
 
