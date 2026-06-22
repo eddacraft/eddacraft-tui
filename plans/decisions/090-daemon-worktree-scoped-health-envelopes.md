@@ -75,6 +75,17 @@ A daemon-health envelope with no worktree is denied (nothing to scope to).
   No new redaction surface is introduced.
 - Future daemon-health producers (e.g. other ADR-035 operational notifications)
   reuse the same marker + worktree scoping rather than inventing a new lane.
+- The MLP2-071 D6 spoof-fence (which denies a `degraded:spoofed-attribution`
+  origin to non-owning subscribers on the *session* path) is **intentionally not
+  applied** to the worktree path: a daemon-health envelope carries no
+  session-attributed content and is delivered only to the worktree's own binding
+  owner, so there is nothing a spoofed peer could exfiltrate. The omission is by
+  design, not a gap.
+- Authorization resolves the subscriber binding against the registry's **stored
+  canonical worktree key without a fresh `fs::canonicalize`** — the envelope
+  worktree is already canonical, and re-statting the path would suppress delivery
+  in exactly the degraded states (full/EROFS/deleted/unmounted) the notification
+  is for. It remains an exact canonical-key match, so no mis-delivery is possible.
 
 ## Alternatives considered
 

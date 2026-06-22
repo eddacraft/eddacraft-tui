@@ -308,8 +308,21 @@ impl OwnershipResolver for RegistryOwnershipResolver {
         // the subscriber owns at least one session in that worktree. A
         // worktree with no registered session, or one whose sessions all
         // have a different (or absent) binding, default-denies.
+        //
+        // The envelope's `correlation.worktree` is ALREADY canonical at
+        // both production callers (`save_time.rs` uses the canonical
+        // `WorktreeKey`; `full_scan_executor.rs` uses the canonical
+        // `root`), and the registry stores sessions keyed by the canonical
+        // worktree, so we look up via `sessions_for_canonical_worktree`,
+        // which matches the stored canonical key directly WITHOUT a
+        // `fs::canonicalize`. This keeps the lookup free of any on-disk
+        // dependency: a persist-failure notification fires precisely when
+        // the worktree is degraded (full / EROFS / deleted / unmounted),
+        // and a still-registered session on a now-unstattable worktree
+        // path must still authorise its subscriber. The match remains an
+        // exact canonical-key equality, so no mis-delivery is introduced.
         self.registry
-            .sessions_for_worktree(std::path::Path::new(worktree))
+            .sessions_for_canonical_worktree(std::path::Path::new(worktree))
             .iter()
             .any(|session| {
                 self.registry
@@ -1078,6 +1091,113 @@ mod tests {
             routed[0].delivery,
             Delivery::Deny,
             "a daemon-health envelope with no worktree has nothing to scope to — Deny (ADR-090)",
+        );
+    }
+
+    // -------- ADR-090: real RegistryOwnershipResolver (no stub) --------
+
+    /// ADR-090 (CIB-098), Finding 2: the four tests above use `StubResolver`
+    /// (exact `==`), which diverges from production. This exercises the real
+    /// `RegistryOwnershipResolver` over a real `SessionRegistry` so the
+    /// production authorisation path itself is covered: the owner of a
+    /// session registered on the worktree is authorised, while a different
+    /// worktree and an unknown subscriber default-deny.
+    #[test]
+    fn registry_resolver_authorises_worktree_owner_only() {
+        use anvil_intercept_proto::SessionId;
+        use std::sync::Arc;
+        use std::time::Instant;
+
+        let registry = Arc::new(SessionRegistry::new());
+        let fence_store = Arc::new(FenceStore::at_path(
+            tempfile::tempdir().unwrap().path().join("fences.json"),
+        ));
+        let resolver = RegistryOwnershipResolver::new(Arc::clone(&registry), fence_store);
+
+        let wt = tempfile::tempdir().unwrap();
+        // Production passes an already-canonical worktree string; mirror that.
+        let canonical = std::fs::canonicalize(wt.path()).unwrap();
+        let canonical_str = canonical.display().to_string();
+
+        let session = SessionId::new("s-owner");
+        registry
+            .register(&session, wt.path(), None, Instant::now())
+            .expect("register session on worktree");
+        let owner = SubscriberId::new("subscriber-owner");
+        assert!(
+            registry.bind_subscriber(&session, owner.as_str().to_string()),
+            "binding the owner to the session must succeed",
+        );
+
+        assert!(
+            resolver.is_authorised_for_worktree(&owner, &canonical_str),
+            "the owner of a session on the worktree is authorised",
+        );
+
+        // A different (unregistered) worktree default-denies.
+        let other_wt = tempfile::tempdir().unwrap();
+        let other_str = std::fs::canonicalize(other_wt.path())
+            .unwrap()
+            .display()
+            .to_string();
+        assert!(
+            !resolver.is_authorised_for_worktree(&owner, &other_str),
+            "the owner has no session on a different worktree — deny",
+        );
+
+        // An unknown subscriber on the owner's worktree default-denies.
+        let stranger = SubscriberId::new("subscriber-stranger");
+        assert!(
+            !resolver.is_authorised_for_worktree(&stranger, &canonical_str),
+            "a subscriber bound to no session on the worktree — deny",
+        );
+    }
+
+    /// ADR-090 (CIB-098), Finding 1: prove the lookup carries no filesystem
+    /// dependency. Register a session, bind the owner, then REMOVE the
+    /// worktree directory from disk (the degraded state — deleted / unmounted
+    /// — the persist-failure notification is built for). The owner must STILL
+    /// authorise, because `is_authorised_for_worktree` now matches the stored
+    /// canonical key directly and never calls `fs::canonicalize`.
+    #[test]
+    fn registry_resolver_authorises_after_worktree_dir_removed() {
+        use anvil_intercept_proto::SessionId;
+        use std::sync::Arc;
+        use std::time::Instant;
+
+        let registry = Arc::new(SessionRegistry::new());
+        let fence_store = Arc::new(FenceStore::at_path(
+            tempfile::tempdir().unwrap().path().join("fences.json"),
+        ));
+        let resolver = RegistryOwnershipResolver::new(Arc::clone(&registry), fence_store);
+
+        let wt = tempfile::tempdir().unwrap();
+        // Capture the canonical worktree string while the dir still exists —
+        // this is what the envelope's `correlation.worktree` carries.
+        let canonical_str = std::fs::canonicalize(wt.path())
+            .unwrap()
+            .display()
+            .to_string();
+
+        let session = SessionId::new("s-orphan");
+        registry
+            .register(&session, wt.path(), None, Instant::now())
+            .expect("register session");
+        let owner = SubscriberId::new("subscriber-owner");
+        assert!(registry.bind_subscriber(&session, owner.as_str().to_string()));
+
+        // Remove the worktree from disk so the path can no longer be
+        // canonicalized — the exact degraded condition.
+        let path = wt.path().to_path_buf();
+        drop(wt);
+        assert!(
+            !path.exists(),
+            "worktree dir removed for the degraded scenario"
+        );
+
+        assert!(
+            resolver.is_authorised_for_worktree(&owner, &canonical_str),
+            "owner still authorised against the canonical key with no on-disk worktree (Finding 1)",
         );
     }
 

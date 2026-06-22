@@ -1059,6 +1059,43 @@ impl SessionRegistry {
         records
     }
 
+    /// All sessions registered against an **already-canonical** worktree,
+    /// matched directly against the stored canonical key **without** a
+    /// filesystem `canonicalize` round-trip. Sorted deterministically by
+    /// `started_at_unix` then `SessionId`, mirroring
+    /// [`Self::sessions_for_worktree`].
+    ///
+    /// ADR-090 (CIB-098): the ownership resolver routes a daemon-health
+    /// notification that fires precisely in degraded states (disk full,
+    /// EROFS, the worktree deleted/unmounted). [`Self::sessions_for_worktree`]
+    /// calls `std::fs::canonicalize` and returns empty on error, so a session
+    /// registered against a now-unstattable worktree path would silently lose
+    /// its subscriber — defeating the notification in the exact case it is for.
+    /// This method skips the `canonicalize` step entirely: the registration
+    /// path already stores the canonical worktree (via [`canonicalise`]), and
+    /// both production callers (`save_time.rs`, `full_scan_executor.rs`) pass
+    /// an already-canonical worktree, so an exact match against the stored
+    /// canonical key is correct and carries no on-disk dependency at lookup
+    /// time. Mis-delivery is impossible: the match is still the same exact
+    /// canonical composite/worktree key equality `sessions_for_worktree` uses.
+    #[must_use]
+    pub fn sessions_for_canonical_worktree(&self, worktree: &Path) -> Vec<SessionRecord> {
+        let inner = self.lock();
+        let mut records: Vec<SessionRecord> = inner
+            .by_composite
+            .iter()
+            .filter(|((wt, _), _)| wt.as_path() == worktree)
+            .filter_map(|(_, id)| inner.sessions.get(id))
+            .map(|entry| entry.record.clone())
+            .collect();
+        records.sort_by(|a, b| {
+            a.started_at_unix
+                .cmp(&b.started_at_unix)
+                .then_with(|| a.id.as_str().cmp(b.id.as_str()))
+        });
+        records
+    }
+
     /// Resolve the [`Attribution`] for an arbitrary changed path —
     /// used by INTD-004 (watcher integration) and INTD-010
     /// (unregistered change handling). The caller passes a path that
@@ -2007,6 +2044,85 @@ mod tests {
             }
             other => panic!("expected WorktreeAlreadyOwned, got {other:?}"),
         }
+    }
+
+    /// ADR-090 (CIB-098): `sessions_for_canonical_worktree` matches the
+    /// stored canonical key directly. It returns the same set as
+    /// `sessions_for_worktree` for a live worktree, but does NOT depend on
+    /// the path being stattable at lookup time.
+    #[test]
+    fn sessions_for_canonical_worktree_matches_stored_key() {
+        let registry = SessionRegistry::new();
+        let wt = make_worktree();
+        let now = Instant::now();
+        registry
+            .register(&sid("s1"), wt.path(), None, now)
+            .expect("register s1");
+
+        // The canonical key the registration stored is what we must look up.
+        let canonical = canonicalise(wt.path()).expect("canonicalise live worktree");
+        let live = registry.sessions_for_canonical_worktree(&canonical);
+        assert_eq!(
+            live.len(),
+            1,
+            "the registered session is found by canonical key"
+        );
+        assert_eq!(live[0].id, sid("s1"));
+
+        // A different worktree default-misses.
+        let other = make_worktree();
+        let other_canonical = canonicalise(other.path()).expect("canonicalise other");
+        assert!(
+            registry
+                .sessions_for_canonical_worktree(&other_canonical)
+                .is_empty(),
+            "an unregistered canonical worktree yields no sessions"
+        );
+    }
+
+    /// ADR-090 (CIB-098), Finding 1: a session registered against a worktree
+    /// that is later removed from disk is STILL resolvable via
+    /// `sessions_for_canonical_worktree` — the lookup performs no
+    /// `fs::canonicalize`, so it does not silently return empty in the
+    /// degraded states (deleted/unmounted/EROFS) the daemon-health
+    /// notification is built for. The pre-fix `sessions_for_worktree` would
+    /// return empty here because its `fs::canonicalize` fails on a missing
+    /// path.
+    #[test]
+    fn sessions_for_canonical_worktree_survives_deleted_dir() {
+        let registry = SessionRegistry::new();
+        let wt = make_worktree();
+        let now = Instant::now();
+        // Capture the canonical key BEFORE the dir is removed.
+        let canonical = canonicalise(wt.path()).expect("canonicalise live worktree");
+        registry
+            .register(&sid("orphan"), wt.path(), None, now)
+            .expect("register orphan");
+
+        // Make the worktree path un-canonicalizable by removing it on disk.
+        let path = wt.path().to_path_buf();
+        drop(wt);
+        assert!(
+            !path.exists(),
+            "worktree dir removed for the degraded scenario"
+        );
+
+        // The fs-bound lookup now silently misses (this is the bug Finding 1
+        // describes).
+        assert!(
+            registry.sessions_for_worktree(&path).is_empty(),
+            "sessions_for_worktree canonicalizes and so loses the session once the dir is gone"
+        );
+
+        // The no-fs lookup against the already-canonical key still resolves
+        // the session — the subscriber keeps its notification.
+        let live = registry.sessions_for_canonical_worktree(&canonical);
+        assert_eq!(
+            live.len(),
+            1,
+            "a still-registered session on a now-unstattable worktree is found by canonical key"
+        );
+        assert_eq!(live[0].id, sid("orphan"));
     }
 
     /// MLP2-023: an untagged session and a tagged session on the same

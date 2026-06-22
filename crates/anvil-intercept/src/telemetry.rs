@@ -225,6 +225,16 @@ impl TelemetryEmitter {
         worktree: &Path,
         message: impl Into<String>,
     ) -> NotificationEnvelope {
+        // ADR-090 (CIB-098) invariant: a daemon-health envelope must NEVER
+        // also carry a session. If it did, the fan-out would take the
+        // session-scoped (`originating_session_id`) authorisation path and
+        // the worktree lane — the only lane that routes a sessionless,
+        // worktree-scoped health signal to the owning subscriber — would be
+        // dead. Enforce + document the invariant in debug/test builds.
+        debug_assert!(
+            correlation.session_id.is_none() && correlation.originating_session_id.is_none(),
+            "daemon-health persist-failure envelope must carry no session id (ADR-090)"
+        );
         correlation.worktree = Some(worktree.display().to_string());
         let mut context = self.next_context(correlation);
         // ADR-090 (CIB-098): explicitly flag this as a daemon-originated,
