@@ -26,7 +26,10 @@ confusion.
 - **Modules:** `plans/modules/<module>.aps.md` (active),
   `plans/archive/modules/` (completed)
 - **Work item IDs:** `PREFIX-NNN` (3-digit zero-padded)
-- **Statuses:** Proposed → Ready → In Progress → Done → Blocked
+- **Module schema statuses:** Proposed → Ready → In Progress → Done → Blocked
+- **Work item lifecycle extensions:** Anvil also allows `Merged` and
+  `Released/Shipped` in work-item `Status:` fields; see
+  `plans/project-context.md#project-status-extensions`
 - **Wave-based** parallel execution for independent work items
 - **UK English** spelling in all plan text
 
@@ -122,6 +125,11 @@ closeout before the final response:
 Use `docs/guides/documentation-governance.md` for the documentation workflow,
 authority routing, and closeout checklist.
 
+For docs/APS changes, prefer the narrow relevant checks before the full repo
+gates: `pnpm run docs:check`, `pnpm run aps:index:check`,
+`pnpm run aps:active-lint`, `pnpm run test:docs-check`, `pnpm run lint:md`, and
+`pnpm run format:check`.
+
 ## Repository Operations — gx
 
 Use `gx` for all repository management. Never use raw `git clone`.
@@ -202,7 +210,9 @@ APS (Ready) → Worktrunk Branch → Code → Council → PR → Merged → clea
     tracked)
   - Reference the APS module ID in the file
   - Do NOT leave test plans only in the PR description
-- Mark module status **Merged** in the `.aps.md` file when the PR lands.
+- Mark the affected work item(s) **Merged** in the `.aps.md` file when the PR
+  lands. Keep module schema status canonical; use **Done** only when all active
+  work items are terminal and closeout evidence supports it.
 
 ### 5. Local cleanup offer
 
@@ -218,9 +228,10 @@ APS (Ready) → Worktrunk Branch → Code → Council → PR → Merged → clea
 
 ### 6. Cleanup Agent (automated)
 
-- Runs on schedule — checks all **Merged** modules
-- Verifies branch merged + CI green → advances to **Released/Shipped** when a
-  release record proves inclusion, then **Complete**
+- Runs on schedule — checks all modules with **Merged** work items
+- Verifies branch merged + CI green → advances work items to
+  **Released/Shipped** when a release record proves inclusion, then closes out
+  the module when no active work remains
 - Works through `plans/reviews/post-merge/` — verifies agent-runnable steps,
   flags human-required steps
 - Sends notification for anything needing attention
