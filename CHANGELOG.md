@@ -9,6 +9,18 @@ minor version bump indicates a breaking change.
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-06-22
+
+### Added
+
+- **`mode` module** (core API, zero new dependencies — stdlib `IsTerminal` +
+  `std::env` only): terminal-mode detection probes returning typed enums —
+  `TtyKind` (interactive vs not), `AltScreenSupport` (a `$TERM` heuristic), and
+  `ColourDepth` (`None`/`Ansi16`/`Ansi256`/`TrueColor`, `Ord`, `#[non_exhaustive]`).
+  Each splits a pure `resolve` core (unit-testable) from thin live-environment
+  `detect`/`of` wrappers; all three are re-exported from the prelude. Graded
+  `unstable`/`experimental` (see Changed).
+
 ### Changed
 
 - Public API items now declare a `# Stability` grade (`stable` / `unstable` /
