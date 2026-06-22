@@ -22,16 +22,17 @@ Verified: <!-- filled by cleanup agent -->
       graduation criterion can actually be evaluated before any default-on flip.
       (human required — needs a soak environment)
 - [ ] 092c orphan-`.snap` sweep is empty-guarded but **not wired** to a daemon
-      call site (no faithful registered-set source at cold boot). Track wiring
-      it to a post-session-attach/periodic reclaim before relying on bounded
-      `graph-cache/` growth. (human decision)
+      call site (no faithful registered-set source at cold boot). **Tracked as
+      CIB-096.** (human decision)
 
-## Net-new tracked follow-up (not in this PR)
+## Deferred sub-parts — now tracked as standalone CIB items
 
-- [ ] **N7** — suffix-match import resolution in `incremental.rs` can re-bind a
-      relative import to a lookalike file in a deeply-nested monorepo
-      (resolution-correctness, not a privilege bypass). Filed as a CIB-093
-      follow-up; deferred to its own change. (human triage)
+- [ ] **CIB-096** — wire the orphan-`.snap` startup sweep into the daemon (092c).
+- [ ] **CIB-097** — anchor the snapshot **write** path to an `O_PATH` dirfd (092d).
+- [ ] **CIB-098** — deliver the persist-failure degradation signal to opted-in
+      operators (092h; fanout currently hard-denies session-less envelopes).
+- [x] **N7** — suffix-match import re-bind in `incremental.rs` — **DONE** in PR
+      #2852 (exact-match-only resolution).
 
 ## Notes
 
@@ -44,7 +45,8 @@ Verified: <!-- filled by cleanup agent -->
 - Local gates green at PR time: `cargo fmt --all --check`,
   `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`
   (7195 passed / 0 failed), and a final convergent council.
-- Deferred-in-PR: 092d snapshot **write**-side `openat2` anchor (no shipped
-  dirfd-create helper; read-side done, write-side tracked under CIB-092d); 092h notification
-  delivery (fanout hard-denies session-less envelopes by INTD-015 design — WARN +
-  metrics log is the operator signal).
+- Deferred-in-PR (each now a standalone tracker): 092d snapshot **write**-side
+  `openat2` anchor (read-side done) → **CIB-097**; 092c sweep daemon-wiring →
+  **CIB-096**; 092h notification delivery (fanout hard-denies session-less
+  envelopes by INTD-015 design — WARN + metrics log is the interim signal) →
+  **CIB-098**.

@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 54/95    |
+| CIB | —     | In Progress | 54/98    |
 
 ## Purpose
 
@@ -2611,3 +2611,85 @@ archive.
 - **Identified From:** v0.9.0-beta release council (all medium/low; details in
   `plans/audits/2026-06-21-v090-council-survivors.md`).
 - **Confidence:** high — localised, each with a clear test.
+
+### CIB-096: Wire the orphan `.snap` startup sweep into the daemon (092c follow-up)
+
+- **Status:** Proposed
+- **Intent:** `sweep_stale_snapshots_on_start` (shipped in CIB-092c via PR #2852)
+  is implemented, empty-guarded, and canonicalises each root before hashing — but
+  it is **not called anywhere in the daemon**, so orphaned snapshots from
+  worktrees deleted while the daemon was down accumulate in `graph-cache/`
+  indefinitely. There is no safe cold-boot call site: the session registry is
+  empty at start, and `SessionRegistry::active_sessions()` lists *currently
+  sessioned* worktrees, not *warm worktrees with a valid persisted snapshot* —
+  using it as the keep-set would reclaim exactly the reattach-case snapshots
+  warm-start exists for.
+- **Expected Outcome:** a faithful "warm worktrees seen this run" set (distinct
+  from "currently sessioned") is established, and `sweep_stale_snapshots_on_start`
+  is invoked against it at a safe point (post-session-attach or a periodic
+  reclaim), so `graph-cache/` disk growth is bounded for deleted worktrees. The
+  empty-guard remains the safety net against a cold-boot wipe.
+- **Files:** `crates/anvil-intercept/src/lib.rs` (the `run_foreground` lifecycle,
+  beside `sweep_snapshot_temps_on_start`), `crates/anvil-intercept/src/save_time.rs`
+  (`sweep_stale_snapshots_on_start`), the session-registry source.
+- **Validation:** a test that a registered (warm) worktree's snapshot survives the
+  sweep while an unregistered orphan is reclaimed, at the real call site.
+- **Identified From:** CIB-092 v0.9.0 council survivor follow-up — deferred at
+  merge (PR #2852) for lack of a faithful registered-set source; tracked here per
+  `plans/reviews/post-merge/fix-v090-council-survivors.md`.
+- **Confidence:** medium — the sweep + guard exist; the work is the lifecycle
+  source of a faithful warm-set, which is a daemon-lifecycle change.
+
+### CIB-097: Anchor the snapshot WRITE path to an `O_PATH` dirfd (092d follow-up)
+
+- **Status:** Proposed
+- **Intent:** CIB-092d (PR #2852) anchored the snapshot **read** path to a
+  validated `O_PATH` dirfd via `open_workspace_dirfd` + `openat2`
+  (`RESOLVE_NO_SYMLINKS|RESOLVE_BENEATH`) with an `O_NOFOLLOW` fallback, but the
+  **write** path (temp create + `rename`) is still path-based. ADR-069 §4 mandates
+  the same dirfd discipline on both sides. The residual gap is dir-component-swap
+  atomicity (the leaf is already `O_EXCL|O_NOFOLLOW` and `validate_secure_dir`
+  blocks a symlinked/non-owned dir before any write), so this is hardening, not a
+  live hole.
+- **Expected Outcome:** the temp create + `renameat` + a dirfd `fsync` are anchored
+  to the validated `O_PATH` fd on the state dir (mirroring the read path), closing
+  the dir-component-swap window. The shipped `path_safety` helpers cover only the
+  read side, so a new `openat`/`renameat` ladder is required.
+- **Files:** `crates/anvil-intercept/src/snapshot_io.rs` (`write_snapshot`, around
+  the `TODO`-noted `Deferred under CIB-092d` create/rename), reusing/extending
+  `crates/anvil-intercept/src/path_safety.rs`.
+- **Validation:** a test that the write refuses a symlinked intermediate directory
+  component (parity with the read path's symlinked-leaf test).
+- **Identified From:** CIB-092 v0.9.0 council survivor follow-up — write side
+  deferred at merge (PR #2852) as a larger change than the read fix; tracked here
+  per `plans/reviews/post-merge/fix-v090-council-survivors.md`.
+- **Confidence:** medium — Linux-specific `openat`/`renameat` ladder; needs cross-
+  platform `#[cfg]` gating consistent with the read path.
+
+### CIB-098: Deliver the persist-failure degradation signal to opted-in operators (092h follow-up)
+
+- **Status:** Proposed
+- **Intent:** CIB-092h (PR #2852) builds an ADR-035 persist-failure
+  `NotificationEnvelope` on a snapshot write failure when `persistence_enabled()`,
+  but the INTD-015 fanout **hard-denies any envelope without an
+  `originating_session_id`**, and daemon-internal writes (shutdown flush /
+  background scan) carry none — so the envelope is never delivered to any
+  operator. Today the only real signal is the `tracing::warn!` per failure plus the
+  cumulative `SnapshotMetrics` shutdown log. An operator who set
+  `ANVIL_PERSIST_GRAPH=1` and hits a full/EROFS state dir gets no user-visible
+  degradation notification.
+- **Expected Outcome:** a legitimate delivery path for daemon-originated health
+  envelopes (a daemon-local health sink, or a sanctioned session-less delivery
+  lane that respects the INTD-015 boundary) so an opted-in operator actually sees
+  the persist-failure degradation — without weakening the cross-session deny
+  invariant. Decide deliberately whether this needs an ADR (INTD-015 amendment).
+- **Files:** `crates/anvil-intercept/src/save_time.rs` (`notify_persist_write_failure`),
+  `crates/anvil-intercept/src/fanout.rs` (the `decide` session-deny),
+  `crates/anvil-intercept/src/telemetry.rs`.
+- **Validation:** a test that an enabled-persistence write failure produces a
+  *delivered* notification (not merely a built envelope) via the new lane.
+- **Identified From:** CIB-092 v0.9.0 council survivor follow-up — delivery
+  deferred at merge (PR #2852); honest WARN+metrics signal shipped meanwhile;
+  tracked here per `plans/reviews/post-merge/fix-v090-council-survivors.md`.
+- **Confidence:** medium — may need an INTD-015/ADR-035 decision on session-less
+  health delivery before implementation.
