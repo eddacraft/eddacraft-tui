@@ -1545,7 +1545,7 @@ archive.
 
 ### CIB-060: auth wall points users without beta access at the request channel
 
-- **Status:** Done (2026-06-22)
+- **Status:** Merged 2026-06-22 via PR #2858
 - **Intent:** the not-logged-in gate message says only "Authentication
   required. Run `anvil auth login` to authenticate." — a user without a
   beta invite dead-ends with no pointer to how to get access.
