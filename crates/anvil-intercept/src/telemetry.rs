@@ -307,7 +307,8 @@ impl TelemetryEmitter {
             originating_driver_id: correlation.originating_driver_id,
             traceparent: correlation.traceparent,
             // ADR-090: defaults off; only `persist_failure_health_envelope`
-            // flips it on via `daemon_worktree_health_context`.
+            // flips it on (it sets `context.daemon_worktree_health = true` after
+            // building the context).
             daemon_worktree_health: false,
         }
     }

@@ -53,7 +53,7 @@ The fan-out's `decide`, when `originating_session_id` is absent:
 
 - if the envelope is **not** flagged daemon-health → **Deny** (the INTD-015
   invariant is unchanged for everything else);
-- if it **is** flagged daemon-health **and** carries a worktree → authorize by
+- if it **is** flagged daemon-health **and** carries a worktree → authorise by
   **worktree**: deliver only to subscribers that own a session bound to that
   worktree (a new `OwnershipResolver::is_authorised_for_worktree`, backed by the
   registry's `sessions_for_worktree` × `lookup_subscriber_binding`); **Deny** to
@@ -81,7 +81,7 @@ A daemon-health envelope with no worktree is denied (nothing to scope to).
   session-attributed content and is delivered only to the worktree's own binding
   owner, so there is nothing a spoofed peer could exfiltrate. The omission is by
   design, not a gap.
-- Authorization resolves the subscriber binding against the registry's **stored
+- Authorisation resolves the subscriber binding against the registry's **stored
   canonical worktree key without a fresh `fs::canonicalize`** — the envelope
   worktree is already canonical, and re-statting the path would suppress delivery
   in exactly the degraded states (full/EROFS/deleted/unmounted) the notification
@@ -95,6 +95,6 @@ A daemon-health envelope with no worktree is denied (nothing to scope to).
   §10 specified. Kept as the complementary readout, not the delivery mechanism.
 - **Broadcast daemon-health to all subscribers**: rejected — it would leak one
   worktree's root path to subscribers of other worktrees. Worktree scoping is
-  the minimal authorized set.
+  the minimal authorised set.
 - **ADR-first then build**: this ADR *is* the decision; the implementation lands
   with it (CIB-098).
