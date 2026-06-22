@@ -102,7 +102,7 @@ pub fn first_week_insights_hint(root: &Path, now: DateTime<Utc>) -> Option<Strin
     let _ = write_state(&state_path, &next);
 
     Some(format!(
-        "Anvil watched {n} saves this week (run `anvil insights`)"
+        "anvil watched {n} saves this week (run `anvil insights`)"
     ))
 }
 

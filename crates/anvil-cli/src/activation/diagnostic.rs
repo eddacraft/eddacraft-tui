@@ -64,12 +64,12 @@ impl std::fmt::Display for McpClientId {
 pub enum McpTier {
     /// Client not detected on the host at all.
     NotDetected,
-    /// Client detected, but its config does not include the Anvil
+    /// Client detected, but its config does not include the anvil
     /// MCP server entry.
     ConfigAbsent,
-    /// Anvil MCP server entry present in client config.
+    /// anvil MCP server entry present in client config.
     ConfigPresent,
-    /// Anvil MCP server starts cleanly when invoked from the same
+    /// anvil MCP server starts cleanly when invoked from the same
     /// command shape the client will use.
     ServerStartable,
     /// Server config is wired to an anvil-shaped entry, but the client
@@ -121,7 +121,7 @@ impl WatchTier {
     }
 }
 
-/// Status of the on-disk Anvil config (`.anvilrc`).
+/// Status of the on-disk anvil config (`.anvilrc`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ConfigStatus {

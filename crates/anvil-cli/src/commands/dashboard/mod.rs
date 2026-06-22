@@ -414,7 +414,7 @@ fn format_picker(
     specs: &[SavedDashboard],
     embedded_gate_summary: bool,
 ) -> String {
-    let mut out = String::from("Anvil Dashboards\n\n");
+    let mut out = String::from("anvil Dashboards\n\n");
     // Saved-spec names are file stems from a possibly-hostile repo; sanitise
     // them before they reach stdout. Native names are static and trusted.
     let saved_names: Vec<String> = specs.iter().map(|s| sanitize(&s.name)).collect();

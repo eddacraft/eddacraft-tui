@@ -48,7 +48,7 @@ pub const URI_BOUNDARIES: &str = "anvil://boundaries";
 pub const URI_PATTERNS: &str = "anvil://patterns";
 /// `anvil://suppressions` — active suppressions plus active/expired totals.
 pub const URI_SUPPRESSIONS: &str = "anvil://suppressions";
-/// `anvil://config` — the discovered Anvil config, its source, and parse errors.
+/// `anvil://config` — the discovered anvil config, its source, and parse errors.
 pub const URI_CONFIG: &str = "anvil://config";
 /// `anvil://constraints` — the aggregated constraint bundle (`anvil export`).
 pub const URI_CONSTRAINTS: &str = "anvil://constraints";
@@ -92,8 +92,8 @@ pub fn list() -> Vec<Value> {
         ),
         descriptor(
             URI_CONFIG,
-            "Anvil configuration",
-            "The discovered Anvil config (`.anvil.{yaml,yml,json,toml}`) parsed \
+            "anvil configuration",
+            "The discovered anvil config (`.anvil.{yaml,yml,json,toml}`) parsed \
              to JSON, the resolved source path, an `isDefault` flag when no \
              config file is present, and any parse errors.",
         ),

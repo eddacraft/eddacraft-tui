@@ -322,7 +322,7 @@ mod tests {
             TemplateEntry {
                 id: "react-app".to_string(),
                 name: "React App".to_string(),
-                description: "React with Anvil gates".to_string(),
+                description: "React with anvil gates".to_string(),
                 category: "Starter".to_string(),
                 tags: vec!["react".to_string(), "frontend".to_string()],
                 variables: vec![],

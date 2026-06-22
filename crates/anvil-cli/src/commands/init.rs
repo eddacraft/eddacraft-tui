@@ -161,7 +161,7 @@ fn print_post_init_analysis(root: &Path) {
 }
 
 /// First-touch hint when there are no source files to scan yet. The user
-/// has just successfully initialised Anvil but the empty-tree case would
+/// has just successfully initialised anvil but the empty-tree case would
 /// otherwise print nothing under "First scan", which reads as a failure.
 fn render_empty_repo_hint() {
     plain::blank();
@@ -389,7 +389,7 @@ fn append_gitignore_entry(root: &Path) -> anyhow::Result<bool> {
 
     // Trimmed-line equality. We do not strip trailing inline comments (e.g.
     // `".anvil/cache/ # keep"`), so a hand-authored entry with a comment would
-    // trigger a duplicate append — Anvil never writes that form, and a duplicate
+    // trigger a duplicate append — anvil never writes that form, and a duplicate
     // is harmless to git. Append only the entries not already present.
     let present: std::collections::HashSet<&str> = existing
         .as_deref()
@@ -434,7 +434,7 @@ fn success_message(planning_dir: &str, checks: &[String]) -> String {
     use std::fmt::Write as _;
     let mut out = String::new();
     let _ = writeln!(out);
-    let _ = writeln!(out, "Anvil initialised successfully.");
+    let _ = writeln!(out, "anvil initialised successfully.");
     let _ = writeln!(out, "  Config:    .anvilrc");
     let _ = writeln!(out, "  Plans:     {planning_dir}/");
     let _ = writeln!(out, "  Checks:    {}", checks.join(", "));

@@ -31,7 +31,7 @@ pub struct SpecDashboardState {
     spec: RenderSpec,
     /// Workspace root whose `.anvil/` provides the data context.
     root: PathBuf,
-    /// The component registry (generic base + Anvil domain) specs render against.
+    /// The component registry (generic base + anvil domain) specs render against.
     registry: TuiRegistry,
     /// The spec with `$data` references resolved — what is rendered. Rebuilt on
     /// refresh.

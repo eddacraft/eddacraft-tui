@@ -7,7 +7,7 @@ use super::discovery::{Finding, FindingSeverity, FindingSource};
 /// Return curated example findings covering different check types.
 ///
 /// Used when the discovery scan finds nothing — the user's project is clean,
-/// but we still want to show what Anvil is capable of detecting.
+/// but we still want to show what anvil is capable of detecting.
 pub fn showcase_findings() -> Vec<Finding> {
     vec![
         Finding {

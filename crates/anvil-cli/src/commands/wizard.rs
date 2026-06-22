@@ -15,7 +15,7 @@ fn builtin_templates() -> Vec<Template> {
         Template {
             id: "typescript-monorepo".into(),
             name: "TypeScript Monorepo".into(),
-            description: "Nx-based TypeScript monorepo with full Anvil gates".into(),
+            description: "Nx-based TypeScript monorepo with full anvil gates".into(),
             tags: vec!["typescript".into(), "monorepo".into()],
         },
         Template {
@@ -33,7 +33,7 @@ fn builtin_templates() -> Vec<Template> {
         Template {
             id: "minimal".into(),
             name: "Minimal Setup".into(),
-            description: "Bare-bones Anvil configuration".into(),
+            description: "Bare-bones anvil configuration".into(),
             tags: vec!["minimal".into()],
         },
     ]

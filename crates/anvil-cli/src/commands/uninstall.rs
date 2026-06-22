@@ -61,8 +61,8 @@ const MCP_SERVER_KEY: &str = "anvil";
 
 #[derive(Debug, Args)]
 #[command(
-    about = "Remove Anvil state from this project, or from the machine with --global.",
-    after_help = "Scope:\n  - Default: current project only (.anvil/, .anvilrc, and Anvil-managed hooks).\n  - --global: also removes user-level Anvil state, credentials, Anvil MCP entries, and the running daemon.\n  - The Anvil binary is never removed; uninstall it with Homebrew, WinGet, Scoop, Cargo, or your installer path after cleaning state."
+    about = "Remove anvil state from this project, or from the machine with --global.",
+    after_help = "Scope:\n  - Default: current project only (.anvil/, .anvilrc, and anvil-managed hooks).\n  - --global: also removes user-level anvil state, credentials, anvil MCP entries, and the running daemon.\n  - The anvil binary is never removed; uninstall it with Homebrew, WinGet, Scoop, Cargo, or your installer path after cleaning state."
 )]
 #[allow(clippy::struct_excessive_bools)] // CLI flags, intentional shape.
 pub struct UninstallArgs {
@@ -74,7 +74,7 @@ pub struct UninstallArgs {
     #[arg(long, short = 'n')]
     pub dry_run: bool,
 
-    /// Also remove user-level state: `~/.anvil/`, Anvil MCP entries from
+    /// Also remove user-level state: `~/.anvil/`, anvil MCP entries from
     /// `~/.claude.json` and `~/.cursor/mcp.json`, stored credentials, and daemon.
     #[arg(long)]
     pub global: bool,
@@ -112,14 +112,14 @@ impl Action {
             Self::StopDaemon { pid_file } => {
                 format!("Stop daemon (pid file: {})", pid_file.display())
             }
-            Self::RemoveGitHooks => "Remove Anvil-managed git hooks".to_string(),
+            Self::RemoveGitHooks => "Remove anvil-managed git hooks".to_string(),
             Self::RemoveProjectAnvil { path } => {
                 format!("Remove project state: {}", path.display())
             }
             Self::RemoveAnvilrc { path } => format!("Remove config file: {}", path.display()),
             Self::RemoveMcpEntry { path, label } => {
                 format!(
-                    "Remove Anvil entry from {label} MCP config: {}",
+                    "Remove anvil entry from {label} MCP config: {}",
                     path.display()
                 )
             }

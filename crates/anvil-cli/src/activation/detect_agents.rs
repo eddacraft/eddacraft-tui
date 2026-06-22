@@ -26,7 +26,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
 
-/// Closed enum of AI tools Anvil knows how to detect today.
+/// Closed enum of AI tools anvil knows how to detect today.
 ///
 /// The order is the order [`detect_all`] reports them in. JSON
 /// representation is kebab-case to match [`AgentKind::id`] —

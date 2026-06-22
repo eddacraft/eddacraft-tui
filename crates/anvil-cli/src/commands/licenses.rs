@@ -1,4 +1,4 @@
-//! `anvil licenses` — prints Anvil's acknowledgements and the third-party
+//! `anvil licenses` — prints anvil's acknowledgements and the third-party
 //! licence attribution. Both live in the repo-root `ACKNOWLEDGEMENTS.md`,
 //! embedded here at build time via `include_str!`; the auto-generated half
 //! of that file is produced by cargo-about.
@@ -11,7 +11,7 @@ const ACKNOWLEDGEMENTS: &str = include_str!("../../../../ACKNOWLEDGEMENTS.md");
 
 #[derive(Debug, Default, Clone, Copy, clap::ValueEnum)]
 pub enum Format {
-    /// Anvil version banner followed by ACKNOWLEDGEMENTS.md as markdown
+    /// anvil version banner followed by ACKNOWLEDGEMENTS.md as markdown
     /// (default). Pipe through a pager or markdown renderer for the best
     /// reading experience.
     #[default]
@@ -51,9 +51,9 @@ fn render_plain(use_colour: bool) -> String {
     let version = env!("CARGO_PKG_VERSION");
     let mut out = String::new();
     if use_colour {
-        let _ = writeln!(out, "\x1b[1mAnvil {version}\x1b[0m");
+        let _ = writeln!(out, "\x1b[1manvil {version}\x1b[0m");
     } else {
-        let _ = writeln!(out, "Anvil {version}");
+        let _ = writeln!(out, "anvil {version}");
     }
     let _ = writeln!(
         out,
@@ -90,7 +90,7 @@ mod tests {
         let out = render(Format::Plain, false);
         assert!(out.contains("Copyright (C) 2026 eddacraft, Inc. All rights reserved."));
         assert!(out.contains("Licensed under LicenseRef-Proprietary."));
-        assert!(out.contains("Anvil "));
+        assert!(out.contains("anvil "));
         // ACKNOWLEDGEMENTS.md's own top heading shows through in plain mode.
         assert!(out.contains("# Acknowledgements"));
     }
@@ -114,8 +114,8 @@ mod tests {
     fn plain_with_colour_uses_bold_header() {
         let out = render(Format::Plain, true);
         assert!(
-            out.contains("\x1b[1mAnvil "),
-            "expected bold Anvil version banner when colour enabled"
+            out.contains("\x1b[1manvil "),
+            "expected bold anvil version banner when colour enabled"
         );
     }
 }

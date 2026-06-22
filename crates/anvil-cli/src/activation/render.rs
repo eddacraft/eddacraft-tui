@@ -550,10 +550,10 @@ fn state_explanation(state: ProtectionState, d: &ActivationDiagnostic) -> Option
     match state {
         ProtectionState::ReadyRestartRequired => Some(match d.daemon_attestation {
             DaemonAttestation::NotProbed => {
-                "Anvil has written the MCP config, but the editor or agent has not attached to it yet. Restart that editor or agent, then run `anvil start --verify` again; restarting the whole machine is not required."
+                "anvil has written the MCP config, but the editor or agent has not attached to it yet. Restart that editor or agent, then run `anvil start --verify` again; restarting the whole machine is not required."
             }
             DaemonAttestation::Unreachable => {
-                "The editor or agent has seen Anvil's MCP config, but the local intercept daemon is not reachable. Start it with `anvil intercept start --foreground`, then run `anvil start --verify` again."
+                "The editor or agent has seen anvil's MCP config, but the local intercept daemon is not reachable. Start it with `anvil intercept start --foreground`, then run `anvil start --verify` again."
             }
             DaemonAttestation::Unenforced | DaemonAttestation::NoParticipatingSurface => {
                 "The intercept daemon is running, but this worktree is not attached to an enforcing session yet. Check `anvil intercept status`, then run `anvil start --verify` again after the editor issues an MCP request."
@@ -568,7 +568,7 @@ fn state_explanation(state: ProtectionState, d: &ActivationDiagnostic) -> Option
                 "The intercept daemon is starting or settling. Wait a few seconds, then run `anvil start --verify` again."
             }
             DaemonAttestation::Promoted => {
-                "Anvil has enough evidence to protect this worktree, but this view has not refreshed yet. Run `anvil start --verify` again to refresh the state."
+                "anvil has enough evidence to protect this worktree, but this view has not refreshed yet. Run `anvil start --verify` again to refresh the state."
             }
         }),
         _ => None,
@@ -785,7 +785,7 @@ fn repair_hint(state: ProtectionState, d: &ActivationDiagnostic) -> Option<&'sta
             // LAUNCH-016, which has not landed. Keep the copy
             // descriptive and avoid future-tense claims.
             Some(
-                "Anvil does not yet cover this repo's languages in the current release. Architecture / antipattern checks will not produce findings on files in unsupported languages; coverage expands as language packs ship.",
+                "anvil does not yet cover this repo's languages in the current release. Architecture / antipattern checks will not produce findings on files in unsupported languages; coverage expands as language packs ship.",
             )
         }
         ProtectionState::Error => Some(

@@ -68,7 +68,7 @@ pub enum SignatureError {
     #[error(
         "signature does not match artefact — refusing to install. \
          The downloaded file may be corrupted or has not been signed by \
-         the Anvil release key. Reason: {0}"
+         the anvil release key. Reason: {0}"
     )]
     Mismatch(String),
 }

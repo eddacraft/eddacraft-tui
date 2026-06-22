@@ -11,7 +11,7 @@ pub struct HookDef {
     pub command: &'static str,
 }
 
-/// Returns the set of hooks Anvil can install.
+/// Returns the set of hooks anvil can install.
 pub fn available_hooks() -> Vec<HookDef> {
     vec![
         HookDef {
@@ -55,10 +55,10 @@ impl HookManager {
     pub fn adapter_note(self) -> Option<&'static str> {
         match self {
             Self::None => None,
-            Self::Husky => Some("Anvil will add entries to your existing Husky hooks"),
-            Self::Lefthook => Some("Anvil will add a run entry to your lefthook.yml"),
-            Self::PreCommit => Some("Anvil will add a hook entry to your .pre-commit-config.yaml"),
-            Self::ConfigHooks => Some("Anvil will manage your Git config-mode hooks (Git 2.54+)"),
+            Self::Husky => Some("anvil will add entries to your existing Husky hooks"),
+            Self::Lefthook => Some("anvil will add a run entry to your lefthook.yml"),
+            Self::PreCommit => Some("anvil will add a hook entry to your .pre-commit-config.yaml"),
+            Self::ConfigHooks => Some("anvil will manage your Git config-mode hooks (Git 2.54+)"),
         }
     }
 }
@@ -70,7 +70,7 @@ impl HookManager {
 /// `.husky/` directory is the historic default for projects that arrived
 /// via `npx husky init` (the most common path today). Config-mode hooks
 /// are checked via `git config --get-all hook.pre-commit.command`; any
-/// output (Anvil-managed or user-authored) flips the detector. Falls
+/// output (anvil-managed or user-authored) flips the detector. Falls
 /// through to `Lefthook` and `pre-commit framework` for parity with the
 /// pre-GHOOK-003 behaviour.
 pub fn detect_hook_manager(project_dir: &std::path::Path) -> HookManager {
@@ -95,7 +95,7 @@ pub fn detect_hook_manager(project_dir: &std::path::Path) -> HookManager {
 /// Best-effort: a missing or non-zero `git` invocation yields `false` so
 /// onboarding never fails because of an environment without `git` on PATH.
 /// Reuses [`is_anvil_managed_command`] from `anvil_kernel_types` only for
-/// callers that need to distinguish Anvil-owned entries from user-authored
+/// callers that need to distinguish anvil-owned entries from user-authored
 /// ones — the bare detection here returns `true` for either flavour, which
 /// matches the precedence contract: any config-mode entry is treated as a
 /// hook source.
@@ -154,11 +154,11 @@ fn list_config_mode_hook_commands(project_dir: &std::path::Path, event: &str) ->
     }
 }
 
-/// True when the repo at `project_dir` has at least one Anvil-managed
+/// True when the repo at `project_dir` has at least one anvil-managed
 /// `hook.pre-commit.command` entry AND config-mode hooks are not
 /// explicitly disabled via `hook.pre-commit.enabled = false`. Convenience
 /// accessor used by callers (and tests) that want to distinguish
-/// Anvil-installed config hooks from user-authored ones.
+/// anvil-installed config hooks from user-authored ones.
 #[must_use]
 pub fn has_anvil_config_hook(project_dir: &std::path::Path) -> bool {
     config_mode_hooks_enabled(project_dir, "pre-commit")
@@ -453,7 +453,7 @@ impl NotificationSource for HooksState {
                 NotificationClass::Warning,
                 NotificationPriority::Normal,
                 "No hook manager detected",
-                "Anvil will install raw git hooks under .git/hooks.",
+                "anvil will install raw git hooks under .git/hooks.",
             ));
         }
 
@@ -1075,8 +1075,8 @@ mod tests {
 
     #[test]
     fn detect_config_hooks_with_user_authored_entry() {
-        // Any `hook.pre-commit.command` entry — even a non-Anvil one —
-        // counts as a hook source for precedence purposes. Anvil should
+        // Any `hook.pre-commit.command` entry — even a non-anvil one —
+        // counts as a hook source for precedence purposes. anvil should
         // not pretend the repo has no hook just because it did not install
         // the entry itself.
         let dir = empty_dir();
@@ -1141,19 +1141,19 @@ mod tests {
 
         assert!(
             !has_anvil_config_hook(&dir),
-            "fresh repo must report no Anvil-managed config hook",
+            "fresh repo must report no anvil-managed config hook",
         );
 
         add_config_hook(&dir, "pre-commit", "npm run my-gate");
         assert!(
             !has_anvil_config_hook(&dir),
-            "user-authored entries must not be reported as Anvil-managed",
+            "user-authored entries must not be reported as anvil-managed",
         );
 
         add_config_hook(&dir, "pre-commit", "ANVIL_HOOK=1 anvil gate --progress");
         assert!(
             has_anvil_config_hook(&dir),
-            "Anvil-managed entry must be detected once installed",
+            "anvil-managed entry must be detected once installed",
         );
 
         cleanup(&dir);

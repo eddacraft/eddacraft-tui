@@ -1743,7 +1743,7 @@ mod tests {
         let daemon = FixtureDaemon {
             outcome: DaemonValidationOutcome::OperationalFailure(ValidationBackendFailure {
                 code: "validation-backend-unavailable",
-                message: "Anvil could not validate the proposed write.",
+                message: "anvil could not validate the proposed write.",
                 retriable: true,
             }),
         };
@@ -2405,7 +2405,7 @@ mod tests {
 
     /// RTAI-006: in `off` mode, diagnostics are returned but the
     /// decision is always `allow`. This is the operator-pull-the-handbrake
-    /// mode for noisy environments where Anvil should report findings
+    /// mode for noisy environments where anvil should report findings
     /// without ever blocking the agent.
     #[test]
     fn enforcement_mode_off_passes_secret_write_with_diagnostics() {
@@ -2820,7 +2820,7 @@ mod tests {
         let daemon = FixtureDaemonWithClaim {
             outcome: DaemonValidationOutcome::OperationalFailure(ValidationBackendFailure {
                 code: "validation-backend-unavailable",
-                message: "Anvil could not validate the proposed write.",
+                message: "anvil could not validate the proposed write.",
                 retriable: true,
             }),
             claim: Some(sample_protection_claim()),

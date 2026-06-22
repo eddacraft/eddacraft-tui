@@ -72,7 +72,7 @@ impl ProtectionState {
                 "Watching — save-time fallback only; this is weaker than pre-write validation."
             }
             ProtectionState::NeedsAction => {
-                "Needs action — finish activation before Anvil can protect this repo."
+                "Needs action — finish activation before anvil can protect this repo."
             }
             ProtectionState::Unsupported => {
                 "Unsupported — this repo or platform is outside the current release's coverage."

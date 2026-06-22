@@ -3,7 +3,7 @@
 //! Walks a working tree, classifies each detected language by extension
 //! against a single registry, and produces a structured profile that
 //! activation copy can render. This is the single source of truth for
-//! "what languages does Anvil claim coverage for in this release?" —
+//! "what languages does anvil claim coverage for in this release?" —
 //! surfaces never duplicate the registry inline.
 //!
 //! The profile feeds three places:
@@ -33,13 +33,13 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CoverageTier {
-    /// Anvil ships first-class checks for this language in the
+    /// anvil ships first-class checks for this language in the
     /// current release.
     Supported,
-    /// Anvil ships some checks for this language; full coverage is
+    /// anvil ships some checks for this language; full coverage is
     /// in flight (e.g. SQL pending SURFSQL Phase 1).
     Partial,
-    /// Anvil does not yet ship language-specific checks for this
+    /// anvil does not yet ship language-specific checks for this
     /// language. Cross-language checks (secrets) still apply.
     Unsupported,
 }
@@ -55,7 +55,7 @@ impl CoverageTier {
 }
 
 /// A row in the [`LANGUAGE_REGISTRY`] — names a language, the
-/// extensions Anvil treats as belonging to it, the coverage tier in
+/// extensions anvil treats as belonging to it, the coverage tier in
 /// the current release, and the human-readable basis for the tier so
 /// surfaces can answer "why is X partial?" without reaching into the
 /// docs.
@@ -423,7 +423,7 @@ pub fn classify_extension(ext_with_dot: &str) -> Option<&'static str> {
 /// - `.anvil` — intentional activation-only addition (the scanner
 ///   doesn't denylist it because secret-scan call sites can target
 ///   it explicitly, but the language profile should never count
-///   Anvil's own state as user source).
+///   anvil's own state as user source).
 ///
 /// Keep the first two sections in sync with `anvil-checks::filter`
 /// — additions there should land here too. The `.anvil` entry is

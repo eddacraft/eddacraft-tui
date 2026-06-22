@@ -2,7 +2,7 @@
 //!
 //! Packages a commit range's governance evidence into an ADR-074
 //! review capsule directory a reviewer, auditor, or supplier can
-//! verify locally without trusting Anvil Cloud (ADR-072).
+//! verify locally without trusting anvil Cloud (ADR-072).
 //!
 //! ## v0 scope
 //!
@@ -80,7 +80,7 @@ enum CapsuleCommand {
     /// committer date; capsules the repository cannot order are always
     /// kept. `--apply` deletes tracked capsules via the git index
     /// (staged deletion — committing remains your act) and never
-    /// commits. Nothing in Anvil prunes capsules automatically.
+    /// commits. Nothing in anvil prunes capsules automatically.
     Prune(PruneArgs),
 }
 
@@ -321,7 +321,7 @@ fn render_explanation(capsule_dir: &Path) -> Result<String> {
         CapsuleManifest::from_json_bytes(&manifest_bytes).context("invalid manifest.json")?;
 
     let mut lines = Vec::new();
-    lines.push(format!("Anvil Review Capsule  ({})", manifest.schema));
+    lines.push(format!("anvil Review Capsule  ({})", manifest.schema));
     lines.push(String::new());
     field(
         &mut lines,
@@ -1597,7 +1597,7 @@ mod tests {
     /// `\` line continuations, which would eat the leading-space column
     /// alignment) so the indentation is byte-exact.
     const HEADER: &str = concat!(
-        "Anvil Review Capsule  (anvil.capsule.v1)\n",
+        "anvil Review Capsule  (anvil.capsule.v1)\n",
         "\n",
         "  Producer    anvil 0.8.0-beta\n",
         "  Range       111111111111..222222222222\n",

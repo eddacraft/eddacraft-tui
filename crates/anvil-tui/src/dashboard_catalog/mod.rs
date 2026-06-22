@@ -1,9 +1,9 @@
-//! Anvil-domain dashboard components and the registry/catalogue that expose them.
+//! anvil-domain dashboard components and the registry/catalogue that expose them.
 //!
 //! These composites (`GateResultCard`, `WarningList`, `DriftIndicator`,
 //! `PlanCard`, `SuppressionRequest`, `EvidenceEntry`) combine eddacraft-tui
 //! primitives into domain-meaningful widgets. Per ADR-054 the **generic** engine
-//! and catalogue live in `eddacraft-tui`; these **Anvil-specific** components
+//! and catalogue live in `eddacraft-tui`; these **anvil-specific** components
 //! live here and *extend* the base registry/catalogue:
 //!
 //! - [`anvil_registry`] = the generic [`base_registry`](eddacraft_tui::json_render::base_registry)
@@ -38,7 +38,7 @@ pub use warning_list::WarningList;
 pub const GATE_SUMMARY_SPEC: &str =
     include_str!("../../assets/dashboards/gate-summary.dashboard.json");
 
-/// The Anvil-domain component type names, in catalogue order.
+/// The anvil-domain component type names, in catalogue order.
 pub const DOMAIN_COMPONENTS: [&str; 6] = [
     "GateResultCard",
     "WarningList",
@@ -48,7 +48,7 @@ pub const DOMAIN_COMPONENTS: [&str; 6] = [
     "EvidenceEntry",
 ];
 
-/// A [`TuiRegistry`] with the generic base components plus the Anvil-domain
+/// A [`TuiRegistry`] with the generic base components plus the anvil-domain
 /// composites — the registry the dashboard surface renders against.
 #[must_use]
 pub fn anvil_registry() -> TuiRegistry {
@@ -62,7 +62,7 @@ pub fn anvil_registry() -> TuiRegistry {
     registry
 }
 
-/// The base [`Catalog`] extended with the Anvil-domain component names — what a
+/// The base [`Catalog`] extended with the anvil-domain component names — what a
 /// dashboard spec is validated against before rendering.
 #[must_use]
 pub fn anvil_catalog() -> Catalog {

@@ -245,7 +245,7 @@ fn poll_failure_message(status: &str) -> Option<&'static str> {
         ),
         "declined" => Some("GitHub sign-in was declined. Run `anvil auth login` to try again."),
         "awaiting_approval" => Some(
-            "Signed in to GitHub, but your Anvil account is awaiting approval — you'll receive an \
+            "Signed in to GitHub, but your anvil account is awaiting approval — you'll receive an \
              email when it's ready. If you were invited by email, run `anvil auth login --otp` \
              instead.",
         ),
@@ -353,7 +353,7 @@ const PERMANENT_REFRESH_PREFIXES: &[&str] = &[
     "Refresh token expired",
     "Refresh token is invalid or revoked",
     "Refresh-token reuse detected",
-    "Your Anvil account is not active",
+    "Your anvil account is not active",
     "Session refresh rejected by the auth server",
 ];
 
@@ -395,7 +395,7 @@ fn refresh_error_message(status: reqwest::StatusCode, body: &str) -> String {
             "Refresh token is invalid or revoked. Run `anvil auth login`.".into()
         }
         (401, Some("User account is not active")) => {
-            "Your Anvil account is not active. Contact support.".into()
+            "Your anvil account is not active. Contact support.".into()
         }
         (401, _) => "Session refresh rejected by the auth server. Run `anvil auth login`.".into(),
         _ => friendly_http_error(status, "Session refresh failed"),
@@ -1359,7 +1359,7 @@ mod tests {
             "Refresh token is invalid or revoked. Run `anvil auth login`.",
             "Refresh-token reuse detected — your session family was revoked for security. \
              Run `anvil auth login`.",
-            "Your Anvil account is not active. Contact support.",
+            "Your anvil account is not active. Contact support.",
             "Session refresh rejected by the auth server. Run `anvil auth login`.",
         ] {
             let err = anyhow::anyhow!("{msg}");

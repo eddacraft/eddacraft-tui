@@ -28,7 +28,7 @@ pub const STATIC_MODE_WATCHER_UNAVAILABLE: &str =
 ///
 /// LAUNCH-014 introduced [`TutorialPath::ProtectionLoop`] as the
 /// default first path: a short repo-local value walk that explains
-/// Anvil's protection loop, simulates a high-signal check on safe
+/// anvil's protection loop, simulates a high-signal check on safe
 /// fixture content, and points the user at `anvil start --verify` as
 /// the next step. The remaining four paths are the deeper-learning
 /// track for users who want the full taxonomy walk.
@@ -46,7 +46,7 @@ pub enum TutorialPath {
 impl TutorialPath {
     pub fn label(self) -> &'static str {
         match self {
-            Self::ProtectionLoop => "Anvil's protection loop",
+            Self::ProtectionLoop => "anvil's protection loop",
             Self::Policy => "Policy checks",
             Self::Architecture => "Boundary findings",
             Self::Drift => "Configuration drift",
@@ -58,10 +58,10 @@ impl TutorialPath {
         // Legacy labels ("Policy", "Architecture", "Drift", "CI Integration")
         // are kept so progress files written by older builds still round-trip
         // into the correct enum variant after the onboarding rename.
-        // LAUNCH-014's "Anvil's protection loop" is new — no legacy
+        // LAUNCH-014's "anvil's protection loop" is new — no legacy
         // alias is required.
         match s {
-            "Anvil's protection loop" => Some(Self::ProtectionLoop),
+            "anvil's protection loop" => Some(Self::ProtectionLoop),
             "Policy checks" | "Policy" => Some(Self::Policy),
             "Boundary findings" | "Architecture" => Some(Self::Architecture),
             "Configuration drift" | "Drift" => Some(Self::Drift),
@@ -73,7 +73,7 @@ impl TutorialPath {
     pub fn description(self) -> &'static str {
         match self {
             Self::ProtectionLoop => {
-                "60-second walk: see what Anvil checks, then activate in this repo"
+                "60-second walk: see what anvil checks, then activate in this repo"
             }
             Self::Policy => "Define checks that produce findings and influence the gate",
             Self::Architecture => "See how boundary checks turn imports into actionable findings",
@@ -772,7 +772,7 @@ mod tests {
 
     #[test]
     fn step_progression_informational() {
-        // LAUNCH-014: ProtectionLoop step 0 is "Anvil's protection
+        // LAUNCH-014: ProtectionLoop step 0 is "anvil's protection
         // loop in 60 seconds" — no command — so Select advances it.
         // (Was the Policy "Introduction" step before LAUNCH-014
         // reordered the default path; the assertion is identical
@@ -858,7 +858,7 @@ mod tests {
     fn path_labels() {
         assert_eq!(
             TutorialPath::ProtectionLoop.label(),
-            "Anvil's protection loop"
+            "anvil's protection loop"
         );
         assert_eq!(TutorialPath::Policy.label(), "Policy checks");
         assert_eq!(TutorialPath::Architecture.label(), "Boundary findings");

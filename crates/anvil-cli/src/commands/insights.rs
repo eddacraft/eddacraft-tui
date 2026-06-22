@@ -57,7 +57,7 @@ pub fn run(args: &InsightsArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 }
 
 fn print_suppressions(health: &suppressions::SuppressionHealth) {
-    println!("Anvil suppression health");
+    println!("anvil suppression health");
     println!(
         "{} @anvil-ignore directive(s): {} active, {} stale (underlying violation gone)",
         health.total, health.active, health.stale
@@ -80,7 +80,7 @@ fn print_suppressions(health: &suppressions::SuppressionHealth) {
 }
 
 fn print_plain(summary: &aggregator::WeeklyInsights) {
-    println!("Anvil insights (last 7 days)");
+    println!("anvil insights (last 7 days)");
     println!("Window: {} to {}", summary.window_start, summary.window_end);
     println!(
         "Witness events observed: {}",

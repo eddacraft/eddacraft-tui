@@ -206,9 +206,9 @@ fn gather_status_data(root: &str) -> StatusData {
 ///    surfaced via `git config --get-all`. Each entry produces its own
 ///    `HookStatus` row with the path set to a `git config hook.<event>.command`
 ///    label so the surface distinguishes config-mode from file-mode at a
-///    glance. Anvil-managed entries are tagged with `(anvil-managed)` in
+///    glance. anvil-managed entries are tagged with `(anvil-managed)` in
 ///    the path label so users can tell their custom commands apart from
-///    Anvil's.
+///    anvil's.
 fn gather_hooks(root: &Path) -> Vec<HookStatus> {
     let candidates = [
         ("pre-commit", ".husky/pre-commit"),
@@ -2480,7 +2480,7 @@ mod tests {
 
     /// User-authored config-mode entries surface without the `(anvil-managed)`
     /// tag — the surface must distinguish the two so users can tell their
-    /// own commands from Anvil's.
+    /// own commands from anvil's.
     #[test]
     fn gather_hooks_does_not_tag_user_authored_config_entries() {
         let dir = make_temp_dir();

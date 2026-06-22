@@ -15,7 +15,7 @@ pub struct HooksArgs {
 
 #[derive(Debug, clap::Subcommand)]
 enum HooksCommand {
-    /// Install Anvil git hooks (pre-commit and pre-push)
+    /// Install anvil git hooks (pre-commit and pre-push)
     Install {
         /// Overwrite existing hooks
         #[arg(long, short)]
@@ -34,7 +34,7 @@ enum HooksCommand {
         #[arg(long)]
         config: bool,
     },
-    /// Remove Anvil git hooks
+    /// Remove anvil git hooks
     Uninstall {
         /// Only remove pre-commit hook
         #[arg(long, conflicts_with = "pre_push_only")]
@@ -47,11 +47,11 @@ enum HooksCommand {
         #[arg(long)]
         config: bool,
     },
-    /// Show status of Anvil git hooks
+    /// Show status of anvil git hooks
     Status,
 }
 
-/// Stable marker embedded in managed hooks to identify Anvil ownership.
+/// Stable marker embedded in managed hooks to identify anvil ownership.
 const ANVIL_HOOK_MARKER: &str = "# @anvil-managed";
 
 /// Minimum Git version required for native `hook.<event>.command` config
@@ -71,22 +71,22 @@ const PRE_PUSH_CONFIG_COMMAND: &str = "ANVIL_HOOK=1 anvil gate";
 
 const PRE_COMMIT_HOOK: &str = r#"#!/bin/sh
 # @anvil-managed
-# Anvil pre-commit hook
+# anvil pre-commit hook
 [ "$ANVIL_SKIP_HOOKS" = "1" ] && exit 0
 command -v anvil >/dev/null 2>&1 || { echo "anvil not found on PATH, skipping hook"; exit 0; }
 ANVIL_HOOK=1 anvil gate --progress || {
-  echo "Anvil gate checks failed. Fix issues or bypass with: ANVIL_SKIP_HOOKS=1 git commit"
+  echo "anvil gate checks failed. Fix issues or bypass with: ANVIL_SKIP_HOOKS=1 git commit"
   exit 1
 }
 "#;
 
 const PRE_PUSH_HOOK: &str = r#"#!/bin/sh
 # @anvil-managed
-# Anvil pre-push hook
+# anvil pre-push hook
 [ "$ANVIL_SKIP_HOOKS" = "1" ] && exit 0
 command -v anvil >/dev/null 2>&1 || { echo "anvil not found on PATH, skipping hook"; exit 0; }
 ANVIL_HOOK=1 anvil gate || {
-  echo "Anvil gate checks failed. Fix issues or bypass with: ANVIL_SKIP_HOOKS=1 git push"
+  echo "anvil gate checks failed. Fix issues or bypass with: ANVIL_SKIP_HOOKS=1 git push"
   exit 1
 }
 "#;
@@ -166,13 +166,13 @@ fn install_hook(hooks_dir: &Path, name: &str, content: &str, force: bool) -> Res
             return Ok(HookResult {
                 hook: name.to_string(),
                 action: "skipped".to_string(),
-                message: format!("{name} already installed (Anvil-managed)"),
+                message: format!("{name} already installed (anvil-managed)"),
             });
         }
         return Ok(HookResult {
             hook: name.to_string(),
             action: "skipped".to_string(),
-            message: format!("{name} exists but is not Anvil-managed (use --force)"),
+            message: format!("{name} exists but is not anvil-managed (use --force)"),
         });
     }
 
@@ -216,7 +216,7 @@ fn uninstall_hook(hooks_dir: &Path, name: &str) -> Result<HookResult> {
         return Ok(HookResult {
             hook: name.to_string(),
             action: "skipped".to_string(),
-            message: format!("{name} exists but is not Anvil-managed"),
+            message: format!("{name} exists but is not anvil-managed"),
         });
     }
 
@@ -418,7 +418,7 @@ pub(crate) fn config_hooks_enabled(workspace_root: &Path, event: &str) -> bool {
     !matches!(raw.as_str(), "false" | "0" | "off" | "no")
 }
 
-/// Install one config-mode hook. Skips when an Anvil-managed entry already
+/// Install one config-mode hook. Skips when an anvil-managed entry already
 /// exists for `event`, so re-running `install --config` is a no-op.
 fn install_config_hook(
     workspace_root: &Path,
@@ -433,12 +433,12 @@ fn install_config_hook(
         return Ok(HookResult {
             hook: event.to_string(),
             action: "skipped".to_string(),
-            message: format!("{event} already installed (Anvil-managed config hook)"),
+            message: format!("{event} already installed (anvil-managed config hook)"),
         });
     }
 
     if force && already_managed {
-        // Replace the existing Anvil-managed entry so we do not stack
+        // Replace the existing anvil-managed entry so we do not stack
         // duplicates after repeated `--force` runs.
         git_config(
             workspace_root,
@@ -467,7 +467,7 @@ fn install_config_hook(
     })
 }
 
-/// Remove Anvil-managed config-mode entries for `event`. User-authored
+/// Remove anvil-managed config-mode entries for `event`. User-authored
 /// `hook.<event>.command` entries are left intact via the regex match.
 fn uninstall_config_hook(workspace_root: &Path, event: &str) -> Result<HookResult> {
     let existing = list_config_hook_commands(workspace_root, event)?;
@@ -480,7 +480,7 @@ fn uninstall_config_hook(workspace_root: &Path, event: &str) -> Result<HookResul
         return Ok(HookResult {
             hook: event.to_string(),
             action: "none".to_string(),
-            message: format!("{event} has no Anvil-managed config hook"),
+            message: format!("{event} has no anvil-managed config hook"),
         });
     }
 
@@ -500,7 +500,7 @@ fn uninstall_config_hook(workspace_root: &Path, event: &str) -> Result<HookResul
     })
 }
 
-/// Third-party hook manager detected alongside Anvil's own install. We never
+/// Third-party hook manager detected alongside anvil's own install. We never
 /// edit, refuse, or remove these — only surface them so the user knows
 /// another tool may be wiring the same events.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -535,11 +535,11 @@ impl ThirdPartyManager {
 /// Structured coexistence report for a single hook event.
 ///
 /// This is the formal GHOOK-004 generalisation of the earlier
-/// `warn_on_file_mode_collision` stub. It collects every signal Anvil knows
+/// `warn_on_file_mode_collision` stub. It collects every signal anvil knows
 /// about so callers can decide whether to surface a warning, populate a
 /// status panel, or drop the data straight into JSON. Detection is strictly
 /// non-destructive: nothing in this module ever writes, edits, or removes
-/// the entries it discovers — that is the Anvil scope-guard "warnings over
+/// the entries it discovers — that is the anvil scope-guard "warnings over
 /// blocks" rule applied to hook coexistence.
 #[derive(Debug, Clone, Default, Serialize)]
 pub(crate) struct CoexistenceReport {
@@ -551,17 +551,17 @@ pub(crate) struct CoexistenceReport {
     pub file_mode_paths: Vec<PathBuf>,
     /// Third-party hook managers detected in the workspace (Husky / Lefthook
     /// / pre-commit framework). Repo-wide, not event-specific — these
-    /// markers imply non-Anvil ownership across all events.
+    /// markers imply non-anvil ownership across all events.
     pub third_party_managers: Vec<ThirdPartyManager>,
     /// Number of `hook.<event>.command` entries that do NOT match the
-    /// Anvil-managed prefix. Anvil never touches these. `None` when the
+    /// anvil-managed prefix. anvil never touches these. `None` when the
     /// `git config --get-all` probe could not be run (no `git`, repo
     /// transient state, etc) so callers can distinguish "zero foreign
     /// entries" from "could not determine".
     pub foreign_config_entries: Option<usize>,
     /// Value of `git config core.hooksPath` if set — when present, Git
     /// bypasses `.git/hooks/` entirely and resolves file-mode hooks
-    /// against this directory instead. Anvil does not override this.
+    /// against this directory instead. anvil does not override this.
     pub core_hooks_path: Option<String>,
 }
 
@@ -584,7 +584,7 @@ impl CoexistenceReport {
     }
 }
 
-/// Probe the workspace for every coexistence signal Anvil knows about. The
+/// Probe the workspace for every coexistence signal anvil knows about. The
 /// returned report is purely informational — callers decide whether to
 /// warn, render, or drop it. Used by `install --config`, `uninstall
 /// --config`, and `status` so all three surfaces speak the same language.
@@ -597,9 +597,9 @@ impl CoexistenceReport {
 ///    `.git/hooks/<event>` and `.husky/<event>` so the caller can pair
 ///    that against the live `hook.<event>.command` count.
 /// 2. **Third-party manager presence** — `.husky/`, lefthook YAML, or
-///    `.pre-commit-config.yaml` mark non-Anvil hook ownership.
+///    `.pre-commit-config.yaml` mark non-anvil hook ownership.
 /// 3. **Foreign config-mode entries** — count of `hook.<event>.command`
-///    values that do NOT match the Anvil-managed prefix; Anvil never
+///    values that do NOT match the anvil-managed prefix; anvil never
 ///    edits these.
 /// 4. **`core.hooksPath` override** — when set, file-mode hooks resolve
 ///    against this directory and `.git/hooks/` is bypassed. Documented
@@ -716,7 +716,7 @@ pub(crate) fn resolve_file_mode_hook_paths(workspace_root: &Path, event: &str) -
 
 /// Render a human-readable coexistence block to stdout. Used by `install
 /// --config`, `uninstall --config`, and `status`. Caller passes the live
-/// count of Anvil-managed config entries for the event so the duplicate-
+/// count of anvil-managed config entries for the event so the duplicate-
 /// execution warning can include both sides of the picture.
 fn print_coexistence_report(report: &CoexistenceReport, anvil_managed_config_entries: usize) {
     if !report.has_findings() {
@@ -736,7 +736,7 @@ fn print_coexistence_report(report: &CoexistenceReport, anvil_managed_config_ent
         }
         if anvil_managed_config_entries > 0 {
             println!(
-                "    config mode - hook.{}.command (Anvil-managed) x{}",
+                "    config mode - hook.{}.command (anvil-managed) x{}",
                 report.event, anvil_managed_config_entries,
             );
         }
@@ -784,7 +784,7 @@ fn print_coexistence_report(report: &CoexistenceReport, anvil_managed_config_ent
     println!("    See {HOOK_COMPAT_DOC} for the coexistence policy.");
 }
 
-/// Remove every Anvil-managed git hook from the current workspace
+/// Remove every anvil-managed git hook from the current workspace
 /// without writing anything to stdout/stderr. Used by `anvil uninstall`
 /// so its own output (human or JSON envelope) is not interleaved with
 /// the hooks command's renderer.
@@ -1006,7 +1006,7 @@ pub fn run(args: &HooksArgs, global: &GlobalArgs) -> Result<()> {
                             _ => println!("  {}", r.message),
                         }
                     }
-                    // Post-uninstall: Anvil-managed entries are gone, so
+                    // Post-uninstall: anvil-managed entries are gone, so
                     // any duplicate-execution risk that remains is between
                     // file-mode hooks and foreign config-mode entries the
                     // user owns. Pass anvil-managed count = 0.
@@ -1094,12 +1094,12 @@ pub fn run(args: &HooksArgs, global: &GlobalArgs) -> Result<()> {
                 crate::output::json::print(&data)?;
             } else {
                 crate::output::plain::blank();
-                crate::output::plain::section("Anvil Git Hooks Status");
+                crate::output::plain::section("anvil Git Hooks Status");
                 for status in &hooks {
                     let indicator = if status.anvil_managed {
-                        "installed (Anvil-managed)"
+                        "installed (anvil-managed)"
                     } else if status.installed {
-                        "exists (not Anvil-managed)"
+                        "exists (not anvil-managed)"
                     } else {
                         "not installed"
                     };
@@ -1595,13 +1595,13 @@ mod tests {
             &["--add", "hook.pre-commit.command", "npm run my-thing"],
         )
         .unwrap();
-        // Install the Anvil-managed entry alongside it.
+        // Install the anvil-managed entry alongside it.
         install_config_hook(dir.path(), "pre-commit", PRE_COMMIT_CONFIG_COMMAND, false).unwrap();
 
         let mixed = list_config_hook_commands(dir.path(), "pre-commit").unwrap();
         assert_eq!(mixed.len(), 2);
 
-        // Uninstall must remove only the Anvil-managed line.
+        // Uninstall must remove only the anvil-managed line.
         let removed = uninstall_config_hook(dir.path(), "pre-commit").unwrap();
         assert_eq!(removed.action, "removed");
 
@@ -1744,7 +1744,7 @@ mod tests {
 
     /// (d) `install --config` preserves a foreign `hook.pre-commit.command`
     /// entry. After install, `git config --get-all` returns BOTH lines:
-    /// the user's foreign entry AND Anvil's managed entry.
+    /// the user's foreign entry AND anvil's managed entry.
     #[test]
     fn install_config_preserves_foreign_entry() {
         if !require_config_hook_support() {
@@ -1764,7 +1764,7 @@ mod tests {
         )
         .unwrap();
 
-        // Install the Anvil-managed entry alongside it.
+        // Install the anvil-managed entry alongside it.
         let result =
             install_config_hook(dir.path(), "pre-commit", PRE_COMMIT_CONFIG_COMMAND, false)
                 .unwrap();
@@ -1778,7 +1778,7 @@ mod tests {
                 "npm run my-foreign-gate".to_string(),
                 PRE_COMMIT_CONFIG_COMMAND.to_string(),
             ],
-            "foreign entry must survive install --config alongside the Anvil entry",
+            "foreign entry must survive install --config alongside the anvil entry",
         );
 
         // Coexistence report should count exactly 1 foreign entry.
@@ -1798,7 +1798,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         init_repo(dir.path());
 
-        // Seed both an Anvil-managed and a foreign entry.
+        // Seed both an anvil-managed and a foreign entry.
         install_config_hook(dir.path(), "pre-commit", PRE_COMMIT_CONFIG_COMMAND, false).unwrap();
         git_config(
             dir.path(),
@@ -1810,7 +1810,7 @@ mod tests {
         )
         .unwrap();
 
-        // Uninstall removes only the Anvil entry.
+        // Uninstall removes only the anvil entry.
         let removed = uninstall_config_hook(dir.path(), "pre-commit").unwrap();
         assert_eq!(removed.action, "removed");
 
@@ -1818,7 +1818,7 @@ mod tests {
         assert_eq!(remaining, vec!["npm run my-foreign-gate".to_string()]);
 
         // Post-uninstall, the report should list 1 foreign entry left
-        // behind — the user still owns it, Anvil does not touch it.
+        // behind — the user still owns it, anvil does not touch it.
         let report = detect_coexistence(dir.path(), &dir.path().join(".git"), "pre-commit");
         assert_eq!(report.foreign_config_entries, Some(1));
     }
@@ -1840,7 +1840,7 @@ mod tests {
         std::fs::create_dir_all(&git_hooks).unwrap();
         std::fs::write(git_hooks.join("pre-commit"), "#!/bin/sh\necho legacy\n").unwrap();
 
-        // Config-mode entry installed via Anvil.
+        // Config-mode entry installed via anvil.
         install_config_hook(dir.path(), "pre-commit", PRE_COMMIT_CONFIG_COMMAND, false).unwrap();
 
         let report = detect_coexistence(dir.path(), &dir.path().join(".git"), "pre-commit");
@@ -1851,7 +1851,7 @@ mod tests {
         assert_eq!(
             report.foreign_config_entries,
             Some(0),
-            "Anvil's own entry must not count as foreign",
+            "anvil's own entry must not count as foreign",
         );
 
         // Confirm the live anvil-managed count is 1 — the printer pairs

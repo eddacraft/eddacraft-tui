@@ -78,8 +78,8 @@ impl InitMode {
 
     pub fn description(self) -> &'static str {
         match self {
-            Self::New => "Create a new project with full Anvil configuration",
-            Self::Existing => "Add Anvil to an existing codebase",
+            Self::New => "Create a new project with full anvil configuration",
+            Self::Existing => "Add anvil to an existing codebase",
             Self::Minimal => "Bare-bones config with only essential checks",
         }
     }

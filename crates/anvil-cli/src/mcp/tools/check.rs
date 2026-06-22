@@ -18,7 +18,7 @@ const SUPPORTED_CHECKS: &[&str] = &["antipattern"];
 pub fn descriptor() -> Value {
     json!({
         "name": TOOL_NAME,
-        "description": "Validate files against Anvil antipattern rules. Returns warnings with locations, severity, and suggestions. Architecture check parity is deferred to a follow-up slice.",
+        "description": "Validate files against anvil antipattern rules. Returns warnings with locations, severity, and suggestions. Architecture check parity is deferred to a follow-up slice.",
         "inputSchema": {
             "type": "object",
             "properties": {

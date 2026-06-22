@@ -14,7 +14,7 @@
 //! Example:
 //!
 //! ```text
-//! # Anvil project identifier — see https://github.com/eddacraft/anvil
+//! # anvil project identifier — see https://github.com/eddacraft/anvil
 //! project_uuid: 01997e4a-1b2c-7345-8901-abcdef123456
 //! created_at: 2026-05-07T12:34:56Z
 //! created_by_version: 0.6.0
@@ -206,7 +206,7 @@ impl ProjectIdentity {
     /// Render as the on-disk format described in this module's docs.
     pub fn render(&self) -> String {
         let mut out = String::new();
-        out.push_str("# Anvil project identifier — see https://github.com/eddacraft/anvil\n");
+        out.push_str("# anvil project identifier — see https://github.com/eddacraft/anvil\n");
         out.push_str("# This file establishes the project's stable identity across machines\n");
         out.push_str("# and forks. Do not edit unless you intend to fork the project.\n\n");
         let _ = writeln!(out, "project_uuid: {}", self.project_uuid);
@@ -962,7 +962,7 @@ mod tests {
     #[test]
     fn parse_skips_comments_and_blank_lines() {
         let contents = "\
-# Anvil project identifier
+# anvil project identifier
 # Don't edit unless forking
 
 project_uuid: 01997e4a-1b2c-7345-8901-abcdef123456
@@ -1105,7 +1105,7 @@ unknown_future_field: whatever
     fn rendered_file_contains_explanatory_comments() {
         let id = ProjectIdentity::new_fresh("0.6.0");
         let rendered = id.render();
-        assert!(rendered.contains("Anvil project identifier"));
+        assert!(rendered.contains("anvil project identifier"));
         assert!(rendered.contains("project_uuid:"));
     }
 

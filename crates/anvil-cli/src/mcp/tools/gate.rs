@@ -30,7 +30,7 @@ const FULL_GATE_STREAM_CAP: usize = 16 * 1024 * 1024;
 pub fn descriptor() -> Value {
     json!({
         "name": TOOL_NAME,
-        "description": "Run the Anvil quality gate. Supply targetFiles for a planless antipattern scan, or omit for a full config-driven gate run.",
+        "description": "Run the anvil quality gate. Supply targetFiles for a planless antipattern scan, or omit for a full config-driven gate run.",
         "inputSchema": {
             "type": "object",
             "properties": {

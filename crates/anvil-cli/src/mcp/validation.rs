@@ -58,13 +58,13 @@ const SCAN_BUFFER_RESULT_VERSION: u64 = 1;
 #[cfg(any(unix, test))]
 const DAEMON_FAILURE: ValidationBackendFailure = ValidationBackendFailure {
     code: "validation-backend-unavailable",
-    message: "Anvil could not validate the proposed write.",
+    message: "anvil could not validate the proposed write.",
     retriable: true,
 };
 #[cfg(unix)]
 const DAEMON_TRUNCATED_FAILURE: ValidationBackendFailure = ValidationBackendFailure {
     code: "validation-backend-truncated",
-    message: "Anvil daemon returned a truncated validation response.",
+    message: "anvil daemon returned a truncated validation response.",
     retriable: true,
 };
 
@@ -695,7 +695,7 @@ mod tests {
         let request = secret_request();
         let failure = ValidationBackendFailure {
             code: "validation-backend-unavailable",
-            message: "Anvil could not validate the proposed write.",
+            message: "anvil could not validate the proposed write.",
             retriable: true,
         };
         let daemon = FixtureDaemon {
@@ -792,7 +792,7 @@ mod tests {
             outcome,
             DaemonValidationOutcome::OperationalFailure(ValidationBackendFailure {
                 code: "validation-backend-unavailable",
-                message: "Anvil could not validate the proposed write.",
+                message: "anvil could not validate the proposed write.",
                 retriable: true,
             })
         );

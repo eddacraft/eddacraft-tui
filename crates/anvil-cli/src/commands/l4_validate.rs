@@ -155,7 +155,7 @@ pub fn run_with_engine(
         None => std::env::current_dir().context("resolve repo root")?,
     };
 
-    // No-op when the project hasn't opted into Anvil: matches the
+    // No-op when the project hasn't opted into anvil: matches the
     // pre-push hook's "Serena rule" exit-zero behaviour.
     if read_project_id(&repo_root).is_none() {
         return Ok(L4ValidateOutcome {
@@ -285,7 +285,7 @@ pub fn run_with_engine(
     })
 }
 
-/// Read `anvil/project-id` to detect Anvil opt-in.
+/// Read `anvil/project-id` to detect anvil opt-in.
 fn read_project_id(repo_root: &Path) -> Option<String> {
     let path = repo_root.join("anvil").join("project-id");
     std::fs::read_to_string(path)

@@ -1,7 +1,7 @@
-//! Anvil-branded shell chrome with correct binary version.
+//! anvil-branded shell chrome with correct binary version.
 //!
 //! Thin wrapper over `eddacraft_tui::shell::render_shell` that pins the
-//! brand to Anvil-on-EddaCraft and the version to this binary's own
+//! brand to anvil-on-EddaCraft and the version to this binary's own
 //! `CARGO_PKG_VERSION`. Surfaces call `render_shell` here rather than the
 //! library directly so brand/version don't have to be re-passed at every
 //! call site.
@@ -70,7 +70,7 @@ pub fn inset_content(area: Rect) -> Rect {
     Layout::vertical([Constraint::Length(t), Constraint::Min(0)]).split(inner)[1]
 }
 
-/// Render the Anvil-branded shell chrome around a surface content area.
+/// Render the anvil-branded shell chrome around a surface content area.
 ///
 /// Returns the inner `Rect` that the surface should render into.
 pub fn render_shell(

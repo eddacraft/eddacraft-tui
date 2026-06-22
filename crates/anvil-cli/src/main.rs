@@ -42,7 +42,7 @@ use clap::{Parser, Subcommand};
 /// DLIFE work items emit them via constants rather than magic
 /// numbers; no current code path emits them yet.
 ///
-/// CI / scripts that gate on Anvil exit codes can rely on this map:
+/// CI / scripts that gate on anvil exit codes can rely on this map:
 /// fail-fast on `2` (gate failure), `5` (cross-boundary detected),
 /// `7` (version mismatch), `10` (discovery failed); treat `1`, `3`,
 /// `4`, `6` as recoverable user-action conditions.
@@ -140,7 +140,7 @@ pub struct GlobalArgs {
     pub touch_project_state: bool,
 }
 
-/// Anvil — structural governance for AI-assisted development.
+/// anvil — structural governance for AI-assisted development.
 #[derive(Debug, Parser)]
 #[command(
     name = "anvil",
@@ -195,7 +195,7 @@ enum Commands {
     ReportFp(commands::report_fp::ReportFpArgs),
     /// Run diagnostic checks on your environment.
     Doctor(commands::doctor::DoctorArgs),
-    /// Show, set, and convert Anvil project config.
+    /// Show, set, and convert anvil project config.
     Config(commands::config::ConfigArgs),
     /// Track architecture drift over time.
     Drift(commands::drift::DriftArgs),
@@ -205,7 +205,7 @@ enum Commands {
     Ember(commands::ember::EmberArgs),
     /// Show project status and health.
     Status(commands::status::StatusArgs),
-    /// Activate Anvil in this repository. Writes `.anvilrc` if missing
+    /// Activate anvil in this repository. Writes `.anvilrc` if missing
     /// and installs MCP config entries for Cursor and Claude Code into
     /// your home directory (`~/.cursor/mcp.json`, `~/.claude.json`).
     /// Pass `--verify` to run a read-only probe instead.
@@ -214,7 +214,7 @@ enum Commands {
     Tutorial(commands::tutorial::TutorialArgs),
     /// Show the welcome screen with quick-start options.
     Welcome(commands::welcome::WelcomeArgs),
-    /// Initialise Anvil configuration for a project.
+    /// Initialise anvil configuration for a project.
     Init(commands::init::InitArgs),
     /// Show local-only weekly activity insights.
     Insights(commands::insights::InsightsArgs),
@@ -225,14 +225,14 @@ enum Commands {
     /// invoked, flag-dependent paths, principals by activity. Local-only;
     /// no authentication required. The views are signal, not evidence.
     Kindling(commands::kindling::KindlingArgs),
-    /// Migrate Anvil config to a new format or schema version.
+    /// Migrate anvil config to a new format or schema version.
     ///
     /// `format` converts a legacy `.anvilrc` to the multi-format
     /// `.anvil.<ext>` surface; `schema` reconciles an existing config
-    /// across Anvil versions. Bare `anvil migrate` runs `format` for
+    /// across anvil versions. Bare `anvil migrate` runs `format` for
     /// back-compat.
     Migrate(commands::migrate::MigrateArgs),
-    /// Manage the Anvil intercept daemon.
+    /// Manage the anvil intercept daemon.
     Intercept(commands::intercept::InterceptArgs),
     /// Manage operator workspace confinement for the intercept daemon.
     ///
@@ -247,7 +247,7 @@ enum Commands {
     /// reading git's pre-push stdin.
     #[command(name = "l4-validate")]
     L4Validate(commands::l4_validate::L4ValidateArgs),
-    /// Show Anvil's acknowledgements and third-party licence attribution.
+    /// Show anvil's acknowledgements and third-party licence attribution.
     Licenses(commands::licenses::LicensesArgs),
     /// Generate MCP server configuration for AI editors (claude-code, cursor, windsurf, vscode).
     #[command(name = "mcp-config")]
@@ -256,7 +256,7 @@ enum Commands {
     Mcp(commands::mcp::McpArgs),
     /// Inspect APS planning state.
     Plan(commands::plan::PlanArgs),
-    /// Open a native read-only dashboard over local Anvil state.
+    /// Open a native read-only dashboard over local anvil state.
     Dashboard(commands::dashboard::DashboardArgs),
     /// Scaffold a new project from a template.
     New(commands::new::NewArgs),
@@ -285,22 +285,22 @@ enum Commands {
     Capsule(commands::capsule::CapsuleArgs),
     /// Manage architecture boundary definitions.
     Architecture(commands::architecture::ArchitectureArgs),
-    /// Authenticate with the Anvil service.
+    /// Authenticate with the anvil service.
     Auth(commands::auth::AuthArgs),
     /// Manage and evaluate policies.
     Policy(commands::policy::PolicyArgs),
     /// Update anvil to the latest version.
     Update(commands::update::UpdateArgs),
-    /// Remove project Anvil state; use `--global` for user state and daemon.
+    /// Remove project anvil state; use `--global` for user state and daemon.
     Uninstall(commands::uninstall::UninstallArgs),
     /// Validate an APS plan file (structure, task format, hash integrity).
     Validate(commands::validate::ValidateArgs),
     /// Show install-method-aware version + upgrade guidance.
     Version(commands::version::VersionArgs),
-    /// Log in to Anvil (alias for `auth login`).
+    /// Log in to anvil (alias for `auth login`).
     #[command(hide = true)]
     Login(commands::auth::LoginArgs),
-    /// Log out of Anvil (alias for `auth logout`).
+    /// Log out of anvil (alias for `auth logout`).
     #[command(hide = true)]
     Logout(commands::auth::LogoutArgs),
     /// Show current identity (alias for `auth whoami`).
@@ -900,9 +900,9 @@ fn check_auth(global: &GlobalArgs, allow_interactive: bool, wants_json: bool) ->
         let expired = matches!(&loaded, Ok(Some(c)) if auth::credentials::is_expired(c));
         if !refresh_reason_already_printed {
             if expired {
-                eprintln!("Your Anvil session has expired.");
+                eprintln!("Your anvil session has expired.");
             } else {
-                eprintln!("This command requires authentication with Anvil.");
+                eprintln!("This command requires authentication with anvil.");
             }
         }
         match prompt_yes_no("Log in now?", true) {

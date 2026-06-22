@@ -22,7 +22,7 @@ pub struct ConfigArgs {
 
 #[derive(Debug, Subcommand)]
 pub enum ConfigCommand {
-    /// Show the effective Anvil config.
+    /// Show the effective anvil config.
     Show,
     /// Set a rule mode in the project config.
     Set { rule: String, mode: String },

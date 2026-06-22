@@ -430,7 +430,7 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         }
         WatchDecision::SkipConfigAbsent => {
             println!(
-                "  watch: skipped — no project config found; run `anvil start --format yaml` (or `anvil init`) to adopt Anvil, then re-run `anvil start --watch` for save-time fallback."
+                "  watch: skipped — no project config found; run `anvil start --format yaml` (or `anvil init`) to adopt anvil, then re-run `anvil start --watch` for save-time fallback."
             );
             Ok(())
         }

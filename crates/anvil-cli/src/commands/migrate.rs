@@ -31,7 +31,7 @@ pub enum MigrateCommand {
     /// Migrate a legacy `.anvilrc` to the multi-format `.anvil.<ext>`
     /// surface (yaml / yml / json / toml).
     Format(FormatArgs),
-    /// Reconcile an existing config's schema across Anvil versions,
+    /// Reconcile an existing config's schema across anvil versions,
     /// applying any registered migration for the version delta.
     Schema(SchemaArgs),
 }

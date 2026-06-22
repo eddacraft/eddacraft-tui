@@ -57,7 +57,7 @@ mod tests {
     /// silently — name, on-trigger, jobs key, the install
     /// placeholder, or the `anvil hook pre-push` invocation — that
     /// regression should fail this pin first rather than be caught
-    /// in a downstream repo that adopted Anvil days ago. The
+    /// in a downstream repo that adopted anvil days ago. The
     /// substrings asserted here are the contract the docs and the
     /// Marketplace action commit to.
     #[test]

@@ -84,7 +84,7 @@ fn run_dashboard(global: &GlobalArgs) -> anyhow::Result<()> {
 }
 
 fn print_summary(snapshot: &plan_dashboard::PlanStatusSnapshot) {
-    println!("Anvil APS Work Dashboard");
+    println!("anvil APS Work Dashboard");
     println!("Modules: {}", snapshot.modules.len());
     println!(
         "Open work items: {}",

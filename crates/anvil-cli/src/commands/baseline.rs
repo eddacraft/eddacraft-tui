@@ -7,7 +7,7 @@
 //!
 //! - **`anvil baseline`** creates `anvil/baseline.json` for the
 //!   current repo. The orchestrator first calls
-//!   [`ensure_project_id`] so adopting Anvil into an existing repo
+//!   [`ensure_project_id`] so adopting anvil into an existing repo
 //!   writes `anvil/project-id` in the same flow (MLP2-032), then runs
 //!   the [`anvil_checks`] scanner across the worktree to populate the
 //!   findings array (MLP2-034 Phase 1). With no existing

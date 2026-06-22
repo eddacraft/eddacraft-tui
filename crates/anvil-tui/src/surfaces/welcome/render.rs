@@ -7,7 +7,7 @@ use ratatui::widgets::Paragraph;
 
 use super::{QuickStartOption, WelcomeState};
 
-// Anvil brandmark — faithful to logos/svg/anvil-brandmark-white.svg
+// anvil brandmark — faithful to logos/svg/anvil-brandmark-white.svg
 // Two L-shaped corner brackets framing a central anvil body
 // (two horizontal bars connected by a short vertical column).
 const LOGO_LINES: &[&str] = &[

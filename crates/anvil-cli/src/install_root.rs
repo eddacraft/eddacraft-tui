@@ -1,7 +1,7 @@
 //! Install-root resolution for the `ANVIL_HOME` / `--anvil-home` override
 //! (DISTRIB-006, [ADR-060]).
 //!
-//! Anvil keeps two distinct categories of state:
+//! anvil keeps two distinct categories of state:
 //!
 //! - **Install/user-owned** — user config (today under the home dir), the daemon
 //!   socket/PID (under the runtime dir), and kernel cache/logs. When `ANVIL_HOME`

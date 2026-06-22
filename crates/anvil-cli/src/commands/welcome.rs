@@ -252,7 +252,7 @@ fn run_guided_init(
         timed_loading(
             terminal,
             "Init",
-            "Anvil configuration detected \u{2014} skipping setup.",
+            "anvil configuration detected \u{2014} skipping setup.",
             theme,
             std::time::Duration::from_millis(200),
         )?;
@@ -1341,7 +1341,7 @@ fn plain_welcome_message() -> String {
     use std::fmt::Write as _;
     let mut out = String::new();
     let _ = writeln!(out);
-    let _ = writeln!(out, "  Welcome to Anvil");
+    let _ = writeln!(out, "  Welcome to anvil");
     let _ = writeln!(out, "  Structural governance for AI-assisted development");
     let _ = writeln!(out);
     let _ = writeln!(out, "  Available commands:");

@@ -76,7 +76,7 @@ pub(crate) fn secret_suppression_suffix(
 ///
 /// `dirs::home_dir()` on Windows reads `FOLDERID_Profile` via the Known
 /// Folder API and **ignores `%USERPROFILE%`**; on Unix it honours `$HOME`.
-/// Anvil reads and writes editor MCP config under the home dir
+/// anvil reads and writes editor MCP config under the home dir
 /// (`~/.cursor/mcp.json`, `~/.claude.json`) and detects installed clients
 /// from there, so a home that diverges from the one the user's shell and
 /// editor actually use makes anvil install to — and report on — the wrong

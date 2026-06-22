@@ -3,7 +3,7 @@ use eddacraft_tui::keyboard::Action;
 /// The three choices available on the onboarding welcome screen.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OnboardingChoice {
-    /// Configure Anvil for your project step by step.
+    /// Configure anvil for your project step by step.
     GuidedSetup,
     /// Jump straight into the interactive tutorial.
     SkipToTutorial,
@@ -24,8 +24,8 @@ impl OnboardingChoice {
 
     pub fn description(self) -> &'static str {
         match self {
-            Self::GuidedSetup => "Add Anvil to your codebase and scan for issues",
-            Self::SkipToTutorial => "Learn what Anvil can do with a guided walkthrough",
+            Self::GuidedSetup => "Add anvil to your codebase and scan for issues",
+            Self::SkipToTutorial => "Learn what anvil can do with a guided walkthrough",
             Self::SkipEntirely => "Skip setup \u{2014} you can always come back with `anvil start`",
         }
     }
@@ -211,11 +211,11 @@ mod tests {
     fn choice_descriptions() {
         assert_eq!(
             OnboardingChoice::GuidedSetup.description(),
-            "Add Anvil to your codebase and scan for issues"
+            "Add anvil to your codebase and scan for issues"
         );
         assert_eq!(
             OnboardingChoice::SkipToTutorial.description(),
-            "Learn what Anvil can do with a guided walkthrough"
+            "Learn what anvil can do with a guided walkthrough"
         );
         assert_eq!(
             OnboardingChoice::SkipEntirely.description(),

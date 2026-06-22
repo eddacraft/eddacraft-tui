@@ -23,7 +23,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &PlanDashboardState, theme: 
     ])
     .split(area);
 
-    render_summary(frame, chunks[0], state, theme, "Anvil APS Work Dashboard");
+    render_summary(frame, chunks[0], state, theme, "anvil APS Work Dashboard");
 
     let body = Layout::horizontal([Constraint::Percentage(60), Constraint::Percentage(40)])
         .split(chunks[1]);
@@ -507,7 +507,7 @@ mod tests {
     fn renders_summary_counts() {
         let rendered = render_to_string(100, 24);
 
-        assert!(rendered.contains("Anvil APS Work Dashboard"));
+        assert!(rendered.contains("anvil APS Work Dashboard"));
         assert!(rendered.contains("In Progress 2"));
         assert!(rendered.contains("Ready 1"));
         assert!(rendered.contains("Blocked 0"));

@@ -172,7 +172,7 @@ pub fn render_drift_trend(trend: &DriftTrend) -> String {
     let mut out = String::new();
     let _ = writeln!(
         out,
-        "Anvil drift trend — new cross-boundary edges per week (last {TREND_WEEKS} weeks)"
+        "anvil drift trend — new cross-boundary edges per week (last {TREND_WEEKS} weeks)"
     );
     let _ = writeln!(
         out,

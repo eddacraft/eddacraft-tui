@@ -183,7 +183,7 @@ impl WatchDemoState {
     pub fn overlay_text(&self) -> &'static str {
         match self.overlay {
             OverlayPhase::Intro => {
-                "This is the Anvil watch dashboard. It monitors your files \
+                "This is the anvil watch dashboard. It monitors your files \
                  and runs checks automatically when changes are detected."
             }
             OverlayPhase::Hint1 => {

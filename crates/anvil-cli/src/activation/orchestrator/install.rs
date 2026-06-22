@@ -277,7 +277,7 @@ fn pick_install_target(
     // semantics so the read path and the install path agree on which
     // scope wins:
     //
-    // - **Anvil entry present at this scope** (drift != NotPresent):
+    // - **anvil entry present at this scope** (drift != NotPresent):
     //   stop and use this scope. The user is using this scope for
     //   anvil; respect that.
     // - **File exists but no anvil entry** (drift == NotPresent):

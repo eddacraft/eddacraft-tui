@@ -107,13 +107,13 @@ fn step_with_watch(
 pub fn protection_loop_steps() -> Vec<TutorialStep> {
     vec![
         step(
-            "Anvil's protection loop in 60 seconds",
-            "Anvil watches your code for the patterns that turn into incidents — silent escape hatches, unexplained TODOs, console.log slipping into prod. The loop has three steps: scan the change, surface findings, and let your editor or watch process react. This walk shows the loop on a deliberate fixture; afterwards we'll point you at `anvil start` to wire it up against your real repo.",
+            "anvil's protection loop in 60 seconds",
+            "anvil watches your code for the patterns that turn into incidents — silent escape hatches, unexplained TODOs, console.log slipping into prod. The loop has three steps: scan the change, surface findings, and let your editor or watch process react. This walk shows the loop on a deliberate fixture; afterwards we'll point you at `anvil start` to wire it up against your real repo.",
             "Press enter to see what we'll check.",
         ),
         step(
             "What we'll check",
-            "The fixture is a tiny TypeScript file with two well-known antipatterns: `// @ts-ignore` (silently disables every type check on the next line) and `: any` (escape hatch from the type system). Both are catalogued by Anvil as escape-hatch findings — the kind that compound into bugs nobody can trace.",
+            "The fixture is a tiny TypeScript file with two well-known antipatterns: `// @ts-ignore` (silently disables every type check on the next line) and `: any` (escape hatch from the type system). Both are catalogued by anvil as escape-hatch findings — the kind that compound into bugs nobody can trace.",
             "Press enter to run the check.",
         ),
         step(
@@ -123,7 +123,7 @@ pub fn protection_loop_steps() -> Vec<TutorialStep> {
         ),
         step(
             "What protection actually means here",
-            "Anvil's activation vocabulary includes these honest states:\n  • `protecting` — pre-write validation is live (MCP attached + verified)\n  • `ready_restart_required` — config wired, waiting for editor restart\n  • `watching` — save-time fallback running, weaker than pre-write\n  • `needs_action` — config absent or no editor wired yet\n  • `unsupported` — Anvil does not yet cover this repo's languages\n\nThis tutorial does not promote any of those states on its own — only `anvil start` and `anvil status --verify` produce evidence-backed labels. Activation does not imply the repo is clean of further findings; first activation baselines existing findings so future changes are checked.",
+            "anvil's activation vocabulary includes these honest states:\n  • `protecting` — pre-write validation is live (MCP attached + verified)\n  • `ready_restart_required` — config wired, waiting for editor restart\n  • `watching` — save-time fallback running, weaker than pre-write\n  • `needs_action` — config absent or no editor wired yet\n  • `unsupported` — anvil does not yet cover this repo's languages\n\nThis tutorial does not promote any of those states on its own — only `anvil start` and `anvil status --verify` produce evidence-backed labels. Activation does not imply the repo is clean of further findings; first activation baselines existing findings so future changes are checked.",
             "Press enter to activate in this repo.",
         ),
         step_with_command(
@@ -139,7 +139,7 @@ pub fn policy_steps() -> Vec<TutorialStep> {
     vec![
         step(
             "Introduction",
-            "Policies are the rules that Anvil enforces on your codebase. Each policy is a Rego file (.rego) that describes what to check and how severely to flag violations using the Open Policy Agent (OPA) engine.",
+            "Policies are the rules that anvil enforces on your codebase. Each policy is a Rego file (.rego) that describes what to check and how severely to flag violations using the Open Policy Agent (OPA) engine.",
             "Press enter to continue to the next step.",
         ),
         TutorialStep {
@@ -149,13 +149,13 @@ pub fn policy_steps() -> Vec<TutorialStep> {
             watch_path: Some(".anvil/policies".to_string()),
             ..step(
                 "Create Policy Directory",
-                "Anvil looks for policies in the .anvil/policies/ directory. Create this directory in your project root so Anvil can discover your custom Rego rules.",
+                "anvil looks for policies in the .anvil/policies/ directory. Create this directory in your project root so anvil can discover your custom Rego rules.",
                 "Run: mkdir -p .anvil/policies",
             )
         },
         step_with_watch(
             "Write Your First Policy",
-            "A policy defines a check ID, severity level, and logic to match against. Start with a simple Rego rule that flags TODO comments left in production code. Anvil provides helper libraries to simplify common pattern matching.",
+            "A policy defines a check ID, severity level, and logic to match against. Start with a simple Rego rule that flags TODO comments left in production code. anvil provides helper libraries to simplify common pattern matching.",
             "Create .anvil/policies/no-todos.rego with a Rego rule.",
             Verify::FileExists(".anvil/policies/no-todos.rego".to_string()),
             "Create the file .anvil/policies/no-todos.rego to continue.",
@@ -163,7 +163,7 @@ pub fn policy_steps() -> Vec<TutorialStep> {
         ),
         step_with_verify(
             "Test the Policy",
-            "Before enforcing a policy, confirm Anvil can discover it. `anvil policy test` walks `.anvil/policies/` and reports the Rego test files it finds. Test execution is not yet wired up in the Rust CLI — for now, run `opa test .anvil/policies` directly to exercise Rego logic.",
+            "Before enforcing a policy, confirm anvil can discover it. `anvil policy test` walks `.anvil/policies/` and reports the Rego test files it finds. Test execution is not yet wired up in the Rust CLI — for now, run `opa test .anvil/policies` directly to exercise Rego logic.",
             "Run: anvil policy test to list your Rego test files.",
             "anvil policy test",
             Verify::ExitCode(0),
@@ -186,7 +186,7 @@ pub fn architecture_steps() -> Vec<TutorialStep> {
     vec![
         step(
             "Introduction",
-            "Architecture enforcement validates that your code respects the layer boundaries you define. Anvil prevents imports that violate your declared dependency rules, catching architectural drift early.",
+            "Architecture enforcement validates that your code respects the layer boundaries you define. anvil prevents imports that violate your declared dependency rules, catching architectural drift early.",
             "Press enter to continue to the next step.",
         ),
         step_with_watch(
@@ -207,13 +207,13 @@ pub fn architecture_steps() -> Vec<TutorialStep> {
         ),
         step_with_command(
             "Show Definition",
-            "See how Anvil parses your architecture. The `show` command prints the template name, each layer's patterns and dependencies, and the rule count from `.anvil/architecture.yaml`.",
+            "See how anvil parses your architecture. The `show` command prints the template name, each layer's patterns and dependencies, and the rule count from `.anvil/architecture.yaml`.",
             "Run: anvil architecture show",
             "anvil architecture show",
         ),
         step(
             "Validate Boundaries",
-            "Add a deliberate cross-layer import to see the violation in action. Anvil will surface the disallowed import and the boundary rule that was broken during `anvil check` or `anvil gate`.",
+            "Add a deliberate cross-layer import to see the violation in action. anvil will surface the disallowed import and the boundary rule that was broken during `anvil check` or `anvil gate`.",
             "Add a cross-layer import and run: anvil check",
         ),
         step(
@@ -233,7 +233,7 @@ pub fn drift_steps() -> Vec<TutorialStep> {
         ),
         step_with_verify(
             "Capture a Baseline",
-            "Take an initial snapshot of your current state. Anvil serialises the config and architecture into a versioned snapshot stored in .anvil/snapshots/.",
+            "Take an initial snapshot of your current state. anvil serialises the config and architecture into a versioned snapshot stored in .anvil/snapshots/.",
             "Run: anvil drift snapshot --name baseline",
             "anvil drift snapshot --name baseline",
             Verify::ExitCode(0),
@@ -241,13 +241,13 @@ pub fn drift_steps() -> Vec<TutorialStep> {
         ),
         step_with_command(
             "Capture Current State",
-            "After making structural changes, capture a second snapshot. Anvil stores each snapshot by name so you can compare them later.",
+            "After making structural changes, capture a second snapshot. anvil stores each snapshot by name so you can compare them later.",
             "Run: anvil drift snapshot --name current",
             "anvil drift snapshot --name current",
         ),
         step_with_command(
             "Compare Snapshots",
-            "Now compare the two snapshots. Anvil shows a structured diff highlighting exactly what changed in your configuration or layer definitions.",
+            "Now compare the two snapshots. anvil shows a structured diff highlighting exactly what changed in your configuration or layer definitions.",
             "Run: anvil drift compare baseline current",
             "anvil drift compare baseline current",
         ),
@@ -255,7 +255,7 @@ pub fn drift_steps() -> Vec<TutorialStep> {
             watch_demo: true,
             ..step(
                 "Watch Mode Demo",
-                "See Anvil\u{2019}s watch dashboard in action. It monitors your files and runs checks in real time. Edit a file and watch the dashboard update automatically.",
+                "See anvil\u{2019}s watch dashboard in action. It monitors your files and runs checks in real time. Edit a file and watch the dashboard update automatically.",
                 "Press enter to launch the watch demo.",
             )
         },
@@ -271,12 +271,12 @@ pub fn ci_steps() -> Vec<TutorialStep> {
     vec![
         step(
             "Introduction",
-            "Integrating Anvil into your CI pipeline ensures that every pull request is checked against your policies, architecture rules, and drift baselines automatically.",
+            "Integrating anvil into your CI pipeline ensures that every pull request is checked against your policies, architecture rules, and drift baselines automatically.",
             "Press enter to continue to the next step.",
         ),
         step(
             "Install Git Hooks",
-            "Git hooks run Anvil checks before each commit. The pre-commit hook evaluates your gate profile and blocks commits that fail critical checks. Anvil supports both Husky and native git config hooks (`--config`).",
+            "Git hooks run anvil checks before each commit. The pre-commit hook evaluates your gate profile and blocks commits that fail critical checks. anvil supports both Husky and native git config hooks (`--config`).",
             "Run: anvil hooks install",
         ),
         step(
@@ -286,12 +286,12 @@ pub fn ci_steps() -> Vec<TutorialStep> {
         ),
         step(
             "Configure Exit Codes",
-            "Anvil uses structured exit codes: 0 for pass, 1 for errors, 2 for gate failure, 3 for auth required, and 4 for configuration errors. Map these to your CI fail-fast settings.",
+            "anvil uses structured exit codes: 0 for pass, 1 for errors, 2 for gate failure, 3 for auth required, and 4 for configuration errors. Map these to your CI fail-fast settings.",
             "Verify exit code handling in your workflow file.",
         ),
         step_with_verify(
             "Machine-Readable Output",
-            "Anvil auto-detects CI environments and adjusts its output. Use the `--json` flag to produce machine-readable output suitable for downstream tooling.",
+            "anvil auto-detects CI environments and adjusts its output. Use the `--json` flag to produce machine-readable output suitable for downstream tooling.",
             "Run: anvil status --json to preview JSON output.",
             "anvil status --json",
             Verify::OutputContains("\"status\":".to_string()),
@@ -299,7 +299,7 @@ pub fn ci_steps() -> Vec<TutorialStep> {
         ),
         step(
             "Summary",
-            "Your CI pipeline now runs Anvil checks on every push. The gate blocks merges when critical policies are violated, keeping your main branch clean.",
+            "Your CI pipeline now runs anvil checks on every push. The gate blocks merges when critical policies are violated, keeping your main branch clean.",
             "CI integration is configured. Press enter to finish.",
         ),
     ]

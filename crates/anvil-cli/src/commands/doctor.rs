@@ -192,7 +192,7 @@ fn check_git_repo() -> DiagnosticCheck {
             Remediation::default()
         } else {
             Remediation {
-                summary: "Initialise a git repository in the current directory so Anvil can \
+                summary: "Initialise a git repository in the current directory so anvil can \
                           track plan history and scope `anvil watch --changed` to your edits."
                     .to_string(),
                 command: Some("git init".to_string()),
@@ -476,7 +476,7 @@ fn check_hooks_installed() -> DiagnosticCheck {
     // GHOOK-003: native config-mode hooks (`git config hook.pre-commit.command`)
     // count as a valid hook source. We list every entry so a user-authored
     // command that runs `anvil gate` (or any other gate) keeps doctor green
-    // — Anvil-managed entries are just one supported flavour.
+    // — anvil-managed entries are just one supported flavour.
     //
     // `hook.<event>.enabled = false` flips Git's runtime off even when
     // commands are present, so disabled config entries are NOT treated
@@ -504,7 +504,7 @@ fn check_hooks_installed() -> DiagnosticCheck {
         } else {
             (
                 "git hooks not installed".to_string(),
-                "Install a pre-commit hook so Anvil runs your gate before each commit. Two supported paths: file mode via Husky (`npx husky init` then add `anvil gate`), or config mode on Git 2.54+ via `anvil hooks install --config`. See docs/guides/git-hook-compatibility.md for the trade-offs."
+                "Install a pre-commit hook so anvil runs your gate before each commit. Two supported paths: file mode via Husky (`npx husky init` then add `anvil gate`), or config mode on Git 2.54+ via `anvil hooks install --config`. See docs/guides/git-hook-compatibility.md for the trade-offs."
                     .to_string(),
             )
         };
@@ -528,7 +528,7 @@ fn check_hooks_installed() -> DiagnosticCheck {
         // `hook.<event>.command` value, so there is no executable bit to
         // test and no "not executable" failure mode here.
         let label = if anvil_config_entry_present {
-            "pre-commit hook installed (config mode, Anvil-managed)"
+            "pre-commit hook installed (config mode, anvil-managed)"
         } else {
             "pre-commit hook installed (config mode)"
         };
@@ -649,7 +649,7 @@ fn check_project_id() -> DiagnosticCheck {
             status: CheckStatus::Fail,
             message: format!("anvil/project-id is malformed: {e}"),
             details: Some(
-                "Anvil refuses to silently rewrite the identity file. Repair manually (the file is plain text, key:value lines) or remove it and re-run `anvil start` to mint a fresh UUID."
+                "anvil refuses to silently rewrite the identity file. Repair manually (the file is plain text, key:value lines) or remove it and re-run `anvil start` to mint a fresh UUID."
                     .to_string(),
             ),
             auto_fixable: false,
@@ -1160,7 +1160,7 @@ fn format_plain(checks: &[DiagnosticCheck], protection_claim: &ProtectionClaim) 
 
     let mut out = String::new();
     let _ = writeln!(out);
-    let _ = writeln!(out, "  Anvil Doctor");
+    let _ = writeln!(out, "  anvil Doctor");
     let _ = writeln!(out);
 
     for check in checks {
@@ -2165,7 +2165,7 @@ mod tests {
                 category: "Configuration".to_string(),
                 status: CheckStatus::Warn,
                 message: ".anvil/ directory not found".to_string(),
-                details: Some("Create .anvil/ directory for Anvil state files".to_string()),
+                details: Some("Create .anvil/ directory for anvil state files".to_string()),
                 auto_fixable: true,
                 remediation: Remediation::default(),
             }];
@@ -2428,16 +2428,16 @@ mod tests {
                 check.message,
             );
             assert!(
-                check.message.contains("Anvil-managed"),
-                "Anvil-managed entries must be tagged in the message: {}",
+                check.message.contains("anvil-managed"),
+                "anvil-managed entries must be tagged in the message: {}",
                 check.message,
             );
         });
     }
 
-    /// User-authored config-mode entries also pass — Anvil should not block
-    /// doctor on the user picking a non-Anvil gate. (Pass without the
-    /// "Anvil-managed" tag.)
+    /// User-authored config-mode entries also pass — anvil should not block
+    /// doctor on the user picking a non-anvil gate. (Pass without the
+    /// "anvil-managed" tag.)
     #[test]
     fn check_hooks_installed_passes_with_user_config_mode_only() {
         with_tempdir_as_cwd(|dir| {
@@ -2451,8 +2451,8 @@ mod tests {
             assert_eq!(check.status, CheckStatus::Pass);
             assert!(check.message.contains("config mode"));
             assert!(
-                !check.message.contains("Anvil-managed"),
-                "user-authored entries must not claim Anvil ownership: {}",
+                !check.message.contains("anvil-managed"),
+                "user-authored entries must not claim anvil ownership: {}",
                 check.message,
             );
         });

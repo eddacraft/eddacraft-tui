@@ -10,7 +10,7 @@ pub use hooks::HooksState;
 pub use init_complete::{InitCompleteState, InitCompleteSummary};
 pub use welcome::{OnboardingChoice, OnboardingWelcomeState};
 
-/// Check whether an Anvil configuration file already exists in the
+/// Check whether an anvil configuration file already exists in the
 /// current working directory.
 pub fn config_exists() -> bool {
     let Ok(cwd) = std::env::current_dir() else {
@@ -19,7 +19,7 @@ pub fn config_exists() -> bool {
     config_exists_in(&cwd)
 }
 
-/// Check whether a non-empty Anvil configuration file exists under `dir`.
+/// Check whether a non-empty anvil configuration file exists under `dir`.
 ///
 /// The CLI writes `.anvilrc` regardless of serialisation format; the
 /// `.anvil.{yaml,json,toml}` names are retained for tolerance against

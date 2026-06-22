@@ -694,7 +694,7 @@ fn llms_layers(data: &ConstraintData) -> String {
 fn llms_anti_patterns(data: &ConstraintData) -> String {
     let mut lines = vec![
         "## Anti-patterns (Blocked)\n".to_string(),
-        "These code patterns are considered anti-patterns and should be avoided. Anvil will flag them during code review.\n".to_string(),
+        "These code patterns are considered anti-patterns and should be avoided. anvil will flag them during code review.\n".to_string(),
     ];
     let mut by_category: BTreeMap<String, Vec<&AntiPatternEntry>> = BTreeMap::new();
     for p in &data.anti_patterns {
@@ -757,7 +757,7 @@ fn llms_suppressions(data: &ConstraintData) -> String {
 fn format_llms_txt(data: &ConstraintData) -> String {
     let mut sections: Vec<String> = Vec::new();
 
-    sections.push("# Anvil Architecture Constraints\n".to_string());
+    sections.push("# anvil Architecture Constraints\n".to_string());
 
     // Metadata
     sections.push(format!(
@@ -892,7 +892,7 @@ fn build_mcp_contents(data: &ConstraintData) -> serde_json::Map<String, serde_js
 fn format_mcp_resource(data: &ConstraintData) -> Result<String> {
     let resource = McpResource {
         uri: "anvil://constraints".to_string(),
-        name: "Anvil Architecture Constraints".to_string(),
+        name: "anvil Architecture Constraints".to_string(),
         description: "Architecture rules, anti-patterns, and conventions for this codebase"
             .to_string(),
         mime_type: "application/json".to_string(),
@@ -1345,7 +1345,7 @@ mod tests {
     fn format_llms_txt_contains_all_sections() {
         let data = sample_constraint_data();
         let output = format_llms_txt(&data);
-        assert!(output.contains("# Anvil Architecture Constraints"));
+        assert!(output.contains("# anvil Architecture Constraints"));
         assert!(output.contains("## Boundary Rules"));
         assert!(output.contains("## Layer Definitions"));
         assert!(output.contains("## Anti-patterns (Blocked)"));

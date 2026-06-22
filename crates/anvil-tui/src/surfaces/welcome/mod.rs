@@ -31,7 +31,7 @@ impl QuickStartOption {
             Self::StartWatch => "Watch checks live",
             Self::RunAudit => "Explore project findings",
             Self::RunDoctor => "Check setup health",
-            Self::RunTutorial => "Learn the Anvil model",
+            Self::RunTutorial => "Learn the anvil model",
             Self::ViewDocs => "View documentation",
             Self::RestartOnboarding => "Restart onboarding",
         }
@@ -41,10 +41,10 @@ impl QuickStartOption {
         match self {
             Self::RunGate => "See whether the current findings pass your workflow gate",
             Self::StartWatch => "Run checks continuously and watch findings update on save",
-            Self::RunAudit => "Inspect the findings Anvil collects across your project",
+            Self::RunAudit => "Inspect the findings anvil collects across your project",
             Self::RunDoctor => "Verify your environment before relying on checks and gates",
             Self::RunTutorial => "Start with scan -> checks -> findings -> gate, then pick a path",
-            Self::ViewDocs => "Open the Anvil documentation in your browser",
+            Self::ViewDocs => "Open the anvil documentation in your browser",
             Self::RestartOnboarding => "Reset and re-run the first-time setup experience",
         }
     }

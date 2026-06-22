@@ -205,7 +205,7 @@ pub fn run(args: &HookArgs, _global: &GlobalArgs) -> Result<()> {
 fn run_pre_commit(repo_root: &Path, sup: &mut SuppressionLog) -> Result<()> {
     let identity = match read_project_id(repo_root) {
         Ok(Some(id)) => id,
-        // No project-id → Anvil hasn't activated here; the hook is a
+        // No project-id → anvil hasn't activated here; the hook is a
         // no-op rather than a noisy failure (Serena rule).
         Ok(None) => return Ok(()),
         Err(_) => {
@@ -389,7 +389,7 @@ fn run_pre_push_with_engine(
 ) -> Result<()> {
     let identity = match read_project_id(repo_root) {
         Ok(Some(id)) => id,
-        // No project-id → project hasn't opted into Anvil; hook is a
+        // No project-id → project hasn't opted into anvil; hook is a
         // no-op (Serena rule). Don't emit anything.
         Ok(None) => return Ok(()),
         Err(_) => {
@@ -2309,7 +2309,7 @@ mod tests {
     }
 
     /// MLP2-063: oversized policy files MUST be refused before
-    /// `read_to_string` allocates the body. Anvil-config's bounded
+    /// `read_to_string` allocates the body. anvil-config's bounded
     /// loader caps each file at `MAX_CONFIG_FILE_BYTES`; the shared
     /// hook loader honours the same cap.
     #[test]

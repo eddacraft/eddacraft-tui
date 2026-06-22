@@ -2,12 +2,12 @@
 //!
 //! Dashboard specs reference live values by dotted path — `gates.passRate`,
 //! `architecture.violations` — and [`load_context`] assembles the tree those
-//! paths resolve against from the JSON state Anvil already persists under
+//! paths resolve against from the JSON state anvil already persists under
 //! `.anvil/`. Each top-level `.anvil/<name>.json` file becomes a context key
 //! `<name>` whose value is the file's parsed contents, so a spec referencing
 //! `architecture.module_count` reaches into `.anvil/architecture.json`.
 //!
-//! This is the Anvil-specific half of TUIDASH-008; the generic
+//! This is the anvil-specific half of TUIDASH-008; the generic
 //! [`DataContext`]/[`bind`](eddacraft_tui::json_render::bind) path resolution
 //! lives in `eddacraft-tui`. Loading is deliberately lenient: a missing
 //! `.anvil/` directory, an unreadable file, or a malformed JSON file is skipped

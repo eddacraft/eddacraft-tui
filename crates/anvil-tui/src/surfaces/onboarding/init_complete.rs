@@ -106,7 +106,7 @@ fn render(frame: &mut Frame, area: Rect, state: &InitCompleteState, theme: &Edda
         .borders(Borders::ALL)
         .border_style(Style::default().fg(theme.success()))
         .padding(Padding::new(2, 2, 1, 1))
-        .title(" Anvil is ready ");
+        .title(" anvil is ready ");
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
@@ -135,7 +135,7 @@ fn render(frame: &mut Frame, area: Rect, state: &InitCompleteState, theme: &Edda
 
     let mut lines: Vec<Line> = vec![
         Line::from(Span::styled(
-            "\u{2713}  Anvil is ready",
+            "\u{2713}  anvil is ready",
             Style::default()
                 .fg(theme.success())
                 .add_modifier(Modifier::BOLD),
@@ -166,7 +166,7 @@ fn render(frame: &mut Frame, area: Rect, state: &InitCompleteState, theme: &Edda
 
     lines.push(Line::default());
     lines.push(Line::from(Span::styled(
-        "Next: a quick scan for issues in your code, then a short tutorial on how Anvil works. Takes about 5 minutes.",
+        "Next: a quick scan for issues in your code, then a short tutorial on how anvil works. Takes about 5 minutes.",
         Style::default().fg(theme.fg()),
     )));
     lines.push(Line::default());

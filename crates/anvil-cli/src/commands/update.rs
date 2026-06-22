@@ -356,7 +356,7 @@ fn write_skip_verify_warning<W: std::io::Write>(w: &mut W) -> std::io::Result<()
     )?;
     writeln!(
         w,
-        "         The downloaded installer will run without proof it came from the Anvil release key."
+        "         The downloaded installer will run without proof it came from the anvil release key."
     )?;
     Ok(())
 }
@@ -508,7 +508,7 @@ fn windows_unsupported_message() -> &'static str {
          irm https://github.com/eddacraft/anvil/releases/latest/download/eddacraft-anvil-installer.ps1 | iex\n\
      \n\
      If the installer fails with \"file is being used by another process\",\n\
-     close any editor running the Anvil MCP server (Cursor, Claude Code)\n\
+     close any editor running the anvil MCP server (Cursor, Claude Code)\n\
      and try again."
 }
 
@@ -858,7 +858,7 @@ mod tests {
         let msg = windows_unsupported_message();
         assert!(msg.contains("winget upgrade --id eddacraft.anvil"));
         assert!(msg.contains("eddacraft-anvil-installer.ps1"));
-        assert!(msg.contains("Anvil MCP server"));
+        assert!(msg.contains("anvil MCP server"));
     }
 
     #[test]
@@ -879,7 +879,7 @@ mod tests {
             "header line missing; got:\n{text}"
         );
         assert!(
-            text.contains("without proof it came from the Anvil release key"),
+            text.contains("without proof it came from the anvil release key"),
             "rationale line missing; got:\n{text}"
         );
         // Operators read this on stderr; a missing trailing newline

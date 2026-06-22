@@ -8,7 +8,7 @@ use ratatui::widgets::Paragraph;
 use super::welcome::{OnboardingChoice, OnboardingWelcomeState};
 use crate::shell::inset_content;
 
-// Anvil brandmark — same logo used on the standard welcome screen.
+// anvil brandmark — same logo used on the standard welcome screen.
 const LOGO_LINES: &[&str] = &[
     "████         ████",
     "██             ██",
@@ -19,7 +19,7 @@ const LOGO_LINES: &[&str] = &[
     "████         ████",
 ];
 
-const TAGLINE: &str = "Anvil catches architecture drift at save-time";
+const TAGLINE: &str = "anvil catches architecture drift at save-time";
 const SUBTITLE: &str = "Let's get you set up.";
 
 /// Left padding for content.

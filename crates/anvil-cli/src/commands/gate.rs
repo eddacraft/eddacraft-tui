@@ -183,7 +183,7 @@ struct CheckResult {
 /// score denominator: a fresh repo with three missing configs and no
 /// actual failures must read as `2/2 available passed (100%)`, not
 /// `1/5 passed (20%)`. The pre-CIB-011 grading was the most-cited
-/// reason new users believed Anvil was broken on first contact.
+/// reason new users believed anvil was broken on first contact.
 #[derive(Debug, Clone, Copy)]
 struct GateAggregate {
     passed_count: usize,
@@ -367,7 +367,7 @@ fn persist_gate_snapshot(result: &GateResult, aggregate: &GateAggregate) {
 /// CIB-011 / #1803 — actionable next-step hint shown beneath a
 /// config-gap check. Names match the internal dispatch keys in
 /// `run_single_check`; the hints point at the canonical onboarding
-/// docs so the user can move from "Anvil is broken" to a working
+/// docs so the user can move from "anvil is broken" to a working
 /// configuration without guessing.
 fn config_gap_next_hint(name: &str) -> &'static str {
     match name {
@@ -1802,7 +1802,7 @@ fn run_check_policy(
             score: 0.0,
             message: format!(
                 "Policy evaluation failed: unexpected OPA output shape at {pointer}.\n\
-                 hint: the OPA output schema does not match what Anvil expects. \
+                 hint: the OPA output schema does not match what anvil expects. \
                  Verify your OPA version with `anvil doctor` and confirm it matches \
                  the version pinned in docs/guides/opa-policy-testing.md."
             ),
@@ -1908,7 +1908,7 @@ fn run_single_check(name: &str, ctx: &GateContext) -> CheckResult {
     // FAIL. Score is graded against **available** checks — a fresh
     // repo with no project config and no actual violations reads as
     // a green run with three config-needed notifications, not a 20%
-    // score that screams "Anvil is broken".
+    // score that screams "anvil is broken".
     //
     // Architecture and policy checks return passed=true with a
     // "Skipping" message when their config files are absent — that's

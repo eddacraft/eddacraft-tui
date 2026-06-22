@@ -17,7 +17,7 @@ use crate::surface::Surface;
 pub struct OnboardingSummary {
     /// Number of findings from the discovery scan.
     pub findings_count: usize,
-    /// Whether Anvil config was created during guided init.
+    /// Whether anvil config was created during guided init.
     pub config_created: bool,
     /// Whether git hooks were installed.
     pub hooks_installed: bool,

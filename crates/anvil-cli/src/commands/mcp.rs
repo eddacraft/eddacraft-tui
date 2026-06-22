@@ -31,7 +31,7 @@ pub struct McpArgs {
 
 #[derive(Debug, Subcommand)]
 enum McpCommand {
-    /// Install Anvil MCP configuration for an editor.
+    /// Install anvil MCP configuration for an editor.
     Install(McpInstallArgs),
     /// Start an MCP server.
     Serve(McpServeArgs),
@@ -508,7 +508,7 @@ fn mcp_tool_auth_required_result(tool: &registry::ToolDefinition, arguments: &Va
                     "schemaVersion": "anvil.mcp.auth-required.v1",
                     "decision": "gateUnavailable",
                     "safeDefault": "allow-with-warning",
-                    "reason": "Anvil MCP credentials are required for this tool. Run `anvil auth login` or `anvil auth login --edict`.",
+                    "reason": "anvil MCP credentials are required for this tool. Run `anvil auth login` or `anvil auth login --edict`.",
                     "tool": tool.name,
                     "correlation": {
                         "daemonStatus": crate::mcp::validation::DaemonStatus::NotWired.as_str(),
