@@ -39,7 +39,7 @@ pub enum Role {
 /// # Stability
 ///
 /// **stable** (D-TUIN-005). The theme override hook is a committed extension
-/// surface: a breaking change requires a breaking version bump (a minor bump while the crate is 0.x, per its SemVer policy) *and* an ADR.
+/// surface: a breaking change requires a breaking version bump (a minor bump while the crate is 0.x, per its `SemVer` policy) *and* an ADR.
 pub trait Theme {
     fn bg(&self) -> Color;
     fn fg(&self) -> Color;

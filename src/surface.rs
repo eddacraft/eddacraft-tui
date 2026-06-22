@@ -14,7 +14,7 @@ use crate::theme::{EddaCraftTheme, Theme};
 /// # Stability
 ///
 /// **stable** (D-TUIN-005). The widget/screen extension trait downstreams
-/// implement; a breaking change requires a breaking version bump (a minor bump while the crate is 0.x, per its SemVer policy) *and* an ADR.
+/// implement; a breaking change requires a breaking version bump (a minor bump while the crate is 0.x, per its `SemVer` policy) *and* an ADR.
 pub trait Surface<T: Theme = EddaCraftTheme> {
     /// Short name shown in the shell chrome header.
     fn surface_name(&self) -> &str;
