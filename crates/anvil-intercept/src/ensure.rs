@@ -621,6 +621,7 @@ impl PipeProbe {
         }
     }
 
+    #[allow(dead_code)]
     #[cfg(test)]
     #[must_use]
     pub(crate) fn with_timeout(pipe_name: String, timeout: Duration) -> Self {
