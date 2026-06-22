@@ -1464,6 +1464,20 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
         // interrupted snapshot write on a prior run. No-op when persistence off.
         save_time_state.sweep_snapshot_temps_on_start();
 
+        // CIB-096 (ADR-069 §10): reclaim orphaned `*.snap` snapshots whose worktree
+        // was deleted while the daemon was down (its unregister hook never fired).
+        // Existence-based (per-snapshot `<hash>.root` companion), so it is SAFE at
+        // cold boot — it cannot wipe a live, not-yet-reattached snapshot. No-op when
+        // persistence off (no snapshot dir wired).
+        let reclaimed_orphans = save_time_state.sweep_orphan_snapshots_on_start();
+        if reclaimed_orphans > 0 {
+            tracing::info!(
+                target: "anvil_intercept::snapshot",
+                reclaimed = reclaimed_orphans,
+                "reclaimed orphaned warm-graph snapshots on start (CIB-096)",
+            );
+        }
+
         // DSV: reclaim a worktree's warm state (graph cache + assurance
         // machine) when its last session leaves the registry. The hook is
         // installed post-construction because `save_time_state` is built

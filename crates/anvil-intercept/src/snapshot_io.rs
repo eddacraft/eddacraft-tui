@@ -31,6 +31,31 @@
 //! hands the bytes to the graph-cache integrity gate
 //! ([`SnapshotPayload::from_bytes`]). Every anomaly maps to "discard and
 //! cold-rebuild" — the load path never panics and never refuses to start.
+//!
+//! # Privacy of the on-disk artifacts (PV-12, CIB-096)
+//!
+//! [`write_snapshot`] publishes two sibling files per worktree: the `<hash>.snap`
+//! payload and a `<hash>.root` **companion** (CIB-096) that stores the worktree's
+//! **absolute canonical root path in cleartext**, so the startup orphan sweep
+//! ([`sweep_orphan_snapshots_on_start`]) can existence-check the root with no
+//! session-registry keep-set (safe at cold boot). The `.root` is written `0600`
+//! under the `0700`, owner-only graph-cache dir — same-uid, machine-local — which
+//! is the existing PV-12 boundary: the snapshot **filename** is already an
+//! unsalted, cross-machine-correlatable derivative of the root (the same exposure
+//! class as a git blob hash).
+//!
+//! The companion's **read** matches the `.snap` discipline: it is opened anchored
+//! beneath the validated graph-cache dirfd under `O_NOFOLLOW` /
+//! `RESOLVE_NO_SYMLINKS` (a planted/swapped `.root` symlink is refused, not
+//! followed) and the body is size-bounded by [`MAX_ROOT_BYTES`] (an over-cap
+//! `.root` is rejected, not allocated) — so a tampered companion cannot redirect
+//! the read or bomb the startup allocation. The existence check discriminates a
+//! *proven* `NotFound` from any ambiguous stat error (EACCES / EIO / transient),
+//! reclaiming only on the former.
+//!
+//! The companion stores the root *directly* (cleartext) rather than as a hash, so
+//! an owner/PV sign-off on persisting the absolute root in cleartext may be wanted;
+//! it does not cross the machine-local boundary.
 #![cfg(unix)]
 
 use std::fs::{self, DirBuilder, File};
@@ -48,6 +73,18 @@ const DIR_MODE: u32 = 0o700;
 const FILE_MODE: u32 = 0o600;
 /// Suffix for the in-progress temp file. Swept on start ([`sweep_orphan_temps`]).
 const TMP_EXT: &str = "tmp";
+/// Extension for the `<hash>.root` companion (CIB-096): the cleartext canonical
+/// root, sibling to the `.snap`, that the orphan sweep existence-checks.
+const ROOT_EXT: &str = "root";
+/// Extension for a published snapshot file (`<hash>.snap`).
+const SNAP_EXT: &str = "snap";
+/// Read cap for a `<hash>.root` companion (CIB-096 follow-up): the body is a
+/// single absolute canonical path, bounded in practice by the OS `PATH_MAX`
+/// (≈4 KiB on Linux); 64 KiB is generous head-room. The companion read is
+/// anchored + `O_NOFOLLOW` (same discipline as the `.snap` load) and rejects an
+/// over-cap body as `InvalidData`, so a planted/swapped multi-GB `.root` cannot
+/// turn the startup sweep into an allocation bomb.
+const MAX_ROOT_BYTES: u64 = 64 * 1024;
 
 /// Why a snapshot could not be loaded. Every variant ⇒ **cold rebuild** (ADR-069
 /// §3); the caller logs per §10 (`NotFound` → DEBUG, `Rejected(VersionMismatch)`
@@ -198,7 +235,120 @@ pub fn write_snapshot(
         // the fsync target (an `O_PATH` fd could not be `fsync`'d — hence the
         // dedicated `open_workspace_dir_for_fsync` above).
         note_publish_durability(nix::unistd::fsync(&dirfd).map_err(io::Error::from));
+        // CIB-096: publish the sibling `<hash>.root` companion (cleartext canonical
+        // root) so the startup orphan sweep can existence-check the root without a
+        // session-registry keep-set. The `.snap` is already published and IS the
+        // source of truth, so a companion-write failure must NOT fail the write — a
+        // missing/unreadable companion is treated as "keep" by the sweep (fail-safe),
+        // so the snapshot simply cannot be auto-reclaimed until rewritten. Reuses the
+        // SAME validated `dirfd` and CIB-097 create→fsync→renameat discipline.
+        write_root_companion(&dirfd, &final_name, canonical_root);
         Ok(())
+    }
+}
+
+/// The `<hash>.root` companion name for a published `<hash>.snap` (CIB-096): the
+/// same FNV hash stem, `.root` extension. `snapshot_name` is a separator-free
+/// `snapshot_filename` basename ending in `.snap`.
+#[must_use]
+fn root_companion_name(snapshot_name: &str) -> String {
+    let stem = snapshot_name
+        .strip_suffix(&format!(".{SNAP_EXT}"))
+        .unwrap_or(snapshot_name);
+    format!("{stem}.{ROOT_EXT}")
+}
+
+/// Encode a canonical root path to the bytes stored in its `.root` companion.
+/// Uses [`std::os::unix::ffi::OsStrExt::as_bytes`] — on Unix this is the exact,
+/// lossless byte representation of the path (no UTF-8 round-trip risk for a
+/// non-UTF-8 root), the same fidelity `snapshot_filename` hashes over.
+fn encode_companion_root(canonical_root: &Path) -> Vec<u8> {
+    use std::os::unix::ffi::OsStrExt;
+    canonical_root.as_os_str().as_bytes().to_vec()
+}
+
+/// Decode the bytes stored in a `.root` companion back to a path. The exact
+/// inverse of [`encode_companion_root`] (`OsStrExt::from_bytes`); lossless on
+/// Unix. An empty body decodes to an empty path, which the sweep treats as
+/// unparseable (fail-safe keep).
+fn decode_companion_root(bytes: &[u8]) -> PathBuf {
+    use std::os::unix::ffi::OsStrExt;
+    PathBuf::from(std::ffi::OsStr::from_bytes(bytes))
+}
+
+/// Read + decode the `<hash>.root` companion `name` (a single, separator-free
+/// leaf) **anchored beneath `dirfd`** (CIB-096 follow-up). Mirrors the disciplined
+/// `.snap` load rather than a path-based `fs::read`:
+/// - the leaf is opened via [`open_leaf_under_dirfd`] (anchored, `O_NOFOLLOW` /
+///   `RESOLVE_NO_SYMLINKS`), so a planted/swapped `.root` **symlink** is refused
+///   (`ELOOP`) and an intermediate-component swap cannot redirect the read;
+/// - the read is bounded by `take(MAX_ROOT_BYTES + 1)` and an over-cap body is
+///   rejected as `InvalidData`, so a multi-GB `.root` cannot be an allocation
+///   bomb at daemon boot.
+///
+/// `Ok(root)` on a non-empty, in-bounds body; `Err` when the body is empty
+/// (unparseable), over-cap, the leaf is a symlink, or any read fails — every
+/// `Err` is a **fail-safe keep** at the call site.
+fn read_companion_root(dirfd: &std::os::fd::OwnedFd, name: &str) -> io::Result<PathBuf> {
+    let leaf = open_leaf_under_dirfd(dirfd, name)?;
+    // `take(MAX + 1)` lets a genuinely over-cap body be detected (not silently
+    // truncated into a valid-looking shorter path) and rejected.
+    let cap = MAX_ROOT_BYTES + 1;
+    let mut bytes = Vec::new();
+    File::from(leaf).take(cap).read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > MAX_ROOT_BYTES {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "oversized .root companion",
+        ));
+    }
+    let root = decode_companion_root(&bytes);
+    if root.as_os_str().is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "empty .root companion",
+        ));
+    }
+    Ok(root)
+}
+
+/// Best-effort publish of the `<hash>.root` companion for an already-published
+/// snapshot (CIB-096). Mirrors the snapshot publish: a randomised temp created
+/// `O_CREAT | O_EXCL | O_NOFOLLOW` 0600 under the SAME `dirfd`, `write_all` +
+/// `sync_all`, then `renameat` to the final companion name. A failure at any step
+/// is logged at WARN and swallowed — the snapshot is the source of truth and is
+/// already durable; the sweep keeps any snapshot whose companion is missing.
+fn write_root_companion(
+    dirfd: &std::os::fd::OwnedFd,
+    snapshot_final_name: &str,
+    canonical_root: &Path,
+) {
+    let companion_name = root_companion_name(snapshot_final_name);
+    let tmp_name = temp_name(&companion_name);
+    let result = (|| -> io::Result<()> {
+        let mut file = create_leaf_under_dirfd(dirfd, &tmp_name)?;
+        file.write_all(&encode_companion_root(canonical_root))?;
+        file.sync_all()?;
+        nix::fcntl::renameat(dirfd, tmp_name.as_str(), dirfd, companion_name.as_str())
+            .map_err(io::Error::from)?;
+        // A failing directory fsync is durable-but-not-crash-guaranteed (same
+        // posture as the snapshot publish); fold to a WARN, not an error.
+        note_publish_durability(nix::unistd::fsync(dirfd).map_err(io::Error::from));
+        Ok(())
+    })();
+    if let Err(err) = result {
+        // Best-effort clean up a half-written temp, then WARN and continue: the
+        // snapshot is published and the sweep treats a missing companion as "keep".
+        let _ = nix::unistd::unlinkat(
+            dirfd,
+            tmp_name.as_str(),
+            nix::unistd::UnlinkatFlags::NoRemoveDir,
+        );
+        tracing::warn!(
+            target: "anvil_intercept::snapshot",
+            error = %err,
+            "snapshot .root companion write failed; snapshot published but not auto-reclaimable until rewritten (CIB-096)",
+        );
     }
 }
 
@@ -288,12 +438,32 @@ pub fn load_snapshot(
 /// # Errors
 /// A disk error other than the file already being absent.
 pub fn remove_snapshot(dir: &Path, canonical_root: &Path) -> io::Result<()> {
-    let path = dir.join(snapshot_filename(canonical_root));
-    match fs::remove_file(&path) {
+    let snapshot_name = snapshot_filename(canonical_root);
+    // Order matters (CIB-096 follow-up): remove the `.snap` FIRST, then best-effort
+    // the `.root`. A crash *between* the two unlinks must not leave a `.snap` with
+    // no companion — the startup sweep keeps any `.snap` whose companion is missing
+    // (fail-safe), so that snapshot would linger forever, un-reclaimable. Dropping
+    // the `.snap` first means a mid-crash leaves only a stray `.root`, which the
+    // sweep already cleans up on the next boot.
+    let path = dir.join(&snapshot_name);
+    let snap_result = match fs::remove_file(&path) {
         Ok(()) => Ok(()),
         Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(()),
         Err(err) => Err(err),
+    };
+    // Best-effort drop the `.root` companion alongside (CIB-096); a missing
+    // companion is fine (older snapshot, or companion-write had failed).
+    let companion = dir.join(root_companion_name(&snapshot_name));
+    if let Err(err) = fs::remove_file(&companion)
+        && err.kind() != io::ErrorKind::NotFound
+    {
+        tracing::warn!(
+            target: "anvil_intercept::snapshot",
+            error = %err,
+            "failed to remove .root companion alongside snapshot (CIB-096)",
+        );
     }
+    snap_result
 }
 
 /// Sweep orphaned `*.tmp` files left by an interrupted write (ADR-069 §10),
@@ -315,77 +485,122 @@ pub fn sweep_orphan_temps(dir: &Path) -> usize {
     removed
 }
 
-/// Sweep stale `*.snap` snapshots on daemon start (ADR-069 §10, CIB-092c): remove
-/// any snapshot whose worktree key is **not** in `registered_roots`, returning the
-/// count removed. A worktree deleted while the daemon was down (so its unregister
-/// hook never fired) otherwise leaves its `.snap` on disk forever; this reclaims
-/// it. Snapshots for currently-registered worktrees are kept.
+/// Sweep orphaned `*.snap` snapshots on daemon start (ADR-069 §10, CIB-096):
+/// reclaim any snapshot whose worktree was deleted while the daemon was down (so
+/// its unregister hook never fired and its `.snap` lingers forever). Returns the
+/// count of **snapshots** removed.
 ///
-/// `registered_roots` are the roots the daemon knows about. Each is **canonicalized
-/// inside the sweep before hashing** (mirroring the write path, which hashes a
-/// canonicalized root) — a caller that passes a non-canonical form (trailing slash,
-/// unresolved symlink) must not cause a live snapshot to be misclassified as an
-/// orphan and deleted. When a root cannot be canonicalized (e.g. it transiently
-/// vanished) the raw form is kept in the keep-set as well, so the failure can only
-/// ever *retain* a snapshot, never delete a live one. Each kept name is the on-disk
-/// name [`snapshot_filename`] would own; a `.snap` whose name matches no registered
-/// root is an orphan and is removed.
+/// Unlike the prior keep-set sweep, this uses the per-snapshot `<hash>.root`
+/// companion (written by [`write_snapshot`]) — so it needs **no session-registry
+/// keep-set and is SAFE at cold boot**: it can never wipe a live (not-yet-attached)
+/// snapshot, because the decision is "does this snapshot's stored root still exist
+/// on disk", not "is this root in the (empty-at-boot) registry".
 ///
-/// **Runtime empty-guard (CIB-092 council survivor):** if `registered_roots` is
-/// empty the sweep returns `0` immediately **without deleting anything**. The
-/// function name `on_start` is exactly when the daemon's session registry is empty,
-/// and an empty keep-set would otherwise reclaim *every* warm-start snapshot — the
-/// opposite of the intent. A faithful, non-empty registered set is the caller's
-/// contract; an empty one is treated as "nothing is known yet, touch nothing".
+/// For each `<hash>.snap`:
+/// - find its `<hash>.root` companion; if it is **absent, unreadable, or its body
+///   does not parse to a path** → **KEEP** the snapshot (fail-safe: never delete a
+///   snapshot we cannot *prove* is an orphan);
+/// - else read the canonical root and `symlink_metadata` it. Only a **proven
+///   `NotFound`** (the path is definitively gone) is a true orphan → remove BOTH
+///   the `.snap` and its `.root`, counting one reclaimed snapshot. Any **other**
+///   stat error (`EACCES` from a tightened parent, `EIO`/`ENOTCONN`/a transient
+///   unmount at boot) is ambiguous → **KEEP** (fail-safe); and a successful stat
+///   (root still exists) → keep.
 ///
-/// Best-effort: an unreadable dir or a file that vanishes mid-sweep is skipped,
-/// never fatal; a missing `dir` is a no-op. `*.tmp` files are left to
-/// [`sweep_orphan_temps`] — this sweep only touches `*.snap`.
-pub fn sweep_stale_snapshots_on_start<I, P>(dir: &Path, registered_roots: I) -> usize
-where
-    I: IntoIterator<Item = P>,
-    P: AsRef<Path>,
-{
-    use std::collections::HashSet;
-    // Canonicalize each root before hashing (the write path canonicalizes), but
-    // keep the raw form too so a canonicalize failure can only ever retain — never
-    // delete — a snapshot.
-    let keep: HashSet<String> = registered_roots
-        .into_iter()
-        .flat_map(|root| {
-            let raw = root.as_ref().to_path_buf();
-            let canonical = fs::canonicalize(&raw).unwrap_or_else(|_| raw.clone());
-            [snapshot_filename(&raw), snapshot_filename(&canonical)]
-        })
-        .collect();
-    // Empty-guard: no registered roots ⇒ delete nothing (a doc-comment is not a
-    // guard; the on-start registry is empty at exactly the catastrophic moment).
-    if keep.is_empty() {
+/// A stray `<hash>.root` with **no matching `.snap`** (harmless leftover, e.g. a
+/// companion published just before a crash that never wrote the snapshot) is also
+/// cleaned up, but is **not** counted as a reclaimed snapshot.
+///
+/// Deletes are anchored to the validated, owner-only directory fd
+/// ([`crate::path_safety::open_workspace_dir_for_fsync`]) via `unlinkat`, mirroring
+/// the CIB-097 write-path discipline so an intermediate-component swap cannot
+/// redirect an unlink; enumeration uses a path-based `read_dir` (anchoring readdir
+/// is awkward and the per-leaf `unlinkat` carries the security-bearing anchor).
+///
+/// Best-effort: an unreadable/missing `dir` is a no-op; a file that vanishes
+/// mid-sweep is skipped, never fatal. `*.tmp` files are left to
+/// [`sweep_orphan_temps`].
+pub fn sweep_orphan_snapshots_on_start(dir: &Path) -> usize {
+    // Anchor unlinks to a validated owner-only dirfd (CIB-097 discipline). If the
+    // dir is absent / unopenable / insecure, there is nothing safe to sweep.
+    let Ok(dirfd) = crate::path_safety::open_workspace_dir_for_fsync(dir) else {
         return 0;
-    }
+    };
     let Ok(entries) = fs::read_dir(dir) else {
         return 0;
     };
-    let mut removed = 0;
+
+    // Collect names first so we can cross-reference `.snap` ↔ `.root` (a stray
+    // `.root` with no `.snap` is cleaned up).
+    let mut snaps: Vec<String> = Vec::new();
+    let mut roots: std::collections::HashSet<String> = std::collections::HashSet::new();
     for entry in entries.flatten() {
         let path = entry.path();
-        // Only `*.snap` files; `*.tmp` is the temp-sweep's job, and a subdir is
-        // never a snapshot.
-        if path.extension().and_then(|e| e.to_str()) != Some("snap") {
-            continue;
-        }
         let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
             continue;
         };
-        // A registered worktree's snapshot is kept; anything else is an orphan.
-        if keep.contains(name) {
-            continue;
-        }
-        if fs::remove_file(&path).is_ok() {
-            removed += 1;
+        match path.extension().and_then(|e| e.to_str()) {
+            Some(SNAP_EXT) => snaps.push(name.to_owned()),
+            Some(ROOT_EXT) => {
+                roots.insert(name.to_owned());
+            }
+            _ => {}
         }
     }
+
+    let mut removed = 0;
+    for snap_name in &snaps {
+        let companion_name = root_companion_name(snap_name);
+        // Mark this companion as having a matching snapshot (so it is not later
+        // treated as a stray `.root`).
+        roots.remove(&companion_name);
+
+        // Fail-safe: a missing / unreadable / over-cap / symlinked / unparseable
+        // companion ⇒ KEEP. The read is anchored beneath the same validated
+        // `dirfd` (O_NOFOLLOW + size-capped), so existence-check, read, and unlink
+        // all share one anchor.
+        let Ok(root) = read_companion_root(&dirfd, &companion_name) else {
+            continue;
+        };
+        // Discriminate the existence check (CIB-096 follow-up): only a *proven*
+        // `NotFound` reclaims. Any other outcome — the root still stats `Ok` (live),
+        // or stat fails with anything other than `NotFound` (EACCES from a tightened
+        // parent dir, EIO / ENOTCONN / a transient unmount at daemon boot) — is a
+        // fail-safe KEEP, never a delete on uncertainty. (A non-`NotFound` error
+        // misread as "root gone" would wipe a LIVE worktree's warm snapshot.) This
+        // matches the `load_snapshot` / `remove_snapshot` NotFound discipline.
+        let proven_gone = matches!(
+            fs::symlink_metadata(&root),
+            Err(e) if e.kind() == io::ErrorKind::NotFound
+        );
+        if !proven_gone {
+            continue;
+        }
+        // True orphan: the stored root is gone. Remove BOTH the `.snap` and its
+        // `.root`, anchored at the validated dirfd.
+        if unlink_at(&dirfd, snap_name).is_ok() {
+            removed += 1;
+            // Best-effort drop the companion too; a failure here just leaves a
+            // stray `.root` a later sweep will reclaim.
+            let _ = unlink_at(&dirfd, &companion_name);
+        }
+    }
+
+    // Clean up stray `.root` companions with no matching `.snap` (not counted as
+    // reclaimed snapshots — they hold no graph state).
+    for stray in &roots {
+        let _ = unlink_at(&dirfd, stray);
+    }
+
     removed
+}
+
+/// `unlinkat(dirfd, name, 0)` for a single separator-free leaf, surfacing the
+/// error as `io::Result`. Anchored at the validated dirfd so an intermediate
+/// directory swap cannot redirect the unlink (CIB-097 discipline).
+fn unlink_at(dirfd: &std::os::fd::OwnedFd, name: &str) -> io::Result<()> {
+    nix::unistd::unlinkat(dirfd, name, nix::unistd::UnlinkatFlags::NoRemoveDir)
+        .map_err(io::Error::from)
 }
 
 /// Create `dir` (and parents) at owner-only mode `0700` if absent (ADR-069 §2).
@@ -637,6 +852,14 @@ mod tests {
         let file = dir.join(snapshot_filename(root));
         let mode = fs::metadata(&file).unwrap().permissions().mode() & 0o777;
         assert_eq!(mode, FILE_MODE, "snapshot must be owner-only 0600");
+        // CIB-096: the `<hash>.root` companion is created via the same
+        // `create_leaf_under_dirfd` path, so it is owner-only 0600 too — lock it in.
+        let companion = dir.join(root_companion_name(&snapshot_filename(root)));
+        let companion_mode = fs::metadata(&companion).unwrap().permissions().mode() & 0o777;
+        assert_eq!(
+            companion_mode, FILE_MODE,
+            "the .root companion must be owner-only 0600"
+        );
         // The created dir is owner-only 0700.
         assert_eq!(
             fs::metadata(&dir).unwrap().permissions().mode() & 0o777,
@@ -699,98 +922,289 @@ mod tests {
     }
 
     #[test]
-    fn sweep_stale_snapshots_removes_only_unregistered() {
+    fn write_snapshot_produces_a_root_companion_holding_the_canonical_root() {
+        // CIB-096: alongside the published `.snap`, the write must publish a sibling
+        // `<hash>.root` companion holding the canonical root path, so the startup
+        // sweep can existence-check the root without a registry keep-set.
         let tmp = tempfile::tempdir().unwrap();
-        let dir = tmp.path();
-        let registered = Path::new("/ws/registered");
-        let orphan = Path::new("/ws/deleted-while-down");
-        // Two real snapshot files (one for a still-registered worktree, one for a
-        // worktree deleted while the daemon was down) + a temp the .snap sweep
-        // must not touch.
-        fs::write(dir.join(snapshot_filename(registered)), b"keep").unwrap();
-        fs::write(dir.join(snapshot_filename(orphan)), b"orphan").unwrap();
-        let leftover_tmp = dir.join(format!("{}.deadbeef.tmp", snapshot_filename(orphan)));
-        fs::write(&leftover_tmp, b"temp").unwrap();
+        let dir = gc(&tmp);
+        let root = Path::new("/some/workspace/root");
+        write_snapshot(&dir, root, &payload()).expect("write");
 
-        let removed = sweep_stale_snapshots_on_start(dir, [registered]);
+        let companion_name = root_companion_name(&snapshot_filename(root));
+        assert!(
+            dir.join(&companion_name).exists(),
+            "the .root companion is published"
+        );
+        let dirfd = crate::path_safety::open_workspace_dir_for_fsync(&dir).expect("open dirfd");
+        let stored = read_companion_root(&dirfd, &companion_name).expect("companion parses");
+        assert_eq!(stored, root, "the companion holds the canonical root");
+    }
 
-        assert_eq!(removed, 1, "only the unregistered .snap is removed");
+    #[test]
+    fn sweep_orphan_removes_snap_and_root_when_root_gone() {
+        // CIB-096: a worktree deleted while the daemon was down leaves a `.snap`
+        // whose companion `.root` points at a path that no longer exists — a true
+        // orphan. The sweep removes BOTH the `.snap` and its `.root`.
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = gc(&tmp);
+        ensure_dir(&dir).unwrap();
+        // A root directory that existed at write time but is now gone.
+        let gone = tmp.path().join("gone-worktree");
+        fs::create_dir(&gone).unwrap();
+        let canonical = fs::canonicalize(&gone).unwrap();
+        write_snapshot(&dir, &canonical, &payload()).expect("write");
+        fs::remove_dir(&canonical).unwrap();
+
+        let snap = dir.join(snapshot_filename(&canonical));
+        let companion = dir.join(root_companion_name(&snapshot_filename(&canonical)));
+        assert!(snap.exists() && companion.exists());
+
+        let removed = sweep_orphan_snapshots_on_start(&dir);
+        assert_eq!(removed, 1, "the orphaned snapshot is reclaimed");
+        assert!(!snap.exists(), "the orphan .snap is removed");
+        assert!(!companion.exists(), "the orphan .root is removed too");
+    }
+
+    #[test]
+    fn sweep_orphan_keeps_snap_when_root_exists() {
+        // CIB-096: a snapshot whose companion root still exists on disk is a live
+        // worktree (not yet reattached) — keep it.
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = gc(&tmp);
+        ensure_dir(&dir).unwrap();
+        let live = tmp.path().join("live-worktree");
+        fs::create_dir(&live).unwrap();
+        let canonical = fs::canonicalize(&live).unwrap();
+        write_snapshot(&dir, &canonical, &payload()).expect("write");
+
+        let removed = sweep_orphan_snapshots_on_start(&dir);
+        assert_eq!(removed, 0, "a live root keeps its snapshot");
+        assert!(dir.join(snapshot_filename(&canonical)).exists());
         assert!(
-            dir.join(snapshot_filename(registered)).exists(),
-            "a registered worktree's snapshot is kept",
-        );
-        assert!(
-            !dir.join(snapshot_filename(orphan)).exists(),
-            "the orphaned snapshot is reclaimed",
-        );
-        assert!(
-            leftover_tmp.exists(),
-            "the .snap sweep must not touch *.tmp files"
+            dir.join(root_companion_name(&snapshot_filename(&canonical)))
+                .exists()
         );
     }
 
     #[test]
-    fn sweep_stale_snapshots_with_no_registered_roots_deletes_nothing() {
-        // CIB-092 council survivor (item 2): an EMPTY registered-root set is the
-        // catastrophic case — the function name `on_start` is exactly when the
-        // session registry is empty. A runtime guard must short-circuit to 0
-        // WITHOUT deleting anything, so a fresh-boot call cannot wipe every
-        // warm-start snapshot. (This INVERTS the prior destructive behaviour.)
+    fn sweep_orphan_keeps_snap_with_missing_companion_fail_safe() {
+        // CIB-096 fail-safe: a `.snap` whose `.root` companion is absent (e.g.
+        // written by an older daemon, or the companion write failed) cannot be
+        // proven an orphan — KEEP it, never delete on uncertainty.
         let tmp = tempfile::tempdir().unwrap();
-        let dir = tmp.path();
-        fs::write(dir.join(snapshot_filename(Path::new("/a"))), b"a").unwrap();
-        fs::write(dir.join(snapshot_filename(Path::new("/b"))), b"b").unwrap();
-        let empty: [&Path; 0] = [];
-        assert_eq!(
-            sweep_stale_snapshots_on_start(dir, empty),
-            0,
-            "an empty registered set must delete NOTHING (empty-guard)",
-        );
-        assert_eq!(
-            fs::read_dir(dir).unwrap().count(),
-            2,
-            "no registered roots ⇒ the guard keeps every snapshot on disk",
-        );
+        let dir = gc(&tmp);
+        ensure_dir(&dir).unwrap();
+        let orphan = Path::new("/ws/no-companion");
+        fs::write(dir.join(snapshot_filename(orphan)), b"snap-no-root").unwrap();
+
+        let removed = sweep_orphan_snapshots_on_start(&dir);
+        assert_eq!(removed, 0, "a .snap with no .root is kept (fail-safe)");
+        assert!(dir.join(snapshot_filename(orphan)).exists());
     }
 
     #[test]
-    fn sweep_stale_snapshots_keeps_a_root_passed_with_a_trailing_slash() {
-        // CIB-092 council survivor (item 2): the write path hashes a *canonicalized*
-        // root, but the sweep is handed whatever roots a caller has. A caller that
-        // passes a non-canonical form (trailing slash) must NOT cause the LIVE
-        // snapshot — written under the canonical name — to be misclassified as an
-        // orphan and deleted. The sweep canonicalizes each root before hashing.
+    fn sweep_orphan_cleans_a_stray_root_with_no_snap() {
+        // CIB-096: a stray `.root` with no matching `.snap` is harmless leftover —
+        // clean it up. It is not counted as a reclaimed *snapshot*.
         let tmp = tempfile::tempdir().unwrap();
-        let dir = tmp.path().join("graph-cache");
-        // A real, canonical worktree directory that exists (so canonicalize resolves).
-        let worktree = tmp.path().join("live-worktree");
-        fs::create_dir(&worktree).unwrap();
-        let canonical = fs::canonicalize(&worktree).unwrap();
-        // The snapshot on disk is written under the CANONICAL filename (write path).
-        fs::create_dir_all(&dir).unwrap();
-        fs::write(dir.join(snapshot_filename(&canonical)), b"live").unwrap();
+        let dir = gc(&tmp);
+        ensure_dir(&dir).unwrap();
+        let stray = root_companion_name(&snapshot_filename(Path::new("/ws/orphan-root")));
+        fs::write(dir.join(&stray), b"/ws/orphan-root").unwrap();
 
-        // The caller hands the sweep the same root but with a trailing-slash
-        // (non-canonical) form. The live snapshot must be kept, not reclaimed.
-        let with_slash = PathBuf::from(format!("{}/", worktree.display()));
-        let removed = sweep_stale_snapshots_on_start(&dir, [with_slash]);
+        let removed = sweep_orphan_snapshots_on_start(&dir);
+        assert_eq!(removed, 0, "a stray .root is not a reclaimed snapshot");
+        assert!(!dir.join(&stray).exists(), "the stray .root is cleaned up");
+    }
+
+    #[test]
+    fn sweep_orphan_keeps_snap_with_unreadable_companion_fail_safe() {
+        // CIB-096 fail-safe: a `.root` whose contents do not parse to a path is
+        // treated as "cannot prove orphan" — KEEP the snapshot. (An empty
+        // companion parses to an empty path, which `exists()` reports false for;
+        // guard against deleting on that by requiring a non-empty parse.)
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = gc(&tmp);
+        ensure_dir(&dir).unwrap();
+        let root = Path::new("/ws/empty-companion");
+        fs::write(dir.join(snapshot_filename(root)), b"snap").unwrap();
+        // An empty companion file — no path bytes to existence-check.
+        fs::write(dir.join(root_companion_name(&snapshot_filename(root))), b"").unwrap();
+
+        let removed = sweep_orphan_snapshots_on_start(&dir);
+        assert_eq!(removed, 0, "an empty/unparseable .root keeps the snapshot");
+        assert!(dir.join(snapshot_filename(root)).exists());
+    }
+
+    #[test]
+    fn sweep_orphan_keeps_snap_when_root_stat_is_permission_denied_not_not_found() {
+        // CIB-096 follow-up (HIGH, data-loss): the existence check must discriminate
+        // `NotFound` from other stat errors. If the worktree's PARENT dir has had its
+        // execute/search bit removed (tightened perms, or a transient condition at
+        // daemon boot), `symlink_metadata(root)` returns PermissionDenied — NOT
+        // NotFound. The root is still LIVE; the snapshot must be KEPT, never deleted
+        // on an ambiguous stat error.
+        use std::os::unix::fs::PermissionsExt;
+        // root bypasses DAC, so a 0o600 parent still stats Ok — the EACCES scenario
+        // is unconstructable as root (common in CI containers). Skip there.
+        if nix::unistd::geteuid().is_root() {
+            return;
+        }
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = gc(&tmp);
+        ensure_dir(&dir).unwrap();
+
+        // A real, existing worktree nested under a parent dir we will lock down.
+        let parent = tmp.path().join("locked-parent");
+        fs::create_dir(&parent).unwrap();
+        let live = parent.join("worktree");
+        fs::create_dir(&live).unwrap();
+        let canonical = fs::canonicalize(&live).unwrap();
+        write_snapshot(&dir, &canonical, &payload()).expect("write");
+
+        // Strip the execute/search bit on the parent so stat-ing the child path
+        // fails with EACCES (PermissionDenied), not ENOENT — the child still exists.
+        fs::set_permissions(&parent, fs::Permissions::from_mode(0o600)).unwrap();
+        assert_eq!(
+            fs::symlink_metadata(&canonical).unwrap_err().kind(),
+            io::ErrorKind::PermissionDenied,
+            "precondition: the stat is EACCES, not NotFound",
+        );
+
+        let removed = sweep_orphan_snapshots_on_start(&dir);
+
+        // Restore perms first so the tempdir cleans up regardless of assertions.
+        fs::set_permissions(&parent, fs::Permissions::from_mode(0o700)).unwrap();
+
         assert_eq!(
             removed, 0,
-            "a trailing-slash root must still keep its snapshot"
+            "a PermissionDenied stat must NOT be misread as 'root gone' (fail-safe keep)",
         );
         assert!(
             dir.join(snapshot_filename(&canonical)).exists(),
-            "the live snapshot survives a non-canonical registered root",
+            "the live worktree's snapshot must be kept",
         );
     }
 
     #[test]
-    fn sweep_stale_snapshots_missing_dir_is_a_noop() {
+    fn sweep_orphan_keeps_snap_with_oversized_companion_fail_safe() {
+        // CIB-096 follow-up (MEDIUM, startup DoS): an over-cap `.root` body is
+        // rejected as InvalidData by the size-bounded companion read, so it cannot
+        // be an allocation bomb — and the snapshot is KEPT (fail-safe: an unreadable
+        // companion can't prove an orphan).
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = gc(&tmp);
+        ensure_dir(&dir).unwrap();
+        let root = Path::new("/ws/oversized-companion");
+        fs::write(dir.join(snapshot_filename(root)), b"snap").unwrap();
+        // A companion larger than MAX_ROOT_BYTES.
+        let big = vec![b'/'; usize::try_from(MAX_ROOT_BYTES + 1).unwrap()];
+        fs::write(
+            dir.join(root_companion_name(&snapshot_filename(root))),
+            &big,
+        )
+        .unwrap();
+
+        let removed = sweep_orphan_snapshots_on_start(&dir);
+        assert_eq!(
+            removed, 0,
+            "an over-cap .root keeps the snapshot (fail-safe)"
+        );
+        assert!(
+            dir.join(snapshot_filename(root)).exists(),
+            "the snapshot is kept when its companion is over-cap",
+        );
+    }
+
+    #[test]
+    fn sweep_orphan_keeps_snap_with_symlinked_companion_not_followed() {
+        // CIB-096 follow-up (MEDIUM): a `.root` that is a SYMLINK must not be
+        // followed by the companion read (anchored O_NOFOLLOW / RESOLVE_NO_SYMLINKS),
+        // even if the symlink target would decode to a gone path. The read fails →
+        // fail-safe KEEP, and the symlink target is never read through.
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = gc(&tmp);
+        ensure_dir(&dir).unwrap();
+        let root = Path::new("/ws/symlinked-companion");
+        fs::write(dir.join(snapshot_filename(root)), b"snap").unwrap();
+        // A target holding a path that does NOT exist (would be a "reclaim" if read).
+        let target = tmp.path().join("companion-target");
+        fs::write(&target, b"/definitely/does/not/exist/anywhere").unwrap();
+        std::os::unix::fs::symlink(
+            &target,
+            dir.join(root_companion_name(&snapshot_filename(root))),
+        )
+        .unwrap();
+
+        let removed = sweep_orphan_snapshots_on_start(&dir);
+        assert_eq!(
+            removed, 0,
+            "a symlinked .root must not be followed; the snapshot is kept",
+        );
+        assert!(
+            dir.join(snapshot_filename(root)).exists(),
+            "the snapshot is kept when its companion is a symlink",
+        );
+    }
+
+    #[test]
+    fn read_companion_root_rejects_an_oversized_body() {
+        // The size cap is enforced at the read, not just a pre-stat: a body over
+        // MAX_ROOT_BYTES is rejected as InvalidData (no allocation bomb, no silent
+        // truncation into a valid-looking shorter path).
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = gc(&tmp);
+        ensure_dir(&dir).unwrap();
+        let name = "oversize.root";
+        fs::write(
+            dir.join(name),
+            vec![b'/'; usize::try_from(MAX_ROOT_BYTES + 1).unwrap()],
+        )
+        .unwrap();
+        let dirfd = crate::path_safety::open_workspace_dir_for_fsync(&dir).expect("open dirfd");
+        let err = read_companion_root(&dirfd, name).expect_err("over-cap body is rejected");
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+    }
+
+    #[test]
+    fn read_companion_root_accepts_an_at_cap_body() {
+        // A body exactly at the cap (MAX_ROOT_BYTES) is accepted; only > cap is
+        // rejected. Use an absolute path padded to exactly the cap length.
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = gc(&tmp);
+        ensure_dir(&dir).unwrap();
+        let name = "atcap.root";
+        let body = vec![b'/'; usize::try_from(MAX_ROOT_BYTES).unwrap()];
+        fs::write(dir.join(name), &body).unwrap();
+        let dirfd = crate::path_safety::open_workspace_dir_for_fsync(&dir).expect("open dirfd");
+        let root = read_companion_root(&dirfd, name).expect("an at-cap body is accepted");
+        assert_eq!(root.as_os_str().len() as u64, MAX_ROOT_BYTES);
+    }
+
+    #[test]
+    fn sweep_orphan_missing_dir_is_a_noop() {
         let tmp = tempfile::tempdir().unwrap();
         let missing = tmp.path().join("does-not-exist");
+        assert_eq!(sweep_orphan_snapshots_on_start(&missing), 0);
+    }
+
+    #[test]
+    fn root_companion_name_swaps_the_snap_extension_for_root() {
+        let snap = snapshot_filename(Path::new("/ws/x"));
+        let companion = root_companion_name(&snap);
         assert_eq!(
-            sweep_stale_snapshots_on_start(&missing, [Path::new("/ws")]),
-            0,
+            Path::new(&snap).extension().and_then(|e| e.to_str()),
+            Some(SNAP_EXT),
+        );
+        assert_eq!(
+            Path::new(&companion).extension().and_then(|e| e.to_str()),
+            Some(ROOT_EXT),
+        );
+        assert_eq!(
+            Path::new(&companion).file_stem().and_then(|s| s.to_str()),
+            Path::new(&snap).file_stem().and_then(|s| s.to_str()),
+            "the companion shares the snapshot's hash stem",
         );
     }
 
@@ -936,6 +1350,25 @@ mod tests {
         // A second remove (already gone) is not an error.
         remove_snapshot(&dir, root).expect("idempotent remove");
         assert!(!dir.join(snapshot_filename(root)).exists());
+    }
+
+    #[test]
+    fn remove_snapshot_removes_both_snap_and_root_companion() {
+        // CIB-096 follow-up: `remove_snapshot` drops the `.snap` AND its `.root`
+        // companion. Order is `.snap` first, then best-effort `.root`, so a crash
+        // between the two leaves only a stray `.root` (which the sweep cleans up),
+        // never a `.snap` with no companion (which the sweep would keep forever).
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = gc(&tmp);
+        let root = Path::new("/ws-remove-order");
+        write_snapshot(&dir, root, &payload()).unwrap();
+        let snap = dir.join(snapshot_filename(root));
+        let companion = dir.join(root_companion_name(&snapshot_filename(root)));
+        assert!(snap.exists() && companion.exists(), "both published");
+
+        remove_snapshot(&dir, root).expect("remove");
+        assert!(!snap.exists(), "the .snap is removed");
+        assert!(!companion.exists(), "the .root companion is removed too");
     }
 
     #[test]

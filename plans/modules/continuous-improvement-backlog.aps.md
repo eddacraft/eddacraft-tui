@@ -2614,31 +2614,36 @@ archive.
 
 ### CIB-096: Wire the orphan `.snap` startup sweep into the daemon (092c follow-up)
 
-- **Status:** Proposed
-- **Intent:** `sweep_stale_snapshots_on_start` (shipped in CIB-092c via PR #2852)
-  is implemented, empty-guarded, and canonicalises each root before hashing — but
-  it is **not called anywhere in the daemon**, so orphaned snapshots from
-  worktrees deleted while the daemon was down accumulate in `graph-cache/`
-  indefinitely. There is no safe cold-boot call site: the session registry is
-  empty at start, and `SessionRegistry::active_sessions()` lists *currently
-  sessioned* worktrees, not *warm worktrees with a valid persisted snapshot* —
-  using it as the keep-set would reclaim exactly the reattach-case snapshots
-  warm-start exists for.
-- **Expected Outcome:** a faithful "warm worktrees seen this run" set (distinct
-  from "currently sessioned") is established, and `sweep_stale_snapshots_on_start`
-  is invoked against it at a safe point (post-session-attach or a periodic
-  reclaim), so `graph-cache/` disk growth is bounded for deleted worktrees. The
-  empty-guard remains the safety net against a cold-boot wipe.
-- **Files:** `crates/anvil-intercept/src/lib.rs` (the `run_foreground` lifecycle,
-  beside `sweep_snapshot_temps_on_start`), `crates/anvil-intercept/src/save_time.rs`
-  (`sweep_stale_snapshots_on_start`), the session-registry source.
-- **Validation:** a test that a registered (warm) worktree's snapshot survives the
-  sweep while an unregistered orphan is reclaimed, at the real call site.
+- **Status:** In Progress
+- **Intent:** the orphan-`.snap` sweep was provided in CIB-092c but **not called
+  anywhere in the daemon**, so snapshots for worktrees deleted while the daemon
+  was down accumulate in `graph-cache/` indefinitely. The keep-set sweep had no
+  safe cold-boot call site: snapshot filenames are FNV hashes of the canonical
+  root, so an empty-at-boot registry can't tell a true orphan from a
+  not-yet-reattached warm snapshot. **Resolved (owner-approved design) by storing
+  the root, so no keep-set is needed.**
+- **Expected Outcome:** (implemented) each snapshot gets a sibling `<hash>.root`
+  companion (0600, written via the CIB-097 dirfd discipline) holding the canonical
+  root. `sweep_orphan_snapshots_on_start(dir)` reads each `.root` and reclaims a
+  snapshot **only** when its root is **proven gone** (`symlink_metadata` →
+  `NotFound`); it KEEPS (fail-safe) on an absent/unreadable/oversized/symlinked
+  companion **or** any non-`NotFound` stat error (EACCES/EIO/transient mount). The
+  companion read is dirfd-anchored (`O_NOFOLLOW`) + `MAX_ROOT_BYTES`-capped; the
+  unlinks are anchored basenames. No keep-set ⇒ **safe at cold boot** — wired at
+  `run_foreground` startup beside the temp sweep. The old keep-set
+  `sweep_stale_snapshots_on_start` + its `SaveTimeState` wrapper are removed.
+- **Files:** `crates/anvil-intercept/src/snapshot_io.rs` (companion write/read +
+  `sweep_orphan_snapshots_on_start`), `crates/anvil-intercept/src/save_time.rs`
+  (parameterless wrapper), `crates/anvil-intercept/src/lib.rs` (`run_foreground`
+  wiring beside `sweep_snapshot_temps_on_start`).
+- **Validation:** reclaims a `.snap`+`.root` whose root is gone; keeps it when the
+  root exists, the companion is missing/unreadable/oversized/symlinked, or the
+  stat is EACCES (not `NotFound`); cleans a stray `.root`.
 - **Identified From:** CIB-092 v0.9.0 council survivor follow-up — deferred at
   merge (PR #2852) for lack of a faithful registered-set source; tracked here per
   `plans/reviews/post-merge/fix-v090-council-survivors.md`.
-- **Confidence:** medium — the sweep + guard exist; the work is the lifecycle
-  source of a faithful warm-set, which is a daemon-lifecycle change.
+- **Confidence:** high — implemented via the companion root-file + existence
+  check (no warm-set/registry dependency); council-reviewed.
 
 ### CIB-097: Anchor the snapshot WRITE path to a validated directory fd (092d follow-up)
 

@@ -619,45 +619,30 @@ impl SaveTimeState {
         }
     }
 
-    /// Reclaim stale `*.snap` snapshots whose worktree is no longer registered
-    /// (ADR-069 §10, CIB-092c). A worktree deleted while the daemon was down never
-    /// fires its unregister hook (which is the normal `remove_snapshot` path), so
-    /// its snapshot would otherwise linger forever; this sweep drops any `.snap`
-    /// whose key is not in `registered_roots`, returning the count removed. No-op
-    /// when persistence is off.
+    /// Reclaim orphaned `*.snap` snapshots whose worktree was deleted while the
+    /// daemon was down (ADR-069 §10, CIB-096). A worktree deleted while the daemon
+    /// was down never fires its unregister hook (the normal `remove_snapshot`
+    /// path), so its snapshot would otherwise linger forever; this sweep removes
+    /// any `.snap` whose `<hash>.root` companion points at a path that no longer
+    /// exists, returning the count removed. No-op when persistence is off.
     ///
-    /// **Empty-guard (CIB-092 council survivor):** an empty `registered_roots` set
-    /// deletes **nothing** — the underlying sweep short-circuits to `0` before any
-    /// `read_dir`. The function name `on_start` is exactly when the session registry
-    /// is empty, so this guard is the safety net that lets the daemon wire the sweep
-    /// without a cold-boot wipe. Roots are canonicalized inside the sweep before
-    /// hashing, so a non-canonical form (trailing slash, symlink) never deletes a
-    /// live snapshot. Pass the live set of roots the daemon currently knows about;
-    /// it is safe to run whenever a faithful registered-set is in hand (e.g. on
-    /// registry change, or a periodic reclaim once sessions have attached).
-    pub fn sweep_stale_snapshots_on_start<I, P>(&self, registered_roots: I) -> usize
-    where
-        I: IntoIterator<Item = P>,
-        P: AsRef<Path>,
-    {
+    /// Existence-based (companion `.root` file), so it needs **no registry
+    /// keep-set and is safe at cold boot** — it can never wipe a live, not-yet-
+    /// reattached snapshot. A snapshot with a missing/unreadable companion is kept
+    /// (fail-safe). Stray `.root` companions with no matching `.snap` are cleaned up.
+    pub fn sweep_orphan_snapshots_on_start(&self) -> usize {
         #[cfg(unix)]
         {
             let Some(dir) = self.snapshot_dir.as_deref() else {
                 return 0;
             };
-            let removed = crate::snapshot_io::sweep_stale_snapshots_on_start(dir, registered_roots);
-            if removed > 0 {
-                tracing::info!(
-                    target: "anvil_intercept::snapshot",
-                    removed,
-                    "reclaimed stale snapshots for unregistered worktrees on start",
-                );
-            }
-            removed
+            // The single INFO report point is the `lib.rs` caller (CIB-096
+            // follow-up: deduplicated). This method only returns the count; it does
+            // not log, to avoid two INFO lines for the one reclaim event.
+            crate::snapshot_io::sweep_orphan_snapshots_on_start(dir)
         }
         #[cfg(not(unix))]
         {
-            let _ = registered_roots;
             0
         }
     }
@@ -4407,34 +4392,52 @@ mod tests {
         );
     }
 
-    // ---- CIB-092c: orphan `.snap` startup reclaim ----
+    // ---- CIB-096: orphan `.snap` startup reclaim (existence-based) ----
 
-    /// A snapshot for a still-registered worktree is kept; a snapshot for a
-    /// worktree deleted while the daemon was down (not in the registered set) is
-    /// reclaimed. Off-by-default: no dir wired ⇒ a no-op.
+    /// A snapshot whose worktree root still exists is kept; a snapshot whose root
+    /// was deleted while the daemon was down is reclaimed via its `.root`
+    /// companion. Off-by-default: no dir wired ⇒ a no-op.
     #[cfg(unix)]
     #[test]
-    fn sweep_stale_snapshots_keeps_registered_drops_orphans() {
+    fn sweep_orphan_snapshots_keeps_live_drops_gone() {
         use anvil_graph_cache::snapshot::snapshot_filename;
         let tmp = tempfile::tempdir().expect("tempdir");
-        let dir = tmp.path().to_path_buf();
-        let registered = std::path::PathBuf::from("/ws/registered");
-        let orphan = std::path::PathBuf::from("/ws/gone");
-        fs::write(dir.join(snapshot_filename(&registered)), b"keep").unwrap();
-        fs::write(dir.join(snapshot_filename(&orphan)), b"orphan").unwrap();
+        let gc = tmp.path().join("graph-cache");
+        // A live worktree (still on disk) and one deleted while the daemon was down.
+        let live = tmp.path().join("live");
+        let gone = tmp.path().join("gone");
+        fs::create_dir(&live).unwrap();
+        fs::create_dir(&gone).unwrap();
+        let live_c = fs::canonicalize(&live).unwrap();
+        let gone_c = fs::canonicalize(&gone).unwrap();
 
         // Off-by-default: with no dir wired the sweep does nothing.
         let off = state();
-        assert_eq!(off.sweep_stale_snapshots_on_start([&registered]), 0);
+        assert_eq!(off.sweep_orphan_snapshots_on_start(), 0);
 
-        let on = state().with_snapshot_dir(dir.clone());
-        let removed = on.sweep_stale_snapshots_on_start([registered.as_path()]);
-        assert_eq!(
-            removed, 1,
-            "only the unregistered worktree's snapshot drops"
+        let on = state().with_snapshot_dir(gc.clone());
+        // Warm both keys then flush on shutdown (publishes `.snap` + `.root`
+        // companions through the real write path).
+        let live_key = WorktreeKey::from_canonical(live_c.clone());
+        let gone_key = WorktreeKey::from_canonical(gone_c.clone());
+        on.cache.apply_delta(
+            &live_key,
+            ChangeKind::Create,
+            file_symbols("src/a.ts", &["alpha"], 0),
         );
-        assert!(dir.join(snapshot_filename(&registered)).exists());
-        assert!(!dir.join(snapshot_filename(&orphan)).exists());
+        on.cache.apply_delta(
+            &gone_key,
+            ChangeKind::Create,
+            file_symbols("src/b.ts", &["beta"], 0),
+        );
+        on.persist_all_on_shutdown();
+        // Now the second worktree disappears.
+        fs::remove_dir(&gone_c).unwrap();
+
+        let removed = on.sweep_orphan_snapshots_on_start();
+        assert_eq!(removed, 1, "only the deleted worktree's snapshot drops");
+        assert!(gc.join(snapshot_filename(&live_c)).exists());
+        assert!(!gc.join(snapshot_filename(&gone_c)).exists());
     }
 
     // ---- CIB-092b: ADR-069 §10 snapshot I/O metric counters ----
