@@ -2640,9 +2640,9 @@ archive.
 - **Confidence:** medium — the sweep + guard exist; the work is the lifecycle
   source of a faithful warm-set, which is a daemon-lifecycle change.
 
-### CIB-097: Anchor the snapshot WRITE path to an `O_PATH` dirfd (092d follow-up)
+### CIB-097: Anchor the snapshot WRITE path to a validated directory fd (092d follow-up)
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** CIB-092d (PR #2852) anchored the snapshot **read** path to a
   validated `O_PATH` dirfd via `open_workspace_dirfd` + `openat2`
   (`RESOLVE_NO_SYMLINKS|RESOLVE_BENEATH`) with an `O_NOFOLLOW` fallback, but the
@@ -2650,11 +2650,15 @@ archive.
   the same dirfd discipline on both sides. The residual gap is dir-component-swap
   atomicity (the leaf is already `O_EXCL|O_NOFOLLOW` and `validate_secure_dir`
   blocks a symlinked/non-owned dir before any write), so this is hardening, not a
-  live hole.
+  live hole. (The write anchor must be a **real `O_DIRECTORY` fd**, not `O_PATH` —
+  an `O_PATH` fd cannot be `fsync`'d, and the publish must `fsync` the directory.)
 - **Expected Outcome:** the temp create + `renameat` + a dirfd `fsync` are anchored
-  to the validated `O_PATH` fd on the state dir (mirroring the read path), closing
-  the dir-component-swap window. The shipped `path_safety` helpers cover only the
-  read side, so a new `openat`/`renameat` ladder is required.
+  to one validated **`O_DIRECTORY|O_RDONLY|O_NOFOLLOW`** fd on the state dir (a
+  real, fsync-able fd that also serves as the `openat`/`renameat`/`unlinkat`
+  anchor; the read path keeps `O_PATH` for its `openat2` anchor), closing the
+  dir-component-swap window. The fd is `fstat`-validated (owner-only, owned by us)
+  after open to close the validate→open TOCTOU. The shipped `path_safety` helpers
+  cover only the read side, so a new `openat`/`renameat` ladder is required.
 - **Files:** `crates/anvil-intercept/src/snapshot_io.rs` (`write_snapshot`, around
   the `TODO`-noted `Deferred under CIB-092d` create/rename), reusing/extending
   `crates/anvil-intercept/src/path_safety.rs`.

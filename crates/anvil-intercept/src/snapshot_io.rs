@@ -33,9 +33,9 @@
 //! cold-rebuild" — the load path never panics and never refuses to start.
 #![cfg(unix)]
 
-use std::fs::{self, DirBuilder, File, OpenOptions};
+use std::fs::{self, DirBuilder, File};
 use std::io::{self, Read, Write};
-use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt};
+use std::os::unix::fs::{DirBuilderExt, MetadataExt};
 use std::path::{Path, PathBuf};
 
 use anvil_graph_cache::snapshot::{
@@ -142,56 +142,62 @@ pub fn write_snapshot(
 
     let final_name = snapshot_filename(canonical_root);
     let tmp_name = temp_name(&final_name);
-    let tmp_path = dir.join(&tmp_name);
-    let final_path = dir.join(&final_name);
 
-    // Deferred under CIB-092d: anchor the temp create + rename to the validated
-    // `O_PATH` dirfd (`open_workspace_dirfd(dir)` + `openat(O_CREAT|O_EXCL|O_NOFOLLOW)`
-    // + `renameat` + a dirfd `fsync`), mirroring the read path's openat2 discipline.
-    // Deferred (not the read fix): the shipped `path_safety` helpers cover only the
-    // *read* side (`read_under`/`read_under_openat2`), so the write would need a new
-    // hand-rolled `openat`/`renameat` ladder — a larger change than this slice
-    // carries. The current write is already symlink-safe at the leaf
-    // (`O_EXCL | O_NOFOLLOW`, randomised temp) and `validate_secure_dir` rejects a
-    // symlinked / non-owned / group-writable `dir` before any write, so the
-    // residual gap is only the dir-component-swap atomicity the read path now closes.
-    //
-    // Create `O_CREAT | O_EXCL | O_NOFOLLOW` at 0600 from the first syscall — no
-    // default-umask-then-chmod window, and a planted symlink/pre-created temp
-    // fails the create rather than redirecting the write.
+    // ADR-069 §4 (CIB-097): anchor the create + publish to a single **real,
+    // fsync-able** directory fd, mirroring the read path's anchored-open
+    // discipline (`open_snapshot_for_read` / `open_leaf_under_dirfd`). A REAL
+    // `O_DIRECTORY` fd (NOT the read path's `O_PATH` one — `O_PATH` cannot be
+    // `fsync`'d) serves three roles: the `openat`/`openat2` create anchor, the
+    // `renameat`/`unlinkat` anchor, and the post-rename directory-`fsync` target.
+    // `validate_secure_dir` (in `ensure_dir`) already rejects a symlinked /
+    // non-owned / group-writable `dir`; opening with `O_NOFOLLOW` here is
+    // defence-in-depth, and the anchored create/rename/unlink close the
+    // intermediate-component-swap window a path-based `open`/`rename` left open.
+    let dirfd = crate::path_safety::open_workspace_dir_for_fsync(dir)?;
+
+    // Create the temp via `openat`/`openat2` RELATIVE to the dirfd, using only the
+    // temp BASENAME, with `O_CREAT | O_EXCL | O_NOFOLLOW` at 0600 from the first
+    // syscall — no default-umask-then-chmod window, and a planted symlink /
+    // pre-created temp fails the create (`O_EXCL`) rather than redirecting it.
+    // Publish via `renameat(dirfd, tmp_name, dirfd, final_name)` — atomic within
+    // the same dir (temp and target share `dir`, so `EXDEV` cannot arise) and not
+    // symlink-following.
     //
     // Returns `Ok(())` once the `rename` has succeeded (the new snapshot is
-    // **published** — visible at `final_path`). The closure's `?` short-circuits a
-    // pre-rename failure into the `Err` arm below (nothing published; clean up the
-    // temp); reaching `Ok(())` means the file IS durable enough to serve (see the
-    // `fsync_dir` note below).
+    // **published** — visible at the final name). The closure's `?` short-circuits
+    // a pre-rename failure into the `Err` arm below (nothing published; clean up
+    // the temp); reaching the publish means the file IS durable enough to serve
+    // (see the dir-fsync note below).
     let create_to_rename = (|| -> io::Result<()> {
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(FILE_MODE)
-            .custom_flags(nix::libc::O_NOFOLLOW | nix::libc::O_CLOEXEC)
-            .open(&tmp_path)?;
+        let mut file = create_leaf_under_dirfd(&dirfd, &tmp_name)?;
         file.write_all(&payload.to_bytes())?;
         file.sync_all()?;
-        // Atomic publish: temp and target share `dir`, so `rename` is atomic and
-        // cannot return EXDEV.
-        fs::rename(&tmp_path, &final_path)?;
+        // Atomic publish anchored at the same dirfd.
+        nix::fcntl::renameat(&dirfd, tmp_name.as_str(), &dirfd, final_name.as_str())
+            .map_err(io::Error::from)?;
         Ok(())
     })();
 
     if let Err(err) = create_to_rename {
-        // Failure *before* the rename published anything: best-effort cleanup
-        // of the orphaned temp (the rename may already have consumed it on some
-        // paths, so ignore a NotFound), then surface the failure.
-        let _ = fs::remove_file(&tmp_path);
+        // We reach this branch ONLY on a pre-rename failure, so the temp still
+        // exists (or never got created) — the rename cannot have succeeded here.
+        // Best-effort cleanup of the orphaned temp via `unlinkat` anchored at the
+        // same dirfd; a `NotFound` (temp never created) is fine to ignore, as the
+        // prior `fs::remove_file` cleanup did. Then surface the original failure.
+        let _ = nix::unistd::unlinkat(
+            &dirfd,
+            tmp_name.as_str(),
+            nix::unistd::UnlinkatFlags::NoRemoveDir,
+        );
         Err(err)
     } else {
-        // The rename succeeded — the snapshot is published at `final_path`.
-        // Whether the directory fsync then succeeds or not, the published file
-        // is durable-enough to serve (CIB-092g); `note_publish_durability` folds
-        // a fsync failure to a WARN rather than a hard error.
-        note_publish_durability(fsync_dir(dir));
+        // The rename succeeded — the snapshot is published at its final name.
+        // Whether the directory fsync then succeeds or not, the published file is
+        // durable-enough to serve (CIB-092g); `note_publish_durability` folds a
+        // fsync failure to a WARN rather than a hard error. The same real dirfd is
+        // the fsync target (an `O_PATH` fd could not be `fsync`'d — hence the
+        // dedicated `open_workspace_dir_for_fsync` above).
+        note_publish_durability(nix::unistd::fsync(&dirfd).map_err(io::Error::from));
         Ok(())
     }
 }
@@ -425,12 +431,6 @@ fn validate_secure_dir(dir: &Path) -> io::Result<()> {
     Ok(())
 }
 
-/// `fsync` a directory so a rename into it is durable. Opening a directory
-/// read-only and `fsync`-ing the fd is the portable POSIX idiom.
-fn fsync_dir(dir: &Path) -> io::Result<()> {
-    File::open(dir)?.sync_all()
-}
-
 /// Open the snapshot `name` (a single, separator-free component) **relative to an
 /// `O_PATH` dirfd** held on `dir`, for reading (ADR-069 §4 / CIB-092d). Uses the
 /// shipped [`open_workspace_dirfd`](crate::path_safety::open_workspace_dirfd) as
@@ -493,6 +493,73 @@ fn open_leaf_under_dirfd(
     {
         nofollow_openat(dirfd.as_fd())
     }
+}
+
+/// Create a single, separator-free temp `name` beneath `dirfd` with
+/// `O_CREAT | O_EXCL | O_WRONLY | O_NOFOLLOW` at mode `0600`, returning it as a
+/// writable [`File`] (ADR-069 §4 / CIB-097). The WRITE-side mirror of
+/// [`open_leaf_under_dirfd`]: on Linux one `openat2(RESOLVE_NO_SYMLINKS |
+/// RESOLVE_BENEATH)` carrying the create flags + mode (with the `O_NOFOLLOW`
+/// `openat` ladder fallback on `ENOSYS`/`EPERM`); other Unix uses the
+/// `O_NOFOLLOW` `openat` create directly.
+///
+/// `O_EXCL` means a planted symlink / pre-created temp at `name` fails the
+/// create (fails closed) rather than redirecting the write, and the `0600` mode
+/// is applied from the first syscall — no default-umask-then-chmod window.
+fn create_leaf_under_dirfd(dirfd: &std::os::fd::OwnedFd, name: &str) -> io::Result<File> {
+    use nix::fcntl::{OFlag, openat};
+    use nix::sys::stat::Mode;
+    use std::os::fd::AsFd;
+
+    // Enforce the documented single-component invariant: the `O_NOFOLLOW` `openat`
+    // fallback only guards the *leaf*, so a multi-component `name` would let a
+    // future caller traverse intermediate symlinked components unsafely. Current
+    // callers pass separator-free `snapshot_filename`/`temp_name` basenames.
+    debug_assert!(
+        !name.contains('/') && !name.contains('\\'),
+        "create_leaf_under_dirfd requires a separator-free leaf name, got {name:?}",
+    );
+
+    let mode = Mode::from_bits_truncate(FILE_MODE);
+    let create_flags =
+        OFlag::O_CREAT | OFlag::O_EXCL | OFlag::O_WRONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC;
+
+    let nofollow_openat = |fd: std::os::fd::BorrowedFd<'_>| -> io::Result<std::os::fd::OwnedFd> {
+        openat(fd, name, create_flags, mode).map_err(io::Error::from)
+    };
+
+    #[cfg(target_os = "linux")]
+    let leaf_fd = {
+        use nix::errno::Errno;
+        use nix::fcntl::{OpenHow, ResolveFlag, openat2};
+        // `openat2` supports creation flags, so the create can ride the same
+        // RESOLVE_NO_SYMLINKS | RESOLVE_BENEATH anchor the read path uses.
+        let how = OpenHow::new()
+            .flags(create_flags)
+            .mode(mode)
+            .resolve(ResolveFlag::RESOLVE_NO_SYMLINKS | ResolveFlag::RESOLVE_BENEATH);
+        match openat2(dirfd.as_fd(), name, how) {
+            // `openat2` absent (pre-5.6 ENOSYS, or a seccomp EPERM on the unknown
+            // syscall) ⇒ fall back to the `O_NOFOLLOW` `openat` create, exactly as
+            // `open_leaf_under_dirfd` does for the read side.
+            Err(err)
+                if matches!(
+                    err as i32,
+                    code if code == Errno::ENOSYS as i32 || code == Errno::EPERM as i32
+                ) =>
+            {
+                nofollow_openat(dirfd.as_fd())?
+            }
+            other => other.map_err(io::Error::from)?,
+        }
+    };
+    #[cfg(not(target_os = "linux"))]
+    let leaf_fd = nofollow_openat(dirfd.as_fd())?;
+
+    // `File::from(OwnedFd)` takes sole ownership of the fd — no `unsafe`, keeping
+    // the crate's `forbid(unsafe_code)` honest while reusing the existing
+    // `write_all` + `sync_all` (file fsync) code below.
+    Ok(File::from(leaf_fd))
 }
 
 /// `<final>.<rand-hex>.tmp` — a randomised suffix so a same-uid attacker cannot
@@ -747,6 +814,89 @@ mod tests {
         assert!(
             open_snapshot_for_read(dir, "link.snap").is_err(),
             "a symlinked snapshot leaf must be refused by the anchored open",
+        );
+    }
+
+    #[test]
+    fn create_leaf_under_dirfd_is_anchored_and_refuses_a_planted_symlink() {
+        // CIB-097: the WRITE path creates the temp leaf relative to a real
+        // (fsync-able) directory fd under openat2(RESOLVE_NO_SYMLINKS |
+        // RESOLVE_BENEATH) with O_CREAT|O_EXCL (or the O_NOFOLLOW openat
+        // fallback), mirroring the read path's anchored-open discipline. A
+        // fresh name is created 0600; a planted symlink at the leaf is refused
+        // (O_EXCL fails closed — the create never follows it).
+        use std::os::unix::fs::PermissionsExt;
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = gc(&tmp);
+        ensure_dir(&dir).unwrap();
+        let dirfd =
+            crate::path_safety::open_workspace_dir_for_fsync(&dir).expect("open writable dirfd");
+
+        // A fresh name is created from the first syscall at 0600.
+        {
+            let mut f =
+                create_leaf_under_dirfd(&dirfd, "fresh.snap.tmp").expect("create fresh leaf");
+            f.write_all(b"payload").unwrap();
+        }
+        let created = dir.join("fresh.snap.tmp");
+        assert_eq!(
+            fs::metadata(&created).unwrap().permissions().mode() & 0o777,
+            FILE_MODE,
+            "the anchored create must be owner-only 0600 from the first syscall",
+        );
+
+        // A planted symlink where the leaf would be created is refused — the
+        // create fails closed (O_EXCL / O_NOFOLLOW / RESOLVE_NO_SYMLINKS) rather
+        // than following the symlink and writing through it.
+        let secret = tmp.path().join("secret");
+        fs::write(&secret, b"do-not-clobber").unwrap();
+        std::os::unix::fs::symlink(&secret, dir.join("evil.snap.tmp")).unwrap();
+        assert!(
+            create_leaf_under_dirfd(&dirfd, "evil.snap.tmp").is_err(),
+            "a planted symlink at the temp leaf must be refused by the anchored create",
+        );
+        // The symlink target was never written through.
+        assert_eq!(fs::read(&secret).unwrap(), b"do-not-clobber");
+    }
+
+    #[test]
+    fn write_replaces_a_symlink_at_the_final_path_without_writing_through_it() {
+        // CIB-097: WRITE-side counterpart to `load_refuses_a_symlink_at_the_snapshot_path`.
+        // The publish does NOT *refuse* a symlink at the final path — `renameat`
+        // atomically replaces the symlink dentry with the renamed regular file
+        // (rename is not symlink-following). The security property is that the
+        // symlink's TARGET is never written through, and the published snapshot is
+        // a real, loadable file with the bytes we wrote.
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = gc(&tmp);
+        ensure_dir(&dir).unwrap();
+        let root = Path::new("/ws-symlink-final");
+        let secret = tmp.path().join("outside-secret");
+        fs::write(&secret, b"secret-bytes").unwrap();
+        // Plant a symlink at the final snapshot path pointing outside the dir.
+        std::os::unix::fs::symlink(&secret, dir.join(snapshot_filename(root))).unwrap();
+
+        write_snapshot(&dir, root, &payload()).expect("write publishes over the planted symlink");
+
+        // The outside target was NOT written through (the publish did not follow
+        // the symlink).
+        assert_eq!(
+            fs::read(&secret).unwrap(),
+            b"secret-bytes",
+            "the publish must not write through a symlink at the final path",
+        );
+        // The published path is now a real, owner-only, loadable snapshot — not a symlink.
+        let meta = fs::symlink_metadata(dir.join(snapshot_filename(root))).unwrap();
+        assert!(
+            !meta.file_type().is_symlink(),
+            "the published path is a regular file"
+        );
+        let loaded = load_snapshot(&dir, root).expect("the published snapshot loads");
+        assert_eq!(
+            loaded.to_bytes(),
+            payload().to_bytes(),
+            "the published snapshot must hold exactly the bytes we wrote, not the \
+             symlink target's content or a truncated file",
         );
     }
 

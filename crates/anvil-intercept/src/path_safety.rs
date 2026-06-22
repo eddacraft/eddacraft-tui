@@ -144,6 +144,58 @@ pub fn open_workspace_dirfd(root: &Path) -> io::Result<OwnedFd> {
     nix::fcntl::open(root, flags, Mode::empty()).map_err(io::Error::from)
 }
 
+/// Open `dir` as a **real, fsync-able** directory fd for use as a write anchor.
+///
+/// Unlike [`open_workspace_dirfd`] — which returns an `O_PATH` fd on Linux (the
+/// lightest `*at` anchor, but one that **cannot be `fsync`'d**: `fsync` on an
+/// `O_PATH` fd returns `EBADF`) — this opens the directory `O_DIRECTORY |
+/// O_RDONLY` so the single fd serves three roles at once: the `openat`/`openat2`
+/// create anchor, the `renameat`/`unlinkat` anchor, AND the post-rename
+/// directory `fsync` target (ADR-069 §4 / CIB-097). A plain `O_DIRECTORY` fd is
+/// an equally valid `*at` anchor as an `O_PATH` one — only the read path needs
+/// `O_PATH` for its `openat2` anchor — so this is the natural fd for the write
+/// path's durability discipline.
+///
+/// `O_NOFOLLOW` refuses a symlinked `dir` (defence-in-depth alongside the
+/// caller's [`validate_secure_dir`](crate::snapshot_io) check, which already
+/// rejects a symlinked snapshot dir before any write).
+///
+/// The opened fd is then `fstat`-validated (owner-only mode, owned by the current
+/// euid) on the **actual inode we hold** — closing the TOCTOU between the caller's
+/// path-based `validate_secure_dir` and this open, where a same-uid attacker could
+/// swap an intermediate component to a different (non-symlink) directory.
+///
+/// # Errors
+/// Propagates the underlying open error (the dir does not exist, is not a
+/// directory, or is a symlink — `ELOOP`), or `PermissionDenied` if the opened
+/// directory is not owned by the current user or is group/other-accessible.
+pub fn open_workspace_dir_for_fsync(dir: &Path) -> io::Result<OwnedFd> {
+    // A REAL directory fd (no `O_PATH`): `O_PATH` cannot be `fsync`'d, and the
+    // write path must `fsync` this fd after the rename to make the publish
+    // durable. `O_NOFOLLOW` refuses a symlinked dir.
+    let flags = OFlag::O_DIRECTORY | OFlag::O_RDONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC;
+    let fd = nix::fcntl::open(dir, flags, Mode::empty()).map_err(io::Error::from)?;
+
+    // Validate the inode we actually opened (not the looked-up path): re-check
+    // ownership + owner-only mode via `fstat`, so a swapped-in directory that is
+    // not ours / is group- or other-accessible is rejected even if it slipped in
+    // between `validate_secure_dir` and this open.
+    let st = nix::sys::stat::fstat(&fd).map_err(io::Error::from)?;
+    if st.st_uid != nix::unistd::geteuid().as_raw() {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "snapshot dir fd is not owned by the current user",
+        ));
+    }
+    if st.st_mode & 0o077 != 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "snapshot dir fd is group/other-accessible",
+        ));
+    }
+    Ok(fd)
+}
+
 /// Read the full bytes of `rel` resolved beneath `dirfd`, refusing any symlink
 /// or escape during resolution.
 ///
@@ -492,5 +544,34 @@ mod tests {
             code == Some(Errno::ELOOP as i32) || code == Some(Errno::ENOTDIR as i32),
             "expected ELOOP or ENOTDIR, got {err}"
         );
+    }
+
+    // ---- write anchor (CIB-097) ----
+
+    #[test]
+    fn dir_for_fsync_opens_an_owner_only_dir() {
+        use std::os::unix::fs::PermissionsExt;
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let dir = tmp.path().join("graph-cache");
+        std::fs::create_dir(&dir).unwrap();
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+        // Succeeds and yields a real (non-`O_PATH`) fd that can actually be fsync'd.
+        let fd = open_workspace_dir_for_fsync(&dir).expect("open owner-only dir");
+        nix::unistd::fsync(&fd).expect("a real O_DIRECTORY fd is fsync-able");
+    }
+
+    #[test]
+    fn dir_for_fsync_rejects_a_group_or_other_accessible_dir() {
+        use std::os::unix::fs::PermissionsExt;
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let dir = tmp.path().join("graph-cache");
+        std::fs::create_dir(&dir).unwrap();
+        // `validate_secure_dir` is path-based and runs earlier in `write_snapshot`;
+        // this asserts the fd-level `fstat` check independently rejects a
+        // group/other-accessible directory (the TOCTOU-closing guard).
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let err = open_workspace_dir_for_fsync(&dir)
+            .expect_err("a group/other-accessible dir must be refused by the fd fstat check");
+        assert_eq!(err.kind(), io::ErrorKind::PermissionDenied, "{err}");
     }
 }
