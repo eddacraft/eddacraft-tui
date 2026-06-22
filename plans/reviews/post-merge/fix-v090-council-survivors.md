@@ -30,7 +30,8 @@ CIB trackers for the sub-parts deferred at the #2852 merge, plus the one net-new
 item that has since landed (N7 is **not** a CIB item, listed here only to close
 it out):
 
-- [ ] **CIB-096** — wire the orphan-`.snap` startup sweep into the daemon (092c).
+- [x] **CIB-096** — orphan-`.snap` sweep wired via companion root-file + existence
+      check (092c) — **DONE** (Merged 2026-06-22 via PR #2870).
 - [x] **CIB-097** — anchor the snapshot **write** path to a validated
       `O_DIRECTORY` dirfd (092d) — **DONE** (Merged 2026-06-22 via PR #2865;
       `fstat`-validated, real fsync-able fd).

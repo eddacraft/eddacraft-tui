@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 57/102  |
+| CIB | —     | In Progress | 58/102  |
 
 ## Purpose
 
@@ -2614,7 +2614,7 @@ archive.
 
 ### CIB-096: Wire the orphan `.snap` startup sweep into the daemon (092c follow-up)
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-22 via PR #2870
 - **Intent:** the orphan-`.snap` sweep was provided in CIB-092c but **not called
   anywhere in the daemon**, so snapshots for worktrees deleted while the daemon
   was down accumulate in `graph-cache/` indefinitely. The keep-set sweep had no
