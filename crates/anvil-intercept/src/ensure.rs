@@ -619,6 +619,7 @@ impl PipeProbe {
         }
     }
 
+    #[allow(dead_code)]
     #[cfg(test)]
     #[must_use]
     pub(crate) fn with_timeout(pipe_name: String, timeout: Duration) -> Self {
@@ -650,17 +651,17 @@ impl DaemonProbe for PipeProbe {
         let connect_outcome = match connect_rx.recv_timeout(connect_timeout) {
             Ok(outcome) => outcome,
             Err(mpsc::RecvTimeoutError::Timeout) | Err(mpsc::RecvTimeoutError::Disconnected) => {
-                // The connect worker may still be blocked in WaitNamedPipe; detach
-                // so the JoinHandle does not wedge this probe (mirrors the CLI's
-                // single-shot exit semantics — probe cadence is low in watch).
-                connect_thread.detach();
+                // The connect worker may still be blocked in WaitNamedPipe; dropping
+                // the JoinHandle detaches it so the probe caller does not wedge
+                // (mirrors the CLI's single-shot exit semantics).
+                drop(connect_thread);
                 // A hung or busy pipe server is present-but-unusable, not absent.
                 return Liveness::ConnectedNoAnswer;
             }
         };
         let _ = connect_thread.join();
 
-        let mut client = match connect_outcome {
+        let client = match connect_outcome {
             Ok(client) => client,
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
                 return Liveness::Unreachable;
@@ -748,8 +749,8 @@ fn pipe_status_query_round_trip(
         }
         Err(_) => {
             // ReadFile has no native timeout; the worker may stay blocked until
-            // the daemon responds. Detach rather than wedge the probe caller.
-            read_thread.detach();
+            // the daemon responds. Dropping the JoinHandle detaches it.
+            drop(read_thread);
             return Err(());
         }
     };
