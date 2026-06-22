@@ -298,6 +298,7 @@
     ],
     "docs/public/kindling/adapters/claude-code.md": [
       "broken link \"/kindling/adapters/opencode\" — target file does not exist",
+      "broken link \"/kindling/adapters/vscode\" — target file does not exist",
       "broken link \"/kindling/concepts/retrieval\" — target file does not exist",
       "broken link \"/kindling/concepts/storage\" — target file does not exist",
       "broken link \"/kindling/quickstart/install\" — target file does not exist",
@@ -308,16 +309,23 @@
       "broken link \"/kindling/adapters/opencode\" — target file does not exist",
       "broken link \"/kindling/adapters/opencode#content-filtering\" — target file does not exist",
       "broken link \"/kindling/adapters/pocketflow\" — target file does not exist",
+      "broken link \"/kindling/adapters/vscode\" — target file does not exist",
       "broken link \"/kindling/concepts/capsules\" — target file does not exist",
       "broken link \"/kindling/concepts/observations\" — target file does not exist",
       "broken link \"/kindling/concepts/observations#kinds\" — target file does not exist",
       "broken link \"/kindling/concepts/retrieval\" — target file does not exist",
       "broken link \"/kindling/concepts/storage#the-daemon\" — target file does not exist",
       "broken link \"/kindling/reference/cli\" — target file does not exist",
-      "broken link \"/kindling/reference/crates\" — target file does not exist"
+      "broken link \"/kindling/reference/crates\" — target file does not exist",
+      "broken link \"/kindling/reference/integrations\" — target file does not exist"
     ],
     "docs/public/kindling/adapters/opencode.md": [
-      "broken link \"/kindling/adapters/pocketflow\" — target file does not exist"
+      "broken link \"/kindling/adapters/pocketflow\" — target file does not exist",
+      "broken link \"/kindling/adapters/vscode\" — target file does not exist"
+    ],
+    "docs/public/kindling/adapters/vscode.md": [
+      "broken link \"/kindling/adapters/custom\" — target file does not exist",
+      "broken link \"/kindling/reference/integrations\" — target file does not exist"
     ],
     "docs/public/kindling/adapters/pocketflow.md": [
       "broken link \"/kindling/adapters/custom\" — target file does not exist"
@@ -353,16 +361,21 @@
       "broken link \"/kindling/concepts/observations\" — target file does not exist",
       "broken link \"/kindling/quickstart/first-memory\" — target file does not exist",
       "broken link \"/kindling/quickstart/install\" — target file does not exist",
-      "broken link \"/kindling/reference/cli\" — target file does not exist"
+      "broken link \"/kindling/quickstart/without-claude-code\" — target file does not exist",
+      "broken link \"/kindling/reference/cli\" — target file does not exist",
+      "broken link \"/kindling/reference/integrations\" — target file does not exist"
     ],
     "docs/public/kindling/quickstart/automatic-capture.md": [
       "broken link \"/kindling/adapters/claude-code\" — target file does not exist",
       "broken link \"/kindling/adapters/custom\" — target file does not exist",
       "broken link \"/kindling/adapters/opencode\" — target file does not exist",
       "broken link \"/kindling/adapters/pocketflow\" — target file does not exist",
+      "broken link \"/kindling/adapters/vscode\" — target file does not exist",
       "broken link \"/kindling/concepts/capsules\" — target file does not exist",
       "broken link \"/kindling/quickstart/install\" — target file does not exist",
-      "broken link \"/kindling/reference/crates\" — target file does not exist"
+      "broken link \"/kindling/quickstart/without-claude-code\" — target file does not exist",
+      "broken link \"/kindling/reference/crates\" — target file does not exist",
+      "broken link \"/kindling/reference/integrations\" — target file does not exist"
     ],
     "docs/public/kindling/quickstart/first-memory.md": [
       "broken link \"/kindling/concepts/observations\" — target file does not exist",
@@ -375,12 +388,25 @@
       "broken link \"/kindling/concepts/storage\" — target file does not exist",
       "broken link \"/kindling/quickstart/automatic-capture\" — target file does not exist",
       "broken link \"/kindling/quickstart/first-memory\" — target file does not exist",
+      "broken link \"/kindling/quickstart/without-claude-code\" — target file does not exist",
       "broken link \"/kindling/reference/config\" — target file does not exist"
+    ],
+    "docs/public/kindling/quickstart/without-claude-code.md": [
+      "broken link \"/kindling/adapters/custom\" — target file does not exist",
+      "broken link \"/kindling/adapters/opencode\" — target file does not exist",
+      "broken link \"/kindling/adapters/pocketflow\" — target file does not exist",
+      "broken link \"/kindling/adapters/vscode\" — target file does not exist",
+      "broken link \"/kindling/concepts/capsules\" — target file does not exist",
+      "broken link \"/kindling/quickstart/install\" — target file does not exist",
+      "broken link \"/kindling/reference/cli\" — target file does not exist",
+      "broken link \"/kindling/reference/crates\" — target file does not exist",
+      "broken link \"/kindling/reference/integrations\" — target file does not exist"
     ],
     "docs/public/kindling/reference/cli.md": [
       "broken link \"/kindling/adapters/claude-code\" — target file does not exist",
       "broken link \"/kindling/concepts/retrieval\" — target file does not exist",
       "broken link \"/kindling/concepts/storage#the-daemon\" — target file does not exist",
+      "broken link \"/kindling/quickstart/without-claude-code\" — target file does not exist",
       "broken link \"/kindling/reference/config\" — target file does not exist",
       "broken link \"/kindling/reference/formats\" — target file does not exist"
     ],
@@ -390,7 +416,13 @@
       "broken link \"/kindling/reference/cli\" — target file does not exist"
     ],
     "docs/public/kindling/reference/crates.md": [
-      "broken link \"/kindling/adapters/custom\" — target file does not exist"
+      "broken link \"/kindling/adapters/custom\" — target file does not exist",
+      "broken link \"/kindling/reference/cli\" — target file does not exist"
+    ],
+    "docs/public/kindling/reference/integrations.md": [
+      "broken link \"/kindling/adapters/custom\" — target file does not exist",
+      "broken link \"/kindling/concepts/retrieval\" — target file does not exist",
+      "broken link \"/kindling/quickstart/without-claude-code\" — target file does not exist"
     ],
     "docs/public/kindling/reference/formats.md": [
       "broken link \"/kindling/concepts/observations\" — target file does not exist",

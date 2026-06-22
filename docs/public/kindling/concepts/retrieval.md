@@ -55,8 +55,11 @@ observations.
 ### Candidates
 
 Everything else is ranked full-text search over observation and summary content,
-backed by SQLite FTS5. Each candidate carries a relevance `score` and an
-optional `matchContext` snippet showing _why_ it matched.
+backed by SQLite FTS5. Each candidate carries a relevance `score` in the range
+**0.0–1.0** and an optional `matchContext` snippet showing _why_ it matched.
+
+Redacted observations are excluded by default. Programmatic retrieve calls can
+set `includeRedacted: true` to include them.
 
 ## Result shape
 
@@ -112,7 +115,7 @@ Pins (1):
 
 Candidates (2):
 
-1. 5f1c… (score: 1.83)
+1. 5f1c… (score: 0.83)
    Type: observation
    Content: auth middleware rejects valid tokens after the upgrade
    Time: 2026-06-20 10:31:04

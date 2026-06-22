@@ -102,8 +102,12 @@ const pipeline = new KindlingFlow(runTests, {
 });
 
 // Run it
+import { Kindling } from '@eddacraft/kindling';
+
+const kindling = new Kindling({ projectRoot: process.cwd() });
+
 const shared: KindlingNodeContext = {
-  store,
+  kindling,
   scopeIds: { repoId: 'my-app', sessionId: 'ci-run-1' },
 };
 
@@ -155,8 +159,9 @@ inferIntent('myCustomNode', [
 ## Confidence Tracking
 
 The `ConfidenceTracker` maintains a reliability score (0.0 to 1.0) for each node
-based on its history. This score is included in observation provenance and can
-influence retrieval ranking.
+based on its history. This score is included in observation provenance for
+explainability. Retrieval ranking itself is deterministic FTS + recency in
+`kindling-provider` — confidence metadata does not change search order.
 
 ```typescript
 import { ConfidenceTracker } from '@eddacraft/kindling-adapter-pocketflow';

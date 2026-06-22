@@ -13,9 +13,9 @@ your prompts, and subagent results — and injects relevant prior context when y
 start a new session in the same project.
 
 All data is stored in the project-scoped SQLite database described in
-[Storage](/kindling/concepts/storage). The plugin ships no build step and no npm
-dependencies: both the capture hooks and the `/memory` slash commands shell out
-to the `kindling` binary.
+[Storage](/kindling/concepts/storage). Capture hooks shell out to the `kindling`
+binary with no npm dependencies. The `/memory` slash-command scripts are thin
+Node.js wrappers (requires **Node.js >= 18** on `PATH`).
 
 ## Prerequisite: the `kindling` binary
 
@@ -78,6 +78,13 @@ You normally never configure these by hand — installing the plugin wires them
 up. The same binary can also be invoked as `kindling-hook <type>` (drop-in
 program name).
 
+## `recall` skill
+
+The plugin ships a **`recall` skill** that teaches Claude when and how to search
+prior memory proactively — before implementing features, on repeated errors, when
+you reference past work, or in unfamiliar code areas. Invoke it with
+`/kindling:recall <query>` for targeted deep searches.
+
 ## `/memory` slash commands
 
 The plugin adds slash commands for working with memory from inside a session:
@@ -104,7 +111,12 @@ The hooks honour these environment variables:
 
 See [Configuration](/kindling/reference/config) for the full list.
 
+`kindling init --claude-code` detects whether `~/.claude/` exists and prints
+plugin install next steps. It does **not** install or configure the plugin for
+you — use the marketplace commands above.
+
 ## Next
 
 - [OpenCode adapter →](/kindling/adapters/opencode)
+- [VS Code adapter →](/kindling/adapters/vscode)
 - [Retrieval — how injected context is ranked →](/kindling/concepts/retrieval)

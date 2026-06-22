@@ -1586,3 +1586,19 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** For public docs, prefer nearby prose over self-anchor links when
   the target is in the same short section.
 - **Follow-up:** none
+
+### 2026-06-22 — grok
+
+- **Task:** DOCSYNC-023 — full Kindling public docs refresh against upstream v0.2.0.
+- **Outcome:** Updated 16 existing pages, added 3 new pages (`without-claude-code`,
+  `integrations`, `vscode`), sidebar, APS tracking, and docs-check baseline entries;
+  `pnpm docs:check` and `pnpm aps:index:check` green.
+- **Worked:** Reviewing the sibling `kindling` repo first produced a precise
+  command-by-command delta (demo/browse, thin-client adapters, score range).
+- **Failed:** Initial `docs:check` failed on new Docusaurus route links until
+  baseline fingerprints were added for the new pages.
+- **Friction:** `/kindling/...` site routes are intentionally baselined as broken
+  filesystem paths in the repo link checker.
+- **Improvement:** When adding Kindling public pages, update
+  `docs/governance/docs-check.baseline.json` in the same PR.
+- **Follow-up:** none

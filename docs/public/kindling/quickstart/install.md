@@ -33,11 +33,22 @@ bare `kindling` name on crates.io is taken). The installed binary is still
 cargo install eddacraft-kindling
 ```
 
+### Homebrew (macOS / Linux)
+
+```bash
+brew install eddacraft/tap/kindling
+```
+
+Same tap as anvil: [eddacraft/homebrew-tap](https://github.com/eddacraft/homebrew-tap).
+On musl/Alpine Linux, use the install script instead.
+
 ### Node.js
 
 The canonical CLI is the Rust binary above. For Node applications, the npm
 package `@eddacraft/kindling` is a **thin client library** that talks to the
-same Rust daemon — it is not a global CLI:
+same Rust daemon — it is not a global CLI. At publish time it declares optional
+per-platform binary dependencies so `npm install` pulls a matching prebuilt
+`kindling` binary for your OS/arch:
 
 ```bash
 npm install @eddacraft/kindling
@@ -45,6 +56,8 @@ npm install @eddacraft/kindling
 
 > The older standalone CLI package `@eddacraft/kindling-cli` is **deprecated**;
 > use the prebuilt installer or `cargo install eddacraft-kindling` for the CLI.
+> The embedded TypeScript stack (`@eddacraft/kindling-core`, `-store-*`) is also
+> deprecated — use the thin client instead.
 
 ### Verify
 
@@ -87,7 +100,7 @@ memory never leaks between repositories. See
 | Flag            | Description                                                       |
 | --------------- | ----------------------------------------------------------------- |
 | `--db <path>`   | Use an explicit database path instead of the per-project default. |
-| `--claude-code` | Detect and (when available) configure Claude Code integration.    |
+| `--claude-code` | Detect `~/.claude/` and print plugin install next steps. Does not install the plugin. |
 | `--skip-db`     | Configure integration only; do not create the database.           |
 | `--json`        | Emit machine-readable JSON instead of human output.               |
 
@@ -101,6 +114,18 @@ kindling status
 
 `kindling status` reports the database path, size, and counts of capsules,
 observations, and pins.
+
+## Try before you init
+
+You can explore kindling without creating a project database:
+
+```bash
+kindling demo
+kindling search "JWT" --db ~/.kindling/demo/kindling.db
+kindling browse
+```
+
+See [Quickstart without Claude Code](/kindling/quickstart/without-claude-code).
 
 ## Next steps
 

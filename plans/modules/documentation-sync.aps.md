@@ -9,7 +9,7 @@ See: plans/aps-rules.md
 
 | ID      | Owner | Status      | Progress |
 | ------- | ----- | ----------- | -------- |
-| DOCSYNC | —     | In Progress | 11/16    |
+| DOCSYNC | —     | In Progress | 12/17    |
 
 ## Purpose
 
@@ -86,6 +86,7 @@ architecture / runbook freshness now live under DOCGOV.
 - DOCSYNC-013: Multi-language support documentation
 - DOCSYNC-021: Refresh docs for 0.3.2-beta/0.3.3-beta and current repo topology
 - DOCSYNC-022: Refresh current public docs for final release scope and 0.4.0-beta watch filtering
+- DOCSYNC-023: Full Kindling public docs refresh for upstream 0.2.0 (sibling `eddacraft/kindling`)
 
 ### Scanner / Two-Engine State (from RSCAN-008 council review, 2026-04-21)
 
@@ -103,9 +104,9 @@ architecture / runbook freshness now live under DOCGOV.
 | Phase                           | Total | Done | In Progress | Draft |
 | ------------------------------- | ----- | ---- | ----------- | ----- |
 | Rust CLI Migration              |    10 |    9 |           0 |     1 |
-| Future                          |     5 |    2 |           0 |     3 |
+| Future                          |     6 |    3 |           0 |     3 |
 | Scanner / Two-Engine State      |     1 |    0 |           0 |     1 |
-| **Total**                       |    16 |   11 |           0 |     5 |
+| **Total**                       |    17 |   12 |           0 |     5 |
 
 ### Item Detail
 
@@ -127,6 +128,7 @@ architecture / runbook freshness now live under DOCGOV.
 | DOCSYNC-016 | Draft  | Origin: operations-reviewer OPS-002 (RSCAN-008 council) |
 | DOCSYNC-021 | Done   | 0.3.2/0.3.3 public release docs, auth quickstarts, README and repo-topology docs refreshed |
 | DOCSYNC-022 | Done   | Final release-scope pass: current install/upgrade docs + 0.4.0-beta watch-filter docs refreshed |
+| DOCSYNC-023 | Done   | Full `docs/public/kindling/` refresh against upstream `eddacraft/kindling` v0.2.0: `demo`/`browse`, thin-client adapters, integrations matrix, VS Code adapter, 0.2 crate versions, retrieval score range, removed stale `list` flags |
 
 ### Reassigned items (out of DOCSYNC totals)
 

@@ -7,7 +7,12 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Quickstart',
       collapsed: false,
-      items: ['quickstart/install', 'quickstart/first-memory', 'quickstart/automatic-capture'],
+      items: [
+        'quickstart/without-claude-code',
+        'quickstart/install',
+        'quickstart/first-memory',
+        'quickstart/automatic-capture',
+      ],
     },
     {
       type: 'category',
@@ -26,6 +31,7 @@ const sidebars: SidebarsConfig = {
       collapsed: true,
       items: [
         'adapters/claude-code',
+        'adapters/vscode',
         'adapters/opencode',
         'adapters/pocketflow',
         'adapters/custom',
@@ -35,7 +41,13 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Reference',
       collapsed: true,
-      items: ['reference/cli', 'reference/config', 'reference/formats', 'reference/crates'],
+      items: [
+        'reference/cli',
+        'reference/config',
+        'reference/formats',
+        'reference/crates',
+        'reference/integrations',
+      ],
     },
   ],
 };

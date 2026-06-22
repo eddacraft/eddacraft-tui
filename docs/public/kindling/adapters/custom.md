@@ -2,13 +2,13 @@
 id: custom
 title: Custom Integrations
 description: Build your own integration on the Rust or TypeScript APIs.
-sidebar_position: 4
+sidebar_position: 5
 ---
 
 # Custom Integrations
 
 If your tool isn't covered by the [Claude Code](/kindling/adapters/claude-code),
-[OpenCode](/kindling/adapters/opencode), or
+[OpenCode](/kindling/adapters/opencode), [VS Code](/kindling/adapters/vscode), or
 [PocketFlow](/kindling/adapters/pocketflow) adapters, you can integrate directly
 against Kindling's APIs. There are three ways in, depending on your language and
 concurrency needs.
@@ -17,7 +17,7 @@ concurrency needs.
 | ------------------ | ------------------------------------------------------------------------------------------- |
 | **Rust, daemon**   | A Rust integration that should share a project safely with other tools. The default choice. |
 | **Rust, embedded** | A Rust process that wants in-process access with no daemon.                                 |
-| **TypeScript**     | A Node integration; builds on the `@eddacraft/kindling` package.                            |
+| **TypeScript**     | A Node integration over the `@eddacraft/kindling` thin client (daemon-backed).              |
 
 The shape is always the same: **open a capsule, append observations, retrieve,
 close with a summary.** See [Observations](/kindling/concepts/observations),
@@ -33,7 +33,7 @@ concurrent, multi-tool access.
 
 ```toml
 [dependencies]
-kindling-client = "0.1"
+kindling-client = "0.2"
 ```
 
 ```rust
@@ -82,71 +82,63 @@ client, so you can swap between embedded and daemon-backed access.
 
 ```toml
 [dependencies]
-kindling-service = "0.1"
+kindling-service = "0.2"
 ```
 
-## TypeScript
+## TypeScript (thin client)
 
-The `@eddacraft/kindling` package bundles the service, the SQLite store, and the
-local FTS provider.
+`@eddacraft/kindling` is a daemon-backed client — not an embedded SQLite stack.
+It auto-spawns `kindling serve` on first use and ships optional per-platform
+binary dependencies at publish time.
 
 ```bash
 npm install @eddacraft/kindling
 ```
 
 ```typescript
-import { randomUUID } from 'node:crypto';
-import {
-  KindlingService,
-  openDatabase,
-  SqliteKindlingStore,
-  LocalFtsProvider,
-} from '@eddacraft/kindling';
+import { Kindling } from '@eddacraft/kindling';
 
-const db = openDatabase({ path: './my-memory.db' });
-const store = new SqliteKindlingStore(db);
-const provider = new LocalFtsProvider(db);
-const service = new KindlingService({ store, provider });
+const kindling = new Kindling({
+  projectRoot: process.cwd(),
+});
 
 // Open a session capsule
-const capsule = service.openCapsule({
-  type: 'session',
+const capsule = await kindling.openCapsule({
+  kind: 'session',
   intent: 'debug authentication issue',
-  scopeIds: { sessionId: 'session-1', repoId: 'my-project' },
+  scopeIds: {
+    sessionId: 'session-1',
+    repoId: process.cwd(),
+  },
 });
 
 // Capture an observation
-service.appendObservation(
+await kindling.appendObservation(
   {
-    id: randomUUID(),
     kind: 'error',
     content: 'JWT validation failed: token expired',
-    provenance: { stack: 'Error: Token expired\n  at validateToken.ts:42' },
-    scopeIds: { sessionId: 'session-1' },
-    ts: Date.now(),
-    redacted: false,
+    provenance: { source: 'my-adapter', stack: 'Error at validate.ts:42' },
+    scopeIds: { sessionId: 'session-1', repoId: process.cwd() },
   },
-  { capsuleId: capsule.id }
+  { capsuleId: capsule.id },
 );
 
 // Retrieve
-const results = await service.retrieve({
+const results = await kindling.retrieve({
   query: 'authentication token',
-  scopeIds: { sessionId: 'session-1' },
+  scopeIds: { sessionId: 'session-1', repoId: process.cwd() },
 });
 
 // Close with a summary
-service.closeCapsule(capsule.id, {
+await kindling.closeCapsule(capsule.id, {
   generateSummary: true,
   summaryContent: 'Fixed JWT expiration check in token validation middleware',
 });
-
-db.close();
 ```
 
-Adapter authors who only need the domain types and service (for example to
-target the browser) can depend on the lighter `@eddacraft/kindling-core`
-instead.
+> **Deprecated:** `@eddacraft/kindling-core`, `@eddacraft/kindling-store-*`, and
+> the old in-process `KindlingService` / `SqliteKindlingStore` / `LocalFtsProvider`
+> stack. New adapters should use the thin `Kindling` client above.
 
 ## Guidelines
 
@@ -161,8 +153,11 @@ instead.
 - **Scope everything.** Set `sessionId`/`repoId` so retrieval can be narrowed.
 - **Close capsules with a summary** so the conclusion surfaces in the
   current-summary retrieval tier.
+- **Recover from crashes** by calling `getOpenCapsule(sessionId)` before opening
+  a new capsule for the same session.
 
 ## Next
 
 - [Which crate should I use? →](/kindling/reference/crates)
+- [Integrations matrix →](/kindling/reference/integrations)
 - [CLI reference →](/kindling/reference/cli)

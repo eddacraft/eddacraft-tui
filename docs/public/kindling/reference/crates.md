@@ -7,8 +7,9 @@ sidebar_position: 4
 
 # Crates
 
-Kindling is published to crates.io as a set of focused crates. Most people only
-need the binary (`cargo install eddacraft-kindling`) or the client.
+Kindling is published to crates.io as a set of focused crates (workspace
+**0.2.0**). Most people only need the binary (`cargo install eddacraft-kindling`)
+or the client.
 
 ## Which crate should I use?
 
@@ -42,7 +43,7 @@ pulls in `rusqlite`, so it stays light for embedding in other tools.
 
 ```toml
 [dependencies]
-kindling-client = "0.1"
+kindling-client = "0.2"
 ```
 
 ```rust
@@ -68,17 +69,42 @@ The client auto-spawns `kindling serve --daemonize` on first use if the daemon
 isn't already running, and checks its reported schema version against the
 version it was built against.
 
+### Durable emit with `SpooledClient`
+
+For integrations that must not lose observations when the daemon is briefly
+unavailable, enable the `spool` feature:
+
+```toml
+[dependencies]
+kindling-client = { version = "0.2", features = ["spool"] }
+```
+
+`SpooledClient` buffers failed writes to a local spool file and replays them when
+the daemon returns.
+
 ## Embedded, in-process
 
 When you want no daemon at all:
 
 ```toml
 [dependencies]
-kindling-service = "0.1"
+kindling-service = "0.2"
 ```
 
 `kindling-service` exposes the same method surface as the client, so code can
-move between embedded and daemon-backed access with minimal change.
+move between embedded and daemon-backed access with minimal change. Secret-like
+patterns in observation content are masked at the service boundary before
+persistence.
 
-See [Custom Integrations](/kindling/adapters/custom) for fuller examples and the
-v1 wire contract.
+## Node client
+
+`@eddacraft/kindling` is the thin TypeScript client over the same daemon. At
+publish time it declares optional per-platform binary dependencies so `npm
+install` pulls a matching prebuilt `kindling` binary for your OS/arch.
+
+See [Custom Integrations](/kindling/adapters/custom) for the adapter pattern.
+
+## Next
+
+- [Custom Integrations](/kindling/adapters/custom)
+- [CLI reference →](/kindling/reference/cli)

@@ -70,6 +70,42 @@ See [Observations](/kindling/concepts/observations#kinds) for what each means.
 | `observationIds` | string[] | Member observation IDs, in order.        |
 | `summaryId`      | string?  | Set when a summary is produced on close. |
 
+## Summary
+
+```json
+{
+  "id": "sum_1b2c...",
+  "content": "Fixed JWT expiration check in middleware",
+  "confidence": 0.85,
+  "evidenceRefs": ["9c20f3a1-..."],
+  "capsuleId": "cap_8a3f...",
+  "ts": 1750416600000,
+  "scopeIds": { "repoId": "my-project" }
+}
+```
+
+## Pin
+
+```json
+{
+  "id": "pin_4d5e...",
+  "targetType": "observation",
+  "targetId": "9c20f3a1-...",
+  "reason": "root cause — keep handy",
+  "createdAt": 1750416100000,
+  "expiresAt": null,
+  "scopeIds": { "sessionId": "session-1" }
+}
+```
+
+The CLI `--note` flag on `kindling pin` maps to `reason` in JSON.
+
+## Redacted content
+
+Forgotten observations keep their record but replace `content` with
+`[redacted]` and set `redacted: true`. They are excluded from exports and from
+retrieval unless `includeRedacted` is set on programmatic retrieve calls.
+
 ## Export bundle
 
 `kindling export` writes a bundle that round-trips through `kindling import`:

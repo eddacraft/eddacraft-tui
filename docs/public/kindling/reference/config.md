@@ -34,9 +34,27 @@ full directory layout.
 | `KINDLING_SOCK`        | `~/.kindling/kindling.sock` | Daemon Unix domain socket path (used by clients and hooks).                                                                                |
 | `KINDLING_REPO_ROOT`   | detected from cwd           | Override the project root used to pick the database. Applied only when the working directory is under it (prevents cross-project leakage). |
 | `KINDLING_MAX_CONTEXT` | `10`                        | Maximum recent observations injected on Claude Code `SessionStart`.                                                                        |
+| `KINDLING_BIN`         | `kindling` on `PATH`        | Override the daemon binary path used by npm/Rust clients and auto-spawn.                                                                   |
 
 `HOME` (or `USERPROFILE` on Windows) is used to locate the kindling home when no
 explicit path is given.
+
+### Installer overrides
+
+The [install script](https://github.com/eddacraft/kindling/blob/main/install.sh)
+honours these when set before running:
+
+| Variable               | Default        | Effect                          |
+| ---------------------- | -------------- | ------------------------------- |
+| `KINDLING_INSTALL_DIR` | `~/.local/bin` | Where the `kindling` binary lands |
+| `KINDLING_VERSION`     | latest release | Pin a specific release version  |
+| `KINDLING_REPO`        | `eddacraft/kindling` | GitHub repo for release assets |
+
+## Schema version
+
+Each database carries SQLite `user_version` **5** (FTS tokenizer: porter
+unicode61). Clients check the daemon's reported schema version on connect and
+refuse mismatched pairs.
 
 ## Daemon configuration
 
@@ -49,7 +67,11 @@ flags rather than environment:
 | `--idle-timeout <secs>`  | `1800` (30 minutes)         |
 | `--kindling-home <path>` | `~/.kindling`               |
 
-By convention the daemon also writes a PID file at `~/.kindling/kindling.pid`.
+By convention the daemon also writes:
+
+- a PID file at `~/.kindling/kindling.pid` (Unix)
+- a port file at `~/.kindling/kindling.port` when using the Windows TCP
+  loopback transport
 
 ## Choosing in-process vs daemon
 

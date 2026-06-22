@@ -12,35 +12,35 @@ development sessions. It maps OpenCode events to Kindling observations, manages
 session capsule lifecycles, and includes content filtering with automatic secret
 redaction.
 
-It is a TypeScript package that builds on `@eddacraft/kindling`:
+It is a TypeScript package over the `@eddacraft/kindling` thin client (daemon-backed):
 
 ```bash
-npm install @eddacraft/kindling-adapter-opencode
-# or: pnpm add @eddacraft/kindling-adapter-opencode
-# or: yarn add @eddacraft/kindling-adapter-opencode
-# or: bun add @eddacraft/kindling-adapter-opencode
+npm install @eddacraft/kindling-adapter-opencode @eddacraft/kindling
+# or: pnpm add @eddacraft/kindling-adapter-opencode @eddacraft/kindling
 ```
 
 ## Session Management
 
 The `SessionManager` handles the full session lifecycle: opening capsules on
 session start, mapping events to observations, and closing capsules on session
-end.
+end. All methods are **async** — they persist through the daemon client.
 
 ```typescript
 import { SessionManager } from '@eddacraft/kindling-adapter-opencode';
+import { Kindling } from '@eddacraft/kindling';
 
-const manager = new SessionManager(store);
+const kindling = new Kindling();
+const manager = new SessionManager(kindling);
 
 // Start a session — opens a capsule
-const context = manager.onSessionStart({
+const context = await manager.onSessionStart({
   sessionId: 'session-1',
   intent: 'Fix authentication bug',
   repoId: '/home/user/my-project',
 });
 
 // Process events as they arrive
-manager.onEvent({
+await manager.onEvent({
   type: 'command',
   sessionId: 'session-1',
   timestamp: Date.now(),
@@ -50,7 +50,7 @@ manager.onEvent({
 });
 
 // End the session — closes the capsule
-manager.onSessionEnd('session-1', {
+await manager.onSessionEnd('session-1', {
   summaryContent: 'Fixed JWT expiration handling',
 });
 ```
@@ -166,9 +166,11 @@ from within OpenCode sessions:
 - **status** — Show current session and capsule state
 - **search** — Query stored observations
 - **pin** — Mark important observations as non-evictable
-- **forget** — Remove observations or capsules
-- **export** — Export capsule contents
+
+`forget` and `export` memory commands are currently stubs in the adapter — use
+`kindling forget` and `kindling export` from the CLI for those operations.
 
 ## Next
 
 - [PocketFlow adapter →](/kindling/adapters/pocketflow)
+- [VS Code adapter →](/kindling/adapters/vscode)

@@ -75,10 +75,12 @@ isolated during search.
 ## Listing capsules
 
 ```bash
-kindling list capsules                 # all
-kindling list capsules --status open   # only open
+kindling list capsules
 kindling list capsules --repo ./my-project
 ```
+
+Filter open vs closed capsules in your shell or use `search` for ranked
+retrieval — `list` has no `--status` flag.
 
 ## Next
 

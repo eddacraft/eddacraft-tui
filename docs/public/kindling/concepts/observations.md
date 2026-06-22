@@ -86,7 +86,7 @@ observation can be globally visible or narrowly scoped:
 | `repoId`    | The repository it belongs to. |
 | `agentId`   | The agent that produced it.   |
 | `userId`    | The user it belongs to.       |
-| `taskId`    | The task it belongs to.       |
+| `taskId`    | The task it belongs to (carried for provenance; not a retrieval filter today). |
 
 Scope is how [search](/kindling/concepts/retrieval) is narrowed:
 
@@ -107,6 +107,10 @@ kindling log --capsule cap_8a3f… "found the root cause"
 
 Adapters capture them automatically — see
 [Automatic Capture](/kindling/quickstart/automatic-capture).
+
+The `kindling-service` layer masks common secret patterns in observation content
+before persistence. Adapter-level filters (for example in the OpenCode package)
+add a second line of defence.
 
 ## Forgetting
 

@@ -17,9 +17,19 @@ lifecycle, map its events to observations, and manage capsules for you.
 | Adapter                                       | Captures                                                                                                       |
 | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | [Claude Code](/kindling/adapters/claude-code) | Tool calls, file edits, commands, your prompts, subagent results — and injects prior context on session start. |
+| [VS Code](/kindling/adapters/vscode)          | File saves, manual selection logging, and editor session lifecycle.                                            |
 | [OpenCode](/kindling/adapters/opencode)       | Session events and tool activity, with secret redaction.                                                       |
 | [PocketFlow](/kindling/adapters/pocketflow)   | Workflow node lifecycle and outputs, with intent inference.                                                    |
-| [Custom](/kindling/adapters/custom)           | Build your own on the Rust or TypeScript APIs.                                                                 |
+| [Custom](/kindling/adapters/custom)           | Build your own on the Rust or TypeScript thin-client APIs.                                                     |
+
+See the full [integrations matrix](/kindling/reference/integrations).
+
+## No adapter yet?
+
+Use the standalone path — `kindling demo`, `kindling search`, and `kindling
+browse` work without any IDE or agent integration:
+
+[Quickstart without Claude Code](/kindling/quickstart/without-claude-code)
 
 ## The fastest path: Claude Code
 
@@ -50,7 +60,7 @@ Hooks **fail open** — if the binary is missing or errors, they no-op and never
 block your session.
 
 See the [Claude Code adapter](/kindling/adapters/claude-code) for the hook
-contract, the `/memory` slash commands, and configuration.
+contract, the `recall` skill, the `/memory` slash commands, and configuration.
 
 ## Capturing from your own code
 
@@ -64,4 +74,5 @@ through the SDK instead of an adapter:
 ## Next steps
 
 - [Claude Code adapter →](/kindling/adapters/claude-code)
+- [VS Code adapter →](/kindling/adapters/vscode)
 - [Core concepts: capsules →](/kindling/concepts/capsules)

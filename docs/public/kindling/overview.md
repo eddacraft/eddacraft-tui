@@ -54,15 +54,21 @@ It is built around three principles:
 
 ## A quick taste
 
-```bash
-# Initialise memory for this project
-kindling init
+No project setup required — load sample memory and search immediately:
 
-# Capture context as you work
+```bash
+curl -fsSL https://raw.githubusercontent.com/eddacraft/kindling/main/install.sh | sh
+kindling demo
+kindling search "JWT"
+kindling browse
+```
+
+Or initialise a project and capture manually:
+
+```bash
+kindling init
 kindling log "JWT tokens expire after 15 minutes, not 1 hour"
 kindling log --kind error "segfault in auth middleware after the upgrade"
-
-# Get it back later, ranked and explainable
 kindling search "JWT"
 ```
 
@@ -72,7 +78,7 @@ Search Results for: "JWT"
 
 Candidates (1):
 
-1. 5f1c… (score: 1.83)
+1. 5f1c… (score: 0.83)
    Type: observation
    Content: JWT tokens expire after 15 minutes, not 1 hour
    Time: 2026-06-20 10:31:04
@@ -106,7 +112,9 @@ and a Rust client all read and write the same per-project database.
 
 ## Where to go next
 
+- [Try without Claude Code →](/kindling/quickstart/without-claude-code)
 - [Install Kindling →](/kindling/quickstart/install)
 - [Your first memory →](/kindling/quickstart/first-memory)
+- [Integrations matrix →](/kindling/reference/integrations)
 - [Core concepts: observations →](/kindling/concepts/observations)
 - [CLI reference →](/kindling/reference/cli)

@@ -87,7 +87,7 @@ Current Summary:
 
 Candidates (1):
 
-1. 9c20… (score: 2.41)
+1. 9c20… (score: 0.41)
    Type: observation
    Content: unbounded cache in SessionStore
    Time: 2026-06-20 11:02:17
@@ -113,11 +113,13 @@ Remove it later with `kindling unpin <pin-id>`.
 ## List and inspect
 
 ```bash
-kindling list capsules                 # all capsules
-kindling list capsules --status open   # only open ones
-kindling list observations --kind error
+kindling list capsules
+kindling list observations
 kindling list pins
 ```
+
+Use `search` for ranked, scoped retrieval. The `list` command does not support
+`--status` or `--kind` filters.
 
 ## Export and import
 

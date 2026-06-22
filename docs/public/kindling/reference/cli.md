@@ -25,10 +25,16 @@ Most verbs also accept these shared options:
 | `--db <path>` | Database path. Overrides `KINDLING_DB_PATH` and the per-project default. |
 | `--json`      | Emit machine-readable JSON instead of human-readable output.             |
 
+### In-process vs daemon-backed verbs
+
+| In-process only | Daemon-backed (or `--via-daemon`) |
+| --------------- | --------------------------------- |
+| `init`, `status`, `list`, `export`, `import`, `demo`, `browse`, `serve` | `log`, `capsule`, `search`, `pin`, `unpin`, `forget` |
+
 ## init
 
 Initialise kindling: create the database (running migrations) and optionally
-configure Claude Code.
+check for Claude Code.
 
 ```bash
 kindling init [--db <path>] [--claude-code] [--skip-db] [--json]
@@ -37,9 +43,26 @@ kindling init [--db <path>] [--claude-code] [--skip-db] [--json]
 | Flag            | Description                                                       |
 | --------------- | ----------------------------------------------------------------- |
 | `--db <path>`   | Use an explicit database path instead of the per-project default. |
-| `--claude-code` | Detect and (when available) configure Claude Code integration.    |
-| `--skip-db`     | Configure integration only; do not create the database.           |
+| `--claude-code` | Detect `~/.claude/` and print next steps for the plugin. Does **not** install or configure the plugin automatically. |
+| `--skip-db`     | Skip database creation (integration check only).                  |
 | `--json`        | JSON output (`{ directory, database, claudeCode }`).              |
+
+## demo
+
+Load bundled sample memory so you can try search and browse without capturing
+anything first. Writes to `~/.kindling/demo/kindling.db` by default.
+
+```bash
+kindling demo [--reset] [--db <path>] [--json]
+```
+
+| Flag          | Description                                              |
+| ------------- | -------------------------------------------------------- |
+| `--reset`     | Replace an existing demo database before importing.      |
+| `--db <path>` | Use a custom database path instead of the demo default.  |
+| `--json`      | Emit machine-readable JSON with suggested next commands. |
+
+See [Quickstart without Claude Code](/kindling/quickstart/without-claude-code).
 
 ## log
 
@@ -93,7 +116,7 @@ kindling capsule close <id> [--summary <text>]
 ## status
 
 Show database status and statistics (path, size, and counts of capsules,
-observations, and pins).
+observations, summaries, pins, redacted items, and open capsules).
 
 ```bash
 kindling status [--db <path>] [--json]
@@ -115,6 +138,8 @@ kindling search <query> [--session <id>] [--repo <id>] [--max <n>]
 | `--repo <id>`    | Filter by repository ID.                    |
 | `--max <n>`      | Maximum candidates to return. Default `10`. |
 
+Candidate scores are normalised to the range **0.0–1.0**.
+
 ## list
 
 List entities.
@@ -130,8 +155,24 @@ kindling list <entity> [--session <id>] [--repo <id>] [--limit <n>]
 | `--repo <id>`    | Filter by repository ID.                   |
 | `--limit <n>`    | Maximum results. Default `20`.             |
 
-`list capsules` additionally accepts `--status open` / `--status closed` for
-filtering by lifecycle state.
+There is no `--status` or `--kind` filter on `list` today — filter results in
+your shell or use `search` for ranked retrieval.
+
+## browse
+
+Export the database to a self-contained offline HTML viewer and optionally open
+it in your default browser.
+
+```bash
+kindling browse [--output <path>] [--no-open] [--db <path>] [--json]
+```
+
+| Flag            | Description                                                       |
+| --------------- | ----------------------------------------------------------------- |
+| `--output <path>` | Output HTML path. Default: temp file `kindling-browse-<timestamp>.html`. |
+| `--no-open`     | Print the output path only; do not launch a browser.              |
+| `--db <path>`   | Database to export. Default: per-project resolution.              |
+| `--json`        | Emit `{ path }` as JSON.                                          |
 
 ## pin
 
@@ -146,7 +187,7 @@ kindling pin <type> <id> [--note <text>] [--ttl <ms>]
 | --------------- | -------------------------------------------------------------- |
 | `<type>`        | Target type: `observation` or `summary`.                       |
 | `<id>`          | Target ID.                                                     |
-| `--note <text>` | Note describing why this is pinned.                            |
+| `--note <text>` | Note describing why this is pinned (stored as `reason` in JSON). |
 | `--ttl <ms>`    | Time-to-live in **milliseconds**, after which the pin expires. |
 
 ## unpin
@@ -185,7 +226,8 @@ See [Formats](/kindling/reference/formats) for the bundle shape.
 
 ## import
 
-Import memory from an export file.
+Import memory from an export file. Conflicting IDs are skipped (`INSERT OR
+IGNORE`).
 
 ```bash
 kindling import <file> [--dry-run]
@@ -198,7 +240,8 @@ kindling import <file> [--dry-run]
 
 ## serve
 
-Start the kindling daemon (HTTP/1 over a Unix domain socket).
+Start the kindling daemon (HTTP/1 over a Unix domain socket on Linux/macOS; TCP
+loopback on Windows).
 
 ```bash
 kindling serve [--socket <path>] [--idle-timeout <secs>] [--kindling-home <path>] [--daemonize]

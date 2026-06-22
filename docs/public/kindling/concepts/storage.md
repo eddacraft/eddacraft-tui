@@ -8,8 +8,11 @@ sidebar_position: 4
 
 # Storage
 
-Kindling stores everything locally in SQLite. There is no server to run, no
-account, and no network dependency — memory is just files on your machine.
+Kindling stores everything locally in SQLite. There is no remote server, no
+account, and no network dependency — memory is just files on your machine. For
+concurrent multi-tool access, a local **daemon** (`kindling serve`) serialises
+writes and serves the same databases over a Unix domain socket (TCP loopback on
+Windows).
 
 ## Per-project databases
 
@@ -24,8 +27,9 @@ a stable hash of the project root path:
 │   │   └── kindling.db      # one project
 │   └── 9b1c0e7a42d1/
 │       └── kindling.db      # another project
-├── kindling.sock            # daemon Unix domain socket
-└── kindling.pid             # daemon PID file
+├── kindling.sock            # daemon Unix domain socket (Linux/macOS)
+├── kindling.pid             # daemon PID file
+└── kindling.port            # TCP port file (Windows loopback transport)
 ```
 
 The `<hash>` is the first 12 hex characters of the SHA-256 of the project root
