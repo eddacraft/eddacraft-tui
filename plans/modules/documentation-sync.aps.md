@@ -13,11 +13,14 @@ See: plans/aps-rules.md
 
 ## Purpose
 
-Keep the docs-site (Docusaurus, sourced from `docs/public/anvil/`) in sync with
-feature development: Rust CLI migration, web dashboard rollout, policy
-governance, and new language support. API reference generation (from the
-OpenAPI spec) is also in scope. Internal-doc governance — ADR process,
-architecture diagrams, runbook/as-built freshness — is owned by DOCGOV.
+Keep the public docs-site (Docusaurus) in sync with feature development. The
+**Anvil** section is sourced from `docs/public/anvil/`; **Kindling** and other
+sibling product sections mirrored under `docs/public/<product>/` are also in
+scope when refreshed to match upstream releases (see DOCSYNC-023). Rust CLI
+migration, web dashboard rollout, policy governance, and new language support
+are the primary Anvil drivers. API reference generation (from the OpenAPI spec)
+is also in scope. Internal-doc governance — ADR process, architecture diagrams,
+runbook/as-built freshness — is owned by DOCGOV.
 
 **Problem:** Documentation was polished for 0.1.0 but has no forward plan.
 The Rust CLI replaces the Node.js package entirely, the dashboard adds a new
@@ -26,9 +29,12 @@ documentation updates that aren't tracked.
 
 ## In Scope
 
-DOCSYNC scope is **public-facing Docusaurus content** sourced from
-`docs/public/anvil/`. Internal docs under `docs/guides/`, `plans/**`, and
-architecture / runbook freshness now live under DOCGOV.
+DOCSYNC scope is **public-facing Docusaurus content** under `docs/public/` —
+primarily the Anvil section (`docs/public/anvil/`), plus mirrored sibling
+sections (e.g. `docs/public/kindling/`) when a release refresh is scheduled
+here. Host wiring for those sections is tracked by
+[DSITE](public-docs-site-host.aps.md). Internal docs under `docs/guides/`,
+`plans/**`, and architecture / runbook freshness now live under DOCGOV.
 
 - **Rust migration docs:** Install, CI, troubleshooting updated for native binary
 - **Docs-site sync:** Keep public docs in sync with feature releases

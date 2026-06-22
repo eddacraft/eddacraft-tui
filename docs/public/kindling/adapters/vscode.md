@@ -26,7 +26,8 @@ extension's `KINDLING_BINARY` setting) to point at it.
 
 ## Installation
 
-Build from the [kindling repository](https://github.com/eddacraft/kindling/tree/main/packages/kindling-adapter-vscode),
+Build from the
+[kindling repository](https://github.com/eddacraft/kindling/tree/main/packages/kindling-adapter-vscode),
 package with `vsce`, then install the resulting `.vsix` from your editor's
 Extensions view (**Install from VSIX**). The same flow works in Cursor and
 Windsurf.

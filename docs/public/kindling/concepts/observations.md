@@ -80,12 +80,12 @@ the observation so you can always answer "where did this come from?".
 Every observation carries a `ScopeIds` record. All fields are optional, so an
 observation can be globally visible or narrowly scoped:
 
-| Field       | Meaning                       |
-| ----------- | ----------------------------- |
-| `sessionId` | The session that produced it. |
-| `repoId`    | The repository it belongs to. |
-| `agentId`   | The agent that produced it.   |
-| `userId`    | The user it belongs to.       |
+| Field       | Meaning                                                                        |
+| ----------- | ------------------------------------------------------------------------------ |
+| `sessionId` | The session that produced it.                                                  |
+| `repoId`    | The repository it belongs to.                                                  |
+| `agentId`   | The agent that produced it.                                                    |
+| `userId`    | The user it belongs to.                                                        |
 | `taskId`    | The task it belongs to (carried for provenance; not a retrieval filter today). |
 
 Scope is how [search](/kindling/concepts/retrieval) is narrowed:

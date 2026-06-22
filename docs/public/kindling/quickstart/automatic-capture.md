@@ -26,8 +26,8 @@ See the full [integrations matrix](/kindling/reference/integrations).
 
 ## No adapter yet?
 
-Use the standalone path — `kindling demo`, `kindling search`, and `kindling
-browse` work without any IDE or agent integration:
+Use the standalone path — `kindling demo`, `kindling search`, and
+`kindling browse` work without any IDE or agent integration:
 
 [Quickstart without Claude Code](/kindling/quickstart/without-claude-code)
 

@@ -8,10 +8,10 @@ sidebar_position: 5
 # Custom Integrations
 
 If your tool isn't covered by the [Claude Code](/kindling/adapters/claude-code),
-[OpenCode](/kindling/adapters/opencode), [VS Code](/kindling/adapters/vscode), or
-[PocketFlow](/kindling/adapters/pocketflow) adapters, you can integrate directly
-against Kindling's APIs. There are three ways in, depending on your language and
-concurrency needs.
+[OpenCode](/kindling/adapters/opencode), [VS Code](/kindling/adapters/vscode),
+or [PocketFlow](/kindling/adapters/pocketflow) adapters, you can integrate
+directly against Kindling's APIs. There are three ways in, depending on your
+language and concurrency needs.
 
 | Approach           | Use when                                                                                    |
 | ------------------ | ------------------------------------------------------------------------------------------- |
@@ -120,7 +120,7 @@ await kindling.appendObservation(
     provenance: { source: 'my-adapter', stack: 'Error at validate.ts:42' },
     scopeIds: { sessionId: 'session-1', repoId: process.cwd() },
   },
-  { capsuleId: capsule.id },
+  { capsuleId: capsule.id }
 );
 
 // Retrieve
@@ -137,8 +137,9 @@ await kindling.closeCapsule(capsule.id, {
 ```
 
 > **Deprecated:** `@eddacraft/kindling-core`, `@eddacraft/kindling-store-*`, and
-> the old in-process `KindlingService` / `SqliteKindlingStore` / `LocalFtsProvider`
-> stack. New adapters should use the thin `Kindling` client above.
+> the old in-process `KindlingService` / `SqliteKindlingStore` /
+> `LocalFtsProvider` stack. New adapters should use the thin `Kindling` client
+> above.
 
 ## Guidelines
 

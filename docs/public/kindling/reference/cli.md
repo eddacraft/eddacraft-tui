@@ -27,8 +27,12 @@ Most verbs also accept these shared options:
 
 ### In-process vs daemon-backed verbs
 
-| In-process only | Daemon-backed (or `--via-daemon`) |
-| --------------- | --------------------------------- |
+This table covers data-path verbs. Lifecycle hooks (`hook`) are documented
+separately — they always shell out from the binary and do not use the daemon
+routing table.
+
+| In-process only                                                         | Daemon-backed (or `--via-daemon`)                    |
+| ----------------------------------------------------------------------- | ---------------------------------------------------- |
 | `init`, `status`, `list`, `export`, `import`, `demo`, `browse`, `serve` | `log`, `capsule`, `search`, `pin`, `unpin`, `forget` |
 
 ## init
@@ -40,12 +44,12 @@ check for Claude Code.
 kindling init [--db <path>] [--claude-code] [--skip-db] [--json]
 ```
 
-| Flag            | Description                                                       |
-| --------------- | ----------------------------------------------------------------- |
-| `--db <path>`   | Use an explicit database path instead of the per-project default. |
+| Flag            | Description                                                                                                          |
+| --------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `--db <path>`   | Use an explicit database path instead of the per-project default.                                                    |
 | `--claude-code` | Detect `~/.claude/` and print next steps for the plugin. Does **not** install or configure the plugin automatically. |
-| `--skip-db`     | Skip database creation (integration check only).                  |
-| `--json`        | JSON output (`{ directory, database, claudeCode }`).              |
+| `--skip-db`     | Skip database creation (integration check only).                                                                     |
+| `--json`        | JSON output (`{ directory, database, claudeCode }`).                                                                 |
 
 ## demo
 
@@ -167,12 +171,12 @@ it in your default browser.
 kindling browse [--output <path>] [--no-open] [--db <path>] [--json]
 ```
 
-| Flag            | Description                                                       |
-| --------------- | ----------------------------------------------------------------- |
+| Flag              | Description                                                              |
+| ----------------- | ------------------------------------------------------------------------ |
 | `--output <path>` | Output HTML path. Default: temp file `kindling-browse-<timestamp>.html`. |
-| `--no-open`     | Print the output path only; do not launch a browser.              |
-| `--db <path>`   | Database to export. Default: per-project resolution.              |
-| `--json`        | Emit `{ path }` as JSON.                                          |
+| `--no-open`       | Print the output path only; do not launch a browser.                     |
+| `--db <path>`     | Database to export. Default: per-project resolution.                     |
+| `--json`          | Emit `{ path }` as JSON.                                                 |
 
 ## pin
 
@@ -183,12 +187,12 @@ evicted.
 kindling pin <type> <id> [--note <text>] [--ttl <ms>]
 ```
 
-| Argument / flag | Description                                                    |
-| --------------- | -------------------------------------------------------------- |
-| `<type>`        | Target type: `observation` or `summary`.                       |
-| `<id>`          | Target ID.                                                     |
+| Argument / flag | Description                                                      |
+| --------------- | ---------------------------------------------------------------- |
+| `<type>`        | Target type: `observation` or `summary`.                         |
+| `<id>`          | Target ID.                                                       |
 | `--note <text>` | Note describing why this is pinned (stored as `reason` in JSON). |
-| `--ttl <ms>`    | Time-to-live in **milliseconds**, after which the pin expires. |
+| `--ttl <ms>`    | Time-to-live in **milliseconds**, after which the pin expires.   |
 
 ## unpin
 
@@ -226,8 +230,8 @@ See [Formats](/kindling/reference/formats) for the bundle shape.
 
 ## import
 
-Import memory from an export file. Conflicting IDs are skipped (`INSERT OR
-IGNORE`).
+Import memory from an export file. Conflicting IDs are skipped
+(`INSERT OR IGNORE`).
 
 ```bash
 kindling import <file> [--dry-run]

@@ -25,14 +25,16 @@ curl -fsSL https://raw.githubusercontent.com/eddacraft/kindling/main/install.sh 
 ```
 
 The script detects your platform, verifies the release checksum, and installs
-`kindling` to `~/.local/bin` by default. Add that directory to your `PATH` if the
-installer asks you to.
+`kindling` to `~/.local/bin` by default. Add that directory to your `PATH` if
+the installer asks you to.
 
 Other install options:
 
 - **Cargo:** `cargo install eddacraft-kindling`
 - **npm (thin client + bundled binary):** `npm install @eddacraft/kindling`
-- **Homebrew (macOS/Linux):** `brew install eddacraft/tap/kindling` from the same [eddacraft/homebrew-tap](https://github.com/eddacraft/homebrew-tap) that ships anvil
+- **Homebrew (macOS/Linux):** `brew install eddacraft/tap/kindling` from the
+  same [eddacraft/homebrew-tap](https://github.com/eddacraft/homebrew-tap) that
+  ships anvil
 
 Full install guide: [Install](/kindling/quickstart/install)
 
@@ -121,10 +123,10 @@ runner, build a thin adapter over the Node client or Rust SDK. See
 
 ## What next?
 
-| Goal                                         | Where to go                                              |
-| -------------------------------------------- | -------------------------------------------------------- |
-| Core concepts (observations, capsules, pins) | [Capsules](/kindling/concepts/capsules)                  |
-| CLI reference                                | [CLI](/kindling/reference/cli)                           |
-| Automatic capture from your editor             | [VS Code adapter](/kindling/adapters/vscode)             |
-| OpenCode adapter                             | [OpenCode](/kindling/adapters/opencode)                  |
-| PocketFlow adapter                           | [PocketFlow](/kindling/adapters/pocketflow)              |
+| Goal                                         | Where to go                                  |
+| -------------------------------------------- | -------------------------------------------- |
+| Core concepts (observations, capsules, pins) | [Capsules](/kindling/concepts/capsules)      |
+| CLI reference                                | [CLI](/kindling/reference/cli)               |
+| Automatic capture from your editor           | [VS Code adapter](/kindling/adapters/vscode) |
+| OpenCode adapter                             | [OpenCode](/kindling/adapters/opencode)      |
+| PocketFlow adapter                           | [PocketFlow](/kindling/adapters/pocketflow)  |

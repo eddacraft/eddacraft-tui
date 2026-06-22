@@ -44,11 +44,11 @@ explicit path is given.
 The [install script](https://github.com/eddacraft/kindling/blob/main/install.sh)
 honours these when set before running:
 
-| Variable               | Default        | Effect                          |
-| ---------------------- | -------------- | ------------------------------- |
-| `KINDLING_INSTALL_DIR` | `~/.local/bin` | Where the `kindling` binary lands |
-| `KINDLING_VERSION`     | latest release | Pin a specific release version  |
-| `KINDLING_REPO`        | `eddacraft/kindling` | GitHub repo for release assets |
+| Variable               | Default              | Effect                            |
+| ---------------------- | -------------------- | --------------------------------- |
+| `KINDLING_INSTALL_DIR` | `~/.local/bin`       | Where the `kindling` binary lands |
+| `KINDLING_VERSION`     | latest release       | Pin a specific release version    |
+| `KINDLING_REPO`        | `eddacraft/kindling` | GitHub repo for release assets    |
 
 ## Schema version
 
@@ -70,8 +70,8 @@ flags rather than environment:
 By convention the daemon also writes:
 
 - a PID file at `~/.kindling/kindling.pid` (Unix)
-- a port file at `~/.kindling/kindling.port` when using the Windows TCP
-  loopback transport
+- a port file at `~/.kindling/kindling.port` when using the Windows TCP loopback
+  transport
 
 ## Choosing in-process vs daemon
 

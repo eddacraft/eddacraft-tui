@@ -12,7 +12,8 @@ development sessions. It maps OpenCode events to Kindling observations, manages
 session capsule lifecycles, and includes content filtering with automatic secret
 redaction.
 
-It is a TypeScript package over the `@eddacraft/kindling` thin client (daemon-backed):
+It is a TypeScript package over the `@eddacraft/kindling` thin client
+(daemon-backed):
 
 ```bash
 npm install @eddacraft/kindling-adapter-opencode @eddacraft/kindling

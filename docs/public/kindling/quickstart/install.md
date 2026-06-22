@@ -39,8 +39,9 @@ cargo install eddacraft-kindling
 brew install eddacraft/tap/kindling
 ```
 
-Same tap as anvil: [eddacraft/homebrew-tap](https://github.com/eddacraft/homebrew-tap).
-On musl/Alpine Linux, use the install script instead.
+Same tap as anvil:
+[eddacraft/homebrew-tap](https://github.com/eddacraft/homebrew-tap). On
+musl/Alpine Linux, use the install script instead.
 
 ### Node.js
 
@@ -97,12 +98,12 @@ memory never leaks between repositories. See
 
 ### Options
 
-| Flag            | Description                                                       |
-| --------------- | ----------------------------------------------------------------- |
-| `--db <path>`   | Use an explicit database path instead of the per-project default. |
+| Flag            | Description                                                                           |
+| --------------- | ------------------------------------------------------------------------------------- |
+| `--db <path>`   | Use an explicit database path instead of the per-project default.                     |
 | `--claude-code` | Detect `~/.claude/` and print plugin install next steps. Does not install the plugin. |
-| `--skip-db`     | Configure integration only; do not create the database.           |
-| `--json`        | Emit machine-readable JSON instead of human output.               |
+| `--skip-db`     | Configure integration only; do not create the database.                               |
+| `--json`        | Emit machine-readable JSON instead of human output.                                   |
 
 ## Verify the setup
 

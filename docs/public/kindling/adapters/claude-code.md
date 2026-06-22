@@ -81,8 +81,8 @@ program name).
 ## `recall` skill
 
 The plugin ships a **`recall` skill** that teaches Claude when and how to search
-prior memory proactively — before implementing features, on repeated errors, when
-you reference past work, or in unfamiliar code areas. Invoke it with
+prior memory proactively — before implementing features, on repeated errors,
+when you reference past work, or in unfamiliar code areas. Invoke it with
 `/kindling:recall <query>` for targeted deep searches.
 
 ## `/memory` slash commands

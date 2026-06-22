@@ -102,9 +102,9 @@ The CLI `--note` flag on `kindling pin` maps to `reason` in JSON.
 
 ## Redacted content
 
-Forgotten observations keep their record but replace `content` with
-`[redacted]` and set `redacted: true`. They are excluded from exports and from
-retrieval unless `includeRedacted` is set on programmatic retrieve calls.
+Forgotten observations keep their record but replace `content` with `[redacted]`
+and set `redacted: true`. They are excluded from exports and from retrieval
+unless `includeRedacted` is set on programmatic retrieve calls.
 
 ## Export bundle
 

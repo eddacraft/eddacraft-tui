@@ -8,8 +8,8 @@ sidebar_position: 4
 # Crates
 
 Kindling is published to crates.io as a set of focused crates (workspace
-**0.2.0**). Most people only need the binary (`cargo install eddacraft-kindling`)
-or the client.
+**0.2.0**). Most people only need the binary
+(`cargo install eddacraft-kindling`) or the client.
 
 ## Which crate should I use?
 
@@ -79,8 +79,8 @@ unavailable, enable the `spool` feature:
 kindling-client = { version = "0.2", features = ["spool"] }
 ```
 
-`SpooledClient` buffers failed writes to a local spool file and replays them when
-the daemon returns.
+`SpooledClient` buffers failed writes to a local spool file and replays them
+when the daemon returns.
 
 ## Embedded, in-process
 
@@ -99,8 +99,8 @@ persistence.
 ## Node client
 
 `@eddacraft/kindling` is the thin TypeScript client over the same daemon. At
-publish time it declares optional per-platform binary dependencies so `npm
-install` pulls a matching prebuilt `kindling` binary for your OS/arch.
+publish time it declares optional per-platform binary dependencies so
+`npm install` pulls a matching prebuilt `kindling` binary for your OS/arch.
 
 See [Custom Integrations](/kindling/adapters/custom) for the adapter pattern.
 
