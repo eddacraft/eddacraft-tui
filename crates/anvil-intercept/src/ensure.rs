@@ -662,7 +662,7 @@ impl DaemonProbe for PipeProbe {
         };
         let _ = connect_thread.join();
 
-        let mut client = match connect_outcome {
+        let client = match connect_outcome {
             Ok(client) => client,
             Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
                 return Liveness::Unreachable;
