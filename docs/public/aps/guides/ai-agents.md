@@ -7,12 +7,12 @@ sidebar_position: 2
 
 # AI Agent Guide
 
-| Type      | Authority | Owner   | Status | Freshness                                              |
-| --------- | --------- | ------- | ------ | ------------------------------------------------------ |
+| Type        | Authority | Owner   | Status | Freshness                                               |
+| ----------- | --------- | ------- | ------ | ------------------------------------------------------- |
 | Public docs | Derived   | DOCSYNC | Live   | Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0 |
 
-| Upstream                                                                  | Downstream           |
-| ------------------------------------------------------------------------- | -------------------- |
+| Upstream                                                                  | Downstream            |
+| ------------------------------------------------------------------------- | --------------------- |
 | [anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec) `docs/**` | APS docs-site section |
 
 This guide is for LLMs and AI agents working with APS. For human-readable
@@ -36,7 +36,8 @@ Is there a plans/ directory?
 1. **Never implement without a work item** — Create one first or ask
 2. **Always read before you write** — Check existing specs and code patterns
 3. **Work items are permission** — Status must be `Ready` before execution
-4. **Checkpoints over instructions** — Write what should exist, not how to create it
+4. **Checkpoints over instructions** — Write what should exist, not how to
+   create it
 5. **One work item at a time** — Complete and validate before moving to next
 
 ## Planning workflow
@@ -93,12 +94,12 @@ Install with `aps setup <tool>` or select during `aps init`.
 Tool-agnostic prompts ship in
 [anvil-plan-spec `docs/ai/prompting/`](https://github.com/EddaCraft/anvil-plan-spec/tree/main/docs/ai/prompting):
 
-| Task               | Prompt file          |
-| ------------------ | -------------------- |
-| Planning           | `index.prompt.md`    |
-| Module design      | `module.prompt.md`   |
-| Work item creation | `work-item.prompt.md`|
-| Execution          | `actions.prompt.md`  |
+| Task               | Prompt file           |
+| ------------------ | --------------------- |
+| Planning           | `index.prompt.md`     |
+| Module design      | `module.prompt.md`    |
+| Work item creation | `work-item.prompt.md` |
+| Execution          | `actions.prompt.md`   |
 
 ## aps-rules.md
 

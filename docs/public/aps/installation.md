@@ -1,18 +1,19 @@
 ---
 id: installation
 title: Installation
-description: Install the APS CLI, scaffold a project, and configure release channels.
+description:
+  Install the APS CLI, scaffold a project, and configure release channels.
 sidebar_position: 3
 ---
 
 # Installation
 
-| Type      | Authority | Owner   | Status | Freshness                                              |
-| --------- | --------- | ------- | ------ | ------------------------------------------------------ |
+| Type        | Authority | Owner   | Status | Freshness                                               |
+| ----------- | --------- | ------- | ------ | ------------------------------------------------------- |
 | Public docs | Derived   | DOCSYNC | Live   | Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0 |
 
-| Upstream                                                                  | Downstream           |
-| ------------------------------------------------------------------------- | -------------------- |
+| Upstream                                                                  | Downstream            |
+| ------------------------------------------------------------------------- | --------------------- |
 | [anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec) `docs/**` | APS docs-site section |
 
 ## Quick install (Linux/macOS)
@@ -88,14 +89,14 @@ scoop install https://raw.githubusercontent.com/EddaCraft/anvil-plan-spec/main/p
 
 ## Project config (`.aps/config.yml`)
 
-`aps init` writes the per-repo contract the global `aps` binary reads by
-walking up from the current directory:
+`aps init` writes the per-repo contract the global `aps` binary reads by walking
+up from the current directory:
 
 ```yaml
-cli_version: 0.4.0       # toolchain semver, stamped from the running binary
-plans_dir: plans/        # where plan documents live
-docs_dir: docs/          # where generated docs live
-tooling_root: .aps/      # APS-owned tooling root
+cli_version: 0.4.0 # toolchain semver, stamped from the running binary
+plans_dir: plans/ # where plan documents live
+docs_dir: docs/ # where generated docs live
+tooling_root: .aps/ # APS-owned tooling root
 ```
 
 - **`cli_version`** pins the toolchain a project expects

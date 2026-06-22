@@ -7,18 +7,20 @@ sidebar_position: 1
 
 # CLI Reference
 
-| Type      | Authority | Owner   | Status | Freshness                                              |
-| --------- | --------- | ------- | ------ | ------------------------------------------------------ |
+| Type        | Authority | Owner   | Status | Freshness                                               |
+| ----------- | --------- | ------- | ------ | ------------------------------------------------------- |
 | Public docs | Derived   | DOCSYNC | Live   | Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0 |
 
-| Upstream                                                                  | Downstream           |
-| ------------------------------------------------------------------------- | -------------------- |
+| Upstream                                                                  | Downstream            |
+| ------------------------------------------------------------------------- | --------------------- |
 | [anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec) `docs/**` | APS docs-site section |
 
 The `aps` CLI has two layers:
 
-- **Authoring** — scaffold projects, lint specs (`init`, `update`, `migrate`, `lint`)
-- **Orchestration** — drive work items through the lifecycle (`next`, `start`, `complete`, `graph`)
+- **Authoring** — scaffold projects, lint specs (`init`, `update`, `migrate`,
+  `lint`)
+- **Orchestration** — drive work items through the lifecycle (`next`, `start`,
+  `complete`, `graph`)
 
 You can ignore orchestration and edit markdown by hand — the CLI is additive.
 
@@ -49,8 +51,8 @@ Project-scoped commands resolve their plan root automatically. `aps` walks up
 from the current directory for the nearest `.aps/config.yml` and uses its
 `plans_dir`.
 
-Resolution order: explicit `--plans` / target → `APS_PLANS` env var →
-discovered `plans_dir` → `plans/`.
+Resolution order: explicit `--plans` / target → `APS_PLANS` env var → discovered
+`plans_dir` → `plans/`.
 
 Add `--strict` (or `APS_STRICT=1`) to fail on toolchain version drift:
 
@@ -79,13 +81,13 @@ stays the single source of truth.
 Draft ──→ Ready ──→ In Progress ──→ Complete
 ```
 
-| Command        | Transition                                              |
-| -------------- | ------------------------------------------------------- |
-| `aps next`     | Read-only                                               |
-| `aps start`    | Ready → In Progress (dependencies must be Complete)       |
-| `aps complete` | In Progress → Complete                                  |
-| `aps graph`    | Read-only                                               |
-| `aps audit`    | Read-only (executes Validation commands by default)     |
+| Command        | Transition                                          |
+| -------------- | --------------------------------------------------- |
+| `aps next`     | Read-only                                           |
+| `aps start`    | Ready → In Progress (dependencies must be Complete) |
+| `aps complete` | In Progress → Complete                              |
+| `aps graph`    | Read-only                                           |
+| `aps audit`    | Read-only (executes Validation commands by default) |
 
 ### `aps next`
 
@@ -200,9 +202,9 @@ name: Lint APS Documents
 
 on:
   push:
-    paths: ["plans/**/*.aps.md", "plans/**/*.actions.md"]
+    paths: ['plans/**/*.aps.md', 'plans/**/*.actions.md']
   pull_request:
-    paths: ["plans/**/*.aps.md", "plans/**/*.actions.md"]
+    paths: ['plans/**/*.aps.md', 'plans/**/*.actions.md']
 
 jobs:
   lint:

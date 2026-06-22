@@ -7,12 +7,12 @@ sidebar_position: 1
 
 # APS Taxonomy
 
-| Type      | Authority | Owner   | Status | Freshness                                              |
-| --------- | --------- | ------- | ------ | ------------------------------------------------------ |
+| Type        | Authority | Owner   | Status | Freshness                                               |
+| ----------- | --------- | ------- | ------ | ------------------------------------------------------- |
 | Public docs | Derived   | DOCSYNC | Live   | Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0 |
 
-| Upstream                                                                  | Downstream           |
-| ------------------------------------------------------------------------- | -------------------- |
+| Upstream                                                                  | Downstream            |
+| ------------------------------------------------------------------------- | --------------------- |
 | [anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec) `docs/**` | APS docs-site section |
 
 APS documents follow a hierarchy: **Index → Module → Work Item → Action Plan**.
@@ -72,9 +72,9 @@ Brief description of the project.
 
 ## Modules
 
-| Module                              | ID   | Owner | Status | Priority |
-| ----------------------------------- | ---- | ----- | ------ | -------- |
-| [auth](./modules/auth.aps.md)       | AUTH | @you  | Draft  | high     |
+| Module                                | ID   | Owner | Status | Priority |
+| ------------------------------------- | ---- | ----- | ------ | -------- |
+| [auth](./modules/auth.aps.md)         | AUTH | @you  | Draft  | high     |
 | [payments](./modules/payments.aps.md) | PAY  | @you  | Draft  | medium   |
 ```
 
@@ -119,14 +119,14 @@ Handles user authentication and authorisation.
 
 ### Module metadata fields
 
-| Field      | Required | Description                              |
-| ---------- | -------- | ---------------------------------------- |
-| ID         | Yes      | 2–6 uppercase chars (AUTH, PAY, CORE)    |
-| Owner      | No       | Person or team responsible               |
-| Priority   | No       | `low`, `medium`, `high`                  |
-| Status     | Yes      | `Draft`, `Ready`, `In Progress`, `Complete`, `Blocked` |
-| Packages   | No       | Affected packages (monorepo only)        |
-| Type       | No       | `Conductor` for crosscutting modules     |
+| Field    | Required | Description                                            |
+| -------- | -------- | ------------------------------------------------------ |
+| ID       | Yes      | 2–6 uppercase chars (AUTH, PAY, CORE)                  |
+| Owner    | No       | Person or team responsible                             |
+| Priority | No       | `low`, `medium`, `high`                                |
+| Status   | Yes      | `Draft`, `Ready`, `In Progress`, `Complete`, `Blocked` |
+| Packages | No       | Affected packages (monorepo only)                      |
+| Type     | No       | `Conductor` for crosscutting modules                   |
 
 ## Level 3: Work Item
 
@@ -134,24 +134,24 @@ A unit of authorised work — execution authority.
 
 ### Required fields
 
-| Field              | Description                              |
-| ------------------ | ---------------------------------------- |
-| ID                 | `PREFIX-NNN` (e.g., `AUTH-001`)          |
-| Intent             | What the work item aims to achieve       |
-| Expected Outcome   | Testable or observable result            |
-| Validation         | Command to verify completion             |
+| Field            | Description                        |
+| ---------------- | ---------------------------------- |
+| ID               | `PREFIX-NNN` (e.g., `AUTH-001`)    |
+| Intent           | What the work item aims to achieve |
+| Expected Outcome | Testable or observable result      |
+| Validation       | Command to verify completion       |
 
 ### Optional fields
 
-| Field        | Description                                    |
-| ------------ | ---------------------------------------------- |
-| Status       | `Draft`, `Ready`, `In Progress`, `Complete`    |
-| Dependencies | Other work item IDs that must complete first   |
-| Confidence   | `low`, `medium` (default), `high`              |
-| Scope        | What will change                               |
-| Non-scope    | What will not change                           |
-| Files        | Best-effort list of affected files             |
-| Risks        | Potential risks                                |
+| Field        | Description                                  |
+| ------------ | -------------------------------------------- |
+| Status       | `Draft`, `Ready`, `In Progress`, `Complete`  |
+| Dependencies | Other work item IDs that must complete first |
+| Confidence   | `low`, `medium` (default), `high`            |
+| Scope        | What will change                             |
+| Non-scope    | What will not change                         |
+| Files        | Best-effort list of affected files           |
+| Risks        | Potential risks                              |
 
 ### Work item ID format
 
@@ -161,8 +161,8 @@ Pattern: `{PREFIX}-{NNN}`
 - `PAY-001` — Payments
 - `CORE-001` — Core/shared
 
-PREFIX is 1–10 uppercase alphanumeric characters. NNN is a 3-digit
-zero-padded number.
+PREFIX is 1–10 uppercase alphanumeric characters. NNN is a 3-digit zero-padded
+number.
 
 ## Level 4: Action Plan
 
@@ -179,20 +179,18 @@ An optional execution breakdown for complex work items.
 ```markdown
 # Action Plan: AUTH-001
 
-| Field     | Value                              |
-| --------- | ---------------------------------- |
-| Work Item | AUTH-001 — Login endpoint          |
-| Status    | Draft                              |
+| Field     | Value                     |
+| --------- | ------------------------- |
+| Work Item | AUTH-001 — Login endpoint |
+| Status    | Draft                     |
 
 ## Actions
 
 ### Action 1 — Create login endpoint
 
-**Checkpoint**
-Endpoint accepts POST /auth/login
+**Checkpoint** Endpoint accepts POST /auth/login
 
-**Validate**
-`npm test -- auth.login.test.ts`
+**Validate** `npm test -- auth.login.test.ts`
 ```
 
 ### Action rules

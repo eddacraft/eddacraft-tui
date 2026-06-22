@@ -9,12 +9,12 @@ sidebar_position: 1
 
 # Anvil Plan Specification (APS)
 
-| Type      | Authority | Owner   | Status | Freshness                                              |
-| --------- | --------- | ------- | ------ | ------------------------------------------------------ |
+| Type        | Authority | Owner   | Status | Freshness                                               |
+| ----------- | --------- | ------- | ------ | ------------------------------------------------------- |
 | Public docs | Derived   | DOCSYNC | Live   | Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0 |
 
-| Upstream                                                                  | Downstream                                      |
-| ------------------------------------------------------------------------- | ----------------------------------------------- |
+| Upstream                                                                  | Downstream                                       |
+| ------------------------------------------------------------------------- | ------------------------------------------------ |
 | [anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec) `docs/**` | `apps/docs-site`, `apps/docs-public` APS section |
 
 APS is an open-source, markdown-native specification for defining development
@@ -26,12 +26,12 @@ executors by giving them authorised, bounded, dependency-aware work items.
 
 ## What APS solves
 
-| Pain                    | Without APS                                     | With APS                                              |
-| ----------------------- | ----------------------------------------------- | ----------------------------------------------------- |
-| **Scattered specs**     | Specs live in Notion, Linear, or a chat thread    | Specs live in `plans/`, versioned with your code      |
-| **Tool lock-in**        | Each AI tool needs its own ruleset and re-brief   | One spec works everywhere — every agent reads markdown |
-| **Agent drift**         | Agents wander off scope or run out of context     | Work items are authorised, bounded, and dependency-aware |
-| **No decision history** | No record of why a decision was made              | Decisions, designs, and learnings sit beside the code |
+| Pain                    | Without APS                                     | With APS                                                 |
+| ----------------------- | ----------------------------------------------- | -------------------------------------------------------- |
+| **Scattered specs**     | Specs live in Notion, Linear, or a chat thread  | Specs live in `plans/`, versioned with your code         |
+| **Tool lock-in**        | Each AI tool needs its own ruleset and re-brief | One spec works everywhere — every agent reads markdown   |
+| **Agent drift**         | Agents wander off scope or run out of context   | Work items are authorised, bounded, and dependency-aware |
+| **No decision history** | No record of why a decision was made            | Decisions, designs, and learnings sit beside the code    |
 
 It is just markdown. No vendor lock-in. No daemons. No proprietary formats.
 
@@ -51,9 +51,9 @@ graph TD
 | **Work Item**   | Single coherent change with validation       | Yes — execution authority |
 | **Action Plan** | Ordered actions with checkpoints             | Yes — granular execution  |
 
-You author top-down (Index → Module → Work Items). You execute bottom-up
-(Work Item → Action Plan when needed). Action plans are optional; small items
-do not need them.
+You author top-down (Index → Module → Work Items). You execute bottom-up (Work
+Item → Action Plan when needed). Action plans are optional; small items do not
+need them.
 
 ## Core principles
 
@@ -112,10 +112,10 @@ Then run `aps init` for the interactive setup wizard. See
 
 ## How APS differs from related formats
 
-| Format          | Best at                                           | Where APS differs                                                                 |
-| --------------- | ------------------------------------------------- | --------------------------------------------------------------------------------- |
-| **BMAD-METHOD** | Persona-driven workflows (PM, Architect, Dev, QA) | APS has no persona agents — plain markdown any tool reads                         |
-| **Spec Kit**    | Constitution + slash commands                     | APS is not tied to one vendor; same spec works in any agent or chat window        |
+| Format          | Best at                                           | Where APS differs                                                                |
+| --------------- | ------------------------------------------------- | -------------------------------------------------------------------------------- |
+| **BMAD-METHOD** | Persona-driven workflows (PM, Architect, Dev, QA) | APS has no persona agents — plain markdown any tool reads                        |
+| **Spec Kit**    | Constitution + slash commands                     | APS is not tied to one vendor; same spec works in any agent or chat window       |
 | **OpenSpec**    | Lightweight change proposals                      | APS adds module boundaries, action plans, and orchestration CLI (`next`/`start`) |
 
 ## Project structure

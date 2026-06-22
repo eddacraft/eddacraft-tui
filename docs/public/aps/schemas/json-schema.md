@@ -7,12 +7,12 @@ sidebar_position: 1
 
 # Document Structure
 
-| Type      | Authority | Owner   | Status | Freshness                                              |
-| --------- | --------- | ------- | ------ | ------------------------------------------------------ |
+| Type        | Authority | Owner   | Status | Freshness                                               |
+| ----------- | --------- | ------- | ------ | ------------------------------------------------------- |
 | Public docs | Derived   | DOCSYNC | Live   | Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0 |
 
-| Upstream                                                                  | Downstream           |
-| ------------------------------------------------------------------------- | -------------------- |
+| Upstream                                                                  | Downstream            |
+| ------------------------------------------------------------------------- | --------------------- |
 | [anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec) `docs/**` | APS docs-site section |
 
 APS is markdown-native. There is no separate binary format — documents are
@@ -20,14 +20,14 @@ validated by structure and field conventions enforced by `aps lint`.
 
 ## Document types
 
-| Type        | File pattern              | Executable? | Key sections                          |
-| ----------- | ------------------------- | ----------- | --------------------------------------- |
-| Index       | `index.aps.md`            | No          | Overview, Modules, Milestones           |
-| Module      | `modules/*.aps.md`        | If Ready    | Purpose, Work Items                     |
-| Action Plan | `execution/*.actions.md`  | Yes         | Actions with checkpoints                |
-| Issues      | `issues.md`               | No          | Issues (ISS-NNN), Questions (Q-NNN)     |
-| Release     | `releases/v*.md`          | No          | Release Theme, What Ships               |
-| Design      | `designs/*.design.md`     | No          | Problem, Approach, Decisions            |
+| Type        | File pattern             | Executable? | Key sections                        |
+| ----------- | ------------------------ | ----------- | ----------------------------------- |
+| Index       | `index.aps.md`           | No          | Overview, Modules, Milestones       |
+| Module      | `modules/*.aps.md`       | If Ready    | Purpose, Work Items                 |
+| Action Plan | `execution/*.actions.md` | Yes         | Actions with checkpoints            |
+| Issues      | `issues.md`              | No          | Issues (ISS-NNN), Questions (Q-NNN) |
+| Release     | `releases/v*.md`         | No          | Release Theme, What Ships           |
+| Design      | `designs/*.design.md`    | No          | Problem, Approach, Decisions        |
 
 ## Index structure
 
@@ -35,16 +35,18 @@ validated by structure and field conventions enforced by `aps lint`.
 # Plan Title
 
 ## Overview
+
 [One paragraph]
 
 ## Problem & Success Criteria
-**Problem:** [...]
-**Success Criteria:**
+
+**Problem:** [...] **Success Criteria:**
+
 - [ ] [...]
 
 ## Modules
-| Module | ID | Owner | Status | Priority | Dependencies |
-| [...]  |    |       |        |          |              |
+
+| Module | ID | Owner | Status | Priority | Dependencies | | [...] | | | | | |
 ```
 
 Required sections (lint E004): `## Modules`
@@ -59,20 +61,25 @@ Required sections (lint E004): `## Modules`
 | AUTH | @you  | high     | Draft  |
 
 ## Purpose
+
 [Why this module exists]
 
 ## In Scope
+
 - [...]
 
 ## Out of Scope _(optional)_
+
 - [...]
 
 ## Interfaces _(optional)_
-**Depends on:** [...]
-**Exposes:** [...]
+
+**Depends on:** [...] **Exposes:** [...]
 
 ## Work Items
+
 ### AUTH-001: [Title]
+
 - **Intent:** [...]
 - **Expected Outcome:** [...]
 - **Validation:** `[command]`
@@ -85,26 +92,26 @@ Required sections (lint E001, E002, E003): metadata table, `## Purpose`,
 
 ### Required
 
-| Field              | Format   | Description                         |
-| ------------------ | -------- | ----------------------------------- |
-| ID                 | `PREFIX-NNN` | Unique identifier               |
-| Intent             | string   | One-sentence outcome                |
-| Expected Outcome   | string   | Testable or observable result       |
-| Validation         | string   | Command or condition to verify      |
+| Field            | Format       | Description                    |
+| ---------------- | ------------ | ------------------------------ |
+| ID               | `PREFIX-NNN` | Unique identifier              |
+| Intent           | string       | One-sentence outcome           |
+| Expected Outcome | string       | Testable or observable result  |
+| Validation       | string       | Command or condition to verify |
 
 ### Optional
 
-| Field        | Format                              | Description                    |
-| ------------ | ----------------------------------- | ------------------------------ |
-| Status       | enum                                | See status vocabulary below      |
-| Dependencies | list of IDs                         | Upstream work items            |
-| Confidence   | `low` \| `medium` \| `high`         | Uncertainty level              |
-| Scope        | string                              | What will change               |
-| Non-scope    | string                              | What will not change           |
-| Files        | list of paths                       | Best-effort affected files       |
-| Risks        | list                                | Potential risks                  |
-| Learning     | string                              | Captured by `aps complete`       |
-| Packages     | list                                | Affected packages (monorepo)   |
+| Field        | Format                      | Description                  |
+| ------------ | --------------------------- | ---------------------------- |
+| Status       | enum                        | See status vocabulary below  |
+| Dependencies | list of IDs                 | Upstream work items          |
+| Confidence   | `low` \| `medium` \| `high` | Uncertainty level            |
+| Scope        | string                      | What will change             |
+| Non-scope    | string                      | What will not change         |
+| Files        | list of paths               | Best-effort affected files   |
+| Risks        | list                        | Potential risks              |
+| Learning     | string                      | Captured by `aps complete`   |
+| Packages     | list                        | Affected packages (monorepo) |
 
 ### Status vocabulary
 
@@ -120,26 +127,22 @@ dependency checks)
 ```markdown
 # Action Plan: AUTH-001
 
-| Field     | Value                    |
-| --------- | ------------------------ |
+| Field     | Value                     |
+| --------- | ------------------------- |
 | Work Item | AUTH-001 — Login endpoint |
-| Status    | Draft                    |
+| Status    | Draft                     |
 
 ## Actions
 
 ### Action 1 — [Verb] [target]
 
-**Purpose**
-[Why this action exists]
+**Purpose** [Why this action exists]
 
-**Produces**
-[Concrete artefacts]
+**Produces** [Concrete artefacts]
 
-**Checkpoint**
-[Observable state — max ~12 words]
+**Checkpoint** [Observable state — max ~12 words]
 
-**Validate**
-`[command]` _(optional)_
+**Validate** `[command]` _(optional)_
 
 **Wave** 1 _(optional)_
 ```
@@ -186,20 +189,20 @@ Required sections (lint E010, E011): `## Issues`, `## Questions`
 | Status | Shipped    |
 
 ## Release Theme
+
 [One paragraph]
 
 ## What Ships
-| Capability | Module | Work Items |
-| [...]      |        |            |
+
+| Capability | Module | Work Items | | [...] | | |
 ```
 
 Required sections (lint R003, R004): `## Release Theme`, `## What Ships`
 
 ## Anvil repository extension
 
-The Anvil product repository uses a richer operating-model lifecycle for
-active planning. This is repository guidance, not the portable APS package
-contract:
+The Anvil product repository uses a richer operating-model lifecycle for active
+planning. This is repository guidance, not the portable APS package contract:
 
 ```text
 Draft → Proposed → Ready → In Progress → Merged → Released/Shipped → Complete

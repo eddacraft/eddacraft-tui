@@ -1,18 +1,19 @@
 ---
 id: terminology
 title: Terminology
-description: APS vocabulary — work items, action plans, actions, and checkpoints.
+description:
+  APS vocabulary — work items, action plans, actions, and checkpoints.
 sidebar_position: 5
 ---
 
 # APS Terminology
 
-| Type      | Authority | Owner   | Status | Freshness                                              |
-| --------- | --------- | ------- | ------ | ------------------------------------------------------ |
+| Type        | Authority | Owner   | Status | Freshness                                               |
+| ----------- | --------- | ------- | ------ | ------------------------------------------------------- |
 | Public docs | Derived   | DOCSYNC | Live   | Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0 |
 
-| Upstream                                                                  | Downstream           |
-| ------------------------------------------------------------------------- | -------------------- |
+| Upstream                                                                  | Downstream            |
+| ------------------------------------------------------------------------- | --------------------- |
 | [anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec) `docs/**` | APS docs-site section |
 
 This page defines the words APS uses and what they mean.
@@ -45,14 +46,14 @@ Implementation emerges from patterns and agent judgement.
 
 ## Hierarchy
 
-| Layer       | Purpose             | You write                          | You do not write       |
-| ----------- | ------------------- | ---------------------------------- | ---------------------- |
-| Index       | Plan overview       | Modules, milestones, risks         | Implementation detail  |
-| Module      | Bounded work area   | Interfaces, boundaries, work items | Code snippets          |
-| Work Item   | Outcome unit        | Intent, outcome, validation        | How to implement       |
-| Action Plan | Execution breakdown | Actions, checkpoints               | Tutorials              |
-| Action      | Unit of work        | Purpose, produces, checkpoint      | Code structure         |
-| Checkpoint  | Verification        | Observable state                   | Implementation steps   |
+| Layer       | Purpose             | You write                          | You do not write      |
+| ----------- | ------------------- | ---------------------------------- | --------------------- |
+| Index       | Plan overview       | Modules, milestones, risks         | Implementation detail |
+| Module      | Bounded work area   | Interfaces, boundaries, work items | Code snippets         |
+| Work Item   | Outcome unit        | Intent, outcome, validation        | How to implement      |
+| Action Plan | Execution breakdown | Actions, checkpoints               | Tutorials             |
+| Action      | Unit of work        | Purpose, produces, checkpoint      | Code structure        |
+| Checkpoint  | Verification        | Observable state                   | Implementation steps  |
 
 ## Work items
 
@@ -106,17 +107,13 @@ Each action represents a coherent unit of execution, not a tutorial.
 ```markdown
 ## Action 1 — Create authentication middleware
 
-**Purpose**
-Validate requests and attach user context.
+**Purpose** Validate requests and attach user context.
 
-**Produces**
-Auth middleware module.
+**Produces** Auth middleware module.
 
-**Checkpoint**
-Auth middleware validates requests, attaches user to context
+**Checkpoint** Auth middleware validates requests, attaches user to context
 
-**Validate**
-`npm test -- auth.middleware.test.ts`
+**Validate** `npm test -- auth.middleware.test.ts`
 ```
 
 ### Checkpoint rules
@@ -133,9 +130,9 @@ Auth middleware validates requests, attaches user to context
 
 Most modules are **vertical** — they own a single domain end-to-end.
 
-A **conductor** (crosscutting) module coordinates work _across_ vertical
-modules — release cuts, security audits, perf budgets. Mark it with
-`Type: Conductor` in the metadata table. See
+A **conductor** (crosscutting) module coordinates work _across_ vertical modules
+— release cuts, security audits, perf budgets. Mark it with `Type: Conductor` in
+the metadata table. See
 [Conductor modules](https://github.com/EddaCraft/anvil-plan-spec/blob/main/docs/conductor-modules.md)
 in the source repository.
 

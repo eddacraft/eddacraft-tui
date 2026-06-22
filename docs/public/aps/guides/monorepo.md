@@ -7,12 +7,12 @@ sidebar_position: 1
 
 # APS in Monorepos
 
-| Type      | Authority | Owner   | Status | Freshness                                              |
-| --------- | --------- | ------- | ------ | ------------------------------------------------------ |
+| Type        | Authority | Owner   | Status | Freshness                                               |
+| ----------- | --------- | ------- | ------ | ------------------------------------------------------- |
 | Public docs | Derived   | DOCSYNC | Live   | Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0 |
 
-| Upstream                                                                  | Downstream           |
-| ------------------------------------------------------------------------- | -------------------- |
+| Upstream                                                                  | Downstream            |
+| ------------------------------------------------------------------------- | --------------------- |
 | [anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec) `docs/**` | APS docs-site section |
 
 This guide explains how to use APS effectively in monorepos with multiple
@@ -85,9 +85,9 @@ template.
 ## Module package tags
 
 ```markdown
-| ID   | Owner | Priority | Status | Packages          |
-| ---- | ----- | -------- | ------ | ----------------- |
-| AUTH | @josh | high     | Ready  | core, api         |
+| ID   | Owner | Priority | Status | Packages  |
+| ---- | ----- | -------- | ------ | --------- |
+| AUTH | @josh | high     | Ready  | core, api |
 ```
 
 Work items can override the module default:

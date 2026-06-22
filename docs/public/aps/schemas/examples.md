@@ -7,12 +7,12 @@ sidebar_position: 2
 
 # Schema Examples
 
-| Type      | Authority | Owner   | Status | Freshness                                              |
-| --------- | --------- | ------- | ------ | ------------------------------------------------------ |
+| Type        | Authority | Owner   | Status | Freshness                                               |
+| ----------- | --------- | ------- | ------ | ------------------------------------------------------- |
 | Public docs | Derived   | DOCSYNC | Live   | Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0 |
 
-| Upstream                                                                  | Downstream           |
-| ------------------------------------------------------------------------- | -------------------- |
+| Upstream                                                                  | Downstream            |
+| ------------------------------------------------------------------------- | --------------------- |
 | [anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec) `docs/**` | APS docs-site section |
 
 Example APS documents showing various patterns and structures.
@@ -61,11 +61,11 @@ An online store with payments and notifications.
 
 ## Modules
 
-| Module                                        | ID   | Owner | Status | Priority |
-| --------------------------------------------- | ---- | ----- | ------ | -------- |
-| [auth](./modules/auth.aps.md)                 | AUTH | @you  | Ready  | high     |
-| [payments](./modules/payments.aps.md)         | PAY  | @you  | Draft  | high     |
-| [notifications](./modules/notifications.aps.md) | NOTIF | @you | Draft  | medium   |
+| Module                                          | ID    | Owner | Status | Priority |
+| ----------------------------------------------- | ----- | ----- | ------ | -------- |
+| [auth](./modules/auth.aps.md)                   | AUTH  | @you  | Ready  | high     |
+| [payments](./modules/payments.aps.md)           | PAY   | @you  | Draft  | high     |
+| [notifications](./modules/notifications.aps.md) | NOTIF | @you  | Draft  | medium   |
 ```
 
 ## Module with work items
@@ -92,14 +92,16 @@ User authentication and session management.
 
 - **Status:** Complete: 2026-05-12
 - **Intent:** Users authenticate with email and password
-- **Expected Outcome:** POST /auth/login returns JWT for valid credentials; 401 for invalid
+- **Expected Outcome:** POST /auth/login returns JWT for valid credentials; 401
+  for invalid
 - **Validation:** `npm test -- auth.login.test.ts`
 
 ### AUTH-002: Registration
 
 - **Status:** Ready
 - **Intent:** New users create accounts with email and password
-- **Expected Outcome:** POST /auth/register creates user; rejects duplicate email
+- **Expected Outcome:** POST /auth/register creates user; rejects duplicate
+  email
 - **Validation:** `npm test -- auth.register.test.ts`
 - **Dependencies:** AUTH-001
 ```
@@ -132,10 +134,10 @@ INV-001 ─────────────────┘
 ```markdown
 # Action Plan: AUTH-001
 
-| Field     | Value                    |
-| --------- | ------------------------ |
+| Field     | Value                     |
+| --------- | ------------------------- |
 | Work Item | AUTH-001 — Login endpoint |
-| Status    | In Progress              |
+| Status    | In Progress               |
 
 ## Waves
 
@@ -148,25 +150,21 @@ INV-001 ─────────────────┘
 
 ### Action 1 — Create login endpoint
 
-**Checkpoint**
-Endpoint accepts POST /auth/login
+**Checkpoint** Endpoint accepts POST /auth/login
 
-**Validate**
-`npm test -- auth.login.test.ts`
+**Validate** `npm test -- auth.login.test.ts`
 
 **Wave** 1
 
 ### Action 2 — Validate request body
 
-**Checkpoint**
-Invalid requests return 400 with field errors
+**Checkpoint** Invalid requests return 400 with field errors
 
 **Wave** 1
 
 ### Action 3 — Verify credentials
 
-**Checkpoint**
-Valid credentials return JWT; invalid return 401
+**Checkpoint** Valid credentials return JWT; invalid return 401
 
 **Wave** 2
 ```
@@ -190,15 +188,19 @@ Valid credentials return JWT; invalid return 401
 
 ```markdown
 # Single command
+
 - **Validation:** `npm test`
 
 # Multiple commands
+
 - **Validation:** `npm run build && npm test && npm run lint`
 
 # With environment
+
 - **Validation:** `NODE_ENV=test npm test src/auth/`
 
 # Script reference
+
 - **Validation:** `npm run test:auth`
 ```
 

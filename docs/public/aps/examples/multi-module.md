@@ -7,12 +7,12 @@ sidebar_position: 2
 
 # Multi-Module Plan
 
-| Type      | Authority | Owner   | Status | Freshness                                              |
-| --------- | --------- | ------- | ------ | ------------------------------------------------------ |
+| Type        | Authority | Owner   | Status | Freshness                                               |
+| ----------- | --------- | ------- | ------ | ------------------------------------------------------- |
 | Public docs | Derived   | DOCSYNC | Live   | Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0 |
 
-| Upstream                                                                                  | Downstream           |
-| ----------------------------------------------------------------------------------------- | -------------------- |
+| Upstream                                                                                                          | Downstream            |
+| ----------------------------------------------------------------------------------------------------------------- | --------------------- |
 | [anvil-plan-spec `examples/user-auth`](https://github.com/EddaCraft/anvil-plan-spec/tree/main/examples/user-auth) | APS docs-site section |
 
 A realistic example showing a multi-module APS structure for adding user
@@ -105,7 +105,8 @@ Handle user registration and credential verification.
 ### AUTH-001: Create user registration function
 
 - **Intent:** Allow new users to register with email and password
-- **Expected Outcome:** `registerUser()` creates user record with hashed password
+- **Expected Outcome:** `registerUser()` creates user record with hashed
+  password
 - **Validation:** `npm test -- auth.test.ts`
 - **Confidence:** high
 
@@ -147,7 +148,8 @@ Manage user sessions via JWT tokens.
 ### SESSION-001: JWT token generation
 
 - **Intent:** Generate signed JWT tokens on successful login
-- **Expected Outcome:** Token contains user ID and expiry; verifiable with secret
+- **Expected Outcome:** Token contains user ID and expiry; verifiable with
+  secret
 - **Validation:** `npm test -- session.test.ts`
 - **Dependencies:** AUTH-002
 ```
@@ -159,36 +161,31 @@ Manage user sessions via JWT tokens.
 ```markdown
 # Action Plan: AUTH-001
 
-| Field     | Value                                    |
-| --------- | ---------------------------------------- |
+| Field     | Value                                        |
+| --------- | -------------------------------------------- |
 | Work Item | AUTH-001 — Create user registration function |
-| Status    | In Progress                              |
+| Status    | In Progress                                  |
 
 ## Actions
 
 ### Action 1 — Create user table migration
 
-**Checkpoint**
-Migration file exists with email, password_hash, created_at columns
+**Checkpoint** Migration file exists with email, password_hash, created_at
+columns
 
-**Validate**
-`npm run migrate`
+**Validate** `npm run migrate`
 
 ### Action 2 — Implement registerUser function
 
-**Checkpoint**
-Function hashes password and inserts user record
+**Checkpoint** Function hashes password and inserts user record
 
-**Validate**
-`npm test -- auth.test.ts`
+**Validate** `npm test -- auth.test.ts`
 
 ### Action 3 — Reject duplicate emails
 
-**Checkpoint**
-Duplicate email registration returns error
+**Checkpoint** Duplicate email registration returns error
 
-**Validate**
-`npm test -- auth.test.ts`
+**Validate** `npm test -- auth.test.ts`
 ```
 
 ## Dependency graph

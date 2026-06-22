@@ -7,12 +7,12 @@ sidebar_position: 4
 
 # APS Workflow
 
-| Type      | Authority | Owner   | Status | Freshness                                              |
-| --------- | --------- | ------- | ------ | ------------------------------------------------------ |
+| Type        | Authority | Owner   | Status | Freshness                                               |
+| ----------- | --------- | ------- | ------ | ------------------------------------------------------- |
 | Public docs | Derived   | DOCSYNC | Live   | Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0 |
 
-| Upstream                                                                  | Downstream           |
-| ------------------------------------------------------------------------- | -------------------- |
+| Upstream                                                                  | Downstream            |
+| ------------------------------------------------------------------------- | --------------------- |
 | [anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec) `docs/**` | APS docs-site section |
 
 APS follows compound engineering: each unit of work should make future work
@@ -53,21 +53,23 @@ Canonical values: `Draft`, `Ready`, `In Progress`, `Complete`, `Blocked`.
 
 Accepted aliases (tools normalise internally; your files are not rewritten):
 
-| Alias      | Canonical     | Notes                          |
-| ---------- | ------------- | ------------------------------ |
-| `Proposed` | `Draft`       | Not yet actionable             |
-| `Done`     | `Complete`    | Terminal / compacted items     |
+| Alias      | Canonical  | Notes                      |
+| ---------- | ---------- | -------------------------- |
+| `Proposed` | `Draft`    | Not yet actionable         |
+| `Done`     | `Complete` | Terminal / compacted items |
 
 Terminal compaction may also use `Merged`, `Released`, or `Shipped`; lint treats
 them like `Complete` for dependency checks.
 
 ## Starting a feature
 
-1. **Assess scope** — Single module or multiple? Create an Index for multi-module work.
+1. **Assess scope** — Single module or multiple? Create an Index for
+   multi-module work.
 2. **Write a design (optional)** — For non-obvious architecture, capture the
    "why this approach" in `plans/designs/`.
 3. **Create the Index** — Problem, success criteria, module table.
-4. **Draft modules** — Purpose and scope; leave Work Items empty while exploring.
+4. **Draft modules** — Purpose and scope; leave Work Items empty while
+   exploring.
 5. **Get approval** — Share the Index; discuss scope and risks.
 6. **Move to Ready** — Change module status to Ready; add work items.
 7. **Execute** — Work through items; create action plans for complex ones.
@@ -115,8 +117,8 @@ that is exactly the drift `aps audit` exists to catch.
 ## Learn phase
 
 After solving non-trivial problems, document solutions in `docs/solutions/`
-organised by category. Inline learnings from `aps complete --learning "..."`
-are a good seed for a solution doc.
+organised by category. Inline learnings from `aps complete --learning "..."` are
+a good seed for a solution doc.
 
 ---
 

@@ -1,35 +1,36 @@
 ---
 id: getting-started
 title: Getting Started
-description: Adopt APS in your project — templates, scaffolding, and first work item.
+description:
+  Adopt APS in your project — templates, scaffolding, and first work item.
 sidebar_position: 2
 ---
 
 # Getting Started with APS
 
-| Type      | Authority | Owner   | Status | Freshness                                              |
-| --------- | --------- | ------- | ------ | ------------------------------------------------------ |
+| Type        | Authority | Owner   | Status | Freshness                                               |
+| ----------- | --------- | ------- | ------ | ------------------------------------------------------- |
 | Public docs | Derived   | DOCSYNC | Live   | Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0 |
 
-| Upstream                                                                  | Downstream           |
-| ------------------------------------------------------------------------- | -------------------- |
+| Upstream                                                                  | Downstream            |
+| ------------------------------------------------------------------------- | --------------------- |
 | [anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec) `docs/**` | APS docs-site section |
 
 This guide walks you through adopting APS in your project.
 
 ## Which template should I use?
 
-| Situation                                          | Template           | Time to value |
-| -------------------------------------------------- | ------------------ | ------------- |
-| **Just trying APS**                                | quickstart         | 5 minutes     |
-| **Small feature** (1–3 work items)                 | simple             | 15 minutes    |
-| **Module with boundaries** (interfaces, deps)      | module             | 30 minutes    |
-| **Multi-module initiative**                        | index              | 1 hour        |
-| **Large initiative** (6+ modules)                  | index-expanded     | 1–2 hours     |
-| **Monorepo** (multiple packages/apps)              | index-monorepo     | 1–2 hours     |
-| **Breaking a work item into actions**              | actions            | 15 minutes    |
-| **Technical/architectural design**                 | design             | 30 minutes    |
-| **Tracking dev-time discoveries**                  | issues             | 10 minutes    |
+| Situation                                     | Template       | Time to value |
+| --------------------------------------------- | -------------- | ------------- |
+| **Just trying APS**                           | quickstart     | 5 minutes     |
+| **Small feature** (1–3 work items)            | simple         | 15 minutes    |
+| **Module with boundaries** (interfaces, deps) | module         | 30 minutes    |
+| **Multi-module initiative**                   | index          | 1 hour        |
+| **Large initiative** (6+ modules)             | index-expanded | 1–2 hours     |
+| **Monorepo** (multiple packages/apps)         | index-monorepo | 1–2 hours     |
+| **Breaking a work item into actions**         | actions        | 15 minutes    |
+| **Technical/architectural design**            | design         | 30 minutes    |
+| **Tracking dev-time discoveries**             | issues         | 10 minutes    |
 
 Templates ship in the
 [anvil-plan-spec repository](https://github.com/EddaCraft/anvil-plan-spec/tree/main/templates).
@@ -142,15 +143,15 @@ aps complete AUTH-003 --learning "Retry on 5xx improved success rate by 18%"
 aps graph auth                        # dependency graph for a module
 ```
 
-`aps start` enforces that every dependency is `Complete`. The context package
-at `.aps/context/<ID>.md` is a focused brief designed to be pasted into any AI
+`aps start` enforces that every dependency is `Complete`. The context package at
+`.aps/context/<ID>.md` is a focused brief designed to be pasted into any AI
 agent.
 
 ## Working with AI assistants
 
 `aps init` scaffolds `plans/aps-rules.md` — point your agent at it and APS
-conventions are followed by default. APS ships first-class agent definitions
-for Claude Code, Codex, GitHub Copilot, OpenCode, and Gemini.
+conventions are followed by default. APS ships first-class agent definitions for
+Claude Code, Codex, GitHub Copilot, OpenCode, and Gemini.
 
 See [AI Agents →](./guides/ai-agents.md) for the full agent guide.
 
