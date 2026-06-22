@@ -267,7 +267,7 @@ surface.
 - **Accepted resolution:** Widget trait surface and theme override hook
   are documented as stable post-TUIR. Breaking changes require a major
   version bump AND an ADR. Snapshot harness exposure (`test-utils`
-  feature) stays explicitly unstable; consumers depend on it at their
+  feature) is graded `experimental` (the lowest grade); consumers depend on it at their
   own risk.
 - **Mechanism (operator pick, 2026-06-22): rustdoc `# Stability` section +
   warn-only CI grep.** Each public item's doc comment carries a `# Stability`
@@ -281,7 +281,7 @@ surface.
   `#[cfg(feature = "unstable")]` gating (rejected: intrusive; experimental →
   stable becomes a breaking feature removal). Switching to a stability crate
   later remains a separate decision if the documentary approach proves too weak.
-- **Status:** Accepted 2026-06-22 (operator); implemented by TUIN-006.
+- **Status:** Accepted 2026-06-22 (operator); implementation tracked by TUIN-006 (Ready).
 
 **D-TUIN-006:** Post-migration API stability checkpoint
 
