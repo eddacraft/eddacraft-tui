@@ -21,18 +21,21 @@ Verified: <!-- filled by cleanup agent -->
       run with `ANVIL_PERSIST_GRAPH=1`, so the §7b "zero `SnapshotLoadError::Corrupt`"
       graduation criterion can actually be evaluated before any default-on flip.
       (human required — needs a soak environment)
-- [ ] 092c orphan-`.snap` sweep is empty-guarded but **not wired** to a daemon
-      call site (no faithful registered-set source at cold boot). **Tracked as
-      CIB-096.** (human decision)
+_(092c is no longer a standalone step here — it is tracked as CIB-096 in the
+section below, to avoid a duplicate checkbox that could drift out of sync.)_
 
-## Deferred sub-parts — now tracked as standalone CIB items
+## Deferred sub-parts — follow-up status
+
+CIB trackers for the sub-parts deferred at the #2852 merge, plus the one net-new
+item that has since landed (N7 is **not** a CIB item, listed here only to close
+it out):
 
 - [ ] **CIB-096** — wire the orphan-`.snap` startup sweep into the daemon (092c).
 - [ ] **CIB-097** — anchor the snapshot **write** path to an `O_PATH` dirfd (092d).
 - [ ] **CIB-098** — deliver the persist-failure degradation signal to opted-in
       operators (092h; fanout currently hard-denies session-less envelopes).
-- [x] **N7** — suffix-match import re-bind in `incremental.rs` — **DONE** in PR
-      #2852 (exact-match-only resolution).
+- [x] **N7** _(not a CIB item)_ — suffix-match import re-bind in `incremental.rs`
+      — **DONE** in PR #2852 (exact-match-only resolution).
 
 ## Notes
 
