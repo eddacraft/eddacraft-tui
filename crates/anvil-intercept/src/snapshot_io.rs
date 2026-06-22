@@ -468,6 +468,7 @@ pub fn remove_snapshot(dir: &Path, canonical_root: &Path) -> io::Result<()> {
     {
         tracing::warn!(
             target: "anvil_intercept::snapshot",
+            companion = %companion_name,
             error = %err,
             "failed to remove .root companion alongside snapshot (CIB-096)",
         );
@@ -476,8 +477,11 @@ pub fn remove_snapshot(dir: &Path, canonical_root: &Path) -> io::Result<()> {
 }
 
 /// Sweep orphaned `*.tmp` files left by an interrupted write (ADR-069 §10),
-/// returning the count removed. Best-effort: an unreadable dir or a file that
-/// vanishes mid-sweep is skipped, never fatal. A missing `dir` is a no-op.
+/// returning the count removed. Best-effort: an unreadable dir, a file that
+/// vanishes mid-sweep, or a dir the dirfd anchor **refuses as insecure**
+/// (non-existent, symlinked, or not owner-only `0700`) all yield `0` and are
+/// never fatal — the production graph-cache dir is always `0700`, so a refused
+/// dir means a tampered environment in which there is nothing safe to sweep.
 ///
 /// Unlinks are anchored to a validated owner-only dirfd (CIB-102) via `unlinkat`,
 /// so a swapped `dir` component cannot redirect the delete and a symlinked `.tmp`
