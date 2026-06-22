@@ -228,6 +228,7 @@ impl SnapshotMetrics {
 
     /// Record the outcome of a [`write_snapshot`](crate::snapshot_io::write_snapshot)
     /// call (`ok` / `error`).
+    #[cfg_attr(windows, allow(dead_code))]
     pub(crate) fn record_write(&self, result: &io::Result<()>) {
         let counter = if result.is_ok() {
             &self.write_ok
@@ -241,6 +242,7 @@ impl SnapshotMetrics {
     /// `from_graphs` build rejection (a non-workspace-relative path, ADR-069 §8)
     /// loses the snapshot just as a failed write does, so it must be observable
     /// in `write_error` rather than silently skipped.
+    #[cfg_attr(windows, allow(dead_code))]
     pub(crate) fn record_write_error(&self) {
         self.write_error.fetch_add(1, Ordering::Relaxed);
     }
@@ -267,6 +269,7 @@ impl SnapshotMetrics {
 /// background scan has no per-connection emitter to share). Present only when a
 /// broadcaster is wired AND persistence is enabled.
 #[derive(Clone)]
+#[cfg_attr(windows, allow(dead_code))]
 pub(crate) struct PersistFailureNotifier {
     broadcaster: Arc<TelemetryBroadcaster>,
     emitter: Arc<Mutex<TelemetryEmitter>>,
@@ -283,6 +286,7 @@ impl PersistFailureNotifier {
     /// Build + broadcast the ADR-035 degradation Notification for a failed write.
     /// Returns the envelope so callers/tests can assert on it. Echoes only the
     /// `io::ErrorKind` discriminant (PV-10).
+    #[cfg_attr(windows, allow(dead_code))]
     pub(crate) fn notify(&self, workspace_root: &Path, err: &io::Error) -> NotificationEnvelope {
         let message = format!("snapshot write failed ({})", err.kind());
         let envelope = {
@@ -836,6 +840,7 @@ impl SaveTimeState {
     /// is still built + offered to the broadcaster only so a *future*
     /// session-correlated producer (or an in-process subscriber) can observe it; it
     /// costs nothing and the broadcaster simply drops it now (CIB-092h item 4).
+    #[cfg_attr(windows, allow(dead_code))]
     fn notify_persist_write_failure(
         &self,
         workspace_root: &Path,
@@ -979,6 +984,7 @@ fn emit_assurance_transition(workspace_root: &Path, transition: &AssuranceTransi
 /// write ok/error) — no path, key, or decoded byte (PV-10: counts only). Split out
 /// of [`SaveTimeState::persist_all_on_shutdown`] so the emission site is a single,
 /// directly-testable function.
+#[cfg_attr(windows, allow(dead_code))]
 fn emit_cumulative_snapshot_metrics(metrics: &SnapshotMetricsSnapshot) {
     tracing::info!(
         target: "anvil_intercept::snapshot",

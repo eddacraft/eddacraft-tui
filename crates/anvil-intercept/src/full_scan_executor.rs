@@ -218,10 +218,12 @@ pub struct ScanContext {
     snapshot_dir: Option<PathBuf>,
     /// CIB-092b: shared ADR-069 §10 snapshot I/O counters; the executor's write
     /// records its `ok`/`error` outcome here.
+    #[cfg_attr(windows, allow(dead_code))]
     snapshot_metrics: Arc<SnapshotMetrics>,
     /// CIB-092h: ADR-035 persist-failure notifier; `Some` only when persistence is
     /// enabled with a broadcaster wired. A write failure raises a degradation
     /// Notification through it.
+    #[cfg_attr(windows, allow(dead_code))]
     persist_notifier: Option<Arc<PersistFailureNotifier>>,
 }
 
