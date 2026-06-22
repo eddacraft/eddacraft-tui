@@ -1521,7 +1521,7 @@ archive.
 
 ### CIB-059: quickstart leads with the ungated `anvil welcome` demo
 
-- **Status:** In Progress (2026-06-11)
+- **Status:** In Progress (PR pending; quickstart reordered per ADR-080)
 - **Intent:** the quickstart fronts "2. Authenticate" before "3. Take a
   Path" and never says `anvil welcome` runs without logging in — it hides
   the ADR-080 ungated demo surface from exactly the invite-less users it

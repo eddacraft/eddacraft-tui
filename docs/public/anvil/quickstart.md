@@ -7,16 +7,17 @@ sidebar_position: 3
 
 # Quickstart
 
-Install anvil, then take one of the two beta paths to first value — all in under
-5 minutes:
+Install anvil, then pick a path to first value — all in under 5 minutes:
 
-- **`anvil start`** — daily value: daemon-backed save-time protection that
-  validates files as you (or your AI agent) save them.
 - **`anvil welcome`** — discovery: see what anvil finds in your own repo, guided
-  from the terminal.
+  from the terminal. **No login needed** — the beta demo surface (ADR-080).
+- **`anvil start`** — daily value: daemon-backed save-time protection that
+  validates files as you (or your AI agent) save them. Requires beta
+  authentication.
 
-You can run both; most people start with `anvil start` and explore with
-`anvil welcome` afterwards.
+If you do not have beta access yet — or want to see value before signing in —
+run `anvil welcome` straight after install. When you are ready for ongoing
+protection, authenticate and run `anvil start`.
 
 ## Prerequisites
 
@@ -90,9 +91,28 @@ $env:Path = "$env:USERPROFILE\.eddacraft\bin;$env:Path"
 
 :::
 
-## 2. Authenticate
+## 2. Discover with `anvil welcome` (no login)
 
-Start the default device-code login flow:
+From the root of your project, run:
+
+```bash
+cd path/to/your/repo
+anvil welcome
+```
+
+`anvil welcome` is deliberately **ungated** — the discovery scan, interactive
+tutorial, and welcome hub all run without `anvil auth login`. This is the beta
+demo surface: see what anvil finds in your own repo before the licence wall. On
+a first run it offers guided setup; afterwards it lands on the welcome hub. When
+you are done exploring, it points you at `anvil start` for daily protection.
+
+The licence wall begins at that handoff. Durable surfaces — `start`, `watch`,
+`check`, `status`, `gate`, and the rest — require beta authentication.
+
+## 3. Authenticate (for daily protection)
+
+When you are ready for `anvil start` and ongoing protection, sign in with the
+default device-code login flow:
 
 ```bash
 anvil auth login
@@ -108,18 +128,14 @@ If you need email OTP instead, run:
 anvil auth login --otp
 ```
 
-## 3. Take a Path: `anvil start` or `anvil welcome`
+Beta access is invite-gated. If you do not have access yet, request early access
+at [eddacraft.ai](https://eddacraft.ai).
 
-Both beta paths begin in your repo root. `anvil start` activates daily
-protection; `anvil welcome` walks you through what anvil finds first. Each
-surface names the next step, so neither path needs a docs lookup.
+## 4. Activate daily protection with `anvil start`
 
-### The daily-value path: `anvil start`
-
-From the root of your project, run:
+From your repo root:
 
 ```bash
-cd path/to/your/repo
 anvil start
 ```
 
@@ -127,9 +143,9 @@ anvil start
 baselines the repo, wires Cursor and Claude Code MCP entries (writing
 `~/.cursor/mcp.json` and `~/.claude.json`), and ends in one literal protection
 state. As of `v0.8.1-beta`, an interactive terminal also auto-starts the
-per-user save-time daemon (Linux and macOS) and reports the result on a
-`daemon:` line; pass `--no-daemon` (or set `ANVIL_NO_DAEMON=1`) to suppress that
-auto-start — a daemon already running is still reused — and note `--verify`
+per-user save-time daemon (Linux, macOS, and Windows) and reports the result on
+a `daemon:` line; pass `--no-daemon` (or set `ANVIL_NO_DAEMON=1`) to suppress
+that auto-start — a daemon already running is still reused — and note `--verify`
 never starts a daemon. The protection state is one of:
 
 - `protecting` — MCP pre-write validation is live
@@ -186,21 +202,7 @@ To walk this path end to end — activation, a deliberately bad save, and readin
 the finding anvil raises in your own repo — follow
 [Your First Save Caught](tutorials/first-save-caught.md).
 
-### The discovery path: `anvil welcome`
-
-If you would rather see what anvil finds before wiring protection, run:
-
-```bash
-cd path/to/your/repo
-anvil welcome
-```
-
-`anvil welcome` opens the guided terminal surface: a discovery scan over your
-own repo, an interactive tutorial, and quick links to the other surfaces. On a
-first run it offers guided setup; afterwards it lands on the welcome hub. When
-you are done exploring, it points you at `anvil start` for daily protection.
-
-## 4. Connect Your AI Editor (MCP)
+## 5. Connect Your AI Editor (MCP)
 
 `anvil start` already wires MCP entries for Cursor and Claude Code (writing
 `~/.cursor/mcp.json` and `~/.claude.json`). To finish the connection:
@@ -219,7 +221,7 @@ anvil mcp-config --target claude-code   # or: --target cursor
 See the [MCP integration guide](integrations/mcp.md) for the full setup and
 troubleshooting reference.
 
-## 5. Scan Your Project
+## 6. Scan Your Project
 
 You can also surface findings directly with the targeted source-analysis
 command:
@@ -270,7 +272,7 @@ To run the broader gate surface, use:
 anvil gate --profile dev
 ```
 
-## 6. Diagnostics
+## 7. Diagnostics
 
 Verify state and the binary you're running:
 
@@ -284,7 +286,7 @@ anvil doctor              # Environment health check
 Scoop, WinGet, the install script, or a developer build, and prints the right
 upgrade command for that path.
 
-## 7. Turn On Watch Mode (fallback)
+## 8. Turn On Watch Mode (fallback)
 
 If `anvil start` finished in `watching` rather than `protecting`, anvil is
 already running the save-time fallback. To run a standalone watcher in another
@@ -320,7 +322,7 @@ in-editor diagnostics.
 
 :::
 
-## 8. Fix Your First Issue
+## 9. Fix Your First Issue
 
 Take one of the warnings from the scan -- say AP-003, the explicit `any` in
 `src/utils/parser.ts`:

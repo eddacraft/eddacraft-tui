@@ -278,7 +278,7 @@ generate noise without findings:
 
 If you want save-time signal anyway in a state where `--watch` has skipped, the
 unconditional path is `anvil watch --source` (covered in
-[Beta Quickstart: Turn On Watch Mode](../quickstart.md#7-turn-on-watch-mode-fallback)).
+[Beta Quickstart: Turn On Watch Mode](../quickstart.md#8-turn-on-watch-mode-fallback)).
 
 ## The protection states, plainly
 
