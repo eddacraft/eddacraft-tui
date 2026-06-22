@@ -41,8 +41,9 @@
 //! section (D-TUIN-005). The grade is set on the type / trait / free function;
 //! its inherent methods inherit it.
 //!
-//! - **stable** — committed surface. A breaking change requires a major version
-//!   bump *and* an ADR. The downstream extension surface — the [`theme::Theme`]
+//! - **stable** — committed surface. A breaking change requires a breaking
+//!   version bump (a minor bump while the crate is 0.x, per its SemVer policy)
+//!   *and* an ADR. The downstream extension surface — the [`theme::Theme`]
 //!   override hook and the [`surface::Surface`] trait — is stable.
 //! - **unstable** — the default for newly added items; may change before being
 //!   graded stable.
