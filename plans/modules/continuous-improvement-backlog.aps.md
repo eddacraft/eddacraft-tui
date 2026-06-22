@@ -2772,7 +2772,7 @@ archive.
 
 ### CIB-102: Anchor the snapshot delete/sweep paths to a validated dirfd (CIB-097 follow-up)
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** CIB-097 (PR #2865) anchored the snapshot **write** path to a
   validated directory fd, but the **delete** paths are still path-based:
   `remove_snapshot` (`fs::remove_file(&path)`), `sweep_orphan_temps`, and

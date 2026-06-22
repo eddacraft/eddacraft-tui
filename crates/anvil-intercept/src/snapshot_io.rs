@@ -439,22 +439,31 @@ pub fn load_snapshot(
 /// A disk error other than the file already being absent.
 pub fn remove_snapshot(dir: &Path, canonical_root: &Path) -> io::Result<()> {
     let snapshot_name = snapshot_filename(canonical_root);
+    // Anchor the unlinks to a validated owner-only dirfd (CIB-102), so a same-uid
+    // swap of a `dir` component cannot redirect the delete, and a symlink at a
+    // leaf is unlinked as the symlink (never followed). A non-existent `dir` means
+    // there is nothing to remove — idempotent success (mirrors the old NotFound
+    // tolerance of the path-based `fs::remove_file`).
+    let dirfd = match crate::path_safety::open_workspace_dir_for_fsync(dir) {
+        Ok(fd) => fd,
+        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(err) => return Err(err),
+    };
     // Order matters (CIB-096 follow-up): remove the `.snap` FIRST, then best-effort
     // the `.root`. A crash *between* the two unlinks must not leave a `.snap` with
     // no companion — the startup sweep keeps any `.snap` whose companion is missing
     // (fail-safe), so that snapshot would linger forever, un-reclaimable. Dropping
     // the `.snap` first means a mid-crash leaves only a stray `.root`, which the
     // sweep already cleans up on the next boot.
-    let path = dir.join(&snapshot_name);
-    let snap_result = match fs::remove_file(&path) {
+    let snap_result = match unlink_at(&dirfd, &snapshot_name) {
         Ok(()) => Ok(()),
         Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(()),
         Err(err) => Err(err),
     };
     // Best-effort drop the `.root` companion alongside (CIB-096); a missing
     // companion is fine (older snapshot, or companion-write had failed).
-    let companion = dir.join(root_companion_name(&snapshot_name));
-    if let Err(err) = fs::remove_file(&companion)
+    let companion_name = root_companion_name(&snapshot_name);
+    if let Err(err) = unlink_at(&dirfd, &companion_name)
         && err.kind() != io::ErrorKind::NotFound
     {
         tracing::warn!(
@@ -469,16 +478,28 @@ pub fn remove_snapshot(dir: &Path, canonical_root: &Path) -> io::Result<()> {
 /// Sweep orphaned `*.tmp` files left by an interrupted write (ADR-069 §10),
 /// returning the count removed. Best-effort: an unreadable dir or a file that
 /// vanishes mid-sweep is skipped, never fatal. A missing `dir` is a no-op.
+///
+/// Unlinks are anchored to a validated owner-only dirfd (CIB-102) via `unlinkat`,
+/// so a swapped `dir` component cannot redirect the delete and a symlinked `.tmp`
+/// leaf is unlinked as the symlink, never followed. The `read_dir` enumeration is
+/// path-based — the security-bearing operation is the per-leaf anchored unlink.
 pub fn sweep_orphan_temps(dir: &Path) -> usize {
+    let Ok(dirfd) = crate::path_safety::open_workspace_dir_for_fsync(dir) else {
+        return 0;
+    };
     let Ok(entries) = fs::read_dir(dir) else {
         return 0;
     };
     let mut removed = 0;
     for entry in entries.flatten() {
         let path = entry.path();
-        if path.extension().and_then(|e| e.to_str()) == Some(TMP_EXT)
-            && fs::remove_file(&path).is_ok()
-        {
+        if path.extension().and_then(|e| e.to_str()) != Some(TMP_EXT) {
+            continue;
+        }
+        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        if unlink_at(&dirfd, name).is_ok() {
             removed += 1;
         }
     }
@@ -911,14 +932,68 @@ mod tests {
 
     #[test]
     fn sweep_orphan_temps_removes_only_temps() {
+        // Use a 0700 owner-only dir (the production graph-cache posture): the sweep
+        // now anchors its unlinks via the validated dirfd (CIB-102), which refuses
+        // a group/other-accessible dir.
         let tmp = tempfile::tempdir().unwrap();
-        fs::write(tmp.path().join("a.snap"), b"keep").unwrap();
-        fs::write(tmp.path().join("a.snap.deadbeef.tmp"), b"orphan").unwrap();
-        fs::write(tmp.path().join("b.snap.cafef00d.tmp"), b"orphan").unwrap();
+        let dir = gc(&tmp);
+        ensure_dir(&dir).unwrap();
+        fs::write(dir.join("a.snap"), b"keep").unwrap();
+        fs::write(dir.join("a.snap.deadbeef.tmp"), b"orphan").unwrap();
+        fs::write(dir.join("b.snap.cafef00d.tmp"), b"orphan").unwrap();
 
-        assert_eq!(sweep_orphan_temps(tmp.path()), 2);
-        assert!(tmp.path().join("a.snap").exists(), "real snapshot kept");
-        assert!(!tmp.path().join("a.snap.deadbeef.tmp").exists());
+        assert_eq!(sweep_orphan_temps(&dir), 2);
+        assert!(dir.join("a.snap").exists(), "real snapshot kept");
+        assert!(!dir.join("a.snap.deadbeef.tmp").exists());
+    }
+
+    #[test]
+    fn sweep_orphan_temps_unlinks_a_symlinked_tmp_without_following_it() {
+        // CIB-102: the temp sweep's unlink is anchored via `unlinkat` on the
+        // validated dirfd, and `unlink` never follows the final symlink — so a
+        // symlink planted at a `<...>.tmp` path is removed as the symlink itself;
+        // the outside target it points at is left untouched.
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = gc(&tmp);
+        ensure_dir(&dir).unwrap();
+        let secret = tmp.path().join("outside-secret");
+        fs::write(&secret, b"secret-bytes").unwrap();
+        std::os::unix::fs::symlink(&secret, dir.join("planted.tmp")).unwrap();
+
+        assert_eq!(sweep_orphan_temps(&dir), 1, "the symlinked .tmp is swept");
+        assert!(
+            !dir.join("planted.tmp").exists(),
+            "the symlink entry is removed",
+        );
+        assert_eq!(
+            fs::read(&secret).unwrap(),
+            b"secret-bytes",
+            "the symlink target is never followed / deleted",
+        );
+    }
+
+    #[test]
+    fn remove_snapshot_unlinks_a_symlinked_snap_without_following_it() {
+        // CIB-102: `remove_snapshot` anchors its unlinks via the dirfd; a symlink
+        // planted at the `.snap` path is removed as the symlink, never followed.
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = gc(&tmp);
+        ensure_dir(&dir).unwrap();
+        let root = Path::new("/ws-remove-symlink");
+        let secret = tmp.path().join("outside-secret");
+        fs::write(&secret, b"secret-bytes").unwrap();
+        std::os::unix::fs::symlink(&secret, dir.join(snapshot_filename(root))).unwrap();
+
+        remove_snapshot(&dir, root).expect("remove succeeds");
+        assert!(
+            !dir.join(snapshot_filename(root)).exists(),
+            "the symlink entry is removed",
+        );
+        assert_eq!(
+            fs::read(&secret).unwrap(),
+            b"secret-bytes",
+            "the symlink target is never followed / deleted",
+        );
     }
 
     #[test]
