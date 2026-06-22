@@ -7,116 +7,104 @@ sidebar_position: 1
 
 # Minimal Plan
 
+| Type      | Authority | Owner   | Status | Freshness                                              |
+| --------- | --------- | ------- | ------ | ------------------------------------------------------ |
+| Public docs | Derived   | DOCSYNC | Live   | Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0 |
+
+| Upstream                                                                  | Downstream           |
+| ------------------------------------------------------------------------- | -------------------- |
+| [anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec) `docs/**` | APS docs-site section |
+
 This example shows the smallest useful APS plan.
 
-## Single File Plan
+## Single-file plan
 
 For small projects, one file is enough:
 
 ```markdown
----
-format: aps
-version: 1.0
----
-
 # Todo App
 
 A simple todo list application.
 
-## Task: TODO-001 — Initial setup
+## Problem
 
-**Intent:** Project structure created with working build
+Users need to track tasks.
 
-**Validation:** `pnpm build`
+## Success Criteria
 
-**Steps:**
+- [ ] Users can add todos
+- [ ] Users can list todos
 
-1. [ ] package.json created
-2. [ ] TypeScript configured
-3. [ ] Build produces dist/
+## Work Items
 
----
+### TODO-001: Initial setup
 
-## Task: TODO-002 — Add todo endpoint
+- **Intent:** Project structure created with working build
+- **Expected Outcome:** `npm run build` exits 0
+- **Validation:** `npm run build`
 
-**Intent:** POST /todos creates a new todo item
+### TODO-002: Add todo endpoint
 
-**Validation:** `pnpm test src/todos/create.test.ts`
+- **Intent:** POST /todos creates a new todo item
+- **Expected Outcome:** Endpoint returns 201 with created todo
+- **Validation:** `npm test -- todos.create.test.ts`
 
-**Steps:**
+### TODO-003: List todos endpoint
 
-1. [ ] Endpoint accepts POST /todos
-2. [ ] Request body validated
-3. [ ] Todo stored in database
-4. [ ] Response includes created todo
-
----
-
-## Task: TODO-003 — List todos endpoint
-
-**Intent:** GET /todos returns all todos for user
-
-**Validation:** `pnpm test src/todos/list.test.ts`
-
-**Steps:**
-
-1. [ ] Endpoint accepts GET /todos
-2. [ ] Todos filtered by user
-3. [ ] Response paginated
+- **Intent:** GET /todos returns all todos for user
+- **Expected Outcome:** Endpoint returns paginated list filtered by user
+- **Validation:** `npm test -- todos.list.test.ts`
 ```
 
-## Why This Works
+## Why this works
 
 Even this minimal plan provides:
 
-### Clear Outcomes
+### Clear outcomes
 
-Each task has a single, measurable outcome. You know when it's done.
+Each work item has a single, measurable outcome. You know when it is done.
 
-### Validation Commands
+### Validation commands
 
 Tests prove completion. No ambiguity.
 
-### Observable Steps
+### Observable checkpoints
 
-Each step describes what should be true, not how to achieve it.
+When you need more granularity, add an action plan — but simple items do not
+require one.
 
-## When to Grow
+## When to grow
 
 Upgrade to multi-file when:
 
-- More than 5-7 tasks
-- Multiple distinct features
-- Multiple people working
+- More than 5–7 work items
+- Multiple distinct features or modules
+- Multiple people working concurrently
 
-See [Multi-module example →](/aps/examples/multi-module)
+See [Multi-module example →](./multi-module.md)
 
 ## Template
 
 Copy this template for new projects:
 
 ```markdown
----
-format: aps
-version: 1.0
----
-
 # {Project Name}
 
-{Brief description}
+## Problem
+{Brief problem statement}
 
-## Task: {PREFIX}-001 — {Title}
+## Success Criteria
+- [ ] {Observable outcome}
 
-**Intent:** {What success looks like}
+## Work Items
 
-**Validation:** `{command}`
+### {PREFIX}-001: {Title}
 
-**Steps:**
-
-1. [ ] {Observable state}
-2. [ ] {Observable state}
+- **Intent:** {What success looks like}
+- **Expected Outcome:** {Testable result}
+- **Validation:** `{command}`
 ```
 
 ---
 
-**Next:** [Multi-module example →](/aps/examples/multi-module)
+**Next:** [Multi-module example →](./multi-module.md)

@@ -1,269 +1,207 @@
 ---
 id: examples
 title: Schema Examples
-description: Example APS documents with schema annotations.
+description: Example APS documents showing various patterns and structures.
 sidebar_position: 2
 ---
 
 # Schema Examples
 
+| Type      | Authority | Owner   | Status | Freshness                                              |
+| --------- | --------- | ------- | ------ | ------------------------------------------------------ |
+| Public docs | Derived   | DOCSYNC | Live   | Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0 |
+
+| Upstream                                                                  | Downstream           |
+| ------------------------------------------------------------------------- | -------------------- |
+| [anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec) `docs/**` | APS docs-site section |
+
 Example APS documents showing various patterns and structures.
 
-## Minimal Valid Plan
+## Minimal valid plan
 
-The smallest valid APS document:
-
-```markdown
----
-format: aps
-version: 1.0
----
-
-# My Project
-
-## Task: TASK-001 — Setup
-
-**Intent:** Project initialised
-
-**Validation:** `echo "done"`
-```
-
-**JSON representation:**
-
-```json
-{
-  "format": "aps",
-  "version": "1.0",
-  "title": "My Project",
-  "modules": [
-    {
-      "id": "default",
-      "tasks": [
-        {
-          "id": "TASK-001",
-          "title": "Setup",
-          "intent": "Project initialised",
-          "validation": "echo \"done\""
-        }
-      ]
-    }
-  ]
-}
-```
-
-## Full Featured Plan
-
-All fields populated:
+The smallest useful APS document:
 
 ```markdown
----
-format: aps
-version: 1.0
-hash: sha256:abc123...
----
+# Todo App
 
+## Problem
+
+Users need a simple task list.
+
+## Success Criteria
+
+- [ ] Users can add and list todos
+
+## Work Items
+
+### TODO-001: Initial setup
+
+- **Intent:** Project builds and tests pass
+- **Expected Outcome:** `npm run build` exits 0
+- **Validation:** `npm run build`
+```
+
+## Full-featured index
+
+```markdown
 # E-Commerce Platform
+
+## Overview
 
 An online store with payments and notifications.
 
+## Problem & Success Criteria
+
+**Problem:** No e-commerce capability exists.
+
+**Success Criteria:**
+
+- [ ] Users can browse and purchase products
+- [ ] Payments process securely
+
 ## Modules
 
-- [auth](modules/auth.aps.md)
-- [payments](modules/payments.aps.md)
-- [notifications](modules/notifications.aps.md)
+| Module                                        | ID   | Owner | Status | Priority |
+| --------------------------------------------- | ---- | ----- | ------ | -------- |
+| [auth](./modules/auth.aps.md)                 | AUTH | @you  | Ready  | high     |
+| [payments](./modules/payments.aps.md)         | PAY  | @you  | Draft  | high     |
+| [notifications](./modules/notifications.aps.md) | NOTIF | @you | Draft  | medium   |
 ```
 
-````markdown
----
-format: aps
-module: auth
-depends_on:
-  - core
-files:
-  - src/auth/**
-  - src/types/auth.ts
----
+## Module with work items
 
+```markdown
 # Authentication Module
+
+| ID   | Owner | Priority | Status |
+| ---- | ----- | -------- | ------ |
+| AUTH | @you  | high     | Ready  |
+
+## Purpose
 
 User authentication and session management.
 
-## Task: AUTH-001 — Login endpoint
+## In Scope
 
-**Status:** completed
+- Login/logout
+- Registration
 
-**Intent:** Users can authenticate with email and password. The system returns a
-JWT valid for 24 hours. Invalid credentials return a 401 response.
+## Work Items
 
-**Validation:**
+### AUTH-001: Login endpoint
 
-```bash
-pnpm test src/auth/login.test.ts
-```
-````
+- **Status:** Complete: 2026-05-12
+- **Intent:** Users authenticate with email and password
+- **Expected Outcome:** POST /auth/login returns JWT for valid credentials; 401 for invalid
+- **Validation:** `npm test -- auth.login.test.ts`
 
-**Dependencies:**
+### AUTH-002: Registration
 
-- CORE-001
-
-**Steps:**
-
-1. [x] Endpoint accepts POST /auth/login
-2. [x] Request body validated
-3. [x] Password verified against hash
-4. [x] JWT generated with claims
-5. [x] Response includes token
-
-## Task: AUTH-002 — Registration
-
-**Status:** locked
-
-**Intent:** New users can create accounts with email and password. Email
-uniqueness is enforced. Password strength requirements applied.
-
-**Validation:**
-
-```bash
-pnpm test src/auth/register.test.ts
+- **Status:** Ready
+- **Intent:** New users create accounts with email and password
+- **Expected Outcome:** POST /auth/register creates user; rejects duplicate email
+- **Validation:** `npm test -- auth.register.test.ts`
+- **Dependencies:** AUTH-001
 ```
 
-**Dependencies:**
-
-- AUTH-001
-
-**Steps:**
-
-1. [x] Endpoint accepts POST /auth/register
-2. [x] Email format validated
-3. [ ] Password strength checked
-4. [ ] Email uniqueness verified
-5. [ ] User record created
-6. [ ] Welcome email sent
-
-````
-
-## Task Dependencies
-
-Showing complex dependency chains:
+## Work item dependencies
 
 ```markdown
-## Task: PAY-001 — Payment processor integration
+### PAY-001: Payment processor integration
 
-**Dependencies:**
-- AUTH-001 (user context required)
-- CORE-002 (database transactions)
+- **Dependencies:** AUTH-001, CORE-002
 
----
+### PAY-002: Checkout flow
 
-## Task: PAY-002 — Checkout flow
-
-**Dependencies:**
-- PAY-001 (payment processor)
-- CART-001 (cart service)
-- INV-001 (inventory check)
-````
-
-**Dependency graph:**
-
+- **Dependencies:** PAY-001, CART-001, INV-001
 ```
+
+Dependency graph:
+
+```text
 AUTH-001 ─┐
           ├──▶ PAY-001 ─┐
 CORE-002 ─┘              │
                          ├──▶ PAY-002
 CART-001 ────────────────┤
-                         │
 INV-001 ─────────────────┘
 ```
 
-## Module Dependencies
-
-Cross-module dependencies:
+## Action plan with waves
 
 ```markdown
----
-format: aps
-module: payments
-depends_on:
-  - auth
-  - inventory
-  - notifications
-files:
-  - src/payments/**
----
+# Action Plan: AUTH-001
 
-# Payments Module
+| Field     | Value                    |
+| --------- | ------------------------ |
+| Work Item | AUTH-001 — Login endpoint |
+| Status    | In Progress              |
 
-Requires auth for user context, inventory for stock checks, and notifications
-for receipts.
+## Waves
+
+| Wave | Actions | Gate                  |
+| ---- | ------- | --------------------- |
+| 1    | 1, 2    | Both checkpoints pass |
+| 2    | 3       | Checkpoint passes     |
+
+## Actions
+
+### Action 1 — Create login endpoint
+
+**Checkpoint**
+Endpoint accepts POST /auth/login
+
+**Validate**
+`npm test -- auth.login.test.ts`
+
+**Wave** 1
+
+### Action 2 — Validate request body
+
+**Checkpoint**
+Invalid requests return 400 with field errors
+
+**Wave** 1
+
+### Action 3 — Verify credentials
+
+**Checkpoint**
+Valid credentials return JWT; invalid return 401
+
+**Wave** 2
 ```
 
-## Step Variations
-
-### Simple Steps
+## Issue tracking
 
 ```markdown
-**Steps:**
+### ISS-001: OAuth credentials pending
 
-1. [ ] Feature flag created
-2. [ ] Feature implemented
-3. [ ] Tests passing
-4. [ ] Deployed to staging
+| Field      | Value    |
+| ---------- | -------- |
+| Status     | Open     |
+| Severity   | medium   |
+| Discovered | AUTH-002 |
+| Module     | AUTH     |
+
+**Context:** Need Google API client ID/secret to finish AUTH-002.
 ```
 
-### Detailed Steps
+## Validation command patterns
 
 ```markdown
-**Steps:**
+# Single command
+- **Validation:** `npm test`
 
-1. [ ] Endpoint responds to health check
-   - GET /health returns 200
-   - Response includes version
+# Multiple commands
+- **Validation:** `npm run build && npm test && npm run lint`
 
-2. [ ] Database connection verified
-   - Connection pool initialised
-   - Read/write operations work
+# With environment
+- **Validation:** `NODE_ENV=test npm test src/auth/`
 
-3. [ ] Cache layer operational
-   - Redis connection established
-   - TTL behaviour correct
+# Script reference
+- **Validation:** `npm run test:auth`
 ```
-
-## Validation Commands
-
-### Single Command
-
-```markdown
-**Validation:** `pnpm test`
-```
-
-### Multiple Commands
-
-````markdown
-**Validation:**
-
-```bash
-pnpm build && pnpm test && pnpm lint
-```
-````
-
-````
-
-### With Environment
-
-```markdown
-**Validation:**
-```bash
-NODE_ENV=test pnpm test src/auth/
-````
-
-````
-
-### Script Reference
-
-```markdown
-**Validation:** `pnpm run test:auth`
-````
 
 ---
 
-**Next:** [Minimal plan example →](/aps/examples/minimal-plan)
+**Next:** [Minimal plan example →](../examples/minimal-plan.md)

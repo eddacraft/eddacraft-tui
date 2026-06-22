@@ -1,273 +1,155 @@
 ---
 id: determinism
-title: Determinism Rules
-description: How APS achieves hash stability and reproducible validation.
+title: Validation Rules
+description: How APS lint enforces structure, references, and consistency.
 sidebar_position: 3
 ---
 
-# Determinism Rules
+# Validation Rules
 
-APS is designed for deterministic, reproducible validation. This page explains
-how.
+| Type      | Authority | Owner   | Status | Freshness                                              |
+| --------- | --------- | ------- | ------ | ------------------------------------------------------ |
+| Public docs | Derived   | DOCSYNC | Live   | Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0 |
 
-## What is Determinism?
+| Upstream                                                                  | Downstream           |
+| ------------------------------------------------------------------------- | -------------------- |
+| [anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec) `docs/**` | APS docs-site section |
 
-**Determinism** means: same inputs → same outputs.
+APS enforces consistent, machine-checkable plan structure through `aps lint`
+and `aps audit`. This page describes what the tooling validates and why.
 
-For APS:
+## What lint checks
 
-- Same plan content → same hash
-- Same plan → same validation result
-- Same task → same success criteria
+`aps lint` validates APS documents for:
 
-## Hash Stability
-
-### How Hashes Work
-
-Each APS document has a content hash:
-
-```markdown
----
-format: aps
-version: 1.0
-hash: sha256:a1b2c3d4e5f6...
----
-```
-
-The hash is computed from the **semantic content**, not the raw text.
-
-### What Changes the Hash
-
-**Content changes:**
-
-```markdown
-# Before
-
-Intent: Users can log in
-
-# After (hash changes)
-
-Intent: Users can log in with SSO
-```
-
-### What Doesn't Change the Hash
-
-**Whitespace normalisation:**
-
-```markdown
-# These produce the same hash:
-
-Intent: Users can log in
-
-Intent: Users can log in
-
-Intent: Users can log in
-```
-
-**Comment changes:**
-
-```markdown
-# These produce the same hash:
-
-Intent: Users can log in
-
-<!-- This is a comment -->
-
-Intent: Users can log in
-
-<!-- Different comment -->
-```
-
-### Computing Hashes
+- Required sections and metadata tables
+- Work item field completeness
+- ID format conformance
+- Cross-reference resolution
+- Release narrative structure
 
 ```bash
-# Compute hash for a plan
-anvil plan hash plans/index.aps.md
-
-# Output:
-# sha256:a1b2c3d4e5f6...
+aps lint plans/                       # lint entire plan tree
+aps lint plans/modules/auth.aps.md    # lint one file
+aps lint . --json                     # machine-readable output
 ```
 
-## Normalisation Rules
+Errors cause a non-zero exit code. Warnings are informational unless `--strict`
+is set.
 
-### Text Normalisation
+## Error codes
 
-1. Trim leading/trailing whitespace
-2. Collapse multiple spaces to single space
-3. Normalise line endings to LF
-4. Remove trailing whitespace from lines
+| Code | Scope     | Description                                                                           |
+| ---- | --------- | ------------------------------------------------------------------------------------- |
+| E001 | Module    | Missing `## Purpose` section                                                          |
+| E002 | Module    | Missing `## Work Items` section                                                       |
+| E003 | Module    | Missing ID/Status metadata table                                                      |
+| E004 | Index     | Missing `## Modules` section                                                          |
+| E005 | Work Item | Missing required field (`Intent`, `Expected Outcome`, or `Validation`)                |
+| E010 | Issues    | Missing `## Issues` section                                                           |
+| E011 | Issues    | Missing `## Questions` section                                                        |
+| R001 | Release   | Release file not named `v<version>.md`                                                |
+| R002 | Release   | Missing release header table with `Target` and `Status`                               |
+| R003 | Release   | Missing `## Release Theme` section                                                    |
+| R004 | Release   | Missing `## What Ships` section                                                       |
 
-### Structural Normalisation
+## Warning codes
 
-1. Order frontmatter fields alphabetically
-2. Order list items by appearance
-3. Preserve heading hierarchy
+| Code | Scope          | Description                                                                                     |
+| ---- | -------------- | ----------------------------------------------------------------------------------------------- |
+| W001 | Work Item      | ID does not match `PREFIX-NNN` pattern                                                          |
+| W002 | Module         | Conductor references a work-item ID that resolves nowhere                                       |
+| W003 | Work Item      | Dependency references an ID not found in the plan tree                                          |
+| W004 | Module / Index | Section exists but is empty                                                                     |
+| W005 | Module         | Status is `Ready` but no work items are defined                                                 |
+| W006 | Index          | Module listed under Conductor subsection but file is not `Type: Conductor`                      |
+| W010 | Issues         | Issue entry missing `Status`, `Discovered`, or `Severity`                                       |
+| W011 | Issues         | Question entry missing `Status`, `Discovered`, or `Priority`                                    |
+| W012 | Issues         | Issue ID does not match `ISS-NNN` format                                                        |
+| W013 | Issues         | Question ID does not match `Q-NNN` format                                                       |
+| W017 | Module         | Active module missing or stale `**Last reviewed:**` field (threshold: 60 days)                  |
+| W018 | Work Item      | Complete item missing `Validation` in an active module                                          |
+| W019 | Index          | Module link points to a non-existent file                                                       |
 
-### What's Preserved
+## Work item ID format
 
-- Heading text and level
-- Task IDs and titles
-- Intent text
-- Validation commands
-- Step text and order
-- Dependencies
+Pattern: `{PREFIX}-{NNN}`
 
-### What's Ignored
-
-- Comments (HTML-style)
-- Extra blank lines
-- Trailing whitespace
-- Frontmatter order
-
-## Reproducibility
-
-### Validation Reproducibility
-
-Given:
-
-- Same plan (by hash)
-- Same configuration
-- Same codebase state
-
-Result:
-
-- Same validation outcome
-- Same evidence produced
-
-### Caching
-
-Hash stability enables caching:
-
-```
-Plan hash: abc123
-Config hash: def456
-Files hash: ghi789
-Combined: xyz...
-
-Cache hit? Use cached result.
-Cache miss? Run validation.
+```text
+✓ AUTH-001   ✓ PAY-123   ✓ CORE-001
+✗ auth-001   ✗ AUTH-1    ✗ AUTH_001
 ```
 
-### Audit Trail
+- PREFIX: 1–10 uppercase alphanumeric characters
+- NNN: 3-digit zero-padded number
 
-Reproducibility enables auditing:
-
-```
-Q: "Was this code validated?"
-A: Evidence shows plan abc123 passed at timestamp T
-   Same plan today produces same hash
-   Therefore: same validation criteria applied
-```
-
-## Implementation Details
-
-### Hash Algorithm
-
-APS uses SHA-256:
-
-- Widely supported
-- Collision resistant
-- Fast computation
-
-### Content Extraction
-
-Before hashing:
-
-1. Parse Markdown to AST
-2. Extract semantic nodes
-3. Normalise text content
-4. Serialise to canonical form
-5. Compute SHA-256
-
-### Canonical Form
-
-The canonical form is JSON:
-
-```json
-{
-  "format": "aps",
-  "version": "1.0",
-  "title": "My Project",
-  "modules": [
-    {
-      "id": "auth",
-      "tasks": [
-        {
-          "id": "AUTH-001",
-          "title": "Login endpoint",
-          "intent": "Users can log in"
-        }
-      ]
-    }
-  ]
-}
-```
-
-This JSON is then hashed.
-
-## Edge Cases
-
-### Empty Content
-
-Empty or whitespace-only content has a defined hash:
-
-```
-sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
-```
-
-(This is the SHA-256 of empty string.)
-
-### Unicode
-
-Unicode is normalised (NFC) before hashing:
+## Required work item fields
 
 ```markdown
-# These produce the same hash:
+### AUTH-001: Title
 
-café (composed) café (decomposed: e + combining accent)
+- **Intent:** Required — what outcome this achieves
+- **Expected Outcome:** Required — testable result
+- **Validation:** Required — command to verify completion
 ```
 
-### Ordering
+## Status consistency
 
-Task order matters (affects hash). Step order matters.
+The orchestration CLI enforces a state machine:
 
-```markdown
-# Different hashes:
-
-## Tasks
-
-- AUTH-001
-- AUTH-002
-
-## Tasks
-
-- AUTH-002
-- AUTH-001
+```text
+Draft ──→ Ready ──→ In Progress ──→ Complete
 ```
 
-## Verification
+| Command        | Transition enforced                                     |
+| -------------- | ------------------------------------------------------- |
+| `aps next`     | None — read-only                                        |
+| `aps start`    | Ready → In Progress (dependencies must be Complete)       |
+| `aps complete` | In Progress → Complete                                  |
 
-### Manual Verification
+Invalid transitions are rejected with a clear error.
+
+## Toolchain pinning
+
+Projects pin their expected CLI version in `.aps/config.yml`:
+
+```yaml
+cli_version: 0.4.0
+```
+
+`aps` compares the pin to the running binary and warns on mismatch. Add
+`--strict` (or `APS_STRICT=1`) to fail CI on drift:
 
 ```bash
-# Compute expected hash
-anvil plan hash plans/index.aps.md
-
-# Compare with stored hash
-cat plans/index.aps.md | grep "hash:"
+aps lint --strict
 ```
 
-### Automated Verification
+## Audit: plan vs reality
 
-```bash
-# Verify all plans
-anvil plan verify
+`aps audit` checks whether Complete items actually pass their validation
+commands and whether Draft items have files that already exist:
 
-# Output:
-# plans/index.aps.md: ✓ valid
-# plans/modules/auth.aps.md: ✗ hash mismatch
+| Code | Meaning                                                              |
+| ---- | -------------------------------------------------------------------- |
+| A001 | Overstated — Complete item whose Validation command fails            |
+| A002 | Understated — Draft item whose Files already exist with content      |
+| A003 | Stale — Ready module with no recent `**Last reviewed:**`             |
+| A004 | Broken link — index module link points to a non-existent file        |
+
+> **CI safety:** Use `aps audit --no-run` in pull-request jobs. Running with
+> execution enabled executes Validation commands from plan files with full shell
+> semantics — only run on trusted branches.
+
+## CI integration
+
+```yaml
+- name: Lint APS documents
+  run: aps lint plans/ --strict
 ```
+
+See the canonical workflow at
+[anvil-plan-spec `docs/ci-lint-example.yml`](https://github.com/EddaCraft/anvil-plan-spec/blob/main/docs/ci-lint-example.yml).
 
 ---
 
-**Next:** [JSON Schema →](/aps/schemas/json-schema)
+**Next:** [Document structure →](../schemas/json-schema.md)

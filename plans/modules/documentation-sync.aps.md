@@ -9,18 +9,19 @@ See: plans/aps-rules.md
 
 | ID      | Owner | Status      | Progress |
 | ------- | ----- | ----------- | -------- |
-| DOCSYNC | —     | In Progress | 12/17    |
+| DOCSYNC | —     | In Progress | 13/18    |
 
 ## Purpose
 
 Keep the public docs-site (Docusaurus) in sync with feature development. The
-**Anvil** section is sourced from `docs/public/anvil/`; **Kindling** and other
-sibling product sections mirrored under `docs/public/<product>/` are also in
-scope when refreshed to match upstream releases (see DOCSYNC-023). Rust CLI
-migration, web dashboard rollout, policy governance, and new language support
-are the primary Anvil drivers. API reference generation (from the OpenAPI spec)
-is also in scope. Internal-doc governance — ADR process, architecture diagrams,
-runbook/as-built freshness — is owned by DOCGOV.
+**Anvil** section is sourced from `docs/public/anvil/`; **Kindling**, **APS**,
+and other sibling product sections mirrored under `docs/public/<product>/` are
+also in scope when refreshed to match upstream releases (see DOCSYNC-023,
+DOCSYNC-024). Rust CLI migration, web dashboard rollout, policy governance, and
+new language support are the primary Anvil drivers. API reference generation
+(from the OpenAPI spec) is also in scope. Internal-doc governance — ADR
+process, architecture diagrams, runbook/as-built freshness — is owned by
+DOCGOV.
 
 **Problem:** Documentation was polished for 0.1.0 but has no forward plan.
 The Rust CLI replaces the Node.js package entirely, the dashboard adds a new
@@ -31,8 +32,8 @@ documentation updates that aren't tracked.
 
 DOCSYNC scope is **public-facing Docusaurus content** under `docs/public/` —
 primarily the Anvil section (`docs/public/anvil/`), plus mirrored sibling
-sections (e.g. `docs/public/kindling/`) when a release refresh is scheduled
-here. Host wiring for those sections is tracked by
+sections (`docs/public/kindling/`, `docs/public/aps/`, and others) when a
+release refresh is scheduled here. Host wiring for those sections is tracked by
 [DSITE](public-docs-site-host.aps.md). Internal docs under `docs/guides/`,
 `plans/**`, and architecture / runbook freshness now live under DOCGOV.
 
@@ -46,7 +47,8 @@ here. Host wiring for those sections is tracked by
 
 - Marketing content (covered by website module)
 - Blog posts (separate concern)
-- APS specification docs (external repo)
+- APS specification authoring in the external repo (derived public mirror at
+  `docs/public/aps/` is synced via DOCSYNC-024)
 - ADR template/process and architecture diagrams (now owned by DOCGOV)
 - Internal runbook and as-built freshness (now owned by DOCGOV-006)
 
@@ -55,6 +57,7 @@ here. Host wiring for those sections is tracked by
 **Depends on:**
 
 - `docs/public/anvil/` — Docusaurus content source
+- `docs/public/aps/` — APS section derived from anvil-plan-spec
 - `apps/docs-site` — Docusaurus instance (reads from `docs/public/anvil/`)
 - Feature modules — source of documentation truth
 - API governance — OpenAPI spec for API reference
@@ -93,6 +96,7 @@ here. Host wiring for those sections is tracked by
 - DOCSYNC-021: Refresh docs for 0.3.2-beta/0.3.3-beta and current repo topology
 - DOCSYNC-022: Refresh current public docs for final release scope and 0.4.0-beta watch filtering
 - DOCSYNC-023: Full Kindling public docs refresh for upstream 0.2.0 (sibling `eddacraft/kindling`)
+- DOCSYNC-024: Full refresh of `docs/public/aps/` against `anvil-plan-spec` v0.4.0
 
 ### Scanner / Two-Engine State (from RSCAN-008 council review, 2026-04-21)
 
@@ -110,9 +114,9 @@ here. Host wiring for those sections is tracked by
 | Phase                           | Total | Done | In Progress | Draft |
 | ------------------------------- | ----- | ---- | ----------- | ----- |
 | Rust CLI Migration              |    10 |    9 |           0 |     1 |
-| Future                          |     6 |    3 |           0 |     3 |
+| Future                          |     7 |    4 |           0 |     3 |
 | Scanner / Two-Engine State      |     1 |    0 |           0 |     1 |
-| **Total**                       |    17 |   12 |           0 |     5 |
+| **Total**                       |    18 |   13 |           0 |     5 |
 
 ### Item Detail
 
@@ -135,6 +139,7 @@ here. Host wiring for those sections is tracked by
 | DOCSYNC-021 | Done   | 0.3.2/0.3.3 public release docs, auth quickstarts, README and repo-topology docs refreshed |
 | DOCSYNC-022 | Done   | Final release-scope pass: current install/upgrade docs + 0.4.0-beta watch-filter docs refreshed |
 | DOCSYNC-023 | Done   | Full `docs/public/kindling/` refresh against upstream `eddacraft/kindling` v0.2.0: `demo`/`browse`, thin-client adapters, integrations matrix, VS Code adapter, 0.2 crate versions, retrieval score range, removed stale `list` flags |
+| DOCSYNC-024 | Done   | `docs/public/aps/**` aligned to `anvil-plan-spec` v0.4.0: terminology, CLI, file layout, examples |
 
 ### Reassigned items (out of DOCSYNC totals)
 

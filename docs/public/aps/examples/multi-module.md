@@ -1,333 +1,212 @@
 ---
 id: multi-module
 title: Multi-Module Plan
-description: A realistic multi-module APS plan structure.
+description: A realistic multi-module APS plan based on the user-auth example.
 sidebar_position: 2
 ---
 
 # Multi-Module Plan
 
-A realistic example showing a multi-module APS structure for an e-commerce
-platform.
+| Type      | Authority | Owner   | Status | Freshness                                              |
+| --------- | --------- | ------- | ------ | ------------------------------------------------------ |
+| Public docs | Derived   | DOCSYNC | Live   | Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0 |
 
-## Directory Structure
+| Upstream                                                                                  | Downstream           |
+| ----------------------------------------------------------------------------------------- | -------------------- |
+| [anvil-plan-spec `examples/user-auth`](https://github.com/EddaCraft/anvil-plan-spec/tree/main/examples/user-auth) | APS docs-site section |
 
-```
+A realistic example showing a multi-module APS structure for adding user
+authentication to an existing application. Based on the
+[user-auth example](https://github.com/EddaCraft/anvil-plan-spec/tree/main/examples/user-auth)
+in anvil-plan-spec.
+
+## Directory structure
+
+```text
 plans/
 ├── index.aps.md
 ├── modules/
 │   ├── auth.aps.md
-│   ├── products.aps.md
-│   ├── cart.aps.md
-│   └── payments.aps.md
+│   └── session.aps.md
+├── designs/
+│   └── 2025-01-05-auth-architecture.design.md
 └── execution/
-    └── PAY-001.steps.md
+    └── AUTH-001.actions.md
 ```
 
 ## Index
 
 ```markdown
----
-format: aps
-version: 1.0
----
+# User Authentication
 
-# ShopCraft E-Commerce
+## Overview
 
-An online store platform with authentication, product catalog, shopping cart,
-and payment processing.
+Add user authentication to an existing web application.
+
+## Problem & Success Criteria
+
+**Problem:** The application has no user authentication.
+
+**Success Criteria:**
+
+- [ ] Users can register with email and password
+- [ ] Users can log in and receive a session token
+- [ ] Protected routes reject unauthenticated requests
+
+## Designs
+
+- [Auth Architecture](./designs/2025-01-05-auth-architecture.design.md)
 
 ## Modules
 
-- [auth](modules/auth.aps.md) — User authentication
-- [products](modules/products.aps.md) — Product catalog
-- [cart](modules/cart.aps.md) — Shopping cart
-- [payments](modules/payments.aps.md) — Payment processing
+| Module                              | ID      | Owner | Status | Priority | Dependencies |
+| ----------------------------------- | ------- | ----- | ------ | -------- | ------------ |
+| [auth](./modules/auth.aps.md)       | AUTH    | @josh | Ready  | high     | —            |
+| [session](./modules/session.aps.md) | SESSION | @josh | Draft  | high     | auth         |
 ```
 
-## Auth Module
+## Auth module
 
 ```markdown
----
-format: aps
-module: auth
-files:
-  - src/auth/**
-  - src/middleware/auth.ts
----
-
 # Authentication Module
 
-User registration, login, and session management.
+| ID   | Owner | Priority | Status |
+| ---- | ----- | -------- | ------ |
+| AUTH | @josh | high     | Ready  |
 
-## Task: AUTH-001 — User registration
+## Purpose
 
-**Status:** completed
+Handle user registration and credential verification.
 
-**Intent:** New users can create accounts with email and password. Passwords are
-hashed. Email uniqueness enforced.
+## In Scope
 
-**Validation:** `pnpm test src/auth/register.test.ts`
+- User registration (email + password)
+- Password hashing and verification
+- Login credential validation
 
-**Steps:**
+## Out of Scope
 
-1. [x] POST /auth/register endpoint
-2. [x] Email format validation
-3. [x] Password hashing (bcrypt)
-4. [x] Duplicate email rejection
+- Session management (see SESSION module)
+- OAuth/social login (future work)
 
----
+## Interfaces
 
-## Task: AUTH-002 — User login
+**Depends on:**
 
-**Status:** completed
+- Database — user table with email, password_hash columns
 
-**Intent:** Users authenticate with email/password and receive JWT.
+**Exposes:**
 
-**Validation:** `pnpm test src/auth/login.test.ts`
+- `registerUser(email, password)` → User
+- `verifyCredentials(email, password)` → User | null
 
-**Steps:**
+## Work Items
 
-1. [x] POST /auth/login endpoint
-2. [x] Credential verification
-3. [x] JWT generation
-4. [x] Refresh token support
+### AUTH-001: Create user registration function
 
----
+- **Intent:** Allow new users to register with email and password
+- **Expected Outcome:** `registerUser()` creates user record with hashed password
+- **Validation:** `npm test -- auth.test.ts`
+- **Confidence:** high
 
-## Task: AUTH-003 — Auth middleware
+### AUTH-002: Create credential verification function
 
-**Status:** completed
-
-**Intent:** Protected routes require valid JWT. Invalid tokens return 401.
-
-**Validation:** `pnpm test src/middleware/auth.test.ts`
+- **Intent:** Verify email/password combinations for login
+- **Expected Outcome:** `verifyCredentials()` returns user if valid, null if not
+- **Validation:** `npm test -- auth.test.ts`
+- **Dependencies:** AUTH-001
+- **Confidence:** high
 ```
 
-## Products Module
+## Session module
 
 ```markdown
----
-format: aps
-module: products
-files:
-  - src/products/**
----
+# Session Module
 
-# Products Module
+| ID      | Owner | Priority | Status |
+| ------- | ----- | -------- | ------ |
+| SESSION | @josh | high     | Draft  |
 
-Product catalog management.
+## Purpose
 
-## Task: PROD-001 — List products
+Manage user sessions via JWT tokens.
 
-**Status:** completed
+## Interfaces
 
-**Intent:** GET /products returns paginated product list with filtering.
+**Depends on:**
 
-**Validation:** `pnpm test src/products/list.test.ts`
+- auth — credential verification
 
-**Steps:**
+**Exposes:**
 
-1. [x] Pagination (limit, offset)
-2. [x] Category filtering
-3. [x] Price range filtering
-4. [x] Search by name
+- `createSession(user)` → token
+- `validateSession(token)` → user | null
 
----
+## Work Items
 
-## Task: PROD-002 — Product details
+### SESSION-001: JWT token generation
 
-**Status:** completed
-
-**Intent:** GET /products/:id returns full product details.
-
-**Validation:** `pnpm test src/products/details.test.ts`
-
----
-
-## Task: PROD-003 — Admin product management
-
-**Status:** open
-
-**Intent:** Admins can create, update, and delete products.
-
-**Validation:** `pnpm test src/products/admin.test.ts`
-
-**Dependencies:**
-
-- AUTH-003 (auth middleware for admin check)
+- **Intent:** Generate signed JWT tokens on successful login
+- **Expected Outcome:** Token contains user ID and expiry; verifiable with secret
+- **Validation:** `npm test -- session.test.ts`
+- **Dependencies:** AUTH-002
 ```
 
-## Cart Module
+## Action plan
+
+`plans/execution/AUTH-001.actions.md`:
 
 ```markdown
----
-format: aps
-module: cart
-depends_on:
-  - auth
-  - products
-files:
-  - src/cart/**
----
+# Action Plan: AUTH-001
 
-# Cart Module
+| Field     | Value                                    |
+| --------- | ---------------------------------------- |
+| Work Item | AUTH-001 — Create user registration function |
+| Status    | In Progress                              |
 
-Shopping cart functionality.
+## Actions
 
-## Task: CART-001 — Add to cart
+### Action 1 — Create user table migration
 
-**Status:** locked
+**Checkpoint**
+Migration file exists with email, password_hash, created_at columns
 
-**Intent:** Authenticated users can add products to their cart. Cart persists
-across sessions.
+**Validate**
+`npm run migrate`
 
-**Validation:** `pnpm test src/cart/add.test.ts`
+### Action 2 — Implement registerUser function
 
-**Dependencies:**
+**Checkpoint**
+Function hashes password and inserts user record
 
-- AUTH-002 (user must be logged in)
-- PROD-002 (product must exist)
+**Validate**
+`npm test -- auth.test.ts`
 
-**Steps:**
+### Action 3 — Reject duplicate emails
 
-1. [x] POST /cart/items endpoint
-2. [x] Quantity validation
-3. [ ] Stock check
-4. [ ] Cart persistence
+**Checkpoint**
+Duplicate email registration returns error
 
----
-
-## Task: CART-002 — View cart
-
-**Status:** open
-
-**Intent:** Users see their cart with items, quantities, and totals.
-
-**Validation:** `pnpm test src/cart/view.test.ts`
-
-**Dependencies:**
-
-- CART-001
-
----
-
-## Task: CART-003 — Update cart
-
-**Status:** open
-
-**Intent:** Users can update quantities or remove items.
-
-**Validation:** `pnpm test src/cart/update.test.ts`
-
-**Dependencies:**
-
-- CART-001
+**Validate**
+`npm test -- auth.test.ts`
 ```
 
-## Payments Module
+## Dependency graph
 
-```markdown
----
-format: aps
-module: payments
-depends_on:
-  - auth
-  - cart
-files:
-  - src/payments/**
----
-
-# Payments Module
-
-Payment processing and order creation.
-
-## Task: PAY-001 — Stripe integration
-
-**Status:** open
-
-**Intent:** System can process payments via Stripe. Supports card payments. PCI
-compliant.
-
-**Validation:** `pnpm test src/payments/stripe.test.ts`
-
-**Dependencies:**
-
-- AUTH-003 (user context)
-- CART-002 (cart contents)
-
-**Steps:** See [PAY-001.steps.md](../execution/PAY-001.steps.md)
-
----
-
-## Task: PAY-002 — Checkout flow
-
-**Status:** open
-
-**Intent:** Users complete checkout: review → payment → confirmation. Cart
-cleared on success. Order created.
-
-**Validation:** `pnpm test src/payments/checkout.test.ts`
-
-**Dependencies:**
-
-- PAY-001
-- CART-002
+```text
+AUTH-001 ──▶ AUTH-002 ──▶ SESSION-001
 ```
 
-## Detailed Steps File
+## Driving with the CLI
 
-`plans/execution/PAY-001.steps.md`:
-
-```markdown
-# PAY-001 — Stripe Integration Steps
-
-## Phase 1: Setup
-
-1. [ ] Stripe SDK installed
-2. [ ] API keys configured (env vars)
-3. [ ] Webhook endpoint created
-
-## Phase 2: Payment Intent
-
-4. [ ] Create payment intent endpoint
-5. [ ] Amount calculated from cart
-6. [ ] Currency handling (GBP, USD)
-
-## Phase 3: Payment Confirmation
-
-7. [ ] Handle successful payment
-8. [ ] Handle failed payment
-9. [ ] Handle payment requiring action (3DS)
-
-## Phase 4: Webhooks
-
-10. [ ] Webhook signature verification
-11. [ ] Handle payment_intent.succeeded
-12. [ ] Handle payment_intent.failed
-13. [ ] Idempotency checks
-
-## Phase 5: Testing
-
-14. [ ] Unit tests for payment logic
-15. [ ] Integration tests with Stripe test mode
-16. [ ] E2E test of full checkout
-```
-
-## Dependency Graph
-
-```
-AUTH-001 ──▶ AUTH-002 ──▶ AUTH-003 ──┬──▶ PROD-003
-                                      │
-PROD-001                              │
-                                      │
-PROD-002 ─────────────────────────────┼──▶ CART-001 ──▶ CART-002 ──┬──▶ CART-003
-                                      │                             │
-                                      └─────────────────────────────┼──▶ PAY-001 ──▶ PAY-002
-                                                                    │
-                                                                    └───────────────────────
+```bash
+aps next                    # AUTH-001 (first Ready item)
+aps start AUTH-001          # claim it
+# ...implement via action plan...
+aps complete AUTH-001 --learning "bcrypt cost 12 sufficient for v1"
+aps next                    # AUTH-002 (AUTH-001 now Complete)
 ```
 
 ---
 
-**Next:** [Validation tooling →](/aps/tooling/validation)
+**Next:** [CLI Reference →](../tooling/validation.md)

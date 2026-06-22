@@ -129,6 +129,26 @@
 | [Release Documentation Checklist](../../docs/guides/release-doc-checklist.md)                                   | `docs/guides/release-doc-checklist.md`         | Guide  | Advisory      | DOCGOV | Live   |
 | [eddacraft OSS Surface](../../docs/architecture/oss-surface.md)                                                 | `docs/architecture/oss-surface.md`             | Guide  | Derived       | DOCGOV | Live   |
 
+## DOCSYNC
+
+| Document                                                             | Path                                       | Type        | Authority | Owner   | Status |
+| -------------------------------------------------------------------- | ------------------------------------------ | ----------- | --------- | ------- | ------ |
+| [AI Agent Guide](../../docs/public/aps/guides/ai-agents.md)          | `docs/public/aps/guides/ai-agents.md`      | Public docs | Derived   | DOCSYNC | Live   |
+| [APS Taxonomy](../../docs/public/aps/spec/taxonomy.md)               | `docs/public/aps/spec/taxonomy.md`         | Public docs | Derived   | DOCSYNC | Live   |
+| [APS Terminology](../../docs/public/aps/terminology.md)              | `docs/public/aps/terminology.md`           | Public docs | Derived   | DOCSYNC | Live   |
+| [APS Workflow](../../docs/public/aps/workflow.md)                    | `docs/public/aps/workflow.md`              | Public docs | Derived   | DOCSYNC | Live   |
+| [APS in Monorepos](../../docs/public/aps/guides/monorepo.md)         | `docs/public/aps/guides/monorepo.md`       | Public docs | Derived   | DOCSYNC | Live   |
+| [Anvil Plan Specification (APS)](../../docs/public/aps/overview.md)  | `docs/public/aps/overview.md`              | Public docs | Derived   | DOCSYNC | Live   |
+| [CLI Reference](../../docs/public/aps/tooling/validation.md)         | `docs/public/aps/tooling/validation.md`    | Public docs | Derived   | DOCSYNC | Live   |
+| [Document Structure](../../docs/public/aps/schemas/json-schema.md)   | `docs/public/aps/schemas/json-schema.md`   | Public docs | Derived   | DOCSYNC | Live   |
+| [File Layout](../../docs/public/aps/spec/file-layout.md)             | `docs/public/aps/spec/file-layout.md`      | Public docs | Derived   | DOCSYNC | Live   |
+| [Getting Started with APS](../../docs/public/aps/getting-started.md) | `docs/public/aps/getting-started.md`       | Public docs | Derived   | DOCSYNC | Live   |
+| [Installation](../../docs/public/aps/installation.md)                | `docs/public/aps/installation.md`          | Public docs | Derived   | DOCSYNC | Live   |
+| [Minimal Plan](../../docs/public/aps/examples/minimal-plan.md)       | `docs/public/aps/examples/minimal-plan.md` | Public docs | Derived   | DOCSYNC | Live   |
+| [Multi-Module Plan](../../docs/public/aps/examples/multi-module.md)  | `docs/public/aps/examples/multi-module.md` | Public docs | Derived   | DOCSYNC | Live   |
+| [Schema Examples](../../docs/public/aps/schemas/examples.md)         | `docs/public/aps/schemas/examples.md`      | Public docs | Derived   | DOCSYNC | Live   |
+| [Validation Rules](../../docs/public/aps/spec/determinism.md)        | `docs/public/aps/spec/determinism.md`      | Public docs | Derived   | DOCSYNC | Live   |
+
 ## DRVR
 
 | Document                                                                                              | Path                                             | Type     | Authority | Owner | Status |

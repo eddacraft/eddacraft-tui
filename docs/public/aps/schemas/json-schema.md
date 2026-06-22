@@ -1,169 +1,215 @@
 ---
 id: json-schema
-title: Schemas and Types
-description: APS type definitions and validation schemas.
+title: Document Structure
+description: APS document types, required sections, and field reference.
 sidebar_position: 1
 ---
 
-# Schemas and Types
+# Document Structure
 
-APS uses [Zod](https://zod.dev) schemas for runtime validation and TypeScript
-type generation.
+| Type      | Authority | Owner   | Status | Freshness                                              |
+| --------- | --------- | ------- | ------ | ------------------------------------------------------ |
+| Public docs | Derived   | DOCSYNC | Live   | Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0 |
 
-## TypeScript Types
+| Upstream                                                                  | Downstream           |
+| ------------------------------------------------------------------------- | -------------------- |
+| [anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec) `docs/**` | APS docs-site section |
 
-The core types are exported from `@eddacraft/anvil-aps`:
+APS is markdown-native. There is no separate binary format — documents are
+validated by structure and field conventions enforced by `aps lint`.
 
-```typescript
-import type {
-  Task,
-  ModuleMetadata,
-  ParsedDocument,
-} from '@eddacraft/anvil-aps';
+## Document types
+
+| Type        | File pattern              | Executable? | Key sections                          |
+| ----------- | ------------------------- | ----------- | --------------------------------------- |
+| Index       | `index.aps.md`            | No          | Overview, Modules, Milestones           |
+| Module      | `modules/*.aps.md`        | If Ready    | Purpose, Work Items                     |
+| Action Plan | `execution/*.actions.md`  | Yes         | Actions with checkpoints                |
+| Issues      | `issues.md`               | No          | Issues (ISS-NNN), Questions (Q-NNN)     |
+| Release     | `releases/v*.md`          | No          | Release Theme, What Ships               |
+| Design      | `designs/*.design.md`     | No          | Problem, Approach, Decisions            |
+
+## Index structure
+
+```markdown
+# Plan Title
+
+## Overview
+[One paragraph]
+
+## Problem & Success Criteria
+**Problem:** [...]
+**Success Criteria:**
+- [ ] [...]
+
+## Modules
+| Module | ID | Owner | Status | Priority | Dependencies |
+| [...]  |    |       |        |          |              |
 ```
 
-### Task
+Required sections (lint E004): `## Modules`
 
-A unit of authorised work:
+## Module structure
 
-```typescript
-interface Task {
-  id: string; // Pattern: SCOPE-NNN (e.g., AUTH-001)
-  title: string;
-  intent: string; // What the task aims to achieve (required)
-  expectedOutcome?: string; // Success criteria
-  validation?: string; // Command to verify completion
-  confidence?: 'low' | 'medium' | 'high'; // Defaults to 'medium'
-  scopes?: string[]; // File access constraints
-  nonScope?: string[]; // What will NOT be changed
-  files?: string[]; // Files that may be affected
-  tags?: string[]; // Labels for filtering
-  dependencies?: string[]; // Tasks that must complete first
-  inputs?: string[]; // Required inputs or context
-  risks?: string[]; // Potential risks
-  link?: string; // External link (e.g., Jira ticket)
-  status?: 'open' | 'locked' | 'completed' | 'cancelled';
-  sourcePath?: string; // Source file path
-  sourceLineNumber?: number; // Line number in source
-}
+```markdown
+# Module Title
+
+| ID   | Owner | Priority | Status |
+| ---- | ----- | -------- | ------ |
+| AUTH | @you  | high     | Draft  |
+
+## Purpose
+[Why this module exists]
+
+## In Scope
+- [...]
+
+## Out of Scope _(optional)_
+- [...]
+
+## Interfaces _(optional)_
+**Depends on:** [...]
+**Exposes:** [...]
+
+## Work Items
+### AUTH-001: [Title]
+- **Intent:** [...]
+- **Expected Outcome:** [...]
+- **Validation:** `[command]`
 ```
 
-### Task ID Format
+Required sections (lint E001, E002, E003): metadata table, `## Purpose`,
+`## Work Items`
 
-Task IDs follow the pattern `{SCOPE}-{NNN}`:
+## Work item fields
 
-- 1-10 uppercase alphanumeric characters for the scope
-- Hyphen separator
-- 3-digit zero-padded number
+### Required
 
+| Field              | Format   | Description                         |
+| ------------------ | -------- | ----------------------------------- |
+| ID                 | `PREFIX-NNN` | Unique identifier               |
+| Intent             | string   | One-sentence outcome                |
+| Expected Outcome   | string   | Testable or observable result       |
+| Validation         | string   | Command or condition to verify      |
+
+### Optional
+
+| Field        | Format                              | Description                    |
+| ------------ | ----------------------------------- | ------------------------------ |
+| Status       | enum                                | See status vocabulary below      |
+| Dependencies | list of IDs                         | Upstream work items            |
+| Confidence   | `low` \| `medium` \| `high`         | Uncertainty level              |
+| Scope        | string                              | What will change               |
+| Non-scope    | string                              | What will not change           |
+| Files        | list of paths                       | Best-effort affected files       |
+| Risks        | list                                | Potential risks                  |
+| Learning     | string                              | Captured by `aps complete`       |
+| Packages     | list                                | Affected packages (monorepo)   |
+
+### Status vocabulary
+
+Canonical: `Draft`, `Ready`, `In Progress`, `Complete`, `Blocked`
+
+Aliases (normalised internally): `Proposed` → `Draft`, `Done` → `Complete`
+
+Terminal compaction: `Merged`, `Released`, `Shipped` (treated as Complete for
+dependency checks)
+
+## Action plan structure
+
+```markdown
+# Action Plan: AUTH-001
+
+| Field     | Value                    |
+| --------- | ------------------------ |
+| Work Item | AUTH-001 — Login endpoint |
+| Status    | Draft                    |
+
+## Actions
+
+### Action 1 — [Verb] [target]
+
+**Purpose**
+[Why this action exists]
+
+**Produces**
+[Concrete artefacts]
+
+**Checkpoint**
+[Observable state — max ~12 words]
+
+**Validate**
+`[command]` _(optional)_
+
+**Wave** 1 _(optional)_
 ```
-AUTH-001   ✓
-PAY-042   ✓
-CORE-001  ✓
-LLM2-007  ✓
-auth-001  ✗  (must be uppercase)
-AUTH-1    ✗  (must be 3 digits)
+
+## Issues structure
+
+```markdown
+# Development Issues
+
+## Issues
+
+### ISS-001: [Title]
+
+| Field      | Value    |
+| ---------- | -------- |
+| Status     | Open     |
+| Severity   | medium   |
+| Discovered | AUTH-002 |
+| Module     | AUTH     |
+
+**Context:** [...]
+
+## Questions
+
+### Q-001: [Title]
+
+| Field      | Value    |
+| ---------- | -------- |
+| Status     | Open     |
+| Priority   | low      |
+| Discovered | planning |
 ```
 
-### Module Metadata
+Required sections (lint E010, E011): `## Issues`, `## Questions`
 
-```typescript
-interface ModuleMetadata {
-  id?: string; // Module identifier
-  title?: string; // From H1 heading
-  path?: string; // Path to spec file
-  scope?: string; // Scope prefix for task IDs
-  owner?: string; // Person/team responsible
-  status?: 'Proposed' | 'Ready' | 'In Progress' | 'Done' | 'Blocked';
-  priority?: 'low' | 'medium' | 'high';
-  tags?: string[];
-  packages?: string[]; // Package names in monorepo modules
-  dependencies?: string[]; // Other modules this depends on
-}
+## Release structure
+
+```markdown
+# v0.4.0
+
+| Field  | Value      |
+| ------ | ---------- |
+| Target | 2026-06-01 |
+| Status | Shipped    |
+
+## Release Theme
+[One paragraph]
+
+## What Ships
+| Capability | Module | Work Items |
+| [...]      |        |            |
 ```
 
-## Operating Model Extension
+Required sections (lint R003, R004): `## Release Theme`, `## What Ships`
 
-The current exported schemas above are the package-level validation contract.
-The Anvil repository is migrating to a richer operating-model lifecycle for
-active APS planning:
+## Anvil repository extension
+
+The Anvil product repository uses a richer operating-model lifecycle for
+active planning. This is repository guidance, not the portable APS package
+contract:
 
 ```text
-APS Draft -> APS Proposed -> APS Ready -> In Progress -> Merged -> Released/Shipped -> Complete/Archived
+Draft → Proposed → Ready → In Progress → Merged → Released/Shipped → Complete
 ```
 
-Target-state APS work items may also carry release reconstruction metadata:
-
-```typescript
-interface OperatingModelReleaseMetadata {
-  changeType?: 'fix' | 'feature' | 'docs' | 'internal' | 'breaking';
-  releaseIntent?: 'candidate' | 'hold' | 'never';
-  holdCondition?: string; // Required when releaseIntent is 'hold'
-  releaseScope?: 'patch' | 'minor' | 'major' | 'none';
-  releaseNote?: {
-    audience: 'user' | 'operator' | 'developer' | 'none';
-    type: 'added' | 'fixed' | 'changed' | 'removed' | 'security';
-    text?: string;
-  };
-}
-```
-
-Until the package schemas are updated, this lifecycle is repository guidance,
-not the exported `@eddacraft/anvil-aps` runtime schema.
-
-### Parsed Document
-
-Result of parsing a leaf spec file:
-
-```typescript
-interface ParsedDocument {
-  title: string; // From H1 heading
-  metadata?: ModuleMetadata;
-  tasks: Task[];
-  sourcePath?: string;
-}
-```
-
-## Programmatic Validation
-
-Use the Zod schemas directly for runtime validation:
-
-```typescript
-import { TaskSchema, ModuleMetadataSchema } from '@eddacraft/anvil-aps';
-
-const result = TaskSchema.safeParse(data);
-
-if (!result.success) {
-  console.error(result.error.issues);
-}
-```
-
-## Validation Errors
-
-Common validation errors:
-
-### Missing Required Field
-
-```
-ZodError: Required at "intent"
-```
-
-The `intent` field is required for all tasks.
-
-### Invalid Task ID
-
-```
-ZodError: Invalid at "id" — must match pattern ^[A-Z0-9]{1,10}-\d{3}$
-```
-
-### Invalid Status
-
-```
-ZodError: Invalid enum value at "status"
-  Expected: 'open' | 'locked' | 'completed' | 'cancelled'
-  Received: 'done'
-```
+Work items may also carry release reconstruction metadata (`changeType`,
+`releaseIntent`, `releaseScope`, `releaseNote`). These fields are specific to
+Anvil's release operating model and are not required by `aps lint` in generic
+APS projects.
 
 ---
 
-**Next:** [Examples →](/aps/schemas/examples)
+**Next:** [Schema examples →](./examples.md)

@@ -1,232 +1,222 @@
 ---
 id: validation
-title: Validation
-description: Validating APS documents for correctness.
-sidebar_position: 2
+title: CLI Reference
+description: The aps CLI — authoring, orchestration, audit, and CI integration.
+sidebar_position: 1
 ---
 
-# Validation
+# CLI Reference
 
-APS documents can be validated for structure, references, and consistency.
+| Type      | Authority | Owner   | Status | Freshness                                              |
+| --------- | --------- | ------- | ------ | ------------------------------------------------------ |
+| Public docs | Derived   | DOCSYNC | Live   | Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0 |
 
-## Validation Levels
+| Upstream                                                                  | Downstream           |
+| ------------------------------------------------------------------------- | -------------------- |
+| [anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec) `docs/**` | APS docs-site section |
 
-### Level 1: Syntax
+The `aps` CLI has two layers:
 
-Basic Markdown and frontmatter parsing.
+- **Authoring** — scaffold projects, lint specs (`init`, `update`, `migrate`, `lint`)
+- **Orchestration** — drive work items through the lifecycle (`next`, `start`, `complete`, `graph`)
 
-```bash
-anvil plan validate --level syntax plans/index.aps.md
-```
+You can ignore orchestration and edit markdown by hand — the CLI is additive.
 
-Checks:
-
-- Valid Markdown
-- Valid YAML frontmatter
-- Required fields present
-
-### Level 2: Structure
-
-Document structure validation.
+## Command index
 
 ```bash
-anvil plan validate --level structure plans/index.aps.md
+aps init [dir]              # Create APS structure
+aps update [dir]            # Refresh templates and tool files
+aps migrate [dir]           # Convert v1 layout to v2 (.aps/)
+aps lint [file|dir]         # Validate APS documents
+aps next [module]           # Show next ready work item
+aps start <ID>              # Mark Ready → In Progress
+aps complete <ID>           # Mark In Progress → Complete
+aps graph [module]          # Dependency graph
+aps audit [module]          # Audit plan state against reality
+aps doctor                  # Diagnose global binary vs vendored CLI
+aps setup [component]       # Add integrations (hooks, agents, tools)
+aps upgrade [--apply]       # Remove generated bloat
+aps --help                  # Top-level help
 ```
 
-Checks:
+Every command accepts `--plans <dir>` if plans are not at the default `plans/`
+location.
 
-- Heading hierarchy correct
-- Task IDs match pattern
-- Steps formatted correctly
+## Project config discovery
 
-### Level 3: References
+Project-scoped commands resolve their plan root automatically. `aps` walks up
+from the current directory for the nearest `.aps/config.yml` and uses its
+`plans_dir`.
 
-Cross-reference validation.
+Resolution order: explicit `--plans` / target → `APS_PLANS` env var →
+discovered `plans_dir` → `plans/`.
+
+Add `--strict` (or `APS_STRICT=1`) to fail on toolchain version drift:
 
 ```bash
-anvil plan validate --level references plans/index.aps.md
+aps lint --strict
 ```
 
-Checks:
-
-- All module files exist
-- All dependencies resolved
-- No dangling references
-
-### Level 4: Semantic
-
-Full semantic validation.
+## `aps lint`
 
 ```bash
-anvil plan validate --level semantic plans/index.aps.md
+aps lint                          # Lint plans/
+aps lint plans/modules/auth.aps.md
+aps lint . --json                 # Machine-readable output
 ```
 
-Checks:
+See [Validation rules →](../spec/determinism.md) for error and warning codes.
 
-- No circular dependencies
-- All tasks have intents
-- Validation commands present
+## Orchestration
 
-### Full Validation
+The orchestration commands read and rewrite `.aps.md` files in place. Markdown
+stays the single source of truth.
 
-Run all levels (default):
+### State machine
+
+```text
+Draft ──→ Ready ──→ In Progress ──→ Complete
+```
+
+| Command        | Transition                                              |
+| -------------- | ------------------------------------------------------- |
+| `aps next`     | Read-only                                               |
+| `aps start`    | Ready → In Progress (dependencies must be Complete)       |
+| `aps complete` | In Progress → Complete                                  |
+| `aps graph`    | Read-only                                               |
+| `aps audit`    | Read-only (executes Validation commands by default)     |
+
+### `aps next`
 
 ```bash
-anvil plan validate plans/index.aps.md
+$ aps next
+AUTH-003: Implement token refresh
+Module: AUTH | Dependencies: AUTH-001, AUTH-002 | Status: Ready
+File: plans/modules/auth.aps.md
+
+$ aps next auth          # Scope to one module
 ```
 
-## Validation Rules
-
-### Required Frontmatter
-
-```yaml
----
-format: aps # Required, must be "aps"
-version: 1.0 # Required, semver format
----
-```
-
-### Task ID Format
-
-Pattern: `{PREFIX}-{NNN}`
-
-```markdown
-✓ AUTH-001 ✓ PAY-123 ✓ CORE-001
-
-✗ auth-001 # Must be uppercase ✗ AUTH-1 # Must be 3 digits ✗ AUTH_001 # Must use
-hyphen
-```
-
-### Required Task Fields
-
-```markdown
-## Task: AUTH-001 — Title
-
-**Intent:** Required
-
-**Validation:** Optional
-```
-
-Optional:
-
-- Status
-- Dependencies
-- Steps
-
-### Step Format
-
-```markdown
-**Steps:**
-
-1. [ ] Incomplete step
-2. [x] Complete step
-3. [ ] Another step
-```
-
-Rules:
-
-- Numbered list
-- Checkbox format
-- Max 12 words recommended
-
-## Error Messages
-
-### Missing Module
-
-```
-Error: Module not found
-  File: plans/modules/missing.aps.md
-  Referenced in: plans/index.aps.md line 15
-
-  Did you mean: plans/modules/auth.aps.md?
-```
-
-### Invalid Task ID
-
-```
-Error: Invalid task ID format
-  Found: auth-001
-  Expected: {PREFIX}-{NNN} (e.g., AUTH-001)
-  Location: plans/modules/auth.aps.md line 23
-```
-
-### Missing Intent
-
-```
-Error: Task missing intent
-  Task: AUTH-002
-  Location: plans/modules/auth.aps.md line 45
-
-  Add an **Intent:** section to define what the task aims to achieve.
-```
-
-### Circular Dependency
-
-```
-Error: Circular dependency detected
-  PAY-001 → CART-002 → PAY-001
-
-  Break the cycle by:
-  1. Removing one dependency
-  2. Extracting shared functionality
-```
-
-## CI Integration
-
-### GitHub Actions
-
-```yaml
-- name: Validate Plans
-  run: anvil plan validate --strict
-```
-
-`--strict` fails on warnings too.
-
-### Pre-commit Hook
+### `aps start <ID>`
 
 ```bash
-#!/bin/bash
-# .git/hooks/pre-commit
-
-if git diff --cached --name-only | grep -q "\.aps\.md$"; then
-  anvil plan validate --cached
-fi
+$ aps start AUTH-003
+Marked AUTH-003 as In Progress
+Suggested branch: work/auth-003
+Context package: .aps/context/AUTH-003.md
 ```
 
-## Programmatic Validation
+On success:
 
-```typescript
-import { validatePlan } from '@eddacraft/anvil-aps';
+- Rewrites `- **Status:**` to `In Progress`
+- Suggests a branch name (`work/<id>`)
+- Writes a context package at `.aps/context/<ID>.md`
 
-const result = await validatePlan('plans/index.aps.md');
+### `aps complete <ID>`
 
-if (!result.valid) {
-  for (const error of result.errors) {
-    console.error(`${error.level}: ${error.message}`);
-    console.error(`  Location: ${error.file}:${error.line}`);
+```bash
+$ aps complete AUTH-003 --learning "Token refresh needs retry on network errors"
+Marked AUTH-003 as Complete: 2026-05-12
+Learning recorded for AUTH-003
+```
+
+### `aps graph [module]`
+
+```bash
+$ aps graph auth
+AUTH-001 [Complete] Create users
+  <- none
+AUTH-002 [Complete] Verify credentials
+  <- AUTH-001[Complete]
+AUTH-003 [Ready] Add token refresh
+  <- AUTH-001[Complete] AUTH-002[Complete]
+```
+
+### `aps audit [module]`
+
+```bash
+$ aps audit
+Complete-item verification:
+  AUTH-001     PASS     npm test -- auth.test.ts
+  AUTH-002     FAIL     npm test -- session.test.ts
+
+Findings:
+  A001  AUTH-002     overstated: Validation failed
+  A003  UI-002       stale: module last reviewed 89 days ago
+
+Findings: 2 (23 items audited)
+```
+
+Options: `--json`, `--no-run` (skip executing validation commands),
+`--stale-days N`.
+
+> **CI safety:** Use `aps audit --no-run` in pull-request jobs.
+
+### `aps doctor`
+
+Read-only diagnostics for global binary vs vendored CLI state:
+
+```bash
+$ aps doctor
+  [ok  ] global binary: aps 0.4.0 at ~/.aps/bin/aps
+  [warn] cli_version: project pins 0.3.0 but this binary is 0.4.0
+  [warn] vendored CLI: leftover bin/aps, lib/ — run `aps upgrade`
+```
+
+## End-to-end loop
+
+```bash
+aps next
+aps start AUTH-003
+git switch -c work/auth-003
+# ...implement, test, commit...
+aps complete AUTH-003 --learning "..."
+aps next
+```
+
+## MCP server
+
+An optional MCP server in
+[anvil-plan-spec `mcp/`](https://github.com/EddaCraft/anvil-plan-spec/tree/main/mcp)
+exposes orchestration commands as a single `aps` tool over stdio.
+
+```json
+{
+  "mcpServers": {
+    "aps": {
+      "command": "node",
+      "args": ["/path/to/anvil-plan-spec/mcp/src/index.ts"],
+      "env": { "APS_PLANS": "/path/to/your/project/plans" }
+    }
   }
 }
 ```
 
-### Validation Result
+## CI integration
 
-```typescript
-interface ValidationResult {
-  valid: boolean;
-  errors: ValidationError[];
-  warnings: ValidationWarning[];
-}
+```yaml
+name: Lint APS Documents
 
-interface ValidationError {
-  code: string;
-  level: 'syntax' | 'structure' | 'reference' | 'semantic';
-  message: string;
-  file: string;
-  line?: number;
-  suggestion?: string;
-}
+on:
+  push:
+    paths: ["plans/**/*.aps.md", "plans/**/*.actions.md"]
+  pull_request:
+    paths: ["plans/**/*.aps.md", "plans/**/*.actions.md"]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install APS CLI
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/EddaCraft/anvil-plan-spec/main/scaffold/install \
+            | bash -s -- --global
+      - name: Lint APS documents
+        run: aps lint plans/ --strict
 ```
 
 ---
 
-**Back to:** [APS Overview →](/aps/overview)
+**Back to:** [APS Overview →](../overview.md)

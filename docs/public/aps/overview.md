@@ -2,227 +2,148 @@
 id: overview
 title: APS Overview
 description:
-  The Anvil Plan Specification — a deterministic, hash-stable format for
-  development plans.
+  The Anvil Plan Specification — a portable, markdown-native format for
+  deterministic development plans that work with any AI tool.
 sidebar_position: 1
 ---
 
 # Anvil Plan Specification (APS)
 
-APS is an open-source specification for defining deterministic, hash-stable
-development plans.
+| Type      | Authority | Owner   | Status | Freshness                                              |
+| --------- | --------- | ------- | ------ | ------------------------------------------------------ |
+| Public docs | Derived   | DOCSYNC | Live   | Last reviewed 2026-06-22 against anvil-plan-spec v0.4.0 |
 
-## What is APS?
+| Upstream                                                                  | Downstream                                      |
+| ------------------------------------------------------------------------- | ----------------------------------------------- |
+| [anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec) `docs/**` | `apps/docs-site`, `apps/docs-public` APS section |
 
-APS is a document format (Markdown with YAML frontmatter) that describes:
+APS is an open-source, markdown-native specification for defining development
+plans that travel with your code and work with every AI tool you use — Claude
+Code, Cursor, Copilot, Codex, OpenCode, Gemini, and whatever comes next.
 
-- **What** should be built (not how)
-- **Success criteria** for each piece of work
-- **Validation commands** to verify completion
+**Plan before you prompt.** APS turns AI coding agents from improvisers into
+executors by giving them authorised, bounded, dependency-aware work items.
 
-```markdown
----
-format: aps
-version: 1.0
----
+## What APS solves
 
-# Feature: User Authentication
+| Pain                    | Without APS                                     | With APS                                              |
+| ----------------------- | ----------------------------------------------- | ----------------------------------------------------- |
+| **Scattered specs**     | Specs live in Notion, Linear, or a chat thread    | Specs live in `plans/`, versioned with your code      |
+| **Tool lock-in**        | Each AI tool needs its own ruleset and re-brief   | One spec works everywhere — every agent reads markdown |
+| **Agent drift**         | Agents wander off scope or run out of context     | Work items are authorised, bounded, and dependency-aware |
+| **No decision history** | No record of why a decision was made              | Decisions, designs, and learnings sit beside the code |
 
-## Task: AUTH-001 — Login Endpoint
+It is just markdown. No vendor lock-in. No daemons. No proprietary formats.
 
-**Intent:** Users authenticate with email/password, receiving a JWT.
+## Mental model
 
-**Validation:** `pnpm test src/auth/login.test.ts`
+```mermaid
+graph TD
+    A[Index] -->|contains| B[Module]
+    B -->|contains| C[Work Item]
+    C -->|executed via| D[Action Plan]
 ```
 
-## Why APS?
+| Layer           | Purpose                                      | Executable?               |
+| --------------- | -------------------------------------------- | ------------------------- |
+| **Index**       | High-level plan with modules and milestones  | No — describes intent     |
+| **Module**      | Bounded scope with interfaces and work items | If status is Ready        |
+| **Work Item**   | Single coherent change with validation       | Yes — execution authority |
+| **Action Plan** | Ordered actions with checkpoints             | Yes — granular execution  |
 
-### Determinism
+You author top-down (Index → Module → Work Items). You execute bottom-up
+(Work Item → Action Plan when needed). Action plans are optional; small items
+do not need them.
 
-Given the same plan, tools produce the same validation. The plan's hash doesn't
-change unless content changes.
+## Core principles
 
-**Enables:**
+1. **Specs describe intent** — what and why, not how
+2. **Work items authorise execution** — no work item, no implementation
+3. **Humans remain accountable** — AI proposes, humans approve
+4. **Checkpoints are observable** — every action has a verifiable state
 
-- Reproducible builds
-- Reliable caching
-- Audit trails
-
-### Separation of Concerns
-
-Plans describe _intent_, not _implementation_:
-
-```markdown
-❌ "Create middleware that extracts JWT, validates signature using jsonwebtoken
-library, checks expiry..."
-
-✓ "Auth middleware validates requests, attaches user to context"
-```
-
-The executor (human or AI) determines implementation. The plan defines success.
-
-### Tool Interoperability
-
-APS is a common format. Different tools can:
-
-- Generate APS from their native formats
-- Consume APS for validation
-- Exchange plans without lock-in
-
-## Core Concepts
-
-### Index
-
-The root document listing all modules:
+## Quick example
 
 ```markdown
----
-format: aps
-version: 1.0
----
+# Add Dark Mode
 
-# Project Plan
+## Problem
 
-## Modules
+Users want to reduce eye strain when working at night.
 
-- [auth](modules/auth.aps.md)
-- [payments](modules/payments.aps.md)
+## Success Criteria
+
+- [ ] Toggle persists across sessions
+- [ ] All components respect theme
+
+## Work Items
+
+### UI-001: Add theme context
+
+- **Intent:** ThemeProvider wraps app, exposes toggle
+- **Expected Outcome:** Theme context available to all components
+- **Validation:** `npm test -- theme.test.tsx`
 ```
 
-### Module
+## Drive plans with the CLI
 
-A cohesive unit of functionality:
-
-```markdown
----
-format: aps
-module: auth
----
-
-# Authentication Module
-
-## Tasks
-
-- AUTH-001: Login endpoint
-- AUTH-002: Registration endpoint
-```
-
-### Task
-
-A unit of authorised work:
-
-```markdown
-## Task: AUTH-001 — Login endpoint
-
-**Intent:** Users authenticate with credentials
-
-**Validation:** `pnpm test src/auth/login.test.ts`
-
-**Steps:**
-
-1. [ ] Endpoint accepts POST /auth/login
-2. [ ] Returns 401 for invalid credentials
-3. [ ] Returns JWT for valid credentials
-```
-
-### Step
-
-An observable checkpoint (what should be true, not how):
-
-```markdown
-**Steps:**
-
-1. [ ] API responds to health check
-2. [ ] Database connection established
-3. [ ] Cache warmed on startup
-```
-
-## Design Principles
-
-### Intent Over Implementation
-
-Plans describe outcomes, not code:
-
-```markdown
-❌ "Import bcrypt, hash password with 10 rounds..." ✓ "Passwords stored securely
-(not plaintext)"
-```
-
-### Observable State Only
-
-Steps describe what can be verified:
-
-```markdown
-❌ "Refactor the auth module" (not observable) ✓ "Auth module has <100 lines per
-file" (observable)
-```
-
-### Hash Stability
-
-Content changes = hash changes. Formatting changes don't:
-
-```markdown
-# These produce the same hash:
-
-## Task: AUTH-001
-
-Outcome: Users can log in
-
-## Task: AUTH-001
-
-Outcome: Users can log in
-```
-
-## Getting Started
-
-### 1. Create a Plan
+The `aps` CLI scaffolds projects, lints specs, and drives the work-item
+lifecycle:
 
 ```bash
-# Manual
-touch plans/index.aps.md
-
-# Or via CLI
-anvil plan create
+aps init                              # scaffold plans/ in a project
+aps lint plans/                       # validate every spec
+aps next                              # next ready work item
+aps start AUTH-003                    # claim it; writes a context package
+aps complete AUTH-003 --learning "Retry on 5xx improved success rate by 18%"
+aps graph auth                        # dependency graph for a module
 ```
 
-### 2. Define Structure
+Full reference: [CLI Reference →](./tooling/validation.md)
 
-```markdown
----
-format: aps
-version: 1.0
----
-
-# My Project
-
-## Modules
-
-- [core](modules/core.aps.md)
-```
-
-### 3. Add Tasks
-
-```markdown
----
-format: aps
-module: core
----
-
-# Core Module
-
-## Task: CORE-001 — Initial setup
-
-**Intent:** Project builds and tests pass
-
-**Validation:** `pnpm build && pnpm test`
-```
-
-### 4. Validate
+## Install
 
 ```bash
-anvil plan validate plans/index.aps.md
+curl -fsSL https://raw.githubusercontent.com/EddaCraft/anvil-plan-spec/main/scaffold/install | bash
 ```
+
+Then run `aps init` for the interactive setup wizard. See
+[Installation →](./installation.md) for Windows, version pinning, and CI.
+
+## How APS differs from related formats
+
+| Format          | Best at                                           | Where APS differs                                                                 |
+| --------------- | ------------------------------------------------- | --------------------------------------------------------------------------------- |
+| **BMAD-METHOD** | Persona-driven workflows (PM, Architect, Dev, QA) | APS has no persona agents — plain markdown any tool reads                         |
+| **Spec Kit**    | Constitution + slash commands                     | APS is not tied to one vendor; same spec works in any agent or chat window        |
+| **OpenSpec**    | Lightweight change proposals                      | APS adds module boundaries, action plans, and orchestration CLI (`next`/`start`) |
+
+## Project structure
+
+```text
+your-project/
+├── plans/
+│   ├── aps-rules.md              # AI agent guidance (portable)
+│   ├── project-context.md        # Project-specific context (you own this)
+│   ├── index.aps.md              # Main plan (roadmap + module index)
+│   ├── issues.md                 # Dev-time discoveries (ISS-NNN / Q-NNN)
+│   ├── modules/                  # One .aps.md per bounded area
+│   ├── execution/                # Action plans for complex work items
+│   ├── designs/                  # Technical designs (optional)
+│   ├── releases/                 # Release narratives (optional)
+│   └── decisions/                # ADRs (optional)
+└── .aps/
+    ├── config.yml                # Project contract (cli_version, paths)
+    └── context/                  # Ephemeral context packages from `aps start`
+```
+
+## Source repository
+
+APS is maintained in
+[anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec) under
+Apache-2.0. These docs are derived from that repository and hosted on the
+EddaCraft docs site.
 
 ---
 
-**Next:** [Specification details →](/aps/spec/taxonomy)
+**Next:** [Getting started →](./getting-started.md)

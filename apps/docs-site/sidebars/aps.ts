@@ -3,6 +3,10 @@ import type { SidebarsConfig } from '@docusaurus/plugin-content-docs';
 const sidebars: SidebarsConfig = {
   apsSidebar: [
     'overview',
+    'getting-started',
+    'installation',
+    'workflow',
+    'terminology',
     {
       type: 'category',
       label: 'Specification',
@@ -20,6 +24,12 @@ const sidebars: SidebarsConfig = {
       label: 'Examples',
       collapsed: false,
       items: ['examples/minimal-plan', 'examples/multi-module'],
+    },
+    {
+      type: 'category',
+      label: 'Guides',
+      collapsed: true,
+      items: ['guides/monorepo', 'guides/ai-agents'],
     },
     {
       type: 'category',
