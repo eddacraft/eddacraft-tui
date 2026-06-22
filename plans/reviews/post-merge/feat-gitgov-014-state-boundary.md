@@ -17,10 +17,10 @@ Verified: <!-- filled by cleanup agent -->
       CIB-053 with a surgical `git rm --cached -- '<path>' …` remediation
       (agent: yes — build and run `anvil doctor --json`, inspect
       `checks[] | select(.name == "state-boundary")`)
-- [ ] CIB-053 disposition of the dogfood repo's tracked `.anvil/` paths is
-      picked up in a follow-up slice — once it lands, the dogfood
-      state-boundary warn should report only recorded deviations
-      (human required — scheduling decision)
+- [ ] Dogfood `.anvil/` path disposition — **CIB-053 Merged 2026-06-10 via
+      PR #2481**; any remaining warn is an honest deviation per ADR-073, not an
+      untracked deferral (human required — scheduling decision if paths should
+      still be cleaned)
 
 ## Notes
 

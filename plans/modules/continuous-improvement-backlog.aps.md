@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 54/98    |
+| CIB | —     | In Progress | 54/101   |
 
 ## Purpose
 
@@ -2693,3 +2693,70 @@ archive.
   tracked here per `plans/reviews/post-merge/fix-v090-council-survivors.md`.
 - **Confidence:** medium — may need an INTD-015/ADR-035 decision on session-less
   health delivery before implementation.
+
+### CIB-099: GCTX cross-surface hardening (GCTX-010..014 council follow-ups)
+
+- **Status:** Proposed
+- **Intent:** Close the council follow-ups shared across the merged GCTX Phase-1
+  tool surface (GCTX-010..014) that were deliberately deferred at merge — not
+  regressions, but real hardening debt before wider assistant-facing rollout.
+- **Expected Outcome:** (a) extract the duplicated `GctxRpcError`/socket-client
+  between `search_symbols.rs` and `find_dependents.rs` (and siblings) into a
+  shared GCTX client module; (b) decide on and implement a stronger cursor
+  fingerprint (HMAC or equivalent) if prioritised — the current FNV fingerprint
+  only reseeks identity-only pages (no data leak, but forgeable); (c) on
+  non-Linux/macOS Unix peer-validation failures, return `Unavailable` rather than
+  `Failure` for consistency with the sibling tools. N5 (`SaveTimeError::Io` wire
+  leak) is **closed** in PR #2852 — do not reopen here.
+- **Files:** `crates/anvil-cli/src/mcp/tools/gctx/*.rs`,
+  `crates/anvil-gctx-egress/src/lib.rs`, `crates/anvil-intercept/src/ipc.rs`
+  (peer-validation classification only).
+- **Validation:** shared-client refactor test; peer-validation outcome
+  classification test on a mocked non-Linux path.
+- **Identified From:** GCTX-011 council review; tracked in
+  `plans/reviews/post-merge/feat-gctx-011-find-dependents.md` until filed here
+  (2026-06-22 release-window hygiene).
+- **Confidence:** medium — shared-client extraction is mechanical; cursor HMAC is
+  a product/security call.
+
+### CIB-100: Windows named-pipe GCTX client transport
+
+- **Status:** Proposed
+- **Intent:** The GCTX Phase-1 tools (`anvil_search_symbols`,
+  `anvil_find_dependents`, `anvil_impact_of_change`, `anvil_affected_tests`,
+  `anvil_find_callers`) degrade to `unavailable` on non-Unix because the GCTX
+  client uses a Unix-domain socket only. Windows operators running
+  `anvil mcp serve` against a local daemon cannot use graph-context tools.
+- **Expected Outcome:** a Windows named-pipe GCTX client transport mirroring the
+  existing save-time pipe client, wired through the shared GCTX client module
+  (coordinate with CIB-099), so the five tools return real outcomes on Windows when
+  the daemon is running.
+- **Files:** `crates/anvil-cli/src/mcp/tools/gctx/` (client transport),
+  `crates/anvil-intercept` (pipe endpoint parity if needed).
+- **Validation:** Windows-targeted integration test or documented manual matrix
+  entry; non-Windows CI stays green via `#[cfg]` gating.
+- **Identified From:** GCTX-014 post-merge note; DSV Windows parity split
+  (DSV-010/011). Filed 2026-06-22 release-window hygiene.
+- **Confidence:** medium — transport exists for save-time; GCTX projection path is
+  new wiring.
+
+### CIB-101: DISTRIB operator follow-ups (`ANVIL_HOME` side-by-side + uninstall)
+
+- **Status:** Proposed
+- **Intent:** Close two operator gaps deferred at DISTRIB-006 merge (PR #2185):
+  Windows side-by-side daemon coexistence and incomplete global-uninstall cleanup.
+- **Expected Outcome:** (a) Windows named-pipe re-root for the daemon endpoint so
+  two candidate daemons can coexist when using different `ANVIL_HOME` prefixes
+  (the PID file re-roots today; the socket/pipe does not); (b)
+  `anvil uninstall --global` removes `<ANVIL_HOME>/user/` (or documents and
+  tests the explicit `rm -rf <prefix>` escape hatch as the supported path — pick
+  one and test it).
+- **Files:** `crates/anvil-cli/src/install_root.rs`, daemon transport setup,
+  `crates/anvil-cli/src/commands/uninstall.rs`.
+- **Validation:** install-root matrix extension; uninstall test asserting
+  `user/` cleanup (or documented manual matrix if Windows-only).
+- **Identified From:** `plans/reviews/post-merge/feat-distrib-006-anvil-home-override.md`;
+  DISTRIB module is Complete — intake via CIB. Filed 2026-06-22 release-window
+  hygiene.
+- **Confidence:** medium — Windows pipe re-root may coordinate with CIB-100/INTD
+  pipe work; uninstall cleanup is localised.

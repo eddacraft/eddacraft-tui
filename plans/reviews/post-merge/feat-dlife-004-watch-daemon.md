@@ -22,9 +22,6 @@ Verified: <!-- filled by cleanup agent -->
       daemon already running (`anvil start`), `anvil watch` prints
       `anvil watch: daemon: reusing the per-user save-time daemon already
       running.` and does NOT prompt.
-- [ ] Confirm DLIFE-005 (docs) re-points public docs that still teach
-      "run `anvil start` first" / "no auto-start" at the new offer behaviour
-      (agent: no — separate item, just a tracking reminder).
 
 ## Notes
 
@@ -36,6 +33,4 @@ stdout purity are all covered by automated tests
 `commands::watch::tests::watch_plan_*` / `watch_*_line*`). Only the
 interactive prompt path needs a human at a terminal.
 
-DLIFE-004 stays In Progress until merge; mark it `Merged YYYY-MM-DD via PR #N`
-in `plans/modules/daemon-lifecycle.aps.md` and bump the module count to 5/6
-(DLIFE-005 remains, unblocked by 003+004 both landing).
+DLIFE-005 (docs alignment) landed 2026-06-18 via PR #2765.

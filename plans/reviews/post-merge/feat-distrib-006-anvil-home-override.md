@@ -15,13 +15,8 @@ Verified: <!-- filled by cleanup agent -->
 - [ ] Confirm DISTRIB-006 rides the `v0.7.4-beta` cut per
       `RELEASE-PLAN.md` "Save-Time CPU & Daemon Arc" Tier 1 (co-freight with the
       RLB CPU fix). Advance to Released/Shipped only when that tag ships. (agent: no — release-gated)
-- [ ] **Operator follow-up (deferred, tracked):** Windows named-pipe re-root so
-      two candidate daemons coexist on Windows (the PID file re-roots today; the
-      socket is Unix-first). Out of scope for this PR; file a follow-up item if a
-      Windows side-by-side need appears. (human required)
-- [ ] **Operator follow-up (deferred):** `anvil uninstall --global` does not yet
-      clean `<ANVIL_HOME>/user/`; the documented teardown is `rm -rf <prefix>`,
-      which covers it. Low priority. (human required)
+- [ ] **CIB-101** — Windows pipe re-root + `anvil uninstall --global` `user/`
+      cleanup (tracked in `continuous-improvement-backlog.aps.md`). (human required)
 
 ## Notes
 

@@ -23,19 +23,11 @@ Verified: <!-- filled by cleanup agent -->
 - [ ] Manual: set `ANVIL_INTERCEPT_DISABLE_OBSERVATION=1`; confirm no DPO rows
       emitted and a startup warn is logged (human required)
 
-## Deferred follow-ups (file as a new DPO item or CIB)
-
-- Emit an `Outcome::Error` row on the `validate_paths` `Err` path (blind spot:
-  a client generating sustained errors is currently invisible).
-- Per-path length cap on `changed_files` when `ANVIL_OBSERVATION_INCLUDE_PATHS=1`.
-- Surface `NonBlockingObservationSink::dropped_count()` in `intercept status`
-  via an additive `DaemonStatusV1` field (mirror `telemetry_dropped_envelopes`).
-- IPC-level integration test for the save-time emit path through
-  `handle_save_time_jsonrpc` (unit coverage is strong; the wiring is untested).
-- Coordinate with KDS-005: retire `DaemonObservationSink` + the NDJSON
-  retention alongside `DaemonUsageSink` when the kindling daemon store lands.
-
 ## Notes
+
+Council MINOR producer follow-ups are tracked as **DPO-006** in
+`plans/modules/daemon-protection-observability.aps.md`. KDS-005 retirement of
+the NDJSON writer is tracked in `plans/modules/kindling-daemon-sink.aps.md`.
 
 Producers are activated to the `usage.ndjson` sidecar, extending the USAGE-004
 sink contract; this is the interim store until KDS lands the authoritative

@@ -4,7 +4,7 @@
 
 | ID  | Owner      | Status   | Progress |
 | --- | ---------- | -------- | -------- |
-| DPO | @eddacraft | In Progress | 2/5   |
+| DPO | @eddacraft | In Progress | 2/6   |
 
 > **DRAFT** — authored via planning-workflow on 2026-06-20 (producer-first
 > sequencing, new-module placement); design-gated by planning council
@@ -259,6 +259,27 @@ registry); fence emit-before-persist can produce a rare duplicate row on crash.
 - **Dependencies:** DPO-003, KDS
 - **Confidence:** low
 
+### DPO-006: Producer observability hardening (council MINORs)
+
+- **Intent:** Close the producer-side observability gaps surfaced as council
+  MINORs during DPO-001/-002 implementation (PR #2833).
+- **Expected Outcome:** (a) emit an `Outcome::Error` row on the
+  `validate_paths` `Err` path so sustained client errors are visible in the
+  observation stream; (b) enforce a per-path length cap on `changed_files` when
+  `ANVIL_OBSERVATION_INCLUDE_PATHS=1`; (c) surface
+  `NonBlockingObservationSink::dropped_count()` in `intercept status` via an
+  additive `DaemonStatusV1` field (mirroring `telemetry_dropped_envelopes`); (d)
+  an IPC-level integration test for the save-time emit path through
+  `handle_save_time_jsonrpc` (unit coverage is strong; the wiring is untested).
+- **Validation:** tests for each sub-outcome; `cargo test -p eddacraft-anvil-intercept
+  -p eddacraft-anvil` green.
+- **Status:** Proposed
+- **Files:** `crates/anvil-intercept/src/ipc.rs`,
+  `crates/anvil-intercept/src/kindling_observation.rs`,
+  `crates/anvil-cli/src/commands/intercept.rs`
+- **Dependencies:** DPO-001, DPO-002
+- **Confidence:** high
+
 ## Implementation notes
 
 DPO-001 + DPO-002 implemented and activated end-to-end on
@@ -288,10 +309,8 @@ module stays In Progress until DPO-003/-004/-005 (Blocked on KDS) land.
   green, `clippy --all-targets -D warnings` clean, `fmt --check` clean; design
   reviewed by council `plan-a50aa93d` (kernel/adversarial/operations), MAJOR
   findings addressed.
-- **Deferred follow-ups** (council MINORs, tracked for a later item): emit an
-  `Outcome::Error` row on the `validate_paths` `Err` path; per-path length cap
-  when paths are included; surface `dropped_count` in `intercept status`
-  (`DaemonStatusV1`); an IPC-level integration test for the save-time emit path.
+- **DPO-006** (Proposed) tracks the council MINOR producer hardening follow-ups
+  from PR #2833 — see the work item above.
 
 ## Risks
 

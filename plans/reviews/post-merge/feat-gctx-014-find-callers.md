@@ -42,9 +42,9 @@ Verified: <!-- filled by cleanup agent -->
     kill-switch; no source fallback on warming/stale.
   - CALL-5 — identity-only; call-site source-text egress stays a CE-1-gated
     Phase-2 escalation, out of scope.
-- **Deferred / known limitations:**
-  - The Windows named-pipe GCTX client is a future item; `find_callers` degrades
-    to `unavailable` on non-unix (mirrors the sibling tools).
+- **Known limitations (ADR-accepted):**
+  - Windows GCTX transport: **CIB-100** (`find_callers` degrades to
+    `unavailable` on non-Unix until it lands).
   - Barrel/re-export callee resolution is the GCALL-003 documented deferral (a
     callee re-exported through a barrel is `Unresolved`, so its callers are
     `partial`-covered).

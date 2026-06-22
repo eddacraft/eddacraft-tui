@@ -31,11 +31,6 @@ Verified: <!-- filled by cleanup agent -->
   GV2 call-edge support) and is out of scope here.
 - The tool mirrors the GCTX-010 `anvil_search_symbols` spine end to end; no new
   egress crate, no manifest flag (the C4 `gctx.egress` manifest flag is Phase-2).
-- Council follow-ups deliberately deferred (shared with the merged search path,
-  not regressions introduced here): the `GctxRpcError`/socket-client duplication
-  between `search_symbols.rs` and `find_dependents.rs` (extract a shared GCTX
-  client); the non-cryptographic FNV cursor fingerprint (a forged cursor only
-  reseeks an identity-only page — no data leak; an HMAC would need both surfaces);
-  the `SaveTimeError::Io` path appearing in the JSON-RPC error `data`; and the
-  non-Linux/macOS Unix peer-validation degrading to `Failure` rather than
-  `Unavailable`. Track as a cross-surface GCTX hardening item if prioritised.
+- Council follow-ups shared with the merged GCTX Phase-1 surface are tracked as
+  **CIB-099** (`continuous-improvement-backlog.aps.md`). N5 (`SaveTimeError::Io`
+  wire leak) closed in PR #2852.

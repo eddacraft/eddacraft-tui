@@ -124,6 +124,24 @@ Delivered as slices mirroring the other surfaces. T1 (Scanned).
 - **Dependencies:** SURFSH-002, OPSUP-005 (Merged)
 - **Confidence:** high
 
+### SURFSH-008 — Extend the shared `command_safety` catalogue (shell-only rules)
+
+- **Status:** Proposed
+- **Intent:** Add the shell-only governance patterns that SURFSH-002 cannot cover
+  today because they are not filesystem-command rules in `default_filesystem_rules()`:
+  pipe-to-shell (`curl … | sh`), `chmod 777`, `eval` on user-controlled input,
+  and unquoted variables in destructive contexts (`rm $var`, etc.).
+- **Expected Outcome:** the rules land in the shared `command_safety` catalogue
+  (one source of truth) so both the runtime mid-edit check and static SURFSH
+  scanning gain them together — no duplicated rule definitions.
+- **Files:** `crates/anvil-checks/src/command_safety/`,
+  `crates/anvil-checks/src/surface/shell/check.rs`
+- **Validation:** unit tests for each rule family; SURFSH scanner picks them up via
+  the shared catalogue; FP re-check on the Anvil + ripgrep corpora.
+- **Dependencies:** SURFSH-002
+- **Confidence:** medium — unquoted-variable rule needs destructive-context
+  scoping to stay under the 1% FP bar.
+
 ### SURFSH-006-validation — Anvil + external validation runs
 
 - **Status:** Merged 2026-06-18 via PR #2791
@@ -137,14 +155,6 @@ Delivered as slices mirroring the other surfaces. T1 (Scanned).
 - **Validation:** FP report committed under `plans/reviews/`.
 - **Dependencies:** SURFSH-002, SURFSH-005
 - **Confidence:** medium
-
-### Deferred (extend the shared catalogue, don't duplicate)
-
-Pipe-to-shell (`curl … | sh`), `chmod 777`, `eval` on user input, and the
-unquoted-variable-in-destructive-context rule are **not** filesystem-command
-rules already in `command_safety`. They are deferred to a follow-up that adds
-them to the shared `command_safety` ruleset, so both the runtime check and
-SURFSH gain them together (the module's "one source of truth" directive).
 
 ## Risks
 

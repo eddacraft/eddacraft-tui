@@ -23,17 +23,5 @@ GV2-022 ships the **read API + warm/stale contract only** (`HotRead`,
 hard-capped `reverse_impact`). It is not yet wired into `validate_paths` — that
 backing swap is **GV2-027**, which also depends on GV2-024/-028/-029.
 
-Deferred, tracked as their own GV2-027-critical-path items (do **not** treat as
-missing here):
-
-- **GV2-024** — compile-time type split sealing `HotReadApi` so denylist ops are
-  uncallable from the hot surface (depends on this item).
-- **GV2-025** — Criterion `benches/hot_read.rs` + ADR-031 CI latency gate
-  validating these reads meet the save-time budget on the canonical corpus
-  (run on a quiet/CI box per the bench-harness flakiness note).
-- **GV2-026** — wires `reverse_impact`'s `max_depth` to a `flags/manifest.json`
-  runtime lever (default 1 hop); `MAX_REVERSE_IMPACT_DEPTH = 2` is the hard cap
-  this item already enforces.
-
-No production behaviour changes in this PR — the API has no callers yet, so the
-hot path is unchanged until GV2-027.
+Downstream items **GV2-024 / -025 / -026 / -027** have since Merged (GV2 module
+20/20 Complete). This post-merge doc is historical verification only.

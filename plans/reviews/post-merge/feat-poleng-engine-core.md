@@ -17,12 +17,8 @@ Verified: <!-- filled by cleanup agent -->
 - [ ] Confirm CI green on `main` after merge: `cargo test --workspace`,
       `cargo clippy --workspace --all-targets -- -D warnings`,
       `cargo fmt --all --check`, and the Docs Lint / oxfmt job (agent: yes)
-- [ ] POLENG-008 (bench parity gate vs Go OPA) remains open — it is a separate
-      follow-up PR. Local tooling for it is available (opa 0.60.0, go 1.26.3,
-      criterion); the "not trivially installable in CI" risk is the CI-sidecar
-      concern, not local. Do NOT mark the POLENG module Complete until
-      POLENG-008 lands and the parity gate passes (or triggers an ADR-040
-      revisit). (human required — module-completion judgement)
+- [x] POLENG-008 (bench parity gate vs Go OPA) — **Merged 2026-05-25 via PR #1942**.
+      POLENG module is Complete per `plans/archive/modules/policy-engine.aps.md`.
 
 ## Notes
 
