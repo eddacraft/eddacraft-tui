@@ -4703,6 +4703,18 @@ mod tests {
             !envelope.notification.message.contains("/ws-fail"),
             "the notification message must not echo the worktree path",
         );
+        // ADR-090 (CIB-098): the persist-failure envelope is flagged as a
+        // daemon-originated, worktree-scoped health envelope (the only way
+        // the fan-out authorises it by worktree), and carries no session id
+        // (it is daemon-originated, not session-scoped).
+        assert!(
+            envelope.daemon_worktree_health,
+            "the persist-failure envelope must be flagged daemon-worktree-health (ADR-090)",
+        );
+        assert_eq!(
+            envelope.correlation.originating_session_id, None,
+            "the persist-failure envelope is daemon-originated — no session id",
+        );
     }
 
     /// Disabled persistence never raises the notification (the write never happens).

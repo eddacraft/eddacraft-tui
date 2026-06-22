@@ -193,6 +193,18 @@ pub trait OwnershipResolver: Send + Sync {
     fn is_degraded_origin(&self, _originating_session_id: &str) -> bool {
         false
     }
+
+    /// ADR-090 (CIB-098): authorise a daemon-originated, worktree-scoped
+    /// health envelope. Returns `true` iff `subscriber` owns a session
+    /// bound to `worktree`. Defaults to `false` — a resolver that does
+    /// not model worktree binding denies (fail-closed), matching the
+    /// trait's default-deny posture for [`Self::is_authorised`].
+    ///
+    /// This is consulted only on the no-originator daemon-health path in
+    /// [`Fanout::decide`]; it never widens the session-scoped check.
+    fn is_authorised_for_worktree(&self, _subscriber: &SubscriberId, _worktree: &str) -> bool {
+        false
+    }
 }
 
 /// Cross-session redaction policy.
@@ -285,6 +297,24 @@ impl OwnershipResolver for RegistryOwnershipResolver {
                 self.fence_store
                     .is_spoof_fenced_cached(&worktree)
                     .unwrap_or(true)
+            })
+    }
+
+    fn is_authorised_for_worktree(&self, subscriber: &SubscriberId, worktree: &str) -> bool {
+        // ADR-090 (CIB-098): a daemon-originated health envelope carries
+        // no session id, so we cannot use the session-scoped binding
+        // check. Instead, map the worktree to its registered sessions and
+        // authorise iff *any* of them is bound to this subscriber — i.e.
+        // the subscriber owns at least one session in that worktree. A
+        // worktree with no registered session, or one whose sessions all
+        // have a different (or absent) binding, default-denies.
+        self.registry
+            .sessions_for_worktree(std::path::Path::new(worktree))
+            .iter()
+            .any(|session| {
+                self.registry
+                    .lookup_subscriber_binding(session.id.as_str())
+                    .is_some_and(|binding| binding == subscriber.as_str())
             })
     }
 }
@@ -545,6 +575,18 @@ impl Fanout {
         // the safe response is to drop the event for this
         // subscriber rather than guess.
         let Some(originator) = originator else {
+            // ADR-090 (CIB-098): a daemon-originated health envelope
+            // (explicitly flagged) carries no session, but carries a
+            // worktree — authorise by worktree, not session. Everything
+            // else with no originator stays denied (INTD-015 unchanged).
+            if envelope.daemon_worktree_health
+                && let Some(worktree) = envelope.correlation.worktree.as_deref()
+                && self
+                    .resolver
+                    .is_authorised_for_worktree(subscriber, worktree)
+            {
+                return Delivery::Allow;
+            }
             return Delivery::Deny;
         };
 
@@ -655,6 +697,12 @@ impl Fanout {
                 m.gate_eval_id = None;
                 m
             }),
+            // ADR-090 (CIB-098): daemon-health envelopes never enter the
+            // cross-session redaction path (they are authorised by worktree
+            // and delivered whole, or denied), so this is preserved only for
+            // struct completeness — it is `false` for every envelope that
+            // reaches `redact_envelope`.
+            daemon_worktree_health: envelope.daemon_worktree_health,
         }
     }
 
@@ -825,6 +873,11 @@ mod tests {
         // default, so the unmodified resolver behaves exactly as the
         // pre-D6 fixture.
         degraded: Mutex<Vec<String>>,
+        // ADR-090 (CIB-098): `(SubscriberId, worktree)` pairs the
+        // subscriber owns. Backs `is_authorised_for_worktree`; empty by
+        // default so the pre-ADR-090 fixture default-denies the
+        // worktree-scoped path.
+        worktree_authorised: Mutex<Vec<(SubscriberId, String)>>,
     }
 
     impl StubResolver {
@@ -832,6 +885,7 @@ mod tests {
             Self {
                 authorised: Mutex::new(Vec::new()),
                 degraded: Mutex::new(Vec::new()),
+                worktree_authorised: Mutex::new(Vec::new()),
             }
         }
 
@@ -840,6 +894,14 @@ mod tests {
                 .lock()
                 .unwrap()
                 .push((subscriber.clone(), session_id.to_string()));
+        }
+
+        /// ADR-090 (CIB-098): mark `subscriber` as owning `worktree`.
+        fn authorise_worktree(&self, subscriber: &SubscriberId, worktree: &str) {
+            self.worktree_authorised
+                .lock()
+                .unwrap()
+                .push((subscriber.clone(), worktree.to_string()));
         }
 
         /// MLP2-071 D6: mark an originating session id as
@@ -865,6 +927,14 @@ mod tests {
                 .iter()
                 .any(|sess| sess == originating_session_id)
         }
+
+        fn is_authorised_for_worktree(&self, subscriber: &SubscriberId, worktree: &str) -> bool {
+            self.worktree_authorised
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|(sub, wt)| sub == subscriber && wt == worktree)
+        }
     }
 
     fn make_envelope(
@@ -887,6 +957,128 @@ mod tests {
             ..TelemetryCorrelation::default()
         };
         emitter.delivered_envelope_for_decision(correlation, &decision)
+    }
+
+    /// ADR-090 (CIB-098): build a daemon-originated, worktree-scoped
+    /// health envelope via the sanctioned producer
+    /// (`persist_failure_health_envelope`), so the test exercises the
+    /// real flag + worktree wiring rather than hand-rolling a literal.
+    fn make_daemon_health_envelope(
+        emitter: &mut TelemetryEmitter,
+        worktree: &str,
+    ) -> NotificationEnvelope {
+        emitter.persist_failure_health_envelope(
+            TelemetryCorrelation::default(),
+            std::path::Path::new(worktree),
+            "snapshot write failed (PermissionDenied)",
+        )
+    }
+
+    // -------- ADR-090: daemon-health worktree-scoped delivery --------
+
+    #[test]
+    fn daemon_health_envelope_delivered_to_owning_worktree_subscriber() {
+        let mut emitter = TelemetryEmitter::for_tests("p", "2026-06-23T00:00:00Z");
+        let resolver = StubResolver::new();
+        let owner = SubscriberId::new("subscriber-owner");
+        resolver.authorise_worktree(&owner, "/worktrees/W");
+
+        let fanout = Fanout::new(Box::new(resolver));
+        fanout.register(owner.clone());
+
+        let envelope = make_daemon_health_envelope(&mut emitter, "/worktrees/W");
+        assert!(
+            envelope.daemon_worktree_health,
+            "the sanctioned producer must flag the envelope daemon-health",
+        );
+        assert_eq!(
+            envelope.correlation.originating_session_id, None,
+            "a daemon-health envelope is daemon-originated — no session",
+        );
+
+        let routed = fanout.route(&envelope);
+        assert_eq!(routed.len(), 1);
+        assert_eq!(
+            routed[0].delivery,
+            Delivery::Allow,
+            "a worktree-owning subscriber must receive the daemon-health envelope (ADR-090)",
+        );
+    }
+
+    #[test]
+    fn daemon_health_envelope_denied_to_other_worktree_subscriber() {
+        let mut emitter = TelemetryEmitter::for_tests("p", "2026-06-23T00:00:00Z");
+        let resolver = StubResolver::new();
+        let other = SubscriberId::new("subscriber-other");
+        // Owns a *different* worktree.
+        resolver.authorise_worktree(&other, "/worktrees/OTHER");
+
+        let fanout = Fanout::new(Box::new(resolver));
+        fanout.register(other.clone());
+
+        let envelope = make_daemon_health_envelope(&mut emitter, "/worktrees/W");
+        let routed = fanout.route(&envelope);
+        assert_eq!(routed.len(), 1);
+        assert_eq!(
+            routed[0].delivery,
+            Delivery::Deny,
+            "a subscriber owning a different worktree must NOT see this worktree's health (ADR-090)",
+        );
+    }
+
+    #[test]
+    fn non_daemon_health_session_less_envelope_is_denied_to_everyone() {
+        // CRITICAL INTD-015 regression guard: an envelope with no
+        // originating session AND no daemon-health flag must stay denied
+        // for every subscriber, even one that happens to own the worktree
+        // the envelope names. The daemon-health path is opt-in by the
+        // explicit flag ONLY — never inferred from a worktree presence.
+        let mut emitter = TelemetryEmitter::for_tests("p", "2026-06-23T00:00:00Z");
+        let resolver = StubResolver::new();
+        let owner = SubscriberId::new("subscriber-owner");
+        resolver.authorise_worktree(&owner, "/worktrees/W");
+
+        let fanout = Fanout::new(Box::new(resolver));
+        fanout.register(owner.clone());
+
+        // Start from the daemon-health envelope, then clear the flag —
+        // leaving a session-less envelope that carries a worktree but is
+        // NOT marked daemon-health.
+        let mut envelope = make_daemon_health_envelope(&mut emitter, "/worktrees/W");
+        envelope.daemon_worktree_health = false;
+        assert_eq!(envelope.correlation.originating_session_id, None);
+
+        let routed = fanout.route(&envelope);
+        assert_eq!(routed.len(), 1);
+        assert_eq!(
+            routed[0].delivery,
+            Delivery::Deny,
+            "a session-less, non-daemon-health envelope MUST stay denied (INTD-015 invariant)",
+        );
+    }
+
+    #[test]
+    fn daemon_health_envelope_without_worktree_is_denied() {
+        let mut emitter = TelemetryEmitter::for_tests("p", "2026-06-23T00:00:00Z");
+        let resolver = StubResolver::new();
+        let owner = SubscriberId::new("subscriber-owner");
+        resolver.authorise_worktree(&owner, "/worktrees/W");
+
+        let fanout = Fanout::new(Box::new(resolver));
+        fanout.register(owner.clone());
+
+        // Flagged daemon-health but with no worktree to scope to.
+        let mut envelope = make_daemon_health_envelope(&mut emitter, "/worktrees/W");
+        envelope.correlation.worktree = None;
+        assert!(envelope.daemon_worktree_health);
+
+        let routed = fanout.route(&envelope);
+        assert_eq!(routed.len(), 1);
+        assert_eq!(
+            routed[0].delivery,
+            Delivery::Deny,
+            "a daemon-health envelope with no worktree has nothing to scope to — Deny (ADR-090)",
+        );
     }
 
     // -------- Authorised subscribers see full envelope --------

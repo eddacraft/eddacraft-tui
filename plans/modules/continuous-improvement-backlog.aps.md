@@ -2677,7 +2677,7 @@ archive.
 
 ### CIB-098: Deliver the persist-failure degradation signal to opted-in operators (092h follow-up)
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** CIB-092h (PR #2852) builds an ADR-035 persist-failure
   `NotificationEnvelope` on a snapshot write failure when `persistence_enabled()`,
   but the INTD-015 fanout **hard-denies any envelope without an

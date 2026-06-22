@@ -226,7 +226,13 @@ impl TelemetryEmitter {
         message: impl Into<String>,
     ) -> NotificationEnvelope {
         correlation.worktree = Some(worktree.display().to_string());
-        let context = self.next_context(correlation);
+        let mut context = self.next_context(correlation);
+        // ADR-090 (CIB-098): explicitly flag this as a daemon-originated,
+        // worktree-scoped health envelope. This is the *only* place the
+        // marker is set; the fan-out authorises such an envelope by its
+        // `correlation.worktree` (set above) instead of an originating
+        // session id (which stays absent — this is daemon-originated).
+        context.daemon_worktree_health = true;
         let notification = Notification::new(
             NotificationClass::Health,
             NotificationPriority::High,
@@ -290,6 +296,9 @@ impl TelemetryEmitter {
             originating_session_id,
             originating_driver_id: correlation.originating_driver_id,
             traceparent: correlation.traceparent,
+            // ADR-090: defaults off; only `persist_failure_health_envelope`
+            // flips it on via `daemon_worktree_health_context`.
+            daemon_worktree_health: false,
         }
     }
 
@@ -319,6 +328,10 @@ pub(crate) struct TelemetryContext {
     originating_session_id: Option<String>,
     originating_driver_id: Option<String>,
     traceparent: Option<String>,
+    /// ADR-090 (CIB-098): when set, the emitted envelope is flagged
+    /// `daemon_worktree_health`. Default `false`; only the
+    /// persist-failure health path sets it.
+    daemon_worktree_health: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -333,6 +346,23 @@ pub struct NotificationEnvelope {
     pub grouping: Option<NotificationGrouping>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mirror: Option<NotificationMirror>,
+    /// ADR-090 (CIB-098): explicit marker for a **daemon-originated,
+    /// worktree-scoped health envelope**. Set **only** by sanctioned
+    /// daemon-health producers (the snapshot persist-failure path); the
+    /// fan-out treats an envelope as daemon-health **iff** this flag is
+    /// true — never inferred from a category/kind heuristic, so a
+    /// session-scoped envelope that merely *lost* its session id can
+    /// never be mistaken for one. Such an envelope carries no
+    /// session-scoped content and rides its [`NotificationCorrelation::worktree`]
+    /// as the scoping key (in place of an `originating_session_id`); the
+    /// fan-out authorises it by worktree rather than session.
+    ///
+    /// `serde(default)` + `skip_serializing_if` keep the wire shape
+    /// byte-identical for the (overwhelming) non-daemon-health case: the
+    /// field is omitted when `false`, and a pre-ADR-090 producer that
+    /// never emits it deserialises to `false`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub daemon_worktree_health: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -800,6 +830,9 @@ fn envelope_with_path(
         notification,
         grouping,
         mirror,
+        // ADR-090 (CIB-098): off unless the context was flagged by a
+        // sanctioned daemon-health producer (persist-failure path).
+        daemon_worktree_health: context.daemon_worktree_health,
     }
 }
 
@@ -1146,6 +1179,7 @@ mod tests {
             originating_session_id: Some("sess-1".to_string()),
             originating_driver_id: Some("intercept-daemon-v1".to_string()),
             traceparent: None,
+            daemon_worktree_health: false,
         }
     }
 
