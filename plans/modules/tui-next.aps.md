@@ -5,9 +5,15 @@
 
 | ID   | Owner      | Status   | Progress |
 | ---- | ---------- | -------- | -------- |
-| TUIN | joshuaboys | In Progress | 6/13     |
+| TUIN | joshuaboys | In Progress | 7/13     |
 
-**Last reviewed:** 2026-06-22 (D-TUIN-005 accepted): operator picked the
+**Last reviewed:** 2026-06-22 (TUIN-006 landed): the `# Stability` rustdoc
+convention is live — extension surface (`Theme`/`Surface`) graded `stable`,
+`test_utils` + `mode` probes `experimental`, rest default `unstable`; a
+warn-only baselined CI check (`scripts/check-stability-markers.mjs`, 397-item
+baseline) is wired into Docs Lint, with a CHANGELOG soft-commitment entry and a
+release-runbook breaking-change checklist. Module 6/13 → **7/13**.
+Prior: 2026-06-22 (D-TUIN-005 accepted): operator picked the
 stability-annotation mechanism — rustdoc `# Stability` section + warn-only CI
 grep (stability crate and `unstable` feature-gating rejected). Ready-Checklist
 gate ticked; **TUIN-006 promoted open → Ready**. No done/total change (6/13).
@@ -490,10 +496,14 @@ TUIN module resolve.
 
 ### TUIN-006: Mark widget / theme extension surface stability
 
-- **Status:** Ready — unblocked 2026-06-22 (D-TUIN-005 Accepted; mechanism
-  chosen: rustdoc `# Stability` section + warn-only CI grep). New public items
-  default `unstable`; widget trait + theme hook graded `stable`; `test-utils`
-  snapshot items `experimental`.
+- **Status:** Done 2026-06-22 — `# Stability` rustdoc convention live (lib.rs):
+  the extension surface `Theme` + `Surface` graded `stable`; `test_utils` and the
+  `mode` colour/alt-screen probes `experimental`; `TtyKind` `unstable`. Warn-only
+  baselined CI check `scripts/check-stability-markers.mjs` (397-item legacy
+  baseline, flags new ungated public items) wired into the Docs Lint job;
+  CHANGELOG soft-commitment entry + a breaking-change checklist in
+  `docs/runbooks/eddacraft-tui-release.md` keyed to the grades. Verified rustdoc
+  gate (`-D warnings`), clippy, fmt, oxfmt, eslint, docs-check 8/8.
 - **Intent:** Annotate stable vs unstable items on the widget trait
   surface and theme override hook per D-TUIN-005. Establish a docs
   convention so reviewers can spot drift.

@@ -297,6 +297,23 @@ Land a PR on `anvil-001` `main` that:
 - Does NOT touch `releaseIntent` / `releaseScope` on any APS work item; the
   crate release is not an Anvil product release.
 
+#### Breaking-change checklist (stability markers — D-TUIN-005 / TUIN-006)
+
+Before choosing the semver bucket, audit the diff against the `# Stability`
+grades in the rustdoc:
+
+- **A `stable` item changed incompatibly** (signature / trait-method / removal —
+  e.g. the `Theme` override hook or the `Surface` trait) → this is a **breaking
+  change**: take the breaking bucket (for 0.x that is a **minor** bump per the
+  CHANGELOG's SemVer note) **and** file an ADR. Never ship it as a patch.
+- **An `unstable` or `experimental` item changed** (e.g. `test_utils`, the
+  `mode` probes) → no breaking bump required; just note it in the CHANGELOG.
+  These carry no compatibility guarantee.
+- **New public items** must declare a `# Stability` grade (default `unstable`),
+  or the warn-only `scripts/check-stability-markers.mjs` check flags them. As
+  you grade baselined items, prune them from
+  `crates/eddacraft-tui/stability-baseline.txt`.
+
 Watch CI on the PR. The full D-TUIR-007 gate matrix runs there; the publish
 workflow re-runs the same gates on the tagged commit, but catching a regression
 at PR review is cheaper.

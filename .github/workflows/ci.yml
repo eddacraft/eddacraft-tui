@@ -146,6 +146,13 @@ jobs:
           needs.detect-changes.outputs.markdownlint-required == 'true'
         run: pnpm run aps:index:check
 
+      - name: Check eddacraft-tui stability markers (TUIN-006, warn-only)
+        if:
+          needs.detect-changes.result != 'success' ||
+          needs.detect-changes.outputs.markdownlint-required == 'true'
+        run: node scripts/check-stability-markers.mjs
+        continue-on-error: true
+
       - name: Run docs-check fixture tests
         if:
           needs.detect-changes.result != 'success' ||
