@@ -35,6 +35,11 @@ pub enum Role {
 /// The default method bodies on this trait satisfy the contract automatically
 /// when the eight palette colours below are implemented; only override a
 /// default if you also keep `fg`/`bg` populated.
+///
+/// # Stability
+///
+/// **stable** (D-TUIN-005). The theme override hook is a committed extension
+/// surface: a breaking change requires a major version bump *and* an ADR.
 pub trait Theme {
     fn bg(&self) -> Color;
     fn fg(&self) -> Color;

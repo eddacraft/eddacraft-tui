@@ -10,6 +10,11 @@ use crate::theme::{EddaCraftTheme, Theme};
 /// The type parameter `T` controls which theme the surface renders with.
 /// It defaults to [`EddaCraftTheme`] so existing code that writes
 /// `impl Surface for MyState` continues to work unchanged.
+///
+/// # Stability
+///
+/// **stable** (D-TUIN-005). The widget/screen extension trait downstreams
+/// implement; a breaking change requires a major version bump *and* an ADR.
 pub trait Surface<T: Theme = EddaCraftTheme> {
     /// Short name shown in the shell chrome header.
     fn surface_name(&self) -> &str;

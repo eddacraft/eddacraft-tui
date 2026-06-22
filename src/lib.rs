@@ -34,6 +34,26 @@
 //! | [`mode`] | TTY / alt-screen / colour-depth probes returning typed enums (zero new deps) |
 //! | `json_render` (feature `json-render`) | Parser, catalogue validation, and the component registry/trait for the `@json-render/core` flat element spec format |
 //! | `test_utils` (feature `test-utils`) | Snapshot testing helpers for style-aware buffer serialisation |
+//!
+//! ## Stability
+//!
+//! Public items declare an API-stability grade in a `# Stability` rustdoc
+//! section (D-TUIN-005). The grade is set on the type / trait / free function;
+//! its inherent methods inherit it.
+//!
+//! - **stable** — committed surface. A breaking change requires a major version
+//!   bump *and* an ADR. The downstream extension surface — the [`theme::Theme`]
+//!   override hook and the [`surface::Surface`] trait — is stable.
+//! - **unstable** — the default for newly added items; may change before being
+//!   graded stable.
+//! - **experimental** — depend on it at your own risk (e.g. the `test_utils`
+//!   snapshot harness and the unproven [`mode`] colour/alt-screen probes).
+//!
+//! Enforcement is warn-only and baselined: `scripts/check-stability-markers.mjs`
+//! warns on *new* public items lacking a `# Stability` section (the existing
+//! unmarked surface is recorded in `stability-baseline.txt` and burned down over
+//! time). The breaking-change checklist in the release runbook keys off these
+//! grades.
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
 

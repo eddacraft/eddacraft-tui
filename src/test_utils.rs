@@ -9,6 +9,11 @@ pub mod snapshot {
 
     /// Build a human-readable style annotation for a single cell.
     /// Returns an empty string when the cell has no styling.
+    ///
+    /// # Stability
+    ///
+    /// **experimental** (D-TUIN-005). Snapshot-harness exposure; depend on it at
+    /// your own risk.
     pub fn style_annotation(cell: &ratatui::buffer::Cell) -> String {
         let has_fg = cell.fg != Color::Reset;
         let styled_bg = cell.bg != Color::Reset;
@@ -51,6 +56,11 @@ pub mod snapshot {
     /// Each cell is rendered as `<symbol>[<style>]` where `<style>` includes
     /// foreground colour, background colour, and modifier flags. Cells with
     /// no styling emit only the symbol.
+    ///
+    /// # Stability
+    ///
+    /// **experimental** (D-TUIN-005). Snapshot-harness exposure; depend on it at
+    /// your own risk.
     pub fn buffer_to_string(buf: &Buffer) -> String {
         let area = buf.area;
         let mut output = String::new();
