@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 49/95    |
+| CIB | —     | In Progress | 54/95    |
 
 ## Purpose
 
@@ -2496,7 +2496,7 @@ archive.
 
 ### CIB-091: GCTX assistant-facing egress hardening (v0.9.0 council, cut-blocker)
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-22 via PR #2852
 - **Intent:** Close the GCTX egress findings that survived the 2026-06-21
   v0.9.0-beta release council's skeptic. Headline is **CE-3**: the
   sensitive-path egress deny-list is entirely unimplemented, so on a fresh
@@ -2522,7 +2522,7 @@ archive.
 
 ### CIB-092: Persistence / warm-start wire-integrity & observability (v0.9.0 council)
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-22 via PR #2852
 - **Intent:** Close the warm-start persistence findings (default-off,
   `ANVIL_PERSIST_GRAPH`) from the v0.9.0 council. Headline highs: the ADR-069 §6
   golden wire-bytes fixture is missing (writer+reader drift together, so a
@@ -2548,7 +2548,7 @@ archive.
 
 ### CIB-093: GV2 substrate hot-path & trust correctness (v0.9.0 council)
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-22 via PR #2852
 - **Intent:** Close the GV2 graph-substrate mediums from the v0.9.0 council. The
   load-bearing one is the privilege gate: `PRIVILEGED_MODULES` omits
   spawn/sandbox-escape Node built-ins (`worker_threads`, `vm`, `v8`, `dns`,
@@ -2571,7 +2571,7 @@ archive.
 
 ### CIB-094: USAGE producer controls & robustness (v0.9.0 council)
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-22 via PR #2852
 - **Intent:** Close the USAGE-analytics mediums from the v0.9.0 council. The CLI
   `command.invoked` producer has no operator kill-switch (asymmetric with the
   daemon DPO opt-out), a non-UTF-8 byte permanently defeats retention trimming,
@@ -2592,7 +2592,7 @@ archive.
 
 ### CIB-095: Intercept hot-path follow-through (v0.9.0 council)
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-22 via PR #2852
 - **Intent:** Close the intercept/save-time follow-through mediums from the
   v0.9.0 council (surface gate was PASS — no blockers). `search_symbols` omits
   the UNC-path filter its sibling verbs enforce; the restore→reconcile window
