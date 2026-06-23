@@ -38,7 +38,7 @@ export default function Home(): ReactNode {
   return (
     <Layout
       title="eddacraft docs"
-      description="Public eddacraft documentation for governed AI-assisted work"
+      description="Governed specification, memory, and product documentation."
     >
       <main className="ec-landing">
         <section className="ec-landing-hero">
