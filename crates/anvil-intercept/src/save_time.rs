@@ -2553,6 +2553,7 @@ mod tests {
                     visibility: Visibility::Public,
                     file: file.to_string(),
                     trust_level: TrustLevel::Unknown,
+                    span: None,
                 })
                 .collect(),
             imports: Vec::new(),

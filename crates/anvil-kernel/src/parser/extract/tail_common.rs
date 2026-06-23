@@ -52,6 +52,7 @@ pub(super) fn push_symbol(
         visibility,
         file: file.to_string(),
         trust_level: TrustLevel::default(),
+        span: None,
     });
     *next_id += 1;
 }

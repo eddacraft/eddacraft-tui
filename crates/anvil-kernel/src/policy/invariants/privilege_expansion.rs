@@ -86,6 +86,7 @@ mod tests {
             visibility: Visibility::Internal,
             file: file.to_string(),
             trust_level: trust,
+            span: None,
         }
     }
 

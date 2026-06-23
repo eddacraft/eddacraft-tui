@@ -80,6 +80,7 @@ mod tests {
             visibility: vis,
             file: file.to_string(),
             trust_level: TrustLevel::Unknown,
+            span: None,
         }
     }
 

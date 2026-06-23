@@ -224,6 +224,7 @@ fn cap_ceiling_file_symbols() -> FileSymbols {
             visibility: Visibility::Internal,
             file: FILE.to_string(),
             trust_level: TrustLevel::Internal,
+            span: None,
         });
     }
     let mut calls = Vec::with_capacity(cap);
@@ -346,6 +347,7 @@ fn add_symbol(graph: &mut SymbolGraph, next_id: &mut u64, file: &str, name: &str
             visibility: vis,
             file: file.to_string(),
             trust_level: TrustLevel::Internal,
+            span: None,
         })
         .expect("corpus symbol id is unique");
     *next_id += 1;
@@ -370,6 +372,7 @@ fn hot_file_symbols() -> FileSymbols {
             visibility: Visibility::Internal,
             file: HOT_FILE.to_string(),
             trust_level: TrustLevel::Internal,
+            span: None,
         });
 
         let caller = LocalSymbolRef {

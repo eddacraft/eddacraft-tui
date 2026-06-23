@@ -270,6 +270,7 @@ fn add_file_symbols(sym: &mut SymbolGraph, next_id: &mut u64, file: &str) {
             visibility: vis,
             file: file.to_string(),
             trust_level: trust,
+            span: None,
         })
         .expect("corpus symbol id is unique");
         *next_id += 1;

@@ -397,6 +397,7 @@ pub fn update_file(graph: &mut SymbolGraph, new_symbols: FileSymbols) -> GraphDe
             visibility: Visibility::Internal,
             file: file.clone(),
             trust_level: TrustLevel::Unknown,
+            span: None,
         };
         if graph.add_symbol(synthetic).is_ok() {
             added_ids.push(synthetic_id);
@@ -549,6 +550,7 @@ pub(crate) fn resolve_import(
             visibility: Visibility::Public,
             file: specifier.to_string(),
             trust_level: TrustLevel::External,
+            span: None,
         };
         if graph.add_symbol(ext_node).is_ok() {
             return Some(ext_id);
@@ -999,6 +1001,7 @@ fn ensure_module_node(graph: &mut SymbolGraph, file: &str) -> u64 {
         visibility: Visibility::Internal,
         file: file.to_string(),
         trust_level: TrustLevel::Unknown,
+        span: None,
     };
     let _ = graph.add_symbol(node);
     id
@@ -1160,6 +1163,7 @@ mod tests {
                     visibility: Visibility::Internal,
                     file: file.to_string(),
                     trust_level: TrustLevel::Unknown,
+                    span: None,
                 })
                 .collect(),
             imports: Vec::new(),
@@ -1337,6 +1341,7 @@ mod tests {
             visibility: Visibility::Internal,
             file: "axios".to_string(),
             trust_level: TrustLevel::Unknown,
+            span: None,
         })
         .unwrap();
 
@@ -1349,6 +1354,7 @@ mod tests {
                 visibility: Visibility::Internal,
                 file: "src/api.ts".to_string(),
                 trust_level: TrustLevel::Unknown,
+                span: None,
             }],
             imports: vec![ImportEdge {
                 from_file: "src/api.ts".to_string(),
@@ -1390,6 +1396,7 @@ mod tests {
                     visibility: Visibility::Internal,
                     file: "src/api.ts".to_string(),
                     trust_level: TrustLevel::Unknown,
+                    span: None,
                 }],
                 imports: vec![ImportEdge {
                     from_file: "src/api.ts".to_string(),
@@ -1448,6 +1455,7 @@ mod tests {
             visibility: Visibility::Internal,
             file: "src/utils.ts".to_string(),
             trust_level: TrustLevel::Unknown,
+            span: None,
         })
         .unwrap();
 
@@ -1460,6 +1468,7 @@ mod tests {
                 visibility: Visibility::Internal,
                 file: "src/main.ts".to_string(),
                 trust_level: TrustLevel::Unknown,
+                span: None,
             }],
             imports: vec![ImportEdge {
                 from_file: "src/main.ts".to_string(),
@@ -1488,6 +1497,7 @@ mod tests {
             visibility: Visibility::Internal,
             file: "polyfill".to_string(),
             trust_level: TrustLevel::Unknown,
+            span: None,
         })
         .unwrap();
 
@@ -1530,6 +1540,7 @@ mod tests {
                 visibility: Visibility::Internal,
                 file: "src/api.ts".to_string(),
                 trust_level: TrustLevel::Unknown,
+                span: None,
             }],
             imports: vec![ImportEdge {
                 from_file: "src/api.ts".to_string(),
@@ -1557,6 +1568,7 @@ mod tests {
                 visibility: Visibility::Internal,
                 file: "src/api.ts".to_string(),
                 trust_level: TrustLevel::Unknown,
+                span: None,
             }],
             imports: vec![ImportEdge {
                 from_file: "src/api.ts".to_string(),
@@ -1589,6 +1601,7 @@ mod tests {
             visibility: Visibility::Internal,
             file: "src/utils.ts".to_string(),
             trust_level: TrustLevel::Unknown,
+            span: None,
         })
         .unwrap();
         g.add_symbol(SymbolNode {
@@ -1598,6 +1611,7 @@ mod tests {
             visibility: Visibility::Internal,
             file: "packages/app/src/utils.ts".to_string(),
             trust_level: TrustLevel::Unknown,
+            span: None,
         })
         .unwrap();
 
@@ -1610,6 +1624,7 @@ mod tests {
                 visibility: Visibility::Internal,
                 file: "src/main.ts".to_string(),
                 trust_level: TrustLevel::Unknown,
+                span: None,
             }],
             imports: vec![ImportEdge {
                 from_file: "src/main.ts".to_string(),
@@ -1647,6 +1662,7 @@ mod tests {
             visibility: Visibility::Internal,
             file: "packages/app/src/utils.ts".to_string(),
             trust_level: TrustLevel::Unknown,
+            span: None,
         })
         .unwrap();
 
@@ -1659,6 +1675,7 @@ mod tests {
                 visibility: Visibility::Internal,
                 file: "src/main.ts".to_string(),
                 trust_level: TrustLevel::Unknown,
+                span: None,
             }],
             imports: vec![ImportEdge {
                 from_file: "src/main.ts".to_string(),
@@ -1696,6 +1713,7 @@ mod tests {
                 visibility: Visibility::Internal,
                 file: "src/main.ts".to_string(),
                 trust_level: TrustLevel::Unknown,
+                span: None,
             }],
             imports: vec![ImportEdge {
                 from_file: "src/main.ts".to_string(),
@@ -1723,6 +1741,7 @@ mod tests {
                 visibility: Visibility::Internal,
                 file: "src/utils.ts".to_string(),
                 trust_level: TrustLevel::Unknown,
+                span: None,
             }],
             imports: vec![],
             reexports: Vec::new(),
@@ -1800,6 +1819,7 @@ mod tests {
                     visibility: Visibility::Internal,
                     file: "a.ts".to_string(),
                     trust_level: TrustLevel::Unknown,
+                    span: None,
                 },
                 SymbolNode {
                     id: 2,
@@ -1808,6 +1828,7 @@ mod tests {
                     visibility: Visibility::Internal,
                     file: "a.ts".to_string(),
                     trust_level: TrustLevel::Unknown,
+                    span: None,
                 },
                 SymbolNode {
                     id: 3,
@@ -1816,6 +1837,7 @@ mod tests {
                     visibility: Visibility::Internal,
                     file: "a.ts".to_string(),
                     trust_level: TrustLevel::Unknown,
+                    span: None,
                 },
             ],
             imports: vec![ImportEdge {
@@ -1852,6 +1874,7 @@ mod tests {
                     visibility: Visibility::Internal,
                     file: "b.ts".to_string(),
                     trust_level: TrustLevel::Unknown,
+                    span: None,
                 },
                 SymbolNode {
                     id: base_id + 1,
@@ -1860,6 +1883,7 @@ mod tests {
                     visibility: Visibility::Internal,
                     file: "b.ts".to_string(),
                     trust_level: TrustLevel::Unknown,
+                    span: None,
                 },
             ],
             imports: vec![],
@@ -1898,6 +1922,7 @@ mod tests {
             visibility: Visibility::Public,
             file: "axios".to_string(),
             trust_level: TrustLevel::External,
+            span: None,
         })
         .unwrap();
 
@@ -1914,6 +1939,7 @@ mod tests {
                 visibility: Visibility::Internal,
                 file: "src/main.ts".to_string(),
                 trust_level: TrustLevel::Unknown,
+                span: None,
             }],
             imports: vec![ImportEdge {
                 from_file: "src/main.ts".to_string(),
@@ -1947,6 +1973,7 @@ mod tests {
             visibility: Visibility::Internal,
             file: file.to_string(),
             trust_level: TrustLevel::Unknown,
+            span: None,
         }
     }
 

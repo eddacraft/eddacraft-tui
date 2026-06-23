@@ -71,6 +71,7 @@ mod tests {
             visibility: Visibility::Internal,
             file: file.to_string(),
             trust_level: TrustLevel::Unknown,
+            span: None,
         }
     }
 
@@ -82,6 +83,7 @@ mod tests {
             visibility: Visibility::Public,
             file: file.to_string(),
             trust_level: TrustLevel::External,
+            span: None,
         }
     }
 

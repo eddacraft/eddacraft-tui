@@ -814,6 +814,7 @@ mod tests {
                         visibility: Visibility::Public,
                         file: file.clone(),
                         trust_level: TrustLevel::Unknown,
+                        span: None,
                     });
                 } else if let Some(spec) = line.strip_prefix("import ") {
                     imports.push(ImportEdge {
@@ -1394,6 +1395,7 @@ mod tests {
                 visibility: Visibility::Public,
                 file: file.to_string(),
                 trust_level: TrustLevel::Unknown,
+                span: None,
             })
             .unwrap();
         }
@@ -1435,6 +1437,7 @@ mod tests {
             visibility: Visibility::Public,
             file: "a.ts".to_string(),
             trust_level: TrustLevel::Unknown,
+            span: None,
         })
         .unwrap();
         assert!(ctx.cache.restore(&key, sym, DependencyGraph::new()));

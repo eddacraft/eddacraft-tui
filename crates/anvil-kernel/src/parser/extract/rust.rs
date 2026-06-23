@@ -32,8 +32,8 @@ use std::collections::HashMap;
 use std::ops::Range;
 
 use anvil_kernel_types::{
-    CallSite, CalleeRef, LocalSymbolRef, SymbolIdentity, SymbolKind, SymbolNode, TrustLevel,
-    Visibility,
+    ByteRange, CallSite, CalleeRef, LocalSymbolRef, SymbolIdentity, SymbolKind, SymbolNode,
+    TrustLevel, Visibility,
 };
 
 use super::{FileSymbols, ImportEdge, LanguageExtractor, ReexportEdge};
@@ -75,6 +75,12 @@ impl LanguageExtractor for RustExtractor {
         // Pass 2 (GCALL-004): a separate walk emits call sites without touching
         // symbol/import/reexport emission, so the Pass 1 parity story is unchanged.
         let calls = extract_call_sites(tree.root_node(), source, &symbols, &spans);
+
+        // GV2-032: lift each symbol's defining-node byte span onto the symbol
+        // (offsets only, never text — PV-7(e)) so it rides into the resident graph.
+        for (symbol, span) in symbols.iter_mut().zip(&spans) {
+            symbol.span = Some(ByteRange::from_range(span.clone()));
+        }
 
         FileSymbols {
             file: file.to_string(),
@@ -246,6 +252,7 @@ fn push_named(
         visibility: item_visibility(node, source),
         file: file.to_string(),
         trust_level: TrustLevel::default(),
+        span: None,
     });
     spans.push(node.byte_range());
     *next_id += 1;
@@ -283,6 +290,7 @@ fn emit_assoc_fns(
                 visibility: item_visibility(member, source),
                 file: file.to_string(),
                 trust_level: TrustLevel::default(),
+                span: None,
             });
             spans.push(member.byte_range());
             *next_id += 1;

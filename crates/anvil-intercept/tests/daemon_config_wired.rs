@@ -60,6 +60,7 @@ impl SymbolParser for StubParser {
                 visibility: Visibility::Public,
                 file,
                 trust_level: TrustLevel::Unknown,
+                span: None,
             }],
             imports: Vec::new(),
             reexports: Vec::new(),

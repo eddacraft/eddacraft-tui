@@ -837,6 +837,7 @@ mod tests {
             visibility: Visibility::Public,
             file: "src/a.ts".to_owned(),
             trust_level: TrustLevel::Internal,
+            span: None,
         })
         .unwrap();
         let mut dep = DependencyGraph::new();

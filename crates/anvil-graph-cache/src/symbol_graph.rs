@@ -259,6 +259,7 @@ mod tests {
             visibility: Visibility::Internal,
             file: file.to_string(),
             trust_level: TrustLevel::Unknown,
+            span: None,
         }
     }
 

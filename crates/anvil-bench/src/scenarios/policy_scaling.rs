@@ -101,6 +101,7 @@ fn generate_symbols(count: usize) -> Vec<SymbolNode> {
             },
             file: format!("src/mod_{}.ts", i / 10),
             trust_level: TrustLevel::Internal,
+            span: None,
         })
         .collect()
 }
@@ -202,6 +203,7 @@ mod tests {
             visibility: Visibility::Public,
             file: "src/a.ts".to_string(),
             trust_level: TrustLevel::Internal,
+            span: None,
         };
 
         let sym_class = SymbolNode {
@@ -211,6 +213,7 @@ mod tests {
             visibility: Visibility::Public,
             file: "src/b.ts".to_string(),
             trust_level: TrustLevel::Internal,
+            span: None,
         };
 
         assert!(evaluate_rule(&rule, &sym_fn));

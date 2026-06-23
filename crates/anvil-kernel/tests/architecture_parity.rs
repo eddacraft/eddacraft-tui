@@ -63,6 +63,7 @@ fn sym(id: u64, name: &str, file: &str, vis: Visibility, trust: TrustLevel) -> S
         visibility: vis,
         file: file.to_string(),
         trust_level: trust,
+        span: None,
     }
 }
 
@@ -74,6 +75,7 @@ fn external_sym(id: u64, name: &str, file: &str) -> SymbolNode {
         visibility: Visibility::Public,
         file: file.to_string(),
         trust_level: TrustLevel::External,
+        span: None,
     }
 }
 

@@ -8,8 +8,8 @@
 use std::collections::HashMap;
 
 use anvil_kernel_types::{
-    CallSite, CalleeRef, LocalSymbolRef, SymbolIdentity, SymbolKind, SymbolNode, TrustLevel,
-    Visibility,
+    ByteRange, CallSite, CalleeRef, LocalSymbolRef, SymbolIdentity, SymbolKind, SymbolNode,
+    TrustLevel, Visibility,
 };
 
 use super::{FileSymbols, ImportEdge, LanguageExtractor, ReexportEdge};
@@ -69,6 +69,15 @@ impl LanguageExtractor for TypeScriptExtractor {
         // so pass 1's symbol/import/reexport emission stays byte-identical (the
         // parity test guards it).
         let calls = extract_call_sites(root, source, &symbols, &spans);
+
+        // GV2-032: lift each symbol's defining-node byte span (the authoritative
+        // parallel `spans` vec, asserted equal-length above) onto the symbol so it
+        // rides through `apply_delta` into the resident graph — the locator
+        // GCTX-021 reads to extract a bounded snippet. Offsets only, never text
+        // (PV-7(e)).
+        for (symbol, span) in symbols.iter_mut().zip(&spans) {
+            symbol.span = Some(ByteRange::from_range(span.clone()));
+        }
 
         FileSymbols {
             file: file.to_string(),
@@ -209,6 +218,7 @@ fn extract_function(
             visibility: Visibility::Internal,
             file: file.to_string(),
             trust_level: TrustLevel::default(),
+            span: None,
         });
         spans.push(node.byte_range());
         *next_id += 1;
@@ -234,6 +244,7 @@ fn extract_class(
         visibility: Visibility::Internal,
         file: file.to_string(),
         trust_level: TrustLevel::default(),
+        span: None,
     });
     spans.push(node.byte_range());
     *next_id += 1;
@@ -259,6 +270,7 @@ fn extract_class(
                     visibility: Visibility::Internal,
                     file: file.to_string(),
                     trust_level: TrustLevel::default(),
+                    span: None,
                 });
                 spans.push(member.byte_range());
                 *next_id += 1;
@@ -287,6 +299,7 @@ fn extract_named_decl(
             visibility: Visibility::Internal,
             file: file.to_string(),
             trust_level: TrustLevel::default(),
+            span: None,
         });
         spans.push(node.byte_range());
         *next_id += 1;
@@ -345,6 +358,7 @@ fn extract_export(
             visibility: Visibility::Public,
             file: file.to_string(),
             trust_level: TrustLevel::default(),
+            span: None,
         });
         // Span = the exported expression (a `function`/`class` body holds the
         // default export's call sites).
@@ -377,6 +391,7 @@ fn extract_export(
                     visibility: Visibility::Public,
                     file: file.to_string(),
                     trust_level: TrustLevel::default(),
+                    span: None,
                 });
                 spans.push(child.byte_range());
                 *next_id += 1;
@@ -417,6 +432,7 @@ fn extract_export(
             visibility: Visibility::Public,
             file: file.to_string(),
             trust_level: TrustLevel::default(),
+            span: None,
         });
         spans.push(node.byte_range());
         *next_id += 1;
@@ -475,6 +491,7 @@ fn extract_export_clause(
                     visibility: Visibility::Public,
                     file: file.to_string(),
                     trust_level: TrustLevel::default(),
+                    span: None,
                 });
                 spans.push(spec.byte_range());
                 *next_id += 1;
@@ -644,6 +661,7 @@ fn mark_or_add_public_symbol(
             visibility: Visibility::Public,
             file: file.to_string(),
             trust_level: TrustLevel::default(),
+            span: None,
         });
         spans.push(span.clone());
         *next_id += 1;
@@ -673,6 +691,7 @@ fn extract_lexical(
                 visibility: Visibility::Internal,
                 file: file.to_string(),
                 trust_level: TrustLevel::default(),
+                span: None,
             });
             // Span = the declarator (`x = () => {…}`), which contains the arrow
             // body's call sites.
@@ -1074,6 +1093,40 @@ const add = (a: number, b: number) => a + b;
 
         assert!(fns.contains(&"greet"));
         assert!(fns.contains(&"add"));
+    }
+
+    #[test]
+    fn populates_symbol_spans_gv2_032() {
+        // GV2-032: each emitted symbol carries the byte span of its defining
+        // node (offsets only, never text) — the locator GCTX-021 reads to
+        // extract a bounded snippet. The span must locate the symbol's source.
+        let source = b"function greet(name: string): string {\n    return name;\n}\n";
+        let mut parser = Parser::new();
+        let result = parser.parse_bytes(Path::new("test.ts"), source).unwrap();
+        let symbols = extract_symbols(&result.tree, source, Path::new("test.ts"), 0);
+
+        // Every emitted symbol carries a span (the parallel-vec invariant lifted
+        // onto the node).
+        assert!(
+            symbols.symbols.iter().all(|s| s.span.is_some()),
+            "GV2-032: every symbol must carry a span",
+        );
+
+        let greet = symbols
+            .symbols
+            .iter()
+            .find(|s| s.name == "greet" && s.kind == SymbolKind::Function)
+            .expect("greet symbol");
+        let span = greet.span.expect("GV2-032: span populated");
+        let text = std::str::from_utf8(&source[span.start as usize..span.end as usize]).unwrap();
+        assert!(
+            text.starts_with("function greet"),
+            "span locates the declaration start: {text:?}",
+        );
+        assert!(
+            text.trim_end().ends_with('}'),
+            "span covers through the closing brace: {text:?}",
+        );
     }
 
     #[test]

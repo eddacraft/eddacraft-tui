@@ -25,6 +25,7 @@ fn public_fn(id: u64, name: &str, file: &str) -> SymbolNode {
         visibility: Visibility::Public,
         file: file.to_string(),
         trust_level: TrustLevel::Unknown,
+        span: None,
     }
 }
 
@@ -195,6 +196,7 @@ fn identity_same_name_different_scope_stays_distinct() {
         visibility: Visibility::Public,
         file: "a.ts".to_string(),
         trust_level: TrustLevel::Unknown,
+        span: None,
     };
     update_file(
         &mut g,

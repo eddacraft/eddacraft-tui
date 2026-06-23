@@ -1619,6 +1619,7 @@ mod tests {
             visibility: vis,
             file: file.into(),
             trust_level: TrustLevel::Unknown,
+            span: None,
         }
     }
 

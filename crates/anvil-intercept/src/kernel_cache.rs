@@ -900,6 +900,7 @@ mod tests {
                     visibility: Visibility::Public,
                     file: file.to_string(),
                     trust_level: TrustLevel::Unknown,
+                    span: None,
                 })
                 .collect(),
             imports: imports
@@ -1005,6 +1006,7 @@ mod tests {
                     visibility: Visibility::Public,
                     file: "handler.ts".to_string(),
                     trust_level: TrustLevel::Unknown,
+                    span: None,
                 },
                 SymbolNode {
                     id: base + 1,
@@ -1013,6 +1015,7 @@ mod tests {
                     visibility: Visibility::Internal,
                     file: "handler.ts".to_string(),
                     trust_level: TrustLevel::Unknown,
+                    span: None,
                 },
             ],
             imports: imports
@@ -1068,6 +1071,7 @@ mod tests {
                 visibility: Visibility::Internal,
                 file: "worker.ts".to_string(),
                 trust_level: TrustLevel::Unknown,
+                span: None,
             }],
             imports: imports
                 .iter()

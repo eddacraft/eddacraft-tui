@@ -96,6 +96,7 @@ fn build_initial_graph(
                 visibility: Visibility::Internal,
                 file: format!("src/mod_{}.ts", i / 10),
                 trust_level: TrustLevel::Internal,
+                span: None,
             })
         })
         .collect();

@@ -40,6 +40,14 @@ pub struct SymbolNode {
     pub visibility: Visibility,
     pub file: String,
     pub trust_level: TrustLevel,
+    /// Source byte span of the symbol's defining node (GV2-032), or `None`
+    /// when no span-producing pass ran (synthetic module nodes, external
+    /// imports, reconstructed-from-store nodes). Offsets only, never text
+    /// (PV-7(e)) — the locator GCTX-021 reads to extract a bounded snippet.
+    /// `serde(default)` keeps the GraphDelta wire backward-compatible, and
+    /// `skip_serializing_if` keeps span-less serialisations byte-identical.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub span: Option<ByteRange>,
 }
 
 /// Stable, cross-restart symbol identity (GV2-002).
@@ -156,6 +164,18 @@ pub struct ByteRange {
 }
 
 impl ByteRange {
+    /// Construct from a parser's `usize` byte range (e.g. tree-sitter's
+    /// [`tree_sitter::Node::byte_range`]), saturating offsets into `u32`.
+    /// Source files within the supported size never approach `u32::MAX`; a
+    /// pathological >4 GiB file saturates rather than wrapping.
+    #[must_use]
+    pub fn from_range(range: std::ops::Range<usize>) -> Self {
+        Self {
+            start: u32::try_from(range.start).unwrap_or(u32::MAX),
+            end: u32::try_from(range.end).unwrap_or(u32::MAX),
+        }
+    }
+
     /// Length of the span in bytes (`end - start`), saturating at 0 for an
     /// inverted range rather than panicking.
     #[must_use]
@@ -358,6 +378,7 @@ mod tests {
             visibility: Visibility::Public,
             file: "src/handler.ts".into(),
             trust_level: TrustLevel::Internal,
+            span: None,
         }
     }
 
@@ -600,6 +621,7 @@ mod tests {
             visibility: Visibility::Public,
             file: file.into(),
             trust_level: TrustLevel::Unknown,
+            span: None,
         }
     }
 

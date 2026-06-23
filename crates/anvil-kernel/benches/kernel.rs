@@ -127,6 +127,7 @@ fn build_graph_fixture(node_count: usize) -> SymbolGraph {
             // Group 10 symbols per file so symbols_in_file returns ~10
             file: format!("src/module_{}/file_{}.ts", i / 100, i / 10),
             trust_level: TrustLevel::Unknown,
+            span: None,
         };
         graph.add_symbol(node).unwrap();
     }
@@ -165,6 +166,7 @@ fn build_import_fixture(file_count: usize) -> (SymbolGraph, Vec<ImportEdge>) {
             },
             file: file.clone(),
             trust_level: TrustLevel::Unknown,
+            span: None,
         };
         graph.add_symbol(node).unwrap();
 
@@ -494,6 +496,7 @@ layers:
                     visibility: Visibility::Public,
                     file: format!("src/domain/mod_{}.ts", i / 10),
                     trust_level: trust,
+                    span: None,
                 };
                 graph.add_symbol(node).unwrap();
             }
@@ -513,6 +516,7 @@ layers:
                     visibility: Visibility::Public,
                     file: format!("src/infra/mod_{}.ts", i / 10),
                     trust_level: trust,
+                    span: None,
                 };
                 graph.add_symbol(node).unwrap();
             }

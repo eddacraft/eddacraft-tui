@@ -50,6 +50,7 @@ fn file_symbols(file: &str, s: &FileSpec, base: u64) -> FileSymbols {
                 visibility: Visibility::Public,
                 file: file.to_string(),
                 trust_level: TrustLevel::Unknown,
+                span: None,
             })
             .collect(),
         imports: s
@@ -407,6 +408,7 @@ fn file_symbols_overloads(file: &str, names: &[&str], base: u64) -> FileSymbols 
                 visibility: Visibility::Public,
                 file: file.to_string(),
                 trust_level: TrustLevel::Unknown,
+                span: None,
             })
             .collect(),
         imports: Vec::new(),

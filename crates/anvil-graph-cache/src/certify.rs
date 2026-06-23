@@ -719,6 +719,7 @@ mod tests {
                 visibility: *vis,
                 file: file.to_string(),
                 trust_level: *trust,
+                span: None,
             })
             .unwrap();
         }
@@ -892,6 +893,7 @@ mod tests {
             visibility: Visibility::Public,
             file: "node:fs".to_string(),
             trust_level: TrustLevel::External,
+            span: None,
         });
         let delta = delta_for("a.ts", &["entry"], &[]); // previously_imported empty
         let diff = export_surface_diff(&sym, &delta);
@@ -912,6 +914,7 @@ mod tests {
             visibility: Visibility::Public,
             file: "net".to_string(),
             trust_level: TrustLevel::Internal,
+            span: None,
         });
         let delta = delta_for("a.ts", &["entry"], &[]);
         let diff = export_surface_diff(&sym, &delta);
@@ -939,6 +942,7 @@ mod tests {
             visibility: Visibility::Public,
             file: "node:fs".to_string(),
             trust_level: TrustLevel::External,
+            span: None,
         })
         .unwrap();
         sym.add_edge(SymbolEdge {
@@ -975,6 +979,7 @@ mod tests {
                 visibility: Visibility::Public,
                 file: "mid.ts".to_string(),
                 trust_level: TrustLevel::Unknown,
+                span: None,
             })
             .unwrap();
             sym.add_symbol(SymbolNode {
@@ -984,6 +989,7 @@ mod tests {
                 visibility: Visibility::Public,
                 file: "node:fs".to_string(),
                 trust_level: TrustLevel::External,
+                span: None,
             })
             .unwrap();
             // barrel(0) -> mid(50) -> node:fs(100)
@@ -1069,6 +1075,7 @@ mod tests {
             visibility: Visibility::Internal,
             file: "b.ts".to_string(),
             trust_level: TrustLevel::Unknown,
+            span: None,
         })
         .unwrap();
         assert!(
@@ -1094,6 +1101,7 @@ mod tests {
             visibility: Visibility::Public,
             file: "node:fs".to_string(),
             trust_level: TrustLevel::External,
+            span: None,
         })
         .unwrap();
         sym.add_edge(SymbolEdge {
@@ -1466,6 +1474,7 @@ mod tests {
             visibility: Visibility::Public,
             file: "a.ts".to_string(),
             trust_level: TrustLevel::Unknown,
+            span: None,
         })
         .unwrap();
         // previously_public empty → the public Class is new → surface change.

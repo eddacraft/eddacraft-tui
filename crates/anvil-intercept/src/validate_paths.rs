@@ -720,6 +720,7 @@ mod tests {
                     visibility: Visibility::Public,
                     file: file.to_string(),
                     trust_level: TrustLevel::Unknown,
+                    span: None,
                 })
                 .collect(),
             imports: imports
@@ -943,6 +944,7 @@ mod tests {
             visibility: Visibility::Public,
             file: "src/a.ts".to_string(),
             trust_level: TrustLevel::Unknown,
+            span: None,
         })
         .expect("add symbol");
 

@@ -22,6 +22,7 @@ fn sym(id: u64, kind: SymbolKind, name: &str, vis: Visibility, file: &str) -> Sy
         visibility: vis,
         file: file.to_string(),
         trust_level: TrustLevel::default(),
+        span: None,
     }
 }
 

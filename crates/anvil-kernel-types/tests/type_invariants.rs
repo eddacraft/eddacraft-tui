@@ -17,6 +17,7 @@ fn symbol_node_carries_trust_level() {
         visibility: Visibility::Internal,
         file: "src/auth/mod.ts".into(),
         trust_level: TrustLevel::Privileged,
+        span: None,
     };
     assert_eq!(node.trust_level, TrustLevel::Privileged);
 }
@@ -30,6 +31,7 @@ fn default_trust_level_for_new_nodes() {
         visibility: Visibility::Public,
         file: "generated.ts".into(),
         trust_level: TrustLevel::default(),
+        span: None,
     };
     assert_eq!(node.trust_level, TrustLevel::Unknown);
 }
@@ -90,6 +92,7 @@ fn edge_connects_two_distinct_nodes() {
             visibility: Visibility::Public,
             file: "src/core.ts".into(),
             trust_level: TrustLevel::Internal,
+            span: None,
         },
         SymbolNode {
             id: 2,
@@ -98,6 +101,7 @@ fn edge_connects_two_distinct_nodes() {
             visibility: Visibility::Internal,
             file: "src/core/validate.ts".into(),
             trust_level: TrustLevel::Internal,
+            span: None,
         },
     ];
 
@@ -170,6 +174,7 @@ fn graph_types_round_trip_together() {
         visibility: Visibility::Public,
         file: "index.ts".into(),
         trust_level: TrustLevel::Boundary,
+        span: None,
     };
     let target = SymbolNode {
         id: 20,
@@ -178,6 +183,7 @@ fn graph_types_round_trip_together() {
         visibility: Visibility::Internal,
         file: "src/dep.ts".into(),
         trust_level: TrustLevel::Internal,
+        span: None,
     };
     let edge = SymbolEdge {
         from: source.id,
@@ -231,6 +237,7 @@ fn all_trust_levels_assignable_to_nodes() {
             visibility: Visibility::Public,
             file: "test.ts".into(),
             trust_level: *level,
+            span: None,
         };
         assert_eq!(node.trust_level, *level);
     }

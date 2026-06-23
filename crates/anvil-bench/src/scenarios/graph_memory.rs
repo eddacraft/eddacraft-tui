@@ -73,6 +73,7 @@ fn build_graph(node_count: usize, edges_per_node: usize) -> Graph<SymbolNode, Sy
                 },
                 file: format!("src/mod_{}.ts", i / 10),
                 trust_level: TrustLevel::Internal,
+                span: None,
             })
         })
         .collect();

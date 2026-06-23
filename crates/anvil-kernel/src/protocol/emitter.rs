@@ -181,6 +181,7 @@ mod tests {
                 visibility: Visibility::Internal,
                 file: "a.ts".to_string(),
                 trust_level: TrustLevel::Unknown,
+                span: None,
             })
             .unwrap();
         graph
@@ -191,6 +192,7 @@ mod tests {
                 visibility: Visibility::Internal,
                 file: "b.ts".to_string(),
                 trust_level: TrustLevel::Unknown,
+                span: None,
             })
             .unwrap();
 
