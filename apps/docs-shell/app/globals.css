@@ -6,7 +6,6 @@
   --text-primary: #ebebeb;
   --text-muted: #85858a;
   --anvil: #cc5500;
-  --edda: #2e8b57;
 }
 
 *,
@@ -155,20 +154,12 @@ a {
   border-left-color: var(--anvil);
 }
 
-.ec-landing-card--edda {
-  border-left-color: var(--edda);
-}
-
 .ec-landing-card--structure:hover {
   background: color-mix(in srgb, var(--text-primary) 3%, var(--surface));
 }
 
 .ec-landing-card--anvil:hover {
   background: color-mix(in srgb, var(--anvil) 5%, var(--surface));
-}
-
-.ec-landing-card--edda:hover {
-  background: color-mix(in srgb, var(--edda) 5%, var(--surface));
 }
 
 .ec-landing-card__bracket {
@@ -219,12 +210,6 @@ a {
   background: color-mix(in srgb, var(--anvil) 5%, transparent);
   border: 1px solid var(--anvil);
   color: var(--anvil);
-}
-
-.ec-landing-card--edda .ec-landing-card__cta {
-  background: color-mix(in srgb, var(--edda) 5%, transparent);
-  border: 1px solid var(--edda);
-  color: var(--edda);
 }
 
 /* ---- Footer ---- */

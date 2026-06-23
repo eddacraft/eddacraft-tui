@@ -8,7 +8,6 @@
   --ec-text-muted: #85858a;
   --ec-anvil-accent: #cc5500;
   --ec-anvil-accent-dim: #a34400;
-  --ec-edda-growth: #2e8b57;
 
   --ifm-font-family-base: 'Inter', system-ui, -apple-system, sans-serif;
   --ifm-font-family-monospace: 'JetBrains Mono', 'IBM Plex Mono', monospace;
@@ -133,20 +132,12 @@
   border-left-color: var(--ec-anvil-accent);
 }
 
-.ec-landing-card--edda {
-  border-left-color: var(--ec-edda-growth);
-}
-
 .ec-landing-card--structure:hover {
   background: color-mix(in srgb, var(--ec-text-primary) 3%, var(--ec-surface));
 }
 
 .ec-landing-card--anvil:hover {
   background: color-mix(in srgb, var(--ec-anvil-accent) 5%, var(--ec-surface));
-}
-
-.ec-landing-card--edda:hover {
-  background: color-mix(in srgb, var(--ec-edda-growth) 5%, var(--ec-surface));
 }
 
 .ec-landing-card__bracket {
@@ -212,18 +203,6 @@
 .ec-landing-card--anvil .ec-landing-card__cta:hover {
   background: color-mix(in srgb, var(--ec-anvil-accent) 10%, transparent);
   color: var(--ec-anvil-accent);
-  text-decoration: none;
-}
-
-.ec-landing-card--edda .ec-landing-card__cta {
-  background: color-mix(in srgb, var(--ec-edda-growth) 5%, transparent);
-  border: 1px solid var(--ec-edda-growth);
-  color: var(--ec-edda-growth);
-}
-
-.ec-landing-card--edda .ec-landing-card__cta:hover {
-  background: color-mix(in srgb, var(--ec-edda-growth) 10%, transparent);
-  color: var(--ec-edda-growth);
   text-decoration: none;
 }
 
