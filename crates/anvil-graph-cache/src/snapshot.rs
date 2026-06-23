@@ -224,7 +224,10 @@ struct SnapshotNode {
     /// snippets without a re-scan. **No `skip_serializing_if`**: the snapshot
     /// codec is `postcard` (non-self-describing), so the field must always be
     /// encoded (a `None` is one tag byte) or the decoder desyncs. `serde(default)`
-    /// keeps forward-compat reads of any future optional field.
+    /// is a no-op for the postcard path (it cannot fill an absent trailing
+    /// field) — it is kept only for the `serde_json` lens the no-leak test uses;
+    /// on-disk forward/backward compat is governed solely by
+    /// `SNAPSHOT_BACKING_SCHEMA_VERSION`, so any new field needs a version bump.
     #[serde(default)]
     span: Option<ByteRange>,
 }
@@ -349,9 +352,10 @@ pub struct SnapshotPayload {
     dependency_edges: Vec<(String, Vec<String>)>,
     /// GV2-032 per-file content-freshness keys, `(relative_file, content_hash)`,
     /// sorted by file. Offsets-free integer digests (PV-7(e)-safe) so a
-    /// warm-started daemon can serve snippets (CE-7) without a re-scan. Defaults
-    /// empty so a pre-GV2-032 snapshot (none) still loads — but the backing
-    /// schema version bump rejects those anyway.
+    /// warm-started daemon can serve snippets (CE-7) without a re-scan. The
+    /// `serde(default)` is for the `serde_json` lens only; on the postcard path a
+    /// pre-GV2-032 (v1) snapshot is rejected by the `SNAPSHOT_BACKING_SCHEMA_VERSION`
+    /// 1→2 bump before decode, never defaulted in.
     #[serde(default)]
     file_hashes: Vec<(String, u64)>,
 }
@@ -987,6 +991,43 @@ mod tests {
         assert_eq!(sym2.file_hash("src/a.ts"), Some(0xDEAD_BEEF));
         assert_eq!(sym2.file_hash("src/b.ts"), Some(0x0102_0304));
         assert_eq!(sym2.file_hash("src/never.ts"), None);
+    }
+
+    #[test]
+    fn snapshot_round_trips_non_none_span_gv2_032() {
+        // The fixture nodes carry span: None; exercise the Some(_) postcard path
+        // explicitly so a broken Option<ByteRange> encoding cannot pass unnoticed.
+        let mut sym = SymbolGraph::new();
+        let mut n = node(1, "f", "src/a.ts", SymbolKind::Function);
+        n.span = Some(ByteRange { start: 10, end: 42 });
+        sym.add_symbol(n).unwrap();
+
+        let payload = SnapshotPayload::from_graphs(&sym, &DependencyGraph::new()).unwrap();
+        let (sym2, _) = SnapshotPayload::from_bytes(&payload.to_bytes())
+            .unwrap()
+            .into_graphs()
+            .unwrap();
+        assert_eq!(
+            sym2.get_symbol(1).unwrap().span,
+            Some(ByteRange { start: 10, end: 42 }),
+            "GV2-032: a non-None span survives the snapshot round-trip",
+        );
+    }
+
+    #[test]
+    fn from_graphs_rejects_non_relative_file_hash_key_gv2_032() {
+        // A file_hashes key is a workspace-root-relative path like every other
+        // persisted path string; an absolute/escaping key fails the build-time
+        // check_relative gate (the real no-leak guarantee for the new field).
+        let mut sym = SymbolGraph::new();
+        sym.add_symbol(node(1, "f", "src/a.ts", SymbolKind::Function))
+            .unwrap();
+        sym.set_file_hash("/etc/passwd".to_owned(), Some(0x99));
+        let result = SnapshotPayload::from_graphs(&sym, &DependencyGraph::new());
+        assert!(
+            matches!(result, Err(SnapshotBuildError::NonRelativePath)),
+            "a non-relative file_hashes key must be rejected at build time, got {result:?}",
+        );
     }
 
     /// Build a fully-specified node — unlike [`node`], every enum-valued field is

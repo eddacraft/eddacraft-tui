@@ -738,6 +738,23 @@ mod tests {
     }
 
     #[test]
+    fn content_hash_matches_known_fnv1a_vectors() {
+        // Canonical FNV-1a 64-bit reference vectors — pin the constants and
+        // op-order so the GV2-032 freshness key (CE-7) stays stable across
+        // releases. The empty input is the offset basis by definition.
+        assert_eq!(content_hash(b""), 0xcbf2_9ce4_8422_2325);
+        assert_eq!(content_hash(b"a"), 0xaf63_dc4c_8601_ec8c);
+        assert_eq!(content_hash(b"foobar"), 0x8594_4171_f739_67e8);
+    }
+
+    #[test]
+    fn content_hash_is_deterministic_and_sensitive() {
+        let a = content_hash(b"export function f() {}\n");
+        assert_eq!(a, content_hash(b"export function f() {}\n"), "stable");
+        assert_ne!(a, content_hash(b"export function g() {}\n"), "sensitive");
+    }
+
+    #[test]
     fn byte_range_inverted_saturates_not_panics() {
         // An inverted range must not panic (saturating semantics) and reads
         // as empty rather than producing a bogus length.

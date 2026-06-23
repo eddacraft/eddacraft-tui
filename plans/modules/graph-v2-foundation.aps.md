@@ -917,6 +917,14 @@ Change status to **Ready** when:
 - **Priority:** High
 - **Dependencies:** GV2-010 (`ByteRange` type), GV2-003 (delta / `apply_delta`
   contract), GV2-030 (snapshot no-leak guard to extend)
+- **Follow-up (tracked):** tail-language (Dart/Go/Java/Kotlin/C#/C/C++) span +
+  content-hash population is **deferred** — the T1 `tail_common` extractors carry
+  no parallel `spans` vec, so they emit `span: None` / `content_hash: None`. The
+  consequence is that **GCTX-021 must treat tail-language files as non-snippet-safe**
+  until this lands; that constraint must be stated in the GCTX-021 spec or this
+  work filed (as a GV2 follow-up / CIB item) **before GCTX-021 ships**, so the gap
+  is explicit rather than a silent "no snippets" for those languages. Raised by the
+  GV2-032 batch Council (adversarial), 2026-06-24.
 - **Source:** Filed 2026-06-23 via planning-workflow to unblock the GCTX snippet
   line (GCTX-021..023); see the [graph-context-delivery](graph-context-delivery.aps.md)
   module and the [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)

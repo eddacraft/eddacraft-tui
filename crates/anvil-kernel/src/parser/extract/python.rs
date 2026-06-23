@@ -682,6 +682,32 @@ mod tests {
         extract_symbols(&result.tree, source, Path::new("pkg/mod.py"), 0)
     }
 
+    #[test]
+    fn populates_symbol_spans_and_content_hash_gv2_032() {
+        let source = b"def alpha():\n    return 1\n";
+        let fs = extract(source);
+        assert!(
+            fs.symbols.iter().all(|s| s.span.is_some()),
+            "GV2-032: every Python symbol must carry a span",
+        );
+        let alpha = fs
+            .symbols
+            .iter()
+            .find(|s| s.name == "alpha")
+            .expect("alpha symbol");
+        let span = alpha.span.expect("span populated");
+        let text = std::str::from_utf8(&source[span.start as usize..span.end as usize]).unwrap();
+        assert!(
+            text.starts_with("def alpha"),
+            "span locates the def: {text:?}"
+        );
+        assert_eq!(
+            fs.content_hash,
+            Some(anvil_kernel_types::content_hash(source)),
+            "GV2-032: content_hash is the hash of the parsed source",
+        );
+    }
+
     fn names_of(fs: &anvil_kernel_types::FileSymbols, kind: SymbolKind) -> Vec<&str> {
         fs.symbols
             .iter()
