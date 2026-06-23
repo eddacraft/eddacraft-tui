@@ -31,6 +31,13 @@ anvil-checks = { path = "../anvil-checks", package = "eddacraft-anvil-checks" }
 anvil-checks-ast = { path = "../anvil-checks-ast", package = "eddacraft-anvil-checks-ast" }
 anvil-intercept = { path = "../anvil-intercept", package = "eddacraft-anvil-intercept" }
 anvil-intercept-proto = { path = "../anvil-intercept-proto", package = "eddacraft-anvil-intercept-proto" }
+# KDS-001 / PORT-011 / ADR-064: daemon-backed Kindling observation sink. The
+# networking client (hyper/tokio over a UDS) lives ONLY in this app-layer crate
+# — never in `anvil-intercept` — so the resident daemon's dependency tree stays
+# free of an HTTP/transport dep (the `daemon_dep_boundary` guard enforces this).
+# The `spool` feature adds `SpooledClient` for durable at-least-once emit when
+# the daemon is unreachable; there is no standalone `kindling-spool` crate.
+kindling-client = { version = "0.2", features = ["spool"] }
 # GCTX-010 / ADR-084: sealed graph-free egress DTOs for the `anvil_search_symbols`
 # MCP tool. The CLI links ONLY `-types` (never `-egress`/graph-cache), so the MCP
 # surface is structurally incapable of emitting a graph internal (CE-5).
@@ -96,6 +103,13 @@ minisign = "0.9"
 # SARIFOUT-002: validate emitted SARIF against the bundled upstream 2.1.0
 # schema. Test-only; the emitter itself has no schema-validation dependency.
 jsonschema = "0.46"
+# KDS-001 / KDS-003: spin up a real in-process Kindling daemon on a temp UDS so
+# the `KindlingDaemonSink` parity + spool-replay tests exercise the live wire
+# contract. Test-only — the daemon (`kindling-server`) and its store
+# (`kindling-store`, for the canonical schema version) are NEVER linked into the
+# shipped `anvil` binary, only the thin `kindling-client`.
+kindling-server = "0.2"
+kindling-store = "0.2"
 
 [lints]
 workspace = true

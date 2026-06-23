@@ -254,7 +254,12 @@ pub fn arg_shapes_from_argv(argv: &[String]) -> Vec<ArgShape> {
 /// on Unix — matching the salt's posture so a shared host can't read the
 /// usage history. A symlinked target is refused (no `O_NOFOLLOW` dep
 /// needed) so a pre-planted symlink can't redirect the append.
-fn append_usage_observation_to(path: &Path, obs: &CommandInvokedObservation) -> Result<()> {
+// KDS-003: `pub(crate)` so the daemon-sink parity test can write a row through
+// the real NDJSON path and compare it against the daemon-stored row.
+pub(crate) fn append_usage_observation_to(
+    path: &Path,
+    obs: &CommandInvokedObservation,
+) -> Result<()> {
     append_observation_to(path, obs)
 }
 
@@ -543,7 +548,9 @@ fn write_private_file(path: &Path, bytes: &[u8]) -> io::Result<()> {
 }
 
 /// Create a directory (and parents) owner-only (`0700`) on Unix.
-fn create_private_dir(dir: &Path) -> io::Result<()> {
+// KDS-001: `pub(crate)` so the daemon sink creates its spool's `kindling/`
+// parent dir with the same owner-only (`0700`) posture before first write.
+pub(crate) fn create_private_dir(dir: &Path) -> io::Result<()> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::DirBuilderExt;
@@ -897,6 +904,18 @@ impl KindlingObservationSink for DaemonObservationSink {
     }
 }
 
+/// KDS-002 (partial): env var selecting the `command.invoked` sink backend.
+/// `daemon` routes through [`crate::kindling_daemon_sink::KindlingDaemonSink`];
+/// any other value (including unset) keeps the NDJSON sidecar.
+const KINDLING_SINK_ENV: &str = "ANVIL_KINDLING_SINK";
+
+/// True when `ANVIL_KINDLING_SINK=daemon` (case-insensitive, trimmed) is set.
+/// Read fresh so an operator can flip it per daemon start; the privacy-first
+/// NDJSON default is preserved for every other value.
+fn daemon_kindling_sink_selected() -> bool {
+    env::var(KINDLING_SINK_ENV).is_ok_and(|value| value.trim().eq_ignore_ascii_case("daemon"))
+}
+
 /// USAGE-004: build the daemon-side command-invocation usage emitter,
 /// wired to the shared `usage.ndjson` sink. Returns `None` (usage export
 /// off) when the usage path cannot be resolved, so a daemon on a host
@@ -927,7 +946,34 @@ pub fn daemon_usage_emitter() -> Option<Arc<CommandInvokedEmitter>> {
     // channel drops + counts the row, never duplicates it) and FIFO
     // ordering per the single bounded `sync_channel`, matching the
     // best-effort, drop-don't-block contract the save-time sink already has.
-    let inner = Arc::new(DaemonUsageSink { path }) as Arc<dyn KindlingObservationSink>;
+    // KDS-001 / KDS-002 (partial): opt into the daemon-backed Kindling sink
+    // with `ANVIL_KINDLING_SINK=daemon`. The default (unset / any other value)
+    // keeps the privacy-first NDJSON sidecar, so the capture contract is
+    // unchanged unless an operator explicitly opts in. The full
+    // `daemon|ndjson|off` selection surface is KDS-002.
+    let inner: Arc<dyn KindlingObservationSink> = if daemon_kindling_sink_selected() {
+        match crate::kindling_daemon_sink::default_spool_path()
+            .map_err(|err| KindlingSinkError::Unavailable(err.to_string()))
+            .and_then(|spool| crate::kindling_daemon_sink::KindlingDaemonSink::new(None, spool))
+        {
+            Ok(sink) => Arc::new(sink) as Arc<dyn KindlingObservationSink>,
+            Err(err) => {
+                // Degrade to the NDJSON sidecar rather than dropping usage
+                // export entirely: a daemon-sink build failure (e.g. the sink
+                // runtime could not start) should not silence capture the
+                // operator already opted into. The `path` was resolved above.
+                tracing::warn!(
+                    target: "anvil::usage",
+                    error = %err,
+                    "ANVIL_KINDLING_SINK=daemon set but the daemon sink could \
+                     not be built; falling back to the NDJSON sidecar",
+                );
+                Arc::new(DaemonUsageSink { path }) as Arc<dyn KindlingObservationSink>
+            }
+        }
+    } else {
+        Arc::new(DaemonUsageSink { path }) as Arc<dyn KindlingObservationSink>
+    };
     let Some(non_blocking) =
         NonBlockingObservationSink::new(inner, DEFAULT_OBSERVATION_CHANNEL_CAPACITY)
     else {

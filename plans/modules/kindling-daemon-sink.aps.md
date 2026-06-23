@@ -2,15 +2,19 @@
 
 # Kindling Daemon Sink
 
-| ID  | Owner      | Status   | Progress |
-| --- | ---------- | -------- | -------- |
-| KDS | @eddacraft | Proposed | 0/5      |
+| ID  | Owner      | Status      | Progress |
+| --- | ---------- | ----------- | -------- |
+| KDS | @eddacraft | In Progress | 0/5      |
 
-> **DRAFT** — authored from the Kindling side (the Rust-canonical Kindling port
-> shipped the daemon + `kindling-client` + `kindling-spool`). Needs Anvil-side
-> review + council before it moves to Ready. A provisional index row is already
-> present under [Usage Analytics](../index.aps.md#usage-analytics); on acceptance,
-> confirm that placement (or move it to a new "Memory" section).
+> **Ready** — placement + async-bridge decisions settled (see Open Questions,
+> now answered) and the PORT-011 handoff
+> ([`../execution/PORT-011-anvil-handoff.md`](../execution/PORT-011-anvil-handoff.md))
+> supersedes the original draft on the spool transport. The Kindling
+> prerequisite (KINTEG-001) is **Done** — all seven Kindling crates published at
+> `0.2.0` on crates.io (2026-06-24). The durable-emit layer ships **inside
+> `kindling-client` behind `features = ["spool"]`** — there is **no** standalone
+> `kindling-spool` crate. A provisional index row is present under
+> [Usage Analytics](../index.aps.md#usage-analytics).
 
 ## Cross-cutting convention
 
@@ -30,12 +34,12 @@ not reachable in-process when USAGE shipped, so Anvil appended observations to a
 local file and `anvil kindling usage <view>` read them back.
 
 The Rust-canonical Kindling port has since shipped a local daemon
-(`kindling serve`, HTTP/1 over a Unix domain socket), a thin Rust client
-(`kindling-client`, auto-spawning), and a durable-emit layer
-(`kindling-spool`). These crates are code-complete upstream; their crates.io
-publish (`>=0.1`) is **queued, not yet landed** — which is why this module
-stays Blocked on the publish (see the Ready Checklist and Work Items). Once
-Kindling is properly reachable, the **normal path** is:
+(`kindling serve`, HTTP/1 over a Unix domain socket), a thin auto-spawning Rust
+client (`kindling-client`), and a durable-emit layer (`SpooledClient`, shipped
+inside `kindling-client` behind `features = ["spool"]` — there is **no**
+standalone `kindling-spool` crate). These crates are **published at `0.2.0` on
+crates.io** (KINTEG-001, 2026-06-24), so the publish prerequisite is satisfied.
+Once Kindling is properly reachable, the **normal path** is:
 
 ```
 Anvil event → validate/redact observation → Kindling client → SQLite-backed Kindling store
@@ -43,7 +47,7 @@ Anvil event → validate/redact observation → Kindling client → SQLite-backe
 
 This module makes the **Kindling daemon (SQLite) the authoritative store** for
 Anvil's observations, with NDJSON demoted to a **transient fallback spool** (via
-`kindling-spool`) rather than a parallel source of truth. That removes the
+`kindling-client`'s `SpooledClient`) rather than a parallel source of truth. That removes the
 duplicate-ingestion / replay-edge-case / retention-drift / "which store is
 authoritative?" ambiguity the NDJSON-primary design carries — see
 **D-035** (the three-pipe rule: "Kindling = governance facts, write-once,
@@ -55,11 +59,10 @@ need a short ADR to reconcile the wording.
 - A `KindlingDaemonSink` implementing the `KindlingObservationSink` emit
   methods — `try_emit_command_invoked` for `command.invoked` and `try_emit` for
   `gate.evaluated` — in `anvil-cli` (app layer), backed by
-  `kindling-spool::SpooledClient` over `kindling-client::Client`.
-- New crates.io dependencies on `kindling-client` and `kindling-spool`
-  (`>=0.1`), pinned per Anvil's dependency policy. The `kindling` daemon binary
-  is auto-spawned by the client on first call (the cold-spawn `--daemonize`
-  path was fixed upstream in kindling PR #86).
+  `kindling_client::spool::SpooledClient` over `kindling_client::Client`.
+- A new crates.io dependency on `kindling-client` (caret `0.2`, `features =
+  ["spool"]`), pinned per Anvil's dependency policy. The `kindling` daemon
+  binary is auto-spawned by the client on first call.
 - Mapping `CommandInvokedObservation` / `GateEvaluatedObservation` →
   Kindling `append_observation` (kind / content / provenance / scope ids),
   applying Anvil's existing TRACE-003 redaction before the call (Kindling adds
@@ -79,8 +82,9 @@ need a short ADR to reconcile the wording.
 
 - The Kindling daemon, its schema, or its storage (upstream, eddacraft/kindling).
 - New observation kinds or producer changes (USAGE owns the producers).
-- Exactly-once delivery — `kindling-spool` is at-least-once in v1; exactly-once
-  needs daemon-side dedup-on-id (an upstream Kindling follow-up).
+- Exactly-once delivery — the `SpooledClient` is at-least-once in v1;
+  exactly-once needs daemon-side dedup-on-id (an upstream Kindling follow-up,
+  KINTEG-002).
 - Cross-language NDJSON handoff to a TS Kindling consumer (the TS implementation
   packages are deprecated; the daemon is canonical).
 
@@ -88,9 +92,10 @@ need a short ADR to reconcile the wording.
 
 **Depends on:**
 
-- `kindling-client` / `kindling-spool` (crates.io `>=0.1`) — the transport,
-  auto-spawn, and durable-emit layers. The daemon (SQLite) is authoritative; the
-  spool is a transient buffer drained into it.
+- `kindling-client` (crates.io caret `0.2`, `features = ["spool"]`) — the
+  transport, auto-spawn, and durable-emit (`SpooledClient`) layers in one crate.
+  The daemon (SQLite) is authoritative; the spool is a transient buffer drained
+  into it.
 - The existing `KindlingObservationSink` trait + observation types in
   `anvil-intercept` (unchanged).
 - USAGE (Done) — the `command.invoked` / `gate.evaluated` producers this sink
@@ -109,17 +114,21 @@ need a short ADR to reconcile the wording.
 
 ## Ready Checklist
 
-- [ ] `kindling-client` + `kindling-spool` published to crates.io (`>=0.1`)
-- [ ] D-035 reconciliation decided (reword vs short ADR)
-- [ ] Sink placement confirmed (`anvil-cli` vs a small `anvil-kindling` adapter
-      crate) — see Open Questions
+- [x] `kindling-client` (`spool` feature) published to crates.io — `0.2.0`
+      landed (KINTEG-001, 2026-06-24); no standalone `kindling-spool` crate
+- [x] Sink placement confirmed — `anvil-cli` for PORT-011 (extract a small
+      `anvil-kindling` adapter crate later if the JSON-RPC path also needs it)
+- [x] Dependency pinning policy confirmed — caret `0.2`; the client fails loud
+      on schema-version mismatch (`EXPECTED_SCHEMA_VERSION`, currently 5)
+- [ ] D-035 reconciliation decided (reword vs short ADR) — deferred to KDS-002,
+      the wiring change that actually makes the daemon the primary write path
 - [ ] Usage-views read-path migration approach agreed (KDS-004)
-- [ ] Dependency pinning policy for the kindling crates confirmed
 
 ## Work Items
 
-> Status: Proposed. Blocked on the kindling crates landing on crates.io
-> (`>=0.1`); all work items are author-side estimates pending Anvil review.
+> Status: In Progress. The kindling crates have landed on crates.io (`0.2.0`),
+> unblocking the module. KDS-001 + KDS-003 are the PORT-011 proof slice
+> (`command.invoked` only); KDS-002/004/005 follow.
 
 ### KDS-001: `KindlingDaemonSink` over the spooled client
 
@@ -127,20 +136,24 @@ need a short ADR to reconcile the wording.
   observation to the Kindling daemon, falling back to the spool when it is
   unreachable.
 - **Expected Outcome:** `KindlingDaemonSink` (in `anvil-cli`) holds a
-  `kindling_spool::SpooledClient`; the emit methods map the Anvil observation to
-  a Kindling `ObservationInput` (kind/content/provenance/scope ids, with
-  TRACE-003 redaction applied first) and call `append_observation` —
-  `command.invoked` via `try_emit_command_invoked`, `gate.evaluated` via
-  `try_emit`. A daemon outage spools the row and returns `Ok(())` (the outage is
-  never surfaced as an error to the caller); a daemon `Rejected` propagates as
-  `KindlingSinkError`. New crates.io deps added; `daemon_dep_boundary` guard
-  still green (client confined to `anvil-cli`).
+  `kindling_client::spool::SpooledClient`; the emit methods map the Anvil
+  observation to a Kindling `ObservationInput` (kind/content/provenance/scope
+  ids, with TRACE-003 redaction applied first) and call `append_observation` —
+  `command.invoked` via `try_emit_command_invoked` for the PORT-011 slice
+  (`gate.evaluated` via `try_emit` is a fast follow). A daemon outage spools the
+  row and returns `Ok(())` (the outage is never surfaced as an error to the
+  caller); a daemon API rejection (`Api`/`SchemaMismatch`) propagates as
+  `KindlingSinkError`. The sync `KindlingObservationSink` trait is bridged to the
+  async `SpooledClient` via an owned current-thread tokio runtime, only ever
+  driven on the `NonBlockingObservationSink` drain thread (never the hot path).
+  New crates.io dep added; `daemon_dep_boundary` guard still green (client
+  confined to `anvil-cli`).
 - **Validation:** unit tests against an in-process / temp-socket daemon —
   delivered-when-up (row retrievable), spooled-when-down, replay-on-reconnect,
-  rejection-propagates; a boundary test asserting `anvil-intercept` gained no
-  networking dep.
-- **Status:** Proposed
-- **Dependencies:** kindling crates on crates.io (`>=0.1`)
+  rejection-propagates; the existing `daemon_dep_boundary` guard asserts
+  `anvil-intercept` gained no networking dep.
+- **Status:** In Progress
+- **Dependencies:** none remaining — kindling crates on crates.io (`0.2.0`, Done)
 
 ### KDS-002: Wire the daemon sink as primary, with sink selection
 
@@ -164,8 +177,10 @@ need a short ADR to reconcile the wording.
   via both the NDJSON sink and the daemon sink and asserts the persisted rows
   match (kind/content/provenance/scope, modulo daemon-assigned id/timestamp);
   spool flush/replay lands the row identically after a simulated outage.
-- **Validation:** the parity test above, green in CI.
-- **Status:** Proposed
+- **Validation:** the parity test above, green in CI. (Lives as a `#[cfg(test)]`
+  module beside the sink, not a `tests/` integration file — `anvil-cli` is a
+  bin-only crate with no library target for `tests/` to link against.)
+- **Status:** In Progress
 - **Dependencies:** KDS-001
 
 ### KDS-004: Re-source the usage views from the authoritative store
@@ -198,7 +213,9 @@ need a short ADR to reconcile the wording.
 
 | Risk                                                            | Impact | Mitigation                                                                                  |
 | -------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------- |
-| Daemon unreachable at emit time                                 | Low    | `kindling-spool` fallback + client auto-spawn; emit never errors on outage                  |
+| Daemon unreachable at emit time                                 | Low    | `SpooledClient` fallback + client auto-spawn; emit never errors on outage                   |
+| Spool grows unbounded under a persistent daemon outage (no age/size cap like the NDJSON sidecar's council-T5 trim) | Medium | KDS-001 documents the limitation; trimming the spool without dropping un-delivered rows belongs in `SpooledClient` (its `SpoolConfig` reserves size-cap knobs) — tracked for KDS-002 / upstream. Opt-in + default-off bounds exposure |
+| Spool file holds usage metadata on a shared host                | Low    | The sink creates the `kindling/` parent dir `0700` before first write, so the dir gates access even though the upstream client writes the spool file without an explicit `0600` mode |
 | Networking client leaks into the daemon crate (ADR-064)         | High   | Sink confined to `anvil-cli`; `daemon_dep_boundary` guard enforced; KDS-001 boundary test   |
 | D-035 wording vs an active daemon-write path                    | Medium | Reconcile in KDS / a short ADR before Ready                                                  |
 | At-least-once replay duplicates a row after a crash mid-flush   | Low    | Stable ids already stamped by the spool; exactly-once is an upstream daemon-dedup follow-up  |
@@ -207,12 +224,21 @@ need a short ADR to reconcile the wording.
 
 ## Open questions
 
-1. **Sink crate placement** — keep `KindlingDaemonSink` in `anvil-cli`, or
-   introduce a small `anvil-kindling` adapter crate (still app-layer) so the
-   integration is reusable beyond the CLI (e.g. the daemon's JSON-RPC producer)?
-2. **Views read-path** — query the daemon directly, or treat the spool as a
-   read-through cache for `anvil kindling usage`? (Affects KDS-004 scope.)
-3. **Dependency pinning** — exact-version pin vs caret on the kindling crates;
-   and whether Anvil tracks the daemon's schema version explicitly.
-4. **`gate.evaluated`** — does it also route to the daemon, or stay a local-only
-   signal? (USAGE-002 context.)
+1. **Sink crate placement** — **Resolved (KDS-001):** `KindlingDaemonSink` lives
+   in `anvil-cli` for the PORT-011 proof. Extracting a small `anvil-kindling`
+   adapter crate is deferred to whenever a second consumer (e.g. the daemon's
+   JSON-RPC producer) needs the sink; until then the CLI is the only caller.
+2. **Async bridge** — **Resolved (KDS-001):** the sync `KindlingObservationSink`
+   trait is bridged to the async `SpooledClient` via a current-thread tokio
+   runtime owned by the sink, `block_on`-driven only on the
+   `NonBlockingObservationSink` drain thread (never the dispatch / save-time hot
+   path). No ambient runtime is assumed, so the bridge is safe off the daemon's
+   own event loop.
+3. **Dependency pinning** — **Resolved (KDS-001):** caret `0.2` on
+   `kindling-client`; the client checks the daemon's reported schema version
+   against its compile-time `EXPECTED_SCHEMA_VERSION` (5) and fails loud on
+   mismatch, so Anvil need not track the schema version separately.
+4. **Views read-path** — query the daemon directly, or treat the spool as a
+   read-through cache for `anvil kindling usage`? (Open; affects KDS-004 scope.)
+5. **`gate.evaluated`** — does it also route to the daemon, or stay a local-only
+   signal? (Open; deferred to the KDS-001 fast follow / USAGE-002 context.)
