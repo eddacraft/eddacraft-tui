@@ -674,7 +674,10 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-021: Symbol snippet extractor (daemon-side, egress-gated)
 
-- **Status:** Ready — architecture settled by [ADR-084](../decisions/084-gctx-graph-handle-access.md)
+- **Status:** In Progress (`feat/gctx-021-snippet-extractor`, started 2026-06-24;
+  GV2-032 substrate merged via #2896; secret-scan wiring = injected redactor per
+  ADR-064, not a direct `anvil-checks` dep on the leaf projector) — architecture
+  settled by [ADR-084](../decisions/084-gctx-graph-handle-access.md)
   (daemon-side projection) and the snippet gates fully specified by the
   [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
   (CE-1/CE-2/CE-3/CE-5/CE-7). Substrate prerequisite **[GV2-032](graph-v2-foundation.aps.md)**

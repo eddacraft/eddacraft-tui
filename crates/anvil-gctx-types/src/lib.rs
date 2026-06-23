@@ -16,7 +16,7 @@
 //! trust posture. Source-text egress (snippets) is a Phase-2 concern gated behind
 //! the `gctx.egress` flag and is intentionally unrepresentable here.
 
-use anvil_kernel_types::{EdgeType, SymbolIdentity, SymbolKind, Visibility};
+use anvil_kernel_types::{ByteRange, EdgeType, SymbolIdentity, SymbolKind, Visibility};
 use serde::{Deserialize, Serialize};
 
 /// Default page size when a query omits `limit`.
@@ -954,6 +954,100 @@ impl GraphEdgesOutcome {
     }
 }
 
+/// A request to extract the source snippet for a single symbol (GCTX-021).
+///
+/// Identity-only input: the daemon resolves `target` against the resident graph
+/// and reads the bytes of the symbol's GV2-032 span. `include_source` is the
+/// **CE-1 per-request capability** — source text is returned only when it is
+/// `true` **and** the operator `gctx.egress` flag is on; otherwise the response
+/// is a span-as-location with no text. Defaults `false` (identity-only).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SnippetQuery {
+    /// The symbol whose defining-node span to extract.
+    pub target: SymbolIdentity,
+    /// CE-1 capability assertion — request the source text. Treated as
+    /// identity-only unless the operator `gctx.egress` flag is also enabled.
+    #[serde(default)]
+    pub include_source: bool,
+}
+
+/// A bounded source snippet for one symbol — the **only** GCTX egress DTO
+/// permitted to carry source text (the CE-1 / CE-5 carve-out).
+///
+/// `text` is `Some` only when (a) the `gctx.egress` flag is on, (b) the request
+/// asserted `include_source`, and (c) the bytes passed the CE-2 secret scan,
+/// CE-3 path filter, and CE-7 freshness check. Otherwise `text` is `None` and the
+/// result is a span-as-location — identity-only, PV-7(e)-safe (`file` + `span`
+/// byte offsets, no text). The structural no-leak test pins this type's exact key
+/// set rather than running the forbidden-name battery over it, because `span` and
+/// (under CE-1) `text` are deliberately permitted **here and nowhere else**.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SnippetResult {
+    /// Workspace-root-relative file the symbol is defined in.
+    pub file: String,
+    /// Byte-offset span of the symbol's defining node (GV2-032) — offsets only.
+    pub span: ByteRange,
+    /// Language token derived from the file extension (`typescript`, `rust`, …).
+    pub language: String,
+    /// `true` when the file on disk no longer matches the graph's recorded
+    /// content hash (CE-7): the location is still returned, but `text` is
+    /// withheld (`None`) because the span may no longer point at the symbol.
+    pub stale: bool,
+    /// The extracted source text — present only under the CE-1 opt-in + capability
+    /// and after CE-2/CE-3/CE-7. `None` = identity-only (location, no text).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    /// `true` when `text` was truncated to the per-response byte ceiling (CE-6).
+    pub truncated: bool,
+    /// Bytes withheld by truncation or secret-scan redaction (CE-2 / CE-6).
+    pub omitted_bytes: u32,
+    /// Counts-only elision summary (CE-11) — e.g. secret-redaction count.
+    pub redaction_summary: RedactionSummary,
+}
+
+/// The status-tagged outcome of a snippet request (mirrors
+/// [`SearchSymbolsOutcome`]). Source text travels only in the `Ready` arm's
+/// [`SnippetResult`], and only under the CE-1 gates.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum SnippetOutcome {
+    /// The symbol resolved; the [`SnippetResult`] carries the location and (under
+    /// the CE-1 opt-in, and only if fresh) the text.
+    Ready(SnippetResult),
+    /// Graph not yet readable (warming or cold). The hint guides progress.
+    NotReady {
+        /// Human-readable, enum-stable recovery guidance.
+        recovery_hint: String,
+    },
+    /// Daemon or graph unavailable; no source-file fallback was attempted (CE-7).
+    Unavailable,
+    /// Egress switched off by the operator (`ANVIL_GCTX_EGRESS=0`, CE-11).
+    Disabled,
+    /// The target symbol is not present in the resident graph.
+    SymbolNotFound,
+    /// The query was rejected before any read (CE-6 validation).
+    InvalidQuery {
+        /// Why the query was rejected.
+        reason: String,
+    },
+}
+
+impl SnippetOutcome {
+    /// Classify into the PII-free [`GctxOutcome`] telemetry enum (CE-10). The
+    /// match is exhaustive, so a new variant forces an explicit label here.
+    #[must_use]
+    pub fn telemetry_outcome(&self) -> GctxOutcome {
+        match self {
+            Self::Ready(_) => GctxOutcome::Hit,
+            Self::SymbolNotFound => GctxOutcome::Miss,
+            Self::NotReady { .. } => GctxOutcome::Warming,
+            Self::Unavailable => GctxOutcome::Unavailable,
+            Self::Disabled => GctxOutcome::GraphDisabled,
+            Self::InvalidQuery { .. } => GctxOutcome::InvalidQuery,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1018,6 +1112,110 @@ mod tests {
             &[
                 "span", "byte", "text", "body", "snippet", "trust", "content", "id",
             ],
+        );
+    }
+
+    fn sample_snippet(text: Option<String>) -> SnippetResult {
+        SnippetResult {
+            file: "src/a.ts".into(),
+            span: ByteRange { start: 10, end: 42 },
+            language: "typescript".into(),
+            stale: false,
+            text,
+            truncated: false,
+            omitted_bytes: 0,
+            redaction_summary: RedactionSummary::default(),
+        }
+    }
+
+    /// CE-1 / CE-5 carve-out: `SnippetResult` is the ONE egress DTO permitted to
+    /// carry `span` and (under CE-1) `text`. Its key set is pinned **exactly**
+    /// here instead of via the forbidden-name battery (which would reject `span`),
+    /// and every other DTO keeps that battery. Identity-only form (`text: None`)
+    /// must expose the location but no `text` key.
+    #[test]
+    fn snippet_result_identity_only_keys_are_exact() {
+        let v = serde_json::to_value(sample_snippet(None)).unwrap();
+        let obj = v.as_object().expect("snippet serialises to an object");
+        let mut keys: Vec<&str> = obj.keys().map(String::as_str).collect();
+        keys.sort_unstable();
+        assert_eq!(
+            keys,
+            [
+                "file",
+                "language",
+                "omitted_bytes",
+                "redaction_summary",
+                "span",
+                "stale",
+                "truncated",
+            ],
+            "identity-only SnippetResult must carry the location but NO `text`",
+        );
+        assert!(
+            !obj.contains_key("text"),
+            "the `text` key must be absent when source egress is off (CE-1)",
+        );
+    }
+
+    /// Under the CE-1 opt-in the ONLY additional serialised key is `text`.
+    #[test]
+    fn snippet_result_with_text_adds_only_the_text_key() {
+        let v = serde_json::to_value(sample_snippet(Some("function f() {}".into()))).unwrap();
+        let obj = v.as_object().expect("snippet serialises to an object");
+        let mut keys: Vec<&str> = obj.keys().map(String::as_str).collect();
+        keys.sort_unstable();
+        assert_eq!(
+            keys,
+            [
+                "file",
+                "language",
+                "omitted_bytes",
+                "redaction_summary",
+                "span",
+                "stale",
+                "text",
+                "truncated",
+            ],
+        );
+        assert_eq!(obj["text"], serde_json::json!("function f() {}"));
+    }
+
+    /// Only the `Ready` arm (the `SnippetResult` carve-out) may carry text/span;
+    /// every other `SnippetOutcome` arm still names no forbidden egress concept.
+    #[test]
+    fn snippet_outcome_non_ready_arms_have_no_forbidden_keys() {
+        let forbidden = [
+            "span", "byte", "text", "body", "snippet", "trust", "content", "id",
+        ];
+        for outcome in [
+            SnippetOutcome::NotReady {
+                recovery_hint: "graph warming".into(),
+            },
+            SnippetOutcome::Unavailable,
+            SnippetOutcome::Disabled,
+            SnippetOutcome::SymbolNotFound,
+            SnippetOutcome::InvalidQuery {
+                reason: "symbol not found".into(),
+            },
+        ] {
+            assert_no_forbidden_keys(&serde_json::to_value(&outcome).unwrap(), &forbidden);
+        }
+    }
+
+    #[test]
+    fn snippet_outcome_telemetry_labels_are_pii_free() {
+        assert_eq!(
+            SnippetOutcome::Ready(sample_snippet(None)).telemetry_outcome(),
+            GctxOutcome::Hit,
+        );
+        assert_eq!(
+            SnippetOutcome::SymbolNotFound.telemetry_outcome(),
+            GctxOutcome::Miss,
+        );
+        assert_eq!(
+            SnippetOutcome::Disabled.telemetry_outcome(),
+            GctxOutcome::GraphDisabled,
         );
     }
 
