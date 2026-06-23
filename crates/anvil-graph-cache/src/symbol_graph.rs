@@ -78,7 +78,11 @@ impl SymbolGraph {
     }
 
     /// The recorded content-freshness key for `file` (GV2-032 / CE-7), or `None`
-    /// if the file is non-resident or its producer supplied no hash.
+    /// if no hash was recorded for it (its producer supplied none, or it was
+    /// cleared). This reads the `file_hashes` map directly and is **independent of
+    /// symbol residency** — a file can carry a hash with no resident symbols (an
+    /// import-only module) or have resident symbols with no hash (a tail-language
+    /// file); callers needing both must check `symbols_in_file` separately.
     #[must_use]
     pub fn file_hash(&self, file: &str) -> Option<u64> {
         self.file_hashes.get(file).copied()

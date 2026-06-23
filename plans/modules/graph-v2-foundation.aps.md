@@ -871,7 +871,7 @@ Change status to **Ready** when:
   covers both (span offsets-only, hash an integer key). Tail-language span/hash
   population is **deferred** (T1 extractors carry no parallel span vec → `None`);
   the ADR-031 `call_lift`-style budget bench is **deferred** (the lift is one O(n)
-  zip + a linear hash over already-read bytes). Workspace `cargo test` 7237/0,
+  zip + a linear hash over already-read bytes). Workspace `cargo test` 7243/0,
   clippy `-D warnings` + `fmt` clean. Context: GV2-032 is the **producer** half
   of the span plumbing GV2-010 deferred —
   `ByteRange` (GV2-010, no-text per PV-7(e)) is modelled but never attached to a
