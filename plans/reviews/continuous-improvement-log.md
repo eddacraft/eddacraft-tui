@@ -1601,7 +1601,7 @@ a backlog. Promote repeated friction or executable follow-up work to
   filesystem paths in the repo link checker.
 - **Improvement:** When adding Kindling public pages, update
   `docs/governance/docs-check.baseline.json` in the same PR.
-- **Task:** Full refresh of `docs/public/aps/` against anvil-plan-spec v0.4.0 (DOCSYNC-023).
+- **Task:** Full refresh of `docs/public/aps/` against anvil-plan-spec v0.4.0 (DOCSYNC-024).
 - **Outcome:** Rewrote 9 existing pages, added 6 new pages, updated sidebar; terminology,
   CLI, and file layout now match the sibling repo.
 - **Worked:** Reading anvil-plan-spec `docs/**` and templates as source of truth kept the
