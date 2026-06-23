@@ -44,7 +44,7 @@ use std::ops::Range;
 
 use anvil_kernel_types::{
     ByteRange, CallSite, CalleeRef, LocalSymbolRef, SymbolIdentity, SymbolKind, SymbolNode,
-    TrustLevel, Visibility,
+    TrustLevel, Visibility, content_hash,
 };
 
 use super::{FileSymbols, ImportEdge, LanguageExtractor, ReexportEdge};
@@ -108,6 +108,8 @@ impl LanguageExtractor for PythonExtractor {
             // the static walk (CIB-093 N1 is a JS/TS require()/import() concept);
             // a missed signal is conservative-safe.
             has_unresolved_dynamic_import: false,
+            // GV2-032: the freshness key for the bytes we just parsed (CE-7).
+            content_hash: Some(content_hash(source)),
         }
     }
 }

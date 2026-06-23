@@ -258,6 +258,7 @@ fn cap_ceiling_file_symbols() -> FileSymbols {
         // so the fixture is a faithful capped-file shape, not for the bench logic.)
         calls_partial: true,
         has_unresolved_dynamic_import: false,
+        content_hash: None,
     }
 }
 
@@ -420,6 +421,7 @@ fn hot_file_symbols() -> FileSymbols {
         calls,
         calls_partial: false,
         has_unresolved_dynamic_import: false,
+        content_hash: None,
     }
 }
 

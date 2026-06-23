@@ -38,6 +38,7 @@ fn file_symbols(file: &str, symbols: Vec<SymbolNode>) -> FileSymbols {
         calls: Vec::new(),
         calls_partial: false,
         has_unresolved_dynamic_import: false,
+        content_hash: None,
     }
 }
 

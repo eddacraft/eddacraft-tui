@@ -24,6 +24,7 @@ pub use feature_flags::{
 pub use graph::{
     ByteRange, CallSite, CalleeRef, EdgeType, FileSymbols, ImportEdge, LocalSymbolRef,
     MAX_CALL_SITES, ReexportEdge, SymbolEdge, SymbolIdentity, SymbolKind, SymbolNode, Visibility,
+    content_hash,
 };
 pub use hooks::{ANVIL_CONFIG_HOOK_PATTERN, is_anvil_managed_command};
 pub use notifications::{

@@ -85,6 +85,9 @@ pub(super) fn finish(
         // N1); a missed signal is conservative-safe (it never under-fires the
         // certify gate for the dimension it covers).
         has_unresolved_dynamic_import: false,
+        // GV2-032: tail-language span + content-hash population is deferred (the
+        // T1 extractors carry no parallel span vec); `None` until that follow-up.
+        content_hash: None,
     }
 }
 

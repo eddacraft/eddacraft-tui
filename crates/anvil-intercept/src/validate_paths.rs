@@ -735,6 +735,7 @@ mod tests {
             calls: Vec::new(),
             calls_partial: false,
             has_unresolved_dynamic_import: false,
+            content_hash: None,
         }
     }
 

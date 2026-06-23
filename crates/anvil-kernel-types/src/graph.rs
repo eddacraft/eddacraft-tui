@@ -44,7 +44,7 @@ pub struct SymbolNode {
     /// when no span-producing pass ran (synthetic module nodes, external
     /// imports, reconstructed-from-store nodes). Offsets only, never text
     /// (PV-7(e)) — the locator GCTX-021 reads to extract a bounded snippet.
-    /// `serde(default)` keeps the GraphDelta wire backward-compatible, and
+    /// `serde(default)` keeps the `GraphDelta` wire backward-compatible, and
     /// `skip_serializing_if` keeps span-less serialisations byte-identical.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub span: Option<ByteRange>,
@@ -190,6 +190,25 @@ impl ByteRange {
     }
 }
 
+/// A stable, dependency-free 64-bit **FNV-1a** digest of `bytes` — the GV2-032
+/// per-file content-freshness key (PV-9 CE-7), of the same digest *family* the
+/// snapshot codec uses (GV2-030, PV-8). Stable across processes and releases,
+/// unlike `std::hash` over the default randomly-seeded `SipHash` (not
+/// persistence-stable). Unsalted, so it is cross-machine correlatable (git-blob
+/// class — the N-2 residual named in the GCTX-001 note); acceptable for a
+/// machine-local freshness check, never a security boundary.
+#[must_use]
+pub fn content_hash(bytes: &[u8]) -> u64 {
+    const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
+    const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
+    let mut hash = FNV_OFFSET_BASIS;
+    for &b in bytes {
+        hash ^= u64::from(b);
+        hash = hash.wrapping_mul(FNV_PRIME);
+    }
+    hash
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SymbolEdge {
     pub from: u64,
@@ -250,6 +269,15 @@ pub struct FileSymbols {
     /// honest.
     #[serde(default)]
     pub has_unresolved_dynamic_import: bool,
+    /// GV2-032 freshness key: a stable [`content_hash`] of the source bytes this
+    /// `FileSymbols` was extracted from, or `None` when the producer did not
+    /// supply one. `update_file` records it on the resident graph so a snippet
+    /// projector (GCTX-021) can re-validate the on-disk file against the parsed
+    /// content before emitting source text (PV-9 CE-7) — a mismatch means the
+    /// graph is stale for that file and the snippet is withheld. Defaults `None`
+    /// so older serialized `FileSymbols` still deserialize.
+    #[serde(default)]
+    pub content_hash: Option<u64>,
 }
 
 /// A file-local reference to a symbol within its own file (GCALL-001 / ADR-086).

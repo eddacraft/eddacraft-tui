@@ -9,7 +9,7 @@ use std::collections::HashMap;
 
 use anvil_kernel_types::{
     ByteRange, CallSite, CalleeRef, LocalSymbolRef, SymbolIdentity, SymbolKind, SymbolNode,
-    TrustLevel, Visibility,
+    TrustLevel, Visibility, content_hash,
 };
 
 use super::{FileSymbols, ImportEdge, LanguageExtractor, ReexportEdge};
@@ -87,6 +87,8 @@ impl LanguageExtractor for TypeScriptExtractor {
             calls,
             calls_partial: false,
             has_unresolved_dynamic_import,
+            // GV2-032: the freshness key for the bytes we just parsed (CE-7).
+            content_hash: Some(content_hash(source)),
         }
     }
 }
@@ -306,7 +308,11 @@ fn extract_named_decl(
     }
 }
 
-#[allow(clippy::too_many_arguments)] // same threaded accumulators as extract_from_node
+#[allow(clippy::too_many_arguments)]
+// same threaded accumulators as extract_from_node
+// GV2-032 tipped this over the 100-line lint (4 mandatory `span: None` field-adds
+// on the export-form emission sites); the export-form dispatch is one cohesive unit.
+#[allow(clippy::too_many_lines)]
 fn extract_export(
     node: tree_sitter::Node,
     source: &[u8],
@@ -1126,6 +1132,14 @@ const add = (a: number, b: number) => a + b;
         assert!(
             text.trim_end().ends_with('}'),
             "span covers through the closing brace: {text:?}",
+        );
+
+        // GV2-032: the file carries its content-freshness key (CE-7), equal to a
+        // direct hash of the parsed source — the value GCTX-021 re-validates.
+        assert_eq!(
+            symbols.content_hash,
+            Some(anvil_kernel_types::content_hash(source)),
+            "GV2-032: content_hash is the hash of the parsed source",
         );
     }
 

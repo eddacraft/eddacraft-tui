@@ -734,6 +734,7 @@ fn empty_file_symbols(file: String) -> anvil_kernel_types::FileSymbols {
         calls: Vec::new(),
         calls_partial: false,
         has_unresolved_dynamic_import: false,
+        content_hash: None,
     }
 }
 
@@ -832,6 +833,7 @@ mod tests {
                 calls: Vec::new(),
                 calls_partial: false,
                 has_unresolved_dynamic_import: false,
+                content_hash: None,
             })
         }
     }

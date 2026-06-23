@@ -370,6 +370,11 @@ pub fn update_file(graph: &mut SymbolGraph, new_symbols: FileSymbols) -> GraphDe
         }
     }
 
+    // GV2-032: stamp the file's content-freshness key (CE-7). `remove_file`
+    // above cleared any prior key, so a re-extraction that supplies `None`
+    // (tail languages, reconstructed feeds) correctly leaves the file unkeyed.
+    graph.set_file_hash(file.clone(), new_symbols.content_hash);
+
     // Collect all known file paths in the graph for import resolution.
     // Use BTreeSet for deterministic ordering so ambiguous matches are resolved
     // consistently regardless of HashMap iteration order.
@@ -1171,6 +1176,7 @@ mod tests {
             calls: Vec::new(),
             calls_partial: false,
             has_unresolved_dynamic_import: false,
+            content_hash: None,
         }
     }
 
@@ -1201,6 +1207,31 @@ mod tests {
         let clean = make_file_symbols("b.ts", vec![(2, "g", SymbolKind::Function)]);
         let clean_delta = update_file(&mut g, clean);
         assert!(!clean_delta.has_unresolved_dynamic_import);
+    }
+
+    #[test]
+    fn update_file_records_and_clears_content_hash_gv2_032() {
+        let mut g = SymbolGraph::new();
+
+        // update_file stamps the file's content-freshness key (CE-7).
+        let mut syms = make_file_symbols("a.ts", vec![(1, "f", SymbolKind::Function)]);
+        syms.content_hash = Some(0xABCD);
+        update_file(&mut g, syms);
+        assert_eq!(g.file_hash("a.ts"), Some(0xABCD));
+
+        // A re-extraction that supplies no hash clears the stale key — the graph
+        // never reports a freshness key it cannot stand behind.
+        let cleared = make_file_symbols("a.ts", vec![(1, "f", SymbolKind::Function)]);
+        update_file(&mut g, cleared);
+        assert_eq!(g.file_hash("a.ts"), None);
+
+        // remove_file clears it too.
+        let mut other = make_file_symbols("b.ts", vec![(2, "g", SymbolKind::Function)]);
+        other.content_hash = Some(0x1234);
+        update_file(&mut g, other);
+        assert_eq!(g.file_hash("b.ts"), Some(0x1234));
+        g.remove_file("b.ts");
+        assert_eq!(g.file_hash("b.ts"), None);
     }
 
     /// edges. A bare specifier (`node:fs`) resolves to a synthetic external
@@ -1365,6 +1396,7 @@ mod tests {
             calls: Vec::new(),
             calls_partial: false,
             has_unresolved_dynamic_import: false,
+            content_hash: None,
         };
 
         let delta = update_file(&mut g, syms);
@@ -1407,6 +1439,7 @@ mod tests {
                 calls: Vec::new(),
                 calls_partial: false,
                 has_unresolved_dynamic_import: false,
+                content_hash: None,
             },
         );
         // No edge yet — the target file was not resident at parse time.
@@ -1479,6 +1512,7 @@ mod tests {
             calls: Vec::new(),
             calls_partial: false,
             has_unresolved_dynamic_import: false,
+            content_hash: None,
         };
 
         let delta = update_file(&mut g, syms);
@@ -1514,6 +1548,7 @@ mod tests {
             calls: Vec::new(),
             calls_partial: false,
             has_unresolved_dynamic_import: false,
+            content_hash: None,
         };
 
         let delta = update_file(&mut g, syms);
@@ -1551,6 +1586,7 @@ mod tests {
             calls: Vec::new(),
             calls_partial: false,
             has_unresolved_dynamic_import: false,
+            content_hash: None,
         };
         let delta1 = update_file(&mut g, syms);
         assert!(
@@ -1579,6 +1615,7 @@ mod tests {
             calls: Vec::new(),
             calls_partial: false,
             has_unresolved_dynamic_import: false,
+            content_hash: None,
         };
         let delta2 = update_file(&mut g, syms2);
 
@@ -1635,6 +1672,7 @@ mod tests {
             calls: Vec::new(),
             calls_partial: false,
             has_unresolved_dynamic_import: false,
+            content_hash: None,
         };
 
         let delta = update_file(&mut g, syms);
@@ -1686,6 +1724,7 @@ mod tests {
             calls: Vec::new(),
             calls_partial: false,
             has_unresolved_dynamic_import: false,
+            content_hash: None,
         };
 
         let delta = update_file(&mut g, syms);
@@ -1724,6 +1763,7 @@ mod tests {
             calls: Vec::new(),
             calls_partial: false,
             has_unresolved_dynamic_import: false,
+            content_hash: None,
         };
         let delta1 = update_file(&mut g, main_syms);
         assert!(
@@ -1748,6 +1788,7 @@ mod tests {
             calls: Vec::new(),
             calls_partial: false,
             has_unresolved_dynamic_import: false,
+            content_hash: None,
         };
         update_file(&mut g, util_syms);
 
@@ -1849,6 +1890,7 @@ mod tests {
             calls: Vec::new(),
             calls_partial: false,
             has_unresolved_dynamic_import: false,
+            content_hash: None,
         };
         let delta_a = update_file(&mut g, a);
         assert!(delta_a.errors.is_empty(), "first file inserts cleanly");
@@ -1891,6 +1933,7 @@ mod tests {
             calls: Vec::new(),
             calls_partial: false,
             has_unresolved_dynamic_import: false,
+            content_hash: None,
         };
         let delta_b = update_file(&mut g, b);
         assert!(
@@ -1950,6 +1993,7 @@ mod tests {
             calls: Vec::new(),
             calls_partial: false,
             has_unresolved_dynamic_import: false,
+            content_hash: None,
         };
 
         let delta = update_file(&mut g, syms);
@@ -2230,6 +2274,7 @@ mod tests {
                 calls: Vec::new(),
                 calls_partial: false,
                 has_unresolved_dynamic_import: false,
+                content_hash: None,
             },
         );
         let batch = vec![
@@ -2294,6 +2339,7 @@ mod tests {
                 }],
                 calls_partial: false,
                 has_unresolved_dynamic_import: false,
+                content_hash: None,
             },
         );
         // The edge is already resident from update_file; re-resolving the same

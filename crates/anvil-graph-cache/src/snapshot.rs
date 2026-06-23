@@ -347,6 +347,13 @@ pub struct SnapshotPayload {
     /// reverse index is rebuilt on load (ADR-069 §1). All strings are relative
     /// file-path identity.
     dependency_edges: Vec<(String, Vec<String>)>,
+    /// GV2-032 per-file content-freshness keys, `(relative_file, content_hash)`,
+    /// sorted by file. Offsets-free integer digests (PV-7(e)-safe) so a
+    /// warm-started daemon can serve snippets (CE-7) without a re-scan. Defaults
+    /// empty so a pre-GV2-032 snapshot (none) still loads — but the backing
+    /// schema version bump rejects those anyway.
+    #[serde(default)]
+    file_hashes: Vec<(String, u64)>,
 }
 
 /// Structural equality via the canonical wire bytes. The encoding is
@@ -418,12 +425,24 @@ impl SnapshotPayload {
             }
         }
 
+        // --- GV2-032 per-file content-freshness keys (sorted by file) ---
+        let mut file_hashes: Vec<(String, u64)> = sym
+            .file_hashes()
+            .iter()
+            .map(|(f, h)| (f.clone(), *h))
+            .collect();
+        file_hashes.sort_by(|a, b| a.0.cmp(&b.0));
+        for (f, _) in &file_hashes {
+            check_relative(f)?;
+        }
+
         Ok(Self {
             nodes,
             edges,
             file_symbol_order,
             next_id: sym.next_id(),
             dependency_edges,
+            file_hashes,
         })
     }
 
@@ -548,6 +567,11 @@ impl SnapshotPayload {
         // Restore the high-water mark (M-2): replay alone only reaches
         // max(surviving_id)+1, which under-restores after removals.
         sym.set_next_id_floor(self.next_id);
+        // GV2-032: restore the per-file content-freshness keys so a warm-started
+        // daemon can serve snippets (CE-7) without waiting for a re-save.
+        for (file, hash) in self.file_hashes {
+            sym.set_file_hash(file, Some(hash));
+        }
 
         let mut dep = DependencyGraph::new();
         for (src, targets) in self.dependency_edges {
@@ -722,7 +746,7 @@ mod tests {
     const GOLDEN_SNAPSHOT_BYTES: &[u8] = &[
         0x41, 0x4e, 0x56, 0x49, 0x4c, 0x47, 0x43, 0x31, 0x01, 0x00, 0x00, 0x00,
         0x02, 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x9f, 0x4a, 0x72, 0xb7,
+        0x05, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x12, 0x13, 0x05, 0xb2,
         0x09, 0x01, 0x00, 0x05, 0x61, 0x6c, 0x70, 0x68, 0x61, 0x00, 0x08, 0x73,
         0x72, 0x63, 0x2f, 0x61, 0x2e, 0x74, 0x73, 0x00, 0x00, 0x02, 0x00, 0x05,
         0x61, 0x6c, 0x70, 0x68, 0x61, 0x00, 0x08, 0x73, 0x72, 0x63, 0x2f, 0x61,
@@ -744,7 +768,7 @@ mod tests {
         0x03, 0x04, 0x05, 0x08, 0x73, 0x72, 0x63, 0x2f, 0x62, 0x2e, 0x74, 0x73,
         0x04, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x01, 0x08, 0x73, 0x72, 0x63, 0x2f,
         0x61, 0x2e, 0x74, 0x73, 0x01, 0x08, 0x73, 0x72, 0x63, 0x2f, 0x62, 0x2e,
-        0x74, 0x73,
+        0x74, 0x73, 0x00,
     ];
 
     fn node(id: u64, name: &str, file: &str, kind: SymbolKind) -> SymbolNode {
@@ -841,7 +865,9 @@ mod tests {
     /// - (d) **Sub-field seal is now compile-time** — graph rows are projected
     ///   through `SnapshotNode`/`SnapshotEdge` by exhaustive destructure, so a new
     ///   `SymbolNode`/`SymbolEdge` field fails to compile here rather than leaking.
-    /// - (e) Any span type would be the no-text `ByteRange`; v1 carries none.
+    /// - (e) The only span type is the no-text [`ByteRange`] on `SnapshotNode.span`
+    ///   (GV2-032) — byte offsets, never source text — and the only digest is the
+    ///   integer `file_hashes` content key; both are PV-7(e)-safe.
     #[test]
     fn snapshot_no_leak_by_construction() {
         let (sym, dep) = fixture();
@@ -862,6 +888,7 @@ mod tests {
             [
                 "dependency_edges",
                 "edges",
+                "file_hashes",
                 "file_symbol_order",
                 "next_id",
                 "nodes",
@@ -943,6 +970,23 @@ mod tests {
         let a = SnapshotPayload::from_graphs(&sym, &dep).unwrap().to_bytes();
         let b = SnapshotPayload::from_graphs(&sym, &dep).unwrap().to_bytes();
         assert_eq!(a, b);
+    }
+
+    #[test]
+    fn snapshot_round_trips_file_hashes_gv2_032() {
+        // A warm-started daemon must recover the per-file content-freshness keys
+        // (CE-7) so it can serve snippets without a re-scan.
+        let (mut sym, dep) = fixture();
+        sym.set_file_hash("src/a.ts".to_owned(), Some(0xDEAD_BEEF));
+        sym.set_file_hash("src/b.ts".to_owned(), Some(0x0102_0304));
+
+        let payload = SnapshotPayload::from_graphs(&sym, &dep).unwrap();
+        let decoded = SnapshotPayload::from_bytes(&payload.to_bytes()).unwrap();
+        let (sym2, _) = decoded.into_graphs().unwrap();
+
+        assert_eq!(sym2.file_hash("src/a.ts"), Some(0xDEAD_BEEF));
+        assert_eq!(sym2.file_hash("src/b.ts"), Some(0x0102_0304));
+        assert_eq!(sym2.file_hash("src/never.ts"), None);
     }
 
     /// Build a fully-specified node — unlike [`node`], every enum-valued field is

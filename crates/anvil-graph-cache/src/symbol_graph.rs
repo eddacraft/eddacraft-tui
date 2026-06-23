@@ -41,6 +41,14 @@ pub struct SymbolGraph {
     /// missing verdict. `Some(map)` = authoritative; a file absent from the map
     /// reaches no privileged module by re-export. Any graph mutation clears it.
     reexport_privileged: Option<HashMap<String, BTreeSet<String>>>,
+    /// GV2-032 per-file content-freshness keys: `file` → [`content_hash`] of the
+    /// source bytes the file's resident symbols were extracted from (CE-7).
+    /// `update_file` stamps it; `remove_file` clears it. A snippet projector
+    /// (GCTX-021) re-validates the on-disk file against this before emitting
+    /// source text — a mismatch means the graph is stale for that file. Absent
+    /// for a file whose producer supplied no hash (tail languages, reconstructed
+    /// nodes), in which case the projector treats the file as not snippet-safe.
+    file_hashes: HashMap<String, u64>,
 }
 
 impl SymbolGraph {
@@ -51,7 +59,36 @@ impl SymbolGraph {
             files: HashMap::new(),
             next_id: 0,
             reexport_privileged: None,
+            file_hashes: HashMap::new(),
         }
+    }
+
+    /// Record (or clear) a file's GV2-032 content-freshness key. `None` removes
+    /// any prior entry, so a re-extraction that yields no hash never leaves a
+    /// stale key behind. Called by `update_file` with `FileSymbols.content_hash`.
+    pub fn set_file_hash(&mut self, file: String, hash: Option<u64>) {
+        match hash {
+            Some(h) => {
+                self.file_hashes.insert(file, h);
+            }
+            None => {
+                self.file_hashes.remove(&file);
+            }
+        }
+    }
+
+    /// The recorded content-freshness key for `file` (GV2-032 / CE-7), or `None`
+    /// if the file is non-resident or its producer supplied no hash.
+    #[must_use]
+    pub fn file_hash(&self, file: &str) -> Option<u64> {
+        self.file_hashes.get(file).copied()
+    }
+
+    /// All recorded content-freshness keys (GV2-032). Used by snapshot
+    /// persistence to round-trip the keys; the snapshot sorts them.
+    #[must_use]
+    pub fn file_hashes(&self) -> &HashMap<String, u64> {
+        &self.file_hashes
     }
 
     pub fn add_symbol(&mut self, node: SymbolNode) -> Result<NodeIndex, GraphError> {
@@ -170,6 +207,7 @@ impl SymbolGraph {
 
     pub fn remove_file(&mut self, file: &str) -> Vec<u64> {
         self.reexport_privileged = None;
+        self.file_hashes.remove(file);
         let ids = self.files.remove(file).unwrap_or_default();
 
         // Collect all NodeIndex values up-front before any removal.

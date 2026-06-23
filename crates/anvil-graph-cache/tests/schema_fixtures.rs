@@ -72,6 +72,7 @@ fn ts_reexport_fixture() -> FileSymbols {
         calls: Vec::new(),
         calls_partial: false,
         has_unresolved_dynamic_import: false,
+        content_hash: None,
     }
 }
 
@@ -152,6 +153,7 @@ fn schema_fixtures_rust_pub_use_reexport_future_language() {
         calls: Vec::new(),
         calls_partial: false,
         has_unresolved_dynamic_import: false,
+        content_hash: None,
     };
     assert_eq!(fs.reexports.len(), 1);
     assert_eq!(fs.reexports[0].exported_name, "Widget");

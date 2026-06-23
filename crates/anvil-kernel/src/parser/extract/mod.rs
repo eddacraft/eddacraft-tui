@@ -139,6 +139,7 @@ fn extract_symbols_uncapped(
                 calls: Vec::new(),
                 calls_partial: false,
                 has_unresolved_dynamic_import: false,
+                content_hash: None,
             }
         }
     }
