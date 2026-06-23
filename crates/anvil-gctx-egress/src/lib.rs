@@ -1371,6 +1371,11 @@ fn query_fingerprint(query: &SearchSymbolsQuery) -> u64 {
     // fingerprint's own internal encoding, never the query's wire format.
     #[derive(Serialize)]
     struct Filters {
+        // Constant surface tag, harmonising with the dependents/callers/edges
+        // fingerprints: domain-separates a search cursor from any other (or
+        // future) GCTX surface, so a cursor can never fingerprint-match across
+        // surfaces even under an FNV collision on the rest of the payload.
+        surface: &'static str,
         name: Option<String>,
         kind: Option<SymbolKind>,
         file: Option<String>,
@@ -1378,6 +1383,7 @@ fn query_fingerprint(query: &SearchSymbolsQuery) -> u64 {
         visibility: Option<Visibility>,
     }
     let filters = Filters {
+        surface: "search_symbols",
         name: query.name.as_deref().map(str::to_lowercase),
         kind: query.kind,
         file: query.file.as_deref().map(str::to_lowercase),
@@ -2055,6 +2061,119 @@ mod tests {
             "keyset resume is strictly after the cursor's identity, even when forged",
         );
         assert!(p.symbols.iter().all(|s| full.contains(&s.identity)));
+    }
+
+    #[test]
+    fn forged_cursor_cannot_seek_across_a_filter_boundary() {
+        // The load-bearing half of ADR-091: a forged cursor pointing at a symbol
+        // the query EXCLUDES must not bridge to it. A graph with both Public and
+        // Internal symbols, queried with visibility=Public, is the discriminating
+        // case the all-match graph above cannot exercise (there, every symbol is
+        // authorised, so containment is trivially true).
+        let g = graph_of(vec![
+            node(
+                1,
+                "pub_a",
+                "src/a.ts",
+                SymbolKind::Function,
+                Visibility::Public,
+            ),
+            node(
+                2,
+                "int_b",
+                "src/b.ts",
+                SymbolKind::Function,
+                Visibility::Internal,
+            ),
+            node(
+                3,
+                "pub_c",
+                "src/c.ts",
+                SymbolKind::Function,
+                Visibility::Public,
+            ),
+            node(
+                4,
+                "int_d",
+                "src/d.ts",
+                SymbolKind::Function,
+                Visibility::Internal,
+            ),
+        ]);
+        let restricted = SearchSymbolsQuery {
+            visibility: Some(Visibility::Public),
+            limit: Some(10),
+            ..Default::default()
+        };
+        let authorised: Vec<SymbolIdentity> = run(&g, &restricted)
+            .symbols
+            .into_iter()
+            .map(|s| s.identity)
+            .collect();
+        assert_eq!(
+            authorised.len(),
+            2,
+            "only the two Public symbols are authorised"
+        );
+
+        // Forge a cursor whose `last` points into the EXCLUDED Internal region
+        // (src/b.ts), with a fingerprint recomputed for the restricted query.
+        let forged = SearchSymbolsQuery {
+            visibility: Some(Visibility::Public),
+            limit: Some(10),
+            cursor: Some(encode_cursor(&CursorPayload {
+                fingerprint: query_fingerprint(&restricted),
+                last: SymbolIdentity {
+                    file: "src/b.ts".into(),
+                    kind: SymbolKind::Function,
+                    name: "int_b".into(),
+                    ordinal: 0,
+                },
+            })),
+            ..Default::default()
+        };
+        let (cand, omit) = GctxProjector::collect_candidates(&g, &forged);
+        let p = GctxProjector::project(cand, &forged, omit).expect("accepted");
+
+        // The forged seek into the Internal region only navigates the Public
+        // candidate set: no Internal symbol is ever reachable through the cursor.
+        assert!(
+            p.symbols.iter().all(|s| authorised.contains(&s.identity)),
+            "a forged cursor cannot seek across the visibility filter into excluded symbols",
+        );
+        assert!(
+            p.symbols.iter().all(|s| s.visibility == Visibility::Public),
+            "no Internal symbol leaks via a forged cursor",
+        );
+    }
+
+    #[test]
+    fn cursor_payload_shape_is_pinned_to_seek_position_only() {
+        // ADR-091 revisit trigger, mechanically enforced. The cursor must stay a
+        // pure {fingerprint, last} seek position. If a future change adds any
+        // field (a snippet offset, source span, or trust scope), this test fails
+        // — forcing the author back to ADR-091 to re-open the keep-FNV decision
+        // before the cursor can become a forgeable capability.
+        let g = five_symbol_graph();
+        let cursor = run(
+            &g,
+            &SearchSymbolsQuery {
+                limit: Some(2),
+                ..Default::default()
+            },
+        )
+        .next_cursor
+        .expect("more pages remain");
+        let bytes = hex::decode(cursor.as_str()).expect("cursor is hex");
+        let json: serde_json::Value = serde_json::from_slice(&bytes).expect("cursor is json");
+        let obj = json.as_object().expect("cursor payload is a JSON object");
+        let mut keys: Vec<&str> = obj.keys().map(String::as_str).collect();
+        keys.sort_unstable();
+        assert_eq!(
+            keys,
+            ["k", "q"],
+            "CursorPayload must stay {{q: fingerprint, k: last}}; a new field requires re-opening ADR-091",
+        );
     }
 
     #[test]

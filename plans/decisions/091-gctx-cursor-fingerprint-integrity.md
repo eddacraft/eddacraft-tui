@@ -54,12 +54,24 @@ Concretely (CIB-103 execution):
   capability token: it carries no grant, and a follow-up page is re-authorised
   by the **echoed query filters** and the CE-5 identity-only projection choke
   point — not by the cursor.
-- Add a test pinning the property: a malformed, garbage, or **forged** cursor
+- Add tests pinning the property: a malformed, garbage, or **forged** cursor
   (one with an attacker-chosen `k` and a recomputed matching `q`) yields either a
   valid page **within the caller's own authorised result set** or an empty page —
   never a leak of anything the query itself would not return, never a panic, and
-  never an out-of-bounds read. The existing `MAX_CURSOR_BYTES` length cap and
+  never an out-of-bounds read. The containment assertion is exercised against a
+  **filtered** query on a mixed-visibility graph (`forged_cursor_cannot_seek_across_a_filter_boundary`),
+  so it fails if a forged cursor could ever bridge into excluded symbols — not
+  just the trivial all-match case. The existing `MAX_CURSOR_BYTES` length cap and
   serde-bounded decode remain the only parsing defences needed.
+- **Mechanically enforce the revisit trigger.** A shape-guard test
+  (`cursor_payload_shape_is_pinned_to_seek_position_only`) decodes a minted
+  cursor and asserts its JSON has **exactly** the keys `{q, k}`. Adding any field
+  to `CursorPayload` (a snippet offset, source span, or trust scope) breaks CI,
+  forcing the author back to this ADR before the cursor can become load-bearing.
+  This converts the trigger from an honoured-comment into a red test.
+- Harmonise `query_fingerprint` with the dependents/callers/edges fingerprints by
+  adding the `surface` domain-separation tag it lacked, closing a latent cross-
+  surface FNV-collision replay path for any future `SymbolIdentity`-keyed surface.
 - Record the **explicit revisit trigger** below in the same note so the next
   author who changes what the cursor encodes is forced to re-open this decision.
 
@@ -141,10 +153,17 @@ necessary.
   scope) without re-opening this ADR, turning a forgeable token into a capability
   leak.
 - **Mitigations:** The threat-model note and the binding revisit trigger live
-  next to the cursor code; the pinning test asserts the current identity-only
-  property so a change that violates it surfaces as a test to reconcile, not a
-  silent regression. CE-5 (`anvil-gctx-types` no-leak test) independently guards
-  the projection boundary.
+  next to the cursor code; the shape-guard test
+  (`cursor_payload_shape_is_pinned_to_seek_position_only`) makes the trigger
+  **mechanical** — any new `CursorPayload` field fails CI rather than relying on
+  author diligence — and the filtered-query forge test pins the containment
+  property against a discriminating (not all-match) case. CE-5
+  (`anvil-gctx-types` no-leak test) independently guards the projection boundary.
+  Coverage note: the forge + shape-guard tests currently pin the **search**
+  surface; the dependents/callers/edges siblings are structurally identical
+  (verified in the GCTX-011 council review — the cursor is decoded only after the
+  bounded walk materialises a sorted candidate set) and their equivalent pinning
+  tests are tracked as a follow-up.
 
 ## References
 
