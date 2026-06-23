@@ -224,7 +224,7 @@ authorization of the copyright holder.
 
 ## Licence: Apache License 2.0
 
-Used by 15 crates. See the inventory table at the bottom of this file for the complete list.
+Used by 17 crates. See the inventory table at the bottom of this file for the complete list.
 
 <details>
 <summary>Licence text</summary>
@@ -1025,6 +1025,8 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `supports-hyperlinks` | 3.2.0 | Apache License 2.0 | https://github.com/zkat/supports-hyperlinks |
 | `supports-unicode` | 3.0.0 | Apache License 2.0 | https://github.com/zkat/supports-unicode |
 | `aws-lc-sys` | 0.41.0 | Apache License 2.0 | https://github.com/aws/aws-lc-rs |
+| `kindling-client` | 0.2.0 | Apache License 2.0 | https://github.com/eddacraft/kindling |
+| `kindling-types` | 0.2.0 | Apache License 2.0 | https://github.com/eddacraft/kindling |
 | `ryu` | 1.0.23 | Apache License 2.0 | https://github.com/dtolnay/ryu |
 | `sync_wrapper` | 1.0.2 | Apache License 2.0 | https://github.com/Actyx/sync_wrapper |
 | `subtle` | 2.6.1 | BSD 3-Clause "New" or "Revised" License | https://github.com/dalek-cryptography/subtle |
