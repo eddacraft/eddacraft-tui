@@ -15,6 +15,30 @@
 //! the whole projection is prohibited (ADR-031 80ms p95). `collect_candidates`
 //! returns already-sealed [`SymbolSummary`] values (identity + visibility only),
 //! so nothing borrowed from the graph escapes the lock.
+//!
+//! # Cursor integrity (ADR-091)
+//!
+//! The opaque pagination cursors minted here (`CursorPayload` and its dependents
+//! / callers / edges siblings) are **server-minted keyset seek positions, not
+//! authorisation tokens**. A cursor is plaintext hex (`encode_cursor`) with no
+//! MAC, so a client can decode it, set its `last` identity to anything, recompute
+//! the FNV-1a filter `fingerprint` (the algorithm is public and the filters are
+//! the client's own query), and present a **forged** cursor. That is deliberately
+//! harmless: a follow-up page is re-authorised by the **echoed query filters**
+//! and the CE-5 identity-only projection — never by the cursor — so a forged
+//! cursor only reseeks *within the caller's own already-authorised, identity-only
+//! result set* (bounded by [`MAX_CURSOR_BYTES`] and the serde-bounded decode). The
+//! fingerprint's only job is **correctness**: binding a cursor to its filter set
+//! so a cursor minted for query A cannot silently resume query B (pagination
+//! overlap/gap), and staying reproducible across restarts (PV-2).
+//!
+//! ADR-091 therefore keeps FNV rather than a keyed MAC. **Revisit trigger
+//! (binding):** the moment a cursor encodes anything the echoed query does not
+//! re-authorise — source/snippet payload (Phase-2 CE-1), cross-tenant or
+//! trust-scope state, or any result not fully determined by the re-fingerprinted
+//! filters — the cursor becomes a capability and MUST be made unforgeable (keyed
+//! MAC, or server-held opaque state). The `forged_cursor_*` test pins the current
+//! identity-only property.
 
 use std::path::Path;
 
@@ -1302,6 +1326,10 @@ const MAX_AFFECTED_SYMBOLS: usize = 20_000;
 
 /// The decoded contents of an [`OpaqueCursor`]: the keyset seek position plus a
 /// fingerprint binding it to the query filters it was minted for.
+///
+/// The fingerprint is a non-keyed FNV-1a, so this payload is forgeable by design
+/// — see the crate-level "Cursor integrity" note and ADR-091 for why that is safe
+/// while egress is identity-only (the cursor is a seek position, not a capability).
 #[derive(Serialize, Deserialize)]
 struct CursorPayload {
     /// Fingerprint of the query *filters* (not the page size) — see
@@ -1954,6 +1982,79 @@ mod tests {
             0,
         );
         assert!(result.is_err(), "a malformed cursor must be rejected");
+    }
+
+    #[test]
+    fn forged_cursor_stays_within_the_querys_own_authorised_results() {
+        // ADR-091: the cursor is a server-minted keyset *seek position*, not an
+        // authorisation token. It is plaintext and forgeable — a client can mint
+        // one with an arbitrary `last` and a recomputed matching fingerprint. This
+        // pins the property that doing so leaks nothing: a forged cursor is
+        // accepted (no panic, no error on a well-formed token) but only reseeks
+        // WITHIN the same query's already-authorised, identity-only result set.
+        let g = five_symbol_graph();
+        let query = SearchSymbolsQuery {
+            limit: Some(10),
+            ..Default::default()
+        };
+
+        // The full, legitimately-authorised result set for this query.
+        let full: Vec<SymbolIdentity> = run(&g, &query)
+            .symbols
+            .into_iter()
+            .map(|s| s.identity)
+            .collect();
+        assert_eq!(full.len(), 5);
+
+        // Mint a cursor the server never issued: arbitrary `last`, but a
+        // fingerprint recomputed to match the query (trivial — the algorithm is
+        // public and the filters are the client's own).
+        let forge = |last: SymbolIdentity| {
+            let q = SearchSymbolsQuery {
+                limit: Some(10),
+                cursor: Some(encode_cursor(&CursorPayload {
+                    fingerprint: query_fingerprint(&query),
+                    last,
+                })),
+                ..Default::default()
+            };
+            let (candidates, omitted) = GctxProjector::collect_candidates(&g, &q);
+            GctxProjector::project(candidates, &q, omitted)
+        };
+
+        let ident = |file: &str, name: &str, ordinal: u32| SymbolIdentity {
+            file: file.into(),
+            kind: SymbolKind::Function,
+            name: name.into(),
+            ordinal,
+        };
+
+        // (1) Forge `last` before everything → resumes near the start. The page is
+        //     accepted and is a strict subset of the query's own results; no
+        //     identity outside `full` ever appears.
+        let p = forge(ident("", "", 0)).expect("a well-formed (if forged) cursor is accepted");
+        assert!(!p.symbols.is_empty());
+        assert!(
+            p.symbols.iter().all(|s| full.contains(&s.identity)),
+            "a forged cursor never yields an identity outside the query's results",
+        );
+
+        // (2) Forge `last` past the end → an empty page, not a leak or a panic.
+        let p = forge(ident("zzzzzzzz", "zzzz", u32::MAX)).expect("accepted");
+        assert!(
+            p.symbols.is_empty(),
+            "seeking past the end yields an empty page, never an out-of-bounds read",
+        );
+
+        // (3) Forge `last` = a real middle identity → strictly-after semantics
+        //     hold and the result is still bounded by the authorised set.
+        let mid = full[2].clone(); // src/c.ts
+        let p = forge(mid.clone()).expect("accepted");
+        assert!(
+            p.symbols.iter().all(|s| s.identity > mid),
+            "keyset resume is strictly after the cursor's identity, even when forged",
+        );
+        assert!(p.symbols.iter().all(|s| full.contains(&s.identity)));
     }
 
     #[test]
