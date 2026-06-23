@@ -6,8 +6,9 @@
 | --- | ---------- | ----------- | -------- |
 | KDS | @eddacraft | In Progress | 0/5      |
 
-> **Ready** — placement + async-bridge decisions settled (see Open Questions,
-> now answered) and the PORT-011 handoff
+> **In Progress** — the module passed Ready (placement + async-bridge decisions
+> settled; see Open Questions, now answered) and KDS-001 + KDS-003 are underway.
+> The PORT-011 handoff
 > ([`../execution/PORT-011-anvil-handoff.md`](../execution/PORT-011-anvil-handoff.md))
 > supersedes the original draft on the spool transport. The Kindling
 > prerequisite (KINTEG-001) is **Done** — all seven Kindling crates published at

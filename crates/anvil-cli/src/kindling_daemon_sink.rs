@@ -262,7 +262,11 @@ impl KindlingObservationSink for KindlingDaemonSink {
         {
             Ok(_outcome) => Ok(()),
             Err(err) => {
-                tracing::warn!(
+                // `debug!`, not `warn!`: the NonBlockingObservationSink drain
+                // already logs the failure at `warn!`. This adds the sink-scoped
+                // detail (so a schema/API rejection is greppable) without
+                // double-warning for one failure.
+                tracing::debug!(
                     target: "anvil::usage",
                     sink = "kindling_daemon",
                     error = %err,
