@@ -2,6 +2,50 @@ export const dynamic = 'force-dynamic';
 
 const COPYRIGHT_YEAR = new Date().getFullYear();
 
+type SectionAccent = 'structure' | 'anvil' | 'edda';
+
+const sections: Array<{
+  title: string;
+  bracket: string;
+  description: string;
+  href: string;
+  accent: SectionAccent;
+  ariaLabel: string;
+}> = [
+  {
+    title: 'APS',
+    bracket: '[ ]',
+    description: 'Plan specification, schemas, validation, and implementation guidance.',
+    href: '/aps/overview',
+    accent: 'structure',
+    ariaLabel: 'APS documentation',
+  },
+  {
+    title: 'Kindling',
+    bracket: '[ ]',
+    description: 'Memory capture, retrieval, adapters, and CLI reference.',
+    href: '/kindling/overview',
+    accent: 'anvil',
+    ariaLabel: 'Kindling documentation',
+  },
+  {
+    title: 'Memory Stack',
+    bracket: '[ ≡ ]',
+    description: 'edda, Ember, and Kindling architecture for governed organisational memory.',
+    href: '/edda-stack/overview',
+    accent: 'edda',
+    ariaLabel: 'Memory Stack documentation',
+  },
+  {
+    title: 'Anvil',
+    bracket: '[ = ]',
+    description: 'Save-time trust and AI-assisted development workflows.',
+    href: '/anvil/overview',
+    accent: 'anvil',
+    ariaLabel: 'Anvil documentation',
+  },
+];
+
 export default function HomePage() {
   return (
     <>
@@ -19,40 +63,33 @@ export default function HomePage() {
         </nav>
       </header>
 
-      <section className="hero">
-        <h1>Documentation</h1>
-        <p>The forge for governed AI-assisted work.</p>
-      </section>
+      <main className="ec-landing">
+        <section className="ec-landing-hero">
+          <p className="ec-landing-eyebrow">PUBLIC_KNOWLEDGE_BASE</p>
+          <h1 className="ec-landing-hero__title">
+            EDDACRAFT <span className="ec-landing-hero__accent">DOCS</span>
+          </h1>
+          <p className="ec-landing-hero__subtitle">
+            Governed specification, memory, and product documentation.
+          </p>
+        </section>
 
-      <section className="cards">
-        <a
-          href="/anvil/overview"
-          className="card"
-          data-accent="anvil"
-          aria-label="Anvil documentation"
-        >
-          <h3>Anvil</h3>
-          <p>Governed code-gen pipelines for engineering teams.</p>
-          <span className="card-link">Read docs &rarr;</span>
-        </a>
-
-        <a href="/aps/overview" className="card" data-accent="aps" aria-label="APS documentation">
-          <h3>APS</h3>
-          <p>Declarative implementation plans for AI-assisted work.</p>
-          <span className="card-link">Read docs &rarr;</span>
-        </a>
-
-        <a
-          href="/kindling/overview"
-          className="card"
-          data-accent="kindling"
-          aria-label="Kindling documentation"
-        >
-          <h3>Kindling</h3>
-          <p>Observation capture and memory substrate.</p>
-          <span className="card-link">Read docs &rarr;</span>
-        </a>
-      </section>
+        <section className="ec-landing-grid">
+          {sections.map((section) => (
+            <a
+              key={section.title}
+              href={section.href}
+              className={`ec-landing-card ec-landing-card--${section.accent}`}
+              aria-label={section.ariaLabel}
+            >
+              <p className="ec-landing-card__bracket">{section.bracket}</p>
+              <h2 className="ec-landing-card__title">{section.title}</h2>
+              <p className="ec-landing-card__description">{section.description}</p>
+              <span className="ec-landing-card__cta">OPEN {section.title.toUpperCase()}</span>
+            </a>
+          ))}
+        </section>
+      </main>
 
       <footer className="footer">&copy; {COPYRIGHT_YEAR} eddacraft, Inc.</footer>
     </>

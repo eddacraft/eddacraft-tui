@@ -1,14 +1,12 @@
-/* Nordic Terminal — shared design tokens */
+/* Nordic Terminal — brand-aligned design tokens */
 :root {
   --void: #0d0d0f;
   --structure: #2a2a2e;
   --surface: #141416;
   --text-primary: #ebebeb;
   --text-muted: #85858a;
-
   --anvil: #cc5500;
-  --aps: #64748b;
-  --kindling: #c2410c;
+  --edda: #2e8b57;
 }
 
 *,
@@ -27,11 +25,7 @@ body {
 }
 
 body {
-  font-family:
-    var(--font-sans),
-    system-ui,
-    -apple-system,
-    sans-serif;
+  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
 }
 
 a {
@@ -42,157 +36,216 @@ a {
 /* ---- Header ---- */
 
 .header {
-  display: flex;
   align-items: center;
+  border-bottom: 1px solid var(--structure);
+  display: flex;
   justify-content: space-between;
-  max-width: 1200px;
   margin: 0 auto;
+  max-width: 1200px;
   padding: 1.5rem 2rem;
 }
 
 .wordmark {
+  color: var(--text-primary);
   font-family: var(--font-mono), monospace;
   font-size: 0.875rem;
-  text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: var(--text-primary);
+  text-transform: uppercase;
 }
 
 .header-nav {
+  align-items: center;
   display: flex;
   gap: 1.5rem;
-  align-items: center;
 }
 
 .header-link {
+  color: var(--text-muted);
   font-family: var(--font-mono), monospace;
   font-size: 0.75rem;
-  text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: var(--text-muted);
-  transition: color 0.15s;
+  text-transform: uppercase;
+  transition: color 120ms cubic-bezier(0.2, 0.6, 0.2, 1);
 }
 
 .header-link:hover {
   color: var(--text-primary);
 }
 
-/* ---- Hero ---- */
+/* ---- Landing (Nordic Terminal) ---- */
 
-.hero {
-  padding: 4rem 2rem 2rem;
-  text-align: center;
-  max-width: 960px;
+.ec-landing {
+  background: var(--void);
+  color: var(--text-primary);
   margin: 0 auto;
+  max-width: 960px;
+  padding: 0 2rem 4rem;
 }
 
-.hero h1 {
+.ec-landing-hero {
+  border-bottom: 1px solid var(--structure);
+  margin-bottom: 2rem;
+  padding: 4rem 0 2.5rem;
+  text-align: center;
+}
+
+.ec-landing-eyebrow {
+  color: var(--text-muted);
+  font-family: var(--font-mono), monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  margin: 0 0 1.25rem;
+  text-transform: uppercase;
+}
+
+.ec-landing-eyebrow::before {
+  content: '// ';
+}
+
+.ec-landing-hero__title {
+  color: var(--text-primary);
   font-family: var(--font-mono), monospace;
   font-size: clamp(2rem, 5vw, 3rem);
   font-weight: 600;
-  text-transform: uppercase;
   letter-spacing: 0.03em;
+  line-height: 1.1;
   margin: 0 0 0.75rem;
-}
-
-.hero p {
-  font-size: 1.125rem;
-  color: var(--text-muted);
-  margin: 0;
-}
-
-/* ---- Product Cards ---- */
-
-.cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 1.5rem;
-  max-width: 960px;
-  margin: 0 auto;
-  padding: 2rem;
-}
-
-.card {
-  display: block;
-  padding: 1.5rem;
-  background: var(--surface);
-  border: 1px solid var(--structure);
-  border-radius: 0;
-  border-left-width: 4px;
-  transition: background 0.15s;
-}
-
-.card[data-accent='anvil'] {
-  border-left-color: var(--anvil);
-}
-
-.card[data-accent='aps'] {
-  border-left-color: var(--aps);
-}
-
-.card[data-accent='kindling'] {
-  border-left-color: var(--kindling);
-}
-
-.card[data-accent='anvil']:hover {
-  background: rgba(204, 85, 0, 0.05);
-}
-
-.card[data-accent='aps']:hover {
-  background: rgba(100, 116, 139, 0.05);
-}
-
-.card[data-accent='kindling']:hover {
-  background: rgba(194, 65, 12, 0.05);
-}
-
-.card h3 {
-  font-family: var(--font-mono), monospace;
-  font-size: 0.875rem;
-  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
-  margin: 0 0 0.5rem;
 }
 
-.card p {
-  font-size: 0.9375rem;
-  color: var(--text-muted);
-  margin: 0 0 1rem;
-}
-
-.card-link {
-  font-family: var(--font-mono), monospace;
-  font-size: 0.8125rem;
-  letter-spacing: 0.02em;
-}
-
-.card[data-accent='anvil'] .card-link {
+.ec-landing-hero__accent {
   color: var(--anvil);
 }
 
-.card[data-accent='aps'] .card-link {
-  color: var(--aps);
+.ec-landing-hero__subtitle {
+  color: var(--text-muted);
+  font-size: 1.125rem;
+  line-height: 1.6;
+  margin: 0 auto;
+  max-width: 36rem;
 }
 
-.card[data-accent='kindling'] .card-link {
-  color: var(--kindling);
+.ec-landing-grid {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ec-landing-card {
+  background: var(--surface);
+  border: 1px solid var(--structure);
+  border-left-width: 4px;
+  border-radius: 0;
+  box-shadow: none;
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem;
+  transition: background 120ms cubic-bezier(0.2, 0.6, 0.2, 1);
+}
+
+.ec-landing-card--structure {
+  border-left-color: var(--text-primary);
+}
+
+.ec-landing-card--anvil {
+  border-left-color: var(--anvil);
+}
+
+.ec-landing-card--edda {
+  border-left-color: var(--edda);
+}
+
+.ec-landing-card--structure:hover {
+  background: color-mix(in srgb, var(--text-primary) 3%, var(--surface));
+}
+
+.ec-landing-card--anvil:hover {
+  background: color-mix(in srgb, var(--anvil) 5%, var(--surface));
+}
+
+.ec-landing-card--edda:hover {
+  background: color-mix(in srgb, var(--edda) 5%, var(--surface));
+}
+
+.ec-landing-card__bracket {
+  color: var(--text-muted);
+  font-family: var(--font-mono), monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  margin: 0 0 0.75rem;
+}
+
+.ec-landing-card__title {
+  color: var(--text-primary);
+  font-family: var(--font-mono), monospace;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  margin: 0 0 0.5rem;
+  text-transform: uppercase;
+}
+
+.ec-landing-card__description {
+  color: var(--text-muted);
+  flex: 1;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  margin: 0 0 1.25rem;
+}
+
+.ec-landing-card__cta {
+  align-self: flex-start;
+  border-radius: 0;
+  box-shadow: none;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  padding: 0.5rem 0.875rem;
+  text-transform: uppercase;
+}
+
+.ec-landing-card--structure .ec-landing-card__cta {
+  background: color-mix(in srgb, var(--text-primary) 5%, transparent);
+  border: 1px solid var(--text-primary);
+  color: var(--text-primary);
+}
+
+.ec-landing-card--anvil .ec-landing-card__cta {
+  background: color-mix(in srgb, var(--anvil) 5%, transparent);
+  border: 1px solid var(--anvil);
+  color: var(--anvil);
+}
+
+.ec-landing-card--edda .ec-landing-card__cta {
+  background: color-mix(in srgb, var(--edda) 5%, transparent);
+  border: 1px solid var(--edda);
+  color: var(--edda);
 }
 
 /* ---- Footer ---- */
 
 .footer {
-  text-align: center;
-  padding: 4rem 2rem 2rem;
-  font-size: 0.75rem;
+  border-top: 1px solid var(--structure);
   color: var(--text-muted);
+  font-size: 0.75rem;
+  padding: 2rem;
+  text-align: center;
 }
 
 /* ---- Responsive ---- */
 
-@media (max-width: 640px) {
-  .cards {
+@media (max-width: 768px) {
+  .ec-landing-grid {
     grid-template-columns: 1fr;
+  }
+
+  .ec-landing {
+    padding: 0 1.25rem 3rem;
+  }
+
+  .ec-landing-hero {
+    padding: 3rem 0 2rem;
   }
 
   .header {

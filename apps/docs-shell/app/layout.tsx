@@ -15,7 +15,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: 'eddacraft docs',
-  description: 'The forge for governed AI-assisted work',
+  description: 'Governed specification, memory, and product documentation.',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
