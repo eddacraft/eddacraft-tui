@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 
 const COPYRIGHT_YEAR = new Date().getFullYear();
 
-type SectionAccent = 'structure' | 'anvil' | 'edda';
+type SectionAccent = 'structure' | 'anvil';
 
 const sections: Array<{
   title: string;
@@ -27,14 +27,6 @@ const sections: Array<{
     href: '/kindling/overview',
     accent: 'anvil',
     ariaLabel: 'Kindling documentation',
-  },
-  {
-    title: 'Memory Stack',
-    bracket: '[ ≡ ]',
-    description: 'edda, Ember, and Kindling architecture for governed organisational memory.',
-    href: '/edda-stack/overview',
-    accent: 'edda',
-    ariaLabel: 'Memory Stack documentation',
   },
   {
     title: 'Anvil',

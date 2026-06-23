@@ -104,11 +104,6 @@ const config: Config = {
           position: 'left',
         },
         {
-          label: 'Memory',
-          to: '/edda-stack/overview',
-          position: 'left',
-        },
-        {
           label: 'Blog',
           to: '/blog',
           position: 'left',
@@ -128,7 +123,6 @@ const config: Config = {
           items: [
             { label: 'APS', to: '/aps/overview' },
             { label: 'Kindling', to: '/kindling/overview' },
-            { label: 'Memory Stack', to: '/edda-stack/overview' },
           ],
         },
         {

@@ -2,7 +2,7 @@ import Link from '@docusaurus/Link';
 import Layout from '@theme/Layout';
 import type { ReactNode } from 'react';
 
-type SectionAccent = 'structure' | 'anvil' | 'edda';
+type SectionAccent = 'structure' | 'anvil';
 
 const sections: Array<{
   title: string;
@@ -24,13 +24,6 @@ const sections: Array<{
     description: 'Memory capture, retrieval, adapters, and CLI reference.',
     href: '/kindling/overview',
     accent: 'anvil',
-  },
-  {
-    title: 'Memory Stack',
-    bracket: '[ ≡ ]',
-    description: 'edda, Ember, and Kindling architecture for governed organisational memory.',
-    href: '/edda-stack/overview',
-    accent: 'edda',
   },
   {
     title: 'Anvil',
