@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 60/102  |
+| CIB | —     | In Progress | 60/103  |
 
 ## Purpose
 
@@ -2711,12 +2711,13 @@ archive.
   regressions, but real hardening debt before wider assistant-facing rollout.
 - **Expected Outcome:** (a) extract the duplicated `GctxRpcError`/socket-client
   between `search_symbols.rs` and `find_dependents.rs` (and siblings) into a
-  shared GCTX client module; (b) decide on and implement a stronger cursor
-  fingerprint (HMAC or equivalent) if prioritised — the current FNV fingerprint
-  only reseeks identity-only pages (no data leak, but forgeable); (c) on
-  non-Linux/macOS Unix peer-validation failures, return `Unavailable` rather than
-  `Failure` for consistency with the sibling tools. N5 (`SaveTimeError::Io` wire
-  leak) is **closed** in PR #2852 — do not reopen here.
+  shared GCTX client module; (b) on non-Linux/macOS Unix peer-validation
+  failures, return `Unavailable` rather than `Failure` for consistency with the
+  sibling tools. N5 (`SaveTimeError::Io` wire leak) is **closed** in PR #2852 —
+  do not reopen here.
+- **Split:** the cursor-fingerprint hardening (HMAC or equivalent) is broken out
+  to **CIB-103** — it is a product/security call that gates implementation,
+  unlike the mechanical shared-client and peer-validation work here.
 - **Files:** `crates/anvil-cli/src/mcp/tools/gctx/*.rs`,
   `crates/anvil-gctx-egress/src/lib.rs`, `crates/anvil-intercept/src/ipc.rs`
   (peer-validation classification only).
@@ -2725,8 +2726,11 @@ archive.
 - **Identified From:** GCTX-011 council review; tracked in
   `plans/reviews/post-merge/feat-gctx-011-find-dependents.md` until filed here
   (2026-06-22 release-window hygiene).
-- **Confidence:** medium — shared-client extraction is mechanical; cursor HMAC is
-  a product/security call.
+- **Coordinates with:** CIB-103 (split-out cursor-fingerprint decision; rides the
+  same shared GCTX client module).
+- **Confidence:** high — shared-client extraction is mechanical and the
+  peer-validation classification is localised; the gated cursor-fingerprint
+  decision is split to CIB-103.
 
 ### CIB-100: Windows named-pipe GCTX client transport
 
@@ -2797,3 +2801,34 @@ archive.
   the delete-path counterpart to the write-path anchoring.
 - **Confidence:** high — the validated dirfd + `unlinkat` primitives already exist
   from CIB-097; this extends them to the delete paths.
+
+### CIB-103: GCTX cursor fingerprint hardening (HMAC) — decision
+
+- **Status:** Proposed
+- **Intent:** Decide whether to replace the current FNV cursor fingerprint on the
+  GCTX identity-paging cursor with a keyed construction (HMAC or equivalent). The
+  FNV fingerprint reseeks identity-only pages — no data leak today, but it is
+  forgeable, so a client could craft a cursor that resumes from an arbitrary
+  identity. Split from CIB-099 because, unlike the mechanical shared-client and
+  peer-validation work there, this is a product/security call that must be settled
+  before implementation.
+- **Expected Outcome:** An explicit decision (recorded inline; an ADR if it
+  changes the cursor wire contract): either (a) adopt a keyed fingerprint (HMAC
+  over the `{filter-fingerprint, last_identity}` tuple with a per-daemon key) so a
+  forged cursor is rejected at decode time, or (b) document that identity-only
+  paging needs no integrity guarantee and keep FNV, with the threat model written
+  down. If (a), the CE-6 keyset cursor (hex `{fnv1a-filter-fingerprint,
+  last_identity}`) gains a MAC and verification rejects a tampered cursor; old
+  cursors are invalidated cleanly, not mis-parsed.
+- **Files:** `crates/anvil-gctx-egress/src/lib.rs` (cursor encode/decode +
+  fingerprint); an ADR under `plans/decisions/` only if the wire contract changes.
+- **Validation:** if (a), a test that a tampered/forged cursor is rejected and a
+  round-tripped cursor verifies; if (b), the threat-model note lands and a test
+  pins that identity-only paging tolerates an opaque cursor.
+- **Identified From:** CIB-099 triage split (PR #2890 follow-up); GCTX-011 council
+  review (cursor-fingerprint sub-decision).
+- **Coordinates with:** CIB-099 (shared GCTX client — the cursor code rides the
+  same module); CE-6 keyset cursor.
+- **Confidence:** medium — the keyed-fingerprint mechanics are straightforward,
+  but whether forgeable identity-only paging warrants an HMAC is a
+  product/security call that gates the work.
