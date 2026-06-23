@@ -861,8 +861,19 @@ Change status to **Ready** when:
 
 #### GV2-032: Symbol source-span + per-file content-hash population
 
-- **Status:** In Progress (started 2026-06-23, `feat/gv2-032-symbol-spans`) — the
-  **producer** half of the span plumbing GV2-010 deferred.
+- **Status:** In Progress (`feat/gv2-032-symbol-spans`, implementation complete
+  2026-06-24, pending Council + PR) — both producer halves landed: `SymbolNode.span`
+  (offsets only, PV-7(e)) populated by the TS/JS, Rust, and Python extractors and
+  carried through `apply_delta`; and a stable FNV-1a `content_hash` stamped on
+  `FileSymbols` → recorded in `SymbolGraph.file_hashes` (cleared on `remove_file`/
+  `None` re-extraction) → round-tripped in the snapshot (`SnapshotPayload.file_hashes`,
+  `SNAPSHOT_BACKING_SCHEMA_VERSION` 1→2, golden regenerated). The no-leak guard
+  covers both (span offsets-only, hash an integer key). Tail-language span/hash
+  population is **deferred** (T1 extractors carry no parallel span vec → `None`);
+  the ADR-031 `call_lift`-style budget bench is **deferred** (the lift is one O(n)
+  zip + a linear hash over already-read bytes). Workspace `cargo test` 7237/0,
+  clippy `-D warnings` + `fmt` clean. Context: GV2-032 is the **producer** half
+  of the span plumbing GV2-010 deferred —
   `ByteRange` (GV2-010, no-text per PV-7(e)) is modelled but never attached to a
   node: `graph.rs` states *"population of spans onto nodes/edges is a
   GCTX-projection concern wired in v0.9 — a `span` field attaches when a producer
