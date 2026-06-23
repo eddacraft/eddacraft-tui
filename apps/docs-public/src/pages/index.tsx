@@ -2,26 +2,42 @@ import Link from '@docusaurus/Link';
 import Layout from '@theme/Layout';
 import type { ReactNode } from 'react';
 
-const sections = [
+type SectionAccent = 'structure' | 'anvil' | 'edda';
+
+const sections: Array<{
+  title: string;
+  bracket: string;
+  description: string;
+  href: string;
+  accent: SectionAccent;
+}> = [
   {
     title: 'APS',
-    description: 'Plan specification, examples, schemas, and validation guidance.',
+    bracket: '[ ]',
+    description: 'Plan specification, schemas, validation, and implementation guidance.',
     href: '/aps/overview',
+    accent: 'structure',
   },
   {
     title: 'Kindling',
-    description: 'Memory capture, retrieval concepts, adapters, and CLI reference.',
+    bracket: '[ ]',
+    description: 'Memory capture, retrieval, adapters, and CLI reference.',
     href: '/kindling/overview',
+    accent: 'anvil',
   },
   {
     title: 'Memory Stack',
-    description: 'Edda, Ember, and Kindling architecture for governed organisational memory.',
+    bracket: '[ ≡ ]',
+    description: 'edda, Ember, and Kindling architecture for governed organisational memory.',
     href: '/edda-stack/overview',
+    accent: 'edda',
   },
   {
     title: 'Anvil',
-    description: 'Public product docs for save-time trust and AI-assisted development workflows.',
+    bracket: '[ = ]',
+    description: 'Save-time trust and AI-assisted development workflows.',
     href: 'https://docs.eddacraft.ai/anvil/overview',
+    accent: 'anvil',
   },
 ];
 
@@ -31,30 +47,29 @@ export default function Home(): ReactNode {
       title="eddacraft docs"
       description="Public eddacraft documentation for governed AI-assisted work"
     >
-      <main className="container margin-vert--xl">
-        <section className="hero hero--dark padding-vert--xl">
-          <div className="container">
-            <h1 className="hero__title">eddacraft docs</h1>
-            <p className="hero__subtitle">
-              The public knowledge base for governed AI-assisted work.
-            </p>
-          </div>
+      <main className="ec-landing">
+        <section className="ec-landing-hero">
+          <p className="ec-landing-eyebrow">PUBLIC_KNOWLEDGE_BASE</p>
+          <h1 className="ec-landing-hero__title">
+            EDDACRAFT <span className="ec-landing-hero__accent">DOCS</span>
+          </h1>
+          <p className="ec-landing-hero__subtitle">
+            Governed specification, memory, and product documentation.
+          </p>
         </section>
 
-        <section className="row margin-top--lg">
+        <section className="ec-landing-grid">
           {sections.map((section) => (
-            <article className="col col--6 margin-bottom--lg" key={section.title}>
-              <div className="card">
-                <div className="card__body">
-                  <h2>{section.title}</h2>
-                  <p>{section.description}</p>
-                </div>
-                <div className="card__footer">
-                  <Link className="button button--primary" to={section.href}>
-                    Open {section.title}
-                  </Link>
-                </div>
-              </div>
+            <article
+              className={`ec-landing-card ec-landing-card--${section.accent}`}
+              key={section.title}
+            >
+              <p className="ec-landing-card__bracket">{section.bracket}</p>
+              <h2 className="ec-landing-card__title">{section.title}</h2>
+              <p className="ec-landing-card__description">{section.description}</p>
+              <Link className="ec-landing-card__cta" to={section.href}>
+                OPEN {section.title.toUpperCase()}
+              </Link>
             </article>
           ))}
         </section>
