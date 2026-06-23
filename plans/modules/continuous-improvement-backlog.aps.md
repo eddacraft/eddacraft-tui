@@ -2804,7 +2804,18 @@ archive.
 
 ### CIB-103: GCTX cursor fingerprint hardening (HMAC) — decision
 
-- **Status:** Proposed
+- **Status:** In Progress
+- **Decision (2026-06-24, [ADR-091](../decisions/091-gctx-cursor-fingerprint-integrity.md), Proposed):**
+  option **(b)** — keep the reproducible FNV-1a filter fingerprint; do **not** add
+  an HMAC now. The opaque keyset cursor is a server-minted *seek position*, not an
+  authorisation token: a forged cursor only reseeks within the caller's own
+  already-authorised, re-fingerprinted query (identity-only via the CE-5 choke
+  point, no source, bounded by `MAX_CURSOR_BYTES`), so HMAC would add per-daemon
+  key material + a wire change to defend a non-threat. **Remaining execution:** a
+  threat-model note in `anvil-gctx-egress` + a forged-cursor pinning test (no
+  leak/panic), plus the binding revisit trigger (flip to a keyed MAC the moment a
+  cursor encodes snippet/source, cross-tenant/trust-scope, or non-re-authorised
+  results — Phase-2 CE-1). ADR awaits owner Accept.
 - **Intent:** Decide whether to replace the current FNV cursor fingerprint on the
   GCTX identity-paging cursor with a keyed construction (HMAC or equivalent). The
   FNV fingerprint reseeks identity-only pages — no data leak today, but it is
