@@ -16,10 +16,11 @@ use std::path::Path;
 use serde_json::{Value, json};
 
 use anvil_intercept_proto::protocol::{
-    AssuranceState, GctxSearchSymbolsRequest, GctxSearchSymbolsResponse, StaleReason,
-    WorkspaceAssurance,
+    ANVIL_GCTX_SEARCH_SYMBOLS, AssuranceState, GctxSearchSymbolsRequest, GctxSearchSymbolsResponse,
+    StaleReason, WorkspaceAssurance,
 };
 
+use crate::mcp::gctx_client::{GctxDaemonError, gctx_call};
 use crate::mcp::tools::shared::{redact_workspace_root, validate_workspace_root};
 
 pub const TOOL_NAME: &str = "anvil_search_symbols";
@@ -104,7 +105,7 @@ fn search_payload(arguments: &Value) -> Result<Value, String> {
         query,
     };
 
-    let response = match daemon_search(&request) {
+    let response = match gctx_call(ANVIL_GCTX_SEARCH_SYMBOLS, &request, "mcp-gctx-search") {
         Ok(response) => response,
         Err(GctxDaemonError::Unavailable) => unavailable_response(),
         Err(GctxDaemonError::Failure) => {
@@ -205,148 +206,6 @@ fn tool_result(payload: &Value) -> Value {
         ],
         "isError": payload.get("error").is_some()
     })
-}
-
-/// Why a daemon GCTX request could not complete. `Unavailable` (socket absent /
-/// `Method not found`) degrades to a structured `unavailable` outcome; `Failure`
-/// (a malformed reply, an IO error mid-exchange) is a tool error.
-#[cfg_attr(not(unix), allow(dead_code))]
-enum GctxDaemonError {
-    Unavailable,
-    // Constructed by the Unix socket client; non-Unix builds currently degrade
-    // before opening a daemon transport.
-    Failure,
-}
-
-#[cfg(unix)]
-fn daemon_search(
-    request: &GctxSearchSymbolsRequest,
-) -> Result<GctxSearchSymbolsResponse, GctxDaemonError> {
-    use std::io::{BufRead, BufReader, Read, Write};
-    use std::os::unix::net::UnixStream;
-    use std::time::Duration;
-
-    use anvil_intercept::ipc;
-
-    const TIMEOUT: Duration = Duration::from_secs(2);
-    // The response is the sealed projection: at MAX_PAGE_LIMIT (200) identity
-    // summaries it is ~tens of KiB. 4 MiB is a generous malformed-response cap,
-    // sized above any honest reply rather than to a precise bound.
-    const RESPONSE_LINE_CAP: u64 = 4 << 20;
-    const REQUEST_ID: &str = "mcp-gctx-search";
-
-    let socket_path = ipc::resolve_socket_path().map_err(|_| GctxDaemonError::Unavailable)?;
-    if let Err(err) = ipc::validate_socket_path_for_client(&socket_path) {
-        eprintln!("anvil-mcp: gctx search socket unavailable: {err}");
-        return match err {
-            ipc::IpcError::Io(io) if io.kind() == std::io::ErrorKind::NotFound => {
-                Err(GctxDaemonError::Unavailable)
-            }
-            _ => Err(GctxDaemonError::Failure),
-        };
-    }
-    // A refused connection on an existing socket (daemon crashed / restarting)
-    // is treated as `Unavailable` — GCTX is daemon-required and degrades, so any
-    // absence of a live daemon is a graceful state, not a tool error.
-    let mut stream = UnixStream::connect(&socket_path).map_err(|err| {
-        eprintln!("anvil-mcp: gctx search connect failed: {err}");
-        GctxDaemonError::Unavailable
-    })?;
-    ipc::validate_connected_peer_for_client(&stream).map_err(|err| {
-        eprintln!("anvil-mcp: gctx search peer rejected: {err}");
-        GctxDaemonError::Failure
-    })?;
-    // A failed timeout setup must NOT proceed to an unbounded blocking read.
-    stream.set_read_timeout(Some(TIMEOUT)).map_err(|err| {
-        eprintln!("anvil-mcp: gctx search read-timeout setup failed: {err}");
-        GctxDaemonError::Failure
-    })?;
-    stream.set_write_timeout(Some(TIMEOUT)).map_err(|err| {
-        eprintln!("anvil-mcp: gctx search write-timeout setup failed: {err}");
-        GctxDaemonError::Failure
-    })?;
-
-    let mut frame = json!({
-        "jsonrpc": "2.0",
-        "method": anvil_intercept_proto::protocol::ANVIL_GCTX_SEARCH_SYMBOLS,
-        "params": request,
-        "id": REQUEST_ID,
-    });
-    // USAGE-004: attach the caller's salted-hash principal so the daemon
-    // records an attributable `command.invoked` row.
-    crate::usage::attach_principal(&mut frame);
-    if let Err(err) = writeln!(stream, "{frame}").and_then(|()| stream.flush()) {
-        eprintln!("anvil-mcp: gctx search request write failed: {err}");
-        return Err(GctxDaemonError::Failure);
-    }
-
-    let mut reader = BufReader::new(stream);
-    let mut line = Vec::new();
-    let read = reader
-        .by_ref()
-        .take(RESPONSE_LINE_CAP + 1)
-        .read_until(b'\n', &mut line)
-        .map_err(|err| {
-            eprintln!("anvil-mcp: gctx search response read failed: {err}");
-            GctxDaemonError::Failure
-        })?;
-    if read == 0 || line.len() as u64 > RESPONSE_LINE_CAP || !line.ends_with(b"\n") {
-        eprintln!("anvil-mcp: gctx search response was empty, oversized, or unframed");
-        return Err(GctxDaemonError::Failure);
-    }
-    let line = String::from_utf8(line).map_err(|_| {
-        eprintln!("anvil-mcp: gctx search response was not UTF-8");
-        GctxDaemonError::Failure
-    })?;
-
-    let envelope: GctxRpcEnvelope = serde_json::from_str(&line).map_err(|err| {
-        eprintln!("anvil-mcp: gctx search response parse failed: {err}");
-        GctxDaemonError::Failure
-    })?;
-    // Correlate the reply to our request (the socket is one-shot per call today,
-    // but verifying the id keeps the contract explicit if that ever changes).
-    if envelope.id.as_deref() != Some(REQUEST_ID) {
-        eprintln!("anvil-mcp: gctx search response id mismatch");
-        return Err(GctxDaemonError::Failure);
-    }
-    if let Some(error) = envelope.error {
-        // `Method not found` ⇒ the daemon has no GCTX surface (older build, or
-        // no save-time state) ⇒ degrade to Unavailable, not a hard failure.
-        return if error.code == -32601 {
-            Err(GctxDaemonError::Unavailable)
-        } else {
-            eprintln!("anvil-mcp: gctx search daemon error {}", error.code);
-            Err(GctxDaemonError::Failure)
-        };
-    }
-    envelope.result.ok_or(GctxDaemonError::Failure)
-}
-
-#[cfg(not(unix))]
-fn daemon_search(
-    _request: &GctxSearchSymbolsRequest,
-) -> Result<GctxSearchSymbolsResponse, GctxDaemonError> {
-    // The Windows named-pipe GCTX client is a future item (mirrors the DSV
-    // save-time Windows gap). Until it lands, degrade to `unavailable` rather
-    // than fabricate results.
-    Err(GctxDaemonError::Unavailable)
-}
-
-#[cfg(unix)]
-#[derive(serde::Deserialize)]
-struct GctxRpcEnvelope {
-    #[serde(default)]
-    id: Option<String>,
-    #[serde(default)]
-    result: Option<GctxSearchSymbolsResponse>,
-    #[serde(default)]
-    error: Option<GctxRpcError>,
-}
-
-#[cfg(unix)]
-#[derive(serde::Deserialize)]
-struct GctxRpcError {
-    code: i64,
 }
 
 #[cfg(test)]

@@ -19,10 +19,11 @@ use std::path::Path;
 use serde_json::{Value, json};
 
 use anvil_intercept_proto::protocol::{
-    AssuranceState, GctxFindDependentsRequest, GctxFindDependentsResponse, StaleReason,
-    WorkspaceAssurance,
+    ANVIL_GCTX_FIND_DEPENDENTS, AssuranceState, GctxFindDependentsRequest,
+    GctxFindDependentsResponse, StaleReason, WorkspaceAssurance,
 };
 
+use crate::mcp::gctx_client::{GctxDaemonError, gctx_call};
 use crate::mcp::tools::shared::{redact_workspace_root, validate_workspace_root};
 
 pub const TOOL_NAME: &str = "anvil_find_dependents";
@@ -104,7 +105,11 @@ fn find_dependents_payload(arguments: &Value) -> Result<Value, String> {
         query,
     };
 
-    let response = match daemon_find_dependents(&request) {
+    let response = match gctx_call(
+        ANVIL_GCTX_FIND_DEPENDENTS,
+        &request,
+        "mcp-gctx-find-dependents",
+    ) {
         Ok(response) => response,
         Err(GctxDaemonError::Unavailable) => unavailable_response(),
         Err(GctxDaemonError::Failure) => {
@@ -196,148 +201,6 @@ fn tool_result(payload: &Value) -> Value {
         ],
         "isError": payload.get("error").is_some()
     })
-}
-
-/// Why a daemon GCTX request could not complete. `Unavailable` (socket absent /
-/// `Method not found`) degrades to a structured `unavailable` outcome; `Failure`
-/// (a malformed reply, an IO error mid-exchange) is a tool error.
-#[cfg_attr(not(unix), allow(dead_code))]
-enum GctxDaemonError {
-    Unavailable,
-    Failure,
-}
-
-#[cfg(unix)]
-fn daemon_find_dependents(
-    request: &GctxFindDependentsRequest,
-) -> Result<GctxFindDependentsResponse, GctxDaemonError> {
-    use std::io::{BufRead, BufReader, Read, Write};
-    use std::os::unix::net::UnixStream;
-    use std::time::Duration;
-
-    use anvil_intercept::ipc;
-
-    const TIMEOUT: Duration = Duration::from_secs(2);
-    // A file-keyed dependents page is small (paths + distances). 4 MiB is a
-    // generous malformed-response cap, sized above any honest reply.
-    const RESPONSE_LINE_CAP: u64 = 4 << 20;
-    const REQUEST_ID: &str = "mcp-gctx-find-dependents";
-
-    let socket_path = ipc::resolve_socket_path().map_err(|_| GctxDaemonError::Unavailable)?;
-    if let Err(err) = ipc::validate_socket_path_for_client(&socket_path) {
-        return match err {
-            // The socket simply not existing is the routine "daemon not running"
-            // case — a graceful degradation, not a fault. Stay silent so a daemon-
-            // less MCP session does not spam stderr on every tool call. Only a
-            // security-relevant socket anomaly (wrong perms, a symlink) is logged.
-            ipc::IpcError::Io(io) if io.kind() == std::io::ErrorKind::NotFound => {
-                Err(GctxDaemonError::Unavailable)
-            }
-            _ => {
-                eprintln!("anvil-mcp: gctx find_dependents socket unavailable: {err}");
-                Err(GctxDaemonError::Failure)
-            }
-        };
-    }
-    let mut stream = UnixStream::connect(&socket_path).map_err(|err| {
-        eprintln!("anvil-mcp: gctx find_dependents connect failed: {err}");
-        GctxDaemonError::Unavailable
-    })?;
-    ipc::validate_connected_peer_for_client(&stream).map_err(|err| {
-        eprintln!("anvil-mcp: gctx find_dependents peer rejected: {err}");
-        GctxDaemonError::Failure
-    })?;
-    stream.set_read_timeout(Some(TIMEOUT)).map_err(|err| {
-        eprintln!("anvil-mcp: gctx find_dependents read-timeout setup failed: {err}");
-        GctxDaemonError::Failure
-    })?;
-    stream.set_write_timeout(Some(TIMEOUT)).map_err(|err| {
-        eprintln!("anvil-mcp: gctx find_dependents write-timeout setup failed: {err}");
-        GctxDaemonError::Failure
-    })?;
-
-    let mut frame = json!({
-        "jsonrpc": "2.0",
-        "method": anvil_intercept_proto::protocol::ANVIL_GCTX_FIND_DEPENDENTS,
-        "params": request,
-        "id": REQUEST_ID,
-    });
-    // USAGE-004: attach the caller's salted-hash principal so the daemon
-    // records an attributable `command.invoked` row.
-    crate::usage::attach_principal(&mut frame);
-    if let Err(err) = writeln!(stream, "{frame}").and_then(|()| stream.flush()) {
-        eprintln!("anvil-mcp: gctx find_dependents request write failed: {err}");
-        return Err(GctxDaemonError::Failure);
-    }
-
-    let mut reader = BufReader::new(stream);
-    let mut line = Vec::new();
-    let read = reader
-        .by_ref()
-        .take(RESPONSE_LINE_CAP + 1)
-        .read_until(b'\n', &mut line)
-        .map_err(|err| {
-            eprintln!("anvil-mcp: gctx find_dependents response read failed: {err}");
-            GctxDaemonError::Failure
-        })?;
-    if read == 0 || line.len() as u64 > RESPONSE_LINE_CAP || !line.ends_with(b"\n") {
-        eprintln!("anvil-mcp: gctx find_dependents response was empty, oversized, or unframed");
-        return Err(GctxDaemonError::Failure);
-    }
-    let line = String::from_utf8(line).map_err(|_| {
-        eprintln!("anvil-mcp: gctx find_dependents response was not UTF-8");
-        GctxDaemonError::Failure
-    })?;
-
-    let envelope: GctxRpcEnvelope = serde_json::from_str(&line).map_err(|err| {
-        eprintln!("anvil-mcp: gctx find_dependents response parse failed: {err}");
-        GctxDaemonError::Failure
-    })?;
-    if envelope.id.as_deref() != Some(REQUEST_ID) {
-        eprintln!("anvil-mcp: gctx find_dependents response id mismatch");
-        return Err(GctxDaemonError::Failure);
-    }
-    if let Some(error) = envelope.error {
-        return if error.code == -32601 {
-            Err(GctxDaemonError::Unavailable)
-        } else {
-            eprintln!(
-                "anvil-mcp: gctx find_dependents daemon error {}",
-                error.code
-            );
-            Err(GctxDaemonError::Failure)
-        };
-    }
-    envelope.result.ok_or_else(|| {
-        eprintln!("anvil-mcp: gctx find_dependents response carried neither result nor error");
-        GctxDaemonError::Failure
-    })
-}
-
-#[cfg(not(unix))]
-fn daemon_find_dependents(
-    _request: &GctxFindDependentsRequest,
-) -> Result<GctxFindDependentsResponse, GctxDaemonError> {
-    // The Windows named-pipe GCTX client is a future item (mirrors the DSV
-    // save-time Windows gap). Until it lands, degrade to `unavailable`.
-    Err(GctxDaemonError::Unavailable)
-}
-
-#[cfg(unix)]
-#[derive(serde::Deserialize)]
-struct GctxRpcEnvelope {
-    #[serde(default)]
-    id: Option<String>,
-    #[serde(default)]
-    result: Option<GctxFindDependentsResponse>,
-    #[serde(default)]
-    error: Option<GctxRpcError>,
-}
-
-#[cfg(unix)]
-#[derive(serde::Deserialize)]
-struct GctxRpcError {
-    code: i64,
 }
 
 #[cfg(test)]

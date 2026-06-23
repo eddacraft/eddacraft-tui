@@ -1611,3 +1611,13 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Friction:** Governance metadata `Type` must be `Public docs`, not `PublicDoc`.
 - **Improvement:** Use relative `.md` links in `docs/public/**` like the Anvil section does.
 - **Follow-up:** none
+
+### 2026-06-24 — codex
+
+- **Task:** Complete CIB GCTX client hardening in a fresh Worktrunk worktree.
+- **Outcome:** Extracted the repeated GCTX daemon JSON-RPC client into `mcp::gctx_client`, reused it from tools and resources, closed CIB-099, and started CIB-100 with the Windows named-pipe path pending Windows matrix validation.
+- **Worked:** The existing no-daemon MCP degradation tests covered every GCTX tool after the extraction, and a small pure classifier test pinned the non-Linux/macOS Unix peer-validation downgrade.
+- **Failed:** Local Windows target checks could not reach the crate under test because this host lacks the Windows C toolchain (`x86_64-w64-mingw32-gcc` / `lib.exe`).
+- **Friction:** Cross-platform CIB items need a validation path that distinguishes implementation compile risk from unavailable local toolchains.
+- **Improvement:** When starting a Windows-specific CIB item from Linux, record the exact blocked cross-target check in APS and leave the item open until a Windows runner proves it.
+- **Follow-up:** Finish CIB-100 on a Windows-capable runner.

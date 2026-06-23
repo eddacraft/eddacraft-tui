@@ -20,10 +20,11 @@ use std::path::Path;
 use serde_json::{Value, json};
 
 use anvil_intercept_proto::protocol::{
-    AssuranceState, GctxAffectedTestsRequest, GctxAffectedTestsResponse, StaleReason,
-    WorkspaceAssurance,
+    ANVIL_GCTX_AFFECTED_TESTS, AssuranceState, GctxAffectedTestsRequest, GctxAffectedTestsResponse,
+    StaleReason, WorkspaceAssurance,
 };
 
+use crate::mcp::gctx_client::{GctxDaemonError, gctx_call};
 use crate::mcp::tools::shared::{redact_workspace_root, validate_workspace_root};
 
 pub const TOOL_NAME: &str = "anvil_affected_tests";
@@ -96,7 +97,11 @@ fn affected_tests_payload(arguments: &Value) -> Result<Value, String> {
         },
     };
 
-    let response = match daemon_affected_tests(&request) {
+    let response = match gctx_call(
+        ANVIL_GCTX_AFFECTED_TESTS,
+        &request,
+        "mcp-gctx-affected-tests",
+    ) {
         Ok(response) => response,
         Err(GctxDaemonError::Unavailable) => unavailable_response(),
         Err(GctxDaemonError::Failure) => {
@@ -186,143 +191,6 @@ fn tool_result(payload: &Value) -> Value {
         ],
         "isError": payload.get("error").is_some()
     })
-}
-
-/// Why a daemon GCTX request could not complete. `Unavailable` (socket absent /
-/// `Method not found`) degrades to a structured `unavailable` outcome; `Failure`
-/// (a malformed reply, an IO error mid-exchange) is a tool error.
-#[cfg_attr(not(unix), allow(dead_code))]
-enum GctxDaemonError {
-    Unavailable,
-    Failure,
-}
-
-#[cfg(unix)]
-fn daemon_affected_tests(
-    request: &GctxAffectedTestsRequest,
-) -> Result<GctxAffectedTestsResponse, GctxDaemonError> {
-    use std::io::{BufRead, BufReader, Read, Write};
-    use std::os::unix::net::UnixStream;
-    use std::time::Duration;
-
-    use anvil_intercept::ipc;
-
-    const TIMEOUT: Duration = Duration::from_secs(2);
-    // The report is identity-only and bounded (≤200 input × depth-capped
-    // closure). 4 MiB is a generous malformed-response cap, above any honest reply.
-    const RESPONSE_LINE_CAP: u64 = 4 << 20;
-    const REQUEST_ID: &str = "mcp-gctx-affected-tests";
-
-    let socket_path = ipc::resolve_socket_path().map_err(|_| GctxDaemonError::Unavailable)?;
-    if let Err(err) = ipc::validate_socket_path_for_client(&socket_path) {
-        return match err {
-            // The socket simply not existing is the routine "daemon not running"
-            // case — stay silent so a daemon-less MCP session does not spam stderr.
-            ipc::IpcError::Io(io) if io.kind() == std::io::ErrorKind::NotFound => {
-                Err(GctxDaemonError::Unavailable)
-            }
-            _ => {
-                eprintln!("anvil-mcp: gctx affected_tests socket unavailable: {err}");
-                Err(GctxDaemonError::Failure)
-            }
-        };
-    }
-    let mut stream = UnixStream::connect(&socket_path).map_err(|err| {
-        eprintln!("anvil-mcp: gctx affected_tests connect failed: {err}");
-        GctxDaemonError::Unavailable
-    })?;
-    ipc::validate_connected_peer_for_client(&stream).map_err(|err| {
-        eprintln!("anvil-mcp: gctx affected_tests peer rejected: {err}");
-        GctxDaemonError::Failure
-    })?;
-    stream.set_read_timeout(Some(TIMEOUT)).map_err(|err| {
-        eprintln!("anvil-mcp: gctx affected_tests read-timeout setup failed: {err}");
-        GctxDaemonError::Failure
-    })?;
-    stream.set_write_timeout(Some(TIMEOUT)).map_err(|err| {
-        eprintln!("anvil-mcp: gctx affected_tests write-timeout setup failed: {err}");
-        GctxDaemonError::Failure
-    })?;
-
-    let mut frame = json!({
-        "jsonrpc": "2.0",
-        "method": anvil_intercept_proto::protocol::ANVIL_GCTX_AFFECTED_TESTS,
-        "params": request,
-        "id": REQUEST_ID,
-    });
-    // USAGE-004: attach the caller's salted-hash principal so the daemon
-    // records an attributable `command.invoked` row.
-    crate::usage::attach_principal(&mut frame);
-    if let Err(err) = writeln!(stream, "{frame}").and_then(|()| stream.flush()) {
-        eprintln!("anvil-mcp: gctx affected_tests request write failed: {err}");
-        return Err(GctxDaemonError::Failure);
-    }
-
-    let mut reader = BufReader::new(stream);
-    let mut line = Vec::new();
-    let read = reader
-        .by_ref()
-        .take(RESPONSE_LINE_CAP + 1)
-        .read_until(b'\n', &mut line)
-        .map_err(|err| {
-            eprintln!("anvil-mcp: gctx affected_tests response read failed: {err}");
-            GctxDaemonError::Failure
-        })?;
-    if read == 0 || line.len() as u64 > RESPONSE_LINE_CAP || !line.ends_with(b"\n") {
-        eprintln!("anvil-mcp: gctx affected_tests response was empty, oversized, or unframed");
-        return Err(GctxDaemonError::Failure);
-    }
-    let line = String::from_utf8(line).map_err(|_| {
-        eprintln!("anvil-mcp: gctx affected_tests response was not UTF-8");
-        GctxDaemonError::Failure
-    })?;
-
-    let envelope: GctxRpcEnvelope = serde_json::from_str(&line).map_err(|err| {
-        eprintln!("anvil-mcp: gctx affected_tests response parse failed: {err}");
-        GctxDaemonError::Failure
-    })?;
-    if envelope.id.as_deref() != Some(REQUEST_ID) {
-        eprintln!("anvil-mcp: gctx affected_tests response id mismatch");
-        return Err(GctxDaemonError::Failure);
-    }
-    if let Some(error) = envelope.error {
-        return if error.code == -32601 {
-            Err(GctxDaemonError::Unavailable)
-        } else {
-            eprintln!("anvil-mcp: gctx affected_tests daemon error {}", error.code);
-            Err(GctxDaemonError::Failure)
-        };
-    }
-    envelope.result.ok_or_else(|| {
-        eprintln!("anvil-mcp: gctx affected_tests response carried neither result nor error");
-        GctxDaemonError::Failure
-    })
-}
-
-#[cfg(not(unix))]
-fn daemon_affected_tests(
-    _request: &GctxAffectedTestsRequest,
-) -> Result<GctxAffectedTestsResponse, GctxDaemonError> {
-    // The Windows named-pipe GCTX client is a future item. Until it lands,
-    // degrade to `unavailable`.
-    Err(GctxDaemonError::Unavailable)
-}
-
-#[cfg(unix)]
-#[derive(serde::Deserialize)]
-struct GctxRpcEnvelope {
-    #[serde(default)]
-    id: Option<String>,
-    #[serde(default)]
-    result: Option<GctxAffectedTestsResponse>,
-    #[serde(default)]
-    error: Option<GctxRpcError>,
-}
-
-#[cfg(unix)]
-#[derive(serde::Deserialize)]
-struct GctxRpcError {
-    code: i64,
 }
 
 #[cfg(test)]

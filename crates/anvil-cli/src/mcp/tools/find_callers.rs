@@ -20,10 +20,11 @@ use std::path::Path;
 use serde_json::{Value, json};
 
 use anvil_intercept_proto::protocol::{
-    AssuranceState, GctxFindCallersRequest, GctxFindCallersResponse, StaleReason,
-    WorkspaceAssurance,
+    ANVIL_GCTX_FIND_CALLERS, AssuranceState, GctxFindCallersRequest, GctxFindCallersResponse,
+    StaleReason, WorkspaceAssurance,
 };
 
+use crate::mcp::gctx_client::{GctxDaemonError, gctx_call};
 use crate::mcp::tools::shared::{redact_workspace_root, validate_workspace_root};
 
 pub const TOOL_NAME: &str = "anvil_find_callers";
@@ -115,7 +116,7 @@ fn find_callers_payload(arguments: &Value) -> Result<Value, String> {
         query,
     };
 
-    let response = match daemon_find_callers(&request) {
+    let response = match gctx_call(ANVIL_GCTX_FIND_CALLERS, &request, "mcp-gctx-find-callers") {
         Ok(response) => response,
         Err(GctxDaemonError::Unavailable) => unavailable_response(),
         Err(GctxDaemonError::Failure) => {
@@ -208,149 +209,6 @@ fn tool_result(payload: &Value) -> Value {
         ],
         "isError": payload.get("error").is_some()
     })
-}
-
-/// Why a daemon GCTX request could not complete. `Unavailable` (socket absent /
-/// `Method not found`) degrades to a structured `unavailable` outcome; `Failure`
-/// (a malformed reply, an IO error mid-exchange) is a tool error.
-#[cfg_attr(not(unix), allow(dead_code))]
-enum GctxDaemonError {
-    Unavailable,
-    Failure,
-}
-
-#[cfg(unix)]
-fn daemon_find_callers(
-    request: &GctxFindCallersRequest,
-) -> Result<GctxFindCallersResponse, GctxDaemonError> {
-    use std::io::{BufRead, BufReader, Read, Write};
-    use std::os::unix::net::UnixStream;
-    use std::time::Duration;
-
-    use anvil_intercept::ipc;
-
-    const TIMEOUT: Duration = Duration::from_secs(2);
-    // An identity-only caller page is small (identities + distances). 4 MiB is a
-    // generous malformed-response cap, above any honest reply.
-    const RESPONSE_LINE_CAP: u64 = 4 << 20;
-    const REQUEST_ID: &str = "mcp-gctx-find-callers";
-
-    let socket_path = ipc::resolve_socket_path().map_err(|_| GctxDaemonError::Unavailable)?;
-    if let Err(err) = ipc::validate_socket_path_for_client(&socket_path) {
-        return match err {
-            ipc::IpcError::Io(io) if io.kind() == std::io::ErrorKind::NotFound => {
-                Err(GctxDaemonError::Unavailable)
-            }
-            _ => {
-                eprintln!("anvil-mcp: gctx find_callers socket unavailable: {err}");
-                Err(GctxDaemonError::Failure)
-            }
-        };
-    }
-    let mut stream = UnixStream::connect(&socket_path).map_err(|err| {
-        eprintln!("anvil-mcp: gctx find_callers connect failed: {err}");
-        GctxDaemonError::Unavailable
-    })?;
-    ipc::validate_connected_peer_for_client(&stream).map_err(|err| {
-        eprintln!("anvil-mcp: gctx find_callers peer rejected: {err}");
-        GctxDaemonError::Failure
-    })?;
-    stream.set_read_timeout(Some(TIMEOUT)).map_err(|err| {
-        eprintln!("anvil-mcp: gctx find_callers read-timeout setup failed: {err}");
-        GctxDaemonError::Failure
-    })?;
-    stream.set_write_timeout(Some(TIMEOUT)).map_err(|err| {
-        eprintln!("anvil-mcp: gctx find_callers write-timeout setup failed: {err}");
-        GctxDaemonError::Failure
-    })?;
-
-    let mut frame = json!({
-        "jsonrpc": "2.0",
-        "method": anvil_intercept_proto::protocol::ANVIL_GCTX_FIND_CALLERS,
-        "params": request,
-        "id": REQUEST_ID,
-    });
-    // USAGE-004: attach the caller's salted-hash principal so the daemon
-    // records an attributable `command.invoked` row.
-    crate::usage::attach_principal(&mut frame);
-    if let Err(err) = writeln!(stream, "{frame}").and_then(|()| stream.flush()) {
-        eprintln!("anvil-mcp: gctx find_callers request write failed: {err}");
-        return Err(GctxDaemonError::Failure);
-    }
-
-    let mut reader = BufReader::new(stream);
-    let mut line = Vec::new();
-    let read = reader
-        .by_ref()
-        .take(RESPONSE_LINE_CAP + 1)
-        .read_until(b'\n', &mut line)
-        .map_err(|err| {
-            eprintln!("anvil-mcp: gctx find_callers response read failed: {err}");
-            GctxDaemonError::Failure
-        })?;
-    if read == 0 || line.len() as u64 > RESPONSE_LINE_CAP || !line.ends_with(b"\n") {
-        eprintln!("anvil-mcp: gctx find_callers response was empty, oversized, or unframed");
-        return Err(GctxDaemonError::Failure);
-    }
-    let line = String::from_utf8(line).map_err(|_| {
-        eprintln!("anvil-mcp: gctx find_callers response was not UTF-8");
-        GctxDaemonError::Failure
-    })?;
-
-    let envelope: GctxRpcEnvelope = serde_json::from_str(&line).map_err(|err| {
-        eprintln!("anvil-mcp: gctx find_callers response parse failed: {err}");
-        GctxDaemonError::Failure
-    })?;
-    if envelope.id.as_deref() != Some(REQUEST_ID) {
-        eprintln!("anvil-mcp: gctx find_callers response id mismatch");
-        return Err(GctxDaemonError::Failure);
-    }
-    if let Some(error) = envelope.error {
-        return if error.code == -32601 {
-            Err(GctxDaemonError::Unavailable)
-        } else {
-            eprintln!("anvil-mcp: gctx find_callers daemon error {}", error.code);
-            Err(GctxDaemonError::Failure)
-        };
-    }
-    envelope.result.ok_or_else(|| {
-        eprintln!("anvil-mcp: gctx find_callers response carried neither result nor error");
-        GctxDaemonError::Failure
-    })
-}
-
-#[cfg(not(unix))]
-fn daemon_find_callers(
-    _request: &GctxFindCallersRequest,
-) -> Result<GctxFindCallersResponse, GctxDaemonError> {
-    // The Windows named-pipe GCTX client is a future item (shared with the rest
-    // of the GCTX tool suite — find_dependents, impact_of_change, …). Until it
-    // lands, degrade to a structured `unavailable` outcome. Logged at debug so the
-    // Windows cross-matrix run shows an actionable line instead of a silent
-    // unavailable (council PL-5); PII-free — no request fields.
-    tracing::debug!(
-        target: "anvil_mcp::gctx",
-        tool = "find_callers",
-        "GCTX daemon client unavailable on non-unix (named-pipe transport pending)"
-    );
-    Err(GctxDaemonError::Unavailable)
-}
-
-#[cfg(unix)]
-#[derive(serde::Deserialize)]
-struct GctxRpcEnvelope {
-    #[serde(default)]
-    id: Option<String>,
-    #[serde(default)]
-    result: Option<GctxFindCallersResponse>,
-    #[serde(default)]
-    error: Option<GctxRpcError>,
-}
-
-#[cfg(unix)]
-#[derive(serde::Deserialize)]
-struct GctxRpcError {
-    code: i64,
 }
 
 #[cfg(test)]
