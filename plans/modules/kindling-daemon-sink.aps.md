@@ -4,7 +4,7 @@
 
 | ID  | Owner      | Status      | Progress |
 | --- | ---------- | ----------- | -------- |
-| KDS | @eddacraft | In Progress | 0/5      |
+| KDS | @eddacraft | In Progress | 2/5      |
 
 > **In Progress** — the module passed Ready (placement + async-bridge decisions
 > settled; see Open Questions, now answered) and KDS-001 + KDS-003 are underway.
@@ -153,7 +153,7 @@ need a short ADR to reconcile the wording.
   delivered-when-up (row retrievable), spooled-when-down, replay-on-reconnect,
   rejection-propagates; the existing `daemon_dep_boundary` guard asserts
   `anvil-intercept` gained no networking dep.
-- **Status:** In Progress
+- **Status:** Merged 2026-06-24 via PR #2897
 - **Dependencies:** none remaining — kindling crates on crates.io (`0.2.0`, Done)
 
 ### KDS-002: Wire the daemon sink as primary, with sink selection
@@ -181,7 +181,7 @@ need a short ADR to reconcile the wording.
 - **Validation:** the parity test above, green in CI. (Lives as a `#[cfg(test)]`
   module beside the sink, not a `tests/` integration file — `anvil-cli` is a
   bin-only crate with no library target for `tests/` to link against.)
-- **Status:** In Progress
+- **Status:** Merged 2026-06-24 via PR #2897
 - **Dependencies:** KDS-001
 
 ### KDS-004: Re-source the usage views from the authoritative store
