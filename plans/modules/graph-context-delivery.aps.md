@@ -4,12 +4,18 @@
 | ---- | ----- | ------ | -------- |
 | GCTX | —     | In Progress | 9/14 |
 
-**Last reviewed:** 2026-06-20 (Phase 0 — Delivery Contract — complete. **GCTX-001 (projection contract) Merged 2026-06-15 via #2628** — the spec [`graph-context-delivery-spec.md`](../../docs/architecture/graph-context-delivery-spec.md) folds the context-egress privacy review (PV-9) conditions CE-1..CE-12 onto the GV2-023 consumer query contract. **GCTX-002 (MCP delivery target) Merged 2026-06-15 via #2619** — discharged by [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) **Accepted** (Rust RMCPF `anvil mcp serve` surface); RMCPF defers GCTX work by design, so no edit to rust-mcp-full-port. Module **In Progress, 9/14** (GCTX-010 pilot Merged 2026-06-16 via #2657; GCTX-011 `find_dependents` Merged 2026-06-16 via #2685; GCTX-012 `anvil_impact_of_change` Merged 2026-06-17 via #2693; **GCTX-013 `anvil_affected_tests` Merged 2026-06-17 via #2700** — test attribution + coverage gaps over the same spine, no new substrate; reuses GCTX-012's `is_test_file` + the dependency graph's forward `dependencies_of` edges for evidence; **GCTX-014 `anvil_find_callers` Merged 2026-06-17 via #2715** — symbol-level caller traversal projecting the GCALL-003 `callers_of` read API, completing the Phase 1 tool surface (010..014); **GCTX-030 (`graph://` MCP resources) Merged 2026-06-18 via #2772** — the read-only `graph://stats`/`symbols`/`edges` resource surface, identity-only, with CE-6 pagination and a `bounded` edges flag; **GCTX-020 Done 2026-06-20** — parser-free conservative token estimator in `anvil-graph-cache`, with deterministic fixed-corpus and input-cap tests). With the Phase 1 tool queue + resource surface complete and GCTX-020 done, the remaining Phase-2 snippet items (021..023) stay Draft; all build on the CE-5 sealed egress DTO + `GctxProjector` + structural no-leak spine that GCTX-010 established, using the daemon-RPC graph-handle path settled by ADR-084.)
+**Last reviewed:** 2026-06-20 (Phase 0 — Delivery Contract — complete. **GCTX-001 (projection contract) Merged 2026-06-15 via #2628** — the spec [`graph-context-delivery-spec.md`](../../docs/architecture/graph-context-delivery-spec.md) folds the context-egress privacy review (PV-9) conditions CE-1..CE-12 onto the GV2-023 consumer query contract. **GCTX-002 (MCP delivery target) Merged 2026-06-15 via #2619** — discharged by [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) **Accepted** (Rust RMCPF `anvil mcp serve` surface); RMCPF defers GCTX work by design, so no edit to rust-mcp-full-port. Module **In Progress, 9/14** (GCTX-010 pilot Merged 2026-06-16 via #2657; GCTX-011 `find_dependents` Merged 2026-06-16 via #2685; GCTX-012 `anvil_impact_of_change` Merged 2026-06-17 via #2693; **GCTX-013 `anvil_affected_tests` Merged 2026-06-17 via #2700** — test attribution + coverage gaps over the same spine, no new substrate; reuses GCTX-012's `is_test_file` + the dependency graph's forward `dependencies_of` edges for evidence; **GCTX-014 `anvil_find_callers` Merged 2026-06-17 via #2715** — symbol-level caller traversal projecting the GCALL-003 `callers_of` read API, completing the Phase 1 tool surface (010..014); **GCTX-030 (`graph://` MCP resources) Merged 2026-06-18 via #2772** — the read-only `graph://stats`/`symbols`/`edges` resource surface, identity-only, with CE-6 pagination and a `bounded` edges flag; **GCTX-020 Done 2026-06-20** — parser-free conservative token estimator in `anvil-graph-cache`, with deterministic fixed-corpus and input-cap tests). With the Phase 1 tool queue + resource surface complete and GCTX-020 done, the Phase-2 snippet items (021..023) are **promoted Draft → Ready 2026-06-23** with the PV-9 snippet gates folded into item text and the substrate prerequisite filed as **[GV2-032](graph-v2-foundation.aps.md)** (span + per-file content-hash producer); all build on the CE-5 sealed egress DTO + `GctxProjector` + structural no-leak spine that GCTX-010 established, using the daemon-RPC graph-handle path settled by ADR-084.)
 
-**Readiness update 2026-06-20:** GCTX-020 is **Done**. It is a non-egress
-estimator slice that unlocks the snippet line without returning source text
-itself; GCTX-021..023 remain Draft until their CE-1/CE-2/CE-3/CE-5/CE-7 snippet
-gates are written into item text.
+**Readiness update 2026-06-23:** GCTX-021..023 are now **Ready**. The
+CE-1/CE-2/CE-3/CE-5/CE-6/CE-7/CE-9/CE-11/CE-12 snippet gates are written into the
+item text below, and the one true blocker — the resident `SymbolNode` carries no
+source span and the graph records no per-file content hash, so a projector cannot
+locate or freshness-check a snippet — is filed as the substrate prerequisite
+**[GV2-032](graph-v2-foundation.aps.md)** (Ready). All source-text handling runs
+daemon-side in `anvil-gctx-egress` through the single CE-5 `GctxProjector`; the
+`gctx.egress` manifest flag (CE-9, deferred from GCTX-010 C4) lands with GCTX-021.
+GCTX-020 (`estimate_gctx_tokens`) remains the non-egress estimator GCTX-022
+consumes.
 
 > **Scoped to v0.9, not v0.8.0-beta (2026-06-08, [ADR-075](../decisions/075-v080-graph-product-scope.md),
 > Accepted via council).** GCTX was considered for the v0.8.0 window but the
@@ -654,50 +660,158 @@ blockers — they are resolved during execution, not before promotion:
 
 ---
 
-#### GCTX-021: Symbol snippet extractor
+> **Phase 2 readiness (2026-06-23).** GCTX-021..023 promoted **Draft → Ready**.
+> The snippet CE gates (PV-9 CE-1/CE-2/CE-3/CE-5/CE-6/CE-7/CE-9/CE-11/CE-12) are
+> written into the item text below, and the substrate prerequisite — symbol spans
+> and a per-file content hash on the resident graph — is filed as
+> **[GV2-032](graph-v2-foundation.aps.md)** (the resident `SymbolNode` carries no
+> span today; `graph.rs` defers span population to "a consumer", which is GCTX-021).
+> The original `anvil-kernel/src/graph/{snippet,slice}.rs` framing is **superseded**:
+> all source-text handling runs **daemon-side** in `anvil-gctx-egress` through the
+> single CE-5 `GctxProjector`, never in the MCP/kernel client (ADR-084). The
+> `gctx.egress` manifest flag (CE-9, deferred from GCTX-010 C4) lands with GCTX-021,
+> the first snippet implementation file.
 
-- **Status:** Draft
-- **Intent:** Return source spans for symbols selected by graph queries without
-  making assistants read entire files.
-- **Expected Outcome:** Extractor returns file, start/end line, language, text,
-  and truncation metadata for supported symbols.
-- **Validation:** Fixture tests cover TS/JS and at least one future language once
-  GV2 exposes source spans
-- **Files:** `crates/anvil-kernel/src/graph/snippet.rs`
-- **Confidence:** high
+#### GCTX-021: Symbol snippet extractor (daemon-side, egress-gated)
+
+- **Status:** Ready — architecture settled by [ADR-084](../decisions/084-gctx-graph-handle-access.md)
+  (daemon-side projection) and the snippet gates fully specified by the
+  [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
+  (CE-1/CE-2/CE-3/CE-5/CE-7). Substrate prerequisite **[GV2-032](graph-v2-foundation.aps.md)**
+  (Ready) supplies the byte span to locate and the content hash to freshness-check;
+  without it there is no producer for spans. Extraction runs **daemon-side** in
+  `anvil-gctx-egress` through the single `GctxProjector`, reusing the GCTX-010
+  sealed-DTO + `GctxDispatch` spine.
+- **Intent:** Return the bounded source span of a graph-selected symbol as the
+  single permitted source-text carrier, so assistants read one symbol body — not a
+  whole file — and only when egress is explicitly enabled.
+- **Expected Outcome:** For a symbol resolved by `SymbolIdentity`, the daemon reads
+  **only** the bytes of its GV2-032 span from the session-pinned, admitted workspace
+  root (CE-8 — never a whole-file read, never outside the graph → redaction → budget
+  pipeline), runs the emitted text through the CE-2 secret scan and CE-3 path filter,
+  freshness-checks the file against the recorded content hash (CE-7), and returns a
+  sealed `SnippetResult { file (rel), span: ByteRange, language, text, truncated,
+  omitted_bytes }` — the **only** `anvil-gctx-types` type permitted to carry source
+  text (the CE-5 carve-out). With the opt-in off or the per-request capability
+  unasserted, the response is identity-only (span-as-location, no `text`).
+- **Acceptance criteria (snippet CE gates):**
+  - **CE-1 (hard)** — text is returned only when (a) the `gctx.egress` flag is on
+    **and** (b) the request asserts the per-call snippet capability; otherwise
+    identity-only. Default posture is identity-only.
+  - **CE-5 (hard)** — `SnippetResult` is the sole text carrier in `anvil-gctx-types`;
+    the structural no-leak test is **amended** to permit the banned-name fields
+    (`text`/`span`/`byte`) on exactly this type (behind CE-1) and continues to ban
+    them on every other DTO. No `PathBuf`, no session-local `u64` id.
+  - **CE-2** — every emitted snippet passes a deny-by-default secret scan over the
+    **emitted text** (reuse the `anvil-checks` SCAN-002 4 KiB-per-line guard at
+    `crates/anvil-checks/src/secret/types.rs`; a skipped line **fails closed →
+    redact**); a hit redacts the span **deterministically** and bumps a counts-only
+    `redaction_summary`.
+  - **CE-3** — egress-side path deny-list (`.env*`, `*.pem`/`*.key`/`id_rsa*`/`*.p12`,
+    `.git/**`, `secrets/`/`.aws/`/`.ssh/`/`.gnupg/`) **plus gitignored files** on the
+    snippet path specifically (only the welcome scan honours `.gitignore`; all other
+    scans use `standard_filters(false)`, so such files are graph-resident); a denied
+    path is **omitted entirely** (not merely redacted) and counted in metadata.
+  - **CE-7** — re-validate the file's current content hash against GV2-032's recorded
+    hash before emitting; on mismatch / warming / stale / disabled return a structured
+    outcome with the `text` field **absent** — never a `std::fs::read_to_string`
+    fallback.
+  - **CE-9 (FLAGCAT)** — the `gctx.egress` entry lands in **this** item (first snippet
+    impl file): `class: rollout`, `valueType: boolean`, `defaultVariant: disabled`,
+    `createdFor: GCTX-001`, opt-in via `ANVIL_GCTX_EGRESS=1`, with **both** a Rust
+    consumer gate and a TS consumer reader (avoid the orphan-flag drift failure).
+  - **CE-8 / C3** — the span read is confined to the admitted workspace root via the
+    `SaveTimeConn` gate; symlink / `..` / cross-worktree paths rejected daemon-side.
+- **Validation:** structural no-leak test (gates build; asserts only `SnippetResult`
+  carries text); TS/JS, Rust, Python snippet-extraction fixtures; a planted-secret
+  fixture asserts redaction + fail-closed on scan error (CE-2); a stale-file fixture
+  (hash mismatch) asserts the `text` field is absent (CE-7); a `.env`/gitignored
+  fixture asserts omission (CE-3); flag-off asserts identity-only (CE-1).
+- **Files:** `crates/anvil-gctx-types/` (the `SnippetResult` DTO + amended no-leak
+  test), `crates/anvil-gctx-egress/` (the daemon-side extractor through
+  `GctxProjector`), `crates/anvil-intercept-proto/src/protocol.rs`,
+  `crates/anvil-intercept/src/ipc.rs`, `flags/manifest.json` (the `gctx.egress`
+  entry), `crates/anvil-cli/src/mcp/` (consumer gate + TS reader)
+- **Confidence:** medium
 - **Priority:** Critical
-- **Dependencies:** GV2-010
+- **Dependencies:** **[GV2-032](graph-v2-foundation.aps.md)** (span + content-hash
+  producer, Ready), GCTX-010 (sealed-DTO + `GctxProjector` + `GctxDispatch` spine,
+  Merged #2657), GCTX-001 (CE contract, Merged #2628)
 
 ---
 
 #### GCTX-022: Budget-bounded context slicer
 
-- **Status:** Draft
-- **Intent:** Convert graph query results into the smallest useful code context
-  an assistant should read first.
-- **Expected Outcome:** Slicer returns deterministic snippets under the requested
-  token budget with omitted-context metadata when truncated.
-- **Validation:** Property test proves returned token estimate never exceeds the
-  budget
-- **Files:** `crates/anvil-kernel/src/graph/slice.rs`
-- **Confidence:** high
+- **Status:** Ready — daemon-side, in `anvil-gctx-egress`; depends on GCTX-021 (the
+  snippet carrier) and GCTX-020 (`estimate_gctx_tokens`, **Done 2026-06-20**).
+- **Intent:** Turn a set of graph-selected symbols into the smallest useful set of
+  snippets under a caller token budget, deterministically.
+- **Expected Outcome:** A slicer that orders candidate snippets by a stable key,
+  **redacts each (CE-2) before measuring it** with `estimate_gctx_tokens` (so a
+  redacted span still counts honestly toward the budget), admits snippets until the
+  budget is reached, and returns omitted-context metadata when it truncates. Enforces
+  the CE-6 per-session snippet **byte** ceiling keyed on `(file, ByteRange)` position
+  identity (never on text content), so overlapping-span calls cannot reassemble a
+  whole file.
+- **Acceptance criteria:**
+  - **determinism** — identical symbol set + budget + graph state → byte-identical
+    slice (stable ordering, no map-iteration leakage), so GCTX-022's property tests
+    do not flake.
+  - **budget property (CE-6)** — a property test proves the returned token estimate
+    never exceeds the requested budget across randomised inputs.
+  - **redact-before-budget (CE-2)** — a redacted span counts at its redacted size,
+    proven by a planted-secret fixture.
+  - **per-session byte ceiling (CE-6)** — accumulates on `(file, ByteRange)` identity
+    independent of the per-call token budget; an overlapping-request sequence is
+    capped and surfaced as `budget_exceeded`.
+- **Validation:** property test (estimate ≤ budget); a determinism golden; the
+  byte-ceiling + redact-before-budget fixtures.
+- **Files:** `crates/anvil-gctx-egress/` (the slicer through `GctxProjector`),
+  `crates/anvil-gctx-types/` (the slice / omitted-context DTO),
+  `crates/anvil-graph-cache/src/tokens.rs` (the GCTX-020 `estimate_gctx_tokens`
+  consumer, no second estimator)
+- **Confidence:** medium
 - **Priority:** Critical
-- **Dependencies:** GCTX-020, GCTX-021
+- **Dependencies:** GCTX-020 (Done 2026-06-20), GCTX-021
 
 ---
 
 #### GCTX-023: `anvil_symbol_context` tool
 
-- **Status:** Draft
-- **Intent:** Provide the headline assistant context tool: given a symbol or file,
-  return the bounded context slice needed to work safely.
-- **Expected Outcome:** Tool combines search, impact, snippet extraction, and
-  token budgeting into one response with deterministic ordering.
-- **Validation:** MCP integration test and manual smoke test against a fixture
-- **Files:** MCP server target decided by GCTX-002
-- **Confidence:** high
+- **Status:** Ready — the headline assistant context tool, composing the Phase-1
+  query spine (search + impact) with GCTX-021 snippets and GCTX-022 budgeting into
+  one MCP tool on the existing `GctxDispatch`. MCP target settled by
+  [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) (Rust `anvil mcp serve`).
+- **Intent:** Given a symbol or file, return the bounded context an assistant needs
+  to work safely — identity by default, source text only under explicit opt-in.
+- **Expected Outcome:** `anvil_symbol_context` combines symbol search, local impact,
+  GCTX-021 snippet extraction, and GCTX-022 budgeting into one deterministic response
+  over a new read-only `anvil/gctx/symbol_context` RPC, projected daemon-side through
+  the single `GctxProjector`. **Identity-only by default**; source text only when the
+  `gctx.egress` flag is on **and** the request asserts the snippet capability (CE-1).
+  Carries the counts-only top-level `redaction_summary` (`fields_suppressed`,
+  `snippets_truncated`, `fully_suppressed_symbols`, `outcome`) (CE-11) and degrades
+  via the named `GctxOutcome` (no whole-file fallback, CE-7).
+- **Acceptance criteria:**
+  - **CE-1 / CE-7 / CE-11** as above; the `GctxOutcome` telemetry enum gains
+    `Redacted` and `BudgetExceeded` (already reserved `#[non_exhaustive]` in
+    `anvil-gctx-types`), enum-only labels with no names/paths/query/snippet text
+    (CE-10).
+  - **CE-5** — the response is a sealed `anvil-gctx-types` DTO; source text only via
+    the embedded `SnippetResult`s; the no-leak test extends to the new response type.
+  - **CE-12 (consent)** — enabling snippet egress is an explicit operator action with
+    the one-line consequence statement (*"source text from matched symbols, secret-
+    scanned and path-filtered, will be sent to the connected assistant/LLM provider"*);
+    no GCTX tool auto-enables snippets on first use. Documented in GCTX-032.
+- **Validation:** MCP integration test against a fixture (identity-only with the flag
+  off; text + `redaction_summary` with the flag on + capability asserted);
+  determinism golden; warming-graph degradation (CE-7).
+- **Files:** `crates/anvil-gctx-types/`, `crates/anvil-gctx-egress/`,
+  `crates/anvil-intercept-proto/src/protocol.rs`, `crates/anvil-intercept/src/ipc.rs`,
+  `crates/anvil-cli/src/mcp/tools/`
+- **Confidence:** medium
 - **Priority:** Critical
-- **Dependencies:** GCTX-022
+- **Dependencies:** GCTX-022, GCTX-021, GCTX-010/011/012 (the query spine, all Merged)
 
 ---
 
@@ -804,6 +918,6 @@ blockers — they are resolved during execution, not before promotion:
 | ----- | ----- | ------ |
 | 0 — Delivery Contract | 2 | Complete (GCTX-001 Merged #2628, GCTX-002 Merged #2619) |
 | 1 — Graph Query Tools | 5 | GCTX-010 Merged #2657 (pilot); GCTX-011 Merged #2685 (`find_dependents`); GCTX-012 Merged #2693 (`impact_of_change`); GCTX-013 Merged #2700 (`affected_tests`); GCTX-014 Merged #2715 (`find_callers`) |
-| 2 — Context Slicing | 4 | GCTX-020 Done; GCTX-021..023 Draft |
+| 2 — Context Slicing | 4 | GCTX-020 Done; GCTX-021..023 Ready (PV-9 snippet gates folded; substrate prerequisite GV2-032 filed) |
 | 3 — Resources, Benchmarks, Docs | 3 | GCTX-030 Merged #2772; GCTX-031/032 Draft |
 | **Total** | **14** | **9/14** |

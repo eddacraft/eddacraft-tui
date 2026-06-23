@@ -6,6 +6,12 @@
 
 **Last reviewed:** 2026-06-15 (**GV2-031 Merged via #2627** — the last internal GV2 item, leaving GV2 20/20; **GV2-020 + GV2-023 promoted Draft → Ready then Merged** once the ADR-075 entry decisions landed — [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) Accepted + the [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md) filed. GV2-020 deps GV2-010..014 are all Merged. **GV2-023 consumer query contract authored** in the foundation spec ("The consumer query contract (GV2-023)") — four read classes with one mapped scenario each for INTD/DRVR (live), GCTX (in flight), and WEAVE (planned, Draft 0/21); the registry impl (GV2-020) and assistant projection rules (GCTX-001) remain downstream.)
 
+> 2026-06-23: **GV2-032 filed (Ready), GV2 now 20/21.** The deferred GV2-010 span
+> plumbing gains its producer — `SymbolNode.span` + a per-file content hash
+> populated through `apply_delta` — as the substrate prerequisite for the GCTX
+> snippet line (GCTX-021..023, promoted Ready the same day with the PV-9 snippet
+> gates folded). Substrate stays GV2-owned; GCTX projects.
+
 > 2026-06-12: the A′ slice (hot-read backing swap + seal + ADR-031 latency
 > gate) confirmed in the v0.8.0-beta tag (record:
 > plans/releases/v0.8.0-beta.md); Merged items advanced to Released/Shipped.
@@ -851,6 +857,61 @@ Change status to **Ready** when:
 
 ---
 
+### Phase 4 — v0.9 Egress Substrate
+
+#### GV2-032: Symbol source-span + per-file content-hash population
+
+- **Status:** Ready — the **producer** half of the span plumbing GV2-010 deferred.
+  `ByteRange` (GV2-010, no-text per PV-7(e)) is modelled but never attached to a
+  node: `graph.rs` states *"population of spans onto nodes/edges is a
+  GCTX-projection concern wired in v0.9 — a `span` field attaches when a producer
+  and consumer exist."* GCTX-021 is that consumer; this is the missing producer.
+  Substrate-only — GV2 owns the resident graph schema, GCTX projects (framing rule)
+  — mirroring how GCALL added the `calls` channel rather than folding extraction
+  into a GCTX item.
+- **Intent:** The resident `SymbolNode` (`{ id, kind, name, visibility, file,
+  trust_level }`) carries no source span, and the graph records no per-file content
+  hash, so a snippet projector has nothing to locate a symbol's bytes with and
+  nothing to freshness-check a file against (PV-9 CE-7). Populate both at
+  save/scan time so GCTX-021 can extract a bounded, freshness-checked snippet
+  without a re-parse or a whole-file read.
+- **Expected Outcome:** A `span: Option<ByteRange>` field on `SymbolNode` (byte
+  offsets only, **no text**) populated by the TS/JS, Rust, and Python extractors
+  and lifted through the existing `apply_delta` path, plus a per-file content
+  hash recorded on the file's resident entry — the named, stable, dependency-free
+  **FNV-1a** digest family already used for snapshots (GV2-030), never the
+  randomly-seeded default hasher. Both are derived in the save-time pass that
+  already parses the file (no second parse), within the ADR-031 80 ms-p95 budget.
+- **Acceptance criteria:**
+  - `span` is `Option<ByteRange>` (offsets only, no text); a file with no
+    span-producing pass yields `None`, never a fabricated zero span.
+  - the per-file content hash is the GV2-030 FNV-1a digest family (stable across
+    processes, unsalted, machine-local — the N-2 cross-machine residual is named in
+    the GCTX-001 residual note), recorded once per file delta.
+  - population runs inside the extractor pass that already parses the file; a
+    `call_lift`-style bench shows no ADR-031 latency/memory regression.
+  - the GV2-030 structural no-leak guard is extended to assert `SymbolNode.span`
+    carries offsets only and the recorded hash is not a source-text carrier.
+  - persisted snapshots (`ANVIL_PERSIST_GRAPH`) round-trip the new fields; a
+    version-mismatch cold rebuild repopulates them.
+- **Validation:** `cargo test -p eddacraft-anvil-graph-cache -- span_population`
+  plus the extended `snapshot_no_leak` test; an `apply_delta` test asserts spans +
+  hash land on the resident graph for a TS, a Rust, and a Python fixture file.
+- **Files:** `crates/anvil-kernel-types/src/graph.rs` (the `span` field),
+  `crates/anvil-graph-cache/src/incremental.rs` (apply_delta lift + per-file hash),
+  `crates/anvil-graph-cache/src/snapshot.rs` (no-leak guard + round-trip),
+  `crates/anvil-kernel/src/parser/extract/` (span capture per language)
+- **Confidence:** medium
+- **Priority:** High
+- **Dependencies:** GV2-010 (`ByteRange` type), GV2-003 (delta / `apply_delta`
+  contract), GV2-030 (snapshot no-leak guard to extend)
+- **Source:** Filed 2026-06-23 via planning-workflow to unblock the GCTX snippet
+  line (GCTX-021..023); see the [graph-context-delivery](graph-context-delivery.aps.md)
+  module and the [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
+  CE-7 freshness condition.
+
+---
+
 ## Risks
 
 | Risk | Likelihood | Impact | Mitigation |
@@ -896,4 +957,5 @@ Change status to **Ready** when:
 | 1 — Graph Schemas | 5 | 5/5 done | Complete |
 | 2 — Runtime Substrate | 4 | 4/4 done | Complete |
 | 3 — Enforcement, Wiring, and the A′ Swap | 8 | 8/8 done | Complete |
-| **Total** | **20** | **20/20 done** | **In Progress** |
+| 4 — v0.9 Egress Substrate | 1 | 0/1 done | In Progress (GV2-032 Ready — GCTX snippet producer) |
+| **Total** | **21** | **20/21 done** | **In Progress** |
