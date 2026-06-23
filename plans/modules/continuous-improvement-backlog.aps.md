@@ -2154,7 +2154,7 @@ archive.
 
 ### CIB-079: Rust serde-hygiene + clone-in-hot-loop AST antipattern rules (RSTLAN-003b)
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Intent:** Land the three AST-dependent Rust reliability rules deferred from
   RSTLAN-003 (the "RSTLAN-003b" follow-on) onto the now-shipped
   `anvil-checks-ast` gate-time mechanism, so the `rust-reliability` catalogue
@@ -2194,7 +2194,7 @@ archive.
 
 ### CIB-080: secret-detection test-vector / fixture false positives
 
-- **Status:** Proposed 2026-06-18
+- **Status:** Ready
 - **Intent:** Suppress the residual secret-detection false positives the
   external-codebase FP dogfood surfaced beyond the credit-card class (fixed in
   PR #2747): high-entropy base64 test vectors, `mongodb://` validator fixtures
@@ -2221,7 +2221,7 @@ archive.
 
 ### CIB-081: RS-005 doc-config (`cfg(doc)` / `cfg(docsrs)`) residual
 
-- **Status:** Proposed 2026-06-18
+- **Status:** Ready
 - **Intent:** Decide how RS-005 should treat `todo!()` / `unimplemented!()`
   stubs gated by `#[cfg(doc)]` / `#[cfg(docsrs)]` — doc-build-only signature
   stubs that are not shipped runtime code but are still flagged after the
@@ -2265,7 +2265,7 @@ archive.
 
 ### CIB-083: context-stack lexer for template-literal interpolation masking
 
-- **Status:** Proposed 2026-06-18
+- **Status:** Ready
 - **Intent:** Replace the lexer-light interpolation brace-counter in the AP-/GS-
   comment/string masker (`mask.rs`) with a context stack so a `${ … }`
   interpolation is fully re-lexed — masking a `!` / `any` / brace that sits
@@ -2413,7 +2413,7 @@ archive.
 
 ### CIB-087: False-positive report local read path
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Intent:** Give operators a way to see what `anvil report-fp` has recorded
   locally — today the `false-positives.ndjson` sidecar is write-only with no
   CLI read surface.
@@ -2431,7 +2431,7 @@ archive.
 
 ### CIB-088: `anvil drift migrate` operability — backup retention + partial-failure reporting
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Intent:** Close two operability gaps in `drift migrate`: (a) `.bak`/`.bak.N`
   backups accumulate unbounded ("retained for one release" is comment-only, not
   enforced); (b) skipped corrupt/unreadable/future-version baselines are not
@@ -2454,7 +2454,7 @@ archive.
 
 ### CIB-089: Reconcile unknown-check-ID resolution semantics across surfaces
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Intent:** `--skip-checks` / `--only-checks` reject an unknown check ID with
   a fatal error, while `.anvilrc#checks` warns-and-continues with the known
   subset. The same class of user error (a typo'd check ID) has divergent
@@ -2475,7 +2475,7 @@ archive.
 
 ### CIB-090: `O_NOFOLLOW` hardening for the Kindling NDJSON sidecar writes
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Intent:** Close the TOCTOU symlink race in `append_observation_to`: it does
   `symlink_metadata` then a separate `open`, with no `O_NOFOLLOW` between them,
   so a writer to the parent dir on a multi-user host could redirect the append.
@@ -2705,7 +2705,7 @@ archive.
 
 ### CIB-099: GCTX cross-surface hardening (GCTX-010..014 council follow-ups)
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Intent:** Close the council follow-ups shared across the merged GCTX Phase-1
   tool surface (GCTX-010..014) that were deliberately deferred at merge — not
   regressions, but real hardening debt before wider assistant-facing rollout.
@@ -2730,7 +2730,7 @@ archive.
 
 ### CIB-100: Windows named-pipe GCTX client transport
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Intent:** The GCTX Phase-1 tools (`anvil_search_symbols`,
   `anvil_find_dependents`, `anvil_impact_of_change`, `anvil_affected_tests`,
   `anvil_find_callers`) degrade to `unavailable` on non-Unix because the GCTX
@@ -2751,7 +2751,7 @@ archive.
 
 ### CIB-101: DISTRIB operator follow-ups (`ANVIL_HOME` side-by-side + uninstall)
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Intent:** Close two operator gaps deferred at DISTRIB-006 merge (PR #2185):
   Windows side-by-side daemon coexistence and incomplete global-uninstall cleanup.
 - **Expected Outcome:** (a) Windows named-pipe re-root for the daemon endpoint so
