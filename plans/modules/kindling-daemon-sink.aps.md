@@ -243,14 +243,35 @@ need a short ADR to reconcile the wording.
 ### KDS-005: Retire the standalone NDJSON writer
 
 - **Intent:** Remove the bespoke `DaemonUsageSink` NDJSON append path; the only
-  NDJSON in the system becomes `kindling-spool`'s fallback file.
+  NDJSON in the system becomes the `SpooledClient` fallback file.
 - **Expected Outcome:** `DaemonUsageSink` and its hand-rolled append/rotation
   logic are deleted; the spool owns durability; docs/runbook updated; no
   behaviour change when the daemon is reachable.
+- **Blocked — cannot proceed yet (verified 2026-06-24).** Three blockers, two of
+  them on upstream kindling work:
+  1. **Depends on KDS-004 (Blocked on anvil-001#2910).** Deleting `DaemonUsageSink`
+     forces the daemon `command.invoked` producer to daemon-only (the default
+     flips off `ndjson`). The `anvil kindling usage` views read `usage.ndjson` and
+     cannot read the daemon until KDS-004's read path lands — so with the daemon
+     **reachable** the rows go to the daemon and the views lose them, directly
+     violating this item's own "no behaviour change when the daemon is reachable"
+     acceptance.
+  2. **Retention regression — needs a spool size/age cap (anvil-001#2916).** The
+     NDJSON sidecar is trimmed to a rolling 7-day / 64 MiB window; the
+     `SpooledClient` spool has no cap (its `SpoolConfig` reserves the knob), so
+     "the spool owns durability" would lose retention and grow unbounded under a
+     prolonged outage.
+  3. **Shared append logic.** `DaemonUsageSink` and the still-active **CLI**
+     producer (`usage::record_invocation`) both use `append_usage_observation_to`
+     → `append_observation_to` + `trim_usage_sidecar`; the "hand-rolled
+     append/rotation logic" cannot be deleted while the CLI path (out of KDS
+     scope) still uses it.
 - **Validation:** the suite is green with `DaemonUsageSink` removed; a
-  daemon-down run still durably buffers (now via the spool).
-- **Status:** Proposed
-- **Dependencies:** KDS-002, KDS-004
+  daemon-down run still durably buffers (now via the spool). _(Deferred — see
+  Blocked above.)_
+- **Status:** Blocked
+- **Dependencies:** KDS-002 (Merged); KDS-004 (Blocked on anvil-001#2910); a
+  spool size/age cap (anvil-001#2916)
 
 ## Risks
 
