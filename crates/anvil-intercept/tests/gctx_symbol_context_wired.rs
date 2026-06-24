@@ -151,8 +151,7 @@ fn get_snippet_params(root: &str, include_source: bool) -> Value {
 fn snippet_texts(outcome: &Value) -> Vec<Option<String>> {
     outcome["snippets"]
         .as_array()
-        .map(Vec::as_slice)
-        .unwrap_or(&[])
+        .map_or(&[] as &[Value], Vec::as_slice)
         .iter()
         .map(|row| row["snippet"]["text"].as_str().map(str::to_string))
         .collect()
@@ -318,12 +317,8 @@ fn symbol_context_identity_only_without_snippet_egress() {
                         .is_some_and(|rows| !rows.is_empty()),
                     "span-bearing seed must produce snippet rows: {outcome}",
                 );
-                for text in snippet_texts(outcome) {
-                    assert!(
-                        text.is_none(),
-                        "CE-1: text must be absent without ANVIL_GCTX_EGRESS=1, got: {:?}",
-                        text,
-                    );
+                if let Some(text) = snippet_texts(outcome).into_iter().flatten().next() {
+                    panic!("CE-1: text must be absent without ANVIL_GCTX_EGRESS=1, got: {text:?}");
                 }
                 assert!(
                     outcome.get("redaction_summary").is_some(),
@@ -529,11 +524,9 @@ fn symbol_context_withholds_text_when_stale_ce7() {
                 .await;
 
                 let outcome = &response["result"]["outcome"];
-                for text in snippet_texts(outcome) {
-                    assert!(
-                        text.is_none(),
-                        "CE-7: stale graph must withhold text, got: {:?}; outcome: {outcome}",
-                        text,
+                if let Some(text) = snippet_texts(outcome).into_iter().flatten().next() {
+                    panic!(
+                        "CE-7: stale graph must withhold text, got: {text:?}; outcome: {outcome}"
                     );
                 }
                 listener.shutdown().await;
