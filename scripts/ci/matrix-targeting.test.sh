@@ -152,5 +152,7 @@ assert_contains "${ci_nightly_workflow}" "  test-cross-platform:"
 assert_contains "${ci_nightly_workflow}" "          - os: macos-latest"
 assert_contains "${ci_nightly_workflow}" "          - os: windows-latest"
 assert_contains "${ci_nightly_workflow}" "  schedule:"
+assert_contains "${ci_nightly_workflow}" 'scripts/ci/rust-coverage.sh'
+assert_contains "${ci_nightly_workflow}" 'shared-key: rust-coverage'
 
 echo 'matrix-targeting workflow checks passed'

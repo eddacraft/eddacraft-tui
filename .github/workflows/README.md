@@ -213,6 +213,8 @@ and verdict shape are documented in `docs/policies/editor-coexistence.md`.
 
 Coverage (TS + Rust), expanded cross-platform matrices, multi-version Node
 tests, and broader audits that do not belong on routine PR or integration push.
+Rust coverage uses `scripts/ci/rust-coverage.sh` with a `rust-coverage`
+`rust-cache` namespace (separate from `rust-ci`) and a 180-minute job timeout.
 
 ### `ci-cost-report.yml` — CI Cost Report
 

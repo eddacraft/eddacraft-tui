@@ -18,7 +18,7 @@
     "test:rust": "cargo test --workspace",
     "test:coverage": "pnpm test:coverage:ts && pnpm test:coverage:rust",
     "test:coverage:ts": "nx run-many -t test --projects=tag:npm:public,tag:npm:private --exclude=@eddacraft/anvil-source --exclude=@eddacraft/anvil-e2e --exclude=@eddacraft/anvil-checks-native -- --coverage",
-    "test:coverage:rust": "cargo llvm-cov nextest --workspace --html && cargo llvm-cov report --summary-only && cargo test --doc --workspace",
+    "test:coverage:rust": "bash scripts/ci/rust-coverage.sh",
     "test:e2e": "playwright test",
     "test:e2e:harness": "pnpm --filter @eddacraft/anvil-e2e test",
     "test:e2e:smoke": "pnpm --filter @eddacraft/anvil-e2e test:smoke",

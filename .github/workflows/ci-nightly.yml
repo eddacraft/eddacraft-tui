@@ -216,6 +216,7 @@ jobs:
   coverage-rust:
     name: Rust Coverage (Linux)
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 180
     continue-on-error: true
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -226,10 +227,13 @@ jobs:
         with:
           components: llvm-tools-preview
 
+      # Separate cache namespace from rust-tests — llvm-cov instrumentation
+      # flags must not share artefact slots with the non-instrumented gate.
       - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
         with:
-          shared-key: rust-ci
-          save-if: 'false'
+          shared-key: rust-coverage
+          save-if:
+            ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
 
       - name: Install OPA
         uses: open-policy-agent/setup-opa@b2b258e089860efaadaaf71bf6e3aecb4a3eeff1 # v2.4.0
@@ -252,42 +256,11 @@ jobs:
         with:
           tool: cargo-nextest@${{ env.CARGO_NEXTEST_VERSION }}
 
-      # Coverage is observability, not a gate. Keep this step explicitly
-      # non-fatal while preserving whatever summary/artifact evidence is
-      # available from the run.
+      # Coverage is observability, not a gate. Collection mechanics live in
+      # scripts/ci/rust-coverage.sh (clean → --no-report nextest → report).
       - name: Collect coverage (nextest)
         continue-on-error: true
-        shell: bash
-        run: |
-          set +e
-          (
-            while true; do
-              sleep 60
-              echo "Rust coverage collection still running"
-            done
-          ) &
-          keepalive_pid=$!
-          trap 'kill "$keepalive_pid" 2>/dev/null || true' EXIT
-
-          cargo llvm-cov nextest --workspace --json --output-path coverage-rust.json
-          coverage_status=$?
-          if [ "$coverage_status" -ne 0 ]; then
-            echo "::warning::cargo llvm-cov nextest failed with status $coverage_status; nightly coverage is advisory"
-          fi
-
-          cargo llvm-cov report --html --output-dir target/llvm-cov
-          html_status=$?
-          if [ "$html_status" -ne 0 ]; then
-            echo "::warning::cargo llvm-cov html report failed with status $html_status"
-          fi
-
-          cargo llvm-cov report --summary-only | tee coverage-rust-summary.txt
-          summary_status=${PIPESTATUS[0]}
-          if [ "$summary_status" -ne 0 ]; then
-            echo "::warning::cargo llvm-cov summary failed with status $summary_status"
-          fi
-
-          exit 0
+        run: bash scripts/ci/rust-coverage.sh
 
       - name: Rust coverage summary
         if: always()

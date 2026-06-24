@@ -424,13 +424,14 @@ directories as `coverage-report-22.x` (14-day retention) and writes a
 per-project line/branch/function/statement table to the GitHub Actions job
 summary.
 
-Rust coverage uses `cargo-llvm-cov` and writes the local HTML report to
-`target/llvm-cov/html/`. The local command also prints the workspace summary.
-The nightly `coverage-rust` job uploads `coverage-rust.json`,
-`coverage-rust-summary.txt`, and the HTML report directory as
-`coverage-report-rust` (14-day retention); PRs and `main` push runs use the
-strict `cargo nextest` test gate without coverage instrumentation to keep
-feedback fast.
+Rust coverage is collected by `scripts/ci/rust-coverage.sh` (also invoked via
+`pnpm test:coverage:rust`). The script cleans stale profiles, runs
+`cargo llvm-cov --no-report nextest` with `--test-threads 1`, then emits `coverage-rust.json`, `coverage-rust-summary.txt`, and HTML under
+`target/llvm-cov/html/`. The nightly `coverage-rust` job uploads those artefacts
+as `coverage-report-rust` (14-day retention) using a dedicated `rust-coverage`
+cache namespace so instrumented builds do not collide with the non-instrumented
+`rust-ci` gate. PRs and `main` push runs use plain `cargo nextest` without
+coverage instrumentation to keep feedback fast.
 
 The E2E harness is reported separately from unit coverage totals. Its JSON
 result is uploaded as `e2e-results` from `coverage/e2e-results.json`.
