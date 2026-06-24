@@ -9,6 +9,14 @@
 
 **Last reviewed:** 2026-04-26
 
+> **Policy-solution validation (2026-06-24):** POLVAL should validate packs for
+> the Rust/regorus policy path. Structural pack checks live in
+> `crates/anvil-policy`; execution tests must prove the pack through
+> `crates/anvil-policy-engine` / `anvil policy eval` semantics. Go OPA
+> (`opa test`) may remain an optional compatibility/reference check for Rego
+> syntax, but it is not sufficient completion evidence for a pack that Anvil will
+> ship.
+
 ## Purpose
 
 Ensure policy packs produced by humans or AI are complete, tested, and safe to
@@ -37,7 +45,10 @@ before gate evaluation so policies do not fail silently.
 **Depends on:**
 
 <!-- Audit 2026-04-26: TS core paths superseded by Rust crates per ADR-026; opa-architecture-integration archived. -->
-- `crates/anvil-policy/` — Policy loading, storage, and OPA execution
+- `crates/anvil-policy/` — Policy loading, storage, manifest validation, and
+  pack-level orchestration
+- `crates/anvil-policy-engine/` — regorus evaluation facade and result
+  semantics for execution tests
 - `crates/anvil-kernel/` — Configuration loading
 
 **Exposes:**

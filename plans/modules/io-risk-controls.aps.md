@@ -9,6 +9,12 @@
 > NOTE(post-rust): Validation commands retargeted to the Rust workspace
 > (`crates/anvil-kernel-types` for taxonomy contracts, `crates/anvil-policy`
 > for scanner pipeline and findings integration).
+>
+> **Policy-solution validation (2026-06-24):** IORISK remains Ready as a
+> producer/normaliser of findings that feed POLENG result semantics. Rego policy
+> integration should run through the regorus facade; OPAG is a later
+> orchestration consumer, not a prerequisite for the taxonomy or scanner
+> pipeline.
 
 ## Purpose
 

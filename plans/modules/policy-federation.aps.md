@@ -9,6 +9,12 @@
 
 **Last reviewed:** 2026-04-26
 
+> **Policy-solution validation (2026-06-24):** POLFED should federate signed
+> Rego packs, lifecycle state, and pack metadata; evaluation remains the
+> ADR-040/POLENG regorus facade at each consuming repository. Go OPA may be a
+> reference compatibility check during pack publication, but not the fleet
+> runtime. Keep the OPAE/POLFED bundle-boundary ADR as a promotion gate.
+>
 > **Audit note (2026-04-26):** Tier C (parking lot, post-launch).
 > Multi-repo / fleet federation is an enterprise feature, not RTAI-blocking.
 >

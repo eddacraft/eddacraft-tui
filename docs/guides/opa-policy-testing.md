@@ -1,33 +1,38 @@
 # OPA Policy Testing Guide
 
-| Type  | Authority     | Owner | Status | Freshness                                                                                                         |
-| ----- | ------------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------- |
-| Guide | Authoritative | OPAG  | Live   | Last reviewed 2026-05-25 against `packages/anvil/policy/src/policy-loader.ts` and `policies/fixtures/` test packs |
+| Type  | Authority     | Owner | Status | Freshness                                                                                                          |
+| ----- | ------------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------ |
+| Guide | Authoritative | OPAG  | Live   | Last reviewed 2026-06-24 against ADR-040/POLENG, `crates/anvil-policy-engine`, `crates/anvil-policy`, and fixtures |
 
-| Upstream                                                                                                                                                        | Downstream                                               |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| `packages/anvil/policy/src/policy-loader.ts`, `packages/anvil/policy/src/opa-executor.ts`, `policies/fixtures/`, `plans/modules/opa-agent-orchestration.aps.md` | Policy authors, OPA fixture tests, gate policy execution |
+| Upstream                                                                                                                                                                                                                  | Downstream                                                                                       |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `crates/anvil-policy-engine` (regorus facade), `crates/anvil-policy` (pack/legacy OPA helpers), `policies/fixtures/`, `plans/modules/opa-agent-orchestration.aps.md`, `plans/decisions/040-rust-policy-engine-regorus.md` | Policy authors, Rego fixture tests, pack validation, policy governance planning, gate evaluation |
 
-How to write, test, and ship OPA/Rego policies for Anvil's gate. This guide
-covers the canonical fixture layout, the `*_test.rego` convention, the CI
-toolchain, and the minimum set of tests every policy pack should ship.
+How to write, test, and ship Rego policies for Anvil. The shipping product
+runtime is ADR-040's Rust/regorus facade in `crates/anvil-policy-engine`; the Go
+OPA binary remains a reference/compatibility tool for `opa test`, the POLENG
+parity workflow, and the legacy `.anvil/policies` gate path in
+`crates/anvil-policy`. This guide covers the canonical fixture layout, the
+`*_test.rego` convention, the CI toolchain, and the minimum set of tests every
+policy pack should ship.
 
 ## Where policies live
 
-| Location                       | Purpose                                                          |
-| ------------------------------ | ---------------------------------------------------------------- |
-| `policies/fixtures/`           | Repo-wide fixture pack used by all integration tests (TS + Rust) |
-| `<workspace>/.anvil/policies/` | Default `policy_dir` resolved by `PolicyCheck` at runtime        |
-| `<workspace>/<custom>/`        | Override via `gate.yaml` `checks[].config.policy_dir`            |
+| Location                       | Purpose                                                                  |
+| ------------------------------ | ------------------------------------------------------------------------ |
+| `policies/fixtures/`           | Repo-wide fixture pack used by Go OPA compatibility tests and Rust tests |
+| `<workspace>/.anvil/policies/` | Default legacy `policy_dir` resolved by the Rust gate policy check       |
+| `<workspace>/<custom>/`        | Override via `gate.yaml` `checks[].config.policy_dir`                    |
 
-`PolicyLoader` walks the policy dir, treating `*.rego` files as policies while
-excluding `*_test.rego` files from policy discovery, and treating each
-`*_test.rego` sibling as its unit-test file. Policy packages should be
-`anvil.policies.<policy_name>` and test packages
+`crates/anvil-policy::loader::PolicyLoader` walks the policy dir, treating
+`*.rego` files as policies while excluding `*_test.rego` files from policy
+discovery, and treating each `*_test.rego` sibling as its unit-test file. Policy
+packages should be `anvil.policies.<policy_name>` and test packages
 `anvil.policies.<policy_name>_test`. The loader does not validate package names
-during discovery (it uses filenames), but Anvil's OPA queries read results from
-`data.anvil.policies`, so policies whose package sits outside that hierarchy
-will load but their results won't surface in evaluation.
+during discovery (it uses filenames), but Anvil's legacy gate policy query reads
+results from `data.anvil.policies`, so policies whose package sits outside that
+hierarchy will load but their results won't surface in that path. New product
+surfaces should prefer the `anvil policy eval` / `PolicyInput` v1 contract.
 
 ## Anatomy of a policy pack
 
@@ -112,7 +117,7 @@ opa test policies/fixtures --verbose  # per-test PASS/FAIL lines
 `PASS: N/N` with no `FAIL` lines is the success condition. The integration tests
 assert exactly that.
 
-### Via the TS executor
+### Via the legacy TS executor
 
 ```bash
 pnpm install --frozen-lockfile
@@ -120,10 +125,11 @@ pnpm -F @eddacraft/anvil-policy build
 pnpm -F @eddacraft/anvil-policy exec vitest run src/opa-real.integration.test.ts
 ```
 
-The suite skips automatically when `opa` is not on `PATH` and `ANVIL_OPA_PATH`
-is unset.
+This package is still present for compatibility surfaces and OPA binary/version
+discipline. It is not the product policy runtime selected by ADR-040. The suite
+skips automatically when `opa` is not on `PATH` and `ANVIL_OPA_PATH` is unset.
 
-### Via the Rust executor
+### Via the Rust legacy OPA executor
 
 ```bash
 cargo test -p eddacraft-anvil-policy --test opa_real_binary
@@ -131,12 +137,24 @@ cargo test -p eddacraft-anvil-policy --test opa_real_binary
 
 Same skip behaviour.
 
-### Current real-binary coverage
+### Via the product regorus engine
+
+```bash
+cargo test -p eddacraft-anvil-policy-engine
+cargo test -p eddacraft-anvil --test policy_eval
+```
+
+Policy packs that are intended to ship through Anvil must have Rust/regorus
+coverage in addition to any direct `opa test` compatibility check.
+
+### Current real-binary and engine coverage
 
 The historical TypeScript gate-pipeline integration test moved under
 `anvil-archive/anvil-ts-scanner/` when the TypeScript scanner/runtime gate was
-retired. Current real-binary coverage is the direct OPA fixture suite, the
-TypeScript policy executor suite, and the Rust policy executor suite above.
+retired. Current Go OPA real-binary coverage is the direct fixture suite, the
+TypeScript compatibility executor suite, and the Rust legacy OPA executor suite
+above. Current product-engine coverage is `crates/anvil-policy-engine` plus the
+`anvil policy eval` CLI integration tests.
 
 ## OPA binary version
 
@@ -188,23 +206,24 @@ To bump:
 
 ## Input schema reference
 
-`PolicyCheck.buildOPAInput` provides:
+The authoritative product input contract is
+[`docs/specs/policy-input-v1.md`](../specs/policy-input-v1.md), backed by
+`crates/anvil-policy-engine/src/input.rs`. It provides:
 
-- `input.plan` — id, hash, intent, schema_version, proposed_changes (each with
-  `type`, `path`, `description`, `metadata`, derived `extension` and
-  `directory`), provenance, validations, tags, `change_count`,
-  `affected_directories`.
-- `input.context` — `workspace_root`, `timestamp`, optional `git` (branch,
-  base_branch, commit_sha, author, author_email), optional `ci` (provider,
-  build_id, pr_number, pr_author).
-- `input.architecture` — populated by `ArchitectureCheck` when it runs upstream
-  of policy: `layers`, `boundaries`, `dependencies`, `summary`, `violations`.
-- `input.config` — the per-check config from `gate.yaml`.
+- `input.schema_version` — `"v1"`.
+- `input.repo_state.files` and `input.repo_state.edges`.
+- `input.diff.changed_files` and `input.diff.new_edges`.
+- `input.plans[]` — APS plan file metadata visible to policies.
+- `input.decisions[]` — ADR decision-log entries visible to policies.
+- `input.baseline.findings[]` — pre-existing finding fingerprints.
 
-Policies should use the **most specific** field they need; reading
-`input.plan.proposed_changes` directly is safe and stable, but reaching into
-`input.context.git.branch` only makes sense when the gate caller includes git
-context (`include_git_context: true`, the default).
+The legacy `.anvil/policies` gate path in
+`crates/anvil-cli/src/commands/gate.rs` still builds a smaller compatibility
+input (`workspace`, `files`, `changed_files`, `profile`, and optional
+`plan_path`) and evaluates it through `crates/anvil-policy::opa::OpaExecutor`.
+New modules should not bind to that shape unless they explicitly target the
+legacy gate path; product work should bind to `PolicyInput` v1 and
+`anvil policy eval --json` v1.
 
 ## Troubleshooting
 

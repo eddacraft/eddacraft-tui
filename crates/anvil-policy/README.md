@@ -1,15 +1,20 @@
 # anvil-policy
 
-Policy engine for Anvil — evaluation, library loading, and policy lifecycle
-management.
+Policy support for Anvil — pack/library loading, legacy OPA compatibility,
+exceptions, and policy lifecycle helpers.
+
+The product policy runtime selected by ADR-040 is `crates/anvil-policy-engine`,
+which wraps `regorus` behind the `anvil_policy_engine` facade. This crate still
+owns pack and exception helpers and the legacy Go OPA executor used by
+compatibility tests and the current `.anvil/policies` gate path.
 
 ## Modules
 
 - **`config`** — policy configuration parsing
-- **`evaluator`** — policy rule evaluation
+- **`evaluator`** — legacy `.anvil/policies` gate evaluation
 - **`library`** — policy library loading and resolution
 - **`loader`** — policy file discovery and loading
-- **`opa`** — OPA (Open Policy Agent) integration
+- **`opa`** — Go OPA reference/compatibility integration
 
 ## Part of
 

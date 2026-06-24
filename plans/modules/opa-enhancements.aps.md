@@ -6,6 +6,18 @@
 
 **Last reviewed:** 2026-04-26
 
+> **Policy-solution validation (2026-06-24):** OPAE's historical name now means
+> "policy-as-code product enhancements", not a Go OPA runtime. The correct
+> shipping substrate is ADR-040/POLENG: Rego authored by users and packs,
+> evaluated through `crates/anvil-policy-engine`'s regorus facade, with
+> `crates/anvil-policy` owning pack/library/exception helpers. Go OPA remains a
+> reference/compatibility tool for `opa test` and the POLENG parity workflow,
+> and the legacy `.anvil/policies` gate path still shells out through
+> `crates/anvil-policy::opa`; new OPAE work must not add a second production OPA
+> runtime. This module stays **Draft** until its TS-era work items are split or
+> retargeted to the Rust/regorus crates and the OPAE/POLFED/POLVAL boundaries are
+> rechecked.
+>
 > NOTE(post-rust): Rust mapping documented in `plans/index.aps.md` (search
 > "REVIEW(post-rust)"). Task file paths below were authored against the
 > retired TS tree (`core/src/`, `cli/src/`); when each task moves to Ready
@@ -59,7 +71,10 @@ Transform Anvil's OPA functionality from useful to truly impressive by:
 
 ## Out of Scope
 
-- Full OPA runtime replacement (we wrap OPA, not replace it)
+- Replacing `regorus` or bypassing the `anvil-policy-engine` facade selected by
+  ADR-040.
+- Adding a new production Go OPA sidecar/FFI/cgo runtime. Go OPA is allowed only
+  as an explicit reference/parity or `opa test` compatibility tool.
 - Non-TypeScript/JavaScript language support (future)
   <!-- NOTE(post-rust): scope assumption is now invalid — Anvil is Rust-first
        per ADR-026; revisit language scope when OPAE moves to Ready. -->
@@ -70,9 +85,14 @@ Transform Anvil's OPA functionality from useful to truly impressive by:
 
 **Depends on:**
 
-- `opa-architecture-integration` — Core OPA infrastructure
-- `architecture-safety` — Dependency-cruiser integration
-- `tui` — Interactive components
+- `policy-engine` / POLENG — `anvil-policy-engine` regorus facade,
+  `PolicyInput` v1, result post-processing, coverage/trace, and
+  `anvil policy eval`
+- `crates/anvil-policy` — pack/library loading and exception helpers
+- `crates/anvil-kernel` / `crates/anvil-architecture` — architecture and repo
+  state producers
+- `crates/anvil-cli` — CLI surfaces
+- `crates/anvil-tui` — interactive components
 
 **Exposes:**
 
@@ -479,4 +499,3 @@ Transform Anvil's OPA functionality from useful to truly impressive by:
 - [Custom Architecture Policies Guide](../../docs/guides/custom-architecture-policies.md)
 - [OPA Policy Engine](../../docs/archive/planning/opa-policy-engine.md)
 - [OPA Architecture Integration](./opa-architecture-integration.aps.md)
-

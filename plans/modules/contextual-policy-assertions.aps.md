@@ -8,6 +8,11 @@
 
 > NOTE(post-rust): Validation commands updated from `pnpm nx test core` to
 > the Rust workspace equivalents in `crates/anvil-policy`.
+>
+> **Policy-solution validation (2026-06-24):** CPOL is still Ready when scoped
+> as deterministic context adapters and assertion guidance over
+> `PolicyInput`/regorus. It should not wait on OPAG unless a work item needs the
+> agent orchestration UX; the engine dependency is POLENG.
 
 ## Purpose
 

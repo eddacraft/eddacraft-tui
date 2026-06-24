@@ -9,6 +9,13 @@
 
 **Last reviewed:** 2026-04-26
 
+> **Policy-solution validation (2026-06-24):** COMPLY should consume
+> regorus-backed policy outcomes (`anvil policy eval --json` v1, pack metadata,
+> exceptions, and eval evidence), not Go OPA output directly. The module remains
+> Draft because the work items still carry TS-era paths and `nx test` commands;
+> rewrite them to `crates/anvil-policy`, `crates/anvil-kernel-types`, and
+> `crates/anvil-cli` before promotion.
+>
 > NOTE(post-rust): Task scopes/files reference the retired TS tree
 > (`packages/anvil/policy/src/`, `packages/anvil/runtime/src/`,
 > `apps/anvil-cli/src/commands/`). When this module moves to Ready, retarget

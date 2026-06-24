@@ -2,14 +2,22 @@
 
 | ID | Owner | Status |
 |----|-------|--------|
-| OPAG | @aneki | Ready |
+| OPAG | @aneki | Proposed |
 
-**Last reviewed:** 2026-04-26
+**Last reviewed:** 2026-06-24 (policy-solution validation)
 
-> NOTE(post-rust): Validation commands below still reference `pnpm nx test`
-> targets from the retired TS tree. When tasks execute, run equivalent
-> `cargo test -p eddacraft-anvil-policy` / `cargo test -p eddacraft-anvil` /
-> `cargo test -p eddacraft-anvil-kernel` suites. Dependency modules
+> **Status correction (2026-06-24):** demoted Ready → Proposed. OPAG depends
+> on OPAE product contracts (`OPAE-001`, `OPAE-012`, exception workflow items)
+> that are still Draft and TS-era. The correct substrate is
+> ADR-040/POLENG (`anvil-policy-engine` over regorus) plus the frozen
+> `anvil policy eval --json` v1 output; OPAG should orchestrate that substrate
+> and EXCEPT-managed exceptions, not introduce a separate Go OPA runtime.
+> Promote OPAG only after the OPAE contract slice is rewritten against
+> Rust/regorus and the MCP/agent-facing surface is explicitly re-approved.
+
+> NOTE(post-rust): Validation commands have been retargeted to the Rust
+> workspace (`cargo test -p eddacraft-anvil-policy`,
+> `cargo test -p eddacraft-anvil`, and related crates). Dependency modules
 > `opa-architecture-integration`, `architecture-safety`, and `mcp-server` are
 > archived; their capability is covered by `crates/anvil-policy` and
 > `crates/anvil-kernel` (architecture invariants) respectively. MCP surface
@@ -29,7 +37,10 @@ Define and deliver an orchestration layer that turns Anvil policy evaluation int
 
 ## Out of Scope
 
-- Replacing OPA/Rego as evaluation engine
+- Replacing Rego as the authoring language or replacing the
+  `anvil-policy-engine` regorus facade selected by ADR-040.
+- Adding a second production Go OPA runtime. Go OPA is reference/parity tooling
+  only unless a future ADR reverses ADR-040.
 - New language analyzers beyond existing Anvil support
 - External identity/approval providers (SSO, HRIS)
 
@@ -37,10 +48,14 @@ Define and deliver an orchestration layer that turns Anvil policy evaluation int
 
 **Depends on:**
 
-- `opa-architecture-integration` — OPA execution and policy input conventions
-- `opa-enhancements` — policy packs, violation semantics
-- `architecture-safety` — dependency/architecture signal inputs
-- `mcp-server` — agent-facing runtime surface
+- POLENG / `crates/anvil-policy-engine` — regorus evaluation,
+  `PolicyInput` v1, result post-processing, coverage/trace
+- `opa-enhancements` — policy product contracts (must be Rust/regorus-retargeted
+  before OPAG executes)
+- `git-native-exceptions` — durable exception records and verification
+- `crates/anvil-kernel` / `crates/anvil-architecture` — architecture and repo
+  signal inputs
+- MCP / agent-facing runtime surface — deferred until the surface is re-approved
 
 **Exposes:**
 
@@ -49,13 +64,15 @@ Define and deliver an orchestration layer that turns Anvil policy evaluation int
 - `ExceptionWorkflow` — request/review/expiry lifecycle
 - `PolicyAuditEvents` — append-only event stream for decisions
 
-## Ready Checklist
+## Promotion Checklist
 
 Change status to **Ready** when:
 
 - [x] Purpose and scope are clear
 - [x] Dependencies identified
 - [x] At least one task defined
+- [ ] OPAE contract slice is retargeted to Rust/regorus and promoted
+- [ ] MCP/agent-facing surface dependency is re-approved or explicitly removed
 
 ## Work Items
 

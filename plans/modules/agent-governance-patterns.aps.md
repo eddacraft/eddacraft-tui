@@ -9,6 +9,12 @@
 
 **Last reviewed:** 2026-04-26
 
+> **Policy-solution validation (2026-06-24):** AGOV remains Draft. Its signal
+> producers should feed `crates/anvil-policy` / `crates/anvil-checks` and Rego
+> packs evaluated by the POLENG regorus facade. AGOV-002's pack-stub overlap
+> with CPACKS is still the only policy-pack overlap; do not add OPA runtime work
+> here.
+>
 > **Audit note (2026-04-26):** Tier C (parking lot, post-launch). Council C
 > recommended dissolving this module into CPACKS + `crates/anvil-checks` —
 > that was overreach. AGOV is depended on by other live planning modules:

@@ -9,6 +9,13 @@
   Ready. Cross-boundary surface (policy + intercept daemon + witness chain
   + agent runtime + driver-client) — design needs multi-persona review.
 
+> **Policy-solution validation (2026-06-24):** corrected the ADR placeholder
+> from ADR-051 to ADR-092 because ADR-051 is already the accepted
+> CLI-panic-unwind decision. POLCAP composes with the ADR-040 regorus policy
+> runtime and ACTAX/AGOV/IORISK signal producers; it must not create a parallel
+> policy evaluator. The capability view is advisory until gate/witness bindings
+> make `cap_id` audit rows load-bearing.
+
 ## Purpose
 
 Give a governed agent a deterministic, signed, machine-readable view of the
@@ -64,7 +71,7 @@ audit binding. Detailed design lives in
   view's source of truth), SKOBS (skill-inventory hashing pattern reused
   for recipes), DRVR (per-driver manifest negotiation already exists —
   POLCAP is the agent-side surface; DRVR is the driver-side surface).
-- **Blocks on:** Planning Council acceptance of this module + ADR-051.
+- **Blocks on:** Planning Council acceptance of this module + ADR-092.
 - **Cites:** ADR-001 (planless-first), ADR-002 (warnings over blocks),
   ADR-037 (witness chain + L4 policy), ADR-040 (regorus engine), ADR-024
   (weave agent harness), ADR-045 (minisign — signing-scheme prior art for
@@ -74,7 +81,7 @@ audit binding. Detailed design lives in
 
 - **changeType:** feature
 - **releaseIntent:** hold
-- **holdCondition:** Planning Council accepts ADR-051; AGOV-007 manifest
+- **holdCondition:** Planning Council accepts ADR-092; AGOV-007 manifest
   shape stable; ACTAX-001 action taxonomy vocabulary frozen for v1.
 - **releaseScope:** minor (new agent-facing protocol surface, additive
   witness-chain fields)
@@ -102,7 +109,7 @@ audit binding. Detailed design lives in
 
 | ID | Title | Status | Confidence |
 |---|---|---|---|
-| POLCAP-001 | Author ADR-051 and convene Planning Council | Proposed | medium |
+| POLCAP-001 | Author ADR-092 and convene Planning Council | Proposed | medium |
 | POLCAP-002 | Capability-view JSON schema + signing envelope (kernel-types) | Proposed | medium |
 | POLCAP-003 | Skill-recipe vocabulary and the seven beta recipes | Proposed | medium |
 | POLCAP-004 | Structured error-code taxonomy + agent recovery contract | Proposed | high |
@@ -113,19 +120,19 @@ audit binding. Detailed design lives in
 | POLCAP-009 | Reconciliation with AGOV-007, ACTAX-001, IORISK risk dimensions | Proposed | low |
 | POLCAP-010 | Operator docs: recipe authoring guide + epoch-rotation runbook | Proposed | high |
 
-### POLCAP-001 — Author ADR-051 and convene Planning Council
+### POLCAP-001 — Author ADR-092 and convene Planning Council
 
 - **Intent:** Land the durable architectural decision for the
   capability-discovery surface before any implementation begins.
-- **Expected Outcome:** ADR-051 file at
-  `plans/decisions/051-policy-capability-discovery.md` with status
+- **Expected Outcome:** ADR-092 file at
+  `plans/decisions/092-policy-capability-discovery.md` with status
   Proposed; entry added to
   `plans/decisions/DECISION-LOG.md` under "Policy and Governance"; Planning
   Council session run with kernel, ops, adversarial, pragmatic, and
   policy-engine personas; council verdict recorded inline in the ADR.
 - **Validation:** `pnpm adr:check` green; council session minutes linked
   from the ADR.
-- **Files:** `plans/decisions/051-policy-capability-discovery.md`,
+- **Files:** `plans/decisions/092-policy-capability-discovery.md`,
   `plans/decisions/DECISION-LOG.md`, this module file.
 - **Confidence:** medium — depends on council outcome.
 - **changeType:** docs
@@ -146,7 +153,7 @@ audit binding. Detailed design lives in
 - **Dependencies:** POLCAP-001.
 - **changeType:** feature
 - **releaseIntent:** hold
-- **holdCondition:** ADR-051 Accepted.
+- **holdCondition:** ADR-092 Accepted.
 
 ### POLCAP-003 — Skill-recipe vocabulary and the seven beta recipes
 
@@ -200,7 +207,7 @@ audit binding. Detailed design lives in
   key derived during owner-only IPC handshake; rate-limited by the
   existing session registry primitives; emits `tracing::` instrumentation
   per ADR-035.
-- **Validation:** `cargo test -p anvil-intercept-lib`; latency under the
+- **Validation:** `cargo test -p eddacraft-anvil-intercept`; latency under the
   500 ms activation budget pinned by INTD-014's rubric.
 - **Dependencies:** POLCAP-002, POLCAP-004; coordinates with MLP2-051f
   (activation diagnostic) for the signing-key derivation path.
@@ -232,7 +239,7 @@ audit binding. Detailed design lives in
   call referencing a `signing_epoch` below the daemon's current epoch
   with `CapErrorCode::StaleEpoch`; both refusals record on the witness
   row.
-- **Validation:** `cargo test -p anvil-intercept-lib` covering both
+- **Validation:** `cargo test -p eddacraft-anvil-intercept` covering both
   refusal paths; adversarial test injects a cap_id from a different
   session and confirms refusal.
 - **Dependencies:** POLCAP-006, POLCAP-007.

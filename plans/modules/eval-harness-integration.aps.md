@@ -11,6 +11,11 @@
 > `drift-reporting` dependency is archived; treat its capability as
 > covered by `crates/anvil-policy` drift outputs (or revisit when EVAL
 > moves to In Progress).
+>
+> **Policy-solution validation (2026-06-24):** EVAL is correctly anchored on the
+> frozen `anvil policy eval --json` v1 output contract, which is produced by the
+> POLENG regorus engine. Bind adapters to that contract, not to Go OPA's JSON
+> output or diagnostic-only coverage/trace shapes.
 
 ## Purpose
 

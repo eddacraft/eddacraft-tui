@@ -9,6 +9,11 @@
 
 **Last reviewed:** 2026-04-26
 
+> **Policy-solution validation (2026-06-24):** hierarchy resolution should feed
+> the ADR-040/POLENG regorus runtime through `crates/anvil-policy`; "OPA"
+> wording in older notes means Rego policy evaluation, not a Go OPA production
+> runtime.
+
 ## Purpose
 
 Enable multi-level policy governance so organisations can enforce baseline
@@ -39,7 +44,8 @@ controlled override and exemption semantics at each level.
 **Depends on:**
 
 <!-- Audit 2026-04-26: opa-architecture-integration archived; policy now lives in crates/anvil-policy. -->
-- `crates/anvil-policy` — Policy loading and OPA execution
+- `crates/anvil-policy` — Policy loading, hierarchy resolution, and
+  regorus-backed evaluation orchestration
 - `policy-pack-validation` — Validation of policy packs at each tier
 - `opa-enhancements` — Remote bundle infrastructure (OPAE-034–036)
 

@@ -9,6 +9,11 @@
 
 **Last reviewed:** 2026-04-26
 
+> **Policy-solution validation (2026-06-24):** lifecycle state belongs above
+> the ADR-040/POLENG runtime. Promotion, canary, grace, and rollback metadata
+> should select which Rego packs are evaluated by the regorus facade; the module
+> does not own or replace the policy engine.
+
 ## Purpose
 
 Give organisations control over the full lifecycle of a policy — from draft

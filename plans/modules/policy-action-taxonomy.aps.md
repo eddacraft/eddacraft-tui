@@ -16,6 +16,12 @@
 > a YAML-first policy DSL that compiles to Rego, and risk-score fusion into
 > the existing intercept routing. Tool-call interception is held out as
 > Phase D pending a separate decision.
+>
+> **Policy-solution validation (2026-06-24):** ACTAX is aligned with the
+> current direction because YAML compiles to Rego and regorus remains the single
+> evaluation engine. Package validation commands were normalised to the
+> workspace's `eddacraft-*` Cargo package names; any new crates introduced by
+> this module should follow the same naming convention.
 
 ## Purpose
 
@@ -96,7 +102,7 @@ declare risk dimensions rather than wiring every threshold by hand.
 ## Acceptance Criteria
 
 - [ ] Action taxonomy crate compiles; versioned; append-only invariant
-      enforced by a test (`cargo test -p anvil-action-taxonomy`)
+      enforced by a test (`cargo test -p eddacraft-anvil-action-taxonomy`)
 - [ ] YAML pack schema validates a known-good and a known-bad fixture
 - [ ] YAML pack compiles to Rego with byte-stable output across runs
       (determinism, per planless-first principle)
@@ -108,8 +114,8 @@ declare risk dimensions rather than wiring every threshold by hand.
       to write and ship a working YAML pack
 - [ ] permit0 attribution present in `ACKNOWLEDGEMENTS.md` and any vendored
       taxonomy file carries its source comment + Apache 2.0 NOTICE
-- [ ] No regression in `cargo test -p anvil-policy-engine` or
-      `cargo test -p anvil-intercept-rules`
+- [ ] No regression in `cargo test -p eddacraft-anvil-policy-engine` or
+      `cargo test -p eddacraft-anvil-intercept-rules`
 - [ ] No new dependency on a Rust daemon, axum, biscuit-auth, or MCP
       server (we already have equivalents)
 
@@ -148,7 +154,7 @@ declare risk dimensions rather than wiring every threshold by hand.
   - `crates/anvil-action-taxonomy/Cargo.toml`
   - `crates/anvil-action-taxonomy/src/lib.rs`
   - `crates/anvil-action-taxonomy/taxonomy.yml`
-- **Validation:** `cargo test -p anvil-action-taxonomy`
+- **Validation:** `cargo test -p eddacraft-anvil-action-taxonomy`
 - **Confidence:** high
 - **changeType:** internal
 - **releaseIntent:** never
@@ -165,7 +171,7 @@ declare risk dimensions rather than wiring every threshold by hand.
   comment and the file carries the Apache 2.0 NOTICE.
 - **Non-scope:** Verb additions outside the curated domains
 - **Dependencies:** ACTAX-001
-- **Validation:** `cargo test -p anvil-action-taxonomy -- curation`
+- **Validation:** `cargo test -p eddacraft-anvil-action-taxonomy -- curation`
 - **Confidence:** medium
 - **changeType:** internal
 - **releaseIntent:** never
@@ -179,7 +185,7 @@ declare risk dimensions rather than wiring every threshold by hand.
   manifest and fails on removal / rename. Additions pass. Bump procedure
   documented in the crate README.
 - **Dependencies:** ACTAX-002
-- **Validation:** `cargo test -p anvil-action-taxonomy -- append_only`
+- **Validation:** `cargo test -p eddacraft-anvil-action-taxonomy -- append_only`
 - **Confidence:** high
 - **changeType:** internal
 - **releaseIntent:** never
@@ -214,7 +220,7 @@ declare risk dimensions rather than wiring every threshold by hand.
 - **Non-scope:** Compilation to Rego (ACTAX-011)
 - **Dependencies:** ACTAX-001, coordination resolution with CPOL
 - **Coordinates with:** CPOL (contextual-policy-assertions)
-- **Validation:** `cargo test -p anvil-policy -- yaml_schema`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- yaml_schema`
 - **Confidence:** medium
 - **changeType:** feature
 - **releaseIntent:** candidate
@@ -229,7 +235,7 @@ declare risk dimensions rather than wiring every threshold by hand.
   matches the YAML author's stated intent.
 - **Non-scope:** Risk-score wiring (Phase C)
 - **Dependencies:** ACTAX-010, POLENG facade reaching usable state
-- **Validation:** `cargo test -p anvil-policy -- yaml_compile`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- yaml_compile`
 - **Confidence:** low
 - **changeType:** feature
 - **releaseIntent:** candidate
@@ -243,7 +249,7 @@ declare risk dimensions rather than wiring every threshold by hand.
   contributing compiled Rego modules. Errors surface with file:line
   pointing to the YAML source, not the generated Rego.
 - **Dependencies:** ACTAX-011
-- **Validation:** `cargo test -p anvil-policy -- yaml_loader`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- yaml_loader`
 - **Confidence:** medium
 - **changeType:** feature
 - **releaseIntent:** candidate
@@ -257,7 +263,7 @@ declare risk dimensions rather than wiring every threshold by hand.
   covers a small set of taxonomy verbs, evaluates end-to-end, and is
   cited from the authoring guide.
 - **Dependencies:** ACTAX-012
-- **Validation:** `cargo test -p anvil-policy -- reference_pack`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- reference_pack`
 - **Confidence:** high
 - **changeType:** feature
 - **releaseIntent:** candidate
@@ -290,7 +296,7 @@ declare risk dimensions rather than wiring every threshold by hand.
 - **Non-scope:** Intercept routing changes (ACTAX-022)
 - **Dependencies:** ACTAX-011, IORISK-001..006 at Ready
 - **Coordinates with:** IORISK (io-risk-controls), POLENG (policy-engine)
-- **Validation:** `cargo test -p anvil-policy-engine -- risk_score`
+- **Validation:** `cargo test -p eddacraft-anvil-policy-engine -- risk_score`
 - **Confidence:** medium
 - **changeType:** feature
 - **releaseIntent:** candidate
@@ -306,7 +312,7 @@ declare risk dimensions rather than wiring every threshold by hand.
   error.
 - **Dependencies:** ACTAX-020, AGOV-001 (stubbed if AGOV remains Draft)
 - **Coordinates with:** AGOV (agent-governance-patterns)
-- **Validation:** `cargo test -p anvil-policy -- trust_amplifier`
+- **Validation:** `cargo test -p eddacraft-anvil-policy -- trust_amplifier`
 - **Confidence:** low
 - **changeType:** feature
 - **releaseIntent:** hold
@@ -326,7 +332,7 @@ declare risk dimensions rather than wiring every threshold by hand.
 - **Non-scope:** New IPC surface; new daemon flags
 - **Dependencies:** ACTAX-020
 - **Coordinates with:** INTR (intercept-rules)
-- **Validation:** `cargo test -p anvil-intercept-rules -- risk_routing`
+- **Validation:** `cargo test -p eddacraft-anvil-intercept-rules -- risk_routing`
 - **Confidence:** medium
 - **changeType:** feature
 - **releaseIntent:** candidate
@@ -379,7 +385,7 @@ declare risk dimensions rather than wiring every threshold by hand.
   packs and `RiskScore` produced by Phase C.
 - **Non-scope:** MCP wiring, agent harness integration
 - **Dependencies:** ACTAX-D01 accepted
-- **Validation:** `cargo test -p anvil-tool-intercept`
+- **Validation:** `cargo test -p eddacraft-anvil-tool-intercept`
 - **Confidence:** low
 - **changeType:** feature
 - **releaseIntent:** hold

@@ -9,6 +9,16 @@
 
 **Last reviewed:** 2026-04-26
 
+> **Policy-solution validation (2026-06-24):** CPACKS keeps Rego as the
+> portable policy language, but the shipping Anvil runtime is
+> `crates/anvil-policy-engine` over regorus (ADR-040/POLENG), not a production
+> Go OPA dependency. Direct `opa test` commands in older work items are
+> compatibility/syntax checks only; completion evidence for each pack must also
+> include a Rust/regorus-backed `cargo test` path through `crates/anvil-policy`
+> or `crates/anvil-policy-engine`. Keep CPACKS **Draft** until POLVAL defines
+> the pack manifest/test contract and the lower work-item file paths are
+> retargeted to Rust-owned pack locations.
+>
 > NOTE(post-rust): All task `Scope`/`Files` paths target the retired TS tree
 > (`packages/anvil/runtime/src/gate/__fixtures__/policies/...`). The Rego
 > policies themselves are language-agnostic and can be reused, but when
@@ -687,12 +697,15 @@ D-CPACKS-002: Shared common directory over policy duplication
 
 D-CPACKS-003: Policies as Rego, not native checks
 
-- **Rationale:** OPA/Rego is the policy engine adopted in OPAE. Compliance
-  policies should use the same engine for consistency, composability, and
-  portability. Native gate checks (in `crates/anvil-checks`) are for
-  structural concerns; Rego is for policy logic.
+- **Rationale:** Rego is the policy language retained by ADR-040, and
+  `crates/anvil-policy-engine` evaluates it through regorus. Compliance
+  policies should use that same facade for consistency, composability, and
+  portability. Native gate checks (in `crates/anvil-checks`) are for structural
+  concerns; Rego is for policy logic.
 - **Alternatives:** Implement as native Rust gate checks in `crates/anvil-checks`
-- **Trade-offs:** Requires OPA runtime; `crates/anvil-policy` already provides this.
+- **Trade-offs:** Requires Rego literacy and pack validation; Go OPA remains
+  useful as a reference test runner, but the product runtime is the regorus
+  facade.
 
 D-CPACKS-004: AI packs reference AGOV trust scoring and capability model
 
@@ -741,7 +754,7 @@ FedRAMP       — US federal cloud
 ### Pack Directory Layout
 
 ```text
-library/compliance/
+crates/anvil-policy/policies/compliance/
 ├── common/
 │   ├── helpers.rego
 │   ├── severity.rego
