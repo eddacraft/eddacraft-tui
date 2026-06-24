@@ -121,8 +121,14 @@ need a short ADR to reconcile the wording.
       `anvil-kindling` adapter crate later if the JSON-RPC path also needs it)
 - [x] Dependency pinning policy confirmed — caret `0.2`; the client fails loud
       on schema-version mismatch (`EXPECTED_SCHEMA_VERSION`, currently 5)
-- [ ] D-035 reconciliation decided (reword vs short ADR) — deferred to KDS-002,
-      the wiring change that actually makes the daemon the primary write path
+- [x] D-035 reconciliation decided — **no reword / new ADR needed** (KDS-002).
+      ADR-035 frames Kindling as the _"SQLite-backed, write-once, source of
+      truth"_ pipe — that pins Kindling's **role**, not the **write mechanism**.
+      The daemon sink realises that SQLite-source-of-truth framing directly (the
+      NDJSON sidecar was the workaround), and KDS-002 keeps NDJSON the default
+      with the daemon opt-in, so nothing in ADR-035's matrix is contradicted. A
+      wording change would only be warranted if/when the daemon becomes the
+      **default** authoritative write path (a future graduated flip, not KDS-002).
 - [ ] Usage-views read-path migration approach agreed (KDS-004)
 
 ## Work Items
@@ -158,17 +164,32 @@ need a short ADR to reconcile the wording.
 
 ### KDS-002: Wire the daemon sink as primary, with sink selection
 
-- **Intent:** Route the USAGE producers through `KindlingDaemonSink` by default,
-  with the spool as fallback and a config flag to choose the sink.
-- **Expected Outcome:** the producer wiring (`daemon_usage_emitter` and the
-  JSON-RPC path) constructs `KindlingDaemonSink` when the resolved sink is
-  `daemon`; `ndjson` keeps today's behaviour; `off` disables capture. The
-  privacy-first default is preserved (Kindling opt-in, local-only). Documented in
-  the usage-analytics runbook.
-- **Validation:** tests covering each sink variant; a default-config test
-  confirming the privacy contract is unchanged.
-- **Status:** Proposed
-- **Dependencies:** KDS-001
+- **Intent:** Make the daemon `command.invoked` producer's sink selectable, with
+  the spool as fallback, via an operator toggle.
+- **Expected Outcome:** `daemon_usage_emitter` (the single construction site the
+  JSON-RPC dispatch path consumes via `with_usage_emitter`) resolves
+  `ANVIL_KINDLING_SINK` to `daemon | ndjson | off`: `daemon` builds
+  `KindlingDaemonSink`; `ndjson` keeps today's `DaemonUsageSink` behaviour; `off`
+  disables the daemon producer (no emitter wired); unset / unrecognised →
+  `ndjson` (default) with a warn on an unrecognised value. The whole-observation
+  break-glass `ANVIL_INTERCEPT_DISABLE_OBSERVATION=1` now also gates this
+  producer (it previously didn't — a consent gap vs the documented "silences
+  every producer" claim). The privacy-first default is preserved (capture stays
+  local-only; the default is unchanged). Documented in the usage-analytics
+  runbook. **Default stays `ndjson`** — making the daemon the default
+  authoritative write path is a deferred graduated flip (pending a spool
+  size/age cap and broad `kindling`-binary availability), not this item.
+  **`repo_id`:** the `daemon` sink keeps the client's default project root (its
+  CWD); the daemon is per-user and routes per-call via the `X-Kindling-Project`
+  header, so authoritative per-call `repo_id` scoping is a KDS-004 follow-up (a
+  static workspace root resolved at startup would mis-scope rows when the
+  daemon's CWD is not the served project).
+- **Validation:** unit tests for the selection resolver (each variant incl.
+  case / whitespace / unrecognised); tests that `off` and the break-glass both
+  yield no emitter, that `daemon` wires an emitter, and that the default/unset
+  path still wires the NDJSON sink (privacy contract unchanged).
+- **Status:** In Progress
+- **Dependencies:** KDS-001 (Merged)
 
 ### KDS-003: Daemon-vs-NDJSON parity
 

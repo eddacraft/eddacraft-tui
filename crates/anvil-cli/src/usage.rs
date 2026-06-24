@@ -904,26 +904,86 @@ impl KindlingObservationSink for DaemonObservationSink {
     }
 }
 
-/// KDS-002 (partial): env var selecting the `command.invoked` sink backend.
-/// `daemon` routes through [`crate::kindling_daemon_sink::KindlingDaemonSink`];
-/// any other value (including unset) keeps the NDJSON sidecar.
+/// KDS-002: env var selecting the daemon `command.invoked` sink backend.
 const KINDLING_SINK_ENV: &str = "ANVIL_KINDLING_SINK";
 
-/// True when `ANVIL_KINDLING_SINK=daemon` (case-insensitive, trimmed) is set.
-/// Read fresh so an operator can flip it per daemon start; the privacy-first
-/// NDJSON default is preserved for every other value.
-fn daemon_kindling_sink_selected() -> bool {
-    env::var(KINDLING_SINK_ENV).is_ok_and(|value| value.trim().eq_ignore_ascii_case("daemon"))
+/// KDS-002: operator-selected backend for the daemon `command.invoked`
+/// producer, resolved from [`KINDLING_SINK_ENV`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum KindlingSinkSelection {
+    /// Append to the Kindling daemon via `KindlingDaemonSink` (spool fallback).
+    Daemon,
+    /// Append to the local `usage.ndjson` sidecar (today's default).
+    Ndjson,
+    /// Disable the daemon `command.invoked` producer entirely (no rows).
+    Off,
 }
 
-/// USAGE-004: build the daemon-side command-invocation usage emitter,
-/// wired to the shared `usage.ndjson` sink. Returns `None` (usage export
-/// off) when the usage path cannot be resolved, so a daemon on a host
-/// without a resolvable state dir still starts. The per-startup
-/// `daemon_session_id` stamps every daemon row; individual calls are
-/// correlated by `traceparent`, not this id.
+/// Parse a raw [`KINDLING_SINK_ENV`] value (case-insensitive, trimmed) to a
+/// [`KindlingSinkSelection`].
+///
+/// Unset (`None`) and empty → `Ndjson`, so the privacy-first default is
+/// unchanged. An **unrecognised** value also resolves to `Ndjson` (with a warn)
+/// rather than `Off`, so a typo never silently disables capture or re-routes it.
+fn parse_kindling_sink(value: Option<&str>) -> KindlingSinkSelection {
+    let Some(raw) = value else {
+        return KindlingSinkSelection::Ndjson;
+    };
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "daemon" => KindlingSinkSelection::Daemon,
+        "off" => KindlingSinkSelection::Off,
+        "" | "ndjson" => KindlingSinkSelection::Ndjson,
+        // Don't echo the raw value — an operator could mis-assign a secret to
+        // this var; the message alone is enough to debug a typo.
+        _ => {
+            tracing::warn!(
+                target: "anvil::usage",
+                "unrecognised ANVIL_KINDLING_SINK value; defaulting to the NDJSON sidecar \
+                 (expected daemon|ndjson|off)",
+            );
+            KindlingSinkSelection::Ndjson
+        }
+    }
+}
+
+/// Resolve [`KINDLING_SINK_ENV`] to a [`KindlingSinkSelection`]. Read fresh so an
+/// operator can flip it per daemon start.
+fn resolve_kindling_sink() -> KindlingSinkSelection {
+    parse_kindling_sink(env::var(KINDLING_SINK_ENV).ok().as_deref())
+}
+
+/// USAGE-004: build the daemon-side command-invocation usage emitter, wired to
+/// the sink selected by [`resolve_kindling_sink`] (`daemon | ndjson | off`).
+///
+/// Returns `None` — no usage rows — when the sink is `off`, or when the usage
+/// path cannot be resolved (so a daemon on a host without a resolvable state dir
+/// still starts). The per-startup `daemon_session_id` stamps every daemon row;
+/// individual calls are correlated by `traceparent`, not this id.
 #[must_use]
 pub fn daemon_usage_emitter() -> Option<Arc<CommandInvokedEmitter>> {
+    // Whole-observation break-glass (parity with `daemon_observation_producers`
+    // and the CLI `usage_collection_disabled`): one toggle silences EVERY usage
+    // producer, as the operator-controls runbook documents. Previously this
+    // daemon `command.invoked` producer ignored it — a consent gap vs the docs.
+    if env::var_os("ANVIL_INTERCEPT_DISABLE_OBSERVATION").is_some_and(|v| v == "1") {
+        tracing::warn!(
+            target: "anvil::usage",
+            "ANVIL_INTERCEPT_DISABLE_OBSERVATION=1 — daemon command.invoked usage \
+             producer disabled (break-glass)",
+        );
+        return None;
+    }
+    // KDS-002: `off` disables the daemon command.invoked producer outright —
+    // resolved before any path/sink work so it needs no state dir.
+    let selection = resolve_kindling_sink();
+    if matches!(selection, KindlingSinkSelection::Off) {
+        tracing::info!(
+            target: "anvil::usage",
+            "ANVIL_KINDLING_SINK=off — daemon command.invoked usage producer disabled",
+        );
+        return None;
+    }
+
     let path = default_usage_log_path()
         .map_err(|err| {
             tracing::warn!(
@@ -946,33 +1006,43 @@ pub fn daemon_usage_emitter() -> Option<Arc<CommandInvokedEmitter>> {
     // channel drops + counts the row, never duplicates it) and FIFO
     // ordering per the single bounded `sync_channel`, matching the
     // best-effort, drop-don't-block contract the save-time sink already has.
-    // KDS-001 / KDS-002 (partial): opt into the daemon-backed Kindling sink
-    // with `ANVIL_KINDLING_SINK=daemon`. The default (unset / any other value)
-    // keeps the privacy-first NDJSON sidecar, so the capture contract is
-    // unchanged unless an operator explicitly opts in. The full
-    // `daemon|ndjson|off` selection surface is KDS-002.
-    let inner: Arc<dyn KindlingObservationSink> = if daemon_kindling_sink_selected() {
-        match crate::kindling_daemon_sink::default_spool_path()
-            .map_err(|err| KindlingSinkError::Unavailable(err.to_string()))
-            .and_then(|spool| crate::kindling_daemon_sink::KindlingDaemonSink::new(None, spool))
-        {
-            Ok(sink) => Arc::new(sink) as Arc<dyn KindlingObservationSink>,
-            Err(err) => {
-                // Degrade to the NDJSON sidecar rather than dropping usage
-                // export entirely: a daemon-sink build failure (e.g. the sink
-                // runtime could not start) should not silence capture the
-                // operator already opted into. The `path` was resolved above.
-                tracing::warn!(
-                    target: "anvil::usage",
-                    error = %err,
-                    "ANVIL_KINDLING_SINK=daemon set but the daemon sink could \
-                     not be built; falling back to the NDJSON sidecar",
-                );
-                Arc::new(DaemonUsageSink { path }) as Arc<dyn KindlingObservationSink>
+    let inner: Arc<dyn KindlingObservationSink> = match selection {
+        // KDS-001/-002: the daemon-backed Kindling sink. `repo_id` is left to
+        // the client's default (its `project_root` / CWD). The daemon is
+        // per-user and routes per-call via the `X-Kindling-Project` header, so a
+        // single static workspace root resolved here would mis-scope rows when
+        // the daemon's CWD is not the served project (it could even resolve to
+        // `$HOME`). Authoritative per-call `repo_id` scoping is a KDS-004
+        // follow-up.
+        KindlingSinkSelection::Daemon => {
+            match crate::kindling_daemon_sink::default_spool_path()
+                .map_err(|err| KindlingSinkError::Unavailable(err.to_string()))
+                .and_then(|spool| crate::kindling_daemon_sink::KindlingDaemonSink::new(None, spool))
+            {
+                Ok(sink) => Arc::new(sink) as Arc<dyn KindlingObservationSink>,
+                Err(err) => {
+                    // Degrade to the NDJSON sidecar rather than dropping usage
+                    // export entirely: a daemon-sink build failure (e.g. the
+                    // sink runtime could not start) should not silence capture
+                    // the operator opted into. The `path` was resolved above.
+                    tracing::warn!(
+                        target: "anvil::usage",
+                        error = %err,
+                        "ANVIL_KINDLING_SINK=daemon set but the daemon sink could \
+                         not be built; falling back to the NDJSON sidecar",
+                    );
+                    Arc::new(DaemonUsageSink { path }) as Arc<dyn KindlingObservationSink>
+                }
             }
         }
-    } else {
-        Arc::new(DaemonUsageSink { path }) as Arc<dyn KindlingObservationSink>
+        KindlingSinkSelection::Ndjson => {
+            Arc::new(DaemonUsageSink { path }) as Arc<dyn KindlingObservationSink>
+        }
+        // `Off` returns `None` via the early return above; reaching this arm
+        // would be a logic bug, so make it loud rather than silently emit.
+        KindlingSinkSelection::Off => {
+            unreachable!("ANVIL_KINDLING_SINK=off is handled by the early return above")
+        }
     };
     let Some(non_blocking) =
         NonBlockingObservationSink::new(inner, DEFAULT_OBSERVATION_CHANNEL_CAPACITY)
@@ -1409,6 +1479,132 @@ mod tests {
             serde_json::from_str(lines[0]).expect("valid NDJSON row");
         assert_eq!(parsed.kind, "command.invoked");
         assert_eq!(parsed.command, "unblock-worktree");
+    }
+
+    // ── KDS-002: ANVIL_KINDLING_SINK selection ──────────────────────────
+
+    #[test]
+    fn parse_kindling_sink_defaults_to_ndjson() {
+        // Unset (None) keeps the default; an explicit empty / whitespace value
+        // (the set-but-empty case) and `ndjson` (any case) also resolve to it.
+        for v in [None, Some(""), Some("   "), Some("ndjson"), Some("NDJSON")] {
+            assert_eq!(
+                parse_kindling_sink(v),
+                KindlingSinkSelection::Ndjson,
+                "{v:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn parse_kindling_sink_recognises_daemon_and_off_case_insensitively() {
+        for v in ["daemon", "DAEMON", "  Daemon  "] {
+            assert_eq!(
+                parse_kindling_sink(Some(v)),
+                KindlingSinkSelection::Daemon,
+                "{v:?}"
+            );
+        }
+        for v in ["off", "OFF", "  Off "] {
+            assert_eq!(
+                parse_kindling_sink(Some(v)),
+                KindlingSinkSelection::Off,
+                "{v:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn parse_kindling_sink_unrecognised_falls_back_to_ndjson() {
+        // A typo must never silently disable (Off) or re-route — it stays on
+        // the NDJSON default so capture is never lost by a bad value.
+        for v in ["daemonn", "sqlite", "true", "1", "disable"] {
+            assert_eq!(
+                parse_kindling_sink(Some(v)),
+                KindlingSinkSelection::Ndjson,
+                "{v:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn off_disables_the_daemon_usage_emitter() {
+        // `off` short-circuits to no emitter (no rows) without needing a state
+        // dir. Clear the break-glass so this exercises the `off` path itself.
+        temp_env::with_vars(
+            [
+                ("ANVIL_INTERCEPT_DISABLE_OBSERVATION", None::<&str>),
+                ("ANVIL_KINDLING_SINK", Some("off")),
+            ],
+            || {
+                assert!(
+                    daemon_usage_emitter().is_none(),
+                    "ANVIL_KINDLING_SINK=off must wire no command.invoked emitter",
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn break_glass_disables_the_daemon_usage_emitter() {
+        // ANVIL_INTERCEPT_DISABLE_OBSERVATION=1 silences this producer too
+        // (parity with the docs' "every usage producer" claim), regardless of
+        // the sink selection.
+        temp_env::with_vars(
+            [
+                ("ANVIL_INTERCEPT_DISABLE_OBSERVATION", Some("1")),
+                ("ANVIL_KINDLING_SINK", Some("ndjson")),
+            ],
+            || {
+                assert!(
+                    daemon_usage_emitter().is_none(),
+                    "the whole-observation break-glass must wire no emitter",
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn default_unset_still_wires_an_emitter() {
+        // Privacy contract unchanged: with the var unset the daemon producer is
+        // still wired (to the NDJSON sidecar). Re-root state under a temp
+        // ANVIL_HOME so the test never touches the real home.
+        let home = tempdir().expect("temp home");
+        temp_env::with_vars(
+            [
+                ("ANVIL_INTERCEPT_DISABLE_OBSERVATION", None::<&str>),
+                ("ANVIL_KINDLING_SINK", None::<&str>),
+                ("ANVIL_HOME", Some(home.path().to_str().expect("utf8 home"))),
+            ],
+            || {
+                assert!(
+                    daemon_usage_emitter().is_some(),
+                    "default/unset must keep wiring the NDJSON usage emitter",
+                );
+            },
+        );
+    }
+
+    #[test]
+    fn daemon_selection_wires_an_emitter() {
+        // `ANVIL_KINDLING_SINK=daemon` builds the daemon-backed sink (or falls
+        // back to NDJSON on a build failure) — either way an emitter is wired.
+        // No daemon contact happens at construction. Temp ANVIL_HOME isolates
+        // the spool dir.
+        let home = tempdir().expect("temp home");
+        temp_env::with_vars(
+            [
+                ("ANVIL_INTERCEPT_DISABLE_OBSERVATION", None::<&str>),
+                ("ANVIL_KINDLING_SINK", Some("daemon")),
+                ("ANVIL_HOME", Some(home.path().to_str().expect("utf8 home"))),
+            ],
+            || {
+                assert!(
+                    daemon_usage_emitter().is_some(),
+                    "ANVIL_KINDLING_SINK=daemon must wire an emitter",
+                );
+            },
+        );
     }
 
     #[test]
