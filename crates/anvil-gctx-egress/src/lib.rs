@@ -43,11 +43,12 @@
 use std::path::Path;
 
 use anvil_gctx_types::{
-    AffectedTestsReport, AffectedTestsSummary, CallerSummary, DependentSummary, EdgeSummary,
-    FindCallersProjection, FindCallersQuery, FindDependentsProjection, FindDependentsQuery,
-    GraphEdgesProjection, GraphEdgesQuery, GraphStatsProjection, ImpactReport, ImpactSummary,
-    OpaqueCursor, RedactionSummary, SearchSymbolsProjection, SearchSymbolsQuery, SnippetResult,
-    SymbolSummary, TestEvidence,
+    AffectedTestsReport, AffectedTestsSummary, CallerSummary, ContextSelector, ContextSnippet,
+    DependentSummary, EdgeSummary, FindCallersProjection, FindCallersQuery, FindDependentsProjection,
+    FindDependentsQuery, GctxOutcome, GraphEdgesProjection, GraphEdgesQuery, GraphStatsProjection,
+    ImpactReport, ImpactSummary, OmittedContext, OpaqueCursor, RedactionSummary,
+    SearchSymbolsProjection, SearchSymbolsQuery, SnippetResult, SymbolContextProjection,
+    SymbolContextRedactionSummary, SymbolSummary, TestEvidence,
 };
 use anvil_graph_cache::{DependencyGraph, SymbolGraph};
 use anvil_kernel_types::{
@@ -55,6 +56,15 @@ use anvil_kernel_types::{
 };
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+
+mod slice;
+
+pub use slice::{ContextSlice, SnippetByteLedger, SliceCandidate, slice_under_budget};
+
+/// Default token budget for `symbol_context` when the client omits one (GCTX-023).
+pub const DEFAULT_SYMBOL_CONTEXT_TOKENS: u32 = 2_000;
+/// Hard ceiling on the requested token budget (clamped, not rejected).
+pub const MAX_SYMBOL_CONTEXT_TOKENS: u32 = 8_000;
 
 /// The single CE-5 egress choke point: builds sealed identity-only DTOs from the
 /// daemon's warm [`SymbolGraph`].
@@ -247,6 +257,7 @@ impl GctxProjector {
                 returned,
                 truncated: next_cursor.is_some(),
                 omitted_sensitive_paths: omitted_sensitive,
+                ..Default::default()
             },
             symbols: page,
             next_cursor,
@@ -417,6 +428,7 @@ impl GctxProjector {
                 returned,
                 truncated: next_cursor.is_some(),
                 omitted_sensitive_paths: omitted_sensitive,
+                ..Default::default()
             },
             dependents: page,
             next_cursor,
@@ -547,6 +559,7 @@ impl GctxProjector {
                 returned,
                 truncated: next_cursor.is_some(),
                 omitted_sensitive_paths: omitted_sensitive,
+                ..Default::default()
             },
             callers: page,
             next_cursor,
@@ -1157,6 +1170,7 @@ impl GctxProjector {
                 returned,
                 truncated: next_cursor.is_some(),
                 omitted_sensitive_paths: omitted_sensitive,
+                ..Default::default()
             },
             edges: page,
             next_cursor,
@@ -1276,6 +1290,201 @@ impl GctxProjector {
             ..location_only
         }
     }
+
+    /// Collect symbol-context candidates (search + local impact) under the cache
+    /// lock (GCTX-023). Returns `(identity, distance)` pairs owning their data.
+    ///
+    /// v1 neighbourhood: the seed's file symbols, plus one-hop dependent-file
+    /// symbols (reverse impact) and one-hop callers when the seed is a symbol.
+    /// Cross-file expansion beyond that is deferred.
+    #[must_use]
+    pub fn collect_context_candidates(
+        sym: &SymbolGraph,
+        dep: &DependencyGraph,
+        selector: &ContextSelector,
+    ) -> Vec<(SymbolIdentity, u32)> {
+        let seed_file = match selector {
+            ContextSelector::File { file } => file.as_str(),
+            ContextSelector::Symbol(id) => id.file.as_str(),
+        };
+        if is_absolute_path_like(seed_file) || is_sensitive_egress_path(seed_file) {
+            return Vec::new();
+        }
+
+        let mut out: Vec<(SymbolIdentity, u32)> = Vec::new();
+        let mut push = |id: SymbolIdentity, distance: u32| {
+            if is_absolute_path_like(&id.file) || is_sensitive_egress_path(&id.file) {
+                return;
+            }
+            if let Some((_, d)) = out.iter_mut().find(|(existing, _)| existing == &id) {
+                if distance < *d {
+                    *d = distance;
+                }
+            } else {
+                out.push((id, distance));
+            }
+        };
+
+        // File neighbourhood (search surface).
+        let nodes = sym.symbols_in_file(seed_file);
+        let identities = SymbolIdentity::for_file_symbols(&nodes);
+        for (node, identity) in nodes.iter().zip(identities) {
+            let distance = match selector {
+                ContextSelector::File { .. } => 0,
+                ContextSelector::Symbol(seed) => u32::from(!same_symbol(&identity, seed)),
+            };
+            if node.span.is_some() {
+                push(identity, distance);
+            }
+        }
+
+        // Impact: direct importers' symbols (+1 hop).
+        let mut importers = dep.dependents_of(seed_file);
+        importers.sort_unstable();
+        for importer in importers {
+            if is_absolute_path_like(importer) || is_sensitive_egress_path(importer) {
+                continue;
+            }
+            let base_distance = match selector {
+                ContextSelector::File { .. } => 1,
+                ContextSelector::Symbol(_) => 2,
+            };
+            let symbols = sym.symbols_in_file(importer);
+            let identities = SymbolIdentity::for_file_symbols(&symbols);
+            for (node, identity) in symbols.iter().zip(identities) {
+                if node.span.is_some() {
+                    push(identity, base_distance);
+                }
+            }
+        }
+
+        // Impact: direct callers when seeded on a symbol (+2 hops from seed).
+        if let ContextSelector::Symbol(seed) = selector {
+            let report = anvil_graph_cache::callers_of(sym, seed, 1);
+            for caller in report.callers {
+                if caller.distance == 1 {
+                    push(caller.caller, 2);
+                }
+            }
+        }
+
+        out
+    }
+
+    /// Seal a bounded symbol-context projection (GCTX-022/023). **Call after
+    /// releasing the cache lock** (ADR-084 C2): file bytes are supplied by the
+    /// daemon from inside the admitted root.
+    #[must_use]
+    pub fn project_symbol_context<F: Fn(&str) -> Redaction>(
+        candidates: Vec<(SymbolIdentity, u32)>,
+        locations: std::collections::HashMap<SymbolIdentity, SnippetLocation>,
+        file_bytes: &std::collections::HashMap<String, Vec<u8>>,
+        include_source: bool,
+        token_budget: u32,
+        redact: F,
+        byte_ledger: Option<&mut SnippetByteLedger>,
+    ) -> SymbolContextProjection {
+        let mut slice_candidates = Vec::with_capacity(candidates.len());
+        let mut omitted_sensitive = 0usize;
+
+        for (identity, distance) in candidates {
+            let Some(location) = locations.get(&identity) else {
+                slice_candidates.push(SliceCandidate {
+                    identity,
+                    distance,
+                    snippet: None,
+                });
+                omitted_sensitive += 1;
+                continue;
+            };
+            let bytes = file_bytes.get(&location.file);
+            let snippet = bytes.map(|b| {
+                Self::project_snippet(location, b, include_source, &redact)
+            });
+            slice_candidates.push(SliceCandidate {
+                identity,
+                distance,
+                snippet,
+            });
+        }
+
+        let sliced = slice_under_budget(slice_candidates, token_budget, byte_ledger);
+
+        let mut redacted_secrets = 0u32;
+        let mut snippets_truncated = 0u32;
+        for sel in &sliced.snippets {
+            redacted_secrets += sel.snippet.redacted_secrets;
+            if sel.snippet.truncated {
+                snippets_truncated += 1;
+            }
+        }
+
+        let fully_suppressed = u32::try_from(
+            sliced
+                .omitted
+                .iter()
+                .filter(|o| o.reason != slice::SliceOmitReason::Budget)
+                .count(),
+        )
+        .unwrap_or(u32::MAX);
+        snippets_truncated += u32::try_from(
+            sliced
+                .omitted
+                .iter()
+                .filter(|o| o.reason == slice::SliceOmitReason::Budget)
+                .count(),
+        )
+        .unwrap_or(u32::MAX);
+
+        let telemetry_outcome = if sliced.byte_ceiling_hit {
+            GctxOutcome::BudgetExceeded
+        } else if sliced
+            .omitted
+            .iter()
+            .any(|o| o.reason == slice::SliceOmitReason::Budget)
+        {
+            GctxOutcome::BudgetExceeded
+        } else if redacted_secrets > 0 {
+            GctxOutcome::Redacted
+        } else if sliced.snippets.is_empty() {
+            GctxOutcome::Miss
+        } else {
+            GctxOutcome::Hit
+        };
+
+        SymbolContextProjection {
+            snippets: sliced
+                .snippets
+                .into_iter()
+                .map(|s| ContextSnippet {
+                    identity: s.identity,
+                    distance: s.distance,
+                    snippet: s.snippet,
+                })
+                .collect(),
+            omitted_context: sliced
+                .omitted
+                .into_iter()
+                .map(|o| OmittedContext {
+                    identity: o.identity,
+                    reason: o.reason.to_egress_reason(),
+                })
+                .collect(),
+            redaction_summary: SymbolContextRedactionSummary {
+                estimated_tokens: sliced.estimated_tokens,
+                redacted_secrets,
+                snippets_truncated,
+                fully_suppressed_symbols: fully_suppressed,
+                omitted_sensitive_paths: omitted_sensitive,
+                outcome: telemetry_outcome,
+            },
+        }
+    }
+}
+
+/// Whether two identities name the same symbol (same file/kind/name/ordinal).
+fn same_symbol(a: &SymbolIdentity, b: &SymbolIdentity) -> bool {
+    a == b
 }
 
 /// The owned, identity-only pieces [`GctxProjector::collect_affected_tests`]
@@ -4187,5 +4396,110 @@ mod tests {
             ordinal: 0,
         };
         assert!(GctxProjector::resolve_snippet_location(&g, &target).is_none());
+    }
+
+    // --- GCTX-022/023 symbol context ---
+
+    #[test]
+    fn collect_context_candidates_seeds_symbol_and_importers() {
+        let span = ByteRange { start: 0, end: 10 };
+        let mut sym = graph_of(vec![
+            ts_node_with_span(1, "seed", "a.ts", span),
+            ts_node_with_span(2, "other", "a.ts", span),
+            ts_node_with_span(3, "importerFn", "b.ts", span),
+        ]);
+        sym.set_file_hash("a.ts".into(), Some(1));
+        sym.set_file_hash("b.ts".into(), Some(2));
+        let dep = dep_graph(&[("b.ts", "a.ts")]);
+
+        let seed = SymbolIdentity {
+            file: "a.ts".into(),
+            kind: SymbolKind::Function,
+            name: "seed".into(),
+            ordinal: 0,
+        };
+        let candidates =
+            GctxProjector::collect_context_candidates(&sym, &dep, &ContextSelector::Symbol(seed));
+        let names: Vec<&str> = candidates
+            .iter()
+            .map(|(id, _)| id.name.as_str())
+            .collect();
+        assert!(names.contains(&"seed"));
+        assert!(names.contains(&"other"));
+        assert!(names.contains(&"importerFn"));
+    }
+
+    #[test]
+    fn project_symbol_context_respects_token_budget() {
+        let source_a = b"function seed() {}\nfunction other() {}\n";
+        let source_b = b"import { seed } from './a';\nexport function importerFn() {}\n";
+        let span = ByteRange { start: 0, end: 20 };
+        let (sym, seed_id) = snippet_graph(source_a, span);
+        let dep = dep_graph(&[("b.ts", "src/a.ts")]);
+        let mut sym = sym;
+        sym.add_symbol(ts_node_with_span(2, "importerFn", "b.ts", span))
+            .unwrap();
+        sym.set_file_hash("b.ts".into(), Some(content_hash(source_b)));
+
+        let candidates =
+            GctxProjector::collect_context_candidates(&sym, &dep, &ContextSelector::Symbol(seed_id));
+        let mut locations = std::collections::HashMap::new();
+        for (identity, _) in &candidates {
+            if let Some(loc) = GctxProjector::resolve_snippet_location(&sym, identity) {
+                locations.insert(identity.clone(), loc);
+            }
+        }
+        let file_bytes = std::collections::HashMap::from([
+            ("src/a.ts".to_string(), source_a.to_vec()),
+            ("b.ts".to_string(), source_b.to_vec()),
+        ]);
+
+        let projection = GctxProjector::project_symbol_context(
+            candidates,
+            locations,
+            &file_bytes,
+            true,
+            5,
+            no_redact,
+            None,
+        );
+        assert!(
+            projection.redaction_summary.estimated_tokens <= 5,
+            "GCTX-022: token estimate must not exceed budget",
+        );
+    }
+
+    #[test]
+    fn project_symbol_context_is_deterministic() {
+        let source = b"function greet() { return 1; }\n";
+        let span = ByteRange { start: 0, end: 30 };
+        let (sym, seed_id) = snippet_graph(source, span);
+        let dep = DependencyGraph::new();
+        let candidates = GctxProjector::collect_context_candidates(
+            &sym,
+            &dep,
+            &ContextSelector::Symbol(seed_id.clone()),
+        );
+        let mut locations = std::collections::HashMap::new();
+        for (identity, _) in &candidates {
+            if let Some(loc) = GctxProjector::resolve_snippet_location(&sym, identity) {
+                locations.insert(identity.clone(), loc);
+            }
+        }
+        let file_bytes =
+            std::collections::HashMap::from([("src/a.ts".to_string(), source.to_vec())]);
+
+        let run = || {
+            GctxProjector::project_symbol_context(
+                candidates.clone(),
+                locations.clone(),
+                &file_bytes,
+                true,
+                2_000,
+                no_redact,
+                None,
+            )
+        };
+        assert_eq!(run(), run());
     }
 }

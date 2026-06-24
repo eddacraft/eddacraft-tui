@@ -2,7 +2,7 @@ use serde_json::Value;
 
 use super::{
     affected_tests, apply_patch, check, find_callers, find_dependents, fix, gate, impact_of_change,
-    query_boundary, search_symbols, status, suppress, validate_write,
+    query_boundary, search_symbols, status, suppress, symbol_context, validate_write,
 };
 
 pub struct ToolDefinition {
@@ -137,6 +137,14 @@ static TOOLS: &[ToolDefinition] = &[
         descriptor: affected_tests::descriptor,
         call: affected_tests::call,
     },
+    // GCTX-023 / ADR-084: bounded symbol-context slice (search + impact + snippets).
+    ToolDefinition {
+        name: symbol_context::TOOL_NAME,
+        requires_auth: false,
+        charges_graph_egress: true,
+        descriptor: symbol_context::descriptor,
+        call: symbol_context::call,
+    },
 ];
 
 pub fn all() -> &'static [ToolDefinition] {
@@ -155,7 +163,7 @@ mod tests {
     fn registry_lists_registered_tools() {
         let tools = all();
 
-        assert_eq!(tools.len(), 13);
+        assert_eq!(tools.len(), 14);
         let names: Vec<&str> = tools.iter().map(|t| t.name).collect();
         assert_eq!(
             names,
@@ -173,6 +181,7 @@ mod tests {
                 find_callers::TOOL_NAME,
                 impact_of_change::TOOL_NAME,
                 affected_tests::TOOL_NAME,
+                symbol_context::TOOL_NAME,
             ],
         );
         for tool in tools {
@@ -195,6 +204,7 @@ mod tests {
         assert!(find(find_callers::TOOL_NAME).is_some());
         assert!(find(impact_of_change::TOOL_NAME).is_some());
         assert!(find(affected_tests::TOOL_NAME).is_some());
+        assert!(find(symbol_context::TOOL_NAME).is_some());
         assert!(find("anvil_does_not_exist").is_none());
     }
 }

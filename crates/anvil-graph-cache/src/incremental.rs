@@ -1209,6 +1209,66 @@ mod tests {
         assert!(!clean_delta.has_unresolved_dynamic_import);
     }
 
+    /// GV2-032: `apply_delta` stamps symbol spans and per-file content hashes on
+    /// the resident graph for TS, Rust, and Python producer fixtures.
+    #[test]
+    fn span_population() {
+        use anvil_kernel_types::ByteRange;
+
+        let cases: [(&str, u64, &str, SymbolKind, ByteRange, u64); 3] = [
+            (
+                "src/a.ts",
+                1,
+                "alpha",
+                SymbolKind::Function,
+                ByteRange { start: 10, end: 40 },
+                0xA1,
+            ),
+            (
+                "src/lib.rs",
+                2,
+                "beta",
+                SymbolKind::Function,
+                ByteRange { start: 5, end: 55 },
+                0xB2,
+            ),
+            (
+                "pkg/mod.py",
+                3,
+                "gamma",
+                SymbolKind::Function,
+                ByteRange { start: 0, end: 20 },
+                0xC3,
+            ),
+        ];
+
+        let mut g = SymbolGraph::new();
+        for (file, id, name, kind, span, hash) in cases {
+            let syms = FileSymbols {
+                file: file.to_string(),
+                symbols: vec![SymbolNode {
+                    id,
+                    kind,
+                    name: name.to_string(),
+                    visibility: Visibility::Internal,
+                    file: file.to_string(),
+                    trust_level: TrustLevel::Unknown,
+                    span: Some(span),
+                }],
+                imports: Vec::new(),
+                reexports: Vec::new(),
+                calls: Vec::new(),
+                calls_partial: false,
+                has_unresolved_dynamic_import: false,
+                content_hash: Some(hash),
+            };
+            update_file(&mut g, syms);
+            let node = g.get_symbol(id).expect("symbol resident");
+            assert_eq!(node.span, Some(span), "{file}: span must land on the node");
+            assert_eq!(g.file_hash(file), Some(hash), "{file}: content hash stamped");
+        }
+    }
+
     #[test]
     fn update_file_records_and_clears_content_hash_gv2_032() {
         let mut g = SymbolGraph::new();

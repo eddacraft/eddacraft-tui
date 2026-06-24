@@ -40,9 +40,11 @@ use std::time::{Duration, Instant};
 use anvil_intercept_proto::protocol::{
     GctxAffectedTestsRequest, GctxAffectedTestsResponse, GctxFindCallersRequest,
     GctxFindCallersResponse, GctxFindDependentsRequest, GctxFindDependentsResponse,
-    GctxGraphEdgesRequest, GctxGraphEdgesResponse, GctxGraphStatsRequest, GctxGraphStatsResponse,
+    GctxGetSnippetRequest, GctxGetSnippetResponse, GctxGraphEdgesRequest, GctxGraphEdgesResponse,
+    GctxGraphStatsRequest, GctxGraphStatsResponse,
     GctxImpactOfChangeRequest, GctxImpactOfChangeResponse, GctxSearchSymbolsRequest,
-    GctxSearchSymbolsResponse, RequestFullScanRequest, RequestFullScanResponse,
+    GctxSearchSymbolsResponse, GctxSymbolContextRequest, GctxSymbolContextResponse,
+    RequestFullScanRequest, RequestFullScanResponse,
     ValidatePathsRequest, ValidatePathsResponse, WorkspaceStatusRequest, WorkspaceStatusResponse,
 };
 use anvil_intercept_proto::{IpcCommand, IpcEnvelope};
@@ -195,6 +197,35 @@ pub trait GctxDispatch: Send {
         &mut self,
         request: &GctxGraphEdgesRequest,
     ) -> Result<GctxGraphEdgesResponse, SaveTimeError>;
+
+    /// Extract a bounded source snippet for a single symbol (GCTX-021, ADR-084 /
+    /// PV-9). The `workspace_root` is admitted against this connection's
+    /// admitted-root set (ADR-084 C3 / CE-8) before any read, and the span bytes
+    /// are read inside that root. Source text rides only under the CE-1 gates
+    /// (`gctx.egress` flag + the request capability) after the CE-2 secret scan /
+    /// CE-3 path filter / CE-7 freshness check; otherwise the outcome is an
+    /// identity-only location. Degradation rides in-band in the response `outcome`
+    /// (CE-7); the only `Err` returns are connection-level.
+    ///
+    /// # Errors
+    /// [`SaveTimeError::NotAdmitted`] when the root is refused;
+    /// [`SaveTimeError::Io`] when an admissible root cannot be opened.
+    fn get_snippet(
+        &mut self,
+        request: &GctxGetSnippetRequest,
+    ) -> Result<GctxGetSnippetResponse, SaveTimeError>;
+
+    /// Project a bounded symbol-context slice (GCTX-023, ADR-084 / PV-9). The
+    /// `workspace_root` is admitted before any read. Source text rides only under
+    /// the CE-1 gates after CE-2/CE-3/CE-7; degradation rides in-band.
+    ///
+    /// # Errors
+    /// [`SaveTimeError::NotAdmitted`] when the root is refused;
+    /// [`SaveTimeError::Io`] when an admissible root cannot be opened.
+    fn symbol_context(
+        &mut self,
+        request: &GctxSymbolContextRequest,
+    ) -> Result<GctxSymbolContextResponse, SaveTimeError>;
 }
 
 /// DSV-005: the save-time verb surface the JSON-RPC dispatch arm routes to.
@@ -2677,6 +2708,8 @@ pub const COMMAND_INVOKED_ALLOWLIST: &[&str] = &[
     anvil_intercept_proto::protocol::ANVIL_GCTX_AFFECTED_TESTS,
     anvil_intercept_proto::protocol::ANVIL_GCTX_GRAPH_STATS,
     anvil_intercept_proto::protocol::ANVIL_GCTX_GRAPH_EDGES,
+    anvil_intercept_proto::protocol::ANVIL_GCTX_GET_SNIPPET,
+    anvil_intercept_proto::protocol::ANVIL_GCTX_SYMBOL_CONTEXT,
     "unblock-cascade",
     "fence.unblock-cascade",
     "unblock-worktree",
@@ -2987,6 +3020,34 @@ async fn handle_jsonrpc_request<D: SessionDispatcher>(
     if method == anvil_intercept_proto::protocol::ANVIL_GCTX_IMPACT_OF_CHANGE {
         return dispatch_span.in_scope(|| {
             handle_gctx_impact_jsonrpc(params, response_id, traceparent, is_notification, save_time)
+        });
+    }
+
+    // GCTX source-snippet extraction (GCTX-021 / ADR-084 / PV-9): same read-only
+    // `GctxDispatch` surface — never the enforcement path.
+    if method == anvil_intercept_proto::protocol::ANVIL_GCTX_GET_SNIPPET {
+        return dispatch_span.in_scope(|| {
+            handle_gctx_get_snippet_jsonrpc(
+                params,
+                response_id,
+                traceparent,
+                is_notification,
+                save_time,
+            )
+        });
+    }
+
+    // GCTX bounded symbol-context slice (GCTX-023 / ADR-084 / PV-9): same
+    // read-only `GctxDispatch` surface — never the enforcement path.
+    if method == anvil_intercept_proto::protocol::ANVIL_GCTX_SYMBOL_CONTEXT {
+        return dispatch_span.in_scope(|| {
+            handle_gctx_symbol_context_jsonrpc(
+                params,
+                response_id,
+                traceparent,
+                is_notification,
+                save_time,
+            )
         });
     }
 
@@ -3313,6 +3374,72 @@ fn handle_gctx_find_callers_jsonrpc(
     };
     match serde_json::from_value::<GctxFindCallersRequest>(params.clone()) {
         Ok(request) => save_time_result(dispatch.find_callers(&request), response_id, traceparent),
+        Err(err) => save_time_invalid_params(response_id, traceparent, &err),
+    }
+}
+
+/// Route the GCTX get-snippet verb (GCTX-021 / ADR-084 / PV-9) to the
+/// per-connection dispatcher. Mirrors [`handle_gctx_find_callers_jsonrpc`].
+fn handle_gctx_get_snippet_jsonrpc(
+    params: &Value,
+    response_id: Option<Value>,
+    traceparent: Option<&str>,
+    is_notification: bool,
+    save_time: Option<&mut (dyn SaveTimeDispatch + '_)>,
+) -> Option<Value> {
+    if is_notification {
+        tracing::warn!(
+            target: "anvil_intercept::gctx",
+            "ignoring gctx verb sent as a notification: request id required",
+        );
+        return None;
+    }
+    let Some(dispatch) = save_time else {
+        return jsonrpc_request_error(
+            response_id,
+            traceparent,
+            false,
+            -32601,
+            "Method not found",
+            json!({"reason": "graph-context delivery is not enabled on this daemon"}),
+        );
+    };
+    match serde_json::from_value::<GctxGetSnippetRequest>(params.clone()) {
+        Ok(request) => save_time_result(dispatch.get_snippet(&request), response_id, traceparent),
+        Err(err) => save_time_invalid_params(response_id, traceparent, &err),
+    }
+}
+
+/// Route the GCTX symbol-context verb (GCTX-023 / ADR-084 / PV-9) to the
+/// per-connection dispatcher. Mirrors [`handle_gctx_get_snippet_jsonrpc`].
+fn handle_gctx_symbol_context_jsonrpc(
+    params: &Value,
+    response_id: Option<Value>,
+    traceparent: Option<&str>,
+    is_notification: bool,
+    save_time: Option<&mut (dyn SaveTimeDispatch + '_)>,
+) -> Option<Value> {
+    if is_notification {
+        tracing::warn!(
+            target: "anvil_intercept::gctx",
+            "ignoring gctx verb sent as a notification: request id required",
+        );
+        return None;
+    }
+    let Some(dispatch) = save_time else {
+        return jsonrpc_request_error(
+            response_id,
+            traceparent,
+            false,
+            -32601,
+            "Method not found",
+            json!({"reason": "graph-context delivery is not enabled on this daemon"}),
+        );
+    };
+    match serde_json::from_value::<GctxSymbolContextRequest>(params.clone()) {
+        Ok(request) => {
+            save_time_result(dispatch.symbol_context(&request), response_id, traceparent)
+        }
         Err(err) => save_time_invalid_params(response_id, traceparent, &err),
     }
 }

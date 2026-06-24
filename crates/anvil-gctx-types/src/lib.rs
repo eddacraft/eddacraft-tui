@@ -133,6 +133,19 @@ pub struct RedactionSummary {
     /// this records how many were withheld from the projection.
     #[serde(default)]
     pub omitted_sensitive_paths: usize,
+    /// Snippet-bearing projections (GCTX-023): symbols whose text was truncated
+    /// by the token budget or per-snippet byte cap. Counts-only (CE-11).
+    #[serde(default)]
+    pub snippets_truncated: u32,
+    /// Snippet-bearing projections: symbols fully suppressed (no location/text
+    /// surfaced) — e.g. sensitive-path omission or session byte-ceiling hit.
+    /// Counts-only (CE-11).
+    #[serde(default)]
+    pub fully_suppressed_symbols: u32,
+    /// Snippet-bearing projections: identity fields withheld from the response
+    /// (counts-only CE-11 observability).
+    #[serde(default)]
+    pub fields_suppressed: u32,
 }
 
 /// The identity-only projection returned when the graph is readable.
@@ -229,6 +242,12 @@ pub enum GctxOutcome {
     GraphDisabled,
     /// Query/cursor rejected before any read.
     InvalidQuery,
+    /// Snippet egress ran but CE-2 secret-scan redaction replaced one or more
+    /// spans before sealing (CE-10 / GCTX-023).
+    Redacted,
+    /// A CE-6 per-session snippet byte ceiling or token budget bound the slice
+    /// (CE-10 / GCTX-022/023).
+    BudgetExceeded,
 }
 
 impl GctxOutcome {
@@ -243,6 +262,8 @@ impl GctxOutcome {
             Self::Unavailable => "unavailable",
             Self::GraphDisabled => "graph_disabled",
             Self::InvalidQuery => "invalid_query",
+            Self::Redacted => "redacted",
+            Self::BudgetExceeded => "budget_exceeded",
         }
     }
 }
@@ -1039,6 +1060,7 @@ impl SnippetOutcome {
     #[must_use]
     pub fn telemetry_outcome(&self) -> GctxOutcome {
         match self {
+            Self::Ready(result) if result.redacted_secrets > 0 => GctxOutcome::Redacted,
             Self::Ready(_) => GctxOutcome::Hit,
             Self::SymbolNotFound => GctxOutcome::Miss,
             Self::NotReady { .. } => GctxOutcome::Warming,
@@ -1047,6 +1069,167 @@ impl SnippetOutcome {
             Self::InvalidQuery { .. } => GctxOutcome::InvalidQuery,
         }
     }
+}
+
+// ============================================================================
+// GCTX-023 — `anvil_symbol_context` bounded context slice (ADR-084)
+// ============================================================================
+
+/// What to build bounded context around: a specific symbol, or a whole file's
+/// symbols (GCTX-023).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ContextSelector {
+    /// Seed on one symbol's stable identity.
+    Symbol(SymbolIdentity),
+    /// Seed on every symbol in a workspace-root-relative file.
+    File {
+        /// Workspace-root-relative path.
+        file: String,
+    },
+}
+
+/// Query for `anvil_symbol_context`: a seed, optional token budget, and the
+/// CE-1 per-request snippet capability (`include_source`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SymbolContextQuery {
+    /// The seed to build bounded context around.
+    pub selector: ContextSelector,
+    /// Maximum estimated tokens of snippet text to return. Absent uses the
+    /// projector's documented default; the projector also clamps it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub token_budget: Option<u32>,
+    /// CE-1 capability assertion — request source text. Treated as identity-only
+    /// (span-as-location, no `text`) unless the operator `gctx.egress` flag is
+    /// also enabled (`ANVIL_GCTX_EGRESS=1`). Defaults `false`.
+    #[serde(default)]
+    pub include_source: bool,
+}
+
+/// One symbol's snippet in a bounded context slice — the **only** place a
+/// [`SnippetResult`] may appear outside a lone `get_snippet` response (CE-5).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ContextSnippet {
+    /// Which symbol this row is for.
+    pub identity: SymbolIdentity,
+    /// Graph distance from the query seed (`0` for the seed itself).
+    pub distance: u32,
+    /// The sealed snippet (location always; `text` only under CE-1 gates).
+    pub snippet: SnippetResult,
+}
+
+/// Why a seed-selected symbol did not appear in [`SymbolContextProjection::snippets`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OmitReason {
+    /// Including its snippet would have exceeded the token budget.
+    Budget,
+    /// No snippet could be located/extracted (span-less, sensitive path, stale
+    /// withhold, or absent from the graph).
+    Unlocatable,
+    /// The per-session `(file, ByteRange)` byte ceiling was exhausted (CE-6).
+    ByteCeiling,
+}
+
+/// A symbol that was considered but not included, with the reason.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OmittedContext {
+    /// The omitted symbol's identity.
+    pub identity: SymbolIdentity,
+    /// Why it was omitted.
+    pub reason: OmitReason,
+}
+
+/// Counts-only summary for a symbol-context response (CE-11). Carries no names,
+/// paths, or source text.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SymbolContextRedactionSummary {
+    /// Total estimated token cost of returned snippets (never exceeds budget).
+    pub estimated_tokens: u32,
+    /// Secret-shaped spans redacted across returned snippets (CE-2).
+    pub redacted_secrets: u32,
+    /// Symbols omitted because the token budget was exhausted.
+    pub snippets_truncated: u32,
+    /// Symbols fully suppressed (sensitive path, byte ceiling, unlocatable).
+    pub fully_suppressed_symbols: u32,
+    /// Identity-only paths dropped by the CE-3 deny-list.
+    pub omitted_sensitive_paths: usize,
+    /// The PII-free outcome label for this response (CE-10).
+    pub outcome: GctxOutcome,
+}
+
+/// The bounded context slice: snippets in priority order, omitted-with-reason
+/// metadata, and counts-only redaction summary.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SymbolContextProjection {
+    /// Selected snippets, in priority order (seed first, then by graph distance).
+    pub snippets: Vec<ContextSnippet>,
+    /// Candidates not included, in the same priority order.
+    pub omitted_context: Vec<OmittedContext>,
+    /// Counts-only elision + telemetry outcome (CE-11).
+    pub redaction_summary: SymbolContextRedactionSummary,
+}
+
+/// The status-tagged outcome of an `anvil_symbol_context` call (GCTX-023).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum SymbolContextOutcome {
+    /// Graph readable; the full requested context fit the budget.
+    Ready(SymbolContextProjection),
+    /// Graph readable, but the token budget truncated the slice — at least one
+    /// symbol was omitted with [`OmitReason::Budget`].
+    Bounded(SymbolContextProjection),
+    /// Graph readable, but the per-session snippet byte ceiling bound the slice.
+    BudgetExceeded(SymbolContextProjection),
+    /// Graph not yet readable (warming, or cold and not yet save-populated).
+    NotReady {
+        /// Human-readable, enum-stable recovery guidance.
+        recovery_hint: String,
+    },
+    /// Daemon or graph unavailable; no file-read fallback was attempted (CE-7).
+    Unavailable,
+    /// The egress surface is switched off (`ANVIL_GCTX_EGRESS=0`, CE-11).
+    Disabled,
+    /// The query was rejected before any read (CE-6 validation).
+    InvalidQuery {
+        /// Why the query was rejected.
+        reason: String,
+    },
+}
+
+impl SymbolContextOutcome {
+    /// Classify into the PII-free [`GctxOutcome`] telemetry enum (CE-10).
+    #[must_use]
+    pub fn telemetry_outcome(&self) -> GctxOutcome {
+        match self {
+            Self::Ready(projection) => projection.redaction_summary.outcome,
+            Self::Bounded(_) => GctxOutcome::BudgetExceeded,
+            Self::BudgetExceeded(_) => GctxOutcome::BudgetExceeded,
+            Self::NotReady { .. } => GctxOutcome::Warming,
+            Self::Unavailable => GctxOutcome::Unavailable,
+            Self::Disabled => GctxOutcome::GraphDisabled,
+            Self::InvalidQuery { .. } => GctxOutcome::InvalidQuery,
+        }
+    }
+}
+
+/// Environment variable for the GCTX egress kill-switch and snippet opt-in
+/// (CE-11 / CE-9): `0` disables all egress; `1` additionally opts into
+/// source-text snippets. Re-read per call — never cached at start-up.
+pub const GCTX_EGRESS_ENV: &str = "ANVIL_GCTX_EGRESS";
+
+/// Whether the operator kill-switch disables all GCTX egress (`ANVIL_GCTX_EGRESS=0`).
+#[must_use]
+pub fn gctx_egress_disabled_from(raw: Option<&str>) -> bool {
+    raw.map(str::trim) == Some("0")
+}
+
+/// Whether source-text snippet egress is enabled (`ANVIL_GCTX_EGRESS=1`, CE-1).
+/// Unset or any other value keeps snippets off while leaving the identity surface
+/// on (when not explicitly disabled with `0`).
+#[must_use]
+pub fn gctx_snippet_egress_enabled_from(raw: Option<&str>) -> bool {
+    raw.map(str::trim) == Some("1")
 }
 
 #[cfg(test)]
@@ -1079,6 +1262,7 @@ mod tests {
                 returned: 1,
                 truncated: false,
                 omitted_sensitive_paths: 0,
+                ..Default::default()
             },
         }
     }
@@ -1452,6 +1636,7 @@ mod tests {
                 returned: 1,
                 truncated: false,
                 omitted_sensitive_paths: 0,
+                ..Default::default()
             },
             partial: false,
         }
@@ -1515,6 +1700,7 @@ mod tests {
                 returned: 1,
                 truncated: false,
                 omitted_sensitive_paths: 0,
+                ..Default::default()
             },
             partial: true,
         }
@@ -2026,6 +2212,7 @@ mod tests {
                 returned: 1,
                 truncated: true,
                 omitted_sensitive_paths: 0,
+                ..Default::default()
             },
             bounded: false,
         }

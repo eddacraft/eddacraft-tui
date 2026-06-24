@@ -47,19 +47,29 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use anvil_checks::antipattern::types::AntipatternCheckConfig;
-use anvil_gctx_egress::GctxProjector;
+use anvil_checks::secret::scanner::scan_content;
+use anvil_checks::secret::types::SecretCheckConfig;
+use anvil_gctx_egress::{
+    DEFAULT_SYMBOL_CONTEXT_TOKENS, GctxProjector, MAX_SYMBOL_CONTEXT_TOKENS, Redaction,
+    SnippetByteLedger,
+};
 use anvil_gctx_types::{
-    AffectedTestsOutcome, AffectedTestsQuery, FindCallersOutcome, FindCallersQuery,
-    FindDependentsOutcome, FindDependentsQuery, GraphEdgesOutcome, GraphEdgesQuery,
-    GraphStatsOutcome, ImpactOutcome, ImpactQuery, SearchSymbolsOutcome, SearchSymbolsQuery,
+    AffectedTestsOutcome, AffectedTestsQuery, ContextSelector, FindCallersOutcome,
+    FindCallersQuery, FindDependentsOutcome, FindDependentsQuery, GCTX_EGRESS_ENV,
+    GraphEdgesOutcome, GraphEdgesQuery, GraphStatsOutcome, ImpactOutcome, ImpactQuery,
+    OmitReason, SearchSymbolsOutcome, SearchSymbolsQuery, SnippetOutcome, SnippetQuery,
+    SymbolContextOutcome, SymbolContextProjection, SymbolContextQuery, gctx_egress_disabled_from,
+    gctx_snippet_egress_enabled_from,
 };
 use anvil_graph_cache::clamp_reverse_impact_depth;
 use anvil_intercept_proto::protocol::{
     AssuranceState, GctxAffectedTestsRequest, GctxAffectedTestsResponse, GctxFindCallersRequest,
     GctxFindCallersResponse, GctxFindDependentsRequest, GctxFindDependentsResponse,
-    GctxGraphEdgesRequest, GctxGraphEdgesResponse, GctxGraphStatsRequest, GctxGraphStatsResponse,
+    GctxGetSnippetRequest, GctxGetSnippetResponse, GctxGraphEdgesRequest, GctxGraphEdgesResponse,
+    GctxGraphStatsRequest, GctxGraphStatsResponse,
     GctxImpactOfChangeRequest, GctxImpactOfChangeResponse, GctxSearchSymbolsRequest,
-    GctxSearchSymbolsResponse, RequestFullScanRequest, RequestFullScanResponse, StaleReason,
+    GctxSearchSymbolsResponse, GctxSymbolContextRequest, GctxSymbolContextResponse,
+    RequestFullScanRequest, RequestFullScanResponse, StaleReason,
     ValidatePathsRequest, ValidatePathsResponse, WorkspaceAssurance, WorkspaceStatusRequest,
     WorkspaceStatusResponse,
 };
@@ -1110,6 +1120,8 @@ pub struct SaveTimeConn<'a> {
     /// contract that `to_admitted_roots` is called once per connection).
     admitted: Option<AdmittedRoots>,
     originating_session: Option<OriginatingSession>,
+    /// CE-6 per-session snippet byte ledger keyed on `(file, ByteRange)` (GCTX-022).
+    snippet_byte_ledger: SnippetByteLedger,
 }
 
 #[derive(Debug, Clone)]
@@ -1126,6 +1138,7 @@ impl<'a> SaveTimeConn<'a> {
             state,
             admitted: None,
             originating_session: None,
+            snippet_byte_ledger: SnippetByteLedger::default(),
         }
     }
 
@@ -1769,24 +1782,127 @@ impl GctxDispatch for SaveTimeConn<'_> {
             outcome,
         })
     }
-}
 
-/// CE-11 kill-switch. `ANVIL_GCTX_EGRESS` is re-read **per call** (never cached
-/// at start-up): `0` disables egress on the next call; unset or any other value
-/// (incl. the `1` that additionally opts into Phase-2 snippets) leaves the
-/// identity surface on. The owner-confirmed default is identity-on.
-const GCTX_EGRESS_ENV: &str = "ANVIL_GCTX_EGRESS";
+    fn get_snippet(
+        &mut self,
+        request: &GctxGetSnippetRequest,
+    ) -> Result<GctxGetSnippetResponse, SaveTimeError> {
+        if let Some(reason) = invalid_workspace_root_reason(&request.workspace_root) {
+            return Ok(GctxGetSnippetResponse {
+                workspace_assurance: unavailable_assurance(),
+                outcome: SnippetOutcome::InvalidQuery { reason },
+            });
+        }
+        let root = PathBuf::from(&request.workspace_root);
+        let originating_session = self.originating_session.clone();
+        let state = self.state;
+        let anchor = authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        let canonical = canonical_root(&root)?;
+        let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
+        let key = WorktreeKey::from_canonical(canonical);
+
+        state.spawn_restore(&key, key.as_path());
+
+        let workspace_assurance =
+            state.with_machine(&key, correlation, |machine| machine.snapshot());
+
+        let egress_env = std::env::var(GCTX_EGRESS_ENV).ok();
+        let include_source = request.query.include_source
+            && gctx_snippet_egress_enabled_from(egress_env.as_deref());
+
+        let outcome = gctx_get_snippet_outcome(
+            state,
+            &key,
+            &workspace_assurance,
+            &request.query,
+            gctx_egress_disabled_from(egress_env.as_deref()),
+            include_source,
+            |file| anchor.read_rel(file).ok(),
+            &mut self.snippet_byte_ledger,
+        );
+
+        tracing::info!(
+            target: "anvil_intercept::gctx",
+            outcome = outcome.telemetry_outcome().as_str(),
+            "gctx get_snippet served",
+        );
+
+        Ok(GctxGetSnippetResponse {
+            workspace_assurance,
+            outcome,
+        })
+    }
+
+    fn symbol_context(
+        &mut self,
+        request: &GctxSymbolContextRequest,
+    ) -> Result<GctxSymbolContextResponse, SaveTimeError> {
+        if let Some(reason) = invalid_workspace_root_reason(&request.workspace_root) {
+            return Ok(GctxSymbolContextResponse {
+                workspace_assurance: unavailable_assurance(),
+                outcome: SymbolContextOutcome::InvalidQuery { reason },
+            });
+        }
+        let root = PathBuf::from(&request.workspace_root);
+        let originating_session = self.originating_session.clone();
+        let state = self.state;
+        let anchor = authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        let canonical = canonical_root(&root)?;
+        let correlation = Self::telemetry_correlation_for(originating_session.as_ref(), &canonical);
+        let key = WorktreeKey::from_canonical(canonical);
+
+        state.spawn_restore(&key, key.as_path());
+
+        let workspace_assurance =
+            state.with_machine(&key, correlation, |machine| machine.snapshot());
+
+        let egress_env = std::env::var(GCTX_EGRESS_ENV).ok();
+        let include_source = request.query.include_source
+            && gctx_snippet_egress_enabled_from(egress_env.as_deref());
+
+        let outcome = gctx_symbol_context_outcome(
+            state,
+            &key,
+            &workspace_assurance,
+            &request.query,
+            gctx_egress_disabled_from(egress_env.as_deref()),
+            include_source,
+            |file| anchor.read_rel(file).ok(),
+            &mut self.snippet_byte_ledger,
+        );
+
+        let (label, returned, omitted, redacted) = match &outcome {
+            SymbolContextOutcome::Ready(p)
+            | SymbolContextOutcome::Bounded(p)
+            | SymbolContextOutcome::BudgetExceeded(p) => (
+                p.redaction_summary.outcome.as_str(),
+                p.snippets.len(),
+                p.omitted_context.len(),
+                p.redaction_summary.redacted_secrets,
+            ),
+            SymbolContextOutcome::NotReady { .. } => ("warming", 0, 0, 0),
+            SymbolContextOutcome::Unavailable => ("unavailable", 0, 0, 0),
+            SymbolContextOutcome::Disabled => ("disabled", 0, 0, 0),
+            SymbolContextOutcome::InvalidQuery { .. } => ("invalid_query", 0, 0, 0),
+        };
+        tracing::info!(
+            target: "anvil_intercept::gctx",
+            outcome = label,
+            returned,
+            omitted,
+            redacted,
+            "gctx symbol_context served",
+        );
+
+        Ok(GctxSymbolContextResponse {
+            workspace_assurance,
+            outcome,
+        })
+    }
+}
 
 fn gctx_egress_disabled() -> bool {
     gctx_egress_disabled_from(std::env::var(GCTX_EGRESS_ENV).ok().as_deref())
-}
-
-/// Pure kill-switch resolution (CE-11), testable without mutating process env:
-/// the (whitespace-trimmed) value `0` disables; unset or any other value (incl.
-/// the snippet opt-in `1`) leaves identity egress on. Trimming avoids a silent
-/// fail-open when an operator sets `" 0"` or a trailing-newline `"0\n"`.
-fn gctx_egress_disabled_from(raw: Option<&str>) -> bool {
-    raw.map(str::trim) == Some("0")
 }
 
 /// CIB-095c: pure resolution of the [`WATCH_DAEMON_SCAN_ENV`] scoped opt-out.
@@ -2358,6 +2474,202 @@ fn gctx_affected_tests_outcome(
                     .to_string(),
                 },
             }
+        }
+    }
+}
+
+/// CE-2 secret-scan redaction choke point for snippet text (fail-closed: scan
+/// errors redact the whole candidate).
+fn redact_gctx_snippet(text: &str) -> Redaction {
+    let config = SecretCheckConfig::default();
+    let findings = scan_content(text, "<gctx-snippet>", &config);
+    if findings.is_empty() {
+        return Redaction {
+            text: text.to_string(),
+            redacted_hits: 0,
+        };
+    }
+    let mut lines: Vec<String> = text.split('\n').map(str::to_string).collect();
+    for finding in &findings {
+        if finding.line >= 1 && finding.line <= lines.len() {
+            lines[finding.line - 1].clone_from(&finding.redacted_line);
+        }
+    }
+    Redaction {
+        text: lines.join("\n"),
+        redacted_hits: u32::try_from(findings.len()).unwrap_or(u32::MAX),
+    }
+}
+
+fn gctx_get_snippet_outcome(
+    state: &SaveTimeState,
+    key: &WorktreeKey,
+    assurance: &WorkspaceAssurance,
+    query: &SnippetQuery,
+    egress_disabled: bool,
+    include_source: bool,
+    read_file: impl Fn(&str) -> Option<Vec<u8>>,
+    byte_ledger: &mut SnippetByteLedger,
+) -> SnippetOutcome {
+    if egress_disabled {
+        return SnippetOutcome::Disabled;
+    }
+    if query.target.name.is_empty() {
+        return SnippetOutcome::InvalidQuery {
+            reason: "target.name must not be empty".to_string(),
+        };
+    }
+    if let Some(reason) = invalid_relative_path_reason("target.file", &query.target.file) {
+        return SnippetOutcome::InvalidQuery { reason };
+    }
+
+    match assurance.state {
+        AssuranceState::Unavailable | AssuranceState::Unknown => SnippetOutcome::Unavailable,
+        AssuranceState::Pending | AssuranceState::Running => SnippetOutcome::NotReady {
+            recovery_hint: "the workspace graph is warming; retry the snippet query shortly"
+                .to_string(),
+        },
+        AssuranceState::Clean | AssuranceState::Stale | AssuranceState::Bounded => {
+            let resolved = state.cache.with_graphs(key, |sym, _dep| {
+                GctxProjector::resolve_snippet_location(sym, &query.target)
+            });
+            let location = match resolved {
+                None => {
+                    return SnippetOutcome::NotReady {
+                        recovery_hint: concat!(
+                            "the workspace graph is not yet populated; ",
+                            "save a file or request a full scan to warm it"
+                        )
+                        .to_string(),
+                    };
+                }
+                Some(None) => return SnippetOutcome::SymbolNotFound,
+                Some(Some(loc)) => loc,
+            };
+            let Some(bytes) = read_file(&location.file) else {
+                return SnippetOutcome::SymbolNotFound;
+            };
+            let mut result = GctxProjector::project_snippet(
+                &location,
+                &bytes,
+                include_source,
+                redact_gctx_snippet,
+            );
+            if include_source {
+                if let Some(text) = result.text.as_ref() {
+                    let byte_cost = u32::try_from(text.len()).unwrap_or(u32::MAX);
+                    if byte_cost > 0 && !byte_ledger.can_admit(&result.file, result.span, byte_cost)
+                    {
+                        result.text = None;
+                    } else if byte_cost > 0 {
+                        byte_ledger.record(&result.file, result.span, byte_cost);
+                    }
+                }
+            }
+            SnippetOutcome::Ready(result)
+        }
+    }
+}
+
+fn clamp_symbol_context_token_budget(requested: Option<u32>) -> u32 {
+    requested
+        .unwrap_or(DEFAULT_SYMBOL_CONTEXT_TOKENS)
+        .clamp(1, MAX_SYMBOL_CONTEXT_TOKENS)
+}
+
+fn invalid_symbol_context_query_reason(query: &SymbolContextQuery) -> Option<String> {
+    let file = match &query.selector {
+        ContextSelector::File { file } => file,
+        ContextSelector::Symbol(id) => &id.file,
+    };
+    if file.is_empty() {
+        return Some("selector file path must not be empty".to_string());
+    }
+    invalid_relative_path_reason("selector.file", file)
+}
+
+fn seal_symbol_context_outcome(projection: SymbolContextProjection) -> SymbolContextOutcome {
+    if projection.redaction_summary.outcome == anvil_gctx_types::GctxOutcome::BudgetExceeded
+        && projection
+            .omitted_context
+            .iter()
+            .any(|o| o.reason == OmitReason::ByteCeiling)
+    {
+        SymbolContextOutcome::BudgetExceeded(projection)
+    } else if projection
+        .omitted_context
+        .iter()
+        .any(|o| o.reason == OmitReason::Budget)
+    {
+        SymbolContextOutcome::Bounded(projection)
+    } else {
+        SymbolContextOutcome::Ready(projection)
+    }
+}
+
+fn gctx_symbol_context_outcome(
+    state: &SaveTimeState,
+    key: &WorktreeKey,
+    assurance: &WorkspaceAssurance,
+    query: &SymbolContextQuery,
+    egress_disabled: bool,
+    include_source: bool,
+    read_file: impl Fn(&str) -> Option<Vec<u8>>,
+    byte_ledger: &mut SnippetByteLedger,
+) -> SymbolContextOutcome {
+    if egress_disabled {
+        return SymbolContextOutcome::Disabled;
+    }
+    if let Some(reason) = invalid_symbol_context_query_reason(query) {
+        return SymbolContextOutcome::InvalidQuery { reason };
+    }
+    let budget = clamp_symbol_context_token_budget(query.token_budget);
+
+    match assurance.state {
+        AssuranceState::Unavailable | AssuranceState::Unknown => SymbolContextOutcome::Unavailable,
+        AssuranceState::Pending | AssuranceState::Running => SymbolContextOutcome::NotReady {
+            recovery_hint: "the workspace graph is warming; retry the context query shortly"
+                .to_string(),
+        },
+        AssuranceState::Clean | AssuranceState::Stale | AssuranceState::Bounded => {
+            let collected = state.cache.with_graphs(key, |sym, dep| {
+                let candidates =
+                    GctxProjector::collect_context_candidates(sym, dep, &query.selector);
+                let mut locations = std::collections::HashMap::new();
+                for (identity, _) in &candidates {
+                    if let Some(loc) = GctxProjector::resolve_snippet_location(sym, identity) {
+                        locations.insert(identity.clone(), loc);
+                    }
+                }
+                (candidates, locations)
+            });
+            let Some((candidates, locations)) = collected else {
+                return SymbolContextOutcome::NotReady {
+                    recovery_hint: concat!(
+                        "the workspace graph is not yet populated; ",
+                        "save a file or request a full scan to warm it"
+                    )
+                    .to_string(),
+                };
+            };
+            let mut file_bytes = std::collections::HashMap::new();
+            for (identity, _) in &candidates {
+                if let Some(loc) = locations.get(identity) {
+                    file_bytes
+                        .entry(loc.file.clone())
+                        .or_insert_with(|| read_file(&loc.file).unwrap_or_default());
+                }
+            }
+            let projection = GctxProjector::project_symbol_context(
+                candidates,
+                locations,
+                &file_bytes,
+                include_source,
+                budget,
+                redact_gctx_snippet,
+                Some(byte_ledger),
+            );
+            seal_symbol_context_outcome(projection)
         }
     }
 }

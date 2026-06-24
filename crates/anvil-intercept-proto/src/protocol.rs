@@ -78,7 +78,7 @@ use anvil_gctx_types::{
     AffectedTestsOutcome, AffectedTestsQuery, FindCallersOutcome, FindCallersQuery,
     FindDependentsOutcome, FindDependentsQuery, GraphEdgesOutcome, GraphEdgesQuery,
     GraphStatsOutcome, ImpactOutcome, ImpactQuery, SearchSymbolsOutcome, SearchSymbolsQuery,
-    SnippetOutcome, SnippetQuery,
+    SnippetOutcome, SnippetQuery, SymbolContextOutcome, SymbolContextQuery,
 };
 use serde::{Deserialize, Serialize};
 
@@ -200,6 +200,14 @@ pub const ANVIL_GCTX_FIND_CALLERS: &str = "anvil/gctx/find_callers";
 /// on the read-only `GctxDispatch` surface; never the save-time path.
 pub const ANVIL_GCTX_GET_SNIPPET: &str = "anvil/gctx/get_snippet";
 
+/// Client → server: a read-only GCTX bounded symbol-context slice (GCTX-023,
+/// ADR-084 / PV-9). Combines neighbourhood search, local impact, snippet
+/// extraction, and token budgeting. Source **text** rides only when the
+/// `gctx.egress` operator flag is on AND the request asserts the CE-1
+/// capability; otherwise span-as-location only. Dispatched on the read-only
+/// `GctxDispatch` surface; never the save-time path.
+pub const ANVIL_GCTX_SYMBOL_CONTEXT: &str = "anvil/gctx/symbol_context";
+
 /// Client → server: a read-only, identity-only GCTX impact-of-change report
 /// (GCTX-012, ADR-084). Given a set of **changed file paths** (never diff
 /// content), the daemon projects the blast radius — affected symbols, the
@@ -295,6 +303,7 @@ pub const ALL_ANVIL_METHODS: &[&str] = &[
     ANVIL_GCTX_GRAPH_STATS,
     ANVIL_GCTX_GRAPH_EDGES,
     ANVIL_GCTX_GET_SNIPPET,
+    ANVIL_GCTX_SYMBOL_CONTEXT,
 ];
 
 // ============================================================================
@@ -716,6 +725,25 @@ pub struct GctxGetSnippetResponse {
     pub workspace_assurance: WorkspaceAssurance,
     /// The status-tagged snippet outcome (sealed).
     pub outcome: SnippetOutcome,
+}
+
+/// Request body for [`ANVIL_GCTX_SYMBOL_CONTEXT`] (GCTX-023, ADR-084 / PV-9).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GctxSymbolContextRequest {
+    /// Canonical, admitted workspace root to read snippets from.
+    pub workspace_root: String,
+    /// The bounded-context query (seed + budget + CE-1 capability).
+    pub query: SymbolContextQuery,
+}
+
+/// Response to [`ANVIL_GCTX_SYMBOL_CONTEXT`]: the daemon-projected sealed egress
+/// DTO. Source text appears only in snippet rows under the CE-1 gates.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GctxSymbolContextResponse {
+    /// Workspace assurance at projection time (CE-7).
+    pub workspace_assurance: WorkspaceAssurance,
+    /// The status-tagged symbol-context outcome (sealed).
+    pub outcome: SymbolContextOutcome,
 }
 
 /// Request body for [`ANVIL_GCTX_IMPACT_OF_CHANGE`] (GCTX-012, ADR-084).
@@ -1508,6 +1536,69 @@ mod tests {
                 outcome,
             };
             let back: GctxAffectedTestsResponse =
+                serde_json::from_str(&serde_json::to_string(&response).unwrap()).unwrap();
+            assert_eq!(response, back);
+        }
+    }
+
+    #[test]
+    fn gctx_symbol_context_wire_roundtrips() {
+        use anvil_gctx_types::{
+            ContextSelector, GctxOutcome, SymbolContextOutcome, SymbolContextProjection,
+            SymbolContextQuery, SymbolContextRedactionSummary,
+        };
+
+        assert_eq!(ANVIL_GCTX_SYMBOL_CONTEXT, "anvil/gctx/symbol_context");
+
+        let request = GctxSymbolContextRequest {
+            workspace_root: "/home/me/proj".into(),
+            query: SymbolContextQuery {
+                selector: ContextSelector::Symbol(anvil_kernel_types::SymbolIdentity {
+                    file: "src/a.ts".into(),
+                    kind: anvil_kernel_types::SymbolKind::Function,
+                    name: "greet".into(),
+                    ordinal: 0,
+                }),
+                token_budget: Some(500),
+                include_source: true,
+            },
+        };
+        let back: GctxSymbolContextRequest =
+            serde_json::from_str(&serde_json::to_string(&request).unwrap()).unwrap();
+        assert_eq!(request, back);
+
+        let summary = SymbolContextRedactionSummary {
+            estimated_tokens: 12,
+            redacted_secrets: 0,
+            snippets_truncated: 1,
+            fully_suppressed_symbols: 0,
+            omitted_sensitive_paths: 0,
+            outcome: GctxOutcome::BudgetExceeded,
+        };
+        let projection = SymbolContextProjection {
+            snippets: Vec::new(),
+            omitted_context: Vec::new(),
+            redaction_summary: summary,
+        };
+
+        for outcome in [
+            SymbolContextOutcome::Ready(projection.clone()),
+            SymbolContextOutcome::Bounded(projection.clone()),
+            SymbolContextOutcome::BudgetExceeded(projection),
+            SymbolContextOutcome::NotReady {
+                recovery_hint: "warming".into(),
+            },
+            SymbolContextOutcome::Unavailable,
+            SymbolContextOutcome::Disabled,
+            SymbolContextOutcome::InvalidQuery {
+                reason: "bad seed".into(),
+            },
+        ] {
+            let response = GctxSymbolContextResponse {
+                workspace_assurance: sample_assurance(),
+                outcome,
+            };
+            let back: GctxSymbolContextResponse =
                 serde_json::from_str(&serde_json::to_string(&response).unwrap()).unwrap();
             assert_eq!(response, back);
         }

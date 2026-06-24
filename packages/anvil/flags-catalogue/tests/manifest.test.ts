@@ -13,6 +13,8 @@ import {
   DEFAULT_APPROVAL_SCOPES,
   DOCS_ACCESS_FLAG,
   DOCS_ACCESS_FLAG_KEY,
+  GCTX_EGRESS_FLAG,
+  GCTX_EGRESS_FLAG_KEY,
   featureFlagManifest,
   flagAudiences,
   flagByKey,
@@ -26,7 +28,7 @@ describe('flags catalogue manifest', () => {
     expect(FeatureFlagManifestSchema.safeParse(featureFlagManifest()).success).toBe(true);
   });
 
-  it('contains exactly the fourteen shipped flags', () => {
+  it('contains exactly the fifteen shipped flags', () => {
     const keys = featureFlagManifest().flags.map((f) => f.key);
     expect(keys).toEqual([
       'api.scope.beta',
@@ -35,6 +37,7 @@ describe('flags catalogue manifest', () => {
       'cli.licence-gate',
       'daemon.persist-graph',
       'docs.access',
+      'gctx.egress',
       'gv2.reverse-impact-depth',
       'track.pack',
       'track.surface',
@@ -67,6 +70,13 @@ describe('typed accessors', () => {
     expect(CLI_LICENCE_GATE).toEqual(flagByKey(CLI_LICENCE_GATE_KEY));
     expect(CLI_LICENCE_GATE.key).toBe('cli.licence-gate');
     expect(CLI_LICENCE_GATE.primaryGroup).toBe('cli');
+  });
+
+  it('GCTX_EGRESS_FLAG matches the manifest entry', () => {
+    expect(GCTX_EGRESS_FLAG).toEqual(flagByKey(GCTX_EGRESS_FLAG_KEY));
+    expect(GCTX_EGRESS_FLAG.key).toBe('gctx.egress');
+    expect(GCTX_EGRESS_FLAG.defaultVariant).toBe('disabled');
+    expect(GCTX_EGRESS_FLAG.primaryGroup).toBe('daemon');
   });
 
   it('DOCS_ACCESS_FLAG matches the manifest and uses canonical audience ids', () => {

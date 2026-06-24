@@ -5,6 +5,7 @@ import { featureFlagManifest, flagAudiences } from './manifest.js';
 // migrate with a path change, not a rename (FLAGCAT-003/-005).
 export const CLI_LICENCE_GATE_KEY = 'cli.licence-gate';
 export const DOCS_ACCESS_FLAG_KEY = 'docs.access';
+export const GCTX_EGRESS_FLAG_KEY = 'gctx.egress';
 export const API_SCOPE_FLAG_PREFIX = 'api.scope.' as const;
 
 export const API_SCOPE_NAMES = ['beta', 'preview', 'internal'] as const;
@@ -39,6 +40,7 @@ function apiScopeKey(name: ApiScopeName): string {
 // per-surface modules these will replace (FLAGCAT-003/-005).
 export const CLI_LICENCE_GATE: FeatureFlagDefinition = flagByKey(CLI_LICENCE_GATE_KEY);
 export const DOCS_ACCESS_FLAG: FeatureFlagDefinition = flagByKey(DOCS_ACCESS_FLAG_KEY);
+export const GCTX_EGRESS_FLAG: FeatureFlagDefinition = flagByKey(GCTX_EGRESS_FLAG_KEY);
 
 export const API_SCOPE_FLAGS: Readonly<Record<ApiScopeName, FeatureFlagDefinition>> = Object.freeze(
   API_SCOPE_NAMES.reduce(

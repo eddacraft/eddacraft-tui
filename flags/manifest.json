@@ -107,6 +107,23 @@
       "primaryGroup": "docs"
     },
     {
+      "key": "gctx.egress",
+      "owner": "GCTX",
+      "intent": "Opt in to source-text snippet egress on GCTX tools (CE-1 / CE-9)",
+      "class": "rollout",
+      "valueType": "boolean",
+      "variants": [
+        { "key": "enabled", "value": true },
+        { "key": "disabled", "value": false }
+      ],
+      "defaultVariant": "disabled",
+      "status": "active",
+      "createdFor": "GCTX-001",
+      "expiryOrReviewDate": "2026-12-31T00:00:00Z",
+      "description": "Default-off (PV-9 CE-1): identity-only graph context is always on; source-text snippets ride only when this flag is enabled AND the request asserts include_source. Operator opt-in via ANVIL_GCTX_EGRESS=1; ANVIL_GCTX_EGRESS=0 is the kill-switch that disables all GCTX egress.",
+      "primaryGroup": "daemon"
+    },
+    {
       "key": "gv2.reverse-impact-depth",
       "owner": "GV2",
       "intent": "Save-time reverse-impact closure hop depth (env ANVIL_REVERSE_IMPACT_DEPTH): 1 hop by default, hard-capped at 2; an over-cap setting is clamped, not honoured (ADR-063 §3)",
