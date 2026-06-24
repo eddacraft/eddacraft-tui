@@ -242,11 +242,17 @@ need a short ADR to reconcile the wording.
 
 ### KDS-005: Retire the standalone NDJSON writer
 
-- **Intent:** Remove the bespoke `DaemonUsageSink` NDJSON append path; the only
-  NDJSON in the system becomes the `SpooledClient` fallback file.
-- **Expected Outcome:** `DaemonUsageSink` and its hand-rolled append/rotation
-  logic are deleted; the spool owns durability; docs/runbook updated; no
-  behaviour change when the daemon is reachable.
+- **Intent:** Remove the bespoke `DaemonUsageSink` NDJSON append path for the
+  daemon `command.invoked` producer; the only NDJSON that producer leaves behind
+  becomes the `SpooledClient` fallback file.
+- **Expected Outcome:** `DaemonUsageSink` is deleted and the daemon
+  `command.invoked` producer routes only through the daemon sink (spool
+  fallback), so the spool owns that producer's durability; docs/runbook updated;
+  no behaviour change when the daemon is reachable. (The shared
+  `append_observation_to` / `trim_usage_sidecar` helpers **remain** while the
+  CLI producer — `usage::record_invocation`, outside KDS scope — still writes the
+  sidecar; deleting those helpers awaits that producer's own migration, not
+  KDS-005. See blocker 3.)
 - **Blocked — cannot proceed yet (verified 2026-06-24).** Three blockers, two of
   them on upstream kindling work:
   1. **Depends on KDS-004 (Blocked on anvil-001#2910).** Deleting `DaemonUsageSink`
