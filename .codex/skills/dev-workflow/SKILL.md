@@ -8,7 +8,7 @@ description: Use at the start of any development task to route to the correct sk
 Routing layer for the development lifecycle. Every non-trivial task follows this sequence - do not skip stages.
 
 ```
-APS truth gate -> Worktrunk branch from main -> TDD code -> Verify -> Council -> PR -> Merged -> cleanup offer
+APS truth gate -> APS (Ready) -> Worktrunk branch from main -> TDD code -> Council -> PR -> Merged -> cleanup offer -> Released/Shipped -> continuous-improvement note
 ```
 
 ## Stage Map
