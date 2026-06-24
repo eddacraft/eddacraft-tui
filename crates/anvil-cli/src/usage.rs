@@ -909,8 +909,11 @@ const KINDLING_SINK_ENV: &str = "ANVIL_KINDLING_SINK";
 
 /// KDS-002: operator-selected backend for the daemon `command.invoked`
 /// producer, resolved from [`KINDLING_SINK_ENV`].
+///
+/// `pub(crate)` for KDS-004: the `anvil kindling usage` views consult it to warn
+/// when the local sidecar they read is not the authoritative store (the daemon).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum KindlingSinkSelection {
+pub(crate) enum KindlingSinkSelection {
     /// Append to the Kindling daemon via `KindlingDaemonSink` (spool fallback).
     Daemon,
     /// Append to the local `usage.ndjson` sidecar (today's default).
@@ -947,8 +950,9 @@ fn parse_kindling_sink(value: Option<&str>) -> KindlingSinkSelection {
 }
 
 /// Resolve [`KINDLING_SINK_ENV`] to a [`KindlingSinkSelection`]. Read fresh so an
-/// operator can flip it per daemon start.
-fn resolve_kindling_sink() -> KindlingSinkSelection {
+/// operator can flip it per daemon start. `pub(crate)` for the KDS-004
+/// source-aware usage-view guard.
+pub(crate) fn resolve_kindling_sink() -> KindlingSinkSelection {
     parse_kindling_sink(env::var(KINDLING_SINK_ENV).ok().as_deref())
 }
 

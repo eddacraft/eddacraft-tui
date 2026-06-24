@@ -163,6 +163,15 @@ sidecar. It is local-only and needs no authentication (like `anvil insights`);
 it reads only `<credentials_dir>/kindling/usage.ndjson`. Pass `--json` for
 machine-readable output; the default is a small human table.
 
+> **Source caveat under `ANVIL_KINDLING_SINK=daemon` (KDS-004).** These views
+> read the local `usage.ndjson` sidecar. When the daemon sink is selected, the
+> daemon `command.invoked` rows go to the Kindling daemon (SQLite), not the
+> sidecar, so the views may be **incomplete** — and `anvil kindling usage`
+> prints a note to that effect on stderr. A daemon-backed read path is blocked
+> on an upstream kindling list/aggregate read API (tracked internally as
+> anvil-001#2910); until it lands, run the views under the default `ndjson` sink
+> for a complete local picture.
+
 | View         | Command                           | Answers                                                                                                                            |
 | ------------ | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | Top commands | `anvil kindling usage top`        | Most-invoked commands. `--period week\|month\|all` (default `all`), `--limit N` (default 10, `0` = no cap).                        |

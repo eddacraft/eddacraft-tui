@@ -129,7 +129,10 @@ need a short ADR to reconcile the wording.
       with the daemon opt-in, so nothing in ADR-035's matrix is contradicted. A
       wording change would only be warranted if/when the daemon becomes the
       **default** authoritative write path (a future graduated flip, not KDS-002).
-- [ ] Usage-views read-path migration approach agreed (KDS-004)
+- [x] Usage-views read-path migration approach agreed (KDS-004) — **query the
+      daemon**, Blocked on an upstream kindling list/aggregate read API
+      (anvil-001#2910); `retrieve` (ranked/capped) and spool-as-cache are both
+      unsuitable. A source-aware guard ships in the interim. See KDS-004.
 
 ## Work Items
 
@@ -209,15 +212,33 @@ need a short ADR to reconcile the wording.
 
 - **Intent:** Keep `anvil kindling usage <view>` correct once the daemon is the
   source of truth (the views read `usage.ndjson` today).
-- **Expected Outcome:** the views query the daemon (via `kindling-client`
-  retrieval / a read path) — or, as an interim, read the spool file as a local
-  cache — without changing the view semantics or output shapes. The chosen
-  approach is recorded.
-- **Validation:** existing `usage_views` tests pass against the new read source;
-  a view returns the same rows whether they were delivered live or via spool
-  replay.
-- **Status:** Proposed
-- **Dependencies:** KDS-002
+- **Expected Outcome:** _(chosen approach, recorded)_ **query the daemon** is the
+  only correct path — but it is **Blocked on an upstream kindling read API**
+  (tracked in
+  [eddacraft/anvil-001#2910](https://github.com/eddacraft/anvil-001/issues/2910)).
+  The four views compute exact **counts** and a **set-difference**
+  (`never_invoked`) over _all_ `command.invoked` rows; `kindling-client` 0.2's
+  only observation-read endpoint is `retrieve` — _deterministic **ranked**
+  retrieval capped by `max_candidates`_ — which returns top-K candidates, not an
+  exhaustive list, so it yields wrong counts and false "never invoked" results.
+  The **spool-as-cache** alternative is rejected: the spool drains into the
+  daemon on delivery, so it is empty in the normal daemon-up case and never holds
+  the full record. A **dual-write local cache** is rejected too — it reintroduces
+  the duplication KDS-001 demoted and KDS-005 must then undo. **Interim shipped:**
+  a **source-aware guard** — under `ANVIL_KINDLING_SINK=daemon` the
+  `anvil kindling usage` command warns (stderr, so `--json` stdout stays clean)
+  that the views read the local sidecar, which is not authoritative under the
+  daemon sink, and points at #2910. This stops silently-misleading empty/stale
+  output for the opt-in / default-off daemon-sink users; the views and their
+  output shapes are unchanged.
+- **Validation:** done for the interim — a unit test (`sidecar_source_warning`)
+  and CLI integration tests assert the note fires only under the daemon sink and
+  not by default. The full acceptance (views query the daemon; same rows live vs
+  spool-replay; existing `usage_views` tests pass against the daemon source) is
+  deferred to the upstream API landing (#2910).
+- **Status:** Blocked
+- **Dependencies:** KDS-002 (Merged); upstream kindling list/aggregate read API
+  (anvil-001#2910)
 
 ### KDS-005: Retire the standalone NDJSON writer
 
@@ -260,7 +281,10 @@ need a short ADR to reconcile the wording.
    `kindling-client`; the client checks the daemon's reported schema version
    against its compile-time `EXPECTED_SCHEMA_VERSION` (5) and fails loud on
    mismatch, so Anvil need not track the schema version separately.
-4. **Views read-path** — query the daemon directly, or treat the spool as a
-   read-through cache for `anvil kindling usage`? (Open; affects KDS-004 scope.)
+4. **Views read-path** — **Resolved (KDS-004):** query the daemon directly is the
+   only correct path, but it is Blocked on an upstream kindling list/aggregate
+   read API (anvil-001#2910) — `retrieve` is ranked/capped (wrong counts) and the
+   spool is transient. A source-aware guard ships in the interim; the full
+   re-source awaits the API.
 5. **`gate.evaluated`** — does it also route to the daemon, or stay a local-only
    signal? (Open; deferred to the KDS-001 fast follow / USAGE-002 context.)

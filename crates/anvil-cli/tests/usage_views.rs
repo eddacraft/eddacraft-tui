@@ -69,6 +69,67 @@ fn run_anvil_stdout(home: &Path, args: &[&str]) -> String {
     String::from_utf8_lossy(&out.stdout).into_owned()
 }
 
+/// Run `anvil <args>` under a hermetic `ANVIL_HOME` with extra env vars and
+/// return stderr (for the KDS-004 source-aware note, which goes to stderr).
+fn run_anvil_stderr(home: &Path, args: &[&str], extra_env: &[(&str, &str)]) -> String {
+    let mut cmd = Command::new(ANVIL_BIN);
+    cmd.args(args)
+        .current_dir(home)
+        .env("ANVIL_HOME", home)
+        .env("HOME", home)
+        .env("USERPROFILE", home)
+        .env("ANVIL_DEV", "1")
+        .env("ANVIL_SKIP_WELCOME", "1");
+    cmd.env_remove("ANVIL_TOUCH_PROJECT_STATE");
+    cmd.env_remove("TRACEPARENT");
+    // Hermetic: an ambient sink selection / opt-out in the test session must not
+    // leak into the KDS-004 source-aware note these tests assert on.
+    cmd.env_remove("ANVIL_KINDLING_SINK");
+    cmd.env_remove("ANVIL_USAGE_DISABLE");
+    cmd.env_remove("DO_NOT_TRACK");
+    cmd.env_remove("ANVIL_INTERCEPT_DISABLE_OBSERVATION");
+    for (key, value) in extra_env {
+        cmd.env(key, value);
+    }
+    let out = cmd.output().expect("spawn anvil");
+    assert!(
+        out.status.success(),
+        "anvil {args:?} exited {:?}",
+        out.status
+    );
+    String::from_utf8_lossy(&out.stderr).into_owned()
+}
+
+/// KDS-004: under `ANVIL_KINDLING_SINK=daemon` the views read a sidecar that is
+/// no longer authoritative, so the command warns (on stderr) and points at the
+/// tracking issue.
+#[test]
+fn daemon_sink_warns_views_may_be_incomplete() {
+    let home = tempdir().expect("home");
+    seed_usage_log(home.path(), &[&row("check", "p", FIXTURE_TS_0)]);
+    let stderr = run_anvil_stderr(
+        home.path(),
+        &["kindling", "usage", "top", "--json"],
+        &[("ANVIL_KINDLING_SINK", "daemon")],
+    );
+    assert!(
+        stderr.contains("anvil-001#2910") && stderr.contains("may be incomplete"),
+        "daemon sink must warn the views may be incomplete; stderr was:\n{stderr}",
+    );
+}
+
+/// The default (NDJSON) sink reads the authoritative sidecar — no source note.
+#[test]
+fn default_sink_does_not_warn_about_source() {
+    let home = tempdir().expect("home");
+    seed_usage_log(home.path(), &[&row("check", "p", FIXTURE_TS_0)]);
+    let stderr = run_anvil_stderr(home.path(), &["kindling", "usage", "top", "--json"], &[]);
+    assert!(
+        !stderr.contains("anvil-001#2910"),
+        "default sink must not emit the daemon-source note; stderr was:\n{stderr}",
+    );
+}
+
 #[test]
 fn top_view_ranks_seeded_commands() {
     let home = tempdir().expect("home");

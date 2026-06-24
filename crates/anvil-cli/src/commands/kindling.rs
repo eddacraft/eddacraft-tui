@@ -78,7 +78,44 @@ pub fn run(args: &KindlingArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     }
 }
 
+/// KDS-004: the note (if any) to print before a usage view, warning that the
+/// sidecar these views read is missing the daemon-routed rows.
+///
+/// Under `ANVIL_KINDLING_SINK=daemon` the **daemon-dispatched (JSON-RPC)**
+/// `command.invoked` rows go to the Kindling daemon (KDS-002), not the
+/// `usage.ndjson` sidecar — so these sidecar-sourced views omit them and may be
+/// incomplete. (CLI invocations are still recorded to the sidecar by the CLI
+/// producer regardless of the sink, so a CLI-only picture stays complete.) A
+/// daemon-backed read path that would re-include the daemon rows is blocked on an
+/// upstream kindling list/aggregate read API (eddacraft/anvil-001#2910).
+///
+/// No note for `ndjson` (the default — the sidecar is authoritative) or `off`.
+/// And no note when capture is disabled outright (`ANVIL_USAGE_DISABLE` /
+/// `DO_NOT_TRACK` / the `ANVIL_INTERCEPT_DISABLE_OBSERVATION` break-glass): the
+/// views are then sparse because the operator opted out, not because of the
+/// sink, so the daemon-source caveat would only mislead.
+fn sidecar_source_warning() -> Option<&'static str> {
+    if usage::resolve_kindling_sink() != usage::KindlingSinkSelection::Daemon
+        || usage::usage_collection_disabled()
+    {
+        return None;
+    }
+    Some(
+        "Note: ANVIL_KINDLING_SINK=daemon — daemon-dispatched (JSON-RPC) \
+         command.invoked rows are sent to the Kindling daemon under this sink and \
+         are not in these sidecar-sourced views (CLI invocations are still \
+         recorded locally), so results may be incomplete. A daemon-backed read \
+         path is tracked in eddacraft/anvil-001#2910.",
+    )
+}
+
 fn run_usage(view: &UsageView, global: &GlobalArgs) -> anyhow::Result<()> {
+    // KDS-004: warn (stderr, so `--json` stdout stays clean) when the sidecar
+    // these views read is not the authoritative store under the daemon sink.
+    if let Some(note) = sidecar_source_warning() {
+        eprintln!("{note}");
+    }
+
     let path = usage::default_usage_log_path()?;
     let rows = usage_views::load_rows(&path)?;
 
@@ -191,4 +228,56 @@ fn render_principals(result: &[usage_views::PrincipalActivity]) {
         println!("  {:>6}  {}", entry.invocations, entry.principal);
     }
     print_signal_footer();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// KDS-004: the source-aware note fires ONLY under the daemon sink with
+    /// capture on — the one case where the sidecar omits the daemon-routed rows.
+    #[test]
+    fn sidecar_warning_only_under_daemon_sink() {
+        // Daemon sink + capture on → warns and points at the tracking issue.
+        // Clear the opt-out vars so an ambient one can't suppress the note.
+        temp_env::with_vars(
+            [
+                ("ANVIL_KINDLING_SINK", Some("daemon")),
+                ("ANVIL_USAGE_DISABLE", None),
+                ("DO_NOT_TRACK", None),
+                ("ANVIL_INTERCEPT_DISABLE_OBSERVATION", None),
+            ],
+            || {
+                let note = sidecar_source_warning().expect("daemon sink warns");
+                assert!(
+                    note.contains("anvil-001#2910"),
+                    "note points at the tracking issue"
+                );
+                assert!(note.contains("may be incomplete"));
+            },
+        );
+
+        // ndjson / off / an unrecognised value (falls back to ndjson) / unset →
+        // the sidecar is the right source, so no note.
+        for v in [Some("ndjson"), Some("off"), Some("DAEMON_TYPO"), None] {
+            temp_env::with_var("ANVIL_KINDLING_SINK", v, || {
+                assert!(sidecar_source_warning().is_none(), "no note for {v:?}");
+            });
+        }
+
+        // Daemon sink BUT capture disabled → the views are sparse because the
+        // operator opted out, not because of the sink, so no daemon-source note.
+        temp_env::with_vars(
+            [
+                ("ANVIL_KINDLING_SINK", Some("daemon")),
+                ("ANVIL_USAGE_DISABLE", Some("1")),
+            ],
+            || {
+                assert!(
+                    sidecar_source_warning().is_none(),
+                    "no daemon-source note when capture is disabled",
+                );
+            },
+        );
+    }
 }
