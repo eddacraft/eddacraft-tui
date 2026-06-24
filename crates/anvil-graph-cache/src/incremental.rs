@@ -1265,7 +1265,11 @@ mod tests {
             update_file(&mut g, syms);
             let node = g.get_symbol(id).expect("symbol resident");
             assert_eq!(node.span, Some(span), "{file}: span must land on the node");
-            assert_eq!(g.file_hash(file), Some(hash), "{file}: content hash stamped");
+            assert_eq!(
+                g.file_hash(file),
+                Some(hash),
+                "{file}: content hash stamped"
+            );
         }
     }
 

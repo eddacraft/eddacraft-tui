@@ -138,15 +138,9 @@ fn parse_query(arguments: &Value) -> Result<anvil_gctx_types::SymbolContextQuery
 
     let mut fields = serde_json::Map::new();
     if let Some(target) = arguments.get("target") {
-        fields.insert(
-            "selector".to_string(),
-            json!({ "symbol": target.clone() }),
-        );
+        fields.insert("selector".to_string(), json!({ "symbol": target.clone() }));
     } else if let Some(file) = arguments.get("file").and_then(Value::as_str) {
-        fields.insert(
-            "selector".to_string(),
-            json!({ "file": { "file": file } }),
-        );
+        fields.insert("selector".to_string(), json!({ "file": { "file": file } }));
     }
     for key in ["tokenBudget", "includeSource"] {
         if let Some(value) = arguments.get(key)
@@ -164,10 +158,7 @@ fn parse_query(arguments: &Value) -> Result<anvil_gctx_types::SymbolContextQuery
         .map_err(|err| format!("invalid symbol_context parameter: {err}"))
 }
 
-fn render_response(
-    response: &GctxSymbolContextResponse,
-    redacted_workspace_root: &str,
-) -> Value {
+fn render_response(response: &GctxSymbolContextResponse, redacted_workspace_root: &str) -> Value {
     let mut value = serde_json::to_value(response).expect("gctx response serialises");
     if let Some(object) = value.as_object_mut() {
         object.insert(
@@ -391,9 +382,15 @@ mod tests {
             omitted_context: Vec::new(),
             redaction_summary: summary,
         };
-        assert!(!should_rewarm(&SymbolContextOutcome::Ready(projection.clone())));
-        assert!(!should_rewarm(&SymbolContextOutcome::Bounded(projection.clone())));
-        assert!(!should_rewarm(&SymbolContextOutcome::BudgetExceeded(projection)));
+        assert!(!should_rewarm(&SymbolContextOutcome::Ready(
+            projection.clone()
+        )));
+        assert!(!should_rewarm(&SymbolContextOutcome::Bounded(
+            projection.clone()
+        )));
+        assert!(!should_rewarm(&SymbolContextOutcome::BudgetExceeded(
+            projection
+        )));
         assert!(!should_rewarm(&SymbolContextOutcome::Unavailable));
         assert!(!should_rewarm(&SymbolContextOutcome::Disabled));
         assert!(!should_rewarm(&SymbolContextOutcome::InvalidQuery {

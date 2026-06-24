@@ -5,12 +5,12 @@
 #![cfg(any(target_os = "linux", target_os = "macos"))]
 
 use std::io::{BufRead, BufReader, Write};
-use std::os::unix::net::UnixStream;
 use std::os::unix::fs::PermissionsExt;
+use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdout, Command, ExitStatus, Stdio};
-use std::sync::mpsc::{self, Receiver};
 use std::sync::Arc;
+use std::sync::mpsc::{self, Receiver};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -40,12 +40,13 @@ struct SnippetStubParser;
 
 impl SymbolParser for SnippetStubParser {
     fn parse(&self, path: &Path, bytes: &[u8]) -> Option<FileSymbols> {
-        let file = path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .map(|name| format!("src/{name}"))
-            .unwrap_or_else(|| path.to_string_lossy().into_owned());
-        let end = u32::try_from(bytes.len()).unwrap_or(u32::MAX).saturating_sub(1);
+        let file = path.file_name().and_then(|n| n.to_str()).map_or_else(
+            || path.to_string_lossy().into_owned(),
+            |name| format!("src/{name}"),
+        );
+        let end = u32::try_from(bytes.len())
+            .unwrap_or(u32::MAX)
+            .saturating_sub(1);
         Some(FileSymbols {
             file: file.clone(),
             symbols: vec![SymbolNode {
@@ -83,7 +84,7 @@ fn prepare_workspace(tmp: &TempDir) -> PathBuf {
     std::fs::canonicalize(&root).expect("canonicalise")
 }
 
-fn daemon_jsonrpc(socket: &Path, method: &str, params: Value) -> Value {
+fn daemon_jsonrpc(socket: &Path, method: &str, params: &Value) -> Value {
     let mut stream = UnixStream::connect(socket).expect("connect daemon socket");
     let frame = json!({
         "jsonrpc": "2.0",
@@ -103,7 +104,7 @@ fn warm_graph_over_daemon_socket(socket: &Path, root: &Path) {
     let validate = daemon_jsonrpc(
         socket,
         "anvil/validate_paths",
-        json!({
+        &json!({
             "workspace_root": root,
             "paths": [{ "path": "src/greet.ts", "change": "modified" }],
         }),
@@ -117,12 +118,12 @@ fn warm_graph_over_daemon_socket(socket: &Path, root: &Path) {
         let status = daemon_jsonrpc(
             socket,
             "anvil/workspace_status",
-            json!({ "workspace_root": root, "id": format!("warm-{i}") }),
+            &json!({ "workspace_root": root, "id": format!("warm-{i}") }),
         );
         let state = status
             .pointer("/result/workspace_assurance/state")
             .and_then(Value::as_str);
-        if matches!(state, Some("stale") | Some("clean") | Some("bounded")) {
+        if matches!(state, Some("stale" | "clean" | "bounded")) {
             return;
         }
         thread::sleep(Duration::from_millis(10));
@@ -348,7 +349,7 @@ fn mcp_symbol_context_identity_only_without_snippet_egress() {
         assert!(
             matches!(
                 outcome["status"].as_str(),
-                Some("ready") | Some("bounded") | Some("budget_exceeded")
+                Some("ready" | "bounded" | "budget_exceeded")
             ),
             "warm graph must project: {outcome}",
         );
@@ -385,7 +386,7 @@ fn mcp_symbol_context_emits_text_with_egress_and_capability() {
         assert!(
             matches!(
                 outcome["status"].as_str(),
-                Some("ready") | Some("bounded") | Some("budget_exceeded")
+                Some("ready" | "bounded" | "budget_exceeded")
             ),
             "warm graph must project: {outcome}",
         );

@@ -44,11 +44,11 @@ use std::path::Path;
 
 use anvil_gctx_types::{
     AffectedTestsReport, AffectedTestsSummary, CallerSummary, ContextSelector, ContextSnippet,
-    DependentSummary, EdgeSummary, FindCallersProjection, FindCallersQuery, FindDependentsProjection,
-    FindDependentsQuery, GctxOutcome, GraphEdgesProjection, GraphEdgesQuery, GraphStatsProjection,
-    ImpactReport, ImpactSummary, OmittedContext, OpaqueCursor, RedactionSummary,
-    SearchSymbolsProjection, SearchSymbolsQuery, SnippetResult, SymbolContextProjection,
-    SymbolContextRedactionSummary, SymbolSummary, TestEvidence,
+    DependentSummary, EdgeSummary, FindCallersProjection, FindCallersQuery,
+    FindDependentsProjection, FindDependentsQuery, GctxOutcome, GraphEdgesProjection,
+    GraphEdgesQuery, GraphStatsProjection, ImpactReport, ImpactSummary, OmittedContext,
+    OpaqueCursor, RedactionSummary, SearchSymbolsProjection, SearchSymbolsQuery, SnippetResult,
+    SymbolContextProjection, SymbolContextRedactionSummary, SymbolSummary, TestEvidence,
 };
 use anvil_graph_cache::{DependencyGraph, SymbolGraph};
 use anvil_kernel_types::{
@@ -59,7 +59,7 @@ use serde::{Deserialize, Serialize};
 
 mod slice;
 
-pub use slice::{ContextSlice, SnippetByteLedger, SliceCandidate, slice_under_budget};
+pub use slice::{ContextSlice, SliceCandidate, SnippetByteLedger, slice_under_budget};
 
 /// Default token budget for `symbol_context` when the client omits one (GCTX-023).
 pub const DEFAULT_SYMBOL_CONTEXT_TOKENS: u32 = 2_000;
@@ -1403,9 +1403,8 @@ impl GctxProjector {
                 continue;
             };
             let bytes = file_bytes.get(&location.file);
-            let snippet = bytes.map(|b| {
-                Self::project_snippet(location, b, include_source, &redact)
-            });
+            let snippet =
+                bytes.map(|b| Self::project_snippet(location, b, include_source, &redact));
             slice_candidates.push(SliceCandidate {
                 identity,
                 distance,
@@ -4424,10 +4423,7 @@ mod tests {
         };
         let candidates =
             GctxProjector::collect_context_candidates(&sym, &dep, &ContextSelector::Symbol(seed));
-        let names: Vec<&str> = candidates
-            .iter()
-            .map(|(id, _)| id.name.as_str())
-            .collect();
+        let names: Vec<&str> = candidates.iter().map(|(id, _)| id.name.as_str()).collect();
         assert!(names.contains(&"seed"));
         assert!(names.contains(&"other"));
         assert!(names.contains(&"importerFn"));
@@ -4445,8 +4441,11 @@ mod tests {
             .unwrap();
         sym.set_file_hash("b.ts".into(), Some(content_hash(source_b)));
 
-        let candidates =
-            GctxProjector::collect_context_candidates(&sym, &dep, &ContextSelector::Symbol(seed_id));
+        let candidates = GctxProjector::collect_context_candidates(
+            &sym,
+            &dep,
+            &ContextSelector::Symbol(seed_id),
+        );
         let mut locations = std::collections::HashMap::new();
         for (identity, _) in &candidates {
             if let Some(loc) = GctxProjector::resolve_snippet_location(&sym, identity) {

@@ -198,7 +198,10 @@ mod tests {
     fn snippet_with_text(text: &str) -> SnippetResult {
         SnippetResult {
             file: "f.ts".into(),
-            span: ByteRange { start: 0, end: u32::try_from(text.len()).unwrap_or(0) },
+            span: ByteRange {
+                start: 0,
+                end: u32::try_from(text.len()).unwrap_or(0),
+            },
             language: "typescript".into(),
             stale: false,
             text: Some(text.to_string()),
@@ -222,10 +225,7 @@ mod tests {
         for budget in [0u32, 1, 5, 20, 100] {
             for i in 0..texts.len() {
                 for j in 0..texts.len() {
-                    let cands = vec![
-                        cand("a", 0, Some(texts[i])),
-                        cand("b", 1, Some(texts[j])),
-                    ];
+                    let cands = vec![cand("a", 0, Some(texts[i])), cand("b", 1, Some(texts[j]))];
                     let s = slice_under_budget(cands, budget, None);
                     assert!(
                         s.estimated_tokens <= budget,
@@ -257,7 +257,11 @@ mod tests {
         let text = "x".repeat(100);
         let snippet = snippet_with_text(&text);
         let mut ledger = SnippetByteLedger::default();
-        ledger.record(&snippet.file, snippet.span, MAX_SESSION_SNIPPET_BYTES_PER_SPAN);
+        ledger.record(
+            &snippet.file,
+            snippet.span,
+            MAX_SESSION_SNIPPET_BYTES_PER_SPAN,
+        );
 
         let cands = vec![SliceCandidate {
             identity: id("blocked", 0),

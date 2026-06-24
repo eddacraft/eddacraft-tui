@@ -56,9 +56,9 @@ use anvil_gctx_egress::{
 use anvil_gctx_types::{
     AffectedTestsOutcome, AffectedTestsQuery, ContextSelector, FindCallersOutcome,
     FindCallersQuery, FindDependentsOutcome, FindDependentsQuery, GCTX_EGRESS_ENV,
-    GraphEdgesOutcome, GraphEdgesQuery, GraphStatsOutcome, ImpactOutcome, ImpactQuery,
-    OmitReason, SearchSymbolsOutcome, SearchSymbolsQuery, SnippetOutcome, SnippetQuery,
-    SymbolContextOutcome, SymbolContextProjection, SymbolContextQuery, gctx_egress_disabled_from,
+    GraphEdgesOutcome, GraphEdgesQuery, GraphStatsOutcome, ImpactOutcome, ImpactQuery, OmitReason,
+    SearchSymbolsOutcome, SearchSymbolsQuery, SnippetOutcome, SnippetQuery, SymbolContextOutcome,
+    SymbolContextProjection, SymbolContextQuery, gctx_egress_disabled_from,
     gctx_snippet_egress_enabled_from,
 };
 use anvil_graph_cache::clamp_reverse_impact_depth;
@@ -66,12 +66,11 @@ use anvil_intercept_proto::protocol::{
     AssuranceState, GctxAffectedTestsRequest, GctxAffectedTestsResponse, GctxFindCallersRequest,
     GctxFindCallersResponse, GctxFindDependentsRequest, GctxFindDependentsResponse,
     GctxGetSnippetRequest, GctxGetSnippetResponse, GctxGraphEdgesRequest, GctxGraphEdgesResponse,
-    GctxGraphStatsRequest, GctxGraphStatsResponse,
-    GctxImpactOfChangeRequest, GctxImpactOfChangeResponse, GctxSearchSymbolsRequest,
-    GctxSearchSymbolsResponse, GctxSymbolContextRequest, GctxSymbolContextResponse,
-    RequestFullScanRequest, RequestFullScanResponse, StaleReason,
-    ValidatePathsRequest, ValidatePathsResponse, WorkspaceAssurance, WorkspaceStatusRequest,
-    WorkspaceStatusResponse,
+    GctxGraphStatsRequest, GctxGraphStatsResponse, GctxImpactOfChangeRequest,
+    GctxImpactOfChangeResponse, GctxSearchSymbolsRequest, GctxSearchSymbolsResponse,
+    GctxSymbolContextRequest, GctxSymbolContextResponse, RequestFullScanRequest,
+    RequestFullScanResponse, StaleReason, ValidatePathsRequest, ValidatePathsResponse,
+    WorkspaceAssurance, WorkspaceStatusRequest, WorkspaceStatusResponse,
 };
 use anvil_kernel_types::FileSymbols;
 
@@ -1807,8 +1806,8 @@ impl GctxDispatch for SaveTimeConn<'_> {
             state.with_machine(&key, correlation, |machine| machine.snapshot());
 
         let egress_env = std::env::var(GCTX_EGRESS_ENV).ok();
-        let include_source = request.query.include_source
-            && gctx_snippet_egress_enabled_from(egress_env.as_deref());
+        let include_source =
+            request.query.include_source && gctx_snippet_egress_enabled_from(egress_env.as_deref());
 
         let outcome = gctx_get_snippet_outcome(
             state,
@@ -1857,8 +1856,8 @@ impl GctxDispatch for SaveTimeConn<'_> {
             state.with_machine(&key, correlation, |machine| machine.snapshot());
 
         let egress_env = std::env::var(GCTX_EGRESS_ENV).ok();
-        let include_source = request.query.include_source
-            && gctx_snippet_egress_enabled_from(egress_env.as_deref());
+        let include_source =
+            request.query.include_source && gctx_snippet_egress_enabled_from(egress_env.as_deref());
 
         let outcome = gctx_symbol_context_outcome(
             state,
@@ -2563,9 +2562,7 @@ fn gctx_get_snippet_outcome(
                 include_source,
                 redact_gctx_snippet,
             );
-            if include_source
-                && let Some(text) = result.text.as_ref()
-            {
+            if include_source && let Some(text) = result.text.as_ref() {
                 let byte_cost = u32::try_from(text.len()).unwrap_or(u32::MAX);
                 if byte_cost > 0 && !byte_ledger.can_admit(&result.file, result.span, byte_cost) {
                     result.text = None;

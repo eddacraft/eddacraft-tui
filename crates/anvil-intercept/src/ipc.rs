@@ -41,11 +41,11 @@ use anvil_intercept_proto::protocol::{
     GctxAffectedTestsRequest, GctxAffectedTestsResponse, GctxFindCallersRequest,
     GctxFindCallersResponse, GctxFindDependentsRequest, GctxFindDependentsResponse,
     GctxGetSnippetRequest, GctxGetSnippetResponse, GctxGraphEdgesRequest, GctxGraphEdgesResponse,
-    GctxGraphStatsRequest, GctxGraphStatsResponse,
-    GctxImpactOfChangeRequest, GctxImpactOfChangeResponse, GctxSearchSymbolsRequest,
-    GctxSearchSymbolsResponse, GctxSymbolContextRequest, GctxSymbolContextResponse,
-    RequestFullScanRequest, RequestFullScanResponse,
-    ValidatePathsRequest, ValidatePathsResponse, WorkspaceStatusRequest, WorkspaceStatusResponse,
+    GctxGraphStatsRequest, GctxGraphStatsResponse, GctxImpactOfChangeRequest,
+    GctxImpactOfChangeResponse, GctxSearchSymbolsRequest, GctxSearchSymbolsResponse,
+    GctxSymbolContextRequest, GctxSymbolContextResponse, RequestFullScanRequest,
+    RequestFullScanResponse, ValidatePathsRequest, ValidatePathsResponse, WorkspaceStatusRequest,
+    WorkspaceStatusResponse,
 };
 use anvil_intercept_proto::{IpcCommand, IpcEnvelope};
 use anvil_observability::{TraceContext, bind_traceparent_to_span};
@@ -6965,7 +6965,7 @@ mod tests {
         assert_eq!(response["result"]["workspace_assurance"]["state"], "stale");
     }
 
-    /// Without save-time state wired, the GCTX get_snippet verb replies
+    /// Without save-time state wired, the GCTX `get_snippet` verb replies
     /// `Method not found` (which the MCP consumer maps to `unavailable`).
     #[tokio::test]
     async fn gctx_get_snippet_method_not_found_without_save_time_state() {
@@ -7057,7 +7057,7 @@ mod tests {
         assert_eq!(response["result"]["workspace_assurance"]["state"], "stale");
     }
 
-    /// Without save-time state wired, the GCTX symbol_context verb replies
+    /// Without save-time state wired, the GCTX `symbol_context` verb replies
     /// `Method not found` (which the MCP consumer maps to `unavailable`).
     #[tokio::test]
     async fn gctx_symbol_context_method_not_found_without_save_time_state() {

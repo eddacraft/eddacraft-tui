@@ -35,12 +35,13 @@ struct SnippetStubParser;
 
 impl SymbolParser for SnippetStubParser {
     fn parse(&self, path: &Path, bytes: &[u8]) -> Option<FileSymbols> {
-        let file = path
-            .file_name()
-            .and_then(|n| n.to_str())
-            .map(|name| format!("src/{name}"))
-            .unwrap_or_else(|| path.to_string_lossy().into_owned());
-        let end = u32::try_from(bytes.len()).unwrap_or(u32::MAX).saturating_sub(1);
+        let file = path.file_name().and_then(|n| n.to_str()).map_or_else(
+            || path.to_string_lossy().into_owned(),
+            |name| format!("src/{name}"),
+        );
+        let end = u32::try_from(bytes.len())
+            .unwrap_or(u32::MAX)
+            .saturating_sub(1);
         Some(FileSymbols {
             file: file.clone(),
             symbols: vec![SymbolNode {
@@ -106,7 +107,7 @@ async fn warm_graph_over_socket(socket: &Path, root: &str) {
         let state = status
             .pointer("/result/workspace_assurance/state")
             .and_then(Value::as_str);
-        if matches!(state, Some("stale") | Some("clean") | Some("bounded")) {
+        if matches!(state, Some("stale" | "clean" | "bounded")) {
             return;
         }
         sleep(Duration::from_millis(10)).await;
@@ -160,7 +161,8 @@ struct GctxListener {
     shutdown: Shutdown,
     handle: tokio::task::JoinHandle<Result<(), anvil_intercept::ipc::IpcError>>,
     socket: PathBuf,
-    _socket_dir: PathBuf,
+    #[allow(dead_code)]
+    socket_dir: PathBuf,
 }
 
 impl GctxListener {
@@ -169,7 +171,7 @@ impl GctxListener {
         std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o700))
             .expect("secure tempdir permissions");
         let socket = dir.path().join("intercept.sock");
-        let _socket_dir = dir.keep();
+        let socket_dir = dir.keep();
 
         let listener = IpcListener::bind(&socket, NoopDispatcher)
             .expect("bind gctx listener")
@@ -186,7 +188,7 @@ impl GctxListener {
             shutdown,
             handle,
             socket,
-            _socket_dir,
+            socket_dir,
         }
     }
 
@@ -225,24 +227,24 @@ fn symbol_context_not_ready_on_cold_worktree() {
         tokio::runtime::Runtime::new()
             .expect("runtime")
             .block_on(async {
-        let tmp = TempDir::new().expect("tempdir");
-        let root = workspace(&tmp);
-        let state = Arc::new(save_time_state());
-        let listener = GctxListener::start(state).await;
+                let tmp = TempDir::new().expect("tempdir");
+                let root = workspace(&tmp);
+                let state = Arc::new(save_time_state());
+                let listener = GctxListener::start(state).await;
 
-        let response = request(
-            &listener.socket,
-            ANVIL_GCTX_SYMBOL_CONTEXT,
-            symbol_context_params(&root, false),
-        )
-        .await;
+                let response = request(
+                    &listener.socket,
+                    ANVIL_GCTX_SYMBOL_CONTEXT,
+                    symbol_context_params(&root, false),
+                )
+                .await;
 
-        assert!(
-            response.get("error").is_none(),
-            "symbol_context must route to the gctx arm, got error: {response}",
-        );
-        assert_eq!(response["result"]["outcome"]["status"], "not_ready");
-        listener.shutdown().await;
+                assert!(
+                    response.get("error").is_none(),
+                    "symbol_context must route to the gctx arm, got error: {response}",
+                );
+                assert_eq!(response["result"]["outcome"]["status"], "not_ready");
+                listener.shutdown().await;
             });
     });
 }
@@ -254,24 +256,24 @@ fn get_snippet_not_ready_on_cold_worktree() {
         tokio::runtime::Runtime::new()
             .expect("runtime")
             .block_on(async {
-        let tmp = TempDir::new().expect("tempdir");
-        let root = workspace(&tmp);
-        let state = Arc::new(save_time_state());
-        let listener = GctxListener::start(state).await;
+                let tmp = TempDir::new().expect("tempdir");
+                let root = workspace(&tmp);
+                let state = Arc::new(save_time_state());
+                let listener = GctxListener::start(state).await;
 
-        let response = request(
-            &listener.socket,
-            ANVIL_GCTX_GET_SNIPPET,
-            get_snippet_params(&root, false),
-        )
-        .await;
+                let response = request(
+                    &listener.socket,
+                    ANVIL_GCTX_GET_SNIPPET,
+                    get_snippet_params(&root, false),
+                )
+                .await;
 
-        assert!(
-            response.get("error").is_none(),
-            "get_snippet must route to the gctx arm, got error: {response}",
-        );
-        assert_eq!(response["result"]["outcome"]["status"], "not_ready");
-        listener.shutdown().await;
+                assert!(
+                    response.get("error").is_none(),
+                    "get_snippet must route to the gctx arm, got error: {response}",
+                );
+                assert_eq!(response["result"]["outcome"]["status"], "not_ready");
+                listener.shutdown().await;
             });
     });
 }
@@ -284,48 +286,48 @@ fn symbol_context_identity_only_without_snippet_egress() {
         tokio::runtime::Runtime::new()
             .expect("runtime")
             .block_on(async {
-        let tmp = TempDir::new().expect("tempdir");
-        let root = workspace(&tmp);
-        let state = Arc::new(save_time_state());
-        let listener = GctxListener::start(Arc::clone(&state)).await;
-        warm_graph_over_socket(&listener.socket, &root).await;
+                let tmp = TempDir::new().expect("tempdir");
+                let root = workspace(&tmp);
+                let state = Arc::new(save_time_state());
+                let listener = GctxListener::start(Arc::clone(&state)).await;
+                warm_graph_over_socket(&listener.socket, &root).await;
 
-        let response = request(
-            &listener.socket,
-            ANVIL_GCTX_SYMBOL_CONTEXT,
-            symbol_context_params(&root, true),
-        )
-        .await;
+                let response = request(
+                    &listener.socket,
+                    ANVIL_GCTX_SYMBOL_CONTEXT,
+                    symbol_context_params(&root, true),
+                )
+                .await;
 
-        assert!(
-            response.get("error").is_none(),
-            "symbol_context must succeed in-band: {response}",
-        );
-        let outcome = &response["result"]["outcome"];
-        assert!(
-            matches!(
-                outcome["status"].as_str(),
-                Some("ready") | Some("bounded") | Some("budget_exceeded")
-            ),
-            "warm graph must project context, got: {outcome}",
-        );
-        assert!(
-            outcome["snippets"]
-                .as_array()
-                .is_some_and(|rows| !rows.is_empty()),
-            "span-bearing seed must produce snippet rows: {outcome}",
-        );
-        for text in snippet_texts(outcome) {
-            assert!(
-                text.is_none(),
-                "CE-1: text must be absent without ANVIL_GCTX_EGRESS=1, got: {text:?}",
-            );
-        }
-        assert!(
-            outcome.get("redaction_summary").is_some(),
-            "sealed DTO must carry counts-only redaction_summary: {outcome}",
-        );
-        listener.shutdown().await;
+                assert!(
+                    response.get("error").is_none(),
+                    "symbol_context must succeed in-band: {response}",
+                );
+                let outcome = &response["result"]["outcome"];
+                assert!(
+                    matches!(
+                        outcome["status"].as_str(),
+                        Some("ready" | "bounded" | "budget_exceeded")
+                    ),
+                    "warm graph must project context, got: {outcome}",
+                );
+                assert!(
+                    outcome["snippets"]
+                        .as_array()
+                        .is_some_and(|rows| !rows.is_empty()),
+                    "span-bearing seed must produce snippet rows: {outcome}",
+                );
+                for text in snippet_texts(outcome) {
+                    assert!(
+                        text.is_none(),
+                        "CE-1: text must be absent without ANVIL_GCTX_EGRESS=1, got: {text:?}",
+                    );
+                }
+                assert!(
+                    outcome.get("redaction_summary").is_some(),
+                    "sealed DTO must carry counts-only redaction_summary: {outcome}",
+                );
+                listener.shutdown().await;
             });
     });
 }
@@ -338,44 +340,44 @@ fn symbol_context_emits_text_with_egress_and_capability() {
         tokio::runtime::Runtime::new()
             .expect("runtime")
             .block_on(async {
-        let tmp = TempDir::new().expect("tempdir");
-        let root = workspace(&tmp);
-        let state = Arc::new(save_time_state());
-        let listener = GctxListener::start(Arc::clone(&state)).await;
-        warm_graph_over_socket(&listener.socket, &root).await;
+                let tmp = TempDir::new().expect("tempdir");
+                let root = workspace(&tmp);
+                let state = Arc::new(save_time_state());
+                let listener = GctxListener::start(Arc::clone(&state)).await;
+                warm_graph_over_socket(&listener.socket, &root).await;
 
-        let response = request(
-            &listener.socket,
-            ANVIL_GCTX_SYMBOL_CONTEXT,
-            symbol_context_params(&root, true),
-        )
-        .await;
+                let response = request(
+                    &listener.socket,
+                    ANVIL_GCTX_SYMBOL_CONTEXT,
+                    symbol_context_params(&root, true),
+                )
+                .await;
 
-        assert!(
-            response.get("error").is_none(),
-            "symbol_context must succeed in-band: {response}",
-        );
-        let outcome = &response["result"]["outcome"];
-        assert!(
-            matches!(
-                outcome["status"].as_str(),
-                Some("ready") | Some("bounded") | Some("budget_exceeded")
-            ),
-            "warm graph must project context, got: {outcome}",
-        );
-        let texts: Vec<String> = snippet_texts(outcome).into_iter().flatten().collect();
-        assert!(
-            !texts.is_empty(),
-            "gated path must return at least one snippet with text: {outcome}",
-        );
-        assert!(
-            texts.iter().any(|t| t.contains("greet")),
-            "snippet text must include the symbol body: {texts:?}",
-        );
-        let summary = &outcome["redaction_summary"];
-        assert!(summary.get("estimated_tokens").is_some());
-        assert!(summary.get("outcome").is_some());
-        listener.shutdown().await;
+                assert!(
+                    response.get("error").is_none(),
+                    "symbol_context must succeed in-band: {response}",
+                );
+                let outcome = &response["result"]["outcome"];
+                assert!(
+                    matches!(
+                        outcome["status"].as_str(),
+                        Some("ready" | "bounded" | "budget_exceeded")
+                    ),
+                    "warm graph must project context, got: {outcome}",
+                );
+                let texts: Vec<String> = snippet_texts(outcome).into_iter().flatten().collect();
+                assert!(
+                    !texts.is_empty(),
+                    "gated path must return at least one snippet with text: {outcome}",
+                );
+                assert!(
+                    texts.iter().any(|t| t.contains("greet")),
+                    "snippet text must include the symbol body: {texts:?}",
+                );
+                let summary = &outcome["redaction_summary"];
+                assert!(summary.get("estimated_tokens").is_some());
+                assert!(summary.get("outcome").is_some());
+                listener.shutdown().await;
             });
     });
 }
@@ -387,30 +389,30 @@ fn get_snippet_emits_text_with_egress_and_capability() {
         tokio::runtime::Runtime::new()
             .expect("runtime")
             .block_on(async {
-        let tmp = TempDir::new().expect("tempdir");
-        let root = workspace(&tmp);
-        let state = Arc::new(save_time_state());
-        let listener = GctxListener::start(Arc::clone(&state)).await;
-        warm_graph_over_socket(&listener.socket, &root).await;
+                let tmp = TempDir::new().expect("tempdir");
+                let root = workspace(&tmp);
+                let state = Arc::new(save_time_state());
+                let listener = GctxListener::start(Arc::clone(&state)).await;
+                warm_graph_over_socket(&listener.socket, &root).await;
 
-        let response = request(
-            &listener.socket,
-            ANVIL_GCTX_GET_SNIPPET,
-            get_snippet_params(&root, true),
-        )
-        .await;
+                let response = request(
+                    &listener.socket,
+                    ANVIL_GCTX_GET_SNIPPET,
+                    get_snippet_params(&root, true),
+                )
+                .await;
 
-        assert!(
-            response.get("error").is_none(),
-            "get_snippet must succeed in-band: {response}",
-        );
-        let snippet = &response["result"]["outcome"];
-        assert_eq!(snippet["status"], "ready");
-        let text = snippet["text"]
-            .as_str()
-            .expect("gated get_snippet must carry text");
-        assert!(text.contains("greet"));
-        listener.shutdown().await;
+                assert!(
+                    response.get("error").is_none(),
+                    "get_snippet must succeed in-band: {response}",
+                );
+                let snippet = &response["result"]["outcome"];
+                assert_eq!(snippet["status"], "ready");
+                let text = snippet["text"]
+                    .as_str()
+                    .expect("gated get_snippet must carry text");
+                assert!(text.contains("greet"));
+                listener.shutdown().await;
             });
     });
 }
@@ -547,11 +549,7 @@ fn symbol_context_omits_sensitive_path_ce3() {
                 let root = workspace_with_source(&tmp, "secrets/token.ts", GREET_SOURCE);
                 let state = Arc::new(save_time_state());
                 let listener = GctxListener::start(Arc::clone(&state)).await;
-                warm_graph_over_socket(
-                    &listener.socket,
-                    &root,
-                )
-                .await;
+                warm_graph_over_socket(&listener.socket, &root).await;
 
                 let response = request(
                     &listener.socket,
@@ -569,7 +567,7 @@ fn symbol_context_omits_sensitive_path_ce3() {
 
                 let outcome = &response["result"]["outcome"];
                 assert!(
-                    outcome["snippets"].as_array().is_none_or(|a| a.is_empty()),
+                    outcome["snippets"].as_array().is_none_or(Vec::is_empty),
                     "CE-3: sensitive file seed must not return snippets: {outcome}",
                 );
                 listener.shutdown().await;
