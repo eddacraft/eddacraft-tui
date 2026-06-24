@@ -4,7 +4,7 @@
 
 | ID  | Owner      | Status      | Progress |
 | --- | ---------- | ----------- | -------- |
-| KDS | @eddacraft | In Progress | 2/5      |
+| KDS | @eddacraft | In Progress | 3/5      |
 
 > **In Progress** — the module passed Ready (placement + async-bridge decisions
 > settled; see Open Questions, now answered) and KDS-001 + KDS-003 are underway.
@@ -188,7 +188,7 @@ need a short ADR to reconcile the wording.
   case / whitespace / unrecognised); tests that `off` and the break-glass both
   yield no emitter, that `daemon` wires an emitter, and that the default/unset
   path still wires the NDJSON sink (privacy contract unchanged).
-- **Status:** In Progress
+- **Status:** Merged 2026-06-24 via PR #2906
 - **Dependencies:** KDS-001 (Merged)
 
 ### KDS-003: Daemon-vs-NDJSON parity
