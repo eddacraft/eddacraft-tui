@@ -1375,9 +1375,10 @@ impl GctxProjector {
     /// releasing the cache lock** (ADR-084 C2): file bytes are supplied by the
     /// daemon from inside the admitted root.
     #[must_use]
+    #[allow(clippy::too_many_arguments)]
     pub fn project_symbol_context<F: Fn(&str) -> Redaction>(
         candidates: Vec<(SymbolIdentity, u32)>,
-        locations: std::collections::HashMap<SymbolIdentity, SnippetLocation>,
+        locations: &std::collections::HashMap<SymbolIdentity, SnippetLocation>,
         file_bytes: &std::collections::HashMap<String, Vec<u8>>,
         include_source: bool,
         token_budget: u32,
@@ -1436,12 +1437,11 @@ impl GctxProjector {
         )
         .unwrap_or(u32::MAX);
 
-        let telemetry_outcome = if sliced.byte_ceiling_hit {
-            GctxOutcome::BudgetExceeded
-        } else if sliced
-            .omitted
-            .iter()
-            .any(|o| o.reason == slice::SliceOmitReason::Budget)
+        let telemetry_outcome = if sliced.byte_ceiling_hit
+            || sliced
+                .omitted
+                .iter()
+                .any(|o| o.reason == slice::SliceOmitReason::Budget)
         {
             GctxOutcome::BudgetExceeded
         } else if redacted_secrets > 0 {
@@ -4456,7 +4456,7 @@ mod tests {
 
         let projection = GctxProjector::project_symbol_context(
             candidates,
-            locations,
+            &locations,
             &file_bytes,
             true,
             5,
@@ -4492,7 +4492,7 @@ mod tests {
         let run = || {
             GctxProjector::project_symbol_context(
                 candidates.clone(),
-                locations.clone(),
+                &locations,
                 &file_bytes,
                 true,
                 2_000,

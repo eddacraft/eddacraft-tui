@@ -1203,8 +1203,7 @@ impl SymbolContextOutcome {
     pub fn telemetry_outcome(&self) -> GctxOutcome {
         match self {
             Self::Ready(projection) => projection.redaction_summary.outcome,
-            Self::Bounded(_) => GctxOutcome::BudgetExceeded,
-            Self::BudgetExceeded(_) => GctxOutcome::BudgetExceeded,
+            Self::Bounded(_) | Self::BudgetExceeded(_) => GctxOutcome::BudgetExceeded,
             Self::NotReady { .. } => GctxOutcome::Warming,
             Self::Unavailable => GctxOutcome::Unavailable,
             Self::Disabled => GctxOutcome::GraphDisabled,

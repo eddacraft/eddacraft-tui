@@ -107,13 +107,12 @@ impl SnippetByteLedger {
 fn snippet_token_cost(snippet: &SnippetResult) -> u32 {
     let text = snippet.text.as_deref().unwrap_or("");
     estimate_gctx_tokens(text, Some(snippet.language.as_str()))
-        .map(|e| u32::try_from(e.tokens).unwrap_or(u32::MAX))
-        .unwrap_or(u32::MAX)
+        .map_or(u32::MAX, |e| u32::try_from(e.tokens).unwrap_or(u32::MAX))
 }
 
 /// Bytes that count toward the per-span session ceiling (emitted text only).
 fn snippet_byte_cost(snippet: &SnippetResult) -> u32 {
-    u32::try_from(snippet.text.as_ref().map(String::len).unwrap_or(0)).unwrap_or(u32::MAX)
+    u32::try_from(snippet.text.as_ref().map_or(0, String::len)).unwrap_or(u32::MAX)
 }
 
 /// Pack `candidates` into a [`ContextSlice`] under `token_budget`, honouring the
@@ -184,7 +183,7 @@ pub fn slice_under_budget(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use anvil_kernel_types::{SymbolKind, Visibility};
+    use anvil_kernel_types::SymbolKind;
 
     fn id(name: &str, ordinal: u32) -> SymbolIdentity {
         SymbolIdentity {

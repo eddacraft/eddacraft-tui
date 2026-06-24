@@ -2,7 +2,7 @@
 
 | ID  | Owner | Status |
 | --- | ----- | ------ |
-| GV2 | —     | In Progress |
+| GV2 | —     | Complete |
 
 **Last reviewed:** 2026-06-15 (**GV2-031 Merged via #2627** — the last internal GV2 item, leaving GV2 20/20; **GV2-020 + GV2-023 promoted Draft → Ready then Merged** once the ADR-075 entry decisions landed — [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) Accepted + the [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md) filed. GV2-020 deps GV2-010..014 are all Merged. **GV2-023 consumer query contract authored** in the foundation spec ("The consumer query contract (GV2-023)") — four read classes with one mapped scenario each for INTD/DRVR (live), GCTX (in flight), and WEAVE (planned, Draft 0/21); the registry impl (GV2-020) and assistant projection rules (GCTX-001) remain downstream.)
 
@@ -861,8 +861,7 @@ Change status to **Ready** when:
 
 #### GV2-032: Symbol source-span + per-file content-hash population
 
-- **Status:** In Progress (`feat/gctx-021-snippet-extractor`, implementation complete
-  2026-06-24, pending Council + PR) — both producer halves landed: `SymbolNode.span`
+- **Status:** Done 2026-06-24 (`feat/gctx-021-snippet-extractor`) — both producer halves landed: `SymbolNode.span`
   (offsets only, PV-7(e)) populated by the TS/JS, Rust, and Python extractors and
   carried through `apply_delta`; and a stable FNV-1a `content_hash` stamped on
   `FileSymbols` → recorded in `SymbolGraph.file_hashes` (cleared on `remove_file`/
@@ -977,5 +976,5 @@ Change status to **Ready** when:
 | 1 — Graph Schemas | 5 | 5/5 done | Complete |
 | 2 — Runtime Substrate | 4 | 4/4 done | Complete |
 | 3 — Enforcement, Wiring, and the A′ Swap | 8 | 8/8 done | Complete |
-| 4 — v0.9 Egress Substrate | 1 | 1/1 done | In Progress (GV2-032 impl complete — pending PR) |
-| **Total** | **21** | **21/21 done** | **In Progress** |
+| 4 — v0.9 Egress Substrate | 1 | 1/1 done | Complete |
+| **Total** | **21** | **21/21 done** | **Complete** |

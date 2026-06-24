@@ -674,10 +674,9 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-021: Symbol snippet extractor (daemon-side, egress-gated)
 
-- **Status:** In Progress (`feat/gctx-021-snippet-extractor`, implementation complete
-  2026-06-24, pending Council + PR; GV2-032 substrate on branch; secret-scan wiring =
-  injected redactor per ADR-064, not a direct `anvil-checks` dep on the leaf
-  projector) — architecture
+- **Status:** Done 2026-06-24 (`feat/gctx-021-snippet-extractor`; GV2-032 substrate on branch;
+  secret-scan wiring = injected redactor per ADR-064, not a direct `anvil-checks` dep on the
+  leaf projector) — architecture
   settled by [ADR-084](../decisions/084-gctx-graph-handle-access.md)
   (daemon-side projection) and the snippet gates fully specified by the
   [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
@@ -746,8 +745,8 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-022: Budget-bounded context slicer
 
-- **Status:** In Progress (`feat/gctx-021-snippet-extractor`, implementation complete
-  2026-06-24, pending Council + PR) — daemon-side in `anvil-gctx-egress/src/slice.rs`;
+- **Status:** Done 2026-06-24 (`feat/gctx-021-snippet-extractor`) — daemon-side in
+  `anvil-gctx-egress/src/slice.rs`;
   depends on GCTX-021 (the snippet carrier) and GCTX-020 (`estimate_gctx_tokens`,
   **Done 2026-06-20**).
 - **Intent:** Turn a set of graph-selected symbols into the smallest useful set of
@@ -784,8 +783,8 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-023: `anvil_symbol_context` tool
 
-- **Status:** In Progress (`feat/gctx-021-snippet-extractor`, implementation complete
-  2026-06-24, pending Council + PR) — the headline assistant context tool, composing
+- **Status:** Done 2026-06-24 (`feat/gctx-021-snippet-extractor`) — the headline assistant context
+  tool, composing
   the Phase-1 query spine (search + impact) with GCTX-021 snippets and GCTX-022
   budgeting into one MCP tool on the existing `GctxDispatch`. MCP target settled by
   [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) (Rust `anvil mcp serve`).
@@ -925,6 +924,6 @@ blockers — they are resolved during execution, not before promotion:
 | ----- | ----- | ------ |
 | 0 — Delivery Contract | 2 | Complete (GCTX-001 Merged #2628, GCTX-002 Merged #2619) |
 | 1 — Graph Query Tools | 5 | GCTX-010 Merged #2657 (pilot); GCTX-011 Merged #2685 (`find_dependents`); GCTX-012 Merged #2693 (`impact_of_change`); GCTX-013 Merged #2700 (`affected_tests`); GCTX-014 Merged #2715 (`find_callers`) |
-| 2 — Context Slicing | 4 | GCTX-020 Done; GCTX-021..023 impl complete 2026-06-24 (pending PR) |
+| 2 — Context Slicing | 4 | GCTX-020 Done; GCTX-021..023 Done 2026-06-24 |
 | 3 — Resources, Benchmarks, Docs | 3 | GCTX-030 Merged #2772; GCTX-031/032 Draft |
 | **Total** | **14** | **12/14** |

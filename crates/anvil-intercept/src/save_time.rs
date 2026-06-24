@@ -2501,6 +2501,7 @@ fn redact_gctx_snippet(text: &str) -> Redaction {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn gctx_get_snippet_outcome(
     state: &SaveTimeState,
     key: &WorktreeKey,
@@ -2555,15 +2556,14 @@ fn gctx_get_snippet_outcome(
                 include_source,
                 redact_gctx_snippet,
             );
-            if include_source {
-                if let Some(text) = result.text.as_ref() {
-                    let byte_cost = u32::try_from(text.len()).unwrap_or(u32::MAX);
-                    if byte_cost > 0 && !byte_ledger.can_admit(&result.file, result.span, byte_cost)
-                    {
-                        result.text = None;
-                    } else if byte_cost > 0 {
-                        byte_ledger.record(&result.file, result.span, byte_cost);
-                    }
+            if include_source
+                && let Some(text) = result.text.as_ref()
+            {
+                let byte_cost = u32::try_from(text.len()).unwrap_or(u32::MAX);
+                if byte_cost > 0 && !byte_ledger.can_admit(&result.file, result.span, byte_cost) {
+                    result.text = None;
+                } else if byte_cost > 0 {
+                    byte_ledger.record(&result.file, result.span, byte_cost);
                 }
             }
             SnippetOutcome::Ready(result)
@@ -2607,6 +2607,7 @@ fn seal_symbol_context_outcome(projection: SymbolContextProjection) -> SymbolCon
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn gctx_symbol_context_outcome(
     state: &SaveTimeState,
     key: &WorktreeKey,
@@ -2662,7 +2663,7 @@ fn gctx_symbol_context_outcome(
             }
             let projection = GctxProjector::project_symbol_context(
                 candidates,
-                locations,
+                &locations,
                 &file_bytes,
                 include_source,
                 budget,
