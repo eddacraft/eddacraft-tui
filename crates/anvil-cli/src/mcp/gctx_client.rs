@@ -22,6 +22,7 @@ pub(crate) enum GctxDaemonError {
     Failure,
 }
 
+#[cfg(unix)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(any(target_os = "linux", target_os = "macos"), allow(dead_code))]
 enum PeerCredentialPlatform {
@@ -35,6 +36,7 @@ const PEER_CREDENTIAL_PLATFORM: PeerCredentialPlatform = PeerCredentialPlatform:
 #[cfg(all(unix, not(any(target_os = "linux", target_os = "macos"))))]
 const PEER_CREDENTIAL_PLATFORM: PeerCredentialPlatform = PeerCredentialPlatform::OtherUnix;
 
+#[cfg(unix)]
 fn classify_peer_validation_failure(platform: PeerCredentialPlatform) -> GctxDaemonError {
     match platform {
         PeerCredentialPlatform::LinuxOrMacos => GctxDaemonError::Failure,
@@ -303,7 +305,7 @@ where
     Err(GctxDaemonError::Unavailable)
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
 
