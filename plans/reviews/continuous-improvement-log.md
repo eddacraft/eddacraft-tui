@@ -1652,3 +1652,12 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Follow-up:** Consider promoting that blocked-by staleness check to a CIB item;
   CGBDG now sits in the index "Dormant" band though it is Ready — a future pass
   should lift it into an active section.
+### 2026-06-24 — other
+
+- **Task:** GV2-032 + GCTX-021/022/023 symbol spans, snippet extractor, budget slicer, `anvil_symbol_context`
+- **Outcome:** Implementation complete on `feat/gctx-021-snippet-extractor`; workspace `cargo test` green; APS 21/21 GV2, 12/14 GCTX
+- **Worked:** Building on partial GCTX-021 branch; subagent completed slicer/MCP wiring; `SnippetResult` as sole text carrier
+- **Failed:** Prior `feat/gctx-phase2-context` branch diverged (separate snippet-types crate) — not merged
+- **Friction:** Protocol count-pin tests (`ALL_ANVIL_METHODS`, USAGE-004) needed manual bump after each new RPC
+- **Improvement:** Auto-derive allowlist count from `COMMAND_INVOKED_ALLOWLIST.len()` instead of hard-coded arithmetic
+- **Follow-up:** Council + PR for `feat/gctx-021-snippet-extractor`
