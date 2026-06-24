@@ -266,8 +266,8 @@ This module is **Ready** when:
 > formatters that replace sensitive attributes (`SENSITIVE_FIELDS`) with
 > `<redacted>` before stderr or local file-sink output, including exact
 > `notification.context` aliases. The namespace registry reflects the narrowed
-> remaining gap. Remaining blockers: shared INTD-015 notification redaction
-> policy and sampled-exporter refusal/handling under EXPORT's sink decision.
+> gap at that time: shared INTD-015 notification redaction policy and
+> sampled-exporter refusal/handling under EXPORT's sink decision.
 >
 > **Blocker update (2026-06-24):** one of the two blockers has cleared.
 > **INTD-015 is `Complete`** (merged 2026-05-06 via PR #1305 —

@@ -13,10 +13,11 @@ diagnostic path; focused CLI routing tests green locally.)
 routing) confirmed in the v0.8.0-beta tag (record:
 plans/releases/v0.8.0-beta.md); Merged items advanced to Released/Shipped.
 
-2026-06-24: stale Sub-phase B blocker reconciled. The GV2-021 persistence ADR is
-Accepted and Released/Shipped, and DSV-030 (warm-start persistence) Merged
-2026-06-17 via PR #2688; Sub-phase B is no longer Blocked and now awaits the
-v0.9 release tag for Released/Shipped/Complete lifecycle advancement.
+2026-06-24: stale Sub-phase B blocker reconciled. ADR-069 (graph persistence
+and snapshot strategy) is Accepted; its GV2-021 work item is Released/Shipped;
+and DSV-030 (warm-start persistence) Merged 2026-06-17 via PR #2688. Sub-phase B
+is no longer Blocked and now awaits the v0.9 release tag for Released/Shipped/
+Complete lifecycle advancement.
 
 2026-06-16: added **DSV-045 (full-scan executor, Ready)** — the loop that drives
 `request_full_scan` `Pending → Running → Clean` and populates the warm graph
