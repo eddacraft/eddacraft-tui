@@ -47,7 +47,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use anvil_checks::antipattern::types::AntipatternCheckConfig;
-use anvil_checks::secret::scanner::scan_content;
+use anvil_checks::secret::scanner::scan_content_with_stats;
 use anvil_checks::secret::types::SecretCheckConfig;
 use anvil_gctx_egress::{
     DEFAULT_SYMBOL_CONTEXT_TOKENS, GctxProjector, MAX_SYMBOL_CONTEXT_TOKENS, Redaction,
@@ -2479,10 +2479,17 @@ fn gctx_affected_tests_outcome(
 }
 
 /// CE-2 secret-scan redaction choke point for snippet text (fail-closed: scan
-/// errors redact the whole candidate).
+/// errors and oversize-line skips redact the whole candidate).
 fn redact_gctx_snippet(text: &str) -> Redaction {
+    const FAIL_CLOSED_PLACEHOLDER: &str = "<REDACTED>";
     let config = SecretCheckConfig::default();
-    let findings = scan_content(text, "<gctx-snippet>", &config);
+    let (findings, stats) = scan_content_with_stats(text, "<gctx-snippet>", &config);
+    if stats.lines_skipped_oversize > 0 {
+        return Redaction {
+            text: FAIL_CLOSED_PLACEHOLDER.to_string(),
+            redacted_hits: 1,
+        };
+    }
     if findings.is_empty() {
         return Redaction {
             text: text.to_string(),

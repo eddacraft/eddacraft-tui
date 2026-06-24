@@ -1390,12 +1390,16 @@ impl GctxProjector {
 
         for (identity, distance) in candidates {
             let Some(location) = locations.get(&identity) else {
+                let omit_sensitive = is_absolute_path_like(&identity.file)
+                    || is_sensitive_egress_path(&identity.file);
                 slice_candidates.push(SliceCandidate {
                     identity,
                     distance,
                     snippet: None,
                 });
-                omitted_sensitive += 1;
+                if omit_sensitive {
+                    omitted_sensitive += 1;
+                }
                 continue;
             };
             let bytes = file_bytes.get(&location.file);

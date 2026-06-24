@@ -414,3 +414,165 @@ fn get_snippet_emits_text_with_egress_and_capability() {
             });
     });
 }
+
+const SECRET_SOURCE: &[u8] =
+    b"const token = \"ghp_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\";\nexport function greet() {}\n";
+
+fn workspace_with_source(tmp: &TempDir, rel: &str, source: &[u8]) -> String {
+    let root = tmp.path().join("wt");
+    let path = root.join(rel);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).expect("mkdir");
+    }
+    std::fs::write(&path, source).expect("write");
+    std::fs::canonicalize(&root)
+        .expect("canonicalise")
+        .to_string_lossy()
+        .into_owned()
+}
+
+/// CE-11: operator kill-switch (`ANVIL_GCTX_EGRESS=0`) disables snippet egress.
+#[test]
+fn symbol_context_disabled_when_kill_switch_engaged() {
+    temp_env::with_var(GCTX_EGRESS_ENV, Some("0"), || {
+        tokio::runtime::Runtime::new()
+            .expect("runtime")
+            .block_on(async {
+                let tmp = TempDir::new().expect("tempdir");
+                let root = workspace(&tmp);
+                let state = Arc::new(save_time_state());
+                let listener = GctxListener::start(Arc::clone(&state)).await;
+                warm_graph_over_socket(&listener.socket, &root).await;
+
+                let response = request(
+                    &listener.socket,
+                    ANVIL_GCTX_SYMBOL_CONTEXT,
+                    symbol_context_params(&root, true),
+                )
+                .await;
+
+                assert_eq!(
+                    response["result"]["outcome"]["status"], "disabled",
+                    "kill-switch must surface Disabled: {}",
+                    response["result"]["outcome"]
+                );
+                listener.shutdown().await;
+            });
+    });
+}
+
+/// CE-2: planted secrets are redacted by the real `anvil-checks` scanner.
+#[test]
+fn symbol_context_redacts_planted_secret() {
+    temp_env::with_var(GCTX_EGRESS_ENV, Some("1"), || {
+        tokio::runtime::Runtime::new()
+            .expect("runtime")
+            .block_on(async {
+                let tmp = TempDir::new().expect("tempdir");
+                let root = workspace_with_source(&tmp, "src/greet.ts", SECRET_SOURCE);
+                let state = Arc::new(save_time_state());
+                let listener = GctxListener::start(Arc::clone(&state)).await;
+                warm_graph_over_socket(&listener.socket, &root).await;
+
+                let response = request(
+                    &listener.socket,
+                    ANVIL_GCTX_SYMBOL_CONTEXT,
+                    symbol_context_params(&root, true),
+                )
+                .await;
+
+                let outcome = &response["result"]["outcome"];
+                let summary = &outcome["redaction_summary"];
+                assert!(
+                    summary["redacted_secrets"].as_u64().unwrap_or(0) >= 1,
+                    "CE-2: planted secret must be redacted: {outcome}",
+                );
+                let texts: Vec<String> = snippet_texts(outcome).into_iter().flatten().collect();
+                assert!(
+                    texts.iter().all(|t| !t.contains("ghp_")),
+                    "redacted snippet must not echo the secret: {texts:?}",
+                );
+                listener.shutdown().await;
+            });
+    });
+}
+
+/// CE-7: on-disk bytes that no longer match the graph hash withhold `text`.
+#[test]
+fn symbol_context_withholds_text_when_stale_ce7() {
+    temp_env::with_var(GCTX_EGRESS_ENV, Some("1"), || {
+        tokio::runtime::Runtime::new()
+            .expect("runtime")
+            .block_on(async {
+                let tmp = TempDir::new().expect("tempdir");
+                let root = workspace(&tmp);
+                let state = Arc::new(save_time_state());
+                let listener = GctxListener::start(Arc::clone(&state)).await;
+                warm_graph_over_socket(&listener.socket, &root).await;
+
+                let wt = tmp.path().join("wt");
+                std::fs::write(
+                    wt.join("src/greet.ts"),
+                    b"export function greet() { return 999; }\n",
+                )
+                .expect("stale write");
+
+                let response = request(
+                    &listener.socket,
+                    ANVIL_GCTX_SYMBOL_CONTEXT,
+                    symbol_context_params(&root, true),
+                )
+                .await;
+
+                let outcome = &response["result"]["outcome"];
+                for text in snippet_texts(outcome) {
+                    assert!(
+                        text.is_none(),
+                        "CE-7: stale graph must withhold text: {outcome}",
+                    );
+                }
+                listener.shutdown().await;
+            });
+    });
+}
+
+/// CE-3: sensitive paths never yield snippet locations.
+#[test]
+fn symbol_context_omits_sensitive_path_ce3() {
+    temp_env::with_var(GCTX_EGRESS_ENV, Some("1"), || {
+        tokio::runtime::Runtime::new()
+            .expect("runtime")
+            .block_on(async {
+                let tmp = TempDir::new().expect("tempdir");
+                let root = workspace_with_source(&tmp, "secrets/token.ts", GREET_SOURCE);
+                let state = Arc::new(save_time_state());
+                let listener = GctxListener::start(Arc::clone(&state)).await;
+                warm_graph_over_socket(
+                    &listener.socket,
+                    &root,
+                )
+                .await;
+
+                let response = request(
+                    &listener.socket,
+                    ANVIL_GCTX_SYMBOL_CONTEXT,
+                    json!({
+                        "workspace_root": root,
+                        "query": {
+                            "selector": { "file": { "file": "secrets/token.ts" } },
+                            "include_source": true,
+                            "token_budget": 500
+                        }
+                    }),
+                )
+                .await;
+
+                let outcome = &response["result"]["outcome"];
+                assert!(
+                    outcome["snippets"].as_array().is_none_or(|a| a.is_empty()),
+                    "CE-3: sensitive file seed must not return snippets: {outcome}",
+                );
+                listener.shutdown().await;
+            });
+    });
+}
