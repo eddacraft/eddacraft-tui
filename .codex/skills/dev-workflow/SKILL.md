@@ -1,115 +1,114 @@
 ---
 name: dev-workflow
-description:
-  MANDATORY for any Anvil development, docs, config, planning, PR, review,
-  debugging, release, or repository-maintenance task in Codex. Use before
-  touching files, running implementation commands, committing, opening PRs, or
-  declaring work complete. Routes Codex through the APS, Worktrunk, code,
-  Council, PR, review-remediation, cleanup, and continuous-improvement loop.
+description: Use at the start of any development task to route to the correct skill, agent, and command for each lifecycle stage, from planning through branch, TDD, review, PR, and cleanup.
 ---
 
 # Dev Workflow
 
-## Source And Variant
+Routing layer for the development lifecycle. Every non-trivial task follows this sequence - do not skip stages.
 
-This is the Codex-facing Anvil workflow skill. Keep it aligned with the
-repo-local Claude and OpenCode variants:
-
-- `.claude/skills/dev-workflow/SKILL.md`
-- `.opencode/skills/dev-workflow/SKILL.md`
-
-Use this skill first for every non-trivial Anvil task, including documentation,
-configuration, review remediation, debugging, and repository maintenance.
-
-```text
-APS Truth Gate -> APS (Ready) -> Worktrunk Branch -> TDD Code -> Review -> PR -> Merged -> cleanup offer -> Released/Shipped -> continuous-improvement note
 ```
-
-## Trigger Contract
-
-Use this skill whenever the user asks Codex to:
-
-- implement, fix, refactor, test, debug, review, release, or document anything
-  in this repository
-- edit `.codex/`, `.opencode/`, `.claude/`, `AGENTS.md`, `docs/**`, `plans/**`,
-  source, tests, workflows, scripts, or package/crate metadata
-- continue an existing branch, address PR comments, investigate CI, or prepare a
-  commit/PR
-- make a process, agent, skill, workflow, or repository-maintenance change
-
-Do not wait for the user to say "use dev-workflow". If the task touches the
-repository lifecycle, load this skill first, then route to the current stage.
+Plan Truth Gate -> Isolate -> TDD Code -> Verify -> Review -> PR -> Cleanup
+```
 
 ## Stage Map
 
-| Stage          | What                                                             | Codex action                                                                                                                                                |
-| -------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| APS truth gate | Confirm the request is backed by a Ready or In Progress APS item | Read `plans/index.aps.md`, `plans/aps-rules.md`, and `plans/project-context.md`; update APS before implementation if needed                                 |
-| Branch         | Create an isolated task worktree from `main`                     | `scripts/dev/wt-new.sh <branch>` using `feat/`, `fix/`, `docs/`, or `chore/`; by hand, fetch `origin/main` first and pass `--base origin/main`              |
-| Code           | Implement with the smallest useful validation loop               | Prefer test-first changes; record why TDD is not applicable for docs/config-only work                                                                       |
-| Verify         | Prove the actual changed surface                                 | Run focused checks first, then broader repo gates when risk justifies them                                                                                  |
-| Review         | Run risk-tiered Council before non-trivial PRs                   | `/council quick <target>` by default; escalate to `mini` or `full` for cross-boundary, CI, release, security, workflow, branch, or high-risk design changes |
-| Finish         | Commit, push, open PR, and offer cleanup                         | Use conventional commits; target `main`; do not open empty or duplicate PRs                                                                                 |
-| Address review | Resolve CI, review threads, and mergeability in one closure loop | Use `addressing-pr-reviews` after PR creation or when review feedback appears                                                                               |
-| Cleanup        | Remove local worktrees only when safe                            | Offer `wt remove` after PR open, merge, abandon, or pause; ask before deleting unmerged, unpushed, or dirty work                                            |
+| Stage                  | What                                                                | Skill                                                                    | Agent                                                     | Command                |
+| ---------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------ | --------------------------------------------------------- | ---------------------- |
+| **Idea / spec**        | Explore intent, design before code                                  | `brainstorming`                                                          | -                                                         | -                      |
+| **Plan / truth gate**  | Turn intent into validated work                                     | `planning-workflow`, `aps-planning`, `writing-plans`, `planning-council` | `anvil-plan-spec` when available                          | `/plan` when available |
+| **Isolate**            | Create isolated branch/worktree from the project integration branch | `using-git-worktrees`                                                    | -                                                         | -                      |
+| **Code**               | TDD implementation                                                  | `test-driven-development`                                                | `tdd-coach`                                               | `/test`                |
+| **Debug**              | Root cause analysis                                                 | `systematic-debugging`                                                   | `debugger`                                                | `/debug`               |
+| **Verify**             | Evidence before completion claims                                   | `verification-before-completion`                                         | -                                                         | -                      |
+| **Review (streaming)** | Iterative council during implementation                             | `local-review-council`                                                   | `council-reviewer`                                        | `/council`             |
+| **Review (batch)**     | Formal multi-persona dossier at milestone                           | `council`                                                                | `council-reviewer` + `adversarial-reviewer` + specialists | `/council batch`       |
+| **Finish**             | Commit, push, open PR                                               | `finishing-a-branch`                                                     | -                                                         | `/commit`              |
+| **Address review**     | Resolve PR feedback and CI failures                                 | `addressing-pr-reviews`                                                  | -                                                         | -                      |
+| **Parallelise**        | Independent tasks concurrently                                      | `parallel-agents`                                                        | `autonomous`                                              | `/delegate`            |
+| **Loop execution**     | Autonomous APS execution after interactive approval                 | `aps-loop`                                                               | `autonomous`                                              | -                      |
 
 ## Rules
 
-1. Always start from planning truth. If no suitable Ready or In Progress APS
-   item exists, add or update one before implementation and mark it In Progress
-   before substantive edits.
-2. Use Worktrunk-managed worktrees unless the user explicitly asks to continue
-   in the current worktree. Hotfixes also branch from `main` unless release
-   context says otherwise.
-3. Respect the repo's dirty state. Never revert unrelated user changes. If an
-   unrelated dirty file is present, leave it alone and work in the task
-   worktree.
-4. Follow TDD for source changes. For docs/config-only work, use schema, lint,
-   formatting, link, or manual validation instead of inventing irrelevant tests.
-5. Run the repo-mandated gates before PR publication when practical:
-   `pnpm format:check`, `pnpm lint:check`, `pnpm typecheck`, `pnpm test`, and
-   `cargo test --workspace`. For narrow docs/config changes, run the relevant
-   subset and state any skipped full gates.
-6. Run Council before opening any non-trivial PR. Address CRITICAL and MAJOR
-   findings before push.
-7. After opening a PR, wait up to 10 minutes for automated reviewers to complete
-   or time out, then run the PR remediation loop. Fix CI first, then automated
-   review threads, then human review threads.
-8. Keep bookkeeping PRs single-purpose. APS status updates, inventory changes,
-   config changes, and runbook fixes should not be bundled with dependency
-   updates or feature refactors unless they are required for the same outcome.
-9. For documentation-affecting work, complete docs closeout: classify changed
-   docs, update indexes/inventories, mark unresolved drift in APS, run relevant
-   validation, and include a `Docs Closeout` note in the final response.
-10. Before the final response on non-trivial work, append one compact entry to
-    `plans/reviews/continuous-improvement-log.md` unless the task is explicitly
-    read-only.
+1. **Start from planning truth.** If the work is not already validated and ready, invoke `planning-workflow`. If the project uses APS, invoke `aps-planning` before branch or code.
+2. **Isolate from the project integration branch.** Follow the project's branch naming and worktree policy; do not assume the integration branch is named `dev`.
+3. **Code through TDD.** Invoke `test-driven-development` for implementation. If test-first is not practical, record the replacement evidence before coding.
+4. **Review before PR.** Use the project's review surface and address critical/major findings before opening or updating a PR.
+5. **Verify before claiming complete.** Evidence before assertions - use `verification-before-completion`.
+6. **Preserve post-merge validation.** If work needs post-merge checks, write them to the project's tracked post-merge review location.
+7. **Run local CI-equivalent gates before opening the PR.** The repo-mandated
+   validation commands must run green locally before push. Check `CLAUDE.md` or
+   project docs for the exact commands; common examples are
+   `pnpm format:check && pnpm lint:check && pnpm typecheck && pnpm test` for
+   JS/TS projects and `cargo test --workspace` for Rust. CI is a backstop, not
+   the primary signal. Tick test-plan checkboxes only after the command actually
+   ran, not aspirationally.
+8. **Keep lockfile and generated artefacts atomic with the change that causes
+   them.** If a PR touches a dependency lockfile (for example `Cargo.lock` or
+   `pnpm-lock.yaml`) or any file generated from it (for example
+   `ACKNOWLEDGEMENTS.md` or `licenses/` manifests), regenerate those artefacts
+   and include the diff in the same PR. Splitting them creates freshness-check CI
+   failures that can block later integration work. Check `CLAUDE.md` for the
+   project-specific regeneration command.
+9. **Keep bookkeeping PRs single-purpose.** APS status updates, index counter
+   adjustments, and runbook fixes ship as standalone PRs. Do not bundle them
+   with dependency updates, code refactors, or feature work; a CI failure on the
+   heavyweight change blocks the trivial bookkeeping, and the broader review
+   surface erodes the "trivially mergeable" property bookkeeping PRs depend on.
 
-## Codex Config Expectations
+## Decision Points
 
-The repo-local `.codex/config.toml` is intentionally permissive enough for the
-Anvil workflow while avoiding full machine write access:
+**Starting a new task:**
+-> `planning-workflow` if no validated ready item exists -> `aps-planning` if APS exists -> `using-git-worktrees` -> `test-driven-development` -> code
 
-- `approval_policy = "on-request"` lets Codex request elevation for operations
-  that genuinely need it.
-- `approvals_reviewer = "auto_review"` reduces interruption for low-risk
-  approvals while still reviewing requested actions.
-- `sandbox_mode = "workspace-write"` keeps writes bounded to declared roots.
-- `sandbox_workspace_write.network_access = true` permits dependency, GitHub,
-  and documentation lookups needed by the workflow.
-- `sandbox_workspace_write.writable_roots` should include your Worktrunk parent
-  directory (for example `~/Projects/src`) in global config when sibling
-  worktree writes are needed; repo-local config keeps only portable roots.
+**Implementation unclear:**
+-> `planning-workflow` -> `brainstorming` when required -> `writing-plans` (or `planning-council` for multi-persona design) -> `aps-planning` when APS exists -> continue
 
-Do not switch this project to `danger-full-access` unless the user explicitly
-asks and accepts the risk for that session.
+**Tests failing unexpectedly:**
+-> `systematic-debugging` before any other action
+
+**About to commit:**
+-> `verification-before-completion` gate -> `local-review-council` (streaming) or `council` (batch) -> `finishing-a-branch`
+
+**PR review feedback returned:**
+-> `addressing-pr-reviews` - fix CI first, then walk each unresolved thread
+
+**Multiple independent tasks:**
+-> `parallel-agents` to dispatch subagents per task
+
+**Approved APS plan ready for autonomous execution:**
+-> `aps-loop` after the user has approved the planning/readiness decision
+
+## Loop Handoff Outcomes
+
+When called from `aps-loop`, finish with one of these outcomes so the loop can
+decide whether to continue, replan, or checkpoint:
+
+| Outcome                 | Meaning                                                                    | Next step                                                              |
+| ----------------------- | -------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `done`                  | Implementation, validation, and review evidence are complete               | `aps-loop` reconciles and selects the next item                        |
+| `blocked`               | Work cannot continue because of an external dependency                     | `aps-loop` records blocker and selects other work if available         |
+| `needs-plan-update`     | The approved item is stale, too broad, already done, or missing validation | route to `planning-workflow` / `aps-planning`                          |
+| `validation-failed`     | Focused implementation attempts did not make validation pass               | route to `systematic-debugging`, then re-enter implementation or block |
+| `needs-user-checkpoint` | Product, scope, safety, destructive, or irreversible decision required     | stop and ask the user                                                  |
+
+## APS Status Lifecycle
+
+Use this lifecycle only in projects with APS:
+
+```
+Draft -> Proposed -> Ready -> In Progress -> Merged -> Released/Shipped -> Complete
+                              ^              ^              ^              ^
+                        (you start)   (PR merged)   (release record)  (cleanup agent)
+```
+
+`Committed` is legacy wording for `Merged`. New APS text should prefer
+`Merged` and `Released/Shipped`. Cleanup agent (`scripts/aps-cleanup.sh` where
+present) auto-advances post-merge states when release evidence is recorded.
 
 ## Project References
 
-- `AGENTS.md`
-- `plans/index.aps.md`
-- `plans/aps-rules.md`
-- `plans/project-context.md`
-- `docs/guides/agent-surface-inventory.md`
-- `docs/guides/documentation-governance.md`
-- `.codex/skills/addressing-pr-reviews/SKILL.md`
+- Branching strategy: project-specific, commonly `docs/guides/branching-strategy.md`
+- Worktree policy: project-specific, commonly `docs/guides/worktree-policy.md`
+- APS rules: `plans/aps-rules.md` when present
+- Council architecture: see `council` skill when available
