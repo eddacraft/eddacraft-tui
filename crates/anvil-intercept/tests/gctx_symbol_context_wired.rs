@@ -317,9 +317,12 @@ fn symbol_context_identity_only_without_snippet_egress() {
                         .is_some_and(|rows| !rows.is_empty()),
                     "span-bearing seed must produce snippet rows: {outcome}",
                 );
-                if let Some(text) = snippet_texts(outcome).into_iter().flatten().next() {
-                    panic!("CE-1: text must be absent without ANVIL_GCTX_EGRESS=1, got: {text:?}");
-                }
+                let leaked_texts: Vec<String> =
+                    snippet_texts(outcome).into_iter().flatten().collect();
+                assert!(
+                    leaked_texts.is_empty(),
+                    "CE-1: text must be absent without ANVIL_GCTX_EGRESS=1, got: {leaked_texts:?}",
+                );
                 assert!(
                     outcome.get("redaction_summary").is_some(),
                     "sealed DTO must carry counts-only redaction_summary: {outcome}",
@@ -524,11 +527,12 @@ fn symbol_context_withholds_text_when_stale_ce7() {
                 .await;
 
                 let outcome = &response["result"]["outcome"];
-                if let Some(text) = snippet_texts(outcome).into_iter().flatten().next() {
-                    panic!(
-                        "CE-7: stale graph must withhold text, got: {text:?}; outcome: {outcome}"
-                    );
-                }
+                let leaked_texts: Vec<String> =
+                    snippet_texts(outcome).into_iter().flatten().collect();
+                assert!(
+                    leaked_texts.is_empty(),
+                    "CE-7: stale graph must withhold text, got: {leaked_texts:?}; outcome: {outcome}",
+                );
                 listener.shutdown().await;
             });
     });
