@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 61/103  |
+| CIB | —     | In Progress | 61/104  |
 
 ## Purpose
 
@@ -2849,3 +2849,36 @@ archive.
 - **Confidence:** medium — the keyed-fingerprint mechanics are straightforward,
   but whether forgeable identity-only paging warrants an HMAC is a
   product/security call that gates the work.
+
+### CIB-104: Forged-cursor pinning tests for the GCTX dependents/callers/edges surfaces
+
+- **Status:** Proposed
+- **Intent:** Extend the ADR-091 cursor-integrity guarantee from the search
+  surface to its three siblings. CIB-103 pinned the `search_symbols` cursor with
+  `forged_cursor_cannot_seek_across_a_filter_boundary` (containment) and
+  `cursor_payload_shape_is_pinned_to_seek_position_only` (the revisit-trigger
+  shape guard), but `find_dependents`, `find_callers`, and `graph://edges` —
+  which share the identical forgeable-by-design cursor construction — have no
+  equivalent tests. The ADR-091 council (`council-f8ed314e`, finding C-004)
+  verified the siblings are structurally safe today (the cursor is decoded only
+  after the bounded walk materialises a sorted candidate set), but that safety is
+  unpinned: a future change could regress one surface with no failing test.
+- **Expected Outcome:** Each of the three sibling surfaces gains (a) a forged-
+  cursor containment test — a client-minted cursor with an arbitrary `last` plus a
+  recomputed matching fingerprint reseeks only within the query's own
+  already-authorised, identity-only result set (empty page past the end,
+  strictly-after mid-set, no leak/panic) — and (b) a payload-shape guard asserting
+  the decoded cursor JSON carries exactly its expected keys, so adding a
+  snippet/scope field to `DependentsCursorPayload` / `CallersCursorPayload` /
+  `EdgesCursorPayload` breaks CI and forces an ADR-091 re-open, mirroring the
+  search-surface guards.
+- **Files:** `crates/anvil-gctx-egress/src/lib.rs` (the `mod tests` block; reuses
+  the existing dependents/callers/edges graph fixtures).
+- **Validation:** `cargo test -p eddacraft-anvil-gctx-egress` — the new
+  per-surface forged-cursor + shape-guard tests pass; a deliberately added stray
+  field on any sibling cursor payload fails the shape guard.
+- **Identified From:** ADR-091 council review (`council-f8ed314e`, finding C-004,
+  deferred); recorded in ADR-091 Mitigations.
+- **Coordinates with:** CIB-103 (search-surface precedent), ADR-091.
+- **Confidence:** high — the search-surface tests are a direct template, the
+  sibling fixtures already exist, and the change is purely additive test coverage.
