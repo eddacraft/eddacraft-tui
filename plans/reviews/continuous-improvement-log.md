@@ -1739,3 +1739,13 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** When renumbering or resetting an APS module, immediately grep
   for old work-item IDs across all active modules before validation.
 - **Follow-up:** none
+
+### 2026-06-24 — claude
+
+- **Task:** Spike — Astro 7 + Starlight rebuild of `apps/docs-public` (APS section only) to de-risk a Docusaurus → Astro migration; prove the docs-shell proxy contract.
+- **Outcome:** New `apps/docs-public-astro` builds green on Astro 7.0.2 / Starlight 0.41.0 (9 pages + Pagefind in ~2.4s); content symlinked from canonical `docs/public/aps` with zero edits; draft PR opened. Right-sized (no APS module / Council) as an explicit throwaway spike.
+- **Worked:** `build.assets: 'assets'` forces hashed assets under the proxy-forwarded `/assets/` prefix instead of `/_astro/`; Docusaurus frontmatter (`id`/`sidebar_position`) validated unchanged under `docsSchema()`.
+- **Failed:** Pre-investigation answer asserted Astro 7 was alpha — it had GA'd (2026-06-22); a stale "what's new" digest outranked the release post. Corrected after the user pushed back.
+- **Friction:** Pagefind serves `/pagefind/*`, not covered by the shell proxy matcher — search 404s behind the proxy until added. Easy to miss.
+- **Improvement:** For "is X the latest version" questions, check the release feed / package registry directly before answering, not a monthly digest. Registry (`npm view`) is the fastest ground truth.
+- **Follow-up:** If migration proceeds, write a proper APS module (DSITE successor) covering blog/RSS gap, theme parity, remaining sections, and the private app; decide Path A vs B.

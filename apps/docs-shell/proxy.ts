@@ -184,5 +184,10 @@ export const config = {
     '/blog/:path*',
     '/assets/:path*',
     '/img/:path*',
+    // SPIKE (docs-public-astro): Starlight's Pagefind search fetches its index
+    // and WASM from `/pagefind/*`. Without this prefix the proxy 404s them and
+    // search silently breaks behind the shell. Astro's hashed assets are kept
+    // under `/assets/` (build.assets) so no `/_astro/` entry is needed.
+    '/pagefind/:path*',
   ],
 };
