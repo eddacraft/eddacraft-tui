@@ -78,6 +78,7 @@ use anvil_gctx_types::{
     AffectedTestsOutcome, AffectedTestsQuery, FindCallersOutcome, FindCallersQuery,
     FindDependentsOutcome, FindDependentsQuery, GraphEdgesOutcome, GraphEdgesQuery,
     GraphStatsOutcome, ImpactOutcome, ImpactQuery, SearchSymbolsOutcome, SearchSymbolsQuery,
+    SnippetOutcome, SnippetQuery,
 };
 use serde::{Deserialize, Serialize};
 
@@ -190,6 +191,15 @@ pub const ANVIL_GCTX_FIND_DEPENDENTS: &str = "anvil/gctx/find_dependents";
 /// the same read-only `GctxDispatch` surface; never the save-time path.
 pub const ANVIL_GCTX_FIND_CALLERS: &str = "anvil/gctx/find_callers";
 
+/// Client → server: a read-only GCTX source-snippet request (GCTX-021, ADR-084 /
+/// PV-9). Given a `SymbolIdentity`, the daemon resolves its GV2-032 span and
+/// returns a sealed [`GctxGetSnippetResponse`]. Source **text** rides only when
+/// the `gctx.egress` operator flag is on AND the request asserts the CE-1
+/// capability, after the CE-2 secret scan / CE-3 path filter / CE-7 freshness
+/// check; otherwise the response is an identity-only span-as-location. Dispatched
+/// on the read-only `GctxDispatch` surface; never the save-time path.
+pub const ANVIL_GCTX_GET_SNIPPET: &str = "anvil/gctx/get_snippet";
+
 /// Client → server: a read-only, identity-only GCTX impact-of-change report
 /// (GCTX-012, ADR-084). Given a set of **changed file paths** (never diff
 /// content), the daemon projects the blast radius — affected symbols, the
@@ -284,6 +294,7 @@ pub const ALL_ANVIL_METHODS: &[&str] = &[
     ANVIL_GCTX_AFFECTED_TESTS,
     ANVIL_GCTX_GRAPH_STATS,
     ANVIL_GCTX_GRAPH_EDGES,
+    ANVIL_GCTX_GET_SNIPPET,
 ];
 
 // ============================================================================
@@ -678,6 +689,33 @@ pub struct GctxFindCallersResponse {
     pub workspace_assurance: WorkspaceAssurance,
     /// The status-tagged callers outcome (sealed, identity-only).
     pub outcome: FindCallersOutcome,
+}
+
+/// Request body for [`ANVIL_GCTX_GET_SNIPPET`] (GCTX-021, ADR-084 / PV-9).
+///
+/// The query is the sealed, graph-free [`SnippetQuery`] (target identity + the
+/// CE-1 `include_source` capability); the `workspace_root` is validated daemon-
+/// side against the connection's admitted-root set (ADR-084 C3 / CE-8) before any
+/// read, and the bounded span read happens inside that admitted root.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GctxGetSnippetRequest {
+    /// Canonical, admitted workspace root to read the span from.
+    pub workspace_root: String,
+    /// The snippet query — target symbol + the CE-1 source-egress capability.
+    pub query: SnippetQuery,
+}
+
+/// Response to [`ANVIL_GCTX_GET_SNIPPET`]: the daemon-projected sealed egress DTO.
+/// The daemon performs the CE-5 projection (and CE-2/CE-3/CE-7 gating) itself, so
+/// this response **is** the sealed DTO; `workspace_assurance` always rides along
+/// (CE-7). Source text appears only in the `ready` outcome's `SnippetResult.text`,
+/// and only under the CE-1 gates.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GctxGetSnippetResponse {
+    /// Workspace assurance at projection time (CE-7).
+    pub workspace_assurance: WorkspaceAssurance,
+    /// The status-tagged snippet outcome (sealed).
+    pub outcome: SnippetOutcome,
 }
 
 /// Request body for [`ANVIL_GCTX_IMPACT_OF_CHANGE`] (GCTX-012, ADR-084).
@@ -1176,6 +1214,7 @@ mod tests {
             ANVIL_GCTX_AFFECTED_TESTS,
             ANVIL_GCTX_GRAPH_STATS,
             ANVIL_GCTX_GRAPH_EDGES,
+            ANVIL_GCTX_GET_SNIPPET,
         ]
         .into_iter()
         .collect();
@@ -1184,7 +1223,7 @@ mod tests {
         // Count pin: no silent additions, no silent drops.
         assert_eq!(
             ALL_ANVIL_METHODS.len(),
-            16,
+            17,
             "ALL_ANVIL_METHODS count changed — pin and the named set must move together"
         );
         // Forward: every named const is listed.
@@ -1469,6 +1508,57 @@ mod tests {
                 outcome,
             };
             let back: GctxAffectedTestsResponse =
+                serde_json::from_str(&serde_json::to_string(&response).unwrap()).unwrap();
+            assert_eq!(response, back);
+        }
+    }
+
+    #[test]
+    fn gctx_get_snippet_wire_roundtrips() {
+        assert_eq!(ANVIL_GCTX_GET_SNIPPET, "anvil/gctx/get_snippet");
+
+        let request = GctxGetSnippetRequest {
+            workspace_root: "/home/me/proj".into(),
+            query: SnippetQuery {
+                target: anvil_kernel_types::SymbolIdentity {
+                    file: "src/a.ts".into(),
+                    kind: anvil_kernel_types::SymbolKind::Function,
+                    name: "greet".into(),
+                    ordinal: 0,
+                },
+                include_source: true,
+            },
+        };
+        let back: GctxGetSnippetRequest =
+            serde_json::from_str(&serde_json::to_string(&request).unwrap()).unwrap();
+        assert_eq!(request, back);
+
+        for outcome in [
+            SnippetOutcome::Ready(anvil_gctx_types::SnippetResult {
+                file: "src/a.ts".into(),
+                span: anvil_kernel_types::ByteRange { start: 0, end: 12 },
+                language: "typescript".into(),
+                stale: false,
+                text: Some("function f(){}".into()),
+                truncated: false,
+                omitted_bytes: 0,
+                redacted_secrets: 0,
+            }),
+            SnippetOutcome::NotReady {
+                recovery_hint: "warming".into(),
+            },
+            SnippetOutcome::Unavailable,
+            SnippetOutcome::Disabled,
+            SnippetOutcome::SymbolNotFound,
+            SnippetOutcome::InvalidQuery {
+                reason: "malformed target".into(),
+            },
+        ] {
+            let response = GctxGetSnippetResponse {
+                workspace_assurance: sample_assurance(),
+                outcome,
+            };
+            let back: GctxGetSnippetResponse =
                 serde_json::from_str(&serde_json::to_string(&response).unwrap()).unwrap();
             assert_eq!(response, back);
         }
