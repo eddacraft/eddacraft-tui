@@ -1,6 +1,6 @@
 # Post-merge: feat-kds-001-daemon-sink
 
-PR: #NNN
+PR: #2897
 Branch: `feat/kds-001-daemon-sink`
 APS: KDS
 Merged: <!-- filled by cleanup agent -->
@@ -12,8 +12,8 @@ Verified: <!-- filled by cleanup agent -->
       `plans/modules/kindling-daemon-sink.aps.md` (status + `Merged 2026-06-24 via
       PR #2897`) and bump the header / index count to 2/5 — done via PR #2898
 - [x] Notify kindling (eddacraft/kindling) that the PORT-011 acceptance landed —
-      done via **[eddacraft/kindling#124](https://github.com/eddacraft/kindling/issues/124)**
-      (2026-06-24). The remaining in-repo kindling flips (PORT-011 → Merged in
+      done via **[eddacraft/kindling#124](https://github.com/eddacraft/kindling/issues/124)**.
+      The remaining in-repo kindling flips (PORT-011 → Merged in
       `plans/modules/05-rust-port.aps.md`, the box in
       `plans/reviews/post-merge/feat-kinteg-001-publish-readiness.md`, and the index
       success criterion "anvil emits observations directly via `kindling-client` —
