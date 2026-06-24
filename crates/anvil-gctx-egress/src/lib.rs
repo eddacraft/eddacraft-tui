@@ -4505,4 +4505,278 @@ mod tests {
         };
         assert_eq!(run(), run());
     }
+
+    // --- CIB-104: forged-cursor pinning for the dependents/callers/edges
+    // surfaces (ADR-091 C-004). Mirrors the search-surface guards: a client can
+    // mint a cursor with an arbitrary `last` + a recomputed matching fingerprint,
+    // and doing so must only reseek WITHIN the query's own already-authorised,
+    // identity-only candidate set — never surface anything outside it, panic, or
+    // read out of bounds. A combined shape guard pins each payload to {q,k} so a
+    // future privileged field (snippet/scope) breaks CI and forces an ADR-091
+    // re-open. ---
+
+    #[test]
+    fn dependents_forged_cursor_stays_within_authorised_results() {
+        // a.ts is imported by b.ts and c.ts; z.ts imports an unrelated file.
+        let dep = dep_graph(&[
+            ("src/b.ts", "src/a.ts"),
+            ("src/c.ts", "src/a.ts"),
+            ("src/z.ts", "src/y.ts"),
+        ]);
+        let depth = 1;
+        let query = FindDependentsQuery {
+            file: Some("src/a.ts".into()),
+            limit: Some(10),
+            ..Default::default()
+        };
+        let authorised: Vec<String> = run_dependents(&dep, "src/a.ts", depth, &query)
+            .dependents
+            .iter()
+            .map(|d| d.file.clone())
+            .collect();
+        assert_eq!(
+            authorised,
+            vec!["src/b.ts".to_string(), "src/c.ts".to_string()]
+        );
+
+        let forge = |last: String| {
+            let q = FindDependentsQuery {
+                file: Some("src/a.ts".into()),
+                limit: Some(10),
+                cursor: Some(encode_cursor(&DependentsCursorPayload {
+                    fingerprint: dependents_fingerprint(&query, depth),
+                    last,
+                })),
+                ..Default::default()
+            };
+            let (cand, trunc, omit) = GctxProjector::collect_dependents(&dep, "src/a.ts", depth);
+            GctxProjector::project_dependents(cand, &q, depth, trunc, omit)
+        };
+
+        // (1) before-start → full authorised set; the excluded importer (z.ts, an
+        //     importer of a *different* file) is never bridged in.
+        let p = forge(String::new()).expect("a well-formed (if forged) cursor is accepted");
+        assert!(!p.dependents.is_empty());
+        assert!(p.dependents.iter().all(|d| authorised.contains(&d.file)));
+        assert!(p.dependents.iter().all(|d| d.file != "src/z.ts"));
+        // (2) past-end → empty page, never an out-of-bounds read.
+        assert!(
+            forge("zzzz".into())
+                .expect("accepted")
+                .dependents
+                .is_empty()
+        );
+        // (3) mid → strictly after, still bounded by the authorised set.
+        let p = forge("src/b.ts".into()).expect("accepted");
+        assert!(p.dependents.iter().all(|d| d.file.as_str() > "src/b.ts"));
+        assert!(p.dependents.iter().all(|d| authorised.contains(&d.file)));
+    }
+
+    #[test]
+    fn callers_forged_cursor_stays_within_authorised_results() {
+        let files = ["src/b.ts", "src/c.ts", "src/d.ts", "src/e.ts"];
+        let depth = 1;
+        let query = FindCallersQuery {
+            target: Some(target_identity("hot")),
+            limit: Some(10),
+            ..Default::default()
+        };
+        let authorised: Vec<SymbolIdentity> = GctxProjector::project_callers(
+            caller_candidates(&files),
+            &query,
+            depth,
+            false,
+            false,
+            0,
+        )
+        .expect("valid query")
+        .callers
+        .into_iter()
+        .map(|c| c.caller)
+        .collect();
+        assert_eq!(authorised.len(), 4);
+
+        let ident = |file: &str| SymbolIdentity {
+            file: file.into(),
+            kind: SymbolKind::Function,
+            name: "caller".into(),
+            ordinal: 0,
+        };
+        let forge = |last: SymbolIdentity| {
+            let q = FindCallersQuery {
+                target: Some(target_identity("hot")),
+                limit: Some(10),
+                cursor: Some(encode_cursor(&CallersCursorPayload {
+                    fingerprint: callers_fingerprint(&query, depth),
+                    last,
+                })),
+                ..Default::default()
+            };
+            GctxProjector::project_callers(caller_candidates(&files), &q, depth, false, false, 0)
+        };
+
+        // (1) before-start → full set; no identity outside the candidate set.
+        let p = forge(ident("")).expect("a well-formed (if forged) cursor is accepted");
+        assert!(!p.callers.is_empty());
+        assert!(p.callers.iter().all(|c| authorised.contains(&c.caller)));
+        // (2) past-end → empty page.
+        assert!(forge(ident("zzzz")).expect("accepted").callers.is_empty());
+        // (3) mid → strictly after, still within the authorised set.
+        let mid = authorised[1].clone();
+        let p = forge(mid.clone()).expect("accepted");
+        assert!(p.callers.iter().all(|c| c.caller > mid));
+        assert!(p.callers.iter().all(|c| authorised.contains(&c.caller)));
+    }
+
+    #[test]
+    fn edges_forged_cursor_stays_within_authorised_results() {
+        use anvil_kernel_types::EdgeType;
+        // Edges from src/a.ts (nodes 1,4) and one from src/c.ts (node 3). A
+        // file=src/a.ts query authorises only the a.ts-sourced edges.
+        let mut g = graph_of(vec![
+            node(1, "a", "src/a.ts", SymbolKind::Function, Visibility::Public),
+            node(2, "b", "src/b.ts", SymbolKind::Function, Visibility::Public),
+            node(3, "c", "src/c.ts", SymbolKind::Function, Visibility::Public),
+            node(4, "d", "src/a.ts", SymbolKind::Function, Visibility::Public),
+        ]);
+        g.add_edge(edge(1, 2, EdgeType::Calls)).unwrap();
+        g.add_edge(edge(4, 2, EdgeType::Imports)).unwrap();
+        g.add_edge(edge(3, 2, EdgeType::Calls)).unwrap();
+
+        let query = GraphEdgesQuery {
+            file: Some("src/a.ts".into()),
+            limit: Some(10),
+            ..Default::default()
+        };
+        let (auth_cand, bounded, omit) = GctxProjector::collect_all_edges(&g, Some("src/a.ts"));
+        let authorised = GctxProjector::project_edges(auth_cand, &query, bounded, omit)
+            .expect("valid query")
+            .edges;
+        assert_eq!(
+            authorised.len(),
+            2,
+            "only the two a.ts-sourced edges are authorised"
+        );
+        assert!(
+            authorised.iter().all(|e| e.from.file == "src/a.ts"),
+            "no c.ts-sourced edge is authorised by a file=src/a.ts query",
+        );
+
+        let edge_summary = |file: &str| EdgeSummary {
+            from: SymbolIdentity {
+                file: file.into(),
+                kind: SymbolKind::Function,
+                name: "x".into(),
+                ordinal: 0,
+            },
+            to: SymbolIdentity {
+                file: "src/b.ts".into(),
+                kind: SymbolKind::Function,
+                name: "b".into(),
+                ordinal: 0,
+            },
+            edge_type: EdgeType::Calls,
+        };
+        let forge = |last: EdgeSummary| {
+            let q = GraphEdgesQuery {
+                file: Some("src/a.ts".into()),
+                limit: Some(10),
+                cursor: Some(encode_cursor(&EdgesCursorPayload {
+                    fingerprint: edges_fingerprint(&query),
+                    last,
+                })),
+            };
+            let (cand, b, o) = GctxProjector::collect_all_edges(&g, Some("src/a.ts"));
+            GctxProjector::project_edges(cand, &q, b, o)
+        };
+
+        // (1) before-start → full authorised set; the excluded c.ts edge never
+        //     appears.
+        let p = forge(edge_summary("")).expect("a well-formed (if forged) cursor is accepted");
+        assert!(!p.edges.is_empty());
+        assert!(p.edges.iter().all(|e| authorised.contains(e)));
+        assert!(p.edges.iter().all(|e| e.from.file != "src/c.ts"));
+        // (2) past-end → empty page.
+        assert!(
+            forge(edge_summary("zzzz"))
+                .expect("accepted")
+                .edges
+                .is_empty()
+        );
+        // (3) mid → strictly after, still bounded by the authorised set.
+        let mid = authorised[0].clone();
+        let p = forge(mid.clone()).expect("accepted");
+        assert!(p.edges.iter().all(|e| *e > mid));
+        assert!(p.edges.iter().all(|e| authorised.contains(e)));
+    }
+
+    #[test]
+    fn sibling_cursor_payloads_are_pinned_to_seek_position_only() {
+        // ADR-091 revisit trigger, mechanically enforced for the three sibling
+        // surfaces. Each minted cursor must stay a pure {q: fingerprint, k: last}
+        // seek position; adding any field (snippet offset, source span, trust
+        // scope) breaks this test and forces the author back to ADR-091.
+        let keys_of = |cursor: &OpaqueCursor| -> Vec<String> {
+            let bytes = hex::decode(cursor.as_str()).expect("cursor is hex");
+            let json: serde_json::Value = serde_json::from_slice(&bytes).expect("cursor is json");
+            let mut keys: Vec<String> = json
+                .as_object()
+                .expect("cursor payload is a JSON object")
+                .keys()
+                .cloned()
+                .collect();
+            keys.sort();
+            keys
+        };
+
+        // dependents
+        let dep = dep_graph(&[("src/b.ts", "src/a.ts"), ("src/c.ts", "src/a.ts")]);
+        let dep_cursor = run_dependents(
+            &dep,
+            "src/a.ts",
+            1,
+            &FindDependentsQuery {
+                limit: Some(1),
+                ..Default::default()
+            },
+        )
+        .next_cursor
+        .expect("more pages remain");
+        assert_eq!(keys_of(&dep_cursor), ["k", "q"], "DependentsCursorPayload");
+
+        // callers
+        let callers_cursor = GctxProjector::project_callers(
+            caller_candidates(&["src/b.ts", "src/c.ts"]),
+            &FindCallersQuery {
+                target: Some(target_identity("hot")),
+                limit: Some(1),
+                ..Default::default()
+            },
+            1,
+            false,
+            false,
+            0,
+        )
+        .expect("valid query")
+        .next_cursor
+        .expect("more pages remain");
+        assert_eq!(keys_of(&callers_cursor), ["k", "q"], "CallersCursorPayload");
+
+        // edges
+        let g = edges_graph();
+        let (cand, bounded, omit) = GctxProjector::collect_all_edges(&g, None);
+        let edges_cursor = GctxProjector::project_edges(
+            cand,
+            &GraphEdgesQuery {
+                limit: Some(1),
+                ..Default::default()
+            },
+            bounded,
+            omit,
+        )
+        .expect("valid query")
+        .next_cursor
+        .expect("more pages remain");
+        assert_eq!(keys_of(&edges_cursor), ["k", "q"], "EdgesCursorPayload");
+    }
 }

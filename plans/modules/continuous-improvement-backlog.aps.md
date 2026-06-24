@@ -2853,7 +2853,7 @@ archive.
 
 ### CIB-104: Forged-cursor pinning tests for the GCTX dependents/callers/edges surfaces
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** Extend the ADR-091 cursor-integrity guarantee from the search
   surface to its three siblings. CIB-103 pinned the `search_symbols` cursor with
   `forged_cursor_cannot_seek_across_a_filter_boundary` (containment) and
