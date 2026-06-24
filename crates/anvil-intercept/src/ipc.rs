@@ -6908,6 +6908,190 @@ mod tests {
         assert_eq!(response["error"]["code"], -32601);
     }
 
+    /// GCTX-021 / ADR-084: `anvil/gctx/get_snippet` routes to the dedicated GCTX
+    /// arm and degrades a cold worktree in-band to `not_ready`.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn dispatch_arm_routes_gctx_get_snippet() {
+        use crate::confinement::Confinement;
+        use crate::save_time::{SaveTimeConn, SaveTimeState};
+        use crate::workspace_pool::WorkScheduler;
+        use anvil_checks::antipattern::types::AntipatternCheckConfig;
+
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = SaveTimeState::new(
+            WorkScheduler::new().expect("scheduler"),
+            AntipatternCheckConfig::default(),
+            Confinement::open_default(),
+        );
+        let mut conn = SaveTimeConn::new(&state);
+        let dispatcher = Arc::new(NoopDispatcher);
+        let scan_buffer = ScanBufferService::default();
+        let status: Arc<dyn StatusProvider> = Arc::new(NoopStatusProvider);
+
+        let response = handle_jsonrpc_value(
+            json!({
+                "jsonrpc": "2.0",
+                "method": anvil_intercept_proto::protocol::ANVIL_GCTX_GET_SNIPPET,
+                "id": "gctx-snippet-1",
+                "params": {
+                    "workspace_root": tmp.path().to_string_lossy(),
+                    "query": {
+                        "target": {
+                            "file": "src/a.ts",
+                            "kind": "Function",
+                            "name": "greet",
+                            "ordinal": 0
+                        }
+                    }
+                },
+            }),
+            &dispatcher,
+            &scan_buffer,
+            &status,
+            None,
+            None,
+            Some(&mut conn as &mut dyn SaveTimeDispatch),
+        )
+        .await
+        .expect("a gctx get_snippet request returns a response");
+
+        assert_eq!(response["id"], "gctx-snippet-1");
+        assert!(
+            response.get("error").is_none(),
+            "gctx get_snippet must route to the gctx arm, not error: {response}",
+        );
+        assert_eq!(response["result"]["outcome"]["status"], "not_ready");
+        assert_eq!(response["result"]["workspace_assurance"]["state"], "stale");
+    }
+
+    /// Without save-time state wired, the GCTX get_snippet verb replies
+    /// `Method not found` (which the MCP consumer maps to `unavailable`).
+    #[tokio::test]
+    async fn gctx_get_snippet_method_not_found_without_save_time_state() {
+        let dispatcher = Arc::new(NoopDispatcher);
+        let scan_buffer = ScanBufferService::default();
+        let status: Arc<dyn StatusProvider> = Arc::new(NoopStatusProvider);
+
+        let response = handle_jsonrpc_value(
+            json!({
+                "jsonrpc": "2.0",
+                "method": anvil_intercept_proto::protocol::ANVIL_GCTX_GET_SNIPPET,
+                "id": "gctx-snippet-2",
+                "params": {
+                    "workspace_root": "/tmp/x",
+                    "query": {
+                        "target": {
+                            "file": "src/a.ts",
+                            "kind": "Function",
+                            "name": "greet",
+                            "ordinal": 0
+                        }
+                    }
+                },
+            }),
+            &dispatcher,
+            &scan_buffer,
+            &status,
+            None,
+            None,
+            None,
+        )
+        .await
+        .expect("response");
+
+        assert_eq!(response["error"]["code"], -32601);
+    }
+
+    /// GCTX-023 / ADR-084: `anvil/gctx/symbol_context` routes to the dedicated
+    /// GCTX arm and degrades a cold worktree in-band to `not_ready`.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn dispatch_arm_routes_gctx_symbol_context() {
+        use crate::confinement::Confinement;
+        use crate::save_time::{SaveTimeConn, SaveTimeState};
+        use crate::workspace_pool::WorkScheduler;
+        use anvil_checks::antipattern::types::AntipatternCheckConfig;
+
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = SaveTimeState::new(
+            WorkScheduler::new().expect("scheduler"),
+            AntipatternCheckConfig::default(),
+            Confinement::open_default(),
+        );
+        let mut conn = SaveTimeConn::new(&state);
+        let dispatcher = Arc::new(NoopDispatcher);
+        let scan_buffer = ScanBufferService::default();
+        let status: Arc<dyn StatusProvider> = Arc::new(NoopStatusProvider);
+
+        let response = handle_jsonrpc_value(
+            json!({
+                "jsonrpc": "2.0",
+                "method": anvil_intercept_proto::protocol::ANVIL_GCTX_SYMBOL_CONTEXT,
+                "id": "gctx-ctx-1",
+                "params": {
+                    "workspace_root": tmp.path().to_string_lossy(),
+                    "query": {
+                        "selector": {
+                            "file": { "file": "src/a.ts" }
+                        }
+                    }
+                },
+            }),
+            &dispatcher,
+            &scan_buffer,
+            &status,
+            None,
+            None,
+            Some(&mut conn as &mut dyn SaveTimeDispatch),
+        )
+        .await
+        .expect("a gctx symbol_context request returns a response");
+
+        assert_eq!(response["id"], "gctx-ctx-1");
+        assert!(
+            response.get("error").is_none(),
+            "gctx symbol_context must route to the gctx arm, not error: {response}",
+        );
+        assert_eq!(response["result"]["outcome"]["status"], "not_ready");
+        assert_eq!(response["result"]["workspace_assurance"]["state"], "stale");
+    }
+
+    /// Without save-time state wired, the GCTX symbol_context verb replies
+    /// `Method not found` (which the MCP consumer maps to `unavailable`).
+    #[tokio::test]
+    async fn gctx_symbol_context_method_not_found_without_save_time_state() {
+        let dispatcher = Arc::new(NoopDispatcher);
+        let scan_buffer = ScanBufferService::default();
+        let status: Arc<dyn StatusProvider> = Arc::new(NoopStatusProvider);
+
+        let response = handle_jsonrpc_value(
+            json!({
+                "jsonrpc": "2.0",
+                "method": anvil_intercept_proto::protocol::ANVIL_GCTX_SYMBOL_CONTEXT,
+                "id": "gctx-ctx-2",
+                "params": {
+                    "workspace_root": "/tmp/x",
+                    "query": {
+                        "selector": {
+                            "file": { "file": "src/a.ts" }
+                        }
+                    }
+                },
+            }),
+            &dispatcher,
+            &scan_buffer,
+            &status,
+            None,
+            None,
+            None,
+        )
+        .await
+        .expect("response");
+
+        assert_eq!(response["error"]["code"], -32601);
+    }
+
     /// DSV-005: `workspace_status` and `request_full_scan` route to the
     /// save-time arm too (not just `validate_paths`), guarding against a
     /// method-constant or routing-condition typo the unit tests would miss.

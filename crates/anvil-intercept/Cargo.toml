@@ -114,6 +114,7 @@ anvil-attribution = { path = "../anvil-attribution", package = "eddacraft-anvil-
 anvil-bench = { path = "../anvil-bench", package = "anvil-bench" }
 anvil-intercept-proto = { path = "../anvil-intercept-proto", package = "eddacraft-anvil-intercept-proto" }
 criterion = { workspace = true }
+temp-env = "0.3"
 tempfile.workspace = true
 tracing-subscriber = { workspace = true }
 
