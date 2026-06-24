@@ -201,8 +201,7 @@ where
         GctxDaemonError::Failure
     })?;
     let method = method.to_owned();
-    let timeout_method = method.clone();
-    let decode_method = method.clone();
+    let method_label = method.clone();
     let request_id = request_id.to_owned();
     let (tx, rx) = mpsc::sync_channel(1);
     thread::spawn(move || {
@@ -274,13 +273,13 @@ where
     let value = match rx.recv_timeout(TIMEOUT) {
         Ok(outcome) => outcome?,
         Err(mpsc::RecvTimeoutError::Timeout) => {
-            eprintln!("anvil-mcp: gctx {timeout_method} pipe request timed out");
+            eprintln!("anvil-mcp: gctx {method_label} pipe request timed out");
             return Err(GctxDaemonError::Unavailable);
         }
         Err(mpsc::RecvTimeoutError::Disconnected) => return Err(GctxDaemonError::Unavailable),
     };
     serde_json::from_value(value).map_err(|err| {
-        eprintln!("anvil-mcp: gctx {decode_method} pipe response decode failed: {err}");
+        eprintln!("anvil-mcp: gctx {method_label} pipe response decode failed: {err}");
         GctxDaemonError::Failure
     })
 }
