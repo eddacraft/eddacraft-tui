@@ -94,8 +94,10 @@ fn run_anvil_stderr(home: &Path, args: &[&str], extra_env: &[(&str, &str)]) -> S
     let out = cmd.output().expect("spawn anvil");
     assert!(
         out.status.success(),
-        "anvil {args:?} exited {:?}",
-        out.status
+        "anvil {args:?} exited {:?}\nstdout: {}\nstderr: {}",
+        out.status,
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr),
     );
     String::from_utf8_lossy(&out.stderr).into_owned()
 }

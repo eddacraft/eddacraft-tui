@@ -258,11 +258,22 @@ mod tests {
         );
 
         // ndjson / off / an unrecognised value (falls back to ndjson) / unset →
-        // the sidecar is the right source, so no note.
+        // the sidecar is the right source, so no note. Clear the opt-out vars too
+        // so the `None` is attributable to the SINK, not to an ambient
+        // capture-disable making `usage_collection_disabled()` true (which would
+        // pass these assertions vacuously).
         for v in [Some("ndjson"), Some("off"), Some("DAEMON_TYPO"), None] {
-            temp_env::with_var("ANVIL_KINDLING_SINK", v, || {
-                assert!(sidecar_source_warning().is_none(), "no note for {v:?}");
-            });
+            temp_env::with_vars(
+                [
+                    ("ANVIL_KINDLING_SINK", v),
+                    ("ANVIL_USAGE_DISABLE", None::<&str>),
+                    ("DO_NOT_TRACK", None::<&str>),
+                    ("ANVIL_INTERCEPT_DISABLE_OBSERVATION", None::<&str>),
+                ],
+                || {
+                    assert!(sidecar_source_warning().is_none(), "no note for {v:?}");
+                },
+            );
         }
 
         // Daemon sink BUT capture disabled → the views are sparse because the
