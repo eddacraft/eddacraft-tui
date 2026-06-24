@@ -85,7 +85,7 @@ Run targeted tests to ensure still green
 ```typescript
 describe("FeatureName", () => {
   describe("when condition", () => {
-    it("should expected behavior", () => {
+    it("should return expected behaviour", () => {
       // Arrange
       const input = createTestInput();
 

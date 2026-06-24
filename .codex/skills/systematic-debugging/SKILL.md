@@ -80,7 +80,7 @@ Debug issues using a scientific, evidence-based approach rather than guessing.
 
 ```
 For each hypothesis:
-1. What would cause this behavior?
+1. What would cause this behaviour?
 2. What evidence supports it?
 3. What evidence contradicts it?
 4. How can we test it?

@@ -1,23 +1,20 @@
 ---
 name: council
 description: |
-  Unified local-first review skill. Bundles reviewer agents, session scripts,
-  data schemas, and Codex prompts. Runs Streaming Council during implementation
-  and Batch Council at milestones; treats GitHub PRs as publication artefacts,
-  not the primary review workspace.
+  Unified local-first review router for Codex. Routes to this repo's Council
+  workflow and reviewer personas without assuming bundled scripts or assets.
 ---
 
 # Council
 
-Self-contained local-first review system. Council is the canonical review interface - GitHub PRs are publication receipts, not the workspace.
+Local-first review router. Council is the canonical review interface - GitHub PRs are publication receipts, not the workspace.
 
 ## Canonical assets
 
-Council is a bundle of neutral catalogue assets. The canonical reusable agent
-definitions live under top-level `agents/`; this skill may also carry packaged
-copies under `agents/` for runtimes that install a skill as a self-contained
-plugin. `code-env` owns emitting the selected assets into target-specific
-locations such as `.claude/agents/` or `.opencode/agents/`.
+Council is represented here as a Codex-facing router. The full reusable Council
+assets live outside this `.codex/skills/council/` directory; do not assume
+bundle-local `agents/`, `scripts/`, `prompts/`, or `references/` paths exist in
+this repo checkout.
 
 Council staff agents:
 
@@ -34,34 +31,11 @@ Council reviewer pool:
 - `pragmatic-lead`
 - `kernel-maintainer`
 
-## Packaged bundle layout
+## Repo-local layout
 
-```
-council/
-|-- SKILL.md                  <- this file (entrypoint)
-|-- agents/                   <- reviewer + orchestrator personas
-|   |-- council-reviewer.md
-|   |-- council-supervisor.md
-|   |-- council-debate.md
-|   `-- council-judge.md
-|-- scripts/                  <- session / finding / evidence / publish CRUD
-|   |-- council-session.sh
-|   |-- council-finding.sh
-|   |-- council-evidence.sh
-|   |-- council-publish.sh
-|   `-- council-codex-reviewer.sh
-|-- references/
-|   |-- schema.md             <- human-readable data model
-|   `-- schema.json           <- JSON Schema (draft-07)
-|-- prompts/                  <- Codex (cross-model) reviewer prompts
-|   |-- council-reviewer-codex.md
-|   |-- security-codex.md
-|   |-- adversarial-codex.md
-|   |-- operations-codex.md
-|   `-- pragmatic-lead-codex.md
-`-- commands/
-    `-- council-full.md       <- /council-full slash command
-```
+This Codex skill directory contains only `SKILL.md` and `skill.meta.json`.
+Resolve Council commands, reviewer assets, and session details through the
+repo's authoritative Council documentation and available runtime tools.
 
 ## Trigger
 
@@ -91,15 +65,9 @@ Streaming Council is the default - low-latency review during implementation.
 
 ### 1. Check for an existing session
 
-```bash
-bash ${SKILL_DIR}/scripts/council-session.sh list --active
-```
-
-If an active session exists for the same target, resume it:
-
-```bash
-bash ${SKILL_DIR}/scripts/council-session.sh resume <session-id>
-```
+Use the repo's available Council runtime or command surface to list/resume any
+active session for the same target. This Codex router does not provide its own
+session scripts.
 
 ### 2. Determine review target
 
@@ -113,13 +81,8 @@ bash ${SKILL_DIR}/scripts/council-session.sh resume <session-id>
 
 ### 3. Initialize the session
 
-```bash
-SESSION_ID=$(bash ${SKILL_DIR}/scripts/council-session.sh init \
-  --mode streaming \
-  --target <type> \
-  --pack quick \
-  [--branch <name>] [--base <name>] [--files <f1,f2>])
-```
+Initialise a streaming review with the `quick` reviewer pack against the chosen
+target using the repo's Council command/runtime.
 
 ### 4. Gather review context
 
@@ -127,43 +90,33 @@ Read the diff and the surrounding code; pull recent commit messages for intent.
 
 ### 5. Run the reviewer
 
-Spawn the bundled reviewer agent (`agents/council-reviewer.md`) with the diff + context. The reviewer returns one JSON object: `{ findings: [...], summary: "..." }`.
+Run the configured `council-reviewer` with the diff + context. Capture findings
+as structured records with severity, category, location, description, and
+suggested fix.
 
 ### 6. Record findings
 
-For each finding:
-
-```bash
-bash ${SKILL_DIR}/scripts/council-finding.sh add "$SESSION_ID" \
-  --severity <critical|major|minor|nit> \
-  --category <security|correctness|edge-case|performance|architecture|style|test-coverage|documentation> \
-  --description "..." --file <path> --line <n> \
-  --suggestion "..." --source council-reviewer
-```
+For each finding, record severity, category, file/line evidence, description,
+suggestion, source reviewer, and current status in the active Council session.
 
 ### 7. Drive convergence
 
 Present findings ordered by severity. For each, the user picks **fix** / **defer** / **waive** / **dismiss** (dismiss is disallowed for critical/major):
 
-```bash
-bash ${SKILL_DIR}/scripts/council-finding.sh resolve "$SESSION_ID" <finding-id> \
-  --status <fixed|deferred|waived|dismissed> --resolution "..."
-```
+Record each resolution as `fixed`, `deferred`, `waived`, or `dismissed` with a
+brief evidence-backed reason.
 
 After fixes, offer a scoped re-review on just the changed lines.
 
 ### 8. Attach evidence
 
-```bash
-bash ${SKILL_DIR}/scripts/council-evidence.sh run "$SESSION_ID" \
-  --command "<test/lint cmd>" --description "..." --finding <finding-id>
-```
+Attach the relevant test, lint, typecheck, docs, or manual-review evidence to
+the finding or session.
 
 ### 9. Converge
 
-```bash
-bash ${SKILL_DIR}/scripts/council-session.sh close "$SESSION_ID" --status converged
-```
+Close or mark the session converged only after critical and major findings have
+been fixed, explicitly waived, or moved into tracked follow-up work.
 
 ## Workflow: Batch Council
 
@@ -178,10 +131,9 @@ Broader, more formal review for milestone prep, release, or significant PRs.
 
 ### 1. Initialize with a broader pack
 
-```bash
-SESSION_ID=$(bash ${SKILL_DIR}/scripts/council-session.sh init \
-  --mode batch --target branch --pack standard --base main)
-```
+Initialise a batch review with the `standard`, `full`, or `full:codex` reviewer
+pack against the branch diff from `main` using the repo's Council
+command/runtime.
 
 ### 2. Dispatch reviewers in parallel
 
@@ -189,7 +141,7 @@ SESSION_ID=$(bash ${SKILL_DIR}/scripts/council-session.sh init \
 
 | Role            | Agent type                   |
 | --------------- | ---------------------------- |
-| General quality | `council-reviewer` (bundled) |
+| General quality | `council-reviewer` |
 | Security        | `security-analyst`           |
 | Adversarial     | `adversarial-reviewer`       |
 
@@ -207,27 +159,13 @@ SESSION_ID=$(bash ${SKILL_DIR}/scripts/council-session.sh init \
 for stricter correctness, simplicity, performance, and dependency review when a
 project or Council profile selects that reviewer.
 
-`full:codex` pack - dispatch the 5 Codex roles via the bundled script:
-
-```bash
-DIFF_FILE=$(mktemp /tmp/council-diff-XXXXXX.patch)
-git diff main...HEAD > "$DIFF_FILE"
-
-for role in adversarial-codex security-codex council-reviewer-codex \
-            operations-codex pragmatic-lead-codex; do
-  bash ${SKILL_DIR}/scripts/council-codex-reviewer.sh \
-    --role "$role" --diff "$DIFF_FILE" \
-    --session-id "$SESSION_ID" \
-    --prompt "${SKILL_DIR}/prompts/${role}.md" &
-done
-wait
-```
-
-Each script prints a JSON findings file path. Parse and merge into the session via `council-finding.sh add --source <role>`.
+`full:codex` pack - dispatch the selected Codex reviewer roles through the
+available runtime, passing the branch diff and repository context to each role.
+Merge their structured findings into the active session by source role.
 
 ### 3. Supervise -> Debate -> Judge (the `/council-full` flow)
 
-For the supervised pipeline, follow the slash command at `commands/council-full.md`. The flow is:
+For the supervised pipeline, follow the repo's available Council command/runtime. The flow is:
 
 ```
 [parallel] All reviewers
@@ -245,22 +183,20 @@ council-judge                     ->  gate decision (BLOCK | WARN | PASS)
 Action list (must_fix / should_fix / consider)
 ```
 
-Agents and their contracts are documented in `agents/` and the wire formats in `references/schema.md`.
+Reviewer contracts and wire formats are documented by the active Council runtime
+or the repo-level Council documentation, not by bundle-local files in this
+Codex skill directory.
 
 ### 4. Converge + publish
 
-```bash
-bash ${SKILL_DIR}/scripts/council-publish.sh "$SESSION_ID" --pr      # PR body
-bash ${SKILL_DIR}/scripts/council-publish.sh "$SESSION_ID" --commit  # Trailer
-bash ${SKILL_DIR}/scripts/council-publish.sh "$SESSION_ID" --format json
-```
+Publish the converged session through the available Council runtime when the PR
+or commit needs a review receipt. Keep human-readable handoff notes under
+`plans/reviews/` when a file artefact is useful.
 
 ## Workflow: status / publish / escalate
 
-```bash
-bash ${SKILL_DIR}/scripts/council-session.sh status [<session-id>]
-bash ${SKILL_DIR}/scripts/council-publish.sh <session-id> --pr
-```
+Use the repo's Council command/runtime to inspect status, publish a receipt, or
+escalate an active session.
 
 **Escalate** an active session: re-init with a broader pack, dispatch the additional reviewers, merge new findings into the existing session ID.
 
@@ -285,19 +221,10 @@ bash ${SKILL_DIR}/scripts/council-publish.sh <session-id> --pr
 
 Council coordinates findings between reviewers via the `agent-messaging` sub-skill.
 
-Reviewers send critical alerts immediately (don't wait for session end):
-
-```bash
-./send-message.sh --from security-analyst --to council-reviewer \
-  --type alert --priority critical \
-  --payload '{"vulnerability":"SQL injection","file":"src/db.ts","line":42}'
-```
-
-Orchestrator collects findings before synthesising a verdict:
-
-```bash
-./receive-messages.sh council-reviewer --format summary
-```
+Reviewers send critical alerts immediately through the documented
+`agent-messaging` channel (direct JSON `send_input` or configured mailbox files
+under `.codex/agent-bus/messages/*.jsonl`). Do not call `send-message.sh` or
+`receive-messages.sh`; those helper scripts are not part of this repo.
 
 ## File output
 
@@ -306,4 +233,4 @@ When review output needs to land on disk for handoff, write under **`plans/revie
 - `plans/reviews/YYYY-MM-DD-<branch-or-topic>.md`
 - `plans/reviews/post-merge/<branch-slug>.md`
 
-Session state is always persisted via `scripts/council-finding.sh` and `scripts/council-session.sh`. File output to `plans/reviews/` is optional - for human reference only.
+Session state is persisted by the Council runtime available in this repo. File output to `plans/reviews/` is optional - for human reference only.

@@ -5,7 +5,7 @@ description: Use when starting feature work that needs isolation, or before exec
 
 # Using Git Worktrees
 
-Set up an isolated workspace using `git worktree` so multiple branches can be checked out at once without conflicting.
+Set up an isolated workspace using this repo's Worktrunk-managed worktrees so multiple branches can be checked out at once without conflicting.
 
 ## Directory selection (priority order)
 
@@ -29,9 +29,7 @@ Not needed for global paths (e.g. `~/.config/worktrees/`).
 ## Create worktree
 
 ```bash
-project=$(basename "$(git rev-parse --show-toplevel)")
-git worktree add <path>/<branch-name> -b <branch-name>
-cd <path>/<branch-name>
+wt switch --create <branch-name>
 ```
 
 Branch names should follow the project's convention (`feat/`, `fix/`, `docs/`, `chore/`).
@@ -68,10 +66,10 @@ Ready to implement <feature-name>
 
 ## Cleanup
 
-When work is finished, remove the worktree:
+When work is finished and the PR has merged, remove the worktree:
 
 ```bash
-git worktree remove <path>
+wt remove <branch-name>
 ```
 
 For more on completing the work in a worktree, see the `finishing-a-branch` skill.

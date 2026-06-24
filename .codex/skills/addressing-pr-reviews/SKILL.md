@@ -385,12 +385,12 @@ If you confirm the check also fails on the base branch:
    gh issue create --title "Add test coverage for ErrorBoundary" \
      --body "Identified during PR #$PR_NUMBER review. ..."
    ```
-2. **Add a TODO comment in code** with a linked issue number
-3. **Add a work item** to whatever planning system the project uses
+2. **Add an APS work item** to `plans/modules/<module>.aps.md` when the work belongs to an existing Anvil module
+3. **Ask where to track it** if no issue or APS module clearly owns it
 
 If none of the above are appropriate, or you're unsure where the user tracks work, **ask them at the end:**
 
-> "There's a deferred item from this review (test coverage for ErrorBoundary). Where would you like me to track it — GitHub issue, TODO with link, or somewhere else?"
+> "There's a deferred item from this review (test coverage for ErrorBoundary). Where would you like me to track it — GitHub issue, APS item, or somewhere else?"
 
 Do NOT silently skip it. Do NOT say "tracked as follow-up" and then track nothing. That is a lie.
 
@@ -414,7 +414,7 @@ Do NOT silently skip it. Do NOT say "tracked as follow-up" and then track nothin
 | Declaring "done" with CI still pending or red                                       | Wait for all checks to pass before finishing                                                                                                                                          |
 | Blindly retrying flaky tests                                                        | Read the logs, fix the root cause                                                                                                                                                     |
 | Claiming CI failures are "pre-existing" without proof                               | Verify the same check fails on the base branch before dismissing                                                                                                                      |
-| Saying "tracked as follow-up" without tracking anything                             | Create a GitHub issue, add a TODO, or be honest that you're skipping it                                                                                                               |
+| Saying "tracked as follow-up" without tracking anything                             | Create a GitHub issue, add an APS work item, or be honest that you're skipping it                                                                                                     |
 | Counting reply-only items or duplicates as "fixes" in summaries                     | Separate code changes from replies; never pad the count                                                                                                                               |
 
 ## Quick Reference

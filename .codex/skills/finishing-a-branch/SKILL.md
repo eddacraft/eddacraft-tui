@@ -73,7 +73,7 @@ Then remove the worktree.
 Remove for Options 1 and 4. Keep for Options 2 and 3.
 
 ```bash
-git worktree remove <worktree-path>
+wt remove <feature-branch>
 ```
 
 ## Rules
