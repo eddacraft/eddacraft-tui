@@ -2565,9 +2565,14 @@ fn gctx_get_snippet_outcome(
             if include_source && let Some(text) = result.text.as_ref() {
                 let byte_cost = u32::try_from(text.len()).unwrap_or(u32::MAX);
                 if byte_cost > 0 && !byte_ledger.can_admit(&result.file, result.span, byte_cost) {
+                    // CE-6/CE-11: the per-session byte ceiling refused this span.
+                    // Withhold the text but make the suppression observable —
+                    // `text: None` alone is indistinguishable from an identity-only
+                    // (capability-off) response, so signal it via the counts-only
+                    // `omitted_bytes` (the bytes withheld by the budget gate).
                     result.text = None;
-                    result.truncated = false;
-                    result.omitted_bytes = 0;
+                    result.truncated = true;
+                    result.omitted_bytes = byte_cost;
                     result.redacted_secrets = 0;
                 } else if byte_cost > 0 {
                     byte_ledger.record(&result.file, result.span, byte_cost);

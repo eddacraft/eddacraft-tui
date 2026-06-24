@@ -16,7 +16,7 @@ set -euo pipefail
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 
-SCRATCH="${SCRATCH:-/tmp/grok-goal-702d0af3ed1f/implementer}"
+SCRATCH="${SCRATCH:-${TMPDIR:-/tmp}/gctx-goal-verify}"
 mkdir -p "$SCRATCH"
 
 log() {

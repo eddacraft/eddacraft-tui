@@ -674,9 +674,17 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-021: Symbol snippet extractor (daemon-side, egress-gated)
 
-- **Status:** Done 2026-06-24 (`feat/gctx-021-snippet-extractor`; GV2-032 substrate on branch;
-  secret-scan wiring = injected redactor per ADR-064, not a direct `anvil-checks` dep on the
-  leaf projector) — architecture
+- **Status:** Done on branch (pending merge) 2026-06-24 (`feat/gctx-021-snippet-extractor`;
+  GV2-032 substrate on branch; secret-scan wiring = injected redactor per ADR-064, not a direct
+  `anvil-checks` dep on the leaf projector). **Two pre-merge gaps from the 2026-06-24 deep review
+  ([record](../reviews/2026-06-24-gctx-snippet-line-review.md)):** (1) **CE-3 gitignore omission
+  is NOT yet implemented** — only the static sensitive-path deny-list runs; a gitignored,
+  non-deny-listed, non-secret-shaped fresh file could egress its text under flag+capability.
+  Must implement (inject an `ignore::Gitignore` matcher) or amend the verdict before merge.
+  (2) **Tail-language span gap** (GV2-032 follow-up): Dart/Go/Java/Kotlin/C#/C/C++ files carry
+  `span: None`, so GCTX-021 returns them as `Unlocatable` (no snippet) — a graceful, documented
+  limitation until tail-language span population lands. Also CE-2 redaction is line-based
+  (misses multi-line secrets — add a full-text pass/test). — architecture
   settled by [ADR-084](../decisions/084-gctx-graph-handle-access.md)
   (daemon-side projection) and the snippet gates fully specified by the
   [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
