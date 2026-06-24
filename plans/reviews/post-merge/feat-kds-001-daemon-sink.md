@@ -8,14 +8,17 @@ Verified: <!-- filled by cleanup agent -->
 
 ## Steps
 
-- [ ] Mark KDS-001 + KDS-003 **Merged** in
-      `plans/modules/kindling-daemon-sink.aps.md` (status + `Merged YYYY-MM-DD via
-      PR #NNN`) and bump the header / index count to 2/5 (agent: yes)
-- [ ] Notify kindling (eddacraft/kindling): PORT-011 acceptance landed — mark
-      PORT-011 **Merged** in `plans/modules/05-rust-port.aps.md`, check the box in
-      `plans/reviews/post-merge/feat-kinteg-001-publish-readiness.md`, and tick the
-      index success criterion "anvil emits observations directly via
-      `kindling-client` — no TS bridge" for the `command.invoked` path (human required)
+- [x] Mark KDS-001 + KDS-003 **Merged** in
+      `plans/modules/kindling-daemon-sink.aps.md` (status + `Merged 2026-06-24 via
+      PR #2897`) and bump the header / index count to 2/5 — done via PR #2898
+- [x] Notify kindling (eddacraft/kindling) that the PORT-011 acceptance landed —
+      done via **[eddacraft/kindling#124](https://github.com/eddacraft/kindling/issues/124)**
+      (2026-06-24). The remaining in-repo kindling flips (PORT-011 → Merged in
+      `plans/modules/05-rust-port.aps.md`, the box in
+      `plans/reviews/post-merge/feat-kinteg-001-publish-readiness.md`, and the index
+      success criterion "anvil emits observations directly via `kindling-client` —
+      no TS bridge" for the `command.invoked` path) are kindling's action, tracked
+      in that issue (human required, kindling repo)
 - [ ] Confirm `command.invoked` rows land in the Kindling daemon end-to-end with a
       real `kindling` binary on PATH and `ANVIL_KINDLING_SINK=daemon` (the in-process
       test daemon proves the wire contract; this confirms cold-spawn) (agent: no)
