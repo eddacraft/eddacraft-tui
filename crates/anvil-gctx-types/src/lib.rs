@@ -1001,8 +1001,9 @@ pub struct SnippetResult {
     pub truncated: bool,
     /// Bytes withheld by truncation or secret-scan redaction (CE-2 / CE-6).
     pub omitted_bytes: u32,
-    /// Counts-only elision summary (CE-11) — e.g. secret-redaction count.
-    pub redaction_summary: RedactionSummary,
+    /// Count of secret-shaped spans the CE-2 scan redacted from `text` (CE-11
+    /// observability). Counts only — never the matched content.
+    pub redacted_secrets: u32,
 }
 
 /// The status-tagged outcome of a snippet request (mirrors
@@ -1124,7 +1125,7 @@ mod tests {
             text,
             truncated: false,
             omitted_bytes: 0,
-            redaction_summary: RedactionSummary::default(),
+            redacted_secrets: 0,
         }
     }
 
@@ -1145,7 +1146,7 @@ mod tests {
                 "file",
                 "language",
                 "omitted_bytes",
-                "redaction_summary",
+                "redacted_secrets",
                 "span",
                 "stale",
                 "truncated",
@@ -1171,7 +1172,7 @@ mod tests {
                 "file",
                 "language",
                 "omitted_bytes",
-                "redaction_summary",
+                "redacted_secrets",
                 "span",
                 "stale",
                 "text",

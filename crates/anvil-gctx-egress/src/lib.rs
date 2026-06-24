@@ -46,17 +46,57 @@ use anvil_gctx_types::{
     AffectedTestsReport, AffectedTestsSummary, CallerSummary, DependentSummary, EdgeSummary,
     FindCallersProjection, FindCallersQuery, FindDependentsProjection, FindDependentsQuery,
     GraphEdgesProjection, GraphEdgesQuery, GraphStatsProjection, ImpactReport, ImpactSummary,
-    OpaqueCursor, RedactionSummary, SearchSymbolsProjection, SearchSymbolsQuery, SymbolSummary,
-    TestEvidence,
+    OpaqueCursor, RedactionSummary, SearchSymbolsProjection, SearchSymbolsQuery, SnippetResult,
+    SymbolSummary, TestEvidence,
 };
 use anvil_graph_cache::{DependencyGraph, SymbolGraph};
-use anvil_kernel_types::{EdgeType, SymbolIdentity, SymbolKind, SymbolNode, Visibility};
+use anvil_kernel_types::{
+    ByteRange, EdgeType, SymbolIdentity, SymbolKind, SymbolNode, Visibility, content_hash,
+};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 /// The single CE-5 egress choke point: builds sealed identity-only DTOs from the
 /// daemon's warm [`SymbolGraph`].
 pub struct GctxProjector;
+
+/// Per-response snippet byte ceiling (CE-6): a symbol body larger than this is
+/// truncated (with `truncated`/`omitted_bytes` set) so one call cannot pull an
+/// unbounded slab of source.
+pub const MAX_SNIPPET_BYTES: usize = 16 * 1024;
+
+/// The location of a symbol's defining-node span, resolved **under the cache
+/// lock** by [`GctxProjector::resolve_snippet_location`] (GCTX-021). It owns its
+/// data so the lock is released before the daemon reads the file. `None` from the
+/// resolver means the symbol is absent, carries no span (synthetic/external/
+/// reconstructed node), or its file is on the CE-3 sensitive-path deny-list
+/// (omitted entirely — the location is never revealed).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SnippetLocation {
+    /// Workspace-root-relative file the symbol is defined in.
+    pub file: String,
+    /// Byte-offset span of the symbol's defining node (GV2-032).
+    pub span: ByteRange,
+    /// Language token derived from the file extension.
+    pub language: String,
+    /// The graph's recorded GV2-032 content hash for `file` (CE-7 key), if any.
+    pub recorded_hash: Option<u64>,
+}
+
+/// The result of the daemon-injected CE-2 secret scan over a candidate snippet.
+///
+/// The scan is **injected** (ADR-064): the daemon — which links `anvil-checks` —
+/// passes a closure to [`GctxProjector::project_snippet`], so this leaf projector
+/// stays free of the analysis crate while the redaction still runs at the CE-5
+/// choke point before any text is sealed. The closure MUST **fail closed**: on a
+/// scanner error it redacts rather than emits.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Redaction {
+    /// The text to egress — secret-shaped spans replaced with a placeholder.
+    pub text: String,
+    /// How many spans were redacted (CE-11 count; 0 = clean).
+    pub redacted_hits: u32,
+}
 
 impl GctxProjector {
     /// Match `query` against the warm graph and collect identity-only
@@ -1122,6 +1162,119 @@ impl GctxProjector {
             next_cursor,
             bounded,
         })
+    }
+
+    /// Resolve a symbol's snippet location **under the cache lock** (GCTX-021).
+    ///
+    /// Looks `target` up in its file and returns the defining-node span, language,
+    /// and the graph's recorded content hash (the CE-7 freshness key). Returns
+    /// `None` — no snippet — when the file is sensitive (CE-3, omitted entirely
+    /// so the location is never revealed), the symbol is absent, or it carries no
+    /// span (a synthetic module / external import / reconstructed node). The
+    /// returned value owns its data, so the caller releases the lock before
+    /// reading the file and calling [`Self::project_snippet`] (ADR-084 C2).
+    #[must_use]
+    pub fn resolve_snippet_location(
+        graph: &SymbolGraph,
+        target: &SymbolIdentity,
+    ) -> Option<SnippetLocation> {
+        // CE-3 / CE-5: never even reveal the location of a sensitive or
+        // absolute-path file.
+        if is_absolute_path_like(&target.file) || is_sensitive_egress_path(&target.file) {
+            return None;
+        }
+        let symbols = graph.symbols_in_file(&target.file);
+        let identities = SymbolIdentity::for_file_symbols(&symbols);
+        for (node, identity) in symbols.iter().zip(identities) {
+            if &identity == target {
+                // No span (synthetic module / external import / reconstructed
+                // node) ⇒ nothing to extract.
+                let span = node.span?;
+                return Some(SnippetLocation {
+                    file: target.file.clone(),
+                    span,
+                    language: language_of(&target.file).unwrap_or("text").to_string(),
+                    recorded_hash: graph.file_hash(&target.file),
+                });
+            }
+        }
+        None
+    }
+
+    /// Seal a [`SnippetResult`] for a resolved location (GCTX-021). **Call after
+    /// releasing the cache lock** (ADR-084 C2): it takes the file bytes the daemon
+    /// already read inside the admitted root (CE-8) and never touches the
+    /// filesystem itself, so this leaf crate stays fs-free.
+    ///
+    /// Pipeline: CE-7 freshness (`current_file_bytes` must hash to the graph's
+    /// recorded key, else `stale` and no text) → CE-1 capability (`include_source`,
+    /// already AND-ed with the operator flag by the caller) → CE-6 byte ceiling →
+    /// the injected CE-2 `redact` over the **emitted** text. With the capability
+    /// off or the file stale, the result is an identity-only location (no `text`).
+    #[must_use]
+    pub fn project_snippet<F: Fn(&str) -> Redaction>(
+        location: &SnippetLocation,
+        current_file_bytes: &[u8],
+        include_source: bool,
+        redact: F,
+    ) -> SnippetResult {
+        // CE-7: the file on disk must match what the graph parsed, or the span may
+        // no longer point at the symbol. A missing recorded hash ⇒ treat as stale.
+        let fresh = location
+            .recorded_hash
+            .is_some_and(|h| h == content_hash(current_file_bytes));
+
+        let location_only = SnippetResult {
+            file: location.file.clone(),
+            span: location.span,
+            language: location.language.clone(),
+            stale: !fresh,
+            text: None,
+            truncated: false,
+            omitted_bytes: 0,
+            redacted_secrets: 0,
+        };
+
+        // Identity-only unless the CE-1 capability is asserted AND the file is
+        // fresh — never serve possibly-relocated bytes (CE-7).
+        if !include_source || !fresh {
+            return location_only;
+        }
+
+        // Slice the span from the fresh bytes, clamped to the file length so a
+        // span past EOF yields a short/empty slice rather than a panic.
+        let start = (location.span.start as usize).min(current_file_bytes.len());
+        let end = (location.span.end as usize)
+            .min(current_file_bytes.len())
+            .max(start);
+        let raw = &current_file_bytes[start..end];
+
+        // CE-6: per-response byte ceiling.
+        let (bounded, truncated, omitted_truncation) = if raw.len() > MAX_SNIPPET_BYTES {
+            (
+                &raw[..MAX_SNIPPET_BYTES],
+                true,
+                u32::try_from(raw.len() - MAX_SNIPPET_BYTES).unwrap_or(u32::MAX),
+            )
+        } else {
+            (raw, false, 0u32)
+        };
+
+        // Lossy-decode so invalid UTF-8 becomes the replacement char rather than
+        // failing — raw bytes never egress.
+        let candidate = String::from_utf8_lossy(bounded);
+
+        // CE-2: the injected secret-scan redactor runs over the EMITTED text (so
+        // a partial slice is covered too).
+        let redaction = redact(candidate.as_ref());
+
+        SnippetResult {
+            text: Some(redaction.text),
+            truncated,
+            omitted_bytes: omitted_truncation,
+            redacted_secrets: redaction.redacted_hits,
+            ..location_only
+        }
     }
 }
 
@@ -3873,5 +4026,166 @@ mod tests {
             "affected_tests coverage_gaps leaked a sensitive path",
         );
         assert!(tests.summary.omitted_sensitive_paths >= SENSITIVE.len());
+    }
+
+    // --- GCTX-021 snippet extractor ---
+
+    fn ts_node_with_span(id: u64, name: &str, file: &str, span: ByteRange) -> SymbolNode {
+        SymbolNode {
+            id,
+            kind: SymbolKind::Function,
+            name: name.into(),
+            visibility: Visibility::Public,
+            file: file.into(),
+            trust_level: TrustLevel::Unknown,
+            span: Some(span),
+        }
+    }
+
+    /// A pass-through redactor (the clean-scan case).
+    fn no_redact(text: &str) -> Redaction {
+        Redaction {
+            text: text.to_string(),
+            redacted_hits: 0,
+        }
+    }
+
+    /// Build a one-symbol graph whose file hash matches `source` (so it is fresh),
+    /// plus the identity that resolves to it.
+    fn snippet_graph(source: &[u8], span: ByteRange) -> (SymbolGraph, SymbolIdentity) {
+        let mut g = graph_of(vec![ts_node_with_span(1, "greet", "src/a.ts", span)]);
+        g.set_file_hash("src/a.ts".into(), Some(content_hash(source)));
+        let target = SymbolIdentity {
+            file: "src/a.ts".into(),
+            kind: SymbolKind::Function,
+            name: "greet".into(),
+            ordinal: 0,
+        };
+        (g, target)
+    }
+
+    #[test]
+    fn project_snippet_returns_text_when_fresh_and_capability_asserted() {
+        let source = b"function greet() { return 1; }\n";
+        let span = ByteRange { start: 0, end: 30 };
+        let (g, target) = snippet_graph(source, span);
+
+        let loc = GctxProjector::resolve_snippet_location(&g, &target).expect("location");
+        assert_eq!(loc.file, "src/a.ts");
+        assert_eq!(loc.language, "typescript");
+
+        let result = GctxProjector::project_snippet(&loc, source, true, no_redact);
+        assert!(!result.stale);
+        assert_eq!(
+            result.text.as_deref(),
+            Some("function greet() { return 1; }"),
+        );
+        assert!(!result.truncated);
+        assert_eq!(result.redacted_secrets, 0);
+    }
+
+    #[test]
+    fn project_snippet_is_identity_only_without_capability_ce1() {
+        let source = b"function greet() { return 1; }\n";
+        let (g, target) = snippet_graph(source, ByteRange { start: 0, end: 30 });
+        let loc = GctxProjector::resolve_snippet_location(&g, &target).unwrap();
+
+        let result = GctxProjector::project_snippet(&loc, source, false, no_redact);
+        assert_eq!(result.text, None, "CE-1: no text without the capability");
+        assert!(!result.stale);
+    }
+
+    #[test]
+    fn project_snippet_withholds_text_when_stale_ce7() {
+        let source = b"function greet() { return 1; }\n";
+        let (g, target) = snippet_graph(source, ByteRange { start: 0, end: 30 });
+        let loc = GctxProjector::resolve_snippet_location(&g, &target).unwrap();
+
+        // The file on disk no longer matches what the graph parsed.
+        let changed = b"function greet() { return 999; }\n";
+        let result = GctxProjector::project_snippet(&loc, changed, true, no_redact);
+        assert!(result.stale, "CE-7: a hash mismatch is stale");
+        assert_eq!(result.text, None, "CE-7: stale withholds the text");
+    }
+
+    #[test]
+    fn project_snippet_runs_injected_redactor_ce2() {
+        let source = b"const k = \"sk-live-SECRET\";\n";
+        let span = ByteRange {
+            start: 0,
+            end: u32::try_from(source.len()).unwrap(),
+        };
+        let (g, target) = snippet_graph(source, span);
+        let loc = GctxProjector::resolve_snippet_location(&g, &target).unwrap();
+
+        let redact = |text: &str| {
+            if text.contains("sk-live-") {
+                Redaction {
+                    text: text.replace("sk-live-SECRET", "<REDACTED>"),
+                    redacted_hits: 1,
+                }
+            } else {
+                no_redact(text)
+            }
+        };
+        let result = GctxProjector::project_snippet(&loc, source, true, redact);
+        assert_eq!(result.redacted_secrets, 1);
+        assert!(result.text.unwrap().contains("<REDACTED>"));
+    }
+
+    #[test]
+    fn project_snippet_truncates_at_byte_ceiling_ce6() {
+        let big = vec![b'x'; MAX_SNIPPET_BYTES + 100];
+        let span = ByteRange {
+            start: 0,
+            end: u32::try_from(big.len()).unwrap(),
+        };
+        let (g, target) = snippet_graph(&big, span);
+        let loc = GctxProjector::resolve_snippet_location(&g, &target).unwrap();
+
+        let result = GctxProjector::project_snippet(&loc, &big, true, no_redact);
+        assert!(result.truncated);
+        assert_eq!(result.omitted_bytes, 100);
+        assert_eq!(result.text.unwrap().len(), MAX_SNIPPET_BYTES);
+    }
+
+    #[test]
+    fn resolve_snippet_location_omits_sensitive_paths_ce3() {
+        let mut g = graph_of(vec![ts_node_with_span(
+            1,
+            "secret",
+            ".env",
+            ByteRange { start: 0, end: 10 },
+        )]);
+        g.set_file_hash(".env".into(), Some(123));
+        let target = SymbolIdentity {
+            file: ".env".into(),
+            kind: SymbolKind::Function,
+            name: "secret".into(),
+            ordinal: 0,
+        };
+        assert!(
+            GctxProjector::resolve_snippet_location(&g, &target).is_none(),
+            "CE-3: a sensitive-path file is omitted entirely (no location)",
+        );
+    }
+
+    #[test]
+    fn resolve_snippet_location_none_when_symbol_has_no_span() {
+        // A synthetic/external node carries span: None ⇒ no snippet.
+        let g = graph_of(vec![node(
+            1,
+            "m",
+            "src/a.ts",
+            SymbolKind::Module,
+            Visibility::Internal,
+        )]);
+        let target = SymbolIdentity {
+            file: "src/a.ts".into(),
+            kind: SymbolKind::Module,
+            name: "m".into(),
+            ordinal: 0,
+        };
+        assert!(GctxProjector::resolve_snippet_location(&g, &target).is_none());
     }
 }
