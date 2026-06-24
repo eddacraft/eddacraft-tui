@@ -1191,10 +1191,16 @@ impl GctxProjector {
     pub fn resolve_snippet_location(
         graph: &SymbolGraph,
         target: &SymbolIdentity,
+        is_gitignored: &dyn Fn(&str) -> bool,
     ) -> Option<SnippetLocation> {
-        // CE-3 / CE-5: never even reveal the location of a sensitive or
-        // absolute-path file.
-        if is_absolute_path_like(&target.file) || is_sensitive_egress_path(&target.file) {
+        // CE-3 / CE-5: never even reveal the location of a sensitive, absolute, or
+        // gitignored file. The substrate scans with `standard_filters(false)`, so
+        // gitignored content is graph-resident; the daemon injects the
+        // workspace-root gitignore matcher (this leaf crate stays fs-free).
+        if is_absolute_path_like(&target.file)
+            || is_sensitive_egress_path(&target.file)
+            || is_gitignored(&target.file)
+        {
             return None;
         }
         let symbols = graph.symbols_in_file(&target.file);
@@ -1302,18 +1308,26 @@ impl GctxProjector {
         sym: &SymbolGraph,
         dep: &DependencyGraph,
         selector: &ContextSelector,
+        is_gitignored: &dyn Fn(&str) -> bool,
     ) -> Vec<(SymbolIdentity, u32)> {
         let seed_file = match selector {
             ContextSelector::File { file } => file.as_str(),
             ContextSelector::Symbol(id) => id.file.as_str(),
         };
-        if is_absolute_path_like(seed_file) || is_sensitive_egress_path(seed_file) {
+        // CE-3: a sensitive, absolute, or gitignored seed yields no context.
+        if is_absolute_path_like(seed_file)
+            || is_sensitive_egress_path(seed_file)
+            || is_gitignored(seed_file)
+        {
             return Vec::new();
         }
 
         let mut out: Vec<(SymbolIdentity, u32)> = Vec::new();
         let mut push = |id: SymbolIdentity, distance: u32| {
-            if is_absolute_path_like(&id.file) || is_sensitive_egress_path(&id.file) {
+            if is_absolute_path_like(&id.file)
+                || is_sensitive_egress_path(&id.file)
+                || is_gitignored(&id.file)
+            {
                 return;
             }
             if let Some((_, d)) = out.iter_mut().find(|(existing, _)| existing == &id) {
@@ -1342,7 +1356,10 @@ impl GctxProjector {
         let mut importers = dep.dependents_of(seed_file);
         importers.sort_unstable();
         for importer in importers {
-            if is_absolute_path_like(importer) || is_sensitive_egress_path(importer) {
+            if is_absolute_path_like(importer)
+                || is_sensitive_egress_path(importer)
+                || is_gitignored(importer)
+            {
                 continue;
             }
             let base_distance = match selector {
@@ -4282,7 +4299,8 @@ mod tests {
         let span = ByteRange { start: 0, end: 30 };
         let (g, target) = snippet_graph(source, span);
 
-        let loc = GctxProjector::resolve_snippet_location(&g, &target).expect("location");
+        let loc = GctxProjector::resolve_snippet_location(&g, &target, &|_: &str| false)
+            .expect("location");
         assert_eq!(loc.file, "src/a.ts");
         assert_eq!(loc.language, "typescript");
 
@@ -4300,7 +4318,7 @@ mod tests {
     fn project_snippet_is_identity_only_without_capability_ce1() {
         let source = b"function greet() { return 1; }\n";
         let (g, target) = snippet_graph(source, ByteRange { start: 0, end: 30 });
-        let loc = GctxProjector::resolve_snippet_location(&g, &target).unwrap();
+        let loc = GctxProjector::resolve_snippet_location(&g, &target, &|_: &str| false).unwrap();
 
         let result = GctxProjector::project_snippet(&loc, source, false, no_redact);
         assert_eq!(result.text, None, "CE-1: no text without the capability");
@@ -4311,7 +4329,7 @@ mod tests {
     fn project_snippet_withholds_text_when_stale_ce7() {
         let source = b"function greet() { return 1; }\n";
         let (g, target) = snippet_graph(source, ByteRange { start: 0, end: 30 });
-        let loc = GctxProjector::resolve_snippet_location(&g, &target).unwrap();
+        let loc = GctxProjector::resolve_snippet_location(&g, &target, &|_: &str| false).unwrap();
 
         // The file on disk no longer matches what the graph parsed.
         let changed = b"function greet() { return 999; }\n";
@@ -4328,7 +4346,7 @@ mod tests {
             end: u32::try_from(source.len()).unwrap(),
         };
         let (g, target) = snippet_graph(source, span);
-        let loc = GctxProjector::resolve_snippet_location(&g, &target).unwrap();
+        let loc = GctxProjector::resolve_snippet_location(&g, &target, &|_: &str| false).unwrap();
 
         let redact = |text: &str| {
             if text.contains("sk-live-") {
@@ -4353,7 +4371,7 @@ mod tests {
             end: u32::try_from(big.len()).unwrap(),
         };
         let (g, target) = snippet_graph(&big, span);
-        let loc = GctxProjector::resolve_snippet_location(&g, &target).unwrap();
+        let loc = GctxProjector::resolve_snippet_location(&g, &target, &|_: &str| false).unwrap();
 
         let result = GctxProjector::project_snippet(&loc, &big, true, no_redact);
         assert!(result.truncated);
@@ -4377,7 +4395,7 @@ mod tests {
             ordinal: 0,
         };
         assert!(
-            GctxProjector::resolve_snippet_location(&g, &target).is_none(),
+            GctxProjector::resolve_snippet_location(&g, &target, &|_: &str| false).is_none(),
             "CE-3: a sensitive-path file is omitted entirely (no location)",
         );
     }
@@ -4398,7 +4416,38 @@ mod tests {
             name: "m".into(),
             ordinal: 0,
         };
-        assert!(GctxProjector::resolve_snippet_location(&g, &target).is_none());
+        assert!(GctxProjector::resolve_snippet_location(&g, &target, &|_: &str| false).is_none());
+    }
+
+    #[test]
+    fn resolve_snippet_location_omits_gitignored_file_ce3() {
+        let source = b"function greet() { return 1; }\n";
+        let (g, target) = snippet_graph(source, ByteRange { start: 0, end: 30 });
+        // The injected matcher reports the seed file as gitignored ⇒ omitted
+        // entirely (no location revealed), even though it has a resolvable span.
+        assert!(
+            GctxProjector::resolve_snippet_location(&g, &target, &|f| f == "src/a.ts").is_none(),
+            "CE-3: a gitignored file must be omitted entirely",
+        );
+        // Control: with nothing gitignored the same symbol resolves.
+        assert!(GctxProjector::resolve_snippet_location(&g, &target, &|_: &str| false).is_some(),);
+    }
+
+    #[test]
+    fn collect_context_candidates_drops_gitignored_seed_ce3() {
+        let source = b"function greet() { return 1; }\n";
+        let (sym, seed) = snippet_graph(source, ByteRange { start: 0, end: 30 });
+        let dep = DependencyGraph::new();
+        let candidates = GctxProjector::collect_context_candidates(
+            &sym,
+            &dep,
+            &ContextSelector::Symbol(seed),
+            &|f| f == "src/a.ts",
+        );
+        assert!(
+            candidates.is_empty(),
+            "CE-3: a gitignored seed yields no context candidates",
+        );
     }
 
     // --- GCTX-022/023 symbol context ---
@@ -4421,8 +4470,12 @@ mod tests {
             name: "seed".into(),
             ordinal: 0,
         };
-        let candidates =
-            GctxProjector::collect_context_candidates(&sym, &dep, &ContextSelector::Symbol(seed));
+        let candidates = GctxProjector::collect_context_candidates(
+            &sym,
+            &dep,
+            &ContextSelector::Symbol(seed),
+            &|_: &str| false,
+        );
         let names: Vec<&str> = candidates.iter().map(|(id, _)| id.name.as_str()).collect();
         assert!(names.contains(&"seed"));
         assert!(names.contains(&"other"));
@@ -4445,10 +4498,13 @@ mod tests {
             &sym,
             &dep,
             &ContextSelector::Symbol(seed_id),
+            &|_: &str| false,
         );
         let mut locations = std::collections::HashMap::new();
         for (identity, _) in &candidates {
-            if let Some(loc) = GctxProjector::resolve_snippet_location(&sym, identity) {
+            if let Some(loc) =
+                GctxProjector::resolve_snippet_location(&sym, identity, &|_: &str| false)
+            {
                 locations.insert(identity.clone(), loc);
             }
         }
@@ -4482,10 +4538,13 @@ mod tests {
             &sym,
             &dep,
             &ContextSelector::Symbol(seed_id.clone()),
+            &|_: &str| false,
         );
         let mut locations = std::collections::HashMap::new();
         for (identity, _) in &candidates {
-            if let Some(loc) = GctxProjector::resolve_snippet_location(&sym, identity) {
+            if let Some(loc) =
+                GctxProjector::resolve_snippet_location(&sym, identity, &|_: &str| false)
+            {
                 locations.insert(identity.clone(), loc);
             }
         }

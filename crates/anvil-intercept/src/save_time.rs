@@ -2481,8 +2481,17 @@ fn gctx_affected_tests_outcome(
 /// errors and oversize-line skips redact the whole candidate).
 fn redact_gctx_snippet(text: &str) -> Redaction {
     const FAIL_CLOSED_PLACEHOLDER: &str = "<REDACTED>";
+    const KEY_BODY_PLACEHOLDER: &str = "<REDACTED: private-key body>";
+    // CE-2: normalise CRLF → LF so the scan, the 1-based finding line numbers, and
+    // the reconstruction all agree on line boundaries. The scanner strips `\r`
+    // internally (`content.lines()`); without this the reconstructed output mixed
+    // `\r`-bearing clean lines with `\r`-stripped redacted lines (council finding).
+    // Snippet byte-for-byte CRLF fidelity is not a goal — an assistant reads code.
+    let normalised = text.replace("\r\n", "\n");
     let config = SecretCheckConfig::default();
-    let (findings, stats) = scan_content_with_stats(text, "<gctx-snippet>", &config);
+    let (findings, stats) = scan_content_with_stats(&normalised, "<gctx-snippet>", &config);
+    // Fail-closed: a line too long to scan (SCAN-002 oversize guard) cannot be
+    // proven clean, so redact the whole snippet.
     if stats.lines_skipped_oversize > 0 {
         return Redaction {
             text: FAIL_CLOSED_PLACEHOLDER.to_string(),
@@ -2491,20 +2500,65 @@ fn redact_gctx_snippet(text: &str) -> Redaction {
     }
     if findings.is_empty() {
         return Redaction {
-            text: text.to_string(),
+            text: normalised,
             redacted_hits: 0,
         };
     }
-    let mut lines: Vec<String> = text.split('\n').map(str::to_string).collect();
+    let mut lines: Vec<String> = normalised.split('\n').map(str::to_string).collect();
+    // Track which line indices were redacted so the count reflects all redacted
+    // lines (incl. multi-line key bodies), not just the per-line findings.
+    let mut redacted: std::collections::BTreeSet<usize> = std::collections::BTreeSet::new();
     for finding in &findings {
-        if finding.line >= 1 && finding.line <= lines.len() {
-            lines[finding.line - 1].clone_from(&finding.redacted_line);
+        if finding.line < 1 || finding.line > lines.len() {
+            continue;
+        }
+        let idx = finding.line - 1;
+        lines[idx].clone_from(&finding.redacted_line);
+        redacted.insert(idx);
+
+        // CE-2 multi-line: the secret scanner is line-based, so a PEM/PGP private
+        // key matches only its `-----BEGIN … PRIVATE KEY-----` marker line — the
+        // base64 **body** on the following lines is never individually flagged.
+        // Redact the whole block, through the matching `-----END` line, or to the
+        // end of the (bounded) snippet if the END marker is outside the slice
+        // (fail-closed — an unterminated block is still withheld).
+        if finding
+            .pattern_name
+            .to_ascii_lowercase()
+            .contains("private key")
+        {
+            let mut j = idx + 1;
+            while j < lines.len() {
+                let is_end = lines[j].contains("-----END");
+                lines[j] = KEY_BODY_PLACEHOLDER.to_string();
+                redacted.insert(j);
+                j += 1;
+                if is_end {
+                    break;
+                }
+            }
         }
     }
     Redaction {
         text: lines.join("\n"),
-        redacted_hits: u32::try_from(findings.len()).unwrap_or(u32::MAX),
+        redacted_hits: u32::try_from(redacted.len()).unwrap_or(u32::MAX),
     }
+}
+
+/// Build the workspace-root gitignore matcher for the CE-3 snippet egress filter
+/// (GCTX-021/023). The substrate scans with `standard_filters(false)`, so
+/// gitignored content (build output, untracked local configs) is graph-resident;
+/// snippet egress must omit it. Built daemon-side from the admitted root (the leaf
+/// projector stays fs-free) and injected as a predicate. Best-effort: a missing or
+/// malformed `.gitignore` yields an empty matcher (nothing ignored) — the static
+/// deny-list, secret scan, and freshness check still apply. Built per call (off
+/// the hot save-time path); cache if snippet traffic ever warrants it.
+fn workspace_gitignore(root: &std::path::Path) -> ignore::gitignore::Gitignore {
+    let mut builder = ignore::gitignore::GitignoreBuilder::new(root);
+    let _ = builder.add(root.join(".gitignore"));
+    builder
+        .build()
+        .unwrap_or_else(|_| ignore::gitignore::Gitignore::empty())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -2537,8 +2591,12 @@ fn gctx_get_snippet_outcome(
                 .to_string(),
         },
         AssuranceState::Clean | AssuranceState::Stale | AssuranceState::Bounded => {
+            // CE-3: omit gitignored files from snippet egress. Build the matcher
+            // before taking the cache lock (it does fs I/O).
+            let gitignore = workspace_gitignore(key.as_path());
+            let is_gitignored = |f: &str| gitignore.matched(f, false).is_ignore();
             let resolved = state.cache.with_graphs(key, |sym, _dep| {
-                GctxProjector::resolve_snippet_location(sym, &query.target)
+                GctxProjector::resolve_snippet_location(sym, &query.target, &is_gitignored)
             });
             let location = match resolved {
                 None => {
@@ -2645,12 +2703,22 @@ fn gctx_symbol_context_outcome(
                 .to_string(),
         },
         AssuranceState::Clean | AssuranceState::Stale | AssuranceState::Bounded => {
+            // CE-3: omit gitignored files from snippet/context egress. Built before
+            // the cache lock (fs I/O).
+            let gitignore = workspace_gitignore(key.as_path());
+            let is_gitignored = |f: &str| gitignore.matched(f, false).is_ignore();
             let collected = state.cache.with_graphs(key, |sym, dep| {
-                let candidates =
-                    GctxProjector::collect_context_candidates(sym, dep, &query.selector);
+                let candidates = GctxProjector::collect_context_candidates(
+                    sym,
+                    dep,
+                    &query.selector,
+                    &is_gitignored,
+                );
                 let mut locations = std::collections::HashMap::new();
                 for (identity, _) in &candidates {
-                    if let Some(loc) = GctxProjector::resolve_snippet_location(sym, identity) {
+                    if let Some(loc) =
+                        GctxProjector::resolve_snippet_location(sym, identity, &is_gitignored)
+                    {
                         locations.insert(identity.clone(), loc);
                     }
                 }
@@ -2814,6 +2882,62 @@ mod tests {
     #[test]
     fn resolve_reverse_impact_depth_unset_defaults_to_one_hop() {
         assert_eq!(resolve_reverse_impact_depth(None), 1);
+    }
+
+    // ---- CE-2: snippet secret redaction (incl. multi-line key bodies) ----
+
+    #[test]
+    fn redact_snippet_clean_text_passes_through() {
+        let r = redact_gctx_snippet("function f() {\n  return 1;\n}\n");
+        assert_eq!(r.redacted_hits, 0);
+        assert!(r.text.contains("return 1;"));
+    }
+
+    #[test]
+    fn redact_snippet_pem_private_key_body_is_fully_redacted() {
+        // The scanner is line-based: only the `-----BEGIN … PRIVATE KEY-----`
+        // marker is flagged. The base64 body must NOT survive (CE-2 multi-line).
+        let src = "let cfg = 1;\n\
+                   -----BEGIN RSA PRIVATE KEY-----\n\
+                   MIIEowIBAAKCAQEAsecretkeymaterialdoNOTleakThisLine0001\n\
+                   AAAAB3NzaC1yc2EAAAADAQABAAABgQDmoreSecretBytes0002\n\
+                   -----END RSA PRIVATE KEY-----\n\
+                   let done = 2;\n";
+        let r = redact_gctx_snippet(src);
+        assert!(r.redacted_hits >= 1, "the private key must be flagged");
+        assert!(
+            !r.text.contains("MIIEowIBAAKCAQEAsecretkeymaterial"),
+            "PEM body line 1 leaked: {}",
+            r.text
+        );
+        assert!(
+            !r.text.contains("moreSecretBytes0002"),
+            "PEM body line 2 leaked: {}",
+            r.text
+        );
+        // Surrounding clean code is preserved.
+        assert!(r.text.contains("let cfg = 1;"));
+        assert!(r.text.contains("let done = 2;"));
+    }
+
+    #[test]
+    fn redact_snippet_unterminated_key_fails_closed_to_snippet_end() {
+        // BEGIN marker with no END inside the bounded slice ⇒ redact through end.
+        let src = "-----BEGIN PRIVATE KEY-----\n\
+                   MIIEvgIBADANBgkqhkiG9w0BAQEFAASCleakedBodyNoEndMarker\n\
+                   stillSecretBodyBytesHere\n";
+        let r = redact_gctx_snippet(src);
+        assert!(!r.text.contains("leakedBodyNoEndMarker"), "{}", r.text);
+        assert!(!r.text.contains("stillSecretBodyBytesHere"), "{}", r.text);
+    }
+
+    #[test]
+    fn redact_snippet_normalises_crlf() {
+        let src = "let a = 1;\r\n-----BEGIN RSA PRIVATE KEY-----\r\nMIIEbodyCrLf0001\r\n-----END RSA PRIVATE KEY-----\r\nlet b = 2;\r\n";
+        let r = redact_gctx_snippet(src);
+        assert!(!r.text.contains('\r'), "output must be LF-normalised");
+        assert!(!r.text.contains("MIIEbodyCrLf0001"), "{}", r.text);
+        assert!(r.text.contains("let a = 1;") && r.text.contains("let b = 2;"));
     }
 
     #[test]

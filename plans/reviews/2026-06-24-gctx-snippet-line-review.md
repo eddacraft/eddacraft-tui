@@ -15,9 +15,20 @@
 - **Leaked agent-session path** in `scripts/gctx-goal-verify.sh` (`/tmp/grok-goal-702d0af3ed1f/implementer`) → `${TMPDIR:-/tmp}/gctx-goal-verify`.
 - APS honesty fixes (see below): GV2 index `Complete`→`In Progress` (Done≠Complete per lifecycle); GCTX-021 item text now states the CE-3 gitignore deferral + the tail-language span gap.
 
-## Must-fix before merge (privacy / contract)
+## Must-fix before merge (privacy / contract) — ✅ BOTH RESOLVED 2026-06-24
 
-1. **CE-3 gitignore omission is unimplemented (MAJOR, 2 reviewers).** The PV-9 verdict + the GCTX-021 item text require gitignored files omitted *entirely* on the snippet path (the substrate scans with `standard_filters(false)`, so gitignored content is graph-resident). Only the static deny-list `is_sensitive_egress_path` exists — no `.gitignore` consultation. A gitignored, non-deny-listed, non-secret-shaped, fresh file would egress its source text under flag+capability. **Recommend:** inject a per-root `ignore::gitignore::Gitignore` matcher into the snippet path (mirror the ADR-064 redactor injection), drop gitignored candidates into `omitted_sensitive_paths`, add the missing fixture — OR, if deferred, file an ADR/verdict amendment; do not ship with the CE-3 claim unmet. Item text has been corrected to flag this as a pre-merge blocker.
+> **Resolution (commit follow-up to the review):** #1 and #2 below are now
+> implemented + tested. #1: the daemon injects an `ignore::Gitignore` matcher
+> (built from the admitted root) into `resolve_snippet_location` +
+> `collect_context_candidates`; gitignored files are omitted entirely (egress
+> unit tests). #2: `redact_gctx_snippet` now CRLF-normalises and redacts PEM/PGP
+> private-key *bodies* through `-----END` (fail-closed on an unterminated block);
+> `anvil-intercept` unit tests cover the PEM body, CRLF, and unterminated cases.
+> Residual on #2: an arbitrary intra-secret line-split of a *single-line-pattern*
+> secret (e.g. an AWS key string-concatenated across lines) is still not caught —
+> a narrow, non-realistic-source case; the entropy pass + per-line scan remain.
+
+1. **CE-3 gitignore omission was unimplemented (MAJOR, 2 reviewers).** The PV-9 verdict + the GCTX-021 item text require gitignored files omitted *entirely* on the snippet path (the substrate scans with `standard_filters(false)`, so gitignored content is graph-resident). Only the static deny-list `is_sensitive_egress_path` exists — no `.gitignore` consultation. A gitignored, non-deny-listed, non-secret-shaped, fresh file would egress its source text under flag+capability. **Recommend:** inject a per-root `ignore::gitignore::Gitignore` matcher into the snippet path (mirror the ADR-064 redactor injection), drop gitignored candidates into `omitted_sensitive_paths`, add the missing fixture — OR, if deferred, file an ADR/verdict amendment; do not ship with the CE-3 claim unmet. Item text has been corrected to flag this as a pre-merge blocker.
 
 2. **CE-2 line-based redaction misses multi-line secrets (medium, adversarial).** `redact_gctx_snippet` scans per `content.lines()`; a secret split across two physical lines (wrapped PEM body, `"AKIA" +\n"…"`) is not caught. Tests only cover single-line tokens. **Recommend:** add a full-text second pass (or document the limitation explicitly in the CE-2 gate comment) + a split-secret test. Also normalise CRLF→LF before scan/reconstruct (current code corrupts CRLF at redacted lines).
 
