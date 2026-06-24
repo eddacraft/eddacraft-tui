@@ -2,7 +2,7 @@
 
 | ID   | Owner | Status | Progress |
 | ---- | ----- | ------ | -------- |
-| GCTX | —     | In Progress | 9/14 |
+| GCTX | —     | In Progress | 12/14 |
 
 **Last reviewed:** 2026-06-23 (Phase 0 — Delivery Contract — complete. **GCTX-001 (projection contract) Merged 2026-06-15 via #2628** — the spec [`graph-context-delivery-spec.md`](../../docs/architecture/graph-context-delivery-spec.md) folds the context-egress privacy review (PV-9) conditions CE-1..CE-12 onto the GV2-023 consumer query contract. **GCTX-002 (MCP delivery target) Merged 2026-06-15 via #2619** — discharged by [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) **Accepted** (Rust RMCPF `anvil mcp serve` surface); RMCPF defers GCTX work by design, so no edit to rust-mcp-full-port. Module **In Progress, 9/14** (GCTX-010 pilot Merged 2026-06-16 via #2657; GCTX-011 `find_dependents` Merged 2026-06-16 via #2685; GCTX-012 `anvil_impact_of_change` Merged 2026-06-17 via #2693; **GCTX-013 `anvil_affected_tests` Merged 2026-06-17 via #2700** — test attribution + coverage gaps over the same spine, no new substrate; reuses GCTX-012's `is_test_file` + the dependency graph's forward `dependencies_of` edges for evidence; **GCTX-014 `anvil_find_callers` Merged 2026-06-17 via #2715** — symbol-level caller traversal projecting the GCALL-003 `callers_of` read API, completing the Phase 1 tool surface (010..014); **GCTX-030 (`graph://` MCP resources) Merged 2026-06-18 via #2772** — the read-only `graph://stats`/`symbols`/`edges` resource surface, identity-only, with CE-6 pagination and a `bounded` edges flag; **GCTX-020 Done 2026-06-20** — parser-free conservative token estimator in `anvil-graph-cache`, with deterministic fixed-corpus and input-cap tests). With the Phase 1 tool queue + resource surface complete and GCTX-020 done, the Phase-2 snippet items (021..023) are **promoted Draft → Ready 2026-06-23** with the PV-9 snippet gates folded into item text and the substrate prerequisite filed as **[GV2-032](graph-v2-foundation.aps.md)** (span + per-file content-hash producer); all build on the CE-5 sealed egress DTO + `GctxProjector` + structural no-leak spine that GCTX-010 established, using the daemon-RPC graph-handle path settled by ADR-084.)
 
@@ -674,9 +674,10 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-021: Symbol snippet extractor (daemon-side, egress-gated)
 
-- **Status:** In Progress (`feat/gctx-021-snippet-extractor`, started 2026-06-24;
-  GV2-032 substrate merged via #2896; secret-scan wiring = injected redactor per
-  ADR-064, not a direct `anvil-checks` dep on the leaf projector) — architecture
+- **Status:** In Progress (`feat/gctx-021-snippet-extractor`, implementation complete
+  2026-06-24, pending Council + PR; GV2-032 substrate on branch; secret-scan wiring =
+  injected redactor per ADR-064, not a direct `anvil-checks` dep on the leaf
+  projector) — architecture
   settled by [ADR-084](../decisions/084-gctx-graph-handle-access.md)
   (daemon-side projection) and the snippet gates fully specified by the
   [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md)
@@ -745,8 +746,10 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-022: Budget-bounded context slicer
 
-- **Status:** Ready — daemon-side, in `anvil-gctx-egress`; depends on GCTX-021 (the
-  snippet carrier) and GCTX-020 (`estimate_gctx_tokens`, **Done 2026-06-20**).
+- **Status:** In Progress (`feat/gctx-021-snippet-extractor`, implementation complete
+  2026-06-24, pending Council + PR) — daemon-side in `anvil-gctx-egress/src/slice.rs`;
+  depends on GCTX-021 (the snippet carrier) and GCTX-020 (`estimate_gctx_tokens`,
+  **Done 2026-06-20**).
 - **Intent:** Turn a set of graph-selected symbols into the smallest useful set of
   snippets under a caller token budget, deterministically.
 - **Expected Outcome:** A slicer that orders candidate snippets by a stable key,
@@ -781,9 +784,10 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-023: `anvil_symbol_context` tool
 
-- **Status:** Ready — the headline assistant context tool, composing the Phase-1
-  query spine (search + impact) with GCTX-021 snippets and GCTX-022 budgeting into
-  one MCP tool on the existing `GctxDispatch`. MCP target settled by
+- **Status:** In Progress (`feat/gctx-021-snippet-extractor`, implementation complete
+  2026-06-24, pending Council + PR) — the headline assistant context tool, composing
+  the Phase-1 query spine (search + impact) with GCTX-021 snippets and GCTX-022
+  budgeting into one MCP tool on the existing `GctxDispatch`. MCP target settled by
   [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) (Rust `anvil mcp serve`).
 - **Intent:** Given a symbol or file, return the bounded context an assistant needs
   to work safely — identity by default, source text only under explicit opt-in.
@@ -921,6 +925,6 @@ blockers — they are resolved during execution, not before promotion:
 | ----- | ----- | ------ |
 | 0 — Delivery Contract | 2 | Complete (GCTX-001 Merged #2628, GCTX-002 Merged #2619) |
 | 1 — Graph Query Tools | 5 | GCTX-010 Merged #2657 (pilot); GCTX-011 Merged #2685 (`find_dependents`); GCTX-012 Merged #2693 (`impact_of_change`); GCTX-013 Merged #2700 (`affected_tests`); GCTX-014 Merged #2715 (`find_callers`) |
-| 2 — Context Slicing | 4 | GCTX-020 Done; GCTX-021..023 Ready (PV-9 snippet gates folded; substrate prerequisite GV2-032 filed) |
+| 2 — Context Slicing | 4 | GCTX-020 Done; GCTX-021..023 impl complete 2026-06-24 (pending PR) |
 | 3 — Resources, Benchmarks, Docs | 3 | GCTX-030 Merged #2772; GCTX-031/032 Draft |
-| **Total** | **14** | **9/14** |
+| **Total** | **14** | **12/14** |

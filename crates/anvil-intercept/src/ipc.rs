@@ -5294,12 +5294,13 @@ mod tests {
                  deliberate USAGE-004 decision"
             );
         }
-        // Count pin: 7 GCTX query methods are allowlisted (search/dependents/
-        // callers/impact/affected-tests + the GCTX-030 graph_stats/graph_edges
-        // resources); the rest are excluded. Moving either set must move this.
+        // Count pin: 9 GCTX query methods are allowlisted (search/dependents/
+        // callers/impact/affected-tests + GCTX-030 graph_stats/graph_edges +
+        // GCTX-021 get_snippet + GCTX-023 symbol_context); the rest are
+        // excluded. Moving either set must move this.
         assert_eq!(
             ALL_ANVIL_METHODS.len(),
-            EXCLUDED.len() + 7,
+            EXCLUDED.len() + 9,
             "ALL_ANVIL_METHODS changed — reclassify the new method for USAGE-004"
         );
     }

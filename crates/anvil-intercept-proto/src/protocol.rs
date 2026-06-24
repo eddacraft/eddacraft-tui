@@ -1243,6 +1243,7 @@ mod tests {
             ANVIL_GCTX_GRAPH_STATS,
             ANVIL_GCTX_GRAPH_EDGES,
             ANVIL_GCTX_GET_SNIPPET,
+            ANVIL_GCTX_SYMBOL_CONTEXT,
         ]
         .into_iter()
         .collect();
@@ -1251,7 +1252,7 @@ mod tests {
         // Count pin: no silent additions, no silent drops.
         assert_eq!(
             ALL_ANVIL_METHODS.len(),
-            17,
+            18,
             "ALL_ANVIL_METHODS count changed — pin and the named set must move together"
         );
         // Forward: every named const is listed.

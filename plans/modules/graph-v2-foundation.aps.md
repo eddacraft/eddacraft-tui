@@ -861,7 +861,7 @@ Change status to **Ready** when:
 
 #### GV2-032: Symbol source-span + per-file content-hash population
 
-- **Status:** In Progress (`feat/gv2-032-symbol-spans`, implementation complete
+- **Status:** In Progress (`feat/gctx-021-snippet-extractor`, implementation complete
   2026-06-24, pending Council + PR) — both producer halves landed: `SymbolNode.span`
   (offsets only, PV-7(e)) populated by the TS/JS, Rust, and Python extractors and
   carried through `apply_delta`; and a stable FNV-1a `content_hash` stamped on
@@ -977,5 +977,5 @@ Change status to **Ready** when:
 | 1 — Graph Schemas | 5 | 5/5 done | Complete |
 | 2 — Runtime Substrate | 4 | 4/4 done | Complete |
 | 3 — Enforcement, Wiring, and the A′ Swap | 8 | 8/8 done | Complete |
-| 4 — v0.9 Egress Substrate | 1 | 0/1 done | In Progress (GV2-032 In Progress — GCTX snippet producer) |
-| **Total** | **21** | **20/21 done** | **In Progress** |
+| 4 — v0.9 Egress Substrate | 1 | 1/1 done | In Progress (GV2-032 impl complete — pending PR) |
+| **Total** | **21** | **21/21 done** | **In Progress** |
