@@ -151,7 +151,8 @@ fn get_snippet_params(root: &str, include_source: bool) -> Value {
 fn snippet_texts(outcome: &Value) -> Vec<Option<String>> {
     outcome["snippets"]
         .as_array()
-        .unwrap_or(&Vec::new())
+        .map(Vec::as_slice)
+        .unwrap_or(&[])
         .iter()
         .map(|row| row["snippet"]["text"].as_str().map(str::to_string))
         .collect()
@@ -320,7 +321,8 @@ fn symbol_context_identity_only_without_snippet_egress() {
                 for text in snippet_texts(outcome) {
                     assert!(
                         text.is_none(),
-                        "CE-1: text must be absent without ANVIL_GCTX_EGRESS=1, got: {text:?}",
+                        "CE-1: text must be absent without ANVIL_GCTX_EGRESS=1, got: {:?}",
+                        text,
                     );
                 }
                 assert!(
@@ -530,7 +532,8 @@ fn symbol_context_withholds_text_when_stale_ce7() {
                 for text in snippet_texts(outcome) {
                     assert!(
                         text.is_none(),
-                        "CE-7: stale graph must withhold text: {outcome}",
+                        "CE-7: stale graph must withhold text, got: {:?}; outcome: {outcome}",
+                        text,
                     );
                 }
                 listener.shutdown().await;

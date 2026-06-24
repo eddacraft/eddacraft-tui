@@ -138,7 +138,13 @@ fn parse_query(arguments: &Value) -> Result<anvil_gctx_types::SymbolContextQuery
 
     let mut fields = serde_json::Map::new();
     if let Some(target) = arguments.get("target") {
-        fields.insert("selector".to_string(), json!({ "symbol": target.clone() }));
+        let mut target = target.clone();
+        if let Some(object) = target.as_object_mut() {
+            object
+                .entry("ordinal".to_string())
+                .or_insert_with(|| json!(0));
+        }
+        fields.insert("selector".to_string(), json!({ "symbol": target }));
     } else if let Some(file) = arguments.get("file").and_then(Value::as_str) {
         fields.insert("selector".to_string(), json!({ "file": { "file": file } }));
     }

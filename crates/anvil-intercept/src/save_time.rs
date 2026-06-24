@@ -2566,6 +2566,9 @@ fn gctx_get_snippet_outcome(
                 let byte_cost = u32::try_from(text.len()).unwrap_or(u32::MAX);
                 if byte_cost > 0 && !byte_ledger.can_admit(&result.file, result.span, byte_cost) {
                     result.text = None;
+                    result.truncated = false;
+                    result.omitted_bytes = 0;
+                    result.redacted_secrets = 0;
                 } else if byte_cost > 0 {
                     byte_ledger.record(&result.file, result.span, byte_cost);
                 }

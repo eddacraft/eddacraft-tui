@@ -2,7 +2,7 @@
 
 | ID  | Owner | Status |
 | --- | ----- | ------ |
-| GV2 | —     | Complete |
+| GV2 | —     | Done |
 
 **Last reviewed:** 2026-06-15 (**GV2-031 Merged via #2627** — the last internal GV2 item, leaving GV2 20/20; **GV2-020 + GV2-023 promoted Draft → Ready then Merged** once the ADR-075 entry decisions landed — [ADR-083](../decisions/083-gctx-mcp-delivery-target.md) Accepted + the [context-egress privacy review (PV-9)](../reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md) filed. GV2-020 deps GV2-010..014 are all Merged. **GV2-023 consumer query contract authored** in the foundation spec ("The consumer query contract (GV2-023)") — four read classes with one mapped scenario each for INTD/DRVR (live), GCTX (in flight), and WEAVE (planned, Draft 0/21); the registry impl (GV2-020) and assistant projection rules (GCTX-001) remain downstream.)
 

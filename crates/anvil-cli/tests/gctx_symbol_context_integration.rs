@@ -309,7 +309,8 @@ fn call_symbol_context(
 fn snippet_texts(outcome: &Value) -> Vec<Option<String>> {
     outcome["snippets"]
         .as_array()
-        .unwrap_or(&Vec::new())
+        .map(Vec::as_slice)
+        .unwrap_or(&[])
         .iter()
         .map(|row| row["snippet"]["text"].as_str().map(str::to_string))
         .collect()
