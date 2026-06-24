@@ -1,19 +1,24 @@
 # Council Gate Bridge
 
-| ID    | Owner  | Status  | Progress |
-| ----- | ------ | ------- | -------- |
-| CGBDG | @aneki | Blocked | 0/6      |
+| ID    | Owner  | Status | Progress |
+| ----- | ------ | ------ | -------- |
+| CGBDG | @aneki | Ready  | 0/6      |
 
-**Status:** Blocked — deferred until MLP-002 (witness chain) is `Merged` and
-the witness schema is stable. The bridge target may shift once witness lines
-land; MLP-002's per-commit witness format may subsume what this module would
-otherwise design. Do not start discovery until that point. Re-evaluate scope
-when unblocking — CGBDG may collapse to "council emits witness lines" rather
-than a separate attestation bridge.
+**Status:** Ready — the blocker is cleared (2026-06-24). MLP-002 (witness chain)
+shipped **Done 2026-05-13** (archived via `v0.7.0-beta`), and the
+witness-schema-stabilising follow-ups it was waiting on are now terminal:
+**MLP2-011 (DAG-aware merge verification) Released/Shipped** and **MLP2-012
+(manifest event stream, the MLP-002b follow-up) Merged** — so the witness format
+the bridge would target is stable. Discovery (CGBDG-001..006, all Ready) may now
+begin. **Re-evaluate scope first:** CGBDG may collapse to "council emits witness
+lines" over the now-stable witness chain rather than a separate attestation
+bridge — CGBDG-001 and CGBDG-004 own that call.
 
-**Last reviewed:** 2026-05-10 — discovery-only module; attestation work still
-lives at `packages/anvil/core/src/provenance/`. If/when attestation moves to a
-Rust crate (e.g. `crates/anvil-checks`), update CGBDG-001 accordingly.
+**Last reviewed:** 2026-06-24 — unblocked: MLP-002 plus the witness-schema
+follow-ups MLP2-011/-012 are terminal, so the module moved Blocked → Ready.
+Discovery-only; attestation work still lives at
+`packages/anvil/core/src/provenance/`. If/when attestation moves to a Rust crate
+(e.g. `crates/anvil-checks`), update CGBDG-001 accordingly.
 
 ## Purpose
 
@@ -99,8 +104,11 @@ runtime gate can verify.
 
 ## Dependencies
 
-- **Blocks on:** MLP-002 (witness chain) — must be `Merged` before this module
-  unblocks. Witness format may replace the bridge's attestation target.
+- **Blocks on:** MLP-002 (witness chain) — **met (2026-06-24)**. MLP-002 is
+  `Done` (2026-05-13) and the witness-schema follow-ups MLP2-011 (DAG-aware
+  verification, Released/Shipped) and MLP2-012 (manifest stream, Merged) are
+  terminal, so the witness format is stable. Witness lines may replace the
+  bridge's attestation target — confirm in CGBDG-001/-004.
 - Existing: `packages/anvil/core/src/provenance/` (attestation schema)
 - Existing: `.claude/commands/council.md` and `.claude/agents/plan-synthesizer.md` (council output format)
 - Planned: PocketFlow TS adapter (`packages/kindling-adapter-pocketflow/`; documented in `docs/architecture/references/pocketflow-vendoring.md` but not yet vendored)

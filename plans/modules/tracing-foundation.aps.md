@@ -164,8 +164,10 @@ This module is **Ready** when:
 > TRACE-002 authorised by operator request on 2026-05-25. A partial slice
 > landed the reusable TS mirror and `anvil-api` ingress, then blocked on
 > concrete dashboard live-feed consumer ownership. TRACE-003 also received
-> a partial Rust tracing-formatter redaction slice, then blocked on INTD-015 /
-> EXPORT-owned event and sampled-exporter policy.
+> a partial Rust tracing-formatter redaction slice. As of 2026-06-24, INTD-015 is
+> Complete and ADR-059 has decided the sink, so the redaction-parity slice is
+> actionable; only sampled-exporter behaviour remains blocked on EXPORT-001's
+> deferred exporter wiring.
 
 ### TRACE-001: Tracing baseline crate, propagation, and namespace registry
 
@@ -266,28 +268,50 @@ This module is **Ready** when:
 > `notification.context` aliases. The namespace registry reflects the narrowed
 > remaining gap. Remaining blockers: shared INTD-015 notification redaction
 > policy and sampled-exporter refusal/handling under EXPORT's sink decision.
+>
+> **Blocker update (2026-06-24):** one of the two blockers has cleared.
+> **INTD-015 is `Complete`** (merged 2026-05-06 via PR #1305 —
+> `crates/anvil-intercept/src/fanout.rs` provides the daemon-side cross-session
+> redaction policy this item must mirror), so the notification-redaction-parity
+> slice of TRACE-003 is now **actionable**. The **EXPORT sink decision is also
+> made** — [ADR-059](../decisions/059-production-tracing-sink.md) (Accepted
+> 2026-05-30) selects Azure Monitor + Application Insights. The **only residual
+> blocker** is therefore the *sampled-exporter behaviour* half, which needs a
+> wired exporter to test against: that wiring is **EXPORT-001**, deliberately
+> deferred by timing (not design) until a paying customer or first production
+> incident. Net: the INTD-015-dependent redaction-parity work can proceed now;
+> the sampled-exporter refusal test waits on EXPORT-001. Consider splitting
+> TRACE-003 along that seam via `planning-workflow` if the parity slice is
+> scheduled ahead of EXPORT.
 
 - **Intent:** Close the DA-OBS-004 risk-accepted gap on the tracing pipe
   so secret-bearing fields cannot transit spans even before the first
   secret-detection rule ships.
 - **Concrete failure mode (DA-OBS-004):** A `notification.context` payload
-  carrying a secret can transit an unredacted span attribute to any
-  tracing subscriber or sampled exporter if a secret-detection rule fires
-  before INTD-015 lands.
+  carrying a secret could transit an unredacted span attribute to any tracing
+  subscriber or sampled exporter. The INTD-015 daemon-side redaction policy has
+  now landed; TRACE-003 must mirror it on the tracing pipe and still define the
+  sampled-exporter refusal/handling behaviour once EXPORT-001 wires the exporter.
 - **Expected Outcome:** `anvil-observability`'s redaction layer carries
   a default deny-list for known sensitive field names, integrates with
   the (future) shared redaction policy used by the notification
   envelope, and refuses to forward sensitive content to any sampled
   exporter selected by EXPORT. Documented in the namespace registry's
   Known Gaps section as the closed-out side of the DA-OBS-004 risk.
-- **Coordinates with:** INTD-015 (queued redaction hardening on the
-  notification envelope).
+- **Coordinates with:** INTD-015 (**Complete** — merged 2026-05-06 via PR #1305;
+  the daemon-side cross-session redaction policy now lives in
+  [`../archive/modules/intercept-daemon.aps.md`](../archive/modules/intercept-daemon.aps.md)
+  / `crates/anvil-intercept/src/fanout.rs`, so the parity contract this item must
+  mirror is fixed, not pending).
 - **Validation:** Partial slice passed 2026-05-25:
   `cargo test -p eddacraft-anvil-observability` and `cargo fmt --check`.
-  Full task still needs validation for INTD-015 policy parity and sampled
-  exporter behaviour once INTD-015 / EXPORT provide those contracts.
-- **Confidence:** low — depends on INTD-015's shape and EXPORT's sink.
-- **Status:** Blocked
+  The INTD-015 policy-parity validation is now actionable (the contract is
+  Complete). Sampled-exporter validation still waits on a wired exporter
+  (EXPORT-001, deferred by timing; sink decided in ADR-059).
+- **Confidence:** low — the residual depends on EXPORT-001's deferred exporter
+  wiring; the INTD-015-parity slice is now unblocked.
+- **Status:** Blocked (residual: sampled-exporter behaviour via EXPORT-001; the
+  INTD-015 redaction-parity slice is unblocked as of 2026-06-24)
 
 ---
 
@@ -380,11 +404,11 @@ This module is **Ready** when:
 ## Risks
 
 - **R1 (accepted pre-launch, see ADR-035):** A `notification.context`
-  payload carrying a secret can transit an unredacted span attribute to
-  any tracing subscriber or sampled exporter if a secret-detection rule
-  fires before INTD-015 lands. Revisit when INTD-015 reaches Ready OR the
-  first secret-detection rule ships, whichever first. TRACE-003 is the
-  tracing-pipe side of the mitigation.
+  payload carrying a secret could transit an unredacted span attribute to any
+  tracing subscriber or sampled exporter. **Revisit condition met 2026-06-24:**
+  INTD-015 is Complete and secret-detection has shipped, so TRACE-003 is now the
+  tracing-pipe mitigation; only sampled-exporter behaviour remains deferred to
+  EXPORT-001.
 - **R2:** `anvil.<domain>.*` namespace fragmentation if multiple modules
   contribute attributes with conflicting shapes (units, plurals, naming
   case). Mitigation: namespace registry doc + founder PR review gate.

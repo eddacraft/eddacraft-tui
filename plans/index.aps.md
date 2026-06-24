@@ -444,14 +444,15 @@ Pre-launch scope is **TRACE-001 + TRACE-004**: subscriber init, W3C
 call-path instrumentation for the daemon / CLI paths shipped so far, and a
 local hardened file sink. TRACE-002 is partially implemented as of 2026-05-25
 (TS mirror package + `anvil-api` ingress) and blocked on a concrete dashboard
-live-feed consumer for the joined-view smoke test. TRACE-003 has a partial Rust
-tracing-formatter redaction slice and is blocked on INTD-015 / EXPORT-owned
-policy parity and sampled-exporter behaviour. Kernel-surface breadth and production sink choice
-remain post-launch / EXPORT follow-up scope.
+live-feed consumer for the joined-view smoke test. TRACE-003 has a partial Rust tracing-formatter redaction slice; as of
+2026-06-24 INTD-015 is Complete and ADR-059 has decided the production sink, so
+its redaction-parity slice is actionable while sampled-exporter behaviour still
+waits on EXPORT-001's deferred-by-timing exporter wiring. Kernel-surface breadth
+remains post-launch / EXPORT follow-up scope.
 
 | Module                                                          | Scope  | Status | Progress | Dependencies                                                                                                                                                                                                                  |
 | --------------------------------------------------------------- | ------ | ------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [tracing-foundation](./modules/tracing-foundation.aps.md)       | TRACE  | In Progress | 2/4      | INTD-014 (Committed); coordinates with RTAI, INTD-013, INTD-015, dashboard-ops-views, USAGE; cites ADR-019, ADR-034, ADR-035; TRACE-001 Complete 2026-04-30 (anvil-observability crate, init_tracing in both binaries, traceparent envelope round-trip, INTD-014 conformance assertion); TRACE-004 Complete 2026-05-11 via PR #1435 — call-path instrumentation + `traceparent` correlation fields + local hardened file sink; TRACE-002 partial 2026-05-25 (TS mirror package + `anvil-api` ingress) blocked on concrete dashboard live-feed consumer; TRACE-003 partial 2026-05-25 (Rust tracing-formatter redaction) blocked on INTD-015 / EXPORT-owned policy parity and sampled-exporter behaviour; OTLP/exporter-backed parent propagation and walkthrough deferred to EXPORT |
+| [tracing-foundation](./modules/tracing-foundation.aps.md)       | TRACE  | In Progress | 2/4      | INTD-014 (Committed); coordinates with RTAI, INTD-013, INTD-015, dashboard-ops-views, USAGE; cites ADR-019, ADR-034, ADR-035; TRACE-001 Complete 2026-04-30 (anvil-observability crate, init_tracing in both binaries, traceparent envelope round-trip, INTD-014 conformance assertion); TRACE-004 Complete 2026-05-11 via PR #1435 — call-path instrumentation + `traceparent` correlation fields + local hardened file sink; TRACE-002 partial 2026-05-25 (TS mirror package + `anvil-api` ingress) blocked on concrete dashboard live-feed consumer; TRACE-003 partial 2026-05-25 (Rust tracing-formatter redaction) — 2026-06-24 blocker update: INTD-015 is Complete (PR #1305) so the redaction-parity slice is unblocked, and the sink is decided (ADR-059); the only residual blocker is sampled-exporter behaviour, which waits on EXPORT-001's deferred-by-timing exporter wiring; OTLP/exporter-backed parent propagation and walkthrough deferred to EXPORT |
 | [observability-export](./modules/observability-export.aps.md)   | EXPORT | Draft  | 0/1      | Blocks on TRACE-001/-002/-003; OQ1 (production sink choice — Tempo / Honeycomb / Grafana Cloud / self-hosted Jaeger / OTLP-to-Vercel-OTel) deferred until first paying customer or first production incident                  |
 
 > **Precondition resolved 2026-04-30:** LAUNCH-003's open
@@ -818,7 +819,7 @@ format. Discovery-first: understand the interface before building.
 
 | Module                                                                          | Scope | Status   | Progress | Dependencies |
 | ------------------------------------------------------------------------------- | ----- | -------- | -------- | ------------ |
-| [council-gate-bridge](./modules/council-gate-bridge.aps.md)                     | CGBDG | Blocked  | 0/6      | MLP-002      |
+| [council-gate-bridge](./modules/council-gate-bridge.aps.md)                     | CGBDG | Ready    | 0/6      | MLP-002 (met 2026-06-24 — MLP-002 Done + witness-schema follow-ups MLP2-011 Released/Shipped, MLP2-012 Merged); discovery CGBDG-001..006 Ready |
 | [clawpatch-techniques-adoption](./modules/clawpatch-techniques-adoption.aps.md) | CPTA  | Proposed | 0/7      | CGBDG (sibling — overlap check via CPTA-001) |
 
 ### Observability Foundation
@@ -962,7 +963,7 @@ it.
 | PGID TOCTOU race in intercept     | high       | medium     | Verify PGID ownership before signalling; fence on failure (D-015 AD-7)      |
 | Intercept v1 scope creep          | medium     | medium     | Strict out-of-scope list; binary allow/interrupt; no driver framework in v1 |
 | Shell wrapper bypass              | medium     | medium     | Hook side-channel + fence-on-unknown fallback (D-015 AD-2)                  |
-| Secret content via `notification.context` (TRACE R1) | medium | low | Risk **accepted pre-launch** (Planning Council session plan-b00c16c7); revisit when INTD-015 reaches Ready OR first secret-detection rule ships, whichever first; TRACE-003 is the tracing-pipe side of the mitigation |
+| Secret content via `notification.context` (TRACE R1) | medium | low | Risk **accepted pre-launch** (Planning Council session plan-b00c16c7); **revisit condition met** — INTD-015 is Complete and secret-detection has shipped, so TRACE-003 is now the tracing-pipe mitigation; only sampled-exporter behaviour remains deferred to EXPORT-001 |
 | `anvil.<domain>.*` namespace fragmentation (TRACE R2) | medium | medium | Namespace registry doc (TRACE-001 stub at `docs/observability/namespace-registry.md`) + founder-reviewed PR-to-add gate; ADR-035 governs pipe allocation |
 | Dashboard cannot join traces day one (TRACE R3) | low | high | Documented in Known Gaps section of namespace registry; closes when TRACE-002 lands the TS-side `traceparent` parser |
 

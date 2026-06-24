@@ -12,7 +12,11 @@ diagnostic path; focused CLI routing tests green locally.)
 2026-06-12: the shipped sub-phase A/A-W/A′ arc (incl. DSV-021 default-on
 routing) confirmed in the v0.8.0-beta tag (record:
 plans/releases/v0.8.0-beta.md); Merged items advanced to Released/Shipped.
-Sub-phase B remains Blocked.
+
+2026-06-24: stale Sub-phase B blocker reconciled. The GV2-021 persistence ADR is
+Accepted and Released/Shipped, and DSV-030 (warm-start persistence) Merged
+2026-06-17 via PR #2688; Sub-phase B is no longer Blocked and now awaits the
+v0.9 release tag for Released/Shipped/Complete lifecycle advancement.
 
 2026-06-16: added **DSV-045 (full-scan executor, Ready)** — the loop that drives
 `request_full_scan` `Pending → Running → Clean` and populates the warm graph
@@ -71,7 +75,9 @@ persistence) without consumers re-integrating.
   with the rollout controls required by ADR-075.
 - **Sub-phase B — warm-start persistence.** Add a default-off, per-uid,
   owner-only snapshot that restores graph indexes (never the verdict) on daemon
-  restart, per the validation contract §9. Blocked on the GV2-021 persistence ADR.
+  restart, per the validation contract §9. **Done/Merged:** GV2-021 is
+  Released/Shipped and DSV-030 Merged 2026-06-17 via PR #2688; the sub-phase now
+  waits only for release-tag lifecycle advancement.
 
 ## In Scope
 
@@ -156,19 +162,21 @@ persistence) without consumers re-integrating.
 - The B-corrections holistic re-review applied (done — verdict
   [`2026-06-02-b-corrections-holistic-verdict.md`](../reviews/2026-06-02-b-corrections-holistic-verdict.md))
 - For A′: the GV2 hot-/non-hot-path boundary gate agreed with INTD/DRVR owners
-- For B: the GV2-021 persistence ADR accepted
+- For B: the GV2-021 persistence ADR accepted (**done**; ADR-069 Accepted,
+  GV2-021 Released/Shipped, DSV-030 Merged)
 
 ## Ready Checklist
 
-Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B stay
-**Blocked** until their GV2 gates clear.
+Sub-phase A is **Ready** (execution authorised, GO-WITH-CONDITIONS). A′ and B
+have both cleared their GV2 gates; B's implementation (DSV-030) is Merged and
+awaits release-tag lifecycle advancement.
 
 - [x] Architecture decided and ADRs accepted (061/063/064)
 - [x] Council review passed (do-not-start blockers resolved; holistic re-review GO-WITH-CONDITIONS)
 - [x] Sub-phase A action plan exists with concrete validation commands per task
 - [x] Crate-boundary predecessor identified and scoped (DSV-001 / Task 0)
 - [x] (A′) GV2 hot-/non-hot-path boundary agreed with INTD and DRVR owners
-- [ ] (B) GV2-021 persistence ADR accepted
+- [x] (B) GV2-021 persistence ADR accepted — ADR-069 Accepted, GV2-021 Released/Shipped, DSV-030 Merged
 
 ## Work Items
 

@@ -1621,3 +1621,34 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Friction:** Cross-platform CIB items need a validation path that distinguishes implementation compile risk from unavailable local toolchains.
 - **Improvement:** When starting a Windows-specific CIB item from Linux, record the exact blocked cross-target check in APS and leave the item open until a Windows runner proves it.
 - **Follow-up:** Finish CIB-100 on a Windows-capable runner.
+### 2026-06-24 — opencode
+
+- **Task:** Unblock as many Blocked APS plans as possible (8 Blocked work items
+  across CGBDG, TRACE-002/003, DPO-003/004/005, DEVENV-003, MLP2-007, MLP2-051d).
+- **Outcome:** One module fully unblocked — **CGBDG Blocked → Ready** (its
+  MLP-002 blocker is Done and the witness-schema follow-ups MLP2-011
+  Released/Shipped + MLP2-012 Merged are terminal). Reconciled additional stale
+  blocker prose: **DSV Sub-phase B** is no longer Blocked (GV2-021
+  Released/Shipped; DSV-030 Merged), **GCTX-014** is no longer blocked on call-edge
+  support (Merged via #2715), and **TRACE-003** now records that INTD-015 is
+  Complete + ADR-059 decided, leaving only the EXPORT-001-deferred
+  sampled-exporter slice. The remaining exact Blocked work items (TRACE-002,
+  DPO-003/-004/-005, DEVENV-003, MLP2-007, MLP2-051d, TRACE-003 residual) verified
+  genuinely still blocked. `aps:active-lint` / `aps:index:check` / `aps:drift` /
+  `lint:md` all clean.
+- **Worked:** The 2026-05-29 reconciliation-sweep audit had already pre-analysed
+  CGBDG ("keep Blocked pending schema-stability"), so checking whether MLP2-011/-012
+  had since landed was the whole unblock — verifying dependency item statuses against
+  current truth, not re-deriving from scratch.
+- **Failed:** nothing functional.
+- **Friction:** `markdownlint-cli` via `pnpm exec`/direct node printed usage and
+  exited 0 regardless of file args in this shell; had to fall back to the repo
+  `lint:md` script to actually lint. A blocked work item encodes its blocker only
+  as prose, so "is it still blocked?" requires manually resolving each named
+  dependency's current status — there is no machine-checkable blocker link.
+- **Improvement:** A lightweight "blocked-by" cross-link check (assert each
+  Blocked item's named dependency is not already terminal) would auto-surface
+  unblockable items during reconciliation.
+- **Follow-up:** Consider promoting that blocked-by staleness check to a CIB item;
+  CGBDG now sits in the index "Dormant" band though it is Ready — a future pass
+  should lift it into an active section.

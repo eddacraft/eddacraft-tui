@@ -333,8 +333,8 @@ blockers — they are resolved during execution, not before promotion:
   single `GctxProjector` choke point in `anvil-gctx-egress`, and the
   `GctxDispatch` RPC surface, plus the new `anvil/gctx/find_dependents` RPC and
   the graph-free `anvil_find_dependents` MCP tool. Scoped to **dependents
-  only**; symbol-level *caller* traversal needs call edges the warm graph does
-  not carry and is split out to **GCTX-014** (Blocked on GV2 call-edge support).
+  only**; symbol-level *caller* traversal was split out to **GCTX-014** and has
+  since Merged via #2715 over the GCALL substrate.
 - **Intent:** Let assistants inspect a symbol's local blast radius — what depends
   on it — without expensive or ambiguous whole-repo rereads.
 - **Expected Outcome:** `anvil_find_dependents` returns bounded, depth-limited,
