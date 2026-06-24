@@ -68,7 +68,7 @@ jobs:
       failure-class: ${{ steps.validate.outputs.failure-class }}
     steps:
       - name: Checkout trusted ref for SHA validation
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ inputs.expectedReachableFrom == 'migration-dev' && 'dev' || 'main' }}
           fetch-depth: 0
@@ -106,7 +106,7 @@ jobs:
           echo "checked-out-sha=${SOURCE_SHA}" >> "$GITHUB_OUTPUT"
           echo "failure-class=none" >> "$GITHUB_OUTPUT"
       - name: Checkout requested SHA
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ inputs.sourceSha }}
           fetch-depth: 0
@@ -198,7 +198,7 @@ jobs:
     needs: validate
     steps:
       - name: Checkout validated SHA
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ needs.validate.outputs.checked-out-sha }}
           fetch-depth: 0

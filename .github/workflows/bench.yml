@@ -31,7 +31,7 @@ jobs:
     name: Bench compile check
     runs-on: ${{ vars.LINUX_RUNNER || 'ubuntu-latest' }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1
       - run: cargo check -p anvil-bench --all-targets
       - run: cargo check -p eddacraft-anvil-kernel --benches
@@ -46,7 +46,7 @@ jobs:
     # Criterion job typically takes ~81 minutes on GitHub-hosted runners (kernel bench step ~73 min).
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1
       - name: Run kernel benchmarks
         run: |
@@ -88,7 +88,7 @@ jobs:
     # after any hardware-class change. The hard-fail gate (ADR-031 SLO) is
     # runner-independent and is the only gate that should block a merge.
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1
       - name: Run midedit_roundtrip benchmark
         # Plain criterion output (no `--output-format bencher`) — the
