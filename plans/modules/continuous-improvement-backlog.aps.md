@@ -2821,7 +2821,8 @@ archive.
   snippet/source, cross-tenant/trust-scope, or non-re-authorised results —
   Phase-2 CE-1), and the `forged_cursor_stays_within_the_querys_own_authorised_results`
   pinning test (a forged cursor reseeks only within the query's own authorised set,
-  never leaks/panics). Merges with ADR-091; **ADR awaits owner Accept**.
+  never leaks/panics). **ADR-091 Accepted 2026-06-24** (owner; council
+  `council-f8ed314e` ratified). Item completes on PR #2895 merge.
 - **Intent:** Decide whether to replace the current FNV cursor fingerprint on the
   GCTX identity-paging cursor with a keyed construction (HMAC or equivalent). The
   FNV fingerprint reseeks identity-only pages — no data leak today, but it is
