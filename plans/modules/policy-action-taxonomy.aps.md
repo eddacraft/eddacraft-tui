@@ -400,7 +400,7 @@ declare risk dimensions rather than wiring every threshold by hand.
   latency for evaluating the reference pack on a representative input;
   results land in `.bench-logs/`.
 - **Dependencies:** ACTAX-D02
-- **Validation:** `cargo bench -p anvil-tool-intercept`
+- **Validation:** `cargo bench -p eddacraft-anvil-tool-intercept`
 - **Confidence:** low
 - **changeType:** internal
 - **releaseIntent:** hold
