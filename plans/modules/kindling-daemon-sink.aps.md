@@ -61,7 +61,7 @@ need a short ADR to reconcile the wording.
   methods — `try_emit_command_invoked` for `command.invoked` and `try_emit` for
   `gate.evaluated` — in `anvil-cli` (app layer), backed by
   `kindling_client::spool::SpooledClient` over `kindling_client::Client`.
-- A new crates.io dependency on `kindling-client` (caret `0.2`, `features =
+- A new crates.io dependency on `kindling-client` (caret `0.3`, `features =
   ["spool"]`), pinned per Anvil's dependency policy. The `kindling` daemon
   binary is auto-spawned by the client on first call.
 - Mapping `CommandInvokedObservation` / `GateEvaluatedObservation` →
@@ -93,7 +93,7 @@ need a short ADR to reconcile the wording.
 
 **Depends on:**
 
-- `kindling-client` (crates.io caret `0.2`, `features = ["spool"]`) — the
+- `kindling-client` (crates.io caret `0.3`, `features = ["spool"]`) — the
   transport, auto-spawn, and durable-emit (`SpooledClient`) layers in one crate.
   The daemon (SQLite) is authoritative; the spool is a transient buffer drained
   into it.
@@ -119,7 +119,7 @@ need a short ADR to reconcile the wording.
       landed (KINTEG-001, 2026-06-24); no standalone `kindling-spool` crate
 - [x] Sink placement confirmed — `anvil-cli` for PORT-011 (extract a small
       `anvil-kindling` adapter crate later if the JSON-RPC path also needs it)
-- [x] Dependency pinning policy confirmed — caret `0.2`; the client fails loud
+- [x] Dependency pinning policy confirmed — caret `0.3`; the client fails loud
       on schema-version mismatch (`EXPECTED_SCHEMA_VERSION`, currently 5)
 - [x] D-035 reconciliation decided — **no reword / new ADR needed** (KDS-002).
       ADR-035 frames Kindling as the _"SQLite-backed, write-once, source of
@@ -129,10 +129,10 @@ need a short ADR to reconcile the wording.
       with the daemon opt-in, so nothing in ADR-035's matrix is contradicted. A
       wording change would only be warranted if/when the daemon becomes the
       **default** authoritative write path (a future graduated flip, not KDS-002).
-- [x] Usage-views read-path migration approach agreed (KDS-004) — **query the
-      daemon**, Blocked on an upstream kindling list/aggregate read API
-      (anvil-001#2910); `retrieve` (ranked/capped) and spool-as-cache are both
-      unsuitable. A source-aware guard ships in the interim. See KDS-004.
+- [x] Usage-views read-path migration approach agreed + **implemented** (KDS-004)
+      — **query the daemon** via `kindling-client` 0.3 `list_observations`
+      (KINTEG-003, the #2910 read API), unioned with the sidecar. `retrieve`
+      (ranked/capped) and spool-as-cache were both unsuitable. See KDS-004.
 
 ## Work Items
 
@@ -212,33 +212,31 @@ need a short ADR to reconcile the wording.
 
 - **Intent:** Keep `anvil kindling usage <view>` correct once the daemon is the
   source of truth (the views read `usage.ndjson` today).
-- **Expected Outcome:** _(chosen approach, recorded)_ **query the daemon** is the
-  only correct path — but it is **Blocked on an upstream kindling read API**
-  (tracked in
-  [eddacraft/anvil-001#2910](https://github.com/eddacraft/anvil-001/issues/2910)).
-  The four views compute exact **counts** and a **set-difference**
-  (`never_invoked`) over _all_ `command.invoked` rows; `kindling-client` 0.2's
-  only observation-read endpoint is `retrieve` — _deterministic **ranked**
-  retrieval capped by `max_candidates`_ — which returns top-K candidates, not an
-  exhaustive list, so it yields wrong counts and false "never invoked" results.
-  The **spool-as-cache** alternative is rejected: the spool drains into the
-  daemon on delivery, so it is empty in the normal daemon-up case and never holds
-  the full record. A **dual-write local cache** is rejected too — it reintroduces
-  the duplication KDS-001 demoted and KDS-005 must then undo. **Interim shipped:**
-  a **source-aware guard** — under `ANVIL_KINDLING_SINK=daemon` the
-  `anvil kindling usage` command warns (stderr, so `--json` stdout stays clean)
-  that the views read the local sidecar, which is not authoritative under the
-  daemon sink, and points at #2910. This stops silently-misleading empty/stale
-  output for the opt-in / default-off daemon-sink users; the views and their
-  output shapes are unchanged.
-- **Validation:** done for the interim — a unit test (`sidecar_source_warning`)
-  and CLI integration tests assert the note fires only under the daemon sink and
-  not by default. The full acceptance (views query the daemon; same rows live vs
-  spool-replay; existing `usage_views` tests pass against the daemon source) is
-  deferred to the upstream API landing (#2910).
-- **Status:** Blocked
-- **Dependencies:** KDS-002 (Merged); upstream kindling list/aggregate read API
-  (anvil-001#2910)
+- **Expected Outcome:** the views read the **authoritative daemon store** under
+  `ANVIL_KINDLING_SINK=daemon`, via the upstream read API that landed in
+  **`kindling-client` 0.3** (`list_observations` — exhaustive, keyset-paginated,
+  `kind`/scope filtered; KINTEG-003, the read API #2910 asked for). `run_usage`
+  paginates `list_observations(kinds=[Command], repo scope)` to completeness,
+  parses each observation's `content` back into a `UsageRow`, and **unions** the
+  result with the sidecar rows. (The union is required and correct: the CLI
+  producer always writes the sidecar while the daemon JSON-RPC producer writes the
+  daemon, so the two row sets are disjoint — different invocations — and together
+  they are the full picture. This closes exactly the gap the KDS-004 guard
+  warned about.) Degrades gracefully to sidecar-only with a stderr note if the
+  daemon can't be read; no daemon read under `ndjson`/`off` or when capture is
+  disabled. The view logic and output shapes are unchanged. The interim
+  source-aware guard is removed (superseded by the real read). A full daemon
+  end-to-end cutover (the CLI producer also writing the daemon, so the union
+  collapses to a single source) tracks with the CLI-producer migration, outside
+  KDS scope.
+- **Validation:** `collect_daemon_rows` unit tests against a real in-process
+  `kindling-server` 0.3 — exhaustive enumeration across **multiple pages**
+  (keyset cursor) and skip-unparseable-content; a CLI integration test that the
+  command succeeds and keeps the sidecar rows under the daemon sink. Existing
+  `usage_views` tests unchanged (pure view logic).
+- **Status:** In Progress
+- **Dependencies:** KDS-002 (Merged); `kindling-client` 0.3 read API (KINTEG-003,
+  #2910 — **landed**)
 
 ### KDS-005: Retire the standalone NDJSON writer
 
@@ -304,14 +302,13 @@ need a short ADR to reconcile the wording.
    `NonBlockingObservationSink` drain thread (never the dispatch / save-time hot
    path). No ambient runtime is assumed, so the bridge is safe off the daemon's
    own event loop.
-3. **Dependency pinning** — **Resolved (KDS-001):** caret `0.2` on
+3. **Dependency pinning** — **Resolved (KDS-001):** caret `0.3` on
    `kindling-client`; the client checks the daemon's reported schema version
    against its compile-time `EXPECTED_SCHEMA_VERSION` (5) and fails loud on
    mismatch, so Anvil need not track the schema version separately.
-4. **Views read-path** — **Resolved (KDS-004):** query the daemon directly is the
-   only correct path, but it is Blocked on an upstream kindling list/aggregate
-   read API (anvil-001#2910) — `retrieve` is ranked/capped (wrong counts) and the
-   spool is transient. A source-aware guard ships in the interim; the full
-   re-source awaits the API.
+4. **Views read-path** — **Resolved + implemented (KDS-004):** query the daemon
+   directly via `kindling-client` 0.3 `list_observations` (KINTEG-003, the #2910
+   read API), unioned with the sidecar. `retrieve` (ranked/capped) and the
+   transient spool were both unsuitable.
 5. **`gate.evaluated`** — does it also route to the daemon, or stay a local-only
    signal? (Open; deferred to the KDS-001 fast follow / USAGE-002 context.)

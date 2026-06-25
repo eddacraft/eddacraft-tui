@@ -471,6 +471,7 @@ mod daemon_tests {
             port_path: std::path::PathBuf::from("unused.port"),
             project_root: project_root.to_string(),
             expected_schema_version: schema_version_u32(),
+            spawn_log_path: None,
             connect_timeout: Duration::from_secs(2),
             poll_interval: Duration::from_millis(10),
             spawn: Spawner::custom(|| panic!("spawner must not be called when the daemon is up")),
@@ -486,6 +487,7 @@ mod daemon_tests {
             port_path: std::path::PathBuf::from("unused.port"),
             project_root: project_root.to_string(),
             expected_schema_version: schema_version_u32(),
+            spawn_log_path: None,
             connect_timeout: Duration::from_millis(150),
             poll_interval: Duration::from_millis(10),
             spawn: Spawner::custom(|| {
@@ -588,9 +590,11 @@ mod daemon_tests {
             .emit_command_invoked_async(fixture.clone())
             .await
             .expect("emit succeeds");
-        let AppendOutcome::Delivered(stored) = outcome else {
+        let AppendOutcome::Delivered(result) = outcome else {
             panic!("expected Delivered");
         };
+        // 0.3: Delivered carries an AppendResult { observation, deduplicated }.
+        let stored = &result.observation;
 
         // The anvil payload inside `content` round-trips identically by both
         // paths.

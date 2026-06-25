@@ -159,18 +159,20 @@ the literal `1`.
 
 `anvil kindling usage <view>` is the first-class surface for the founder's
 standing questions — "what is being used and what is not" — over the local usage
-sidecar. It is local-only and needs no authentication (like `anvil insights`);
-it reads only `<credentials_dir>/kindling/usage.ndjson`. Pass `--json` for
+data. It is local-only and needs no authentication (like `anvil insights`). It
+reads `<credentials_dir>/kindling/usage.ndjson` and, under
+`ANVIL_KINDLING_SINK=daemon`, **also the Kindling daemon** (KDS-004) — unioning
+the two — so the views stay complete whichever sink is active. Pass `--json` for
 machine-readable output; the default is a small human table.
 
-> **Source caveat under `ANVIL_KINDLING_SINK=daemon` (KDS-004).** These views
-> read the local `usage.ndjson` sidecar. When the daemon sink is selected, the
-> daemon `command.invoked` rows go to the Kindling daemon (SQLite), not the
-> sidecar, so the views may be **incomplete** — and `anvil kindling usage`
-> prints a note to that effect on stderr. A daemon-backed read path is blocked
-> on an upstream kindling list/aggregate read API (tracked internally as
-> anvil-001#2910); until it lands, run the views under the default `ndjson` sink
-> for a complete local picture.
+> **Source under `ANVIL_KINDLING_SINK=daemon` (KDS-004).** The CLI producer
+> always records to the sidecar; the daemon JSON-RPC producer records to the
+> Kindling daemon. So under the daemon sink the views read **both** — the daemon
+> rows (via `kindling-client` 0.3's exhaustive `list_observations`) unioned with
+> the sidecar rows — for the full picture. If the daemon can't be read the views
+> degrade to sidecar-only and print a note to stderr (so `--json` stdout stays
+> clean). Under the default `ndjson` sink both producers write the sidecar, so
+> it is read alone.
 
 | View         | Command                           | Answers                                                                                                                            |
 | ------------ | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |

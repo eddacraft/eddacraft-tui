@@ -37,7 +37,7 @@ anvil-intercept-proto = { path = "../anvil-intercept-proto", package = "eddacraf
 # free of an HTTP/transport dep (the `daemon_dep_boundary` guard enforces this).
 # The `spool` feature adds `SpooledClient` for durable at-least-once emit when
 # the daemon is unreachable; there is no standalone `kindling-spool` crate.
-kindling-client = { version = "0.2", features = ["spool"] }
+kindling-client = { version = "0.3", features = ["spool"] }
 # GCTX-010 / ADR-084: sealed graph-free egress DTOs for the `anvil_search_symbols`
 # MCP tool. The CLI links ONLY `-types` (never `-egress`/graph-cache), so the MCP
 # surface is structurally incapable of emitting a graph internal (CE-5).
@@ -108,8 +108,8 @@ jsonschema = "0.46"
 # contract. Test-only — the daemon (`kindling-server`) and its store
 # (`kindling-store`, for the canonical schema version) are NEVER linked into the
 # shipped `anvil` binary, only the thin `kindling-client`.
-kindling-server = "0.2"
-kindling-store = "0.2"
+kindling-server = "0.3"
+kindling-store = "0.3"
 
 [lints]
 workspace = true

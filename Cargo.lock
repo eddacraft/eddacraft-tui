@@ -2864,9 +2864,9 @@ dependencies = [
 
 [[package]]
 name = "kindling-client"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa01bc674e8fed1fe5a58b558c1ca9e732f27ae99178faafc0a42acecd3d0731"
+checksum = "06d6140e13e528a35d94864007ed169bbd0014d110c80359e5971964e7a21413"
 dependencies = [
  "http-body-util",
  "hyper",
@@ -2881,9 +2881,9 @@ dependencies = [
 
 [[package]]
 name = "kindling-provider"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae6cdb3471569a37a081453330dc20bac1e51424c52b234bdec09b92ac04d0ad"
+checksum = "462a78c67346c1146c48adb4eb93028471e3e9c2a67155e2977cbe9a77bf749f"
 dependencies = [
  "kindling-store",
  "kindling-types",
@@ -2894,9 +2894,9 @@ dependencies = [
 
 [[package]]
 name = "kindling-server"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f5845b4c23c2567c0391eac44d4cff65d6d4ad436a76a455b4529a7d4e81f00"
+checksum = "99ada50f813f0b5bbc68b1b91ee0aba4e08daa8ae331fb1522e6349621df2961"
 dependencies = [
  "axum",
  "chrono",
@@ -2913,9 +2913,9 @@ dependencies = [
 
 [[package]]
 name = "kindling-service"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "00fb19e744b526429fa77d02a305aabbd8a329645df7ec71322284ce874b69fd"
+checksum = "b8b9f7724b6532c636e886e787dbd86daaac50743497625c7bae127bc519665b"
 dependencies = [
  "kindling-provider",
  "kindling-store",
@@ -2929,9 +2929,9 @@ dependencies = [
 
 [[package]]
 name = "kindling-store"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f98b26dc2c6be5db0b2b3c561c7eee3d8b0a201eb58f9ad6294b2a9436bc2587"
+checksum = "5567938082b002368fc2bf9d28701db154d120ec5f06e5c7b776161e6f07c87a"
 dependencies = [
  "kindling-types",
  "rusqlite",
@@ -2943,9 +2943,9 @@ dependencies = [
 
 [[package]]
 name = "kindling-types"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cb34d72d0fbbe2755141c549960da866f9b97b74654adedd2bfa1e647402d973"
+checksum = "c619a05526f538ca650cf27f95e48a66cee2b5fb28b20c53e6306475cda47bb3"
 dependencies = [
  "serde",
  "serde_json",
@@ -5046,7 +5046,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "once_cell",
  "rustix 1.1.4",
  "windows-sys 0.61.2",
