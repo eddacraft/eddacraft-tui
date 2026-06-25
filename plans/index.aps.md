@@ -107,11 +107,29 @@ Selection rules:
 
 | Rank | NBI | Mode | Source | Why now | Next action |
 | ---- | --- | ---- | ------ | ------- | ----------- |
-| 1 | GCTX-021 — symbol snippet extractor (daemon-side, egress-gated) | Ready | [graph-context-delivery](./modules/graph-context-delivery.aps.md) + [graph-v2-foundation](./modules/graph-v2-foundation.aps.md) | The headline `v0.9.0-beta` assistant-context deliverable and the **first source-text egress surface**: bounded, freshness-checked snippets gated by the PV-9 snippet conditions (CE-1/2/3/7/8) + the `gctx.egress` manifest flag (CE-9), built on GV2-032's spans + per-file content-hash over the GCTX-010 sealed-DTO `GctxProjector` no-leak spine. Substrate (GV2-032) is producer-complete pending PR/merge. | Land the daemon-side extractor + `gctx.egress` flag + amended CE-5 no-leak test once GV2-032 lands; unblocks GCTX-022/023. |
-| 2 | GCTX-022 — budget-bounded context slicer | Ready | [graph-context-delivery](./modules/graph-context-delivery.aps.md) | Bounds snippet egress to a token budget (the GCTX-020 estimator) so an assistant-context call stays within model limits. Sits directly on the GCTX-021 extractor. | Implement once GCTX-021 lands; daemon-side in `anvil-gctx-egress`. |
-| 3 | GCTX-023 — `anvil_symbol_context` tool | Ready | [graph-context-delivery](./modules/graph-context-delivery.aps.md) | The headline assistant-context MCP tool — composes the Phase-1 surface (010..014) + budget-bounded snippets into one call. The v0.9 product payoff. | Implement after 021/022; closes the snippet line (GCTX → 12/14, leaving 031/032). |
-| 4 | GV2-032 — symbol source-span + per-file content-hash producer | In Progress | [graph-v2-foundation](./modules/graph-v2-foundation.aps.md) | The substrate the whole snippet line stands on. Implementation is complete on `feat/gv2-032-symbol-spans`; the module still records it as pending Council + PR/merge. | Land GV2-032, then flip it to Merged (GV2 → 21/21). |
-| 5 | KDS-002 — wire the daemon sink primary + sink selection | Schedule | [kindling-daemon-sink](./modules/kindling-daemon-sink.aps.md) | KDS-001 + KDS-003 (the PORT-011 `command.invoked` proof) Merged via #2897, so KDS-002's dependency is met. The KDS-002 → 004 → 005 chain is also the only block on **DPO-003/004/005** (the protection-observability read surface + dashboards) — one chain unblocks two modules. | Flip KDS-002 Proposed → Ready, then implement the `daemon` / `ndjson` / `off` sink selector. |
+| 1 | INSEC-001..006 — insecure-construction catalogue, first wave | Ready | [insecure-construction-catalogue](./modules/insecure-construction-catalogue.aps.md) | The highest-value Ready item against the core thesis (make AI-generated code safe to merge): new save-time security smells — the `insecure-construction` category variant + `weak-cryptography` and `unsafe-rendering` regex families (enabled by default) + SSTI folded into the existing `dynamic-execution` family — under [ADR-087](./decisions/087-security-antipattern-category.md) (Accepted) and the ADR-071 AST tier, with the spec §16.5 #9 false-positive bar as the dogfood gate. INSEC-007 (`injection-smell`, AST) + INSEC-008 (insecure-RNG) stay Proposed (deferred opt-in). | Implement INSEC-001 (category variant) → -002/-003 (families) → -004 (SSTI) → -005 (scope-guard note) → -006 (dogfood FP acceptance) in `patterns/` + `anvil-checks`. |
+| 2 | EVAL-001..005 — policy eval-harness integration | Ready | [eval-harness-integration](./modules/eval-harness-integration.aps.md) | Deps met: `anvil policy eval --json` is frozen at v1 (CIB-078 Merged) and POLENG/regorus is Complete. Builds the `EvalHarnessPort` + framework adapter + CI regression command + canonical result persistence + policy-guidance linkage — and is the substrate that unblocks the downstream Ready packs **ATC** (adversarial-testing-catalog) and **PATT** (prompt-attack-regression-packs). | Implement EVAL-001 (`EvalHarnessPort`) first, then -002..-005, bound to the frozen `policy eval --json` v1 contract. |
+| 3 | DASH-001..009 — dashboard foundation (Wave 1) | Ready | [dashboard-foundation](./modules/dashboard-foundation.aps.md) | Wave-1 foundation for the browser surface (team-lead / platform / compliance roles). It is the single gate that unblocks three further Ready modules — **DASHCORE**, **DASHARCH**, **DASHOPS** — so foundation work has the widest downstream unlock. Built in `apps/website/` (Next.js 16 + shadcn/ui + Recharts); 1/9 done. | Continue from DASH-001 (route group + layout shell) through the data layer (-005/-006); foundation gates the Wave-2 view modules. |
+
+NBI review note (2026-06-26, post-snippet-line refresh): the five previously
+ranked rows are now all **Done/Merged** — the v0.9 snippet line
+(GCTX-021/-022/-023) and its GV2-032 span/content-hash substrate all **Done
+2026-06-24**, and KDS-002 **Merged via #2906** — so the table again pointed at no
+pickup-able work. **GCTX-031** (re-export privilege visibility, the last internal
+GCTX consumer) is **in flight in a sibling session** and closes GCTX → 13/14 on
+merge; it is deliberately left off the ranking (do not double-start). With the
+v0.9 "assistant-facing graph" headline delivered, refreshed to the
+highest-value **Ready, unblocked** work derived from the active module tables:
+**INSEC** first-wave insecure-construction security smells (advances the core
+safe-to-merge thesis; ADR-087 Accepted), **EVAL** policy eval-harness (deps met
+via CIB-078 + POLENG Complete; unblocks ATC/PATT), and **DASH** dashboard
+foundation (Wave 1; gates DASHCORE/DASHARCH/DASHOPS). Other Ready lanes not
+ranked here: IORISK, CPOL, ATC, PATT, APGOV (6/7), EDGE, DEVENV-008, DSITE-003.
+**Blocked on upstream, surfaced not ranked:** the KDS-004/-005 →
+DPO-003/004/005 chain (the protection-observability read surface + dashboards)
+waits on the kindling list/aggregate read API (anvil-001#2910) + a spool
+size/age cap (anvil-001#2916). These are derived picks pending operator steer.
+Bookkeeping-only (single-purpose per dev-workflow rule 14).
 
 NBI review note (2026-06-24, NBI refresh): the table had gone stale — all seven
 ranked rows were **Merged** items awaiting release-tag cleanup (GCALL-001..003,
