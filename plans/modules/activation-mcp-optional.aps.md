@@ -2,15 +2,15 @@
 
 | ID    | Owner | Status | Progress |
 | ----- | ----- | ------ | -------- |
-| ACTMO | Josh  | Ready  | 0/10     |
+| ACTMO | Josh  | Ready  | 0/12     |
 
-**Last reviewed:** 2026-06-26 — module created **Ready** from v0.8.2-beta Windows
-smoke evidence (GH [#2937](https://github.com/eddacraft/anvil-001/issues/2937)):
-daemon ensure succeeds (CIB-072) but activation parks at
-`ready_restart_required` with `worktree_unenforced` despite MCP handshake
-verified. Strategic design issue:
-[#2939](https://github.com/eddacraft/anvil-001/issues/2939) (filed with module).
-ADR-092 Proposed pins the MCP-optional spine decision (ACTMO-001 accepts it).
+**Last reviewed:** 2026-06-26 — **ACTMO-011/-012** filed from Matt beta smoke UX
+review: `anvil start` output is noisy, contradictory, and engineer-facing; Matt
+never used Cursor yet activation reports Cursor `restart_handshake_verified`
+(self-test, not editor connect). Prior: module created **Ready** from
+v0.8.2-beta Windows smoke ([#2937](https://github.com/eddacraft/anvil-001/issues/2937));
+design [#2939](https://github.com/eddacraft/anvil-001/issues/2939); ADR-092
+Proposed (ACTMO-001 accepts).
 
 ## Purpose
 
@@ -35,6 +35,10 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 - Windows `intercept stop` + doctor daemon visibility improvements
 - Corporate no-MCP runbook and public golden-path docs
 - E2E regression matrix (Windows/Linux, MCP on/off)
+- Activation output simplification — one narrative, progressive disclosure
+  (ACTMO-011; Matt/Dave smoke screenshots)
+- Editor-aware MCP install/probe and honest handshake copy — no fictional
+  multi-editor session (ACTMO-012; Matt never used Cursor)
 
 ## Out of Scope
 
@@ -271,5 +275,73 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 - **Confidence:** medium
 - **Risks:** Windows E2E may remain manual until harness supports it.
 - **changeType:** test
+- **releaseIntent:** candidate
+- **releaseScope:** patch
+
+### ACTMO-011: Activation output simplification (golden-path UX)
+
+- **Status:** Ready
+- **Intent:** Fix beta smoke feedback that `anvil start`, `anvil status`, and
+  bare `anvil` print too much engineer-facing detail that contradicts itself
+  (Matt/Dave logs + screenshots under operator-held `anvil-beta/` artefacts).
+- **Expected Outcome:** One coherent user story per command with a single
+  actionable `next` line. Default stdout: short summary (setup outcome, protection
+  posture in plain language, one next step). Internal detail (language census,
+  rule modes, verify recipe, tier labels, JSON tracing) moves behind `--verbose`
+  / `--why` or dedicated surfaces. Fixes: never say "run `anvil start`" inside
+  `anvil start`; suppress structured WARN JSON on default stderr; align
+  headline, `next:`, verify `active layers`, and trailing `Next:`; group/cap
+  first-scan findings; `anvil status` TUI legend for `*`/`o` hooks and honest
+  empty-state for Recent Runs; bare `anvil` routes to welcome/help not
+  zero-filled insights; hide or label stubbed `Daemon uptime: 0%` until real;
+  doctor names daemon vs MCP shim processes.
+- **Validation:** `cargo test -p eddacraft-anvil activation::render`;
+  `cargo test -p eddacraft-anvil commands::start`; `pnpm --filter @eddacraft/anvil-e2e test`
+  (activation output fixtures); manual Matt/Dave repro checklist on #2937
+- **Files:** `crates/anvil-cli/src/activation/render.rs`,
+  `crates/anvil-cli/src/commands/start.rs`,
+  `crates/anvil-cli/src/commands/insights.rs`,
+  `crates/anvil-tui/src/surfaces/status/render.rs`,
+  `crates/anvil-cli/src/commands/doctor.rs`, related tests
+- **Dependencies:** ACTMO-003 (state machine truth must precede copy)
+- **Confidence:** medium
+- **Risks:** `--json` and pinned contract tests (ADTRUST-005) must not regress;
+  verbose opt-in must preserve operator/debug surfaces.
+- **changeType:** feature
+- **releaseIntent:** candidate
+- **releaseScope:** patch
+
+### ACTMO-012: Editor-aware MCP install, probe, and handshake copy
+
+- **Status:** Ready
+- **Intent:** Stop narrating a two-editor MCP session when the user only uses one
+  tool (Matt: never used Cursor, yet activation shows Cursor
+  `restart_handshake_verified` and "AI tools detected: cursor" after Anvil wrote
+  `~/.cursor/mcp.json`). `RestartHandshakeVerified` today means Anvil self-spawned
+  `anvil mcp serve --stdio` during start — not that the editor restarted.
+- **Expected Outcome:** MCP install picker and probe scope only editors with
+  pre-existing strong detection (binary on PATH or app data Anvil did not just
+  create this run); exclude anvil-written config paths from ADOPT-003 agent
+  detection in the same session. User-facing tier copy distinguishes "config
+  self-test passed" from "editor connected / live validation". Activation
+  headline and MCP block reflect the user's actual editor(s), not the hardcoded
+  `all_clients()` pair. Handshake self-test does not imply "restart your editor"
+  when no editor session exists for that client.
+- **Validation:** `cargo test -p eddacraft-anvil activation::mcp_client`;
+  `cargo test -p eddacraft-anvil activation::detect_agents`;
+  `cargo test -p eddacraft-anvil activation::orchestrator`;
+  fixture: fresh home with only Claude Code signals → picker omits Cursor unless
+  explicitly opted in
+- **Files:** `crates/anvil-cli/src/activation/mcp_client.rs`,
+  `crates/anvil-cli/src/activation/orchestrator/install.rs`,
+  `crates/anvil-cli/src/activation/diagnostic.rs`,
+  `crates/anvil-cli/src/activation/detect_agents.rs`,
+  `crates/anvil-cli/src/activation/render.rs`
+- **Dependencies:** ACTMO-004 (optional), ACTMO-011 (copy alignment)
+- **Confidence:** medium
+- **Risks:** Under-detection on Windows if Cursor app-data paths stay
+  unprobed (ADOPT-003 follow-up); power users who want both editors pre-wired
+  need an explicit opt-in (`--all-mcp-clients` or picker toggle).
+- **changeType:** feature
 - **releaseIntent:** candidate
 - **releaseScope:** patch
