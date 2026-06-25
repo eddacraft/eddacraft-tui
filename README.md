@@ -426,7 +426,8 @@ summary.
 
 Rust coverage is collected by `scripts/ci/rust-coverage.sh` (also invoked via
 `pnpm test:coverage:rust`). The script cleans stale profiles, runs
-`cargo llvm-cov --no-report nextest` with `--test-threads 1`, then emits `coverage-rust.json`, `coverage-rust-summary.txt`, and HTML under
+`cargo llvm-cov --no-report nextest` with `--test-threads 1`, then emits
+`coverage-rust.json`, `coverage-rust-summary.txt`, and HTML under
 `target/llvm-cov/html/`. The nightly `coverage-rust` job uploads those artefacts
 as `coverage-report-rust` (14-day retention) using a dedicated `rust-coverage`
 cache namespace so instrumented builds do not collide with the non-instrumented
