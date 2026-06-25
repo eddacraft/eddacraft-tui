@@ -9,6 +9,8 @@ publish = false
 [dependencies]
 anvil-kernel = { path = "../anvil-kernel", package = "eddacraft-anvil-kernel" }
 anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }
+anvil-graph-cache = { path = "../anvil-graph-cache", package = "eddacraft-anvil-graph-cache" }
+anvil-gctx-types = { path = "../anvil-gctx-types", package = "eddacraft-anvil-gctx-types" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 petgraph = { workspace = true }

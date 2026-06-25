@@ -878,7 +878,12 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-031: Token-reduction benchmark harness
 
-- **Status:** Draft
+- **Status:** In Progress 2026-06-26 — promoted Draft → Ready → In Progress.
+  Readiness: sole dependency **GCTX-023 Done 2026-06-24**, the module entry gates
+  (ADR-083 delivery target + PV-9 egress review) are satisfied, and the
+  "benchmark baseline fixture set selected" item is an execution-owned detail,
+  not a promotion blocker (resolved here by the fixed in-harness fixture set).
+  Work started on `feat/gctx-031-token-reduction-bench`.
 - **Intent:** Measure whether graph context delivery reduces assistant context
   size versus naive file-reading baselines.
 - **Expected Outcome:** Reproducible benchmark reports token-reduction ratios for

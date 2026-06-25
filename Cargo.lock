@@ -157,6 +157,8 @@ version = "0.8.1-beta"
 dependencies = [
  "criterion",
  "eddacraft-anvil-checks",
+ "eddacraft-anvil-gctx-types",
+ "eddacraft-anvil-graph-cache",
  "eddacraft-anvil-kernel",
  "eddacraft-anvil-kernel-types",
  "ignore",

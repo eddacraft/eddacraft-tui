@@ -17,7 +17,8 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use anvil_bench::report::{BenchReport, ScenarioResult};
 use anvil_bench::scenarios::{
-    cold_start_scaling, graph_memory, incremental_throughput, policy_scaling, watcher_saturation,
+    cold_start_scaling, graph_memory, incremental_throughput, policy_scaling, token_reduction,
+    watcher_saturation,
 };
 
 type Scenario = (&'static str, Box<dyn Fn() -> ScenarioResult>);
@@ -53,6 +54,10 @@ fn main() {
         (
             "cold_start_scaling",
             Box::new(|| cold_start_scaling::run(&cold_start_scaling::ColdStartConfig::default())),
+        ),
+        (
+            "token_reduction",
+            Box::new(|| token_reduction::run(&token_reduction::TokenReductionConfig::default())),
         ),
     ];
 

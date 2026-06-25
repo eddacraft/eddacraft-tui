@@ -24,6 +24,8 @@ Active
 - **incremental_throughput** -- Incremental re-analysis performance
 - **policy_scaling** -- Policy evaluation scaling with rule count
 - **cold_start_scaling** -- Cold start time vs repository size
+- **token_reduction** -- Graph-context delivery vs naive file-reading context
+  cost for change-impact questions (GCTX-031)
 
 ## Benchmarks
 
@@ -186,6 +188,83 @@ effectively free, and the `check` rows scale above it (0.0 → 0.1 → 0.4), whi
 confirms the per-save check is firing rather than being skipped. For a
 defensible before/after, build `af1524f5c^` as release and A/B in the same
 session.
+
+### token_reduction baseline (GCTX-031)
+
+Makes the graph-context token-reduction claim reproducible. For each fixed
+fixture the harness asks one change-impact question — _"what is impacted by
+changing the most depended-on symbol?"_ — and counts the tokens three delivery
+strategies cost, using the GCTX-020 estimator (`estimate_gctx_tokens`,
+`gctx-simple-v1`) so the figures are measured with GCTX's own planning budget:
+
+- **whole-repo** — a tool-less assistant reads every file in full. This is the
+  pathological ceiling, not a realistic baseline (no assistant reads a whole
+  repo for a one-symbol question); the **neighbourhood** column is the
+  meaningful one.
+- **neighbourhood** — a graph-less but savvy reader opens, in full, every file
+  in the impacted set (the changed file plus the files holding its
+  reverse-dependency closure).
+- **graph context** — the **real** production
+  `ImpactOutcome::Ready(ImpactReport)` (from `anvil-gctx-types`) serialised
+  compact: the exact wire shape `anvil_impact_of_change` emits — `snake_case`,
+  status-tagged, change-surface symbol identities + file-keyed `dependent_files`
+  with hop distance, no source text. The scenario asserts the payload
+  deserialises back into a real `ImpactOutcome`, so it cannot drift from
+  production. The change-invariant response envelope (`workspace_assurance` +
+  `workspace_root`) is excluded.
+
+The impacted set is the **2-hop reverse-dependency closure** of the changed
+file, matching the production cap (`MAX_REVERSE_IMPACT_DEPTH = 2` in
+`anvil-graph-cache`). The neighbourhood baseline and the graph payload cover
+that same set, so the comparison is apples-to-apples — the reduction reflects
+only delivering identities instead of whole files. (Where the closure spans the
+whole project — e.g. `small_lib` — the neighbourhood equals the whole-repo
+column, honestly.) Each fixture's symbol graph is the single source of truth:
+both the rendered source files and the payload derive from the same nodes and
+edges. The token counts are deterministic (no RNG); the `generated_at_epoch`,
+`duration_secs`, and RSS metrics in the JSON vary per run. Rerun with:
+
+```bash
+cargo run -p anvil-bench --release -- token_reduction
+# results land in bench-results/stress-*.json (gitignored); rm to keep clean
+```
+
+`token_reduction` is part of the stress runner, so `pnpm bench` only includes it
+with `-- --include-nightly-stress`, and the nightly CI run (`bench-nightly.yml`)
+only exercises it when the self-hosted bench runner is online. The documented
+local command above is the supported reproduction path; the golden test
+(`bench.yml` runs `cargo test -p anvil-bench` on push) guards the published
+numbers regardless.
+
+The numbers below are asserted as golden values by
+`default_fixture_token_counts_are_stable` in the scenario tests, so a code
+change that moves them fails `cargo test -p anvil-bench` until this table is
+updated in the same commit. Recorded 2026-06-26 (`gctx-simple-v1` estimator):
+
+`affected` is the change-surface symbol count (`ImpactReport.affected_symbols`);
+`deps` is the reverse-impact closure size (`dependent_files`).
+
+| fixture       | files | affected | deps | whole-repo (tok) | neighbourhood (tok) | graph (tok) | ↓ vs whole-repo | ↓ vs neighbourhood |
+| ------------- | ----- | -------- | ---- | ---------------- | ------------------- | ----------- | --------------- | ------------------ |
+| `small_lib`   | 8     | 4        | 7    | 2,163            | 2,163               | 410         | 81.0%           | 81.0%              |
+| `layered_app` | 20    | 5        | 10   | 8,614            | 4,738               | 520         | 94.0%           | 89.0%              |
+| `wide_fanout` | 12    | 6        | 10   | 7,548            | 6,919               | 570         | 92.5%           | 91.8%              |
+| **mean**      |       |          |      |                  |                     |             | **89.2%**       | **87.3%**          |
+
+These figures bound the reduction for **identity-style change-impact queries**
+on synthetic fixtures — the regime GCTX's identity surface targets — not a
+universal claim about every assistant task. Two honesty caveats:
+
+- **Estimator bias.** `gctx-simple-v1` takes `max(lexical_units, bytes/4)`.
+  Source code is punctuation-dense and hits the `lexical_units` branch
+  (~1.4–1.7× `bytes/4`); the sparse identity payload hits the `bytes/4` branch.
+  Used symmetrically this over-counts the source baselines relative to the
+  payload, so a real BPE tokenizer (cl100k/o200k) would likely show ratios a few
+  points lower.
+- **Identity-only.** The payload carries no source text, matching
+  `impact_of_change`. Snippet-bearing modes (`anvil_symbol_context`,
+  GCTX-021..023) trade a higher graph-token cost for richer context and would
+  narrow these ratios.
 
 ## Usage
 
