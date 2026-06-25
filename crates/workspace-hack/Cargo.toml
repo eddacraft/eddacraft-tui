@@ -20,6 +20,7 @@ bitflags = { version = "2", default-features = false, features = ["std"] }
 bytemuck = { version = "1", default-features = false, features = ["derive", "extern_crate_alloc", "min_const_generics"] }
 clap = { version = "4", features = ["derive"] }
 clap_builder = { version = "4", default-features = false, features = ["color", "help", "std", "suggestions", "usage"] }
+compact_str = { version = "0.9", default-features = false, features = ["std"] }
 console = { version = "0.16" }
 crossbeam-utils = { version = "0.8" }
 either = { version = "1", default-features = false, features = ["use_std"] }
@@ -30,17 +31,21 @@ futures-sink = { version = "0.3" }
 futures-util = { version = "0.3", features = ["channel", "io", "sink"] }
 getrandom-9fbad63c4bcf4a8f = { package = "getrandom", version = "0.4", default-features = false, features = ["std", "sys_rng"] }
 globset = { version = "0.4", features = ["simd-accel"] }
-hashbrown = { version = "0.17", default-features = false, features = ["default-hasher"] }
+hashbrown = { version = "0.17" }
 hyper = { version = "1", features = ["full"] }
 hyper-util = { version = "0.1", features = ["client", "http1", "http2", "server", "service"] }
 image = { version = "0.25", default-features = false, features = ["png"] }
 indexmap = { version = "2" }
 itertools = { version = "0.14" }
 jsonschema = { version = "0.46" }
+kasuari = { version = "0.4", default-features = false, features = ["std"] }
+lru = { version = "0.18" }
 memchr = { version = "2" }
 num-traits = { version = "0.2", features = ["i128", "libm"] }
 once_cell = { version = "1" }
 rand = { version = "0.10" }
+ratatui-core = { version = "0.1", features = ["layout-cache", "std", "underline-color"] }
+ratatui-widgets = { version = "0.3", features = ["std"] }
 regex = { version = "1" }
 regex-automata = { version = "0.4", default-features = false, features = ["dfa", "hybrid", "meta", "nfa", "perf", "std", "unicode"] }
 regex-syntax = { version = "0.8" }
@@ -50,15 +55,17 @@ serde_core = { version = "1", features = ["alloc", "rc"] }
 serde_json = { version = "1", features = ["alloc", "preserve_order", "raw_value"] }
 slab = { version = "0.4" }
 smallvec = { version = "1", default-features = false, features = ["const_new"] }
+strum = { version = "0.28", default-features = false, features = ["derive", "std"] }
 textwrap = { version = "0.16" }
 thiserror = { version = "2" }
 tokio = { version = "1", features = ["full"] }
 tracing = { version = "0.1", features = ["log"] }
 tracing-core = { version = "0.1" }
+unicode-truncate = { version = "2", default-features = false, features = ["std"] }
 zerocopy = { version = "0.8", default-features = false, features = ["derive", "simd"] }
 
 [build-dependencies]
-hashbrown = { version = "0.17", default-features = false, features = ["default-hasher"] }
+hashbrown = { version = "0.17" }
 indexmap = { version = "2" }
 memchr = { version = "2" }
 proc-macro2 = { version = "1" }

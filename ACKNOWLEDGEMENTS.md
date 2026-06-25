@@ -1177,6 +1177,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `const-oid` | 0.10.2 | MIT License | https://github.com/RustCrypto/formats |
 | `num_threads` | 0.1.7 | MIT License | https://github.com/jhpratt/num_threads |
 | `crypto-common` | 0.2.2 | MIT License | https://github.com/RustCrypto/traits |
+| `critical-section` | 1.2.0 | MIT License | https://github.com/rust-embedded/critical-section |
 | `hybrid-array` | 0.4.12 | MIT License | https://github.com/RustCrypto/hybrid-array |
 | `axoasset` | 2.0.1 | MIT License | https://github.com/axodotdev/axoasset |
 | `axoprocess` | 0.2.1 | MIT License | https://github.com/axodotdev/axoprocess |
@@ -1188,7 +1189,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `bit-vec` | 0.8.0 | MIT License | https://github.com/contain-rs/bit-vec |
 | `hyper-util` | 0.1.20 | MIT License | https://github.com/hyperium/hyper-util |
 | `micromap` | 0.3.0 | MIT License | https://github.com/yegor256/micromap |
-| `ratatui-macros` | 0.7.0 | MIT License | https://github.com/ratatui/ratatui |
+| `ratatui-macros` | 0.7.2 | MIT License | https://github.com/ratatui/ratatui |
 | `deranged` | 0.5.8 | MIT License | https://github.com/jhpratt/deranged |
 | `anstream` | 1.0.0 | MIT License | https://github.com/rust-cli/anstyle.git |
 | `anstyle-parse` | 1.0.0 | MIT License | https://github.com/rust-cli/anstyle.git |
@@ -1218,7 +1219,6 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `zerocopy-derive` | 0.8.52 | MIT License | https://github.com/google/zerocopy |
 | `zerocopy` | 0.8.52 | MIT License | https://github.com/google/zerocopy |
 | `utf8_iter` | 1.0.4 | MIT License | https://github.com/hsivonen/utf8_iter |
-| `lru` | 0.16.4 | MIT License | https://github.com/jeromefroe/lru-rs.git |
 | `lru` | 0.18.0 | MIT License | https://github.com/jeromefroe/lru-rs.git |
 | `textwrap` | 0.16.2 | MIT License | https://github.com/mgeisler/textwrap |
 | `smawk` | 0.3.2 | MIT License | https://github.com/mgeisler/smawk |
@@ -1230,8 +1230,8 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `zeroize` | 1.8.2 | MIT License | https://github.com/RustCrypto/utils |
 | `bytemuck` | 1.25.0 | MIT License | https://github.com/Lokathor/bytemuck |
 | `bytemuck_derive` | 1.10.2 | MIT License | https://github.com/Lokathor/bytemuck |
-| `strum` | 0.27.2 | MIT License | https://github.com/Peternator7/strum |
-| `strum_macros` | 0.27.2 | MIT License | https://github.com/Peternator7/strum |
+| `strum` | 0.28.0 | MIT License | https://github.com/Peternator7/strum |
+| `strum_macros` | 0.28.0 | MIT License | https://github.com/Peternator7/strum |
 | `email_address` | 0.2.9 | MIT License | https://github.com/johnstonskj/rust-email_address.git |
 | `tokio-macros` | 2.7.0 | MIT License | https://github.com/tokio-rs/tokio |
 | `owo-colors` | 4.3.0 | MIT License | https://github.com/owo-colors/owo-colors |
@@ -1260,10 +1260,6 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `num-cmp` | 0.1.0 | MIT License | https://github.com/lifthrasiir/num-cmp |
 | `objc2-encode` | 4.1.0 | MIT License | https://github.com/madsmtm/objc2 |
 | `objc2` | 0.6.4 | MIT License | https://github.com/madsmtm/objc2 |
-| `ratatui-core` | 0.1.0 | MIT License | https://github.com/ratatui/ratatui |
-| `ratatui-crossterm` | 0.1.0 | MIT License | https://github.com/ratatui/ratatui |
-| `ratatui-widgets` | 0.3.0 | MIT License | https://github.com/ratatui/ratatui |
-| `ratatui` | 0.30.0 | MIT License | https://github.com/ratatui/ratatui |
 | `regorus` | 0.10.1 | MIT License | https://github.com/microsoft/regorus |
 | `tree-sitter-cpp` | 0.23.4 | MIT License | https://github.com/tree-sitter/tree-sitter-cpp |
 | `tree-sitter-java` | 0.23.5 | MIT License | https://github.com/tree-sitter/tree-sitter-java |
@@ -1369,6 +1365,10 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `derive_more-impl` | 2.1.1 | MIT License | https://github.com/JelteF/derive_more |
 | `derive_more` | 2.1.1 | MIT License | https://github.com/JelteF/derive_more |
 | `tree-sitter-python` | 0.25.0 | MIT License | https://github.com/tree-sitter/tree-sitter-python |
+| `ratatui-core` | 0.1.2 | MIT License | https://github.com/ratatui/ratatui |
+| `ratatui-crossterm` | 0.1.2 | MIT License | https://github.com/ratatui/ratatui |
+| `ratatui-widgets` | 0.3.2 | MIT License | https://github.com/ratatui/ratatui |
+| `ratatui` | 0.30.2 | MIT License | https://github.com/ratatui/ratatui |
 | `same-file` | 1.0.6 | MIT License | https://github.com/BurntSushi/same-file |
 | `winapi-util` | 0.1.11 | MIT License | https://github.com/BurntSushi/winapi-util |
 | `console` | 0.16.3 | MIT License | https://github.com/console-rs/console |
