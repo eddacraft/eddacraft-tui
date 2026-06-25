@@ -4,7 +4,7 @@
 
 | ID  | Owner      | Status      | Progress |
 | --- | ---------- | ----------- | -------- |
-| KDS | @eddacraft | In Progress | 3/5      |
+| KDS | @eddacraft | In Progress | 4/5      |
 
 > **In Progress** — the module passed Ready (placement + async-bridge decisions
 > settled; see Open Questions, now answered) and KDS-001 + KDS-003 are underway.
@@ -234,7 +234,7 @@ need a short ADR to reconcile the wording.
   (keyset cursor) and skip-unparseable-content; a CLI integration test that the
   command succeeds and keeps the sidecar rows under the daemon sink. Existing
   `usage_views` tests unchanged (pure view logic).
-- **Status:** In Progress
+- **Status:** Merged 2026-06-26 via PR #2945
 - **Dependencies:** KDS-002 (Merged); `kindling-client` 0.3 read API (KINTEG-003,
   #2910 — **landed**)
 
