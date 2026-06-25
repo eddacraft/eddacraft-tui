@@ -130,30 +130,33 @@ per invocation (CLI) or per daemon start, so an operator can change behaviour
 without a code change or redeploy. Unless noted otherwise the opt-out value is
 the literal `1`.
 
-| Variable                              | Scope              | Effect                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-| ------------------------------------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ANVIL_USAGE_DISABLE`                 | CLI producer       | `=1` declines CLI usage collection: the `command.invoked` producer writes nothing (no sidecar is created).                                                                                                                                                                                                                                                                                                                                                                   |
-| `DO_NOT_TRACK`                        | CLI producer       | `=1` is honoured as an alias for `ANVIL_USAGE_DISABLE`, following the cross-tool [Console Do Not Track](https://consoledonottrack.com/) consent convention, so an operator who already sets it is opted out.                                                                                                                                                                                                                                                                 |
-| `ANVIL_INTERCEPT_DISABLE_OBSERVATION` | CLI + daemon       | `=1` is the whole-observation break-glass: it disables the daemon save-time / fence producers AND, for parity, the CLI `command.invoked` producer — one toggle silences every usage producer.                                                                                                                                                                                                                                                                                |
-| `ANVIL_USAGE_SIDECAR_NO_TRIM`         | All sidecar writes | Any non-empty value disables the lazy retention trim described above, so the sidecar grows unbounded (for an operator who archives it externally and does not want the local trim mutating it).                                                                                                                                                                                                                                                                              |
-| `ANVIL_OBSERVATION_INCLUDE_PATHS`     | Daemon producers   | `=1` **changes the privacy posture**: the daemon save-time `gate_evaluated` and fence `constraint_applied` rows then record the **absolute validated paths**, not just the path count. Off by default.                                                                                                                                                                                                                                                                       |
-| `ANVIL_KINDLING_SINK`                 | Daemon producer    | Selects the daemon `command.invoked` sink backend (KDS-002): `daemon` writes to the local Kindling daemon (SQLite) via `kindling-client`, buffering to a spool when the daemon is down; `ndjson` keeps the `usage.ndjson` sidecar; `off` disables the daemon `command.invoked` producer entirely. Case-insensitive. **Default `ndjson`** — unset or an unrecognised value resolves to `ndjson` (capture is never lost to a typo). Local-only either way; see the note below. |
+| Variable                              | Scope              | Effect                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ANVIL_USAGE_DISABLE`                 | CLI producer       | `=1` declines CLI usage collection: the `command.invoked` producer writes nothing (no sidecar is created).                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `DO_NOT_TRACK`                        | CLI producer       | `=1` is honoured as an alias for `ANVIL_USAGE_DISABLE`, following the cross-tool [Console Do Not Track](https://consoledonottrack.com/) consent convention, so an operator who already sets it is opted out.                                                                                                                                                                                                                                                                                                                          |
+| `ANVIL_INTERCEPT_DISABLE_OBSERVATION` | CLI + daemon       | `=1` is the whole-observation break-glass: it disables the daemon save-time / fence producers AND, for parity, the CLI `command.invoked` producer — one toggle silences every usage producer.                                                                                                                                                                                                                                                                                                                                         |
+| `ANVIL_USAGE_SIDECAR_NO_TRIM`         | All sidecar writes | Any non-empty value disables the lazy retention trim described above, so the sidecar grows unbounded (for an operator who archives it externally and does not want the local trim mutating it).                                                                                                                                                                                                                                                                                                                                       |
+| `ANVIL_OBSERVATION_INCLUDE_PATHS`     | Daemon producers   | `=1` **changes the privacy posture**: the daemon save-time `gate_evaluated` and fence `constraint_applied` rows then record the **absolute validated paths**, not just the path count. Off by default.                                                                                                                                                                                                                                                                                                                                |
+| `ANVIL_KINDLING_SINK`                 | Daemon producer    | Selects the daemon `command.invoked` sink backend (KDS-002/-005): `daemon` (the **default**) writes to the local Kindling daemon (SQLite) via `kindling-client`, buffering to a bounded spool when the daemon is down; `off` disables the daemon `command.invoked` producer entirely. Case-insensitive. Unset, an unrecognised value, and the **retired** `ndjson` value (KDS-005 deleted the bespoke NDJSON sink) all resolve to `daemon` (with a warn for `ndjson`/typos) so capture is never lost. Local-only; see the note below. |
 
 > **Privacy note — `ANVIL_OBSERVATION_INCLUDE_PATHS`.** With this set, absolute
 > filesystem paths from the validated workspace are written into the usage
 > sidecar. This is a deliberate diagnostics opt-in; leave it unset for the
 > default count-only posture in any shared or privacy-sensitive environment.
 
-> **`ANVIL_KINDLING_SINK` (KDS-002).** This selects only the **daemon**
-> `command.invoked` sink; it does not change the privacy posture (every backend
-> is local-only). The default is `ndjson` — the daemon backend is opt-in. With
-> `daemon`, rows go to the Kindling daemon and a daemon outage buffers them to
-> `<credentials_dir>/kindling/spool.ndjson` (replayed when the daemon returns);
-> note the spool has no age/size trim yet, so under a prolonged outage it grows
-> unbounded (tracked follow-up). `off` silences the daemon producer only — the
-> CLI `command.invoked` producer is governed separately by `ANVIL_USAGE_DISABLE`
-> / `DO_NOT_TRACK`, and `ANVIL_INTERCEPT_DISABLE_OBSERVATION` remains the
-> whole-observation break-glass.
+> **`ANVIL_KINDLING_SINK` (KDS-002/-005).** This selects only the **daemon**
+> `command.invoked` sink; it does not change the privacy posture (the backend is
+> local-only). **As of KDS-005 the default is `daemon`** — the bespoke NDJSON
+> sink is retired, so the daemon `command.invoked` rows go to the Kindling
+> daemon and a daemon outage buffers them to
+> `<credentials_dir>/kindling/spool.ndjson`, now **bounded** to a rolling 7-day
+> / 64 MiB window (replayed when the daemon returns). `off` silences the daemon
+> producer only — the CLI `command.invoked` producer is governed separately by
+> `ANVIL_USAGE_DISABLE` / `DO_NOT_TRACK`, and
+> `ANVIL_INTERCEPT_DISABLE_OBSERVATION` remains the whole-observation
+> break-glass. (The CLI producer still writes `usage.ndjson`; the
+> `anvil kindling usage` views read it unioned with the daemon, so they stay
+> complete.)
 
 ## Dev-investment query views (USAGE-003)
 
@@ -166,14 +169,25 @@ the two so the views see every row whichever sink is active (degrading to
 sidecar-only, with a note, if the daemon can't be read — see below). Pass
 `--json` for machine-readable output; the default is a small human table.
 
-> **Source under `ANVIL_KINDLING_SINK=daemon` (KDS-004).** The CLI producer
-> always records to the sidecar; the daemon JSON-RPC producer records to the
-> Kindling daemon. So under the daemon sink the views read **both** — the daemon
-> rows (via `kindling-client` 0.3's exhaustive `list_observations`) unioned with
-> the sidecar rows — for the full picture. If the daemon can't be read the views
-> degrade to sidecar-only and print a note to stderr (so `--json` stdout stays
-> clean). Under the default `ndjson` sink both producers write the sidecar, so
-> it is read alone.
+> **Source for the views (KDS-004/-005).** The CLI producer always records to
+> the sidecar; the daemon JSON-RPC producer records to the Kindling daemon (the
+> default sink since KDS-005). So the views read **both** — the daemon rows (via
+> `kindling-client` 0.3's exhaustive `list_observations`) unioned with the
+> sidecar rows — for the full picture. If the daemon can't be read (e.g. a
+> CLI-only host with no daemon running) the views degrade to sidecar-only and
+> print a note to stderr (so `--json` stdout stays clean). Under
+> `ANVIL_KINDLING_SINK=off` only the sidecar is read.
+
+> **Rollback / hosts without the `kindling` binary (KDS-005).** With the daemon
+> now the default sink, the resident `anvil intercept start` daemon writes
+> `command.invoked` rows to the Kindling daemon (auto-spawning `kindling serve`
+> on first use). On a host where the `kindling` binary is **not** installed,
+> each emit instead spends the client's connect budget and buffers to the
+> (capped) spool, and the client appends to `~/.kindling/spawn.log` — observable
+> cost on the producer's drain thread (never the dispatch hot path). To opt out
+> until kindling is deployed, set **`ANVIL_KINDLING_SINK=off`** (or the
+> whole-observation **`ANVIL_INTERCEPT_DISABLE_OBSERVATION=1`** break-glass);
+> both are read at **daemon start**, so restart the daemon after setting them.
 
 | View         | Command                           | Answers                                                                                                                            |
 | ------------ | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |

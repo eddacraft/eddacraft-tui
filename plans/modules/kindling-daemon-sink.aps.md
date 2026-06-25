@@ -243,52 +243,41 @@ need a short ADR to reconcile the wording.
 - **Intent:** Remove the bespoke `DaemonUsageSink` NDJSON append path for the
   daemon `command.invoked` producer; the only NDJSON that producer leaves behind
   becomes the `SpooledClient` fallback file.
-- **Expected Outcome:** `DaemonUsageSink` is deleted and the daemon
-  `command.invoked` producer routes only through the daemon sink (spool
-  fallback), so the spool owns that producer's durability; docs/runbook updated;
-  no behaviour change when the daemon is reachable. (The shared
-  `append_observation_to` / `trim_usage_sidecar` helpers **remain** while the
-  CLI producer — `usage::record_invocation`, outside KDS scope — still writes the
-  sidecar; deleting those helpers awaits that producer's own migration, not
-  KDS-005. See blocker 3.)
-- **Blocked — cannot proceed yet (verified 2026-06-24).** Three blockers, two of
-  them on upstream kindling work:
-  1. **Depends on KDS-004 (Blocked on anvil-001#2910).** Deleting `DaemonUsageSink`
-     forces the daemon `command.invoked` producer to daemon-only (the default
-     flips off `ndjson`). The `anvil kindling usage` views read `usage.ndjson` and
-     cannot read the daemon until KDS-004's read path lands — so with the daemon
-     **reachable** the rows go to the daemon and the views lose them, directly
-     violating this item's own "no behaviour change when the daemon is reachable"
-     acceptance.
-  2. **Retention regression — needs a spool size/age cap (anvil-001#2916).** The
-     NDJSON sidecar is trimmed to a rolling 7-day / 64 MiB window; the
-     `SpooledClient` spool has no cap (its `SpoolConfig` reserves the knob), so
-     "the spool owns durability" would lose retention and grow unbounded under a
-     prolonged outage.
-  3. **Shared append logic.** `DaemonUsageSink` and the still-active **CLI**
-     producer (`usage::record_invocation`) both use `append_usage_observation_to`
-     → `append_observation_to` + `trim_usage_sidecar`; the "hand-rolled
-     append/rotation logic" cannot be deleted while the CLI path (out of KDS
-     scope) still uses it.
-- **Validation:** the suite is green with `DaemonUsageSink` removed; a
-  daemon-down run still durably buffers (now via the spool). _(Deferred — see
-  Blocked above.)_
-- **Status:** Blocked
-- **Dependencies:** KDS-002 (Merged); KDS-004 (Blocked on anvil-001#2910); a
-  spool size/age cap (anvil-001#2916)
+- **Expected Outcome:** `DaemonUsageSink` is deleted; the daemon
+  `command.invoked` producer routes **only** through `KindlingDaemonSink`, so the
+  **default sink flips from `ndjson` to `daemon`** (owner-approved graduated flip
+  — `ANVIL_KINDLING_SINK` is now `daemon` (default) | `off`; the retired `ndjson`
+  value resolves to `daemon` with a deprecation warn). The spool owns the
+  producer's durability and is now **bounded** (7-day / 64 MiB caps via 0.3
+  `SpoolConfig::with_max_bytes` / `with_max_age_ms`), matching the sidecar it
+  replaces. No NDJSON fallback on a sink-build failure (degrade to no export).
+  The shared `append_observation_to` / `trim_usage_sidecar` helpers **remain** —
+  the CLI producer (`usage::record_invocation`) and the DPO `DaemonObservationSink`
+  still write the sidecar (both outside KDS scope), so the sidecar persists for
+  those; the `anvil kindling usage` views read it unioned with the daemon
+  (KDS-004), so "what's used" stays complete under the flip.
+- **Validation:** suite green with `DaemonUsageSink` (and its NDJSON-writer tests)
+  removed; the selection-resolver tests cover the new default (unset / `ndjson` /
+  unrecognised → `daemon`; `off` → off); `usage_observation` confirms the CLI
+  producer still writes the sidecar under the new default. The spool caps are
+  covered by `kindling-client` 0.3's own retention tests.
+- **Status:** In Progress
+- **Dependencies:** KDS-002 (Merged); KDS-004 (Merged, #2945 — read path so the
+  views stay complete under the flip); `kindling-client` 0.3 spool cap (KINTEG-009,
+  #2916 — landed)
 
 ## Risks
 
 | Risk                                                            | Impact | Mitigation                                                                                  |
 | -------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------- |
 | Daemon unreachable at emit time                                 | Low    | `SpooledClient` fallback + client auto-spawn; emit never errors on outage                   |
-| Spool grows unbounded under a persistent daemon outage (no age/size cap like the NDJSON sidecar's council-T5 trim) | Medium | KDS-001 documents the limitation; trimming the spool without dropping un-delivered rows belongs in `SpooledClient` (its `SpoolConfig` reserves size-cap knobs) — tracked for KDS-002 / upstream. Opt-in + default-off bounds exposure |
+| Spool grows unbounded under a persistent daemon outage | ~~Medium~~ Resolved | **Fixed (KDS-005):** the spool is now bounded to 7-day / 64 MiB via 0.3 `SpoolConfig::with_max_bytes` / `with_max_age_ms`, matching the sidecar's council-T5 trim |
 | Spool file holds usage metadata on a shared host                | Low    | The sink creates the `kindling/` parent dir `0700` before first write, so the dir gates access even though the upstream client writes the spool file without an explicit `0600` mode |
 | Networking client leaks into the daemon crate (ADR-064)         | High   | Sink confined to `anvil-cli`; `daemon_dep_boundary` guard enforced; KDS-001 boundary test   |
 | D-035 wording vs an active daemon-write path                    | Medium | Reconcile in KDS / a short ADR before Ready                                                  |
 | At-least-once replay duplicates a row after a crash mid-flush   | Low    | Stable ids already stamped by the spool; exactly-once is an upstream daemon-dedup follow-up  |
 | Cold-spawn reliability / silent cold-start failure              | Low    | Upstream fix (kindling PR #86); upstream follow-up to log cold-start to `~/.kindling/`       |
-| Usage views drift if read-path migration (KDS-004) is deferred  | Medium | Sequence KDS-004 before KDS-005; spool-as-read-cache interim keeps views working             |
+| Usage views drift if read-path migration (KDS-004) is deferred  | ~~Medium~~ Resolved | **Fixed (KDS-004, #2945):** the views read the daemon (`list_observations`) unioned with the sidecar, so they stay complete under the default flip |
 
 ## Open questions
 

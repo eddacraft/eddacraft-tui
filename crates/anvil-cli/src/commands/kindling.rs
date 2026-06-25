@@ -9,11 +9,12 @@
 //! the standing caveat: **these views are signal, not evidence.**
 //!
 //! The command reads the user-scoped sidecar
-//! (`<credentials_dir>/kindling/usage.ndjson`) and, under
-//! `ANVIL_KINDLING_SINK=daemon` (KDS-004), also the Kindling daemon — the
-//! daemon-dispatched JSON-RPC rows live there, not in the sidecar — and unions
-//! the two so the views see the full picture. It is local-only and needs no
-//! authentication, like `anvil insights`.
+//! (`<credentials_dir>/kindling/usage.ndjson`) and — unless
+//! `ANVIL_KINDLING_SINK=off` — also the Kindling daemon (KDS-004; the daemon is
+//! the default sink since KDS-005). The daemon-dispatched JSON-RPC rows live
+//! there, not in the sidecar, so the command unions the two for the full
+//! picture (degrading to sidecar-only if the daemon can't be read). It is
+//! local-only and needs no authentication, like `anvil insights`.
 
 use clap::{Args, Subcommand, ValueEnum};
 use kindling_client::{
@@ -180,28 +181,29 @@ fn run_usage(view: &UsageView, global: &GlobalArgs) -> anyhow::Result<()> {
     let path = usage::default_usage_log_path()?;
     let mut rows = usage_views::load_rows(&path)?;
 
-    // KDS-004: under the daemon sink the JSON-RPC-dispatched `command.invoked`
-    // rows live in the daemon (not the sidecar), so union them in for the full
-    // picture. In steady state the two sources are disjoint — the CLI producer
-    // writes only the sidecar, the daemon producer only the daemon, and they
-    // record different invocations — so the union is a plain concat. (There is
-    // no shared id to dedup across the two sources, so flipping the sink between
-    // runs, or a daemon-sink build-failure fallback to the sidecar, could
-    // transiently double-count an invocation. Acceptable for these
-    // "signal, not evidence" views and an opt-in / default-off sink; a stable
+    // KDS-004/-005: the daemon `command.invoked` sink is the default now, so the
+    // JSON-RPC-dispatched rows live in the daemon (not the sidecar) — union them
+    // in for the full picture. In steady state the two sources are disjoint — the
+    // CLI producer writes only the sidecar, the daemon producer only the daemon,
+    // and they record different invocations — so the union is a plain concat.
+    // (There is no shared id to dedup across the two sources, so flipping the
+    // sink to `off` and back between runs could transiently double-count an
+    // invocation. Acceptable for these "signal, not evidence" views; a stable
     // cross-source identity is a follow-up.) Degrade gracefully (sidecar-only,
-    // with a stderr note that keeps `--json` stdout clean) if the daemon can't
-    // be read. No daemon read when capture is disabled or under ndjson/off.
+    // with a stderr note that keeps `--json` stdout clean) if the daemon can't be
+    // read — common when no daemon is running (a CLI-only host). No daemon read
+    // when capture is disabled or under `off`.
     if usage::resolve_kindling_sink() == usage::KindlingSinkSelection::Daemon
         && !usage::usage_collection_disabled()
     {
         match load_rows_from_daemon() {
             Ok(daemon_rows) => rows.extend(daemon_rows),
             Err(err) => {
+                // Don't blame `ANVIL_KINDLING_SINK=daemon` — it's the default now,
+                // so the operator may never have set it. Just state the fact.
                 eprintln!(
-                    "Note: ANVIL_KINDLING_SINK=daemon but the Kindling daemon could not be \
-                     read ({err}); showing locally-recorded rows only — daemon-dispatched \
-                     rows are omitted.",
+                    "Note: the Kindling daemon could not be read ({err}); showing \
+                     locally-recorded rows only — any daemon-dispatched rows are omitted.",
                 );
             }
         }

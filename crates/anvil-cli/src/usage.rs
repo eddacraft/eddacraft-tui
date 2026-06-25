@@ -52,11 +52,12 @@
 //! resolver. USAGE-004 resolves that: the client now attaches its
 //! salted-hash principal on the JSON-RPC envelope, and the daemon emits
 //! a `command.invoked` row for an explicit allowlist of user-initiated
-//! methods (the GCTX query tools + the operator `unblock-*` verbs) to
-//! this *same* sidecar via [`daemon_usage_emitter`]. `flag_set` stays
-//! empty on the daemon path (no resolver there). The path is resolved
-//! here ([`default_usage_log_path`]) so the daemon and CLI never diverge
-//! on the credentials/`ANVIL_HOME` re-rooting.
+//! methods (the GCTX query tools + the operator `unblock-*` verbs) via
+//! [`daemon_usage_emitter`]. Since KDS-005 the daemon producer writes to the
+//! Kindling daemon (a capped spool fallback under `<credentials_dir>/kindling/`),
+//! NOT the sidecar; the CLI producer ([`record_invocation`]) still writes the
+//! sidecar via [`default_usage_log_path`]. `flag_set` stays empty on the daemon
+//! path (no resolver there).
 
 use std::env;
 use std::fs;
@@ -822,41 +823,12 @@ fn record_false_positive_in(
     append_observation_to(&fp_log_path(state_dir), &obs)
 }
 
-/// USAGE-004: a [`KindlingObservationSink`] that appends `command.invoked`
-/// rows produced by the JSON-RPC daemon dispatch to the *same*
-/// user-scoped `usage.ndjson` sidecar the CLI producer writes (resolved
-/// via the CLI-owned [`default_usage_log_path`], so the daemon and CLI
-/// never diverge on the path — the credentials/`ANVIL_HOME` re-rooting
-/// logic lives only here). Only `command.invoked` is consumed by this
-/// sink; the `gate_evaluated(save-time)` and `constraint_applied` kinds
-/// are persisted to the SAME sidecar through the DPO sink
-/// [`DaemonObservationSink`].
-///
-/// The path is resolved once at construction so a per-call resolution
-/// failure cannot occur on the dispatch hot path; a write failure is
-/// surfaced as [`KindlingSinkError::Unavailable`] and swallowed by the
-/// emitter (logged, row dropped — dispatch is never coupled to sink
-/// health).
-#[derive(Debug)]
-struct DaemonUsageSink {
-    path: PathBuf,
-}
-
-impl KindlingObservationSink for DaemonUsageSink {
-    fn try_emit(&self, _observation: GateEvaluatedObservation) -> Result<(), KindlingSinkError> {
-        // This sink owns command.invoked only; gate_evaluated is persisted
-        // through `DaemonObservationSink` (DPO-001).
-        Ok(())
-    }
-
-    fn try_emit_command_invoked(
-        &self,
-        observation: CommandInvokedObservation,
-    ) -> Result<(), KindlingSinkError> {
-        append_usage_observation_to(&self.path, &observation)
-            .map_err(|err| KindlingSinkError::Unavailable(err.to_string()))
-    }
-}
+// KDS-005: the bespoke `DaemonUsageSink` NDJSON writer for the daemon
+// `command.invoked` producer is retired — the producer now always routes through
+// `KindlingDaemonSink` (the daemon, with a capped spool fallback). The CLI
+// producer (`record_invocation`) still writes the sidecar, and the DPO
+// `DaemonObservationSink` below still persists `gate_evaluated` / `constraint_applied`
+// there, so `append_usage_observation_to` / the trim helpers remain in use.
 
 /// DPO-001 / DPO-002: a [`KindlingObservationSink`] that persists the two
 /// newly-activated producer kinds — `gate_evaluated(save-time)` and
@@ -868,16 +840,18 @@ impl KindlingObservationSink for DaemonUsageSink {
 /// equals [`SAVE_TIME_GATE_ID`] (`save-time`); rows from other gates
 /// (mid-edit, audit-chain) are silently ignored so this sink never
 /// scoops up rows from surfaces DPO does not own. `command.invoked` rows
-/// are NOT consumed here (the [`DaemonUsageSink`] owns those) so a sink
-/// shared between both producers does not double-write usage rows.
+/// are NOT consumed here (the daemon `command.invoked` producer routes them
+/// through `KindlingDaemonSink` since KDS-005) so a sink shared between both
+/// producers does not double-write usage rows.
 ///
 /// A write failure is surfaced as [`KindlingSinkError::Unavailable`];
 /// behind the [`NonBlockingObservationSink`] decorator it is logged on
 /// the drain thread and dropped, never coupling the verdict / engage hot
 /// path to sink health.
-// KDS-005: retire alongside DaemonUsageSink when the kindling daemon store
-// lands (the NDJSON sidecar is the interim transport until the SQLite
-// bridge exists).
+// DPO save-time / fence observations still use the NDJSON sidecar. KDS-005
+// retired only the `command.invoked` `DaemonUsageSink`; routing these
+// `gate_evaluated` / `constraint_applied` kinds to the daemon is a DPO-track
+// follow-up (it needs the DPO read surface), so this writer stays for now.
 #[derive(Debug)]
 struct DaemonObservationSink {
     path: PathBuf,
@@ -907,17 +881,19 @@ impl KindlingObservationSink for DaemonObservationSink {
 /// KDS-002: env var selecting the daemon `command.invoked` sink backend.
 const KINDLING_SINK_ENV: &str = "ANVIL_KINDLING_SINK";
 
-/// KDS-002: operator-selected backend for the daemon `command.invoked`
+/// KDS-002/-005: operator-selected backend for the daemon `command.invoked`
 /// producer, resolved from [`KINDLING_SINK_ENV`].
 ///
-/// `pub(crate)` for KDS-004: the `anvil kindling usage` views consult it to warn
-/// when the local sidecar they read is not the authoritative store (the daemon).
+/// `pub(crate)` for KDS-004: the `anvil kindling usage` views consult it to
+/// decide whether to read the daemon (the authoritative store).
+///
+/// KDS-005 retired the `ndjson` sink, so the daemon is now the **default** — the
+/// only backends are the daemon and `off`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum KindlingSinkSelection {
-    /// Append to the Kindling daemon via `KindlingDaemonSink` (spool fallback).
+    /// Append to the Kindling daemon via `KindlingDaemonSink` (capped spool
+    /// fallback). The default.
     Daemon,
-    /// Append to the local `usage.ndjson` sidecar (today's default).
-    Ndjson,
     /// Disable the daemon `command.invoked` producer entirely (no rows).
     Off,
 }
@@ -925,26 +901,34 @@ pub(crate) enum KindlingSinkSelection {
 /// Parse a raw [`KINDLING_SINK_ENV`] value (case-insensitive, trimmed) to a
 /// [`KindlingSinkSelection`].
 ///
-/// Unset (`None`) and empty → `Ndjson`, so the privacy-first default is
-/// unchanged. An **unrecognised** value also resolves to `Ndjson` (with a warn)
-/// rather than `Off`, so a typo never silently disables capture or re-routes it.
+/// KDS-005: the default (unset / empty) is now `Daemon`. `off` disables the
+/// producer. The retired `ndjson` value, and any unrecognised value, resolve to
+/// `Daemon` (with a warn) — so a typo never silently disables capture, and an
+/// operator still pinning `ndjson` keeps capturing (via the daemon now).
 fn parse_kindling_sink(value: Option<&str>) -> KindlingSinkSelection {
     let Some(raw) = value else {
-        return KindlingSinkSelection::Ndjson;
+        return KindlingSinkSelection::Daemon;
     };
     match raw.trim().to_ascii_lowercase().as_str() {
-        "daemon" => KindlingSinkSelection::Daemon,
+        "" | "daemon" => KindlingSinkSelection::Daemon,
         "off" => KindlingSinkSelection::Off,
-        "" | "ndjson" => KindlingSinkSelection::Ndjson,
+        "ndjson" => {
+            tracing::warn!(
+                target: "anvil::usage",
+                "ANVIL_KINDLING_SINK=ndjson is retired (KDS-005) — the bespoke NDJSON sink \
+                 is gone; using the daemon sink. Set `off` to disable capture.",
+            );
+            KindlingSinkSelection::Daemon
+        }
         // Don't echo the raw value — an operator could mis-assign a secret to
         // this var; the message alone is enough to debug a typo.
         _ => {
             tracing::warn!(
                 target: "anvil::usage",
-                "unrecognised ANVIL_KINDLING_SINK value; defaulting to the NDJSON sidecar \
-                 (expected daemon|ndjson|off)",
+                "unrecognised ANVIL_KINDLING_SINK value; using the daemon sink \
+                 (expected daemon|off)",
             );
-            KindlingSinkSelection::Ndjson
+            KindlingSinkSelection::Daemon
         }
     }
 }
@@ -956,12 +940,13 @@ pub(crate) fn resolve_kindling_sink() -> KindlingSinkSelection {
     parse_kindling_sink(env::var(KINDLING_SINK_ENV).ok().as_deref())
 }
 
-/// USAGE-004: build the daemon-side command-invocation usage emitter, wired to
-/// the sink selected by [`resolve_kindling_sink`] (`daemon | ndjson | off`).
+/// USAGE-004 / KDS-005: build the daemon-side command-invocation usage emitter,
+/// wired to the daemon-backed `KindlingDaemonSink` (the only backend now; the
+/// `ndjson` sink was retired and the daemon is the default — `off` disables it).
 ///
-/// Returns `None` — no usage rows — when the sink is `off`, or when the usage
-/// path cannot be resolved (so a daemon on a host without a resolvable state dir
-/// still starts). The per-startup `daemon_session_id` stamps every daemon row;
+/// Returns `None` — no usage rows — when the sink is `off`, when the spool path
+/// can't be resolved, or when the sink can't be built (no NDJSON fallback any
+/// more). The per-startup `daemon_session_id` stamps every daemon row;
 /// individual calls are correlated by `traceparent`, not this id.
 #[must_use]
 pub fn daemon_usage_emitter() -> Option<Arc<CommandInvokedEmitter>> {
@@ -977,10 +962,9 @@ pub fn daemon_usage_emitter() -> Option<Arc<CommandInvokedEmitter>> {
         );
         return None;
     }
-    // KDS-002: `off` disables the daemon command.invoked producer outright —
-    // resolved before any path/sink work so it needs no state dir.
-    let selection = resolve_kindling_sink();
-    if matches!(selection, KindlingSinkSelection::Off) {
+    // KDS-002/-005: `off` disables the daemon command.invoked producer; every
+    // other value (default included, post-KDS-005) routes through the daemon.
+    if matches!(resolve_kindling_sink(), KindlingSinkSelection::Off) {
         tracing::info!(
             target: "anvil::usage",
             "ANVIL_KINDLING_SINK=off — daemon command.invoked usage producer disabled",
@@ -988,66 +972,43 @@ pub fn daemon_usage_emitter() -> Option<Arc<CommandInvokedEmitter>> {
         return None;
     }
 
-    let path = default_usage_log_path()
+    // KDS-005: the daemon command.invoked producer always routes through the
+    // daemon-backed sink now (the bespoke NDJSON `DaemonUsageSink` is retired).
+    // `repo_id` is left to the client default (its `project_root` / CWD) — the
+    // daemon serves the project it was started in; authoritative per-call
+    // scoping is a follow-up (mirrors the KDS-004 read-side note).
+    let spool = crate::kindling_daemon_sink::default_spool_path()
         .map_err(|err| {
             tracing::warn!(
                 target: "anvil::usage",
                 error = %err,
-                "usage export disabled: could not resolve usage sidecar path",
+                "usage export disabled: could not resolve the kindling spool path",
             );
         })
         .ok()?;
-    // N2 (cross-ref): the daemon runs on a `new_current_thread` tokio
-    // runtime, and `try_emit_command_invoked` does a full sidecar read +
-    // trim + `writeln!` synchronously. Wired RAW (as it was), that blocking
-    // file I/O ran on the single event-loop thread inside async
-    // `handle_connection`, so under disk pressure every allowlisted GCTX
-    // tool call / operator unblock stalled the whole loop. Wrap the sink in
-    // the SAME `NonBlockingObservationSink` decorator the save-time / fence
-    // producers use (`daemon_observation_producers`): one drain thread owns
-    // the blocking write, the dispatch path only `try_send`s an envelope and
-    // returns. Semantics preserved: at-most-once (a full/disconnected
-    // channel drops + counts the row, never duplicates it) and FIFO
-    // ordering per the single bounded `sync_channel`, matching the
-    // best-effort, drop-don't-block contract the save-time sink already has.
-    let inner: Arc<dyn KindlingObservationSink> = match selection {
-        // KDS-001/-002: the daemon-backed Kindling sink. `repo_id` is left to
-        // the client's default (its `project_root` / CWD). The daemon is
-        // per-user and routes per-call via the `X-Kindling-Project` header, so a
-        // single static workspace root resolved here would mis-scope rows when
-        // the daemon's CWD is not the served project (it could even resolve to
-        // `$HOME`). Authoritative per-call `repo_id` scoping is a KDS-004
-        // follow-up.
-        KindlingSinkSelection::Daemon => {
-            match crate::kindling_daemon_sink::default_spool_path()
-                .map_err(|err| KindlingSinkError::Unavailable(err.to_string()))
-                .and_then(|spool| crate::kindling_daemon_sink::KindlingDaemonSink::new(None, spool))
-            {
-                Ok(sink) => Arc::new(sink) as Arc<dyn KindlingObservationSink>,
-                Err(err) => {
-                    // Degrade to the NDJSON sidecar rather than dropping usage
-                    // export entirely: a daemon-sink build failure (e.g. the
-                    // sink runtime could not start) should not silence capture
-                    // the operator opted into. The `path` was resolved above.
-                    tracing::warn!(
-                        target: "anvil::usage",
-                        error = %err,
-                        "ANVIL_KINDLING_SINK=daemon set but the daemon sink could \
-                         not be built; falling back to the NDJSON sidecar",
-                    );
-                    Arc::new(DaemonUsageSink { path }) as Arc<dyn KindlingObservationSink>
-                }
+    let inner: Arc<dyn KindlingObservationSink> =
+        match crate::kindling_daemon_sink::KindlingDaemonSink::new(None, spool) {
+            Ok(sink) => Arc::new(sink) as Arc<dyn KindlingObservationSink>,
+            Err(err) => {
+                // No NDJSON fallback any more (retired) — degrade to no export
+                // rather than silently writing to a retired sidecar path.
+                tracing::warn!(
+                    target: "anvil::usage",
+                    error = %err,
+                    "usage export disabled: the daemon command.invoked sink could not be built",
+                );
+                return None;
             }
-        }
-        KindlingSinkSelection::Ndjson => {
-            Arc::new(DaemonUsageSink { path }) as Arc<dyn KindlingObservationSink>
-        }
-        // `Off` returns `None` via the early return above; reaching this arm
-        // would be a logic bug, so make it loud rather than silently emit.
-        KindlingSinkSelection::Off => {
-            unreachable!("ANVIL_KINDLING_SINK=off is handled by the early return above")
-        }
-    };
+        };
+    // N2 (cross-ref): the daemon runs on a `new_current_thread` tokio runtime,
+    // and the sink's `try_emit_command_invoked` `block_on`s the (capped) spool
+    // append synchronously. Wired RAW, that would run on the single event-loop
+    // thread inside async `handle_connection`, stalling the whole loop. Wrap the
+    // sink in the SAME `NonBlockingObservationSink` decorator the save-time /
+    // fence producers use: one drain thread owns the blocking work, the dispatch
+    // path only `try_send`s an envelope and returns. Semantics preserved:
+    // at-most-once (a full/disconnected channel drops + counts the row, never
+    // duplicates it) and FIFO ordering per the single bounded `sync_channel`.
     let Some(non_blocking) =
         NonBlockingObservationSink::new(inner, DEFAULT_OBSERVATION_CHANNEL_CAPACITY)
     else {
@@ -1401,100 +1362,22 @@ mod tests {
         assert_eq!(arr, serde_json::json!([1, 2, 3]));
     }
 
-    /// USAGE-004: the daemon sink appends `command.invoked` rows to the
-    /// configured path (the JSON-RPC dispatch surface's entry point into
-    /// the shared usage sidecar), and never routes `gate_evaluated` rows.
-    #[test]
-    fn daemon_usage_sink_appends_command_invoked_row() {
-        let dir = tempdir().expect("tempdir");
-        let path = dir.path().join("kindling").join(USAGE_NDJSON);
-        let sink = DaemonUsageSink { path: path.clone() };
+    // KDS-005: the `DaemonUsageSink` NDJSON-writer tests are removed with the
+    // sink itself. The daemon `command.invoked` producer now routes through
+    // `KindlingDaemonSink` (covered by the `kindling_daemon_sink` parity / spool
+    // tests); its non-blocking wrap matches the shared `DaemonObservationSink`
+    // decorator path.
 
-        let ctx = CommandInvocationContext {
-            session_id: "daemon-startup-1",
-            timestamp: "2026-06-18T11:00:00Z",
-            command: "anvil/gctx/search_symbols",
-            principal: "deadbeefcafe",
-            traceparent: Some("00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"),
-        };
-        let obs = from_command_invocation(&ctx, vec![redact_arg("query", Some("Foo"))], Vec::new());
-        sink.try_emit_command_invoked(obs)
-            .expect("daemon sink appends the row");
-
-        let contents = fs::read_to_string(&path).expect("read usage log");
-        let lines: Vec<&str> = contents.lines().collect();
-        assert_eq!(lines.len(), 1, "one NDJSON row per emit");
-        let parsed: CommandInvokedObservation =
-            serde_json::from_str(lines[0]).expect("valid NDJSON row");
-        assert_eq!(parsed.kind, "command.invoked");
-        assert_eq!(parsed.command, "anvil/gctx/search_symbols");
-        assert_eq!(parsed.principal, "deadbeefcafe");
-    }
-
-    /// N2 (cross-ref): the daemon usage sink must be wrapped in the
-    /// `NonBlockingObservationSink` decorator so its blocking sidecar read +
-    /// trim + write runs on a drain thread, NOT inline on the single-thread
-    /// tokio event loop. This mirrors the save-time sink's non-blocking
-    /// test: emit a `command.invoked` row through the SAME wiring
-    /// `daemon_usage_emitter` builds (`DaemonUsageSink` →
-    /// `NonBlockingObservationSink` → `CommandInvokedEmitter`), then drop the
-    /// decorator to flush the drain and assert the row landed in the sidecar
-    /// exactly once. This proves
-    /// the offload preserves the at-most-once / forward-all-on-flush
-    /// semantics the decorator guarantees.
-    #[test]
-    fn daemon_usage_sink_is_wrapped_non_blocking_and_forwards_the_row() {
-        let dir = tempdir().expect("tempdir");
-        let path = dir.path().join("kindling").join(USAGE_NDJSON);
-
-        // Build the production wiring with an explicit temp path.
-        let inner =
-            Arc::new(DaemonUsageSink { path: path.clone() }) as Arc<dyn KindlingObservationSink>;
-        let non_blocking =
-            NonBlockingObservationSink::new(inner, 16).expect("spawn non-blocking usage drain");
-        let sink = Arc::new(non_blocking) as Arc<dyn KindlingObservationSink>;
-
-        let ctx = CommandInvocationContext {
-            session_id: "daemon-startup-2",
-            timestamp: "2026-06-18T12:00:00Z",
-            command: "unblock-worktree",
-            principal: "abc123",
-            traceparent: None,
-        };
-        let obs = from_command_invocation(&ctx, Vec::new(), Vec::new());
-
-        // The decorator's emit returns Ok immediately (offloaded to the
-        // drain) — it never surfaces the inner write outcome.
-        sink.try_emit_command_invoked(obs)
-            .expect("non-blocking emit always returns Ok");
-
-        // Drop the only sink handle: closing the channel + joining the drain
-        // flushes the queued row to the inner sidecar write before returning.
-        drop(sink);
-
-        let contents = fs::read_to_string(&path).expect("read usage log after flush");
-        let lines: Vec<&str> = contents.lines().collect();
-        assert_eq!(
-            lines.len(),
-            1,
-            "exactly one row forwarded through the drain"
-        );
-        let parsed: CommandInvokedObservation =
-            serde_json::from_str(lines[0]).expect("valid NDJSON row");
-        assert_eq!(parsed.kind, "command.invoked");
-        assert_eq!(parsed.command, "unblock-worktree");
-    }
-
-    // ── KDS-002: ANVIL_KINDLING_SINK selection ──────────────────────────
+    // ── KDS-002 / KDS-005: ANVIL_KINDLING_SINK selection ────────────────
 
     #[test]
-    fn parse_kindling_sink_defaults_to_ndjson() {
-        // Unset (None) keeps the default; an explicit empty / whitespace value
-        // (the set-but-empty case) and `ndjson` (any case) also resolve to it.
+    fn parse_kindling_sink_defaults_to_daemon() {
+        // KDS-005: unset / empty / whitespace and the retired `ndjson` value all
+        // resolve to the daemon (the new default).
         for v in [None, Some(""), Some("   "), Some("ndjson"), Some("NDJSON")] {
             assert_eq!(
                 parse_kindling_sink(v),
-                KindlingSinkSelection::Ndjson,
+                KindlingSinkSelection::Daemon,
                 "{v:?}"
             );
         }
@@ -1519,13 +1402,13 @@ mod tests {
     }
 
     #[test]
-    fn parse_kindling_sink_unrecognised_falls_back_to_ndjson() {
-        // A typo must never silently disable (Off) or re-route — it stays on
-        // the NDJSON default so capture is never lost by a bad value.
+    fn parse_kindling_sink_unrecognised_falls_back_to_daemon() {
+        // KDS-005: a typo must never silently disable capture (Off); it resolves
+        // to the daemon default so capture is never lost by a bad value.
         for v in ["daemonn", "sqlite", "true", "1", "disable"] {
             assert_eq!(
                 parse_kindling_sink(Some(v)),
-                KindlingSinkSelection::Ndjson,
+                KindlingSinkSelection::Daemon,
                 "{v:?}"
             );
         }
@@ -1570,9 +1453,9 @@ mod tests {
 
     #[test]
     fn default_unset_still_wires_an_emitter() {
-        // Privacy contract unchanged: with the var unset the daemon producer is
-        // still wired (to the NDJSON sidecar). Re-root state under a temp
-        // ANVIL_HOME so the test never touches the real home.
+        // KDS-005: with the var unset the producer is wired to the daemon sink
+        // (the new default). Re-root state under a temp ANVIL_HOME so the test
+        // never touches the real home.
         let home = tempdir().expect("temp home");
         temp_env::with_vars(
             [
@@ -1583,7 +1466,7 @@ mod tests {
             || {
                 assert!(
                     daemon_usage_emitter().is_some(),
-                    "default/unset must keep wiring the NDJSON usage emitter",
+                    "default/unset must wire the daemon usage emitter (KDS-005 default)",
                 );
             },
         );
@@ -1591,10 +1474,9 @@ mod tests {
 
     #[test]
     fn daemon_selection_wires_an_emitter() {
-        // `ANVIL_KINDLING_SINK=daemon` builds the daemon-backed sink (or falls
-        // back to NDJSON on a build failure) — either way an emitter is wired.
-        // No daemon contact happens at construction. Temp ANVIL_HOME isolates
-        // the spool dir.
+        // `ANVIL_KINDLING_SINK=daemon` builds the daemon-backed sink (capped
+        // spool). No daemon contact happens at construction. Temp ANVIL_HOME
+        // isolates the spool dir.
         let home = tempdir().expect("temp home");
         temp_env::with_vars(
             [

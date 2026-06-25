@@ -1,16 +1,18 @@
 //! KDS-001 / PORT-011: a daemon-backed [`KindlingObservationSink`].
 //!
-//! Anvil's governance observations land today in a per-user `usage.ndjson`
-//! sidecar written by [`crate::usage::DaemonUsageSink`] — a workaround from when
-//! Kindling was not reachable in-process. The Rust-canonical Kindling port now
-//! ships a local daemon (`kindling serve`, HTTP/1 over a Unix domain socket) and
-//! a thin auto-spawning client (`kindling-client`). This module is the
-//! write-side realisation of that: a sink that maps an Anvil observation to a
-//! Kindling `ObservationInput` and appends it through the daemon, with a durable
-//! [`SpooledClient`] fallback so a daemon outage never loses (or surfaces) a row.
+//! Anvil's `command.invoked` governance observations historically landed in a
+//! per-user `usage.ndjson` sidecar (a `DaemonUsageSink`, retired in KDS-005) — a
+//! workaround from when Kindling was not reachable in-process. The Rust-canonical
+//! Kindling port now ships a local daemon (`kindling serve`, HTTP/1 over a Unix
+//! domain socket) and a thin auto-spawning client (`kindling-client`). This
+//! module is the write-side realisation of that: a sink that maps an Anvil
+//! observation to a Kindling `ObservationInput` and appends it through the
+//! daemon, with a durable, capped [`SpooledClient`] fallback so a daemon outage
+//! never loses (or surfaces) a row. Since KDS-005 it is the **default** daemon
+//! `command.invoked` sink (the bespoke NDJSON writer is gone).
 //!
-//! For the PORT-011 proof slice this routes **`command.invoked` only**;
-//! `gate.evaluated` and friends are a fast follow (KDS-001 continuation).
+//! This routes **`command.invoked` only**; `gate.evaluated` and friends are a
+//! fast follow (KDS-001 continuation).
 //!
 //! # Boundary (ADR-064)
 //!
@@ -33,10 +35,23 @@ use anvil_intercept::kindling_observation::{
     CommandInvokedObservation, GateEvaluatedObservation, KindlingObservationSink, KindlingSinkError,
 };
 use anyhow::Context as _;
-use kindling_client::spool::{AppendOutcome, SpoolError, SpooledClient};
+use kindling_client::spool::{AppendOutcome, SpoolConfig, SpoolError, SpooledClient};
 use kindling_client::{Client, ClientConfig, ObservationInput, ObservationKind, ScopeIds};
 use serde_json::{Map, Value};
 use tokio::runtime::Runtime;
+
+/// KDS-005: rolling retention caps on the emit spool, matching the NDJSON
+/// sidecar the spool replaces (`USAGE_SIDECAR_MAX_BYTES` / `_MAX_AGE` in
+/// `usage.rs`, council T5). With the bespoke writer retired the spool is the
+/// only durable buffer, so it must be bounded — otherwise a prolonged daemon
+/// outage grows it without limit.
+const SPOOL_MAX_BYTES: u64 = 64 * 1024 * 1024;
+/// 7 days in milliseconds (the spool cap is age-in-ms; `from_days` is unstable
+/// on Rust 1.95, so compute from a seconds constant).
+const SPOOL_MAX_AGE_MS: i64 = {
+    const DAY_SECS: i64 = 86_400;
+    7 * DAY_SECS * 1000
+};
 
 /// The Anvil observation-contract version stamped into Kindling provenance as
 /// `anvil_contract_version`. Mirrors `OBSERVATION_CONTRACT_VERSION` in the TS
@@ -156,7 +171,12 @@ impl KindlingDaemonSink {
             config.project_root = root;
         }
         let repo_id = Some(config.project_root.clone());
-        let spooled = SpooledClient::new(Client::with_config(config), spool_path);
+        // KDS-005: bound the spool (size + age) so the only durable NDJSON in the
+        // system can't grow without limit under a prolonged daemon outage.
+        let spool_config = SpoolConfig::new(spool_path)
+            .with_max_bytes(SPOOL_MAX_BYTES)
+            .with_max_age_ms(SPOOL_MAX_AGE_MS);
+        let spooled = SpooledClient::with_config(Client::with_config(config), spool_config);
         Self::from_spooled(spooled, repo_id)
     }
 
