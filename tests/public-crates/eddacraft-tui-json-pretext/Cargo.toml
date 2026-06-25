@@ -1,0 +1,12 @@
+[package]
+name = "eddacraft-tui-json-pretext-public-smoke"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+eddacraft-tui = { version = "=0.4.1", features = ["json-render"] }
+ratatui = "0.30"
+serde_json = "1"

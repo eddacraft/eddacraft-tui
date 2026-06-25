@@ -16,6 +16,7 @@
     "test": "pnpm test:js && pnpm test:rust",
     "test:js": "nx run-many -t test --projects=tag:npm:public,tag:npm:private --exclude=@eddacraft/anvil-source --exclude=@eddacraft/anvil-e2e --exclude=@eddacraft/anvil-checks-native",
     "test:rust": "cargo test --workspace",
+    "test:eddacraft-tui-public-smoke": "bash scripts/ci/eddacraft-tui-public-smoke.sh",
     "test:coverage": "pnpm test:coverage:ts && pnpm test:coverage:rust",
     "test:coverage:ts": "nx run-many -t test --projects=tag:npm:public,tag:npm:private --exclude=@eddacraft/anvil-source --exclude=@eddacraft/anvil-e2e --exclude=@eddacraft/anvil-checks-native -- --coverage",
     "test:coverage:rust": "bash scripts/ci/rust-coverage.sh",
