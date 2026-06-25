@@ -42,8 +42,10 @@ package-lock.json
 # misc
 /.sass-cache
 /connect.lock
-/coverage
-apps/coverage/
+# Vitest/Istanbul output (per-package) and nightly Rust coverage artefacts
+coverage/
+coverage-rust.json
+coverage-rust-summary.txt
 /libpeerconnection.log
 npm-debug.log
 yarn-error.log
