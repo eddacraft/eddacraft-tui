@@ -364,12 +364,19 @@ mod tests {
                 transport: kindling_server::Transport::default(),
             };
             let handle = tokio::spawn(async move { serve(config).await });
+            let mut ready = false;
             for _ in 0..400 {
                 if socket_path.exists() {
+                    ready = true;
                     break;
                 }
                 tokio::time::sleep(Duration::from_millis(5)).await;
             }
+            assert!(
+                ready,
+                "test kindling daemon socket never appeared: {}",
+                socket_path.display(),
+            );
             Self {
                 socket_path,
                 _home: home,

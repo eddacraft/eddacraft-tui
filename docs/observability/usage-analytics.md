@@ -162,8 +162,9 @@ standing questions — "what is being used and what is not" — over the local u
 data. It is local-only and needs no authentication (like `anvil insights`). It
 reads `<credentials_dir>/kindling/usage.ndjson` and, under
 `ANVIL_KINDLING_SINK=daemon`, **also the Kindling daemon** (KDS-004) — unioning
-the two — so the views stay complete whichever sink is active. Pass `--json` for
-machine-readable output; the default is a small human table.
+the two so the views see every row whichever sink is active (degrading to
+sidecar-only, with a note, if the daemon can't be read — see below). Pass
+`--json` for machine-readable output; the default is a small human table.
 
 > **Source under `ANVIL_KINDLING_SINK=daemon` (KDS-004).** The CLI producer
 > always records to the sidecar; the daemon JSON-RPC producer records to the

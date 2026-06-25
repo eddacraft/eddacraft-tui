@@ -73,8 +73,8 @@ fn run_anvil_stdout(home: &Path, args: &[&str]) -> String {
 /// command degrades gracefully — it does NOT spawn a daemon (read-only), keeps
 /// the sidecar rows on (clean, JSON-parseable) stdout, and prints the
 /// daemon-unreadable note to stderr. Deterministic because the read client uses
-/// a non-spawning spawner. (The daemon-reachable union + pagination is unit
-/// -tested against an in-process daemon.)
+/// a non-spawning spawner. (The daemon-reachable union + pagination is
+/// unit-tested against an in-process daemon.)
 #[test]
 fn daemon_sink_degrades_to_sidecar_when_daemon_unreachable() {
     let home = tempdir().expect("home");
