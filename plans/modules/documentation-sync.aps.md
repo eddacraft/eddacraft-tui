@@ -9,7 +9,7 @@ See: plans/aps-rules.md
 
 | ID      | Owner | Status      | Progress |
 | ------- | ----- | ----------- | -------- |
-| DOCSYNC | —     | In Progress | 14/19    |
+| DOCSYNC | —     | In Progress | 15/20    |
 
 ## Purpose
 
@@ -40,7 +40,7 @@ release refresh is scheduled here. Host wiring for those sections is tracked by
 - **Rust migration docs:** Install, CI, troubleshooting updated for native binary
 - **Docs-site sync:** Keep public docs in sync with feature releases
 - **API reference:** Auto-generate from OpenAPI spec (feeds into API governance)
-- **Tutorial updates:** Keep tutorials current as surfaces change (Ink → Ratatui)
+- **Tutorial updates:** Keep tutorials current as surfaces change (Ink → Ratatui), and keep shell examples usable from macOS, Linux, and Windows PowerShell.
 - **Multi-version docs:** Support docs for current + previous release
 
 ## Out of Scope
@@ -98,6 +98,7 @@ release refresh is scheduled here. Host wiring for those sections is tracked by
 - DOCSYNC-023: Full Kindling public docs refresh for upstream 0.2.0 (sibling `eddacraft/kindling`)
 - DOCSYNC-024: Full refresh of `docs/public/aps/` against `anvil-plan-spec` v0.4.0
 - DOCSYNC-025: Refresh Anvil public docs for current daemon and MCP surfaces
+- DOCSYNC-026: Cross-platform tutorial command examples
 
 ### Scanner / Two-Engine State (from RSCAN-008 council review, 2026-04-21)
 
@@ -115,9 +116,9 @@ release refresh is scheduled here. Host wiring for those sections is tracked by
 | Phase                           | Total | Done | In Progress | Draft |
 | ------------------------------- | ----- | ---- | ----------- | ----- |
 | Rust CLI Migration              |    10 |    9 |           0 |     1 |
-| Future                          |     8 |    5 |           0 |     3 |
+| Future                          |     9 |    6 |           0 |     3 |
 | Scanner / Two-Engine State      |     1 |    0 |           0 |     1 |
-| **Total**                       |    19 |   14 |           0 |     5 |
+| **Total**                       |    20 |   15 |           0 |     5 |
 
 ### Item Detail
 
@@ -142,6 +143,7 @@ release refresh is scheduled here. Host wiring for those sections is tracked by
 | DOCSYNC-023 | Done   | Full `docs/public/kindling/` refresh against upstream `eddacraft/kindling` v0.2.0: `demo`/`browse`, thin-client adapters, integrations matrix, VS Code adapter, 0.2 crate versions, retrieval score range, removed stale `list` flags |
 | DOCSYNC-024 | Done   | `docs/public/aps/**` aligned to `anvil-plan-spec` v0.4.0: terminology, CLI, file layout, examples |
 | DOCSYNC-025 | Done   | Anvil public docs refreshed for current daemon lifecycle, MCP targets, watch NDJSON lifecycle wording, and safer daemon reset guidance |
+| DOCSYNC-026 | Done   | Public tutorials and terminal tutorial policy-directory step now include macOS/Linux and Windows PowerShell/native-shell variants |
 
 ### Reassigned items (out of DOCSYNC totals)
 

@@ -20,18 +20,38 @@ repository through the discovery path and ends where daily value starts.
   [Quickstart](../quickstart.md)
 - A Rust project (anything with a `Cargo.toml` and `.rs` sources)
 
+The Rust tutorial commands are the same on macOS, Linux, and Windows. Run them
+from the Rust project's root in macOS Terminal/iTerm, a Linux shell, or Windows
+PowerShell.
+
 ## 1. Two ways in: guided or direct
 
 From the root of your Rust repo, the guided route is the welcome surface:
 
+macOS / Linux:
+
 ```bash
+anvil welcome
+```
+
+Windows PowerShell:
+
+```powershell
 anvil welcome
 ```
 
 `anvil welcome` runs a discovery scan over your repo and walks you through what
 it finds. If you prefer the direct route, run the scanner yourself:
 
+macOS / Linux:
+
 ```bash
+anvil check --all
+```
+
+Windows PowerShell:
+
+```powershell
 anvil check --all
 ```
 
@@ -70,7 +90,15 @@ the risk concentrates.
 Info-severity findings are counted in the default summary; to list each one, add
 `--verbose`:
 
+macOS / Linux:
+
 ```bash
+anvil check --all --verbose
+```
+
+Windows PowerShell:
+
+```powershell
 anvil check --all --verbose
 ```
 
@@ -113,7 +141,15 @@ let port = bounds_checked_port.unwrap(); // @anvil-ignore RS-001 -- bounds check
 Activation surfaces tell you exactly what coverage you are getting. Run the
 read-only probe:
 
+macOS / Linux:
+
 ```bash
+anvil start --verify
+```
+
+Windows PowerShell:
+
+```powershell
 anvil start --verify
 ```
 
@@ -139,7 +175,15 @@ Architecture and boundary checks for Rust — like every language — run when a
 Discovery shows you what is already there; the daily win is catching the next
 escape hatch as it happens. Activate protection:
 
+macOS / Linux:
+
 ```bash
+anvil start
+```
+
+Windows PowerShell:
+
+```powershell
 anvil start
 ```
 

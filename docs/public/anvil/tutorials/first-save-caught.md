@@ -37,10 +37,19 @@ yourself, so you can see each step fire.
 
 ## 2. Activate protection: `anvil start`
 
-From the root of your project, run:
+From the root of your project, run the command for your shell:
+
+macOS / Linux:
 
 ```bash
 cd path/to/your/repo
+anvil start
+```
+
+Windows PowerShell:
+
+```powershell
+Set-Location C:\path\to\your\repo
 anvil start
 ```
 
@@ -66,13 +75,30 @@ Save-time validation is served by the anvil daemon, which runs as its own
 process — neither `anvil start` nor `anvil watch` launches it for you. Start it
 in a dedicated terminal (foreground is the validated launch mode for the beta):
 
+macOS / Linux:
+
 ```bash
 anvil intercept start --foreground
 ```
 
-Then, in a second terminal, start the watcher:
+Windows PowerShell:
+
+```powershell
+anvil intercept start --foreground
+```
+
+Keep that foreground daemon terminal open. Then, in a second terminal or
+PowerShell tab, start the watcher:
+
+macOS / Linux:
 
 ```bash
+anvil watch --source
+```
+
+Windows PowerShell:
+
+```powershell
 anvil watch --source
 ```
 
@@ -84,8 +110,25 @@ When a live daemon answers, watch routes save-time validation through it by
 default — faster verdicts, plus a workspace assurance state you can read at any
 time with `anvil status`. Without a daemon, watch silently falls back to a
 scoped in-process check, so the rest of this walk still works — you just lose
-the assurance state. Set `ANVIL_WATCH_DAEMON=0` to opt out of daemon routing, or
-`=1` to force it; see `anvil watch --help` for the routing details.
+the assurance state. Use a per-command environment variable when you need to
+choose daemon routing:
+
+macOS / Linux:
+
+```bash
+ANVIL_WATCH_DAEMON=0 anvil watch --source   # opt out
+ANVIL_WATCH_DAEMON=1 anvil watch --source   # force daemon routing
+```
+
+Windows PowerShell:
+
+```powershell
+$env:ANVIL_WATCH_DAEMON = "0"; anvil watch --source   # opt out
+$env:ANVIL_WATCH_DAEMON = "1"; anvil watch --source   # force daemon routing
+Remove-Item Env:\ANVIL_WATCH_DAEMON
+```
+
+See `anvil watch --help` for the routing details.
 
 ## 4. Make a deliberately bad save
 
@@ -129,7 +172,15 @@ verdict reports zero findings.
 
 At any point, ask anvil where you stand:
 
+macOS / Linux:
+
 ```bash
+anvil status
+```
+
+Windows PowerShell:
+
+```powershell
 anvil status
 ```
 
@@ -151,7 +202,15 @@ pretending to a stale `clean`:
 To probe the full activation state without writing any config, use the read-only
 verifier:
 
+macOS / Linux:
+
 ```bash
+anvil status --verify
+```
+
+Windows PowerShell:
+
+```powershell
 anvil status --verify
 ```
 
@@ -159,8 +218,16 @@ anvil status --verify
 
 Remove the scratch file if you have not already:
 
+macOS / Linux:
+
 ```bash
-rm src/anvil-demo.ts
+rm -f src/anvil-demo.ts
+```
+
+Windows PowerShell:
+
+```powershell
+Remove-Item .\src\anvil-demo.ts -ErrorAction SilentlyContinue
 ```
 
 You have now seen the whole loop: a change, a verdict, a posture you can verify.

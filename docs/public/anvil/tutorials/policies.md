@@ -16,23 +16,41 @@ convention.
 - **OPA** binary installed
   ([install guide](https://www.openpolicyagent.org/docs/latest/#running-opa))
 
-Verify OPA is available:
+Verify OPA is available from your shell:
+
+macOS / Linux:
 
 ```bash
 opa version
 ```
 
+Windows PowerShell:
+
+```powershell
+opa version
+```
+
 ## 1. Create the Policies Directory
+
+macOS / Linux:
 
 ```bash
 mkdir -p .anvil/policies
+```
+
+Windows PowerShell:
+
+```powershell
+New-Item -ItemType Directory -Force .anvil/policies | Out-Null
 ```
 
 anvil loads every `.rego` file in this directory automatically.
 
 ## 2. Write the Policy
 
-Create `.anvil/policies/service_names.rego`:
+Create `.anvil/policies/service_names.rego` with your editor. On Windows,
+PowerShell accepts the same forward-slash path, or you can use
+`.anvil\policies\service_names.rego` if your editor prefers native paths:
 
 ```rego
 package anvil.policies.service_names
@@ -66,7 +84,15 @@ How it works:
 
 Ask anvil to discover policy test files:
 
+macOS / Linux:
+
 ```bash
+anvil policy test
+```
+
+Windows PowerShell:
+
+```powershell
 anvil policy test
 ```
 
@@ -76,7 +102,15 @@ Found 1 test file(s) in '.anvil/policies' but policy test execution is not yet i
 
 To execute Rego tests today, use OPA directly:
 
+macOS / Linux:
+
 ```bash
+opa test .anvil/policies
+```
+
+Windows PowerShell:
+
+```powershell
 opa test .anvil/policies
 ```
 
@@ -85,7 +119,15 @@ using standard OPA test conventions. :::
 
 ## 4. Run the Policy
 
+macOS / Linux:
+
 ```bash
+anvil gate --only-checks policy
+```
+
+Windows PowerShell:
+
+```powershell
 anvil gate --only-checks policy
 ```
 

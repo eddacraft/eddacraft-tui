@@ -84,6 +84,22 @@ fn step_with_watch(
     }
 }
 
+fn create_policy_directory_command() -> &'static str {
+    if cfg!(windows) {
+        r"if not exist .anvil\policies mkdir .anvil\policies"
+    } else {
+        "mkdir -p .anvil/policies"
+    }
+}
+
+fn create_policy_directory_instruction() -> &'static str {
+    if cfg!(windows) {
+        r"Run: if not exist .anvil\policies mkdir .anvil\policies"
+    } else {
+        "Run: mkdir -p .anvil/policies"
+    }
+}
+
 /// LAUNCH-014: the value-first default tutorial path. Walks the
 /// protection loop in five informational steps without claiming
 /// pre-write protection — the final step points users at
@@ -143,14 +159,14 @@ pub fn policy_steps() -> Vec<TutorialStep> {
             "Press enter to continue to the next step.",
         ),
         TutorialStep {
-            command: Some("mkdir -p .anvil/policies".to_string()),
+            command: Some(create_policy_directory_command().to_string()),
             verify: Some(Verify::FileExists(".anvil/policies".to_string())),
             verify_hint: Some("The directory was not created. Check permissions.".to_string()),
             watch_path: Some(".anvil/policies".to_string()),
             ..step(
                 "Create Policy Directory",
-                "anvil looks for policies in the .anvil/policies/ directory. Create this directory in your project root so anvil can discover your custom Rego rules.",
-                "Run: mkdir -p .anvil/policies",
+                "anvil looks for policies in the .anvil/policies/ directory. Create this directory in your project root so anvil can discover your custom Rego rules. The tutorial uses the native directory-creation command for your shell: `mkdir -p` on macOS/Linux and `if not exist ... mkdir ...` through cmd.exe on Windows.",
+                create_policy_directory_instruction(),
             )
         },
         step_with_watch(
@@ -396,6 +412,19 @@ mod tests {
     }
 
     #[test]
+    fn create_policy_directory_command_is_platform_native() {
+        let command = create_policy_directory_command();
+        if cfg!(windows) {
+            assert_eq!(
+                command,
+                r"if not exist .anvil\policies mkdir .anvil\policies"
+            );
+        } else {
+            assert_eq!(command, "mkdir -p .anvil/policies");
+        }
+    }
+
+    #[test]
     fn policy_steps_have_correct_commands() {
         let steps = policy_steps();
         // Introduction — no command
@@ -407,7 +436,7 @@ mod tests {
         // Create Policy Directory — has command + verify + watch
         assert_eq!(
             steps[1].command.as_deref(),
-            Some("mkdir -p .anvil/policies")
+            Some(create_policy_directory_command())
         );
         assert!(
             steps[1].verify.is_some(),

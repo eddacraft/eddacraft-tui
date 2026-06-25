@@ -18,6 +18,11 @@ validating boundaries.
 - A TypeScript, JavaScript, or Rust project with at least a few directories
   under `src/`
 
+The commands in this tutorial are the same on macOS, Linux, and Windows. On
+Windows, run them from PowerShell in the project root; keep the YAML patterns
+with forward slashes (`src/services/**`) because anvil treats them as
+workspace-relative globs, not native shell paths.
+
 ## 1. Plan Your Layers
 
 Before writing config, decide which directories form distinct layers. Common
@@ -112,7 +117,15 @@ never a false violation.
 
 Check that your architecture file is well-formed:
 
+macOS / Linux:
+
 ```bash
+anvil architecture validate
+```
+
+Windows PowerShell:
+
+```powershell
 anvil architecture validate
 ```
 
@@ -123,7 +136,15 @@ before proceeding.
 
 View the architecture as anvil sees it:
 
+macOS / Linux:
+
 ```bash
+anvil architecture show
+```
+
+Windows PowerShell:
+
+```powershell
 anvil architecture show
 ```
 
@@ -134,7 +155,15 @@ This prints the resolved layers, allowed/denied imports, and file counts.
 This command runs the import-boundary gate across your codebase. In this
 tutorial, the relevant findings come from the architecture check family.
 
+macOS / Linux:
+
 ```bash
+anvil gate --only-checks import-boundaries
+```
+
+Windows PowerShell:
+
+```powershell
 anvil gate --only-checks import-boundaries
 ```
 

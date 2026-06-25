@@ -15,9 +15,21 @@ snapshots over time.
 - anvil initialised with architecture boundaries configured
 - At least one successful `anvil check --all` run
 
+The drift commands are identical on macOS, Linux, and Windows. On Windows,
+PowerShell displays snapshot paths with backslashes on disk, but the snapshot
+names and `.anvilrc` values stay the same.
+
 ## 1. Capture a Baseline Snapshot
 
+macOS / Linux:
+
 ```bash
+anvil drift snapshot --name baseline
+```
+
+Windows PowerShell:
+
+```powershell
 anvil drift snapshot --name baseline
 ```
 
@@ -34,7 +46,15 @@ A snapshot records every module and every dependency edge at a point in time.
 
 ## 2. List Available Snapshots
 
+macOS / Linux:
+
 ```bash
+anvil drift list
+```
+
+Windows PowerShell:
+
+```powershell
 anvil drift list
 ```
 
@@ -54,7 +74,15 @@ deadline.
 
 ## 4. Capture a New Snapshot
 
+macOS / Linux:
+
 ```bash
+anvil drift snapshot --name after-changes
+```
+
+Windows PowerShell:
+
+```powershell
 anvil drift snapshot --name after-changes
 ```
 
@@ -69,7 +97,15 @@ Snapshot saved to .anvil/snapshots/after-changes.json
 
 ## 5. Compare Snapshots
 
+macOS / Linux:
+
 ```bash
+anvil drift compare baseline after-changes
+```
+
+Windows PowerShell:
+
+```powershell
 anvil drift compare baseline after-changes
 ```
 
@@ -117,7 +153,15 @@ Add a drift budget to `.anvilrc` to fail CI when drift exceeds a threshold:
 
 With `maxViolations: 0`, any new boundary-crossing edge fails the check:
 
+macOS / Linux:
+
 ```bash
+anvil check --all
+```
+
+Windows PowerShell:
+
+```powershell
 anvil check --all
 ```
 

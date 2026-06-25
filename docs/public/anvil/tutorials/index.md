@@ -17,6 +17,11 @@ same story as [Your First Save Caught](first-save-caught.md): the protection
 loop, a deliberate escape hatch, the finding, the state vocabulary, and a real
 `anvil start --verify` against your repo.
 
+Platform notes are called out where shell syntax differs. The `anvil` CLI
+subcommands themselves are the same from macOS Terminal or iTerm, Linux shells,
+and Windows PowerShell; path creation, environment variables, and cleanup use
+platform-specific examples.
+
 ## The daily-value path — `anvil start`
 
 Daemon-backed save-time protection that validates files as you (or your AI
