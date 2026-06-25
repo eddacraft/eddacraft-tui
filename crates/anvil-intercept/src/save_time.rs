@@ -2549,16 +2549,17 @@ fn redact_gctx_snippet(text: &str) -> Redaction {
 /// (GCTX-021/023). The substrate scans with `standard_filters(false)`, so
 /// gitignored content (build output, untracked local configs) is graph-resident;
 /// snippet egress must omit it. Built daemon-side from the admitted root (the leaf
-/// projector stays fs-free) and injected as a predicate. Best-effort: a missing or
-/// malformed `.gitignore` yields an empty matcher (nothing ignored) — the static
-/// deny-list, secret scan, and freshness check still apply. Built per call (off
-/// the hot save-time path); cache if snippet traffic ever warrants it.
-fn workspace_gitignore(root: &std::path::Path) -> ignore::gitignore::Gitignore {
+/// projector stays fs-free) and injected as a predicate. A *missing* `.gitignore`
+/// is not an error — it yields an empty matcher (nothing ignored, `Some`). But a
+/// matcher that **cannot be built** (a malformed `.gitignore`) returns `None`, and
+/// the caller then **fails closed** — every file is treated as gitignored and its
+/// text withheld — rather than silently disabling the CE-3 filter and leaking
+/// gitignored source. Built per call (off the hot save-time path); cache if
+/// snippet traffic ever warrants it.
+fn workspace_gitignore(root: &std::path::Path) -> Option<ignore::gitignore::Gitignore> {
     let mut builder = ignore::gitignore::GitignoreBuilder::new(root);
     let _ = builder.add(root.join(".gitignore"));
-    builder
-        .build()
-        .unwrap_or_else(|_| ignore::gitignore::Gitignore::empty())
+    builder.build().ok()
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -2594,7 +2595,13 @@ fn gctx_get_snippet_outcome(
             // CE-3: omit gitignored files from snippet egress. Build the matcher
             // before taking the cache lock (it does fs I/O).
             let gitignore = workspace_gitignore(key.as_path());
-            let is_gitignored = |f: &str| gitignore.matched(f, false).is_ignore();
+            // CE-3 fail-closed: a matcher that could not be built (malformed
+            // `.gitignore`) ⇒ treat every file as gitignored so text is withheld.
+            let is_gitignored = |f: &str| {
+                gitignore
+                    .as_ref()
+                    .is_none_or(|gi| gi.matched(f, false).is_ignore())
+            };
             let resolved = state.cache.with_graphs(key, |sym, _dep| {
                 GctxProjector::resolve_snippet_location(sym, &query.target, &is_gitignored)
             });
@@ -2706,7 +2713,13 @@ fn gctx_symbol_context_outcome(
             // CE-3: omit gitignored files from snippet/context egress. Built before
             // the cache lock (fs I/O).
             let gitignore = workspace_gitignore(key.as_path());
-            let is_gitignored = |f: &str| gitignore.matched(f, false).is_ignore();
+            // CE-3 fail-closed: a matcher that could not be built (malformed
+            // `.gitignore`) ⇒ treat every file as gitignored so text is withheld.
+            let is_gitignored = |f: &str| {
+                gitignore
+                    .as_ref()
+                    .is_none_or(|gi| gi.matched(f, false).is_ignore())
+            };
             let collected = state.cache.with_graphs(key, |sym, dep| {
                 let candidates = GctxProjector::collect_context_candidates(
                     sym,

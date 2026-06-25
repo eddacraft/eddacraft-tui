@@ -4430,7 +4430,7 @@ mod tests {
             "CE-3: a gitignored file must be omitted entirely",
         );
         // Control: with nothing gitignored the same symbol resolves.
-        assert!(GctxProjector::resolve_snippet_location(&g, &target, &|_: &str| false).is_some(),);
+        assert!(GctxProjector::resolve_snippet_location(&g, &target, &|_: &str| false).is_some());
     }
 
     #[test]

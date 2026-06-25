@@ -5,7 +5,8 @@
 # fails unless primary observables appear in the logs.
 #
 # Usage:
-#   SCRATCH=/tmp/grok-goal-702d0af3ed1f/implementer ./scripts/gctx-goal-verify.sh
+#   ./scripts/gctx-goal-verify.sh            # logs to a fresh mktemp dir
+#   SCRATCH=/path/to/logs ./scripts/gctx-goal-verify.sh   # or a chosen dir
 #
 # Exit codes:
 #   0 — all gates passed
@@ -16,7 +17,9 @@ set -euo pipefail
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 
-SCRATCH="${SCRATCH:-${TMPDIR:-/tmp}/gctx-goal-verify}"
+# Default to a unique per-run dir so concurrent runs do not clobber each other's
+# fixed-name logs; an explicit SCRATCH overrides.
+SCRATCH="${SCRATCH:-$(mktemp -d "${TMPDIR:-/tmp}/gctx-goal-verify.XXXXXX")}"
 mkdir -p "$SCRATCH"
 
 log() {
