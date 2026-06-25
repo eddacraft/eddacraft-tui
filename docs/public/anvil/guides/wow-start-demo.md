@@ -309,12 +309,12 @@ The wow-start gets you to `protecting` (or the honest reason you are not there).
 The guardrail demo is what protection actually looks like when an AI agent
 collides with it.
 
-## What is honest in v0.7.x-beta
+## What is honest in the current beta
 
 The wow-start is a real product surface, not a recording-only setup, but several
-things you might expect from the brainstorm phase are explicitly **not
-shipping** in `v0.7.x-beta`. Calling these out so the demo doesn't carry
-implicit claims it can't back:
+things you might expect from the brainstorm phase are explicitly **not** part of
+the current beta. Calling these out so the demo doesn't carry implicit claims it
+can't back:
 
 What `anvil start` does **not** do today:
 
@@ -332,13 +332,16 @@ What `anvil start` does **not** do today:
   wired itself — the entries in `~/.cursor/mcp.json` and `~/.claude.json` it
   just wrote.
 
-Operator caveats carried forward from `v0.6.0-beta` (see the
-[v0.7.0-beta release runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/v0.7.0-beta-release-runbook.md)
-for the current operator surface):
+Current operator caveats (see the
+[save-time validation guide](save-time-validation.md) for daemon lifecycle and
+fallback behaviour):
 
-- **Foreground daemon only.** `anvil intercept start --foreground` is the only
-  validated launch mode for v1. Operators running under systemd / launchd should
-  run foreground under the manager's supervision.
+- **Daemon lifecycle is managed on interactive Unix.** In `v0.8.1-beta`, an
+  interactive `anvil start` auto-starts the per-user daemon, and an interactive
+  `anvil watch` offers to start one. Headless, `--json`, CI, hook, and piped
+  runs never prompt or start a daemon unattended.
+  `anvil intercept start --foreground` remains the debugging and Windows launch
+  path.
 - **`anvil intercept status` works on every supported target.** The Windows
   named-pipe client ships in `v0.6.0-beta`. `v0.7.1-beta` adds Windows MCP
   named-pipe parity too, so `anvil_validate_write` can report daemon status and
@@ -362,7 +365,10 @@ If you are recording the demo and want a fresh-state run, the reset path mirrors
 the AI Guardrail Demo runbook. Run from inside the demo repo:
 
 ```bash
-# Stop the foreground daemon (Ctrl-C in its terminal, or SIGTERM by PID).
+# Unix: stop a background daemon through anvil's lifecycle command.
+anvil intercept stop
+
+# Windows or foreground daemon: press Ctrl-C in the terminal it is attached to.
 # If you only need to clear a Unix fence, prefer:
 # anvil intercept unblock --worktree "$PWD"
 

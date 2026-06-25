@@ -200,8 +200,8 @@ git clean -fd
 # Unix: clear just this repo's fence state.
 anvil intercept unblock --worktree "$PWD"
 
-# Windows or corrupt daemon state: stop the foreground daemon
-# (Ctrl-C in its terminal, or SIGTERM by PID), then restart it.
+# Windows or corrupt daemon state: stop the foreground daemon with Ctrl-C
+# if it is attached to a terminal, then restart it.
 anvil intercept start --foreground
 ```
 
@@ -211,7 +211,10 @@ clears all fence state for the user.
 To wipe everything and start over:
 
 ```bash
-# Stop the foreground daemon (Ctrl-C in its terminal, or SIGTERM by PID)
+# Unix: stop a background daemon through anvil's lifecycle command.
+anvil intercept stop
+
+# Windows or foreground daemon: press Ctrl-C in the terminal it is attached to.
 rm -rf ~/anvil-demo
 rm -rf "${XDG_RUNTIME_DIR:-$HOME/.local/state}/anvil"
 rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/anvil"

@@ -544,15 +544,16 @@ scoop update anvil
   `anvil_validate_write` is always `not-wired` on Windows because the MCP daemon
   validation client is gated `cfg(unix)`. That narrower fix lands as part of
   `chore/windows-status`.
-- **Operator-visible defaults you should know about.** The foreground daemon is
-  the only supported launch mode in v1 (`anvil intercept start --foreground`).
-  The `anvil intercept stop` and `anvil intercept unblock` CLI subcommands are
-  not wired in v1 — a follow-up INTD task wires the front-end. Fences persist
-  across daemon restart by design; recovery is to stop the foreground daemon
-  (Ctrl-C, or SIGTERM by PID) and remove
-  `${XDG_DATA_HOME:-$HOME/.local/share}/anvil`. On macOS, the interrupt ladder
-  is fence-first this release because `current_process_start_time` lacks a macOS
-  branch.
+- **Operator-visible defaults you should know about.** The foreground daemon was
+  the only supported launch mode in the 0.6.0-beta v1 path
+  (`anvil intercept start --foreground`), and the `anvil intercept stop` /
+  `anvil intercept unblock` front-end commands were not wired in that release.
+  Fences persist across daemon restart by design. For current recovery guidance,
+  prefer `anvil intercept unblock --worktree <path>` where supported,
+  `anvil intercept stop` for a Unix background daemon, or Ctrl-C for a
+  foreground daemon before removing `${XDG_DATA_HOME:-$HOME/.local/share}/anvil`
+  as a full reset. On macOS, the interrupt ladder is fence-first this release
+  because `current_process_start_time` lacks a macOS branch.
 
 ## Upgrading to 0.5.1-beta
 

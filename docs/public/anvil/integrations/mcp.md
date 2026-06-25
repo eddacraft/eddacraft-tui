@@ -65,7 +65,7 @@ anvil start --verify   # probe state, no writes
 If you only need to re-run the install in isolation, use `anvil mcp install`
 directly (next section). For workspace-scoped paths against Cursor or Claude
 Code, use `anvil mcp-config` further down. Windsurf and VS Code are not
-currently `mcp-config` targets in the `v0.7.x-beta` line — see the manual
+currently `mcp-config` targets in the current Rust CLI — see the manual
 configuration section.
 
 ## One-Step Install with `anvil mcp install`
@@ -335,9 +335,9 @@ The legacy Node MCP server exposes read-only resources:
 | `anvil://patterns`             | Anti-pattern catalogue                        |
 | `anvil://suppressions`         | Active suppressions with expiry dates         |
 
-These resource names describe the legacy Node surface. The planned Rust MCP
-migration will either port or retire them explicitly. Where resources are
-ported, their data source is the active Rust surface: constraints from
+These resource names describe the legacy Node surface. The Rust MCP migration
+will either port or retire them explicitly. Where resources are ported, their
+data source is the active Rust surface: constraints from
 `anvil export --format mcp-resource`, drift from `anvil drift`, and suppressions
 from the Rust `.anvil/suppressions.json` readers. The archived TypeScript
 `runtime/export` pipeline is historical fixture material only.

@@ -10,7 +10,7 @@ sidebar_position: 4
 
 | Type        | Authority     | Owner                                                                                                                                                              | Status | Freshness                                                                    |
 | ----------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------ | ---------------------------------------------------------------------------- |
-| Public docs | Authoritative | WOUT ([`plans/archive/modules/watch-output-contract.aps.md`](https://github.com/eddacraft/anvil-001/blob/main/plans/archive/modules/watch-output-contract.aps.md)) | Live   | Last reviewed 2026-06-08 against `main` for the v0.8.0-beta consumer surface |
+| Public docs | Authoritative | WOUT ([`plans/archive/modules/watch-output-contract.aps.md`](https://github.com/eddacraft/anvil-001/blob/main/plans/archive/modules/watch-output-contract.aps.md)) | Live   | Last reviewed 2026-06-25 against `main` for the v0.8.1-beta consumer surface |
 
 | Upstream                                                                                                                                            | Downstream                                                                              |
 | --------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
@@ -38,7 +38,7 @@ The stream is identical whether `anvil watch` runs its own scoped `check` per
 save or routes save-time validation through the resident daemon (the default
 when the daemon is live; `ANVIL_WATCH_DAEMON=0` opts out). The backing changes;
 the event contract does not — so consumers never need to branch on it. The
-`v0.9.0-beta` daemon lifecycle offer (an interactive `anvil watch` offering to
+`v0.8.1-beta` daemon lifecycle offer (an interactive `anvil watch` offering to
 start a daemon) never appears under `--json`: the lifecycle line is suppressed
 and no prompt is shown, so the stdout stream stays pure NDJSON.
 
