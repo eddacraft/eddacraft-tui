@@ -1527,7 +1527,7 @@ section above; this block focuses on the build-time runtime surface.
 | figures | 3.2.0 | MIT | https://github.com/sindresorhus/figures |
 | flat | 5.0.2 | BSD-3-Clause | https://github.com/hughsk/flat |
 | follow-redirects | 1.16.0 | MIT | https://github.com/follow-redirects/follow-redirects |
-| form-data | 4.0.6 | MIT | https://github.com/form-data/form-data |
+| form-data | 4.0.5 | MIT | https://github.com/form-data/form-data |
 | fs-constants | 1.0.0 | MIT | https://github.com/mafintosh/fs-constants |
 | fs.realpath | 1.0.0 | ISC | https://github.com/isaacs/fs.realpath |
 | function-bind | 1.1.2 | MIT | https://github.com/Raynos/function-bind |
@@ -1544,7 +1544,6 @@ section above; this block focuses on the build-time runtime surface.
 | has-tostringtag | 1.0.2 | MIT | https://github.com/inspect-js/has-tostringtag |
 | hasown | 2.0.2 | MIT | https://github.com/inspect-js/hasOwn |
 | hasown | 2.0.3 | MIT | https://github.com/inspect-js/hasOwn |
-| hasown | 2.0.4 | MIT | https://github.com/inspect-js/hasOwn |
 | hosted-git-info | 2.8.9 | ISC | https://github.com/npm/hosted-git-info |
 | husky | 9.1.7 | MIT | https://github.com/typicode/husky |
 | ieee754 | 1.2.1 | BSD-3-Clause | https://github.com/feross/ieee754 |
@@ -1562,7 +1561,7 @@ section above; this block focuses on the build-time runtime surface.
 | is-interactive | 1.0.0 | MIT | https://github.com/sindresorhus/is-interactive |
 | is-unicode-supported | 0.1.0 | MIT | https://github.com/sindresorhus/is-unicode-supported |
 | is-wsl | 2.2.0 | MIT | https://github.com/sindresorhus/is-wsl |
-| js-yaml | 4.2.0 | MIT | https://github.com/nodeca/js-yaml |
+| js-yaml | 4.1.1 | MIT | https://github.com/nodeca/js-yaml |
 | json-parse-even-better-errors | 2.3.1 | MIT | https://github.com/npm/json-parse-even-better-errors |
 | json5 | 2.2.3 | MIT | https://github.com/json5/json5 |
 | jsonc-parser | 3.2.0 | MIT | https://github.com/microsoft/node-jsonc-parser |
@@ -1577,7 +1576,7 @@ section above; this block focuses on the build-time runtime surface.
 | linkify-it | 5.0.1 | MIT | https://github.com/markdown-it/linkify-it |
 | log-symbols | 4.1.0 | MIT | https://github.com/sindresorhus/log-symbols |
 | magic-string | 0.30.21 | MIT | https://github.com/Rich-Harris/magic-string |
-| markdown-it | 14.2.0 | MIT | https://github.com/markdown-it/markdown-it |
+| markdown-it | 14.1.1 | MIT | https://github.com/markdown-it/markdown-it |
 | markdownlint-cli | 0.48.0 | MIT | https://github.com/igorshubovych/markdownlint-cli |
 | markdownlint | 0.40.0 | MIT | https://github.com/DavidAnson/markdownlint |
 | math-intrinsics | 1.1.0 | MIT | https://github.com/es-shims/math-intrinsics |
@@ -1686,7 +1685,7 @@ section above; this block focuses on the build-time runtime surface.
 | tinyglobby | 0.2.17 | MIT | https://github.com/SuperchupuDev/tinyglobby |
 | tinypool | 2.1.0 | MIT | https://github.com/tinylibs/tinypool |
 | tinyrainbow | 3.1.0 | MIT | https://github.com/tinylibs/tinyrainbow |
-| tmp | 0.2.7 | MIT | https://github.com/raszi/node-tmp |
+| tmp | 0.2.6 | MIT | https://github.com/raszi/node-tmp |
 | tree-kill | 1.2.2 | MIT | https://github.com/pkrumins/node-tree-kill |
 | treeify | 1.1.0 | MIT | https://github.com/notatestuser/treeify |
 | tsconfig-paths | 4.2.0 | MIT | https://github.com/dividab/tsconfig-paths |

@@ -79,7 +79,7 @@ syn = { version = "2", features = ["extra-traits", "fold", "full", "visit", "vis
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "tls12"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-legacy", "client-proxy"] }
 libc = { version = "0.2", features = ["extra_traits"] }
-miniz_oxide = { version = "0.9", features = ["simd"] }
+miniz_oxide = { version = "0.8", features = ["simd"] }
 mio = { version = "1", features = ["net", "os-ext"] }
 nix = { version = "0.31", features = ["fs", "hostname", "signal", "socket", "term", "user"] }
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "default-tls", "http2", "json", "rustls-no-provider", "stream"] }
@@ -97,7 +97,7 @@ libc = { version = "0.2", features = ["extra_traits"] }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "tls12"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-legacy", "client-proxy"] }
 libc = { version = "0.2", features = ["extra_traits"] }
-miniz_oxide = { version = "0.9", features = ["simd"] }
+miniz_oxide = { version = "0.8", features = ["simd"] }
 mio = { version = "1", features = ["net", "os-ext"] }
 nix = { version = "0.31", features = ["fs", "hostname", "signal", "socket", "term", "user"] }
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "default-tls", "http2", "json", "rustls-no-provider", "stream"] }
@@ -116,7 +116,7 @@ errno = { version = "0.3" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "tls12"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-legacy", "client-proxy"] }
 libc = { version = "0.2", features = ["extra_traits"] }
-miniz_oxide = { version = "0.9", features = ["simd"] }
+miniz_oxide = { version = "0.8", features = ["simd"] }
 mio = { version = "1", features = ["net", "os-ext"] }
 nix = { version = "0.31", features = ["fs", "hostname", "signal", "socket", "term", "user"] }
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "default-tls", "http2", "json", "rustls-no-provider", "stream"] }
@@ -135,7 +135,7 @@ errno = { version = "0.3" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["aws-lc-rs", "http1", "http2", "tls12"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-legacy", "client-proxy"] }
 libc = { version = "0.2", features = ["extra_traits"] }
-miniz_oxide = { version = "0.9", features = ["simd"] }
+miniz_oxide = { version = "0.8", features = ["simd"] }
 mio = { version = "1", features = ["net", "os-ext"] }
 nix = { version = "0.31", features = ["fs", "hostname", "signal", "socket", "term", "user"] }
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "default-tls", "http2", "json", "rustls-no-provider", "stream"] }
