@@ -10,6 +10,10 @@ script="${repo_root}/scripts/ci/rust-coverage.sh"
 assert_contains() {
   local file="$1"
   local expected="$2"
+  if [ ! -f "${file}" ]; then
+    echo "expected file not found: ${file} (run from within the git checkout)" >&2
+    exit 1
+  fi
   if ! grep -Fq -- "${expected}" "${file}"; then
     echo "expected ${file} to contain: ${expected}" >&2
     exit 1

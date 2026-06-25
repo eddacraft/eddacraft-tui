@@ -16,7 +16,8 @@ summary_output="${2:-coverage-rust-summary.txt}"
 html_dir="${3:-target/llvm-cov}"
 
 # Drop stale profiles/target instrumentation state. Required when re-running
-# locally or when rust-cache restores non-instrumented artefacts from rust-ci.
+# locally or when the restored target cache holds stale or non-instrumented
+# artefacts that would corrupt the coverage merge.
 cargo llvm-cov clean --workspace
 
 # Serialise test execution for stable profraw merge. The strict rust-tests gate
