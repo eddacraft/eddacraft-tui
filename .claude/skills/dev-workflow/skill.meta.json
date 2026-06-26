@@ -1,11 +1,11 @@
 {
   "name": "dev-workflow",
   "origin": {
-    "type": "local",
-    "repo": "code-env",
+    "type": "git",
+    "repo": "https://github.com/joshuaboys/eddacraft-skills",
     "path": "skills/eddacraft/dev-workflow",
-    "ref": "main",
-    "lastImportedCommit": null
+    "ref": "feat/loop-canonical-spec",
+    "lastImportedCommit": "4b470f0adadd2dd2ab6d789aa513f636936af624"
   },
   "status": "canonical",
   "targets": {
@@ -19,6 +19,6 @@
     "notes": "Set scope to agent-specific and list agents when a skill is intended for specific assistant agents or plugin-like workflows."
   },
   "localChanges": [
-    "SKILL.md is project-localised for anvil; body intentionally not synced from catalogue (2026-06-10)"
+    "anvil-001: Isolate guidance localised to main-first branching (docs/guides/branching-strategy.md); 'project integration branch' replaced with main + Worktrunk (wt)."
   ]
 }

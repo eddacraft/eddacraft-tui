@@ -1,11 +1,11 @@
 {
   "name": "planning-workflow",
   "origin": {
-    "type": "local",
-    "repo": "code-env",
+    "type": "git",
+    "repo": "https://github.com/joshuaboys/eddacraft-skills",
     "path": "skills/eddacraft/planning-workflow",
-    "ref": "main",
-    "lastImportedCommit": null
+    "ref": "feat/loop-canonical-spec",
+    "lastImportedCommit": "4b470f0adadd2dd2ab6d789aa513f636936af624"
   },
   "status": "canonical",
   "targets": {

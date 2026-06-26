@@ -1,0 +1,25 @@
+{
+  "name": "triage-product-vs-technical",
+  "origin": {
+    "type": "git",
+    "repo": "https://github.com/joshuaboys/eddacraft-skills",
+    "path": "skills/eddacraft/triage-product-vs-technical",
+    "ref": "feat/loop-canonical-spec",
+    "lastImportedCommit": "4b470f0adadd2dd2ab6d789aa513f636936af624"
+  },
+  "status": "canonical",
+  "targets": {
+    "claude": true,
+    "opencode": true,
+    "openclaw": false
+  },
+  "localChanges": [
+    "removed Claude-only allowed-tools frontmatter (ADR-0003)",
+    "replaced GSD .planning/config.json injection with eddacraft 'When to apply' anchored on aps-loop",
+    "decisions log rewired to plans/execution/decisions.md; ADR promotion path added",
+    "milestone-summary batch surfacing replaced with the run's final report",
+    "AskUserQuestion/CLAUDE.md references neutralised; classifier_version field dropped",
+    "UK/AU English pass; cross-references added",
+    "anvil-001: fable5-aps-loop references updated to aps-loop (Fable 5 retired)."
+  ]
+}

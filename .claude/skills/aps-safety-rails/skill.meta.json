@@ -1,9 +1,9 @@
 {
-  "name": "planning-workflow",
+  "name": "aps-safety-rails",
   "origin": {
     "type": "git",
     "repo": "https://github.com/joshuaboys/eddacraft-skills",
-    "path": "skills/eddacraft/planning-workflow",
+    "path": "skills/eddacraft/aps-safety-rails",
     "ref": "feat/loop-canonical-spec",
     "lastImportedCommit": "4b470f0adadd2dd2ab6d789aa513f636936af624"
   },
@@ -16,7 +16,7 @@
   "agentSupport": {
     "scope": "general",
     "agents": [],
-    "notes": "General planning workflow; project-specific variants may add local authorities and lifecycle rules."
+    "notes": "Set scope to agent-specific and list agents when a skill is intended for specific assistant agents or plugin-like workflows."
   },
   "localChanges": []
 }

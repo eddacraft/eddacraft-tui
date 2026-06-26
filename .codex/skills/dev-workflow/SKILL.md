@@ -8,7 +8,7 @@ description: Use at the start of any development task to route to the correct sk
 Routing layer for the development lifecycle. Every non-trivial task follows this sequence - do not skip stages.
 
 ```
-APS truth gate -> APS (Ready) -> Worktrunk branch from main -> TDD code -> Council -> PR -> Merged -> cleanup offer -> Released/Shipped -> continuous-improvement note
+Plan Truth Gate -> Isolate -> TDD Code -> Verify -> Review -> PR -> Cleanup
 ```
 
 ## Stage Map
@@ -17,7 +17,7 @@ APS truth gate -> APS (Ready) -> Worktrunk branch from main -> TDD code -> Counc
 | ---------------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------ | --------------------------------------------------------- | ---------------------- |
 | **Idea / spec**        | Explore intent, design before code                                  | `brainstorming`                                                          | -                                                         | -                      |
 | **Plan / truth gate**  | Turn intent into validated work                                     | `planning-workflow`, `aps-planning`, `writing-plans`, `planning-council` | `anvil-plan-spec` when available                          | `/plan` when available |
-| **Isolate**            | Create isolated Worktrunk branch/worktree from `main`               | `using-git-worktrees`                                                    | -                                                         | -                      |
+| **Isolate**            | Create isolated branch/worktree from `main` (Worktrunk `wt`)        | `using-git-worktrees`                                                    | -                                                         | -                      |
 | **Code**               | TDD implementation                                                  | `test-driven-development`                                                | `tdd-coach`                                               | `/test`                |
 | **Debug**              | Root cause analysis                                                 | `systematic-debugging`                                                   | `debugger`                                                | `/debug`               |
 | **Verify**             | Evidence before completion claims                                   | `verification-before-completion`                                         | -                                                         | -                      |
@@ -31,13 +31,13 @@ APS truth gate -> APS (Ready) -> Worktrunk branch from main -> TDD code -> Counc
 ## Rules
 
 1. **Start from planning truth.** If the work is not already validated and ready, invoke `planning-workflow`. If the project uses APS, invoke `aps-planning` before branch or code.
-2. **Isolate from `main` with Worktrunk.** Follow the project's branch naming and worktree policy; do not assume a generic integration branch exists.
+2. **Isolate from `main`.** `main` is the only permanent branch (see `docs/guides/branching-strategy.md`); create short-lived `feat/*`/`fix/*`/`docs/*`/`chore/*` branches from `main` with Worktrunk (`wt`). `dev` is retired — never branch from it.
 3. **Code through TDD.** Invoke `test-driven-development` for implementation. If test-first is not practical, record the replacement evidence before coding.
 4. **Review before PR.** Use the project's review surface and address critical/major findings before opening or updating a PR.
 5. **Verify before claiming complete.** Evidence before assertions - use `verification-before-completion`.
 6. **Preserve post-merge validation.** If work needs post-merge checks, write them to the project's tracked post-merge review location.
 7. **Run local CI-equivalent gates before opening the PR.** The repo-mandated
-   validation commands must run green locally before push. Check `AGENTS.md` or
+   validation commands must run green locally before push. Check `CLAUDE.md` or
    project docs for the exact commands; common examples are
    `pnpm format:check && pnpm lint:check && pnpm typecheck && pnpm test` for
    JS/TS projects and `cargo test --workspace` for Rust. CI is a backstop, not
@@ -48,7 +48,7 @@ APS truth gate -> APS (Ready) -> Worktrunk branch from main -> TDD code -> Counc
    `pnpm-lock.yaml`) or any file generated from it (for example
    `ACKNOWLEDGEMENTS.md` or `licenses/` manifests), regenerate those artefacts
    and include the diff in the same PR. Splitting them creates freshness-check CI
-   failures that can block later integration work. Check `AGENTS.md` for the
+   failures that can block later integration work. Check `CLAUDE.md` for the
    project-specific regeneration command.
 9. **Keep bookkeeping PRs single-purpose.** APS status updates, index counter
    adjustments, and runbook fixes ship as standalone PRs. Do not bundle them

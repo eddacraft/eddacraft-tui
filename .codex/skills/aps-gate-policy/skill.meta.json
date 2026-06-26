@@ -1,0 +1,22 @@
+{
+  "name": "aps-gate-policy",
+  "origin": {
+    "type": "git",
+    "repo": "https://github.com/joshuaboys/eddacraft-skills",
+    "path": "skills/eddacraft/aps-gate-policy",
+    "ref": "feat/loop-canonical-spec",
+    "lastImportedCommit": "4b470f0adadd2dd2ab6d789aa513f636936af624"
+  },
+  "status": "canonical",
+  "targets": {
+    "claude": true,
+    "opencode": true,
+    "openclaw": false
+  },
+  "agentSupport": {
+    "scope": "general",
+    "agents": [],
+    "notes": "Toggle layer for the canonical APS loop: a GatePolicy object (designGate/readyGate/mergeGate, autonomyBudget, landPolicy) plus presets (collaborative/design-once/autopilot/spike) that tune how autonomous the loop runs; designGate is the single required toggle; never overrides the immutable safety rails. Design change #7 / gap G3."
+  },
+  "localChanges": []
+}

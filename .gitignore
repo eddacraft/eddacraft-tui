@@ -111,9 +111,15 @@ docs/analysis/claude-code-safety-net-review.md
 !.claude/skills/dependabot/**
 !.claude/skills/planning-council/
 !.claude/skills/anvil-opportunity-assessment/
-!.claude/skills/f5-aps-loop/
-!.claude/skills/f5-dev-workflow/
-!.claude/skills/f5-planning-workflow/
+!.claude/skills/aps-loop/
+!.claude/skills/aps-probe/
+!.claude/skills/aps-gate-policy/
+!.claude/skills/aps-task-router/
+!.claude/skills/aps-safety-rails/
+!.claude/skills/aps-landing/
+!.claude/skills/aps-escalation-queue/
+!.claude/skills/aps-resume/
+!.claude/skills/triage-product-vs-technical/
 .claude/VERSION
 # SKOBS — skill discovery & observability snapshots (local, not committed)
 .claude/.skill-snapshots/
