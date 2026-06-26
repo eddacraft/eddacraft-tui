@@ -151,6 +151,48 @@ Check for:
 3. branches that should be split or rebased
 4. streams that should be promoted into the current integration target
 
+### Assisted cleanup sweep
+
+Use the conservative cleanup assistant to review accumulated disposable
+worktrees after a merge batch:
+
+```bash
+scripts/dev/wt-cleanup-sweep.sh --dry-run
+```
+
+The sweep is intentionally list-first. It fetches/prunes `origin main`, reads
+`git worktree list --porcelain -z`, and prints every worktree with either an
+`ELIGIBLE` marker or a skip reason. A worktree is eligible only when all of
+these are true:
+
+1. it is not the current worktree, `main`, `dev`, detached, release/hotfix, or
+   branch/path-mismatched;
+2. the working tree is clean, including untracked files;
+3. ignored files are only known local caches such as `node_modules/`, `target/`,
+   `.direnv/`, `.next/`, or `.turbo/`;
+4. the branch is proven safe against refreshed `origin/main` by ancestry or
+   patch equivalence.
+
+Remote deletion by itself is not proof of safety; a closed or renamed PR branch
+can also disappear remotely. Unknown, dirty, detached, or safety-check-failed
+entries are manual-review only.
+
+To remove a candidate, pass the exact branch names from a fresh dry-run:
+
+```bash
+scripts/dev/wt-cleanup-sweep.sh --apply docs/example-fix
+```
+
+The helper revalidates cleanliness and merge proof immediately before removal,
+asks you to type the branch name, then delegates to:
+
+```bash
+wt remove --foreground --format json <branch>
+```
+
+It never uses Worktrunk force deletion/removal flags, never removes remote
+branches, and never constructs worktree paths from branch-name templates.
+
 ## Practical Rule of Thumb
 
 1. Keep `main` as the product anchor.

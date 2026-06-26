@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 72/106  |
+| CIB | —     | In Progress | 73/106  |
 
 ## Purpose
 
@@ -538,7 +538,7 @@ archive.
 
 ### CIB-028: Add a safe post-merge worktree cleanup sweep
 
-- **Status:** Ready
+- **Status:** Done 2026-06-27 — added a conservative dry-run-first Worktrunk cleanup assistant (`scripts/dev/wt-cleanup-sweep.sh`) with fixture coverage and documented operator use.
 - **Intent:** Reduce accumulated Worktrunk worktrees left behind after batches of
   merged PRs, without deleting unmerged or still-needed local work.
 - **Expected Outcome:** A documented operator command or script lists
