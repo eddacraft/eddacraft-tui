@@ -170,6 +170,12 @@
 | [Feature Flag Inventory](../../docs/guides/feature-flag-inventory.md)   | `docs/guides/feature-flag-inventory.md`  | Guide | Derived       | FLAGCAT | Live   |
 | [Feature Flag Reference](../../docs/guides/feature-flag-reference.md)   | `docs/guides/feature-flag-reference.md`  | Guide | Authoritative | FLAGCAT | Live   |
 
+## GCTX
+
+| Document                                                        | Path                                 | Type  | Authority     | Owner | Status |
+| --------------------------------------------------------------- | ------------------------------------ | ----- | ------------- | ----- | ------ |
+| [AI Context Delivery](../../docs/guides/ai-context-delivery.md) | `docs/guides/ai-context-delivery.md` | Guide | Authoritative | GCTX  | Live   |
+
 ## GCTX (plans/modules/graph-context-delivery.aps.md)
 
 | Document                                                                                             | Path                                               | Type | Authority | Owner                                              | Status |

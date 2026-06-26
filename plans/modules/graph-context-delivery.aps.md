@@ -902,7 +902,12 @@ blockers — they are resolved during execution, not before promotion:
 
 #### GCTX-032: User guide for assistant graph context
 
-- **Status:** Draft
+- **Status:** In Progress 2026-06-26 — promoted Draft → In Progress. Both
+  dependencies are satisfied (**GCTX-023 Done 2026-06-24**, **GCTX-030 Merged
+  2026-06-18 via #2772**) and the full tool/resource surface (010..014, 021..023,
+  030) plus the `gctx.egress` flag have landed, so the guide can document the
+  real surface. Authoring `docs/guides/ai-context-delivery.md` on
+  `docs/gctx-032-ai-context-guide`.
 - **Intent:** Document how users should wire graph-context tools into assistant
   workflows without confusing them with launch-critical RMCP validation.
 - **Expected Outcome:** Guide explains supported clients, example workflows,

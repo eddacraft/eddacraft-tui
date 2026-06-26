@@ -48,6 +48,13 @@ How-to guides for developers working on Anvil.
 - [Git Hook Compatibility Policy](git-hook-compatibility.md) — Baseline and
   rollout policy for file-based and Git 2.54 native config-based hooks
 
+### AI & MCP
+
+- [AI Context Delivery](ai-context-delivery.md) — Wiring Anvil's read-only
+  graph-context tools and `graph://` resources into AI assistants (Claude Code,
+  Cursor), the identity-only privacy posture, graph states, and how this differs
+  from launch-critical write validation
+
 ### CLI
 
 - [CLI Output Streams](cli-output-streams.md) — CLI output and stream handling
