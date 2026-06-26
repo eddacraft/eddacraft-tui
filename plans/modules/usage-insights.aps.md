@@ -4,7 +4,7 @@
 
 | ID       | Owner  | Status | Progress |
 | -------- | ------ | ------ | -------- |
-| INSIGHTS | @aneki | In Progress | 4/5 |
+| INSIGHTS | @aneki | In Progress | 5/5 |
 
 **Last reviewed:** 2026-06-10 (INSIGHTS-005 filed from the v0.8.0-beta
 user-journey completeness review — extend the INSIGHTS-004 first-week nudge
@@ -288,10 +288,13 @@ number visible to the user, not just to a future post-release survey.
 
 ### INSIGHTS-005: First-Week Nudge on the Welcome Surface
 
-- **Status:** In Progress 2026-06-26 — Ready → In Progress. Dependency
-  INSIGHTS-004 (hint mechanism) Merged via #2226; wiring the existing
-  `first_week_insights_hint` into the `anvil welcome` closing output under the
-  same contract on `feat/insights-005-welcome-nudge`.
+- **Status:** Merged 2026-06-26 via #2957 — the existing
+  `first_week_insights_hint` (INSIGHTS-004) now also renders on the `anvil
+  welcome` closing output, under the same contract (14-day window, once per week,
+  suppressed after `anvil insights`, shared `.anvil/insights-hint.json` state).
+  Gated under `project_writes_gated` (DISTRIB-006) and rendered on both welcome
+  closing paths; Council-reviewed. The status/watch ungated-gate follow-up the
+  review surfaced is filed as **CIB-105**.
 - **Intent:** The first-week nudge reaches the one command every new user
   definitely runs — `anvil welcome` — not only `status` and watch.
 - **Expected Outcome:** `anvil welcome` closing output includes the
