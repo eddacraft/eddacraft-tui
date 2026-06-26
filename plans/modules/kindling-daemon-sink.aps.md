@@ -6,15 +6,17 @@
 | --- | ---------- | ----------- | -------- |
 | KDS | @eddacraft | In Progress | 5/5      |
 
-> **In Progress** — the module passed Ready (placement + async-bridge decisions
-> settled; see Open Questions, now answered) and KDS-001 + KDS-003 are underway.
-> The PORT-011 handoff
-> ([`../execution/PORT-011-anvil-handoff.md`](../execution/PORT-011-anvil-handoff.md))
-> supersedes the original draft on the spool transport. The Kindling
-> prerequisite (KINTEG-001) is **Done** — all seven Kindling crates published at
-> `0.2.0` on crates.io (2026-06-24). The durable-emit layer ships **inside
-> `kindling-client` behind `features = ["spool"]`** — there is **no** standalone
-> `kindling-spool` crate. A provisional index row is present under
+> **All 5 work items Merged (5/5)** — the daemon is now the authoritative store
+> for `command.invoked`: `KindlingDaemonSink` over `kindling-client` (KDS-001/-003,
+> #2897), `ANVIL_KINDLING_SINK` selection (KDS-002, #2906), views read the daemon
+> via `list_observations` unioned with the sidecar (KDS-004, #2945), and the
+> bespoke NDJSON writer is retired with the default flipped to `daemon` and the
+> spool capped (KDS-005, #2949). The two upstream prerequisites — the kindling
+> read API (#2910) and the spool cap (#2916) — landed in `kindling-client` 0.3.
+> The module stays **In Progress** only pending a release tag (then Complete +
+> archival). The durable-emit layer ships **inside `kindling-client` behind
+> `features = ["spool"]`** — there is **no** standalone `kindling-spool` crate. A
+> provisional index row is present under
 > [Usage Analytics](../index.aps.md#usage-analytics).
 
 ## Cross-cutting convention
