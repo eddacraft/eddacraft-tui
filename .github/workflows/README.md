@@ -51,7 +51,7 @@ fixture enforces both directions.
 | `ci-cost-report.yml`                   | Assurance                 | weekly `schedule` plus `workflow_dispatch` — workflow / event / branch elapsed minutes, omitted-run diagnostics                                                                                                                                                                                                                                            | CICD         |
 | `release-readiness.yml`                | Release candidate         | `workflow_dispatch` only — exact `sourceSha` validation, candidate metadata artefact, no publish credentials                                                                                                                                                                                                                                               | RELORCH      |
 | `release.yml`                          | Publish                   | `pull_request` (path-filtered) plus `push: tags: …` — cargo-dist build, publish, post-publish verification                                                                                                                                                                                                                                                 | RELORCH      |
-| `release-sign-artefacts.yml`           | Publish                   | `release: published` plus `workflow_dispatch` — signs `*-installer.{sh,ps1}` with minisign, uploads `.minisig` back                                                                                                                                                                                                                                        | DISTRIB      |
+| `release-sign-artefacts.yml`           | Publish                   | CLI `release: published` tags (`v*`, non-prerelease) plus `workflow_dispatch` — signs `*-installer.{sh,ps1}` with minisign, uploads `.minisig` back; prefixed library releases such as `eddacraft-tui-v*` skip this no-op signer                                                                                                                           | DISTRIB      |
 | `publish-eddacraft-tui.yml`            | Publish                   | `push: tags: ['eddacraft-tui-v*']` — validate against D-TUIR-007 publish-side gates, `cargo publish` to crates.io, propagate the tag (append-only) to `eddacraft/eddacraft-tui` mirror, then `gh release create` on anvil-001                                                                                                                              | TUIR         |
 | `homebrew-bump.yml`                    | Publish                   | `release: published` plus `workflow_dispatch` plus path-filtered `pull_request` — dry-run contract on PR, manual republish to `eddacraft/homebrew-tap`, macOS arm64/x64 install smoke                                                                                                                                                                      | DISTRIB      |
 | `labeler.yml`                          | Auxiliary (PR labels)     | `pull_request` (any base) — `actions/labeler` path-based labels                                                                                                                                                                                                                                                                                            | CICD         |
@@ -233,9 +233,10 @@ SHA validation, no publish credentials) and immutable tag publishing
 
 Signs every `*-installer.{sh,ps1}` asset published by `release.yml` with the
 release minisign key and uploads the detached `.minisig` files back to the
-GitHub Release. Triggers on `release: published` (also dispatchable). Refuses to
-run when `vars.ANVIL_MINISIGN_PUBLIC_KEY` is empty or still equals the committed
-dev fallback. See ADR-045 and DISTRIB-001.
+GitHub Release. Triggers on non-prerelease CLI `release: published` tags (`v*`)
+and `workflow_dispatch`; prefixed library releases such as `eddacraft-tui-v*`
+skip this no-op signer. Refuses to run when `vars.ANVIL_MINISIGN_PUBLIC_KEY` is
+empty or still equals the committed dev fallback. See ADR-045 and DISTRIB-001.
 
 ### `publish-eddacraft-tui.yml`
 

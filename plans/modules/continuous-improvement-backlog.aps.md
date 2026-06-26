@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 71/106  |
+| CIB | —     | In Progress | 72/106  |
 
 ## Purpose
 
@@ -1016,7 +1016,7 @@ archive.
 
 ### CIB-044: Skip `release-sign-artefacts.yml` for non-CLI (library) releases
 
-- **Status:** Ready
+- **Status:** Done 2026-06-27 — `release-sign-artefacts.yml` now gates release-published runs to non-prerelease CLI `v*` tags while keeping manual dispatch; workflow contract tests pin the library-tag skip.
 - **Intent:** Stop the artefact-signing workflow from spending a runner on a
   ~10-minute no-op for every `eddacraft-tui-v*` release on `anvil-001`.
 - **Expected Outcome:** `release-sign-artefacts.yml`'s job `if:` gates on the CLI
