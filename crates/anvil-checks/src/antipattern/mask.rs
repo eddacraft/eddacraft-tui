@@ -18,11 +18,11 @@
 //! masked (it is string content, so a `!` / `any` there is not a non-null
 //! assertion or a type — GS-001 external-FP dogfood: `` `my-0!` ``,
 //! `` `Stack overflow!` ``). The `${ … }` interpolation spans, which are real
-//! code, are kept and scanned. Brace depth is tracked so a `}` inside the
-//! interpolation's own code does not end it prematurely, and the in-text /
-//! in-interpolation state carries across lines. Nested template literals
-//! inside an interpolation are not separately re-lexed (their content is kept
-//! as code, matching the prior pass-through behaviour).
+//! code, are kept and scanned. A carried context stack re-lexes interpolation
+//! code, so strings/comments/regexes inside `${ … }` are masked and their braces
+//! do not affect interpolation depth. Nested template literals are handled the
+//! same way: nested template text is masked, nested `${ … }` code is visible,
+//! and control resumes to the correct parent interpolation/template frame.
 //!
 //! **Regex vs division.** `/` is ambiguous in JS/TS. A `/` is treated as the
 //! start of a regex literal only when the preceding significant token implies
@@ -33,20 +33,20 @@
 //! `const re = /…/`, `x.match(/…/)`, and `return /…/` forms.
 
 /// Lexer state that can carry across a line boundary.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Carry {
-    Code,
-    /// Inside a `/* … */` block comment.
-    BlockComment,
-    /// Inside the *text* of a `` `…` `` template literal (masked).
-    Template,
-    /// Inside a `${ … }` interpolation of a template literal, at the carried
-    /// brace depth (kept as code).
-    TemplateInterp(u32),
-    /// Inside a `'…'` string continued via a trailing `\` at end of line.
-    SingleString,
-    /// Inside a `"…"` string continued via a trailing `\` at end of line.
-    DoubleString,
+#[derive(Clone, PartialEq, Eq)]
+struct Carry {
+    stack: Vec<Frame>,
+}
+
+impl Carry {
+    fn code() -> Self {
+        Self {
+            stack: vec![Frame::Code(CodeCtx {
+                prev_sig: None,
+                interp_depth: None,
+            })],
+        }
+    }
 }
 
 /// Mask the comment and string spans of every line, threading multi-line
@@ -54,7 +54,7 @@ pub(crate) enum Carry {
 /// line boundaries.
 pub(crate) fn mask_non_code_lines(lines: &[&str]) -> Vec<String> {
     let mut out = Vec::with_capacity(lines.len());
-    let mut carry = Carry::Code;
+    let mut carry = Carry::code();
     for line in lines {
         let (masked, next) = mask_line(line, carry);
         out.push(masked);
@@ -69,19 +69,31 @@ fn push_spaces(buf: &mut String, c: char) {
     }
 }
 
-/// Lexer state within a line.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum S {
-    Code,
+#[derive(Clone, PartialEq, Eq)]
+struct CodeCtx {
+    prev_sig: Option<char>,
+    /// `Some(depth)` when this code frame is a `${ … }` interpolation.
+    interp_depth: Option<u32>,
+}
+
+/// Lexer frame within a line. The full stack is carried across lines for
+/// multiline comments/templates/interpolations.
+#[derive(Clone, PartialEq, Eq)]
+enum Frame {
+    Code(CodeCtx),
     LineComment,
     BlockComment,
     /// Template literal text (masked).
     Template,
-    /// Inside a `${ … }` interpolation (kept as code).
-    TemplateInterp,
-    Single,
-    Double,
-    Regex,
+    Single {
+        continued: bool,
+    },
+    Double {
+        continued: bool,
+    },
+    Regex {
+        in_class: bool,
+    },
 }
 
 /// Keywords after which a `/` begins a regex literal rather than division.
@@ -163,76 +175,88 @@ fn ends_with_regex_keyword(out_so_far: &str) -> bool {
 fn mask_line(line: &str, carry: Carry) -> (String, Carry) {
     let mut out = String::with_capacity(line.len());
     let mut chars = line.chars().peekable();
-    let mut interp_depth: u32 = 0;
-    let mut state = match carry {
-        Carry::Code => S::Code,
-        Carry::BlockComment => S::BlockComment,
-        Carry::Template => S::Template,
-        Carry::TemplateInterp(depth) => {
-            interp_depth = depth;
-            S::TemplateInterp
-        }
-        Carry::SingleString => S::Single,
-        Carry::DoubleString => S::Double,
-    };
-    let mut regex_in_class = false;
-    // Last non-whitespace character emitted as code, for regex/division.
-    let mut prev_sig: Option<char> = None;
-    // Set when a `\` escape consumes past end-of-line inside a string —
-    // signals a line continuation so the string state carries over.
-    let mut string_continues = false;
+    let mut stack = carry.stack;
+    if stack.is_empty() {
+        stack.push(Frame::Code(CodeCtx {
+            prev_sig: None,
+            interp_depth: None,
+        }));
+    }
 
     while let Some(c) = chars.next() {
-        match state {
-            S::Code => {
+        let Some(frame) = stack.last_mut() else {
+            stack.push(Frame::Code(CodeCtx {
+                prev_sig: None,
+                interp_depth: None,
+            }));
+            continue;
+        };
+        match frame {
+            Frame::Code(ctx) => {
                 let nxt = chars.peek().copied();
                 match c {
                     '/' if nxt == Some('/') => {
-                        state = S::LineComment;
+                        stack.push(Frame::LineComment);
                         push_spaces(&mut out, c);
                     }
                     '/' if nxt == Some('*') => {
-                        state = S::BlockComment;
+                        stack.push(Frame::BlockComment);
                         push_spaces(&mut out, c);
                     }
-                    '/' if regex_allowed(prev_sig, &out) => {
-                        state = S::Regex;
-                        regex_in_class = false;
+                    '/' if regex_allowed(ctx.prev_sig, &out) => {
+                        stack.push(Frame::Regex { in_class: false });
                         push_spaces(&mut out, c);
                     }
                     '\'' => {
-                        state = S::Single;
+                        stack.push(Frame::Single { continued: false });
                         push_spaces(&mut out, c);
                     }
                     '"' => {
-                        state = S::Double;
+                        stack.push(Frame::Double { continued: false });
                         push_spaces(&mut out, c);
                     }
                     '`' => {
-                        state = S::Template;
                         out.push(c);
-                        prev_sig = Some('`');
+                        ctx.prev_sig = Some('`');
+                        stack.push(Frame::Template);
+                    }
+                    '{' => {
+                        out.push(c);
+                        if let Some(depth) = &mut ctx.interp_depth {
+                            *depth += 1;
+                        }
+                        ctx.prev_sig = Some(c);
+                    }
+                    '}' if ctx.interp_depth.is_some() => {
+                        out.push(c);
+                        let depth = ctx.interp_depth.as_mut().expect("checked");
+                        *depth = depth.saturating_sub(1);
+                        if *depth == 0 {
+                            stack.pop();
+                        } else {
+                            ctx.prev_sig = Some(c);
+                        }
                     }
                     _ => {
                         out.push(c);
                         if !c.is_whitespace() {
-                            prev_sig = Some(c);
+                            ctx.prev_sig = Some(c);
                         }
                     }
                 }
             }
-            S::LineComment => push_spaces(&mut out, c),
-            S::BlockComment => {
+            Frame::LineComment => push_spaces(&mut out, c),
+            Frame::BlockComment => {
                 push_spaces(&mut out, c);
                 // Always mask the current char; if it's the `*` of `*/`,
                 // also consume and mask the `/` and return to code.
                 if c == '*' && chars.peek() == Some(&'/') {
                     let slash = chars.next().expect("peeked");
                     push_spaces(&mut out, slash);
-                    state = S::Code;
+                    stack.pop();
                 }
             }
-            S::Template => {
+            Frame::Template => {
                 // Template literal text is string content — mask it. Keep the
                 // structural punctuation (backtick, `${`) so byte offsets and
                 // the interpolation boundary stay legible.
@@ -243,97 +267,109 @@ fn mask_line(line: &str, carry: Carry) -> (String, Carry) {
                     }
                 } else if c == '`' {
                     out.push(c);
-                    state = S::Code;
-                    prev_sig = Some('`');
+                    stack.pop();
+                    if let Some(Frame::Code(ctx)) = stack.last_mut() {
+                        ctx.prev_sig = Some('`');
+                    }
                 } else if c == '$' && chars.peek() == Some(&'{') {
                     let brace = chars.next().expect("peeked");
                     out.push(c);
                     out.push(brace);
-                    interp_depth = 1;
-                    state = S::TemplateInterp;
-                    prev_sig = Some('{');
+                    stack.push(Frame::Code(CodeCtx {
+                        prev_sig: Some('{'),
+                        interp_depth: Some(1),
+                    }));
                 } else {
                     push_spaces(&mut out, c);
                 }
             }
-            S::TemplateInterp => {
-                // Real code inside `${ … }` — keep verbatim so the rules scan
-                // it. Track brace depth so an inner `{ … }` (object literal,
-                // block) does not end the interpolation early.
-                //
-                // Brace counting is intentionally lexer-light: it counts every
-                // `{`/`}` without re-masking strings/comments inside the
-                // interpolation. Fully re-lexing it (to also mask a `!`/`any`
-                // inside an interpolation *string*, or to skip a brace inside
-                // one) needs a context stack — and a naive version mis-handles
-                // *nested* template literals (common in real code), leaking
-                // template-text state to end-of-file and masking real
-                // assertions. That trade-off (rare interpolation-string edge vs.
-                // common nested-template correctness) is tracked as a follow-up;
-                // counting raw braces keeps nested templates correct here.
-                out.push(c);
-                match c {
-                    '{' => interp_depth += 1,
-                    '}' => {
-                        interp_depth -= 1;
-                        if interp_depth == 0 {
-                            state = S::Template;
-                        }
-                    }
-                    _ => {}
-                }
-                if !c.is_whitespace() {
-                    prev_sig = Some(c);
-                }
-            }
-            S::Single | S::Double => {
-                let closing = if state == S::Single { '\'' } else { '"' };
+            Frame::Single { continued } => {
+                let closing = '\'';
                 push_spaces(&mut out, c);
                 if c == '\\' {
                     if let Some(n) = chars.next() {
                         push_spaces(&mut out, n);
                     } else {
                         // `\` at end of line inside a string — continuation.
-                        string_continues = true;
+                        *continued = true;
                     }
                 } else if c == closing {
-                    state = S::Code;
+                    stack.pop();
                     // A closed string is a value, so a following `/` divides.
-                    prev_sig = Some(closing);
+                    if let Some(Frame::Code(ctx)) = stack.last_mut() {
+                        ctx.prev_sig = Some(closing);
+                    }
                 }
             }
-            S::Regex => {
+            Frame::Double { continued } => {
+                let closing = '"';
+                push_spaces(&mut out, c);
+                if c == '\\' {
+                    if let Some(n) = chars.next() {
+                        push_spaces(&mut out, n);
+                    } else {
+                        // `\` at end of line inside a string — continuation.
+                        *continued = true;
+                    }
+                } else if c == closing {
+                    stack.pop();
+                    // A closed string is a value, so a following `/` divides.
+                    if let Some(Frame::Code(ctx)) = stack.last_mut() {
+                        ctx.prev_sig = Some(closing);
+                    }
+                }
+            }
+            Frame::Regex { in_class } => {
                 push_spaces(&mut out, c);
                 if c == '\\' {
                     if let Some(n) = chars.next() {
                         push_spaces(&mut out, n);
                     }
                 } else if c == '[' {
-                    regex_in_class = true;
+                    *in_class = true;
                 } else if c == ']' {
-                    regex_in_class = false;
-                } else if c == '/' && !regex_in_class {
-                    state = S::Code;
+                    *in_class = false;
+                } else if c == '/' && !*in_class {
+                    stack.pop();
                     // A regex literal is a value: a following `/` is division,
                     // not a new regex (`/a/ / 2`). Record a value-like token
                     // (`)`) rather than `/` — `/` would re-arm `regex_allowed`
                     // and mis-lex the divisor as a regex, masking real code.
-                    prev_sig = Some(')');
+                    if let Some(Frame::Code(ctx)) = stack.last_mut() {
+                        ctx.prev_sig = Some(')');
+                    }
                 }
             }
         }
     }
 
-    let next_carry = match state {
-        S::BlockComment => Carry::BlockComment,
-        S::Template => Carry::Template,
-        S::TemplateInterp => Carry::TemplateInterp(interp_depth),
-        S::Single if string_continues => Carry::SingleString,
-        S::Double if string_continues => Carry::DoubleString,
-        // LineComment / Regex / unterminated strings do not carry.
-        _ => Carry::Code,
-    };
-    (out, next_carry)
+    normalise_eol_stack(&mut stack);
+    if stack.is_empty() {
+        stack.push(Frame::Code(CodeCtx {
+            prev_sig: None,
+            interp_depth: None,
+        }));
+    }
+    (out, Carry { stack })
+}
+
+fn normalise_eol_stack(stack: &mut Vec<Frame>) {
+    loop {
+        let pop = match stack.last_mut() {
+            Some(Frame::LineComment | Frame::Regex { .. }) => true,
+            Some(Frame::Single { continued } | Frame::Double { continued }) => {
+                let carry = *continued;
+                *continued = false;
+                !carry
+            }
+            _ => false,
+        };
+        if pop {
+            stack.pop();
+        } else {
+            break;
+        }
+    }
 }
 
 #[cfg(test)]
@@ -454,6 +490,124 @@ mod tests {
             "line0 text bang masked: {masked:?}"
         );
         assert!(!masked[1].contains("any"), "line1 text masked: {masked:?}");
+    }
+
+    #[test]
+    fn interpolation_string_masks_tokens_and_braces_without_hiding_real_code() {
+        let line = r#"const s = `x ${"} cast as any !" + (cfg as any)}`;"#;
+        let out = mask_one(line);
+        assert_eq!(out.len(), line.len(), "byte length must be preserved");
+        assert!(
+            out.contains("cfg as any"),
+            "real interpolation code must survive: {out}"
+        );
+        assert!(
+            !out.contains("cast as any") && !out.contains("!\""),
+            "interpolation string content must be masked: {out}"
+        );
+    }
+
+    #[test]
+    fn interpolation_block_comment_spans_lines_and_returns_to_interpolation() {
+        let masked = mask_non_code_lines(&["const s = `x ${ /* } as any!", "*/ user!.name } y`;"]);
+        assert!(
+            !masked[0].contains("as any") && !masked[0].contains('!'),
+            "comment content must be masked: {masked:?}"
+        );
+        assert!(
+            masked[1].contains("user!.name"),
+            "real interpolation code after comment must survive: {masked:?}"
+        );
+        assert!(
+            !masked[1].contains(" y"),
+            "template text after interpolation close must be masked: {masked:?}"
+        );
+    }
+
+    #[test]
+    fn nested_template_masks_text_keeps_nested_and_outer_interpolation_code() {
+        let line = "const s = `outer ${cond ? `inner any! ${user!.id}` : fallback!.id} tail`;";
+        let out = mask_one(line);
+        assert!(
+            !out.contains("inner any"),
+            "nested template text must be masked: {out}"
+        );
+        assert!(
+            out.contains("user!.id"),
+            "nested interpolation code must survive: {out}"
+        );
+        assert!(
+            out.contains("fallback!.id"),
+            "outer interpolation code after nested template must survive: {out}"
+        );
+        assert!(
+            !out.contains(" tail"),
+            "outer template tail must be masked: {out}"
+        );
+    }
+
+    #[test]
+    fn escaped_template_delimiters_stay_template_text() {
+        let line = r"const s = `\${notCode as any} ${real as any}`;";
+        let out = mask_one(line);
+        assert!(
+            !out.contains("notCode as any"),
+            "escaped interpolation opener must remain masked text: {out}"
+        );
+        assert!(
+            out.contains("real as any"),
+            "real interpolation code must survive: {out}"
+        );
+    }
+
+    #[test]
+    fn regex_and_division_inside_interpolation_keep_depth_and_code_visibility() {
+        let regex = "const s = `x ${/[}!]/.test(v) ? cfg as any : fallback}`;";
+        let regex_out = mask_one(regex);
+        assert!(
+            !regex_out.contains("}!"),
+            "regex body inside interpolation must be masked: {regex_out}"
+        );
+        assert!(
+            regex_out.contains("cfg as any"),
+            "code after interpolation regex must survive: {regex_out}"
+        );
+
+        let div = "const s = `x ${total / count ? cfg as any : fallback}`;";
+        let div_out = mask_one(div);
+        assert!(
+            div_out.contains("total / count"),
+            "division survives: {div_out}"
+        );
+        assert!(div_out.contains("cfg as any"), "code survives: {div_out}");
+    }
+
+    #[test]
+    fn carried_interpolation_preserves_line_comment_and_division_context() {
+        let comment = mask_non_code_lines(&["const s = `x ${ // } as any!", "cfg as any}`;"]);
+        assert!(
+            !comment[0].contains("as any") && !comment[0].contains('!'),
+            "line comment inside interpolation should mask to EOL: {comment:?}"
+        );
+        assert!(
+            comment[1].contains("cfg as any"),
+            "next line must resume interpolation code: {comment:?}"
+        );
+
+        let division = mask_non_code_lines(&["const s = `x ${total", "  / count; cfg as any}`;"]);
+        assert!(
+            division[1].contains("/ count; cfg as any"),
+            "division and later code must survive carried interpolation: {division:?}"
+        );
+    }
+
+    #[test]
+    fn multibyte_interpolation_string_preserves_later_code_offset() {
+        let line = r#"const s = `x ${"café } !"} ${cfg as any}`;"#;
+        let out = mask_one(line);
+        assert_eq!(out.len(), line.len(), "byte length must be preserved");
+        assert_eq!(out.find("as any"), line.find("as any"));
+        assert!(!out.contains("café"), "multibyte string text masked: {out}");
     }
 
     #[test]

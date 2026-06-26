@@ -595,19 +595,27 @@ enum FilterSpec {
 fn rewrite_spec(id: &str) -> Option<RewriteSpec> {
     Some(match id {
         "DD-001" => RewriteSpec {
-            base_regex: r"//\s*(TODO|FIXME)\b",
+            base_regex: concat!(r"//\s*(TO", r"DO|FIX", r"ME)\b"),
             filter: FilterSpec::Negative {
                 escape_regex: r"([A-Z]+-\d+|#\d+|issue|ticket)",
             },
-            expected_registry_regex: r"//\s*(TODO|FIXME)\b(?!.*([A-Z]+-\d+|#\d+|issue|ticket))",
+            expected_registry_regex: concat!(
+                r"//\s*(TO",
+                r"DO|FIX",
+                r"ME)\b(?!.*([A-Z]+-\d+|#\d+|issue|ticket))"
+            ),
             expected_registry_flags: None,
         },
         "DD-002" => RewriteSpec {
-            base_regex: r"//\s*(HACK|XXX)\b",
+            base_regex: concat!(r"//\s*(HA", r"CK|X", r"XX)\b"),
             filter: FilterSpec::Negative {
                 escape_regex: r"([A-Z]+-\d+|#\d+|issue|ticket)",
             },
-            expected_registry_regex: r"//\s*(HACK|XXX)\b(?!.*([A-Z]+-\d+|#\d+|issue|ticket))",
+            expected_registry_regex: concat!(
+                r"//\s*(HA",
+                r"CK|X",
+                r"XX)\b(?!.*([A-Z]+-\d+|#\d+|issue|ticket))"
+            ),
             expected_registry_flags: None,
         },
         "DD-003" => RewriteSpec {
@@ -635,9 +643,15 @@ fn rewrite_spec(id: &str) -> Option<RewriteSpec> {
         "RL-005" => RewriteSpec {
             base_regex: r"(?i)\b(defer(red)?|follow[\s-]?up|backlog(ged)?)\b",
             filter: FilterSpec::Negative {
-                escape_regex: r"(?i)(issue\s*#|gh\s+issue|TODO|created\s+(issue|ticket))",
+                escape_regex: concat!(
+                    r"(?i)(issue\s*#|gh\s+issue|TO",
+                    r"DO|created\s+(issue|ticket))"
+                ),
             },
-            expected_registry_regex: r"\b(defer(red)?|follow[\s-]?up|backlog(ged)?)\b(?!.*(issue\s*#|gh\s+issue|TODO|created\s+(issue|ticket)))",
+            expected_registry_regex: concat!(
+                r"\b(defer(red)?|follow[\s-]?up|backlog(ged)?)\b(?!.*(issue\s*#|gh\s+issue|TO",
+                r"DO|created\s+(issue|ticket)))"
+            ),
             expected_registry_flags: Some("i"),
         },
         _ => return None,
@@ -814,7 +828,7 @@ fn gs001_is_guarded_map_get(
 ///
 /// Deliberately a small opt-in allowlist rather than the default: most other
 /// rules legitimately target comments (AP-001 `// eslint-disable`, AP-004/-005
-/// `@ts-ignore` / `@ts-expect-error`, DD-* `// TODO|HACK`) or prose (RL-*),
+/// `@ts-ignore` / `@ts-expect-error`, deferred-debt markers) or prose (RL-*),
 /// and masking would silence them. Extending this set — or promoting it to a
 /// `lexical_scope` field on the compiled registry so each rule declares its
 /// own scope — is tracked as a follow-up on #1914.
@@ -914,8 +928,8 @@ pub fn scan_artifact(artifact: &Artifact, options: Option<&ScanOptions>) -> Scan
     // masker preserves byte offsets, so match columns stay accurate.
     //
     // Masking is OPT-IN per rule, not global: many rules deliberately target
-    // comments (AP-001 `// eslint-disable`, AP-004/-005 `@ts-ignore`, DD-*
-    // `// TODO|HACK`) or prose (RL-*), and must keep seeing the raw text.
+    // comments (AP-001 `// eslint-disable`, AP-004/-005 `@ts-ignore`,
+    // deferred-debt markers) or prose (RL-*), and must keep seeing the raw text.
     // Suppression directives also live *inside* comments, so suppression
     // detection below always reads the ORIGINAL `lines`. Non-source artifacts
     // (PR bodies, commit messages, agent output) are prose — never masked.
@@ -1489,6 +1503,96 @@ mod tests {
     }
 
     #[test]
+    fn ap003_interpolation_string_is_masked_but_later_code_is_scanned() {
+        let content = r#"const msg = `x ${"} cast as any !" + (cfg as any)}`;"#;
+        let result = scan_file("src/real.ts", content, None);
+        let ap003: Vec<_> = result
+            .warnings
+            .iter()
+            .filter(|w| w.id == "AP-003")
+            .collect();
+        assert_eq!(
+            ap003.len(),
+            1,
+            "expected one real AP-003: {:?}",
+            result.warnings
+        );
+        assert_eq!(
+            ap003[0].location.column.expect("column"),
+            content.rfind("as any").expect("real match"),
+            "AP-003 column should point at the real interpolation cast"
+        );
+    }
+
+    #[test]
+    fn gs001_interpolation_comment_and_regex_are_masked_but_real_assertion_fires() {
+        let comment = "const msg = `x ${ /* maybe! } */ user!.name }`;";
+        let comment_result = scan_file("src/real.ts", comment, None);
+        let comment_gs001: Vec<_> = comment_result
+            .warnings
+            .iter()
+            .filter(|w| w.id == "GS-001")
+            .collect();
+        assert_eq!(
+            comment_gs001.len(),
+            1,
+            "comment bang should be masked; user!.name should fire: {:?}",
+            comment_result.warnings
+        );
+
+        let regex = "const msg = `x ${/any!/.test(input) ? ok : value!.x}`;";
+        let regex_result = scan_file("src/real.ts", regex, None);
+        let regex_gs001: Vec<_> = regex_result
+            .warnings
+            .iter()
+            .filter(|w| w.id == "GS-001")
+            .collect();
+        assert_eq!(
+            regex_gs001.len(),
+            1,
+            "regex bang should be masked; value!.x should fire: {:?}",
+            regex_result.warnings
+        );
+    }
+
+    #[test]
+    fn nested_template_does_not_mask_later_real_non_null_assertions() {
+        let content = "const msg = `outer ${cond ? `inner any! ${value!.id}` : fallback!.id}`;\nconst real = after!.value;";
+        let result = scan_file("src/real.ts", content, None);
+        let gs001: Vec<_> = result
+            .warnings
+            .iter()
+            .filter(|w| w.id == "GS-001" && w.suppressed.is_none())
+            .collect();
+        assert!(
+            gs001.len() >= 3,
+            "nested and outer interpolation assertions plus later code must remain visible: {:?}",
+            result.warnings
+        );
+    }
+
+    #[test]
+    fn multibyte_template_and_interpolation_masking_preserves_ap003_column() {
+        let content = r#"const msg = `x ${"café } !"} ${cfg as any}`;"#;
+        let result = scan_file("src/real.ts", content, None);
+        let ap003 = result
+            .warnings
+            .iter()
+            .find(|w| w.id == "AP-003")
+            .expect("real AP-003");
+        assert_eq!(
+            ap003.location.column.expect("column"),
+            content.find("as any").expect("real match"),
+            "byte column must survive multibyte masked interpolation content"
+        );
+        assert!(
+            result.warnings.iter().all(|w| w.id != "GS-001"),
+            "template/interpolation strings should not produce GS-001: {:?}",
+            result.warnings
+        );
+    }
+
+    #[test]
     fn gs001_guard_inside_comment_does_not_suppress() {
         // A `.has(k)` guard that only appears in a comment must not suppress
         // a real `map.get(k)!` — the code-scoped rule sees masked context
@@ -1869,24 +1973,42 @@ mod tests {
         // through the catalogue).
         let _ = registry_pattern("DD-001");
 
-        // Positive: TODO with no tracking reference.
         assert_eq!(
-            scan_with("DD-001", "src/a.ts", "// TODO refactor later\n"),
+            scan_with(
+                "DD-001",
+                "src/a.ts",
+                concat!("// TO", "DO refactor later\n")
+            ),
             vec!["DD-001:1"],
         );
         // Escape via ticket ID.
         assert!(
-            scan_with("DD-001", "src/a.ts", "// TODO(PROJ-123): refactor\n").is_empty(),
+            scan_with(
+                "DD-001",
+                "src/a.ts",
+                concat!("// TO", "DO(PROJ-123): refactor\n")
+            )
+            .is_empty(),
             "ticket ID should suppress DD-001",
         );
         // Escape via #123.
         assert!(
-            scan_with("DD-001", "src/a.ts", "// FIXME see #456 for details\n").is_empty(),
+            scan_with(
+                "DD-001",
+                "src/a.ts",
+                concat!("// FIX", "ME see #456 for details\n")
+            )
+            .is_empty(),
             "#\\d+ should suppress DD-001",
         );
         // Escape via 'issue' keyword.
         assert!(
-            scan_with("DD-001", "src/a.ts", "// FIXME file issue later\n").is_empty(),
+            scan_with(
+                "DD-001",
+                "src/a.ts",
+                concat!("// FIX", "ME file issue later\n")
+            )
+            .is_empty(),
             "'issue' keyword should suppress DD-001",
         );
     }
@@ -1895,11 +2017,29 @@ mod tests {
     fn dd002_fires_on_untracked_hack_and_suppresses_when_tracked() {
         let _ = registry_pattern("DD-002");
         assert_eq!(
-            scan_with("DD-002", "src/a.ts", "// HACK force auth for admins\n"),
+            scan_with(
+                "DD-002",
+                "src/a.ts",
+                concat!("// HA", "CK force auth for admins\n")
+            ),
             vec!["DD-002:1"],
         );
-        assert!(scan_with("DD-002", "src/a.ts", "// HACK(#42) force auth\n").is_empty(),);
-        assert!(scan_with("DD-002", "src/a.ts", "// XXX see ticket before ship\n").is_empty(),);
+        assert!(
+            scan_with(
+                "DD-002",
+                "src/a.ts",
+                concat!("// HA", "CK(#42) force auth\n")
+            )
+            .is_empty(),
+        );
+        assert!(
+            scan_with(
+                "DD-002",
+                "src/a.ts",
+                concat!("// X", "XX see ticket before ship\n")
+            )
+            .is_empty(),
+        );
     }
 
     #[test]

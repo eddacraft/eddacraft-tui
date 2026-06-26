@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 67/105  |
+| CIB | —     | In Progress | 68/105  |
 
 ## Purpose
 
@@ -2265,7 +2265,7 @@ archive.
 
 ### CIB-083: context-stack lexer for template-literal interpolation masking
 
-- **Status:** Ready
+- **Status:** Done 2026-06-26 — template interpolation masking now uses a carried context stack; strings/comments/regexes inside `${…}` are masked, nested templates remain visible where they are real code, and TS/JS external FP dogfood dropped the eight known GS-001 template-text false positives (AP/GS default findings 2,228 → 2,220; 0 panics).
 - **Intent:** Replace the lexer-light interpolation brace-counter in the AP-/GS-
   comment/string masker (`mask.rs`) with a context stack so a `${ … }`
   interpolation is fully re-lexed — masking a `!` / `any` / brace that sits
