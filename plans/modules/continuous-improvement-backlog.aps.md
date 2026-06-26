@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 66/105  |
+| CIB | —     | In Progress | 67/105  |
 
 ## Purpose
 
@@ -2431,7 +2431,7 @@ archive.
 
 ### CIB-088: `anvil drift migrate` operability — backup retention + partial-failure reporting
 
-- **Status:** Ready
+- **Status:** Done 2026-06-26 — `drift migrate` now reports skipped baselines by reason, exits non-zero for partial runs after emitting the report, and supports explicit `--prune-backups` count retention that keeps the latest rollback per live snapshot.
 - **Intent:** Close two operability gaps in `drift migrate`: (a) `.bak`/`.bak.N`
   backups accumulate unbounded ("retained for one release" is comment-only, not
   enforced); (b) skipped corrupt/unreadable/future-version baselines are not

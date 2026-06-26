@@ -184,14 +184,77 @@ fn ensure_readable(baseline: SchemaVersion, current: SchemaVersion) -> Result<()
 // ── Drift baseline migration (OPSUP-004) ────────────────────────────
 
 /// Outcome counts from a `anvil drift migrate` run.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize)]
 struct MigrateReport {
     /// Baselines upgraded from an older schema to the current one.
     migrated: usize,
     /// Baselines already on the current schema — left untouched.
     already_current: usize,
-    /// Baselines written by a newer anvil — skipped, never downgraded.
+    /// Compatibility alias: baselines written by a newer anvil.
     newer: usize,
+    skipped: usize,
+    partial: bool,
+    skipped_by_reason: BTreeMap<MigrateSkipReason, usize>,
+    backups: BackupPruneReport,
+}
+
+impl MigrateReport {
+    fn add_skip(&mut self, reason: MigrateSkipReason, count: usize) {
+        if count == 0 {
+            return;
+        }
+        *self.skipped_by_reason.entry(reason).or_insert(0) += count;
+        self.skipped += count;
+        self.partial = true;
+        if reason == MigrateSkipReason::NewerSchema {
+            self.newer += count;
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum MigrateSkipReason {
+    Unreadable,
+    InvalidJson,
+    InvalidSchemaVersion,
+    NewerSchema,
+    ScanLimitExceeded,
+}
+
+impl MigrateSkipReason {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Unreadable => "unreadable",
+            Self::InvalidJson => "invalid_json",
+            Self::InvalidSchemaVersion => "invalid_schema_version",
+            Self::NewerSchema => "newer_schema",
+            Self::ScanLimitExceeded => "scan_limit_exceeded",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+struct BackupPruneReport {
+    pruned: usize,
+    retained: usize,
+    skipped: usize,
+    retention: BackupRetention,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+struct BackupRetention {
+    mode: &'static str,
+    keep_per_baseline: usize,
+}
+
+impl Default for BackupRetention {
+    fn default() -> Self {
+        Self {
+            mode: "count",
+            keep_per_baseline: 1,
+        }
+    }
 }
 
 /// The base backup path for a baseline: a `<file>.bak` sibling so it sorts
@@ -204,7 +267,7 @@ fn backup_path(path: &Path) -> PathBuf {
     path.with_file_name(name)
 }
 
-/// Write `content` to the first backup path that does not yet exist —
+/// Write `content` to the next backup generation —
 /// `<file>.bak`, then `<file>.bak.1`, `<file>.bak.2`, … — creating it
 /// **exclusively** (`O_EXCL`). Returns the path written.
 ///
@@ -226,8 +289,9 @@ fn write_fresh_backup(path: &Path, content: &[u8]) -> Result<PathBuf> {
         .to_string_lossy()
         .into_owned();
 
+    let start = max_backup_generation(path)?.map_or(0, |n| n + 1);
     // Bounded so a directory already full of `.bak.N` files can't spin forever.
-    for n in 0..=10_000 {
+    for n in start..=10_000 {
         let candidate = if n == 0 {
             base.clone()
         } else {
@@ -255,6 +319,36 @@ fn write_fresh_backup(path: &Path, content: &[u8]) -> Result<PathBuf> {
         "could not create a backup for {}: too many existing .bak files",
         path.display()
     );
+}
+
+fn max_backup_generation(path: &Path) -> Result<Option<usize>> {
+    let base = backup_path(path);
+    let Some(dir) = base.parent() else {
+        return Ok(None);
+    };
+    if !dir.exists() {
+        return Ok(None);
+    }
+    let Some(base_name) = base.file_name().map(|n| n.to_string_lossy().into_owned()) else {
+        return Ok(None);
+    };
+    let mut max = None;
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if let Some(generation) = backup_generation_for_name(&name, &base_name) {
+            max = Some(max.map_or(generation, |m: usize| m.max(generation)));
+        }
+    }
+    Ok(max)
+}
+
+fn backup_generation_for_name(name: &str, base_name: &str) -> Option<usize> {
+    if name == base_name {
+        return Some(0);
+    }
+    let suffix = name.strip_prefix(base_name)?.strip_prefix('.')?;
+    suffix.parse::<usize>().ok()
 }
 
 /// One-line hint emitted when a loaded baseline is on an older schema than this
@@ -286,36 +380,45 @@ fn emit_stale_baseline_hint(snapshots: &[&DriftSnapshot]) {
 /// version to the current one, backing up the original first. Pure of the
 /// write-gate and output concerns so it is unit-testable; `run_migrate` wraps
 /// it with the ADR-060 write guard and rendering.
-fn migrate_snapshots(workspace: &Path) -> Result<MigrateReport> {
+fn migrate_snapshots(workspace: &Path, prune_backups: bool) -> Result<MigrateReport> {
+    migrate_snapshots_capped(workspace, prune_backups, MAX_SNAPSHOTS_SCANNED)
+}
+
+fn migrate_snapshots_capped(
+    workspace: &Path,
+    prune_backups: bool,
+    snapshot_cap: usize,
+) -> Result<MigrateReport> {
     let mut report = MigrateReport::default();
     let current = current_schema();
+    if prune_backups {
+        report.backups = prune_drift_backups(workspace)?;
+    }
 
-    for path in list_snapshot_files(workspace)? {
+    let listed = list_snapshot_files_capped_report(workspace, snapshot_cap)?;
+    report.add_skip(MigrateSkipReason::ScanLimitExceeded, listed.ignored);
+    for path in listed.files {
         // Read + parse directly rather than via `load_snapshot_file`: that
         // helper bails on a future schema, but migrate must *skip* such a
         // baseline (it cannot be downgraded) without aborting the whole run.
         let content = match read_to_string_capped(&path, MAX_SNAPSHOT_BYTES) {
             Ok(c) => c,
             Err(e) => {
-                eprintln!(
-                    "warning: skipping unreadable snapshot {}: {e}",
-                    path.display()
-                );
+                let _ = e;
+                report.add_skip(MigrateSkipReason::Unreadable, 1);
                 continue;
             }
         };
         let snapshot: DriftSnapshot = match serde_json::from_str(&content) {
             Ok(s) => s,
             Err(e) => {
-                eprintln!("warning: skipping corrupt snapshot {}: {e}", path.display());
+                let _ = e;
+                report.add_skip(MigrateSkipReason::InvalidJson, 1);
                 continue;
             }
         };
         let Ok(version) = SchemaVersion::parse(&snapshot.schema_version) else {
-            eprintln!(
-                "warning: skipping snapshot with unparseable schema version {}",
-                path.display()
-            );
+            report.add_skip(MigrateSkipReason::InvalidSchemaVersion, 1);
             continue;
         };
 
@@ -324,7 +427,7 @@ fn migrate_snapshots(workspace: &Path) -> Result<MigrateReport> {
         // are preserved rather than silently dropped by a struct round-trip.
         match version.cmp(&current) {
             std::cmp::Ordering::Equal => report.already_current += 1,
-            std::cmp::Ordering::Greater => report.newer += 1,
+            std::cmp::Ordering::Greater => report.add_skip(MigrateSkipReason::NewerSchema, 1),
             std::cmp::Ordering::Less => {
                 migrate_one(&path, &content, current)?;
                 report.migrated += 1;
@@ -332,6 +435,64 @@ fn migrate_snapshots(workspace: &Path) -> Result<MigrateReport> {
         }
     }
 
+    Ok(report)
+}
+
+fn prune_drift_backups(workspace: &Path) -> Result<BackupPruneReport> {
+    let mut report = BackupPruneReport::default();
+    let dir = snapshots_dir(workspace);
+    if !dir.exists() {
+        return Ok(report);
+    }
+    let mut live: Vec<PathBuf> = Vec::new();
+    for entry in std::fs::read_dir(&dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if name.starts_with(SNAPSHOT_PREFIX)
+            && path
+                .extension()
+                .is_some_and(|ext| ext.eq_ignore_ascii_case("json"))
+            && entry.file_type().is_ok_and(|ft| ft.is_file())
+        {
+            live.push(path);
+        }
+    }
+    for snapshot in live {
+        let base = backup_path(&snapshot);
+        let Some(base_name) = base.file_name().map(|n| n.to_string_lossy().into_owned()) else {
+            continue;
+        };
+        let mut candidates: Vec<(usize, PathBuf)> = Vec::new();
+        for entry in std::fs::read_dir(&dir)? {
+            let entry = entry?;
+            let name = entry.file_name().to_string_lossy().into_owned();
+            let Some(generation) = backup_generation_for_name(&name, &base_name) else {
+                continue;
+            };
+            let path = entry.path();
+            let meta = std::fs::symlink_metadata(&path)?;
+            if meta.file_type().is_symlink() || !meta.is_file() {
+                report.skipped += 1;
+                continue;
+            }
+            candidates.push((generation, path));
+        }
+        if candidates.is_empty() {
+            continue;
+        }
+        candidates.sort_by_key(|(generation, _)| *generation);
+        let keep_generation = candidates.last().map(|(generation, _)| *generation);
+        for (generation, path) in candidates {
+            if Some(generation) == keep_generation {
+                report.retained += 1;
+                continue;
+            }
+            std::fs::remove_file(&path)
+                .with_context(|| format!("pruning drift backup {}", path.display()))?;
+            report.pruned += 1;
+        }
+    }
     Ok(report)
 }
 
@@ -362,26 +523,26 @@ fn migrate_one(path: &Path, original_content: &str, current: SchemaVersion) -> R
     Ok(())
 }
 
-fn run_migrate(global: &GlobalArgs) -> Result<()> {
+fn run_migrate(global: &GlobalArgs, prune_backups: bool) -> Result<()> {
     // DISTRIB-006 (ADR-060): migration rewrites durable `.anvil/snapshots/*.json`
     // in place. Refuse under a gated ANVIL_HOME without `--touch-project-state`.
     crate::install_root::ensure_project_write_allowed("drift migrate")?;
 
     let mode = OutputMode::from_global(global);
     let cwd = std::env::current_dir()?;
-    let report = migrate_snapshots(&cwd)?;
+    let report = migrate_snapshots(&cwd, prune_backups)?;
 
     match mode {
-        OutputMode::Json => output::json::print(&serde_json::json!({
-            "migrated": report.migrated,
-            "already_current": report.already_current,
-            "newer": report.newer,
-        }))?,
+        OutputMode::Json => output::json::print(&report)?,
         OutputMode::Plain | OutputMode::Tui | OutputMode::Sarif => {
-            let total = report.migrated + report.already_current + report.newer;
-            if total == 0 {
+            let total = report.migrated + report.already_current + report.skipped;
+            if total == 0 && report.backups.pruned == 0 && report.backups.retained == 0 {
                 output::plain::info("No drift baselines found — nothing to migrate");
-            } else if report.migrated == 0 && report.newer == 0 {
+            } else if report.migrated == 0
+                && !report.partial
+                && report.backups.pruned == 0
+                && report.backups.retained == 0
+            {
                 output::plain::success("Drift baselines already current — nothing to migrate");
             } else {
                 if report.migrated > 0 {
@@ -397,14 +558,26 @@ fn run_migrate(global: &GlobalArgs) -> Result<()> {
                         report.already_current
                     ));
                 }
-                if report.newer > 0 {
-                    output::plain::warn(&format!(
-                        "{} baseline(s) from a newer anvil were skipped (cannot downgrade)",
-                        report.newer
+                if report.backups.pruned > 0 || report.backups.retained > 0 {
+                    output::plain::success(&format!(
+                        "Pruned {} drift backup(s); retained {} rollback backup(s)",
+                        report.backups.pruned, report.backups.retained
                     ));
+                }
+                if report.partial {
+                    output::plain::warn(&format!(
+                        "Partial migration: {} baseline(s) skipped",
+                        report.skipped
+                    ));
+                    for (reason, count) in &report.skipped_by_reason {
+                        output::plain::dim(&format!("  - {}: {count}", reason.as_str()));
+                    }
                 }
             }
         }
+    }
+    if report.partial {
+        return Err(output::AlreadyReported.into());
     }
     Ok(())
 }
@@ -447,7 +620,12 @@ enum DriftCommand {
     /// Each baseline is backed up to `<file>.bak` before any in-place write.
     /// Baselines already on the current schema are left untouched; baselines
     /// from a newer anvil are skipped rather than downgraded.
-    Migrate,
+    Migrate {
+        /// Prune older drift-baseline backups, retaining the latest rollback
+        /// backup per live snapshot.
+        #[arg(long)]
+        prune_backups: bool,
+    },
 }
 
 // ── Snapshot types (JSON-serialisable, parity with Node.js) ─────────
@@ -601,7 +779,7 @@ pub fn run(args: &DriftArgs, global: &GlobalArgs) -> Result<()> {
         } => run_compare(snapshot1, snapshot2, global),
         DriftCommand::Report { since } => run_report(since.as_deref(), global),
         DriftCommand::List { limit } => run_list(*limit, global),
-        DriftCommand::Migrate => run_migrate(global),
+        DriftCommand::Migrate { prune_backups } => run_migrate(global, *prune_backups),
     }
 }
 
@@ -965,19 +1143,32 @@ fn get_latest_snapshot(workspace: &Path) -> Result<Option<DriftSnapshot>> {
 }
 
 pub(crate) fn list_snapshot_files(workspace: &Path) -> Result<Vec<PathBuf>> {
-    list_snapshot_files_capped(workspace, MAX_SNAPSHOTS_SCANNED)
+    Ok(list_snapshot_files_capped_report(workspace, MAX_SNAPSHOTS_SCANNED)?.files)
+}
+
+struct SnapshotFileList {
+    files: Vec<PathBuf>,
+    ignored: usize,
 }
 
 /// [`list_snapshot_files`] with an explicit scan cap, so the count guard is
 /// testable without creating thousands of fixtures.
+#[cfg(test)]
 fn list_snapshot_files_capped(workspace: &Path, cap: usize) -> Result<Vec<PathBuf>> {
+    Ok(list_snapshot_files_capped_report(workspace, cap)?.files)
+}
+
+fn list_snapshot_files_capped_report(workspace: &Path, cap: usize) -> Result<SnapshotFileList> {
     use std::cmp::Reverse;
     use std::collections::BinaryHeap;
     use std::time::SystemTime;
 
     let dir = snapshots_dir(workspace);
     if !dir.exists() {
-        return Ok(Vec::new());
+        return Ok(SnapshotFileList {
+            files: Vec::new(),
+            ignored: 0,
+        });
     }
 
     // CIB-084: keep only the `cap` most-recent snapshots (by mtime) in memory as
@@ -1005,13 +1196,6 @@ fn list_snapshot_files_capped(workspace: &Path, cap: usize) -> Result<Vec<PathBu
         if newest.len() > cap {
             newest.pop(); // evict the oldest, so memory never exceeds `cap`
         }
-    }
-    if total > cap {
-        eprintln!(
-            "warning: {total} drift snapshots in {}; using the {cap} most recent \
-             (older snapshots ignored)",
-            dir.display(),
-        );
     }
     let files: Vec<PathBuf> = newest.into_iter().map(|Reverse((_, p))| p).collect();
 
@@ -1045,7 +1229,10 @@ fn list_snapshot_files_capped(workspace: &Path, cap: usize) -> Result<Vec<PathBu
 
     let files: Vec<PathBuf> = keyed.into_iter().map(|(p, _)| p).collect();
 
-    Ok(files)
+    Ok(SnapshotFileList {
+        files,
+        ignored: total.saturating_sub(cap),
+    })
 }
 
 /// Count snapshot files in `.anvil/snapshots/` cheaply — no per-file reads and no
@@ -1705,7 +1892,7 @@ mod tests {
         let path = write_snapshot_at_version(dir.path(), "old", "1.0.0");
         let original = std::fs::read_to_string(&path).unwrap();
 
-        let report = migrate_snapshots(dir.path()).unwrap();
+        let report = migrate_snapshots(dir.path(), false).unwrap();
 
         assert_eq!(report.migrated, 1);
         assert_eq!(report.already_current, 0);
@@ -1725,7 +1912,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = write_snapshot_at_version(dir.path(), "cur", &current_schema().to_string());
 
-        let report = migrate_snapshots(dir.path()).unwrap();
+        let report = migrate_snapshots(dir.path(), false).unwrap();
 
         assert_eq!(report.migrated, 0);
         assert_eq!(report.already_current, 1);
@@ -1751,7 +1938,7 @@ mod tests {
         let path = sdir.join("snapshot-annotated.json");
         std::fs::write(&path, serde_json::to_string_pretty(&value).unwrap()).unwrap();
 
-        migrate_snapshots(dir.path()).unwrap();
+        migrate_snapshots(dir.path(), false).unwrap();
 
         let migrated: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
@@ -1774,7 +1961,7 @@ mod tests {
         let base_backup = backup_path(&path);
         std::fs::write(&base_backup, b"PRIOR-BACKUP").unwrap();
 
-        let report = migrate_snapshots(dir.path()).unwrap();
+        let report = migrate_snapshots(dir.path(), false).unwrap();
 
         assert_eq!(report.migrated, 1, "the baseline still migrates");
         assert_eq!(
@@ -1831,7 +2018,7 @@ mod tests {
         let mut before: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
 
-        migrate_snapshots(dir.path()).unwrap();
+        migrate_snapshots(dir.path(), false).unwrap();
 
         let after: serde_json::Value =
             serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
@@ -1868,13 +2055,126 @@ mod tests {
         let path = write_snapshot_at_version(dir.path(), "future", &future.to_string());
         let original = std::fs::read_to_string(&path).unwrap();
 
-        let report = migrate_snapshots(dir.path()).unwrap();
+        let report = migrate_snapshots(dir.path(), false).unwrap();
 
         assert_eq!(report.migrated, 0);
         assert_eq!(report.newer, 1);
+        assert_eq!(report.skipped, 1);
+        assert!(report.partial);
+        assert_eq!(
+            report
+                .skipped_by_reason
+                .get(&MigrateSkipReason::NewerSchema),
+            Some(&1)
+        );
         // A future baseline is left untouched — never downgraded.
         assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
         assert!(!backup_path(&path).exists());
+    }
+
+    #[test]
+    fn migrate_counts_corrupt_invalid_schema_and_unreadable_snapshots_as_skipped() {
+        let dir = tempfile::tempdir().unwrap();
+        let snapshots = snapshots_dir(dir.path());
+        std::fs::create_dir_all(&snapshots).unwrap();
+        std::fs::write(snapshots.join("snapshot-corrupt.json"), b"{not-json").unwrap();
+
+        let mut bad_schema = serde_json::to_value(make_snapshot("bad-schema", 0, 0, 0)).unwrap();
+        bad_schema["schema_version"] = serde_json::Value::String("not-semver".to_string());
+        std::fs::write(
+            snapshots.join("snapshot-bad-schema.json"),
+            serde_json::to_string_pretty(&bad_schema).unwrap(),
+        )
+        .unwrap();
+        std::fs::create_dir(snapshots.join("snapshot-unreadable.json")).unwrap();
+
+        let report = migrate_snapshots(dir.path(), false).unwrap();
+
+        assert_eq!(report.skipped, 3, "{report:?}");
+        assert!(report.partial);
+        assert_eq!(
+            report
+                .skipped_by_reason
+                .get(&MigrateSkipReason::InvalidJson),
+            Some(&1)
+        );
+        assert_eq!(
+            report
+                .skipped_by_reason
+                .get(&MigrateSkipReason::InvalidSchemaVersion),
+            Some(&1)
+        );
+        assert_eq!(
+            report.skipped_by_reason.get(&MigrateSkipReason::Unreadable),
+            Some(&1)
+        );
+    }
+
+    #[test]
+    fn migrate_scan_cap_is_reported_as_partial() {
+        let dir = tempfile::tempdir().unwrap();
+        for name in ["a", "b", "c"] {
+            write_snapshot_at_version(dir.path(), name, &current_schema().to_string());
+        }
+
+        let report = migrate_snapshots_capped(dir.path(), false, 2).unwrap();
+
+        assert_eq!(report.skipped, 1);
+        assert!(report.partial);
+        assert_eq!(
+            report
+                .skipped_by_reason
+                .get(&MigrateSkipReason::ScanLimitExceeded),
+            Some(&1)
+        );
+    }
+
+    #[test]
+    fn prune_backups_keeps_latest_generation_and_ignores_unrelated_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = write_snapshot_at_version(dir.path(), "prune", &current_schema().to_string());
+        let base = backup_path(&path);
+        let bak1 =
+            base.with_file_name(format!("{}.1", base.file_name().unwrap().to_string_lossy()));
+        let bak2 =
+            base.with_file_name(format!("{}.2", base.file_name().unwrap().to_string_lossy()));
+        std::fs::write(&base, b"bak0").unwrap();
+        std::fs::write(&bak1, b"bak1").unwrap();
+        std::fs::write(&bak2, b"bak2").unwrap();
+        std::fs::write(base.with_file_name("snapshot-prune.json.bak.tmp"), b"tmp").unwrap();
+        std::fs::write(base.with_file_name("snapshot-prune.json.back"), b"back").unwrap();
+        std::fs::write(base.with_file_name("snapshot-prune.bak"), b"wrong").unwrap();
+
+        let report = prune_drift_backups(dir.path()).unwrap();
+
+        assert_eq!(report.pruned, 2);
+        assert_eq!(report.retained, 1);
+        assert!(path.exists(), "live baseline must never be pruned");
+        assert!(!base.exists());
+        assert!(!bak1.exists());
+        assert_eq!(std::fs::read_to_string(&bak2).unwrap(), "bak2");
+        assert!(base.with_file_name("snapshot-prune.json.bak.tmp").exists());
+        assert!(base.with_file_name("snapshot-prune.json.back").exists());
+        assert!(base.with_file_name("snapshot-prune.bak").exists());
+    }
+
+    #[test]
+    fn prune_then_migrate_keeps_current_run_backup() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = write_snapshot_at_version(dir.path(), "old-prune", "1.0.0");
+        let base = backup_path(&path);
+        std::fs::write(&base, b"old-backup").unwrap();
+
+        let report = migrate_snapshots(dir.path(), true).unwrap();
+
+        assert_eq!(report.backups.retained, 1);
+        assert_eq!(report.migrated, 1);
+        let fresh =
+            base.with_file_name(format!("{}.1", base.file_name().unwrap().to_string_lossy()));
+        assert!(
+            fresh.exists(),
+            "fresh rollback from this migration must survive prune"
+        );
     }
 
     #[test]

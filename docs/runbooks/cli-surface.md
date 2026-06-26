@@ -199,7 +199,7 @@ $ anvil config convert --to yaml
 to use:** To capture architecture snapshots, compare them, or generate a drift
 report against a baseline.
 
-**Synopsis:** `anvil drift <snapshot|compare|report|list>`
+**Synopsis:** `anvil drift <snapshot|compare|report|list|migrate>`
 
 **Subcommands:**
 
@@ -209,8 +209,16 @@ report against a baseline.
 | `compare <snapshot1> <snapshot2>` | Compare two snapshots.               |
 | `report [--since <snapshot>]`     | Generate a drift report.             |
 | `list [--limit <n>]`              | List available snapshots.            |
+| `migrate [--prune-backups]`       | Upgrade drift baselines and optionally prune older rollback backups. |
 
-**Exit codes:** 0 (success), 1 (error), 3 (auth required)
+**Exit codes:** 0 (success), 1 (error or partial migration), 3 (auth required)
+
+`drift migrate` writes a fresh rollback backup before migrating each older
+baseline. It exits 1 after printing its normal report when any baseline is
+skipped, including corrupt JSON, unreadable files, invalid schema versions,
+future-schema baselines, or scan-cap omissions. `--prune-backups` is explicit:
+it keeps the latest `.bak` generation for each live `snapshot-*.json` baseline
+and ignores unrelated backup-like files.
 
 **Examples:**
 
@@ -219,6 +227,7 @@ $ anvil drift snapshot --name before-refactor
 $ anvil drift report
 $ anvil drift compare snapshot-1 snapshot-2
 $ anvil drift list
+$ anvil drift migrate --prune-backups
 ```
 
 ---
