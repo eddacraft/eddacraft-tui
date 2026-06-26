@@ -23,6 +23,12 @@ pub enum AstRuleKind {
     SerdeDenyUnknown,
     /// RS-005 — `todo!()` / `unimplemented!()` reached from non-test code.
     TodoMacro,
+    /// RS-006 — catch-all `#[serde(flatten)]` field without a validation boundary.
+    SerdeFlattenUnvalidated,
+    /// RS-007 — `Deserialize` plaintext field carrying a high-confidence secret.
+    SecretDeserialize,
+    /// RS-008 — `.clone()` inside a syntactic loop.
+    CloneInLoop,
 }
 
 /// Predicate table (ADR-071 §3/§4): rule id → (kind, expected `ast_query`).
@@ -48,6 +54,18 @@ pub fn kind_for(id: &str) -> Option<(AstRuleKind, &'static str)> {
             AstRuleKind::TodoMacro,
             "(macro_invocation macro: (identifier) @name) @target",
         )),
+        "RS-006" => Some((
+            AstRuleKind::SerdeFlattenUnvalidated,
+            "(attribute_item (attribute (identifier) @attr arguments: (token_tree) @serde_args)) @target",
+        )),
+        "RS-007" => Some((
+            AstRuleKind::SecretDeserialize,
+            "(field_declaration name: (field_identifier) @field) @target",
+        )),
+        "RS-008" => Some((
+            AstRuleKind::CloneInLoop,
+            "(call_expression function: (field_expression field: (field_identifier) @method)) @target",
+        )),
         _ => None,
     }
 }
@@ -55,7 +73,9 @@ pub fn kind_for(id: &str) -> Option<(AstRuleKind, &'static str)> {
 /// Every rule id the predicate table knows about (for the completeness guard).
 #[must_use]
 pub fn known_rule_ids() -> &'static [&'static str] {
-    &["RS-001", "RS-002", "RS-003", "RS-004", "RS-005"]
+    &[
+        "RS-001", "RS-002", "RS-003", "RS-004", "RS-005", "RS-006", "RS-007", "RS-008",
+    ]
 }
 
 #[must_use]
@@ -319,8 +339,93 @@ pub(crate) fn struct_lacks_deny_unknown(struct_item: Node, src: &[u8]) -> bool {
     if !derives_deserialize {
         return false;
     }
+    if struct_has_flatten_field(struct_item, src) {
+        return false;
+    }
     let has_deny = attrs.iter().any(|a| attr_serde_deny_unknown(*a, src));
     !has_deny
+}
+
+/// RS-006 — true when a `#[serde(flatten)]` attribute decorates a catch-all map
+/// field on a `Deserialize` struct, with no detectable validation boundary.
+///
+/// Deliberately opt-in: typed flatten composition (`common: CommonConfig`) is
+/// clean, and validation that is not mechanically visible should be expressed
+/// with a local `@anvil-ignore` reason rather than guessed.
+#[must_use]
+pub(crate) fn serde_flatten_without_validation(attr_item: Node, src: &[u8]) -> bool {
+    if !attr_item_is_serde_with_identifier(attr_item, src, "flatten") {
+        return false;
+    }
+    let Some(field) = decorated_field_for_attr(attr_item) else {
+        return false;
+    };
+    if !field_type_is_catch_all_map(field, src) {
+        return false;
+    }
+    if field_attrs_have_serde_identifier(field, src, "deserialize_with") {
+        return false;
+    }
+    let Some(struct_item) = ancestor_kind(field, "struct_item") else {
+        return false;
+    };
+    let attrs = preceding_attribute_items(struct_item);
+    attrs.iter().any(|a| attr_derive_contains(*a, src))
+        && !attrs
+            .iter()
+            .any(|a| attr_item_is_serde_with_identifier(*a, src, "try_from"))
+}
+
+/// RS-007 — true when a named field on a `Deserialize` struct deserialises a
+/// high-confidence secret into a plaintext-ish type. The rule intentionally
+/// ignores manual `Deserialize` implementations; CIB-079 scopes this first wave
+/// to derive-backed structs visible through the AST rule table.
+#[must_use]
+pub(crate) fn secret_deserialize_field(field: Node, src: &[u8]) -> bool {
+    let Some(struct_item) = ancestor_kind(field, "struct_item") else {
+        return false;
+    };
+    if !preceding_attribute_items(struct_item)
+        .iter()
+        .any(|a| attr_derive_contains(*a, src))
+    {
+        return false;
+    }
+    if field_attrs_have_serde_identifier(field, src, "skip_deserializing") {
+        return false;
+    }
+    if field_attrs_have_serde_identifier(field, src, "deserialize_with") {
+        return false;
+    }
+    let Some(type_node) = field.child_by_field_name("type") else {
+        return false;
+    };
+    let type_text = node_text(type_node, src);
+    if type_is_secret_wrapper(type_text) || !type_is_plaintextish(type_text) {
+        return false;
+    }
+    let Some(name_node) = field.child_by_field_name("name") else {
+        return false;
+    };
+    let field_name = node_text(name_node, src);
+    is_high_confidence_secret_name(field_name) || field_attrs_have_secret_rename(field, src)
+}
+
+/// RS-008 — syntactic loop only. Iterator-adapter closures and UFCS
+/// `Clone::clone` are out of scope until the rule has type/cost context.
+#[must_use]
+pub(crate) fn inside_syntactic_loop(node: Node) -> bool {
+    let mut cur = Some(node);
+    while let Some(n) = cur {
+        if matches!(
+            n.kind(),
+            "for_expression" | "while_expression" | "loop_expression"
+        ) {
+            return true;
+        }
+        cur = n.parent();
+    }
+    false
 }
 
 fn preceding_attribute_items(node: Node) -> Vec<Node> {
@@ -357,6 +462,170 @@ fn attr_derive_contains(attr_item: Node, src: &[u8]) -> bool {
 fn attr_serde_deny_unknown(attr_item: Node, src: &[u8]) -> bool {
     attr_with_name(attr_item, src, "serde")
         .is_some_and(|args| subtree_has_identifier(args, src, "deny_unknown_fields"))
+}
+
+fn attr_item_is_serde_with_identifier(attr_item: Node, src: &[u8], ident: &str) -> bool {
+    attr_with_name(attr_item, src, "serde")
+        .is_some_and(|args| subtree_has_identifier(args, src, ident))
+}
+
+fn decorated_field_for_attr(attr_item: Node) -> Option<Node> {
+    if matches!(
+        attr_item.parent().map(|p| p.kind()),
+        Some("field_declaration")
+    ) {
+        return attr_item.parent();
+    }
+    let mut sib = attr_item.next_named_sibling();
+    while let Some(s) = sib {
+        match s.kind() {
+            "attribute_item" | "line_comment" | "block_comment" => sib = s.next_named_sibling(),
+            "field_declaration" => return Some(s),
+            _ => return None,
+        }
+    }
+    None
+}
+
+fn ancestor_kind<'a>(node: Node<'a>, kind: &str) -> Option<Node<'a>> {
+    let mut cur = Some(node);
+    while let Some(n) = cur {
+        if n.kind() == kind {
+            return Some(n);
+        }
+        cur = n.parent();
+    }
+    None
+}
+
+fn field_attrs_have_serde_identifier(field: Node, src: &[u8], ident: &str) -> bool {
+    field_attribute_items(field)
+        .iter()
+        .any(|a| attr_item_is_serde_with_identifier(*a, src, ident))
+}
+
+fn field_attribute_items(field: Node) -> Vec<Node> {
+    let mut out = Vec::new();
+    let mut cursor = field.walk();
+    for child in field.named_children(&mut cursor) {
+        if child.kind() == "attribute_item" {
+            out.push(child);
+        }
+    }
+    if out.is_empty() {
+        let mut sib = field.prev_named_sibling();
+        while let Some(s) = sib {
+            match s.kind() {
+                "attribute_item" => out.push(s),
+                "line_comment" | "block_comment" => {}
+                _ => break,
+            }
+            sib = s.prev_named_sibling();
+        }
+    }
+    out
+}
+
+fn field_type_is_catch_all_map(field: Node, src: &[u8]) -> bool {
+    let Some(type_node) = field.child_by_field_name("type") else {
+        return false;
+    };
+    let text = node_text(type_node, src);
+    let lower = text.to_ascii_lowercase();
+    (text.contains("HashMap") || text.contains("BTreeMap") || text.contains("IndexMap"))
+        && (lower.contains("serde_json::value")
+            || lower.contains("serde_json :: value")
+            || text.ends_with("Value>")
+            || text.contains("Value,")
+            || text.contains("Value >"))
+}
+
+fn struct_has_flatten_field(struct_item: Node, src: &[u8]) -> bool {
+    let mut cursor = struct_item.walk();
+    struct_item
+        .named_children(&mut cursor)
+        .filter(|n| n.kind() == "field_declaration_list")
+        .flat_map(|list| {
+            let mut list_cursor = list.walk();
+            list.named_children(&mut list_cursor).collect::<Vec<_>>()
+        })
+        .any(|field| {
+            field.kind() == "field_declaration"
+                && field_attrs_have_serde_identifier(field, src, "flatten")
+        })
+}
+
+fn type_is_secret_wrapper(type_text: &str) -> bool {
+    [
+        "SecretString",
+        "SecretVec",
+        "Secret<",
+        "Sensitive<",
+        "Redacted<",
+        "SecretBox<",
+        "Masked<",
+    ]
+    .iter()
+    .any(|needle| type_text.contains(needle))
+}
+
+fn type_is_plaintextish(type_text: &str) -> bool {
+    let compact: String = type_text.chars().filter(|c| !c.is_whitespace()).collect();
+    compact == "String"
+        || compact == "std::string::String"
+        || compact == "Vec<u8>"
+        || compact == "std::vec::Vec<u8>"
+        || compact == "Bytes"
+        || compact == "serde_json::Value"
+        || compact == "Value"
+        || compact.contains("Option<String>")
+        || compact.contains("Option<std::string::String>")
+}
+
+fn is_high_confidence_secret_name(name: &str) -> bool {
+    let lower = name.to_ascii_lowercase();
+    if lower.contains("public_key") || lower.contains("token_count") || lower.contains("key_path") {
+        return false;
+    }
+    matches!(
+        lower.as_str(),
+        "password"
+            | "passwd"
+            | "passphrase"
+            | "private_key"
+            | "client_secret"
+            | "access_token"
+            | "refresh_token"
+            | "auth_token"
+            | "token"
+            | "api_key"
+            | "api_token"
+    ) || lower.ends_with("_password")
+        || lower.ends_with("_private_key")
+        || lower.ends_with("_client_secret")
+        || lower.ends_with("_access_token")
+        || lower.ends_with("_refresh_token")
+        || lower.ends_with("_auth_token")
+        || lower.ends_with("_api_key")
+        || lower.ends_with("_api_token")
+}
+
+fn field_attrs_have_secret_rename(field: Node, src: &[u8]) -> bool {
+    field_attribute_items(field).iter().any(|a| {
+        attr_with_name(*a, src, "serde").is_some_and(|args| {
+            let text = node_text(args, src).to_ascii_lowercase();
+            [
+                "client_secret",
+                "access_token",
+                "refresh_token",
+                "api_key",
+                "api_token",
+                "password",
+            ]
+            .iter()
+            .any(|secret| text.contains(secret))
+        })
+    })
 }
 
 /// Recursively scan a node's subtree for an `identifier` whose text equals

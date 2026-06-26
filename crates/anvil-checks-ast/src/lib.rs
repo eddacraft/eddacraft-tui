@@ -280,6 +280,7 @@ fn scan_one(
             // start of the receiver expression. Falls back to `@target`.
             let anchor = capture_node(&rule.query, m, "method")
                 .or_else(|| capture_node(&rule.query, m, "name"))
+                .or_else(|| capture_node(&rule.query, m, "field"))
                 .unwrap_or(target);
             let pos = anchor.start_position();
             // `line` is 1-based (tree-sitter `row` is 0-based). `column` stays a
@@ -341,6 +342,19 @@ fn eval(kind: AstRuleKind, ctx: &PredCtx) -> bool {
                 && !predicates::in_cfg_test(ctx.target, ctx.src)
         }
         AstRuleKind::SerdeDenyUnknown => predicates::struct_lacks_deny_unknown(ctx.target, ctx.src),
+        AstRuleKind::SerdeFlattenUnvalidated => {
+            predicates::serde_flatten_without_validation(ctx.target, ctx.src)
+        }
+        AstRuleKind::SecretDeserialize => predicates::secret_deserialize_field(ctx.target, ctx.src),
+        AstRuleKind::CloneInLoop => {
+            let Some(method) = ctx.capture_text("method") else {
+                return false;
+            };
+            method == "clone"
+                && predicates::inside_syntactic_loop(ctx.target)
+                && !predicates::path_is_test_target(ctx.path)
+                && !predicates::in_cfg_test(ctx.target, ctx.src)
+        }
         AstRuleKind::TodoMacro => {
             // Shares RS-002's `macro_invocation` query; dispatch on the macro
             // name and exclude test scaffolding the same way. Moving RS-005 off

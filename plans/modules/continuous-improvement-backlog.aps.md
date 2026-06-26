@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 69/105  |
+| CIB | —     | In Progress | 70/105  |
 
 ## Purpose
 
@@ -2154,7 +2154,7 @@ archive.
 
 ### CIB-079: Rust serde-hygiene + clone-in-hot-loop AST antipattern rules (RSTLAN-003b)
 
-- **Status:** Ready
+- **Status:** Done 2026-06-27 — opt-in RS-006/RS-007/RS-008 AST rules now cover catch-all `serde(flatten)` validation gaps, plaintext secret fields on `Deserialize` structs, and `.clone()` in syntactic loops; default Rust dogfood output is unchanged for the new rules.
 - **Intent:** Land the three AST-dependent Rust reliability rules deferred from
   RSTLAN-003 (the "RSTLAN-003b" follow-on) onto the now-shipped
   `anvil-checks-ast` gate-time mechanism, so the `rust-reliability` catalogue

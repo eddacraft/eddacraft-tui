@@ -1,0 +1,33 @@
+---
+id: RS-006
+type: rule
+family: rust-reliability
+title: catch-all serde flatten without validation
+version: 1
+
+severity: info
+confidence: medium
+spectrum_position: 6
+
+targets: [source]
+file_extensions: [.rs]
+allowlist: []
+
+detection:
+  type: ast
+  ast_query: '(attribute_item (attribute (identifier) @attr arguments: (token_tree) @serde_args)) @target'
+
+related: [RS-004]
+enabled: true
+opt_in: true
+---
+
+A `#[serde(flatten)]` catch-all map on a `Deserialize` struct accepts unknown
+input keys into an extension bag. That can be deliberate, but the validation
+boundary must be visible: validate the extras, use `#[serde(try_from = "...")]`,
+put a `deserialize_with` validator on the field, or suppress with a reason when
+forward-compatible extension keys are intentional and validated elsewhere.
+
+This rule is **opt-in** and only targets catch-all map shapes such as
+`HashMap<String, serde_json::Value>` / `BTreeMap<String, serde_json::Value>`.
+Typed flatten composition (`common: CommonConfig`) is out of scope.

@@ -1,32 +1,32 @@
 {
-  "$comment": "Pinned external-codebase corpus for the language false-positive dogfood. Mirrors the per-language T3 FP acceptance run (council §16.5 #9). Commits are PINNED so re-runs are deterministic; bump a sha deliberately and note it in the evidence writeup. See README.md.",
-  "fp_bar": "council §16.5 #9 — genuine-FP rate on the default (non-opt-in) catalogue; RSTLAN-008 set the precedent at 0%.",
+  "$comment": "Pinned external-codebase corpus for the language false-positive dogfood. Mirrors the per-language T3 FP acceptance run (council \u00a716.5 #9). Commits are PINNED so re-runs are deterministic; bump a sha deliberately and note it in the evidence writeup. See README.md.",
+  "fp_bar": "council \u00a716.5 #9 \u2014 genuine-FP rate on the default (non-opt-in) catalogue; RSTLAN-008 set the precedent at 0%.",
   "groups": {
     "rust": {
       "evidence": "plans/reviews/2026-06-18-rstlan-external-fp.md",
       "default_rules": ["RS-001", "RS-002", "RS-003", "RS-005"],
-      "opt_in_rules": ["RS-004"],
+      "opt_in_rules": ["RS-004", "RS-006", "RS-007", "RS-008"],
       "repos": [
         {
           "name": "ripgrep",
           "url": "https://github.com/BurntSushi/ripgrep",
           "sha": "82313cf95849bfe425109ad9506a52154879b1b1",
           "why": "Idiomatic, carefully-written CLI baseline. Stresses the build.rs / tests.rs RS-001/RS-002 exclusions on an external test layout.",
-          "stresses": ["RS-001", "RS-002", "RS-005"]
+          "stresses": ["RS-001", "RS-002", "RS-005", "RS-008"]
         },
         {
           "name": "tokio",
           "url": "https://github.com/tokio-rs/tokio",
           "sha": "7892f6020d9c914a41d0c350693fb71937d43c03",
           "why": "Heavy, well-documented `// SAFETY:` unsafe and macro-generated code. Adversarial for RS-003 (must NOT fire on documented unsafe) and for parse robustness.",
-          "stresses": ["RS-003", "RS-002"]
+          "stresses": ["RS-003", "RS-002", "RS-008"]
         },
         {
           "name": "alacritty",
           "url": "https://github.com/alacritty/alacritty",
           "sha": "985394dd42ca1408868ccee8070c8c75cccd762f",
           "why": "FFI/rendering unsafe + serde config structs + build scripts. Stresses RS-003, the opt-in RS-004, and re-validates the build.rs exclusion on a foreign tree.",
-          "stresses": ["RS-003", "RS-004", "RS-001"]
+          "stresses": ["RS-003", "RS-004", "RS-006", "RS-001"]
         }
       ]
     },

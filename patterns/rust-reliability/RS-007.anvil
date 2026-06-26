@@ -1,0 +1,35 @@
+---
+id: RS-007
+type: rule
+family: rust-reliability
+title: plaintext secret field on Deserialize type
+version: 1
+
+severity: info
+confidence: medium
+spectrum_position: 7
+
+targets: [source]
+file_extensions: [.rs]
+allowlist: []
+
+detection:
+  type: ast
+  ast_query: '(field_declaration name: (field_identifier) @field) @target'
+
+related: []
+enabled: true
+opt_in: true
+---
+
+This `Deserialize` field appears to ingest a high-confidence credential into a
+plaintext type. Deserialising secrets is legitimate, but prefer redacting or
+secret-wrapper types (`SecretString`, `Secret<T>`, `Sensitive<T>`, `Redacted<T>`),
+a custom deserialiser that validates and wraps the value, or a separate DTO that
+cannot accidentally be logged or re-serialised.
+
+This rule is **opt-in** and intentionally narrow. It recognises obvious plaintext
+credential names such as `password`, `client_secret`, `access_token`,
+`refresh_token`, `api_key`, `api_token`, and `private_key`, including equivalent
+`serde(rename = "...")` names. Manual `Deserialize` implementations and generic
+words like `token_count`, `key_path`, and `public_key` are out of scope.

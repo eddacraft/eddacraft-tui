@@ -1,0 +1,33 @@
+---
+id: RS-008
+type: rule
+family: rust-reliability
+title: clone() inside syntactic loop
+version: 1
+
+severity: info
+confidence: medium
+spectrum_position: 8
+
+targets: [source]
+file_extensions: [.rs]
+allowlist: []
+
+detection:
+  type: ast
+  ast_query: '(call_expression function: (field_expression field: (field_identifier) @method)) @target'
+
+related: []
+enabled: true
+opt_in: true
+---
+
+A `.clone()` inside a `for`, `while`, or `loop` body may allocate repeatedly or
+hide avoidable ownership churn. Hoist invariant clones, borrow when lifetime-safe,
+or use deliberate shared ownership such as `Arc::clone` where that is the real
+intent. If the clone is cheap or required for ownership transfer, suppress with
+that reason.
+
+This rule is **opt-in** and syntactic. It does not attempt a type-cost model, and
+it deliberately does not cover iterator-adapter closures or UFCS
+`Clone::clone(...)` calls in this first wave.

@@ -332,6 +332,201 @@ fn rs004_skips_tuple_and_unit_structs() {
     assert!(!fires_opt_in("src/lib.rs", unit, "RS-004"));
 }
 
+#[test]
+fn rs004_skips_flatten_structs_so_advice_stays_valid() {
+    let src = "#[derive(Deserialize)]\nstruct Config {\n    port: u16,\n    #[serde(flatten)]\n    extra: std::collections::HashMap<String, serde_json::Value>,\n}\n";
+    assert!(
+        !fires_opt_in("src/lib.rs", src, "RS-004"),
+        "RS-004 must not recommend deny_unknown_fields on a flatten struct"
+    );
+}
+
+// --- RS-006 serde flatten without validation (opt-in) -----------------------
+
+#[test]
+fn rs006_off_by_default() {
+    let src = "#[derive(Deserialize)]\nstruct Config {\n    #[serde(flatten)]\n    extra: std::collections::HashMap<String, serde_json::Value>,\n}\n";
+    assert!(!fires("src/lib.rs", src, "RS-006"));
+}
+
+#[test]
+fn rs006_fires_on_catch_all_flatten_map_without_validation() {
+    let src = "#[derive(Deserialize)]\nstruct Config {\n    port: u16,\n    #[serde(flatten)]\n    extra: std::collections::HashMap<String, serde_json::Value>,\n}\n";
+    assert!(fires_opt_in("src/lib.rs", src, "RS-006"));
+}
+
+#[test]
+fn rs006_fires_on_reordered_flatten_args() {
+    let src = "#[derive(Deserialize)]\nstruct Config {\n    #[serde(default, flatten)]\n    extra: std::collections::BTreeMap<String, serde_json::Value>,\n}\n";
+    assert!(fires_opt_in("src/lib.rs", src, "RS-006"));
+}
+
+#[test]
+fn rs006_silent_on_typed_composition_flatten() {
+    let src = "#[derive(Deserialize)]\nstruct Config {\n    #[serde(flatten)]\n    common: CommonConfig,\n}\n";
+    assert!(!fires_opt_in("src/lib.rs", src, "RS-006"));
+}
+
+#[test]
+fn rs006_silent_with_try_from_validation_boundary() {
+    let src = "#[derive(Deserialize)]\n#[serde(try_from = \"RawConfig\")]\nstruct Config {\n    #[serde(flatten)]\n    extra: std::collections::HashMap<String, serde_json::Value>,\n}\n";
+    assert!(!fires_opt_in("src/lib.rs", src, "RS-006"));
+}
+
+#[test]
+fn rs006_silent_with_deserialize_with_validation_boundary() {
+    let src = "#[derive(Deserialize)]\nstruct Config {\n    #[serde(flatten, deserialize_with = \"validated_extra\")]\n    extra: std::collections::HashMap<String, serde_json::Value>,\n}\n";
+    assert!(!fires_opt_in("src/lib.rs", src, "RS-006"));
+}
+
+#[test]
+fn rs006_suppressed_by_field_directive() {
+    let src = "#[derive(Deserialize)]\nstruct Config {\n    // @anvil-ignore RS-006 -- forward-compatible extension bag is validated downstream\n    #[serde(flatten)]\n    extra: std::collections::HashMap<String, serde_json::Value>,\n}\n";
+    assert!(!fires_opt_in("src/lib.rs", src, "RS-006"));
+    let opts = AstScanOptions {
+        registry_path: Some(workspace_registry_path()),
+        include_opt_in: true,
+    };
+    let out = scan_bytes(&[("src/lib.rs", src.as_bytes())], None, &opts);
+    assert!(
+        out.warnings
+            .iter()
+            .any(|w| w.id == "RS-006" && w.suppressed.is_some()),
+        "expected suppressed RS-006 warning, got {:?}",
+        out.warnings
+    );
+}
+
+// --- RS-007 secret-bearing Deserialize type (opt-in) ------------------------
+
+#[test]
+fn rs007_off_by_default() {
+    let src = "#[derive(Deserialize)]\nstruct Credentials {\n    password: String,\n}\n";
+    assert!(!fires("src/lib.rs", src, "RS-007"));
+}
+
+#[test]
+fn rs007_fires_on_plaintext_secret_fields() {
+    let src = "#[derive(Deserialize)]\nstruct Credentials {\n    password: String,\n    api_token: String,\n}\n";
+    assert!(fires_opt_in("src/lib.rs", src, "RS-007"));
+}
+
+#[test]
+fn rs007_fires_on_secret_serde_rename() {
+    let src = "#[derive(Deserialize)]\nstruct Credentials {\n    #[serde(rename = \"client_secret\")]\n    value: String,\n}\n";
+    assert!(fires_opt_in("src/lib.rs", src, "RS-007"));
+}
+
+#[test]
+fn rs007_silent_on_secret_wrapper_types() {
+    let src = "#[derive(Deserialize)]\nstruct Credentials {\n    password: SecretString,\n    access_token: Redacted<String>,\n}\n";
+    assert!(!fires_opt_in("src/lib.rs", src, "RS-007"));
+}
+
+#[test]
+fn rs007_silent_on_skip_deserializing_fields() {
+    let src = "#[derive(Deserialize)]\nstruct RuntimeSecrets {\n    #[serde(skip_deserializing)]\n    token: SecretString,\n}\n";
+    assert!(!fires_opt_in("src/lib.rs", src, "RS-007"));
+}
+
+#[test]
+fn rs007_skip_serializing_is_not_safe() {
+    let src = "#[derive(Deserialize)]\nstruct RuntimeSecrets {\n    #[serde(skip_serializing)]\n    token: String,\n}\n";
+    assert!(fires_opt_in("src/lib.rs", src, "RS-007"));
+}
+
+#[test]
+fn rs007_silent_on_public_key_and_token_count() {
+    let src = "#[derive(Deserialize)]\nstruct Metrics {\n    public_key: String,\n    token_count: usize,\n    key_path: String,\n}\n";
+    assert!(!fires_opt_in("src/lib.rs", src, "RS-007"));
+}
+
+#[test]
+fn rs007_suppressed_by_field_directive() {
+    let src = "#[derive(Deserialize)]\nstruct Credentials {\n    // @anvil-ignore RS-007 -- loaded into a process-local secret wrapper immediately\n    password: String,\n}\n";
+    assert!(!fires_opt_in("src/lib.rs", src, "RS-007"));
+    let opts = AstScanOptions {
+        registry_path: Some(workspace_registry_path()),
+        include_opt_in: true,
+    };
+    let out = scan_bytes(&[("src/lib.rs", src.as_bytes())], None, &opts);
+    assert!(
+        out.warnings
+            .iter()
+            .any(|w| w.id == "RS-007" && w.suppressed.is_some()),
+        "expected suppressed RS-007 warning, got {:?}",
+        out.warnings
+    );
+}
+
+// --- RS-008 clone inside syntactic loop (opt-in) ----------------------------
+
+#[test]
+fn rs008_off_by_default() {
+    let src = "fn run(items: &[String]) {\n    for item in items.iter() {\n        out.push(item.clone());\n    }\n}\n";
+    assert!(!fires("src/lib.rs", src, "RS-008"));
+}
+
+#[test]
+fn rs008_fires_on_clone_inside_for_loop() {
+    let src = "fn run(items: &[String]) {\n    for item in items.iter() {\n        out.push(item.clone());\n    }\n}\n";
+    assert!(fires_opt_in("src/lib.rs", src, "RS-008"));
+}
+
+#[test]
+fn rs008_fires_on_clone_inside_while_loop() {
+    let src = "fn run(iter: &mut Iter) {\n    while let Some(item) = iter.next() {\n        cache.insert(item.clone());\n    }\n}\n";
+    assert!(fires_opt_in("src/lib.rs", src, "RS-008"));
+}
+
+#[test]
+fn rs008_fires_on_clone_inside_loop_expression() {
+    let src = "fn run(item: String) {\n    loop {\n        work(item.clone());\n        break;\n    }\n}\n";
+    assert!(fires_opt_in("src/lib.rs", src, "RS-008"));
+}
+
+#[test]
+fn rs008_silent_on_clone_outside_loop() {
+    let src = "fn run(item: String, entries: &[Entry]) {\n    let cached = item.clone();\n    for entry in entries {\n        use_entry(entry);\n    }\n}\n";
+    assert!(!fires_opt_in("src/lib.rs", src, "RS-008"));
+}
+
+#[test]
+fn rs008_silent_on_arc_clone_inside_loop() {
+    let src = "fn run(shared: std::sync::Arc<State>, tasks: Vec<Task>) {\n    for task in tasks {\n        let handle = std::sync::Arc::clone(&shared);\n        tokio::spawn(async move { use_handle(handle).await });\n    }\n}\n";
+    assert!(!fires_opt_in("src/lib.rs", src, "RS-008"));
+}
+
+#[test]
+fn rs008_iterator_adapter_clone_is_out_of_scope() {
+    let src = "fn run(items: &[String]) -> Vec<String> {\n    items.iter().map(|item| item.clone()).collect()\n}\n";
+    assert!(!fires_opt_in("src/lib.rs", src, "RS-008"));
+}
+
+#[test]
+fn rs008_ufcs_clone_is_out_of_scope() {
+    let src = "fn run(items: &[String]) {\n    for item in items.iter() {\n        out.push(Clone::clone(item));\n    }\n}\n";
+    assert!(!fires_opt_in("src/lib.rs", src, "RS-008"));
+}
+
+#[test]
+fn rs008_suppressed_on_clone_line() {
+    let src = "fn run(items: &[String]) {\n    for item in items.iter() {\n        // @anvil-ignore RS-008 -- ownership transfer is intentional here\n        out.push(item.clone());\n    }\n}\n";
+    assert!(!fires_opt_in("src/lib.rs", src, "RS-008"));
+    let opts = AstScanOptions {
+        registry_path: Some(workspace_registry_path()),
+        include_opt_in: true,
+    };
+    let out = scan_bytes(&[("src/lib.rs", src.as_bytes())], None, &opts);
+    assert!(
+        out.warnings
+            .iter()
+            .any(|w| w.id == "RS-008" && w.suppressed.is_some()),
+        "expected suppressed RS-008 warning, got {:?}",
+        out.warnings
+    );
+}
+
 // --- RS-005 todo!/unimplemented! (AST; was regex) ---------------------------
 
 #[test]
