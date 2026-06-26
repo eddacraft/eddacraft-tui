@@ -1,8 +1,9 @@
 #[cfg(test)]
 mod tests {
-    use eddacraft_tui::json_render::{self, Catalog};
+    use eddacraft_tui::json_render::{self, Catalog, Props, TuiComponent};
     use eddacraft_tui::prelude::{EddaCraftTheme, PretextState, PretextWidget};
     use eddacraft_tui::pretext::{ExclusionZone, PreparedText, layout};
+    use ratatui::Frame;
     use ratatui::Terminal;
     use ratatui::backend::TestBackend;
     use ratatui::layout::Rect;
@@ -16,7 +17,7 @@ mod tests {
         "page": {
           "type": "Stack",
           "props": { "gap": "sm" },
-          "children": ["heading", "summary", "metric"]
+          "children": ["heading", "summary", "pretext_panel"]
         },
         "heading": {
           "type": "Heading",
@@ -28,28 +29,62 @@ mod tests {
           "props": { "children": "json-render from crates.io rendered this" },
           "children": []
         },
-        "metric": {
-          "type": "MetricCard",
-          "props": { "label": "pretext", "value": "ok", "trend": "up" },
+        "pretext_panel": {
+          "type": "Pretext",
+          "props": { "children": "pretext via json-render wrapped this published crate text" },
           "children": []
         }
       }
     }"#;
 
+    struct JsonPretext;
+
+    impl TuiComponent for JsonPretext {
+        fn render(&self, props: &Props, frame: &mut Frame, area: Rect) {
+            let text = props
+                .get("children")
+                .and_then(serde_json::Value::as_str)
+                .map(json_render::sanitize)
+                .unwrap_or_default();
+            let theme = EddaCraftTheme;
+            let mut state = PretextState::new(&text);
+            let widget = PretextWidget::themed(&theme);
+
+            frame.render_stateful_widget(widget, area, &mut state);
+        }
+
+        fn layout_children(&self, _props: &Props, _area: Rect, _child_count: usize) -> Vec<Rect> {
+            Vec::new()
+        }
+    }
+
+    fn catalog_with_pretext() -> Catalog {
+        let mut catalog = Catalog::base();
+        catalog.insert("Pretext");
+        catalog
+    }
+
+    fn registry_with_pretext() -> json_render::TuiRegistry {
+        let mut registry = json_render::base_registry();
+        registry.register("Pretext", Box::new(JsonPretext));
+        registry
+    }
+
     #[test]
-    fn json_render_public_crate_parses_validates_and_renders() {
+    fn json_render_public_crate_parses_validates_and_renders_pretext_component() {
         let spec = json_render::parse(SPEC).expect("published crate parses json-render spec");
-        json_render::validate(&spec, &Catalog::base()).expect("base catalogue accepts smoke spec");
+        json_render::validate(&spec, &catalog_with_pretext())
+            .expect("extended catalogue accepts smoke spec");
 
         let pretty = json_render::to_json_pretty(&spec).expect("serialise spec");
         let reparsed = json_render::parse(&pretty).expect("reparse pretty spec");
         assert_eq!(spec, reparsed, "json-render semantic round trip changed");
 
-        let registry = json_render::base_registry();
+        let registry = registry_with_pretext();
         let mut terminal = Terminal::new(TestBackend::new(96, 24)).expect("test backend");
         terminal
             .draw(|frame| json_render::render_spec(&spec, &registry, frame, frame.area()))
-            .expect("render public json-render spec");
+            .expect("render public json-render spec with pretext extension");
 
         let rendered: String = terminal
             .backend()
@@ -60,25 +95,29 @@ mod tests {
             .collect();
         assert!(rendered.contains("eddacraft-tui"), "heading should render");
         assert!(rendered.contains("json-render from crates.io rendered this"));
+        assert!(
+            rendered.contains("pretext via json-render"),
+            "json-render should invoke the registered Pretext component"
+        );
         assert!(!rendered.contains("not available in terminal"));
         assert!(!rendered.contains("[missing:"));
     }
 
     #[test]
-    fn json_render_public_crate_sanitises_control_sequences() {
+    fn json_render_public_crate_sanitises_control_sequences_before_pretext_render() {
         let mut spec = json_render::parse(SPEC).expect("parse smoke spec");
         let hostile = "safe\u{1b}]52;c;cHk\u{07}text\u{1b}]0;pwned\u{07}";
         spec.elements
-            .get_mut("summary")
-            .expect("summary element")
+            .get_mut("pretext_panel")
+            .expect("pretext element")
             .props
             .insert("children".to_owned(), json!(hostile));
 
-        let registry = json_render::base_registry();
+        let registry = registry_with_pretext();
         let mut terminal = Terminal::new(TestBackend::new(96, 8)).expect("test backend");
         terminal
             .draw(|frame| json_render::render_spec(&spec, &registry, frame, frame.area()))
-            .expect("render hostile spec");
+            .expect("render hostile spec through pretext extension");
 
         let offenders: Vec<u32> = terminal
             .backend()
