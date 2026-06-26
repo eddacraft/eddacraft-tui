@@ -1,4 +1,4 @@
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -212,6 +212,10 @@ fn jsonrpc_request_line(method: &str, params: &Value, id: &str) -> Vec<u8> {
 
 #[cfg(unix)]
 fn round_trip(body: &[u8], timeout: Duration) -> Result<String, DaemonRegistrationError> {
+    // `Write` is only needed for the Unix-socket transport; the Windows
+    // named-pipe client (below) writes through an inherent method, so importing
+    // it at module scope is an unused import on Windows (`-D warnings`).
+    use std::io::Write;
     use std::os::unix::net::UnixStream;
 
     use anvil_intercept::ipc;
