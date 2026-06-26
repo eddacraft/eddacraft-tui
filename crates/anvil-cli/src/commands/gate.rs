@@ -2270,6 +2270,12 @@ fn normalize_gate_check_set(
 /// internal form (`secret`) so they match `GATE_INTERNAL_CHECKS` in the
 /// downstream dispatch loop. Returns `None` when `--only-checks` is set
 /// (explicit flag wins) or when `.anvilrc#checks` is absent/empty.
+///
+/// CIB-089 deliberately preserves the compatibility posture for project config:
+/// unknown config entries warn and the known subset still runs, so a stale or
+/// forward-looking `.anvilrc` does not brick every local/CI gate. Explicit CLI
+/// filters (`--only-checks` / `--skip-checks`) remain strict and fatal because
+/// they describe one invocation and can be corrected immediately.
 fn resolve_anvilrc_check_filter(
     root: &Path,
     only_set: Option<&std::collections::HashSet<&'static str>>,
@@ -2280,23 +2286,13 @@ fn resolve_anvilrc_check_filter(
 
     let anvilrc_checks = read_anvilrc_checks(root)?;
     if let Some(ref rc) = anvilrc_checks {
-        let mut unknown: Vec<&str> = rc
+        let unknown: Vec<&str> = rc
             .iter()
             .filter(|n| gate_internal_name(n).is_none())
             .map(String::as_str)
             .collect();
         if !unknown.is_empty() {
-            unknown.sort_unstable();
-            let valid = gate_canonical_names();
-            eprintln!(
-                "Warning: .anvilrc#checks contains unknown check(s): {}. Valid: {}",
-                unknown
-                    .iter()
-                    .map(|n| describe_unknown_check(n))
-                    .collect::<Vec<_>>()
-                    .join(", "),
-                valid.join(", ")
-            );
+            eprintln!("{}", format_anvilrc_unknown_checks_warning(&unknown));
         }
 
         // Map each known name to its internal form so it matches the
@@ -2316,6 +2312,21 @@ fn resolve_anvilrc_check_filter(
     }
 
     Ok(None)
+}
+
+fn format_anvilrc_unknown_checks_warning(unknown: &[&str]) -> String {
+    let mut unknown = unknown.to_vec();
+    unknown.sort_unstable();
+    let valid = gate_canonical_names();
+    format!(
+        "Warning: .anvilrc#checks contains unknown check(s): {}. Known checks will still run. Valid: {}",
+        unknown
+            .iter()
+            .map(|n| describe_unknown_check(n))
+            .collect::<Vec<_>>()
+            .join(", "),
+        valid.join(", ")
+    )
 }
 
 /// Run all gate checks with default settings and return TUI-ready data.
@@ -4524,6 +4535,53 @@ rules: []
     fn validate_check_names_empty_is_ok() {
         let names: std::collections::HashSet<&str> = std::collections::HashSet::new();
         assert!(validate_check_names(&names).is_ok());
+    }
+
+    #[test]
+    fn anvilrc_unknown_warning_includes_suggestion_and_known_subset_policy() {
+        let msg = format_anvilrc_unknown_checks_warning(&["lnt"]);
+        assert!(
+            msg.contains(".anvilrc#checks contains unknown check(s): 'lnt'"),
+            "warning must name bad config entry: {msg}"
+        );
+        assert!(
+            msg.contains("did you mean 'lint'?"),
+            "warning must carry OPSUP-002 suggestion text: {msg}"
+        );
+        assert!(
+            msg.contains("Known checks will still run"),
+            "warning must document CIB-089 warn-and-continue policy: {msg}"
+        );
+    }
+
+    #[test]
+    fn resolve_anvilrc_check_filter_warns_and_continues_with_known_subset() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join(".anvilrc"),
+            r#"{"checks": ["secret-detection", "lnt"]}"#,
+        )
+        .unwrap();
+
+        let filter = resolve_anvilrc_check_filter(tmp.path(), None)
+            .expect("config with at least one known check should continue")
+            .expect("filter");
+
+        assert_eq!(filter.len(), 1);
+        assert!(filter.contains("secret"));
+    }
+
+    #[test]
+    fn resolve_anvilrc_check_filter_errors_when_no_known_checks_remain() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp.path().join(".anvilrc"), r#"{"checks": ["lnt"]}"#).unwrap();
+
+        let err = resolve_anvilrc_check_filter(tmp.path(), None).unwrap_err();
+        let msg = err.to_string();
+        assert!(
+            msg.contains("contains no valid gate checks"),
+            "all-unknown config should still fail: {msg}"
+        );
     }
 
     // ── GateResult serialisation ──────────────────────────────────────

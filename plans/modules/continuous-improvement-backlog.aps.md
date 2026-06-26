@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 65/105  |
+| CIB | —     | In Progress | 66/105  |
 
 ## Purpose
 
@@ -2454,7 +2454,7 @@ archive.
 
 ### CIB-089: Reconcile unknown-check-ID resolution semantics across surfaces
 
-- **Status:** Ready
+- **Status:** Done 2026-06-26 — `.anvilrc#checks` warn-and-continue is formalised for configs with a known subset; explicit `--only-checks` / `--skip-checks` remain fatal on unknown IDs.
 - **Intent:** `--skip-checks` / `--only-checks` reject an unknown check ID with
   a fatal error, while `.anvilrc#checks` warns-and-continues with the known
   subset. The same class of user error (a typo'd check ID) has divergent

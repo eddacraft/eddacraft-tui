@@ -178,9 +178,11 @@ Remaining non-registry slices move to **Ready** when:
 - **Expected Outcome:** `--skip-checks` and the `.anvil.<ext>` `checks:` list
   resolve every entry against the OPSUP-001 registry: stable `ANV-*` IDs,
   current user-facing names, and explicit legacy aliases all map to the same
-  canonical check. An unknown identifier produces a deterministic error that
-  names the closest registered ID rather than silently skipping nothing. A
-  newly shipped check is skippable by ID without a binary downgrade.
+  canonical check. An unknown identifier produces deterministic feedback that
+  names the closest registered ID rather than silently skipping nothing:
+  invocation flags fail fast, while project config warns and runs the known
+  subset when one exists (formalised by CIB-089). A newly shipped check is
+  skippable by ID without a binary downgrade.
 - **Scopes:** skip/disable resolution paths in the gate dispatcher; no new
   check definitions.
 - **Non-scope:** introducing new checks; changing default-enabled check sets;

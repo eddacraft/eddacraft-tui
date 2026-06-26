@@ -143,6 +143,12 @@ tracked as follow-up work.
 actually consumes. `gate-config` is the forward-looking surface for the broader
 gate run.
 
+When `.anvilrc#checks` contains an unknown check name, `anvil gate` warns with a
+did-you-mean suggestion and runs the known subset. This is intentionally more
+permissive than `--only-checks` / `--skip-checks`, which fail fast on unknown
+names because they apply to one explicit invocation. If no configured checks are
+recognised, `anvil gate` fails rather than silently running nothing.
+
 :::note
 
 For the shared Anvil analysis checks, `gate-config` uses the same canonical
@@ -319,10 +325,10 @@ from the compiled `.anvil` registry at `patterns/compiled/registry.json`.
 | `RL-004` | responsibility-laundering | Unverified "not touched" claim           | warning  |
 | `RL-005` | responsibility-laundering | Deferred without artifact                | warning  |
 | `RL-006` | responsibility-laundering | Reply disguised as fix                   | info     |
-| `DD-001` | deferred-debt             | TODO/FIXME without tracking reference    | warning  |
-| `DD-002` | deferred-debt             | HACK comment without tracking reference  | warning  |
+| `DD-001` | deferred-debt             | Untracked deferred-work marker           | warning  |
+| `DD-002` | deferred-debt             | Untracked shortcut marker                | warning  |
 | `DD-003` | deferred-debt             | Temporary code without expiry            | info     |
-| `DD-004` | deferred-debt             | Completion claim with outstanding TODOs  | warning  |
+| `DD-004` | deferred-debt             | Completion claim with outstanding debt   | warning  |
 
 ### Opt-in Patterns
 

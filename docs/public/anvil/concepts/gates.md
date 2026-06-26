@@ -47,6 +47,12 @@ Examples using the public names you should pass to `--only-checks`,
 Older aliases such as `secret` and `architecture` still work in some places, but
 the public docs use the canonical names above.
 
+Unknown check names are handled deliberately by surface: `--only-checks` and
+`--skip-checks` fail fast because they describe one explicit invocation, while
+`.anvilrc#checks` warns and continues with the known subset so a stale shared
+config file does not block every local or CI gate. If every configured name is
+unknown, the gate fails because there is no safe subset to run.
+
 Each check answers one question about the codebase.
 
 ### Findings
