@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 70/105  |
+| CIB | —     | In Progress | 71/106  |
 
 ## Purpose
 
@@ -2763,26 +2763,58 @@ archive.
 - **Confidence:** medium — transport exists for save-time; GCTX projection path is
   new wiring.
 
-### CIB-101: DISTRIB operator follow-ups (`ANVIL_HOME` side-by-side + uninstall)
+### CIB-101: `anvil uninstall --global` cleans the active `ANVIL_HOME` user root
 
-- **Status:** Ready
-- **Intent:** Close two operator gaps deferred at DISTRIB-006 merge (PR #2185):
-  Windows side-by-side daemon coexistence and incomplete global-uninstall cleanup.
-- **Expected Outcome:** (a) Windows named-pipe re-root for the daemon endpoint so
-  two candidate daemons can coexist when using different `ANVIL_HOME` prefixes
-  (the PID file re-roots today; the socket/pipe does not); (b)
-  `anvil uninstall --global` removes `<ANVIL_HOME>/user/` (or documents and
-  tests the explicit `rm -rf <prefix>` escape hatch as the supported path — pick
-  one and test it).
-- **Files:** `crates/anvil-cli/src/install_root.rs`, daemon transport setup,
-  `crates/anvil-cli/src/commands/uninstall.rs`.
-- **Validation:** install-root matrix extension; uninstall test asserting
-  `user/` cleanup (or documented manual matrix if Windows-only).
+- **Status:** Done 2026-06-27 — `anvil uninstall --global` now cleans `<ANVIL_HOME>/user/` under an install-root override, preserves production user state, reports the scoped path in dry-run JSON, and uses the safer intercept stop path.
+- **Intent:** Close the local DISTRIB-006 uninstall gap: when the active install
+  root is re-rooted by `ANVIL_HOME`, global uninstall must clean the candidate's
+  install-owned user state instead of production's user state.
+- **Expected Outcome:** `anvil uninstall --global` removes `<ANVIL_HOME>/user/`
+  when an install-root override is active, preserves production `~/.anvil/` and
+  default credentials under that override, reports the same path in dry-run JSON,
+  keeps default no-`ANVIL_HOME` behaviour unchanged, and refuses symlinked
+  cleanup targets. Windows named-pipe side-by-side endpoint re-rooting is split
+  to CIB-106.
+- **Files:** `crates/anvil-cli/src/install_root.rs`,
+  `crates/anvil-cli/src/commands/uninstall.rs`,
+  `crates/anvil-cli/tests/anvil_home.rs`.
+- **Validation:** uninstall unit tests; `anvil_home` integration tests proving
+  `<ANVIL_HOME>/user/` cleanup and production home preservation; docs/APS checks.
 - **Identified From:** `plans/reviews/post-merge/feat-distrib-006-anvil-home-override.md`;
   DISTRIB module is Complete — intake via CIB. Filed 2026-06-22 release-window
-  hygiene.
-- **Confidence:** medium — Windows pipe re-root may coordinate with CIB-100/INTD
-  pipe work; uninstall cleanup is localised.
+  hygiene; split after CIB-101 mini Council on 2026-06-27.
+- **Coordinates with:** CIB-106 (Windows `ANVIL_HOME` named-pipe endpoint re-root).
+- **Confidence:** high — localised CLI planner/executor change with existing
+  install-root primitives.
+
+
+### CIB-106: Windows `ANVIL_HOME` named-pipe endpoint re-root
+
+- **Status:** Proposed 2026-06-27
+- **Intent:** Complete the Windows half of DISTRIB-006 side-by-side daemon
+  coexistence by deriving the intercept named-pipe endpoint from the active
+  install root when `ANVIL_HOME` is set.
+- **Expected Outcome:** Windows keeps the legacy `\\.\pipe\anvil-intercept-<sid>`
+  pipe name when `ANVIL_HOME` is unset/blank, and adds a stable bounded hashed
+  install-root namespace when `ANVIL_HOME` is active so two same-user candidate
+  daemons can coexist. All daemon/client surfaces use the canonical resolver
+  (`ensure`, `intercept status`, MCP protection claim, watch save-time transport,
+  GCTX), while owner-only DACL / local-only / SQOS behaviour remains unchanged.
+- **Files:** `crates/anvil-intercept-win32/src/lib.rs`,
+  `crates/anvil-intercept/src/ipc.rs`, `crates/anvil-intercept/src/ensure.rs`,
+  `crates/anvil-cli/src/commands/intercept.rs`,
+  `crates/anvil-cli/src/mcp/validation.rs`,
+  `crates/anvil-cli/src/commands/watch_save_time.rs`, optional GCTX client tests.
+- **Validation:** pure resolver tests for unset/blank/default compatibility,
+  absolutised `ANVIL_HOME`, stable hash, distinct prefixes, no raw path leakage;
+  Windows matrix tests/checks proving daemon bind and clients use the same
+  resolver.
+- **Identified From:** CIB-101 mini Council (operations, security/adversarial,
+  implementation maintainer) on 2026-06-27; split from CIB-101 because it overlaps
+  CIB-100 and requires Windows validation.
+- **Coordinates with:** CIB-100, CIB-101, CIB-105.
+- **Confidence:** medium — behaviour is clear, but Windows matrix coverage is
+  required before shipping.
 
 ### CIB-102: Anchor the snapshot delete/sweep paths to a validated dirfd (CIB-097 follow-up)
 

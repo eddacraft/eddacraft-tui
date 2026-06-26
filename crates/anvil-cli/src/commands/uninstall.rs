@@ -97,13 +97,27 @@ pub struct UninstallArgs {
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 enum Action {
-    StopDaemon { pid_file: PathBuf },
+    StopDaemon {
+        pid_file: PathBuf,
+    },
     RemoveGitHooks,
-    RemoveProjectAnvil { path: PathBuf },
-    RemoveAnvilrc { path: PathBuf },
-    RemoveMcpEntry { path: PathBuf, label: &'static str },
-    RemoveUserAnvil { path: PathBuf },
-    RemoveCredentials { path: PathBuf },
+    RemoveProjectAnvil {
+        path: PathBuf,
+    },
+    RemoveAnvilrc {
+        path: PathBuf,
+    },
+    RemoveMcpEntry {
+        path: PathBuf,
+        label: &'static str,
+    },
+    RemoveUserAnvil {
+        path: PathBuf,
+        install_root_scoped: bool,
+    },
+    RemoveCredentials {
+        path: PathBuf,
+    },
 }
 
 impl Action {
@@ -123,7 +137,7 @@ impl Action {
                     path.display()
                 )
             }
-            Self::RemoveUserAnvil { path } => {
+            Self::RemoveUserAnvil { path, .. } => {
                 format!("Remove user state: {}", path.display())
             }
             Self::RemoveCredentials { path } => {
@@ -171,8 +185,15 @@ pub fn run(args: &UninstallArgs, global: &GlobalArgs) -> Result<()> {
     // Match install's home resolution (honours USERPROFILE on Windows) so
     // uninstall removes MCP entries from the same home install wrote to.
     let home = crate::util::user_home_dir();
+    let install_root = crate::install_root::install_root();
+    let install_user_dir = install_root.user_dir();
 
-    let plan = build_plan(&project_root, home.as_deref(), args)?;
+    let plan = build_plan_with_install_user_dir(
+        &project_root,
+        home.as_deref(),
+        install_user_dir.as_deref(),
+        args,
+    )?;
 
     // Human mode: print plan immediately. JSON mode defers all output
     // to the final envelope so stdout contains exactly one JSON
@@ -231,7 +252,17 @@ pub fn run(args: &UninstallArgs, global: &GlobalArgs) -> Result<()> {
 /// `path_present` rather than `exists()` is used throughout so dangling
 /// symlinks are included in the plan and refused at execution rather
 /// than silently skipped. Read-only — never modifies anything.
+#[cfg(test)]
 fn build_plan(project_root: &Path, home: Option<&Path>, args: &UninstallArgs) -> Result<Plan> {
+    build_plan_with_install_user_dir(project_root, home, None, args)
+}
+
+fn build_plan_with_install_user_dir(
+    project_root: &Path,
+    home: Option<&Path>,
+    install_user_dir: Option<&Path>,
+    args: &UninstallArgs,
+) -> Result<Plan> {
     let mut actions = Vec::new();
 
     // 1) Git hooks — always attempted; the silent helper is a no-op
@@ -289,19 +320,26 @@ fn build_plan(project_root: &Path, home: Option<&Path>, args: &UninstallArgs) ->
             }
         }
 
-        // User state directory: `~/.anvil/` (project caches,
-        // per-user activation marker, etc.).
-        let user_anvil = home.join(".anvil");
+        // User state directory. Default installs clean the historical
+        // `~/.anvil/`; an ANVIL_HOME override cleans the active install-owned
+        // user root (`<ANVIL_HOME>/user/`) and must not touch production's
+        // default user state.
+        let user_anvil = install_user_dir.map_or_else(|| home.join(".anvil"), Path::to_path_buf);
         if path_present(&user_anvil) {
-            actions.push(Action::RemoveUserAnvil { path: user_anvil });
+            actions.push(Action::RemoveUserAnvil {
+                path: user_anvil,
+                install_root_scoped: install_user_dir.is_some(),
+            });
         }
 
         // Auth credentials: see `auth/credentials.rs` for the
         // canonical XDG path with a macOS fallback. Windows uses
         // `dirs::config_dir()` so we add that candidate explicitly.
-        for candidate in credentials_candidates(home) {
-            if path_present(&candidate) {
-                actions.push(Action::RemoveCredentials { path: candidate });
+        if install_user_dir.is_none() {
+            for candidate in credentials_candidates(home) {
+                if path_present(&candidate) {
+                    actions.push(Action::RemoveCredentials { path: candidate });
+                }
             }
         }
     }
@@ -356,8 +394,16 @@ fn execute_action(action: &Action) -> ActionOutcome {
     let result: Result<(OutcomeStatus, String)> = match action {
         Action::StopDaemon { pid_file } => stop_daemon(pid_file),
         Action::RemoveGitHooks => remove_git_hooks(),
-        Action::RemoveProjectAnvil { path } | Action::RemoveUserAnvil { path } => {
-            remove_directory(path)
+        Action::RemoveProjectAnvil { path } => remove_directory(path),
+        Action::RemoveUserAnvil {
+            path,
+            install_root_scoped,
+        } => {
+            if *install_root_scoped {
+                remove_install_root_user_directory(path)
+            } else {
+                remove_directory(path)
+            }
         }
         Action::RemoveAnvilrc { path } | Action::RemoveCredentials { path } => remove_file(path),
         Action::RemoveMcpEntry { path, .. } => remove_mcp_entry(path),
@@ -378,103 +424,33 @@ fn execute_action(action: &Action) -> ActionOutcome {
 }
 
 #[cfg(unix)]
-fn stop_daemon(pid_file: &Path) -> Result<(OutcomeStatus, String)> {
-    let raw = match fs::read_to_string(pid_file) {
-        Ok(s) => s,
-        Err(err) if err.kind() == io::ErrorKind::NotFound => {
-            return Ok((OutcomeStatus::NotPresent, "pid file already gone".into()));
-        }
-        Err(err) => return Err(err).context("reading pid file"),
-    };
-
-    // Pid files written by `anvil intercept` start with the PID on the
-    // first line. Parse leniently to tolerate older formats.
-    let pid: i32 = raw
-        .lines()
-        .next()
-        .unwrap_or("")
-        .trim()
-        .parse()
-        .context("pid file did not start with a numeric pid")?;
-
-    // Refuse non-positive PIDs. `kill(1)` interprets 0 as "every
-    // process in the caller's process group" and negative PIDs as
-    // process-group targets; sending TERM/KILL to those targets from
-    // a stale or corrupt PID file would be catastrophic. The legitimate
-    // daemon always writes a positive PID.
-    if pid <= 0 {
-        anyhow::bail!(
-            "refusing to signal pid {pid}: PID file contains a non-positive value; \
-             remove {} manually after verifying no daemon is running",
-            pid_file.display()
-        );
-    }
-
-    // SIGTERM first; if the process is already gone, kill(1) exits
-    // non-zero and we treat that as success.
-    let term_sent = send_signal(pid, "TERM");
-    if !term_sent {
-        let _ = fs::remove_file(pid_file);
-        return Ok((
+fn stop_daemon(_pid_file: &Path) -> Result<(OutcomeStatus, String)> {
+    match anvil_intercept::request_daemon_stop()? {
+        anvil_intercept::StopOutcome::Signalled { pid } => Ok((
             OutcomeStatus::Removed,
-            format!("daemon (pid {pid}) was not running; cleaned pid file"),
-        ));
-    }
-
-    // Best-effort wait for the daemon to exit. 5 attempts × 200ms.
-    for _ in 0..5 {
-        std::thread::sleep(std::time::Duration::from_millis(200));
-        if !process_exists(pid) {
-            let _ = fs::remove_file(pid_file);
-            return Ok((
-                OutcomeStatus::Removed,
-                format!("daemon stopped (pid {pid})"),
-            ));
+            format!("daemon stop requested (pid {pid})"),
+        )),
+        anvil_intercept::StopOutcome::NotRunning => {
+            Ok((OutcomeStatus::NotPresent, "daemon not running".into()))
         }
+        anvil_intercept::StopOutcome::StaleCleared { pid } => Ok((
+            OutcomeStatus::Removed,
+            format!("stale daemon pid file removed (pid {pid})"),
+        )),
     }
-
-    // Fall back to SIGKILL — beta users want a clean state above all.
-    let _ = send_signal(pid, "KILL");
-    let _ = fs::remove_file(pid_file);
-    Ok((
-        OutcomeStatus::Removed,
-        format!("daemon force-killed (pid {pid})"),
-    ))
 }
 
 #[cfg(not(unix))]
 fn stop_daemon(pid_file: &Path) -> Result<(OutcomeStatus, String)> {
     // On Windows the daemon shutdown surface lands with INTD-002; for
     // now we just remove the stale pid file so reinstall is unblocked.
-    if pid_file.exists() {
-        fs::remove_file(pid_file).context("removing pid file")?;
-        return Ok((
-            OutcomeStatus::Removed,
-            "removed pid file (kill not supported on this platform)".into(),
-        ));
-    }
-    Ok((OutcomeStatus::NotPresent, "pid file already gone".into()))
-}
-
-/// Send a POSIX signal to `pid` by shelling out to `kill(1)`. Returns
-/// `true` when the signal was delivered, `false` when the process was
-/// already gone (or `kill(1)` is unavailable). Avoids any `unsafe`
-/// extern "C" binding to satisfy the crate-level `forbid(unsafe_code)`.
-#[cfg(unix)]
-fn send_signal(pid: i32, sig: &str) -> bool {
-    std::process::Command::new("kill")
-        .arg(format!("-{sig}"))
-        .arg(pid.to_string())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .is_ok_and(|s| s.success())
-}
-
-/// Probe whether a process is still alive using `kill -0 <pid>`.
-#[cfg(unix)]
-fn process_exists(pid: i32) -> bool {
-    send_signal(pid, "0")
+    let (status, detail) = remove_file(pid_file)?;
+    let detail = match status {
+        OutcomeStatus::Removed => "removed pid file (kill not supported on this platform)".into(),
+        OutcomeStatus::NotPresent => "pid file already gone".into(),
+        OutcomeStatus::Failed => detail,
+    };
+    Ok((status, detail))
 }
 
 fn remove_git_hooks() -> Result<(OutcomeStatus, String)> {
@@ -505,6 +481,16 @@ fn remove_directory(path: &Path) -> Result<(OutcomeStatus, String)> {
     }
     fs::remove_dir_all(path).with_context(|| format!("removing {}", path.display()))?;
     Ok((OutcomeStatus::Removed, "directory removed".into()))
+}
+
+fn remove_install_root_user_directory(path: &Path) -> Result<(OutcomeStatus, String)> {
+    refuse_if_parent_is_symlink(path).with_context(|| {
+        format!(
+            "refused to remove {}: ANVIL_HOME prefix is a symlink",
+            path.display()
+        )
+    })?;
+    remove_directory(path)
 }
 
 fn remove_file(path: &Path) -> Result<(OutcomeStatus, String)> {
@@ -877,6 +863,59 @@ mod tests {
     }
 
     #[test]
+    fn global_under_anvil_home_removes_prefix_user_dir_only() {
+        let tmp = TempDir::new().unwrap();
+        let home = tmp.path().join("prod-home");
+        let prefix = tmp.path().join("candidate");
+        fs::create_dir_all(home.join(".anvil")).unwrap();
+        fs::create_dir_all(prefix.join("user")).unwrap();
+        write(
+            &home.join(".config").join("anvil").join("credentials.json"),
+            "{}",
+        );
+        write(&prefix.join("user").join("credentials.json"), "{}");
+
+        let args = UninstallArgs {
+            yes: true,
+            dry_run: true,
+            global: true,
+            keep_mcp: true,
+            keep_daemon: true,
+            force: false,
+        };
+        let project_root = TempDir::new().unwrap();
+        let plan = build_plan_with_install_user_dir(
+            project_root.path(),
+            Some(&home),
+            Some(&prefix.join("user")),
+            &args,
+        )
+        .unwrap();
+
+        assert!(plan.actions.iter().any(|a| matches!(
+            a,
+            Action::RemoveUserAnvil {
+                path,
+                install_root_scoped: true,
+            } if path == &prefix.join("user")
+        )));
+        assert!(
+            !plan
+                .actions
+                .iter()
+                .any(|a| matches!(a, Action::RemoveUserAnvil { path, .. } if path == &home.join(".anvil"))),
+            "ANVIL_HOME uninstall must not plan production ~/.anvil removal"
+        );
+        assert!(
+            !plan.actions.iter().any(|a| matches!(
+                a,
+                Action::RemoveCredentials { path } if path.starts_with(&home)
+            )),
+            "ANVIL_HOME uninstall must not plan production credential removal"
+        );
+    }
+
+    #[test]
     fn global_with_keep_mcp_omits_mcp_actions() {
         let tmp = TempDir::new().unwrap();
         let home = tmp.path();
@@ -960,6 +999,30 @@ mod tests {
             assert!(format!("{err:#}").contains("symlink"));
             // Real dir must still exist.
             assert!(real_dir.exists());
+        }
+    }
+
+    #[test]
+    fn remove_install_root_user_directory_refuses_symlinked_prefix() {
+        #[cfg(unix)]
+        {
+            let tmp = TempDir::new().unwrap();
+            let outside = TempDir::new().unwrap();
+            fs::create_dir_all(outside.path().join("user")).unwrap();
+            write(&outside.path().join("user").join("keep.txt"), "keep");
+            let link_prefix = tmp.path().join("candidate-link");
+            std::os::unix::fs::symlink(outside.path(), &link_prefix).unwrap();
+
+            let err = remove_install_root_user_directory(&link_prefix.join("user")).unwrap_err();
+            let msg = format!("{err:#}");
+            assert!(
+                msg.contains("symlink"),
+                "expected symlinked ANVIL_HOME prefix refusal; got {msg}"
+            );
+            assert!(
+                outside.path().join("user").join("keep.txt").exists(),
+                "outside target must not be deleted"
+            );
         }
     }
 

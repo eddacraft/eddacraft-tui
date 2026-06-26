@@ -215,6 +215,32 @@ fn run_anvil(project: &Path, anvil_home: Option<&Path>, args: &[&str]) -> (bool,
     (out.status.success(), combined)
 }
 
+fn run_anvil_raw(
+    project: &Path,
+    home: &Path,
+    anvil_home: Option<&Path>,
+    args: &[&str],
+) -> (bool, String, String) {
+    let mut cmd = Command::new(ANVIL_BIN);
+    cmd.args(args)
+        .current_dir(project)
+        .env("HOME", home)
+        .env("USERPROFILE", home)
+        .env("ANVIL_DEV", "1")
+        .env("ANVIL_SKIP_WELCOME", "1");
+    cmd.env_remove("ANVIL_HOME");
+    cmd.env_remove("ANVIL_TOUCH_PROJECT_STATE");
+    if let Some(root) = anvil_home {
+        cmd.env("ANVIL_HOME", root);
+    }
+    let out = cmd.output().expect("spawn anvil");
+    (
+        out.status.success(),
+        String::from_utf8_lossy(&out.stdout).into_owned(),
+        String::from_utf8_lossy(&out.stderr).into_owned(),
+    )
+}
+
 #[test]
 fn start_under_gated_anvil_home_does_not_seed_project_state() {
     let project = tempdir().expect("project dir");
@@ -331,5 +357,97 @@ fn anvil_home_flag_gates_like_env_var_via_reexec() {
     assert!(
         !baseline_path.exists(),
         "project baseline must be untouched when gated via the --anvil-home flag"
+    );
+}
+
+#[test]
+fn uninstall_global_under_anvil_home_removes_prefix_user_dir_only() {
+    let project = tempdir().expect("project dir");
+    let prod_home = tempdir().expect("production home");
+    let candidate = tempdir().expect("candidate anvil home");
+    let user_dir = candidate.path().join("user");
+    std::fs::create_dir_all(&user_dir).unwrap();
+    std::fs::write(user_dir.join("credentials.json"), "{}").unwrap();
+    let prod_state = prod_home.path().join(".anvil");
+    std::fs::create_dir_all(&prod_state).unwrap();
+    std::fs::write(prod_state.join("keep.txt"), "keep").unwrap();
+
+    let (ok, stdout, stderr) = run_anvil_raw(
+        project.path(),
+        prod_home.path(),
+        Some(candidate.path()),
+        &[
+            "uninstall",
+            "--global",
+            "--yes",
+            "--keep-daemon",
+            "--keep-mcp",
+        ],
+    );
+
+    assert!(
+        ok,
+        "uninstall should succeed; stdout={stdout}; stderr={stderr}"
+    );
+    assert!(
+        !user_dir.exists(),
+        "<ANVIL_HOME>/user/ must be removed by global uninstall"
+    );
+    assert!(
+        prod_state.join("keep.txt").exists(),
+        "production ~/.anvil/ must be preserved under ANVIL_HOME"
+    );
+}
+
+#[test]
+fn uninstall_global_under_anvil_home_dry_run_json_reports_prefix_user_dir() {
+    let project = tempdir().expect("project dir");
+    let prod_home = tempdir().expect("production home");
+    let candidate = tempdir().expect("candidate anvil home");
+    let user_dir = candidate.path().join("user");
+    std::fs::create_dir_all(&user_dir).unwrap();
+    std::fs::write(user_dir.join("credentials.json"), "{}").unwrap();
+    let prod_state = prod_home.path().join(".anvil");
+    std::fs::create_dir_all(&prod_state).unwrap();
+    std::fs::write(prod_state.join("keep.txt"), "keep").unwrap();
+
+    let (ok, stdout, stderr) = run_anvil_raw(
+        project.path(),
+        prod_home.path(),
+        Some(candidate.path()),
+        &[
+            "--json",
+            "uninstall",
+            "--global",
+            "--dry-run",
+            "--keep-daemon",
+            "--keep-mcp",
+        ],
+    );
+
+    assert!(
+        ok,
+        "dry-run uninstall should succeed; stdout={stdout}; stderr={stderr}"
+    );
+    let value: serde_json::Value = serde_json::from_str(&stdout)
+        .unwrap_or_else(|err| panic!("dry-run must emit JSON ({err}); stdout={stdout}"));
+    let actions = value["actions"].as_array().expect("actions array");
+    assert!(
+        actions.iter().any(|action| {
+            action["kind"] == "remove_user_anvil"
+                && action["path"]
+                    .as_str()
+                    .is_some_and(|p| Path::new(p) == user_dir)
+                && action["install_root_scoped"] == serde_json::Value::Bool(true)
+        }),
+        "dry-run JSON should name scoped <ANVIL_HOME>/user action: {stdout}"
+    );
+    assert!(
+        user_dir.exists(),
+        "dry-run must not delete <ANVIL_HOME>/user/"
+    );
+    assert!(
+        prod_state.join("keep.txt").exists(),
+        "dry-run must not delete production ~/.anvil/"
     );
 }
