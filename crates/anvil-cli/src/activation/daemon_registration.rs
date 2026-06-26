@@ -30,7 +30,7 @@ pub(super) fn register_worktree_with_daemon(worktree: &Path) -> WorktreeRegistra
 
     match request_jsonrpc(
         REGISTER_METHOD,
-        &session_register_params(&canonical),
+        &session_register_params(&session_id, &canonical),
         &request_id,
         ACTIVATION_DAEMON_QUERY_TIMEOUT,
     ) {
@@ -42,9 +42,7 @@ pub(super) fn register_worktree_with_daemon(worktree: &Path) -> WorktreeRegistra
             );
             WorktreeRegistration::Registered
         }
-        Err(DaemonRegistrationError::JsonRpc(message))
-            if message.contains("session already registered") =>
-        {
+        Err(err) if err.is_session_already_registered() => {
             refresh_existing_activation_session(&session_id, &canonical)
         }
         Err(DaemonRegistrationError::DaemonUnavailable(message)) => {
@@ -121,30 +119,68 @@ fn activation_agent_tag() -> AgentTag {
     AgentTag::new(DRIVER_ID, CLAIMED_AGENT_ID, 0)
 }
 
-fn session_register_params(worktree: &Path) -> Value {
-    let tag = activation_agent_tag();
+fn session_register_params(session_id: &SessionId, worktree: &Path) -> Value {
     serde_json::json!({
-        "session_id": activation_session_id(worktree).as_str(),
+        "session_id": session_id.as_str(),
         "worktree": worktree.to_string_lossy(),
-        "agent_tag": tag,
+        "agent_tag": activation_agent_tag(),
     })
 }
+
+/// Stable marker the daemon's registry uses when a `session.register`
+/// reuses a live session id (`RegistryError::SessionAlreadyExists`,
+/// `#[error("session already registered: …")]`). Activation derives a
+/// deterministic session id from the worktree path, so a re-run of
+/// `anvil start` against an already-registered worktree is the expected
+/// way to hit this — we detect it and downgrade to a heartbeat instead
+/// of treating it as a rejection.
+///
+/// Matched against the structured `error.data.error` field (not a blob of
+/// the whole envelope) and case-insensitively, so reordering or casing
+/// changes do not silently break the heartbeat fall-through. The
+/// `marker_pins_registry_session_already_exists_display` test fails CI if
+/// the daemon ever rephrases the wording out from under this constant.
+const SESSION_ALREADY_REGISTERED_MARKER: &str = "session already registered";
 
 #[derive(Debug)]
 enum DaemonRegistrationError {
     DaemonUnavailable(String),
-    JsonRpc(String),
+    /// A JSON-RPC `error` response. `code` is the numeric error code when
+    /// present; `message` is the most specific human string available
+    /// (the daemon nests the registry detail under `error.data.error`).
+    JsonRpc {
+        code: Option<i64>,
+        message: String,
+    },
     Transport(String),
     Protocol(String),
+}
+
+impl DaemonRegistrationError {
+    /// True when this error signals the worktree's activation session is
+    /// already registered, i.e. a re-run that should heartbeat rather than
+    /// re-register.
+    fn is_session_already_registered(&self) -> bool {
+        matches!(
+            self,
+            Self::JsonRpc { message, .. }
+                if message
+                    .to_ascii_lowercase()
+                    .contains(SESSION_ALREADY_REGISTERED_MARKER)
+        )
+    }
 }
 
 impl std::fmt::Display for DaemonRegistrationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::DaemonUnavailable(message)
-            | Self::JsonRpc(message)
             | Self::Transport(message)
             | Self::Protocol(message) => f.write_str(message),
+            Self::JsonRpc { code, message } => match code {
+                Some(code) => write!(f, "daemon error {code}: {message}"),
+                None => f.write_str(message),
+            },
         }
     }
 }
@@ -308,11 +344,30 @@ fn parse_jsonrpc_response(
         )));
     }
     if let Some(error) = value.get("error") {
-        return Err(DaemonRegistrationError::JsonRpc(error.to_string()));
+        return Err(jsonrpc_error_from_value(error));
     }
     value.get("result").cloned().ok_or_else(|| {
         DaemonRegistrationError::Protocol(format!("daemon response missing result: {value}"))
     })
+}
+
+/// Map a JSON-RPC `error` object to a structured [`DaemonRegistrationError`].
+///
+/// The daemon flattens internal failures to a generic `-32603` envelope and
+/// nests the specific registry detail under `error.data.error`, so we read
+/// that field first (most specific), then `error.message`, and only fall back
+/// to the whole object when neither is a string. Pulling out the focused field
+/// is what lets [`DaemonRegistrationError::is_session_already_registered`]
+/// match a stable marker rather than grepping the entire serialised envelope.
+fn jsonrpc_error_from_value(error: &Value) -> DaemonRegistrationError {
+    let code = error.get("code").and_then(Value::as_i64);
+    let message = error
+        .get("data")
+        .and_then(|data| data.get("error"))
+        .and_then(Value::as_str)
+        .or_else(|| error.get("message").and_then(Value::as_str))
+        .map_or_else(|| error.to_string(), str::to_owned);
+    DaemonRegistrationError::JsonRpc { code, message }
 }
 
 #[cfg(test)]
@@ -334,7 +389,8 @@ mod tests {
 
     #[test]
     fn register_params_use_activation_identity_without_lineage() {
-        let params = session_register_params(Path::new("/tmp/repo"));
+        let session_id = activation_session_id(Path::new("/tmp/repo"));
+        let params = session_register_params(&session_id, Path::new("/tmp/repo"));
 
         assert_eq!(params["worktree"], "/tmp/repo");
         assert_eq!(params["agent_tag"]["driver_id"], "anvil-start");
@@ -342,6 +398,59 @@ mod tests {
         assert!(
             params.get("lineage").is_none(),
             "activation registration must not require peer lineage support"
+        );
+    }
+
+    #[test]
+    fn parse_detects_session_already_registered_from_nested_daemon_envelope() {
+        // The shape the daemon actually emits: a generic -32603 with the
+        // registry detail nested under error.data.error (ipc.rs).
+        let response = r#"{"jsonrpc":"2.0","id":"req-1","error":{"code":-32603,"message":"Internal error","data":{"error":"session already registered: SessionId(\"sess_activation_abcd\")"}}}"#;
+        let err = parse_jsonrpc_response(response, "req-1").unwrap_err();
+        assert!(
+            err.is_session_already_registered(),
+            "nested registry detail must be detected: {err}"
+        );
+    }
+
+    #[test]
+    fn session_already_registered_detection_is_case_insensitive_and_field_scoped() {
+        // Casing/whitespace drift in the message must still match.
+        let upper = DaemonRegistrationError::JsonRpc {
+            code: Some(-32603),
+            message: "  SESSION Already Registered: sess_x".to_owned(),
+        };
+        assert!(upper.is_session_already_registered());
+
+        // An unrelated error must not be mistaken for it.
+        let other = DaemonRegistrationError::JsonRpc {
+            code: Some(-32602),
+            message: "invalid params: worktree".to_owned(),
+        };
+        assert!(!other.is_session_already_registered());
+
+        // Transport/daemon-unavailable errors are never this signal.
+        assert!(
+            !DaemonRegistrationError::DaemonUnavailable("no socket".to_owned())
+                .is_session_already_registered()
+        );
+    }
+
+    #[test]
+    fn marker_pins_registry_session_already_exists_display() {
+        // Cross-crate guard (Council S1): the heartbeat fall-through depends on
+        // the daemon's registry wording. If RegistryError::SessionAlreadyExists
+        // is ever rephrased, this fails CI instead of silently breaking the
+        // re-run heartbeat (which would let the session lapse on its TTL).
+        let display = anvil_intercept::registry::RegistryError::SessionAlreadyExists(
+            anvil_intercept_proto::SessionId::new("sess_activation_abcd"),
+        )
+        .to_string();
+        assert!(
+            display
+                .to_ascii_lowercase()
+                .contains(SESSION_ALREADY_REGISTERED_MARKER),
+            "registry wording drifted from the activation marker: {display:?}"
         );
     }
 }

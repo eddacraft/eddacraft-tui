@@ -730,7 +730,8 @@ fn acquire_pid_file_lock(path: &Path) -> Result<File> {
 
     lock.try_lock().with_context(|| {
         format!(
-            "anvil intercept daemon is already running or PID file is locked at {}",
+            "anvil intercept daemon is already running or PID file is locked at {}; \
+             run `anvil intercept stop` to stop it, then retry",
             path.display()
         )
     })?;
@@ -856,7 +857,8 @@ fn recover_stale_pid_file(path: &Path) -> Result<()> {
         ExistingPidStatus::Stale => {}
         ExistingPidStatus::Live | ExistingPidStatus::Unknown => {
             anyhow::bail!(
-                "anvil intercept daemon is already running or PID file cannot be proven stale at {}",
+                "anvil intercept daemon is already running or PID file cannot be proven stale \
+                 at {}; run `anvil intercept stop` to stop it, then retry",
                 path.display(),
             );
         }
@@ -923,7 +925,6 @@ pub enum StopOutcome {
 /// inject-the-effect style used by [`default_pid_file_path_from`] and the
 /// `ensure` primitive).
 #[derive(Debug, PartialEq, Eq)]
-#[cfg_attr(windows, allow(dead_code))]
 enum StopPlan {
     NotRunning,
     Signal { pid: u32 },
@@ -932,7 +933,6 @@ enum StopPlan {
     Unproven,
 }
 
-#[cfg_attr(windows, allow(dead_code))]
 fn parse_pid_record(record: &str) -> Option<u32> {
     record
         .lines()
@@ -940,7 +940,6 @@ fn parse_pid_record(record: &str) -> Option<u32> {
         .and_then(|line| line.trim().parse::<u32>().ok())
 }
 
-#[cfg_attr(windows, allow(dead_code))]
 fn plan_stop(record: Option<&str>, classify: impl Fn(&str) -> ExistingPidStatus) -> StopPlan {
     let Some(record) = record else {
         return StopPlan::NotRunning;

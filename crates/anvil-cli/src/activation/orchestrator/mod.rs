@@ -55,22 +55,15 @@ pub enum McpInstallPolicy {
     Skip,
 }
 
-/// Run the orchestration on `root` and return the final diagnostic
-/// alongside the install report.
+/// Run the orchestration on `root` under `mcp_install_policy` and return the
+/// final diagnostic alongside the install report.
 ///
 /// The caller is responsible for rendering — the orchestrator is mute on
 /// the activation diagnostic itself so unit tests can assert against the
 /// returned struct without parsing stdout. Init's own output (config
 /// success copy + first-scan summary) goes to stdout when init runs;
 /// re-runs against an existing config produce no init output.
-pub fn run(
-    root: &Path,
-    global: &GlobalArgs,
-) -> anyhow::Result<(ActivationDiagnostic, InstallReport)> {
-    run_with_mcp_policy(root, global, McpInstallPolicy::Install)
-}
-
-pub fn run_with_mcp_policy(
+pub(crate) fn run_with_mcp_policy(
     root: &Path,
     global: &GlobalArgs,
     mcp_install_policy: McpInstallPolicy,

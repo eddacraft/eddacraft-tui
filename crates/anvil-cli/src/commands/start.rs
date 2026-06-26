@@ -114,7 +114,10 @@ pub struct StartArgs {
     pub no_daemon: bool,
     /// Skip MCP config installation. The daemon-backed activation spine still
     /// runs; this is for corporate environments where editor MCP integration is
-    /// blocked or deliberately disabled.
+    /// blocked or deliberately disabled. Equivalent to setting `ANVIL_NO_MCP` to
+    /// any non-empty value — note that, like `ANVIL_NO_DAEMON`, this is presence-
+    /// based: `ANVIL_NO_MCP=0` (or `false`) still ENABLES the opt-out; only
+    /// leaving it unset or empty keeps MCP install on.
     #[arg(long = "no-mcp")]
     pub no_mcp: bool,
 }
@@ -273,14 +276,10 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             activation::orchestrator::InstallReport::default(),
         )
     } else {
-        match mcp_policy {
-            activation::orchestrator::McpInstallPolicy::Install => {
-                activation::orchestrator::run(root, global)?
-            }
-            activation::orchestrator::McpInstallPolicy::Skip => {
-                activation::orchestrator::run_with_mcp_policy(root, global, mcp_policy)?
-            }
-        }
+        // Both Install and Skip route through the same entry point; the policy
+        // is the only thing that differs (Council cleanup — the previous match
+        // hid that the Install arm was itself just `run_with_mcp_policy(.., Install)`).
+        activation::orchestrator::run_with_mcp_policy(root, global, mcp_policy)?
     };
 
     // ADOPT-003 CLI wiring — auto-detect installed AI tools and

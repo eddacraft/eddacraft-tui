@@ -140,11 +140,17 @@ pub(crate) fn render_settings_with_anvil_allow(
     existing: Option<&str>,
 ) -> Result<String, RenderError> {
     let mut root = match existing {
+        // An empty or whitespace-only file carries no settings to preserve, so
+        // treat it the same as a missing file (start from a fresh object)
+        // rather than failing the whole install with BadRoot. A bare empty
+        // `settings.json` is a common placeholder (interrupted write, another
+        // tool's `touch`); rejecting it used to flip activation to a sticky
+        // `state: error` on every run (Council M1).
+        Some(raw) if raw.trim_start_matches('\u{feff}').trim().is_empty() => {
+            Value::Object(serde_json::Map::new())
+        }
         Some(raw) => {
             let trimmed = raw.trim_start_matches('\u{feff}').trim();
-            if trimmed.is_empty() {
-                return Err(RenderError::BadRoot);
-            }
             serde_json::from_str::<Value>(trimmed)
                 .map_err(|e| RenderError::BadSettingsJson(e.to_string()))?
         }
@@ -293,6 +299,23 @@ mod tests {
             .and_then(Value::as_array)
             .unwrap();
         assert_eq!(allow, &[json!("mcp__anvil__*")]);
+    }
+
+    #[test]
+    fn settings_merge_treats_empty_or_whitespace_file_as_absent() {
+        // An empty/whitespace placeholder must not fail the install (Council M1):
+        // it should be treated like a missing file and seeded with the anvil rule.
+        for raw in ["", "   ", "\n\t\n", "\u{feff}", "\u{feff}  \n"] {
+            let rendered = render_settings_with_anvil_allow(Some(raw))
+                .unwrap_or_else(|e| panic!("empty input {raw:?} should render Ok, got {e:?}"));
+            let v: Value = serde_json::from_str(&rendered).unwrap();
+            let allow = v
+                .get("permissions")
+                .and_then(|p| p.get("allow"))
+                .and_then(Value::as_array)
+                .unwrap();
+            assert_eq!(allow, &[json!("mcp__anvil__*")], "input {raw:?}");
+        }
     }
 
     #[test]

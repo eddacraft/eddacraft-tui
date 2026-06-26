@@ -44,6 +44,11 @@ pre-write validation evidence.
    ANVIL_NO_MCP=1 anvil start
    ```
 
+   > **`ANVIL_NO_MCP` is presence-based** (matching `ANVIL_NO_DAEMON`): any
+   > non-empty value enables the opt-out, so `ANVIL_NO_MCP=0` and
+   > `ANVIL_NO_MCP=false` still **skip** MCP install. To keep MCP install on,
+   > leave the variable unset (or set it to the empty string) rather than `0`.
+
 2. Confirm the output includes:
 
    ```text
@@ -95,6 +100,27 @@ anvil start --verify
 
 `protecting` is expected only after the editor has attached and live validation
 evidence is observed.
+
+## Stopping the Daemon
+
+To release the daemon and its PID lock (for example before an upgrade, or when
+`anvil start` reports the daemon is already running):
+
+```bash
+anvil intercept stop
+```
+
+`anvil intercept status` prints the daemon PID and the `anvil intercept stop`
+recovery command, so an operator who only has a terminal can find and stop a
+headless daemon.
+
+> **Windows uses forced termination.** On Linux/macOS the daemon receives a
+> signal and shuts down in an orderly way (it unbinds the IPC listener and
+> removes its PID file). On Windows `anvil intercept stop` calls
+> `TerminateProcess`, which is an immediate, ungraceful kill: any in-flight
+> save-time fence state is discarded and the PID file is cleaned up by the stop
+> command afterwards. Re-run `anvil start` straight away to re-arm daemon-backed
+> save-time validation.
 
 ## Troubleshooting
 

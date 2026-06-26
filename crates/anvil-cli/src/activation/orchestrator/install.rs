@@ -211,11 +211,8 @@ pub fn install_for_clients(
         );
         let outcome = match &candidate.drift {
             DriftClass::UpToDate => {
-                if candidate.id == McpClientId::ClaudeCode
-                    && let Err(error) = install_claude_allow_list(&candidate.target_path)
-                {
-                    per_client.insert(candidate.id, InstallOutcome::Failed { error });
-                    continue;
+                if candidate.id == McpClientId::ClaudeCode {
+                    best_effort_claude_allow_list(&candidate.target_path);
                 }
                 tracing::debug!(
                     client = %candidate.id,
@@ -481,10 +478,8 @@ fn install_one(
         };
     }
 
-    if candidate.id == McpClientId::ClaudeCode
-        && let Err(error) = install_claude_allow_list(&candidate.target_path)
-    {
-        return InstallOutcome::Failed { error };
+    if candidate.id == McpClientId::ClaudeCode {
+        best_effort_claude_allow_list(&candidate.target_path);
     }
 
     tracing::info!(
@@ -496,6 +491,24 @@ fn install_one(
     InstallOutcome::Installed {
         path: candidate.target_path.clone(),
         drift: candidate.drift.clone(),
+    }
+}
+
+/// Merge the `mcp__anvil__*` allow rule into Claude Code's `settings.json` as a
+/// best-effort convenience (it suppresses per-write approval prompts; it is not
+/// load-bearing for protection). A failure here must never become an
+/// `InstallOutcome::Failed`: the MCP server entry in `.claude.json` is already
+/// on disk and the daemon-backed spine is unaffected, so failing the whole
+/// install would flip activation to a misleading `state: error` and mask an
+/// otherwise-healthy posture (Council S2). We log and move on.
+fn best_effort_claude_allow_list(mcp_config_path: &Path) {
+    if let Err(error) = install_claude_allow_list(mcp_config_path) {
+        tracing::warn!(
+            client = %McpClientId::ClaudeCode,
+            error = %error,
+            "mcp install: could not merge Claude allow rule (non-fatal); \
+             anvil_validate_write may prompt until it is added manually",
+        );
     }
 }
 
@@ -779,6 +792,34 @@ mod tests {
                 .and_then(serde_json::Value::as_array)
                 .unwrap()
                 .contains(&serde_json::json!("mcp__anvil__*"))
+        );
+    }
+
+    #[test]
+    fn claude_allow_list_failure_is_non_fatal_when_mcp_is_up_to_date() {
+        // Council S2: a malformed settings.json (here a non-object root) must not
+        // turn an otherwise up-to-date MCP install into a Failed outcome and a
+        // misleading state: error. The MCP entry is correct; the allow-list is a
+        // convenience that degrades to a warning.
+        let ws = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let claude_cfg = r#"{"mcpServers": {"anvil": {"type": "stdio", "command": "/usr/local/bin/anvil", "args": ["mcp", "serve", "--stdio"], "env": {}}}}"#;
+        fs::write(home.path().join(".claude.json"), claude_cfg).unwrap();
+        // A JSON array root is not an object → render returns BadRoot.
+        fs::create_dir_all(home.path().join(".claude")).unwrap();
+        fs::write(home.path().join(".claude/settings.json"), "[1, 2, 3]").unwrap();
+
+        let report = install_for_clients(ws.path(), Some(home.path()), &fresh(), false);
+
+        assert!(matches!(
+            report_outcome(&report, McpClientId::ClaudeCode),
+            InstallOutcome::Skipped {
+                reason: SkipReason::AlreadyUpToDate
+            }
+        ));
+        assert!(
+            report.aggregated_failure().is_none(),
+            "allow-list failure must not surface as an aggregated install failure"
         );
     }
 

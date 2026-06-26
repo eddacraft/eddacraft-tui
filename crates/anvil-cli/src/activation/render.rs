@@ -419,8 +419,9 @@ fn daemon_evidence_label(att: super::daemon_evidence::DaemonAttestation) -> &'st
         DaemonAttestation::NoParticipatingSurface => {
             "running but this worktree has no participating surface yet"
         }
-        DaemonAttestation::Enforced => "running and attesting this worktree",
-        DaemonAttestation::Promoted => "running and attesting this worktree",
+        DaemonAttestation::Enforced | DaemonAttestation::Promoted => {
+            "running and attesting this worktree"
+        }
     }
 }
 
@@ -523,8 +524,9 @@ fn why_summary_for_attestation(att: super::daemon_evidence::DaemonAttestation) -
         DaemonAttestation::Warming => {
             "daemon is starting up — wait briefly and re-run `anvil start --verify`"
         }
-        DaemonAttestation::Enforced => "no missing piece — daemon attests this worktree",
-        DaemonAttestation::Promoted => "no missing piece — daemon attests this worktree",
+        DaemonAttestation::Enforced | DaemonAttestation::Promoted => {
+            "no missing piece — daemon attests this worktree"
+        }
     }
 }
 
@@ -738,10 +740,29 @@ fn repair_hint(state: ProtectionState, d: &ActivationDiagnostic) -> Option<&'sta
             }
         }),
         ProtectionState::Watching => {
+            // Invariant (debug-asserted below): `LiveValidation` is
+            // unreachable here because `protection_state` returns
+            // `Protecting` first when any client is at that tier.
+            let highest_mcp = d.mcp.values().map(|r| r.tier).max();
+            let mcp_restart_pending = matches!(
+                highest_mcp,
+                Some(McpTier::RestartRequired | McpTier::RestartHandshakeVerified)
+            );
             if d.daemon_attestation.attests_worktree() {
-                return Some(
-                    "the intercept daemon is registered for this worktree; MCP pre-write remains optional, and `anvil intercept status` shows the daemon-backed surface.",
-                );
+                // Council S4: the daemon already attests this worktree, so the
+                // user is covered now. Only mention an editor restart when an
+                // MCP client is actually configured and one restart from live —
+                // restarting then promotes to `Protecting` (protection_state
+                // maps `LiveValidation` -> `Protecting` ahead of this
+                // daemon-attests branch, verified by the unit tests). When no
+                // MCP client is configured, restarting would change nothing, so
+                // keep MCP framed as an optional upgrade and do not nag
+                // (ACTMO-003 — the spine is the protection, MCP is the bonus).
+                return Some(if mcp_restart_pending {
+                    "the intercept daemon attests this worktree, so you are covered now; your MCP client is configured — restart your editor to upgrade to pre-write protection, then re-run `anvil start --verify`."
+                } else {
+                    "the intercept daemon is registered for this worktree; MCP pre-write remains optional, and `anvil intercept status` shows the daemon-backed surface."
+                });
             }
             // Council remediation: the next step depends on whether
             // any MCP tier is already past `ConfigPresent`. If the
@@ -749,13 +770,9 @@ fn repair_hint(state: ProtectionState, d: &ActivationDiagnostic) -> Option<&'sta
             // the user to run `anvil mcp install` is wrong — they
             // need to restart their editor.
             //
-            // Invariant (debug-asserted below): `LiveValidation` is
-            // unreachable here because `protection_state` returns
-            // `Protecting` first when any client is at that tier.
             // The match arms below only handle tiers strictly weaker
             // than `LiveValidation`; if a future refactor breaks the
             // invariant, the assertion fires in debug builds.
-            let highest_mcp = d.mcp.values().map(|r| r.tier).max();
             debug_assert!(
                 !matches!(highest_mcp, Some(McpTier::LiveValidation)),
                 "Watching unreachable when MCP at LiveValidation"
@@ -1240,7 +1257,7 @@ mod tests {
     }
 
     #[test]
-    fn daemon_backed_watching_with_restart_required_does_not_restart_loop() {
+    fn daemon_backed_watching_with_restart_required_offers_optional_upgrade_not_loop() {
         let mut d = empty();
         d.config = ConfigStatus::Valid;
         d.mcp
@@ -1253,13 +1270,45 @@ mod tests {
             h.contains("state: watching"),
             "daemon-attested spine should fall through to watching, got: {h}"
         );
+        // Council S4: leads with current coverage and never frames the restart
+        // as required — the spine already protects this worktree.
         assert!(
-            !h.contains("restart your editor"),
-            "daemon-backed watching must not imply another editor restart is required: {h}"
+            h.contains("covered now"),
+            "daemon-backed watching must affirm current coverage: {h}"
         );
         assert!(
+            !h.to_lowercase().contains("restart required")
+                && !h.to_lowercase().contains("must restart"),
+            "daemon-backed watching must not present a restart as required: {h}"
+        );
+        // But because an editor restart genuinely promotes to Protecting
+        // (protection_state maps LiveValidation -> Protecting before this
+        // branch), it is honest to offer the restart as an optional upgrade
+        // when an MCP client is configured.
+        assert!(
+            h.contains("upgrade to pre-write protection"),
+            "configured-MCP watching should offer the restart as an optional upgrade: {h}"
+        );
+    }
+
+    #[test]
+    fn daemon_backed_watching_without_mcp_keeps_mcp_optional_and_silent_on_restart() {
+        // The other half of Council S4: with no MCP client configured, a
+        // restart would change nothing, so the copy must stay non-nagging.
+        let mut d = empty();
+        d.config = ConfigStatus::Valid;
+        d.daemon_attestation = super::super::daemon_evidence::DaemonAttestation::Enforced;
+
+        let h = render_human(&d);
+
+        assert!(h.contains("state: watching"), "got: {h}");
+        assert!(
             h.contains("intercept daemon") && h.contains("MCP pre-write remains optional"),
-            "daemon-backed watching copy must name the daemon spine and optional MCP layer: {h}"
+            "no-MCP daemon-backed watching must keep MCP framed as optional: {h}"
+        );
+        assert!(
+            !h.contains("restart your editor"),
+            "no-MCP daemon-backed watching must not nag an editor restart: {h}"
         );
     }
 
