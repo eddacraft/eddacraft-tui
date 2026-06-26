@@ -123,10 +123,13 @@ ANVIL_WATCH_DAEMON=1 anvil watch --source   # force daemon routing
 Windows PowerShell:
 
 ```powershell
-$env:ANVIL_WATCH_DAEMON = "0"; anvil watch --source   # opt out
-$env:ANVIL_WATCH_DAEMON = "1"; anvil watch --source   # force daemon routing
-Remove-Item Env:\ANVIL_WATCH_DAEMON
+$env:ANVIL_WATCH_DAEMON = "0"
+anvil watch --source   # opt out
 ```
+
+To force daemon routing instead, set `$env:ANVIL_WATCH_DAEMON = "1"` before
+running `anvil watch --source`. When you stop the watcher, remove the override
+with `Remove-Item Env:\ANVIL_WATCH_DAEMON`.
 
 See `anvil watch --help` for the routing details.
 

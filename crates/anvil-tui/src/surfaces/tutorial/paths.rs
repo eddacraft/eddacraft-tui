@@ -86,7 +86,7 @@ fn step_with_watch(
 
 fn create_policy_directory_command() -> &'static str {
     if cfg!(windows) {
-        r"if not exist .anvil\policies mkdir .anvil\policies"
+        r"New-Item -ItemType Directory -Force -Path .anvil\policies"
     } else {
         "mkdir -p .anvil/policies"
     }
@@ -94,7 +94,7 @@ fn create_policy_directory_command() -> &'static str {
 
 fn create_policy_directory_instruction() -> &'static str {
     if cfg!(windows) {
-        r"Run: if not exist .anvil\policies mkdir .anvil\policies"
+        r"Run: New-Item -ItemType Directory -Force -Path .anvil\policies"
     } else {
         "Run: mkdir -p .anvil/policies"
     }
@@ -165,7 +165,7 @@ pub fn policy_steps() -> Vec<TutorialStep> {
             watch_path: Some(".anvil/policies".to_string()),
             ..step(
                 "Create Policy Directory",
-                "anvil looks for policies in the .anvil/policies/ directory. Create this directory in your project root so anvil can discover your custom Rego rules. The tutorial uses the native directory-creation command for your shell: `mkdir -p` on macOS/Linux and `if not exist ... mkdir ...` through cmd.exe on Windows.",
+                "anvil looks for policies in the .anvil/policies/ directory. Create this directory in your project root so anvil can discover your custom Rego rules. The tutorial uses the native directory-creation command for your shell: `mkdir -p` on macOS/Linux and PowerShell `New-Item -ItemType Directory -Force -Path .anvil\\policies` on Windows.",
                 create_policy_directory_instruction(),
             )
         },
@@ -417,7 +417,7 @@ mod tests {
         if cfg!(windows) {
             assert_eq!(
                 command,
-                r"if not exist .anvil\policies mkdir .anvil\policies"
+                r"New-Item -ItemType Directory -Force -Path .anvil\policies"
             );
         } else {
             assert_eq!(command, "mkdir -p .anvil/policies");
