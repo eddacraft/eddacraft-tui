@@ -15,12 +15,14 @@ sidebar_position: 1
 | ------------------------------------------------------------------------- | --------------------- |
 | [anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec) `docs/**` | APS docs-site section |
 
-The `aps` CLI has two layers:
+The `aps` CLI has two implementations in v0.4.0:
 
-- **Authoring** — scaffold projects, lint specs (`init`, `update`, `migrate`,
-  `lint`)
-- **Orchestration** — drive work items through the lifecycle (`next`, `start`,
-  `complete`, `graph`)
+- **Native binary** — scaffold projects, add integrations, lint specs, resolve
+  the next work item, and diagnose installs (`init`, `setup`, `lint`, `next`,
+  `doctor`)
+- **Bash fallback/vendored runtime** — also carries legacy/update and
+  orchestration helpers (`update`, `migrate`, `start`, `complete`, `graph`,
+  `audit`, `upgrade`)
 
 You can ignore orchestration and edit markdown by hand — the CLI is additive.
 
@@ -28,22 +30,25 @@ You can ignore orchestration and edit markdown by hand — the CLI is additive.
 
 ```bash
 aps init [dir]              # Create APS structure
-aps update [dir]            # Refresh templates and tool files
-aps migrate [dir]           # Convert v1 layout to v2 (.aps/)
 aps lint [file|dir]         # Validate APS documents
 aps next [module]           # Show next ready work item
+aps doctor                  # Diagnose global binary vs vendored CLI
+aps setup [component]       # Add integrations (hooks, agents, tools)
+
+# Bash fallback/vendored runtime only in v0.4.0:
+aps update [dir]            # Refresh templates and tool files
+aps migrate [dir]           # Convert v1 layout to v2 (.aps/)
 aps start <ID>              # Mark Ready → In Progress
 aps complete <ID>           # Mark In Progress → Complete
 aps graph [module]          # Dependency graph
 aps audit [module]          # Audit plan state against reality
-aps doctor                  # Diagnose global binary vs vendored CLI
-aps setup [component]       # Add integrations (hooks, agents, tools)
 aps upgrade [--apply]       # Remove generated bloat
 aps --help                  # Top-level help
 ```
 
-Every command accepts `--plans <dir>` if plans are not at the default `plans/`
-location.
+Project-scoped orchestration commands in the bash fallback accept `--plans <dir>`
+when plans are not at the default `plans/` location. `aps lint` takes the plan
+path as its argument, for example `aps lint packages/foo/plans/`.
 
 ## Project config discovery
 
@@ -51,8 +56,8 @@ Project-scoped commands resolve their plan root automatically. `aps` walks up
 from the current directory for the nearest `.aps/config.yml` and uses its
 `plans_dir`.
 
-Resolution order: explicit `--plans` / target → `APS_PLANS` env var → discovered
-`plans_dir` → `plans/`.
+Resolution order: explicit target/`--plans` where supported → `APS_PLANS` env
+var → discovered `plans_dir` → `plans/`.
 
 Add `--strict` (or `APS_STRICT=1`) to fail on toolchain version drift:
 
@@ -73,7 +78,9 @@ See [Validation rules →](../spec/determinism.md) for error and warning codes.
 ## Orchestration
 
 The orchestration commands read and rewrite `.aps.md` files in place. Markdown
-stays the single source of truth.
+stays the single source of truth. In v0.4.0 these commands are available in the
+bash fallback/vendored runtime; native-only installs should hand-edit equivalent
+status changes.
 
 ### State machine
 
@@ -100,7 +107,7 @@ File: plans/modules/auth.aps.md
 $ aps next auth          # Scope to one module
 ```
 
-### `aps start <ID>`
+### `aps start <ID>` _(bash fallback/vendored runtime)_
 
 ```bash
 $ aps start AUTH-003
@@ -115,7 +122,7 @@ On success:
 - Suggests a branch name (`work/<id>`)
 - Writes a context package at `.aps/context/<ID>.md`
 
-### `aps complete <ID>`
+### `aps complete <ID>` _(bash fallback/vendored runtime)_
 
 ```bash
 $ aps complete AUTH-003 --learning "Token refresh needs retry on network errors"
@@ -123,7 +130,7 @@ Marked AUTH-003 as Complete: 2026-05-12
 Learning recorded for AUTH-003
 ```
 
-### `aps graph [module]`
+### `aps graph [module]` _(bash fallback/vendored runtime)_
 
 ```bash
 $ aps graph auth
@@ -135,7 +142,7 @@ AUTH-003 [Ready] Add token refresh
   <- AUTH-001[Complete] AUTH-002[Complete]
 ```
 
-### `aps audit [module]`
+### `aps audit [module]` _(bash fallback/vendored runtime)_
 
 ```bash
 $ aps audit
@@ -167,6 +174,10 @@ $ aps doctor
 ```
 
 ## End-to-end loop
+
+This full loop uses the bash fallback/vendored orchestration helpers. With a
+native-only v0.4.0 install, use `aps next`, then edit the status fields in
+markdown manually.
 
 ```bash
 aps next

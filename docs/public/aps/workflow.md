@@ -38,14 +38,15 @@ execution.
 
 ```bash
 aps next                              # Plan → discover next ready work item
-aps start AUTH-003                    # Execute → claim it, get context package
-# ...implement, run validation...
-aps complete AUTH-003 --learning "..."  # Validate + Learn
+# edit status to In Progress, implement, run validation
+# edit status to Complete: YYYY-MM-DD, capture learnings
 aps next                              # Loop
 ```
 
-The CLI enforces the state machine (`Ready` → `In Progress` → `Complete`),
-checks dependencies, and writes status lines in a consistent format.
+The native v0.4.0 binary resolves `next` and lints the plan. The bash
+fallback/vendored runtime also provides `aps start` and `aps complete`, which
+enforce the state machine (`Ready` → `In Progress` → `Complete`), check
+dependencies, generate context packages, and write status lines consistently.
 
 ## Work item status vocabulary
 
@@ -58,8 +59,10 @@ Accepted aliases (tools normalise internally; your files are not rewritten):
 | `Proposed` | `Draft`    | Not yet actionable         |
 | `Done`     | `Complete` | Terminal / compacted items |
 
-Terminal compaction may also use `Merged`, `Released`, or `Shipped`; lint treats
-them like `Complete` for dependency checks.
+Terminal compaction may also use `Merged`, `Released`, or `Shipped` in Anvil's
+release operating model. Lint treats those terminal labels as completed for
+field-completeness checks, but orchestration dependency checks require
+`Complete`/`Done` unless the Anvil release tooling has normalised the status.
 
 ## Starting a feature
 
@@ -78,20 +81,17 @@ them like `Complete` for dependency checks.
 
 When you discover missing work:
 
-```bash
-# After editing auth.aps.md to add AUTH-000 as Ready
-aps start AUTH-000
-# implement, run validation...
-aps complete AUTH-000 --learning "Migrations must run before schema-aware tests"
-```
+With the bash fallback/vendored runtime, use `aps start AUTH-000` and
+`aps complete AUTH-000 --learning "Migrations must run before schema-aware tests"`.
+With the native-only v0.4.0 binary, hand-edit the status and learning fields.
 
 Capture blockers in `plans/issues.md` rather than inventing new status values.
 APS does not have a `Blocked` CLI transition — blocking is a planning question.
 
 ## Completion and archival
 
-1. **Validate** — Run each work item's validation command. `aps audit <module>`
-   does this mechanically.
+1. **Validate** — Run each work item's validation command. The bash
+   fallback/vendored runtime's `aps audit <module>` does this mechanically.
 2. **Mark module complete** — Bump the metadata table to `Complete` once every
    work item is Complete.
 3. **Update the Index** — Reflect module status.
@@ -112,7 +112,8 @@ A PR that implements a work item should carry:
 - A green `aps lint plans`
 
 If the plan files did not change, ask whether the plan still matches reality —
-that is exactly the drift `aps audit` exists to catch.
+that is exactly the drift `aps audit` exists to catch in the bash
+fallback/vendored runtime.
 
 ## Learn phase
 

@@ -137,15 +137,13 @@ Once you have a plan with at least one `Ready` work item:
 
 ```bash
 aps next                              # next ready item across modules
-aps start AUTH-003                    # marks In Progress, writes context package
-# ...implement, run validation...
-aps complete AUTH-003 --learning "Retry on 5xx improved success rate by 18%"
-aps graph auth                        # dependency graph for a module
 ```
 
-`aps start` enforces that every dependency is `Complete`. The context package at
-`.aps/context/<ID>.md` is a focused brief designed to be pasted into any AI
-agent.
+In the bash fallback/vendored runtime, `aps start` enforces that every dependency
+is `Complete`, marks the item `In Progress`, and writes a focused context package
+at `.aps/context/<ID>.md`. The native v0.4.0 binary currently exposes `next` but
+not `start`/`complete`/`graph`; with the native-only install, edit the work-item
+status in markdown and run its `Validation` command directly.
 
 ## Working with AI assistants
 

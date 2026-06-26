@@ -59,12 +59,15 @@ When asked to plan a feature:
 When asked to implement:
 
 1. Find the authorised work item — status must be `Ready`
-2. Run `aps start <ID>` to claim it and get the context package
-3. Read `.aps/context/<ID>.md` for focused brief
+2. If the bash fallback/vendored runtime is available, run `aps start <ID>` to
+   claim it and get the context package; otherwise hand-edit the status to
+   `In Progress`
+3. Read `.aps/context/<ID>.md` for focused brief when generated
 4. If complex, open or create `{ID}.actions.md`
 5. Execute one action at a time; validate each checkpoint
 6. Run the work item's Validation command
-7. Run `aps complete <ID> --learning "..."` with any insights
+7. Mark the item `Complete: YYYY-MM-DD`; with the bash fallback/vendored runtime,
+   prefer `aps complete <ID> --learning "..."`
 
 ## Prompting a work item
 

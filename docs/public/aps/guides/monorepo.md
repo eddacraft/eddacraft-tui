@@ -108,10 +108,11 @@ cli_version: 0.4.0
 plans_dir: packages/foo/plans/
 ```
 
-Or pass `--plans` explicitly:
+Or pass the plan root explicitly to commands that accept a target:
 
 ```bash
-aps lint --plans packages/foo/plans/
+aps lint packages/foo/plans/
+APS_PLANS=packages/foo/plans/ aps next
 ```
 
 ## Session rituals

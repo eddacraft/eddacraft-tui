@@ -119,8 +119,10 @@ Canonical: `Draft`, `Ready`, `In Progress`, `Complete`, `Blocked`
 
 Aliases (normalised internally): `Proposed` → `Draft`, `Done` → `Complete`
 
-Terminal compaction: `Merged`, `Released`, `Shipped` (treated as Complete for
-dependency checks)
+Terminal compaction: `Merged`, `Released`, `Shipped` are accepted as terminal
+labels for release/archival records and lint field-completeness checks. Current
+orchestration dependency checks require `Complete`/`Done` unless Anvil-specific
+release tooling normalises the status.
 
 ## Action plan structure
 

@@ -87,17 +87,19 @@ Users want to reduce eye strain when working at night.
 
 ## Drive plans with the CLI
 
-The `aps` CLI scaffolds projects, lints specs, and drives the work-item
-lifecycle:
+The v0.4.0 native `aps` binary scaffolds projects, lints specs, and resolves
+the next ready work item:
 
 ```bash
 aps init                              # scaffold plans/ in a project
 aps lint plans/                       # validate every spec
 aps next                              # next ready work item
-aps start AUTH-003                    # claim it; writes a context package
-aps complete AUTH-003 --learning "Retry on 5xx improved success rate by 18%"
-aps graph auth                        # dependency graph for a module
 ```
+
+The bash fallback/vendored runtime also includes orchestration helpers such as
+`start`, `complete`, `graph`, and `audit`. If your install uses only the native
+binary, update work-item statuses in markdown by hand until those helpers are
+available in the native CLI.
 
 Full reference: [CLI Reference →](./tooling/validation.md)
 
