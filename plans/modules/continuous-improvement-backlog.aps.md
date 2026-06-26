@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 62/104  |
+| CIB | —     | In Progress | 62/105  |
 
 ## Purpose
 
@@ -2883,3 +2883,34 @@ archive.
 - **Coordinates with:** CIB-103 (search-surface precedent), ADR-091.
 - **Confidence:** high — the search-surface tests are a direct template, the
   sibling fixtures already exist, and the change is purely additive test coverage.
+
+### CIB-105: Gate the first-week insights nudge under `project_writes_gated` in `status` and `watch`
+
+- **Status:** Proposed
+- **Intent:** Stop `anvil status` and `anvil watch` from reading-and-recording
+  the real project's first-week-nudge state under a gated `ANVIL_HOME`
+  (DISTRIB-006 / ADR-060). Both call `first_week_insights_hint` ungated today, so
+  a candidate / side-by-side install burns the real install's once-per-week
+  marker (and writes `.anvil/insights-hint.json` into the real project).
+- **Expected Outcome:** All three nudge surfaces (`status`, `watch`, `welcome`)
+  honour the gate uniformly. The cleanest shape is to thread the gate into the
+  canonical function — `first_week_insights_hint(root, now, project_writes_gated)`
+  returning `None` with no read and no write when gated — and drop INSIGHTS-005's
+  `welcome`-specific `welcome_insights_hint` wrapper, so no surface can regress by
+  forgetting the guard.
+- **Files:** `crates/anvil-cli/src/insights/first_week_hint.rs`,
+  `crates/anvil-cli/src/commands/status.rs`,
+  `crates/anvil-cli/src/commands/watch.rs`,
+  `crates/anvil-cli/src/commands/welcome.rs`.
+- **Validation:** `cargo test -p eddacraft-anvil` — a gated-root test per surface
+  asserts the nudge is suppressed and `.anvil/insights-hint.json` is not written;
+  the existing INSIGHTS-004/-005 in-window tests still pass.
+- **Identified From:** INSIGHTS-005 pre-PR Council (PR #2957) — code-reviewer
+  MINOR + NIT: `status.rs` and `watch.rs` call the hint ungated; `welcome.rs` is
+  the correct reference but its gate is surface-specific boilerplate for a
+  universal concern.
+- **Coordinates with:** INSIGHTS-004 (PR #2226, the hint mechanism), INSIGHTS-005
+  (PR #2957, the welcome wiring + gated wrapper this would absorb).
+- **Confidence:** high — small and additive; the gating logic already exists in
+  `welcome.rs` and just needs lifting into the canonical function with the two
+  call sites updated.
