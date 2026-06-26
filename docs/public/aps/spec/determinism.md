@@ -35,8 +35,8 @@ aps lint . --json                     # machine-readable output
 ```
 
 Errors cause a non-zero exit code. Warnings are informational. `--strict` is for
-toolchain-version drift: it turns a `.aps/config.yml` `cli_version` mismatch into
-a failing result.
+toolchain-version drift: it turns a `.aps/config.yml` `cli_version` mismatch
+into a failing result.
 
 ## Error codes
 
@@ -131,12 +131,12 @@ In the bash fallback/vendored runtime, `aps audit` checks whether Complete items
 actually pass their validation commands and whether Draft items have files that
 already exist:
 
-| Code | Meaning                                                         |
-| ---- | --------------------------------------------------------------- |
-| A001 | Overstated — Complete item whose Validation command fails       |
-| A002 | Understated — Draft item whose Files already exist with content |
+| Code | Meaning                                                            |
+| ---- | ------------------------------------------------------------------ |
+| A001 | Overstated — Complete item whose Validation command fails          |
+| A002 | Understated — Draft item whose Files already exist with content    |
 | A003 | Stale — Ready item in a module with no recent `**Last reviewed:**` |
-| A004 | Broken link — index module link points to a non-existent file   |
+| A004 | Broken link — index module link points to a non-existent file      |
 
 > **CI safety:** Use `aps audit --no-run` in pull-request jobs. Running with
 > execution enabled executes Validation commands from plan files with full shell

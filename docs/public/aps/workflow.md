@@ -59,10 +59,11 @@ Accepted aliases (tools normalise internally; your files are not rewritten):
 | `Proposed` | `Draft`    | Not yet actionable         |
 | `Done`     | `Complete` | Terminal / compacted items |
 
-Terminal compaction may also use `Merged`, `Released`, or `Shipped` in Anvil's
+Terminal compaction may also use `Merged` or `Released/Shipped` in Anvil's
 release operating model. Lint treats those terminal labels as completed for
-field-completeness checks, but orchestration dependency checks require
-`Complete`/`Done` unless the Anvil release tooling has normalised the status.
+field-completeness checks. Orchestration dependency checks (`aps start`) only
+accept `Complete` or `Done` on prerequisites — `Merged`/`Released/Shipped`
+remain terminal but do not satisfy dependencies.
 
 ## Starting a feature
 

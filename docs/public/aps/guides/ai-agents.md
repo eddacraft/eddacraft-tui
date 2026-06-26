@@ -66,8 +66,8 @@ When asked to implement:
 4. If complex, open or create `{ID}.actions.md`
 5. Execute one action at a time; validate each checkpoint
 6. Run the work item's Validation command
-7. Mark the item `Complete: YYYY-MM-DD`; with the bash fallback/vendored runtime,
-   prefer `aps complete <ID> --learning "..."`
+7. Mark the item `Complete: YYYY-MM-DD`; with the bash fallback/vendored
+   runtime, prefer `aps complete <ID> --learning "..."`
 
 ## Prompting a work item
 

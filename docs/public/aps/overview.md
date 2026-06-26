@@ -87,8 +87,8 @@ Users want to reduce eye strain when working at night.
 
 ## Drive plans with the CLI
 
-The v0.4.0 native `aps` binary scaffolds projects, lints specs, and resolves
-the next ready work item:
+The v0.4.0 native `aps` binary scaffolds projects, lints specs, and resolves the
+next ready work item:
 
 ```bash
 aps init                              # scaffold plans/ in a project

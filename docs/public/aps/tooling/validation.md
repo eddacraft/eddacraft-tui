@@ -46,9 +46,9 @@ aps upgrade [--apply]       # Remove generated bloat
 aps --help                  # Top-level help
 ```
 
-Project-scoped orchestration commands in the bash fallback accept `--plans <dir>`
-when plans are not at the default `plans/` location. `aps lint` takes the plan
-path as its argument, for example `aps lint packages/foo/plans/`.
+Project-scoped orchestration commands in the bash fallback accept
+`--plans <dir>` when plans are not at the default `plans/` location. `aps lint`
+takes the plan path as its argument, for example `aps lint packages/foo/plans/`.
 
 ## Project config discovery
 
