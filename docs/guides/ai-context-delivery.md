@@ -66,41 +66,48 @@ anvil mcp install --client claude-code
 anvil mcp install --client cursor
 ```
 
-If you prefer to wire the server by hand, register the `anvil mcp serve --stdio`
-shim. For Claude Code (`.mcp.json` / project config) or Cursor
-(`~/.cursor/mcp.json`):
+If you prefer to wire the server by hand, add the `anvil mcp serve --stdio` shim
+to your client's MCP config — `~/.claude.json` for Claude Code,
+`~/.cursor/mcp.json` for Cursor. The Claude Code entry needs a `"type": "stdio"`
+discriminator:
 
 ```json
 {
   "mcpServers": {
     "anvil": {
+      "type": "stdio",
       "command": "anvil",
-      "args": ["mcp", "serve", "--stdio"]
+      "args": ["mcp", "serve", "--stdio"],
+      "env": {}
     }
   }
 }
 ```
 
+Cursor uses the same `mcpServers` entry without the `type` field. The
+[MCP integration guide](../public/anvil/integrations/mcp.md) has the exact
+per-client shapes, and `anvil mcp install` writes them for you.
+
 Restart the client (or reload its MCP servers from its settings) after writing
 the configuration, or the new tools will not appear.
 
-The full setup reference, including `anvil mcp-config` and the manual
-client-by-client steps, lives in the
-[MCP integration guide](../public/anvil/integrations/mcp.md).
-
 **Verify the connection.** From your client, read the `graph://stats` resource
-(or call `anvil_search_symbols` with any short name). Counts that are zero mean
-the daemon is running but the graph is not yet warm — normal on first use; retry
-shortly. A structured `unavailable` response means the daemon is not running:
-check `anvil intercept status`, and `anvil start` to (re)start it and re-trigger
-graph warming.
+(or call `anvil_search_symbols` with any short name). A `ready` result confirms
+the wiring works — even zero counts are fine (an empty or still-warming
+workspace is legitimate). A `not_ready` outcome means the graph is still
+warming; retry shortly. An `unavailable` response means the daemon is not
+running: check `anvil intercept status`, and `anvil start` to (re)start it and
+re-trigger graph warming.
 
 ## The tools
 
 All six tools are **identity-only by default**: they return symbol identities
 (name, kind, workspace-relative path, visibility) and edge topology — never
-source text, absolute paths, or secrets. Results are deterministic and paginated
-with opaque cursors.
+source text, absolute paths, or secrets. Results are deterministic. The listing
+tools — `anvil_search_symbols`, `anvil_find_dependents`, and
+`anvil_find_callers` — paginate with opaque cursors; `anvil_impact_of_change`,
+`anvil_affected_tests`, and `anvil_symbol_context` instead return a single
+bounded report.
 
 - **`anvil_search_symbols`** — find symbols by name (case-insensitive
   substring), kind, file, language, or visibility. The entry point for "where is
