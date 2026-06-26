@@ -25,19 +25,27 @@ use crate::output::{self, OutputMode};
 
 #[derive(Debug, Args)]
 pub struct ReportFpArgs {
+    /// List locally recorded false-positive reports instead of recording a new
+    /// one. Prints check ID, hashed path, line, and timestamp; never plaintext
+    /// paths or snippets.
+    #[arg(long)]
+    list: bool,
+
     /// The check the false positive fired under — a stable `ANV-*` ID, the
     /// canonical name, or a legacy alias.
-    check_id: String,
+    #[arg(required_unless_present = "list")]
+    check_id: Option<String>,
 
     /// Where the false positive fired, as `<file>:<line>` (the path is hashed,
     /// never recorded in plaintext).
-    location: String,
+    #[arg(required_unless_present = "list")]
+    location: Option<String>,
 
     /// Opt in to recording the single source line as a snippet. Off by
     /// default — source content is never included unless this is set. The line
     /// is stored verbatim and is NOT redacted, so do not opt in when the
     /// flagged line contains a real secret.
-    #[arg(long)]
+    #[arg(long, conflicts_with = "list")]
     include_snippet: bool,
 }
 
@@ -88,8 +96,21 @@ fn read_snippet(path: &str, line: u32) -> Option<String> {
 pub fn run(args: &ReportFpArgs, global: &GlobalArgs) -> Result<()> {
     let mode = OutputMode::from_global(global);
 
-    let check_id = resolve_check_id(&args.check_id)?;
-    let (path, line) = parse_location(&args.location)?;
+    if args.list {
+        return list_reports(mode);
+    }
+
+    let check_id_input = args
+        .check_id
+        .as_deref()
+        .ok_or_else(|| anyhow::anyhow!("missing check id; pass --list to read local reports"))?;
+    let location = args
+        .location
+        .as_deref()
+        .ok_or_else(|| anyhow::anyhow!("missing location; pass --list to read local reports"))?;
+
+    let check_id = resolve_check_id(check_id_input)?;
+    let (path, line) = parse_location(location)?;
 
     let snippet = if args.include_snippet {
         read_snippet(path, line)
@@ -109,6 +130,30 @@ pub fn run(args: &ReportFpArgs, global: &GlobalArgs) -> Result<()> {
             output::plain::success(&format!(
                 "Recorded false-positive report for {check_id} (path hashed; stored locally)"
             ));
+        }
+    }
+    Ok(())
+}
+
+fn list_reports(mode: OutputMode) -> Result<()> {
+    let reports = crate::usage::list_false_positive_reports()?;
+    match mode {
+        OutputMode::Json => output::json::print(&serde_json::json!({
+            "count": reports.len(),
+            "reports": reports,
+        }))?,
+        OutputMode::Plain | OutputMode::Tui | OutputMode::Sarif => {
+            if reports.is_empty() {
+                output::plain::info("No false-positive reports recorded locally");
+            } else {
+                output::plain::section("Local false-positive reports");
+                for report in reports {
+                    println!(
+                        "  {}:{} {} {}",
+                        report.hashed_path, report.line, report.check_id, report.timestamp
+                    );
+                }
+            }
         }
     }
     Ok(())

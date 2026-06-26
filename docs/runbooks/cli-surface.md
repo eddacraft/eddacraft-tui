@@ -425,6 +425,37 @@ $ anvil insights --json
 
 ---
 
+## anvil report-fp
+
+**Class:** User-explicit **Purpose:** Record or inspect a local false-positive
+report. **When to use:** When a check flags something that is not actionable and
+you want to keep local evidence for support or later review.
+
+**Synopsis:** `anvil report-fp [--list] <check-id> <file:line> [--include-snippet]`
+
+**Flags:**
+
+| Flag                | Description                                                                                             |
+| ------------------- | ------------------------------------------------------------------------------------------------------- |
+| `--list`            | List locally recorded reports as check ID, hashed path, line, and timestamp. Supports `--json`.         |
+| `--include-snippet` | Opt in to storing the single source line for a new report. Not valid with `--list`; off by default.     |
+
+**Privacy posture:** reports are local-only (ADR-089). The file path is stored
+and listed as a salted hash, never plaintext. `--list` does not print snippets,
+even when a report was recorded with `--include-snippet`.
+
+**Exit codes:** 0 (success), 1 (error), 3 (auth required)
+
+**Examples:**
+
+```
+$ anvil report-fp ANV-CORE-001 src/main.rs:42
+$ anvil report-fp --list
+$ anvil --json report-fp --list
+```
+
+---
+
 ## anvil migrate
 
 **Class:** Admin **Purpose:** Migrate Anvil config to a new format or schema

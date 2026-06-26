@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 63/104  |
+| CIB | —     | In Progress | 64/104  |
 
 ## Purpose
 
@@ -2413,7 +2413,7 @@ archive.
 
 ### CIB-087: False-positive report local read path
 
-- **Status:** Ready
+- **Status:** Done 2026-06-26 — `anvil report-fp --list` lists local reports with check ID, hashed path, line, and timestamp in plain or JSON output without plaintext paths or snippets.
 - **Intent:** Give operators a way to see what `anvil report-fp` has recorded
   locally — today the `false-positives.ndjson` sidecar is write-only with no
   CLI read surface.

@@ -188,10 +188,11 @@ enum Commands {
     /// Report a false positive against a check.
     ///
     /// Records `anvil report-fp <check-id> <file:line>` to the local
-    /// Kindling record only — nothing leaves the machine (ADR-089). The
-    /// file path is recorded as a one-way salted hash, never plaintext, and
-    /// source content is never included unless `--include-snippet` is set.
-    /// The check identifier is validated against the stable-ID registry.
+    /// Kindling record only, or lists local reports with `--list` — nothing
+    /// leaves the machine (ADR-089). The file path is recorded and listed as a
+    /// one-way salted hash, never plaintext, and source content is never
+    /// included unless `--include-snippet` is set. The check identifier is
+    /// validated against the stable-ID registry.
     #[command(name = "report-fp")]
     ReportFp(commands::report_fp::ReportFpArgs),
     /// Run diagnostic checks on your environment.

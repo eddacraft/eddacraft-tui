@@ -68,8 +68,9 @@ use std::time::Duration;
 use anvil_intercept::kindling_observation::{
     CommandInvocationContext, CommandInvokedEmitter, CommandInvokedObservation,
     ConstraintAppliedObservation, DEFAULT_SAVE_TIME_PASS_CAPACITY, DEFAULT_SAVE_TIME_PASS_WINDOW,
-    FalsePositiveReportContext, FlagSetEntry, GateEvaluatedObservation, KindlingObservationSink,
-    KindlingSinkError, NonBlockingObservationSink, SAVE_TIME_GATE_ID, SaveTimeObservationEmitter,
+    FalsePositiveReportContext, FalsePositiveReportedObservation, FlagSetEntry,
+    GateEvaluatedObservation, KindlingObservationSink, KindlingSinkError,
+    NonBlockingObservationSink, SAVE_TIME_GATE_ID, SaveTimeObservationEmitter,
     from_command_invocation, from_fp_report,
 };
 use anvil_intercept::rate_window::RateWindow;
@@ -823,6 +824,45 @@ fn record_false_positive_in(
     append_observation_to(&fp_log_path(state_dir), &obs)
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct FalsePositiveReportSummary {
+    pub check_id: String,
+    pub hashed_path: String,
+    pub line: u32,
+    pub timestamp: String,
+}
+
+pub fn list_false_positive_reports() -> Result<Vec<FalsePositiveReportSummary>> {
+    let state_dir = credentials::credentials_dir().context("resolve usage state directory")?;
+    list_false_positive_reports_in(&state_dir)
+}
+
+fn list_false_positive_reports_in(state_dir: &Path) -> Result<Vec<FalsePositiveReportSummary>> {
+    let path = fp_log_path(state_dir);
+    let content = match fs::read_to_string(&path) {
+        Ok(content) => content,
+        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(err) => {
+            return Err(err).with_context(|| format!("read {}", path.display()));
+        }
+    };
+
+    content
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| {
+            let row: FalsePositiveReportedObservation =
+                serde_json::from_str(line).context("parse false-positive sidecar row")?;
+            Ok(FalsePositiveReportSummary {
+                check_id: row.check_id,
+                hashed_path: row.hashed_path,
+                line: row.line,
+                timestamp: row.timestamp,
+            })
+        })
+        .collect()
+}
+
 // KDS-005: the bespoke `DaemonUsageSink` NDJSON writer for the daemon
 // `command.invoked` producer is retired — the producer now always routes through
 // `KindlingDaemonSink` (the daemon, with a capped spool fallback). The CLI
@@ -1184,6 +1224,47 @@ mod tests {
         let content = std::fs::read_to_string(fp_log_path(dir.path())).expect("read");
         let row: serde_json::Value = serde_json::from_str(content.trim()).expect("row");
         assert_eq!(row["snippet"], "let x = 1;");
+    }
+
+    #[test]
+    fn list_false_positive_reports_returns_empty_when_absent() {
+        let dir = tempdir().expect("tempdir");
+        let reports = list_false_positive_reports_in(dir.path()).expect("list");
+        assert!(reports.is_empty(), "expected no reports, got {reports:?}");
+    }
+
+    #[test]
+    fn list_false_positive_reports_lists_recorded_reports_without_source_or_plaintext_path() {
+        let dir = tempdir().expect("tempdir");
+        let plaintext_path = "src/secret.rs";
+        record_false_positive_in(
+            dir.path(),
+            "ANV-CORE-002",
+            plaintext_path,
+            7,
+            Some("let secret = \"sk-test\";".to_string()),
+        )
+        .expect("record fp");
+
+        let reports = list_false_positive_reports_in(dir.path()).expect("list");
+        assert_eq!(reports.len(), 1);
+        let report = &reports[0];
+        assert_eq!(report.check_id, "ANV-CORE-002");
+        assert_eq!(report.line, 7);
+        assert!(
+            !report.hashed_path.contains(plaintext_path),
+            "plaintext path leaked through listed hash: {report:?}"
+        );
+
+        let json = serde_json::to_string(report).expect("serialise summary");
+        assert!(
+            !json.contains(plaintext_path),
+            "plaintext path leaked in list JSON: {json}"
+        );
+        assert!(
+            !json.contains("sk-test"),
+            "opt-in source snippet must not be returned by list: {json}"
+        );
     }
 
     #[test]
