@@ -288,7 +288,10 @@ number visible to the user, not just to a future post-release survey.
 
 ### INSIGHTS-005: First-Week Nudge on the Welcome Surface
 
-- **Status:** Ready
+- **Status:** In Progress 2026-06-26 — Ready → In Progress. Dependency
+  INSIGHTS-004 (hint mechanism) Merged via #2226; wiring the existing
+  `first_week_insights_hint` into the `anvil welcome` closing output under the
+  same contract on `feat/insights-005-welcome-nudge`.
 - **Intent:** The first-week nudge reaches the one command every new user
   definitely runs — `anvil welcome` — not only `status` and watch.
 - **Expected Outcome:** `anvil welcome` closing output includes the

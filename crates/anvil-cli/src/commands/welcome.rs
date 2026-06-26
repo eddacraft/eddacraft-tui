@@ -118,6 +118,8 @@ pub fn run(args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 
     if global.no_tui || !std::io::stdout().is_terminal() {
         print_plain_welcome();
+        // INSIGHTS-005: the nudge rides the plain closing output too.
+        print_welcome_insights_hint(project_writes_gated);
         if !project_writes_gated {
             create_first_run_marker(&marker_path)?;
         }
@@ -179,8 +181,40 @@ pub fn run(args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     // UJ-001: printed after terminal teardown so the next step lands in
     // scrollback once the TUI session ends.
     println!("{WELCOME_NEXT_STEP}");
+    // INSIGHTS-005: the first-week nudge rides the closing output too.
+    print_welcome_insights_hint(project_writes_gated);
 
     Ok(())
+}
+
+/// INSIGHTS-005: the first-week insights nudge for the `anvil welcome` closing
+/// output. Reuses the INSIGHTS-004 contract verbatim (14-day cohort window, once
+/// per week, suppressed after an `anvil insights` run, shared
+/// `.anvil/insights-hint.json` state — no new state file or rate-limit bucket),
+/// so the nudge stays at-most-once-per-week across `status`, `watch`, and
+/// `welcome`. Returns `None` under a gated project root (DISTRIB-006 / ADR-060)
+/// so the candidate never reads-and-records the real project's hint state.
+fn welcome_insights_hint(
+    root: &std::path::Path,
+    now: chrono::DateTime<chrono::Utc>,
+    project_writes_gated: bool,
+) -> Option<String> {
+    if project_writes_gated {
+        return None;
+    }
+    crate::insights::first_week_hint::first_week_insights_hint(root, now)
+}
+
+/// Render the first-week nudge to the closing output if it is due. Resolving the
+/// hint consumes the once-per-week marker, so this is only ever called on a
+/// surface that actually prints it (both `welcome` closing paths do).
+fn print_welcome_insights_hint(project_writes_gated: bool) {
+    let root =
+        crate::util::workspace_root().unwrap_or_else(|_| std::path::Path::new(".").to_path_buf());
+    if let Some(hint) = welcome_insights_hint(&root, chrono::Utc::now(), project_writes_gated) {
+        println!();
+        println!("{hint}");
+    }
 }
 
 /// Outcome of the first-run onboarding flow, used by the caller to decide
@@ -1382,6 +1416,85 @@ mod tests {
     fn open_docs_message_does_not_panic() {
         let msg = open_docs_message();
         assert!(!msg.is_empty());
+    }
+
+    // ── INSIGHTS-005: first-week nudge on the welcome surface ───────
+    //
+    // Grouped under `welcome::insights_hint::*` so the surface tests are
+    // greppable (`cargo test -p eddacraft-anvil welcome::insights_hint`).
+    mod insights_hint {
+        use super::super::welcome_insights_hint;
+        use chrono::{Duration, Utc};
+        use tempfile::TempDir;
+
+        /// A throwaway repo whose `anvil/project-id` puts the user inside the
+        /// 14-day first-week cohort window.
+        fn repo_in_first_week() -> (TempDir, std::path::PathBuf) {
+            let dir = TempDir::with_prefix("anvil-welcome-insights-").unwrap();
+            let root = dir.path().to_path_buf();
+            let anvil = root.join("anvil");
+            std::fs::create_dir_all(&anvil).unwrap();
+            let created =
+                (Utc::now() - Duration::days(3)).to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+            std::fs::write(
+                anvil.join("project-id"),
+                format!(
+                    "project_uuid: 01999999-0000-0000-0000-000000000005\ncreated_at: {created}\n"
+                ),
+            )
+            .unwrap();
+            (dir, root)
+        }
+
+        #[test]
+        fn shows_within_window_when_not_gated() {
+            let (_tmp, root) = repo_in_first_week();
+            let hint = welcome_insights_hint(&root, Utc::now(), false);
+            assert!(
+                hint.as_deref()
+                    .is_some_and(|h| h.contains("run `anvil insights`")),
+                "the welcome surface must carry the first-week nudge in window, got {hint:?}"
+            );
+        }
+
+        #[test]
+        fn suppressed_when_project_writes_gated() {
+            let (_tmp, root) = repo_in_first_week();
+            // Under a gated project root the candidate must neither emit the
+            // nudge nor write the project's hint state (DISTRIB-006 / ADR-060).
+            assert!(welcome_insights_hint(&root, Utc::now(), true).is_none());
+            assert!(
+                !root.join(".anvil/insights-hint.json").exists(),
+                "gated welcome must not write the project hint state"
+            );
+        }
+
+        #[test]
+        fn shares_rate_limit_with_status_and_watch() {
+            let (_tmp, root) = repo_in_first_week();
+            // The welcome surface emits once...
+            assert!(welcome_insights_hint(&root, Utc::now(), false).is_some());
+            // ...and that emission consumes the shared once-per-week marker, so
+            // the same underlying hint behind `status`/`watch` is now suppressed.
+            let via_status =
+                crate::insights::first_week_hint::first_week_insights_hint(&root, Utc::now());
+            assert!(
+                via_status.is_none(),
+                "the welcome emission must share the per-week rate limit with status/watch"
+            );
+        }
+
+        #[test]
+        fn welcome_is_suppressed_after_status_or_watch_emits() {
+            let (_tmp, root) = repo_in_first_week();
+            // The reverse direction: status/watch emits first via the shared
+            // mechanism, so the welcome surface is then suppressed for the week.
+            assert!(
+                crate::insights::first_week_hint::first_week_insights_hint(&root, Utc::now())
+                    .is_some()
+            );
+            assert!(welcome_insights_hint(&root, Utc::now(), false).is_none());
+        }
     }
 
     // ── SCAN-003: first-run rayon pool tests ────────────────────────
