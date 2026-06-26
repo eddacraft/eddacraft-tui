@@ -203,12 +203,12 @@ report against a baseline.
 
 **Subcommands:**
 
-| Subcommand                        | Description                          |
-| --------------------------------- | ------------------------------------ |
-| `snapshot [--name <name>]`        | Capture current state as a snapshot. |
-| `compare <snapshot1> <snapshot2>` | Compare two snapshots.               |
-| `report [--since <snapshot>]`     | Generate a drift report.             |
-| `list [--limit <n>]`              | List available snapshots.            |
+| Subcommand                        | Description                                                          |
+| --------------------------------- | -------------------------------------------------------------------- |
+| `snapshot [--name <name>]`        | Capture current state as a snapshot.                                 |
+| `compare <snapshot1> <snapshot2>` | Compare two snapshots.                                               |
+| `report [--since <snapshot>]`     | Generate a drift report.                                             |
+| `list [--limit <n>]`              | List available snapshots.                                            |
 | `migrate [--prune-backups]`       | Upgrade drift baselines and optionally prune older rollback backups. |
 
 **Exit codes:** 0 (success), 1 (error or partial migration), 3 (auth required)
@@ -440,14 +440,15 @@ $ anvil insights --json
 report. **When to use:** When a check flags something that is not actionable and
 you want to keep local evidence for support or later review.
 
-**Synopsis:** `anvil report-fp [--list] <check-id> <file:line> [--include-snippet]`
+**Synopsis:**
+`anvil report-fp [--list] <check-id> <file:line> [--include-snippet]`
 
 **Flags:**
 
-| Flag                | Description                                                                                             |
-| ------------------- | ------------------------------------------------------------------------------------------------------- |
-| `--list`            | List locally recorded reports as check ID, hashed path, line, and timestamp. Supports `--json`.         |
-| `--include-snippet` | Opt in to storing the single source line for a new report. Not valid with `--list`; off by default.     |
+| Flag                | Description                                                                                         |
+| ------------------- | --------------------------------------------------------------------------------------------------- |
+| `--list`            | List locally recorded reports as check ID, hashed path, line, and timestamp. Supports `--json`.     |
+| `--include-snippet` | Opt in to storing the single source line for a new report. Not valid with `--list`; off by default. |
 
 **Privacy posture:** reports are local-only (ADR-089). The file path is stored
 and listed as a salted hash, never plaintext. `--list` does not print snippets,

@@ -104,6 +104,8 @@ pub enum AllowlistProvenance {
     BuiltinShape,
     /// A built-in documentation/test keyword (`example`, `test`, `dummy`, …).
     BuiltinKeyword,
+    /// A built-in, context-bound non-secret fixture/test-vector rule.
+    BuiltinBenignFixture,
     /// A user-supplied `custom_allowlist` entry. `pattern` is the source
     /// regex so the operator can trace the suppression back to the exact
     /// opt-out they configured.

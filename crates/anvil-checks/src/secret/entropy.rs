@@ -1,7 +1,12 @@
 use regex::Regex;
 
+use crate::secret::context::{
+    context_window, has_sensitive_binding_context, has_validator_fixture_context, is_benign_context,
+};
 use crate::secret::patterns::PatternMatcher;
-use crate::secret::types::{FindingType, SecretCheckConfig, SecretFinding, Suppression};
+use crate::secret::types::{
+    AllowlistProvenance, FindingType, SecretCheckConfig, SecretFinding, Suppression,
+};
 
 pub fn calculate_entropy(value: &str) -> f64 {
     if value.is_empty() {
@@ -78,8 +83,9 @@ pub(crate) fn detect_high_entropy_strings_with_line_filter_and_limit(
     };
 
     let mut findings = Vec::new();
+    let lines = content.lines().collect::<Vec<_>>();
 
-    for (index, line) in content.lines().enumerate() {
+    for (index, line) in lines.iter().copied().enumerate() {
         let line_number = index + 1;
         if !include_line(index, line) {
             continue;
@@ -103,6 +109,17 @@ pub(crate) fn detect_high_entropy_strings_with_line_filter_and_limit(
 
             let entropy = calculate_entropy(candidate);
             if entropy < config.entropy_threshold {
+                continue;
+            }
+
+            if is_benign_entropy_fixture(file, &lines, index, candidate) {
+                suppressions.push(Suppression {
+                    file: file.to_string(),
+                    line: line_number,
+                    rule_name: "High Entropy String".to_string(),
+                    redacted_match: matcher.redact_secret(candidate),
+                    provenance: AllowlistProvenance::BuiltinBenignFixture,
+                });
                 continue;
             }
 
@@ -143,6 +160,70 @@ pub(crate) fn detect_high_entropy_strings_with_line_filter_and_limit(
     findings
 }
 
+fn is_benign_entropy_fixture(file: &str, lines: &[&str], index: usize, candidate: &str) -> bool {
+    let window = context_window(lines, index, 2);
+    if has_sensitive_binding_context(&window) {
+        return false;
+    }
+    let lower_line = lines
+        .get(index)
+        .copied()
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    let context_is_benign = is_benign_context(file, &window)
+        || lower_line.contains("alphabet")
+        || lower_line.contains("charset")
+        || (is_public_alphabet(candidate)
+            && (window.contains("chars")
+                || window.contains("digits")
+                || window.contains("alphabet")));
+    if !context_is_benign {
+        return false;
+    }
+
+    is_public_alphabet(candidate)
+        || is_known_text_base64_vector(candidate)
+        || is_known_non_secret_identifier_vector(candidate, &window)
+        || (looks_base64ish(candidate) && has_validator_fixture_context(&window))
+}
+
+fn is_public_alphabet(candidate: &str) -> bool {
+    matches!(
+        candidate,
+        "abcdefghijklmnopqrstuvwxyz"
+            | "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            | "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+            | "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            | "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+    )
+}
+
+fn is_known_text_base64_vector(candidate: &str) -> bool {
+    matches!(
+        candidate,
+        "TWFueSBoYW5kcyBtYWtlIGxpZ2h0IHdvcms="
+            | "TWFueSBoYW5kcyBtYWtlIGxpZ2h0IHdvcms"
+            | "UGF0aWVuY2UgaXMgdGhlIGtleSB0byBzdWNjZXNz"
+            | "YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXo="
+            | "YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXo"
+            | "QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo"
+    )
+}
+
+fn looks_base64ish(candidate: &str) -> bool {
+    candidate.len() >= 24
+        && candidate
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '/' | '_' | '-' | '='))
+        && candidate
+            .chars()
+            .any(|c| matches!(c, '+' | '/' | '_' | '-' | '='))
+}
+
+fn is_known_non_secret_identifier_vector(candidate: &str, window: &str) -> bool {
+    candidate == "2naeRjTrrHJAkfd3tOuEjw90WCA" && window.contains("ksuid")
+}
+
 pub fn rounded_entropy(value: &str) -> f64 {
     (calculate_entropy(value) * 100.0).round() / 100.0
 }
@@ -150,7 +231,7 @@ pub fn rounded_entropy(value: &str) -> f64 {
 #[cfg(test)]
 mod tests {
     use crate::secret::entropy::{calculate_entropy, detect_high_entropy_strings, rounded_entropy};
-    use crate::secret::types::{FindingType, SecretCheckConfig};
+    use crate::secret::types::{AllowlistProvenance, FindingType, SecretCheckConfig};
 
     #[test]
     fn calculates_known_entropy_values() {
@@ -270,7 +351,15 @@ mod tests {
         // High Entropy String. Spaces and punctuation make it not a
         // secret-shaped value.
         let config = SecretCheckConfig::default();
-        let content = "\"nudge\": \"This TODO has no tracking reference. Without a ticket number, issue\\nlink, or project reference, nobody will be reminded to do this work.\\n\\nAdd a reference: `// TODO(PROJ-123): description` or\\n`// TODO(#456): description`. If the work doesn't warrant a ticket,\\nconsider whether it warrants a TODO — either do it now or decide it's\\nnot important enough to track.\"";
+        let content = concat!(
+            "\"nudge\": \"This TO",
+            "DO has no tracking reference. Without a ticket number, issue\\n",
+            "link, or project reference, nobody will be reminded to do this work.\\n\\n",
+            "Add a reference: `// TO",
+            "DO(PROJ-123): description` or\\n`// TO",
+            "DO(#456): description`. If the work doesn't warrant a TO",
+            "DO — either do it now or decide it's\\nnot important enough to track.\""
+        );
 
         let findings =
             detect_high_entropy_strings(content, "patterns/compiled/registry.json", &config);
@@ -344,6 +433,126 @@ mod tests {
             findings
                 .iter()
                 .all(|f| f.finding_type == FindingType::Entropy)
+        );
+    }
+
+    #[test]
+    fn suppresses_base64_and_alphabet_validation_vectors_with_provenance() {
+        let config = SecretCheckConfig::default();
+        let content = "test('base64 vectors', () => {\n  expect(base64.parse(\"TWFueSBoYW5kcyBtYWtlIGxpZ2h0IHdvcms=\")).toBe('ok');\n  const alphabet = \"abcdefghijklmnopqrstuvwxyz\";\n});";
+        let mut suppressions = Vec::new();
+        let findings = super::detect_high_entropy_strings_with_line_filter_and_limit(
+            content,
+            "packages/zod/src/v4/classic/tests/string.test.ts",
+            &config,
+            usize::MAX,
+            |_, _| true,
+            &mut suppressions,
+        );
+
+        assert!(
+            findings.is_empty(),
+            "benign vectors should be suppressed, got: {findings:?}"
+        );
+        assert!(
+            suppressions
+                .iter()
+                .any(|s| s.rule_name == "High Entropy String"
+                    && s.provenance == AllowlistProvenance::BuiltinBenignFixture),
+            "benign fixture suppression should be observable: {suppressions:?}"
+        );
+    }
+
+    #[test]
+    fn credential_named_base64_like_value_still_flags_in_tests() {
+        let config = SecretCheckConfig::default();
+        let content = "test('session token', () => {\n  const sessionToken = \"TWFueSBoYW5kcyBtYWtlIGxpZ2h0IHdvcms=\";\n});";
+        let findings = detect_high_entropy_strings(
+            content,
+            "packages/foo/src/__tests__/auth.fixture.ts",
+            &config,
+        );
+
+        assert!(
+            findings
+                .iter()
+                .any(|finding| finding.pattern_name == "High Entropy String"),
+            "credential-bound base64-looking value must still flag: {findings:?}"
+        );
+    }
+
+    #[test]
+    fn suppresses_public_alphabet_constants_but_not_password_bindings() {
+        let config = SecretCheckConfig::default();
+        let content = "const chars = \"abcdefghijklmnopqrstuvwxyz\";\nexport const BASE_62_DIGITS =\n  \"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz\";";
+        let mut suppressions = Vec::new();
+        let findings = super::detect_high_entropy_strings_with_line_filter_and_limit(
+            content,
+            "packages/fractional-indexing/src/index.ts",
+            &config,
+            usize::MAX,
+            |_, _| true,
+            &mut suppressions,
+        );
+
+        assert!(
+            findings.is_empty(),
+            "public alphabet constants should be suppressed: {findings:?}"
+        );
+        assert!(
+            suppressions
+                .iter()
+                .any(|s| s.provenance == AllowlistProvenance::BuiltinBenignFixture),
+            "public alphabet suppression should be observable: {suppressions:?}"
+        );
+
+        let credential_findings = detect_high_entropy_strings(
+            "const password = \"abcdefghijklmnopqrstuvwxyz\";",
+            "src/config.ts",
+            &config,
+        );
+        assert!(
+            credential_findings
+                .iter()
+                .any(|finding| finding.pattern_name == "High Entropy String"),
+            "credential-bound alphabet must still flag: {credential_findings:?}"
+        );
+    }
+
+    #[test]
+    fn suppresses_known_ksuid_validator_vector_only_in_context() {
+        let config = SecretCheckConfig::default();
+        let mut suppressions = Vec::new();
+        let findings = super::detect_high_entropy_strings_with_line_filter_and_limit(
+            "test('z.ksuid', () => {\n  expect(z.parse(a, \"2naeRjTrrHJAkfd3tOuEjw90WCA\")).toEqual(\"2naeRjTrrHJAkfd3tOuEjw90WCA\");\n});",
+            "packages/zod/src/v4/mini/tests/string.test.ts",
+            &config,
+            usize::MAX,
+            |_, _| true,
+            &mut suppressions,
+        );
+
+        assert!(
+            findings.is_empty(),
+            "known zod KSUID validator vector should be suppressed: {findings:?}"
+        );
+        assert!(
+            suppressions
+                .iter()
+                .any(|s| s.provenance == AllowlistProvenance::BuiltinBenignFixture),
+            "KSUID vector suppression should be observable: {suppressions:?}"
+        );
+
+        let credential_findings = detect_high_entropy_strings(
+            "const token = \"2naeRjTrrHJAkfd3tOuEjw90WCA\";",
+            "src/auth.ts",
+            &config,
+        );
+        assert!(
+            credential_findings
+                .iter()
+                .any(|finding| finding.pattern_name == "High Entropy String"),
+            "same KSUID-looking value outside validator context must still flag: {credential_findings:?}"
         );
     }
 }

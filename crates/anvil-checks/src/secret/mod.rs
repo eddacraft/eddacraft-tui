@@ -1,4 +1,5 @@
 pub mod check;
+pub(crate) mod context;
 pub mod entropy;
 pub mod git_scanner;
 pub mod patterns;

@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 68/105  |
+| CIB | —     | In Progress | 69/105  |
 
 ## Purpose
 
@@ -2194,7 +2194,7 @@ archive.
 
 ### CIB-080: secret-detection test-vector / fixture false positives
 
-- **Status:** Ready
+- **Status:** Done 2026-06-26 — secret-detection fixture suppressions are now context-bound and observable; zod/vite SECRET dogfood findings dropped to zero and excalidraw retains only two Google Drive URL-ID entropy residuals.
 - **Intent:** Suppress the residual secret-detection false positives the
   external-codebase FP dogfood surfaced beyond the credit-card class (fixed in
   PR #2747): high-entropy base64 test vectors, `mongodb://` validator fixtures

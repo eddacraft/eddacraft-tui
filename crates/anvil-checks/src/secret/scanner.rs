@@ -2,6 +2,9 @@ use std::sync::LazyLock;
 
 use regex::Regex;
 
+use crate::secret::context::{
+    context_window, has_sensitive_binding_context, has_validator_fixture_context, is_benign_context,
+};
 use crate::secret::entropy::detect_high_entropy_strings_with_line_filter_and_limit;
 use crate::secret::patterns::{
     CompiledPattern, DEFAULT_COMPILED_PATTERNS, PatternMatcher, compile_custom_patterns,
@@ -220,14 +223,39 @@ enum SkipReason {
     Heuristic,
 }
 
+#[allow(clippy::too_many_arguments)] // context-rich FP/suppression decision seam
 fn pattern_skip_reason(
     pattern: &CompiledPattern,
     matcher: &PatternMatcher,
+    file_path: &str,
+    lines: &[&str],
+    line_index: usize,
     line: &str,
     match_start: usize,
     match_end: usize,
 ) -> Option<SkipReason> {
     let matched_value = &line[match_start..match_end];
+    let context = context_window(lines, line_index, 2);
+
+    if pattern.name == "Database URL"
+        && is_placeholder_database_url_fixture(file_path, &context, line, matched_value)
+    {
+        return Some(SkipReason::Allowlisted(
+            AllowlistProvenance::BuiltinBenignFixture,
+        ));
+    }
+
+    if pattern.name == "JWT Token" && is_known_jwt_test_vector(file_path, &context, matched_value) {
+        return Some(SkipReason::Allowlisted(
+            AllowlistProvenance::BuiltinBenignFixture,
+        ));
+    }
+
+    if pattern.name == "API Key" && is_api_key_placeholder_slug(matched_value) {
+        return Some(SkipReason::Allowlisted(
+            AllowlistProvenance::BuiltinBenignFixture,
+        ));
+    }
 
     if pattern.high_confidence {
         // The pattern is itself the credential shape — fuzzy keyword
@@ -264,8 +292,18 @@ fn skip_and_record(
     line: &str,
     line_number: usize,
     range: &std::ops::Range<usize>,
+    lines: &[&str],
 ) -> bool {
-    match pattern_skip_reason(pattern, matcher, line, range.start, range.end) {
+    match pattern_skip_reason(
+        pattern,
+        matcher,
+        file_path,
+        lines,
+        line_number.saturating_sub(1),
+        line,
+        range.start,
+        range.end,
+    ) {
         Some(SkipReason::Allowlisted(provenance)) => {
             // Don't drop it silently — record what was suppressed and which
             // allowlist tier did it.
@@ -285,14 +323,94 @@ fn skip_and_record(
 
 /// Boolean form for callers that only need "would this match be skipped?"
 /// (e.g. the entropy line-filter), without recording a suppression.
+#[allow(clippy::too_many_arguments)] // boolean mirror of pattern_skip_reason
 fn should_skip_pattern_match(
     pattern: &CompiledPattern,
     matcher: &PatternMatcher,
+    file_path: &str,
+    lines: &[&str],
+    line_index: usize,
     line: &str,
     match_start: usize,
     match_end: usize,
 ) -> bool {
-    pattern_skip_reason(pattern, matcher, line, match_start, match_end).is_some()
+    pattern_skip_reason(
+        pattern,
+        matcher,
+        file_path,
+        lines,
+        line_index,
+        line,
+        match_start,
+        match_end,
+    )
+    .is_some()
+}
+
+fn is_placeholder_database_url_fixture(
+    file_path: &str,
+    context: &str,
+    line: &str,
+    matched_value: &str,
+) -> bool {
+    if !is_benign_context(file_path, context) || has_runtime_database_binding(line) {
+        return false;
+    }
+    let value = matched_value.to_ascii_lowercase();
+    let placeholder_userinfo = value.contains("://username:password@")
+        || value.contains("://user:pass@")
+        || value.contains("${string}:${string}@")
+        || value.contains("${string}:${number}")
+        || value.contains("<user>:<password>@");
+    let validator_context = has_validator_fixture_context(context)
+        || context.contains("connectionstring")
+        || context.contains("template-literal")
+        || file_path
+            .to_ascii_lowercase()
+            .contains("template-literal.test.");
+    placeholder_userinfo && validator_context
+}
+
+fn has_runtime_database_binding(line: &str) -> bool {
+    let lower = line.to_ascii_lowercase();
+    lower.contains("database_url")
+        || lower.contains("db_url")
+        || lower.contains("process.env")
+        || lower.contains(".env")
+}
+
+fn is_known_jwt_test_vector(file_path: &str, context: &str, matched_value: &str) -> bool {
+    if !is_benign_context(file_path, context) || has_sensitive_binding_context(context) {
+        return false;
+    }
+    let validator_context = context.contains("z.jwt")
+        || context.contains(".jwt")
+        || (context.contains("jwt") && has_validator_fixture_context(context))
+        || (file_path.to_ascii_lowercase().contains("/tests/")
+            && (context.contains("z.parse(") || context.contains("toequal(")));
+    let known_zod_vector = matched_value.contains("eyJzdWIiOiIxMjM0NTY3ODkw")
+        && matched_value.contains("IkpvaG4gRG9l")
+        && matched_value.ends_with("SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c");
+    validator_context && known_zod_vector
+}
+
+fn is_api_key_placeholder_slug(matched_value: &str) -> bool {
+    let Some(rhs_start) = matched_value.find(['=', ':']) else {
+        return false;
+    };
+    let rhs = matched_value[rhs_start + 1..]
+        .trim()
+        .trim_matches([',', ';'])
+        .trim_matches(['"', '\'']);
+    if rhs.len() < 8 {
+        return false;
+    }
+    let lower = rhs.to_ascii_lowercase();
+    rhs == lower
+        && lower.contains("api-key")
+        && lower
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, '-' | '_'))
 }
 
 /// CIB-063: one credential, one finding. A low-confidence keyword pattern
@@ -430,6 +548,7 @@ pub fn scan_content_with_compiled_patterns(
     }
 
     let patterns_iter = || default_patterns.iter().chain(custom_patterns.iter());
+    let lines = content.lines().collect::<Vec<_>>();
 
     // Tracks lines that were skipped by the length guard. The entropy pass
     // below honours the same set so a pathological line cannot route around
@@ -437,7 +556,7 @@ pub fn scan_content_with_compiled_patterns(
     // is no oversize lines, and a missing set means "no skipped lines".
     let mut oversize_line_indices: Option<std::collections::HashSet<usize>> = None;
 
-    for (index, line) in content.lines().enumerate() {
+    for (index, line) in lines.iter().copied().enumerate() {
         // SCAN-002: skip lines that exceed the configured byte cap. We use
         // `len()` (bytes) rather than `chars().count()` because the threat
         // is regex backtracking, which is bounded by the byte length the
@@ -465,6 +584,7 @@ pub fn scan_content_with_compiled_patterns(
                     line,
                     line_number,
                     &range,
+                    &lines,
                 ) {
                     continue;
                 }
@@ -516,6 +636,9 @@ pub fn scan_content_with_compiled_patterns(
                         should_skip_pattern_match(
                             pattern,
                             &matcher,
+                            file_path,
+                            &lines,
+                            line_index,
                             line,
                             matched_range.start(),
                             matched_range.end(),
@@ -840,6 +963,135 @@ export function go(){return [k,s];}";
             findings.is_empty(),
             "placeholder API key must still be suppressed, got: {:?}",
             findings.iter().map(|f| &f.pattern_name).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn suppresses_placeholder_database_url_validator_fixture_with_provenance() {
+        let config = SecretCheckConfig {
+            enable_entropy: false,
+            ..SecretCheckConfig::default()
+        };
+        let content = r#"connectionString.parse("mongodb://username:password@host:1234/defaultauthdb");
+expectTypeOf<z.infer<typeof connectionString>>().toEqualTypeOf<
+  | `mongodb://${string}:${string}@${string}:${number}`
+  | `mongodb://${string}:${string}@${string}:${number}/${string}`
+  | `mongodb://${string}:${string}@${string}:${number}/${string}?${string}`
+>();"#;
+        let (findings, stats) = scan_content_with_stats(
+            content,
+            "packages/zod/src/v4/classic/tests/template-literal.test.ts",
+            &config,
+        );
+
+        assert!(
+            findings
+                .iter()
+                .all(|finding| finding.pattern_name != "Database URL"),
+            "placeholder validator URL should be suppressed: {findings:?}"
+        );
+        assert!(
+            stats
+                .suppressions
+                .iter()
+                .any(|s| s.rule_name == "Database URL"
+                    && s.provenance == AllowlistProvenance::BuiltinBenignFixture),
+            "suppression should be observable: {:?}",
+            stats.suppressions
+        );
+    }
+
+    #[test]
+    fn real_database_url_still_flags_in_test_path_without_field_name() {
+        let config = SecretCheckConfig {
+            enable_entropy: false,
+            ..SecretCheckConfig::default()
+        };
+        let content = r#"connect("postgres://app_user:s3cr3tPass@prod.example.com:5432/app");"#;
+        let findings = scan_content(content, "src/__tests__/db.fixture.ts", &config);
+
+        assert!(
+            findings.iter().any(|f| f.pattern_name == "Database URL"),
+            "real DB URL in test path must still flag: {findings:?}"
+        );
+    }
+
+    #[test]
+    fn suppresses_known_jwt_validator_vector_with_provenance() {
+        let config = SecretCheckConfig {
+            enable_entropy: false,
+            ..SecretCheckConfig::default()
+        };
+        let jwt = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";
+        let content = format!(
+            "test('z.jwt', () => {{\n  const a = z.jwt();\n  expect(\n    z.parse(\n      a,\n      \"{jwt}\"\n    )\n  ).toEqual(\"{jwt}\");\n}});"
+        );
+        let (findings, stats) = scan_content_with_stats(
+            &content,
+            "packages/zod/src/v4/mini/tests/string.test.ts",
+            &config,
+        );
+
+        assert!(
+            findings
+                .iter()
+                .all(|finding| finding.pattern_name != "JWT Token"),
+            "known validator JWT should be suppressed: {findings:?}"
+        );
+        assert!(
+            stats.suppressions.iter().any(|s| s.rule_name == "JWT Token"
+                && s.provenance == AllowlistProvenance::BuiltinBenignFixture),
+            "JWT suppression should be observable: {:?}",
+            stats.suppressions
+        );
+    }
+
+    #[test]
+    fn real_jwt_still_flags_in_fixture_path() {
+        let config = SecretCheckConfig {
+            enable_entropy: false,
+            ..SecretCheckConfig::default()
+        };
+        let jwt = "eyJhbGciOiJIUzI1NiIsImtpZCI6InByb2Qta2V5In0.eyJzdWIiOiJ1c2VyLTQyIiwic2NvcGUiOiJhZG1pbiIsImlhdCI6MTcxNjIzOTAyMn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_realProdSignature";
+        let content = format!(r#"const fixture = "{jwt}";"#);
+        let findings = scan_content(&content, "fixtures/recorded-oauth.json", &config);
+
+        assert!(
+            findings.iter().any(|f| f.pattern_name == "JWT Token"),
+            "real-looking JWT in fixture path must still flag: {findings:?}"
+        );
+    }
+
+    #[test]
+    fn suppresses_placeholder_api_key_slug_but_keeps_real_api_key() {
+        let config = SecretCheckConfig {
+            enable_entropy: false,
+            ..SecretCheckConfig::default()
+        };
+        let placeholder = r#"OAI_API_KEY: "excalidraw-oai-api-key","#;
+        let (placeholder_findings, placeholder_stats) =
+            scan_content_with_stats(placeholder, "packages/common/src/constants.ts", &config);
+        assert!(
+            placeholder_findings
+                .iter()
+                .all(|finding| finding.pattern_name != "API Key"),
+            "placeholder storage key should not flag: {placeholder_findings:?}"
+        );
+        assert!(
+            placeholder_stats
+                .suppressions
+                .iter()
+                .any(|s| s.rule_name == "API Key"
+                    && s.provenance == AllowlistProvenance::BuiltinBenignFixture),
+            "placeholder API key suppression should be observable: {:?}",
+            placeholder_stats.suppressions
+        );
+
+        let real = "api_key='abcdEFGH1234567890'";
+        let real_findings = scan_content(real, "src/config.ts", &config);
+        assert!(
+            real_findings.iter().any(|f| f.pattern_name == "API Key"),
+            "real low-confidence API key fixture must still flag: {real_findings:?}"
         );
     }
 
