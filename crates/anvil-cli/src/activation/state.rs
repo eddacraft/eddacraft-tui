@@ -23,9 +23,10 @@ pub enum ProtectionState {
     /// This is **not** protection — restart is still required.
     ReadyRestartRequired,
 
-    /// The save-time watcher is running; pre-write MCP attachment is
-    /// not in evidence. This is the honest fallback label — it is
-    /// weaker than `Protecting` and surfaces must say so.
+    /// The daemon-backed spine is live, or the save-time watcher is
+    /// running; pre-write MCP attachment is not in evidence. This is
+    /// the honest fallback label — it is weaker than `Protecting`
+    /// and surfaces must say so.
     Watching,
 
     /// Activation cannot make a literal protection claim and the user
@@ -69,7 +70,7 @@ impl ProtectionState {
                 "Ready, restart required — restart your editor or agent so the MCP server attaches."
             }
             ProtectionState::Watching => {
-                "Watching — save-time fallback only; this is weaker than pre-write validation."
+                "Watching — daemon-backed or save-time fallback; this is weaker than pre-write validation."
             }
             ProtectionState::NeedsAction => {
                 "Needs action — finish activation before anvil can protect this repo."

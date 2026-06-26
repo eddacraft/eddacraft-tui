@@ -2,15 +2,33 @@
 
 | ID    | Owner | Status | Progress |
 | ----- | ----- | ------ | -------- |
-| ACTMO | Josh  | Ready  | 0/12     |
+| ACTMO | Josh  | In Progress | 10/12 |
 
-**Last reviewed:** 2026-06-26 — **ACTMO-011/-012** filed from Matt beta smoke UX
-review: `anvil start` output is noisy, contradictory, and engineer-facing; Matt
-never used Cursor yet activation reports Cursor `restart_handshake_verified`
-(self-test, not editor connect). Prior: module created **Ready** from
+**Last reviewed:** 2026-06-26 — ACTMO-001 through ACTMO-010 completed on
+`feat/actmo-spine`: ADR-092 accepted; `anvil start` now performs MCP-independent
+worktree registration with the intercept daemon before MCP install; daemon
+attestation can now fall through to honest `watching` when MCP is absent or
+restart-bound; and `--no-mcp` / `ANVIL_NO_MCP` skips MCP config writes while
+leaving the daemon-backed spine active. `anvil intercept status` now exposes
+the daemon PID and `anvil intercept stop` recovery command, while Windows stop
+uses the PID-file record instead of reporting unsupported. Activation now also
+installs Anvil-managed `pre-commit` and `pre-push` hooks when run in a Git repo.
+ACTMO-006 reports daemon-backed save-time as armed and directs operators to
+`anvil intercept status` instead of a manual `anvil watch`. ACTMO-007 merges the
+`mcp__anvil__*` permission allow rule into the sibling `.claude/settings.json`
+(treating an empty/whitespace file as absent, and degrading a failed allow-list
+write to a non-fatal warning so it never masks a healthy posture), preserving
+existing allow/deny rules. ACTMO-009 ships the MCP-optional runbook; ACTMO-010
+ships the E2E matrix (default MCP install, `--no-mcp`, terminating daemon-repair
+verify). Post-Council fixes folded in: empty-settings normalisation, best-effort
+allow-list, structured `session already registered` heartbeat detection,
+softened restart hint, and `ANVIL_NO_MCP` documentation.
+**ACTMO-011/-012** remain **Ready** (filed from Matt beta smoke UX review:
+noisy/contradictory `anvil start` output; Cursor `restart_handshake_verified`
+self-test shown though Matt never used Cursor). Originally created **Ready** from
 v0.8.2-beta Windows smoke ([#2937](https://github.com/eddacraft/anvil-001/issues/2937));
-design [#2939](https://github.com/eddacraft/anvil-001/issues/2939); ADR-092
-Proposed (ACTMO-001 accepts).
+design [#2939](https://github.com/eddacraft/anvil-001/issues/2939). ADR-092
+Accepted pins the MCP-optional spine decision.
 
 ## Purpose
 
@@ -88,7 +106,7 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 
 ### ACTMO-001: Accept MCP-optional activation spine (ADR-092)
 
-- **Status:** Ready
+- **Status:** Done
 - **Intent:** Pin the product contract that daemon + worktree registration + hooks
   + save-time is the required spine; MCP is optional L0.
 - **Expected Outcome:** ADR-092 status **Accepted**; DECISION-LOG row added;
@@ -105,7 +123,7 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 
 ### ACTMO-002: Register worktree from activation (MCP-independent)
 
-- **Status:** Ready
+- **Status:** Done
 - **Intent:** Close [#2937](https://github.com/eddacraft/anvil-001/issues/2937) core
   gap: `anvil start` registers the worktree with the intercept daemon without
   requiring MCP `validate_write` or `anvil-run` wrapper.
@@ -127,7 +145,7 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 
 ### ACTMO-003: Activation state machine — honest fall-through without MCP
 
-- **Status:** Ready
+- **Status:** Done
 - **Intent:** Stop indefinite `ready_restart_required` when MCP handshake is
   verified but worktree enforcement is the remaining gap — or when MCP is absent
   but spine is live.
@@ -149,8 +167,8 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 
 ### ACTMO-004: `--no-mcp` / `ANVIL_NO_MCP` opt-out
 
-- **Status:** Ready
-- **Intent:** Corporate and MCP-skeptical users can run the spine without MCP
+- **Status:** Done
+- **Intent:** Corporate and MCP-sceptical users can run the spine without MCP
   install or MCP-gated promotion.
 - **Expected Outcome:** `anvil start --no-mcp` and `ANVIL_NO_MCP=1` skip MCP
   orchestrator steps; activation reports spine-only success honestly; `--help`
@@ -168,7 +186,7 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 
 ### ACTMO-005: Git hooks in `anvil start` orchestrator
 
-- **Status:** Ready
+- **Status:** Done
 - **Intent:** Install ADR-038 hooks during start so session registration and
   witness chain work for editor-native agents without MCP.
 - **Expected Outcome:** `anvil start` offers/installs hooks per existing
@@ -187,7 +205,7 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 
 ### ACTMO-006: Default save-time armed after start
 
-- **Status:** Ready
+- **Status:** Done
 - **Intent:** Users should not need a separate `anvil watch` step for L1/L2
   save-time to be the default outcome of `anvil start`.
 - **Expected Outcome:** Successful start with live daemon reports save-time
@@ -206,14 +224,14 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 
 ### ACTMO-007: Claude MCP allow-list on install
 
-- **Status:** Ready
+- **Status:** Done
 - **Intent:** When user approves MCP install during `anvil start`, also add
   `mcp__anvil__*` (or tool-specific rules) to Claude Code `permissions.allow` so
   `anvil_validate_write` does not prompt every write.
 - **Expected Outcome:** After Claude MCP install path, settings.json contains
   allow rules; existing user rules preserved; non-Claude editors unchanged.
 - **Validation:** `cargo test -p eddacraft-anvil activation::mcp_client::claude_code`;
-  fixture tests for settings merge
+  `cargo test -p eddacraft-anvil activation::orchestrator::install`
 - **Files:** `crates/anvil-cli/src/activation/mcp_client/claude_code.rs`,
   related tests
 - **Dependencies:** ACTMO-001
@@ -225,7 +243,7 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 
 ### ACTMO-008: Windows intercept stop + doctor daemon visibility
 
-- **Status:** Ready
+- **Status:** Done
 - **Intent:** Operators can see and stop the headless daemon (CREATE_NO_WINDOW)
   without PID-lock confusion ([#2937](https://github.com/eddacraft/anvil-001/issues/2937)
   Matt scenario).
@@ -245,7 +263,7 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 
 ### ACTMO-009: Corporate no-MCP runbook and golden-path docs
 
-- **Status:** Ready
+- **Status:** Done
 - **Intent:** Document the MCP-optional spine for enterprise users and update wow
   start demo to stop implying MCP-only protection.
 - **Expected Outcome:** Runbook for `--no-mcp`; public guide states spine vs MCP
@@ -262,7 +280,7 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 
 ### ACTMO-010: E2E regression matrix (MCP on/off, Windows/Linux)
 
-- **Status:** Ready
+- **Status:** Done
 - **Intent:** Prevent recurrence of #2937-class failures across platforms and MCP
   configurations.
 - **Expected Outcome:** E2E fixtures cover: MCP on + daemon ensure → enforcing;

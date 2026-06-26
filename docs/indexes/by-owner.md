@@ -31,6 +31,12 @@
 | [anvil-run(1)](../../docs/runbooks/anvil-run.md)                                                                   | `docs/runbooks/anvil-run.md`                        | Runbook  | Authoritative | @aneki | Live   |
 | [eddacraft-tui Crate Release — Operator Runbook](../../docs/runbooks/eddacraft-tui-release.md)                     | `docs/runbooks/eddacraft-tui-release.md`            | Runbook  | Authoritative | @aneki | Live   |
 
+## ACTMO
+
+| Document                                                                                     | Path                                       | Type    | Authority     | Owner | Status |
+| -------------------------------------------------------------------------------------------- | ------------------------------------------ | ------- | ------------- | ----- | ------ |
+| [MCP-Optional Activation — Operator Runbook](../../docs/runbooks/anvil-no-mcp-activation.md) | `docs/runbooks/anvil-no-mcp-activation.md` | Runbook | Authoritative | ACTMO | Live   |
+
 ## ADOPT (plans/archive/modules/adoption-friction.aps.md)
 
 | Document                                                                | Path                                  | Type  | Authority     | Owner                                                  | Status |

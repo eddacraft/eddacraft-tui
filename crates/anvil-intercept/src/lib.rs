@@ -905,9 +905,10 @@ fn existing_pid_status(record: &str) -> ExistingPidStatus {
 /// Outcome of an `anvil intercept stop` request (V060F-002).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StopOutcome {
-    /// SIGTERM was delivered to a live daemon with this PID. The daemon's
-    /// `run_foreground` handler flushes fence state, unbinds the IPC
-    /// listener, and removes its own PID file on exit.
+    /// A stop request was delivered to a live daemon with this PID. Unix uses
+    /// SIGTERM so the daemon can flush fence state, unbind the IPC listener,
+    /// and remove its own PID file. Windows terminates the headless daemon
+    /// process and the stop primitive clears the PID file.
     Signalled { pid: u32 },
     /// No PID file was present — the daemon is not running. Idempotent no-op.
     NotRunning,
@@ -954,21 +955,22 @@ fn plan_stop(record: Option<&str>, classify: impl Fn(&str) -> ExistingPidStatus)
     }
 }
 
-/// Stop the per-user intercept daemon by sending SIGTERM to the PID recorded
-/// in the [`default_pid_file_path`]. The daemon's `run_foreground` SIGTERM
-/// handler flushes fence state, unbinds the IPC listener, and removes the PID
-/// file on exit, so this is a thin lookup-and-signal wrapper (V060F-002).
+/// Stop the per-user intercept daemon recorded in the [`default_pid_file_path`].
+/// Unix sends SIGTERM and lets the daemon's `run_foreground` handler flush
+/// state, unbind the IPC listener, and remove the PID file. Windows terminates
+/// the headless daemon process and then removes the PID file (ACTMO-008 /
+/// V060F-002).
 ///
 /// Idempotent: a missing PID file yields [`StopOutcome::NotRunning`]; a PID
 /// file whose process has already exited yields [`StopOutcome::StaleCleared`]
 /// after removing the stale file. Neither is an error.
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 pub fn request_daemon_stop() -> Result<StopOutcome> {
     let path = default_pid_file_path()?;
     stop_daemon_at(&path)
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 fn stop_daemon_at(path: &Path) -> Result<StopOutcome> {
     let record = match fs::symlink_metadata(path) {
         Ok(metadata) => {
@@ -989,7 +991,7 @@ fn stop_daemon_at(path: &Path) -> Result<StopOutcome> {
     match plan_stop(record.as_deref(), existing_pid_status) {
         StopPlan::NotRunning => Ok(StopOutcome::NotRunning),
         StopPlan::Signal { pid } => {
-            send_sigterm(pid)?;
+            stop_live_daemon(pid, path)?;
             Ok(StopOutcome::Signalled { pid })
         }
         StopPlan::ClearStale { pid } => {
@@ -1015,6 +1017,26 @@ fn stop_daemon_at(path: &Path) -> Result<StopOutcome> {
             path.display(),
         ),
     }
+}
+
+#[cfg(unix)]
+fn stop_live_daemon(pid: u32, _path: &Path) -> Result<()> {
+    send_sigterm(pid)
+}
+
+#[cfg(windows)]
+fn stop_live_daemon(pid: u32, path: &Path) -> Result<()> {
+    anvil_intercept_win32::terminate_process(pid)
+        .with_context(|| format!("failed to stop daemon PID {pid}"))?;
+    match fs::remove_file(path) {
+        Ok(()) => {}
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+        Err(err) => {
+            return Err(anyhow::Error::new(err))
+                .with_context(|| format!("failed to remove PID file {}", path.display()));
+        }
+    }
+    Ok(())
 }
 
 /// Send SIGTERM to `pid`. A process that has already exited (`ESRCH`) between

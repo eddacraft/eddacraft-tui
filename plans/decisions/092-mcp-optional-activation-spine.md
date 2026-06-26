@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted 2026-06-26 (operator)
 
 ## Date
 

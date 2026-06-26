@@ -12,7 +12,7 @@
 //!
 //! Reference: <https://docs.anthropic.com/en/docs/claude-code/mcp>
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
 
@@ -24,6 +24,7 @@ use super::{
 };
 
 const SERVER_NAME: &str = "anvil";
+pub(crate) const ANVIL_MCP_ALLOW_RULE: &str = "mcp__anvil__*";
 
 pub struct ClaudeCode;
 
@@ -125,6 +126,55 @@ fn build_entry(fresh: &AnvilEntry) -> Result<Value, RenderError> {
     }
 }
 
+/// Claude Code keeps MCP server entries in `.claude.json`, while permission
+/// rules live in the sibling `.claude/settings.json` settings file.
+pub(crate) fn settings_path_for_mcp_config(mcp_config_path: &Path) -> PathBuf {
+    mcp_config_path
+        .parent()
+        .unwrap_or_else(|| Path::new("."))
+        .join(".claude")
+        .join("settings.json")
+}
+
+pub(crate) fn render_settings_with_anvil_allow(
+    existing: Option<&str>,
+) -> Result<String, RenderError> {
+    let mut root = match existing {
+        Some(raw) => {
+            let trimmed = raw.trim_start_matches('\u{feff}').trim();
+            if trimmed.is_empty() {
+                return Err(RenderError::BadRoot);
+            }
+            serde_json::from_str::<Value>(trimmed)
+                .map_err(|e| RenderError::BadSettingsJson(e.to_string()))?
+        }
+        None => Value::Object(serde_json::Map::new()),
+    };
+
+    let obj = root.as_object_mut().ok_or(RenderError::BadRoot)?;
+    let permissions = obj
+        .entry("permissions".to_string())
+        .or_insert_with(|| Value::Object(serde_json::Map::new()));
+    let permissions_obj = permissions
+        .as_object_mut()
+        .ok_or(RenderError::BadPermissionsKey)?;
+    let allow = permissions_obj
+        .entry("allow".to_string())
+        .or_insert_with(|| Value::Array(Vec::new()));
+    let allow_arr = allow.as_array_mut().ok_or(RenderError::BadAllowKey)?;
+    if allow_arr.iter().any(|rule| !rule.is_string()) {
+        return Err(RenderError::BadAllowKey);
+    }
+    if !allow_arr
+        .iter()
+        .any(|rule| rule.as_str() == Some(ANVIL_MCP_ALLOW_RULE))
+    {
+        allow_arr.push(json!(ANVIL_MCP_ALLOW_RULE));
+    }
+
+    serde_json::to_string_pretty(&root).map_err(|e| RenderError::Serialise(e.to_string()))
+}
+
 #[cfg(test)]
 #[allow(clippy::needless_raw_string_hashes)]
 mod tests {
@@ -211,6 +261,44 @@ mod tests {
             v.get("settings").unwrap().get("theme"),
             Some(&json!("dark"))
         );
+    }
+
+    #[test]
+    fn settings_merge_adds_anvil_mcp_allow_rule_and_preserves_existing_rules() {
+        let raw = r#"{"permissions": {"allow": ["Bash(pnpm test *)"], "deny": ["Read(.env)"]}, "theme": "dark"}"#;
+        let rendered = render_settings_with_anvil_allow(Some(raw)).unwrap();
+        let v: Value = serde_json::from_str(&rendered).unwrap();
+        let allow = v
+            .get("permissions")
+            .and_then(|p| p.get("allow"))
+            .and_then(Value::as_array)
+            .unwrap();
+        assert!(allow.contains(&json!("Bash(pnpm test *)")));
+        assert!(allow.contains(&json!("mcp__anvil__*")));
+        assert_eq!(
+            v.get("permissions").unwrap().get("deny"),
+            Some(&json!(["Read(.env)"]))
+        );
+        assert_eq!(v.get("theme"), Some(&json!("dark")));
+    }
+
+    #[test]
+    fn settings_merge_is_idempotent_for_anvil_mcp_allow_rule() {
+        let raw = r#"{"permissions": {"allow": ["mcp__anvil__*"]}}"#;
+        let rendered = render_settings_with_anvil_allow(Some(raw)).unwrap();
+        let v: Value = serde_json::from_str(&rendered).unwrap();
+        let allow = v
+            .get("permissions")
+            .and_then(|p| p.get("allow"))
+            .and_then(Value::as_array)
+            .unwrap();
+        assert_eq!(allow, &[json!("mcp__anvil__*")]);
+    }
+
+    #[test]
+    fn settings_path_sits_under_claude_directory_next_to_mcp_config() {
+        let path = settings_path_for_mcp_config(Path::new("/home/u/.claude.json"));
+        assert_eq!(path, PathBuf::from("/home/u/.claude/settings.json"));
     }
 
     #[test]

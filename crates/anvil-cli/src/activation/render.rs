@@ -419,6 +419,7 @@ fn daemon_evidence_label(att: super::daemon_evidence::DaemonAttestation) -> &'st
         DaemonAttestation::NoParticipatingSurface => {
             "running but this worktree has no participating surface yet"
         }
+        DaemonAttestation::Enforced => "running and attesting this worktree",
         DaemonAttestation::Promoted => "running and attesting this worktree",
     }
 }
@@ -447,7 +448,11 @@ fn why_summary(d: &ActivationDiagnostic) -> &'static str {
             "this repo's detected languages are not yet covered by anvil — no remediation in this release"
         }
         ProtectionState::Watching => {
-            "save-time watch fallback is running; for pre-write coverage start the intercept daemon (`anvil intercept start --foreground`) and restart your editor"
+            if d.daemon_attestation.attests_worktree() {
+                "the intercept daemon attests this worktree; MCP pre-write is optional and can be enabled separately"
+            } else {
+                "save-time watch fallback is running; for pre-write coverage start the intercept daemon (`anvil intercept start --foreground`) and restart your editor"
+            }
         }
         ProtectionState::NeedsAction => why_summary_for_needs_action(d),
         ProtectionState::ReadyRestartRequired => why_summary_for_attestation(d.daemon_attestation),
@@ -518,6 +523,7 @@ fn why_summary_for_attestation(att: super::daemon_evidence::DaemonAttestation) -
         DaemonAttestation::Warming => {
             "daemon is starting up — wait briefly and re-run `anvil start --verify`"
         }
+        DaemonAttestation::Enforced => "no missing piece — daemon attests this worktree",
         DaemonAttestation::Promoted => "no missing piece — daemon attests this worktree",
     }
 }
@@ -567,7 +573,7 @@ fn state_explanation(state: ProtectionState, d: &ActivationDiagnostic) -> Option
             DaemonAttestation::Warming => {
                 "The intercept daemon is starting or settling. Wait a few seconds, then run `anvil start --verify` again."
             }
-            DaemonAttestation::Promoted => {
+            DaemonAttestation::Enforced | DaemonAttestation::Promoted => {
                 "anvil has enough evidence to protect this worktree, but this view has not refreshed yet. Run `anvil start --verify` again to refresh the state."
             }
         }),
@@ -721,16 +727,22 @@ fn repair_hint(state: ProtectionState, d: &ActivationDiagnostic) -> Option<&'sta
             // `NotProbed` is the genuine pre-restart case — the
             // diagnostic never reached the daemon probe because no
             // client was at `RestartHandshakeVerified` yet.
-            // `Promoted` is logically unreachable at this branch
-            // (`protection_state()` returns `Protecting` instead of
-            // `ReadyRestartRequired` when any client is at
-            // `LiveValidation`); keep the original copy as a
+            // `Enforced` / `Promoted` are logically unreachable at
+            // this branch (`protection_state()` returns `Watching` or
+            // `Protecting` instead); keep the original copy as a
             // belt-and-braces fallback rather than panic.
-            DaemonAttestation::NotProbed | DaemonAttestation::Promoted => {
+            DaemonAttestation::NotProbed
+            | DaemonAttestation::Enforced
+            | DaemonAttestation::Promoted => {
                 "restart your editor or agent so the MCP server attaches, then re-run `anvil start --verify`."
             }
         }),
         ProtectionState::Watching => {
+            if d.daemon_attestation.attests_worktree() {
+                return Some(
+                    "the intercept daemon is registered for this worktree; MCP pre-write remains optional, and `anvil intercept status` shows the daemon-backed surface.",
+                );
+            }
             // Council remediation: the next step depends on whether
             // any MCP tier is already past `ConfigPresent`. If the
             // server is already configured and startable, telling
@@ -1224,6 +1236,30 @@ mod tests {
         assert!(
             h.contains("restart your editor") && !h.contains("anvil mcp install"),
             "ServerStartable + Watching hint should advise restart, not install: {h}"
+        );
+    }
+
+    #[test]
+    fn daemon_backed_watching_with_restart_required_does_not_restart_loop() {
+        let mut d = empty();
+        d.config = ConfigStatus::Valid;
+        d.mcp
+            .insert(McpClientId::Cursor, McpTier::RestartRequired.into());
+        d.daemon_attestation = super::super::daemon_evidence::DaemonAttestation::Enforced;
+
+        let h = render_human(&d);
+
+        assert!(
+            h.contains("state: watching"),
+            "daemon-attested spine should fall through to watching, got: {h}"
+        );
+        assert!(
+            !h.contains("restart your editor"),
+            "daemon-backed watching must not imply another editor restart is required: {h}"
+        );
+        assert!(
+            h.contains("intercept daemon") && h.contains("MCP pre-write remains optional"),
+            "daemon-backed watching copy must name the daemon spine and optional MCP layer: {h}"
         );
     }
 

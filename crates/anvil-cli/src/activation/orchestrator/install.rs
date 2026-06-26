@@ -51,6 +51,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use crate::activation::diagnostic::McpClientId;
+use crate::activation::mcp_client::claude_code;
 use crate::activation::mcp_client::{
     AnvilEntry, ConfigCandidate, ConfigScope, DriftClass, McpClient, ParsedConfig, all_clients,
 };
@@ -210,6 +211,12 @@ pub fn install_for_clients(
         );
         let outcome = match &candidate.drift {
             DriftClass::UpToDate => {
+                if candidate.id == McpClientId::ClaudeCode
+                    && let Err(error) = install_claude_allow_list(&candidate.target_path)
+                {
+                    per_client.insert(candidate.id, InstallOutcome::Failed { error });
+                    continue;
+                }
                 tracing::debug!(
                     client = %candidate.id,
                     path = %candidate.target_path.display(),
@@ -474,6 +481,12 @@ fn install_one(
         };
     }
 
+    if candidate.id == McpClientId::ClaudeCode
+        && let Err(error) = install_claude_allow_list(&candidate.target_path)
+    {
+        return InstallOutcome::Failed { error };
+    }
+
     tracing::info!(
         client = %candidate.id,
         path = %candidate.target_path.display(),
@@ -484,6 +497,56 @@ fn install_one(
         path: candidate.target_path.clone(),
         drift: candidate.drift.clone(),
     }
+}
+
+fn install_claude_allow_list(mcp_config_path: &Path) -> Result<(), String> {
+    let settings_path = claude_code::settings_path_for_mcp_config(mcp_config_path);
+    let existing = match std::fs::read_to_string(&settings_path) {
+        Ok(raw) => Some(raw),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+        Err(e) => {
+            return Err(format!(
+                "read Claude Code settings {}: {e}",
+                settings_path.display()
+            ));
+        }
+    };
+    let body = claude_code::render_settings_with_anvil_allow(existing.as_deref()).map_err(|e| {
+        format!(
+            "render Claude Code settings {}: {e}",
+            settings_path.display()
+        )
+    })?;
+
+    let mut bytes = body.into_bytes();
+    if !bytes.ends_with(b"\n") {
+        bytes.push(b'\n');
+    }
+    if existing
+        .as_ref()
+        .is_some_and(|raw| raw.as_bytes() == bytes.as_slice())
+    {
+        return Ok(());
+    }
+
+    if let Some(parent) = settings_path.parent()
+        && !parent.as_os_str().is_empty()
+        && let Err(e) = std::fs::create_dir_all(parent)
+    {
+        return Err(format!(
+            "create Claude Code settings parent {}: {e}",
+            parent.display()
+        ));
+    }
+    if let Err(e) = refuse_if_parent_is_symlink(&settings_path) {
+        return Err(format!("{e:#}"));
+    }
+    atomic_write(&settings_path, &bytes).map_err(|e| {
+        format!(
+            "write Claude Code settings {}: {e:#}",
+            settings_path.display()
+        )
+    })
 }
 
 /// Render the `demand::MultiSelect` picker and return the chosen ids.
@@ -644,6 +707,79 @@ mod tests {
         let cursor_raw = fs::read_to_string(&cursor_path).unwrap();
         let v: serde_json::Value = serde_json::from_str(&cursor_raw).unwrap();
         assert!(v.get("mcpServers").unwrap().get("anvil").is_some());
+        let claude_settings_path = home.path().join(".claude/settings.json");
+        let claude_settings_raw = fs::read_to_string(&claude_settings_path).unwrap();
+        let claude_settings: serde_json::Value =
+            serde_json::from_str(&claude_settings_raw).unwrap();
+        assert!(
+            claude_settings
+                .get("permissions")
+                .and_then(|p| p.get("allow"))
+                .and_then(serde_json::Value::as_array)
+                .unwrap()
+                .contains(&serde_json::json!("mcp__anvil__*")),
+            "Claude install must allow the anvil MCP tool namespace"
+        );
+    }
+
+    #[test]
+    fn claude_install_preserves_existing_settings_permissions() {
+        let ws = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let settings_path = home.path().join(".claude/settings.json");
+        fs::create_dir_all(settings_path.parent().unwrap()).unwrap();
+        fs::write(
+            &settings_path,
+            r#"{"permissions": {"allow": ["Bash(pnpm test *)"], "deny": ["Read(.env)"]}, "theme": "dark"}"#,
+        )
+        .unwrap();
+
+        let report = install_for_clients(ws.path(), Some(home.path()), &fresh(), false);
+        assert!(matches!(
+            report_outcome(&report, McpClientId::ClaudeCode),
+            InstallOutcome::Installed { .. }
+        ));
+
+        let raw = fs::read_to_string(&settings_path).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&raw).unwrap();
+        let allow = v
+            .get("permissions")
+            .and_then(|p| p.get("allow"))
+            .and_then(serde_json::Value::as_array)
+            .unwrap();
+        assert!(allow.contains(&serde_json::json!("Bash(pnpm test *)")));
+        assert!(allow.contains(&serde_json::json!("mcp__anvil__*")));
+        assert_eq!(
+            v.get("permissions").unwrap().get("deny"),
+            Some(&serde_json::json!(["Read(.env)"]))
+        );
+        assert_eq!(v.get("theme"), Some(&serde_json::json!("dark")));
+    }
+
+    #[test]
+    fn claude_up_to_date_mcp_repairs_missing_allow_rule() {
+        let ws = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let claude_cfg = r#"{"mcpServers": {"anvil": {"type": "stdio", "command": "/usr/local/bin/anvil", "args": ["mcp", "serve", "--stdio"], "env": {}}}}"#;
+        fs::write(home.path().join(".claude.json"), claude_cfg).unwrap();
+
+        let report = install_for_clients(ws.path(), Some(home.path()), &fresh(), false);
+        assert!(matches!(
+            report_outcome(&report, McpClientId::ClaudeCode),
+            InstallOutcome::Skipped {
+                reason: SkipReason::AlreadyUpToDate
+            }
+        ));
+
+        let raw = fs::read_to_string(home.path().join(".claude/settings.json")).unwrap();
+        let v: serde_json::Value = serde_json::from_str(&raw).unwrap();
+        assert!(
+            v.get("permissions")
+                .and_then(|p| p.get("allow"))
+                .and_then(serde_json::Value::as_array)
+                .unwrap()
+                .contains(&serde_json::json!("mcp__anvil__*"))
+        );
     }
 
     #[test]

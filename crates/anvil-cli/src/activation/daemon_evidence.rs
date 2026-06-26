@@ -107,9 +107,20 @@ pub enum DaemonAttestation {
     /// the worktree has zero `Participating` surfaces (cardinality
     /// gate). Same operator-facing message as `Unenforced`.
     NoParticipatingSurface,
+    /// Daemon is reachable, the worktree is registered, fresh, and
+    /// enforcing, but there is no handshake-verified MCP client to
+    /// promote to `LiveValidation`. This is the ACTMO-003
+    /// MCP-optional spine success case.
+    Enforced,
     /// Promotion fired — at least one `RestartHandshakeVerified`
     /// client advanced to `LiveValidation`.
     Promoted,
+}
+
+impl DaemonAttestation {
+    pub(crate) fn attests_worktree(self) -> bool {
+        matches!(self, Self::Enforced | Self::Promoted)
+    }
 }
 
 /// MLP2-051f: wall-clock cap on the activation-side daemon IPC query.
@@ -182,11 +193,6 @@ enum SkipReason {
     /// `DaemonStatusV1::generated_at_unix` when non-zero) is older
     /// than [`HEARTBEAT_FRESHNESS_WINDOW`] vs `now`.
     StaleHeartbeat,
-    /// Daemon reachable, claim attests live enforcement, but the
-    /// activation diagnostic has no client at
-    /// `RestartHandshakeVerified` to promote. Logged so a probe-tier
-    /// drift (orchestrator probe regression) is visible in trace.
-    NoHandshakeVerifiedClient,
 }
 
 impl SkipReason {
@@ -198,7 +204,6 @@ impl SkipReason {
             Self::AllSurfacesQuarantined => "all_surfaces_quarantined",
             Self::NoParticipatingSurface => "no_participating_surface",
             Self::StaleHeartbeat => "stale_heartbeat",
-            Self::NoHandshakeVerifiedClient => "no_handshake_verified_client",
         }
     }
 }
@@ -213,10 +218,7 @@ impl SkipReason {
 /// built to fix. Operator-actionable failures (daemon unreachable /
 /// worktree unenforced / stale heartbeat / all-surfaces quarantined)
 /// now emit at `warn`; transient states (`Warming`,
-/// `NoParticipatingSurface`) at `info`;
-/// `NoHandshakeVerifiedClient` (the genuine pre-restart case where
-/// the diagnostic just hasn't reached the daemon probe yet) stays at
-/// `debug` because the headline already communicates it.
+/// `NoParticipatingSurface`) at `info`.
 fn emit_skip_event(reason: SkipReason, worktree_claim_state: Option<&'static str>) {
     let reason_str = reason.as_str();
     let claim = worktree_claim_state.unwrap_or("");
@@ -233,13 +235,6 @@ fn emit_skip_event(reason: SkipReason, worktree_claim_state: Option<&'static str
         }
         SkipReason::Warming | SkipReason::NoParticipatingSurface => {
             tracing::info!(
-                reason = reason_str,
-                worktree_claim_state = claim,
-                "activation: daemon attestation skipped"
-            );
-        }
-        SkipReason::NoHandshakeVerifiedClient => {
-            tracing::debug!(
                 reason = reason_str,
                 worktree_claim_state = claim,
                 "activation: daemon attestation skipped"
@@ -263,19 +258,6 @@ pub(super) fn promote_to_live_validation_when_daemon_attests(
     map: &mut BTreeMap<McpClientId, McpProbeResult>,
     worktree: &Path,
 ) -> DaemonAttestation {
-    // Cheap gate: skip the IPC round-trip entirely when no client is
-    // at the only tier we can promote from. The verify path runs this
-    // on every invocation, and the handshake probe (the only producer
-    // of `RestartHandshakeVerified` today) is itself gated; if no
-    // client has reached the tier, the daemon attestation cannot help.
-    if !map
-        .values()
-        .any(|r| r.tier == McpTier::RestartHandshakeVerified)
-    {
-        emit_skip_event(SkipReason::NoHandshakeVerifiedClient, None);
-        return DaemonAttestation::NotProbed;
-    }
-
     let canonical = canonicalise_for_activation(worktree);
 
     let Some(snapshot) = query_daemon_for_activation() else {
@@ -390,16 +372,11 @@ pub(super) fn evaluate_and_promote(
     }
 
     if promoted == 0 {
-        // The cheap early-gate at the top of
-        // `promote_to_live_validation_when_daemon_attests` should
-        // prevent this, but unit tests that call `evaluate_and_promote`
-        // directly with no handshake-verified client surface here.
-        tracing::debug!(
-            reason = SkipReason::NoHandshakeVerifiedClient.as_str(),
+        tracing::info!(
             worktree_claim_state = claim.worktree_state.as_str(),
-            "activation: daemon attestation evaluated but no client at RestartHandshakeVerified"
+            "activation: daemon attests worktree without MCP client promotion"
         );
-        return DaemonAttestation::NotProbed;
+        return DaemonAttestation::Enforced;
     }
 
     tracing::info!(
@@ -419,7 +396,6 @@ fn skip_reason_to_attestation(reason: SkipReason) -> DaemonAttestation {
         SkipReason::DaemonUnreachable => DaemonAttestation::Unreachable,
         SkipReason::StaleHeartbeat => DaemonAttestation::StaleHeartbeat,
         SkipReason::NoParticipatingSurface => DaemonAttestation::NoParticipatingSurface,
-        SkipReason::NoHandshakeVerifiedClient => DaemonAttestation::NotProbed,
     }
 }
 
@@ -671,6 +647,27 @@ mod tests {
     }
 
     #[test]
+    fn pre_write_daemon_without_handshake_verified_client_reports_enforced() {
+        let worktree = PathBuf::from("/tmp/wt-actmo-003-enforced");
+        let now = now_with_recent_heartbeats();
+        let heartbeat = 1_716_336_050;
+        let snapshot = make_snapshot(
+            &worktree,
+            vec![make_session("sess-1", &worktree, heartbeat)],
+            vec![make_worktree_status("sess-1", &worktree, false)],
+            IpcStateV1::Serving,
+            heartbeat,
+        );
+
+        let mut map = BTreeMap::new();
+        map.insert(McpClientId::Cursor, make_probe(McpTier::ConfigAbsent));
+        let attestation = evaluate_and_promote(&mut map, &snapshot, &worktree, now);
+
+        assert_eq!(attestation, DaemonAttestation::Enforced);
+        assert_eq!(map[&McpClientId::Cursor].tier, McpTier::ConfigAbsent);
+    }
+
+    #[test]
     fn unprotected_worktree_does_not_promote() {
         // Daemon is healthy, but our worktree isn't registered.
         let registered = PathBuf::from("/tmp/wt-051f-other");
@@ -849,13 +846,11 @@ mod tests {
     }
 
     #[test]
-    fn no_handshake_verified_client_is_a_noop() {
+    fn no_handshake_verified_client_reports_enforced_without_promoting() {
         // The orchestrator's handshake-pass never elevated any client
-        // out of `RestartRequired`. Promotion has nothing to do; the
-        // cheap early gate in
-        // `promote_to_live_validation_when_daemon_attests` skips the
-        // IPC round-trip. We're testing `evaluate_and_promote` directly
-        // here; it must also no-op without mutating the map.
+        // out of `RestartRequired`. ACTMO-003 still records that the
+        // daemon attests the worktree, but it must not promote the MCP
+        // tier to `LiveValidation`.
         let worktree = PathBuf::from("/tmp/wt-051f-no-hsv");
         let now = now_with_recent_heartbeats();
         let heartbeat = 1_716_336_050;
@@ -869,8 +864,9 @@ mod tests {
 
         let mut map = BTreeMap::new();
         map.insert(McpClientId::Cursor, make_probe(McpTier::RestartRequired));
-        evaluate_and_promote(&mut map, &snapshot, &worktree, now);
+        let attestation = evaluate_and_promote(&mut map, &snapshot, &worktree, now);
 
+        assert_eq!(attestation, DaemonAttestation::Enforced);
         assert_eq!(map[&McpClientId::Cursor].tier, McpTier::RestartRequired);
     }
 

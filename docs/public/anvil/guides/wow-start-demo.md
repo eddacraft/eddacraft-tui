@@ -31,15 +31,16 @@ guardrail demo is what comes next.
 
 After `anvil start` you land on exactly one of six literal states:
 
-- **`protecting`** — pre-write MCP validation has been observed live in this
-  repo. AI writes are being checked before they hit disk.
+- **`protecting`** — live MCP pre-write validation has been observed in this
+  repo and promoted by daemon evidence. Anvil does not print this state from
+  config alone.
 - **`ready_restart_required`** — MCP config was written safely and the server
   starts, but the editor or agent has to restart so the MCP entry attaches, or a
   daemon-state repair hint needs attention. This is **not** protection yet — the
   printed next step matters.
-- **`watching`** — pre-write MCP attachment is not in evidence; the kernel
-  watcher is running as a save-time fallback. Weaker than `protecting`, and the
-  surface says so.
+- **`watching`** — pre-write MCP attachment is not in evidence, but the
+  daemon-backed spine or save-time fallback is active. Weaker than `protecting`,
+  and the surface says so.
 - **`needs_action`** — anvil cannot make a literal protection claim and you have
   a concrete next step (run `anvil init`, install a supported editor, etc.).
 - **`unsupported`** — your repo's languages are out of scope for this release.
@@ -141,7 +142,7 @@ daemon attests the current worktree; if it cannot, read the printed repair hint.
 ```
 ACTIVATION
   state: watching
-  Watching — save-time fallback only; this is weaker than pre-write validation.
+  Watching — daemon-backed or save-time fallback; this is weaker than pre-write validation.
   config: valid
   mcp: not detected
   watch: offered
@@ -152,10 +153,12 @@ ACTIVATION
   next: Install Cursor or Claude Code for pre-write protection, or run `anvil start --watch` for save-time fallback.
 ```
 
-You will see this if neither Cursor nor Claude Code is detected (or if their
-config is structurally unparseable and anvil correctly refused to touch it).
-Watch fallback is offered; it is **not** running yet. To run it:
-`anvil start --watch` (covered below).
+You will see this if neither Cursor nor Claude Code is detected, if their config
+is structurally unparseable and anvil correctly refused to touch it, or if the
+daemon-backed activation spine is enforcing the worktree without MCP. When the
+daemon is attested, `anvil start` points to `anvil intercept status`; otherwise
+watch fallback is offered and can be run with `anvil start --watch` (covered
+below).
 
 > **Note on the sample output above.** The exact line spacing, label widths, and
 > per-client tier strings come from `crates/anvil-cli/src/activation/render.rs`
@@ -166,8 +169,10 @@ Watch fallback is offered; it is **not** running yet. To run it:
 
 ## What `anvil start` actually does
 
-The orchestrator composes only **read-safe / idempotent** primitives. There is
-no clever auto-detection or background process attach.
+The orchestrator composes only **read-safe / idempotent** primitives. It takes
+daemon lifecycle responsibility at the activation moment, registers the current
+worktree with the daemon when available, and leaves editor-specific attachment
+to the MCP entries it owns.
 
 In order:
 
@@ -176,25 +181,40 @@ In order:
    valid, skip init — re-running `anvil start` is idempotent. If it is
    structurally invalid, surface that as `state: error` with the parse error,
    never overwrite.
-2. **First-scan via the language profile.** Walk the working tree (excluding
+2. **Install commit/push hooks.** In a Git repo, `anvil start` writes
+   Anvil-managed `pre-commit` and `pre-push` hooks using the same coexistence
+   policy as `anvil hooks install`: detected Husky wins, unmanaged hooks are
+   preserved, and hook-install failure is a warning rather than an activation
+   abort.
+3. **First-scan via the language profile.** Walk the working tree (excluding
    vendored and generated paths via the existing internal denylist), classify
    each detected language as `supported` / `partial` / `unsupported` against the
    registered language pack, and record a small baseline of existing findings so
    future runs can diff new edges only.
-3. **Write MCP entries for the supported clients found.** v1 supports two
-   clients:
+4. **Register this worktree with the intercept daemon.** The accepted
+   MCP-optional activation spine
+   ([ADR-092](https://github.com/eddacraft/anvil-001/blob/main/plans/decisions/092-mcp-optional-activation-spine.md))
+   makes daemon-backed worktree registration part of start-up, independent of
+   whether an editor has attached an MCP server yet.
+5. **Write MCP entries for the supported clients found by default.** v1 supports
+   two clients:
    - Cursor → `~/.cursor/mcp.json`
    - Claude Code → `~/.claude.json`
 
    Existing config is parsed before modification, written atomically, and left
-   untouched on parse failure or unsafe drift. Rule / instruction files
-   (`.cursorrules`, `.clauderules`, global AI rules) are **not** edited.
+   untouched on parse failure or unsafe drift. Claude Code installs also merge
+   `mcp__anvil__*` into `.claude/settings.json` `permissions.allow`, preserving
+   existing allow/deny rules so Anvil MCP tool calls do not prompt on every
+   write. Rule / instruction files (`.cursorrules`, `.clauderules`, global AI
+   rules) are **not** edited. Corporate or MCP-sceptical environments can run
+   `anvil start --no-mcp` or set `ANVIL_NO_MCP=1`; the daemon-backed spine still
+   runs and the output names the skipped MCP install.
 
-4. **Run the activation diagnostic.** This is the read-only probe that produces
+6. **Run the activation diagnostic.** This is the read-only probe that produces
    the `ActivationDiagnostic` rendered above — config status, MCP tier per
    client, watch tier, baseline summary, language profile, `last_error` (if
    any).
-5. **Emit one literal `state:`** from the six-word vocabulary, based on the
+7. **Emit one literal `state:`** from the six-word vocabulary, based on the
    diagnostic. The headline copy comes from `ProtectionState::headline()` so the
    wording cannot drift between `start`, `status`, and `doctor`.
 
@@ -204,7 +224,8 @@ What `anvil start` deliberately does **not** do:
   knows what it wired itself — the entries it just wrote into
   `~/.cursor/mcp.json` and `~/.claude.json`.
 - It does not inject `.cursorrules` / `.clauderules` / any global AI rule file.
-- It does not modify your `git config` or install git hooks.
+- It does not modify your `git config` or overwrite unmanaged hooks; managed
+  hook installation uses the same coexistence policy as `anvil hooks install`.
 - It does not log in to a cloud, pull a team policy, or set up CI.
 - It does not ship a demo fixture, a "challenge file", or a guaranteed-catch
   prompt catalogue. The catch comes from your real code being asked a real
@@ -232,6 +253,22 @@ Useful for:
 - CI / scripting: `anvil start --verify --json` produces a single
   `ActivationDiagnostic` JSON document on stdout that downstream consumers can
   parse for the `state` field.
+
+## Running without MCP install — `anvil start --no-mcp`
+
+Use `--no-mcp` when editor MCP integration is blocked, unsupported, or
+deliberately disabled:
+
+```bash
+anvil start --no-mcp
+```
+
+`ANVIL_NO_MCP=1` is the scriptable equivalent. This skips Cursor and Claude Code
+MCP config writes but still runs the activation spine: init, baseline, daemon
+worktree registration, rule-mode summary, and diagnostic rendering. The output
+prints `install: skipped` so the weaker MCP-free state is explicit. Operators
+rolling this out fleet-wide should use the
+[MCP-optional activation runbook](https://github.com/eddacraft/anvil-001/blob/main/docs/runbooks/anvil-no-mcp-activation.md).
 
 `--json` implies `--verify` semantics — under JSON mode, `anvil start` behaves
 like the read-only path so init's own JSON record cannot concatenate with the
@@ -288,7 +325,7 @@ The six allowed literals, what each means, and the next user action:
 | ------------------------ | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | `protecting`             | Pre-write validation has been observed live. AI writes hit `anvil_validate_write` before disk. | None — try the [AI Guardrail Demo](./ai-guardrail-demo).                            |
 | `ready_restart_required` | MCP config written, but editor restart or daemon-state repair is still required.               | Follow the printed repair hint; re-run `anvil start --verify`.                      |
-| `watching`               | Pre-write MCP attachment not in evidence; save-time watcher running (weaker).                  | Install Cursor or Claude Code if you want pre-write; or accept the fallback.        |
+| `watching`               | Pre-write MCP attachment not in evidence; daemon-backed or save-time fallback active (weaker). | Install Cursor or Claude Code if you want pre-write; or accept the fallback.        |
 | `needs_action`           | No literal protection claim possible; concrete next step exists.                               | Read the `next:` line below the diagnostic.                                         |
 | `unsupported`            | Repo languages are out of scope for this release (e.g. Python).                                | Scope anvil to a TS / JS / Rust subdirectory, or wait for further language support. |
 | `error`                  | Activation hit a hard error.                                                                   | Read `last_error:` and the `next:` repair hint.                                     |

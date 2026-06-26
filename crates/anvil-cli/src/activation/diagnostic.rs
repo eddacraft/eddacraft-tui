@@ -242,6 +242,10 @@ impl ActivationDiagnostic {
             Some(McpTier::RestartRequired | McpTier::RestartHandshakeVerified)
         );
 
+        if !self.all_languages_unsupported && self.daemon_attestation.attests_worktree() {
+            return ProtectionState::Watching;
+        }
+
         if matches!(self.watch, WatchTier::Running) {
             // Watch is honest fallback coverage. If MCP is literally
             // one step from live, surface that stronger label so the
@@ -373,11 +377,14 @@ pub fn verify_with_home(root: &Path, home: Option<&Path>) -> ActivationDiagnosti
             // distinguish "pre-restart" from "daemon not running" /
             // "daemon unenforced" when emitting the
             // `ReadyRestartRequired` repair hint.
-            let attestation =
+            let attestation = if matches!(config, ConfigStatus::Valid) {
                 super::daemon_evidence::promote_to_live_validation_when_daemon_attests(
                     &mut probe_results,
                     root,
-                );
+                )
+            } else {
+                super::daemon_evidence::DaemonAttestation::NotProbed
+            };
             (probe_results, None, attestation)
         }
         Err(e) => {
@@ -789,6 +796,36 @@ mod tests {
         );
         d.watch = WatchTier::Running;
         assert_eq!(d.protection_state(), ProtectionState::ReadyRestartRequired);
+    }
+
+    #[test]
+    fn daemon_attested_worktree_without_mcp_yields_watching() {
+        let mut d = empty_diagnostic();
+        d.config = ConfigStatus::Valid;
+        d.daemon_attestation = super::super::daemon_evidence::DaemonAttestation::Enforced;
+
+        assert_eq!(d.protection_state(), ProtectionState::Watching);
+    }
+
+    #[test]
+    fn daemon_attested_worktree_with_restart_pending_falls_through_to_watching() {
+        let mut d = empty_diagnostic();
+        d.config = ConfigStatus::Valid;
+        d.mcp
+            .insert(McpClientId::Cursor, McpTier::RestartRequired.into());
+        d.daemon_attestation = super::super::daemon_evidence::DaemonAttestation::Enforced;
+
+        assert_eq!(d.protection_state(), ProtectionState::Watching);
+    }
+
+    #[test]
+    fn daemon_attested_worktree_does_not_override_unsupported_languages() {
+        let mut d = empty_diagnostic();
+        d.config = ConfigStatus::Valid;
+        d.all_languages_unsupported = true;
+        d.daemon_attestation = super::super::daemon_evidence::DaemonAttestation::Enforced;
+
+        assert_eq!(d.protection_state(), ProtectionState::Unsupported);
     }
 
     #[test]

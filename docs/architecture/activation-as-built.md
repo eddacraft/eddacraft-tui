@@ -4,9 +4,9 @@
 | -------- | --------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | As-built | Derived   | LAUNCH | Live   | Last reviewed 2026-06-10 (targeted delta review: DSV-021 daemon routing, UJ-001/-005/-006 threading, ADR-080 gate posture) against main `a1c41e284`; full review 2026-05-07 against `v0.6.0-beta` and `crates/anvil-cli` |
 
-| Upstream                                                                  | Downstream                                                                                   |
-| ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `crates/anvil-cli`, `crates/anvil-kernel`, `crates/anvil-checks`, ADR-001 | anvil start / status / doctor / tutorial CLI surfaces, MCP install step, activation TUI path |
+| Upstream                                                                           | Downstream                                                                                   |
+| ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `crates/anvil-cli`, `crates/anvil-kernel`, `crates/anvil-checks`, ADR-001, ADR-092 | anvil start / status / doctor / tutorial CLI surfaces, MCP install step, activation TUI path |
 
 > **Status:** Live (beta) **Last reviewed:** 2026-06-10 (targeted delta review:
 > DSV-021 daemon routing, UJ-001/-005/-006 threading, ADR-080 gate posture)
@@ -30,7 +30,10 @@ demo surface is `anvil welcome` (ADR-080).
 
 The honesty contract is the load-bearing invariant: surfaces never claim
 pre-write protection without evidence, and the printed `state:` literal is the
-only allowed vocabulary for activation outcomes. The same `ProtectionState` enum
+only allowed vocabulary for activation outcomes. ADR-092 defines the activation
+spine as daemon ensure, worktree registration, hooks where allowed, and
+save-time validation, with MCP as an optional L0 upgrade rather than the sole
+gate. The same `ProtectionState` enum
 (`crates/anvil-cli/src/activation/state.rs:15`) is consumed by
 `anvil status --verify`, `anvil doctor`, the protection-loop tutorial path, and
 JSON consumers — there is one renderer, surfaces cannot drift.
@@ -50,8 +53,9 @@ JSON consumers — there is one renderer, surfaces cannot drift.
                 │  1. probe verify                     │     (commands/start.rs:119)
                 │  2. init if .anvilrc absent          │
                 │  3. baseline.json if absent          │
-                │  4. install_for_clients              │── ▶ ~/.cursor/mcp.json
-                │  5. re-verify                        │── ▶ ~/.claude.json
+                │  4. register worktree with daemon    │── ▶ intercept daemon
+                │  5. install_for_clients              │── ▶ ~/.cursor/mcp.json
+                │  6. re-verify                        │── ▶ ~/.claude.json
                 └──────────────┬───────────────────────┘
                                │
                                ▼
@@ -92,14 +96,14 @@ The vocabulary is fixed and exhaustive; all six variants are defined in
 `ProtectionState::label` (`state.rs:50-59`). Surfaces never invent ad-hoc
 strings.
 
-| Literal                  | Meaning                                                                        | What drives it                                                                                      | User's next action                                                    |
-| ------------------------ | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| `protecting`             | Pre-write `anvil_validate_write` evidence has been observed live in this repo. | Highest MCP tier across clients is `LiveValidation` (`diagnostic.rs:223`).                          | None — try the AI guardrail demo.                                     |
-| `ready_restart_required` | MCP config is wired and the server starts; the editor has not yet attached.    | Highest MCP tier is `RestartRequired` or `RestartHandshakeVerified` (`diagnostic.rs:232-235, 248`). | Restart Cursor / Claude Code; re-run `anvil start --verify`.          |
-| `watching`               | Save-time fallback only; pre-write attachment is not in evidence.              | `WatchTier::Running` and MCP below `RestartRequired` (`diagnostic.rs:237-246`).                     | Wire pre-write MCP if possible; otherwise accept the fallback.        |
-| `needs_action`           | No literal protection claim; user has actionable next steps.                   | Default branch when no stronger signal applies (`diagnostic.rs:263`).                               | Read the `next:` repair hint below the diagnostic.                    |
-| `unsupported`            | Repo languages are out of scope for this release.                              | `all_languages_unsupported` and MCP below `RestartRequired` (`diagnostic.rs:257-259`).              | Wait for the language pack, or scope anvil to a TS / JS subdirectory. |
-| `error`                  | Activation hit a hard error before any state could be established.             | `last_error.is_some()` or `ConfigStatus::Invalid` (`diagnostic.rs:213-219`).                        | Read `last_error:` and the `next:` repair hint.                       |
+| Literal                  | Meaning                                                                                  | What drives it                                                                                             | User's next action                                                             |
+| ------------------------ | ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `protecting`             | Pre-write `anvil_validate_write` evidence has been observed live in this repo.           | Highest MCP tier across clients is `LiveValidation` (`diagnostic.rs:223`).                                 | None — try the AI guardrail demo.                                              |
+| `ready_restart_required` | MCP config is wired and the server starts; the editor has not yet attached.              | Highest MCP tier is `RestartRequired` or `RestartHandshakeVerified` (`diagnostic.rs:232-235, 248`).        | Restart Cursor / Claude Code; re-run `anvil start --verify`.                   |
+| `watching`               | Daemon-backed activation or save-time fallback; pre-write attachment is not in evidence. | `DaemonAttestation::Enforced`, or `WatchTier::Running` with MCP below `RestartRequired` (`diagnostic.rs`). | MCP is optional; wire pre-write MCP if desired, otherwise accept the fallback. |
+| `needs_action`           | No literal protection claim; user has actionable next steps.                             | Default branch when no stronger signal applies (`diagnostic.rs:263`).                                      | Read the `next:` repair hint below the diagnostic.                             |
+| `unsupported`            | Repo languages are out of scope for this release.                                        | `all_languages_unsupported` and MCP below `RestartRequired` (`diagnostic.rs:257-259`).                     | Wait for the language pack, or scope anvil to a TS / JS subdirectory.          |
+| `error`                  | Activation hit a hard error before any state could be established.                       | `last_error.is_some()` or `ConfigStatus::Invalid` (`diagnostic.rs:213-219`).                               | Read `last_error:` and the `next:` repair hint.                                |
 
 The state mapping lives in a single function,
 `ActivationDiagnostic::protection_state` (`diagnostic.rs:211-264`); call sites
@@ -114,8 +118,7 @@ against drift.
 ## Lifecycle: `anvil start` (mutating path)
 
 The mutating path runs when neither `--verify` nor `--json` is set. The
-orchestrator's `run_with_home` (`orchestrator/mod.rs:68-140`) executes five
-ordered steps:
+orchestrator executes seven main ordered steps:
 
 1. **Probe config (and run init if absent).** `verify_with_home` is called first
    (`orchestrator/mod.rs:74`); if `ConfigStatus::Absent`, the orchestrator
@@ -125,7 +128,15 @@ ordered steps:
    surfaces as `state: error` via `verify` — the orchestrator does not overwrite
    it.
 
-2. **Write activation baseline if absent (LAUNCH-010).** When
+2. **Install commit/push hook coverage (ACTMO-005).** After project setup,
+   activation calls the silent hook installer from `commands::hooks`. It reuses
+   the default `anvil hooks install` policy: prefer detected Husky, otherwise
+   write Anvil-managed `pre-commit` and `pre-push` files under `.git/hooks/`.
+   Existing unmanaged hooks are preserved by the non-force skip semantics.
+   Hook-install failure is logged and rendered as a warning, never as an
+   activation abort.
+
+3. **Write activation baseline if absent (LAUNCH-010).** When
    `.anvil/baseline.json` is missing, the orchestrator calls
    `services::sample_analyser::run_baseline_scan` and writes the resulting
    fingerprint set via `baseline::write_baseline`
@@ -134,29 +145,45 @@ ordered steps:
    in `activation/baseline.rs`; idempotency is enforced by the
    `!baseline::baseline_exists(root)` guard (`orchestrator/mod.rs:91`).
 
-3. **Install MCP entries for Cursor and Claude Code (LAUNCH-009 part 2).** The
-   orchestrator resolves `current_exe()`, builds an `AnvilEntry::local_stdio`
-   (`mcp_client.rs:91-101`), then calls `install::install_for_clients`
-   (`orchestrator/mod.rs:108-124`). The install step is idempotent (`UpToDate` →
-   skip), refuses to overwrite `UnsafeDrift`, and pre-selects `NotPresent` /
-   `SafeDrift` candidates. See
+4. **Register the worktree with the intercept daemon (ACTMO-002).** After the
+   local config and baseline are present, the orchestrator attempts
+   MCP-independent session registration through
+   `activation/daemon_registration.rs`. The registration uses a stable
+   activation-owned session id derived from the canonical worktree path and the
+   `activation-spine` agent tag, so a live daemon can attest the current
+   worktree without waiting for an MCP tool call. Registration failure is logged
+   and non-fatal; the rendered diagnostic remains the source of truth.
+
+5. **Install MCP entries for Cursor and Claude Code by default (LAUNCH-009 part
+   2 / ACTMO-004).** Unless `anvil start --no-mcp` is passed or `ANVIL_NO_MCP`
+   is non-empty, the orchestrator resolves `current_exe()`, builds an
+   `AnvilEntry::local_stdio` (`mcp_client.rs:91-101`), then calls
+   `install::install_for_clients` (`orchestrator/mod.rs`). The install step is
+   idempotent (`UpToDate` → skip), refuses to overwrite `UnsafeDrift`, and
+   pre-selects `NotPresent` / `SafeDrift` candidates. With MCP install skipped,
+   daemon-backed worktree registration still runs and the human output prints an
+   explicit skipped-install line. See
    [MCP install (LAUNCH-009)](#mcp-install-launch-009) below.
 
-4. **Re-probe.** A second `verify_with_home` call (`orchestrator/mod.rs:130`)
-   absorbs the install side-effects so the rendered diagnostic carries the
-   post-install MCP tier. Any aggregated install failure is folded into
-   `diagnostic.last_error` so `protection_state()` collapses to `Error` for JSON
-   consumers (`orchestrator/mod.rs:135-137`).
+6. **Re-probe.** A second `verify_with_home` call (`orchestrator/mod.rs:130`)
+   absorbs the install side-effects and daemon attestation so the rendered
+   diagnostic carries the post-install MCP tier and the spine state. If the
+   daemon attests the registered worktree but no MCP client can be promoted to
+   `LiveValidation`, ACTMO-003 maps the diagnostic to `state: watching` rather
+   than looping on `ready_restart_required`. Any aggregated install failure is
+   folded into `diagnostic.last_error` so `protection_state()` collapses to
+   `Error` for JSON consumers (`orchestrator/mod.rs:135-137`).
 
-5. **Render.** The CLI renders via
+7. **Render.** The CLI renders via
    `activation::render_human_with_install(&diagnostic, &install_report)`
    (`commands/start.rs:158`) or `activation::render_json` under JSON mode
    (`commands/start.rs:153`). The block ends in a single `state: <literal>` line
    plus a per-client `install:` summary (`render.rs:202-237`). The plain ending
    also prints a single UJ-001 next-step line (`start_next_step_line`,
    `commands/start.rs:632-638`): at `LiveValidation` it points to `anvil status`
-   (watch would be redundant); otherwise it names `anvil watch`. The line is
-   suppressed under `--json` and `--verify` so those surfaces stay
+   (watch would be redundant); when daemon attestation has armed the worktree it
+   points to `anvil intercept status`; otherwise it names `anvil watch`. The
+   line is suppressed under `--json` and `--verify` so those surfaces stay
    byte-identical (`commands/start.rs:350-354`).
 
 After rendering, if any client install reported `Failed`, the CLI propagates a
@@ -335,6 +362,11 @@ install for the two clients registered in v1: Cursor and Claude Code
   (`mcp_client/claude_code.rs:35-145`). Editor configs that hold sensitive data
   are written with mode `0o600` on Unix
   (`activation/orchestrator/install.rs:42-48`).
+- **Claude Code permission sidecar (ACTMO-007)** — after a Claude MCP install,
+  activation also merges `mcp__anvil__*` into the sibling
+  `.claude/settings.json` `permissions.allow` array. Existing allow/deny rules
+  are preserved, the rule is idempotent, and an already up-to-date
+  `.claude.json` still repairs a missing allow rule.
 
 **Drift policy** (`activation/orchestrator/install.rs:30-41`):
 
@@ -360,7 +392,8 @@ installs do not falsely report as `RestartRequired` after an idempotent re-run.
 - Symlink-parent guard (`activation/orchestrator/install.rs:446-456`): installs
   refuse to write when any parent of the target is a symlink (a symlinked
   `~/.cursor` or `~/.claude.json` parent would otherwise let `tempfile_in` write
-  through the link).
+  through the link). The Claude settings sidecar uses the same guard before
+  writing `.claude/settings.json`.
 - Configs that fail to parse are surfaced as `UnsafeDrift` with the parser
   reason; no overwrite, no silent install
   (`activation/orchestrator/install.rs:323-339, 659-677`).
@@ -485,7 +518,8 @@ What `anvil start` deliberately does **not** do
 
 - No `.cursorrules` / `.clauderules` / global AI rule-file injection.
 - No cloud login, team policy pull, or CI setup.
-- No default git hook installation.
+- No `git config` mutation or unmanaged hook overwrite; managed hook
+  installation is constrained by the `anvil hooks install` coexistence policy.
 - No demo fixtures, challenge files, or guaranteed-catch prompt catalogues.
 - No Windsurf, VS Code, Copilot CLI, or Codex CLI MCP install — Cursor + Claude
   Code only.
@@ -638,6 +672,8 @@ consumers needing a side-effecting JSON flow must run `anvil init --json` and
 - `plans/decisions/080-ungate-welcome-demo-surface.md` — ADR-080:
   `anvil welcome` is the ungated beta demo surface; `anvil start` stays behind
   the licence gate.
+- `docs/runbooks/anvil-no-mcp-activation.md` — operator procedure for
+  `anvil start --no-mcp` / `ANVIL_NO_MCP=1` rollouts.
 - `docs/public/anvil/guides/wow-start-demo.md` — public-side narrative this doc
   backs up.
 - `docs/public/anvil/quickstart.md` — beta quickstart (full 10-minute install +

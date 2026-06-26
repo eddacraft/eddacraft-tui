@@ -44,7 +44,7 @@ use windows_sys::Win32::System::JobObjects::{
 use windows_sys::Win32::System::Pipes::GetNamedPipeClientProcessId;
 use windows_sys::Win32::System::Threading::{
     GetCurrentProcess, GetExitCodeProcess, GetProcessTimes, OpenProcess, OpenProcessToken,
-    PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SET_QUOTA, PROCESS_TERMINATE,
+    PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SET_QUOTA, PROCESS_TERMINATE, TerminateProcess,
 };
 
 // `GENERIC_READ` / `GENERIC_WRITE` are not re-exported from any
@@ -399,6 +399,39 @@ pub fn process_exists(pid: u32) -> io::Result<bool> {
         Err(err) if err.raw_os_error() == Some(ERROR_ACCESS_DENIED as i32) => Ok(true),
         Err(err) => Err(err),
     }
+}
+
+/// Terminate a process by PID.
+///
+/// Used by `anvil intercept stop` on Windows, where the daemon can run as a
+/// headless background process without a Unix-style signal channel. The caller
+/// is responsible for PID-reuse defence before invoking this helper; the
+/// intercept daemon library checks the PID file's recorded creation time before
+/// reaching this boundary.
+pub fn terminate_process(pid: u32) -> io::Result<()> {
+    // SAFETY: OpenProcess returns either NULL+last_error or a valid owned handle
+    // that ProcessHandle closes on drop.
+    let handle = unsafe { OpenProcess(PROCESS_TERMINATE, 0, pid) };
+    if handle.is_null() {
+        let err = io::Error::last_os_error();
+        if err.raw_os_error() == Some(ERROR_INVALID_PARAMETER as i32) {
+            return Ok(());
+        }
+        return Err(err);
+    }
+    let process = ProcessHandle(handle);
+    // SAFETY: `process.0` is an owned live process handle opened with
+    // PROCESS_TERMINATE. Exit code 1 matches the existing job-object forced
+    // termination path.
+    let ok = unsafe { TerminateProcess(process.0, 1) };
+    if ok == 0 {
+        let err = io::Error::last_os_error();
+        if err.raw_os_error() == Some(ERROR_INVALID_PARAMETER as i32) {
+            return Ok(());
+        }
+        return Err(err);
+    }
+    Ok(())
 }
 
 /// Owned Win32 Job Object handle. Drops via `CloseHandle`. The intercept

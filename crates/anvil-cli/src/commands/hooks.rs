@@ -826,6 +826,33 @@ pub fn uninstall_all_managed_hooks_silent() -> Result<()> {
     Ok(())
 }
 
+/// Install activation-time hook coverage without rendering the `anvil hooks`
+/// command surface.
+///
+/// `anvil start` uses this for ACTMO-005 so the MCP-optional activation spine
+/// includes commit and push hooks. The install policy mirrors the default
+/// `anvil hooks install` path: prefer a detected Husky directory, otherwise
+/// write Anvil-managed file-mode hooks under `.git/hooks/`. Existing unmanaged
+/// hooks are preserved by [`install_hook`]'s non-force skip semantics.
+pub(crate) fn install_activation_hooks_silent(workspace_root: &Path) -> Result<()> {
+    let git_dir = resolve_git_dir(workspace_root)?;
+    let hooks_dir = {
+        let (_detected, husky_dir_opt) = detect_husky(workspace_root);
+        if let Some(dir) = husky_dir_opt {
+            std::fs::create_dir_all(&dir).context("creating detected .husky directory")?;
+            dir
+        } else {
+            let dir = git_dir.join("hooks");
+            std::fs::create_dir_all(&dir).context("creating hooks directory")?;
+            dir
+        }
+    };
+
+    let _ = install_hook(&hooks_dir, "pre-commit", PRE_COMMIT_HOOK, false)?;
+    let _ = install_hook(&hooks_dir, "pre-push", PRE_PUSH_HOOK, false)?;
+    Ok(())
+}
+
 #[allow(clippy::too_many_lines)]
 pub fn run(args: &HooksArgs, global: &GlobalArgs) -> Result<()> {
     let workspace_root = find_repo_root()?;

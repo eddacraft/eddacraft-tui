@@ -6,12 +6,15 @@
 //! 1. Probe `activation::verify`. If `.anvilrc` is absent, call
 //!    `commands::init::run_in` (which writes the default config AND runs
 //!    the LAUNCH-004 post-init first-scan inline).
-//! 2. **MCP install (LAUNCH-009 part 2).** Probe each registered MCP
+//! 2. Register the current worktree with the intercept daemon when it is live.
+//!    This is the MCP-independent activation spine from ACTMO-002; failure is
+//!    non-fatal and the diagnostic remains the source of truth.
+//! 3. **MCP install (LAUNCH-009 part 2).** Probe each registered MCP
 //!    client (Cursor, Claude Code), classify drift, and either prompt
 //!    the user with a [`demand`] picker (interactive) or auto-install
 //!    the obvious cases (non-interactive). See [`install`] for the
 //!    drift policy and atomicity guarantees.
-//! 3. Re-probe and return the diagnostic for the caller to render.
+//! 4. Re-probe and return the diagnostic for the caller to render.
 //!
 //! **Deliberately NOT in this orchestrator** (owned by diagnostic probes /
 //! LAUNCH-011 — the tasks that own the safe versions of these steps):
@@ -36,14 +39,21 @@ use anyhow::Context;
 
 use crate::GlobalArgs;
 use crate::activation::baseline;
+use crate::activation::daemon_registration::{self, WorktreeRegistration};
 use crate::activation::diagnostic::{ActivationDiagnostic, ConfigStatus, verify_with_home};
 use crate::activation::identity;
-use crate::commands::init;
+use crate::commands::{hooks, init};
 use crate::services::sample_analyser;
 
 pub mod install;
 
 pub use install::{InstallOutcome, InstallReport, SkipReason};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum McpInstallPolicy {
+    Install,
+    Skip,
+}
 
 /// Run the orchestration on `root` and return the final diagnostic
 /// alongside the install report.
@@ -57,19 +67,43 @@ pub fn run(
     root: &Path,
     global: &GlobalArgs,
 ) -> anyhow::Result<(ActivationDiagnostic, InstallReport)> {
-    run_with_home(root, crate::util::user_home_dir().as_deref(), global)
+    run_with_mcp_policy(root, global, McpInstallPolicy::Install)
 }
 
-/// Like [`run`] but with an explicit `home` override.
-///
-/// Used by tests that need to write MCP configs into a tempdir-scoped
-/// home rather than the developer's real `~/.cursor/mcp.json` etc.
-/// Crate-private — production callers must go through [`run`] so the
-/// [`crate::util::user_home_dir`] resolution stays in one place.
-pub(crate) fn run_with_home(
+pub fn run_with_mcp_policy(
+    root: &Path,
+    global: &GlobalArgs,
+    mcp_install_policy: McpInstallPolicy,
+) -> anyhow::Result<(ActivationDiagnostic, InstallReport)> {
+    run_with_home_and_policy(
+        root,
+        crate::util::user_home_dir().as_deref(),
+        global,
+        mcp_install_policy,
+    )
+}
+
+fn run_with_home_and_policy(
     root: &Path,
     home: Option<&Path>,
     global: &GlobalArgs,
+    mcp_install_policy: McpInstallPolicy,
+) -> anyhow::Result<(ActivationDiagnostic, InstallReport)> {
+    run_with_home_and_registration(
+        root,
+        home,
+        global,
+        daemon_registration::register_worktree_with_daemon,
+        mcp_install_policy,
+    )
+}
+
+fn run_with_home_and_registration(
+    root: &Path,
+    home: Option<&Path>,
+    global: &GlobalArgs,
+    register_worktree: impl FnOnce(&Path) -> WorktreeRegistration,
+    mcp_install_policy: McpInstallPolicy,
 ) -> anyhow::Result<(ActivationDiagnostic, InstallReport)> {
     // DISTRIB-006 (ADR-060): under a non-default ANVIL_HOME without
     // `--touch-project-state`, activation runs in a read-only posture — it still
@@ -164,6 +198,19 @@ pub(crate) fn run_with_home(
         eprintln!("anvil: could not install GitHub Actions workflows ({e}); continuing");
     }
 
+    // Step 1a-d — install ADR-038 commit/push hook coverage as part of the
+    // MCP-optional activation spine (ACTMO-005). Hook install is durable
+    // project state, so it follows the same gated-write posture as the rest of
+    // activation. Failure is non-fatal: MCP and daemon-backed save-time
+    // validation can still run, and the operator gets an explicit warning.
+    if !project_writes_gated && let Err(e) = hooks::install_activation_hooks_silent(root) {
+        tracing::warn!(
+            error = %e,
+            "orchestrator: failed to install activation git hooks; continuing without",
+        );
+        eprintln!("anvil: could not install git hooks ({e}); continuing");
+    }
+
     // Step 1b — write `.anvil/baseline.json` if absent (LAUNCH-010).
     // The baseline captures the set of antipattern + secret findings
     // present at first activation so future scans (post-LAUNCH-010
@@ -192,26 +239,44 @@ pub(crate) fn run_with_home(
         }
     }
 
+    match register_worktree(root) {
+        WorktreeRegistration::Registered | WorktreeRegistration::Refreshed => {}
+        WorktreeRegistration::DaemonUnavailable => {
+            tracing::debug!(
+                "orchestrator: daemon unavailable for activation worktree registration; continuing",
+            );
+        }
+        WorktreeRegistration::Rejected(error) => {
+            tracing::warn!(
+                error = %error,
+                "orchestrator: activation worktree registration rejected; continuing",
+            );
+        }
+    }
+
     // Step 2 — install MCP entries for the user-selected (or auto-
     // selected) clients. The install module handles drift, picker UX,
     // and atomic writes; failures are folded into the report rather
     // than propagated, so the orchestrator always returns a final
     // diagnostic the user can act on.
-    let install_report = match std::env::current_exe() {
-        Ok(exe) => {
-            let fresh = crate::activation::mcp_client::AnvilEntry::local_stdio(exe);
-            install::install_for_clients(root, home, &fresh, interactive)
-        }
-        Err(e) => {
-            // current_exe failed — verify_with_home will also report
-            // last_error, so we don't shadow that signal. Skip install
-            // entirely.
-            tracing::warn!(
-                error = %e,
-                "orchestrator: could not resolve current_exe; MCP install skipped",
-            );
-            InstallReport::default()
-        }
+    let install_report = match mcp_install_policy {
+        McpInstallPolicy::Skip => InstallReport::default(),
+        McpInstallPolicy::Install => match std::env::current_exe() {
+            Ok(exe) => {
+                let fresh = crate::activation::mcp_client::AnvilEntry::local_stdio(exe);
+                install::install_for_clients(root, home, &fresh, interactive)
+            }
+            Err(e) => {
+                // current_exe failed — verify_with_home will also report
+                // last_error, so we don't shadow that signal. Skip install
+                // entirely.
+                tracing::warn!(
+                    error = %e,
+                    "orchestrator: could not resolve current_exe; MCP install skipped",
+                );
+                InstallReport::default()
+            }
+        },
     };
 
     // Step 3 — final probe. The diagnostic absorbs the install side
@@ -530,7 +595,21 @@ mod tests {
         home: &Path,
         global: &GlobalArgs,
     ) -> (ActivationDiagnostic, InstallReport) {
-        run_with_home(root, Some(home), global).expect("orchestrator should succeed")
+        run_with_home_for_test(root, Some(home), global).expect("orchestrator should succeed")
+    }
+
+    fn run_with_home_for_test(
+        root: &Path,
+        home: Option<&Path>,
+        global: &GlobalArgs,
+    ) -> anyhow::Result<(ActivationDiagnostic, InstallReport)> {
+        run_with_home_and_registration(
+            root,
+            home,
+            global,
+            |_| WorktreeRegistration::DaemonUnavailable,
+            McpInstallPolicy::Install,
+        )
     }
 
     #[test]
@@ -655,6 +734,27 @@ mod tests {
         assert!(attrs.contains("anvil/witness/active.ndjson merge=union -text"));
     }
 
+    #[test]
+    fn orchestrator_installs_managed_git_hooks_when_repo_present() {
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let global = default_global();
+
+        init_git_repo(dir.path());
+
+        run_in_isolated(dir.path(), home.path(), &global);
+
+        for hook in ["pre-commit", "pre-push"] {
+            let path = dir.path().join(".git/hooks").join(hook);
+            let raw = std::fs::read_to_string(&path)
+                .unwrap_or_else(|e| panic!("read installed hook {}: {e}", path.display()));
+            assert!(
+                raw.contains("# @anvil-managed"),
+                "{hook} must be installed as an anvil-managed hook; got:\n{raw}",
+            );
+        }
+    }
+
     /// MLP2-038 — end-to-end proof that the `merge=union -text` line the
     /// orchestrator writes actually causes git to union-merge witness file
     /// appends from parallel branches without producing conflict markers.
@@ -776,6 +876,21 @@ mod tests {
             .unwrap_or_else(|e| panic!("append to {}: {e}", path.display()));
     }
 
+    fn init_git_repo(root: &Path) {
+        let out = std::process::Command::new("git")
+            .arg("-C")
+            .arg(root)
+            .args(["init", "-q", "-b", "main"])
+            .output()
+            .unwrap_or_else(|e| panic!("git init failed to spawn: {e}"));
+        assert!(
+            out.status.success(),
+            "git init failed: stdout={:?} stderr={:?}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr),
+        );
+    }
+
     #[test]
     fn orchestrator_continues_when_project_id_write_fails() {
         // A7.2 — failures to establish project-id MUST NOT propagate.
@@ -789,10 +904,36 @@ mod tests {
 
         std::fs::create_dir_all(dir.path().join("anvil/project-id")).unwrap();
 
-        let result = run_with_home(dir.path(), Some(home.path()), &global);
+        let result = run_with_home_for_test(dir.path(), Some(home.path()), &global);
         assert!(
             result.is_ok(),
             "orchestrator must not fail when anvil/project-id is unwritable: {result:?}"
+        );
+    }
+
+    #[test]
+    fn orchestrator_attempts_daemon_worktree_registration() {
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let global = default_global();
+        let called = std::cell::Cell::new(false);
+
+        run_with_home_and_registration(
+            dir.path(),
+            Some(home.path()),
+            &global,
+            |root| {
+                assert_eq!(root, dir.path());
+                called.set(true);
+                WorktreeRegistration::Registered
+            },
+            McpInstallPolicy::Install,
+        )
+        .expect("orchestrator should continue after registration");
+
+        assert!(
+            called.get(),
+            "orchestrator must register the activation worktree"
         );
     }
 
@@ -850,6 +991,35 @@ mod tests {
         );
         assert!(home.path().join(".cursor/mcp.json").exists());
         assert!(home.path().join(".claude.json").exists());
+    }
+
+    #[test]
+    fn orchestrator_skips_mcp_install_when_policy_skip() {
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let global = default_global();
+
+        let (_diag, report) = run_with_home_and_registration(
+            dir.path(),
+            Some(home.path()),
+            &global,
+            |_| WorktreeRegistration::DaemonUnavailable,
+            McpInstallPolicy::Skip,
+        )
+        .expect("orchestrator should succeed with MCP install skipped");
+
+        assert!(
+            report.per_client.is_empty(),
+            "skip policy must not report per-client MCP writes"
+        );
+        assert!(
+            !home.path().join(".cursor/mcp.json").exists(),
+            "skip policy must not write Cursor MCP config"
+        );
+        assert!(
+            !home.path().join(".claude.json").exists(),
+            "skip policy must not write Claude Code MCP config"
+        );
     }
 
     #[test]

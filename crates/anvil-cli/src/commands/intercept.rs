@@ -2,8 +2,8 @@
 //!
 //! Wires the shipped `anvil` binary's CLI surface to the intercept
 //! daemon library. Today this implements `start --foreground` (INTD-001),
-//! `status` (INTD-011), `unblock` (RCLI3-017b), and `stop` (V060F-002 —
-//! signal the running daemon's PID file); a daemonised (non-foreground)
+//! `status` (INTD-011), `unblock` (RCLI3-017b), and `stop` (V060F-002 /
+//! ACTMO-008 — stop the daemon recorded in the PID file); a daemonised (non-foreground)
 //! `start` arrives with later INTD tasks.
 
 use anvil_intercept::{ForegroundOpts, Shutdown, config, run_foreground, wait_for_shutdown_signal};
@@ -58,11 +58,10 @@ enum InterceptCommand {
     ///    `degraded:fence-cascade` engaged state. The two modes
     ///    target different daemon state and do NOT overlap.
     Unblock(UnblockArgs),
-    /// Stop the per-user intercept daemon. Sends SIGTERM to the PID
-    /// recorded in the daemon's PID file; the daemon flushes fence
-    /// state, unbinds its IPC listener, and exits cleanly. Idempotent —
-    /// exits zero when no daemon is running. Unix-only for now
-    /// (background daemon lifecycle is Unix-only; DSV-010/011).
+    /// Stop the per-user intercept daemon recorded in the daemon PID file.
+    /// Unix sends SIGTERM so the daemon can flush fence state and unbind its
+    /// IPC listener; Windows terminates the headless daemon process and clears
+    /// the PID file. Idempotent — exits zero when no daemon is running.
     Stop,
 }
 
@@ -121,20 +120,17 @@ pub fn run(args: &InterceptArgs, _global: &GlobalArgs) -> Result<()> {
     }
 }
 
-/// V060F-002: stop the per-user intercept daemon. Delegates to the
-/// `anvil_intercept` lookup-and-signal primitive (which owns the `nix`
-/// dependency and the PID-file semantics) and renders the outcome.
+/// V060F-002 / ACTMO-008: stop the per-user intercept daemon. Delegates to the
+/// `anvil_intercept` lookup-and-stop primitive (which owns the platform
+/// signalling/termination and PID-file semantics) and renders the outcome.
 /// Idempotent: a missing or stale PID file exits zero with an
 /// informational line, matching the `unblock` no-op convention.
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 fn run_stop() -> Result<()> {
     use anvil_intercept::StopOutcome;
 
     match anvil_intercept::request_daemon_stop()? {
-        StopOutcome::Signalled { pid } => println!(
-            "sent SIGTERM to the anvil intercept daemon (pid {pid}); it will flush fence state \
-             and exit",
-        ),
+        StopOutcome::Signalled { pid } => println!("{}", stop_success_line(pid)),
         StopOutcome::NotRunning => {
             println!("anvil intercept daemon is not running (no PID file)");
         }
@@ -145,15 +141,23 @@ fn run_stop() -> Result<()> {
     Ok(())
 }
 
-/// Non-Unix entry: the background daemon lifecycle (and therefore a
-/// PID-file to signal) is Unix-only today — the save-time Windows gap is
-/// tracked under DSV-010/011. Bail with an actionable line rather than
-/// pretending to stop a daemon that was never backgrounded here.
-#[cfg(not(unix))]
+#[cfg(unix)]
+fn stop_success_line(pid: u32) -> String {
+    format!(
+        "sent SIGTERM to the anvil intercept daemon (pid {pid}); it will flush fence state and exit"
+    )
+}
+
+#[cfg(windows)]
+fn stop_success_line(pid: u32) -> String {
+    format!("stopped the anvil intercept daemon (pid {pid}); cleared the PID file")
+}
+
+#[cfg(not(any(unix, windows)))]
 fn run_stop() -> Result<()> {
     anyhow::bail!(
-        "`anvil intercept stop` is not supported on this platform yet — the background daemon \
-         lifecycle is Unix-only (DSV-010/011). Stop a foreground daemon with Ctrl+C.",
+        "`anvil intercept stop` is not supported on this platform yet. Stop a foreground daemon \
+         with Ctrl+C.",
     )
 }
 
@@ -337,7 +341,10 @@ fn run_status(args: &StatusArgs) -> Result<()> {
             .context("failed to serialise daemon status as JSON")?;
         println!("{json}");
     } else {
-        print!("{}", render_status_lines(&snapshot));
+        print!(
+            "{}",
+            render_status_lines_with_pid(&snapshot, daemon_pid_for_display())
+        );
     }
     Ok(())
 }
@@ -1087,15 +1094,28 @@ fn parse_query_status_response_bytes(buf: &[u8], read: usize) -> Result<DaemonSt
 /// pin. Building on the proto wire shape (rather than the daemon's
 /// in-memory `DaemonStatus`) means future driver consumers can reuse
 /// this exact rendering against a daemon they did not link against.
+#[cfg(test)]
 fn render_status_lines(status: &DaemonStatusV1) -> String {
+    render_status_lines_with_pid(status, None)
+}
+
+fn render_status_lines_with_pid(status: &DaemonStatusV1, daemon_pid: Option<u32>) -> String {
     use std::fmt::Write as _;
 
     let mut out = String::new();
-    let _ = writeln!(
-        out,
-        "daemon:    running (uptime {}s, version {})",
-        status.health.uptime_seconds, status.health.version,
-    );
+    if let Some(pid) = daemon_pid {
+        let _ = writeln!(
+            out,
+            "daemon:    running (pid {pid}, uptime {}s, version {})",
+            status.health.uptime_seconds, status.health.version,
+        );
+    } else {
+        let _ = writeln!(
+            out,
+            "daemon:    running (uptime {}s, version {})",
+            status.health.uptime_seconds, status.health.version,
+        );
+    }
     let active_session_count = status.sessions.len();
     let session_word = if active_session_count == 1 {
         "session"
@@ -1111,7 +1131,18 @@ fn render_status_lines(status: &DaemonStatusV1) -> String {
         status.latency.mid_edit.as_ref(),
     ));
     out.push('\n');
+    let _ = writeln!(out, "control:   anvil intercept stop");
+    out.push('\n');
     out
+}
+
+fn daemon_pid_for_display() -> Option<u32> {
+    let path = anvil_intercept::default_pid_file_path().ok()?;
+    let record = std::fs::read_to_string(path).ok()?;
+    record
+        .lines()
+        .next()
+        .and_then(|line| line.trim().parse::<u32>().ok())
 }
 
 fn render_latency_line_for_wire(
@@ -1546,6 +1577,24 @@ mod tests {
         }];
         let rendered = render_status_lines(&status);
         assert!(rendered.contains("sessions:  1 active"));
+    }
+
+    #[test]
+    fn cli_status_names_daemon_pid_when_available() {
+        let rendered = render_status_lines_with_pid(&empty_status(), Some(4242));
+        assert!(
+            rendered.contains("daemon:    running (pid 4242, uptime 12s, version 0.5.1-beta)"),
+            "status should name the daemon PID when available; got:\n{rendered}",
+        );
+    }
+
+    #[test]
+    fn cli_status_names_intercept_stop_recovery_command() {
+        let rendered = render_status_lines(&empty_status());
+        assert!(
+            rendered.contains("control:   anvil intercept stop"),
+            "status should show the daemon stop command; got:\n{rendered}",
+        );
     }
 
     #[test]

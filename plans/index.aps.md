@@ -107,10 +107,9 @@ Selection rules:
 
 | Rank | NBI | Mode | Source | Why now | Next action |
 | ---- | --- | ---- | ------ | ------- | ----------- |
-| 1 | ACTMO-002 — MCP-independent worktree registration | Ready | [activation-mcp-optional](./modules/activation-mcp-optional.aps.md) + [#2937](https://github.com/eddacraft/anvil-001/issues/2937) | v0.8.2-beta Windows smoke still parks at `worktree_unenforced` after CIB-072; daemon is up and MCP handshake verified but worktree never registers — blocks beta adoption ([#2874](https://github.com/eddacraft/anvil-001/issues/2874)). Design pinned in [#2939](https://github.com/eddacraft/anvil-001/issues/2939) / ADR-092. | Branch `feat/actmo`; implement ACTMO-002 (accept ADR-092 in ACTMO-001 same PR or immediately before). |
-| 2 | INSEC-001..006 — insecure-construction catalogue, first wave | Ready | [insecure-construction-catalogue](./modules/insecure-construction-catalogue.aps.md) | The highest-value Ready item against the core thesis (make AI-generated code safe to merge): new save-time security smells — the `insecure-construction` category variant + `weak-cryptography` and `unsafe-rendering` regex families (enabled by default) + SSTI folded into the existing `dynamic-execution` family — under [ADR-087](./decisions/087-security-antipattern-category.md) (Accepted) and the ADR-071 AST tier, with the spec §16.5 #9 false-positive bar as the dogfood gate. INSEC-007 (`injection-smell`, AST) + INSEC-008 (insecure-RNG) stay Proposed (deferred opt-in). | Implement INSEC-001 (category variant) → -002/-003 (families) → -004 (SSTI) → -005 (scope-guard note) → -006 (dogfood FP acceptance) in `patterns/` + `anvil-checks`. |
-| 3 | EVAL-001..005 — policy eval-harness integration | Ready | [eval-harness-integration](./modules/eval-harness-integration.aps.md) | Deps met: `anvil policy eval --json` is frozen at v1 (CIB-078 Merged) and POLENG/regorus is Complete. Builds the `EvalHarnessPort` + framework adapter + CI regression command + canonical result persistence + policy-guidance linkage — and is the substrate that unblocks the downstream Ready packs **ATC** (adversarial-testing-catalog) and **PATT** (prompt-attack-regression-packs). | Implement EVAL-001 (`EvalHarnessPort`) first, then -002..-005, bound to the frozen `policy eval --json` v1 contract. |
-| 4 | DASH-001..009 — dashboard foundation (Wave 1) | Ready | [dashboard-foundation](./modules/dashboard-foundation.aps.md) | Wave-1 foundation for the browser surface (team-lead / platform / compliance roles). It is the single gate that unblocks three further Ready modules — **DASHCORE**, **DASHARCH**, **DASHOPS** — so foundation work has the widest downstream unlock. Built in `apps/website/` (Next.js 16 + shadcn/ui + Recharts); 1/9 done. | Continue from DASH-001 (route group + layout shell) through the data layer (-005/-006); foundation gates the Wave-2 view modules. |
+| 1 | INSEC-001..006 — insecure-construction catalogue, first wave | Ready | [insecure-construction-catalogue](./modules/insecure-construction-catalogue.aps.md) | The highest-value Ready item against the core thesis (make AI-generated code safe to merge): new save-time security smells — the `insecure-construction` category variant + `weak-cryptography` and `unsafe-rendering` regex families (enabled by default) + SSTI folded into the existing `dynamic-execution` family — under [ADR-087](./decisions/087-security-antipattern-category.md) (Accepted) and the ADR-071 AST tier, with the spec §16.5 #9 false-positive bar as the dogfood gate. INSEC-007 (`injection-smell`, AST) + INSEC-008 (insecure-RNG) stay Proposed (deferred opt-in). | Implement INSEC-001 (category variant) → -002/-003 (families) → -004 (SSTI) → -005 (scope-guard note) → -006 (dogfood FP acceptance) in `patterns/` + `anvil-checks`. |
+| 2 | EVAL-001..005 — policy eval-harness integration | Ready | [eval-harness-integration](./modules/eval-harness-integration.aps.md) | Deps met: `anvil policy eval --json` is frozen at v1 (CIB-078 Merged) and POLENG/regorus is Complete. Builds the `EvalHarnessPort` + framework adapter + CI regression command + canonical result persistence + policy-guidance linkage — and is the substrate that unblocks the downstream Ready packs **ATC** (adversarial-testing-catalog) and **PATT** (prompt-attack-regression-packs). | Implement EVAL-001 (`EvalHarnessPort`) first, then -002..-005, bound to the frozen `policy eval --json` v1 contract. |
+| 3 | DASH-001..009 — dashboard foundation (Wave 1) | Ready | [dashboard-foundation](./modules/dashboard-foundation.aps.md) | Wave-1 foundation for the browser surface (team-lead / platform / compliance roles). It is the single gate that unblocks three further Ready modules — **DASHCORE**, **DASHARCH**, **DASHOPS** — so foundation work has the widest downstream unlock. Built in `apps/website/` (Next.js 16 + shadcn/ui + Recharts); 1/9 done. | Continue from DASH-001 (route group + layout shell) through the data layer (-005/-006); foundation gates the Wave-2 view modules. |
 
 NBI review note (2026-06-26, ACTMO promotion): **ACTMO-002** promoted to rank 1
 after v0.8.2-beta Windows smoke ([#2937](https://github.com/eddacraft/anvil-001/issues/2937))
@@ -119,6 +118,67 @@ APS module [`activation-mcp-optional`](./modules/activation-mcp-optional.aps.md)
 is **Ready** (0/10); design [#2939](https://github.com/eddacraft/anvil-001/issues/2939);
 ADR-092 Proposed. Prior post-snippet-line picks (**INSEC**, **EVAL**, **DASH**)
 demoted one rank.
+
+NBI review note (2026-06-26, ACTMO-001/-002 implementation): **ACTMO-001** and
+**ACTMO-002** are Done on `feat/actmo` (ADR-092 Accepted; activation now
+registers the current worktree with the intercept daemon before MCP install).
+Promoted **ACTMO-003** to rank 1 so the next change teaches the activation state
+machine to fall through honestly when the spine is live and MCP is absent or
+restart-bound, without weakening the `protecting` attestation predicate.
+
+NBI review note (2026-06-26, ACTMO-003 implementation): **ACTMO-003** is Done on
+`feat/actmo` — daemon attestation now records an `Enforced` spine state and maps
+covered repos to `state: watching` when MCP is absent or restart-bound, while
+`Protecting` still requires `LiveValidation`. Promoted **ACTMO-004** to rank 1
+for the explicit `--no-mcp` / `ANVIL_NO_MCP` opt-out.
+
+NBI review note (2026-06-26, ACTMO-004 implementation): **ACTMO-004** is Done on
+`feat/actmo` — `anvil start --no-mcp` and non-empty `ANVIL_NO_MCP` skip Cursor
+and Claude Code MCP config writes, render an explicit skipped-install line, and
+leave daemon-backed worktree registration active. Promoted **ACTMO-008** to rank
+1 for the remaining Windows smoke blocker around headless daemon visibility and
+`intercept stop` recovery.
+
+NBI review note (2026-06-26, ACTMO-008 implementation): **ACTMO-008** is Done on
+`feat/actmo` — `anvil intercept status` now names the daemon PID and stop
+command, while `intercept stop` shares the PID-file planner across Unix and
+Windows (Windows terminates the recorded daemon process and clears the PID
+file). Promoted **ACTMO-005** to rank 1 to close the next spine gap: activation
+must install hook coverage without relying on MCP.
+
+NBI review note (2026-06-26, ACTMO-005 implementation): **ACTMO-005** is Done on
+`feat/actmo` — activation now reuses the silent hooks installer to add
+Anvil-managed `pre-commit` and `pre-push` hooks in Git repos, preserving
+unmanaged hooks through the existing non-force skip policy. Promoted
+**ACTMO-006** to rank 1 for the default save-time armed posture after start.
+
+NBI review note (2026-06-26, ACTMO-006 implementation): **ACTMO-006** is Done on
+`feat/actmo` — daemon-attested starts now report daemon-backed save-time as
+armed, list the L2 daemon-backed layer in the first-run recipe, and point
+operators to `anvil intercept status` instead of requiring a manual
+`anvil watch`. Promoted **ACTMO-007** to rank 1 for the remaining Claude MCP
+allow-list friction.
+
+NBI review note (2026-06-26, ACTMO-007 implementation): **ACTMO-007** is Done on
+`feat/actmo` — Claude Code MCP installs now merge `mcp__anvil__*` into
+`.claude/settings.json` `permissions.allow`, preserving existing allow/deny
+rules and repairing already-up-to-date MCP entries that predate the allow-list.
+Promoted **ACTMO-009** to rank 1 for the docs/runbook closeout around the
+corporate no-MCP path.
+
+NBI review note (2026-06-26, ACTMO-009 implementation): **ACTMO-009** is Done on
+`feat/actmo` — added the MCP-optional activation runbook for `--no-mcp` /
+`ANVIL_NO_MCP`, linked it from the public wow-start guide and activation
+as-built, and regenerated docs indexes. Promoted **ACTMO-010** to rank 1 for the
+remaining E2E regression matrix.
+
+NBI review note (2026-06-26, ACTMO-010 implementation): **ACTMO-010** is Done on
+`feat/actmo-spine` — the E2E harness now covers default MCP install, `--no-mcp`
+activation, and the terminating daemon-repair verify path with isolated
+HOME/runtime state. ACTMO-001..010 are Done; the module is **In Progress** at
+10/12 with **ACTMO-011/-012** (Matt beta UX) still Ready. With the spine
+implemented, next-best work returns to **INSEC-001..006** unless ACTMO-011/-012
+are prioritised.
 
 NBI review note (2026-06-26, post-snippet-line refresh): the five previously
 ranked rows are now all **Done/Merged** — the v0.9 snippet line
@@ -411,7 +471,7 @@ the live release sequencing is in
 | [adoption-friction](./archive/modules/adoption-friction.aps.md)                 | ADOPT    | Complete | 6/6 | First-week friction removal. **ADOPT-005 `anvil uninstall` merged 2026-05-14 (PR #1521), Released/Shipped via [`v0.6.3-beta`](./releases/v0.6.3-beta.md) on 2026-05-15; ADOPT-001 hook coexistence Done 2026-05-15** (runbook at `docs/runbooks/anvil-hook-coexistence.md`); **resource budget (-002 Done 2026-05-16)**, **shared ignore policy (-004 Merged 2026-05-16 via PR #1658)**, **editor coexistence (-006 Merged 2026-05-17 via PR #1682)**, **AI auto-detect (-003 Merged 2026-05-18 via PR #1700** — primitive in PR #1543). All six items Released/Shipped (ADOPT-005 via `v0.6.3-beta`; the rest via `v0.7.0-beta` on 2026-05-21); module **Complete**; archived. Wave 3A. |
 | [distribution-and-update](./archive/modules/distribution-and-update.aps.md)     | DISTRIB  | Complete | 6/6      | Harden `anvil update` + Homebrew + cadence policy so hotfix iteration reaches users. **DISTRIB-001 Merged via PR #1562** (minisign verification + ADR-045). **DISTRIB-002 Merged via PR #1569** (`anvil version --check` advisory surface + watch/status hint). **DISTRIB-003 Merged via PR #1652** (Homebrew formula auto-bump extracted into tested script + workflow + runbook + macOS smoke matrix). **DISTRIB-004 Done 2026-05-16** (`docs/policies/release-cadence.md`). **DISTRIB-005 Released/Shipped via v0.7.3-beta** (PR #1984 at `8ae65b10` confirmed in tag; `anvil migrate schema`). **DISTRIB-006 Released/Shipped via v0.7.4-beta** (PR #2185 at `c5ee305b` confirmed in tag) — `ANVIL_HOME` / `--anvil-home` install-root override for side-by-side candidate installs, ADR-060 gate Accepted 2026-05-31. Module advanced to **Complete** 2026-06-08 per the v0.7.4-beta release-record post-tag note. ADR-044 §9 makes DISTRIB-001 / -002 load-bearing for the MCP-backend swap discovery gap. Wave 3A. |
 | [usage-insights](./modules/usage-insights.aps.md)                       | INSIGHTS | In Progress | 5/5      | Local-only periodic value signal (`anvil insights`); INSIGHTS-001 Done 2026-05-17; -002 (#1996) + -003 (#2111) Released/Shipped via v0.7.3-beta 2026-05-31; -004 Released/Shipped via v0.8.0-beta (Merged 2026-06-02 via PR #2226 — first-week nudge in `status` + watch, suppressed after an `anvil insights` run; merge recorded retroactively 2026-06-12); -005 Merged 2026-06-26 via PR #2957 (nudge on the `welcome` surface, reusing the -004 hint contract) — all 5 items Merged, module Complete-eligible pending release-tag evidence. No telemetry.                                            |
-| [activation-mcp-optional](./modules/activation-mcp-optional.aps.md)     | ACTMO    | Ready       | 0/12     | MCP-optional `anvil start` golden path: daemon + worktree registration + hooks + save-time armed without requiring MCP. Created 2026-06-26 from v0.8.2-beta Windows smoke ([#2937](https://github.com/eddacraft/anvil-001/issues/2937)); design [#2939](https://github.com/eddacraft/anvil-001/issues/2939); ADR-092 Proposed. **ACTMO-011/-012** added 2026-06-26 (Matt UX: noisy/contradictory start output; Cursor shown despite never used). All 12 work items Ready. Wave 1: ACTMO-001/-002/-004/-008; Wave 2 UX: ACTMO-011/-012 with -003. |
+| [activation-mcp-optional](./modules/activation-mcp-optional.aps.md)     | ACTMO    | In Progress | 10/12    | MCP-optional `anvil start` golden path: daemon + worktree registration + hooks + save-time armed without requiring MCP. Created 2026-06-26 from v0.8.2-beta Windows smoke ([#2937](https://github.com/eddacraft/anvil-001/issues/2937)); design [#2939](https://github.com/eddacraft/anvil-001/issues/2939); ADR-092 Accepted. ACTMO-001/-010 Done on `feat/actmo-spine` (Council-reviewed; post-review fixes folded in). **ACTMO-011/-012** remain Ready (Matt UX: noisy/contradictory start output; Cursor shown despite never used). Wave 1: ACTMO-001/-002/-004/-008; Wave 2 UX: ACTMO-011/-012 with -003. |
 | [user-journey](./archive/modules/user-journey.aps.md)                           | UJ       | Complete | 15/15 | Two beta golden paths — `anvil welcome` (discovery wow) and `anvil start` → watch/MCP (daily value) — made strong and self-guiding. Created 2026-06-10 from the v0.8.0-beta user-journey completeness review (operator-directed: beta posture permits explicit "run `anvil start` or `anvil welcome`" guidance; out-of-the-box usefulness ranks above tutorials). Eight items Merged + UJ-002 verified-no-change on 2026-06-10 (PRs #2500..#2507); UJ-007 resolved guidance-only (ADR-079); UJ-011 shaping approved → UJ-012..015 filed (tutorial execution set); UJ-004 (ungate `welcome`, ADR-080) Merged via #2509; UJ-012 (flagship save-caught tutorial) Merged via #2510; UJ-013 (Rust tutorial) Merged via #2511; UJ-014 (refresh + index rewrite) Merged via #2513; UJ-015 (retire ci/suppressions into guides) Merged via #2514 — all 15 items dispositioned; module Complete 2026-06-10; Released/Shipped via v0.8.0-beta (2026-06-11); archived 2026-06-13. Coordinates with CIB-047/-054/-055, INSIGHTS-005, DISTRIB-002, DSV-021/ADR-075. |
 
 ### Rust Engine

@@ -212,6 +212,12 @@ pub enum RenderError {
     BadRoot,
     /// `mcpServers` (or equivalent) is present but not an object.
     BadServersKey,
+    /// Claude Code `permissions` is present but not an object.
+    BadPermissionsKey,
+    /// Claude Code `permissions.allow` is present but not an array of strings.
+    BadAllowKey,
+    /// Claude Code settings JSON could not be parsed.
+    BadSettingsJson(String),
     /// `serde_json::to_string_pretty` failed — payload carries the
     /// underlying reason (rare; usually I/O or invalid Value content).
     Serialise(String),
@@ -226,6 +232,16 @@ impl std::fmt::Display for RenderError {
         match self {
             RenderError::BadRoot => write!(f, "config root is not a JSON object"),
             RenderError::BadServersKey => write!(f, "`mcpServers` is present but not an object"),
+            RenderError::BadPermissionsKey => {
+                write!(f, "`permissions` is present but not an object")
+            }
+            RenderError::BadAllowKey => {
+                write!(
+                    f,
+                    "`permissions.allow` is present but not an array of strings"
+                )
+            }
+            RenderError::BadSettingsJson(s) => write!(f, "settings JSON parse error: {s}"),
             RenderError::Serialise(s) => write!(f, "serialise: {s}"),
             RenderError::InvalidCommandPath => {
                 write!(f, "anvil binary path is not valid UTF-8")

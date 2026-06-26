@@ -112,6 +112,11 @@ pub struct StartArgs {
     /// (CI, hooks, piped output) already fall back automatically.
     #[arg(long = "no-daemon")]
     pub no_daemon: bool,
+    /// Skip MCP config installation. The daemon-backed activation spine still
+    /// runs; this is for corporate environments where editor MCP integration is
+    /// blocked or deliberately disabled.
+    #[arg(long = "no-mcp")]
+    pub no_mcp: bool,
 }
 
 /// MLP2-039 — the format set chosen at adoption time. Maps onto
@@ -261,13 +266,21 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     }
     let daemon_outcome = daemon_capability.map(crate::commands::intercept::ensure_save_time_daemon);
 
+    let mcp_policy = mcp_install_policy(args);
     let (mut diagnostic, install_report) = if read_only {
         (
             activation::verify(root),
             activation::orchestrator::InstallReport::default(),
         )
     } else {
-        activation::orchestrator::run(root, global)?
+        match mcp_policy {
+            activation::orchestrator::McpInstallPolicy::Install => {
+                activation::orchestrator::run(root, global)?
+            }
+            activation::orchestrator::McpInstallPolicy::Skip => {
+                activation::orchestrator::run_with_mcp_policy(root, global, mcp_policy)?
+            }
+        }
     };
 
     // ADOPT-003 CLI wiring — auto-detect installed AI tools and
@@ -331,6 +344,11 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         // is `None`), keeping `--verify` byte-stable.
         if let Some(outcome) = &daemon_outcome {
             print!("{}", render_daemon_lifecycle_line(outcome));
+        }
+        if !read_only && matches!(mcp_policy, activation::orchestrator::McpInstallPolicy::Skip) {
+            println!(
+                "  install: skipped — MCP config installation disabled (`--no-mcp` / `ANVIL_NO_MCP`)"
+            );
         }
         // MLP2-051g — verbose tier-evidence on stderr. Additive: the
         // stdout block above is byte-identical with or without
@@ -694,6 +712,18 @@ fn start_daemon_opt_out(args: &StartArgs) -> bool {
     args.no_daemon || std::env::var_os("ANVIL_NO_DAEMON").is_some_and(|value| !value.is_empty())
 }
 
+fn start_mcp_opt_out(args: &StartArgs) -> bool {
+    args.no_mcp || std::env::var_os("ANVIL_NO_MCP").is_some_and(|value| !value.is_empty())
+}
+
+fn mcp_install_policy(args: &StartArgs) -> activation::orchestrator::McpInstallPolicy {
+    if start_mcp_opt_out(args) {
+        activation::orchestrator::McpInstallPolicy::Skip
+    } else {
+        activation::orchestrator::McpInstallPolicy::Install
+    }
+}
+
 /// Whether `anvil start` has an interactive consent surface for
 /// auto-starting the daemon. False in the contexts that must never grow
 /// a surprise background daemon: CI / commit hooks / explicit
@@ -780,6 +810,8 @@ const RECIPE_LINES: &[&str] = &[
 fn start_next_step_line(diag: &activation::ActivationDiagnostic) -> &'static str {
     if diag.mcp_pre_write_live() {
         "  Next: MCP pre-write protection is live; run `anvil status` to see posture any time."
+    } else if diag.daemon_attestation.attests_worktree() {
+        "  Next: daemon-backed save-time validation is armed; run `anvil intercept status` to inspect the daemon."
     } else {
         "  Next: run `anvil watch` to validate files as you save."
     }
@@ -795,14 +827,12 @@ fn render_first_run_recipe(diag: &activation::ActivationDiagnostic) -> String {
     if diag.mcp_pre_write_wired_or_live() {
         out.push_str("    - L0 mcp pre-write\n");
     }
-    if matches!(diag.watch, activation::diagnostic::WatchTier::Running) {
+    if diag.daemon_attestation.attests_worktree() {
+        out.push_str("    - L2 daemon-backed save-time\n");
+    } else if matches!(diag.watch, activation::diagnostic::WatchTier::Running) {
         out.push_str("    - L2 save-time watch\n");
     }
-    // L3/L4 hooks land via `anvil init`; the `anvil start` flow does
-    // not install them in v1, so name the deterministic backbone
-    // without claiming it is wired. Hook installation status is
-    // surfaced separately by `anvil status`.
-    out.push_str("    - L3/L4 commit + push hooks (via `anvil init`)\n");
+    out.push_str("    - L3/L4 commit + push hooks (via `anvil start`)\n");
     let _ = writeln!(
         out,
         "  recipe (try this now — triggers `{RECIPE_CHECK_NAME}`):"
@@ -853,6 +883,13 @@ mod tests {
         }
     }
 
+    fn daemon_attested_diagnostic() -> activation::ActivationDiagnostic {
+        let mut diag = synth_diagnostic(activation::state::ProtectionState::NeedsAction);
+        diag.config = activation::diagnostic::ConfigStatus::Valid;
+        diag.daemon_attestation = activation::daemon_evidence::DaemonAttestation::Enforced;
+        diag
+    }
+
     // UJ-001: a plain `anvil start` ending names the single next step.
 
     #[test]
@@ -880,6 +917,20 @@ mod tests {
             line.contains("anvil watch"),
             "at restart_required MCP is wired but not live; claiming live would \
              contradict the restart instruction above, got: {line}",
+        );
+    }
+
+    #[test]
+    fn next_step_names_daemon_status_when_save_time_daemon_is_armed() {
+        let diag = daemon_attested_diagnostic();
+        let line = start_next_step_line(&diag);
+        assert!(
+            !line.contains("anvil watch"),
+            "daemon-backed save-time is already armed; got: {line}",
+        );
+        assert!(
+            line.contains("anvil intercept status"),
+            "daemon-backed next step should name status inspection, got: {line}",
         );
     }
 
@@ -989,6 +1040,12 @@ mod tests {
         assert!(
             !needs_action.contains("L0 mcp pre-write"),
             "needs_action render must NOT claim L0 is live: {needs_action}"
+        );
+
+        let daemon_backed = render_first_run_recipe(&daemon_attested_diagnostic());
+        assert!(
+            daemon_backed.contains("L2 daemon-backed save-time"),
+            "daemon-attested render must name the active save-time layer: {daemon_backed}"
         );
     }
 
@@ -1120,6 +1177,7 @@ mod tests {
             new_identity: false,
             why: false,
             no_daemon: false,
+            no_mcp: false,
         }
     }
 
@@ -1195,6 +1253,23 @@ mod tests {
             ..start_args_default()
         };
         assert!(start_daemon_opt_out(&opted_out));
+    }
+
+    #[test]
+    fn no_mcp_flag_sets_mcp_install_policy_to_skip() {
+        assert_eq!(
+            mcp_install_policy(&start_args_default()),
+            activation::orchestrator::McpInstallPolicy::Install,
+        );
+        let opted_out = StartArgs {
+            no_mcp: true,
+            ..start_args_default()
+        };
+        assert!(start_mcp_opt_out(&opted_out));
+        assert_eq!(
+            mcp_install_policy(&opted_out),
+            activation::orchestrator::McpInstallPolicy::Skip,
+        );
     }
 
     /// Daemon absent → started. The line reports the action and never

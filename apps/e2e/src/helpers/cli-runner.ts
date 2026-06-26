@@ -16,9 +16,13 @@ import { accessSync, constants as fsConstants, statSync } from 'node:fs';
 
 const EXE = process.platform === 'win32' ? 'anvil.exe' : 'anvil';
 const REPO_ROOT = resolve(__dirname, '../../../..');
+const CONFIGURED_TARGET_DIR = process.env.CARGO_TARGET_DIR;
 const RUST_CANDIDATES = [
-  resolve(REPO_ROOT, 'target/release', EXE),
+  ...(CONFIGURED_TARGET_DIR
+    ? [resolve(CONFIGURED_TARGET_DIR, 'debug', EXE), resolve(CONFIGURED_TARGET_DIR, 'release', EXE)]
+    : []),
   resolve(REPO_ROOT, 'target/debug', EXE),
+  resolve(REPO_ROOT, 'target/release', EXE),
 ];
 
 function isUsableBinary(p: string): boolean {
