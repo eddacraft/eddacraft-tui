@@ -19,9 +19,11 @@ usage() {
 Usage: pnpm bench [-- <options>]
 
 Runs all routine benchmark surfaces from one command:
-  - Rust benchmark compile checks
-  - kernel, checks, stress, antipattern_scan, secret_scan_parallel
+  - Rust benchmark compile checks (incl. graph-cache gate benches)
+  - kernel, checks, stress, antipattern_scan, secret_scan_parallel,
+    walk_discovery
   - intercept ipc_roundtrip and midedit_roundtrip
+  - graph-cache hot_read and call_lift latency gates
   - midedit baseline comparison
   - resource budgets: watch, intercept daemon, MCP server, and the
     concurrent all-three aggregate (RLB-002/-003/-004/-005)
@@ -92,6 +94,7 @@ run_logged cargo-check-anvil-bench cargo check -p anvil-bench --all-targets
 run_logged cargo-check-kernel-benches cargo check -p eddacraft-anvil-kernel --benches
 run_logged cargo-check-checks-benches cargo check -p eddacraft-anvil-checks --benches
 run_logged cargo-check-intercept-benches cargo check -p eddacraft-anvil-intercept --benches --features bench-internals
+run_logged cargo-check-graph-cache-benches cargo check -p eddacraft-anvil-graph-cache --benches
 run_logged cargo-test-anvil-bench cargo test -p anvil-bench
 
 run_logged kernel-bench cargo bench -p eddacraft-anvil-kernel --bench kernel -- --output-format bencher
@@ -99,8 +102,11 @@ run_logged checks-bench cargo bench -p eddacraft-anvil-checks --bench checks -- 
 run_logged stress-bench cargo bench -p anvil-bench --bench stress -- --output-format bencher
 run_logged antipattern-scan-bench cargo bench -p anvil-bench --bench antipattern_scan -- --output-format bencher
 run_logged secret-scan-parallel-bench cargo bench -p anvil-bench --bench secret_scan_parallel -- --output-format bencher
+run_logged walk-discovery-bench cargo bench -p anvil-bench --bench walk_discovery -- --output-format bencher
 run_logged ipc-roundtrip-bench cargo bench -p eddacraft-anvil-intercept --features bench-internals --bench ipc_roundtrip
 run_logged midedit-roundtrip-bench cargo bench -p eddacraft-anvil-intercept --features bench-internals --bench midedit_roundtrip
+run_logged hot-read-bench cargo bench -p eddacraft-anvil-graph-cache --bench hot_read
+run_logged call-lift-bench cargo bench -p eddacraft-anvil-graph-cache --bench call_lift
 
 run_logged check-midedit-baseline bash scripts/check-midedit-baseline.sh \
   "${artifact_dir}/midedit-roundtrip-bench.log" \

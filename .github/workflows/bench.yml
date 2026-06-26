@@ -9,6 +9,7 @@ on:
       - 'crates/anvil-kernel-types/**'
       - 'crates/anvil-checks/**'
       - 'crates/anvil-intercept/**'
+      - 'crates/anvil-graph-cache/**'
       - 'scripts/check-midedit-baseline.sh'
       - 'Cargo.toml'
       - 'Cargo.lock'
@@ -37,6 +38,7 @@ jobs:
       - run: cargo check -p eddacraft-anvil-kernel --benches
       - run: cargo check -p eddacraft-anvil-checks --benches
       - run: cargo check -p eddacraft-anvil-intercept --benches --features bench-internals
+      - run: cargo check -p eddacraft-anvil-graph-cache --benches
       - run: cargo test -p anvil-bench
 
   criterion:
@@ -61,6 +63,9 @@ jobs:
       - name: Run antipattern_scan benchmarks
         run: |
           set -o pipefail && cargo bench -p anvil-bench --bench antipattern_scan -- --output-format bencher | tee antipattern-bench.txt
+      - name: Run secret_scan_parallel benchmarks
+        run: |
+          set -o pipefail && cargo bench -p anvil-bench --bench secret_scan_parallel -- --output-format bencher | tee secret-scan-parallel-bench.txt
       - name: Upload benchmark results
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -70,6 +75,7 @@ jobs:
             checks-bench.txt
             stress-bench.txt
             antipattern-bench.txt
+            secret-scan-parallel-bench.txt
             target/criterion/
           if-no-files-found: ignore
           retention-days: 90

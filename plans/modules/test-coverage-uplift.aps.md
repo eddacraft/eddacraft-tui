@@ -2,7 +2,15 @@
 
 | ID   | Owner      | Status      | Progress |
 | ---- | ---------- | ----------- | -------- |
-| TCOV | @eddacraft | In Progress | 25/25    |
+| TCOV | @eddacraft | In Progress | 25/26    |
+
+## Progress (as of 2026-06-26)
+
+- **TCOV-026 filed 2026-06-26.** Benchmark contract drift: `pnpm bench`,
+  `bench.yml`, and `benchmarks/history/` schema diverged after GCALL/GV2-025
+  gates landed. New work item aligns the routine suite with CI and extends the
+  committed history schema (`secret_scan_parallel`, `walk_discovery`,
+  `hot_read`, `call_lift`, resource budgets). Status **In Progress**.
 
 ## Progress (as of 2026-06-20)
 
@@ -661,3 +669,39 @@ Change status to **Ready** when:
   released crate (currently `eddacraft-tui-v0.2.3`); the compliance test
   asserts against the re-exported trait, so an upstream trait change is a real
   (if low-frequency) source of churn.
+
+### Phase 5 — Benchmark contract alignment
+
+> Filed 2026-06-26 after the quiet-box `benchmarks/history/2026-06-26.json`
+> capture exposed drift: `pnpm bench`, `.github/workflows/bench.yml`, and the
+> history schema no longer describe the same surfaces (e.g. `secret_scan_parallel`
+> ran locally but not in CI; `hot_read` / `call_lift` gated in
+> `resource-budget.yml` but absent from `run.sh` and history). Closes the
+> measurement side of V050F-008 for dev-box baselines; CI-class baselines remain
+> a follow-up.
+
+#### TCOV-026: Align routine bench suite, CI, and history schema
+
+- **Intent:** One contract for pre-release benchmark capture: the surfaces in
+  `scripts/bench/run.sh`, the Criterion job in `.github/workflows/bench.yml`,
+  and `benchmarks/history/` schema + normaliser must match.
+- **Expected Outcome:**
+  - `bench.yml` runs `secret_scan_parallel` and uploads its log.
+  - `run.sh` runs `walk_discovery`, `hot_read`, and `call_lift` (the same
+    latency gates CI enforces via `resource-budget.yml`).
+  - `benchmarks/README.md` schema documents resource budgets, gate benches, and
+    `walk_discovery`.
+  - `scripts/bench/to-history.py` normalises a `benchmark-results/manual-*`
+    artifact dir into `benchmarks/history/<date>.json`.
+- **Files:**
+  - `scripts/bench/run.sh`
+  - `scripts/bench/to-history.py`
+  - `.github/workflows/bench.yml`
+  - `benchmarks/README.md`
+- **Dependencies:** —
+- **Validation:** `pnpm bench -- --skip-resource-budget` completes on a quiet
+  box; `python3 scripts/bench/to-history.py --help` documents usage; workflow
+  YAML includes `secret_scan_parallel`; `cargo check -p eddacraft-anvil-graph-cache
+  --benches` is in the bench compile-check job.
+- **Confidence:** high
+- **Status:** In Progress

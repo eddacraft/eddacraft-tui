@@ -29,12 +29,17 @@ record a trend graph can be built from).
     //   carry an optional "note" for caveats (label drift, raw-vs-derived, …).
     "kernel": [...], "checks": [...], "stress": [...],
     "antipattern_scan": [...], "secret_scan_parallel": [...],
-    // criterion percentile surface: { case, samples, p50_ms, p95_ms, p99_ms }
-    "ipc_roundtrip": [...],
+    "walk_discovery": [...],
+    // harness=false latency gates: { case, samples, p50_ms, p95_ms, p99_ms }
+    "ipc_roundtrip": [...], "hot_read": [...], "call_lift": [...],
     // criterion default surface: { case, median }
     "midedit_roundtrip": [...]
   },
-  "watch_resource_budget": { "status", "steady_state_cpu_pct", "peak_rss_mib", "budget" }
+  // resource-budget verdicts (from scripts/bench/run.sh when not skipped)
+  "watch_resource_budget": { "status", "steady_state_cpu_pct", "peak_rss_mib", "budget" },
+  "mcp_resource_budget": { "status", "steady_state_cpu_pct", "peak_rss_mib", "budget", "requests" },
+  "intercept_resource_budget": { "idle": { ... }, "burst": { ... } },
+  "concurrent_resource_budget": { "status", "steady_state_cpu_pct", "peak_rss_mib", "budget" }
 }
 ```
 
@@ -44,9 +49,16 @@ record a trend graph can be built from).
    sibling builds corrupt the numbers). Either `pnpm bench` or, if that harness
    aborts in a non-TTY shell, the `cargo bench -p … --bench …` lines from
    `scripts/bench/run.sh` run directly.
-2. Capture each bench's stdout, then normalise into the schema above and save as
-   `history/<date>.json`. Keep `commit` + `host` accurate — comparisons across
-   different hardware are not apples-to-apples.
+2. Normalise the artifact dir into the schema above and save as
+   `history/<date>.json`:
+
+   ```bash
+   python3 scripts/bench/to-history.py benchmark-results/manual-<timestamp> \
+     --date YYYY-MM-DD
+   ```
+
+   Or hand-parse each bench's stdout. Keep `commit` + `host` accurate —
+   comparisons across different hardware are not apples-to-apples.
 
 ## Comparing across runs
 
