@@ -4,7 +4,7 @@
 
 | ID  | Owner      | Status      | Progress |
 | --- | ---------- | ----------- | -------- |
-| KDS | @eddacraft | In Progress | 4/5      |
+| KDS | @eddacraft | In Progress | 5/5      |
 
 > **In Progress** — the module passed Ready (placement + async-bridge decisions
 > settled; see Open Questions, now answered) and KDS-001 + KDS-003 are underway.
@@ -261,7 +261,7 @@ need a short ADR to reconcile the wording.
   unrecognised → `daemon`; `off` → off); `usage_observation` confirms the CLI
   producer still writes the sidecar under the new default. The spool caps are
   covered by `kindling-client` 0.3's own retention tests.
-- **Status:** In Progress
+- **Status:** Merged 2026-06-26 via PR #2949
 - **Dependencies:** KDS-002 (Merged); KDS-004 (Merged, #2945 — read path so the
   views stay complete under the flip); `kindling-client` 0.3 spool cap (KINTEG-009,
   #2916 — landed)
