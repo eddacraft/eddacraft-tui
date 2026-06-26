@@ -183,19 +183,18 @@ fn run_usage(view: &UsageView, global: &GlobalArgs) -> anyhow::Result<()> {
 
     // KDS-004/-005: the daemon `command.invoked` sink is the default now, so the
     // JSON-RPC-dispatched rows live in the daemon (not the sidecar) — union them
-    // in for the full picture. In steady state the two sources are disjoint — the
-    // CLI producer writes only the sidecar, the daemon producer only the daemon,
-    // and they record different invocations — so the union is a plain concat.
-    // (There is no shared id to dedup across the two sources, so flipping the
-    // sink to `off` and back between runs could transiently double-count an
-    // invocation. Acceptable for these "signal, not evidence" views; a stable
-    // cross-source identity is a follow-up.) Degrade gracefully (sidecar-only,
-    // with a stderr note that keeps `--json` stdout clean) if the daemon can't be
-    // read — common when no daemon is running (a CLI-only host). No daemon read
-    // when capture is disabled or under `off`.
-    if usage::resolve_kindling_sink() == usage::KindlingSinkSelection::Daemon
-        && !usage::usage_collection_disabled()
-    {
+    // in for the full picture. The two sources are disjoint: the CLI producer
+    // writes only the sidecar, the daemon producer only the daemon, and they
+    // record different invocations, so the union is a plain concat with no
+    // double-count (and `off`, the only other value, just disables the daemon
+    // producer — it never re-routes a row to the sidecar). The producer
+    // kill-switches (`DO_NOT_TRACK` / `ANVIL_USAGE_DISABLE` /
+    // `ANVIL_INTERCEPT_DISABLE_OBSERVATION`) stop *recording* new rows — they
+    // deliberately do NOT suppress this *read*, which would hide rows already
+    // captured. Degrade gracefully (sidecar-only, with a stderr note that keeps
+    // `--json` stdout clean) if the daemon can't be read — common on a CLI-only
+    // host with no daemon running. No daemon read under `off`.
+    if usage::resolve_kindling_sink() == usage::KindlingSinkSelection::Daemon {
         match load_rows_from_daemon() {
             Ok(daemon_rows) => rows.extend(daemon_rows),
             Err(err) => {

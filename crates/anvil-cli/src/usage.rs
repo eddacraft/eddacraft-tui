@@ -1493,6 +1493,49 @@ mod tests {
         );
     }
 
+    /// N2 invariant (KDS-005): the daemon `command.invoked` sink MUST be wrapped
+    /// in `NonBlockingObservationSink`, so emitting never blocks the caller (the
+    /// daemon event loop) on the sink's I/O — even when the daemon is down and
+    /// the inner `KindlingDaemonSink` would `block_on` a ~1s connect/spool. A
+    /// burst of emits must return far faster than that work would take inline;
+    /// the drain thread does it in the background. Guards against a regression
+    /// that re-introduces the original event-loop stall.
+    #[test]
+    fn daemon_emitter_emits_are_non_blocking() {
+        use anvil_intercept::kindling_observation::CommandInvokedEmissionRequest;
+        use std::time::Instant;
+
+        let home = tempdir().expect("temp home");
+        temp_env::with_vars(
+            [
+                ("ANVIL_INTERCEPT_DISABLE_OBSERVATION", None::<&str>),
+                ("ANVIL_KINDLING_SINK", Some("daemon")),
+                ("ANVIL_HOME", Some(home.path().to_str().expect("utf8 home"))),
+            ],
+            || {
+                let emitter = daemon_usage_emitter().expect("daemon emitter wired");
+                let params = serde_json::json!({});
+                let start = Instant::now();
+                for _ in 0..20 {
+                    emitter.try_emit(&CommandInvokedEmissionRequest {
+                        method: "anvil/gctx/search_symbols",
+                        principal: Some("abc123"),
+                        params: &params,
+                        timestamp: "2026-06-26T10:00:00Z",
+                        traceparent: None,
+                    });
+                }
+                let elapsed = start.elapsed();
+                // 20 `try_send`s are microseconds; unwrapped they'd be ~20 × the
+                // connect budget. 1s is a generous, regression-catching bound.
+                assert!(
+                    elapsed < Duration::from_secs(1),
+                    "20 emits took {elapsed:?} — the daemon sink is not NonBlocking-wrapped",
+                );
+            },
+        );
+    }
+
     #[test]
     fn argv_shapes_capture_global_flag_before_subcommand() {
         // `anvil --json version`: the global flag precedes the

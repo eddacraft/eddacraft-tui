@@ -163,11 +163,12 @@ the literal `1`.
 `anvil kindling usage <view>` is the first-class surface for the founder's
 standing questions — "what is being used and what is not" — over the local usage
 data. It is local-only and needs no authentication (like `anvil insights`). It
-reads `<credentials_dir>/kindling/usage.ndjson` and, under
-`ANVIL_KINDLING_SINK=daemon`, **also the Kindling daemon** (KDS-004) — unioning
-the two so the views see every row whichever sink is active (degrading to
-sidecar-only, with a note, if the daemon can't be read — see below). Pass
-`--json` for machine-readable output; the default is a small human table.
+reads `<credentials_dir>/kindling/usage.ndjson` and — unless
+`ANVIL_KINDLING_SINK=off` — **also the Kindling daemon** (KDS-004; the daemon is
+the default sink since KDS-005) — unioning the two so the views see every row
+(degrading to sidecar-only, with a note, if the daemon can't be read — see
+below). Pass `--json` for machine-readable output; the default is a small human
+table.
 
 > **Source for the views (KDS-004/-005).** The CLI producer always records to
 > the sidecar; the daemon JSON-RPC producer records to the Kindling daemon (the
