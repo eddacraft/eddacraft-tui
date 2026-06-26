@@ -364,6 +364,25 @@ fn rs005_excluded_in_cfg_test_module() {
 }
 
 #[test]
+fn rs005_excluded_in_cfg_doc_module() {
+    // CIB-081: docs-only signature stubs are not shipped runtime code.
+    let src = "#[cfg(doc)]\nmod docs {\n    pub fn example_only() {\n        todo!()\n    }\n}\n";
+    assert!(!fires("src/lib.rs", src, "RS-005"));
+}
+
+#[test]
+fn rs005_excluded_in_cfg_docsrs_function() {
+    let src = "#[cfg(docsrs)]\npub fn docsrs_stub() {\n    unimplemented!()\n}\n";
+    assert!(!fires("src/lib.rs", src, "RS-005"));
+}
+
+#[test]
+fn rs005_not_excluded_by_cfg_not_doc() {
+    let src = "#[cfg(not(doc))]\nfn runtime_stub() {\n    todo!()\n}\n";
+    assert!(fires("src/lib.rs", src, "RS-005"));
+}
+
+#[test]
 fn rs005_does_not_fire_in_doc_comment() {
     // External-FP dogfood (tokio sync_bridge.rs): the regex rule fired on
     // `/// # unimplemented!()` doc-test lines. The AST parser never treats

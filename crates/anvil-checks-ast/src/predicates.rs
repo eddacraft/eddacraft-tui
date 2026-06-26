@@ -87,9 +87,11 @@ pub(crate) fn path_is_test_target(path: &str) -> bool {
 }
 
 /// True when `node` (or any ancestor) is gated by a `#[cfg(test)]`-style
-/// attribute: `cfg(test)`, `cfg(all(test, …))`, `cfg(any(test, …))` exclude;
-/// `cfg(not(test))` does not (ADR-071 §4 — a substring check is too broad and
-/// too narrow, so the predicate parses the cfg tree and tracks negation depth).
+/// non-shipped attribute: `cfg(test)`, `cfg(doc)`, `cfg(docsrs)`,
+/// `cfg(all(test, …))`, and `cfg(any(doc, …))` exclude; `cfg(not(test))` and
+/// `cfg(not(doc))` do not (ADR-071 §4 / CIB-081 — a substring check is too broad
+/// and too narrow, so the predicate parses the cfg tree and tracks negation
+/// depth).
 #[must_use]
 pub(crate) fn in_cfg_test(node: Node, src: &[u8]) -> bool {
     let mut cur = Some(node);
@@ -172,7 +174,9 @@ fn token_tree_has_unnegated_test(tt: Node, src: &[u8], negated: bool) -> bool {
     let mut cursor = tt.walk();
     for child in tt.named_children(&mut cursor) {
         match child.kind() {
-            "identifier" if node_text(child, src) == "test" && !negated => return true,
+            "identifier" if is_non_shipped_cfg_identifier(node_text(child, src)) && !negated => {
+                return true;
+            }
             "token_tree" => {
                 let neg = match child.prev_named_sibling() {
                     Some(p) if p.kind() == "identifier" && node_text(p, src) == "not" => !negated,
@@ -186,6 +190,10 @@ fn token_tree_has_unnegated_test(tt: Node, src: &[u8], negated: bool) -> bool {
         }
     }
     false
+}
+
+fn is_non_shipped_cfg_identifier(ident: &str) -> bool {
+    matches!(ident, "test" | "doc" | "docsrs")
 }
 
 /// RS-003 — true when the `unsafe` block already carries a `// SAFETY:` comment.
