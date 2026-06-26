@@ -293,8 +293,8 @@ number visible to the user, not just to a future post-release survey.
   welcome` closing output, under the same contract (14-day window, once per week,
   suppressed after `anvil insights`, shared `.anvil/insights-hint.json` state).
   Gated under `project_writes_gated` (DISTRIB-006) and rendered on both welcome
-  closing paths; Council-reviewed. The status/watch ungated-gate follow-up the
-  review surfaced is filed as **CIB-105**.
+  closing paths; Council-reviewed. `status` and `watch` are still ungated; the
+  follow-up to gate them too is tracked in **CIB-105**.
 - **Intent:** The first-week nudge reaches the one command every new user
   definitely runs — `anvil welcome` — not only `status` and watch.
 - **Expected Outcome:** `anvil welcome` closing output includes the
