@@ -5,6 +5,7 @@ edition = "2024"
 publish = false
 
 [workspace]
+resolver = "2"
 
 [dependencies]
 eddacraft-tui = { version = "=0.4.1", features = ["json-render"] }

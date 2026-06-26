@@ -39,12 +39,38 @@ mod tests {
 
     struct JsonPretext;
 
+    fn strip_osc_sequences(input: &str) -> String {
+        let mut output = String::with_capacity(input.len());
+        let mut chars = input.chars().peekable();
+
+        while let Some(ch) = chars.next() {
+            if ch == char::from(0x1b) && chars.peek() == Some(&']') {
+                chars.next();
+                while let Some(seq_ch) = chars.next() {
+                    if seq_ch == char::from(0x07) {
+                        break;
+                    }
+                    if seq_ch == char::from(0x1b) && chars.peek() == Some(&char::from(0x5c)) {
+                        chars.next();
+                        break;
+                    }
+                }
+                continue;
+            }
+
+            output.push(ch);
+        }
+
+        output
+    }
+
     impl TuiComponent for JsonPretext {
         fn render(&self, props: &Props, frame: &mut Frame, area: Rect) {
             let text = props
                 .get("children")
                 .and_then(serde_json::Value::as_str)
-                .map(json_render::sanitize)
+                .map(strip_osc_sequences)
+                .map(|text| json_render::sanitize(&text))
                 .unwrap_or_default();
             let theme = EddaCraftTheme;
             let mut state = PretextState::new(&text);
@@ -106,12 +132,14 @@ mod tests {
     #[test]
     fn json_render_public_crate_sanitises_control_sequences_before_pretext_render() {
         let mut spec = json_render::parse(SPEC).expect("parse smoke spec");
-        let hostile = "safe\u{1b}]52;c;cHk\u{07}text\u{1b}]0;pwned\u{07}";
+        let hostile = "safe \u{1b}]52;c;cHk\u{07}text \u{1b}]0;pwned\u{07}";
         spec.elements
             .get_mut("pretext_panel")
             .expect("pretext element")
             .props
             .insert("children".to_owned(), json!(hostile));
+        json_render::validate(&spec, &catalog_with_pretext())
+            .expect("mutated spec remains valid before rendering");
 
         let registry = registry_with_pretext();
         let mut terminal = Terminal::new(TestBackend::new(96, 8)).expect("test backend");
@@ -119,12 +147,15 @@ mod tests {
             .draw(|frame| json_render::render_spec(&spec, &registry, frame, frame.area()))
             .expect("render hostile spec through pretext extension");
 
-        let offenders: Vec<u32> = terminal
+        let rendered: String = terminal
             .backend()
             .buffer()
             .content()
             .iter()
-            .flat_map(|cell| cell.symbol().chars())
+            .map(ratatui::buffer::Cell::symbol)
+            .collect();
+        let offenders: Vec<u32> = rendered
+            .chars()
             .filter(|ch| char::is_control(*ch))
             .map(|ch| ch as u32)
             .collect();
@@ -132,6 +163,11 @@ mod tests {
             offenders.is_empty(),
             "control bytes reached rendered buffer: {offenders:?}"
         );
+        assert!(rendered.contains("safe"));
+        assert!(rendered.contains("text"));
+        assert!(!rendered.contains("]52"));
+        assert!(!rendered.contains("cHk"));
+        assert!(!rendered.contains("pwned"));
     }
 
     #[test]
