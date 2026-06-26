@@ -60,7 +60,8 @@
 //! path (no resolver there).
 
 use std::env;
-use std::fs;
+use std::ffi::OsStr;
+use std::fs::{self, File};
 use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -248,14 +249,15 @@ pub fn arg_shapes_from_argv(argv: &[String]) -> Vec<ArgShape> {
     shapes
 }
 
-/// Append one usage observation as a single NDJSON line to `path`,
-/// creating the parent directory if needed.
+/// Append one usage observation as a single NDJSON line to `path`, creating the
+/// parent directory if needed.
 ///
-/// The sidecar holds per-invocation principals and argument metadata, so
-/// it is created owner-only (`0600`) under an owner-only parent (`0700`)
-/// on Unix — matching the salt's posture so a shared host can't read the
-/// usage history. A symlinked target is refused (no `O_NOFOLLOW` dep
-/// needed) so a pre-planted symlink can't redirect the append.
+/// The sidecar holds per-invocation principals and argument metadata, so it is
+/// created owner-only (`0600`) under an owner-only parent (`0700`) on Unix —
+/// matching the salt's posture so a shared host can't read the usage history.
+/// On Unix the parent is validated as a non-symlinked, current-user-owned
+/// directory and the sidecar leaf is opened relative to that directory fd with
+/// `O_NOFOLLOW`, closing the final-component check/open race.
 // KDS-003: `pub(crate)` so the daemon-sink parity test can write a row through
 // the real NDJSON path and compare it against the daemon-stored row.
 pub(crate) fn append_usage_observation_to(
@@ -280,57 +282,201 @@ fn append_constraint_applied_to(path: &Path, obs: &ConstraintAppliedObservation)
     append_observation_to(path, obs)
 }
 
-/// Append one observation as a single NDJSON line to `path`, creating the
-/// parent directory if needed, generic over any serialisable row so the
-/// three kinds (`command.invoked`, `gate_evaluated(save-time)`,
-/// `constraint_applied`) share one write path.
+/// Append one observation as a single NDJSON line to `path`, creating the parent
+/// directory if needed, generic over any serialisable row so the three kinds
+/// (`command.invoked`, `gate_evaluated(save-time)`, `constraint_applied`) share
+/// one write path.
 ///
-/// The sidecar holds per-invocation principals and argument metadata, so
-/// it is created owner-only (`0600`) under an owner-only parent (`0700`)
-/// on Unix — matching the salt's posture so a shared host can't read the
-/// usage history. A symlinked target is refused (no `O_NOFOLLOW` dep
-/// needed) so a pre-planted symlink can't redirect the append. Before the
-/// append the sidecar is lazily trimmed (see [`trim_usage_sidecar`]) to
-/// the 7-day / 64 MiB retention bounds (council T5).
+/// The sidecar holds per-invocation principals and argument metadata, so it is
+/// created owner-only (`0600`) under an owner-only parent (`0700`) on Unix —
+/// matching the salt's posture so a shared host can't read the usage history.
+/// On Unix the append open is parent-fd anchored and leaf-`O_NOFOLLOW`; the
+/// trim read path uses the same no-follow discipline. Before the append the
+/// sidecar is lazily trimmed (see [`trim_usage_sidecar`]) to the 7-day / 64 MiB
+/// retention bounds (council T5).
 fn append_observation_to<T: serde::Serialize>(path: &Path, obs: &T) -> Result<()> {
     if let Some(parent) = path.parent() {
-        create_private_dir(parent)
-            .with_context(|| format!("create kindling dir {}", parent.display()))?;
-    }
-    // Refuse to follow a symlink at the target path.
-    if let Ok(meta) = fs::symlink_metadata(path)
-        && meta.file_type().is_symlink()
-    {
-        anyhow::bail!(
-            "usage sidecar {} is a symlink; refusing to write",
-            path.display()
-        );
+        ensure_private_sidecar_parent(parent)
+            .with_context(|| format!("prepare kindling dir {}", parent.display()))?;
     }
     // Retention (council T5): trim before the append so the sidecar stays
     // bounded. Best-effort — a trim failure must not block the write.
     trim_usage_sidecar(path);
     let serialised = serde_json::to_string(obs).context("serialise usage observation")?;
-    let mut opts = fs::OpenOptions::new();
-    opts.create(true).append(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        opts.mode(0o600);
-    }
-    let mut f = opts
-        .open(path)
+    let mut f = open_sidecar_append(path)
         .with_context(|| format!("open usage sidecar {}", path.display()))?;
     // `OpenOptions::mode` only applies when the file is *created*. Enforce
     // `0600` on an already-existing sidecar too (best-effort), so a file
     // left world-readable by a previous run/version is tightened.
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = f.set_permissions(fs::Permissions::from_mode(0o600));
-    }
+    tighten_file_mode(&f);
     writeln!(f, "{serialised}")
         .with_context(|| format!("append usage row to {}", path.display()))?;
     Ok(())
+}
+
+fn sidecar_parent(path: &Path) -> io::Result<&Path> {
+    path.parent().ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("usage sidecar {} has no parent directory", path.display()),
+        )
+    })
+}
+
+fn sidecar_leaf(path: &Path) -> io::Result<&OsStr> {
+    path.file_name().ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("usage sidecar {} has no file name", path.display()),
+        )
+    })
+}
+
+fn ensure_private_sidecar_parent(parent: &Path) -> io::Result<()> {
+    create_private_dir(parent)?;
+    #[cfg(unix)]
+    ensure_private_sidecar_parent_unix(parent)?;
+    Ok(())
+}
+
+#[cfg(unix)]
+fn ensure_private_sidecar_parent_unix(parent: &Path) -> io::Result<()> {
+    use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _};
+
+    let meta = fs::symlink_metadata(parent)?;
+    if meta.file_type().is_symlink() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "usage sidecar parent {} is a symlink; refusing to write",
+                parent.display()
+            ),
+        ));
+    }
+    if !meta.is_dir() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "usage sidecar parent {} is not a directory",
+                parent.display()
+            ),
+        ));
+    }
+    if meta.uid() != nix::unistd::geteuid().as_raw() {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            format!(
+                "usage sidecar parent {} is not owned by the current user",
+                parent.display()
+            ),
+        ));
+    }
+    if meta.permissions().mode() & 0o077 != 0 {
+        fs::set_permissions(parent, fs::Permissions::from_mode(0o700))?;
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+fn open_sidecar_parent_dirfd(parent: &Path) -> io::Result<std::os::fd::OwnedFd> {
+    use nix::fcntl::OFlag;
+    use nix::sys::stat::{Mode, fstat};
+
+    ensure_private_sidecar_parent(parent)?;
+    let flags = OFlag::O_DIRECTORY | OFlag::O_RDONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC;
+    let fd = nix::fcntl::open(parent, flags, Mode::empty()).map_err(io::Error::from)?;
+    let st = fstat(&fd).map_err(io::Error::from)?;
+    if st.st_uid != nix::unistd::geteuid().as_raw() {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "usage sidecar parent fd is not owned by the current user",
+        ));
+    }
+    if st.st_mode & 0o077 != 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "usage sidecar parent fd is group/other-accessible",
+        ));
+    }
+    Ok(fd)
+}
+
+#[cfg(unix)]
+fn open_sidecar_append(path: &Path) -> io::Result<File> {
+    use nix::fcntl::{OFlag, openat};
+    use nix::sys::stat::{Mode, fchmod};
+    use std::os::fd::AsFd as _;
+
+    let parent = sidecar_parent(path)?;
+    let leaf = sidecar_leaf(path)?;
+    let dirfd = open_sidecar_parent_dirfd(parent)?;
+    let flags =
+        OFlag::O_CREAT | OFlag::O_APPEND | OFlag::O_WRONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC;
+    let fd = openat(
+        dirfd.as_fd(),
+        Path::new(leaf),
+        flags,
+        Mode::from_bits_truncate(0o600),
+    )
+    .map_err(io::Error::from)?;
+    fchmod(&fd, Mode::from_bits_truncate(0o600)).map_err(io::Error::from)?;
+    Ok(File::from(fd))
+}
+
+#[cfg(not(unix))]
+fn open_sidecar_append(path: &Path) -> io::Result<File> {
+    if let Some(parent) = path.parent() {
+        create_private_dir(parent)?;
+    }
+    let mut opts = fs::OpenOptions::new();
+    opts.create(true).append(true);
+    opts.open(path)
+}
+
+#[cfg(unix)]
+fn open_existing_sidecar_read(path: &Path) -> io::Result<Option<File>> {
+    use nix::fcntl::{OFlag, openat};
+    use nix::sys::stat::{Mode, SFlag, fstat};
+    use std::os::fd::AsFd as _;
+
+    let parent = sidecar_parent(path)?;
+    if !parent.exists() {
+        return Ok(None);
+    }
+    let leaf = sidecar_leaf(path)?;
+    let dirfd = open_sidecar_parent_dirfd(parent)?;
+    let flags = OFlag::O_RDONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC;
+    let fd = match openat(dirfd.as_fd(), Path::new(leaf), flags, Mode::empty()) {
+        Ok(fd) => fd,
+        Err(nix::errno::Errno::ENOENT) => return Ok(None),
+        Err(err) => return Err(io::Error::from(err)),
+    };
+    let st = fstat(&fd).map_err(io::Error::from)?;
+    let kind = SFlag::from_bits_truncate(st.st_mode);
+    if !kind.contains(SFlag::S_IFREG) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("usage sidecar {} is not a regular file", path.display()),
+        ));
+    }
+    Ok(Some(File::from(fd)))
+}
+
+#[cfg(not(unix))]
+fn open_existing_sidecar_read(path: &Path) -> io::Result<Option<File>> {
+    match File::open(path) {
+        Ok(file) => Ok(Some(file)),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(err) => Err(err),
+    }
+}
+
+fn tighten_file_mode(file: &File) {
+    #[cfg(unix)]
+    {
+        use nix::sys::stat::{Mode, fchmod};
+        let _ = fchmod(file, Mode::from_bits_truncate(0o600));
+    }
 }
 
 /// DPO retention (council T5): the maximum age a usage sidecar row is
@@ -388,8 +534,11 @@ fn trim_usage_sidecar(path: &Path) {
 /// B's fast-path gate keeps the rewrite rare (only near the cap or with a
 /// stale head), shrinking the race window further.
 fn trim_usage_sidecar_at(path: &Path, now: chrono::DateTime<Utc>) {
-    let Ok(meta) = fs::metadata(path) else {
+    let Ok(Some(file)) = open_existing_sidecar_read(path) else {
         return; // No file yet — nothing to trim.
+    };
+    let Ok(meta) = file.metadata() else {
+        return;
     };
     let size = meta.len();
     if size == 0 {
@@ -405,7 +554,7 @@ fn trim_usage_sidecar_at(path: &Path, now: chrono::DateTime<Utc>) {
     // to trim, so return without the full read. A malformed/unreadable first
     // line falls through to the full read (correctness over the fast path).
     let needs_size_trim = size >= USAGE_SIDECAR_MAX_BYTES;
-    if !needs_size_trim && !first_line_is_stale(path, cutoff) {
+    if !needs_size_trim && !first_line_is_stale(file, cutoff) {
         return;
     }
 
@@ -418,7 +567,7 @@ fn trim_usage_sidecar_at(path: &Path, now: chrono::DateTime<Utc>) {
     // already skips `InvalidData` lines on the read path.
     let lines: Vec<String> = {
         use std::io::BufRead as _;
-        let Ok(file) = fs::File::open(path) else {
+        let Ok(Some(file)) = open_existing_sidecar_read(path) else {
             return; // Unreadable — leave it untouched.
         };
         let mut collected = Vec::new();
@@ -467,30 +616,9 @@ fn trim_usage_sidecar_at(path: &Path, now: chrono::DateTime<Utc>) {
     if !rewritten.is_empty() {
         rewritten.push('\n');
     }
-    // Best-effort atomic-ish replace: write a temp sibling then rename.
+    // Best-effort atomic-ish replace: write a unique temp sibling then rename.
     // A failure leaves the original intact (retention is housekeeping).
-    let tmp = path.with_extension("ndjson.trim.tmp");
-    // Council A: apply the same symlink-refusal guard the sidecar itself
-    // uses to the trim temp path — a pre-planted symlink at the `.trim.tmp`
-    // location must not be allowed to redirect the truncating write to an
-    // attacker-chosen target. Refuse and bail (best-effort housekeeping
-    // never escalates to a write through a symlink).
-    if let Ok(meta) = fs::symlink_metadata(&tmp)
-        && meta.file_type().is_symlink()
-    {
-        return;
-    }
-    if write_private_file(&tmp, rewritten.as_bytes()).is_ok() {
-        // `fs::rename` replaces an existing destination on both Unix and
-        // Windows (the latter via `MoveFileExW` + `REPLACE_EXISTING`). If it
-        // still fails (e.g. a transient Windows sharing violation), drop the
-        // temp so it cannot accumulate — retention is best-effort housekeeping.
-        if fs::rename(&tmp, path).is_err() {
-            let _ = fs::remove_file(&tmp);
-        }
-    } else {
-        let _ = fs::remove_file(&tmp);
-    }
+    let _ = rewrite_sidecar_via_unique_temp(path, rewritten.as_bytes());
 }
 
 /// Council B fast-path helper: cheaply test whether the FIRST (oldest) line
@@ -503,12 +631,9 @@ fn trim_usage_sidecar_at(path: &Path, now: chrono::DateTime<Utc>) {
 /// that as "fast-path inconclusive" and falls through to the full read,
 /// which has the authoritative malformed-line-keeps semantics. So a
 /// malformed head never causes data loss here either.
-fn first_line_is_stale(path: &Path, cutoff: chrono::DateTime<Utc>) -> bool {
+fn first_line_is_stale(file: File, cutoff: chrono::DateTime<Utc>) -> bool {
     use std::io::BufRead as _;
 
-    let Ok(file) = fs::File::open(path) else {
-        return false;
-    };
     let mut reader = io::BufReader::new(file);
     let mut first = String::new();
     match reader.read_line(&mut first) {
@@ -535,18 +660,83 @@ fn line_is_older_than(line: &str, cutoff: chrono::DateTime<Utc>) -> bool {
     }
 }
 
-/// Write `bytes` to `path` owner-only (`0600` on Unix), truncating any
-/// existing file. Used for the retention temp file.
-fn write_private_file(path: &Path, bytes: &[u8]) -> io::Result<()> {
-    let mut opts = fs::OpenOptions::new();
-    opts.create(true).write(true).truncate(true);
+/// Write `bytes` to a unique owner-only temp file next to `path`, then rename it
+/// over `path`. Used for retention housekeeping only; callers keep it
+/// best-effort.
+fn rewrite_sidecar_via_unique_temp(path: &Path, bytes: &[u8]) -> io::Result<()> {
     #[cfg(unix)]
     {
-        use std::os::unix::fs::OpenOptionsExt;
-        opts.mode(0o600);
+        rewrite_sidecar_via_unique_temp_unix(path, bytes)
     }
-    let mut f = opts.open(path)?;
-    f.write_all(bytes)
+    #[cfg(not(unix))]
+    {
+        rewrite_sidecar_via_unique_temp_fallback(path, bytes)
+    }
+}
+
+#[cfg(unix)]
+fn rewrite_sidecar_via_unique_temp_unix(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    use nix::fcntl::{OFlag, openat, renameat};
+    use nix::sys::stat::{Mode, fchmod};
+    use nix::unistd::{UnlinkatFlags, unlinkat};
+    use std::os::fd::AsFd as _;
+
+    let parent = sidecar_parent(path)?;
+    let final_leaf = sidecar_leaf(path)?;
+    let dirfd = open_sidecar_parent_dirfd(parent)?;
+    let temp = unique_trim_temp_name(final_leaf);
+    let flags =
+        OFlag::O_CREAT | OFlag::O_EXCL | OFlag::O_WRONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC;
+    let fd = openat(
+        dirfd.as_fd(),
+        Path::new(&temp),
+        flags,
+        Mode::from_bits_truncate(0o600),
+    )
+    .map_err(io::Error::from)?;
+    fchmod(&fd, Mode::from_bits_truncate(0o600)).map_err(io::Error::from)?;
+    let mut file = File::from(fd);
+    if let Err(err) = file.write_all(bytes) {
+        let _ = unlinkat(dirfd.as_fd(), Path::new(&temp), UnlinkatFlags::NoRemoveDir);
+        return Err(err);
+    }
+    drop(file);
+    if let Err(err) = renameat(
+        dirfd.as_fd(),
+        Path::new(&temp),
+        dirfd.as_fd(),
+        Path::new(final_leaf),
+    ) {
+        let _ = unlinkat(dirfd.as_fd(), Path::new(&temp), UnlinkatFlags::NoRemoveDir);
+        return Err(io::Error::from(err));
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn rewrite_sidecar_via_unique_temp_fallback(path: &Path, bytes: &[u8]) -> io::Result<()> {
+    let temp = path.with_file_name(unique_trim_temp_name(sidecar_leaf(path)?));
+    let mut opts = fs::OpenOptions::new();
+    opts.create_new(true).write(true);
+    let mut f = opts.open(&temp)?;
+    if let Err(err) = f.write_all(bytes) {
+        let _ = fs::remove_file(&temp);
+        return Err(err);
+    }
+    drop(f);
+    if let Err(err) = fs::rename(&temp, path) {
+        let _ = fs::remove_file(&temp);
+        return Err(err);
+    }
+    Ok(())
+}
+
+fn unique_trim_temp_name(final_leaf: &OsStr) -> String {
+    format!(
+        ".{}.{}.trim.tmp",
+        final_leaf.to_string_lossy(),
+        Uuid::new_v4().as_simple()
+    )
 }
 
 /// Create a directory (and parents) owner-only (`0700`) on Unix.
@@ -1428,6 +1618,160 @@ mod tests {
         assert!(!contents.contains("/secret/place"), "raw value leaked");
         assert!(!contents.contains("zzsecretzz"), "sensitive value leaked");
         assert!(contents.contains("<redacted>"), "redaction marker expected");
+    }
+
+    #[cfg(unix)]
+    fn test_command_observation() -> CommandInvokedObservation {
+        let ctx = CommandInvocationContext {
+            session_id: "33333333-3333-4333-8333-333333333333",
+            timestamp: "2099-06-14T10:00:00Z",
+            command: "check",
+            principal: ANONYMOUS_PRINCIPAL,
+            traceparent: None,
+        };
+        from_command_invocation(&ctx, Vec::new(), Vec::new())
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn append_usage_refuses_symlinked_sidecar_at_open_time() {
+        use std::os::unix::fs::symlink;
+
+        let dir = tempdir().expect("tempdir");
+        let path = usage_log_path(dir.path());
+        let parent = path.parent().expect("parent");
+        create_private_dir(parent).expect("kindling dir");
+        let outside = dir.path().join("outside.ndjson");
+        fs::write(&outside, "outside\n").expect("outside");
+        symlink(&outside, &path).expect("sidecar symlink");
+
+        let err = append_usage_observation_to(&path, &test_command_observation())
+            .expect_err("symlinked sidecar must be refused");
+        assert!(
+            format!("{err:#}").contains("symlink") || format!("{err:#}").contains("Too many"),
+            "error should identify symlink refusal: {err:#}"
+        );
+        assert_eq!(
+            fs::read_to_string(&outside).expect("outside unchanged"),
+            "outside\n"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn record_false_positive_refuses_symlinked_sidecar_at_open_time() {
+        use std::os::unix::fs::symlink;
+
+        let dir = tempdir().expect("tempdir");
+        let path = fp_log_path(dir.path());
+        let parent = path.parent().expect("parent");
+        create_private_dir(parent).expect("kindling dir");
+        let outside = dir.path().join("outside-fp.ndjson");
+        fs::write(&outside, "outside\n").expect("outside");
+        symlink(&outside, &path).expect("fp sidecar symlink");
+
+        let err = record_false_positive_in(dir.path(), "ANV-CORE-001", "src/x.rs", 1, None)
+            .expect_err("symlinked false-positive sidecar must be refused");
+        assert!(
+            format!("{err:#}").contains("symlink") || format!("{err:#}").contains("Too many"),
+            "error should identify symlink refusal: {err:#}"
+        );
+        assert_eq!(
+            fs::read_to_string(&outside).expect("outside unchanged"),
+            "outside\n"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn append_usage_refuses_symlinked_kindling_parent() {
+        use std::os::unix::fs::symlink;
+
+        let dir = tempdir().expect("tempdir");
+        let outside = tempdir().expect("outside");
+        let parent = dir.path().join("kindling");
+        symlink(outside.path(), &parent).expect("kindling parent symlink");
+        let path = parent.join(USAGE_NDJSON);
+
+        let err = append_usage_observation_to(&path, &test_command_observation())
+            .expect_err("symlinked kindling parent must be refused");
+        assert!(
+            format!("{err:#}").contains("symlink"),
+            "error should identify symlink parent: {err:#}"
+        );
+        assert!(
+            !outside.path().join(USAGE_NDJSON).exists(),
+            "must not write through symlinked parent"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn append_usage_tightens_existing_kindling_parent() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempdir().expect("tempdir");
+        let path = usage_log_path(dir.path());
+        let parent = path.parent().expect("parent");
+        fs::create_dir_all(parent).expect("mkdir");
+        fs::set_permissions(parent, fs::Permissions::from_mode(0o777)).expect("loosen parent");
+
+        append_usage_observation_to(&path, &test_command_observation()).expect("append");
+
+        let mode = fs::metadata(parent)
+            .expect("stat parent")
+            .permissions()
+            .mode();
+        assert_eq!(mode & 0o777, 0o700, "parent should be owner-only");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn trim_read_does_not_follow_symlinked_sidecar() {
+        use std::os::unix::fs::symlink;
+
+        let dir = tempdir().expect("tempdir");
+        let path = usage_log_path(dir.path());
+        let parent = path.parent().expect("parent");
+        create_private_dir(parent).expect("kindling dir");
+        let outside = dir.path().join("outside-usage.ndjson");
+        fs::write(
+            &outside,
+            "{\"timestamp\":\"2000-01-01T00:00:00Z\",\"kind\":\"command.invoked\"}\n",
+        )
+        .expect("outside");
+        symlink(&outside, &path).expect("sidecar symlink");
+
+        append_usage_observation_to(&path, &test_command_observation())
+            .expect_err("symlinked sidecar must be refused");
+
+        assert_eq!(
+            fs::read_to_string(&outside).expect("outside unchanged"),
+            "{\"timestamp\":\"2000-01-01T00:00:00Z\",\"kind\":\"command.invoked\"}\n"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn trim_does_not_reuse_preexisting_regular_temp_file() {
+        let dir = tempdir().expect("tempdir");
+        let path = usage_log_path(dir.path());
+        create_private_dir(path.parent().expect("parent")).expect("kindling dir");
+        fs::write(
+            &path,
+            "{\"timestamp\":\"2000-01-01T00:00:00Z\",\"kind\":\"command.invoked\"}\n",
+        )
+        .expect("sidecar");
+        let old_fixed_tmp = path.with_extension("ndjson.trim.tmp");
+        fs::write(&old_fixed_tmp, "sentinel\n").expect("preexisting temp");
+
+        trim_usage_sidecar_at(&path, Utc::now());
+
+        assert_eq!(
+            fs::read_to_string(&old_fixed_tmp).expect("old temp unchanged"),
+            "sentinel\n",
+            "trim must not truncate or reuse the old deterministic temp path"
+        );
     }
 
     /// USAGE-004: `attach_principal` never panics on a non-object frame

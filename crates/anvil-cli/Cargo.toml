@@ -88,6 +88,9 @@ workspace-hack.workspace = true
 [target.'cfg(windows)'.dependencies]
 anvil-intercept-win32 = { path = "../anvil-intercept-win32", package = "eddacraft-anvil-intercept-win32" }
 
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.31", default-features = false, features = ["fs", "user"] }
+
 [dev-dependencies]
 # CIB-078: schema-stability snapshot pinning the `anvil policy eval` output
 # contract (docs/specs/policy-eval-output-v1.md). Test-only.

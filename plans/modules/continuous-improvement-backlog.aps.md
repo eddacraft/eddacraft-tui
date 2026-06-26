@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 64/104  |
+| CIB | —     | In Progress | 65/105  |
 
 ## Purpose
 
@@ -2475,24 +2475,30 @@ archive.
 
 ### CIB-090: `O_NOFOLLOW` hardening for the Kindling NDJSON sidecar writes
 
-- **Status:** Ready
+- **Status:** Done 2026-06-26 — Unix sidecar writes are parent-dirfd anchored with leaf `O_NOFOLLOW`; trim reads are no-follow; trim rewrites use unique create-new temp files; existing parents are tightened to `0700`. Windows reparse-point parity is tracked separately in CIB-105.
 - **Intent:** Close the TOCTOU symlink race in `append_observation_to`: it does
   `symlink_metadata` then a separate `open`, with no `O_NOFOLLOW` between them,
   so a writer to the parent dir on a multi-user host could redirect the append.
   Affects both `usage.ndjson` and the OPSUP-007 `false-positives.ndjson` (shared
   helper), plus the trim temp file and `write_private_file`.
-- **Expected Outcome:** The append/write opens use `O_NOFOLLOW`
-  (`OpenOptionsExt::custom_flags(libc::O_NOFOLLOW)` on Linux; the platform
-  equivalent elsewhere) so the open atomically refuses a symlinked target,
-  removing the check-then-open window. The `0600`/`0700` posture is unchanged.
+- **Expected Outcome:** The Unix append/write opens use parent-directory fd
+  anchoring plus leaf `O_NOFOLLOW` so the open atomically refuses a symlinked
+  target, and trim reads use the same no-follow discipline before retention
+  housekeeping. Trim rewrites use unique `create_new` temp files rather than the
+  deterministic `.trim.tmp` path. The `0600`/`0700` posture is unchanged or
+  tightened. Platform-equivalent Windows reparse-point handling is deliberately
+  not claimed here and is tracked by CIB-105.
 - **Files:** `crates/anvil-cli/src/usage.rs` (`append_observation_to`,
-  `trim` temp path, `write_private_file`).
-- **Validation:** new test: a pre-planted symlink at the sidecar path is refused
-  at open time rather than followed.
+  `trim` temp path, sidecar parent/open helpers), `crates/anvil-cli/Cargo.toml`
+  (Unix `nix` safe syscall wrappers).
+- **Validation:** `cargo test -p eddacraft-anvil usage::tests::`; integration
+  checks for usage observation/views and `report-fp`; `cargo clippy -p
+  eddacraft-anvil --all-targets -- -D warnings`.
 - **Identified From:** OPSUP milestone Council review (adversarial MAJOR;
   security-adjacent). Pre-existing in the shared usage path, surfaced by the FP
   reuse.
-- **Confidence:** high — a focused flag change on the existing open paths.
+- **Confidence:** high — focused Unix hardening on the existing sidecar paths;
+  Windows parity is a separate platform-specific item.
 
 ### CIB-091: GCTX assistant-facing egress hardening (v0.9.0 council, cut-blocker)
 
@@ -2883,3 +2889,28 @@ archive.
 - **Coordinates with:** CIB-103 (search-surface precedent), ADR-091.
 - **Confidence:** high — the search-surface tests are a direct template, the
   sibling fixtures already exist, and the change is purely additive test coverage.
+
+### CIB-105: Windows reparse-point hardening for Kindling sidecar writes
+
+- **Status:** Proposed
+- **Intent:** Provide the Windows platform equivalent to CIB-090's Unix
+  `O_NOFOLLOW`/dirfd discipline for `usage.ndjson` and `false-positives.ndjson`
+  sidecar writes, so a reparse point, junction, or symlink cannot redirect the
+  local Kindling sidecar on Windows hosts.
+- **Expected Outcome:** Windows sidecar append/read/temp-write paths refuse
+  reparse-point leaves and redirected parent components using Windows-specific
+  safe file APIs or a helper crate, preserving the existing local-only privacy
+  posture and `ANVIL_HOME` isolation. The Unix CIB-090 implementation remains
+  unchanged.
+- **Files:** `crates/anvil-cli/src/usage.rs`; optional Windows helper crate if
+  direct Win32 calls would otherwise require `unsafe` in `anvil-cli`.
+- **Validation:** Windows-only regression tests or CI matrix coverage proving
+  sidecar leaf and parent reparse points are refused and an outside target is
+  not modified; existing Unix CIB-090 tests still pass.
+- **Identified From:** CIB-090 mini-Council security/adversarial review
+  (2026-06-26) — Unix `O_NOFOLLOW` hardening must not overclaim platform
+  equivalence.
+- **Coordinates with:** CIB-090, CIB-100, CIB-101 Windows transport/install-root
+  parity work.
+- **Confidence:** medium — behaviour is clear, but the safe Windows API shape
+  likely needs a helper to keep `anvil-cli` under `unsafe_code = "forbid"`.
