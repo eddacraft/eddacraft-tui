@@ -1,7 +1,7 @@
 # anvil
 
-| Type   | Authority | Owner  | Status | Freshness                                                                                                                                                       |
-| ------ | --------- | ------ | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Type   | Authority | Owner  | Status | Freshness                                                                                                                              |
+| ------ | --------- | ------ | ------ | -------------------------------------------------------------------------------------------------------------------------------------- |
 | README | Advisory  | DOCGOV | Live   | Bench sections refreshed 2026-06-26 from `benchmarks/history/2026-06-26.json` (full quiet-box + gate benches); prior review 2026-06-17 |
 
 | Upstream                                               | Downstream                        |
@@ -38,8 +38,8 @@ violations **before they ever leave the developer's machine.**
 
 Latest clean measurements 2026-06-26 on deus (16-core reference box) via
 Criterion (release build). The incremental figure includes GCALL call-site
-extraction and resident call-edge lifting — ~3.6× vs 2026-05-30 (7.8 µs) but still
-~3,500× under the 100 ms ADR-031 target. Previously measured 2026-05-30,
+extraction and resident call-edge lifting — ~3.6× vs 2026-05-30 (7.8 µs) but
+still ~3,500× under the 100 ms ADR-031 target. Previously measured 2026-05-30,
 2026-06-12 (partial), 2026-05-08, 2026-04-28 and 2026-04-03. Governance overhead
 is effectively zero — anvil is in a different category from SAST, not a faster
 scanner.
@@ -51,8 +51,8 @@ Latest `anvil-bench` data (deus reference box):
 
 - **Parallel anti-pattern scan** — 0.46 ms per pass on the 320-artefact mixed
   corpus → **~700K artefacts/sec** (within noise of the 2026-05-30 752K peak).
-- **Secret scan parallel** — **~7.3×** speedup (serial ~6.23 s vs parallel
-  ~0.86 s on its corpus).
+- **Secret scan parallel** — **~7.3×** speedup (serial ~6.23 s vs parallel ~0.86
+  s on its corpus).
 - **Walk discovery (20k candidates)** — sequential **92.6 ms** vs parallel
   **15.2 ms** → **~6.1×** speedup (`walk_discovery` bench).
 - **Hot-read latency gate (GV2-025)** — all eight `HotReadApi` ops pass; worst
@@ -453,20 +453,20 @@ run on the reference box is 2026-06-26 (see
 only in parenthetical historical notes where later direct measurements from
 `benchmarks/history/` are absent.
 
-| Metric                                    | Target      | Measured (2026-06-26 clean) | Status                                           |
-| ----------------------------------------- | ----------- | --------------------------- | ------------------------------------------------ |
-| Cold graph build, 100 files               | —           | **6.5 ms**                  | Validated (↓22% vs 2026-05-30)                   |
-| Cold graph build, 1,000 files             | —           | **231 ms**                  | Validated (↓56% vs 2026-05-30)                   |
-| Cold graph build, 2,500 files             | —           | —                           | Pending (extrapolation retired)                  |
-| Cold graph build, 100k LOC / ~2,000 files | < 3 seconds | Pending stress harness      | Pending                                          |
-| Incremental update (single file)          | < 100 ms    | **28.3 µs**                 | Validated · ~3,500× under target (GCALL cost)    |
-| Hot-read API (worst op p95)               | < 80 ms     | **0.035 ms**                | Validated · GV2-025 gate                         |
-| Call-lift (worst op p95)                  | < 80 ms     | **7.8 ms**                  | Validated · GCALL-006 gate                       |
-| Policy evaluation (all invariants)        | —           | **1.6 µs**                  | Validated                                        |
-| Event emission (1,000 events)             | < 10 ms     | **255 µs**                  | Validated · ~39× under target                    |
-| Memory footprint (medium repo)            | < 500 MB    | Pending stress test         | Pending                                          |
-| File detection latency (p99)              | < 20 ms     | Validated (spike)           | Validated                                        |
-| tree-sitter parse (single file)           | < 1 ms      | Validated (spike + bench)   | Validated                                        |
+| Metric                                    | Target      | Measured (2026-06-26 clean) | Status                                        |
+| ----------------------------------------- | ----------- | --------------------------- | --------------------------------------------- |
+| Cold graph build, 100 files               | —           | **6.5 ms**                  | Validated (↓22% vs 2026-05-30)                |
+| Cold graph build, 1,000 files             | —           | **231 ms**                  | Validated (↓56% vs 2026-05-30)                |
+| Cold graph build, 2,500 files             | —           | —                           | Pending (extrapolation retired)               |
+| Cold graph build, 100k LOC / ~2,000 files | < 3 seconds | Pending stress harness      | Pending                                       |
+| Incremental update (single file)          | < 100 ms    | **28.3 µs**                 | Validated · ~3,500× under target (GCALL cost) |
+| Hot-read API (worst op p95)               | < 80 ms     | **0.035 ms**                | Validated · GV2-025 gate                      |
+| Call-lift (worst op p95)                  | < 80 ms     | **7.8 ms**                  | Validated · GCALL-006 gate                    |
+| Policy evaluation (all invariants)        | —           | **1.6 µs**                  | Validated                                     |
+| Event emission (1,000 events)             | < 10 ms     | **255 µs**                  | Validated · ~39× under target                 |
+| Memory footprint (medium repo)            | < 500 MB    | Pending stress test         | Pending                                       |
+| File detection latency (p99)              | < 20 ms     | Validated (spike)           | Validated                                     |
+| tree-sitter parse (single file)           | < 1 ms      | Validated (spike + bench)   | Validated                                     |
 
 Full benchmark report and marketing-ready angles:
 [`eddacraft-gtm/competitive/anvil-benchmarks-2026-04-03.md`](https://github.com/eddacraft/eddacraft-gtm/blob/main/competitive/anvil-benchmarks-2026-04-03.md)
@@ -508,12 +508,13 @@ dramatic post-v0.5 improvement captured by the harness.
 `walk_discovery` compares sequential `ignore::WalkBuilder` vs `WalkParallel` on
 a 20,000-candidate synthetic corpus (same box, 2026-06-26):
 
-| Strategy  | Median   | Throughput       |
-| --------- | -------- | ---------------- |
-| Sequential | **92.6 ms** | ~216K candidates/s |
+| Strategy   | Median      | Throughput          |
+| ---------- | ----------- | ------------------- |
+| Sequential | **92.6 ms** | ~216K candidates/s  |
 | Parallel   | **15.2 ms** | ~1.32M candidates/s |
 
-**~6.1×** parallel speedup — consistent with the 2026-06-02 SCAN-005 spike (~6×).
+**~6.1×** parallel speedup — consistent with the 2026-06-02 SCAN-005 spike
+(~6×).
 
 ### Benchmark Groups
 
