@@ -270,6 +270,41 @@ $ anvil edda show mem_abc123
 
 ---
 
+## anvil ember
+
+**Class:** User-explicit **Purpose:** List Ember proposals awaiting promotion to
+Edda. **When to use:** To inspect proposal backlog items stored in the local
+Ember database before promoting or reconciling them into durable Edda memories.
+
+**Synopsis:** `anvil ember <list>`
+
+**Subcommands:**
+
+| Subcommand           | Description                          |
+| -------------------- | ------------------------------------ |
+| `list` (alias: `ls`) | List Ember proposals with filtering. |
+
+**`list` flags:**
+
+| Flag                | Description                                 |
+| ------------------- | ------------------------------------------- |
+| `--json`            | Output as JSON.                             |
+| `--type <TYPE>`     | Filter by proposal type.                    |
+| `--status <status>` | Filter by proposal status. Default: active. |
+| `--limit <n>`       | Maximum proposals to display. Default: 20.  |
+
+**Exit codes:** 0 (success), 1 (error)
+
+**Examples:**
+
+```
+$ anvil ember list
+$ anvil ember list --status active --limit 10
+$ anvil ember list --json
+```
+
+---
+
 ## anvil status
 
 **Class:** User-explicit **Purpose:** Show project status and health. **When to
@@ -431,6 +466,47 @@ $ anvil insights
 $ anvil insights --suppressions
 $ anvil insights --json
 ```
+
+---
+
+## anvil kindling
+
+**Class:** User-explicit **Purpose:** Query local command-invocation usage
+views. **When to use:** To answer "what is being used and what is not" from the
+local usage sidecar and daemon-backed Kindling observations without ad-hoc SQL
+or `jq`.
+
+**Synopsis:** `anvil kindling usage <top|unused|flags|principals>`
+
+**Subcommands:**
+
+| Subcommand         | Description                                             |
+| ------------------ | ------------------------------------------------------- |
+| `usage top`        | Show top commands by invocation count.                  |
+| `usage unused`     | Show registered commands that have not been invoked.    |
+| `usage flags`      | Show flag-dependent command paths exercised in the log. |
+| `usage principals` | Show anonymised principals grouped by activity level.   |
+
+**`usage top` flags:**
+
+| Flag                | Description                               |
+| ------------------- | ----------------------------------------- |
+| `--period <period>` | Count window: `week`, `month`, or `all`.  |
+| `--limit <n>`       | Maximum rows to show. `0` means no limit. |
+
+**Exit codes:** 0 (success), 1 (error)
+
+**Examples:**
+
+```
+$ anvil kindling usage top
+$ anvil kindling usage top --period week --limit 20
+$ anvil kindling usage unused
+$ anvil kindling usage flags --json
+```
+
+> Usage views are signal, not evidence; see
+> [`docs/observability/usage-analytics.md`](../observability/usage-analytics.md).
 
 ---
 

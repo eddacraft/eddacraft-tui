@@ -1373,6 +1373,23 @@ mod tests {
         assert!(paths.len() > registered_command_names().len());
     }
 
+    #[test]
+    fn clic_010_lint_covers_visible_command_paths() {
+        use clap::CommandFactory;
+
+        let findings = help_layout::lint_clic_010_layout(&Cli::command());
+
+        assert!(
+            findings.is_empty(),
+            "CLIC-010 help layout drift:\n{}",
+            findings
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
+    }
+
     // ── 094c: full-registry usage-producer coverage ─────────────────
     //
     // The USAGE-001 dossier claims the conformance test iterates the
