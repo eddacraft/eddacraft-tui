@@ -1118,9 +1118,11 @@ impl DispatcherInner {
                 None,
                 start.elapsed(),
                 Some("cannot resolve current executable".to_string()),
+                None,
             );
             return;
         };
+        let mut daemon_notice: Option<anvil_tui::surfaces::watch::DaemonNotice> = None;
         // RLB-007: drain the paths accumulated since the last dispatch and
         // scope `check` to them. Taking (clearing) here means a save that
         // arrives after this point lands in `pending_paths` *and* sets the
@@ -1171,20 +1173,7 @@ impl DispatcherInner {
                     scoped_paths,
                     warned,
                 } => {
-                    if warned && !self.tui_parent {
-                        tracing::warn!(
-                            target: "anvil::watch",
-                            reason = "daemon-absent",
-                            "save-time daemon unavailable; falling back to a scoped check",
-                        );
-                        // The structured `tracing::warn!` above is the JSON-mode
-                        // channel (stderr, structured); the bare advisory line is
-                        // for the human plain surface only (WOUT-003 — do not mix
-                        // unstructured text into a JSON consumer's stderr).
-                        if !self.json {
-                            eprintln!("{}", fallback_advisory_line(&assurance));
-                        }
-                    }
+                    self.handle_daemon_fallback_warning(&assurance, warned, &mut daemon_notice);
                     // Fall through to the subprocess scoped to exactly the
                     // client-returned changed paths (non-empty here ⇒ never
                     // `--all`).
@@ -1218,7 +1207,12 @@ impl DispatcherInner {
                     );
                     eprintln!("[error] Failed to run action '{}': {e}", self.action);
                 }
-                self.send_result(None, start.elapsed(), Some(format!("spawn failed: {e}")));
+                self.send_result(
+                    None,
+                    start.elapsed(),
+                    Some(format!("spawn failed: {e}")),
+                    daemon_notice,
+                );
                 return;
             }
         };
@@ -1236,7 +1230,7 @@ impl DispatcherInner {
             // Route through `to_send_args` so the "cancelled" string lives
             // in exactly one place — same helper the post-wait branch uses.
             let (exit_code, error_detail) = WaitOutcome::Cancelled.to_send_args();
-            self.send_result(exit_code, start.elapsed(), error_detail);
+            self.send_result(exit_code, start.elapsed(), error_detail, daemon_notice);
             return;
         }
 
@@ -1252,7 +1246,35 @@ impl DispatcherInner {
         // cancellation as "cancelled" and wait failures as "wait failed:
         // …", never "spawn failed" (#1279 review).
         let (exit_code, error_detail) = outcome.to_send_args();
-        self.send_result(exit_code, start.elapsed(), error_detail);
+        self.send_result(exit_code, start.elapsed(), error_detail, daemon_notice);
+    }
+
+    fn handle_daemon_fallback_warning(
+        &self,
+        assurance: &anvil_intercept_proto::protocol::WorkspaceAssurance,
+        warned: bool,
+        daemon_notice: &mut Option<anvil_tui::surfaces::watch::DaemonNotice>,
+    ) {
+        if !warned {
+            return;
+        }
+        if self.tui_parent {
+            *daemon_notice = Some(anvil_tui::surfaces::watch::DaemonNotice::Fallback {
+                message: "daemon: unavailable -- scoped fallback".to_string(),
+            });
+            return;
+        }
+        tracing::warn!(
+            target: "anvil::watch",
+            reason = "daemon-absent",
+            "save-time daemon unavailable; falling back to a scoped check",
+        );
+        // The structured `tracing::warn!` above is the JSON-mode channel
+        // (stderr, structured); the bare advisory line is for the human plain
+        // surface only (WOUT-003 — do not mix unstructured text into JSON).
+        if !self.json {
+            eprintln!("{}", fallback_advisory_line(assurance));
+        }
     }
 
     fn wait_for_completion(&self) -> WaitOutcome {
@@ -1311,7 +1333,12 @@ impl DispatcherInner {
     ) {
         let exit_code = crate::commands::watch_save_time::verdict_exit_code(response);
         if self.sender.is_some() {
-            self.send_result(Some(exit_code), elapsed, None);
+            self.send_result(
+                Some(exit_code),
+                elapsed,
+                None,
+                Some(anvil_tui::surfaces::watch::DaemonNotice::ClearFallback),
+            );
         } else if self.json {
             // Stdout is the event stream; do not pollute it. Surface the verdict
             // on the diagnostic channel instead so it is observable without
@@ -1336,6 +1363,7 @@ impl DispatcherInner {
         exit_code: Option<i32>,
         elapsed: std::time::Duration,
         error_detail: Option<String>,
+        daemon_notice: Option<anvil_tui::surfaces::watch::DaemonNotice>,
     ) {
         let Some(sender) = self.sender.as_ref() else {
             return;
@@ -1347,6 +1375,7 @@ impl DispatcherInner {
             duration_ms,
             timestamp: chrono::Local::now().format("%H:%M:%S").to_string(),
             error_detail,
+            daemon_notice,
         };
         // Cancel-aware send (council finding: shutdown deadlock).
         // SyncSender::send would block if the buffer is full while the
@@ -1653,6 +1682,7 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
                 } else {
                     None
                 },
+                daemon_fallback_notice: None,
             });
         let link = action_rx
             .as_ref()
@@ -2265,6 +2295,73 @@ mod tests {
         assert!(
             line.is_ascii(),
             "advisory is ASCII-only per the watch banner policy, got: {line}",
+        );
+    }
+
+    #[test]
+    fn tui_fallback_warning_sets_daemon_notice() {
+        let dispatcher = ActionDispatcher::new(
+            "check".to_string(),
+            PathBuf::from("/tmp"),
+            false,
+            false,
+            true,
+            None,
+        );
+        let mut notice = None;
+        dispatcher.0.handle_daemon_fallback_warning(
+            &crate::commands::watch_save_time::daemon_absent_assurance(),
+            true,
+            &mut notice,
+        );
+
+        assert_eq!(
+            notice,
+            Some(anvil_tui::surfaces::watch::DaemonNotice::Fallback {
+                message: "daemon: unavailable -- scoped fallback".to_string(),
+            })
+        );
+    }
+
+    #[test]
+    fn daemon_verdict_clears_tui_fallback_notice() {
+        use anvil_intercept_proto::protocol::{
+            AssuranceState, CheckFamily, Coverage, EvaluatedPath, ValidatePathsResponse,
+            WorkspaceAssurance,
+        };
+        let response = ValidatePathsResponse {
+            diagnostics: Vec::new(),
+            evaluated: vec![EvaluatedPath {
+                path: "src/a.ts".into(),
+                content_hash: Some("hash".into()),
+            }],
+            workspace_assurance: WorkspaceAssurance {
+                state: AssuranceState::Clean,
+                reason: None,
+                generation: 1,
+                last_full_scan: None,
+                scan_coverage: None,
+            },
+            coverage: Coverage::Certified,
+            check_families: vec![CheckFamily::Antipattern],
+        };
+        let (tx, rx) = std::sync::mpsc::sync_channel(1);
+        let dispatcher = ActionDispatcher::new(
+            "check".to_string(),
+            PathBuf::from("/tmp"),
+            false,
+            false,
+            true,
+            Some(tx),
+        );
+
+        dispatcher
+            .0
+            .report_daemon_verdict(&response, std::time::Duration::from_millis(1));
+        let line = rx.try_recv().expect("daemon verdict line");
+        assert_eq!(
+            line.daemon_notice,
+            Some(anvil_tui::surfaces::watch::DaemonNotice::ClearFallback)
         );
     }
 
@@ -2913,6 +3010,7 @@ mod tests {
             duration_ms: 0,
             timestamp: "00:00:00".to_string(),
             error_detail: None,
+            daemon_notice: None,
         })
         .expect("preload send");
 

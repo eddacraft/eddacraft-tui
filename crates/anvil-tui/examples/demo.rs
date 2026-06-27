@@ -90,6 +90,7 @@ const SURFACES: [SurfaceInfo; 10] = [
 // Demo surface enum
 // ---------------------------------------------------------------------------
 
+#[allow(clippy::large_enum_variant)]
 enum DemoSurface {
     Picker(PickerState),
     Welcome(WelcomeState),
@@ -425,6 +426,7 @@ fn mock_watch_data() -> WatchData {
         last_action: None,
         update_hint: None,
         insights_hint: None,
+        daemon_fallback_notice: None,
     }
 }
 

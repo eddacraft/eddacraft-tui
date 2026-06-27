@@ -119,6 +119,10 @@ pub struct ActionResultLine {
     /// (e.g. `"spawn failed: Permission denied"`, `"cancelled"`,
     /// `"wait failed: ..."`). Footer renders verbatim.
     pub error_detail: Option<String>,
+    /// Optional TUI-only daemon fallback notice update carried on the same
+    /// channel as action results. This lets the CLI surface DSV-007 fallback
+    /// warnings inside the alt-screen and clear them on reconnect.
+    pub daemon_notice: Option<DaemonNotice>,
 }
 
 impl ActionResultLine {
@@ -137,6 +141,12 @@ impl ActionResultLine {
     pub fn errored(&self) -> bool {
         self.exit_code.is_none()
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DaemonNotice {
+    Fallback { message: String },
+    ClearFallback,
 }
 
 /// All data needed by the watch dashboard.
@@ -159,6 +169,9 @@ pub struct WatchData {
     /// strip(s) when active (first 14 days + once-per-week + no insights
     /// run this week). `None` otherwise.
     pub insights_hint: Option<String>,
+    /// TUI-visible save-time daemon fallback notice. Set on the first fallback
+    /// of a disconnect and cleared when daemon-backed validation reconnects.
+    pub daemon_fallback_notice: Option<String>,
 }
 
 /// Which panel is focused in the 2x2 grid.
@@ -488,6 +501,7 @@ mod tests {
             last_action: None,
             update_hint: None,
             insights_hint: None,
+            daemon_fallback_notice: None,
         }
     }
 

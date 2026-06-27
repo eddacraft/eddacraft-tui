@@ -238,6 +238,7 @@ mod tests {
             last_action: None,
             update_hint: None,
             insights_hint: None,
+            daemon_fallback_notice: None,
         }
     }
 

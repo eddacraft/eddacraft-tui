@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 73/106  |
+| CIB | —     | In Progress | 74/106  |
 
 ## Purpose
 
@@ -1150,7 +1150,7 @@ archive.
 
 ### CIB-047: Surface the save-time daemon-absent fallback in the watch TUI
 
-- **Status:** Ready
+- **Status:** Done 2026-06-27 — watch TUI now shows a daemon-unavailable scoped-fallback footer notice on the first fallback of a disconnect and clears it when daemon-backed validation reconnects.
 - **Intent:** DSV-007 made `anvil watch` a thin save-time-daemon client with a
   scoped fallback (safe default-on via DSV-021, with `ANVIL_WATCH_DAEMON=0`
   opt-out and `=1` forced diagnostics). The "warn once per

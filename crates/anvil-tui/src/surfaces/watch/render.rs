@@ -27,7 +27,9 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WatchState, theme: &EddaCra
     // update-available hint or INSIGHTS-004 first-week nudge (when set),
     // then the most recent --action outcome (LAUNCH-002). Hint goes above
     // the action footer.
-    let has_hint = state.data.update_hint.is_some() || state.data.insights_hint.is_some();
+    let has_hint = state.data.daemon_fallback_notice.is_some()
+        || state.data.update_hint.is_some()
+        || state.data.insights_hint.is_some();
     let (grid_area, hint_area, footer_area) =
         split_footer(area, has_hint, state.data.last_action.is_some());
 
@@ -58,7 +60,9 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WatchState, theme: &EddaCra
         render_stats_panel(frame, bottom_cols[1], state, theme);
     }
 
-    if let (Some(strip), Some(hint)) = (hint_area, state.data.insights_hint.as_ref()) {
+    if let (Some(strip), Some(notice)) = (hint_area, state.data.daemon_fallback_notice.as_ref()) {
+        render_daemon_fallback_notice(frame, strip, notice, theme);
+    } else if let (Some(strip), Some(hint)) = (hint_area, state.data.insights_hint.as_ref()) {
         // INSIGHTS-004: render the nudge using the update-hint visual
         // style (single line, accent-ish) but without advisory colouring.
         let para = ratatui::widgets::Paragraph::new(ratatui::text::Line::from(
@@ -76,6 +80,21 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WatchState, theme: &EddaCra
     if let (Some(footer), Some(line)) = (footer_area, state.data.last_action.as_ref()) {
         render_action_footer(frame, footer, line, theme);
     }
+}
+
+fn render_daemon_fallback_notice(
+    frame: &mut Frame,
+    area: Rect,
+    notice: &str,
+    theme: &EddaCraftTheme,
+) {
+    let para = Paragraph::new(Line::from(Span::styled(
+        notice,
+        Style::default()
+            .fg(theme.error())
+            .add_modifier(Modifier::BOLD),
+    )));
+    frame.render_widget(para, area);
 }
 
 /// Compute the grid + optional 1-line footers. Extracted from `render`
@@ -528,6 +547,7 @@ mod tests {
             last_action: None,
             update_hint: None,
             insights_hint: None,
+            daemon_fallback_notice: None,
         })
     }
 
@@ -596,6 +616,7 @@ mod tests {
             last_action: None,
             update_hint: None,
             insights_hint: None,
+            daemon_fallback_notice: None,
         });
         let theme = EddaCraftTheme;
 
@@ -825,6 +846,26 @@ mod tests {
         assert!(
             rendered.contains("Update available"),
             "allowed state must render the hint, got:\n{rendered}"
+        );
+    }
+
+    #[test]
+    fn daemon_fallback_notice_renders_in_footer_strip() {
+        let backend = TestBackend::new(120, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = sample_state();
+        state.data.daemon_fallback_notice =
+            Some("daemon: unavailable -- scoped fallback".to_string());
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+
+        let rendered = buffer_contents(terminal.backend().buffer());
+        assert!(
+            rendered.contains("daemon: unavailable -- scoped fallback"),
+            "daemon fallback notice must be visible in TUI mode, got:\n{rendered}"
         );
     }
 

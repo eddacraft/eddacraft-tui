@@ -1076,6 +1076,7 @@ fn run_watch_demo_from_tutorial(
         last_action: None,
         update_hint: None,
         insights_hint: None,
+        daemon_fallback_notice: None,
     };
 
     let state = anvil_tui::surfaces::tutorial::watch_demo::WatchDemoState::new(data);
@@ -1133,6 +1134,7 @@ fn start_watch_from_hub(
             last_action: None,
             update_hint: None,
             insights_hint: None,
+            daemon_fallback_notice: None,
         });
 
     let exit = crate::tui::run_watch_in(terminal, &mut state, &event_rx);

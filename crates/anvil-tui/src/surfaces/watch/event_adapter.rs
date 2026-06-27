@@ -6,7 +6,8 @@ use anvil_kernel_types::{
 };
 
 use super::{
-    ActionResultLine, QueuedNotification, RunHistory, WatchData, WatchStatus, WatchWarmup,
+    ActionResultLine, DaemonNotice, QueuedNotification, RunHistory, WatchData, WatchStatus,
+    WatchWarmup,
 };
 
 /// Maximum number of entries retained in the change queue.
@@ -85,12 +86,22 @@ impl WatchEventAdapter {
 
     /// Fold an `--action` outcome into the dashboard (LAUNCH-002).
     ///
-    /// **Isolation invariant:** writes ONLY `data.last_action`. Action
-    /// outcomes must not flip the kernel-derived status icon or pollute
-    /// `WatchStats` arithmetic — those are kernel-event-only fields. A
-    /// failing `gate` is not the same signal as a kernel violation, and
-    /// the Status pane must not conflate them.
+    /// **Isolation invariant:** writes only the action/footer state
+    /// (`last_action` and the TUI-only daemon fallback notice). Action outcomes
+    /// must not flip the kernel-derived status icon or pollute `WatchStats`
+    /// arithmetic — those are kernel-event-only fields. A failing `gate` is not
+    /// the same signal as a kernel violation, and the Status pane must not
+    /// conflate them.
     pub fn handle_action_result(line: &ActionResultLine, data: &mut WatchData) {
+        match &line.daemon_notice {
+            Some(DaemonNotice::Fallback { message }) => {
+                data.daemon_fallback_notice = Some(message.clone());
+            }
+            Some(DaemonNotice::ClearFallback) => {
+                data.daemon_fallback_notice = None;
+            }
+            None => {}
+        }
         data.last_action = Some(line.clone());
     }
 
@@ -273,6 +284,7 @@ mod tests {
             last_action: None,
             update_hint: None,
             insights_hint: None,
+            daemon_fallback_notice: None,
         }
     }
 
@@ -623,6 +635,7 @@ mod tests {
             duration_ms: 1234,
             timestamp: "10:30:00".to_string(),
             error_detail: None,
+            daemon_notice: None,
         }
     }
 
@@ -693,5 +706,33 @@ mod tests {
             "history must not change"
         );
         assert_eq!(data.queue.len(), queue_len_before, "queue must not change");
+    }
+
+    #[test]
+    fn action_result_sets_daemon_fallback_notice() {
+        let mut data = empty_data();
+        let mut line = action_result("check", Some(0));
+        line.daemon_notice = Some(super::DaemonNotice::Fallback {
+            message: "daemon: unavailable -- scoped fallback".to_string(),
+        });
+
+        WatchEventAdapter::handle_action_result(&line, &mut data);
+
+        assert_eq!(
+            data.daemon_fallback_notice.as_deref(),
+            Some("daemon: unavailable -- scoped fallback")
+        );
+    }
+
+    #[test]
+    fn action_result_clears_daemon_fallback_notice_on_reconnect() {
+        let mut data = empty_data();
+        data.daemon_fallback_notice = Some("daemon: unavailable -- scoped fallback".to_string());
+        let mut line = action_result("check", Some(0));
+        line.daemon_notice = Some(super::DaemonNotice::ClearFallback);
+
+        WatchEventAdapter::handle_action_result(&line, &mut data);
+
+        assert_eq!(data.daemon_fallback_notice, None);
     }
 }

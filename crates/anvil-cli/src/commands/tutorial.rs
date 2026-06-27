@@ -131,6 +131,7 @@ fn run_watch_demo_for_tutorial() -> anyhow::Result<()> {
         last_action: None,
         update_hint: None,
         insights_hint: None,
+        daemon_fallback_notice: None,
     };
 
     let state = anvil_tui::surfaces::tutorial::watch_demo::WatchDemoState::new(data);
