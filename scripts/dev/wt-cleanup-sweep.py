@@ -270,7 +270,14 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--confirm-for-test", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
 
-    repo = repo_root()
+    try:
+        repo = repo_root()
+    except subprocess.CalledProcessError:
+        print(
+            "ERROR: not inside a git worktree (git rev-parse --show-toplevel failed)",
+            file=sys.stderr,
+        )
+        return 2
     try:
         fetch_origin_main(repo)
     except subprocess.CalledProcessError as err:

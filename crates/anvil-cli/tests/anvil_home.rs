@@ -465,12 +465,7 @@ fn uninstall_refused_under_gated_anvil_home_when_project_has_dot_anvil() {
         project.path(),
         home.path(),
         Some(candidate.path()),
-        &[
-            "uninstall",
-            "--yes",
-            "--keep-daemon",
-            "--keep-mcp",
-        ],
+        &["uninstall", "--yes", "--keep-daemon", "--keep-mcp"],
     );
 
     assert!(

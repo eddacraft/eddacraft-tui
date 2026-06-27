@@ -13,6 +13,6 @@ any `.aps.md` file.
 - Before starting work on a module, mark its status **In Progress**
 - After completing a work item, update its status only — do **not** bump the
   module header or index `N/M` count in feature PRs (ADR-053 advisory counts)
-- After all items done, update module status to Complete
+- After all items done, update module status to **Done**
 - Reconcile stored `N/M` counts with `pnpm aps:index` when a refresh is needed
 - Archive completed modules with `git mv` to `plans/archive/modules/`
