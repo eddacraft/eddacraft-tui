@@ -415,9 +415,16 @@ mod tests {
             .unwrap();
         let rendered = buffer_contents(terminal.backend().buffer());
 
+        // Assert both glyph captions distinctly. "not installed" contains
+        // "installed" as a substring, so check the `*`/`o` markers too to
+        // prove the active *and* inactive captions both render.
         assert!(
-            rendered.contains("installed") && rendered.contains("not installed"),
-            "hooks panel must carry a `* installed / o not installed` legend; got:\n{rendered}"
+            rendered.contains("* installed"),
+            "hooks legend must caption `* installed`; got:\n{rendered}"
+        );
+        assert!(
+            rendered.contains("o not installed"),
+            "hooks legend must caption `o not installed`; got:\n{rendered}"
         );
     }
 

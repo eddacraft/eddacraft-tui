@@ -324,8 +324,10 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
   - **Shipped this item:** `anvil status` TUI `*`/`o` hook legend + honest
     "No runs recorded yet" empty-state for Recent Runs; `anvil insights` daemon
     uptime now renders "not yet measured" instead of a stub `0%` that
-    contradicts a running daemon (`daemon_uptime_percentage` was hardcoded `0` —
-    now `Option<u8>` → `null` in JSON).
+    contradicts a running daemon. `daemon_uptime_percentage` is a
+    schema-locked placeholder (always `0` until instrumented); the JSON
+    wire value and `schemas/anvil-insights.v1.json` are unchanged — only
+    the human render special-cases the `0` placeholder.
   - **Already satisfied — verified, no change needed:** structured WARN copy
     already goes to `tracing` (invisible at default level) with a single plain
     noise-disciplined `eprintln!`, not JSON, on stderr; bare `anvil` already
