@@ -107,8 +107,8 @@ pub struct HookArgs {
 #[derive(Debug, Subcommand)]
 enum HookCommand {
     /// L3 pre-commit hook — validates the staged diff and appends a
-    /// witness line. ADR-038 noise discipline: silent on pass, one
-    /// line otherwise.
+    /// witness line. Noise discipline: silent on pass, one line
+    /// otherwise.
     PreCommit(SilentArgs),
     /// L4 pre-push hook — walks the pushed commit range, verifies
     /// each commit's L3 witness, and applies per-branch policy from

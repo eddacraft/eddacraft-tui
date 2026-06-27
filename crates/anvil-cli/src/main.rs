@@ -127,17 +127,17 @@ pub struct GlobalArgs {
 
     /// Re-root install-owned state (user state, daemon socket/PID, kernel
     /// cache/logs) under this prefix so a pre-release candidate can run
-    /// side-by-side with the production install (DISTRIB-006). Takes precedence
-    /// over the `ANVIL_HOME` env var. Per-project `.anvil/` state stays at the
-    /// project root; durable project mutations are gated unless
-    /// `--touch-project-state` is also set (ADR-060).
+    /// side-by-side with the production install. Takes precedence over the
+    /// `ANVIL_HOME` env var. Per-project `.anvil/` state stays at the project
+    /// root; durable project mutations are gated unless
+    /// `--touch-project-state` is also set.
     #[arg(long, global = true, value_name = "PATH")]
     pub anvil_home: Option<std::path::PathBuf>,
 
     /// Permit durable per-project mutations (baseline refresh, witness append,
     /// cutoff pinning) while running under a non-default `--anvil-home` /
     /// `ANVIL_HOME`. Without it such writes run read-only / dry-run so an
-    /// unreleased candidate cannot silently corrupt a real project (ADR-060).
+    /// unreleased candidate cannot silently corrupt a real project.
     #[arg(long, global = true)]
     pub touch_project_state: bool,
 }
@@ -208,7 +208,7 @@ enum Commands {
     ///
     /// Records `anvil report-fp <check-id> <file:line>` to the local
     /// Kindling record only, or lists local reports with `--list` — nothing
-    /// leaves the machine (ADR-089). The file path is recorded and listed as a
+    /// leaves the machine. The file path is recorded and listed as a
     /// one-way salted hash, never plaintext, and source content is never
     /// included unless `--include-snippet` is set. The check identifier is
     /// validated against the stable-ID registry.
@@ -302,7 +302,7 @@ enum Commands {
     /// Manage the `anvil/baseline.json` adoption record.
     Baseline(commands::baseline::BaselineArgs),
     /// Package a commit range's governance evidence into a portable,
-    /// locally verifiable review capsule (ADR-074).
+    /// locally verifiable review capsule.
     Capsule(commands::capsule::CapsuleArgs),
     /// Manage architecture boundary definitions.
     Architecture(commands::architecture::ArchitectureArgs),
@@ -1404,6 +1404,16 @@ mod tests {
                 .map(ToString::to_string)
                 .collect::<Vec<_>>()
                 .join("\n")
+        );
+    }
+
+    #[test]
+    fn clic_010_help_excludes_internal_identifiers() {
+        let findings = help_layout::lint_internal_identifiers(&augmented_cli_command());
+        assert!(
+            findings.is_empty(),
+            "user-visible help must not leak internal identifiers (CLIC-010):\n{}",
+            findings.join("\n")
         );
     }
 

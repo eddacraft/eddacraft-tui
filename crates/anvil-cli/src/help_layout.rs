@@ -254,3 +254,75 @@ fn finding(path: &[String], kind: HelpLayoutFindingKind) -> HelpLayoutFinding {
         kind,
     }
 }
+
+/// Internal-identifier prefixes that must never appear in user-visible help
+/// (CLIC-010: "no internal identifiers, ADR references, or work-item IDs in
+/// user-visible text").
+#[cfg(test)]
+const INTERNAL_ID_PREFIXES: &[&str] = &[
+    "ADR", "DISTRIB", "DLIFE", "DSV", "LAUNCH", "MLP2", "MLP", "RCLI3", "RCLI", "CIB", "CLIC",
+    "KDS", "USAGE", "GCTX", "V050F", "OPMODEL", "INTD", "TRACE", "FLAGM", "SARIFOUT", "APSCAN",
+    "RSTLAN", "GITGOV", "POLENG", "DASH",
+];
+
+/// Render the long help of every visible command and report any user-visible
+/// internal identifier (e.g. `ADR-060`, `DLIFE-003`). Test-only: the runtime
+/// augmentation ships in the binary, the lint guards it in CI.
+#[cfg(test)]
+pub fn lint_internal_identifiers(root: &Command) -> Vec<String> {
+    let mut findings = Vec::new();
+    let mut root = root.clone();
+    let name = root.get_name().to_owned();
+    let help = root.render_long_help().to_string();
+    for id in internal_identifiers(&help) {
+        findings.push(format!("{name}: {id}"));
+    }
+    for path in visible_command_paths(&root) {
+        let mut command = &mut root;
+        for segment in path.iter().skip(1) {
+            command = command
+                .find_subcommand_mut(segment)
+                .expect("visible path resolves to a command");
+        }
+        let help = command.render_long_help().to_string();
+        for id in internal_identifiers(&help) {
+            findings.push(format!("{}: {id}", path.join(" ")));
+        }
+    }
+    findings.sort();
+    findings.dedup();
+    findings
+}
+
+#[cfg(test)]
+fn internal_identifiers(help: &str) -> Vec<String> {
+    let bytes = help.as_bytes();
+    let mut hits = Vec::new();
+    for prefix in INTERNAL_ID_PREFIXES {
+        let mut from = 0;
+        while let Some(rel) = help[from..].find(prefix) {
+            let start = from + rel;
+            let after = start + prefix.len();
+            from = after;
+            // Require a word boundary before the prefix so e.g. "STANDARD" does
+            // not match "DASH".
+            if start > 0 && bytes[start - 1].is_ascii_alphanumeric() {
+                continue;
+            }
+            // Require `-<digit>` immediately after the prefix.
+            if bytes.get(after) != Some(&b'-')
+                || !bytes.get(after + 1).is_some_and(u8::is_ascii_digit)
+            {
+                continue;
+            }
+            let mut end = after + 1;
+            while bytes.get(end).is_some_and(u8::is_ascii_digit) {
+                end += 1;
+            }
+            hits.push(help[start..end].to_owned());
+        }
+    }
+    hits.sort();
+    hits.dedup();
+    hits
+}

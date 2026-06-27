@@ -58,7 +58,7 @@ pub struct EvalArgs {
     input: Option<PathBuf>,
 
     /// Rego query to evaluate. Point at a findings rule
-    /// (e.g. `data.arch.findings`) for ADR-002/003 gating semantics.
+    /// (e.g. `data.arch.findings`) for gate-style pass/fail semantics.
     #[arg(long, value_name = "QUERY", default_value = "data")]
     query: String,
 
@@ -67,8 +67,8 @@ pub struct EvalArgs {
     explain: bool,
 
     /// Explain a finding by its 0-based index: render the evaluation trace and
-    /// highlight that finding. (Per-finding trace is limited by the engine —
-    /// see POLENG-006 — so the trace shown is the query-level trace.)
+    /// highlight that finding. Per-finding trace is limited by the engine, so
+    /// the trace shown is the query-level trace.
     #[arg(long, value_name = "INDEX")]
     why: Option<usize>,
 

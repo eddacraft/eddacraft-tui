@@ -56,15 +56,15 @@ pub struct WatchArgs {
     #[arg(long)]
     debounce: Option<u64>,
 
-    /// Skip starting (or offering to start) the per-user save-time daemon
-    /// (DLIFE-004, ADR-082). With no daemon answering, an interactive
-    /// `anvil watch` offers to start one so save-time validation is
-    /// daemon-backed; pass `--no-daemon` to suppress that offer and rely on
-    /// the scoped fallback. A daemon already running is still reused; only
-    /// the offer is suppressed. `ANVIL_WATCH_DAEMON=0` is the equivalent
-    /// environment opt-out and additionally disables reuse. No daemon is
-    /// ever started or offered in `--json`, headless, CI, hook, or piped
-    /// contexts — those fall back deterministically.
+    /// Skip starting (or offering to start) the per-user save-time daemon.
+    /// With no daemon answering, an interactive `anvil watch` offers to start
+    /// one so save-time validation is daemon-backed; pass `--no-daemon` to
+    /// suppress that offer and rely on the scoped fallback. A daemon already
+    /// running is still reused; only the offer is suppressed.
+    /// `ANVIL_WATCH_DAEMON=0` is the equivalent environment opt-out and
+    /// additionally disables reuse. No daemon is ever started or offered in
+    /// `--json`, headless, CI, hook, or piped contexts — those fall back
+    /// deterministically.
     #[arg(long = "no-daemon")]
     no_daemon: bool,
 }

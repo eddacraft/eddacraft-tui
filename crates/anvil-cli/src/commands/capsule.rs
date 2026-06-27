@@ -60,12 +60,12 @@ enum CapsuleCommand {
     /// Create a review capsule directory for a commit range.
     Create(CreateArgs),
     /// Verify a capsule directory and print closed-state verdicts
-    /// (GITGOV-009). Exits `0` pass/warn, `1` block, `2` degraded,
-    /// `3` error (ADR-074). Repo-present: digests are re-collected from
-    /// the current repository.
+    /// (closed-state, offline-verifiable). Exits `0` pass/warn, `1`
+    /// block, `2` degraded, `3` error. Repo-present: digests are
+    /// re-collected from the current repository.
     Verify(VerifyArgs),
     /// Print a human-readable summary of a capsule directory
-    /// (GITGOV-010): range, commits, policy/rules/baseline, witness
+    /// — range, commits, policy/rules/baseline, witness
     /// coverage, diagnostics counts, exceptions, and the recorded
     /// verdict. Read-only and repo-independent — it reports the verdict
     /// the capsule carries, it does not re-verify (use `verify` for
@@ -73,7 +73,7 @@ enum CapsuleCommand {
     /// verdict (non-zero only when the capsule cannot be read); gate on
     /// the verdict with `anvil capsule verify`, not this command.
     Explain(ExplainArgs),
-    /// Explicitly dispose of staged capsules (ADR-078, GITGOV-013).
+    /// Explicitly dispose of staged capsules.
     /// Dry-run by default: prints what `--apply` would delete and
     /// touches nothing. Candidates are schema-gated (only parseable
     /// `anvil.capsule.v1` directories), ordered by head-commit
@@ -89,10 +89,9 @@ struct VerifyArgs {
     /// The capsule directory to verify.
     capsule: PathBuf,
     /// Emit the `anvil.capsule-verification.v1` document as canonical
-    /// JSON on stdout instead of the human per-check lines (GITGOV-011,
-    /// for CI consumption). The ADR-074 exit code is unchanged, so a CI
-    /// step can gate on the exit status and parse the verdict from the
-    /// same run.
+    /// JSON on stdout instead of the human per-check lines (for CI
+    /// consumption). The exit code is unchanged, so a CI step can gate
+    /// on the exit status and parse the verdict from the same run.
     #[arg(long)]
     json: bool,
 }
@@ -102,7 +101,7 @@ struct ExplainArgs {
     /// The capsule directory to summarise.
     capsule: PathBuf,
     /// Emit an `anvil.capsule-explain.v1` summary as JSON on stdout
-    /// instead of the human report (GITGOV-011). Like the human form it
+    /// instead of the human report. Like the human form it
     /// is descriptive — it reports the capsule's recorded verdict, it
     /// does not adjudicate (gate with `anvil capsule verify --json`).
     #[arg(long)]
@@ -118,7 +117,7 @@ struct CreateArgs {
     /// Directory to write the capsule into. Created if missing;
     /// refused if it already contains files. Keep it outside the
     /// repository — in-repo staging is a deliberate opt-in
-    /// (ADR-074: on-demand/external by default).
+    /// (on-demand/external by default).
     #[arg(long)]
     out: PathBuf,
 }
@@ -126,13 +125,13 @@ struct CreateArgs {
 #[derive(Debug, Args)]
 struct PruneArgs {
     /// Staging root to prune. Defaults to `anvil/evidence/capsules/`
-    /// (ADR-073). Must resolve inside the repository working tree and
+    /// by default. Must resolve inside the repository working tree and
     /// outside `.git`.
     #[arg(long)]
     root: Option<PathBuf>,
     /// Keep the newest N orderable capsules; the rest are selected for
     /// deletion. Must be at least 1 — deleting every capsule is a
-    /// manual `git rm` decision, not a prune invocation (ADR-078).
+    /// manual `git rm` decision, not a prune invocation.
     #[arg(long, value_parser = clap::value_parser!(u32).range(1..))]
     keep_last: u32,
     /// Perform the deletion. Without this flag prune is a dry run:

@@ -102,14 +102,14 @@ pub struct StartArgs {
     /// unaffected.
     #[arg(long)]
     pub why: bool,
-    /// Skip auto-starting the per-user save-time daemon (DLIFE-003,
-    /// ADR-082). In an interactive terminal `anvil start` auto-starts the
-    /// daemon so save-time validation is daemon-backed; pass `--no-daemon`
-    /// (or set `ANVIL_NO_DAEMON=1`) to suppress that and rely on the scoped
-    /// fallback. A daemon already running is still reused; only the
-    /// auto-start is suppressed. No-op under `--verify` / `--json` (those
-    /// read-only probes never start a daemon). Non-interactive contexts
-    /// (CI, hooks, piped output) already fall back automatically.
+    /// Skip auto-starting the per-user save-time daemon. In an interactive
+    /// terminal `anvil start` auto-starts the daemon so save-time validation
+    /// is daemon-backed; pass `--no-daemon` (or set `ANVIL_NO_DAEMON=1`) to
+    /// suppress that and rely on the scoped fallback. A daemon already
+    /// running is still reused; only the auto-start is suppressed. No-op
+    /// under `--verify` / `--json` (those read-only probes never start a
+    /// daemon). Non-interactive contexts (CI, hooks, piped output) already
+    /// fall back automatically.
     #[arg(long = "no-daemon")]
     pub no_daemon: bool,
     /// Skip MCP config installation. The daemon-backed activation spine still
