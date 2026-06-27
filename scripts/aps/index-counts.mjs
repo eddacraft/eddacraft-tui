@@ -179,9 +179,14 @@ if (values.json) {
       );
     }
     if (values.check) {
-      process.stdout.write(
-        '[aps-index-counts] advisory: run `pnpm aps:index` to reconcile stored counts.\n'
-      );
+      const advisory =
+        'APS index counts are stale — run `pnpm aps:index` to reconcile stored counts.';
+      process.stdout.write(`[aps-index-counts] advisory: ${advisory}\n`);
+      if (process.env.GITHUB_ACTIONS === 'true') {
+        const escapeCmdData = (s) =>
+          String(s).replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
+        process.stdout.write(`::warning title=APS index counts::${escapeCmdData(advisory)}\n`);
+      }
     }
   }
   // Notes are informational (managed module not in the index, or no count

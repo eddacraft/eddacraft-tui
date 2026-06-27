@@ -415,6 +415,28 @@ mod tests {
     }
 
     #[test]
+    fn production_path_still_flags_secret_near_url_and_valid_tokens() {
+        let config = SecretCheckConfig {
+            entropy_threshold: 3.5,
+            ..SecretCheckConfig::default()
+        };
+        let content = r#"
+// valid url for the webhook endpoint
+const callbackUrl = 'https://example.com/hooks';
+const apiToken = 'Qm9kR3p4VnNNdkxaWlhTamtCdQ==';
+"#;
+
+        let findings = detect_high_entropy_strings(content, "src/webhook.ts", &config);
+
+        assert!(
+            findings
+                .iter()
+                .any(|finding| finding.pattern_name == "High Entropy String"),
+            "production secret near url/valid context must still flag: {findings:?}"
+        );
+    }
+
+    #[test]
     fn still_flags_real_secret_shaped_quoted_value() {
         // Regression guard: tightening quoted_pattern must not disable
         // detection of high-entropy secret-shaped values. The same line

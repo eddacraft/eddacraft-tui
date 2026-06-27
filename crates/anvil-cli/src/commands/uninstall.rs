@@ -436,7 +436,7 @@ fn execute_action(action: &Action) -> ActionOutcome {
     }
 }
 
-#[cfg(unix)]
+#[cfg(any(unix, windows))]
 fn stop_daemon(_pid_file: &Path) -> Result<(OutcomeStatus, String)> {
     match anvil_intercept::request_daemon_stop()? {
         anvil_intercept::StopOutcome::Signalled { pid } => Ok((
@@ -453,13 +453,13 @@ fn stop_daemon(_pid_file: &Path) -> Result<(OutcomeStatus, String)> {
     }
 }
 
-#[cfg(not(unix))]
+#[cfg(not(any(unix, windows)))]
 fn stop_daemon(pid_file: &Path) -> Result<(OutcomeStatus, String)> {
-    // On Windows the daemon shutdown surface lands with INTD-002; for
-    // now we just remove the stale pid file so reinstall is unblocked.
     let (status, detail) = remove_file(pid_file)?;
     let detail = match status {
-        OutcomeStatus::Removed => "removed pid file (kill not supported on this platform)".into(),
+        OutcomeStatus::Removed => {
+            "removed pid file (daemon stop unsupported on this platform)".into()
+        }
         OutcomeStatus::NotPresent => "pid file already gone".into(),
         OutcomeStatus::Failed => detail,
     };

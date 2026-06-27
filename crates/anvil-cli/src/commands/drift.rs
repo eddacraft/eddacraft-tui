@@ -220,6 +220,7 @@ enum MigrateSkipReason {
     InvalidSchemaVersion,
     NewerSchema,
     ScanLimitExceeded,
+    WriteFailed,
 }
 
 impl MigrateSkipReason {
@@ -230,6 +231,7 @@ impl MigrateSkipReason {
             Self::InvalidSchemaVersion => "invalid_schema_version",
             Self::NewerSchema => "newer_schema",
             Self::ScanLimitExceeded => "scan_limit_exceeded",
+            Self::WriteFailed => "write_failed",
         }
     }
 }
@@ -428,10 +430,10 @@ fn migrate_snapshots_capped(
         match version.cmp(&current) {
             std::cmp::Ordering::Equal => report.already_current += 1,
             std::cmp::Ordering::Greater => report.add_skip(MigrateSkipReason::NewerSchema, 1),
-            std::cmp::Ordering::Less => {
-                migrate_one(&path, &content, current)?;
-                report.migrated += 1;
-            }
+            std::cmp::Ordering::Less => match migrate_one(&path, &content, current) {
+                Ok(()) => report.migrated += 1,
+                Err(_) => report.add_skip(MigrateSkipReason::WriteFailed, 1),
+            },
         }
     }
 
@@ -2108,6 +2110,38 @@ mod tests {
             report.skipped_by_reason.get(&MigrateSkipReason::Unreadable),
             Some(&1)
         );
+    }
+
+    #[test]
+    fn migrate_write_failure_is_reported_as_partial_without_aborting() {
+        let dir = tempfile::tempdir().unwrap();
+        let good = write_snapshot_at_version(dir.path(), "good", "1.0.0");
+        let first = migrate_snapshots(dir.path(), false).unwrap();
+        assert_eq!(first.migrated, 1);
+
+        let late = write_snapshot_at_version(dir.path(), "late", "1.0.0");
+        let late_before = std::fs::read_to_string(&late).unwrap();
+        let snapshots = snapshots_dir(dir.path());
+        let mut perms = std::fs::metadata(&snapshots).unwrap().permissions();
+        perms.set_readonly(true);
+        std::fs::set_permissions(&snapshots, perms).unwrap();
+
+        let report = migrate_snapshots(dir.path(), false).unwrap();
+
+        assert_eq!(report.migrated, 0);
+        assert_eq!(report.skipped, 1);
+        assert!(report.partial);
+        assert_eq!(
+            report
+                .skipped_by_reason
+                .get(&MigrateSkipReason::WriteFailed),
+            Some(&1)
+        );
+        assert_eq!(
+            load_snapshot_file(&good).unwrap().schema_version,
+            current_schema().to_string()
+        );
+        assert_eq!(std::fs::read_to_string(&late).unwrap(), late_before);
     }
 
     #[test]

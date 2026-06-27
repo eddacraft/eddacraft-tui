@@ -1037,20 +1037,23 @@ fn list_false_positive_reports_in(state_dir: &Path) -> Result<Vec<FalsePositiveR
         }
     };
 
-    content
-        .lines()
-        .filter(|line| !line.trim().is_empty())
-        .map(|line| {
-            let row: FalsePositiveReportedObservation =
-                serde_json::from_str(line).context("parse false-positive sidecar row")?;
-            Ok(FalsePositiveReportSummary {
-                check_id: row.check_id,
-                hashed_path: row.hashed_path,
-                line: row.line,
-                timestamp: row.timestamp,
-            })
-        })
-        .collect()
+    let mut reports = Vec::new();
+    for line in content.lines().filter(|line| !line.trim().is_empty()) {
+        let row: FalsePositiveReportedObservation = match serde_json::from_str(line) {
+            Ok(row) => row,
+            Err(err) => {
+                tracing::warn!(%err, "skipping corrupt false-positive sidecar row");
+                continue;
+            }
+        };
+        reports.push(FalsePositiveReportSummary {
+            check_id: row.check_id,
+            hashed_path: row.hashed_path,
+            line: row.line,
+            timestamp: row.timestamp,
+        });
+    }
+    Ok(reports)
 }
 
 // KDS-005: the bespoke `DaemonUsageSink` NDJSON writer for the daemon
@@ -1421,6 +1424,25 @@ mod tests {
         let dir = tempdir().expect("tempdir");
         let reports = list_false_positive_reports_in(dir.path()).expect("list");
         assert!(reports.is_empty(), "expected no reports, got {reports:?}");
+    }
+
+    #[test]
+    fn list_false_positive_reports_skips_corrupt_rows() {
+        let dir = tempdir().expect("tempdir");
+        record_false_positive_in(dir.path(), "ANV-CORE-001", "src/a.rs", 1, None)
+            .expect("record good");
+        let path = fp_log_path(dir.path());
+        let mut content = std::fs::read_to_string(&path).expect("read");
+        content.push_str("{not-json\n");
+        std::fs::write(&path, content).expect("append corrupt");
+
+        let reports = list_false_positive_reports_in(dir.path()).expect("list");
+        assert_eq!(
+            reports.len(),
+            1,
+            "valid row should survive corrupt tail: {reports:?}"
+        );
+        assert_eq!(reports[0].check_id, "ANV-CORE-001");
     }
 
     #[test]

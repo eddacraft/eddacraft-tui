@@ -126,6 +126,62 @@ fn plain_partial_migrate_warns_without_duplicate_generic_error() {
 }
 
 #[test]
+fn json_partial_migrate_reports_write_failed_without_aborting_prior_work() {
+    let root = tempdir().expect("workspace");
+    let good = write_snapshot(root.path(), "good", "1.0.0");
+    let first = run_anvil(
+        root.path(),
+        &["--json", "--touch-project-state", "drift", "migrate"],
+    );
+    assert!(
+        first.status.success(),
+        "initial migrate should succeed\nstdout={}\nstderr={}",
+        String::from_utf8_lossy(&first.stdout),
+        String::from_utf8_lossy(&first.stderr)
+    );
+
+    let late = write_snapshot(root.path(), "late", "1.0.0");
+    let late_before = std::fs::read_to_string(&late).expect("late before");
+    let snapshots = snapshots_dir(root.path());
+    let mut perms = std::fs::metadata(&snapshots).expect("meta").permissions();
+    perms.set_readonly(true);
+    std::fs::set_permissions(&snapshots, perms).expect("chmod snapshots");
+
+    let output = run_anvil(
+        root.path(),
+        &["--json", "--touch-project-state", "drift", "migrate"],
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(1),
+        "write failure should yield partial exit 1\nstdout={}\nstderr={}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let payload: serde_json::Value =
+        serde_json::from_str(&stdout).unwrap_or_else(|err| panic!("valid JSON: {err}: {stdout}"));
+    assert_eq!(payload["partial"], true);
+    assert_eq!(payload["migrated"], 0);
+    assert_eq!(payload["skipped"], 1);
+    assert_eq!(payload["skipped_by_reason"]["write_failed"], 1);
+
+    let good_after: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&good).expect("good snapshot"))
+            .expect("json");
+    assert_ne!(
+        good_after["schema_version"], "1.0.0",
+        "prior migrated baseline must stay upgraded: {good_after}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&late).expect("late snapshot"),
+        late_before,
+        "blocked baseline must remain untouched"
+    );
+}
+
+#[test]
 fn prune_backups_cli_removes_only_eligible_files() {
     let root = tempdir().expect("workspace");
     let live = write_snapshot(root.path(), "prune", "1.1.0");
