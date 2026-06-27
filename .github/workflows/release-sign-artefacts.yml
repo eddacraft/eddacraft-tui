@@ -28,8 +28,8 @@ jobs:
     name: Sign installer artefacts
     runs-on: ubuntu-22.04
     if:
-      ${{ github.event_name == 'workflow_dispatch' || (!github.event.release.prerelease &&
-      startsWith(github.event.release.tag_name, 'v')) }}
+      ${{ github.event_name == 'workflow_dispatch' || startsWith(github.event.release.tag_name, 'v')
+      }}
     env:
       GH_TOKEN: ${{ github.token }}
       TAG: ${{ github.event.release.tag_name || github.event.inputs.tag }}
@@ -84,6 +84,21 @@ jobs:
             exit 1
           fi
 
+      - name: Resolve release target commit
+        id: release
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "release" ]; then
+            commit_sha="${{ github.event.release.target_commitish }}"
+          else
+            commit_sha=$(gh release view "${TAG}" --json targetCommitish --jq '.targetCommitish')
+          fi
+          if [ -z "${commit_sha}" ]; then
+            echo "::error::Could not resolve target commit for tag ${TAG}"
+            exit 1
+          fi
+          echo "commit_sha=${commit_sha}" >> "${GITHUB_OUTPUT}"
+
       - name: Download release assets
         env:
           GH_REPO: ${{ github.repository }}
@@ -112,7 +127,7 @@ jobs:
         run: |
           set -euo pipefail
           cd assets
-          commit_sha="${GITHUB_SHA}"
+          commit_sha="${{ steps.release.outputs.commit_sha }}"
           built_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           shopt -s nullglob
           for f in *-installer.sh *-installer.ps1 anvil-*-provenance.json; do

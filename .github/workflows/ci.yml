@@ -245,6 +245,8 @@ jobs:
           pnpm test:ci-workflow-contracts
           pnpm test:ci-mirror-hardening
           pnpm test:aps-index
+          pnpm test:release-sign-artefacts
+          pnpm test:wt-cleanup-sweep
           pnpm test:aps-advance-released
           pnpm test:bench-parity
           pnpm test:validate-local

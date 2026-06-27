@@ -211,6 +211,10 @@ pub fn run(args: &UninstallArgs, global: &GlobalArgs) -> Result<()> {
         return Ok(());
     }
 
+    if plan_requires_project_write_gate(&project_root, &plan) {
+        crate::install_root::ensure_project_write_allowed("uninstall")?;
+    }
+
     if plan.actions.is_empty() {
         if global.json {
             emit_json_envelope(&plan, &project_root, args, Some(&[]));
@@ -255,6 +259,15 @@ pub fn run(args: &UninstallArgs, global: &GlobalArgs) -> Result<()> {
 #[cfg(test)]
 fn build_plan(project_root: &Path, home: Option<&Path>, args: &UninstallArgs) -> Result<Plan> {
     build_plan_with_install_user_dir(project_root, home, None, args)
+}
+
+/// True when the plan would mutate durable per-project state (ADR-060 gate).
+fn plan_requires_project_write_gate(project_root: &Path, plan: &Plan) -> bool {
+    plan.actions.iter().any(|action| match action {
+        Action::RemoveProjectAnvil { .. } | Action::RemoveAnvilrc { .. } => true,
+        Action::RemoveGitHooks => project_root.join(".git").exists(),
+        _ => false,
+    })
 }
 
 fn build_plan_with_install_user_dir(

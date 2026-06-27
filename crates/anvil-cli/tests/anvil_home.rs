@@ -451,3 +451,38 @@ fn uninstall_global_under_anvil_home_dry_run_json_reports_prefix_user_dir() {
         "dry-run must not delete production ~/.anvil/"
     );
 }
+
+#[test]
+fn uninstall_refused_under_gated_anvil_home_when_project_has_dot_anvil() {
+    let project = tempdir().expect("project dir");
+    let home = tempdir().expect("home");
+    let candidate = tempdir().expect("candidate anvil home");
+    let dot_anvil = project.path().join(".anvil");
+    std::fs::create_dir_all(&dot_anvil).unwrap();
+    std::fs::write(dot_anvil.join("keep.txt"), "keep").unwrap();
+
+    let (ok, _stdout, stderr) = run_anvil_raw(
+        project.path(),
+        home.path(),
+        Some(candidate.path()),
+        &[
+            "uninstall",
+            "--yes",
+            "--keep-daemon",
+            "--keep-mcp",
+        ],
+    );
+
+    assert!(
+        !ok,
+        "uninstall must be refused under a gated ANVIL_HOME when the project has .anvil/"
+    );
+    assert!(
+        stderr.contains("--touch-project-state"),
+        "refusal must name the opt-in flag; stderr: {stderr}"
+    );
+    assert!(
+        dot_anvil.join("keep.txt").exists(),
+        "the real project's .anvil/ must not be removed under the gate"
+    );
+}

@@ -175,10 +175,12 @@ stopped.
 
 ## Required before merge
 
-1. Fix prerelease CLI signing regression **or** document automated beta signing path.
-2. Add `ensure_project_write_allowed` to project-scoped `uninstall` paths + test.
-3. Fix `workflow_dispatch` commit binding in release signing.
-4. Repoint CIB-090 references from CIB-105 → CIB-108.
+1. ~~Fix prerelease CLI signing regression~~ — **fixed** (`startsWith(v)` gate restores beta signing; library tags still skip).
+2. ~~Add `ensure_project_write_allowed` to project-scoped `uninstall` paths + test~~ — **fixed** (`anvil_home.rs` regression test).
+3. ~~Fix `workflow_dispatch` commit binding in release signing~~ — **fixed** (`targetCommitish` step).
+4. ~~Repoint CIB-090 references from CIB-105 → CIB-108~~ — **fixed**.
+
+Resolved in commit following this review (2026-06-27).
 
 ## Recommended follow-ups (non-blocking)
 

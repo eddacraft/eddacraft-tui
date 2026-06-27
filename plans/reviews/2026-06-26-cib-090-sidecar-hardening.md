@@ -25,7 +25,7 @@ writer threat in CIB-090. The implementation therefore expands the hardening to:
 - read sidecars for retention through the same no-follow path;
 - replace the deterministic `.trim.tmp` path with unique `create_new` temp
   files;
-- track Windows reparse-point parity separately as CIB-105 rather than claiming
+- track Windows reparse-point parity separately as CIB-108 rather than claiming
   cross-platform completion.
 
 ## Findings and resolution
@@ -35,7 +35,7 @@ writer threat in CIB-090. The implementation therefore expands the hardening to:
 | Major | Adversarial | Leaf-only `O_NOFOLLOW` does not protect a symlinked or swapped parent directory. | Added Unix parent validation/tightening and parent-fd anchored leaf opens. |
 | Major | Adversarial | Deterministic trim temp path can be pre-created, swapped, or clobbered. | Replaced with unique `create_new` temp names and parent-fd anchored `renameat` on Unix. |
 | Major | Security | Trim reads could still follow a symlink before the hardened append open. | Retention metadata, first-line, and full-read paths now use no-follow read opens. |
-| Minor | Security | Unix-only hardening must not overclaim platform-equivalent Windows behaviour. | CIB-090 text narrowed to Unix; CIB-105 records Windows reparse-point parity. |
+| Minor | Security | Unix-only hardening must not overclaim platform-equivalent Windows behaviour. | CIB-090 text narrowed to Unix; CIB-108 records Windows reparse-point parity. |
 
 ## Evidence
 

@@ -2455,7 +2455,7 @@ archive.
 
 ### CIB-090: `O_NOFOLLOW` hardening for the Kindling NDJSON sidecar writes
 
-- **Status:** Done 2026-06-26 — Unix sidecar writes are parent-dirfd anchored with leaf `O_NOFOLLOW`; trim reads are no-follow; trim rewrites use unique create-new temp files; existing parents are tightened to `0700`. Windows reparse-point parity is tracked separately in CIB-105.
+- **Status:** Done 2026-06-26 — Unix sidecar writes are parent-dirfd anchored with leaf `O_NOFOLLOW`; trim reads are no-follow; trim rewrites use unique create-new temp files; existing parents are tightened to `0700`. Windows reparse-point parity is tracked separately in CIB-108.
 - **Intent:** Close the TOCTOU symlink race in `append_observation_to`: it does
   `symlink_metadata` then a separate `open`, with no `O_NOFOLLOW` between them,
   so a writer to the parent dir on a multi-user host could redirect the append.
@@ -2467,7 +2467,7 @@ archive.
   housekeeping. Trim rewrites use unique `create_new` temp files rather than the
   deterministic `.trim.tmp` path. The `0600`/`0700` posture is unchanged or
   tightened. Platform-equivalent Windows reparse-point handling is deliberately
-  not claimed here and is tracked by CIB-105.
+  not claimed here and is tracked by CIB-108.
 - **Files:** `crates/anvil-cli/src/usage.rs` (`append_observation_to`,
   `trim` temp path, sidecar parent/open helpers), `crates/anvil-cli/Cargo.toml`
   (Unix `nix` safe syscall wrappers).

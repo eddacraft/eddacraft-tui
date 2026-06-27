@@ -3,8 +3,9 @@
 #
 # Library releases such as eddacraft-tui-v* are non-prerelease GitHub Releases
 # on anvil-001, but they do not carry installer/provenance assets. The signing
-# job must therefore require the CLI tag convention instead of running on every
-# non-prerelease release.
+# job must therefore require the CLI tag convention (starts with `v`) instead of
+# running on every non-prerelease release. Prerelease CLI tags such as v0.x-beta
+# still sign because they share the CLI `v` prefix.
 
 set -euo pipefail
 
@@ -33,7 +34,9 @@ assert_not_contains() {
 }
 
 assert_contains "github.event_name == 'workflow_dispatch' ||"
-assert_contains "!github.event.release.prerelease &&"
 assert_contains "startsWith(github.event.release.tag_name, 'v')"
-assert_not_contains "!github.event.release.prerelease ||"
-assert_not_contains "startsWith(github.event.release.tag_name, 'v0.')"
+assert_contains "steps.release.outputs.commit_sha"
+assert_contains "targetCommitish"
+assert_not_contains "!github.event.release.prerelease &&"
+
+printf 'release-sign-artefacts-workflow.test.sh: ok\n'
