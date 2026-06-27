@@ -2,7 +2,7 @@
 
 | ID    | Owner | Status | Progress |
 | ----- | ----- | ------ | -------- |
-| ACTMO | Josh  | In Progress | 11/12 |
+| ACTMO | Josh  | In Progress | 12/12 |
 
 **Last reviewed:** 2026-06-26 — ACTMO-001 through ACTMO-010 completed on
 `feat/actmo-spine`: ADR-092 accepted; `anvil start` now performs MCP-independent
@@ -355,7 +355,7 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 
 ### ACTMO-012: Editor-aware MCP install, probe, and handshake copy
 
-- **Status:** Ready
+- **Status:** Done
 - **Intent:** Stop narrating a two-editor MCP session when the user only uses one
   tool (Matt: never used Cursor, yet activation shows Cursor
   `restart_handshake_verified` and "AI tools detected: cursor" after Anvil wrote
@@ -369,6 +369,32 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
   headline and MCP block reflect the user's actual editor(s), not the hardcoded
   `all_clients()` pair. Handshake self-test does not imply "restart your editor"
   when no editor session exists for that client.
+- **Reconciliation (2026-06-27, as built):** The root cause was the
+  install path writing a *fresh* MCP config for every client unconditionally
+  (`fresh_repo_auto_installs_to_global_scope`). The fix gates fresh writes by
+  editor detection, which collapses all three reported symptoms at once:
+  - **Shipped:** `anvil start` only writes a fresh MCP config for editors
+    actually detected on the host (binary on PATH / pre-existing editor state,
+    via the ADOPT-003 detector); undetected editors are skipped
+    (`SkipReason::EditorNotDetected`, suppressed from the install block). An
+    existing anvil entry is always managed regardless of detection (no
+    orphaning). New `--all-mcp-clients` flag / `ANVIL_ALL_MCP_CLIENTS` env
+    (presence-based, like `--no-mcp`) restores wiring both editors. Because an
+    undetected editor never gets a config, it never reaches `RestartRequired`,
+    so the false `restart_handshake_verified` self-test and the false
+    "AI tools detected: cursor" line disappear at the root — anvil no longer
+    creates `~/.cursor/mcp.json`, so the ADOPT-003 detector has nothing to
+    false-positive on (the in-session anvil-written-path exclusion is therefore
+    unnecessary once writes are gated).
+  - **Deferred (documented scope boundary):** the read-only diagnostic/probe
+    block still lists an undetected editor honestly as "config absent" rather
+    than omitting it — gating the probe display would mean threading the enabled
+    set through `verify`/`verify_with_home` (≈10 call sites) and making
+    PATH-based detection injectable there, a larger refactor with no
+    truthfulness gain. The `restart_handshake_verified` *tier label* wording
+    (vs "config self-test passed") is unchanged; it only ever surfaces now for a
+    genuinely-detected editor, so it is no longer misleading. File a follow-up if
+    beta wants the probe block omission or the label re-wording.
 - **Validation:** `cargo test -p eddacraft-anvil activation::mcp_client`;
   `cargo test -p eddacraft-anvil activation::detect_agents`;
   `cargo test -p eddacraft-anvil activation::orchestrator`;
