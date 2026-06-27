@@ -9,12 +9,45 @@ engineering maintenance are recorded in the
 ## [Unreleased]
 
 > **Draft.** This section accumulates customer-relevant changes landed on `main`
-> since `v0.8.1-beta`; the version, date, and final scope are set at the next
+> since `v0.8.2-beta`; the version, date, and final scope are set at the next
 > release.
 
-This window delivers beta reliability polish, diagnostic quality, and scanning
-noise reduction, while Graph V2 consumer surfaces and GCTX entry decisions lay
-the substrate for the assistant-facing graph in the v0.9 window.
+This is the **assistant-facing graph** window: Anvil's resident code graph
+becomes something an AI assistant can query over MCP — symbols, dependencies,
+callers, and change impact — alongside Python project support, new
+infrastructure-hygiene scan surfaces, on-device usage insights, smoother daemon
+startup, and continued beta-reliability polish.
+
+### Added
+
+- **Assistant graph context over MCP.** Anvil's MCP server now exposes a
+  read-only, identity-only view of your codebase's graph to AI assistants
+  (Claude Code, Cursor): `anvil_search_symbols`, `anvil_find_dependents`,
+  `anvil_find_callers`, `anvil_impact_of_change`, and `anvil_affected_tests`,
+  plus `anvil_symbol_context` for bounded, budgeted context around a symbol, and
+  `graph://stats` / `graph://symbols` / `graph://edges` resources. Source
+  snippets are off by default (identity-only) and opt in via
+  `ANVIL_GCTX_EGRESS=1`; sensitive paths and secrets are filtered before any
+  text leaves the daemon. See the new
+  [AI Context Delivery guide](docs/guides/ai-context-delivery.md).
+- **Python project support.** Anvil now parses and analyses Python alongside
+  JS/TS and Rust — an anti-pattern catalogue, entry-point detection, and
+  layer/boundary enforcement — and the save-time graph lifts Python call edges.
+  A further wave of tail languages reaches first-tier parsing.
+- **Infrastructure-hygiene scan surfaces.** New checks catch risky patterns in
+  Dockerfiles, GitHub Actions workflows, shell scripts, and SQL migrations (for
+  example destructive or non-idempotent migrations). The first set is on by
+  default; each surface is individually flag-gated and opt-out.
+- **On-device usage insights.** `anvil kindling usage` adds query views over the
+  local command-invocation signal (which commands you run, with flag context) —
+  entirely on-device, no telemetry.
+- **Smoother daemon startup.** `anvil start` now auto-starts the save-time
+  daemon, `anvil watch` offers to start it, and `anvil intercept stop` stops it
+  cleanly.
+- **Operational helpers.** `anvil drift migrate` upgrades an old baseline in
+  place, `anvil report-fp` reports a false positive from the CLI, unknown
+  `--skip`/`--disable` check IDs now suggest the closest match, and
+  `anvil ember list` is now served by the Rust CLI.
 
 ### Changed
 
@@ -49,9 +82,14 @@ the substrate for the assistant-facing graph in the v0.9 window.
   a single cold rebuild; this is a default-off feature with no correctness or
   security impact.
 
-See [Engineering History](./ENGINEERING-HISTORY.md) for the Graph V2 (GV2-020,
-GV2-023, GV2-026, GV2-030, GV2-031), GCTX (ADR-083, PV-9, GCTX-001), USAGE
-analytics foundation, daemon lifecycle (DLIFE), and full technical detail.
+See [Engineering History](./ENGINEERING-HISTORY.md) for the full technical
+detail — the Graph V2 consumer layer and multi-graph registry
+(GV2-020/-023/-026/-030/-031/-032), the GCTX egress projector and its
+CE-1..CE-12 privacy gates, the GCALL call-graph subsystem, the daemon full-scan
+executor and warm-start persistence (DSV-045, DSV-030), the USAGE/KDS analytics
+foundation, the Python language anchor (PYLAN), the governance scan surfaces
+(SURFDOCK/SURFGHA/SURFSH/SURFSQL), and release engineering (Release Drafter, the
+canonical APS loop).
 
 ## [0.8.1-beta] — 2026-06-11 — Headless GitHub Login
 

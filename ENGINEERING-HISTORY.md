@@ -7,16 +7,21 @@ This log covers architecture, infrastructure, reliability, security, and
 delivery changes behind each release. For end-user feature summaries, see the
 [Changelog](./CHANGELOG.md).
 
-## [Unreleased] — Draft — Graph V2 Consumer Surfaces, GCTX Entry Gates, Usage Analytics & Diagnostics Polish
+## [Unreleased] — Draft — The Assistant-Facing Graph: GCTX Tools & Resources, Graph V2 Registry, Call Graph, Python Support & Usage Analytics
 
-Draft / unreleased. Technical work landed on `main` since `v0.8.1-beta`
-(2026-06-11). The window is the `v0.9.0-beta` "Assistant-Facing Graph"
-scoping/active transition: Graph V2 Phase 1 substrate completes (GV2 count
-reaches 20/20), GCTX entry gates clear (ADR-083 + PV-9 egress review on
-2026-06-15), USAGE analytics foundation lands, CIB-071 migrates user warnings to
-miette with spans, and daemon lifecycle (DLIFE) planning begins. Most changes
-are internal; visible effects are improved warning presentation and reduced
-secret-scan noise.
+Draft / unreleased. Technical work landed on `main` since `v0.8.2-beta`. This is
+the `v0.9.0-beta` "Assistant-Facing Graph" window, delivered end to end: Graph
+V2 Phase 1 substrate and the multi-graph registry complete (GV2 Done, 21/21),
+the **GCTX assistant-facing graph** ships its full tool and resource surface
+behind a sealed daemon-side egress projector with the CE-1..CE-12 privacy gates,
+a new **call graph** (GCALL) lifts cross-symbol call edges at save time,
+**Python** joins the first-tier languages (PYLAN), the daemon gains a
+**full-scan executor** and opt-in **warm-start persistence**, the **USAGE/KDS**
+analytics foundation lands on-device, four **governance scan surfaces**
+(Docker/GitHub Actions/shell/ SQL) graduate, and CIB-071 migrates user warnings
+to `miette` with spans. The ADR-075 entry gates cleared 2026-06-15 (ADR-083 +
+the PV-9 egress review); the scoped feature work completed over the following
+two weeks.
 
 ### Graph V2 consumer layer and multi-graph registry (GV2-013, GV2-014, GV2-020, GV2-023, GV2-026, GV2-030, GV2-031)
 
@@ -40,13 +45,17 @@ secret-scan noise.
   PV-6..12). Snapshot DTO rustfmt + tests.
 - **Re-export edges for transitive privilege (GV2-031).** Lifted re-export
   modelling so privilege is correctly transitive. NBI row scheduled; module
-  narrative reconciled; marked Merged via #2627 with GV2 20/20 close.
+  narrative reconciled; marked Merged via #2627.
+- **Symbol spans + per-file content hash (GV2-032).** The deferred GV2-010 span
+  plumbing gained its producer — `SymbolNode.span` plus a per-file content hash
+  populated through `apply_delta` — the substrate the GCTX snippet line needs to
+  locate and freshness-check source. Closes GV2 at **Done, 21/21**.
 - **Graph boundary and cache refinements.** `anvil-graph-cache` crate (ADR-064)
   continues to serve as the daemon graph boundary; kernel symbol feed and
   per-worktree caches remain in use. Privacy review for machine-local
   persistence (prior PV) carried forward.
 
-### GCTX entry decisions (GCTX-001, GCTX-002, ADR-083, PV-9)
+### GCTX — the assistant-facing graph (GCTX-001..032)
 
 - **ADR-083 Accepted (2026-06-15).** GCTX-002: assistant graph context delivery
   (tools/resources/slicing) targets the Rust `anvil mcp serve` (RMCPF) surface
@@ -65,7 +74,84 @@ secret-scan noise.
   consumer surfaces unblocked. APS index and module narrative updates
   (bullet-list brief metadata, upstream consumer brief).
 
-### Usage analytics foundation (USAGE-001..005)
+- **Sealed egress projector + CE-1..CE-12 spine (GCTX-010 pilot, ADR-084).** All
+  GCTX answers are produced daemon-side by a single `GctxProjector` choke point
+  that emits a sealed, identity-only egress DTO with a structural no-leak test
+  (CE-5). The MCP tools hold no graph — they forward over `anvil/gctx/*` RPC and
+  receive the sealed DTO (ADR-084). Identity-only is the default (CE-1); opaque,
+  fingerprinted pagination cursors with input caps (CE-6, ADR-091); enum outcome
+  telemetry with no PII (CE-10) and the `ANVIL_GCTX_EGRESS` kill-switch re-read
+  per call (CE-11).
+- **Phase 1 query tools (GCTX-010..014).** `anvil_search_symbols` (identity
+  search), `anvil_find_dependents` (file-keyed reverse closure with hop
+  distance), `anvil_find_callers` (symbol-level caller traversal, `heuristic`/
+  `partial` flags over the GCALL read API), `anvil_impact_of_change` (change-set
+  blast radius: affected symbols + dependent files + heuristic known tests) and
+  `anvil_affected_tests` (test attribution + coverage gaps). All depth-bounded
+  at the production `MAX_REVERSE_IMPACT_DEPTH = 2`.
+- **`graph://` resources (GCTX-030).** Identity-only `graph://stats` / `symbols`
+  / `edges` resources with CE-6 pagination, a `bounded` edges flag, a shared
+  per-session egress byte budget, and warm-on-`NotReady`.
+- **Context slicing (GCTX-020..023).** A parser-free conservative token
+  estimator (`gctx-simple-v1`), a daemon-side snippet extractor + budget slicer,
+  and the `anvil_symbol_context` tool — neighbourhood + importers + callers with
+  span-as-location and optional source snippets. Snippet egress is double-gated
+  (`ANVIL_GCTX_EGRESS=1` **and** per-request `includeSource`) and runs a
+  deny-by-default sensitive-path/gitignore/secret-scan pipeline before any text
+  is emitted (CE-2/CE-3); a later pass hardened those gaps.
+- **Benchmark + guide (GCTX-031, GCTX-032).** A deterministic `token_reduction`
+  bench (in `anvil-bench`) measuring the real `ImpactOutcome` payload against
+  naive file-reading over the 2-hop closure (golden-pinned), and the user-facing
+  `docs/guides/ai-context-delivery.md` guide. Module closed at **14/14**.
+- **C1 cold-start warm-up.** A fresh MCP session triggers an on-demand warm-up
+  on `NotReady`, layered on the DSV-045 full-scan executor (below).
+
+### GCALL — resident call graph (GCALL-002..006)
+
+- **Cross-symbol call edges at save time.** Call-site extraction into
+  `FileSymbols` for TS/JS (GCALL-002), Rust (GCALL-004), and Python (GCALL-005),
+  with resident call edges and a `callers_of` read API (GCALL-003) carrying a
+  best-effort `heuristic` marker (dynamic dispatch and overload fan-out are
+  over-approximated, never claimed authoritative). A save-time call-lift latency
+  gate (GCALL-006) keeps the extraction inside the ADR-031 budget. This is the
+  substrate `anvil_find_callers` projects.
+
+### Daemon full-scan executor and warm-start persistence (DSV-045, DSV-030)
+
+- **Full-scan executor (DSV-045, ADR-085).** `anvil/request_full_scan`
+  previously only set `Pending`; a real executor now populates the warm graph
+  (cancel + rewarm on DSV-006 primitives, injected parser on the background
+  scheduler per ADR-064, dirty-flag compare-and-clear fences against save-time,
+  per-key CAS coalescing). This is what lets a cold MCP session warm on demand;
+  it added an `AssuranceState::Bounded` variant with a `serde(other)` fallback
+  to keep the wire backward-compatible.
+- **Warm-start persistence (DSV-030, ADR-061 Sub-phase B / ADR-069).** Opt-in,
+  per-uid, default-off snapshot persistence so a restart re-warms from disk
+  rather than a cold rebuild. Sub-phase B reconciled 2026-06-24. Surfaced to
+  users via the `ANVIL_PERSIST_GRAPH=1` opt-in and the one-time rebuild upgrade
+  note.
+
+### Python language anchor and tail languages (PYLAN, LANGTAIL)
+
+- **Python first-tier support (PYLAN-001..009).** A Python grammar + extractor
+  anchor, an anti-pattern catalogue and `.py` drift scan, entry-point detection,
+  and layer/boundary enforcement — with external-codebase validation driving the
+  Python false-positive rate to 0%. Python now participates in the resident
+  graph (symbols + call edges).
+- **Tail-language T1 wave (LANGTAIL).** A further wave of tail languages reached
+  first-tier (`is_parseable`) parsing via `Language::from_path`.
+
+### Governance scan surfaces (SURFDOCK, SURFGHA, SURFSH, SURFSQL)
+
+- **Four infrastructure-hygiene catalogues.** Dockerfile build-hygiene
+  (SURFDOCK), GitHub Actions supply-chain (SURFGHA), shell-script (SURFSH), and
+  SQL-migration destructive/idempotency (SURFSQL) surfaces, each wired into the
+  gate behind a per-surface flag and opt-out, with `drift` baselines so the gate
+  warns only on new edges. Track 3 governance surfaces graduated to
+  **default-on** with a `=0` opt-out contract (the gate reads the leaf flags,
+  not the umbrella).
+
+### Usage analytics foundation (USAGE-001..005) and the daemon sink (KDS-001..005)
 
 - **Command-invocation Kindling observations (USAGE-001).** Every CLI entrypoint
   and JSON-RPC dispatcher emits a durable `command.invoked` (or equivalent)
@@ -82,6 +168,17 @@ secret-scan noise.
 - **Licence gate flag-driven (USAGE-005).** CLI licence enforcement surface made
   controllable via the single-source flag catalogue (no behaviour change for
   default-on users).
+- **JSON-RPC command-invocation producer (USAGE-004).** The save-time daemon's
+  JSON-RPC dispatch emits the same `command.invoked` signal, with a
+  user-initiated method allowlist and an optional principal extracted from the
+  envelope.
+- **Daemon usage sink (KDS-001..005).** A `KindlingDaemonSink` routes
+  `command.invoked` through the running daemon
+  (`ANVIL_KINDLING_SINK=daemon|ndjson|off`), direct Rust emit via
+  `kindling-client`, daemon-side sink selection, and (on `kindling-client` 0.3)
+  reads the `anvil kindling usage` views back from the daemon — unioned with the
+  local sidecar and scoped by workspace root. KDS-005 retired the legacy
+  `DaemonUsageSink` and flipped the default to the daemon sink.
 - **Cross-cutting module hygiene.** Follows ADR-034 convention; anti-drift hook
   maintained; privacy and redaction alignment with observability-foundation.
 
@@ -113,10 +210,12 @@ secret-scan noise.
 
 ### Daemon lifecycle and intercept foundations (DLIFE)
 
-- **Daemon lifecycle planning (DLIFE).** New planning surface
-  `docs(dlife): plan daemon lifecycle startup`. Captures startup, shutdown,
-  restart, and `--verify` termination paths.
-- **DLIFE-006.** APS item filed for terminating `--verify` diagnostic behaviour.
+- **Tiered daemon startup shipped (DLIFE-003/004, ADR-082).** `anvil start` now
+  auto-starts the save-time daemon and `anvil watch` prompts to start it
+  (falling back gracefully), on an idempotent daemon-`ensure` primitive. Plus
+  `anvil intercept stop`, a macOS process start-time probe via `proc_pidinfo`
+  (V060F-004), and per-worktree daemon health envelopes (CIB-098, ADR-090).
+- **DLIFE-006.** Terminating `--verify` diagnostic copy corrected.
 - **Intercept ref hygiene.** Stale `INTD-002` references repointed to the DLIFE
   module. UUID fallback clarification for unparseable `traceparent` in intercept
   telemetry.
@@ -133,12 +232,19 @@ secret-scan noise.
 
 ### Release engineering, CI, APS & hygiene
 
-- **GV2 20/20 and GCTX 2/13 reconciliation.** Multiple docs(aps) updates:
-  narrative reconciliation, bullet-list metadata, upstream brief for NBI/agent
-  workflows, Schedule mode for NBI rows, Merged-via citations, count bumps,
-  archive of prior-window modules.
-- **GCTX entry gate landing.**
-  `docs(aps): land GCTX entry gates — accept ADR-083, file PV-9 egress review, promote GV2-020/-023`.
+- **Window reconciliation.** Across the window the graph modules closed out: GV2
+  **Done 21/21**, GCTX **14/14**, GCALL **7/7**, USAGE **5/5**, KDS **5/5**,
+  with continuous APS index/Merged-via reconciliation and archive of
+  prior-window modules. The all-Merged modules stay `In Progress` pending the
+  `v0.9.0-beta` tag (the closeout cascade advances them to Complete + archive).
+- **Release Drafter (#2691).** Automated, label-driven draft release notes wired
+  in, complementing the hand-curated changelog + engineering history.
+- **Canonical APS dev loop (#2955).** Installed the canonical APS loop skill set
+  and retired the fable bindings.
+- **MCP server surface.** `anvil://` resources ported to the Rust MCP server
+  (RMCPF-020); the MCP-optional activation spine (ACTMO-001..010) decouples
+  activation from the MCP path. API-stability markers + a warn-only CI check
+  (TUIN-006) and output-mode probes (TUIN-003) landed alongside.
 - **CI/mirror hardening.**
   `ci(mirror): harden eddacraft-tui + acknowledgements mirror workflows`
   (#2620).
@@ -155,9 +261,9 @@ secret-scan noise.
 - **APS index & module state.** Continuous index refreshes, CIB count bumps,
   USAGE/MLP2/GV2/GCTX state alignment before and after the window transition.
 
-See the active [RELEASE-PLAN.md](./RELEASE-PLAN.md) for v0.9.0-beta scope, cut
-criteria (ADR-031 latency gate, cross matrix, egress conditions), and the GCTX /
-GV2 balance of work still ahead in the window.
+See the active [RELEASE-PLAN.md](./RELEASE-PLAN.md) for the v0.9.0-beta scope
+and cut criteria (ADR-031 latency gate, cross matrix, egress conditions). The
+feature scope is complete; the window awaits the cut.
 
 ## [0.8.0-beta] — TBD — The Save-Time Daemon
 
