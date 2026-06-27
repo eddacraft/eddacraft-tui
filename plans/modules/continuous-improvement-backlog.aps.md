@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 74/105  |
+| CIB | —     | In Progress | 75/106  |
 
 ## Purpose
 
@@ -585,8 +585,21 @@ archive.
 
 ### CIB-030: Harden `eddacraft-tui` publish doc gate parity (PR-side `-D warnings`, all-features match docs.rs)
 
-- **Status:** In Progress
-- **Partial (2026-06-27 reconcile):** sub-point 2 (publish-side `cargo doc --all-features` docs.rs parity) landed on `main` (`publish-eddacraft-tui.yml`, `# CIB-030`). Sub-point 1 — the PR-side `rust.yml` `cargo doc -D warnings` gate — is NOT on `main` (there is no `cargo doc` step in `rust.yml`); that remains the outstanding work.
+- **Status:** Merged 2026-06-27 via PR #2967
+- **Resolution (2026-06-27):** both sub-points have now landed. Sub-point 2
+  (publish-side `--all-features` docs.rs parity) shipped earlier on `main`.
+  Sub-point 1 adds a PR-side `doc` job to `rust.yml` running
+  `cargo doc --no-deps -p eddacraft-tui --all-features` with
+  `RUSTDOCFLAGS=-D warnings` — exact parity with the publish gate, so
+  feature-gated rustdoc regressions (`broken_intra_doc_links` etc.) fail at PR
+  review instead of at the publish run. The PR-side gate is scoped to
+  `eddacraft-tui` (this item's subject and the incident crate) rather than the
+  whole workspace because a `--workspace --all-features -D warnings` build is
+  currently red on `main` with six pre-existing rustdoc errors in
+  `eddacraft-anvil-kernel-types`, `eddacraft-anvil-config`, and a `tree_sitter`
+  dep-link — all outside this item's scope (its Files list is `rust.yml`, the
+  publish workflow, and `image_pane.rs`). The broader workspace gate and that
+  pre-existing cascade are tracked as CIB-106 below.
 - **Correction 2026-05-29:** A readiness review found the original point 3's
   premise did not hold on `main`. The `Create GitHub Release on anvil-001`
   step in `publish-eddacraft-tui.yml` is ALREADY the final state-mutating
@@ -2927,3 +2940,34 @@ archive.
 - **Confidence:** high — small and additive; the gating logic already exists in
   `welcome.rs` and just needs lifting into the canonical function with the two
   call sites updated.
+
+### CIB-106: Widen the rustdoc `-D warnings` gate to the whole workspace (clear the pre-existing all-features cascade)
+
+- **Status:** Draft
+- **Intent:** Extend the CIB-030 PR-side rustdoc gate from `eddacraft-tui` to
+  the whole workspace so a rustdoc regression in any crate fails at PR review,
+  once the pre-existing all-features rustdoc errors are cleared.
+- **Expected Outcome:**
+  `RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps --all-features` is
+  green on `main`, and the `rust.yml` `doc` job is widened from
+  `-p eddacraft-tui` to `--workspace`.
+- **Known failures (2026-06-27, `main` @ 45c0e9edd):**
+  - `eddacraft-anvil-kernel-types`: `parse_str` doc links the private
+    `enforce_depth_cap`; `protection_claim` doc links the private
+    `ProtectionClaimRaw` (`rustdoc::private_intra_doc_links`).
+  - `eddacraft-anvil-config`: unresolved intra-doc link
+    `crate::watch_event::tests::error_code_wire_strings_are_pascal_case_and_pinned`
+    (links a `#[cfg(test)]` item).
+  - unresolved link to `tree_sitter::Node::byte_range` — a dependency item, not
+    resolvable under `--no-deps`; convert to a code span.
+- **Validation:** the widened workspace doc build is green with `-D warnings`; a
+  deliberately broken intra-doc link in any crate fails the `doc` job.
+- **Identified From:** CIB-030 completion (PR #2967) — the
+  `--workspace --all-features -D warnings` probe surfaced six pre-existing
+  rustdoc errors outside CIB-030's `eddacraft-tui` scope.
+- **Files:** `crates/anvil-kernel-types/`, `crates/anvil-config/`, the crate
+  carrying the `tree_sitter::Node::byte_range` link, and
+  `.github/workflows/rust.yml` (`-p eddacraft-tui` → `--workspace`).
+- **Coordinates with:** CIB-030 (the `eddacraft-tui`-scoped gate this widens).
+- **Confidence:** medium — the six known errors are small fixes, but the full
+  all-features surface may surface more once those clear.
