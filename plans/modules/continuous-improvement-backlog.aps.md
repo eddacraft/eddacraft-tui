@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 62/105  |
+| CIB | —     | In Progress | 74/105  |
 
 ## Purpose
 
@@ -279,7 +279,8 @@ archive.
 
 ### CIB-016: Name "current posture vs new regression" in baseline output
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-03 via PR #2270
+- **Summary:** Baseline output now names "current posture — N findings, baselined as-is" (`baseline.rs`); the paired "new regressions" framing landed on the activation scan surface (`activation/render.rs`) and the wow-start tutorial copy rather than `check.rs` as originally specced.
 - **Intent:** `anvil baseline` + `cutoff_commit` already
   distinguish first-scan posture from new regressions mechanically.
   The UX doesn't name that distinction. Adding the phrasing turns
@@ -506,7 +507,8 @@ archive.
 
 ### CIB-027: Define a lightweight review path for cross-repo implementation work
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-03 via PR #2271
+- **Summary:** `docs/guides/agent-surface-inventory.md` documents the cross-repo review fallback (focused `code-reviewer`/Council pass + target-repo CI/Copilot) for work in repositories without Anvil’s `/council`.
 - **Intent:** Give agents a first-class pre-PR review surface when implementation
   work happens in a downstream or sibling repository where Anvil's `/council`
   command is not available.
@@ -584,6 +586,7 @@ archive.
 ### CIB-030: Harden `eddacraft-tui` publish doc gate parity (PR-side `-D warnings`, all-features match docs.rs)
 
 - **Status:** In Progress
+- **Partial (2026-06-27 reconcile):** sub-point 2 (publish-side `cargo doc --all-features` docs.rs parity) landed on `main` (`publish-eddacraft-tui.yml`, `# CIB-030`). Sub-point 1 — the PR-side `rust.yml` `cargo doc -D warnings` gate — is NOT on `main` (there is no `cargo doc` step in `rust.yml`); that remains the outstanding work.
 - **Correction 2026-05-29:** A readiness review found the original point 3's
   premise did not hold on `main`. The `Create GitHub Release on anvil-001`
   step in `publish-eddacraft-tui.yml` is ALREADY the final state-mutating
@@ -782,7 +785,8 @@ archive.
 
 ### CIB-035: drift-check crashes on invalid release records instead of staying advisory
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-02 via PR #2241
+- **Summary:** `scripts/aps/drift-check.mjs` degrades a missing/unreadable/invalid release record to a JSON advisory (`release-record-unreadable` / `release-record-invalid-json`) at exit 0 instead of crashing.
 - **Intent:** Keep `scripts/aps/drift-check.mjs` true to the warnings-over-blocks
   / exit-0 architecture principle when handed a malformed input, so a bad release
   record degrades to an advisory finding rather than an uncaught crash.
@@ -840,7 +844,8 @@ archive.
 
 ### CIB-038: Skip-filler duplicate check names block ruleset merge on docs-path PRs
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-03 via PR #2295
+- **Summary:** Consolidated the required-check fillers into their primary jobs in `ci.yml` (twin `*-skip:` jobs removed), so docs-only PRs report one conclusion per required context and reach CLEAN for `--auto`.
 - **Intent:** Let docs/plans-path PRs merge — the `main` ruleset must resolve
   required status checks that currently report a duplicate `success`+`skipped`
   pair under one name.
@@ -969,7 +974,8 @@ archive.
 
 ### CIB-042: Synthetic health check on the public installer URL
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-16 via PR #2679
+- **Summary:** `release.yml` probes the `releases/latest/download/` installer assets for HTTP 200 post-publish and fails loudly (`::error::`) on a regression.
 - **Intent:** Catch a broken `install.eddacraft.ai` installer proactively
   instead of waiting for a user to report a 404.
 - **Expected Outcome:** A post-publish probe in the `announce` job of
@@ -993,7 +999,8 @@ archive.
 
 ### CIB-043: Set `--latest=false` on the eddacraft-tui anvil-001 release
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-16 via PR #2679
+- **Summary:** `publish-eddacraft-tui.yml`’s `gh release create` passes `--latest=false`, so library tags never auto-promote to Latest on anvil-001.
 - **Intent:** Stop library (`eddacraft-tui-v*`) releases from contending for the
   GitHub "Latest" pointer on the private `anvil-001` repo, so the CLI release is
   always uncontested as Latest there.
@@ -1521,7 +1528,8 @@ archive.
 
 ### CIB-059: quickstart leads with the ungated `anvil welcome` demo
 
-- **Status:** In Progress (PR pending; quickstart reordered per ADR-080)
+- **Status:** Merged 2026-06-22 via PR #2873
+- **Summary:** `docs/public/anvil/quickstart.md` leads with the ungated `anvil welcome` (no login, ADR-080) and introduces authentication where it is required (`anvil start`).
 - **Intent:** the quickstart fronts "2. Authenticate" before "3. Take a
   Path" and never says `anvil welcome` runs without logging in — it hides
   the ADR-080 ungated demo surface from exactly the invite-less users it
@@ -1767,7 +1775,8 @@ archive.
 
 ### CIB-067: production email failures are silent — Resend key probe on /health
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-12 via PR #2568
+- **Summary:** `apps/anvil-api` boot + `/health` probe the Resend key (`verifyResendKey`, `resendKey` field; `degraded` gated on invalid/unconfigured), closing the silent-email-outage gap.
 - **Intent:** a revoked Resend API key produced a ~15-day production email
   outage (no invites, no OTP codes, no waitlist confirmations) that no
   surface reported — email senders are best-effort by design and
@@ -1806,7 +1815,8 @@ archive.
 
 ### CIB-068: invite/OTP email copy — install step, lowercase brand, larger prose
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-12 via PR #2569
+- **Summary:** Invite/OTP emails gained a Quick-install step (curl + `irm` Windows variant), lowercase "anvil" brand, and larger prose.
 - **Intent:** operator review of the first real invite + OTP sends
   (2026-06-12, after the CIB-067 key replacement) found the invite assumes
   anvil is already installed, both subjects capitalise the brand
@@ -1834,7 +1844,8 @@ archive.
 
 ### CIB-069: invite email copy v2 — operator-supplied structure
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-12 via PR #2570
+- **Summary:** BetaInvite template restructured to the operator-supplied v2 (beta guide → install options → per-platform commands → sign-in) with the corrected `docs.eddacraft.ai/anvil/beta-testing-guide` link.
 - **Intent:** the operator reviewed the live CIB-068 invite and supplied a
   restructured body (2026-06-12): lead with the beta guide and an install
   options page, then quick-install commands per platform, then sign-in,
@@ -1861,7 +1872,8 @@ archive.
 
 ### CIB-070: `anvil admin auth set key` — store the admin key without per-shell export
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-13 via PR #2577
+- **Summary:** `anvil admin auth set key [-]` stores the admin key in the 0600 `admin-auth.json` (env var still takes precedence; redacted in status/JSON); the runbook documents env / stored-key / 1Password.
 - **Intent:** the admin key has only two resolution paths today — the
   `ANVIL_ADMIN_KEY` env var or a 1Password reference (`anvil admin auth set
   1password`). Operators without the 1Password CLI must `export
@@ -2808,7 +2820,8 @@ archive.
 
 ### CIB-103: GCTX cursor fingerprint hardening (HMAC) — decision
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-24 via PR #2903
+- **Summary:** ADR-091 Accepted (keep the reproducible FNV cursor fingerprint, defer HMAC); threat-model note + `CursorPayload` pointer + forged-cursor pinning test landed in `anvil-gctx-egress`. Sibling-surface follow-up CIB-104 Merged via #2912.
 - **Decision (2026-06-24, [ADR-091](../decisions/091-gctx-cursor-fingerprint-integrity.md), Proposed):**
   option **(b)** — keep the reproducible FNV-1a filter fingerprint; do **not** add
   an HMAC now. The opaque keyset cursor is a server-minted *seek position*, not an
