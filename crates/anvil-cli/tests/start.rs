@@ -69,6 +69,17 @@ fn run_start_with_home(
         // Unix-only env (ignored on Windows, which uses a per-user pipe).
         .env("XDG_RUNTIME_DIR", home)
         .env("ANVIL_DEV", "1")
+        // ACTMO-012: `anvil start` now only writes a fresh MCP config for
+        // editors it actually detects (binary on PATH / pre-existing
+        // editor state). These mechanics tests assert both Cursor and
+        // Claude Code entries are written, so force the all-clients
+        // opt-in — otherwise the result would depend on whether the test
+        // host happens to have `cursor` / `claude` on PATH, which is not
+        // hermetic. The detection gate has its own dedicated coverage
+        // (unit tests in `activation::orchestrator::install` and the
+        // `start_without_detected_editor_does_not_write_mcp_config`
+        // negative test below).
+        .env("ANVIL_ALL_MCP_CLIENTS", "1")
         .env("ANVIL_SKIP_WELCOME", "1");
     cmd.output().expect("failed to invoke anvil binary")
 }
@@ -120,6 +131,60 @@ fn start_on_fresh_repo_runs_init_and_lands_ready_restart_required() {
     assert!(
         !stdout.contains("state: protecting"),
         "fresh repo MUST NOT claim protection, got:\n{stdout}"
+    );
+}
+
+#[cfg(not(target_os = "windows"))]
+#[test]
+fn start_without_detected_editor_does_not_write_mcp_config() {
+    // ACTMO-012 (Matt beta smoke): on a host where no editor is detected
+    // — no `cursor` / `claude` binary on PATH, no pre-existing editor
+    // state under HOME — and without `--all-mcp-clients`, `anvil start`
+    // must NOT create `~/.cursor/mcp.json` or `~/.claude.json`. The spine
+    // (`.anvilrc`, daemon, hooks) still activates; MCP is optional.
+    //
+    // Determinism: PATH is emptied and the AI-tool env hints are removed
+    // so detection cannot fire from the test host's real environment.
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+
+    let mut cmd = Command::new(ANVIL_BIN);
+    cmd.arg("--no-tui")
+        .arg("start")
+        .current_dir(dir.path())
+        .env("HOME", home.path())
+        .env("USERPROFILE", home.path())
+        .env_remove("XDG_CONFIG_HOME")
+        .env("XDG_RUNTIME_DIR", home.path())
+        .env("ANVIL_DEV", "1")
+        .env("ANVIL_SKIP_WELCOME", "1")
+        // Force a deterministic "no editor detected" environment.
+        .env("PATH", "")
+        .env_remove("ANVIL_ALL_MCP_CLIENTS")
+        .env_remove("ANTHROPIC_API_KEY")
+        .env_remove("CLAUDE_CODE_HOME")
+        .env_remove("CURSOR_HOME")
+        .env_remove("OPENAI_API_KEY");
+    let out = cmd.output().expect("failed to invoke anvil binary");
+    assert!(
+        out.status.success(),
+        "anvil start failed: stderr={}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+
+    // The spine still activated.
+    assert!(
+        dir.path().join(".anvilrc").exists(),
+        ".anvilrc must exist after `anvil start` even with no editor detected"
+    );
+    // But no MCP config was written for an editor the user does not have.
+    assert!(
+        !home.path().join(".cursor/mcp.json").exists(),
+        "must NOT write a Cursor MCP config when Cursor is not detected"
+    );
+    assert!(
+        !home.path().join(".claude.json").exists(),
+        "must NOT write a Claude Code MCP config when Claude Code is not detected"
     );
 }
 

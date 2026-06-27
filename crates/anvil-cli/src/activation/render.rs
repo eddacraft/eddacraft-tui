@@ -211,6 +211,18 @@ pub fn render_human_with_install(d: &ActivationDiagnostic, install: &InstallRepo
     }
     out.push_str("  install:\n");
     for (client, outcome) in &install.per_client {
+        // ACTMO-012: do not mention editors the user does not have. An
+        // undetected editor with no anvil entry is silently skipped — the
+        // install block reflects the user's actual editor(s), not the
+        // hardcoded client list.
+        if matches!(
+            outcome,
+            InstallOutcome::Skipped {
+                reason: SkipReason::EditorNotDetected,
+            }
+        ) {
+            continue;
+        }
         let line = match outcome {
             InstallOutcome::Installed { path, drift } => {
                 let kind = match drift {
@@ -234,6 +246,14 @@ pub fn render_human_with_install(d: &ActivationDiagnostic, install: &InstallRepo
             InstallOutcome::Skipped {
                 reason: SkipReason::UnsafeDrift(reason),
             } => format!("skipped — refused to overwrite ({reason})"),
+            InstallOutcome::Skipped {
+                reason: SkipReason::EditorNotDetected,
+            } => {
+                // Unreachable: filtered out above via `continue`. Kept
+                // for match exhaustiveness; degrades to an informative
+                // line if that filter is ever removed.
+                "skipped — editor not detected".to_string()
+            }
             InstallOutcome::Failed { error } => format!("FAILED — {error}"),
         };
         let _ = writeln!(out, "    {}: {line}", client.display_name());

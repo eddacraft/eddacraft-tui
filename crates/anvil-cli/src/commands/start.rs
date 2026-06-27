@@ -120,6 +120,17 @@ pub struct StartArgs {
     /// leaving it unset or empty keeps MCP install on.
     #[arg(long = "no-mcp")]
     pub no_mcp: bool,
+    /// Wire the anvil MCP entry for every supported editor client (Cursor
+    /// and Claude Code), even ones not detected on this host. By default
+    /// `anvil start` only writes an MCP config for editors it actually
+    /// detects (binary on PATH or pre-existing editor state), so it never
+    /// creates `~/.cursor/mcp.json` for an editor you do not use. Use this
+    /// to pre-wire both editors anyway. Equivalent to setting
+    /// `ANVIL_ALL_MCP_CLIENTS` to any non-empty value (presence-based,
+    /// like `--no-mcp`). Existing anvil entries are always managed
+    /// regardless of this flag.
+    #[arg(long = "all-mcp-clients")]
+    pub all_mcp_clients: bool,
 }
 
 /// MLP2-039 — the format set chosen at adoption time. Maps onto
@@ -279,7 +290,12 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         // Both Install and Skip route through the same entry point; the policy
         // is the only thing that differs (Council cleanup — the previous match
         // hid that the Install arm was itself just `run_with_mcp_policy(.., Install)`).
-        activation::orchestrator::run_with_mcp_policy(root, global, mcp_policy)?
+        activation::orchestrator::run_with_mcp_policy(
+            root,
+            global,
+            mcp_policy,
+            args.all_mcp_clients,
+        )?
     };
 
     // ADOPT-003 CLI wiring — auto-detect installed AI tools and
@@ -1202,6 +1218,7 @@ mod tests {
             why: false,
             no_daemon: false,
             no_mcp: false,
+            all_mcp_clients: false,
         }
     }
 

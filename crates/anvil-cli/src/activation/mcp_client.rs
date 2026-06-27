@@ -352,6 +352,15 @@ pub fn all_clients() -> &'static [&'static dyn McpClient] {
     &[&cursor::Cursor, &claude_code::ClaudeCode]
 }
 
+/// The set of every MCP client id that ships in v1.
+///
+/// Used by the orchestrator's `--all-mcp-clients` / `ANVIL_ALL_MCP_CLIENTS`
+/// opt-out from editor-aware install gating (ACTMO-012), and by tests that
+/// want the pre-gating "consider every client" behaviour.
+pub fn all_client_ids() -> std::collections::BTreeSet<McpClientId> {
+    all_clients().iter().map(|c| c.id()).collect()
+}
+
 // ---------------------------------------------------------------------------
 // Shared helpers used by every (current and future) JSON-based MCP client
 // impl. Reduces ~80% duplication between cursor.rs and claude_code.rs;

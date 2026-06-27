@@ -32,6 +32,7 @@
 //! `.anvil/first-run`. `anvil welcome` keeps sole ownership of that
 //! marker so the two surfaces don't fight for first-run state.
 
+use std::collections::BTreeSet;
 use std::io::{IsTerminal, Write as _};
 use std::path::{Path, PathBuf};
 
@@ -40,7 +41,10 @@ use anyhow::Context;
 use crate::GlobalArgs;
 use crate::activation::baseline;
 use crate::activation::daemon_registration::{self, WorktreeRegistration};
-use crate::activation::diagnostic::{ActivationDiagnostic, ConfigStatus, verify_with_home};
+use crate::activation::detect_agents::{self, AgentKind, DetectionEnv, RealDetectionEnv};
+use crate::activation::diagnostic::{
+    ActivationDiagnostic, ConfigStatus, McpClientId, verify_with_home,
+};
 use crate::activation::identity;
 use crate::commands::{hooks, init};
 use crate::services::sample_analyser;
@@ -67,13 +71,11 @@ pub(crate) fn run_with_mcp_policy(
     root: &Path,
     global: &GlobalArgs,
     mcp_install_policy: McpInstallPolicy,
+    force_all_mcp_clients: bool,
 ) -> anyhow::Result<(ActivationDiagnostic, InstallReport)> {
-    run_with_home_and_policy(
-        root,
-        crate::util::user_home_dir().as_deref(),
-        global,
-        mcp_install_policy,
-    )
+    let home = crate::util::user_home_dir();
+    let enabled = resolve_enabled_clients(&RealDetectionEnv, force_all_mcp_clients);
+    run_with_home_and_policy(root, home.as_deref(), global, mcp_install_policy, &enabled)
 }
 
 fn run_with_home_and_policy(
@@ -81,6 +83,7 @@ fn run_with_home_and_policy(
     home: Option<&Path>,
     global: &GlobalArgs,
     mcp_install_policy: McpInstallPolicy,
+    enabled: &BTreeSet<McpClientId>,
 ) -> anyhow::Result<(ActivationDiagnostic, InstallReport)> {
     run_with_home_and_registration(
         root,
@@ -88,7 +91,50 @@ fn run_with_home_and_policy(
         global,
         daemon_registration::register_worktree_with_daemon,
         mcp_install_policy,
+        enabled,
     )
+}
+
+/// Map a detected [`AgentKind`] to its [`McpClientId`], or `None` for
+/// agents anvil detects but does not (yet) install an MCP entry for.
+fn agent_to_mcp_client(kind: AgentKind) -> Option<McpClientId> {
+    match kind {
+        AgentKind::ClaudeCode => Some(McpClientId::ClaudeCode),
+        AgentKind::Cursor => Some(McpClientId::Cursor),
+        // Aider / Windsurf / Codex are detected for the "AI tools
+        // detected" summary but have no v1 MCP client impl.
+        AgentKind::Aider | AgentKind::Windsurf | AgentKind::Codex => None,
+    }
+}
+
+/// ACTMO-012: resolve which MCP clients are eligible for a *fresh*
+/// install on this host.
+///
+/// `force_all` (the `--all-mcp-clients` flag or a non-empty
+/// `ANVIL_ALL_MCP_CLIENTS`) returns every shipping client, preserving the
+/// pre-ACTMO-012 "wire both editors" behaviour for power users who want
+/// each editor pre-configured. Otherwise the set is the editors actually
+/// detected on this host (binary on PATH / pre-existing editor state),
+/// so `anvil start` never writes `~/.cursor/mcp.json` for an editor the
+/// user does not have. Editors with an existing anvil entry are still
+/// managed by the install path regardless of this set — see
+/// `install_for_clients`.
+fn resolve_enabled_clients(env: &dyn DetectionEnv, force_all: bool) -> BTreeSet<McpClientId> {
+    // Read `ANVIL_ALL_MCP_CLIENTS` through the injected `DetectionEnv`
+    // (presence-based, like `ANVIL_NO_MCP`: any non-empty value opts in)
+    // so unit tests stay hermetic — `RealDetectionEnv::env` reads the
+    // process environment in production; stubs return `None`.
+    let env_opt_in = env
+        .env("ANVIL_ALL_MCP_CLIENTS")
+        .is_some_and(|value| !value.is_empty());
+    if force_all || env_opt_in {
+        return crate::activation::mcp_client::all_client_ids();
+    }
+    detect_agents::detect_all(env)
+        .detected
+        .iter()
+        .filter_map(|a| agent_to_mcp_client(a.kind))
+        .collect()
 }
 
 fn run_with_home_and_registration(
@@ -97,6 +143,7 @@ fn run_with_home_and_registration(
     global: &GlobalArgs,
     register_worktree: impl FnOnce(&Path) -> WorktreeRegistration,
     mcp_install_policy: McpInstallPolicy,
+    enabled: &BTreeSet<McpClientId>,
 ) -> anyhow::Result<(ActivationDiagnostic, InstallReport)> {
     // DISTRIB-006 (ADR-060): under a non-default ANVIL_HOME without
     // `--touch-project-state`, activation runs in a read-only posture — it still
@@ -257,7 +304,7 @@ fn run_with_home_and_registration(
         McpInstallPolicy::Install => match std::env::current_exe() {
             Ok(exe) => {
                 let fresh = crate::activation::mcp_client::AnvilEntry::local_stdio(exe);
-                install::install_for_clients(root, home, &fresh, interactive)
+                install::install_for_clients(root, home, &fresh, interactive, enabled)
             }
             Err(e) => {
                 // current_exe failed — verify_with_home will also report
@@ -583,6 +630,74 @@ mod tests {
         }
     }
 
+    /// Minimal [`DetectionEnv`] stub for the enabled-client resolution
+    /// tests — only `has_binary` matters here.
+    struct StubDetectionEnv {
+        binaries: std::collections::HashSet<String>,
+    }
+    impl StubDetectionEnv {
+        fn with_binary(name: &str) -> Self {
+            let mut binaries = std::collections::HashSet::new();
+            binaries.insert(name.to_string());
+            Self { binaries }
+        }
+    }
+    impl DetectionEnv for StubDetectionEnv {
+        fn has_binary(&self, name: &str) -> bool {
+            self.binaries.contains(name)
+        }
+        fn path_exists(&self, _path: &str) -> bool {
+            false
+        }
+        fn env(&self, _name: &str) -> Option<String> {
+            None
+        }
+        fn home_dir(&self) -> Option<String> {
+            None
+        }
+    }
+
+    #[test]
+    fn agent_to_mcp_client_maps_only_clients_with_impls() {
+        assert_eq!(
+            agent_to_mcp_client(AgentKind::ClaudeCode),
+            Some(McpClientId::ClaudeCode)
+        );
+        assert_eq!(
+            agent_to_mcp_client(AgentKind::Cursor),
+            Some(McpClientId::Cursor)
+        );
+        // Detected for the "AI tools detected" line, but no v1 MCP impl.
+        assert_eq!(agent_to_mcp_client(AgentKind::Aider), None);
+        assert_eq!(agent_to_mcp_client(AgentKind::Windsurf), None);
+        assert_eq!(agent_to_mcp_client(AgentKind::Codex), None);
+    }
+
+    #[test]
+    fn resolve_enabled_clients_force_all_returns_every_client() {
+        // `force_all` short-circuits before any detection or env read.
+        let env = StubDetectionEnv {
+            binaries: std::collections::HashSet::new(),
+        };
+        let enabled = resolve_enabled_clients(&env, /* force_all */ true);
+        assert_eq!(enabled, crate::activation::mcp_client::all_client_ids());
+    }
+
+    #[test]
+    fn resolve_enabled_clients_scopes_to_detected_editor() {
+        // Hermetic: the stub's `env()` returns `None`, so the
+        // `ANVIL_ALL_MCP_CLIENTS` opt-in never fires regardless of the
+        // real process environment. Only the editor whose binary is on
+        // PATH is enabled.
+        let env = StubDetectionEnv::with_binary("claude");
+        let enabled = resolve_enabled_clients(&env, /* force_all */ false);
+        assert!(enabled.contains(&McpClientId::ClaudeCode));
+        assert!(
+            !enabled.contains(&McpClientId::Cursor),
+            "undetected Cursor must not be enabled"
+        );
+    }
+
     fn run_in_isolated(
         root: &Path,
         home: &Path,
@@ -602,6 +717,7 @@ mod tests {
             global,
             |_| WorktreeRegistration::DaemonUnavailable,
             McpInstallPolicy::Install,
+            &crate::activation::mcp_client::all_client_ids(),
         )
     }
 
@@ -921,6 +1037,7 @@ mod tests {
                 WorktreeRegistration::Registered
             },
             McpInstallPolicy::Install,
+            &crate::activation::mcp_client::all_client_ids(),
         )
         .expect("orchestrator should continue after registration");
 
@@ -998,6 +1115,7 @@ mod tests {
             &global,
             |_| WorktreeRegistration::DaemonUnavailable,
             McpInstallPolicy::Skip,
+            &crate::activation::mcp_client::all_client_ids(),
         )
         .expect("orchestrator should succeed with MCP install skipped");
 

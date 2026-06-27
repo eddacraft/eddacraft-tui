@@ -40,6 +40,17 @@
 //! selection, so even a future picker-API change that surfaced it
 //! cannot bypass the foreign-tool guard.
 //!
+//! ## Editor-detection gate (ACTMO-012)
+//!
+//! [`install_for_clients`] takes an `enabled` set of clients (the editors
+//! actually detected on this host, or every client when
+//! `--all-mcp-clients` / `ANVIL_ALL_MCP_CLIENTS` is set). A *fresh*
+//! `NotPresent` write only happens for an enabled client — so
+//! `anvil start` never creates `~/.cursor/mcp.json` for an editor the
+//! user does not have (Matt beta smoke). An existing anvil entry (any
+//! drift other than `NotPresent`) is always managed regardless of the
+//! `enabled` set, so we never orphan a config anvil previously wrote.
+//!
 //! ## Atomicity
 //!
 //! Writes go through `util::atomic_write`, which renames a uniquely-named
@@ -47,7 +58,7 @@
 //! sensitive data (Claude Code's `~/.claude.json` carries auth tokens)
 //! are written with mode 0o600 on Unix.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use crate::activation::diagnostic::McpClientId;
@@ -76,6 +87,12 @@ pub enum SkipReason {
     /// User toggled this client off in the picker (or never selected
     /// it in non-interactive mode because of drift class).
     UserDeselected,
+    /// ACTMO-012: the editor was not detected on this host (no binary on
+    /// PATH, no pre-existing editor state) and has no existing anvil
+    /// entry to manage, so anvil did not create a config for an editor
+    /// the user may never use. Pass `--all-mcp-clients` (or set
+    /// `ANVIL_ALL_MCP_CLIENTS`) to wire every supported client anyway.
+    EditorNotDetected,
     /// `DriftClass::UnsafeDrift` — refused to overwrite a foreign /
     /// unrecognised entry. `reason` is the drift classifier's message.
     /// Parse errors at probe time also fold into this variant via the
@@ -157,19 +174,34 @@ pub fn install_for_clients(
     home: Option<&Path>,
     fresh: &AnvilEntry,
     interactive: bool,
+    enabled: &BTreeSet<McpClientId>,
 ) -> InstallReport {
     let candidates = collect_candidates(workspace, home, fresh);
 
+    // ACTMO-012: a *fresh* MCP write only happens for an editor we
+    // actually detected (binary on PATH / pre-existing editor state),
+    // or when the user opted into every client (`enabled` carries the
+    // resolved set). An existing anvil entry (any drift other than
+    // `NotPresent`) is always managed regardless of detection — we never
+    // orphan a config anvil previously wrote, and we still refuse
+    // `UnsafeDrift`. This is the gate that stops `anvil start` writing
+    // `~/.cursor/mcp.json` for an editor the user never used (Matt beta
+    // smoke).
+    let offerable =
+        |c: &Candidate| enabled.contains(&c.id) || !matches!(c.drift, DriftClass::NotPresent);
+
     // Trim candidates that have no actionable choice. The picker
     // never offers UpToDate (nothing to do) or UnsafeDrift (refused
-    // regardless of selection — see the install gate below). Both
-    // are surfaced in the post-install human render block instead.
+    // regardless of selection — see the install gate below), nor a
+    // fresh write for an undetected editor. All are surfaced in the
+    // post-install human render block instead.
     let mut picker_inputs: Vec<&Candidate> = candidates.iter().collect();
     picker_inputs.retain(|c| {
-        !matches!(
-            c.drift,
-            DriftClass::UpToDate | DriftClass::UnsafeDrift { .. }
-        )
+        offerable(c)
+            && !matches!(
+                c.drift,
+                DriftClass::UpToDate | DriftClass::UnsafeDrift { .. }
+            )
     });
 
     let chosen_ids: Vec<McpClientId> = if interactive && !picker_inputs.is_empty() {
@@ -235,7 +267,18 @@ pub fn install_for_clients(
                 }
             }
             DriftClass::NotPresent | DriftClass::SafeDrift { .. } => {
-                if chosen_ids.contains(&candidate.id) {
+                if !offerable(candidate) {
+                    // Undetected editor with no existing anvil entry —
+                    // do not create a config for an editor the user may
+                    // never use (ACTMO-012).
+                    tracing::debug!(
+                        client = %candidate.id,
+                        "mcp install: skipped — editor not detected",
+                    );
+                    InstallOutcome::Skipped {
+                        reason: SkipReason::EditorNotDetected,
+                    }
+                } else if chosen_ids.contains(&candidate.id) {
                     install_one(*client, candidate, fresh)
                 } else {
                     tracing::debug!(
@@ -678,6 +721,20 @@ mod tests {
         AnvilEntry::local_stdio(PathBuf::from("/usr/local/bin/anvil"))
     }
 
+    /// Every shipping client enabled — equivalent to `--all-mcp-clients`.
+    /// These mechanics tests exercise the install path itself, so they
+    /// opt into all clients; the editor-detection gate has its own
+    /// dedicated tests below.
+    fn all_enabled() -> BTreeSet<McpClientId> {
+        crate::activation::mcp_client::all_client_ids()
+    }
+
+    /// No client enabled — simulates a host where neither editor is
+    /// detected (and `--all-mcp-clients` was not passed).
+    fn none_enabled() -> BTreeSet<McpClientId> {
+        BTreeSet::new()
+    }
+
     fn report_outcome(report: &InstallReport, id: McpClientId) -> &InstallOutcome {
         report
             .per_client
@@ -694,6 +751,7 @@ mod tests {
             Some(home.path()),
             &fresh(),
             /* interactive */ false,
+            &all_enabled(),
         );
 
         // Both clients should have written to the home scope (global).
@@ -747,7 +805,13 @@ mod tests {
         )
         .unwrap();
 
-        let report = install_for_clients(ws.path(), Some(home.path()), &fresh(), false);
+        let report = install_for_clients(
+            ws.path(),
+            Some(home.path()),
+            &fresh(),
+            false,
+            &all_enabled(),
+        );
         assert!(matches!(
             report_outcome(&report, McpClientId::ClaudeCode),
             InstallOutcome::Installed { .. }
@@ -776,7 +840,13 @@ mod tests {
         let claude_cfg = r#"{"mcpServers": {"anvil": {"type": "stdio", "command": "/usr/local/bin/anvil", "args": ["mcp", "serve", "--stdio"], "env": {}}}}"#;
         fs::write(home.path().join(".claude.json"), claude_cfg).unwrap();
 
-        let report = install_for_clients(ws.path(), Some(home.path()), &fresh(), false);
+        let report = install_for_clients(
+            ws.path(),
+            Some(home.path()),
+            &fresh(),
+            false,
+            &all_enabled(),
+        );
         assert!(matches!(
             report_outcome(&report, McpClientId::ClaudeCode),
             InstallOutcome::Skipped {
@@ -809,7 +879,13 @@ mod tests {
         fs::create_dir_all(home.path().join(".claude")).unwrap();
         fs::write(home.path().join(".claude/settings.json"), "[1, 2, 3]").unwrap();
 
-        let report = install_for_clients(ws.path(), Some(home.path()), &fresh(), false);
+        let report = install_for_clients(
+            ws.path(),
+            Some(home.path()),
+            &fresh(),
+            false,
+            &all_enabled(),
+        );
 
         assert!(matches!(
             report_outcome(&report, McpClientId::ClaudeCode),
@@ -839,7 +915,13 @@ mod tests {
         // detectable.
         std::thread::sleep(std::time::Duration::from_millis(1100));
 
-        let report = install_for_clients(ws.path(), Some(home.path()), &fresh(), false);
+        let report = install_for_clients(
+            ws.path(),
+            Some(home.path()),
+            &fresh(),
+            false,
+            &all_enabled(),
+        );
 
         match report_outcome(&report, McpClientId::Cursor) {
             InstallOutcome::Skipped {
@@ -866,7 +948,13 @@ mod tests {
         fs::write(&cursor_path, cfg).unwrap();
         let bytes_before = fs::read(&cursor_path).unwrap();
 
-        let report = install_for_clients(ws.path(), Some(home.path()), &fresh(), false);
+        let report = install_for_clients(
+            ws.path(),
+            Some(home.path()),
+            &fresh(),
+            false,
+            &all_enabled(),
+        );
 
         match report_outcome(&report, McpClientId::Cursor) {
             InstallOutcome::Skipped {
@@ -890,7 +978,13 @@ mod tests {
         fs::write(&cursor_path, "{not json").unwrap();
         let bytes_before = fs::read(&cursor_path).unwrap();
 
-        let report = install_for_clients(ws.path(), Some(home.path()), &fresh(), false);
+        let report = install_for_clients(
+            ws.path(),
+            Some(home.path()),
+            &fresh(),
+            false,
+            &all_enabled(),
+        );
 
         match report_outcome(&report, McpClientId::Cursor) {
             InstallOutcome::Skipped {
@@ -923,7 +1017,13 @@ mod tests {
         fs::create_dir(&real_cursor_dir).unwrap();
         symlink(&real_cursor_dir, home.path().join(".cursor")).unwrap();
 
-        let report = install_for_clients(ws.path(), Some(home.path()), &fresh(), false);
+        let report = install_for_clients(
+            ws.path(),
+            Some(home.path()),
+            &fresh(),
+            false,
+            &all_enabled(),
+        );
         match report_outcome(&report, McpClientId::Cursor) {
             InstallOutcome::Failed { error } => {
                 assert!(
@@ -951,7 +1051,13 @@ mod tests {
         let cursor_path = home.path().join(".cursor/mcp.json");
         fs::write(&cursor_path, cfg).unwrap();
 
-        let report = install_for_clients(ws.path(), Some(home.path()), &fresh(), false);
+        let report = install_for_clients(
+            ws.path(),
+            Some(home.path()),
+            &fresh(),
+            false,
+            &all_enabled(),
+        );
 
         match report_outcome(&report, McpClientId::Cursor) {
             InstallOutcome::Installed {
@@ -982,7 +1088,13 @@ mod tests {
         let cursor_path = home.path().join(".cursor/mcp.json");
         fs::write(&cursor_path, cfg).unwrap();
 
-        let report = install_for_clients(ws.path(), Some(home.path()), &fresh(), false);
+        let report = install_for_clients(
+            ws.path(),
+            Some(home.path()),
+            &fresh(),
+            false,
+            &all_enabled(),
+        );
         assert!(matches!(
             report_outcome(&report, McpClientId::Cursor),
             InstallOutcome::Installed { .. }
@@ -1002,7 +1114,13 @@ mod tests {
         let home = TempDir::new().unwrap();
 
         // First run: writes both clients.
-        let r1 = install_for_clients(ws.path(), Some(home.path()), &fresh(), false);
+        let r1 = install_for_clients(
+            ws.path(),
+            Some(home.path()),
+            &fresh(),
+            false,
+            &all_enabled(),
+        );
         assert!(matches!(
             report_outcome(&r1, McpClientId::Cursor),
             InstallOutcome::Installed { .. }
@@ -1013,7 +1131,13 @@ mod tests {
         std::thread::sleep(std::time::Duration::from_millis(1100));
 
         // Second run: must classify as UpToDate and not rewrite.
-        let r2 = install_for_clients(ws.path(), Some(home.path()), &fresh(), false);
+        let r2 = install_for_clients(
+            ws.path(),
+            Some(home.path()),
+            &fresh(),
+            false,
+            &all_enabled(),
+        );
         assert!(matches!(
             report_outcome(&r2, McpClientId::Cursor),
             InstallOutcome::Skipped {
@@ -1045,7 +1169,13 @@ mod tests {
         let home_cfg = r#"{"mcpServers": {"anvil": {"command": "/usr/local/bin/anvil", "args": ["mcp", "serve", "--stdio"], "env": {}}}}"#;
         std::fs::write(home.path().join(".cursor/mcp.json"), home_cfg).unwrap();
 
-        let report = install_for_clients(ws.path(), Some(home.path()), &fresh(), false);
+        let report = install_for_clients(
+            ws.path(),
+            Some(home.path()),
+            &fresh(),
+            false,
+            &all_enabled(),
+        );
         // Cursor should land on the home config (UpToDate), not
         // install a duplicate at workspace scope.
         match report_outcome(&report, McpClientId::Cursor) {
@@ -1077,7 +1207,13 @@ mod tests {
         let ws_path = ws.path().join(".cursor/mcp.json");
         std::fs::write(&ws_path, ws_cfg).unwrap();
 
-        let report = install_for_clients(ws.path(), Some(home.path()), &fresh(), false);
+        let report = install_for_clients(
+            ws.path(),
+            Some(home.path()),
+            &fresh(),
+            false,
+            &all_enabled(),
+        );
         match report_outcome(&report, McpClientId::Cursor) {
             InstallOutcome::Installed { path, .. } => {
                 assert_eq!(path, &ws_path, "should install at workspace, not home");
@@ -1103,7 +1239,13 @@ mod tests {
         let ws_path = ws.path().join(".cursor/mcp.json");
         fs::write(&ws_path, ws_cfg).unwrap();
 
-        let report = install_for_clients(ws.path(), Some(home.path()), &fresh(), false);
+        let report = install_for_clients(
+            ws.path(),
+            Some(home.path()),
+            &fresh(),
+            false,
+            &all_enabled(),
+        );
         match report_outcome(&report, McpClientId::Cursor) {
             InstallOutcome::Installed { path, .. } => {
                 assert_eq!(path, &ws_path);
@@ -1118,7 +1260,13 @@ mod tests {
     fn report_aggregated_failure_returns_none_on_clean_run() {
         let ws = TempDir::new().unwrap();
         let home = TempDir::new().unwrap();
-        let report = install_for_clients(ws.path(), Some(home.path()), &fresh(), false);
+        let report = install_for_clients(
+            ws.path(),
+            Some(home.path()),
+            &fresh(),
+            false,
+            &all_enabled(),
+        );
         assert!(report.aggregated_failure().is_none());
     }
 
@@ -1206,6 +1354,95 @@ mod tests {
             label.len()
         );
         assert!(label.contains("update"));
+    }
+
+    // --- ACTMO-012: editor-aware install gating ---
+
+    #[test]
+    fn undetected_editor_with_no_entry_is_skipped_not_written() {
+        // The core Matt beta fix: with no editor detected (and no
+        // `--all-mcp-clients`), `anvil start` must not write a fresh MCP
+        // config for an editor the user never used.
+        let ws = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let report = install_for_clients(
+            ws.path(),
+            Some(home.path()),
+            &fresh(),
+            false,
+            &none_enabled(),
+        );
+        for id in [McpClientId::Cursor, McpClientId::ClaudeCode] {
+            match report_outcome(&report, id) {
+                InstallOutcome::Skipped {
+                    reason: SkipReason::EditorNotDetected,
+                } => {}
+                other => panic!("expected EditorNotDetected for {id:?}, got {other:?}"),
+            }
+        }
+        assert!(
+            !home.path().join(".cursor/mcp.json").exists(),
+            "must not write a cursor config for an undetected editor"
+        );
+        assert!(
+            !home.path().join(".claude.json").exists(),
+            "must not write a claude config for an undetected editor"
+        );
+    }
+
+    #[test]
+    fn detected_editor_installs_while_others_are_skipped() {
+        let ws = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let only_claude: BTreeSet<McpClientId> = [McpClientId::ClaudeCode].into_iter().collect();
+        let report =
+            install_for_clients(ws.path(), Some(home.path()), &fresh(), false, &only_claude);
+        assert!(
+            matches!(
+                report_outcome(&report, McpClientId::ClaudeCode),
+                InstallOutcome::Installed { .. }
+            ),
+            "detected Claude Code must install"
+        );
+        assert!(
+            matches!(
+                report_outcome(&report, McpClientId::Cursor),
+                InstallOutcome::Skipped {
+                    reason: SkipReason::EditorNotDetected
+                }
+            ),
+            "undetected Cursor must be skipped"
+        );
+        assert!(home.path().join(".claude.json").exists());
+        assert!(!home.path().join(".cursor/mcp.json").exists());
+    }
+
+    #[test]
+    fn existing_anvil_entry_is_managed_even_when_editor_not_enabled() {
+        // The gate blocks only *fresh* writes. An existing anvil entry
+        // (here SafeDrift — anvil-shaped command at a stale path) must
+        // still be rewritten even when the editor is not in the enabled
+        // set, so we never orphan a config anvil already manages.
+        let ws = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        fs::create_dir_all(home.path().join(".cursor")).unwrap();
+        let cfg = r#"{"mcpServers": {"anvil": {"command": "/old/path/anvil", "args": ["mcp", "serve", "--stdio"], "env": {}}}}"#;
+        fs::write(home.path().join(".cursor/mcp.json"), cfg).unwrap();
+
+        let report = install_for_clients(
+            ws.path(),
+            Some(home.path()),
+            &fresh(),
+            false,
+            &none_enabled(),
+        );
+        match report_outcome(&report, McpClientId::Cursor) {
+            InstallOutcome::Installed {
+                drift: DriftClass::SafeDrift { .. },
+                ..
+            } => {}
+            other => panic!("existing anvil entry must still be managed, got {other:?}"),
+        }
     }
 
     #[test]
