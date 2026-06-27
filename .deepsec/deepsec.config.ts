@@ -18,7 +18,20 @@ const anvilPlugin: DeepsecPlugin = {
 
 export default defineConfig({
   projects: [
-    { id: 'anvil-001', root: '..' },
+    {
+      id: 'anvil-001',
+      root: '..',
+      // Highest-signal runtime trust boundaries first (see data/anvil-001/INFO.md):
+      // Hono admin/auth API, docs-shell proxy, website API routes, and the Rust
+      // CLI + intercept daemon local trust boundary.
+      priorityPaths: [
+        'apps/anvil-api',
+        'apps/docs-shell',
+        'apps/website/app/api',
+        'crates/anvil-cli',
+        'crates/anvil-intercept',
+      ],
+    },
     // <deepsec:projects-insert-above>
   ],
   plugins: [anvilPlugin],

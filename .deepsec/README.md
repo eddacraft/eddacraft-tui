@@ -33,6 +33,44 @@ pnpm deepsec export      --format md-dir --out ./findings
 `scan` is free (regex only). `process` is the AI stage (≈$0.30/file on Opus by
 default). Run state goes to `data/anvil-001/`.
 
+## Sakana / Fugu models
+
+The AI stages (`process` / `revalidate`) accept any OpenAI-compatible endpoint
+through deepsec's `pi` backend. Convenience scripts wire Sakana AI's **Fugu**
+and **Fugu Ultra** as ready-to-run options (requires `deepsec >= 2.1.0` for the
+`--ai-*` provider-override flags):
+
+```bash
+pnpm fugu:process            --project-id anvil-001
+pnpm fugu:revalidate         --project-id anvil-001
+pnpm fugu-ultra:process      --project-id anvil-001
+pnpm fugu-ultra:revalidate   --project-id anvil-001
+```
+
+Each script expands to the `pi` backend with the OpenAI-compatible override,
+e.g.:
+
+```bash
+deepsec process --agent pi --model openai/fugu \
+  --ai-provider openai \
+  --ai-base-url "$SAKANA_BASE_URL" \
+  --ai-api-key-env SAKANA_API_KEY
+```
+
+Before first use, provide three values (none are baked into the scripts):
+
+1. **Base URL** — `export SAKANA_BASE_URL="https://<sakana-endpoint>/v1"` (or add
+   it to `.env.local` and source it). The scripts fail fast if it's unset.
+2. **API key** — add `SAKANA_API_KEY=…` to `.env.local` (gitignored). deepsec
+   resolves it via `--ai-api-key-env`.
+3. **Model ids** — the scripts use `openai/fugu` and `openai/fugu-ultra`. The
+   `openai/` prefix is required by the override path; adjust the model name in
+   `package.json` if Sakana publishes different identifiers.
+
+The model is always a CLI flag — deepsec has no in-config model registry — so
+these scripts (or your own `--agent pi --model …` invocation) are the way to
+pin a non-default model per run.
+
 ## Adding another project
 
 To scan another codebase from this same `.deepsec/`:
