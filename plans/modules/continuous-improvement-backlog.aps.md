@@ -920,7 +920,7 @@ archive.
   (all findings closed) is not yet met and is owned outside this item.
 ### CIB-040: Full CLIC-010 help-text layout pass for all commands
 
-- **Status:** Ready
+- **Status:** In Progress 2026-06-27
 - **Intent:** Apply the uniform CLIC-010 layout to every command's `--help`
   output: one-line imperative summary, a when-to-use hint, common flag
   descriptions, and a pointer to the relevant runbook or docs page.
