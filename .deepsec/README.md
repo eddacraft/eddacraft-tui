@@ -57,6 +57,12 @@ deepsec process --agent pi --model openai/fugu \
   --ai-api-key-env SAKANA_API_KEY
 ```
 
+The scripts wrap this in `bash -c '… "$@"' bash` so the `${…:?}` fail-fast guard
+and `$SAKANA_BASE_URL` expansion behave the same regardless of the shell pnpm
+picks (including `cmd.exe` on Windows), while still forwarding any extra flags
+such as `--project-id` / `--concurrency`. They therefore require `bash` on PATH
+— on Windows run them from Git Bash or WSL.
+
 Before first use, provide three values (none are baked into the scripts):
 
 1. **Base URL** — `export SAKANA_BASE_URL="https://<sakana-endpoint>/v1"` (or

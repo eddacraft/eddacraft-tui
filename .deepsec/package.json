@@ -7,10 +7,10 @@
   "workspaces": [],
   "packageManager": "pnpm@9.15.4",
   "scripts": {
-    "fugu:process": "deepsec process --agent pi --model openai/fugu --ai-provider openai --ai-base-url \"${SAKANA_BASE_URL:?set SAKANA_BASE_URL (export it or source .env.local)}\" --ai-api-key-env SAKANA_API_KEY",
-    "fugu:revalidate": "deepsec revalidate --agent pi --model openai/fugu --ai-provider openai --ai-base-url \"${SAKANA_BASE_URL:?set SAKANA_BASE_URL (export it or source .env.local)}\" --ai-api-key-env SAKANA_API_KEY",
-    "fugu-ultra:process": "deepsec process --agent pi --model openai/fugu-ultra --ai-provider openai --ai-base-url \"${SAKANA_BASE_URL:?set SAKANA_BASE_URL (export it or source .env.local)}\" --ai-api-key-env SAKANA_API_KEY",
-    "fugu-ultra:revalidate": "deepsec revalidate --agent pi --model openai/fugu-ultra --ai-provider openai --ai-base-url \"${SAKANA_BASE_URL:?set SAKANA_BASE_URL (export it or source .env.local)}\" --ai-api-key-env SAKANA_API_KEY"
+    "fugu:process": "bash -c 'deepsec process --agent pi --model openai/fugu --ai-provider openai --ai-base-url \"${SAKANA_BASE_URL:?set SAKANA_BASE_URL (export it or source .env.local)}\" --ai-api-key-env SAKANA_API_KEY \"$@\"' bash",
+    "fugu:revalidate": "bash -c 'deepsec revalidate --agent pi --model openai/fugu --ai-provider openai --ai-base-url \"${SAKANA_BASE_URL:?set SAKANA_BASE_URL (export it or source .env.local)}\" --ai-api-key-env SAKANA_API_KEY \"$@\"' bash",
+    "fugu-ultra:process": "bash -c 'deepsec process --agent pi --model openai/fugu-ultra --ai-provider openai --ai-base-url \"${SAKANA_BASE_URL:?set SAKANA_BASE_URL (export it or source .env.local)}\" --ai-api-key-env SAKANA_API_KEY \"$@\"' bash",
+    "fugu-ultra:revalidate": "bash -c 'deepsec revalidate --agent pi --model openai/fugu-ultra --ai-provider openai --ai-base-url \"${SAKANA_BASE_URL:?set SAKANA_BASE_URL (export it or source .env.local)}\" --ai-api-key-env SAKANA_API_KEY \"$@\"' bash"
   },
   "dependencies": {
     "deepsec": "^2.1.2"
