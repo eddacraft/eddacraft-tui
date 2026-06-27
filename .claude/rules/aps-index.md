@@ -11,8 +11,8 @@ any `.aps.md` file.
 - Do NOT create separate module lists or summary files — `index.aps.md` is the
   only index
 - Before starting work on a module, mark its status **In Progress**
-- After completing a work item, update its status AND the module's done/total
-  count in the header table
+- After completing a work item, update its status only — do **not** bump the
+  module header or index `N/M` count in feature PRs (ADR-053 advisory counts)
 - After all items done, update module status to Complete
-- Update `plans/index.aps.md` whenever a module's count or status changes
+- Reconcile stored `N/M` counts with `pnpm aps:index` when a refresh is needed
 - Archive completed modules with `git mv` to `plans/archive/modules/`

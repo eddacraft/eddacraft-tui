@@ -7,9 +7,10 @@
 //   1. the module header row in `plans/modules/<slug>.aps.md`
 //   2. the module's row in `plans/index.aps.md`
 //
-// Counts therefore stop being hand-maintained: complete an item (flip its
-// Status), run `npm run aps:index`, and both surfaces update. `--check` (CI)
-// recomputes and fails on any drift so the index can't go stale.
+// Counts are advisory-derived (ADR-053): feature PRs flip only per-item Status
+// lines; a single-writer reconcile (`npm run aps:index`) refreshes stored N/M.
+// `--check` (CI) recomputes and reports freshness drift but exits 0 so
+// concurrent same-module PRs do not collide on the aggregate count cell.
 //
 // Scope: only active modules under `plans/modules/` that declare a
 // `| ID | … | N/M |` progress header. Index rows pointing at
@@ -145,11 +146,9 @@ if (existsSync(indexPath)) {
   if (after !== before) stage(indexPath, before, after);
 }
 
-// Apply or report.
+// Apply or report. Freshness drift is advisory in --check mode (ADR-053).
 let exitCode = 0;
-if (values.check) {
-  exitCode = drifts.length > 0 ? 1 : 0;
-} else {
+if (!values.check) {
   for (const [path, { after }] of pending) {
     writeFileSync(path, after, 'utf8');
   }
@@ -180,7 +179,9 @@ if (values.json) {
       );
     }
     if (values.check) {
-      process.stdout.write('[aps-index-counts] run `npm run aps:index` to refresh, then commit.\n');
+      process.stdout.write(
+        '[aps-index-counts] advisory: run `pnpm aps:index` to reconcile stored counts.\n'
+      );
     }
   }
   // Notes are informational (managed module not in the index, or no count

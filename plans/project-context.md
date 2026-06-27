@@ -119,12 +119,23 @@ change.
 
 ## Progress Counters
 
-Active modules carry a manual progress counter (`Done/Total`) in two places:
+Active modules carry an at-a-glance progress counter (`Done/Total`) in two
+places:
 
 1. The module header table (`| MODULE | — | Status | X/Y |`).
 2. The module's row in `plans/index.aps.md`.
 
-`scripts/aps/drift-check.mjs` reconciles the manual count against the
+Per-item `Status:` lines are authoritative. The stored `N/M` is an
+advisory-derived convenience refreshed by `scripts/aps/index-counts.mjs`
+(ADR-053). Feature PRs flip only their own item's `Status:` line; they do
+**not** edit the aggregate `N/M` cells.
+
+`scripts/aps/index-counts.mjs --check` (CI via `pnpm aps:index:check`) derives
+counts from work-item statuses, reports freshness drift, and exits 0 so
+concurrent same-module PRs do not collide on the count token. Write mode
+(`pnpm aps:index`) is the single-writer reconcile.
+
+`scripts/aps/drift-check.mjs` still reconciles the stored count against the
 status-derived count using `DONE_PATTERNS` (canonical `Done`/`Complete` plus
 the Anvil extensions `Merged`/`Released/Shipped` — see
 [`#project-status-extensions`](#project-status-extensions)) and emits
@@ -133,25 +144,19 @@ the Anvil extensions `Merged`/`Released/Shipped` — see
 
 Rules:
 
-1. **Existing modules with a counter** keep the counter and bump both the
-   header and the index row in the same commit that flips a work item's
-   `Status:` to a terminal value. Treat the bump as part of the closeout, not
-   a deferred reconcile.
+1. **Feature PRs never bump `N/M`.** Complete an item by updating its `Status:`
+   line only. Refresh stored counts in a separate reconcile commit via
+   `pnpm aps:index` when the at-a-glance rollup should be current.
 2. **New modules MAY omit the counter** when status-derived progress is
    enough (the drift-check only fires when both `progressDone` and
    `progressTotal` are non-null in the header). Omitting opts out of both
    `aps-progress-mismatch` and `aps-index-progress-mismatch`.
-3. **Parallel PRs that each close a work item** in the same module should
-   either (a) coordinate so only one PR bumps the counter, or (b) defer the
-   bump to a single reconcile commit landing after the wave, to avoid
-   merge-conflict churn on the counter row. APSCAN-005/-006/-007/-008 used
-   option (b); the APSCAN-009 closeout commit did the single reconcile.
-4. **Status casing matches the canonical/extension vocabulary**
+3. **Status casing matches the canonical/extension vocabulary**
    (`Done`/`Merged`/`Released/Shipped`/`Complete` exactly) — `DONE_PATTERNS`
    in `scripts/aps/drift-check.mjs` is case-sensitive, so lowercase variants
    are not counted as done. Counter numbers themselves (`X/Y`) have no casing
    concerns.
-5. **Released/Shipped without release-record evidence** triggers
+4. **Released/Shipped without release-record evidence** triggers
    `shipped-aps-without-release-record` (advisory). It is a real signal: the
    work was tagged Released/Shipped but the release-record file does not list
    the item. Resolve by either updating the release record or downgrading the
@@ -187,9 +192,9 @@ Agents update APS state as they work:
 1. Before starting substantive implementation, mark the module or work item
    `In Progress` where applicable.
 2. After completing a work item, update its status and closeout evidence in the
-   module file.
-3. Update the module's progress count in the module header and
-   `plans/index.aps.md` whenever the count changes.
+   module file — do not bump stored `N/M` counts in feature PRs (ADR-053).
+3. Reconcile stored progress counts with `pnpm aps:index` when a refresh is
+   needed (typically a dedicated bookkeeping commit after a wave).
 4. Archive completed modules when all active work is done and release/closeout
    evidence is complete.
 

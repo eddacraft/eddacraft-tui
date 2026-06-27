@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 75/106  |
+| CIB | —     | In Progress | 76/107  |
 
 ## Purpose
 
@@ -407,78 +407,56 @@ archive.
   integration tests cover the debug and default-filter-`warn!` cases. Closes the
   footgun CIB-017 surfaced.
 
-### CIB-025: Generate the index module rows so PRs don't touch the shared count
+### CIB-025: Make APS count freshness advisory-derived, not PR-maintained
 
-- **Status:** Proposed
-- **Intent:** PRs completing a work item edit their module's `plans/index.aps.md`
-  row (the `N/M` count token + curated prose); concurrent PRs collide on that
-  line. CIB-022 made the count *derived* + CI-enforced but left it a hand-edited,
-  textually-conflicting cell. **The observed contention is _same-module_** — four
-  CIB items (CIB-017/-018/-019/-024) plus the #1995 triage all collided on the
-  one `| CIB | … | N/M |` token on 2026-05-26, forcing four fully serialised
-  rebase-merges. This is the deferred CIB-022 "option B", re-surfaced by real
-  multi-PR contention.
-- **Planning council (2026-05-27, direction-validate):** unanimous **AMEND** —
-  direction valid, mechanism not Ready. Record:
-  [`2026-05-27-cib-025-planning-council`](../brainstorms/2026-05-27-cib-025-planning-council.md).
-- **Expected Outcome:** A design pass picks one of these shapes:
-  1. **Count-only rows (cheapest).** Drop the curated prose from index rows so
-     the only shared token is `N/M`, and stop hand-editing `N/M` — the per-item
-     `Status:` lines (distinct lines → no cross-PR conflict) are the source and
-     the count is regenerated, not written by the PR. Needs a mechanism so no PR
-     ever edits `N/M` (CI/post-merge regen, or compute-on-`--check`). ~1 PR.
-  2. **Fully generate the module-status table** from module files (the original
-     option). A real restructure — blocked by Gates 2–4.
-  3. **Per-module index fragments** concatenated by a generator.
-- **Design gates (must resolve before Ready):**
-  1. **Same-module mechanism — RESOLVED 2026-05-27 by
-     [ADR-053](../decisions/053-advisory-aps-index-counts.md).** Generating from
-     module files only *moves* the collision from the index row into the module
-     file (two same-module PRs still touch the header count). Decision: feature
-     PRs **never edit the `N/M` count** (they flip only their own, distinct,
-     `Status:` line); the count is advisory-derived; `aps:index:check` freshness
-     becomes advisory (warn); a single-writer periodic reconcile (`npm run
-     aps:index`) refreshes it. Post-merge regen bot is the documented escalation
-     (ADR-053 Consequences). The original validation tested the wrong case
-     (different modules — passes today); corrected to same-module below.
-  2. **Prose custody.** Index Progress cells carry curated narrative (PR SHAs,
-     "added from session X", reparenting notes) with no structured home in module
-     files (the MLP2 row alone is ~21 KB). Define where it lands, or decide to
-     drop it (with the information-loss acknowledged). `docs-index.mjs` works
-     because DOCGOV frontmatter is structured; APS index prose is not.
-  3. **Schema heterogeneity.** The index is not one table — 13+ distinct column
-     schemas across ~14 sections (Notes / Dependencies / Wave / Phase / Spec-ref
-     / Surface / Tier; one section has no Progress column), and section
-     membership lives only in hand-written headings. Shape 2 must declare how
-     section membership + per-section columns are sourced, or restrict to the
-     uniform 4-column sections.
-  4. **Integrity / failure-closed.** A row generator must (a) escape `|`/newline
-     in every cell (`scripts/docs/docs-index.mjs` has `escapeTable`;
-     `scripts/aps/lib/modules.mjs` does **not**); (b) expose module-level *Status*
-     (the parser captures only counts, not `Proposed`/`In Progress`/`Complete`);
-     (c) fail loudly on an unparseable module file (no silent dropped/blank row —
-     the no-silent-degrade rule); (d) skip `/archive/` rows as
-     `index-counts.mjs` already does.
-- **Migration:** must be waved — never a single ~107-row rewrite (that PR is the
-  ultimate conflict magnet, an acute form of the disease it cures). Stage:
-  additive generator first (rows frozen), then batched relocation, then cutover.
-- **Validation:** (corrected) two branches completing items **in the same
-  module** rebase/merge with zero conflict on the count; the generated/auto count
-  matches module sources; `aps:index:check` green; a fixture with `|` in a module
-  title does not corrupt the table; an unparseable module fails the generator
-  loudly.
+- **Status:** Done 2026-06-27
+- **Intent:** Implement ADR-053's accepted same-module collision fix: feature PRs
+  stop editing aggregate `N/M` counts, and count freshness becomes
+  advisory-derived rather than a blocking per-PR maintenance obligation.
+- **Expected Outcome:** `scripts/aps/index-counts.mjs --check` still derives and
+  reports module-header/index count drift, but exits 0 for freshness mismatches
+  so concurrent same-module feature PRs can flip only their own `Status:` lines.
+  Write mode (`pnpm aps:index`) remains the single-writer reconcile. Structural
+  failures, malformed parser inputs, and unsupported rows remain visible through
+  notes/errors rather than silently disappearing. Agent-facing APS guidance
+  (`AGENTS.md`, `.claude/rules/aps-index.md`, `plans/project-context.md`, and
+  repo-local workflow skill text if needed) is updated so it no longer instructs
+  every feature PR to bump header/index counts.
+- **Non-scope:** full generated APS index rows, prose custody, heterogeneous
+  table-schema generation, and per-module index fragments. Those remain tracked
+  separately in CIB-107.
+- **Validation:** fixture proves `--check` exits 0 while naming stale counts and
+  suggesting `pnpm aps:index`; write mode still reconciles; `scripts/aps/_test/index-counts.test.sh`;
+  `pnpm aps:index:check`; `pnpm docs:check`; `pnpm format:check`.
 - **Identified From:** CIB-019/-024 session 2026-05-26 (4 serialised rebases);
-  planning council 2026-05-27.
-- **Files:** `scripts/aps/index-counts.mjs`, `scripts/aps/lib/modules.mjs`,
-  `scripts/docs/docs-index.mjs` (precedent), `plans/index.aps.md`. Required
-  co-changes: `scripts/aps/drift-check.mjs` (independent index regex),
-  `scripts/aps/active-lint.mjs` (passes the index to the linter), and the
-  `.claude/rules/aps-index.md` "single source of truth" wording (truth moves to
-  module files; the index becomes a generated view needing a `GENERATED` marker).
-- **Coordinates with:** CIB-022 (extends count derivation → row/cell generation),
-  CIB-021 (same shared-append-file problem), CIB-023.
-- **Confidence:** medium — shape 1 (count-only) is small and could go Ready on
-  its own; shapes 2/3 are a real restructure gated on the four design questions.
+  planning council 2026-05-27; ADR-053 (accepted advisory count model).
+- **Files:** `scripts/aps/index-counts.mjs`, `scripts/aps/_test/index-counts.test.sh`,
+  `AGENTS.md`, `.claude/rules/aps-index.md`, `plans/project-context.md`,
+  `.codex/skills/dev-workflow/SKILL.md`, `.claude/skills/dev-workflow/SKILL.md`,
+  `.opencode/skills/dev-workflow/SKILL.md` if their bookkeeping wording still
+  treats index counters as mandatory per feature PR.
+- **Confidence:** high — the decision is already accepted in ADR-053; the change
+  is a narrow gate/guidance update with fixture coverage.
+
+### CIB-107: Generate APS index rows or fragments without prose/count conflicts
+
+- **Status:** Proposed 2026-06-27
+- **Intent:** Revisit the larger CIB-025 shapes after the advisory count model is
+  in place: fully generated module-status rows or per-module index fragments
+  that remove broader index-row contention without losing curated narrative.
+- **Expected Outcome:** A design pass resolves prose custody, section/schema
+  heterogeneity, cell escaping, failure-closed parsing, archive handling, and a
+  waved migration plan before any 100+ row index rewrite. The implementation
+  either generates only a safe subset or provides structured homes for narrative
+  that currently lives in `plans/index.aps.md` Progress cells.
+- **Validation:** generator fixtures cover `|`/newline escaping, unparseable
+  module failure, section membership, heterogeneous table schemas, and a staged
+  migration path that does not rewrite the whole index in one conflict-heavy PR.
+- **Identified From:** CIB-025 planning council (2026-05-27) Gates 2–4 and the
+  CIB-025 scope split on 2026-06-27.
+- **Coordinates with:** CIB-025, CIB-022, CIB-021, CIB-023.
+- **Confidence:** medium — valuable, but still a real restructure; keep Proposed
+  until the design gates are settled.
 
 ### CIB-026: Isolate cwd-mutating tests across the Rust workspace
 

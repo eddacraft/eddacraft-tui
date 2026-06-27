@@ -146,11 +146,13 @@ cat >"$tmp/plans/index.aps.md" <<'EOF'
 | [old](./archive/modules/old.aps.md) | OLD | Complete | 5/5 |
 EOF
 
-# ── 1. --check detects the stale WID count (2/3 expected, 1/3 on disk). ───
-if "${GEN[@]}" --root "$tmp" --check >/tmp/ic-check.out 2>&1; then
-  fail "--check should exit non-zero on stale WID count"
+# ── 1. --check reports stale WID count (2/3 expected, 1/3 on disk) but exits 0
+#    (ADR-053 advisory freshness — feature PRs no longer maintain N/M cells).
+if ! "${GEN[@]}" --root "$tmp" --check >/tmp/ic-check.out 2>&1; then
+  fail "--check should exit 0 on stale WID count (advisory freshness)"
 fi
 grep -q 'WID' /tmp/ic-check.out || fail "--check output should name WID"
+grep -q 'aps:index' /tmp/ic-check.out || fail "--check output should suggest aps:index reconcile"
 
 # ── 2. write mode fixes header + index, leaves prose/planning/archived alone. ─
 "${GEN[@]}" --root "$tmp" >/dev/null 2>&1 || fail "write mode should succeed"

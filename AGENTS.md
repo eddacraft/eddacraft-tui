@@ -39,14 +39,14 @@ Agents MUST update APS state as they work — do not leave this for later:
 
 1. **Before starting:** mark module status **In Progress** in the module file
 2. **After completing a work item:** update its status (checkbox, Status field,
-   or table row) in the module file
-3. **After completing a work item:** update the done/total count in the module
-   file's header table
-4. **After all active items done:** update schema status to **Done**; use
+   or table row) in the module file — do **not** bump the module header or index
+   `N/M` count in feature PRs (ADR-053; counts are advisory-derived)
+3. **After all active items done:** update schema status to **Done**; use
    **Complete** only as lifecycle prose when closeout/archive evidence supports
    it
-5. **Update `plans/index.aps.md`** whenever a module's count or status changes
-6. **Archive completed modules:** `git mv` to `plans/archive/modules/` and
+4. **Reconcile stored counts when needed:** run `pnpm aps:index` in a dedicated
+   bookkeeping commit when the at-a-glance `N/M` should be refreshed
+5. **Archive completed modules:** `git mv` to `plans/archive/modules/` and
    update the path in `index.aps.md`
 
 Reference spec: <https://github.com/eddacraft/anvil-plan-spec> Project context:
