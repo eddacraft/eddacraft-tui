@@ -420,11 +420,11 @@ mod tests {
             entropy_threshold: 3.5,
             ..SecretCheckConfig::default()
         };
-        let content = r#"
+        let content = r"
 // valid url for the webhook endpoint
 const callbackUrl = 'https://example.com/hooks';
 const apiToken = 'Qm9kR3p4VnNNdkxaWlhTamtCdQ==';
-"#;
+";
 
         let findings = detect_high_entropy_strings(content, "src/webhook.ts", &config);
 
