@@ -368,7 +368,11 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                 activation::state::ProtectionState::Error
             )
         {
-            print!("{}", render_first_run_recipe(&diagnostic));
+            // Hooks are installed by the orchestrator only when writes are
+            // allowed and the workspace is a Git repo; mirror that so the
+            // recipe does not claim hook coverage it did not install.
+            let hooks_active = !project_writes_gated && root.join(".git").exists();
+            print!("{}", render_first_run_recipe(&diagnostic, hooks_active));
         }
         // ADOPT-003 — print the auto-detected AI tool summary after
         // the diagnostic block. Suppressed when nothing was
@@ -816,7 +820,7 @@ fn start_next_step_line(diag: &activation::ActivationDiagnostic) -> &'static str
     }
 }
 
-fn render_first_run_recipe(diag: &activation::ActivationDiagnostic) -> String {
+fn render_first_run_recipe(diag: &activation::ActivationDiagnostic, hooks_active: bool) -> String {
     use std::fmt::Write as _;
 
     let mut out = String::new();
@@ -831,7 +835,13 @@ fn render_first_run_recipe(diag: &activation::ActivationDiagnostic) -> String {
     } else if matches!(diag.watch, activation::diagnostic::WatchTier::Running) {
         out.push_str("    - L2 save-time watch\n");
     }
-    out.push_str("    - L3/L4 commit + push hooks (via `anvil start`)\n");
+    // Only claim hook coverage when `anvil start` actually installs hooks —
+    // i.e. inside a Git repo with project writes allowed. In a non-Git or
+    // write-gated directory the hooks were never written, so listing them would
+    // over-claim coverage (Copilot review).
+    if hooks_active {
+        out.push_str("    - L3/L4 commit + push hooks (via `anvil start`)\n");
+    }
     let _ = writeln!(
         out,
         "  recipe (try this now — triggers `{RECIPE_CHECK_NAME}`):"
@@ -999,7 +1009,7 @@ mod tests {
     #[test]
     fn first_run_recipe_matches_fixture() {
         let diag = synth_diagnostic(activation::state::ProtectionState::Protecting);
-        let rendered = render_first_run_recipe(&diag);
+        let rendered = render_first_run_recipe(&diag, true);
 
         assert!(
             rendered.contains("verify:"),
@@ -1025,26 +1035,41 @@ mod tests {
     /// includes the L0 line; a bare `NeedsAction` diagnostic does not.
     #[test]
     fn first_run_recipe_layer_lines_reflect_diagnostic() {
-        let protecting = render_first_run_recipe(&synth_diagnostic(
-            activation::state::ProtectionState::Protecting,
-        ));
+        let protecting = render_first_run_recipe(
+            &synth_diagnostic(activation::state::ProtectionState::Protecting),
+            true,
+        );
         assert!(
             protecting.contains("L0 mcp pre-write"),
             "protecting render must name the active L0 line: {protecting}"
         );
 
-        let needs_action = render_first_run_recipe(&synth_diagnostic(
-            activation::state::ProtectionState::NeedsAction,
-        ));
+        let needs_action = render_first_run_recipe(
+            &synth_diagnostic(activation::state::ProtectionState::NeedsAction),
+            true,
+        );
         assert!(
             !needs_action.contains("L0 mcp pre-write"),
             "needs_action render must NOT claim L0 is live: {needs_action}"
         );
 
-        let daemon_backed = render_first_run_recipe(&daemon_attested_diagnostic());
+        let daemon_backed = render_first_run_recipe(&daemon_attested_diagnostic(), true);
         assert!(
             daemon_backed.contains("L2 daemon-backed save-time"),
             "daemon-attested render must name the active save-time layer: {daemon_backed}"
+        );
+
+        // Hook coverage is only claimed when hooks were actually installed
+        // (Git repo + writes allowed). A non-Git / write-gated run must not
+        // over-claim L3/L4 hook coverage (Copilot review).
+        assert!(
+            daemon_backed.contains("L3/L4 commit + push hooks"),
+            "hooks_active render must name the hook layer: {daemon_backed}"
+        );
+        let no_hooks = render_first_run_recipe(&daemon_attested_diagnostic(), false);
+        assert!(
+            !no_hooks.contains("L3/L4 commit + push hooks"),
+            "non-Git / gated render must NOT claim hook coverage: {no_hooks}"
         );
     }
 

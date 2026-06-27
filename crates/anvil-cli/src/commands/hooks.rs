@@ -835,6 +835,18 @@ pub fn uninstall_all_managed_hooks_silent() -> Result<()> {
 /// write Anvil-managed file-mode hooks under `.git/hooks/`. Existing unmanaged
 /// hooks are preserved by [`install_hook`]'s non-force skip semantics.
 pub(crate) fn install_activation_hooks_silent(workspace_root: &Path) -> Result<()> {
+    // A non-Git directory has nowhere to install commit/push hooks, and that is
+    // an expected, benign state — not an error. Returning `Err` here makes the
+    // activation orchestrator print "could not install git hooks (Not a Git
+    // repository)", which is misleading noise outside a repo (Copilot review).
+    // Treat it as a silent no-op instead.
+    if !workspace_root.join(".git").exists() {
+        tracing::debug!(
+            workspace = %workspace_root.display(),
+            "activation: skipping git hook install — not a Git repository",
+        );
+        return Ok(());
+    }
     let git_dir = resolve_git_dir(workspace_root)?;
     let hooks_dir = {
         let (_detected, husky_dir_opt) = detect_husky(workspace_root);
