@@ -55,8 +55,9 @@ execution and that authorisation is recorded inline.
 
 - Active modules live in `plans/modules/<module>.aps.md`.
 - Completed modules move to `plans/archive/modules/` with `git mv`.
-- `plans/index.aps.md` is the canonical index and must change when module path,
-  count, or status changes.
+- `plans/index.aps.md` is the canonical index and must change when module path
+  or status changes. Stored `N/M` counts are advisory-derived (ADR-053); feature
+  PRs do not bump them.
 - Do not create shadow indexes, planning summaries, or alternate module lists.
 
 ### Draft Work Items
@@ -104,7 +105,8 @@ Return a handoff block:
 When work completes or the user asks for status:
 
 - Update work item/module status using the current APS model.
-- Keep module header counts and `plans/index.aps.md` counts in sync.
+- Update per-item `Status:` lines; reconcile stored `N/M` with `pnpm aps:index`
+  when a rollup refresh is needed (ADR-053).
 - Add discovered follow-up work as `Proposed` unless explicitly authorised as
   `Ready`.
 - Archive completed modules only after validation, closeout, and cross-reference
@@ -115,5 +117,5 @@ When work completes or the user asks for status:
 - Never implement code or create branches.
 - Never bypass `planning-workflow` for unclear design or ownership.
 - Never start work from stale or unauthorised APS items.
-- Never leave plan/index counts inconsistent.
+- Never leave per-item `Status:` lines inconsistent with closeout evidence.
 - Use UK English in plan text.

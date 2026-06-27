@@ -8,7 +8,7 @@
 //   2. the module's row in `plans/index.aps.md`
 //
 // Counts are advisory-derived (ADR-053): feature PRs flip only per-item Status
-// lines; a single-writer reconcile (`npm run aps:index`) refreshes stored N/M.
+// lines; a single-writer reconcile (`pnpm aps:index`) refreshes stored N/M.
 // `--check` (CI) recomputes and reports freshness drift but exits 0 so
 // concurrent same-module PRs do not collide on the aggregate count cell.
 //

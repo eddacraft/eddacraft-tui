@@ -143,7 +143,7 @@ jobs:
           needs.detect-changes.outputs.markdownlint-required == 'true'
         run: pnpm run docs:check
 
-      - name: Check APS index counts (CIB-022)
+      - name: Report APS index count drift (CIB-022/025 advisory)
         if:
           needs.detect-changes.result != 'success' ||
           needs.detect-changes.outputs.markdownlint-required == 'true'

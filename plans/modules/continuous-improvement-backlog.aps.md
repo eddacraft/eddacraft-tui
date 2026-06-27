@@ -360,8 +360,10 @@ archive.
 - **Status:** Merged 2026-05-26 via PR #1969
 - **Summary:** `scripts/aps/index-counts.mjs` derives each managed module's
   `done/total` from its work-item `Status:` lines and rewrites the module header
-  + the `plans/index.aps.md` count token; `aps:index:check` enforces it in the
-  Docs Lint CI job (exit 1 on drift). Parser shared with `drift-check.mjs` via
+  + the `plans/index.aps.md` count token; `aps:index:check` originally enforced
+  freshness in Docs Lint (exit 1 on drift). **Superseded for freshness by
+  ADR-053/CIB-025 (2026-06-27):** `--check` now reports drift advisedly (exit 0).
+  Parser shared with `drift-check.mjs` via
   `scripts/aps/lib/modules.mjs`. Headerless/archived rows untouched; annotation
   prose preserved (so it kills count drift, not same-module prose conflicts).
 

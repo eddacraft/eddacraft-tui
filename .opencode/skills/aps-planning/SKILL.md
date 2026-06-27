@@ -129,7 +129,8 @@ In Anvil, APS state is not passive bookkeeping. Keep it current as work moves:
 1. Before substantive changes, mark the module/work item `In Progress` when repo
    rules require it.
 2. After completing a work item, update its status and validation evidence.
-3. Keep module header counts and `plans/index.aps.md` status/counts in sync.
+3. Update per-item `Status:` lines in feature work; do not bump stored `N/M`
+   counts (ADR-053). Reconcile rollups with `pnpm aps:index` when needed.
 4. When all active items are done, mark the module `Done` in schema fields and
    use narrative closeout labels only where the APS rules allow them.
 5. Archive completed modules with `git mv` into `plans/archive/modules/` and

@@ -254,7 +254,8 @@ When asked to prepare execution:
 When a session ends or user reports completion:
 1. Update work item statuses using the current APS status model (`Done`, `Blocked`, or task execution tokens where appropriate)
 2. Add any discovered work as new `Proposed` items unless explicitly authorised as `Ready`
-3. Update `plans/index.aps.md` status/counts and paths when module state changes
+3. Update `plans/index.aps.md` status and paths when module state changes; do
+   not bump stored `N/M` counts in feature PRs (ADR-053)
 4. Show the diff for review
 
 ### 10. Plan Wave-Based Parallel Execution

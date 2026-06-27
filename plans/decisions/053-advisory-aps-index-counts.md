@@ -51,15 +51,12 @@ not a PR-maintained one:
    would be the option-1 escalation below). Being single-writer (one reconcile at
    a time, never concurrent with itself) it never contends, and because feature
    PRs don't touch the count a reconcile never conflicts with feature work.
-5. **Effectivity.** This ADR records the decided end-state; it takes effect when
-   CIB-025 downgrades `aps:index:check` to advisory. **Until CIB-025 lands the
-   gate still blocks**, so the existing `.claude/rules/aps-index.md` guidance
-   (update the module done/total count on completion) **remains in force** —
-   contributors keep updating the count until then. CIB-025's implementation must
-   update `.claude/rules/aps-index.md` in lockstep with the gate downgrade so the
-   rule and the gate never contradict.
+5. **Effectivity.** In force since CIB-025 landed (2026-06-27): `aps:index:check`
+   freshness is advisory and agent-facing APS guidance (`.claude/rules/aps-index.md`,
+   `AGENTS.md`, `plans/project-context.md`, and APS planning surfaces) no longer
+   instruct feature PRs to bump stored `N/M` counts.
 
-Implementation is tracked by CIB-025 (advisory shape).
+Implementation: CIB-025 (Done 2026-06-27).
 
 ## Rationale
 
