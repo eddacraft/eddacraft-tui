@@ -89,42 +89,44 @@ fn render_hooks_panel(frame: &mut Frame, area: Rect, state: &StatusState, theme:
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
-    let lines: Vec<Line> = state
-        .data
-        .hooks
-        .iter()
-        .enumerate()
-        .map(|(i, hook)| {
-            let selected = focused && i == state.selected_item;
-            let indicator = if selected { ">> " } else { "  " };
-            let status_icon = if hook.active { "*" } else { "o" };
-            let status_colour = if hook.active {
-                theme.success()
-            } else {
-                theme.muted()
-            };
+    // ACTMO-011: name what `*` / `o` mean. Without the legend, beta
+    // users read the glyphs as decoration and cannot tell an installed
+    // hook from a missing one.
+    let mut lines: Vec<Line> = vec![Line::from(vec![Span::styled(
+        "  * installed   o not installed",
+        Style::default().fg(theme.muted()),
+    )])];
 
-            Line::from(vec![
-                Span::styled(indicator, Style::default().fg(theme.fg())),
-                Span::styled(
-                    format!("{status_icon} "),
-                    Style::default().fg(status_colour),
-                ),
-                Span::styled(
-                    &hook.name,
-                    if selected {
-                        Style::default().fg(theme.fg()).add_modifier(Modifier::BOLD)
-                    } else {
-                        Style::default().fg(theme.fg())
-                    },
-                ),
-                Span::styled(
-                    format!("  {}", hook.path),
-                    Style::default().fg(theme.muted()),
-                ),
-            ])
-        })
-        .collect();
+    lines.extend(state.data.hooks.iter().enumerate().map(|(i, hook)| {
+        let selected = focused && i == state.selected_item;
+        let indicator = if selected { ">> " } else { "  " };
+        let status_icon = if hook.active { "*" } else { "o" };
+        let status_colour = if hook.active {
+            theme.success()
+        } else {
+            theme.muted()
+        };
+
+        Line::from(vec![
+            Span::styled(indicator, Style::default().fg(theme.fg())),
+            Span::styled(
+                format!("{status_icon} "),
+                Style::default().fg(status_colour),
+            ),
+            Span::styled(
+                &hook.name,
+                if selected {
+                    Style::default().fg(theme.fg()).add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(theme.fg())
+                },
+            ),
+            Span::styled(
+                format!("  {}", hook.path),
+                Style::default().fg(theme.muted()),
+            ),
+        ])
+    }));
 
     frame.render_widget(Paragraph::new(Text::from(lines)), inner);
 }
@@ -179,6 +181,18 @@ fn render_results_panel(
     let block = panel_block("Recent Runs", focused, theme);
     let inner = block.inner(area);
     frame.render_widget(block, area);
+
+    // ACTMO-011: an empty panel reads as broken. Say plainly that no
+    // runs are recorded yet and how to produce one, rather than render
+    // a blank box (beta smoke feedback).
+    if state.data.recent_runs.is_empty() {
+        let empty = Paragraph::new(Line::from(Span::styled(
+            "  No runs recorded yet — run `anvil check` or save a watched file.",
+            Style::default().fg(theme.muted()),
+        )));
+        frame.render_widget(empty, inner);
+        return;
+    }
 
     let lines: Vec<Line> = state
         .data
@@ -385,5 +399,58 @@ mod tests {
                 "zoomed render must hide non-focused panel `{hidden}`"
             );
         }
+    }
+
+    /// ACTMO-011: the hooks panel must spell out what `*` / `o` mean so
+    /// the glyphs are not read as decoration.
+    #[test]
+    fn hooks_panel_renders_glyph_legend() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = sample_state();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+        let rendered = buffer_contents(terminal.backend().buffer());
+
+        assert!(
+            rendered.contains("installed") && rendered.contains("not installed"),
+            "hooks panel must carry a `* installed / o not installed` legend; got:\n{rendered}"
+        );
+    }
+
+    /// ACTMO-011: an empty Recent Runs panel must say so plainly rather
+    /// than render a blank box that reads as broken.
+    #[test]
+    fn results_panel_renders_honest_empty_state() {
+        use super::super::{ProfileInfo, StatusData};
+
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = StatusState::new(StatusData {
+            hooks: vec![],
+            profile: ProfileInfo {
+                name: "dev".to_string(),
+                checks: vec![],
+                path: ".anvil/profiles/dev.yaml".to_string(),
+            },
+            recent_runs: vec![],
+            update_hint: None,
+            insights_hint: None,
+            whats_new_hint: None,
+        });
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+        let rendered = buffer_contents(terminal.backend().buffer());
+
+        assert!(
+            rendered.contains("No runs recorded yet"),
+            "empty Recent Runs panel must render an honest empty-state line; got:\n{rendered}"
+        );
     }
 }

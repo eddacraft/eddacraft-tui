@@ -2,7 +2,7 @@
 
 | ID    | Owner | Status | Progress |
 | ----- | ----- | ------ | -------- |
-| ACTMO | Josh  | In Progress | 10/12 |
+| ACTMO | Josh  | In Progress | 11/12 |
 
 **Last reviewed:** 2026-06-26 — ACTMO-001 through ACTMO-010 completed on
 `feat/actmo-spine`: ADR-092 accepted; `anvil start` now performs MCP-independent
@@ -23,9 +23,14 @@ ships the E2E matrix (default MCP install, `--no-mcp`, terminating daemon-repair
 verify). Post-Council fixes folded in: empty-settings normalisation, best-effort
 allow-list, structured `session already registered` heartbeat detection,
 softened restart hint, and `ANVIL_NO_MCP` documentation.
-**ACTMO-011/-012** remain **Ready** (filed from Matt beta smoke UX review:
-noisy/contradictory `anvil start` output; Cursor `restart_handshake_verified`
-self-test shown though Matt never used Cursor). Originally created **Ready** from
+**ACTMO-011** is **Done** ([#2969](https://github.com/eddacraft/anvil-001/pull/2969)) —
+`anvil status` TUI `*`/`o` hook legend + honest Recent Runs empty-state, and
+`anvil insights` daemon-uptime now reads "not yet measured" instead of a stub
+`0%` (JSON wire value unchanged; most of the original wishlist had already
+shipped, reconciliation recorded in the work item). **ACTMO-012** remains
+**Ready** (filed from Matt beta smoke UX review: Cursor
+`restart_handshake_verified` self-test shown though Matt never used Cursor).
+Originally created **Ready** from
 v0.8.2-beta Windows smoke ([#2937](https://github.com/eddacraft/anvil-001/issues/2937));
 design [#2939](https://github.com/eddacraft/anvil-001/issues/2939). ADR-092
 Accepted pins the MCP-optional spine decision.
@@ -298,7 +303,7 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 
 ### ACTMO-011: Activation output simplification (golden-path UX)
 
-- **Status:** Ready
+- **Status:** Done
 - **Intent:** Fix beta smoke feedback that `anvil start`, `anvil status`, and
   bare `anvil` print too much engineer-facing detail that contradicts itself
   (Matt/Dave logs + screenshots under operator-held `anvil-beta/` artefacts).
@@ -313,14 +318,31 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
   empty-state for Recent Runs; bare `anvil` routes to welcome/help not
   zero-filled insights; hide or label stubbed `Daemon uptime: 0%` until real;
   doctor names daemon vs MCP shim processes.
-- **Validation:** `cargo test -p eddacraft-anvil activation::render`;
-  `cargo test -p eddacraft-anvil commands::start`; `pnpm --filter @eddacraft/anvil-e2e test`
-  (activation output fixtures); manual Matt/Dave repro checklist on #2937
-- **Files:** `crates/anvil-cli/src/activation/render.rs`,
-  `crates/anvil-cli/src/commands/start.rs`,
-  `crates/anvil-cli/src/commands/insights.rs`,
-  `crates/anvil-tui/src/surfaces/status/render.rs`,
-  `crates/anvil-cli/src/commands/doctor.rs`, related tests
+- **Reconciliation (2026-06-27, pre-implementation gap analysis vs current `main`):**
+  Most of the wishlist had already landed via the surfaces that postdate the
+  beta smoke screenshots, so this item ships the genuinely-open remainder:
+  - **Shipped this item:** `anvil status` TUI `*`/`o` hook legend + honest
+    "No runs recorded yet" empty-state for Recent Runs; `anvil insights` daemon
+    uptime now renders "not yet measured" instead of a stub `0%` that
+    contradicts a running daemon (`daemon_uptime_percentage` was hardcoded `0` —
+    now `Option<u8>` → `null` in JSON).
+  - **Already satisfied — verified, no change needed:** structured WARN copy
+    already goes to `tracing` (invisible at default level) with a single plain
+    noise-disciplined `eprintln!`, not JSON, on stderr; bare `anvil` already
+    routes to `welcome` (not insights); headline / `next:` / `active layers` /
+    trailing `Next:` are already aligned and pinned (ADTRUST-006, UJ-001,
+    DLIFE-006); the "run `anvil start`" strings are state/command-correct repair
+    hints surfaced by `anvil status`, never self-referential inside `anvil start`.
+  - **Owned elsewhere — out of scope here:** first-scan findings grouping/cap is
+    the CIB-010 first-scan-vs-steady-state class (Merged); doctor daemon-vs-MCP
+    process enumeration is net-new cross-platform process scanning better tracked
+    as its own item if beta still needs it (no current mislabel — doctor has no
+    process-list line today).
+- **Validation:** `cargo test -p eddacraft-anvil-tui status::render`;
+  `cargo test -p eddacraft-anvil --bins insights`
+- **Files:** `crates/anvil-cli/src/commands/insights.rs`,
+  `crates/anvil-cli/src/insights/aggregator.rs`,
+  `crates/anvil-tui/src/surfaces/status/render.rs`
 - **Dependencies:** ACTMO-003 (state machine truth must precede copy)
 - **Confidence:** medium
 - **Risks:** `--json` and pinned contract tests (ADTRUST-005) must not regress;

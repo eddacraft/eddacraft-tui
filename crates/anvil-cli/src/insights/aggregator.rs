@@ -22,6 +22,17 @@ pub struct WeeklyInsights {
     pub suppressions_applied: u64,
     pub suppressions_resolved: u64,
     pub baseline_edges_added: u64,
+    /// Daemon uptime over the window, as a percentage.
+    ///
+    /// **Schema-locked placeholder:** this is always `0` until the
+    /// lifecycle telemetry that backs it is instrumented. The JSON
+    /// contract (`schemas/anvil-insights.v1.json`) pins it as a required
+    /// integer, so the wire value must stay `0` — do not change the type.
+    /// The human surface (`commands::insights::print_plain`) renders the
+    /// `0` placeholder as "not yet measured" rather than a misleading
+    /// `0%` that reads as "the daemon was down all week" (ACTMO-011; beta
+    /// smoke feedback). When real instrumentation lands, update both the
+    /// aggregation here and the human-render special-case together.
     pub daemon_uptime_percentage: u8,
 }
 
@@ -61,6 +72,8 @@ pub fn weekly_summary(repo_root: &Path, now: DateTime<Utc>) -> anyhow::Result<We
         suppressions_applied: 0,
         suppressions_resolved: 0,
         baseline_edges_added: 0,
+        // Schema-locked placeholder — see field docs. Stays `0` on the
+        // wire; the human surface renders it as "not yet measured".
         daemon_uptime_percentage: 0,
     })
 }

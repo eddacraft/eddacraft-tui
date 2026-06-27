@@ -91,7 +91,24 @@ fn print_plain(summary: &aggregator::WeeklyInsights) {
     println!("Suppressions applied: {}", summary.suppressions_applied);
     println!("Suppressions resolved: {}", summary.suppressions_resolved);
     println!("Baseline edges added: {}", summary.baseline_edges_added);
-    println!("Daemon uptime: {}%", summary.daemon_uptime_percentage);
+    println!("{}", uptime_line(summary.daemon_uptime_percentage));
+}
+
+/// Human-facing daemon-uptime line.
+///
+/// ACTMO-011: `daemon_uptime_percentage` is a schema-locked placeholder
+/// that is always `0` until the metric is instrumented (see
+/// [`aggregator::WeeklyInsights`]). Rendering "0%" reads as "the daemon
+/// was down all week" and contradicts a daemon that is plainly running,
+/// so show the placeholder honestly. A genuine 0% over a 7-day window is
+/// not reachable today; when real instrumentation lands, drop this
+/// special-case alongside the aggregation change.
+fn uptime_line(pct: u8) -> String {
+    if pct == 0 {
+        "Daemon uptime: not yet measured".to_string()
+    } else {
+        format!("Daemon uptime: {pct}%")
+    }
 }
 
 #[cfg(test)]
@@ -153,7 +170,18 @@ mod tests {
         assert_eq!(summary.suppressions_applied, 0);
         assert_eq!(summary.suppressions_resolved, 0);
         assert_eq!(summary.baseline_edges_added, 0);
+        // Schema-locked placeholder stays `0` on the wire (ACTMO-011 only
+        // changes how the human surface renders it).
         assert_eq!(summary.daemon_uptime_percentage, 0);
+    }
+
+    #[test]
+    fn uptime_line_renders_placeholder_as_not_yet_measured() {
+        // ACTMO-011: the schema-locked `0` placeholder must read as "not
+        // yet measured", never a misleading "0%".
+        assert_eq!(uptime_line(0), "Daemon uptime: not yet measured");
+        // A real (future) measurement renders as a percentage.
+        assert_eq!(uptime_line(97), "Daemon uptime: 97%");
     }
 
     #[test]
