@@ -2822,7 +2822,7 @@ archive.
 
 - **Status:** Merged 2026-06-24 via PR #2903
 - **Summary:** ADR-091 Accepted (keep the reproducible FNV cursor fingerprint, defer HMAC); threat-model note + `CursorPayload` pointer + forged-cursor pinning test landed in `anvil-gctx-egress`. Sibling-surface follow-up CIB-104 Merged via #2912.
-- **Decision (2026-06-24, [ADR-091](../decisions/091-gctx-cursor-fingerprint-integrity.md), Proposed):**
+- **Decision (2026-06-24, [ADR-091](../decisions/091-gctx-cursor-fingerprint-integrity.md), Accepted):**
   option **(b)** — keep the reproducible FNV-1a filter fingerprint; do **not** add
   an HMAC now. The opaque keyset cursor is a server-minted *seek position*, not an
   authorisation token: a forged cursor only reseeks within the caller's own
