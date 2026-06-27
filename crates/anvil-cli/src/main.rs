@@ -5,6 +5,8 @@ mod commands;
 mod config_summary;
 mod config_view;
 mod feature_flags;
+#[cfg(test)]
+mod help_layout;
 mod insights;
 mod install_root;
 #[cfg(unix)]
@@ -1350,6 +1352,25 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn help_layout_inventory_lists_visible_command_paths() {
+        use clap::CommandFactory;
+
+        let paths = help_layout::visible_command_paths(&Cli::command());
+
+        assert!(help_layout::contains_path(&paths, &["anvil", "check"]));
+        assert!(help_layout::contains_path(
+            &paths,
+            &["anvil", "auth", "login"]
+        ));
+        assert!(help_layout::contains_path(
+            &paths,
+            &["anvil", "policy", "eval"]
+        ));
+        assert!(!help_layout::contains_path(&paths, &["anvil", "login"]));
+        assert!(paths.len() > registered_command_names().len());
     }
 
     // ── 094c: full-registry usage-producer coverage ─────────────────
