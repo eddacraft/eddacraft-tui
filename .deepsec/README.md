@@ -59,8 +59,8 @@ deepsec process --agent pi --model openai/fugu \
 
 Before first use, provide three values (none are baked into the scripts):
 
-1. **Base URL** — `export SAKANA_BASE_URL="https://<sakana-endpoint>/v1"` (or add
-   it to `.env.local` and source it). The scripts fail fast if it's unset.
+1. **Base URL** — `export SAKANA_BASE_URL="https://<sakana-endpoint>/v1"` (or
+   add it to `.env.local` and source it). The scripts fail fast if it's unset.
 2. **API key** — add `SAKANA_API_KEY=…` to `.env.local` (gitignored). deepsec
    resolves it via `--ai-api-key-env`.
 3. **Model ids** — the scripts use `openai/fugu` and `openai/fugu-ultra`. The
@@ -68,8 +68,8 @@ Before first use, provide three values (none are baked into the scripts):
    `package.json` if Sakana publishes different identifiers.
 
 The model is always a CLI flag — deepsec has no in-config model registry — so
-these scripts (or your own `--agent pi --model …` invocation) are the way to
-pin a non-default model per run.
+these scripts (or your own `--agent pi --model …` invocation) are the way to pin
+a non-default model per run.
 
 ## Adding another project
 
