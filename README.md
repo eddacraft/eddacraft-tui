@@ -2,7 +2,7 @@
 
 | Type   | Authority | Owner  | Status | Freshness                                                                                                                                                       |
 | ------ | --------- | ------ | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| README | Advisory  | DOCGOV | Live   | Bench sections refreshed 2026-06-17 from `benchmarks/history/2026-05-30.json` (clean) + `benchmarks/history/2026-06-12.json` (partial); prior review 2026-06-12 |
+| README | Advisory  | DOCGOV | Live   | Bench sections refreshed 2026-06-26 from `benchmarks/history/2026-06-26.json` (full quiet-box + gate benches); prior review 2026-06-17 |
 
 | Upstream                                               | Downstream                        |
 | ------------------------------------------------------ | --------------------------------- |
@@ -30,46 +30,46 @@ violations **before they ever leave the developer's machine.**
 ## Hero stats
 
 ```
-7.8 µs     save-time incremental (single file reparse + graph update)
-1.2 µs     full policy evaluation (all invariants)
-8.3 ms     cold graph build, 100-file codebase
+28.3 µs    save-time incremental (single file reparse + graph update + call lift)
+1.6 µs     full policy evaluation (all invariants)
+6.5 ms     cold graph build, 100-file codebase
 0          perceptible delay
 ```
 
-Latest clean measurements 2026-05-30 on deus (Ryzen 7 5800X) via Criterion
-(release build). The 2026-06-12 run was a partial spot-check focused on resource
-budgets and indicative scan health (see `benchmarks/history/2026-06-12.json`
-below). Previously measured 2026-05-08, 2026-04-28 and 2026-04-03. Governance
-overhead is effectively zero — anvil is in a different category from SAST, not a
-faster scanner.
+Latest clean measurements 2026-06-26 on deus (16-core reference box) via
+Criterion (release build). The incremental figure includes GCALL call-site
+extraction and resident call-edge lifting — ~3.6× vs 2026-05-30 (7.8 µs) but still
+~3,500× under the 100 ms ADR-031 target. Previously measured 2026-05-30,
+2026-06-12 (partial), 2026-05-08, 2026-04-28 and 2026-04-03. Governance overhead
+is effectively zero — anvil is in a different category from SAST, not a faster
+scanner.
 
 Latest `anvil-bench` data (deus reference box):
 
-**Clean run (2026-05-30)** — see
-[`benchmarks/history/2026-05-30.json`](./benchmarks/history/2026-05-30.json):
+**Full quiet-box run (2026-06-26)** — see
+[`benchmarks/history/2026-06-26.json`](./benchmarks/history/2026-06-26.json):
 
-- **Parallel anti-pattern scan** — 0.43 ms per pass on the 320-artefact mixed
-  corpus → **~752K artefacts/sec**.
-- **Secret scan parallel** — ~7.2× speedup (serial ~5.79 s vs parallel ~0.81 s
-  on its corpus).
+- **Parallel anti-pattern scan** — 0.46 ms per pass on the 320-artefact mixed
+  corpus → **~700K artefacts/sec** (within noise of the 2026-05-30 752K peak).
+- **Secret scan parallel** — **~7.3×** speedup (serial ~6.23 s vs parallel
+  ~0.86 s on its corpus).
+- **Walk discovery (20k candidates)** — sequential **92.6 ms** vs parallel
+  **15.2 ms** → **~6.1×** speedup (`walk_discovery` bench).
+- **Hot-read latency gate (GV2-025)** — all eight `HotReadApi` ops pass; worst
+  p95 **0.035 ms** on `certify` (80 ms ADR-031 budget).
+- **Call-lift latency gate (GCALL-006)** — all three lift paths pass; worst p95
+  **7.8 ms** on a `MAX_CALL_SITES` ceiling file (80 ms budget).
+- **Watch resource budget** — pass at 13.0% CPU / 40.6 MiB RSS (50% / 300 MiB).
+- **MCP resource budget** — pass at 82.5% CPU / 11.9 MiB RSS, 86,720
+  `tools/call` requests (200% / 96 MiB).
+- **Intercept daemon budget** — pass at 0.0% CPU idle and 100.3% CPU burst;
+  ~13.0 MiB RSS throughout.
+- **Concurrent watch + MCP + intercept budget** — pass at 195.4% CPU / 65.0 MiB
+  RSS (800% / 700 MiB aggregate).
 
-**Partial spot-check (2026-06-12)** — see
-[`benchmarks/history/2026-06-12.json`](./benchmarks/history/2026-06-12.json)
-(concurrent runs + capture issues; indicative only for scans):
-
-- **Watch resource budget** — pass at 9.7% CPU / 33.0 MiB RSS, against a 50% CPU
-  / 300 MiB budget.
-- **MCP resource budget** — pass at 82.9% CPU / 10.2 MiB RSS, driving 87,085
-  `tools/call` requests against a 200% CPU / 96 MiB budget.
-- **Intercept daemon budget** — pass at 0.0% CPU idle and 101.0% CPU burst; both
-  stayed around 11.4 MiB RSS.
-- **Concurrent watch + MCP + intercept budget** — pass at 193.1% CPU / 54.4 MiB
-  RSS, against an 800% CPU / 700 MiB aggregate budget.
-- **Parallel anti-pattern scan** — indicative ~647K artefacts/sec (overlapped
-  run).
-- **Secret scan parallel rollout** — indicative ~3.69K elements/sec, about 7.1x
-  faster than serial. This timing overlapped another bench, so use it as a
-  health check rather than a quiet-box baseline.
+**Prior clean run (2026-05-30)** — see
+[`benchmarks/history/2026-05-30.json`](./benchmarks/history/2026-05-30.json) for
+the pre-GCALL incremental baseline (7.8 µs) and 752K artefacts/sec scan peak.
 
 See [`crates/anvil-bench/`](./crates/anvil-bench/) for the harness and
 [the GTM benchmark report](https://github.com/eddacraft/eddacraft-gtm/blob/main/competitive/anvil-benchmarks-2026-04-03.md)
@@ -447,20 +447,23 @@ regression detection. These validate the performance targets defined in the
 
 The kernel was designed against the targets in the
 [Kernel Spec](./docs/architecture/rust-kernel-spec.md). Latest clean committed
-run on the reference box is 2026-05-30 (see
-[`benchmarks/history/2026-05-30.json`](./benchmarks/history/2026-05-30.json)).
-2026-04-03 values appear only in parenthetical historical notes where later
-direct measurements from `benchmarks/history/` are absent.
+run on the reference box is 2026-06-26 (see
+[`benchmarks/history/2026-06-26.json`](./benchmarks/history/2026-06-26.json)).
+2026-05-30 remains the pre-GCALL incremental baseline. 2026-04-03 values appear
+only in parenthetical historical notes where later direct measurements from
+`benchmarks/history/` are absent.
 
-| Metric                                    | Target      | Measured (2026-05-30 clean) | Status                                           |
+| Metric                                    | Target      | Measured (2026-06-26 clean) | Status                                           |
 | ----------------------------------------- | ----------- | --------------------------- | ------------------------------------------------ |
-| Cold graph build, 100 files               | —           | **8.3 ms**                  | Validated (improved vs 14.5 ms historical)       |
-| Cold graph build, 1,000 files             | —           | **523 ms**                  | Validated (from 05-30; was ~565 ms extrapolated) |
+| Cold graph build, 100 files               | —           | **6.5 ms**                  | Validated (↓22% vs 2026-05-30)                   |
+| Cold graph build, 1,000 files             | —           | **231 ms**                  | Validated (↓56% vs 2026-05-30)                   |
 | Cold graph build, 2,500 files             | —           | —                           | Pending (extrapolation retired)                  |
 | Cold graph build, 100k LOC / ~2,000 files | < 3 seconds | Pending stress harness      | Pending                                          |
-| Incremental update (single file)          | < 100 ms    | **7.8 µs**                  | Validated · ~12,800× under target                |
-| Policy evaluation (all invariants)        | —           | **1.2 µs**                  | Validated                                        |
-| Event emission (1,000 events)             | < 10 ms     | **252 µs**                  | Validated · ~40× under target                    |
+| Incremental update (single file)          | < 100 ms    | **28.3 µs**                 | Validated · ~3,500× under target (GCALL cost)    |
+| Hot-read API (worst op p95)               | < 80 ms     | **0.035 ms**                | Validated · GV2-025 gate                         |
+| Call-lift (worst op p95)                  | < 80 ms     | **7.8 ms**                  | Validated · GCALL-006 gate                       |
+| Policy evaluation (all invariants)        | —           | **1.6 µs**                  | Validated                                        |
+| Event emission (1,000 events)             | < 10 ms     | **255 µs**                  | Validated · ~39× under target                    |
 | Memory footprint (medium repo)            | < 500 MB    | Pending stress test         | Pending                                          |
 | File detection latency (p99)              | < 20 ms     | Validated (spike)           | Validated                                        |
 | tree-sitter parse (single file)           | < 1 ms      | Validated (spike + bench)   | Validated                                        |
@@ -482,22 +485,35 @@ so cross-release numbers stay honest.
 | **v0.5.0-beta**         | 2026-05-01 | **8.0 ms**    | **39.9K artefacts/sec** | **+42%**; SCAN-001 parallelisation (rayon fan-out, gitignore-aware walker)                                     |
 | 2026-05-30 (clean spot) | 2026-05-30 | **0.43 ms**   | **752K artefacts/sec**  | **+18.8×** vs v0.5 on same box; continued kernel + scan-path wins (clean `benchmarks/history/2026-05-30.json`) |
 | 2026-06-12 (health)     | 2026-06-12 | ~0.49 ms      | ~647K artefacts/sec     | Indicative only (concurrent with secret scan; see `benchmarks/history/2026-06-12.json` caveats)                |
+| **2026-06-26 (clean)**  | 2026-06-26 | **0.46 ms**   | **~700K artefacts/sec** | Full pre-release quiet-box run; within noise of 05-30 peak (`benchmarks/history/2026-06-26.json`)              |
 
 ```mermaid
 xychart-beta
     title "antipattern_scan throughput (artefacts/sec, higher is better)"
-    x-axis ["2026-04-22 baseline", "v0.4.0-beta (2026-04-25)", "v0.5.0-beta (2026-05-01)", "2026-05-30 clean", "2026-06-12 (ind.)"]
+    x-axis ["2026-04-22 baseline", "v0.4.0-beta (2026-04-25)", "v0.5.0-beta (2026-05-01)", "2026-05-30 clean", "2026-06-26 clean"]
     y-axis "artefacts / sec" 0 --> 800000
-    bar [21900, 28600, 39900, 752000, 647000]
-    line [21900, 28600, 39900, 752000, 647000]
+    bar [21900, 28600, 39900, 752000, 700000]
+    line [21900, 28600, 39900, 752000, 700000]
 ```
 
 Each release (and clean spot-check on the reference "deus" machine) adds a row
-so scan-path drift is visible over time. The 2026-05-30 entry is the last full
-quiet-box comparable run captured in `benchmarks/history/`. Per-run detail and
-later micro-bases (walk_discovery, midedit, resource budgets) live in
+so scan-path drift is visible over time. The 2026-06-26 entry is the latest full
+quiet-box run in `benchmarks/history/`, including walk-discovery, hot-read, and
+call-lift gate benches. Per-run detail lives in
 [`crates/anvil-bench/README.md`](./crates/anvil-bench/README.md). Note the
 dramatic post-v0.5 improvement captured by the harness.
+
+### Walk discovery (SCAN-005)
+
+`walk_discovery` compares sequential `ignore::WalkBuilder` vs `WalkParallel` on
+a 20,000-candidate synthetic corpus (same box, 2026-06-26):
+
+| Strategy  | Median   | Throughput       |
+| --------- | -------- | ---------------- |
+| Sequential | **92.6 ms** | ~216K candidates/s |
+| Parallel   | **15.2 ms** | ~1.32M candidates/s |
+
+**~6.1×** parallel speedup — consistent with the 2026-06-02 SCAN-005 spike (~6×).
 
 ### Benchmark Groups
 
@@ -515,6 +531,9 @@ dramatic post-v0.5 improvement captured by the harness.
 | `graph_query`               | `symbols_in_file` and `outgoing_edges` lookups     | 1k, 5k, 10k node graphs              |
 | `debouncer_throughput`      | Record + tick cycle under burst and backpressure   | 100, 500, 1000 pending changes       |
 | `filter_throughput`         | `should_process` over mixed project paths          | 1k, 10k, 50k paths                   |
+| `walk_discovery`            | Sequential vs parallel filesystem discovery walk   | 20k candidates (configurable)        |
+| `hot_read`                  | Resident-graph hot-read API latency gate (GV2-025) | 8 ops × 200 samples                  |
+| `call_lift`                 | Save-time call-edge lift latency gate (GCALL-006)  | 3 ops × 200 samples                  |
 
 ### Running Benchmarks
 

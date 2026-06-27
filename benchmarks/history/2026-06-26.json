@@ -10,7 +10,7 @@
       "hostname": "deus",
       "note": "local reference box; sequential quiet-box run via scripts/bench/run.sh surfaces"
     },
-    "source": "benchmark-results/manual-20260626T202506Z (pnpm bench equivalent, direct cargo invocations)"
+    "source": "benchmark-results/manual-20260626T202506Z (full quiet-box suite) + manual-20260626T151649Z-new-benches (walk_discovery, hot_read, call_lift)"
   },
   "benches": {
     "kernel": [
@@ -422,6 +422,99 @@
       {
         "case": "midedit_roundtrip/empty",
         "median": "2.3606 ms"
+      }
+    ],
+    "walk_discovery": [
+      {
+        "case": "walk_discovery/sequential_walkbuilder",
+        "ns_per_iter": 92611592,
+        "variance_ns": 3178161
+      },
+      {
+        "case": "walk_discovery/parallel_walkparallel",
+        "ns_per_iter": 15192529,
+        "variance_ns": 740130
+      }
+    ],
+    "hot_read": [
+      {
+        "case": "resident_symbols (hub)",
+        "samples": 200,
+        "p50_ms": 0.0,
+        "p95_ms": 0.0,
+        "p99_ms": 0.0
+      },
+      {
+        "case": "symbol_owner (hub api)",
+        "samples": 200,
+        "p50_ms": 0.0,
+        "p95_ms": 0.0,
+        "p99_ms": 0.0
+      },
+      {
+        "case": "known_edge (importer→hub)",
+        "samples": 200,
+        "p50_ms": 0.0,
+        "p95_ms": 0.0,
+        "p99_ms": 0.0
+      },
+      {
+        "case": "boundary_membership (hub api)",
+        "samples": 200,
+        "p50_ms": 0.0,
+        "p95_ms": 0.0,
+        "p99_ms": 0.0
+      },
+      {
+        "case": "reverse_impact depth=1 (hub)",
+        "samples": 200,
+        "p50_ms": 0.005,
+        "p95_ms": 0.005,
+        "p99_ms": 0.005
+      },
+      {
+        "case": "reverse_impact depth=cap (hub)",
+        "samples": 200,
+        "p50_ms": 0.028,
+        "p95_ms": 0.031,
+        "p99_ms": 0.044
+      },
+      {
+        "case": "certify ContentModify (hub)",
+        "samples": 200,
+        "p50_ms": 0.029,
+        "p95_ms": 0.033,
+        "p99_ms": 0.048
+      },
+      {
+        "case": "certify free-fn ContentModify (hub)",
+        "samples": 200,
+        "p50_ms": 0.029,
+        "p95_ms": 0.035,
+        "p99_ms": 0.046
+      }
+    ],
+    "call_lift": [
+      {
+        "case": "update_file lift (hot.ts, ~300 calls)",
+        "samples": 200,
+        "p50_ms": 2.795,
+        "p95_ms": 3.228,
+        "p99_ms": 3.532
+      },
+      {
+        "case": "re_resolve_calls (accumulator, ~300 calls)",
+        "samples": 200,
+        "p50_ms": 2.332,
+        "p95_ms": 2.857,
+        "p99_ms": 3.2
+      },
+      {
+        "case": "update_file lift (cap-ceiling file, MAX_CALL_SITES calls)",
+        "samples": 200,
+        "p50_ms": 5.319,
+        "p95_ms": 7.785,
+        "p99_ms": 10.705
       }
     ]
   },
