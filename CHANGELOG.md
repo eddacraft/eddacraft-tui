@@ -26,9 +26,10 @@ startup, and continued beta-reliability polish.
   `anvil_find_callers`, `anvil_impact_of_change`, and `anvil_affected_tests`,
   plus `anvil_symbol_context` for bounded, budgeted context around a symbol, and
   `graph://stats` / `graph://symbols` / `graph://edges` resources. Source
-  snippets are off by default (identity-only) and opt in via
-  `ANVIL_GCTX_EGRESS=1`; sensitive paths and secrets are filtered before any
-  text leaves the daemon. See the new
+  snippets are off by default (identity-only) and double-gated — the operator
+  must enable egress (`ANVIL_GCTX_EGRESS=1`) **and** the request must ask for
+  source; sensitive paths and secrets are filtered before any text leaves the
+  daemon. See the new
   [AI Context Delivery guide](docs/guides/ai-context-delivery.md).
 - **Python project support.** Anvil now parses and analyses Python alongside
   JS/TS and Rust — an anti-pattern catalogue, entry-point detection, and
@@ -39,8 +40,9 @@ startup, and continued beta-reliability polish.
   example destructive or non-idempotent migrations). The first set is on by
   default; each surface is individually flag-gated and opt-out.
 - **On-device usage insights.** `anvil kindling usage` adds query views over the
-  local command-invocation signal (which commands you run, with flag context) —
-  entirely on-device, no telemetry.
+  local command-invocation signal (which commands you run, and which feature
+  flags were active — names only, never argument values) — entirely on-device,
+  no telemetry.
 - **Smoother daemon startup.** `anvil start` now auto-starts the save-time
   daemon, `anvil watch` offers to start it, and `anvil intercept stop` stops it
   cleanly.

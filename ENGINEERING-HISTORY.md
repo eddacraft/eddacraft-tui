@@ -17,13 +17,13 @@ behind a sealed daemon-side egress projector with the CE-1..CE-12 privacy gates,
 a new **call graph** (GCALL) lifts cross-symbol call edges at save time,
 **Python** joins the first-tier languages (PYLAN), the daemon gains a
 **full-scan executor** and opt-in **warm-start persistence**, the **USAGE/KDS**
-analytics foundation lands on-device, four **governance scan surfaces**
-(Docker/GitHub Actions/shell/ SQL) graduate, and CIB-071 migrates user warnings
-to `miette` with spans. The ADR-075 entry gates cleared 2026-06-15 (ADR-083 +
-the PV-9 egress review); the scoped feature work completed over the following
-two weeks.
+analytics foundation lands on-device, four **governance scan surfaces** (Docker,
+GitHub Actions, shell, SQL) graduate, and CIB-071 migrates user warnings to
+`miette` with spans. The ADR-075 entry gates cleared 2026-06-15 (ADR-083 + the
+PV-9 egress review); the scoped feature work completed over the following two
+weeks.
 
-### Graph V2 consumer layer and multi-graph registry (GV2-013, GV2-014, GV2-020, GV2-023, GV2-026, GV2-030, GV2-031)
+### Graph V2 consumer layer and multi-graph registry (GV2-013, GV2-014, GV2-020, GV2-023, GV2-026, GV2-030, GV2-031, GV2-032)
 
 - **GraphRegistry + WorkspaceRoot bridge (GV2-020).** New `GraphRegistry`
   skeleton, join stubs, `WorkspaceRoot` bridge, and seal proof. E2E
