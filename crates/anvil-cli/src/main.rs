@@ -5,7 +5,6 @@ mod commands;
 mod config_summary;
 mod config_view;
 mod feature_flags;
-#[cfg(test)]
 mod help_layout;
 mod insights;
 mod install_root;
@@ -31,7 +30,7 @@ use std::io::IsTerminal;
 use std::process::ExitCode;
 
 use anyhow::Context;
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, FromArgMatches, Parser, Subcommand};
 
 /// Exit codes for structured error reporting.
 ///
@@ -166,6 +165,24 @@ struct Cli {
 
     #[command(subcommand)]
     command: Commands,
+}
+
+fn augmented_cli_command() -> clap::Command {
+    help_layout::augment_clic_010_help(Cli::command())
+}
+
+fn try_parse_cli() -> Result<Cli, clap::Error> {
+    try_parse_cli_from(std::env::args_os())
+}
+
+fn try_parse_cli_from<I, T>(itr: I) -> Result<Cli, clap::Error>
+where
+    I: IntoIterator<Item = T>,
+    T: Into<std::ffi::OsString> + Clone,
+{
+    let mut command = augmented_cli_command();
+    let mut matches = command.try_get_matches_from_mut(itr)?;
+    Cli::from_arg_matches_mut(&mut matches)
 }
 
 #[derive(Debug, Subcommand)]
@@ -1067,7 +1084,7 @@ fn exit_status_to_code(status: std::process::ExitStatus) -> u8 {
 
 #[allow(clippy::too_many_lines)] // dispatch table; splitting harms readability
 fn main() -> ExitCode {
-    let cli = match Cli::try_parse() {
+    let cli = match try_parse_cli() {
         Ok(cli) => cli,
         Err(err) => {
             let code = err.exit_code();
@@ -1388,6 +1405,64 @@ mod tests {
                 .collect::<Vec<_>>()
                 .join("\n")
         );
+    }
+
+    #[test]
+    fn augmented_help_adds_clic_010_sections_to_check() {
+        let mut command = augmented_cli_command();
+        let help = command
+            .find_subcommand_mut("check")
+            .expect("check command exists")
+            .render_long_help()
+            .to_string();
+        assert!(
+            help.contains("WHEN TO USE:"),
+            "missing when-to-use:\n{help}"
+        );
+        assert!(
+            help.contains("COMMON FLAGS:"),
+            "missing common flags:\n{help}"
+        );
+        assert!(help.contains("LEARN MORE:"), "missing learn more:\n{help}");
+        assert!(
+            help.contains("docs/runbooks/cli-surface.md#anvil-check"),
+            "missing docs pointer:\n{help}"
+        );
+    }
+
+    #[test]
+    fn augmented_help_preserves_existing_watch_footer() {
+        let mut command = augmented_cli_command();
+        let help = command
+            .find_subcommand_mut("watch")
+            .expect("watch command exists")
+            .render_long_help()
+            .to_string();
+        assert!(
+            help.contains("ANVIL_WATCH_DAEMON"),
+            "existing watch footer lost:\n{help}"
+        );
+        assert!(
+            help.contains("WHEN TO USE:"),
+            "missing when-to-use:\n{help}"
+        );
+    }
+
+    #[test]
+    fn augmented_parse_preserves_command_dispatch() {
+        for args in [
+            vec!["anvil", "check"],
+            vec!["anvil", "config", "show"],
+            vec!["anvil", "gate"],
+        ] {
+            let raw = Cli::try_parse_from(&args).expect("raw parse");
+            let augmented = try_parse_cli_from(args.iter().copied()).expect("augmented parse");
+            assert_eq!(
+                command_canonical_name(&raw.command),
+                command_canonical_name(&augmented.command),
+                "dispatch drift for {args:?}"
+            );
+        }
     }
 
     // ── 094c: full-registry usage-producer coverage ─────────────────
