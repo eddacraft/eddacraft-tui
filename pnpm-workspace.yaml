@@ -120,6 +120,13 @@ overrides:
   '@opentelemetry/sdk-trace-node@<2.8.0': '2.8.0'
   'js-yaml@>=3.0.0 <4.0.0': '4.2.0'
   'js-yaml@>=4.0.0 <4.2.0': '4.2.0'
+  # Collapse React type packages to a single version. pnpm 11's resolution
+  # leaves multiple @types/react copies (19.2.16 + 19.2.17) in the tree, and
+  # tsc cannot portably name a type that crosses copies (TS2883) — e.g. a Next
+  # page whose inferred JSX.Element comes from a different @types/react than the
+  # consumer declares. Pinning one version removes the skew.
+  '@types/react': '19.2.17'
+  '@types/react-dom': '19.2.3'
 
 patchedDependencies:
   'gray-matter@4.0.3': 'patches/gray-matter@4.0.3.patch'
