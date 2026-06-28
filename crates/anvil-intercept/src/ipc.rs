@@ -6399,7 +6399,7 @@ mod tests {
         assert!(std::str::from_utf8(label.as_bytes()).is_ok());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "current_thread")]
     async fn jsonrpc_dispatch_span_records_valid_incoming_traceparent() {
         let fields = RecordedFields::default();
         let subscriber = tracing_subscriber::registry().with(RecordingLayer {
