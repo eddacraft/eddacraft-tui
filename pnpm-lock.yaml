@@ -469,6 +469,9 @@ importers:
       '@types/node':
         specifier: ^25.9.1
         version: 25.9.1
+      jose:
+        specifier: ^6.2.3
+        version: 6.2.3
       typescript:
         specifier: ~6.0.3
         version: 6.0.3
