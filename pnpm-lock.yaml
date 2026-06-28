@@ -332,6 +332,12 @@ importers:
       '@docusaurus/tsconfig':
         specifier: 3.10.1
         version: 3.10.1
+      '@types/react':
+        specifier: ^19.2.17
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: ^19.2.3
+        version: 19.2.3(@types/react@19.2.17)
       typescript:
         specifier: ~6.0.3
         version: 6.0.3
@@ -570,6 +576,9 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      '@types/json-schema':
+        specifier: ^7.0.15
+        version: 7.0.15
       vitest:
         specifier: ^4.1.8
         version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@25.9.3)(@vitest/coverage-v8@4.1.8)(happy-dom@20.10.1)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.46.2)(tsx@4.22.4)(yaml@2.9.0))
@@ -589,6 +598,9 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      '@types/json-schema':
+        specifier: ^7.0.15
+        version: 7.0.15
       vitest:
         specifier: ^4.1.8
         version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@25.9.3)(@vitest/coverage-v8@4.1.8)(happy-dom@20.10.1)(vite@8.0.16(@types/node@25.9.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.46.2)(tsx@4.22.4)(yaml@2.9.0))
@@ -6791,9 +6803,6 @@ packages:
 
   '@types/react-router@5.1.20':
     resolution: {integrity: sha512-jGjmu/ZqS7FjSH6owMcD5qpq19+1RS9DeVRqfl1FeBMxTDQAGwlMWOcs52NDoXaNKyG3d1cYQFMs9rCrb88o9Q==}
-
-  '@types/react@19.2.14':
-    resolution: {integrity: sha512-ilcTH/UniCkMdtexkoCN0bI7pMcJDvmQFPvuPvmEaYA/NSfFTAgdUSLAoVjaRJm7+6PvcM+q1zYOwS4wTYMF9w==}
 
   '@types/react@19.2.16':
     resolution: {integrity: sha512-esJiCAnl0kfpNdE69f3So4WJUXy95dLZydX0KwK46riIHDzHM7O9Vtf9xCHW0PXIqvgqNrswl522kA/5yx+F4w==}
@@ -15086,7 +15095,7 @@ snapshots:
     dependencies:
       '@docusaurus/types': 3.10.1(@swc/core@1.15.40(@swc/helpers@0.5.23))(esbuild@0.28.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@types/history': 4.7.11
-      '@types/react': 19.2.14
+      '@types/react': 19.2.17
       '@types/react-router-config': 5.0.11
       '@types/react-router-dom': 5.3.3
       react: 19.2.7
@@ -15565,7 +15574,7 @@ snapshots:
       '@mdx-js/mdx': 3.1.1
       '@types/history': 4.7.11
       '@types/mdast': 4.0.4
-      '@types/react': 19.2.14
+      '@types/react': 19.2.17
       commander: 5.1.0
       joi: 18.2.3
       react: 19.2.7
@@ -19493,26 +19502,26 @@ snapshots:
     dependencies:
       '@types/react': 19.2.16
 
+  '@types/react-dom@19.2.3(@types/react@19.2.17)':
+    dependencies:
+      '@types/react': 19.2.17
+
   '@types/react-router-config@5.0.11':
     dependencies:
       '@types/history': 4.7.11
-      '@types/react': 19.2.14
+      '@types/react': 19.2.17
       '@types/react-router': 5.1.20
 
   '@types/react-router-dom@5.3.3':
     dependencies:
       '@types/history': 4.7.11
-      '@types/react': 19.2.14
+      '@types/react': 19.2.17
       '@types/react-router': 5.1.20
 
   '@types/react-router@5.1.20':
     dependencies:
       '@types/history': 4.7.11
       '@types/react': 19.2.17
-
-  '@types/react@19.2.14':
-    dependencies:
-      csstype: 3.2.3
 
   '@types/react@19.2.16':
     dependencies:
@@ -21827,7 +21836,7 @@ snapshots:
 
   happy-dom@20.10.1:
     dependencies:
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
       '@types/whatwg-mimetype': 3.0.2
       '@types/ws': 8.18.1
       buffer-image-size: 0.6.4
