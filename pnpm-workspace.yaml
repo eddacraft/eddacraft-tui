@@ -124,22 +124,25 @@ overrides:
 patchedDependencies:
   'gray-matter@4.0.3': 'patches/gray-matter@4.0.3.patch'
 
+# Single source of truth for dependency build-script approval under pnpm 11.
+# `allowBuilds` replaces the pre-11 `onlyBuiltDependencies` (-> true) and
+# `ignoredBuiltDependencies` (-> false) lists, which pnpm 11 deprecates. Entries
+# for packages not currently in the tree are retained to preserve intent if they
+# reappear. Packages with build scripts that are absent here fail by default
+# (strictDepBuilds), so add new ones explicitly.
 allowBuilds:
+  '@devm33/node-pty': false
   '@pulumi/command': true
   '@swc/core': false
+  '@vscode/vsce-sign': false
   better-sqlite3: true
   core-js: false
+  core-js-pure: false
   esbuild: true
+  keytar: false
+  keytar-forked-forked: false
+  node-pty: true
   nx: true
   protobufjs: true
   sharp: true
-
-ignoredBuiltDependencies:
-  - '@devm33/node-pty'
-  - '@swc/core'
-  - keytar-forked-forked
-  - unrs-resolver
-
-onlyBuiltDependencies:
-  - esbuild
-  - nx
+  unrs-resolver: false
