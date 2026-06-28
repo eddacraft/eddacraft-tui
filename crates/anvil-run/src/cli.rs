@@ -21,7 +21,7 @@ use clap::{Args, Parser, Subcommand};
 #[command(
     name = "anvil-run",
     version,
-    about = "Wrap an agent process launch in an Anvil-managed session.",
+    about = "Wrap an agent process launch in an anvil-managed session.",
     long_about = "anvil-run resolves the launch context, checks the daemon's \
 fence state, registers a session, places the child in a dedicated \
 process group (Unix) or Job Object (Windows), heartbeats while the \

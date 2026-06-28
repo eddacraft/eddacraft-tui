@@ -123,7 +123,7 @@ fn write_report_exclusive(report: &BenchReport, path: &std::path::Path) -> std::
 
 fn print_summary(report: &BenchReport) {
     println!("\n{:=<60}", "");
-    println!(" Anvil Stress Test Results");
+    println!(" anvil Stress Test Results");
     println!("{:=<60}\n", "");
 
     for result in &report.results {

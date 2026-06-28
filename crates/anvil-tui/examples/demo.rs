@@ -50,7 +50,7 @@ const SURFACES: [SurfaceInfo; 10] = [
     },
     SurfaceInfo {
         name: "Tutorial",
-        description: "Guided walkthrough for learning Anvil",
+        description: "Guided walkthrough for learning anvil",
     },
     SurfaceInfo {
         name: "Doctor",
@@ -146,7 +146,7 @@ fn mock_doctor_checks() -> Vec<DiagnosticCheck> {
             remediation: Remediation::default(),
         },
         DiagnosticCheck {
-            name: "Anvil config file".into(),
+            name: "anvil config file".into(),
             category: "Configuration".into(),
             status: CheckStatus::Fail,
             message: "No .anvil.yaml found in project root".into(),
@@ -460,7 +460,7 @@ fn mock_templates() -> Vec<Template> {
         Template {
             id: "typescript-monorepo".into(),
             name: "TypeScript Monorepo".into(),
-            description: "Nx-based TypeScript monorepo with full Anvil gates".into(),
+            description: "Nx-based TypeScript monorepo with full anvil gates".into(),
             tags: vec!["typescript".into(), "monorepo".into(), "nx".into()],
         },
         Template {
