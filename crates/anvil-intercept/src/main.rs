@@ -21,7 +21,7 @@ use clap::{Parser, Subcommand};
 #[derive(Debug, Parser)]
 #[command(
     name = "anvil-intercept",
-    about = "anvil intercept daemon (A1 scaffold)"
+    about = "Intercept daemon for anvil (A1 scaffold)"
 )]
 struct Cli {
     #[command(subcommand)]

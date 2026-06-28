@@ -146,7 +146,7 @@ fn mock_doctor_checks() -> Vec<DiagnosticCheck> {
             remediation: Remediation::default(),
         },
         DiagnosticCheck {
-            name: "anvil config file".into(),
+            name: "Config file for anvil".into(),
             category: "Configuration".into(),
             status: CheckStatus::Fail,
             message: "No .anvil.yaml found in project root".into(),
