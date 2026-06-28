@@ -6,6 +6,7 @@
     "moduleResolution": "bundler",
     "target": "es2022",
     "lib": ["dom", "dom.iterable", "esnext"],
+    "types": ["node", "react", "react-dom"],
     "strict": true,
     "emitDeclarationOnly": true,
     "composite": true,
