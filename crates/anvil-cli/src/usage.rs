@@ -314,6 +314,7 @@ fn append_observation_to<T: serde::Serialize>(path: &Path, obs: &T) -> Result<()
     Ok(())
 }
 
+#[cfg(unix)]
 fn sidecar_parent(path: &Path) -> io::Result<&Path> {
     path.parent().ok_or_else(|| {
         io::Error::new(
@@ -471,6 +472,7 @@ fn open_existing_sidecar_read(path: &Path) -> io::Result<Option<File>> {
     }
 }
 
+#[cfg_attr(not(unix), allow(unused_variables))]
 fn tighten_file_mode(file: &File) {
     #[cfg(unix)]
     {
