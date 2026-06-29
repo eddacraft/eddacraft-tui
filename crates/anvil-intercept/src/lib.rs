@@ -2091,7 +2091,7 @@ mod tests {
         store
             .upsert(registration_store::RegistrationRecord::new(
                 SessionId::new("sess_activation_gone"),
-                PathBuf::from("/nonexistent/anvil/worktree-gone"),
+                home.path().join("worktree-gone"),
                 Some(spine.clone()),
             ))
             .expect("persist gone");

@@ -362,6 +362,10 @@ mod tests {
         dir.path().join("state/registered-worktrees.json")
     }
 
+    fn test_worktree(dir: &tempfile::TempDir, name: &str) -> PathBuf {
+        dir.path().join(name)
+    }
+
     /// Create the store's parent dir at `0700` so a hand-written fixture file
     /// passes the owner-only-parent check on load.
     fn seed_secure_parent(path: &Path) {
@@ -386,7 +390,7 @@ mod tests {
     fn upsert_then_load_round_trips_and_survives_a_fresh_store() {
         let dir = tempfile::tempdir().expect("tempdir");
         let path = store_path(&dir);
-        let worktree = PathBuf::from("/abs/worktree-a");
+        let worktree = test_worktree(&dir, "worktree-a");
         RegistrationStore::at_path(&path)
             .upsert(record(&worktree))
             .expect("upsert");
@@ -404,7 +408,7 @@ mod tests {
         let dir = tempfile::tempdir().expect("tempdir");
         let path = store_path(&dir);
         let store = RegistrationStore::at_path(&path);
-        let worktree = PathBuf::from("/abs/worktree-a");
+        let worktree = test_worktree(&dir, "worktree-a");
         store.upsert(record(&worktree)).expect("first");
         store.upsert(record(&worktree)).expect("second");
         assert_eq!(store.load().expect("load").len(), 1);
@@ -415,7 +419,7 @@ mod tests {
         let dir = tempfile::tempdir().expect("tempdir");
         let path = store_path(&dir);
         let store = RegistrationStore::at_path(&path);
-        let worktree = PathBuf::from("/abs/worktree-a");
+        let worktree = test_worktree(&dir, "worktree-a");
         store.upsert(record(&worktree)).expect("upsert");
 
         assert!(store.remove(&worktree).expect("first remove"));
@@ -428,15 +432,15 @@ mod tests {
         let dir = tempfile::tempdir().expect("tempdir");
         let path = store_path(&dir);
         let store = RegistrationStore::at_path(&path);
-        store.upsert(record(Path::new("/abs/a"))).expect("a");
-        store.upsert(record(Path::new("/abs/b"))).expect("b");
+        let a = test_worktree(&dir, "a");
+        let b = test_worktree(&dir, "b");
+        store.upsert(record(&a)).expect("a");
+        store.upsert(record(&b)).expect("b");
 
-        store
-            .replace_all(&[record(Path::new("/abs/a"))])
-            .expect("prune to just a");
+        store.replace_all(&[record(&a)]).expect("prune to just a");
         let loaded = store.load().expect("load");
         assert_eq!(loaded.len(), 1);
-        assert_eq!(loaded[0].worktree, PathBuf::from("/abs/a"));
+        assert_eq!(loaded[0].worktree, a);
     }
 
     #[test]
