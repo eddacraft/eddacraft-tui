@@ -1662,7 +1662,7 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** Auto-derive allowlist count from `COMMAND_INVOKED_ALLOWLIST.len()` instead of hard-coded arithmetic
 - **Follow-up:** Council + PR for `feat/gctx-021-snippet-extractor`
 
-### 2026-06-29 — opencode
+### 2026-06-29 — opencode — fence follow-ups
 
 - **Task:** Ground fence/session-control behaviour and file APS follow-up.
 - **Outcome:** Added Proposed design items for sandbox-grade fence semantics
@@ -1678,7 +1678,7 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** none
 - **Follow-up:** none
 
-### 2026-06-29 — opencode
+### 2026-06-29 — opencode — worktree registration
 
 - **Task:** Capture follow-up daemon/worktree registration UX design gaps.
 - **Outcome:** Added ACTMO-013 for subsequent worktree registration, outside-worktree
@@ -1693,7 +1693,7 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Follow-up:** Design ACTMO-013 with DSV-046 so registration and headless save-time
   activation agree.
 
-### 2026-06-29 — opencode
+### 2026-06-29 — opencode — release addendum
 
 - **Task:** Document what must be added to the `v0.9.0-beta` release plan for a
   useful daemon-backed release.
