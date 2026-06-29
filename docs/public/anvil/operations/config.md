@@ -537,6 +537,25 @@ list are touched.
 > back; new schema additions from here on are handled by the forward-compat rule
 > above and never trigger it.
 
+### Auto-register newly-created worktrees
+
+Git has no native post-`worktree add` hook, so Anvil cannot transparently
+register a worktree the moment you create it. Instead, `install-hook` adds a
+guided Git alias you opt into:
+
+```bash
+anvil workspace install-hook            # installs `git wt-add`
+anvil workspace install-hook --print    # print the alias + PowerShell form, install nothing
+git wt-add ../my-worktree               # = git worktree add … then anvil workspace register
+```
+
+The alias is a portable POSIX `sh` one-liner (it runs through Git's bundled `sh`
+on every platform, including Git-for-Windows); on Windows the command also
+prints a PowerShell `$PROFILE` function you can use instead. It registers the
+**first** operand of `git worktree add` (the worktree path), skipping flags and
+a `-b <branch>` value, so `git wt-add -b feature ../wt main` registers `../wt`.
+It never shims `git` — only an alias you invoke by name.
+
 ## CI Mode
 
 Use gate profiles for CI environments:

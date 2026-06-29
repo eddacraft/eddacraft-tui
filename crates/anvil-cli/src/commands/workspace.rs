@@ -23,6 +23,8 @@
 //!   (idempotent); `--persist` also removes it from `register_on_start`.
 //! - `list` — show the admission mode, allow entries, the live registry, and the
 //!   `register_on_start` set.
+//! - `install-hook [--alias <name>] [--print]` — install a guided Git alias so a
+//!   newly-created worktree auto-registers (ACTMO-020); never shims `git`.
 //!
 //! Confinement (`mode`/`allow`/`deny`) changes take effect for **new** daemon
 //! connections (the daemon reads the config per connection); no restart is
@@ -61,6 +63,9 @@ enum WorkspaceCommand {
     Unregister(UnregisterArgs),
     /// Show the admission mode, allow entries, and registered worktrees.
     List,
+    /// Install a guided Git alias so newly-created worktrees auto-register
+    /// (ACTMO-020). Adds a portable `sh` alias; never silently shims `git`.
+    InstallHook(InstallHookArgs),
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -129,6 +134,16 @@ struct UnregisterArgs {
     persist: bool,
 }
 
+#[derive(Debug, Args)]
+struct InstallHookArgs {
+    /// Name of the Git alias to install (invoked as `git <name>`).
+    #[arg(long, default_value = "wt-add")]
+    alias: String,
+    /// Print the alias (and the PowerShell equivalent) without installing it.
+    #[arg(long)]
+    print: bool,
+}
+
 pub fn run(args: &WorkspaceArgs, _global: &GlobalArgs) -> Result<()> {
     match &args.command {
         WorkspaceCommand::Mode(mode_args) => run_mode(mode_args),
@@ -137,6 +152,7 @@ pub fn run(args: &WorkspaceArgs, _global: &GlobalArgs) -> Result<()> {
         WorkspaceCommand::Register(register_args) => run_register(register_args),
         WorkspaceCommand::Unregister(unregister_args) => run_unregister(unregister_args),
         WorkspaceCommand::List => run_list(),
+        WorkspaceCommand::InstallHook(install_hook_args) => run_install_hook(install_hook_args),
     }
 }
 
@@ -596,6 +612,117 @@ fn print_takes_effect_note() {
     println!("Takes effect for new daemon connections; no restart required.");
 }
 
+/// ACTMO-020 (ADR-094 decision 8 / D7): the body of the Git alias that runs
+/// `git worktree add` then registers the new worktree.
+///
+/// Git has no native post-`worktree add` hook, so this is a `!`-shell alias Git
+/// runs through `sh` on every platform it supports (including Git-for-Windows,
+/// which ships its own `sh`). It is pinned to **POSIX `sh`/dash** — no bashisms.
+///
+/// Path detection: `git worktree add [<options>] <path> [<commit-ish>]`. The
+/// design's first draft captured the *last* positional, which is wrong when a
+/// commit-ish trails the path. This walks the args and takes the **first**
+/// operand, skipping flags and the value of the branch-name options (`-b`/`-B`),
+/// so `git wt-add -b feature ../wt main` registers `../wt`, not `main`. A bare
+/// `--` ends option parsing, so the next argument is taken as the path even if
+/// it begins with `-` (`git wt-add -- -weird-path`). Exotic value-taking options
+/// are not modelled; in that rare case register the worktree by hand
+/// (documented). The path is passed to `register` after a `--` so a path
+/// beginning with `-` is not mistaken for a flag.
+///
+/// It deliberately keys the alias on its own name (`wt-add`), not `git`, so it
+/// never silently shims `git worktree`.
+///
+/// The trailing `f "$@"` (not a bare `f`) is load-bearing: Git runs a `!`-alias
+/// as `sh -c '<body>' <name> <args…>`, so the user's args land as the script's
+/// positional parameters and must be forwarded into `f` explicitly. A bare `f`
+/// would call `git worktree add` with no path.
+const WT_ADD_ALIAS_BODY: &str = "!f() { \
+git worktree add \"$@\" || return $?; \
+p=; s=0; e=0; \
+for a in \"$@\"; do \
+if [ \"$e\" = 1 ]; then p=\"$a\"; break; fi; \
+if [ \"$s\" = 1 ]; then s=0; continue; fi; \
+case \"$a\" in -b|-B) s=1 ;; --) e=1 ;; -*) : ;; *) p=\"$a\"; break ;; esac; \
+done; \
+[ -n \"$p\" ] && anvil workspace register -- \"$p\"; \
+}; f \"$@\"";
+
+/// ACTMO-020: the PowerShell equivalent printed for Windows users who prefer a
+/// `$PROFILE` function to the Git `sh` alias. Named `git-<alias>` so it tracks
+/// the chosen `--alias`; mirrors the first-operand path detection (including the
+/// `--` end-of-options rule and the `--` guard on `register`).
+fn powershell_hook(alias: &str) -> String {
+    format!(
+        "function git-{alias} {{\n\
+\x20   git worktree add @args; if ($LASTEXITCODE -ne 0) {{ return }}\n\
+\x20   $p = $null; $skip = $false; $end = $false\n\
+\x20   foreach ($a in $args) {{\n\
+\x20       if ($end) {{ $p = $a; break }}\n\
+\x20       if ($skip) {{ $skip = $false; continue }}\n\
+\x20       if ($a -eq '-b' -or $a -eq '-B') {{ $skip = $true; continue }}\n\
+\x20       if ($a -eq '--') {{ $end = $true; continue }}\n\
+\x20       if ($a -like '-*') {{ continue }}\n\
+\x20       $p = $a; break\n\
+\x20   }}\n\
+\x20   if ($p) {{ anvil workspace register -- $p }}\n\
+}}"
+    )
+}
+
+/// ACTMO-020 (ADR-094 D7): install (or print) a guided Git alias so a
+/// newly-created worktree auto-registers with the daemon. A guided opt-in — it
+/// never silently shims `git`, and on Windows it also prints a PowerShell
+/// equivalent.
+fn run_install_hook(args: &InstallHookArgs) -> Result<()> {
+    if args.print {
+        print_hook_recipe(&args.alias);
+        return Ok(());
+    }
+
+    let status = std::process::Command::new("git")
+        .args([
+            "config",
+            "--global",
+            &format!("alias.{}", args.alias),
+            WT_ADD_ALIAS_BODY,
+        ])
+        .status()
+        .context("could not run `git config` — is Git installed and on PATH?")?;
+    if !status.success() {
+        anyhow::bail!(
+            "`git config --global alias.{}` failed (exit {}). Re-run with --print to install it by hand.",
+            args.alias,
+            status
+                .code()
+                .map_or_else(|| "signal".to_owned(), |c| c.to_string()),
+        );
+    }
+
+    println!(
+        "Installed Git alias `{name}`. Create + auto-register a worktree with:\n  \
+         git {name} ../my-worktree\n\
+         It runs `git worktree add` then `anvil workspace register <new-worktree>`.",
+        name = args.alias
+    );
+    if cfg!(windows) {
+        println!(
+            "\nWindows note: Git runs this alias through its bundled `sh`. If you prefer a \
+             PowerShell function, add this to your $PROFILE instead:\n\n{}",
+            powershell_hook(&args.alias)
+        );
+    }
+    Ok(())
+}
+
+/// Print the alias recipe (and PowerShell equivalent) for manual installation.
+fn print_hook_recipe(alias: &str) {
+    println!("# Install the worktree auto-registration alias (POSIX sh; portable):");
+    println!("git config --global alias.{alias} '{WT_ADD_ALIAS_BODY}'");
+    println!("\n# PowerShell equivalent (add to your $PROFILE):");
+    println!("{}", powershell_hook(alias));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -739,5 +866,152 @@ mod tests {
         #[cfg(windows)]
         let already = std::path::PathBuf::from(r"C:\srv\proj");
         assert_eq!(absolutise(&already).expect("absolutise"), already);
+    }
+
+    // ----------------------------------------------------------------
+    // ACTMO-020: `install-hook` git alias.
+    // ----------------------------------------------------------------
+
+    #[test]
+    fn install_hook_parses_alias_and_print() {
+        let bare = Harness::try_parse_from(["anvil-workspace", "install-hook"])
+            .expect("parse install-hook");
+        match bare.command {
+            WorkspaceCommand::InstallHook(args) => {
+                assert_eq!(args.alias, "wt-add", "default alias name");
+                assert!(!args.print);
+            }
+            other => panic!("expected InstallHook, got {other:?}"),
+        }
+
+        let custom = Harness::try_parse_from([
+            "anvil-workspace",
+            "install-hook",
+            "--alias",
+            "wta",
+            "--print",
+        ])
+        .expect("parse install-hook --alias --print");
+        match custom.command {
+            WorkspaceCommand::InstallHook(args) => {
+                assert_eq!(args.alias, "wta");
+                assert!(args.print);
+            }
+            other => panic!("expected InstallHook, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn alias_body_is_posix_and_forwards_args() {
+        // Guard against regressions to bashisms and to the load-bearing
+        // `f "$@"` arg-forwarding (a bare `f` would register nothing).
+        assert!(
+            WT_ADD_ALIAS_BODY.starts_with("!f() {"),
+            "git `!`-shell alias"
+        );
+        assert!(
+            WT_ADD_ALIAS_BODY.trim_end().ends_with("}; f \"$@\""),
+            "args are forwarded into the function: {WT_ADD_ALIAS_BODY}"
+        );
+        assert!(WT_ADD_ALIAS_BODY.contains("anvil workspace register"));
+        // No bashisms: the original design's `${@: -1}` last-positional form is
+        // a bash extension that dash rejects.
+        assert!(
+            !WT_ADD_ALIAS_BODY.contains("${@"),
+            "no bash array/last-positional expansion"
+        );
+        assert!(!WT_ADD_ALIAS_BODY.contains("[["), "no bash `[[` test");
+    }
+
+    /// Run the alias body in a real `sh` with `git` and `anvil` shadowed by
+    /// stubs, proving end-to-end that args are forwarded and the **first**
+    /// operand (the worktree path) is the one registered — even when a branch
+    /// name (`-b <name>`) and a trailing commit-ish are present.
+    #[cfg(unix)]
+    #[test]
+    fn alias_body_registers_first_operand_in_real_sh() {
+        use std::os::unix::fs::PermissionsExt as _;
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let bin = dir.path().join("bin");
+        std::fs::create_dir_all(&bin).expect("mkdir bin");
+        let captured = dir.path().join("registered.txt");
+
+        // `git` stub: accept any `worktree add …` and succeed.
+        let git = bin.join("git");
+        std::fs::write(&git, "#!/bin/sh\nexit 0\n").expect("write git stub");
+        std::fs::set_permissions(&git, std::fs::Permissions::from_mode(0o755)).expect("chmod git");
+        // `anvil` stub: record the args it was invoked with.
+        let anvil = bin.join("anvil");
+        std::fs::write(
+            &anvil,
+            format!(
+                "#!/bin/sh\nprintf '%s ' \"$@\" >> '{}'\nprintf '\\n' >> '{}'\n",
+                captured.display(),
+                captured.display()
+            ),
+        )
+        .expect("write anvil stub");
+        std::fs::set_permissions(&anvil, std::fs::Permissions::from_mode(0o755))
+            .expect("chmod anvil");
+
+        let body = WT_ADD_ALIAS_BODY
+            .strip_prefix('!')
+            .expect("alias body starts with !");
+        let path_env = format!(
+            "{}:{}",
+            bin.display(),
+            std::env::var("PATH").unwrap_or_default()
+        );
+
+        let run = |args: &[&str]| -> String {
+            let _ = std::fs::remove_file(&captured);
+            // Mirror git's invocation: `sh -c '<body>' <name> <args…>`.
+            let mut cmd = std::process::Command::new("sh");
+            cmd.arg("-c").arg(body).arg("wt-add");
+            cmd.args(args);
+            cmd.env("PATH", &path_env);
+            let status = cmd.status().expect("run sh alias");
+            assert!(status.success(), "alias body exits 0 for {args:?}");
+            std::fs::read_to_string(&captured).unwrap_or_default()
+        };
+
+        // Plain `<path>` (the path is passed to register after a `--`).
+        assert_eq!(
+            run(&["../my-worktree"]).trim(),
+            "workspace register -- ../my-worktree"
+        );
+        // `-b <branch> <path> <commit-ish>`: register the path, NOT the branch
+        // name or the trailing commit-ish (the bug the first-operand walk fixes).
+        assert_eq!(
+            run(&["-b", "feature", "../wt", "main"]).trim(),
+            "workspace register -- ../wt"
+        );
+        // A flag before the path is skipped.
+        assert_eq!(
+            run(&["--detach", "../wt2"]).trim(),
+            "workspace register -- ../wt2"
+        );
+        // `--` ends option parsing: the next arg is the path even though it
+        // begins with `-` (Council/Copilot edge case).
+        assert_eq!(
+            run(&["--", "-weird-path"]).trim(),
+            "workspace register -- -weird-path"
+        );
+    }
+
+    #[test]
+    fn powershell_hook_tracks_alias_name_and_mirrors_detection() {
+        let ps = powershell_hook("wta");
+        assert!(
+            ps.contains("function git-wta {"),
+            "the PowerShell function name tracks --alias: {ps}"
+        );
+        // Mirrors the sh detection: skips `-b`/`-B` values, honours `--`, and
+        // guards the register call with `--`.
+        assert!(ps.contains("$end = $true"), "handles `--` end-of-options");
+        assert!(ps.contains("anvil workspace register -- $p"));
+        // Default alias keeps the documented `git-wt-add` name.
+        assert!(powershell_hook("wt-add").contains("function git-wt-add {"));
     }
 }

@@ -641,7 +641,7 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 
 ### ACTMO-019: Persistent `register_on_start` config + daemon startup registration
 
-- **Status:** In Progress — owner-authorised 2026-06-30. The Council Critical-2
+- **Status:** Merged 2026-06-30 via PR #3001. The Council Critical-2
   schema commitment is signed off: take the **additive top-level
   `register_on_start` key** (never a field on the `deny_unknown_fields`
   `AllowEntry`) plus a config format-version forward/back-compat scheme, so an
@@ -688,11 +688,25 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 
 ### ACTMO-020: Guided new-worktree auto-registration
 
-- **Status:** Ready (scope-trimmed) — owner-authorised 2026-06-30 for the
-  `anvil workspace install-hook` git-alias core only. The optional Worktrunk
-  post-create template is **descoped** from this item (no such hook surface is
-  confirmed to exist); it is deferred to a future item to be filed only if
-  Worktrunk exposes a post-create hook. Dependency ACTMO-015 is Merged.
+- **Status:** Merged 2026-06-30 via PR #3002 (scope-trimmed) — owner-authorised
+  2026-06-30 for the `anvil workspace install-hook` git-alias core only. The
+  optional Worktrunk post-create template is **descoped** from this item (no such
+  hook surface is confirmed to exist); it is deferred to a future item to be
+  filed only if Worktrunk exposes a post-create hook. Dependency ACTMO-015 is
+  Merged.
+- **Implementation (as built, 2026-06-30):** `anvil workspace install-hook
+  [--alias <name>] [--print]` installs a Git `!`-shell alias (default
+  `wt-add`) that runs `git worktree add` then `anvil workspace register <new
+  worktree>`. The alias is pinned to POSIX `sh`/dash (no bashisms) so it runs
+  under Git-for-Windows MinGW. Path detection takes the **first** operand
+  (skipping flags and the `-b`/`-B` branch value), fixing the design draft's
+  last-positional form which mis-registered a trailing commit-ish in `git
+  worktree add <path> [<commit-ish>]`. The trailing `f "$@"` forwards args into
+  the function (Git runs `!`-aliases as `sh -c '<body>' <name> <args…>`). On
+  Windows a PowerShell `$PROFILE` function equivalent is also printed; `--print`
+  emits both without installing. It never shims `git`. A unit test runs the body
+  in a real `sh` with stubbed `git`/`anvil` to prove arg-forwarding + first-operand
+  detection. Docs: `operations/config.md`.
 - **Source:** ACTMO-013 design D7. Git has no native post-`worktree add` hook;
   no Worktrunk integration exists today.
 - **Intent:** Give a guided, portable opt-in so newly-created worktrees register
