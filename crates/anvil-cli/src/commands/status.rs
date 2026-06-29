@@ -586,6 +586,15 @@ fn print_plain(
     // mode summary (a single line in the common case, three when the
     // config is invalid).
     print!("{}", render_rule_mode_summary(&root));
+    // ACTMO-017: surface the durably-registered worktrees and whether the
+    // current directory is among them. Best-effort: a daemon-down query renders
+    // a degraded line rather than omitting the section.
+    let registered_snapshot = crate::commands::intercept::query_daemon_status().ok();
+    let cwd = std::fs::canonicalize(".").ok();
+    print!(
+        "{}",
+        render_registered_worktrees(registered_snapshot.as_ref(), cwd.as_deref())
+    );
     // DISTRIB-002 update hint, INSIGHTS-004 nudge, and the UJ-010
     // what's-new line share the single footer line in plain output.
     // INSIGHTS-004 takes priority (matching the TUI watch strip, which
@@ -600,6 +609,59 @@ fn print_plain(
         println!("{hint}");
     } else if let Some(hint) = &data.update_hint {
         println!("{}", hint.render_line());
+    }
+}
+
+/// ACTMO-017: render the registered-worktrees section for plain `anvil status`.
+///
+/// The **membership** axis (`registered` / `fenced` / `cascaded`) is derived
+/// from the daemon's per-session `WorktreeStatusV1` overlay; the current
+/// directory is flagged. The `protecting` vs `watching` (assurance) split is a
+/// soft-dependency on DSV-046's driver and is not asserted here, per ADR-094
+/// decision 6 — this surface shows membership truthfully without over-claiming.
+fn render_registered_worktrees(snapshot: Option<&DaemonStatusV1>, cwd: Option<&Path>) -> String {
+    use std::fmt::Write as _;
+
+    let norm = |path: &Path| dunce::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let cwd = cwd.map(norm);
+    let mut out = String::new();
+    let Some(snapshot) = snapshot else {
+        let _ = writeln!(out, "Registered worktrees: (daemon unavailable)");
+        return out;
+    };
+    let registered = snapshot.registered_worktrees();
+    if registered.is_empty() {
+        let _ = writeln!(out, "Registered worktrees: (none)");
+        return out;
+    }
+    let _ = writeln!(out, "Registered worktrees:");
+    let mut cwd_listed = false;
+    for worktree in &registered {
+        let display = norm(worktree);
+        let label = membership_label(snapshot, worktree);
+        let is_cwd = cwd.as_deref() == Some(display.as_path());
+        cwd_listed |= is_cwd;
+        let marker = if is_cwd { " (current)" } else { "" };
+        let _ = writeln!(out, "  {} [{label}]{marker}", display.display());
+    }
+    if cwd.is_some() && !cwd_listed {
+        let _ = writeln!(out, "  (current directory is not registered)");
+    }
+    out
+}
+
+/// ACTMO-017 membership axis: a registered worktree is `cascaded` or `fenced`
+/// when the daemon's overlay says so, else plain `registered`. "unregistered"
+/// is the absence of an entry, so it is never a label here.
+fn membership_label(snapshot: &DaemonStatusV1, worktree: &Path) -> &'static str {
+    let overlay = snapshot
+        .worktrees
+        .iter()
+        .find(|entry| entry.worktree == worktree);
+    match overlay {
+        Some(entry) if entry.cascaded => "cascaded",
+        Some(entry) if entry.fenced => "fenced",
+        _ => "registered",
     }
 }
 
@@ -2564,6 +2626,82 @@ mod tests {
             telemetry_dropped_envelopes: None,
             generated_at_unix: 0,
         }
+    }
+
+    /// ACTMO-017: the registered-worktrees section lists durable members with
+    /// their membership label and flags the current directory; live
+    /// (non-durable) sessions are excluded.
+    #[test]
+    fn render_registered_worktrees_lists_membership_and_flags_cwd() {
+        use anvil_intercept_proto::session::{ACTIVATION_SPINE_CLAIMED_AGENT_ID, AgentTag};
+
+        let wt_a = Path::new("/tmp/anvil-status-reg-a");
+        let wt_b = Path::new("/tmp/anvil-status-reg-b");
+        let spine = AgentTag::new("anvil-start", ACTIVATION_SPINE_CLAIMED_AGENT_ID, 0);
+        let durable = |wt: &Path, id: &str| SessionRecord {
+            id: SessionId::new(id),
+            worktree: wt.to_path_buf(),
+            pid: None,
+            pgid: None,
+            started_at_unix: 0,
+            last_heartbeat_unix: 0,
+            status: SessionStatus::Active,
+            agent_tag: Some(spine.clone()),
+            daemon_issued_tag: None,
+        };
+
+        // Reuse the fixture boilerplate, then override the registry view: a
+        // clean durable member, a fenced durable member, and a live (untagged)
+        // session that must NOT appear in the registered section.
+        let mut snapshot = snapshot_with_session_at(wt_a, false, false);
+        let mut live = durable(Path::new("/tmp/anvil-status-live"), "live");
+        live.agent_tag = None;
+        snapshot.sessions = vec![durable(wt_a, "sa"), durable(wt_b, "sb"), live];
+        snapshot.worktrees = vec![
+            WorktreeStatusV1 {
+                worktree: wt_a.to_path_buf(),
+                session_id: SessionId::new("sa"),
+                fenced: false,
+                cascaded: false,
+                cascade_since: None,
+            },
+            WorktreeStatusV1 {
+                worktree: wt_b.to_path_buf(),
+                session_id: SessionId::new("sb"),
+                fenced: true,
+                cascaded: false,
+                cascade_since: None,
+            },
+        ];
+
+        let out = render_registered_worktrees(Some(&snapshot), Some(wt_a));
+        assert!(
+            out.contains("Registered worktrees:"),
+            "section header: {out}"
+        );
+        assert!(
+            out.contains("anvil-status-reg-a [registered] (current)"),
+            "{out}"
+        );
+        assert!(out.contains("anvil-status-reg-b [fenced]"), "{out}");
+        assert!(
+            !out.contains("anvil-status-live"),
+            "live sessions excluded: {out}"
+        );
+    }
+
+    #[test]
+    fn render_registered_worktrees_degrades_when_daemon_unavailable() {
+        let out = render_registered_worktrees(None, None);
+        assert!(out.contains("(daemon unavailable)"), "{out}");
+    }
+
+    #[test]
+    fn render_registered_worktrees_reports_none_and_unregistered_cwd() {
+        // A snapshot whose only session is non-durable yields an empty set.
+        let snapshot = snapshot_with_session_at(Path::new("/tmp/anvil-status-x"), false, false);
+        let out = render_registered_worktrees(Some(&snapshot), None);
+        assert!(out.contains("Registered worktrees: (none)"), "{out}");
     }
 
     /// Helper: an `ActivationDiagnostic` that maps to `Unprotected`

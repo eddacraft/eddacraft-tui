@@ -1868,6 +1868,18 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
             }
         }
 
+        // ACTMO-017: one INFO event recording how many durable worktrees lose
+        // live protection on this graceful stop (they remain persisted and
+        // reload on next start; this is the operator-visible shutdown count).
+        let registered_on_stop = daemon_state.registry.registered_worktrees().len();
+        if registered_on_stop > 0 {
+            tracing::info!(
+                target: "anvil_intercept::registration",
+                count = registered_on_stop,
+                "stopping daemon; registered worktrees will reload on next start",
+            );
+        }
+
         // DSV-030 (ADR-069 §4): graceful shutdown (the `token.cancelled()` path
         // above) — persist every warm worktree's graph so the next start re-warms
         // from disk. No-op when persistence is off. A crash skips it, so a

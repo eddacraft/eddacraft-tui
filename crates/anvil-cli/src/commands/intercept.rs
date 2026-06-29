@@ -129,8 +129,21 @@ pub fn run(args: &InterceptArgs, _global: &GlobalArgs) -> Result<()> {
 fn run_stop() -> Result<()> {
     use anvil_intercept::StopOutcome;
 
+    // ACTMO-017: best-effort query the registered set BEFORE stopping, so we
+    // can warn how many worktrees are about to lose protection. A daemon that
+    // is already down (or unreachable) reports nothing, which is correct.
+    let registered = query_daemon_status().map_or(0, |status| status.registered_worktrees().len());
+
     match anvil_intercept::request_daemon_stop()? {
-        StopOutcome::Signalled { pid } => println!("{}", stop_success_line(pid)),
+        StopOutcome::Signalled { pid } => {
+            println!("{}", stop_success_line(pid));
+            if registered > 0 {
+                println!(
+                    "  {registered} worktree(s) registered will lose protection — \
+                     re-register with `anvil workspace register` or run `anvil start`.",
+                );
+            }
+        }
         StopOutcome::NotRunning => {
             println!("anvil intercept daemon is not running (no PID file)");
         }

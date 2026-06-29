@@ -124,6 +124,31 @@ pub struct DaemonStatusV1 {
     pub generated_at_unix: u64,
 }
 
+impl DaemonStatusV1 {
+    /// ACTMO-017: the distinct worktrees registered as **durable membership**
+    /// (activation-spine sessions), sorted. The single accessor shared by
+    /// `anvil status`, `anvil workspace list`, and `anvil intercept stop` so
+    /// the "what is registered" view cannot drift between surfaces. Live agent
+    /// sessions (a different `claimed_agent_id`) are excluded.
+    #[must_use]
+    pub fn registered_worktrees(&self) -> Vec<PathBuf> {
+        let mut worktrees: Vec<PathBuf> = self
+            .sessions
+            .iter()
+            .filter(|session| {
+                session
+                    .agent_tag
+                    .as_ref()
+                    .is_some_and(crate::session::AgentTag::is_durable_membership)
+            })
+            .map(|session| session.worktree.clone())
+            .collect();
+        worktrees.sort();
+        worktrees.dedup();
+        worktrees
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct WorktreeStatusV1 {
     pub worktree: PathBuf,
