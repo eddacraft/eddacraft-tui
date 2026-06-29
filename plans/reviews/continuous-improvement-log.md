@@ -1661,3 +1661,51 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Friction:** Protocol count-pin tests (`ALL_ANVIL_METHODS`, USAGE-004) needed manual bump after each new RPC
 - **Improvement:** Auto-derive allowlist count from `COMMAND_INVOKED_ALLOWLIST.len()` instead of hard-coded arithmetic
 - **Follow-up:** Council + PR for `feat/gctx-021-snippet-extractor`
+
+### 2026-06-29 — opencode
+
+- **Task:** Ground fence/session-control behaviour and file APS follow-up.
+- **Outcome:** Added Proposed design items for sandbox-grade fence semantics
+  (MLP2-077), daemon-to-session write-back (MLP2-078), interrupt/fence/kill
+  lifecycle validation (MLP2-079), and headless background save-time driving
+  (DSV-046).
+- **Worked:** Existing MLP2/fence/interrupt code made the gap precise: current
+  fences revoke trust and block future registration, while interrupt exists as a
+  separate process-control ladder.
+- **Failed:** none
+- **Friction:** APS aggregate counts are intentionally stale after adding items;
+  `aps:index:check` reports advisory drift by design.
+- **Improvement:** none
+- **Follow-up:** none
+
+### 2026-06-29 — opencode
+
+- **Task:** Capture follow-up daemon/worktree registration UX design gaps.
+- **Outcome:** Added ACTMO-013 for subsequent worktree registration, outside-worktree
+  `anvil start` semantics, and a scoped local app as an optional daemon vehicle.
+- **Worked:** Keeping this in ACTMO tied the UX to activation state instead of
+  scattering it across daemon validation items.
+- **Failed:** none
+- **Friction:** The daemon primitive exists, but product semantics for how humans
+  and agents discover/register later worktrees are not yet explicit.
+- **Improvement:** Treat daemon vehicle ideas as control-plane UX until a design
+  explicitly authorises broader desktop-app scope.
+- **Follow-up:** Design ACTMO-013 with DSV-046 so registration and headless save-time
+  activation agree.
+
+### 2026-06-29 — opencode
+
+- **Task:** Document what must be added to the `v0.9.0-beta` release plan for a
+  useful daemon-backed release.
+- **Outcome:** RELEASE-PLAN now identifies the original assistant-graph scope as
+  complete while adding a default-on daemon usefulness addendum under APS review:
+  ACTMO-013 plus DSV-046.
+- **Worked:** Keeping the addendum conditional on APS promotion preserves the
+  release plan's derived authority while making the operator cut-line concern
+  visible.
+- **Failed:** none
+- **Friction:** The release plan's prior "scope complete" wording hid the product
+  usefulness gap even though the implementation truth was already captured in APS.
+- **Improvement:** Release plans should distinguish implementation completeness
+  from beta-usefulness cut-line readiness.
+- **Follow-up:** Promote or reject ACTMO-013/DSV-046 before cutting `v0.9.0-beta`.

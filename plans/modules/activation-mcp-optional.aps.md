@@ -33,7 +33,11 @@ shipped, reconciliation recorded in the work item). **ACTMO-012** remains
 Originally created **Ready** from
 v0.8.2-beta Windows smoke ([#2937](https://github.com/eddacraft/anvil-001/issues/2937));
 design [#2939](https://github.com/eddacraft/anvil-001/issues/2939). ADR-092
-Accepted pins the MCP-optional spine decision.
+Accepted pins the MCP-optional spine decision. **ACTMO-013** is **Proposed** from
+the 2026-06-29 operator usefulness review: define registration UX for
+later-created worktrees, `anvil start` outside a worktree, duplicate
+registration/heartbeat semantics, possible Worktrunk auto-registration, and a
+scoped local app as a human-visible daemon vehicle.
 
 ## Purpose
 
@@ -62,6 +66,8 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
   (ACTMO-011; Matt/Dave smoke screenshots)
 - Editor-aware MCP install/probe and honest handshake copy — no fictional
   multi-editor session (ACTMO-012; Matt never used Cursor)
+- Subsequent worktree registration and daemon-control UX design (ACTMO-013;
+  candidate `v0.9.0-beta` usefulness addendum with DSV-046)
 
 ## Out of Scope
 
@@ -413,3 +419,46 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 - **changeType:** feature
 - **releaseIntent:** candidate
 - **releaseScope:** patch
+
+### ACTMO-013: Subsequent worktree registration UX
+
+- **Status:** Proposed
+- **Source:** Operator grounding session 2026-06-29 identified a daemon/worktree
+  lifecycle gap: the per-user daemon may already be running, `anvil start` may be
+  invoked outside a Git worktree, and later-created Worktrunk/Git worktrees need a
+  simple way to register without repeating the full activation mental model.
+- **Intent:** Design the explicit and automatic paths for registering additional
+  worktrees with an already-running per-user daemon.
+- **Expected Outcome:** A design note or ADR defines the worktree-registration UX:
+  what `anvil start` does outside a worktree, whether a dedicated command such as
+  `anvil workspace register` or `anvil intercept register --worktree <path>` is
+  added, how Anvil helps a user opt into automatic `anvil start --no-mcp` when a
+  new Worktrunk/Git worktree is created, whether Worktrunk hooks can
+  auto-register new worktrees, whether a global opt-in mode should discover and
+  register all configured in-scope apps/workspaces, what config shape identifies
+  those allowed apps without scanning unrelated user directories, whether a small
+  local tray/menu-bar app should act as the human-visible vehicle for the daemon,
+  how duplicate
+  registration/heartbeat behaves, and how status surfaces list registered versus
+  unregistered worktrees. The app option must be scoped as a daemon control
+  surface only: start/stop, registered worktrees, protection state, recent
+  fences, and registration prompts, not a separate product UI.
+- **Validation:** Planning council review plus a proposed test matrix covering:
+  start outside a worktree, register current worktree, register an explicit path,
+  guided setup of automatic `anvil start --no-mcp` for newly-created worktrees,
+  global opt-in discovery limited to configured in-scope apps/workspaces,
+  duplicate registration heartbeat, fenced/cascaded refusal, multiple worktrees on
+  one daemon, local-app mediated registration if selected, and a newly-created
+  Worktrunk worktree that becomes protected without a visible watch terminal.
+- **Files:** `crates/anvil-cli/src/activation/daemon_registration.rs`,
+  `crates/anvil-cli/src/commands/{start,workspace,intercept,status}.rs`,
+  `crates/anvil-intercept/src/{registry,ipc,status}.rs`, Worktrunk/activation docs
+  if the design is accepted.
+- **Dependencies:** ACTMO-002 (MCP-independent registration), ACTMO-006 (default
+  save-time armed posture), DSV-046 (headless background save-time driver
+  contract).
+- **Confidence:** medium — the daemon registration primitive exists, but the
+  user/agent workflow and outside-worktree semantics need an explicit contract.
+- **changeType:** feature
+- **releaseIntent:** candidate
+- **releaseScope:** minor

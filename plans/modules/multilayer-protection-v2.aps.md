@@ -4572,6 +4572,86 @@ experiences.
   distribution lands; primary unknown is where recognised digests are
   sourced and how registry refresh works under vNext distribution.
 
+#### MLP2-077: Sandbox-grade fence semantics and session control design
+
+- **Status:** Proposed
+- **Source:** Operator grounding session 2026-06-29 identified a product/architecture
+  gap: current fences revoke trust and block future registration, but do not
+  contain, suspend, or terminate an already running agent/editor session.
+- **Intent:** Decide whether fence should become a containment boundary, and what
+  session-control verbs Anvil is allowed to expose.
+- **Expected Outcome:** A design note or ADR compares the current fence model
+  (persisted worktree trust revocation) against sandbox-backed containment,
+  explicit session termination, and process-control-only interruption. The
+  decision must define which capabilities are in scope for local developer
+  machines, which are platform-specific, which require user approval, and which
+  remain out of scope.
+- **Validation:** Planning council review covering security, operations, and user
+  experience; threat-model notes for at least: fenced worktree still running,
+  spoofed-attribution session, unregistered filesystem writer, and daemon restart.
+- **Files:** `crates/anvil-intercept/src/{fence,interrupt,registry,ipc,status}.rs`,
+  `crates/anvil-cli/src/commands/intercept.rs`, relevant runbooks/docs if the
+  design is accepted.
+- **Dependencies:** MLP2-025 / MLP2-026 / MLP2-071 / MLP2-074 (existing fence,
+  cascade, cross-session telemetry, and lineage anchors); platform containment
+  work may also depend on future macOS/Windows process-control hardening.
+- **Confidence:** low — this crosses process-control, sandboxing, and
+  containment trust boundaries; design must precede implementation.
+
+#### MLP2-078: Daemon-to-session write-back design
+
+- **Status:** Proposed
+- **Source:** Operator grounding session 2026-06-29 split the "write back to a
+  session" question out of sandbox fencing so bidirectional control can be
+  decided independently from OS-level containment.
+- **Intent:** Define whether and how the intercept daemon can send actionable
+  messages back to a registered agent/editor session.
+- **Expected Outcome:** A design note or ADR defines the write-back contract:
+  supported message types, delivery guarantees, acknowledgement semantics,
+  authorisation, redaction, ordering, timeout/failure behaviour, and how it
+  differs from existing telemetry fan-out. The design must explicitly decide
+  whether write-back can request remediation, pause/resume, graceful shutdown, or
+  only deliver advisory diagnostics.
+- **Validation:** Planning council review covering security, operations, and user
+  experience; protocol tests proposed for at least: subscribed session receives
+  its own message, cross-session delivery is denied/redacted, disconnected
+  session degrades safely, and daemon restart does not replay unsafe commands.
+- **Files:** `crates/anvil-intercept/src/{ipc,fanout,broadcaster,registry,telemetry}.rs`,
+  `crates/anvil-cli/src/mcp/**`, `crates/anvil-run/**`, relevant protocol docs if
+  the design is accepted.
+- **Dependencies:** MLP2-071 (telemetry fan-out), MLP2-074 (session child process
+  lineage), MLP2-077 if write-back is allowed to carry containment or termination
+  commands rather than advisory messages only.
+- **Confidence:** low — bidirectional session control changes trust boundaries and
+  must not be inferred from the existing telemetry channel.
+
+#### MLP2-079: Interrupt/fence/kill lifecycle validation plan
+
+- **Status:** Proposed
+- **Source:** Operator grounding session 2026-06-29 requested an explicit design,
+  plan, and validation pass for how interrupt, fence, and kill semantics compose
+  today and how they should compose before any stronger containment work lands.
+- **Intent:** Make the interrupt/fence/kill lifecycle testable as one operational
+  contract instead of scattered primitives.
+- **Expected Outcome:** A design note or ADR defines the lifecycle from detection
+  to action: when a finding remains advisory, when it becomes an interrupt
+  decision, when the Unix SIGINT/SIGTERM/SIGKILL or Windows Job Object path runs,
+  when failure fences immediately, when cascade engages, and what the user sees in
+  status/unblock surfaces. The plan must include a validation matrix for safe
+  kill, failed kill, PID-reuse, missing PID, already-exited process, spoofed
+  attribution, repeated fence cascade, daemon restart, and operator unblock.
+- **Validation:** Planning council review plus a proposed test matrix mapping each
+  lifecycle state to existing or required tests. At minimum identify coverage in
+  `interrupt.rs`, `fence.rs`, `ipc.rs`, `lib.rs` registry dispatch tests, and
+  `commands/intercept.rs`, and file follow-up implementation items for any gaps.
+- **Files:** `crates/anvil-intercept/src/{interrupt,fence,enforcement,ipc,lib,status}.rs`,
+  `crates/anvil-cli/src/commands/intercept.rs`, `docs/runbooks/**` if operator
+  recovery copy changes.
+- **Dependencies:** MLP2-025 / MLP2-026 / MLP2-074; coordinates with MLP2-077 for
+  any future sandbox-grade containment semantics.
+- **Confidence:** medium — most primitives exist, but the end-to-end lifecycle and
+  operator contract need one authoritative validation plan.
+
 ## Priority and phasing plan
 
 Derived from each task's declared `Dependencies:` line. Every MLP

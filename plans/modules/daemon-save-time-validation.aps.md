@@ -1121,6 +1121,43 @@ requirement). Architecture decided by
 
 ---
 
+#### DSV-046: Headless background save-time driver contract
+
+- **Status:** Proposed
+- **Source:** Operator grounding session 2026-06-29 identified a contract mismatch:
+  ACTMO-006 says users should not need a separate visible `anvil watch` terminal
+  after `anvil start`, while the current implementation still describes
+  `anvil watch` as the filesystem watcher/client that feeds changed paths to the
+  daemon's `validate_paths` verb.
+- **Intent:** Decide and implement the non-MCP, non-visible save-time driver model
+  so `anvil start` can honestly mean background daemon-backed validation is
+  active, without requiring a foreground watch terminal for every protected
+  surface.
+- **Expected Outcome:** A design note or ADR defines whether the intercept daemon
+  owns a background filesystem watcher, whether `anvil start` launches a managed
+  watch-driver sidecar, or whether the product copy must downgrade to "daemon
+  ready, validation starts when a client feeds changes". The decision must cover
+  lifecycle, status visibility, stop/restart behaviour, resource limits,
+  multi-worktree registration, Windows parity, and how findings are surfaced when
+  no terminal is attached.
+- **Validation:** Planning council review plus a proposed test matrix covering:
+  `anvil start --no-mcp` with no visible watch terminal, background detection of a
+  planted save-time finding, status/reporting of the background driver, daemon
+  restart recovery, driver stop, Windows named-pipe parity, and opt-out via
+  `--no-daemon` / `ANVIL_NO_DAEMON` / `ANVIL_WATCH_DAEMON=0`.
+- **Files:** `crates/anvil-cli/src/commands/{start,watch,watch_save_time,intercept}.rs`,
+  `crates/anvil-intercept/src/{save_time,watcher,ipc,status}.rs`, activation/status
+  docs and runbooks if the contract changes.
+- **Dependencies:** ACTMO-006 (default save-time armed posture), DSV-007 (watch
+  daemon client), DSV-021 (default-on daemon routing), DSV-045 (background full
+  scan executor). Coordinates with MLP2-077 if background validation should feed
+  stronger containment semantics.
+- **Confidence:** medium — the validation wire and watch client exist, but the
+  owner of unattended filesystem observation and user-visible findings needs a
+  durable decision.
+
+---
+
 ## Decisions
 
 1. **Delivery module, not foundation** — DSV owns the daemon save-time *delivery*
