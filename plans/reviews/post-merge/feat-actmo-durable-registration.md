@@ -1,6 +1,6 @@
 # Post-merge: feat-actmo-durable-registration
 
-PR: #NNN
+PR: #2988
 Branch: `feat/actmo-durable-registration`
 APS: ACTMO (ACTMO-014..018)
 Merged: <!-- filled by cleanup agent -->
