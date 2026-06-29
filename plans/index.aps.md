@@ -778,7 +778,7 @@ implementation is authorised.
   scope.
 - **Phase 3 / open-ended**: remaining surfaces (Dockerfile, shell, `.env`),
   remaining packs (Django, FastAPI, Axum). Demand-pulled.
-- **Cut entirely** (spec §13): Swift, Zig, Express, NestJS, Flask, Spring,
+- **Cut entirely** (spec §13): Swift, Express, NestJS, Flask, Spring,
   Rails, tRPC, CloudFormation, Bicep, Ansible, Jenkins Groovy, Buildkite,
   CircleCI.
 
@@ -801,6 +801,7 @@ Replaces the six per-language placeholder modules (now archived).
 | Module                                            | Scope    | Status | Phase | Languages                                                             |
 | ------------------------------------------------- | -------- | ------ | ----- | --------------------------------------------------------------------- |
 | [lang-tail-wave](./modules/lang-tail-wave.aps.md) | LANGTAIL | In Progress | 2     | Dart, Go, Java, Kotlin, .NET/C#, C/C++ — **all 6 wired at T1** in one wave (LANGTAIL-001 audit: every grammar binds tree-sitter 0.26; none cut). **LANGTAIL-001..008 Merged 2026-06-18 via PR #2757**: `Language` arms + 7 extractors (`parser/extract/{dart,go,java,kotlin,csharp,clike}.rs`) + fixtures + graph-inclusion acceptance; parseable gate now `Language::from_path`-driven (also closes the latent Rust/Python embedded-scan omission). Module stays In Progress until a release tag ships these items (Released/Shipped → Complete), per the APS lifecycle. |
+| [lang-tail-wave-2](./modules/lang-tail-wave-2.aps.md) | LTW2 | Proposed | 2 | WebAssembly text (`.wat`/`.wast`) + Zig (`.zig`/`.zon`) at T1, batched per the LANGTAIL pattern. Owner-directed addition under [ADR-093](./decisions/093-tail-wave-2-wasm-text-and-zig-reentry.md): WebAssembly text was never a candidate; **Zig re-enters from the §13 cut list**. Scope is **text only — binary `.wasm` is excluded**. Stays **Proposed** until the LTW2-001 grammar maturity audit confirms both candidate grammars bind tree-sitter 0.26 (ABI compat unverified; drop-not-stall per C-005). Also reconciles the stale `overview.md:117` language-profile copy (LTW2-005). |
 
 **Archived placeholder modules** (content folded into `lang-tail-wave`):
 [lang-dart](./archive/modules/lang-dart.aps.md),
@@ -811,9 +812,14 @@ Replaces the six per-language placeholder modules (now archived).
 [lang-c-cpp](./archive/modules/lang-c-cpp.aps.md).
 
 **Cut entirely** (spec §13, no demand):
-[lang-swift](./archive/modules/lang-swift.aps.md),
-[lang-zig](./archive/modules/lang-zig.aps.md). Re-enter only with a demand
+[lang-swift](./archive/modules/lang-swift.aps.md). Re-enter only with a demand
 signal.
+
+**Re-entered from the cut list:**
+[lang-zig](./archive/modules/lang-zig.aps.md) — owner-directed re-entry at T1
+via [ADR-093](./decisions/093-tail-wave-2-wasm-text-and-zig-reentry.md),
+folded into [lang-tail-wave-2](./modules/lang-tail-wave-2.aps.md) (LTW2)
+alongside the new WebAssembly-text addition.
 
 #### Track 3 — Governance surfaces (pattern catalogues)
 
