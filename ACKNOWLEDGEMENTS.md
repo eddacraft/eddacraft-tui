@@ -505,6 +505,36 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 </details>
 
+## Licence: MIT No Attribution
+
+Used by 2 crates. See the inventory table at the bottom of this file for the complete list.
+
+<details>
+<summary>Licence text</summary>
+
+```
+MIT No Attribution
+
+Copyright 2024 Scallop Ye
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+</details>
+
 ## Licence: zlib License
 
 Used by 2 crates. See the inventory table at the bottom of this file for the complete list.
@@ -585,36 +615,6 @@ For these and/or other purposes and motivations, and without any expectation of 
      c. Affirmer disclaims responsibility for clearing rights of other persons that may apply to the Work or any use thereof, including without limitation any person's Copyright and Related Rights in the Work. Further, Affirmer disclaims responsibility for obtaining any necessary consents, permissions or other rights required for any use of the Work.
 
      d. Affirmer understands and acknowledges that Creative Commons is not a party to this document and has no duty or obligation with respect to this CC0 or use of the Work. 
-```
-
-</details>
-
-## Licence: MIT No Attribution
-
-Used by 1 crate. See the inventory table at the bottom of this file for the complete list.
-
-<details>
-<summary>Licence text</summary>
-
-```
-MIT No Attribution
-
-Copyright 2024 Scallop Ye
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
 ```
 
 </details>
@@ -1382,6 +1382,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
 | `crossbeam-utils` | 0.8.21 | MIT License | https://github.com/crossbeam-rs/crossbeam |
 | `hashlink` | 0.12.0 | MIT License | https://github.com/djc/hashlink |
 | `borrow-or-share` | 0.2.4 | MIT No Attribution | https://github.com/yescallop/borrow-or-share |
+| `dunce` | 1.0.5 | MIT No Attribution | https://gitlab.com/kornelski/dunce |
 | `option-ext` | 0.2.0 | Mozilla Public License 2.0 | https://github.com/soc/option-ext.git |
 | `unicode-ident` | 1.0.24 | Unicode License v3 | https://github.com/dtolnay/unicode-ident |
 | `icu_collections` | 2.2.0 | Unicode License v3 | https://github.com/unicode-org/icu4x |
