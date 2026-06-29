@@ -492,7 +492,7 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 
 ### ACTMO-014: Durable registration primitive
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-29 via PR #2988
 - **Source:** ACTMO-013 design + planning council (2026-06-29). The registry is
   in-memory with a 30s heartbeat TTL (`crates/anvil-intercept/src/registry.rs:69-72`)
   and reloads only fences on startup (`crates/anvil-intercept/src/lib.rs:1307-1324`),
@@ -534,7 +534,7 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 
 ### ACTMO-015: `anvil workspace register` / `unregister` command
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-29 via PR #2988
 - **Source:** ACTMO-013 design D1. `commands/workspace.rs` is config-only today
   (no daemon IPC); there is no command to register a later/other worktree.
 - **Intent:** Add the explicit registration surface on the `anvil workspace` noun.
@@ -558,7 +558,7 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 
 ### ACTMO-016: Outside-worktree `anvil start` honest behaviour
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-29 via PR #2988
 - **Source:** ACTMO-013 design D2. `anvil start` always registers cwd
   (`daemon_registration.rs:26` called with `"."`); outside a worktree it would
   register a junk session keyed to e.g. `$HOME`.
@@ -584,7 +584,7 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 
 ### ACTMO-017: Registered-worktree status surfacing
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-29 via PR #2988
 - **Source:** ACTMO-013 design D6. `anvil status` plain text omits the worktree
   list though `--json` carries it; `anvil intercept stop` reports nothing about
   worktrees losing protection.
@@ -616,7 +616,7 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 
 ### ACTMO-018: Bounded `anvil workspace register --all`
 
-- **Status:** In Progress
+- **Status:** Merged 2026-06-29 via PR #2988
 - **Source:** ACTMO-013 design D5 (manual layer). A bounded "register everything
   in scope" without a filesystem scan.
 - **Intent:** Register the operator's curated in-scope worktrees in one command,
