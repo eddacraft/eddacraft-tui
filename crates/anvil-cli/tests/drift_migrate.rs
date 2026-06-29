@@ -34,6 +34,28 @@ fn write_snapshot(root: &Path, name: &str, schema_version: &str) -> PathBuf {
     path
 }
 
+fn force_migrate_write_failure(snapshots: &Path, snapshot: &Path) {
+    #[cfg(windows)]
+    {
+        let _ = snapshots;
+        let mut perms = std::fs::metadata(snapshot)
+            .expect("snapshot meta")
+            .permissions();
+        perms.set_readonly(true);
+        std::fs::set_permissions(snapshot, perms).expect("chmod snapshot");
+    }
+
+    #[cfg(not(windows))]
+    {
+        let _ = snapshot;
+        let mut perms = std::fs::metadata(snapshots)
+            .expect("snapshots meta")
+            .permissions();
+        perms.set_readonly(true);
+        std::fs::set_permissions(snapshots, perms).expect("chmod snapshots");
+    }
+}
+
 fn run_anvil(root: &Path, args: &[&str]) -> std::process::Output {
     let mut cmd = Command::new(ANVIL_BIN);
     cmd.args(args)
@@ -143,9 +165,7 @@ fn json_partial_migrate_reports_write_failed_without_aborting_prior_work() {
     let late = write_snapshot(root.path(), "late", "1.0.0");
     let late_before = std::fs::read_to_string(&late).expect("late before");
     let snapshots = snapshots_dir(root.path());
-    let mut perms = std::fs::metadata(&snapshots).expect("meta").permissions();
-    perms.set_readonly(true);
-    std::fs::set_permissions(&snapshots, perms).expect("chmod snapshots");
+    force_migrate_write_failure(&snapshots, &late);
 
     let output = run_anvil(
         root.path(),

@@ -1888,6 +1888,24 @@ mod tests {
         path
     }
 
+    fn force_migrate_write_failure(snapshots: &Path, snapshot: &Path) {
+        #[cfg(windows)]
+        {
+            let _ = snapshots;
+            let mut perms = std::fs::metadata(snapshot).unwrap().permissions();
+            perms.set_readonly(true);
+            std::fs::set_permissions(snapshot, perms).unwrap();
+        }
+
+        #[cfg(not(windows))]
+        {
+            let _ = snapshot;
+            let mut perms = std::fs::metadata(snapshots).unwrap().permissions();
+            perms.set_readonly(true);
+            std::fs::set_permissions(snapshots, perms).unwrap();
+        }
+    }
+
     #[test]
     fn migrate_upgrades_older_baseline_and_writes_backup() {
         let dir = tempfile::tempdir().unwrap();
@@ -2122,9 +2140,7 @@ mod tests {
         let late = write_snapshot_at_version(dir.path(), "late", "1.0.0");
         let late_before = std::fs::read_to_string(&late).unwrap();
         let snapshots = snapshots_dir(dir.path());
-        let mut perms = std::fs::metadata(&snapshots).unwrap().permissions();
-        perms.set_readonly(true);
-        std::fs::set_permissions(&snapshots, perms).unwrap();
+        force_migrate_write_failure(&snapshots, &late);
 
         let report = migrate_snapshots(dir.path(), false).unwrap();
 
