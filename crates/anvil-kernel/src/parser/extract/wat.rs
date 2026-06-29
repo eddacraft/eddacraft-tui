@@ -7,13 +7,24 @@
 //! | `(type $t …)`                  | `TypeAlias`  |                               |
 //! | `(export "name" …)`            | `Export`     | the module's public surface   |
 //!
-//! Imports come from `(import "module" "name" …)`; the edge target is the
-//! imported **module** string (the first name). Globals, tables, memories,
-//! data/elem segments, and `start` are out of T1 scope. WAT identifiers carry a
-//! `$` sigil, stripped from symbol names; anonymous (index-only) funcs/types
-//! carry no identifier and are skipped. WAT has no visibility ladder — funcs and
-//! types are [`Visibility::Internal`]; an `export` entry is the public boundary
-//! and is [`Visibility::Public`]. No call sites at T1.
+//! Exports and imports are captured in **both** forms: the standalone
+//! `(export "n" …)` / `(import "m" "n" …)` module fields **and** the inline
+//! abbreviations `(func (export "n") …)` / `(func $f (import "m" "n") …)`
+//! (common in wasm-bindgen / WASI output), which the grammar nests inside the
+//! owning field. An import edge targets the imported **module** string (the
+//! first name). Globals, tables, memories, data/elem segments, and `start` are
+//! not emitted as symbols, but inline import/export descriptors *within* them
+//! are still captured.
+//!
+//! WAT identifiers carry a `$` sigil, stripped from symbol names; anonymous
+//! (index-only) funcs/types carry no identifier and are skipped. WAT has no
+//! visibility ladder — funcs and types are [`Visibility::Internal`]; an `export`
+//! entry is the public boundary and is [`Visibility::Public`]. No call sites at
+//! T1.
+//!
+//! **T1 limitation:** import/export name strings are taken verbatim (quotes
+//! stripped); WAT escape sequences (`"env\\00"`) are not decoded, so an escaped
+//! name keeps its literal bytes.
 
 use anvil_kernel_types::{SymbolKind, SymbolNode, Visibility};
 
@@ -68,7 +79,7 @@ fn emit_module(
     }
 
     let mut cursor = module.walk();
-    for child in module.children(&mut cursor) {
+    for child in module.named_children(&mut cursor) {
         // Each `module_field` wraps one specific field node; tolerate a direct
         // `module_field_*` child too.
         let field = if child.kind() == "module_field" {
@@ -121,6 +132,68 @@ fn emit_module(
                 }
             }
             _ => {}
+        }
+
+        // Inline `(func (export "x") …)` / `(func $f (import "m" "n") …)` forms:
+        // the grammar nests an `export`/`import` node inside the field (directly
+        // for funcs, one wrapper deeper for memory/table/global). Scan a bounded
+        // depth so the abbreviated forms — common in wasm-bindgen/WASI output —
+        // still yield Export symbols and import edges, without walking into
+        // instruction bodies.
+        scan_inline(
+            field,
+            INLINE_SCAN_DEPTH,
+            source,
+            file,
+            symbols,
+            next_id,
+            imports,
+        );
+    }
+}
+
+/// Max depth below a `module_field` that the inline import/export scan descends.
+/// Inline descriptors sit at depth 1 (func) or 2 (memory/table/global via a
+/// `*_fields_*` wrapper); 3 covers them while excluding deep instruction bodies.
+const INLINE_SCAN_DEPTH: u32 = 3;
+
+/// Emit Export symbols and import edges for inline `export`/`import` descriptor
+/// nodes nested within a module field, bounded to [`INLINE_SCAN_DEPTH`].
+fn scan_inline(
+    node: tree_sitter::Node,
+    depth: u32,
+    source: &[u8],
+    file: &str,
+    symbols: &mut Vec<SymbolNode>,
+    next_id: &mut u64,
+    imports: &mut Vec<ImportEdge>,
+) {
+    if depth == 0 {
+        return;
+    }
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        match child.kind() {
+            "import" => {
+                if let Some(module_name) = first_name(child, source) {
+                    imports.push(import_edge(file, module_name, child));
+                }
+            }
+            "export" => {
+                if let Some(name) = first_name(child, source) {
+                    push_symbol(
+                        symbols,
+                        next_id,
+                        file,
+                        SymbolKind::Export,
+                        name,
+                        Visibility::Public,
+                    );
+                }
+            }
+            // Descend through wrappers (e.g. `memory_fields_type`) to reach a
+            // nested descriptor; the depth cap keeps this off the hot path.
+            _ => scan_inline(child, depth - 1, source, file, symbols, next_id, imports),
         }
     }
 }
@@ -195,6 +268,42 @@ mod tests {
 
         // Globals are out of T1 scope; no call sites at T1.
         assert!(!fs.symbols.iter().any(|s| s.name == "g"), "global leaked");
+        assert!(fs.calls.is_empty() && !fs.calls_partial);
+    }
+
+    #[test]
+    fn inline_export_and_import_forms_are_captured() {
+        // The abbreviated forms nest `export`/`import` inside the field:
+        //   (func (export "run") …)        — inline export, direct child
+        //   (func $log (import "env" …) …) — inline import, direct child
+        //   (memory (import "js" …) …)     — inline import via memory wrapper
+        // All three must surface, mirroring the standalone forms.
+        let src = "(module\n  (func $log (import \"env\" \"log\") (param i32))\n  (func (export \"run\") (result i32) i32.const 42)\n  (memory (import \"js\" \"mem\") 1))\n";
+        let fs = extract(src);
+
+        let exports: Vec<_> = fs
+            .symbols
+            .iter()
+            .filter(|s| s.kind == SymbolKind::Export)
+            .map(|s| s.name.as_str())
+            .collect();
+        assert_eq!(exports, vec!["run"], "inline export: {exports:?}");
+        assert!(
+            fs.symbols
+                .iter()
+                .any(|s| s.name == "run" && s.visibility == Visibility::Public)
+        );
+
+        let mut targets: Vec<_> = fs.imports.iter().map(|i| i.to_source.as_str()).collect();
+        targets.sort_unstable();
+        assert_eq!(targets, vec!["env", "js"], "inline imports: {targets:?}");
+
+        // `$log` is still a Function symbol; no call sites at T1.
+        assert!(
+            fs.symbols
+                .iter()
+                .any(|s| s.name == "log" && s.kind == SymbolKind::Function)
+        );
         assert!(fs.calls.is_empty() && !fs.calls_partial);
     }
 

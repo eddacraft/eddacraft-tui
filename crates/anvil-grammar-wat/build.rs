@@ -20,5 +20,13 @@ fn main() {
         .warnings(false)
         .compile("tree_sitter_wat");
 
+    // `cc` emits a rerun directive for `parser.c` itself; the included header
+    // (which defines the `TSLanguage` ABI struct) is tracked explicitly so an
+    // edit there — e.g. during a grammar regeneration — forces a rebuild rather
+    // than serving a stale archive.
     println!("cargo:rerun-if-changed={}", parser.display());
+    println!(
+        "cargo:rerun-if-changed={}",
+        dir.join("tree_sitter/parser.h").display()
+    );
 }
