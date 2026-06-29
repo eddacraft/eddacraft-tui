@@ -329,8 +329,11 @@ MINOR):
 
 - It installs a documented **Git config alias** pinned to a portable form that
   runs through `sh` on every platform Git supports (incl. Git-for-Windows
-  MinGW), e.g.
-  `git config --global alias.wt-add '!f() { git worktree add "$@" && anvil workspace register "${@: -1}"; }; f'`,
+  MinGW). The exact one-liner must stay **POSIX `sh`/dash-safe** — no bashisms
+  such as `${@: -1}` — e.g. capture the last positional with a POSIX loop:
+  `git config --global alias.wt-add '!f() { git worktree add "$@" && p=; for a in "$@"; do p=$a; done && anvil workspace register "$p"; }; f'`.
+  ACTMO-020 finalises the exact form (including the `git worktree add <path>
+  [<commit-ish>]` edge case where the last arg is a commit-ish, not the path)
   and prints a **PowerShell equivalent** when it detects Windows without `sh`
   (council ops MAJOR). It does not silently shim `git`.
 - **Worktrunk:** no integration exists today. If Worktrunk exposes a post-create
