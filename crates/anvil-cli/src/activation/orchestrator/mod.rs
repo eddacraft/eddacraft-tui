@@ -40,13 +40,13 @@ use anyhow::Context;
 
 use crate::GlobalArgs;
 use crate::activation::baseline;
-use crate::activation::daemon_registration::{self, WorktreeRegistration};
 use crate::activation::detect_agents::{self, AgentKind, DetectionEnv, RealDetectionEnv};
 use crate::activation::diagnostic::{
     ActivationDiagnostic, ConfigStatus, McpClientId, verify_with_home,
 };
 use crate::activation::identity;
 use crate::commands::{hooks, init};
+use crate::registration::{self, WorktreeRegistration};
 use crate::services::sample_analyser;
 
 pub mod install;
@@ -89,7 +89,7 @@ fn run_with_home_and_policy(
         root,
         home,
         global,
-        daemon_registration::register_worktree_with_daemon,
+        registration::register_worktree_with_daemon,
         mcp_install_policy,
         enabled,
     )
@@ -137,6 +137,7 @@ fn resolve_enabled_clients(env: &dyn DetectionEnv, force_all: bool) -> BTreeSet<
         .collect()
 }
 
+#[allow(clippy::too_many_lines)]
 fn run_with_home_and_registration(
     root: &Path,
     home: Option<&Path>,
@@ -279,19 +280,38 @@ fn run_with_home_and_registration(
         }
     }
 
-    match register_worktree(root) {
-        WorktreeRegistration::Registered | WorktreeRegistration::Refreshed => {}
-        WorktreeRegistration::DaemonUnavailable => {
-            tracing::debug!(
-                "orchestrator: daemon unavailable for activation worktree registration; continuing",
+    // ACTMO-016 (ADR-094 decision 4): only register cwd when it is a
+    // registerable Git worktree. Outside one (a bare repo, inside `.git`, or
+    // not a repo at all) `anvil start` stays honest — it does not register a
+    // junk session keyed to e.g. $HOME; the daemon is still ensured by the
+    // caller, and `start.rs` surfaces the "no worktree registered" guidance.
+    match registration::registerable_worktree(root) {
+        Err(reason) => {
+            tracing::info!(
+                error = %reason,
+                "orchestrator: cwd is not a registerable worktree; daemon ensured, cwd not registered",
             );
         }
-        WorktreeRegistration::Rejected(error) => {
-            tracing::warn!(
-                error = %error,
-                "orchestrator: activation worktree registration rejected; continuing",
-            );
-        }
+        Ok(_) => match register_worktree(root) {
+            WorktreeRegistration::Registered | WorktreeRegistration::Refreshed => {}
+            WorktreeRegistration::DaemonUnavailable => {
+                tracing::debug!(
+                    "orchestrator: daemon unavailable for activation worktree registration; continuing",
+                );
+            }
+            WorktreeRegistration::Fenced(message) | WorktreeRegistration::CapExceeded(message) => {
+                tracing::warn!(
+                    error = %message,
+                    "orchestrator: activation worktree registration refused; continuing",
+                );
+            }
+            WorktreeRegistration::Rejected(error) => {
+                tracing::warn!(
+                    error = %error,
+                    "orchestrator: activation worktree registration rejected; continuing",
+                );
+            }
+        },
     }
 
     // Step 2 — install MCP entries for the user-selected (or auto-
@@ -1027,12 +1047,15 @@ mod tests {
         let global = default_global();
         let called = std::cell::Cell::new(false);
 
+        // ACTMO-016: registration is gated on a registerable Git worktree, so
+        // the closure only fires when cwd is one. Make the dir a real worktree.
+        git_init(dir.path());
+
         run_with_home_and_registration(
             dir.path(),
             Some(home.path()),
             &global,
-            |root| {
-                assert_eq!(root, dir.path());
+            |_root| {
                 called.set(true);
                 WorktreeRegistration::Registered
             },
@@ -1045,6 +1068,52 @@ mod tests {
             called.get(),
             "orchestrator must register the activation worktree"
         );
+    }
+
+    /// ACTMO-016: outside a registerable worktree, the orchestrator does not
+    /// invoke the registration closure (no junk session keyed to e.g. $HOME),
+    /// yet still completes successfully.
+    #[test]
+    fn orchestrator_skips_registration_outside_a_worktree() {
+        let dir = TempDir::new().unwrap();
+        let home = TempDir::new().unwrap();
+        let global = default_global();
+        let called = std::cell::Cell::new(false);
+
+        run_with_home_and_registration(
+            dir.path(),
+            Some(home.path()),
+            &global,
+            |_root| {
+                called.set(true);
+                WorktreeRegistration::Registered
+            },
+            McpInstallPolicy::Install,
+            &crate::activation::mcp_client::all_client_ids(),
+        )
+        .expect("orchestrator should continue without registering");
+
+        assert!(!called.get(), "a non-worktree dir must not be registered");
+    }
+
+    /// Initialise a minimal Git worktree so the registerable-worktree gate
+    /// (ACTMO-016) treats the directory as registerable.
+    fn git_init(dir: &Path) {
+        for args in [
+            ["init", "-q"].as_slice(),
+            ["config", "user.email", "t@t"].as_slice(),
+            ["config", "user.name", "t"].as_slice(),
+        ] {
+            let ok = std::process::Command::new("git")
+                .arg("-C")
+                .arg(dir)
+                .args(args)
+                .output()
+                .expect("run git")
+                .status
+                .success();
+            assert!(ok, "git {args:?} failed");
+        }
     }
 
     #[test]

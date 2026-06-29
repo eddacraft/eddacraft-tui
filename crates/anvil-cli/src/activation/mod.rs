@@ -17,7 +17,6 @@
 
 pub mod baseline;
 pub(crate) mod daemon_evidence;
-pub(crate) mod daemon_registration;
 pub mod detect_agents;
 pub mod diagnostic;
 pub mod identity;

@@ -360,6 +360,16 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         if let Some(outcome) = &daemon_outcome {
             print!("{}", render_daemon_lifecycle_line(outcome));
         }
+        // ACTMO-016 (ADR-094 decision 4): if cwd is not a registerable Git
+        // worktree, the daemon was ensured but nothing was registered — an
+        // honest state distinct from `protecting`. Say so and point at the
+        // explicit command rather than appearing silently protected.
+        if !read_only && let Err(reason) = crate::registration::registerable_worktree(root) {
+            println!(
+                "  worktree: no worktree registered ({reason}). \
+                 Run from inside a worktree, or `anvil workspace register <path>`."
+            );
+        }
         if !read_only && matches!(mcp_policy, activation::orchestrator::McpInstallPolicy::Skip) {
             println!(
                 "  install: skipped — MCP config installation disabled (`--no-mcp` / `ANVIL_NO_MCP`)"

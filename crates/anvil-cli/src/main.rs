@@ -15,6 +15,7 @@ mod l4_engine;
 mod mcp;
 mod output;
 mod plan_dashboard;
+mod registration;
 mod services;
 #[cfg(test)]
 mod test_support;
