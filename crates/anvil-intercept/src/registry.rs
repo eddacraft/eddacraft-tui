@@ -71,12 +71,16 @@ impl Cross {
 /// window is treated as crashed.
 pub const DEFAULT_HEARTBEAT_TTL: Duration = Duration::from_secs(30);
 
-/// MLP2-024: default per-worktree session cap. Sized for ~6
-/// concurrent sub-agents with ~3x headroom; operators can tighten
-/// via `.anvil.yaml` (`enforcement.session.per_worktree_max`).
-/// Mirrored here (and not imported from `crate::config`) so the
-/// registry stays self-contained for callers that bypass the
-/// config layer.
+/// MLP2-024: default per-worktree session cap. This bounds **live agent
+/// sessions concurrently active** on one worktree — i.e. how many agents may
+/// be saving/validating against the same worktree at once — not how many
+/// agents may ever exist. Sized for ~6 concurrent save-time sub-agents with
+/// ~3x headroom; operators can tighten via `.anvil.yaml`
+/// (`enforcement.session.per_worktree_max`). Durable activation-spine
+/// membership (ACTMO-014) is exempt — it is a persisted registration record,
+/// not a live saver — and is bounded by [`DEFAULT_REGISTERED_WORKTREE_CAP`]
+/// instead. Mirrored here (and not imported from `crate::config`) so the
+/// registry stays self-contained for callers that bypass the config layer.
 pub const DEFAULT_PER_WORKTREE_CAP: usize = 16;
 
 /// ACTMO-014: default cap on the number of **distinct durably-registered
@@ -737,26 +741,30 @@ impl SessionRegistry {
                 });
             }
 
-            // MLP2-024: per-worktree session cap. Counted across all
-            // agent_tags on this canonical worktree, so the cap is a
-            // total-sub-agent budget, not a per-tag budget.
+            // MLP2-024: per-worktree session cap. This bounds the number of
+            // **live agent sessions** concurrently active on one worktree (the
+            // save-time concurrency budget), counted across all agent_tags.
             //
-            // ACTMO-014 (adversarial review F4): a durable activation-spine
-            // registration occupies one of these slots like any other session,
-            // so a registered worktree has `cap - 1` slots left for live agents.
-            // This is intentional — the durable session genuinely holds the
-            // worktree — and the default cap (16) leaves ample agent headroom.
-            let live: usize = inner
-                .by_composite
-                .keys()
-                .filter(|(wt, _)| wt == &canonical)
-                .count();
-            if live >= cap {
-                return Err(RegistryError::SessionCapExceeded {
-                    worktree: canonical,
-                    cap,
-                    live,
-                });
+            // ACTMO-014 (adversarial review F4): durable activation-spine
+            // membership is exempt. A durable registration is a persisted
+            // membership record, not a live agent that saves files, so (a) it
+            // does not count toward the live budget and (b) registering it is
+            // never refused by this cap — durable membership is bounded by the
+            // separate `registered_worktree_cap` instead. This keeps the full
+            // `cap` live-agent slots available on a registered worktree.
+            if !durable {
+                let live: usize = inner
+                    .sessions
+                    .values()
+                    .filter(|entry| !entry.durable && entry.record.worktree == canonical)
+                    .count();
+                if live >= cap {
+                    return Err(RegistryError::SessionCapExceeded {
+                        worktree: canonical,
+                        cap,
+                        live,
+                    });
+                }
             }
 
             // ACTMO-014: distinct durable-worktree membership cap. Only a NEW
@@ -2815,6 +2823,61 @@ mod tests {
             }
             other => panic!("expected SessionCapExceeded, got {other:?}"),
         }
+    }
+
+    /// ACTMO-014 (adversarial review F4): durable activation-spine membership
+    /// is exempt from the per-worktree **live-session** cap. A registered
+    /// worktree keeps the full `cap` live-agent slots, and a durable
+    /// registration is itself never refused by this cap (it is bounded by the
+    /// distinct-registered-worktree cap instead).
+    #[test]
+    fn durable_membership_is_exempt_from_per_worktree_cap() {
+        let registry = SessionRegistry::new().with_per_worktree_cap(2);
+        let wt = make_worktree();
+        let now = Instant::now();
+        let canonical = std::fs::canonicalize(wt.path()).unwrap();
+
+        // Durable membership does not consume a live-session slot.
+        registry
+            .register(&sid("durable"), wt.path(), Some(&spine_tag()), now)
+            .expect("durable membership registers");
+
+        // The full cap of live agent sessions remains available alongside it.
+        registry
+            .register(&sid("live1"), wt.path(), None, now)
+            .expect("first live session");
+        let tag_b = tag("anvil-run", "claude-2", 1_700_000_002);
+        registry
+            .register(&sid("live2"), wt.path(), Some(&tag_b), now)
+            .expect("second live session fills the cap");
+
+        // The (cap+1)-th LIVE session is refused — the durable one is not
+        // counted, so `live` is 2, not 3.
+        let tag_c = tag("anvil-run", "claude-3", 1_700_000_003);
+        let err = registry
+            .register(&sid("live3"), wt.path(), Some(&tag_c), now)
+            .expect_err("third live session must be refused");
+        assert_eq!(
+            err,
+            RegistryError::SessionCapExceeded {
+                worktree: canonical,
+                cap: 2,
+                live: 2,
+            },
+        );
+
+        // A durable registration is never refused by the per-worktree cap,
+        // even on a worktree already saturated with live sessions.
+        let wt2 = make_worktree();
+        registry
+            .register(&sid("p"), wt2.path(), None, now)
+            .expect("live p");
+        registry
+            .register(&sid("q"), wt2.path(), Some(&tag_b), now)
+            .expect("live q saturates the cap");
+        registry
+            .register(&sid("durable2"), wt2.path(), Some(&spine_tag()), now)
+            .expect("durable membership is exempt even at the live-session cap");
     }
 
     /// MLP2-024: unregistering a session frees a slot — the next
