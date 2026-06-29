@@ -269,6 +269,8 @@ fn backup_path(path: &Path) -> PathBuf {
     path.with_file_name(name)
 }
 
+const MAX_BACKUP_GENERATION: usize = 10_000;
+
 /// Write `content` to the next backup generation —
 /// `<file>.bak`, then `<file>.bak.1`, `<file>.bak.2`, … — creating it
 /// **exclusively** (`O_EXCL`). Returns the path written.
@@ -293,7 +295,7 @@ fn write_fresh_backup(path: &Path, content: &[u8]) -> Result<PathBuf> {
 
     let start = max_backup_generation(path)?.map_or(0, |n| n + 1);
     // Bounded so a directory already full of `.bak.N` files can't spin forever.
-    for n in start..=10_000 {
+    for n in start..=MAX_BACKUP_GENERATION {
         let candidate = if n == 0 {
             base.clone()
         } else {
@@ -1889,21 +1891,9 @@ mod tests {
     }
 
     fn force_migrate_write_failure(snapshots: &Path, snapshot: &Path) {
-        #[cfg(windows)]
-        {
-            let _ = snapshots;
-            let mut perms = std::fs::metadata(snapshot).unwrap().permissions();
-            perms.set_readonly(true);
-            std::fs::set_permissions(snapshot, perms).unwrap();
-        }
-
-        #[cfg(not(windows))]
-        {
-            let _ = snapshot;
-            let mut perms = std::fs::metadata(snapshots).unwrap().permissions();
-            perms.set_readonly(true);
-            std::fs::set_permissions(snapshots, perms).unwrap();
-        }
+        let mut backup_name = snapshot.file_name().unwrap().to_os_string();
+        backup_name.push(format!(".bak.{MAX_BACKUP_GENERATION}"));
+        std::fs::create_dir(snapshots.join(backup_name)).unwrap();
     }
 
     #[test]

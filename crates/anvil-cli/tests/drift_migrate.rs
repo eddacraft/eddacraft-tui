@@ -6,6 +6,7 @@ use std::process::Command;
 use tempfile::tempdir;
 
 const ANVIL_BIN: &str = env!("CARGO_BIN_EXE_anvil");
+const MAX_BACKUP_GENERATION: usize = 10_000;
 
 fn snapshots_dir(root: &Path) -> PathBuf {
     root.join(".anvil").join("snapshots")
@@ -35,25 +36,12 @@ fn write_snapshot(root: &Path, name: &str, schema_version: &str) -> PathBuf {
 }
 
 fn force_migrate_write_failure(snapshots: &Path, snapshot: &Path) {
-    #[cfg(windows)]
-    {
-        let _ = snapshots;
-        let mut perms = std::fs::metadata(snapshot)
-            .expect("snapshot meta")
-            .permissions();
-        perms.set_readonly(true);
-        std::fs::set_permissions(snapshot, perms).expect("chmod snapshot");
-    }
-
-    #[cfg(not(windows))]
-    {
-        let _ = snapshot;
-        let mut perms = std::fs::metadata(snapshots)
-            .expect("snapshots meta")
-            .permissions();
-        perms.set_readonly(true);
-        std::fs::set_permissions(snapshots, perms).expect("chmod snapshots");
-    }
+    let mut backup_name = snapshot
+        .file_name()
+        .expect("snapshot file name")
+        .to_os_string();
+    backup_name.push(format!(".bak.{MAX_BACKUP_GENERATION}"));
+    std::fs::create_dir(snapshots.join(backup_name)).expect("exhaust backup generation");
 }
 
 fn run_anvil(root: &Path, args: &[&str]) -> std::process::Output {
