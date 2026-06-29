@@ -2,7 +2,7 @@
 
 ## Status
 
-**Proposed** — 2026-06-29, awaiting owner acceptance. Records an owner-directed
+**Accepted** — 2026-06-29, Josh (owner). Records an owner-directed
 addition of two languages to the Track 2 tail at **T1 (Parsed)**:
 
 1. **WebAssembly text format** (`.wat` / `.wast`) — never previously a

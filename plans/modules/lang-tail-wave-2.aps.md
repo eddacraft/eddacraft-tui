@@ -3,18 +3,24 @@
 
 # Tail Language T1 Wave 2 — WebAssembly text + Zig (Track 2)
 
-| ID    | Owner      | Status   |
-| ----- | ---------- | -------- |
-| LTW2  | joshuaboys | Proposed |
+| ID    | Owner      | Status |
+| ----- | ---------- | ------ |
+| LTW2  | joshuaboys | Ready  |
 
 **Last reviewed:** 2026-06-29
 
 > Re-entry / addition recorded in
-> [ADR-093](../decisions/093-tail-wave-2-wasm-text-and-zig-reentry.md) — an
-> owner-directed addition of two languages to the Track 2 tail at **T1
-> (Parsed)**. Zig **re-enters** from the design §13 cut list; WebAssembly text
-> was never previously a candidate. Module stays **Proposed** until the grammar
-> maturity audit (LTW2-001) passes; see ADR-093 §Decision point 3.
+> [ADR-093](../decisions/093-tail-wave-2-wasm-text-and-zig-reentry.md) (**Accepted**
+> 2026-06-29) — an owner-directed addition of two languages to the Track 2 tail
+> at **T1 (Parsed)**. Zig **re-enters** from the design §13 cut list; WebAssembly
+> text was never previously a candidate.
+>
+> **Ready promoted 2026-06-29** (owner). Ready authorises **LTW2-001 (the grammar
+> maturity audit) only** — that item is the gate. The wiring items
+> **LTW2-002/-003/-004 stay Proposed** until LTW2-001 confirms each candidate
+> grammar binds tree-sitter 0.26; if a grammar fails, that language is dropped
+> from the wave (drop-not-stall, ADR-093 §Decision point 3). LTW2-005 (doc
+> reconciliation) is independent and Ready.
 
 ## Grammar Maturity Audit (LTW2-001) — PENDING
 
@@ -30,9 +36,10 @@ stall it.
 | WebAssembly text (`.wat`/`.wast`) | [`wasm-lsp/tree-sitter-wasm`](https://github.com/wasm-lsp/tree-sitter-wasm) (WAT + WAST) | TBD | ⏳ pending | TBD |
 | Zig (`.zig`/`.zon`) | maintained `tree-sitter-zig` | TBD | ⏳ pending | TBD |
 
-Resolve to a pinned crate version + verdict per language before promoting the
-module to Ready, and pin the bind+parse check as a permanent regression guard
-alongside `parser::languages::tests::tail_wave_grammars_bind_and_parse`.
+Resolve to a pinned crate version + verdict per language as the first executable
+step (LTW2-001), and pin the bind+parse check as a permanent regression guard
+alongside `parser::languages::tests::tail_wave_grammars_bind_and_parse`. The
+wiring items unlock per-language on the verdict here.
 
 ## Purpose
 
@@ -98,13 +105,16 @@ across both languages instead of paying it twice.
 
 ## Ready Checklist
 
-Promote Proposed → Ready (then In Progress) only when all are met:
+Promoted Proposed → **Ready** 2026-06-29 (owner). Ready scope is **LTW2-001 +
+LTW2-005**:
 
-- [ ] ADR-093 Accepted by owner.
-- [ ] LTW2-001 grammar maturity audit complete; final wave membership confirmed
-      (both, one, or shelved).
-- [ ] At least one fixture identified per included language.
+- [x] ADR-093 Accepted by owner (2026-06-29).
 - [x] Owner named.
+- [x] LTW2-001 (grammar maturity audit) is the first executable item — it
+      determines final wave membership (both, one, or shelved).
+- [ ] LTW2-002/-003/-004 (per-language wiring) promote to Ready only on a
+      passing LTW2-001 verdict for that language; at least one fixture
+      identified per included language at that point.
 
 ## Work Items
 
@@ -114,7 +124,7 @@ than per-language PRs.
 
 ### LTW2-001 — Grammar maturity audit; finalise wave membership
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Intent:** Confirm each candidate grammar binds tree-sitter 0.26 and parses a
   representative fixture, pinning version + verdict per language.
 - **Expected Outcome:** The audit table above is resolved (pinned crate version +
@@ -172,7 +182,7 @@ than per-language PRs.
 
 ### LTW2-005 — Reconcile public language-profile copy
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Intent:** The public "Repo language profile" copy reflects current coverage.
 - **Expected Outcome:** `docs/public/anvil/overview.md:117` no longer claims only
   "TS / JS / Rust supported" — it accounts for Python (T3) and the tail T1
