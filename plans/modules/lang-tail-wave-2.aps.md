@@ -21,7 +21,7 @@
 > ("better than nothing"); Zig ships from the published `tree-sitter-zig` crate.
 > The wiring items **LTW2-002 (WAT) and LTW2-003 (Zig) are now Ready**;
 > **LTW2-004** (wave acceptance) stays Proposed until both land. See the audit
-> table above for evidence.
+> table below for evidence.
 
 ## Grammar Maturity Audit (LTW2-001) — COMPLETE 2026-06-29
 
@@ -138,13 +138,15 @@ than per-language PRs.
 - **Status:** Done (2026-06-29 — both Include; see audit table)
 - **Intent:** Confirm each candidate grammar binds tree-sitter 0.26 and parses a
   representative fixture, pinning version + verdict per language.
-- **Expected Outcome:** The audit table above is resolved (pinned crate version +
+- **Expected Outcome:** The audit table is resolved (pinned grammar source +
   Include/Drop per language); a bind+parse regression guard exists; any dropped
-  language is recorded as cut-from-wave.
+  language is recorded as cut-from-wave. **Met 2026-06-29:** both Include, none
+  dropped.
 - **Validation:** `cargo test -p anvil-kernel parser::languages::tests`
 - **Files:** `Cargo.toml`, `crates/anvil-kernel/Cargo.toml`,
   `crates/anvil-kernel/src/parser/languages.rs`
-- **Confidence:** medium (ABI compat unverified — this item resolves it)
+- **Confidence:** high (audit complete — both grammars bind + parse; ABI
+  compatibility now verified)
 
 ### LTW2-002 — Wire WebAssembly text (`.wat`/`.wast`)
 

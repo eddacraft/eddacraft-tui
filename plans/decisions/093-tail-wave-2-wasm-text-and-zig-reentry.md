@@ -71,11 +71,13 @@ rather than dressing it as user demand.
    `parser::languages::tests::tail_wave_grammars_bind_and_parse` does for wave
    1). Candidate crates:
    [`wasm-lsp/tree-sitter-wasm`](https://github.com/wasm-lsp/tree-sitter-wasm)
-   (WAT + WAST) and a maintained `tree-sitter-zig`. **ABI compatibility with
-   tree-sitter 0.26 is UNVERIFIED for both** — if a grammar fails to bind, that
-   language is **dropped from the wave** rather than allowed to stall it (the
-   LANGTAIL hard rule). The `lang-tail-wave-2` module therefore stays
-   **Proposed** until the audit passes.
+   (WAT + WAST) and a maintained `tree-sitter-zig`. ABI compatibility with
+   tree-sitter 0.26 was UNVERIFIED at authoring — if a grammar failed to bind it
+   would be **dropped from the wave** rather than allowed to stall it (the
+   LANGTAIL hard rule), and the module stayed **Proposed** until the audit
+   passed. **Resolved 2026-06-29 (see the Status audit-outcome note above):**
+   both grammars bound + parsed cleanly, so neither was dropped and the wiring
+   items are now Ready.
 
 4. **T1 only.** No per-language anti-pattern catalogue, suppression syntax, or
    policy hooks — that is T2/T3 anchor work, out of scope for the tail, per
