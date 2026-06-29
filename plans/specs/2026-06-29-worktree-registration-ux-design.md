@@ -2,7 +2,7 @@
 
 | Type   | Authority | Owner | Status   | Freshness                          |
 | ------ | --------- | ----- | -------- | ---------------------------------- |
-| Design | Proposal  | Josh  | Proposed | Authored 2026-06-29; planning-council reviewed 2026-06-29 (4 personas; findings folded); pending owner sign-off |
+| Design | Proposal  | Josh  | Accepted | Authored 2026-06-29; planning-council reviewed 2026-06-29 (4 personas; findings folded); ADR-094 ratified Accepted 2026-06-29 (operator) |
 
 | Upstream                                                                                                                                              | Downstream                                                                |
 | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
@@ -47,11 +47,11 @@ This is the difference between "the daemon is technically running" and "the
 daemon is *useful*". The [RELEASE-PLAN](../../RELEASE-PLAN.md) names ACTMO-013 +
 DSV-046 as the candidate `v0.9.0-beta` daemon-usefulness addendum.
 
-This document resolves the registration UX, proposes a `Proposed`
-[ADR-094](../decisions/094-worktree-registration-ux.md), defines a test matrix,
-and splits the work into Ready / Proposed items. It is a **proposal**; the
-headline decisions are flagged for owner sign-off. It has been hardened by a
-four-persona planning council (see §"Planning-council review") — the most
+This document resolves the registration UX via
+[ADR-094](../decisions/094-worktree-registration-ux.md) (**Accepted 2026-06-29,
+operator**), defines a test matrix, and splits the work into Ready / Proposed
+items. The headline decisions were ratified via ADR-094. It has been hardened by
+a four-persona planning council (see §"Planning-council review") — the most
 important outcome of that review was discovering that the original draft built
 *durable membership* on a *30-second heartbeat lease*; D4 below now owns that
 decision explicitly.
@@ -410,7 +410,7 @@ shape" additionally requires a promoted+split **DSV-046** for the unattended
 validation half (see §"Boundary with DSV-046"); that split is a parallel
 prerequisite, not owned here.
 
-## Headline decisions for sign-off
+## Headline decisions (ratified via ADR-094, Accepted 2026-06-29)
 
 1. **D4** — durable registration is a daemon-side persisted, TTL-exempt,
    reload-on-start set (retracts the "no wire change" claim; the keystone).
@@ -450,7 +450,7 @@ as a substrate for durable membership. Disposition of the load-bearing findings:
 - **Minors** (git-worktree detection, `--all` latency, SessionId collision,
   reaper, test-matrix split) → folded into D2/D3/D4/D6 and the split matrix.
 
-The ADR captures the durable decisions; this proposal awaits owner sign-off.
+The ADR captures the durable decisions; ratified Accepted 2026-06-29 (operator).
 
 ## References
 

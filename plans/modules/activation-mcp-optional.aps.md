@@ -36,7 +36,7 @@ design [#2939](https://github.com/eddacraft/anvil-001/issues/2939). ADR-092
 Accepted pins the MCP-optional spine decision. **ACTMO-013** is **Done**
 (2026-06-29): the registration-UX design
 ([spec](../specs/2026-06-29-worktree-registration-ux-design.md) +
-[ADR-094](../decisions/094-worktree-registration-ux.md), Proposed) was
+[ADR-094](../decisions/094-worktree-registration-ux.md), Accepted 2026-06-29) was
 planning-council hardened — the keystone decision is that durable registration is
 a daemon-side persisted, TTL-exempt, reload-on-start set (not the 30s session
 lease) — and splits into **ACTMO-014..017** (Ready, cut-line), **ACTMO-018**
@@ -430,8 +430,8 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 - **Status:** Done
 - **Delivered (2026-06-29):** Design note
   [`worktree-registration UX design`](../specs/2026-06-29-worktree-registration-ux-design.md)
-  + [ADR-094](../decisions/094-worktree-registration-ux.md) (Proposed),
-  hardened by a four-persona planning council. The council's load-bearing finding:
+  + [ADR-094](../decisions/094-worktree-registration-ux.md)
+  (Accepted 2026-06-29), hardened by a four-persona planning council. The council's load-bearing finding:
   the draft built *durable membership* on the registry's 30s in-memory heartbeat
   lease, so a one-shot CLI registration would evict ~30s after the process exits
   and a daemon restart would drop the whole set. Resolution: durable registration
@@ -446,8 +446,8 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
   to a registry membership-change signal; new-worktree auto-registration is a
   guided `anvil workspace install-hook`; a local app is a scoped, deferred
   daemon-control surface only. Splits into **ACTMO-014..017** (Ready, cut-line),
-  **ACTMO-018** (Ready, additive), **ACTMO-019..021** (Proposed). The design is a
-  proposal; ADR-094 stays Proposed pending owner ratification.
+  **ACTMO-018** (Ready, additive), **ACTMO-019..021** (Proposed). ADR-094 was
+  ratified **Accepted 2026-06-29 (operator)**.
 - **Source:** Operator grounding session 2026-06-29 identified a daemon/worktree
   lifecycle gap: the per-user daemon may already be running, `anvil start` may be
   invoked outside a Git worktree, and later-created Worktrunk/Git worktrees need a
