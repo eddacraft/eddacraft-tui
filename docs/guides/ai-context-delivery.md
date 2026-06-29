@@ -176,9 +176,10 @@ anvil gctx egress status     # shows the effective state and where it comes from
 anvil gctx egress disable    # revert to identity-only
 ```
 
-`enable` records consent under the workspace's ignored `anvil/witness/gctx-egress.json` (after
-an explicit confirmation — pass `--yes` to acknowledge non-interactively). The
-consent is per-workspace, so enabling it in one repo does not affect another.
+`enable` records consent under the workspace's ignored
+`anvil/witness/gctx-egress.json` (after an explicit confirmation — pass `--yes`
+to acknowledge non-interactively). The consent is per-workspace, so enabling it
+in one repo does not affect another.
 
 `ANVIL_GCTX_EGRESS` remains a **process-scoped override** that takes precedence
 over the persisted consent, and it is re-read on every call:
