@@ -138,10 +138,17 @@ fn run_register(args: &RegisterArgs) -> Result<()> {
         return run_register_all();
     }
     let target = resolve_target(args.path.as_ref())?;
-    report_registration(
-        &target,
-        registration::register_worktree_with_daemon(&target),
-    );
+    // Resolve to the worktree ROOT (like `anvil start`) so registering from a
+    // subdirectory registers the worktree, not the subdir — keeping the
+    // session-id keying consistent across surfaces.
+    match registration::registerable_worktree(&target) {
+        Ok(root) => {
+            report_registration(&root, registration::register_worktree_with_daemon(&root));
+        }
+        Err(reason) => {
+            println!("Cannot register {}: {reason}.", target.display());
+        }
+    }
     Ok(())
 }
 
@@ -165,6 +172,11 @@ fn report_registration(target: &std::path::Path, outcome: WorktreeRegistration) 
 
 fn run_unregister(args: &UnregisterArgs) -> Result<()> {
     let target = resolve_target(args.path.as_ref())?;
+    // Resolve to the worktree root so unregistering from a subdirectory targets
+    // the same session id `register` keyed on. A removed worktree no longer
+    // resolves, so fall back to the raw path (best-effort — the reaper already
+    // drops gone worktrees).
+    let target = registration::registerable_worktree(&target).unwrap_or(target);
     let shown = target.display();
     match registration::unregister_worktree_with_daemon(&target) {
         WorktreeUnregistration::Unregistered => println!("Unregistered {shown}."),
@@ -317,15 +329,12 @@ enum RegisteredSet {
 fn registered_worktrees() -> RegisteredSet {
     match crate::commands::intercept::query_daemon_status() {
         Ok(status) => {
+            // Use the shared accessor (ACTMO-017) so the durable-membership
+            // predicate lives in exactly one place.
             let set = status
-                .sessions
+                .registered_worktrees()
                 .iter()
-                .filter(|session| {
-                    session.agent_tag.as_ref().is_some_and(
-                        anvil_intercept_proto::session::AgentTag::is_durable_membership,
-                    )
-                })
-                .map(|session| dunce_canonical(&session.worktree))
+                .map(|worktree| dunce_canonical(worktree))
                 .collect();
             RegisteredSet::Known(set)
         }
@@ -376,11 +385,16 @@ fn run_register_all() -> Result<()> {
         }
         // Per-entry progress so a large allowlist never reads as a hang.
         println!("Registering {} ...", entry.path.display());
-        if let Err(reason) = registration::registerable_worktree(&entry.path) {
-            skips.push(format!("{} — {reason}", entry.path.display()));
-            continue;
-        }
-        match registration::register_worktree_with_daemon(&entry.path) {
+        // Register the resolved worktree ROOT, not the raw allow entry, so an
+        // entry pointing inside a worktree still keys on the worktree.
+        let root = match registration::registerable_worktree(&entry.path) {
+            Ok(root) => root,
+            Err(reason) => {
+                skips.push(format!("{} — {reason}", entry.path.display()));
+                continue;
+            }
+        };
+        match registration::register_worktree_with_daemon(&root) {
             WorktreeRegistration::Registered | WorktreeRegistration::Refreshed => registered += 1,
             WorktreeRegistration::DaemonUnavailable => {
                 println!("Daemon unavailable — stopping. Start it with `anvil start` and retry.");
