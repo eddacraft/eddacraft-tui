@@ -715,7 +715,7 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 - **Status:** Proposed
 - **Source:** Copilot review on [PR #2993](https://github.com/eddacraft/anvil-001/pull/2993)
   (the ACTMO-014 F4 cap-exemption follow-up). Durable membership — and all three
-  of its consequences (persistence, 30 s TTL-exemption, and the per-worktree
+  of its consequences (persistence, 30s TTL-exemption, and the per-worktree
   live-session cap exemption) — is classified solely from the **client-supplied**
   `AgentTag::claimed_agent_id == "activation-spine"`
   (`crates/anvil-intercept-proto/src/session.rs`), which
@@ -733,8 +733,9 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
   consequences. Options to evaluate (owner decision):
   (a) require the activation `driver_id` (`anvil-start`) **and** the deterministic
   `sess_activation_*` session-id shape the activation client derives;
-  (b) a daemon-minted membership token returned from an explicit
-  `workspace.register`-kind verb and echoed on subsequent calls;
+  (b) a daemon-minted membership token returned from an explicit registration
+  RPC — a **new** verb building on `session.register` (no `workspace.register`
+  IPC method exists today) — and echoed on subsequent calls;
   (c) a server-side `RegistrationKind` set by the dispatcher (never read from the
   wire tag). Back-compat: existing activation clients keep working without a CLI
   change where the chosen mechanism allows; the persisted `registered-worktrees`
