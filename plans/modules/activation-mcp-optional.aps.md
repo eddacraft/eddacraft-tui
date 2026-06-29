@@ -2,7 +2,7 @@
 
 | ID    | Owner | Status | Progress |
 | ----- | ----- | ------ | -------- |
-| ACTMO | Josh  | In Progress | 12/12 |
+| ACTMO | Josh  | In Progress | 13/21 |
 
 **Last reviewed:** 2026-06-26 — ACTMO-001 through ACTMO-010 completed on
 `feat/actmo-spine`: ADR-092 accepted; `anvil start` now performs MCP-independent
@@ -33,11 +33,16 @@ shipped, reconciliation recorded in the work item). **ACTMO-012** remains
 Originally created **Ready** from
 v0.8.2-beta Windows smoke ([#2937](https://github.com/eddacraft/anvil-001/issues/2937));
 design [#2939](https://github.com/eddacraft/anvil-001/issues/2939). ADR-092
-Accepted pins the MCP-optional spine decision. **ACTMO-013** is **Proposed** from
-the 2026-06-29 operator usefulness review: define registration UX for
-later-created worktrees, `anvil start` outside a worktree, duplicate
-registration/heartbeat semantics, possible Worktrunk auto-registration, and a
-scoped local app as a human-visible daemon vehicle.
+Accepted pins the MCP-optional spine decision. **ACTMO-013** is **Done**
+(2026-06-29): the registration-UX design
+([spec](../specs/2026-06-29-worktree-registration-ux-design.md) +
+[ADR-094](../decisions/094-worktree-registration-ux.md), Proposed) was
+planning-council hardened — the keystone decision is that durable registration is
+a daemon-side persisted, TTL-exempt, reload-on-start set (not the 30s session
+lease) — and splits into **ACTMO-014..017** (Ready, cut-line), **ACTMO-018**
+(Ready, additive), and **ACTMO-019..021** (Proposed). The module moves to
+**13/21**; the cut-line usefulness shape also depends on a promoted+split DSV-046.
+Counts are advisory (ADR-053) pending `pnpm aps:index` reconcile.
 
 ## Purpose
 
@@ -422,7 +427,27 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 
 ### ACTMO-013: Subsequent worktree registration UX
 
-- **Status:** Proposed
+- **Status:** Done
+- **Delivered (2026-06-29):** Design note
+  [`worktree-registration UX design`](../specs/2026-06-29-worktree-registration-ux-design.md)
+  + [ADR-094](../decisions/094-worktree-registration-ux.md) (Proposed),
+  hardened by a four-persona planning council. The council's load-bearing finding:
+  the draft built *durable membership* on the registry's 30s in-memory heartbeat
+  lease, so a one-shot CLI registration would evict ~30s after the process exits
+  and a daemon restart would drop the whole set. Resolution: durable registration
+  is a daemon-side **persisted, TTL-exempt, reload-on-start** set (reaper +
+  distinct-worktree cap), reusing the `session.register` RPC but changing daemon
+  semantics. Registration surface is `anvil workspace register [PATH]` /
+  `unregister` (not `anvil intercept`); `--all` is bounded to exact
+  confinement-allowlist entries (never a filesystem scan); the persistent
+  `register_on_start` list is a separate additive `workspace.yaml` key (not a
+  field on `deny_unknown_fields` `AllowEntry`) deferred behind owner sign-off;
+  status splits into membership vs assurance axes; the DSV-046 driver subscribes
+  to a registry membership-change signal; new-worktree auto-registration is a
+  guided `anvil workspace install-hook`; a local app is a scoped, deferred
+  daemon-control surface only. Splits into **ACTMO-014..017** (Ready, cut-line),
+  **ACTMO-018** (Ready, additive), **ACTMO-019..021** (Proposed). The design is a
+  proposal; ADR-094 stays Proposed pending owner ratification.
 - **Source:** Operator grounding session 2026-06-29 identified a daemon/worktree
   lifecycle gap: the per-user daemon may already be running, `anvil start` may be
   invoked outside a Git worktree, and later-created Worktrunk/Git worktrees need a
@@ -463,4 +488,224 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
   user/agent workflow and outside-worktree semantics need an explicit contract.
 - **changeType:** feature
 - **releaseIntent:** candidate
+- **releaseScope:** minor
+
+### ACTMO-014: Durable registration primitive
+
+- **Status:** Ready
+- **Source:** ACTMO-013 design + planning council (2026-06-29). The registry is
+  in-memory with a 30s heartbeat TTL (`crates/anvil-intercept/src/registry.rs:69-72`)
+  and reloads only fences on startup (`crates/anvil-intercept/src/lib.rs:1307-1324`),
+  so a one-shot registration evicts ~30s after the process exits and a daemon
+  restart drops the whole set. Keystone for the rest of the split.
+- **Intent:** Make activation-tagged worktree registration durable membership,
+  not a 30s session lease.
+- **Expected Outcome:** Activation-tagged (`claimed_agent_id:"activation-spine"`)
+  registrations are persisted to a durable store under `ANVIL_HOME`, exempt from
+  the 30s eviction, and reloaded on daemon startup before accepting connections
+  (analogous to fence loading), with an INFO "registered N worktrees on startup".
+  Live `anvil-run` sessions keep the existing lease. A reaper drops + reports
+  registered paths whose directory is gone; distinct registered worktrees are
+  capped (default 64, configurable). The `pub(super)` primitive
+  (`activation/daemon_registration.rs:26`) moves to a shared `registration`
+  module; the client classifies daemon errors (`WorktreeAlreadyOwned` → heartbeat
+  the existing owner; `WorktreeFenced`/`WorktreeCascaded` → point at
+  `anvil intercept unblock`; `SessionCapExceeded` → cap message) and uses
+  `dunce::canonicalize` with server-authoritative identity (verify returned
+  worktree matches before treating a result as a heartbeat). A "registerable
+  worktree" helper resolves via `git rev-parse` (reject bare + `.git`-internal;
+  accept linked + submodule worktrees). The registry emits a membership-change
+  signal (register/unregister/reaper) for DSV-046's driver to subscribe to.
+- **Validation:** register then wait > 30s (still registered); restart the daemon
+  (set reloaded); `git worktree remove` a registered dir (dropped + reported);
+  register past the cap (clear error); same path via a different spelling/symlink
+  (`WorktreeAlreadyOwned` → heartbeat, not `Rejected`); Windows display paths free
+  of `\\?\`; bare/`.git`-internal rejected, submodule/linked accepted.
+- **Files:** `crates/anvil-cli/src/activation/daemon_registration.rs`
+  (→ shared `registration` module), `crates/anvil-intercept/src/{registry,lib,ipc}.rs`,
+  `crates/anvil-intercept-proto/src/status.rs`
+- **Dependencies:** ACTMO-002 (MCP-independent registration); coordinates with
+  DSV-046 (membership-change signal consumer).
+- **Confidence:** medium — the primitive exists; persistence + TTL-exemption +
+  reload + reaper + cap are new daemon-side semantics.
+- **changeType:** feature
+- **releaseIntent:** candidate
+- **releaseScope:** minor
+
+### ACTMO-015: `anvil workspace register` / `unregister` command
+
+- **Status:** Ready
+- **Source:** ACTMO-013 design D1. `commands/workspace.rs` is config-only today
+  (no daemon IPC); there is no command to register a later/other worktree.
+- **Intent:** Add the explicit registration surface on the `anvil workspace` noun.
+- **Expected Outcome:** `anvil workspace register [PATH]` (PATH defaults to cwd;
+  explicit path registers a later/other worktree) and `anvil workspace unregister
+  [PATH]` (idempotent) call the durable primitive (ACTMO-014). `anvil workspace
+  list` becomes a config↔registry join: degraded behaviour when the daemon is
+  unreachable (config half renders; registered half shows "daemon unavailable"),
+  and the join canonicalises allowlist paths via `dunce` before comparing to
+  registry keys.
+- **Validation:** register no-path in a worktree (`Registered`); register an
+  explicit path without changing cwd; unregister is idempotent; `list` with the
+  daemon down still renders the config half; re-register reports `Refreshed`.
+- **Files:** `crates/anvil-cli/src/commands/workspace.rs`,
+  shared `registration` module
+- **Dependencies:** ACTMO-014
+- **Confidence:** high
+- **changeType:** feature
+- **releaseIntent:** candidate
+- **releaseScope:** minor
+
+### ACTMO-016: Outside-worktree `anvil start` honest behaviour
+
+- **Status:** Ready
+- **Source:** ACTMO-013 design D2. `anvil start` always registers cwd
+  (`daemon_registration.rs:26` called with `"."`); outside a worktree it would
+  register a junk session keyed to e.g. `$HOME`.
+- **Intent:** Make `anvil start` honest and non-fatal when cwd is not a
+  registerable worktree.
+- **Expected Outcome:** When cwd is not a registerable worktree, `anvil start`
+  ensures the per-user daemon (unless `--no-daemon`/`ANVIL_NO_DAEMON`), does not
+  register cwd, reports "daemon ready; no worktree registered (run from inside a
+  worktree, or `anvil workspace register <path>`)", and exits 0 — an honest state
+  distinct from `protecting`. Uses the shared registerable-worktree helper
+  (ACTMO-014).
+- **Validation:** `anvil start` in a non-worktree dir (exit 0; daemon ensured;
+  guidance shown; cwd not registered); `--no-daemon` skips daemon ensure with a
+  message; bare repo / cwd inside `.git` rejected; submodule + linked worktree
+  accepted.
+- **Files:** `crates/anvil-cli/src/commands/start.rs`,
+  `crates/anvil-cli/src/activation/orchestrator/mod.rs`, shared `registration` module
+- **Dependencies:** ACTMO-014 (registerable-worktree helper)
+- **Confidence:** high
+- **changeType:** feature
+- **releaseIntent:** candidate
+- **releaseScope:** patch
+
+### ACTMO-017: Registered-worktree status surfacing
+
+- **Status:** Ready
+- **Source:** ACTMO-013 design D6. `anvil status` plain text omits the worktree
+  list though `--json` carries it; `anvil intercept stop` reports nothing about
+  worktrees losing protection.
+- **Intent:** Surface the registered set and its protection state truthfully.
+- **Expected Outcome:** `anvil status` plain text lists registered worktrees on
+  two axes — membership (`registered`/`fenced`/`cascaded`/`unregistered`, from
+  `WorktreeStatusV1`) and assurance (`clean`/`stale`/`pending`/`running`/`bounded`/
+  `unavailable`, parallel query) — and flags whether the current cwd is
+  registered. The `protecting` vs `watching` label (ADR-092) is acknowledged as a
+  wire/query addition (new `WorktreeStatusV1` field or per-worktree assurance
+  query) with a fixed derivation table in this item. `anvil intercept stop`
+  best-effort queries `session.list` and prints "stopping daemon; N worktree(s)
+  registered" when N > 0; the daemon shutdown path emits one INFO event with the
+  count.
+- **Validation:** status after registering 2 worktrees lists both with both axes +
+  cwd flag; `intercept stop` with N>0 prints the guidance and logs the count;
+  evicted/absent sessions render as `unregistered`, never a phantom `stale`
+  membership.
+- **Files:** `crates/anvil-cli/src/commands/status.rs`,
+  `crates/anvil-cli/src/commands/intercept.rs`,
+  `crates/anvil-intercept-proto/src/status.rs`,
+  `crates/anvil-cli/src/activation/render.rs`
+- **Dependencies:** ACTMO-014; soft-dep DSV-046 (the `watching` label needs an
+  attached driver)
+- **Confidence:** medium — the `watching` label needs a wire/query addition.
+- **changeType:** feature
+- **releaseIntent:** candidate
+- **releaseScope:** minor
+
+### ACTMO-018: Bounded `anvil workspace register --all`
+
+- **Status:** Ready
+- **Source:** ACTMO-013 design D5 (manual layer). A bounded "register everything
+  in scope" without a filesystem scan.
+- **Intent:** Register the operator's curated in-scope worktrees in one command,
+  bounded strictly by the confinement allowlist.
+- **Expected Outcome:** `anvil workspace register --all` registers the **exact**,
+  allowlist-mode `allow` entries of `workspace.yaml` that are live, unfenced Git
+  worktrees. Prefix entries are skipped with an explicit warning (walking them
+  would be the forbidden scan); all skips (prefix/fenced/gone/not-a-worktree) are
+  reported, not silent; `open` mode reports "no allowlist entries (confinement
+  mode: open)"; `--no-daemon`/`ANVIL_NO_DAEMON` bypasses with a message;
+  per-entry progress is printed so a large allowlist does not read as a hang.
+- **Validation:** `--all` over a mixed allowlist (only exact live unfenced
+  registered; prefix/fenced/gone reported); `--all` in `open` mode (honest
+  message); `--all --no-daemon` (skipped + message); no filesystem walk performed.
+- **Files:** `crates/anvil-cli/src/commands/workspace.rs`,
+  `crates/anvil-intercept/src/confinement.rs` (read-only enumeration)
+- **Dependencies:** ACTMO-014, ACTMO-015
+- **Confidence:** high
+- **changeType:** feature
+- **releaseIntent:** candidate
+- **releaseScope:** minor
+
+### ACTMO-019: Persistent `register_on_start` config + daemon startup registration
+
+- **Status:** Proposed
+- **Source:** ACTMO-013 design D5 (persistent layer). Council Critical-2: adding a
+  field to the `deny_unknown_fields` `AllowEntry` makes an older daemon fail
+  **closed** and collapse the confinement trust floor. Schema commitment needs
+  owner sign-off.
+- **Intent:** Let the daemon auto-register a curated set of in-scope worktrees on
+  startup, durably, without coupling to the confinement admission schema.
+- **Expected Outcome:** A **separate additive top-level key** `register_on_start:
+  [paths]` in `workspace.yaml` (NOT a field on `AllowEntry`) with a config
+  format-version bump and documented forward/back-compat. The daemon registers
+  these entries on startup (atop ACTMO-014's persisted set). Confinement
+  admission membership and registration membership remain distinct sets.
+- **Validation:** `register_on_start` entries auto-register after daemon restart;
+  an older daemon binary reading a `register_on_start`-bearing config does **not**
+  fail closed (format-version handling); no filesystem scan.
+- **Files:** `crates/anvil-intercept/src/confinement.rs`,
+  `crates/anvil-intercept/src/lib.rs`, `crates/anvil-cli/src/commands/workspace.rs`
+- **Dependencies:** ACTMO-014
+- **Confidence:** medium — depends on the config format-version forward-compat
+  decision and owner sign-off on the schema commitment.
+- **changeType:** feature
+- **releaseIntent:** candidate
+- **releaseScope:** minor
+
+### ACTMO-020: Guided new-worktree auto-registration
+
+- **Status:** Proposed
+- **Source:** ACTMO-013 design D7. Git has no native post-`worktree add` hook;
+  no Worktrunk integration exists today.
+- **Intent:** Give a guided, portable opt-in so newly-created worktrees register
+  without re-running the full activation mental model.
+- **Expected Outcome:** `anvil workspace install-hook` (its own subcommand, not a
+  flag on `register`) installs a documented Git config alias pinned to a portable
+  `sh` form (works under Git-for-Windows MinGW) and prints a PowerShell
+  equivalent when Windows lacks `sh`; it never silently shims `git`. A Worktrunk
+  post-create hook template is shipped only if Worktrunk exposes such a hook —
+  design-gated pending confirmation of that surface.
+- **Validation:** `install-hook` then `git wt-add` auto-registers the new worktree
+  (Unix `sh` + Windows PowerShell forms); no silent `git` interception.
+- **Files:** `crates/anvil-cli/src/commands/workspace.rs`, activation/Worktrunk docs
+- **Dependencies:** ACTMO-015
+- **Confidence:** low — Worktrunk hook surface unverified.
+- **changeType:** feature
+- **releaseIntent:** candidate
+- **releaseScope:** minor
+
+### ACTMO-021: Scoped local daemon-control app
+
+- **Status:** Proposed
+- **Source:** ACTMO-013 design D8. Operator review raised a human-visible daemon
+  vehicle; the work item constrains it to a control surface only.
+- **Intent:** Provide an optional, scoped local app as the human-visible vehicle
+  for daemon control, deferred past the `v0.9.0-beta` cut.
+- **Expected Outcome:** A small local tray/menu-bar app scoped strictly to daemon
+  control: start/stop the daemon, list registered worktrees, show protection
+  state and recent fences, prompt to register the current worktree — a thin
+  client over the existing `query_status` / `session.list` / `session.register` /
+  `session.unregister` / `unblock` IPC verbs. Explicitly **not** a findings/graph
+  UI, config editor beyond register/unregister, or a separate product surface.
+- **Validation:** app "register current worktree" issues the same
+  `session.register` and the worktree appears in `anvil status`; app surfaces only
+  control-plane state.
+- **Files:** new app crate (TBD if accepted), reusing `crates/anvil-intercept-proto`
+- **Dependencies:** ACTMO-014, ACTMO-017
+- **Confidence:** low — deferred; needs an explicit owner decision to build.
+- **changeType:** feature
+- **releaseIntent:** deferred
 - **releaseScope:** minor
