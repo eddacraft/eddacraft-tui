@@ -65,6 +65,7 @@ pub mod midedit;
 #[cfg(unix)]
 pub mod path_safety;
 pub mod rate_window;
+pub mod registration_store;
 pub mod registry;
 pub mod rule_cache;
 #[cfg(unix)]
@@ -76,6 +77,7 @@ pub mod snapshot_io;
 #[cfg(any(unix, windows))]
 pub mod save_time;
 pub mod status;
+pub mod store_io;
 pub mod tag_env;
 pub mod telemetry;
 pub mod unregistered;
@@ -123,6 +125,12 @@ use tokio::task::JoinHandle;
 struct RegistryDispatcher {
     registry: Arc<SessionRegistry>,
     fence_store: Arc<fence::FenceStore>,
+    /// ACTMO-014: the durable-registration persistence shadow. `None` for
+    /// embedded-mode / test dispatchers that do not persist; production wires
+    /// it in `run_foreground`. A durable (activation-spine) register upserts
+    /// here and a durable unregister prunes here, so the membership set
+    /// survives a daemon restart.
+    registration_store: Option<Arc<registration_store::RegistrationStore>>,
 }
 
 impl RegistryDispatcher {
@@ -130,6 +138,67 @@ impl RegistryDispatcher {
         Self {
             registry,
             fence_store,
+            registration_store: None,
+        }
+    }
+
+    /// ACTMO-014: attach the durable-registration store so durable
+    /// registrations are persisted under `ANVIL_HOME`.
+    #[must_use]
+    fn with_registration_store(
+        mut self,
+        store: Arc<registration_store::RegistrationStore>,
+    ) -> Self {
+        self.registration_store = Some(store);
+        self
+    }
+
+    /// ACTMO-014: persist a successful durable registration. Best-effort — a
+    /// disk failure logs loudly but does not fail the registration (the
+    /// worktree is protected for this daemon's lifetime regardless; the
+    /// reload-on-start net covers the normal case). Non-durable (live agent)
+    /// sessions are never persisted.
+    fn persist_durable_register(
+        &self,
+        id: &anvil_intercept_proto::SessionId,
+        worktree: &Path,
+        agent_tag: Option<&anvil_intercept_proto::session::AgentTag>,
+    ) {
+        let Some(store) = self.registration_store.as_ref() else {
+            return;
+        };
+        if !agent_tag.is_some_and(anvil_intercept_proto::session::AgentTag::is_durable_membership) {
+            return;
+        }
+        // Mirror the registry's canonicalisation so the persisted key matches
+        // the in-memory key the reaper and status surfacing use.
+        let canonical = std::fs::canonicalize(worktree).unwrap_or_else(|_| worktree.to_path_buf());
+        let record =
+            registration_store::RegistrationRecord::new(id.clone(), canonical, agent_tag.cloned());
+        if let Err(err) = store.upsert(record) {
+            tracing::error!(
+                target: "anvil_intercept::registration",
+                error = %err,
+                worktree = %worktree.display(),
+                "failed to persist durable worktree registration — it will not \
+                 survive a daemon restart",
+            );
+        }
+    }
+
+    /// ACTMO-014: prune a durably-registered worktree from the persisted store
+    /// once its last durable session has been unregistered. Best-effort.
+    fn persist_durable_unregister(&self, worktree: &Path) {
+        let Some(store) = self.registration_store.as_ref() else {
+            return;
+        };
+        if let Err(err) = store.remove(worktree) {
+            tracing::error!(
+                target: "anvil_intercept::registration",
+                error = %err,
+                worktree = %worktree.display(),
+                "failed to prune durable worktree registration from the store",
+            );
         }
     }
 }
@@ -166,7 +235,10 @@ impl SessionDispatcher for RegistryDispatcher {
                 worktree: worktree.to_path_buf(),
             });
         }
-        SessionDispatcher::register(self.registry.as_ref(), id, worktree, agent_tag, lineage)
+        SessionDispatcher::register(self.registry.as_ref(), id, worktree, agent_tag, lineage)?;
+        // ACTMO-014: persist durable membership after the registry accepts it.
+        self.persist_durable_register(id, worktree, agent_tag);
+        Ok(())
     }
 
     fn heartbeat(&self, id: &anvil_intercept_proto::SessionId) -> Result<(), RegistryError> {
@@ -174,7 +246,17 @@ impl SessionDispatcher for RegistryDispatcher {
     }
 
     fn unregister(&self, id: &anvil_intercept_proto::SessionId) -> Result<bool, RegistryError> {
-        SessionDispatcher::unregister(self.registry.as_ref(), id)
+        // ACTMO-014: capture the durable worktree (if any) BEFORE removal so we
+        // can prune the persisted store once the last durable session leaves.
+        let durable_worktree = self.registry.durable_worktree_for(id);
+        let removed = SessionDispatcher::unregister(self.registry.as_ref(), id)?;
+        if removed
+            && let Some(worktree) = durable_worktree
+            && !self.registry.is_registered(&worktree)
+        {
+            self.persist_durable_unregister(&worktree);
+        }
+        Ok(removed)
     }
 
     fn list(&self) -> Vec<anvil_intercept_proto::SessionRecord> {
@@ -548,6 +630,15 @@ impl ForegroundOpts {
             .clone()
             .map_or_else(fence::default_fence_state_path, Ok)
             .context("failed to resolve intercept fence store path")
+    }
+
+    /// ACTMO-014: the durable registration store sits beside the fence store
+    /// under `ANVIL_HOME`, so any fence-store override (tests, embedded mode)
+    /// keeps the two co-located in one state directory.
+    fn registration_store_path(&self) -> Result<PathBuf> {
+        Ok(self
+            .fence_store_path()?
+            .with_file_name("registered-worktrees.json"))
     }
 
     #[cfg(unix)]
@@ -1304,6 +1395,75 @@ pub async fn wait_for_shutdown_signal() -> Result<()> {
 /// `shutdown` is triggered (by SIGINT/SIGTERM in production, or by
 /// the caller in tests). The foreground daemon owns the session
 /// registry, serves the IPC listener, and ticks stale-session eviction.
+/// ACTMO-014: outcome of a durable-registration reload — how many worktrees
+/// were re-seeded into the registry and how many were reaped (directory gone
+/// or no longer registerable).
+struct ReloadOutcome {
+    reloaded: usize,
+    reaped: usize,
+}
+
+/// ACTMO-014: reload the persisted durable registration set into `registry`
+/// before the daemon accepts connections (ADR-094 decision 1). Entries whose
+/// worktree directory is gone — or that no longer register cleanly — are
+/// reaped, and the pruned set is persisted so the on-disk shadow matches what
+/// was actually reloaded. Factored out of `run_foreground` so the load-bearing
+/// restart-recovery path is unit-testable without spinning the IPC listener.
+fn reload_durable_registrations(
+    store: &registration_store::RegistrationStore,
+    registry: &SessionRegistry,
+) -> Result<ReloadOutcome> {
+    let persisted = store.load().with_context(|| {
+        format!(
+            "failed to load registration store {}",
+            store.path().display()
+        )
+    })?;
+    let mut survivors = Vec::with_capacity(persisted.len());
+    let mut reaped = 0usize;
+    for record in persisted {
+        if !record.worktree.exists() {
+            reaped += 1;
+            continue;
+        }
+        match registry.register(
+            &record.session_id,
+            &record.worktree,
+            record.agent_tag.as_ref(),
+            Instant::now(),
+        ) {
+            Ok(_) => survivors.push(record),
+            Err(err) => {
+                // A worktree that no longer canonicalises the same way, or
+                // collides with another reloaded entry, is dropped from the set
+                // rather than failing startup.
+                tracing::warn!(
+                    target: "anvil_intercept::registration",
+                    error = %err,
+                    worktree = %record.worktree.display(),
+                    "skipped reloading a durable worktree registration",
+                );
+                reaped += 1;
+            }
+        }
+    }
+    if reaped > 0 {
+        // Best-effort prune of the on-disk shadow; a write failure here logs
+        // but does not fail startup (the in-memory set is already correct).
+        if let Err(err) = store.replace_all(&survivors) {
+            tracing::error!(
+                target: "anvil_intercept::registration",
+                error = %err,
+                "failed to persist the pruned registration set on startup",
+            );
+        }
+    }
+    Ok(ReloadOutcome {
+        reloaded: survivors.len(),
+        reaped,
+    })
+}
+
 #[allow(clippy::too_many_lines)]
 pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> Result<()> {
     let pid_file_path = opts.pid_file_path()?;
@@ -1325,12 +1485,44 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
         );
     }
 
+    // ACTMO-014: reload the durable registration set before accepting
+    // connections — analogous to the fence reload above. Reap entries whose
+    // worktree directory is gone, seed survivors into the registry as durable
+    // (TTL-exempt) members, and persist the pruned set so the on-disk shadow
+    // matches what was actually reloaded.
+    let registration_store_path = opts.registration_store_path()?;
+    let registration_store = Arc::new(registration_store::RegistrationStore::at_path(
+        &registration_store_path,
+    ));
+    let reload = reload_durable_registrations(&registration_store, &daemon_state.registry)
+        .with_context(|| {
+            format!(
+                "failed to load registration store {}",
+                registration_store_path.display()
+            )
+        })?;
+    if reload.reaped > 0 {
+        tracing::info!(
+            target: "anvil_intercept::registration",
+            count = reload.reaped,
+            "reaped durable worktree registrations whose directory is gone on startup",
+        );
+    }
+    if reload.reloaded > 0 {
+        tracing::info!(
+            target: "anvil_intercept::registration",
+            count = reload.reloaded,
+            "registered worktrees on startup",
+        );
+    }
+
     #[cfg(any(unix, windows))]
     {
         let dispatcher = RegistryDispatcher::new(
             Arc::clone(&daemon_state.registry),
             Arc::clone(&daemon_state.fence_store),
-        );
+        )
+        .with_registration_store(Arc::clone(&registration_store));
         let scan_buffer = opts.scan_buffer.clone();
         // USAGE-004: the command-invocation usage producer, injected by
         // `anvil-cli`. `None` ⇒ no usage rows.
@@ -1601,6 +1793,13 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
             listener.serve(listener_token).await
         }));
         let mut tick = tokio::time::interval(Duration::from_millis(250));
+        // ACTMO-014: a slow periodic reaper that drops durable registrations
+        // whose worktree directory is gone (e.g. `git worktree remove`d while
+        // the daemon ran). Far slower than the 250 ms eviction tick because it
+        // stats the filesystem per durable worktree; the set is capped (≤64) so
+        // a 60 s sweep is cheap and bounded.
+        let mut reaper_tick = tokio::time::interval(Duration::from_mins(1));
+        reaper_tick.reset(); // skip the immediate first fire; startup already reaped
         // CIB-095d + N2: persist every warm worktree's graph on **either** exit
         // path (graceful `token.cancelled()` AND listener-failure) so a warm
         // graph is never silently lost when persistence is enabled. Offloaded to
@@ -1644,6 +1843,26 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
                             count = evicted.len(),
                             "evicted stale intercept sessions",
                         );
+                    }
+                }
+                _ = reaper_tick.tick() => {
+                    let reaped = daemon_state.registry.reap_missing(Path::exists);
+                    if !reaped.is_empty() {
+                        tracing::info!(
+                            target: "anvil_intercept::registration",
+                            count = reaped.len(),
+                            "reaped durable worktree registrations whose directory is gone",
+                        );
+                        for worktree in &reaped {
+                            if let Err(err) = registration_store.remove(worktree) {
+                                tracing::error!(
+                                    target: "anvil_intercept::registration",
+                                    error = %err,
+                                    worktree = %worktree.display(),
+                                    "failed to prune a reaped registration from the store",
+                                );
+                            }
+                        }
                     }
                 }
             }
@@ -1696,6 +1915,63 @@ mod tests {
     use tokio::time::{sleep, timeout};
 
     use super::*;
+
+    /// ACTMO-014: a secure (`0700`) state dir under a tempdir, mirroring
+    /// `$ANVIL_HOME`, so the registration store's owner-only-parent check
+    /// accepts a hand-built fixture.
+    fn secure_store_path(dir: &tempfile::TempDir) -> PathBuf {
+        let state = dir.path().join("state");
+        fs::create_dir_all(&state).expect("create state dir");
+        #[cfg(unix)]
+        fs::set_permissions(&state, fs::Permissions::from_mode(0o700)).expect("chmod");
+        state.join("registered-worktrees.json")
+    }
+
+    /// ACTMO-014 D4 (restart recovery + reaper): a persisted registration whose
+    /// worktree still exists is reloaded into the registry as durable
+    /// membership; one whose directory is gone is reaped and pruned from the
+    /// store. This is the load-bearing "survive a daemon restart" path.
+    #[test]
+    fn reload_durable_registrations_reloads_survivors_and_reaps_missing() {
+        let home = tempfile::tempdir().expect("home");
+        let store = registration_store::RegistrationStore::at_path(secure_store_path(&home));
+        let live = tempfile::tempdir().expect("live worktree");
+        let live_canonical = fs::canonicalize(live.path()).expect("canonicalise");
+        let spine = anvil_intercept_proto::session::AgentTag::new(
+            "anvil-start",
+            anvil_intercept_proto::session::ACTIVATION_SPINE_CLAIMED_AGENT_ID,
+            0,
+        );
+
+        store
+            .upsert(registration_store::RegistrationRecord::new(
+                SessionId::new("sess_activation_live"),
+                live_canonical.clone(),
+                Some(spine.clone()),
+            ))
+            .expect("persist live");
+        store
+            .upsert(registration_store::RegistrationRecord::new(
+                SessionId::new("sess_activation_gone"),
+                PathBuf::from("/nonexistent/anvil/worktree-gone"),
+                Some(spine),
+            ))
+            .expect("persist gone");
+
+        let registry = SessionRegistry::new();
+        let outcome = reload_durable_registrations(&store, &registry).expect("reload");
+
+        assert_eq!(outcome.reloaded, 1, "only the live worktree reloads");
+        assert_eq!(outcome.reaped, 1, "the gone worktree is reaped");
+        assert_eq!(registry.registered_worktrees(), vec![live_canonical]);
+        // The on-disk shadow was pruned to match.
+        let remaining = store.load().expect("reload store");
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(
+            remaining[0].session_id,
+            SessionId::new("sess_activation_live")
+        );
+    }
 
     // DISTRIB-006 (ADR-060): ANVIL_HOME re-roots the daemon PID file directly
     // under the prefix, taking precedence over the runtime dir, so a candidate

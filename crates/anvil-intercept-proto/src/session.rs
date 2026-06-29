@@ -37,6 +37,17 @@ pub const ANVIL_AGENT_TAG_ENV: &str = "ANVIL_AGENT_TAG";
 /// being treated as authoritative.
 pub const ANVIL_TASK_ID_ENV: &str = "ANVIL_TASK_ID";
 
+/// ACTMO-014: the `claimed_agent_id` the activation spine (`anvil start`,
+/// `anvil workspace register`) stamps on its `AgentTag`. The daemon keys
+/// **durable worktree membership** on this value: a registration carrying
+/// it is persisted under `ANVIL_HOME`, exempt from the 30 s heartbeat TTL,
+/// and reloaded on startup — a *membership* registration rather than a live
+/// *agent-session* lease (ADR-094 decision 1). The CLI side
+/// (`anvil-cli/src/.../registration`) and the daemon registry both reference
+/// this single constant so the durability predicate cannot drift between
+/// producer and consumer.
+pub const ACTIVATION_SPINE_CLAIMED_AGENT_ID: &str = "activation-spine";
+
 /// Composite identity for a session within a worktree. Minted by the
 /// daemon at INTL-003 registration time from the launcher-supplied
 /// `(driver_id, claimed_agent_id)` plus the kernel-reported
@@ -81,6 +92,17 @@ impl AgentTag {
             claimed_agent_id: claimed_agent_id.into(),
             pid_starttime,
         }
+    }
+
+    /// ACTMO-014: `true` when this tag marks **durable worktree membership**
+    /// — i.e. its `claimed_agent_id` is
+    /// [`ACTIVATION_SPINE_CLAIMED_AGENT_ID`]. The daemon registry uses this to
+    /// decide whether a registration is persisted and exempt from the
+    /// heartbeat TTL (ADR-094 decision 1). Live agent sessions (a different
+    /// `claimed_agent_id`) keep the existing lease semantics.
+    #[must_use]
+    pub fn is_durable_membership(&self) -> bool {
+        self.claimed_agent_id == ACTIVATION_SPINE_CLAIMED_AGENT_ID
     }
 }
 
@@ -148,6 +170,22 @@ mod tests {
     fn env_var_names_match_planning_contract() {
         assert_eq!(ANVIL_AGENT_TAG_ENV, "ANVIL_AGENT_TAG");
         assert_eq!(ANVIL_TASK_ID_ENV, "ANVIL_TASK_ID");
+    }
+
+    /// ACTMO-014: the durability predicate keys off the activation-spine
+    /// `claimed_agent_id`. A live agent session (any other id) is not durable
+    /// membership, so it keeps the TTL lease.
+    #[test]
+    fn activation_spine_tag_is_durable_membership() {
+        let spine = AgentTag::new("anvil-start", ACTIVATION_SPINE_CLAIMED_AGENT_ID, 0);
+        assert!(spine.is_durable_membership());
+
+        let live = AgentTag::new("anvil-run", "claude-code-1", 1_700_000_000);
+        assert!(!live.is_durable_membership());
+
+        // Pin the wire value: a rename here would silently break the daemon's
+        // persisted-set predicate and the CLI producer in lockstep.
+        assert_eq!(ACTIVATION_SPINE_CLAIMED_AGENT_ID, "activation-spine");
     }
 
     /// Pinned invariant: tags with different `pid_starttime` values

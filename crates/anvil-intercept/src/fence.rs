@@ -1,21 +1,42 @@
 use std::collections::{HashMap, HashSet};
 use std::env;
 use std::ffi::OsString;
-use std::fs::{self, File, OpenOptions};
+use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-#[cfg(unix)]
-use std::os::unix::fs::{DirBuilderExt, MetadataExt, OpenOptionsExt, PermissionsExt};
-
 use crate::rate_window::{RateDecision, RateWindow};
 use crate::registry::SessionRegistry;
+use crate::store_io::{
+    StoreIoError, create_store_file, ensure_store_parent, replace_store_file, temporary_store_path,
+    unix_seconds_now,
+};
 use crate::telemetry::{FenceTransition, TelemetryCorrelation, TelemetryEmitter};
+
+#[cfg(windows)]
+use crate::store_io::recover_windows_backup;
+#[cfg(unix)]
+use crate::store_io::{sync_parent, validate_store_parent};
+
+/// ACTMO-014: map the shared store IO error back into fence vocabulary so
+/// `fence.rs`'s public `FenceStoreError` surface (and the tests that assert
+/// `Write` / `InsecureStoreParent`) is unchanged after the `store_io`
+/// extraction.
+impl From<StoreIoError> for FenceStoreError {
+    fn from(error: StoreIoError) -> Self {
+        match error {
+            StoreIoError::Write { path, source } => Self::Write { path, source },
+            StoreIoError::InsecureStoreParent { path, reason } => {
+                Self::InsecureStoreParent { path, reason }
+            }
+        }
+    }
+}
 
 const FENCE_FILE_VERSION: u8 = 1;
 
@@ -455,12 +476,12 @@ impl FenceStore {
         #[cfg(unix)]
         if let Err(error) = validate_store_parent(&self.path) {
             self.clear_loaded_state();
-            return Err(error);
+            return Err(error.into());
         }
         #[cfg(windows)]
         if let Err(error) = recover_windows_backup(&self.path) {
             self.clear_loaded_state();
-            return Err(error);
+            return Err(error.into());
         }
         let content = match fs::read_to_string(&self.path) {
             Ok(content) => content,
@@ -842,105 +863,6 @@ fn original_worktree_alias(
     }
 }
 
-fn temporary_store_path(path: &Path) -> PathBuf {
-    let unique = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |duration| duration.as_nanos());
-    path.with_extension(format!("json.tmp.{}.{unique}", std::process::id()))
-}
-
-fn create_store_file(path: &Path) -> Result<File, FenceStoreError> {
-    let mut options = OpenOptions::new();
-    options.write(true).create_new(true);
-    #[cfg(unix)]
-    options.mode(0o600);
-    options.open(path).map_err(|source| FenceStoreError::Write {
-        path: path.to_path_buf(),
-        source,
-    })
-}
-
-fn replace_store_file(tmp: &Path, target: &Path) -> Result<(), FenceStoreError> {
-    #[cfg(windows)]
-    {
-        let backup = windows_backup_path(target);
-        if backup.exists() {
-            fs::remove_file(&backup).map_err(|source| FenceStoreError::Write {
-                path: backup.clone(),
-                source,
-            })?;
-        }
-        match fs::rename(target, &backup) {
-            Ok(()) => {}
-            Err(source) if source.kind() == std::io::ErrorKind::NotFound => {}
-            Err(source) => {
-                return Err(FenceStoreError::Write {
-                    path: target.to_path_buf(),
-                    source,
-                });
-            }
-        }
-
-        if let Err(source) = fs::rename(tmp, target) {
-            if backup.exists() {
-                let _ = fs::rename(&backup, target);
-            }
-            return Err(FenceStoreError::Write {
-                path: target.to_path_buf(),
-                source,
-            });
-        }
-        if backup.exists() {
-            fs::remove_file(&backup).map_err(|source| FenceStoreError::Write {
-                path: backup,
-                source,
-            })?;
-        }
-        Ok(())
-    }
-
-    #[cfg(not(windows))]
-    {
-        fs::rename(tmp, target).map_err(|source| FenceStoreError::Write {
-            path: target.to_path_buf(),
-            source,
-        })
-    }
-}
-
-#[cfg(windows)]
-fn recover_windows_backup(target: &Path) -> Result<(), FenceStoreError> {
-    let backup = windows_backup_path(target);
-    if !target.exists() && backup.exists() {
-        fs::rename(&backup, target).map_err(|source| FenceStoreError::Write {
-            path: target.to_path_buf(),
-            source,
-        })?;
-    }
-    Ok(())
-}
-
-#[cfg(windows)]
-fn windows_backup_path(target: &Path) -> PathBuf {
-    target.with_extension("json.bak")
-}
-
-#[cfg(unix)]
-fn sync_parent(path: &Path) -> Result<(), FenceStoreError> {
-    let Some(parent) = path.parent() else {
-        return Ok(());
-    };
-
-    File::open(parent)
-        .and_then(|file| file.sync_all())
-        .map_err(|source| FenceStoreError::Write {
-            path: parent.to_path_buf(),
-            source,
-        })?;
-
-    Ok(())
-}
-
 pub fn default_fence_state_path() -> Result<PathBuf, FenceStoreError> {
     default_fence_state_path_from_env(|name| env::var_os(name))
 }
@@ -988,85 +910,6 @@ fn lookup_path(worktree: &Path) -> Option<PathBuf> {
     fs::canonicalize(worktree)
         .ok()
         .or_else(|| worktree.is_absolute().then(|| worktree.to_path_buf()))
-}
-
-fn ensure_store_parent(path: &Path) -> Result<(), FenceStoreError> {
-    let Some(parent) = path.parent() else {
-        return Ok(());
-    };
-
-    #[cfg(unix)]
-    {
-        let mut builder = fs::DirBuilder::new();
-        builder.recursive(true).mode(0o700);
-        builder
-            .create(parent)
-            .map_err(|source| FenceStoreError::Write {
-                path: parent.to_path_buf(),
-                source,
-            })?;
-        validate_existing_store_parent(parent)?;
-        fs::set_permissions(parent, fs::Permissions::from_mode(0o700)).map_err(|source| {
-            FenceStoreError::Write {
-                path: parent.to_path_buf(),
-                source,
-            }
-        })?;
-    }
-
-    #[cfg(not(unix))]
-    fs::create_dir_all(parent).map_err(|source| FenceStoreError::Write {
-        path: parent.to_path_buf(),
-        source,
-    })?;
-
-    Ok(())
-}
-
-#[cfg(unix)]
-fn validate_store_parent(path: &Path) -> Result<(), FenceStoreError> {
-    let Some(parent) = path.parent() else {
-        return Ok(());
-    };
-
-    if parent.exists() {
-        validate_existing_store_parent(parent)?;
-    }
-
-    Ok(())
-}
-
-#[cfg(unix)]
-fn validate_existing_store_parent(parent: &Path) -> Result<(), FenceStoreError> {
-    let metadata = fs::symlink_metadata(parent).map_err(|source| FenceStoreError::Write {
-        path: parent.to_path_buf(),
-        source,
-    })?;
-    if metadata.file_type().is_symlink() || !metadata.is_dir() {
-        return Err(FenceStoreError::InsecureStoreParent {
-            path: parent.to_path_buf(),
-            reason: "parent must be a real directory, not a symlink".to_string(),
-        });
-    }
-    if metadata.uid() != nix::unistd::geteuid().as_raw() {
-        return Err(FenceStoreError::InsecureStoreParent {
-            path: parent.to_path_buf(),
-            reason: "parent must be owned by the current user".to_string(),
-        });
-    }
-    if metadata.permissions().mode() & 0o077 != 0 {
-        return Err(FenceStoreError::InsecureStoreParent {
-            path: parent.to_path_buf(),
-            reason: "parent must be private to the current user".to_string(),
-        });
-    }
-    Ok(())
-}
-
-fn unix_seconds_now() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |duration| duration.as_secs())
 }
 
 #[cfg(test)]

@@ -12,7 +12,7 @@
 //!
 //! See `plans/modules/intercept-daemon.aps.md` task INTD-003.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -78,6 +78,15 @@ pub const DEFAULT_HEARTBEAT_TTL: Duration = Duration::from_secs(30);
 /// registry stays self-contained for callers that bypass the
 /// config layer.
 pub const DEFAULT_PER_WORKTREE_CAP: usize = 16;
+
+/// ACTMO-014: default cap on the number of **distinct durably-registered
+/// worktrees** (the persisted membership set), independent of
+/// [`DEFAULT_PER_WORKTREE_CAP`] (which bounds live sessions on one worktree).
+/// 64 distinct worktrees is a generous ceiling for a single operator's set of
+/// active checkouts while still bounding the otherwise-unbounded persisted set
+/// (ADR-094 decision 1 / council ops MAJOR). Configurable alongside
+/// `enforcement.session.per_worktree_max`.
+pub const DEFAULT_REGISTERED_WORKTREE_CAP: usize = 64;
 
 /// Errors returned by the synchronous registry surface. The wire layer
 /// (INTD-002) maps these onto JSON-RPC error codes; that mapping lives
@@ -159,6 +168,16 @@ pub enum RegistryError {
     #[error("worktree is in degraded fence-cascade mode and refuses new sessions: {worktree:?}")]
     WorktreeCascaded { worktree: PathBuf },
 
+    /// ACTMO-014: the durable registered-worktree membership set is at its
+    /// configured cap. Distinct from [`Self::SessionCapExceeded`], which
+    /// bounds live sessions on a single worktree; this bounds the number of
+    /// **distinct** worktrees persisted as durable members. `cap` is the
+    /// limit at refusal time; `live` is the distinct-worktree count observed.
+    /// Only durable (activation-spine) registrations of a *new* worktree can
+    /// trip it — refreshing an already-registered worktree never does.
+    #[error("registered worktree cap exceeded: {live} registered at cap={cap}")]
+    RegisteredWorktreeCapExceeded { cap: usize, live: usize },
+
     /// MLP2-074: a control-lane command that mutates per-session
     /// lineage state (today: `session.report_process`) was called
     /// from a peer whose authenticated pid does not match the
@@ -228,6 +247,16 @@ impl PartialEq for RegistryError {
             (Self::WorktreeCascaded { worktree: a }, Self::WorktreeCascaded { worktree: b }) => {
                 a == b
             }
+            (
+                Self::RegisteredWorktreeCapExceeded {
+                    cap: a_cap,
+                    live: a_live,
+                },
+                Self::RegisteredWorktreeCapExceeded {
+                    cap: b_cap,
+                    live: b_live,
+                },
+            ) => a_cap == b_cap && a_live == b_live,
             (
                 Self::FenceStateUnavailable { message: a },
                 Self::FenceStateUnavailable { message: b },
@@ -388,6 +417,21 @@ pub struct SessionRegistry {
     /// startup from `Resolved::session_per_worktree_max`. Tests
     /// override via [`SessionRegistry::with_per_worktree_cap`].
     per_worktree_cap: usize,
+    /// ACTMO-014: cap on the number of **distinct** durably-registered
+    /// worktrees (the persisted membership set). Default
+    /// [`DEFAULT_REGISTERED_WORKTREE_CAP`] (64); the daemon overrides via
+    /// [`SessionRegistry::with_registered_worktree_cap`]. Bounds the otherwise
+    /// unbounded persisted set; only a *new* durable worktree past the cap is
+    /// refused (a refresh of an existing member is always admitted).
+    registered_worktree_cap: usize,
+    /// ACTMO-014 (ADR-094 decision 7): opt-in producer for durable-membership
+    /// changes — register / unregister / reaper-drop of an activation-spine
+    /// registration. DSV-046's headless driver subscribes here to attach /
+    /// detach observation per worktree; ACTMO-013 only owns the *signal*, not
+    /// the driver. A `OnceLock` mirroring [`Self::unregister_hook`]: installed
+    /// post-construction via [`SessionRegistry::set_membership_hook`]. Empty by
+    /// default, so callers that do not need the seam pay nothing.
+    membership_hook: OnceLock<MembershipHook>,
     /// MLP2-057 / DSV: opt-in hook fired with the canonical worktree
     /// path each time a session is unregistered (deliberate
     /// `unregister` or TTL-driven `evict_stale`). The daemon wires
@@ -420,6 +464,29 @@ pub struct SessionRegistry {
 /// and [`crate::rule_cache::RuleSetCache::invalidate`] when MLP2-014 lands —
 /// each `O(1)` under its own mutex.
 pub type WorktreeUnregisterHook = Arc<dyn Fn(&Path) + Send + Sync>;
+
+/// ACTMO-014 (ADR-094 decision 7): the kind of durable-membership transition
+/// reported to a [`MembershipHook`]. The registry is the **sole producer** of
+/// these events; DSV-046's headless driver is the intended consumer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MembershipChange {
+    /// A worktree entered the durable membership set (first durable session
+    /// for that canonical path).
+    Registered,
+    /// A worktree left the durable set by explicit `unregister` of its last
+    /// durable session.
+    Unregistered,
+    /// A worktree left the durable set because the reaper found its directory
+    /// gone (e.g. `git worktree remove`).
+    Reaped,
+}
+
+/// ACTMO-014: callback fired with a [`MembershipChange`] and the canonical
+/// worktree path each time the durable membership set changes. Like
+/// [`WorktreeUnregisterHook`] it fires **outside** the registry's internal
+/// lock and should stay short. Only durable (activation-spine) membership
+/// transitions fire it — live agent-session leases do not.
+pub type MembershipHook = Arc<dyn Fn(MembershipChange, &Path) + Send + Sync>;
 
 struct Inner {
     /// `SessionId` -> record. Sole source of truth for the record body.
@@ -467,6 +534,33 @@ struct RegistryEntry {
     /// `SessionRegistry::register` directly. Phase E wires the IPC
     /// accept-loop call; Phase D adds the field + accessors.
     subscriber_binding: Option<String>,
+    /// ACTMO-014: `true` when this entry is **durable worktree membership**
+    /// (registered with an activation-spine [`AgentTag`], see
+    /// [`AgentTag::is_durable_membership`]) rather than a live agent-session
+    /// lease. Durable entries are exempt from [`SessionRegistry::evict_stale`]
+    /// and are the set persisted under `ANVIL_HOME` and reloaded on startup.
+    durable: bool,
+}
+
+impl Inner {
+    /// ACTMO-014: `true` when at least one durable session already owns this
+    /// canonical worktree — i.e. the worktree is already a durable member.
+    fn is_durable_member(&self, canonical: &Path) -> bool {
+        self.sessions
+            .values()
+            .any(|entry| entry.durable && entry.record.worktree == canonical)
+    }
+
+    /// ACTMO-014: the number of **distinct** worktrees in the durable
+    /// membership set, the quantity bounded by `registered_worktree_cap`.
+    fn distinct_durable_worktrees(&self) -> usize {
+        self.sessions
+            .values()
+            .filter(|entry| entry.durable)
+            .map(|entry| &entry.record.worktree)
+            .collect::<HashSet<_>>()
+            .len()
+    }
 }
 
 impl SessionRegistry {
@@ -489,6 +583,8 @@ impl SessionRegistry {
             }),
             ttl,
             per_worktree_cap: DEFAULT_PER_WORKTREE_CAP,
+            registered_worktree_cap: DEFAULT_REGISTERED_WORKTREE_CAP,
+            membership_hook: OnceLock::new(),
             unregister_hook: OnceLock::new(),
         }
     }
@@ -551,6 +647,33 @@ impl SessionRegistry {
         self
     }
 
+    /// ACTMO-014: builder-style override of the distinct-registered-worktree
+    /// cap. The daemon wires this from config at startup; tests use it to drive
+    /// the cap-exceeded path on a small fixture. Clamped to a minimum of 1,
+    /// mirroring [`Self::with_per_worktree_cap`].
+    #[must_use]
+    pub fn with_registered_worktree_cap(mut self, cap: usize) -> Self {
+        self.registered_worktree_cap = cap.max(1);
+        self
+    }
+
+    /// ACTMO-014 (ADR-094 decision 7): install the durable-membership hook on
+    /// an already `Arc`-wrapped registry. Set-once, mirroring
+    /// [`Self::set_unregister_hook`]: returns `true` if installed, `false` if a
+    /// hook was already present.
+    pub fn set_membership_hook(&self, hook: MembershipHook) -> bool {
+        self.membership_hook.set(hook).is_ok()
+    }
+
+    /// ACTMO-014: fire the membership hook outside the registry lock. No-op
+    /// when no hook is installed (the common cut-line posture until DSV-046
+    /// wires a consumer).
+    fn signal_membership(&self, change: MembershipChange, worktree: &Path) {
+        if let Some(hook) = self.membership_hook.get() {
+            hook(change, worktree);
+        }
+    }
+
     /// Register a new session against a worktree path.
     ///
     /// **Canonicalisation policy:** the worktree is run through
@@ -596,59 +719,88 @@ impl SessionRegistry {
     ) -> Result<SessionRecord, RegistryError> {
         let canonical = canonicalise(worktree)?;
         let cap = self.per_worktree_cap;
-        let mut inner = self.lock();
+        let registered_cap = self.registered_worktree_cap;
+        // ACTMO-014: an activation-spine tag marks durable membership, which is
+        // TTL-exempt and persisted. Any other tag (or none) is a live lease.
+        let durable = agent_tag.is_some_and(AgentTag::is_durable_membership);
 
-        if inner.sessions.contains_key(id) {
-            return Err(RegistryError::SessionAlreadyExists(id.clone()));
-        }
-        let composite_key = (canonical.clone(), agent_tag.cloned());
-        if let Some(existing) = inner.by_composite.get(&composite_key) {
-            return Err(RegistryError::WorktreeAlreadyOwned {
-                existing: existing.clone(),
-            });
-        }
+        let (record, signal_registered) = {
+            let mut inner = self.lock();
 
-        // MLP2-024: per-worktree session cap. Counted across all
-        // agent_tags on this canonical worktree, so the cap is a
-        // total-sub-agent budget, not a per-tag budget.
-        let live: usize = inner
-            .by_composite
-            .keys()
-            .filter(|(wt, _)| wt == &canonical)
-            .count();
-        if live >= cap {
-            return Err(RegistryError::SessionCapExceeded {
-                worktree: canonical,
-                cap,
-                live,
-            });
-        }
+            if inner.sessions.contains_key(id) {
+                return Err(RegistryError::SessionAlreadyExists(id.clone()));
+            }
+            let composite_key = (canonical.clone(), agent_tag.cloned());
+            if let Some(existing) = inner.by_composite.get(&composite_key) {
+                return Err(RegistryError::WorktreeAlreadyOwned {
+                    existing: existing.clone(),
+                });
+            }
 
-        let now_unix = unix_seconds_now();
-        let record = SessionRecord {
-            id: id.clone(),
-            worktree: canonical.clone(),
-            pid: None,
-            pgid: None,
-            started_at_unix: now_unix,
-            last_heartbeat_unix: now_unix,
-            status: SessionStatus::Active,
-            agent_tag: agent_tag.cloned(),
-            // MLP2-025: populated by `lookup_tag_for_lineage` /
-            // `cross_check_env_tag` plumbing in subsequent subtasks (A3,
-            // A4). Until then `None` mirrors the legacy untagged path.
-            daemon_issued_tag: None,
+            // MLP2-024: per-worktree session cap. Counted across all
+            // agent_tags on this canonical worktree, so the cap is a
+            // total-sub-agent budget, not a per-tag budget.
+            let live: usize = inner
+                .by_composite
+                .keys()
+                .filter(|(wt, _)| wt == &canonical)
+                .count();
+            if live >= cap {
+                return Err(RegistryError::SessionCapExceeded {
+                    worktree: canonical,
+                    cap,
+                    live,
+                });
+            }
+
+            // ACTMO-014: distinct durable-worktree membership cap. Only a NEW
+            // durable worktree past the cap is refused — refreshing an
+            // already-registered worktree (or adding a peer session to it) is
+            // always admitted, so the cap bounds the persisted set without
+            // making re-registration flaky near the ceiling.
+            let already_member = durable && inner.is_durable_member(&canonical);
+            if durable && !already_member && inner.distinct_durable_worktrees() >= registered_cap {
+                return Err(RegistryError::RegisteredWorktreeCapExceeded {
+                    cap: registered_cap,
+                    live: inner.distinct_durable_worktrees(),
+                });
+            }
+
+            let now_unix = unix_seconds_now();
+            let record = SessionRecord {
+                id: id.clone(),
+                worktree: canonical.clone(),
+                pid: None,
+                pgid: None,
+                started_at_unix: now_unix,
+                last_heartbeat_unix: now_unix,
+                status: SessionStatus::Active,
+                agent_tag: agent_tag.cloned(),
+                // MLP2-025: populated by `lookup_tag_for_lineage` /
+                // `cross_check_env_tag` plumbing in subsequent subtasks (A3,
+                // A4). Until then `None` mirrors the legacy untagged path.
+                daemon_issued_tag: None,
+            };
+
+            inner.sessions.insert(
+                id.clone(),
+                RegistryEntry {
+                    record: record.clone(),
+                    last_heartbeat: now,
+                    subscriber_binding: None,
+                    durable,
+                },
+            );
+            inner.by_composite.insert(composite_key, id.clone());
+            // Signal a membership *gain* only when this is the first durable
+            // session for the worktree — symmetric with the "last session
+            // leaves" rule on `unregister` / `evict_stale`.
+            (record, durable && !already_member)
         };
 
-        inner.sessions.insert(
-            id.clone(),
-            RegistryEntry {
-                record: record.clone(),
-                last_heartbeat: now,
-                subscriber_binding: None,
-            },
-        );
-        inner.by_composite.insert(composite_key, id.clone());
+        if signal_registered {
+            self.signal_membership(MembershipChange::Registered, &canonical);
+        }
         Ok(record)
     }
 
@@ -1285,12 +1437,13 @@ impl SessionRegistry {
     }
 
     pub fn unregister(&self, id: &SessionId) -> Result<bool, RegistryError> {
-        let worktree_to_signal = {
+        let (worktree_to_signal, membership_lost) = {
             let mut inner = self.lock();
             let Some(entry) = inner.sessions.remove(id) else {
                 return Ok(false);
             };
             let worktree = entry.record.worktree.clone();
+            let was_durable = entry.durable;
             let key = (worktree.clone(), entry.record.agent_tag.clone());
             inner.by_composite.remove(&key);
             // MLP2-025: drop the lineage anchor too, if any. Linear
@@ -1305,11 +1458,17 @@ impl SessionRegistry {
             // per-session would thrash a live sibling's warm state into a
             // cold rebuild. Computed under the lock so the survivor check sees
             // a consistent `by_composite`.
-            if inner.by_composite.keys().any(|(wt, _)| wt == &worktree) {
+            let warm = if inner.by_composite.keys().any(|(wt, _)| wt == &worktree) {
                 None
             } else {
-                Some(worktree)
-            }
+                Some(worktree.clone())
+            };
+            // ACTMO-014: durable membership is lost only when the removed
+            // session was durable AND no durable session for the worktree
+            // survives (symmetric with the warm-state last-session rule).
+            let membership_lost =
+                (was_durable && !inner.is_durable_member(&worktree)).then_some(worktree);
+            (warm, membership_lost)
         };
         // MLP2-057: fire the hook AFTER the inner lock is released so a
         // slow consumer (a `SaveTimeState::invalidate` running under
@@ -1319,7 +1478,125 @@ impl SessionRegistry {
         {
             hook(&worktree);
         }
+        // ACTMO-014: membership-change producer (ADR-094 decision 7), also
+        // outside the lock.
+        if let Some(worktree) = membership_lost {
+            self.signal_membership(MembershipChange::Unregistered, &worktree);
+        }
         Ok(true)
+    }
+
+    /// ACTMO-014: the distinct worktrees in the durable membership set,
+    /// sorted. Backs `anvil status` surfacing (ACTMO-017), the reaper's
+    /// "drop + report" log, and the startup reload count.
+    #[must_use]
+    pub fn registered_worktrees(&self) -> Vec<PathBuf> {
+        let inner = self.lock();
+        let mut worktrees: Vec<PathBuf> = inner
+            .sessions
+            .values()
+            .filter(|entry| entry.durable)
+            .map(|entry| entry.record.worktree.clone())
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect();
+        drop(inner);
+        worktrees.sort();
+        worktrees
+    }
+
+    /// ACTMO-014: the canonical worktree of a durable session, if `id` names
+    /// one. Lets the daemon's IPC dispatcher decide whether an `unregister`
+    /// should prune the persisted store (only durable membership is
+    /// persisted). Returns `None` for an unknown id or a live agent session.
+    #[must_use]
+    pub fn durable_worktree_for(&self, id: &SessionId) -> Option<PathBuf> {
+        let inner = self.lock();
+        inner
+            .sessions
+            .get(id)
+            .filter(|entry| entry.durable)
+            .map(|entry| entry.record.worktree.clone())
+    }
+
+    /// ACTMO-014: `true` when a durable session still owns `worktree` — used
+    /// after an `unregister` to decide whether the worktree left the durable
+    /// set entirely (and so should be pruned from the persisted store).
+    #[must_use]
+    pub fn is_registered(&self, worktree: &Path) -> bool {
+        self.lock().is_durable_member(worktree)
+    }
+
+    /// ACTMO-014: drop durable registrations whose worktree directory no
+    /// longer exists (e.g. `git worktree remove`d) and return the distinct
+    /// reaped worktrees, sorted, so the daemon can report them and prune the
+    /// persisted store. Live (non-durable) sessions are left to the TTL — the
+    /// reaper only governs durable membership.
+    ///
+    /// `exists` is injected rather than calling the filesystem directly so the
+    /// sweep is unit-testable without real directories; it is evaluated at
+    /// most once per distinct worktree. Fires the membership `Reaped` signal
+    /// (ADR-094 decision 7) and the warm-state unregister hook for
+    /// fully-drained worktrees, both outside the registry lock.
+    pub fn reap_missing(&self, exists: impl Fn(&Path) -> bool) -> Vec<PathBuf> {
+        let (warm_drained, mut reaped) = {
+            let mut inner = self.lock();
+            let mut gone: HashSet<PathBuf> = HashSet::new();
+            let mut present: HashSet<PathBuf> = HashSet::new();
+            let to_remove: Vec<SessionId> = inner
+                .sessions
+                .iter()
+                .filter(|(_, entry)| entry.durable)
+                .filter_map(|(id, entry)| {
+                    let worktree = &entry.record.worktree;
+                    let missing = if gone.contains(worktree) {
+                        true
+                    } else if present.contains(worktree) {
+                        false
+                    } else if exists(worktree) {
+                        present.insert(worktree.clone());
+                        false
+                    } else {
+                        gone.insert(worktree.clone());
+                        true
+                    };
+                    missing.then(|| id.clone())
+                })
+                .collect();
+            for id in &to_remove {
+                if let Some(entry) = inner.sessions.remove(id) {
+                    let key = (
+                        entry.record.worktree.clone(),
+                        entry.record.agent_tag.clone(),
+                    );
+                    inner.by_composite.remove(&key);
+                    inner.by_pid_lineage.retain(|_, sid| sid != id);
+                }
+            }
+            // A gone worktree drained of *all* sessions reclaims warm state;
+            // drained of *durable* membership emits the `Reaped` signal.
+            let mut warm_drained = Vec::new();
+            let mut reaped = Vec::new();
+            for worktree in &gone {
+                if !inner.by_composite.keys().any(|(wt, _)| wt == worktree) {
+                    warm_drained.push(worktree.clone());
+                }
+                if !inner.is_durable_member(worktree) {
+                    reaped.push(worktree.clone());
+                }
+            }
+            (warm_drained, reaped)
+        };
+        if let Some(hook) = self.unregister_hook.get() {
+            for worktree in &warm_drained {
+                hook(worktree);
+            }
+        }
+        for worktree in &reaped {
+            self.signal_membership(MembershipChange::Reaped, worktree);
+        }
+        reaped.sort();
+        reaped
     }
 
     /// Evict every session whose heartbeat is older than `ttl`.
@@ -1347,6 +1624,12 @@ impl SessionRegistry {
                 .sessions
                 .iter()
                 .filter_map(|(id, entry)| {
+                    // ACTMO-014: durable membership is exempt from the
+                    // heartbeat TTL — it is membership, not liveness, and is
+                    // removed only by explicit unregister or the reaper.
+                    if entry.durable {
+                        return None;
+                    }
                     let age = now.saturating_duration_since(entry.last_heartbeat);
                     if age > ttl { Some(id.clone()) } else { None }
                 })
@@ -1763,6 +2046,168 @@ mod tests {
         let just_after = t0 + ttl + Duration::from_nanos(1);
         let evicted = registry.evict_stale(just_after);
         assert_eq!(evicted, vec![sid("a")], "session past TTL must evict");
+    }
+
+    // ---- ACTMO-014: durable worktree membership -------------------------
+
+    /// An activation-spine tag marks durable membership.
+    fn spine_tag() -> AgentTag {
+        AgentTag::new(
+            "anvil-start",
+            anvil_intercept_proto::session::ACTIVATION_SPINE_CLAIMED_AGENT_ID,
+            0,
+        )
+    }
+
+    /// ACTMO-014 D4: a durable (activation-spine) registration is exempt from
+    /// the heartbeat TTL — it survives arbitrarily far past the window with no
+    /// heartbeat, because it is membership, not liveness.
+    #[test]
+    fn durable_membership_is_exempt_from_ttl_eviction() {
+        let registry = SessionRegistry::with_ttl(Duration::from_secs(30));
+        let durable_wt = make_worktree();
+        let live_wt = make_worktree();
+        let t0 = Instant::now();
+
+        registry
+            .register(&sid("durable"), durable_wt.path(), Some(&spine_tag()), t0)
+            .expect("register durable");
+        registry
+            .register(&sid("live"), live_wt.path(), None, t0)
+            .expect("register live");
+
+        // Far past the TTL: the live lease evicts, the durable member stays.
+        let way_past = t0 + Duration::from_mins(10);
+        let evicted = registry.evict_stale(way_past);
+        assert_eq!(evicted, vec![sid("live")]);
+        assert_eq!(registry.registered_worktrees().len(), 1);
+        assert!(
+            registry
+                .active_sessions()
+                .iter()
+                .any(|s| s.id == sid("durable")),
+            "durable membership must survive the TTL sweep",
+        );
+    }
+
+    /// ACTMO-014 D4: the distinct-registered-worktree cap refuses a NEW
+    /// durable worktree past the ceiling, but never refuses a refresh of an
+    /// existing member or a live (non-durable) session.
+    #[test]
+    fn distinct_registered_worktree_cap_refuses_new_durable_worktree() {
+        let registry = SessionRegistry::new().with_registered_worktree_cap(2);
+        let wts: Vec<TempDir> = (0..3).map(|_| make_worktree()).collect();
+        let now = Instant::now();
+
+        registry
+            .register(&sid("d0"), wts[0].path(), Some(&spine_tag()), now)
+            .expect("first durable");
+        registry
+            .register(&sid("d1"), wts[1].path(), Some(&spine_tag()), now)
+            .expect("second durable");
+
+        let err = registry
+            .register(&sid("d2"), wts[2].path(), Some(&spine_tag()), now)
+            .expect_err("third distinct durable worktree must exceed the cap");
+        assert_eq!(
+            err,
+            RegistryError::RegisteredWorktreeCapExceeded { cap: 2, live: 2 },
+        );
+
+        // A live session on a brand-new worktree is unaffected by the
+        // durable-membership cap.
+        registry
+            .register(&sid("live"), wts[2].path(), None, now)
+            .expect("live session is not bound by the durable cap");
+    }
+
+    /// ACTMO-014: `registered_worktrees` reports durable members only, never
+    /// the live agent-session leases that share the registry.
+    #[test]
+    fn registered_worktrees_lists_durable_members_only() {
+        let registry = SessionRegistry::new();
+        let durable_wt = make_worktree();
+        let live_wt = make_worktree();
+        let now = Instant::now();
+
+        registry
+            .register(&sid("durable"), durable_wt.path(), Some(&spine_tag()), now)
+            .expect("durable");
+        registry
+            .register(&sid("live"), live_wt.path(), None, now)
+            .expect("live");
+
+        let listed = registry.registered_worktrees();
+        let canonical = std::fs::canonicalize(durable_wt.path()).expect("canonicalise");
+        assert_eq!(listed, vec![canonical]);
+    }
+
+    /// ACTMO-014 D4 (reaper): a durable registration whose directory is gone
+    /// is dropped and reported; a present one is retained. The probe is
+    /// injected so the sweep is deterministic without touching the FS.
+    #[test]
+    fn reaper_drops_durable_registration_whose_dir_is_gone() {
+        let registry = SessionRegistry::new();
+        let present = make_worktree();
+        let gone = make_worktree();
+        let now = Instant::now();
+        registry
+            .register(&sid("present"), present.path(), Some(&spine_tag()), now)
+            .expect("present");
+        registry
+            .register(&sid("gone"), gone.path(), Some(&spine_tag()), now)
+            .expect("gone");
+
+        let gone_canonical = std::fs::canonicalize(gone.path()).expect("canonicalise gone");
+        let reaped = registry.reap_missing(|wt| wt != gone_canonical);
+
+        assert_eq!(reaped, vec![gone_canonical]);
+        assert_eq!(registry.registered_worktrees().len(), 1);
+        assert!(
+            registry
+                .active_sessions()
+                .iter()
+                .all(|s| s.id != sid("gone")),
+            "the reaped session must be gone from the registry",
+        );
+    }
+
+    /// ACTMO-014 (ADR-094 decision 7): the membership hook is the sole
+    /// producer of register / unregister / reaper transitions for DSV-046.
+    #[test]
+    fn membership_hook_fires_on_register_unregister_and_reap() {
+        let registry = SessionRegistry::new();
+        let events: Arc<Mutex<Vec<MembershipChange>>> = Arc::new(Mutex::new(Vec::new()));
+        let sink = Arc::clone(&events);
+        assert!(registry.set_membership_hook(Arc::new(move |change, _wt| {
+            sink.lock().unwrap().push(change);
+        })));
+
+        let kept = make_worktree();
+        let dropped = make_worktree();
+        let now = Instant::now();
+
+        registry
+            .register(&sid("kept"), kept.path(), Some(&spine_tag()), now)
+            .expect("kept");
+        registry
+            .register(&sid("dropped"), dropped.path(), Some(&spine_tag()), now)
+            .expect("dropped");
+        registry.unregister(&sid("kept")).expect("unregister kept");
+        let dropped_canonical =
+            std::fs::canonicalize(dropped.path()).expect("canonicalise dropped");
+        registry.reap_missing(|wt| wt != dropped_canonical);
+
+        let seen = events.lock().unwrap().clone();
+        assert_eq!(
+            seen,
+            vec![
+                MembershipChange::Registered,
+                MembershipChange::Registered,
+                MembershipChange::Unregistered,
+                MembershipChange::Reaped,
+            ],
+        );
     }
 
     /// `pid` / `pgid` / `started_at_unix` update; supplying `None` does
