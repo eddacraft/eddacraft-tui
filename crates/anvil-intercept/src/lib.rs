@@ -1422,7 +1422,10 @@ fn reload_durable_registrations(
     let mut survivors = Vec::with_capacity(persisted.len());
     let mut reaped = 0usize;
     for record in persisted {
-        if !record.worktree.exists() {
+        // `is_dir` (not `exists`): a worktree is a directory. If a regular file
+        // now occupies the former path (e.g. removed then `touch`ed), it is not
+        // a registerable worktree and must be reaped, not retained.
+        if !record.worktree.is_dir() {
             reaped += 1;
             continue;
         }
@@ -1846,7 +1849,9 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
                     }
                 }
                 _ = reaper_tick.tick() => {
-                    let reaped = daemon_state.registry.reap_missing(Path::exists);
+                    // `is_dir` (not `exists`): only a real directory is a live
+                    // worktree; a file or dangling symlink at the path is reaped.
+                    let reaped = daemon_state.registry.reap_missing(Path::is_dir);
                     if !reaped.is_empty() {
                         tracing::info!(
                             target: "anvil_intercept::registration",
@@ -1966,15 +1971,29 @@ mod tests {
             .upsert(registration_store::RegistrationRecord::new(
                 SessionId::new("sess_activation_gone"),
                 PathBuf::from("/nonexistent/anvil/worktree-gone"),
-                Some(spine),
+                Some(spine.clone()),
             ))
             .expect("persist gone");
+        // Adversarial review F4: a regular FILE now occupies a former worktree
+        // path. `is_dir` (not `exists`) must reap it, not retain it.
+        let file_path = home.path().join("was-a-worktree");
+        fs::write(&file_path, b"not a worktree").expect("write file");
+        store
+            .upsert(registration_store::RegistrationRecord::new(
+                SessionId::new("sess_activation_file"),
+                fs::canonicalize(&file_path).expect("canonicalise file"),
+                Some(spine),
+            ))
+            .expect("persist file");
 
         let registry = SessionRegistry::new();
         let outcome = reload_durable_registrations(&store, &registry).expect("reload");
 
         assert_eq!(outcome.reloaded, 1, "only the live worktree reloads");
-        assert_eq!(outcome.reaped, 1, "the gone worktree is reaped");
+        assert_eq!(
+            outcome.reaped, 2,
+            "the gone path and the file are both reaped"
+        );
         assert_eq!(registry.registered_worktrees(), vec![live_canonical]);
         // The on-disk shadow was pruned to match.
         let remaining = store.load().expect("reload store");

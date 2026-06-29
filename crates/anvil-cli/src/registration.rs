@@ -201,10 +201,16 @@ const SESSION_ALREADY_REGISTERED_MARKER: &str = "session already registered";
 /// client classifies on. Each is covered by a cross-crate pin test below, so a
 /// rephrase in the registry fails CI rather than silently degrading the
 /// client's outcome mapping.
+///
+/// Each marker includes its adjacent **static** prefix word (`worktree …`,
+/// `degraded …`) so it cannot be matched by a worktree *path* embedded in an
+/// unrelated error's `{worktree:?}` field — e.g. a `SessionCapExceeded` message
+/// for a path literally containing "is fenced" must not classify as fenced
+/// (covered by `path_substring_does_not_misclassify`).
 const WORKTREE_ALREADY_OWNED_MARKER: &str = "worktree already owned";
-const WORKTREE_FENCED_MARKER: &str = "is fenced";
-const WORKTREE_CASCADED_MARKER: &str = "fence-cascade mode";
-const SESSION_CAP_MARKER: &str = "session cap exceeded";
+const WORKTREE_FENCED_MARKER: &str = "worktree is fenced";
+const WORKTREE_CASCADED_MARKER: &str = "degraded fence-cascade mode";
+const SESSION_CAP_MARKER: &str = "worktree session cap exceeded";
 const REGISTERED_CAP_MARKER: &str = "registered worktree cap exceeded";
 
 #[derive(Debug)]
@@ -762,6 +768,33 @@ mod tests {
         assert!(!unavailable.is_fenced());
         assert!(!unavailable.is_cap_exceeded());
         assert!(!unavailable.is_worktree_already_owned());
+    }
+
+    /// ACTMO-014 (adversarial review F3): a worktree PATH containing a marker
+    /// substring must not misclassify an unrelated error. A cap-exceeded
+    /// message for a path containing "is fenced" / "fence-cascade mode" stays
+    /// classified as a cap breach, because the markers are anchored to the
+    /// error's static prefix words, not a bare substring.
+    fn cap_error_for(path: &str) -> DaemonRegistrationError {
+        DaemonRegistrationError::JsonRpc {
+            code: Some(-32603),
+            message: format!(
+                "worktree session cap exceeded for {path:?}: 16 live sessions at cap=16"
+            ),
+        }
+    }
+
+    #[test]
+    fn path_substring_does_not_misclassify() {
+        let pathological = cap_error_for("/home/alice/is fenced/fence-cascade mode/project");
+        assert!(
+            pathological.is_cap_exceeded(),
+            "the cap error must classify as cap-exceeded",
+        );
+        assert!(
+            !pathological.is_fenced(),
+            "a path containing 'is fenced'/'fence-cascade mode' must not classify as fenced",
+        );
     }
 
     /// ACTMO-014/016: a real Git worktree resolves to its canonical top level;

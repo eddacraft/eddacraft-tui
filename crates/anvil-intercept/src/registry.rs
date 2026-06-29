@@ -740,6 +740,12 @@ impl SessionRegistry {
             // MLP2-024: per-worktree session cap. Counted across all
             // agent_tags on this canonical worktree, so the cap is a
             // total-sub-agent budget, not a per-tag budget.
+            //
+            // ACTMO-014 (adversarial review F4): a durable activation-spine
+            // registration occupies one of these slots like any other session,
+            // so a registered worktree has `cap - 1` slots left for live agents.
+            // This is intentional — the durable session genuinely holds the
+            // worktree — and the default cap (16) leaves ample agent headroom.
             let live: usize = inner
                 .by_composite
                 .keys()

@@ -117,6 +117,18 @@ struct RegistrationFile {
 /// reads or writes the file, so there is no in-process cache to keep coherent
 /// across clones — the registry is the live source of truth, this is its
 /// persistent shadow.
+///
+/// **Concurrency (adversarial review F1).** `upsert` / `remove` are
+/// read-modify-write (`load` → mutate → `save`). `save` is itself atomic
+/// (temp-then-rename), so the file is never observed half-written, but two
+/// *concurrent* read-modify-write cycles could lose an update. This is safe in
+/// production because the daemon runs on a **single-thread** Tokio runtime
+/// (`crates/anvil-intercept/src/main.rs` builds `new_current_thread`) and these
+/// methods are synchronous (no `.await`), so a persist call runs to completion
+/// without yielding to another IPC handler. The startup reload runs before the
+/// listener binds, so it has no concurrent writers either. A future switch to a
+/// multi-thread runtime, or making persistence `async`, would require wrapping
+/// the `load`→`save` cycle in a mutex / advisory file lock.
 #[derive(Clone)]
 pub struct RegistrationStore {
     path: PathBuf,
