@@ -122,6 +122,20 @@ pub enum ConfinementError {
     /// every path and silently nullify allowlist confinement.
     #[error("allow entry {0} is the filesystem root — refusing (it would admit everything)")]
     RootAllowEntry(PathBuf),
+    /// (ACTMO-019) Refusing to write back a config whose on-disk format version
+    /// is newer than this binary understands — the lenient read dropped its
+    /// unknown keys, so writing would silently lose them. Fail loud instead.
+    #[error(
+        "confinement config is format version {version}, newer than this Anvil understands ({current}) — \
+         refusing to write (it would drop keys); upgrade Anvil to edit it"
+    )]
+    FutureConfigVersion { version: u32, current: u32 },
+    /// (ACTMO-019) A `register_on_start` entry is not an absolute path. The CLI
+    /// only ever stores canonicalised absolute roots; a relative entry can only
+    /// come from a hand-edit and would resolve against the daemon's cwd at
+    /// startup, registering a surprising directory. Refused on write.
+    #[error("register_on_start entry {0} is not an absolute path — refusing")]
+    RelativeRegisterOnStart(PathBuf),
 }
 
 // --------------------------------------------------------------------
@@ -185,23 +199,120 @@ pub struct AllowEntry {
     pub kind: MatchKind,
 }
 
+/// The default confinement config format version — the implicit version of
+/// every config written before ACTMO-019 (which carried no `version:` key).
+const DEFAULT_CONFIG_VERSION: u32 = 1;
+
+/// The current confinement config format version this daemon writes and fully
+/// understands (ACTMO-019). Bumped from the implicit `1` when the top-level
+/// [`ConfinementConfigFile::register_on_start`] key was added.
+///
+/// A config at **or below** this version is parsed *strictly*
+/// (`deny_unknown_fields` — an unknown key is a loud parse error, preserving the
+/// typo-protection contract). A config at a **higher** version is parsed
+/// *leniently*: keys this daemon does not know are dropped with a `warn` rather
+/// than failing the load closed, so a config written by a newer Anvil never
+/// collapses an older daemon's confinement trust floor (ADR-094 decision 5,
+/// forward-compat). Because `register_on_start` is opt-in and serialised only
+/// when non-empty, a pure-confinement config stays at version `1` and remains
+/// byte-compatible with pre-ACTMO-019 daemons.
+pub const CURRENT_CONFIG_VERSION: u32 = 2;
+
+/// The top-level keys this daemon knows. A key outside this set is a typo at the
+/// known format version (loud parse error) or a forward-compat key at a higher
+/// version (dropped with a `warn`).
+const KNOWN_CONFIG_KEYS: &[&str] = &["version", "admission", "allow", "register_on_start"];
+
+fn default_config_version() -> u32 {
+    DEFAULT_CONFIG_VERSION
+}
+
+/// `version: 1` is the implicit default and is omitted on write so a
+/// pure-confinement config stays byte-compatible with pre-ACTMO-019 daemons.
+// `skip_serializing_if` requires a `fn(&T) -> bool` signature, so the `&u32` is
+// not optional here despite `u32` being `Copy`.
+#[allow(clippy::trivially_copy_pass_by_ref)]
+fn is_default_config_version(version: &u32) -> bool {
+    *version <= DEFAULT_CONFIG_VERSION
+}
+
 /// The operator confinement config file shape.
 ///
-/// `deny_unknown_fields`: an unknown/misspelt key (e.g. `admissoin:`) is a
-/// *parse error*, not a silently-ignored default — so a typo fails closed +
-/// loud rather than degrading to permissive `open`.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+/// Unknown-key handling is **version-gated** (ACTMO-019): at or below
+/// [`CURRENT_CONFIG_VERSION`] the typed parse uses `deny_unknown_fields`, so an
+/// unknown/misspelt key (e.g. `admissoin:`) is a *parse error*, not a
+/// silently-ignored default — a typo fails closed + loud rather than degrading
+/// to permissive `open`. Above it, [`parse_config_file`] drops unknown keys so a
+/// newer-format config never fails an older daemon closed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ConfinementConfigFile {
+    /// Config format version. Absent ⇒ `1` (pre-ACTMO-019). Bumped to
+    /// [`CURRENT_CONFIG_VERSION`] when `register_on_start` is non-empty; omitted
+    /// on write at the default so existing files stay byte-compatible.
+    #[serde(
+        default = "default_config_version",
+        skip_serializing_if = "is_default_config_version"
+    )]
+    pub version: u32,
     /// `open` (default) or `allowlist`.
     #[serde(default)]
     pub admission: AdmissionModeFile,
     /// Allow entries (only meaningful in `allowlist` mode).
     #[serde(default)]
     pub allow: Vec<AllowEntry>,
+    /// ACTMO-019: worktrees the daemon durably registers on startup. A
+    /// **separate top-level key**, deliberately *not* a field on
+    /// [`AllowEntry`] — confinement admission ("what the daemon may serve") and
+    /// registration membership ("what is actively protected") are distinct sets.
+    /// Empty by default and omitted on write so it never appears unless an
+    /// operator opts in.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub register_on_start: Vec<PathBuf>,
+}
+
+impl Default for ConfinementConfigFile {
+    fn default() -> Self {
+        Self {
+            version: DEFAULT_CONFIG_VERSION,
+            admission: AdmissionModeFile::default(),
+            allow: Vec::new(),
+            register_on_start: Vec::new(),
+        }
+    }
 }
 
 impl ConfinementConfigFile {
+    /// Add `path` to the durable `register_on_start` set, bumping the config
+    /// format version so the file is marked as carrying the ACTMO-019 key.
+    /// Idempotent — returns whether the set changed.
+    pub fn add_register_on_start(&mut self, path: PathBuf) -> bool {
+        if self.register_on_start.iter().any(|p| p == &path) {
+            return false;
+        }
+        self.register_on_start.push(path);
+        // Never *downgrade* the version. A file read at a higher (future) format
+        // version keeps it, so the write guard (`write_config_file_to`) refuses
+        // to clobber a newer file rather than silently dropping its keys.
+        self.version = self.version.max(CURRENT_CONFIG_VERSION);
+        true
+    }
+
+    /// Remove `path` from the `register_on_start` set. Returns whether anything
+    /// was removed. When the set empties, the version drops back to the default
+    /// so the file becomes byte-compatible with pre-ACTMO-019 daemons again —
+    /// but only if it is *our* bump (`CURRENT_CONFIG_VERSION`); a higher (future)
+    /// version is left intact so we never misrepresent a newer file's format.
+    pub fn remove_register_on_start(&mut self, path: &Path) -> bool {
+        let before = self.register_on_start.len();
+        self.register_on_start.retain(|p| p != path);
+        let removed = self.register_on_start.len() != before;
+        if removed && self.register_on_start.is_empty() && self.version == CURRENT_CONFIG_VERSION {
+            self.version = DEFAULT_CONFIG_VERSION;
+        }
+        removed
+    }
+
     /// Insert or update an allow entry for `path` with the given match kind.
     /// Idempotent on `path`; re-adding flips an existing entry's kind.
     pub fn upsert_allow(&mut self, path: PathBuf, kind: MatchKind) {
@@ -584,12 +695,81 @@ pub fn load_from(path: &Path) -> Result<Confinement, ConfinementError> {
     let Some(raw) = read_trusted(path)? else {
         return Ok(Confinement::open_default());
     };
-    let file: ConfinementConfigFile =
-        serde_yaml::from_str(&raw).map_err(|source| ConfinementError::Parse {
-            path: path.to_path_buf(),
-            source,
-        })?;
-    Ok(Confinement::from_file(file))
+    Ok(Confinement::from_file(parse_config_file(&raw, path)?))
+}
+
+/// Parse a confinement config body with **version-gated** unknown-key handling
+/// (ACTMO-019). The single parse path shared by [`load_from`] and
+/// [`read_config_file_from`] so the runtime policy and the CLI's editable view
+/// never disagree on what a config means.
+///
+/// - At or below [`CURRENT_CONFIG_VERSION`] (which covers every pre-ACTMO-019
+///   file, implicitly version `1`): parse *strictly*. `deny_unknown_fields`
+///   turns a misspelt key into a loud [`ConfinementError::Parse`] rather than a
+///   silent permissive default — the typo-protection contract is unchanged.
+/// - Above it: a newer Anvil wrote this file. Drop top-level keys this daemon
+///   does not know (logged, never silent) and parse the remainder, so a
+///   newer-format config never fails an older daemon **closed** and collapses
+///   the confinement trust floor (ADR-094 decision 5).
+fn parse_config_file(raw: &str, path: &Path) -> Result<ConfinementConfigFile, ConfinementError> {
+    let parse_err = |source| ConfinementError::Parse {
+        path: path.to_path_buf(),
+        source,
+    };
+
+    // Peek at the declared format version without committing to the strict
+    // typed shape, so a forward-version file can be downgraded to a lenient
+    // parse. Keep the parsed value to reuse below instead of parsing twice. An
+    // unreadable document falls through to the strict parse, which produces the
+    // canonical error.
+    let peeked: Option<serde_yaml::Value> = serde_yaml::from_str(raw).ok();
+    let declared_version = peeked
+        .as_ref()
+        .and_then(serde_yaml::Value::as_mapping)
+        .and_then(|map| map.get("version"))
+        .and_then(serde_yaml::Value::as_u64)
+        .unwrap_or(u64::from(DEFAULT_CONFIG_VERSION));
+
+    if declared_version <= u64::from(CURRENT_CONFIG_VERSION) {
+        return serde_yaml::from_str(raw).map_err(parse_err);
+    }
+
+    // Newer format than this daemon understands: keep only known keys, then
+    // parse the cleaned mapping (so `deny_unknown_fields` sees nothing foreign).
+    // Consume the already-parsed value so kept entries move in without cloning.
+    let Some(serde_yaml::Value::Mapping(mapping)) = peeked else {
+        // A non-mapping at a future version is still nonsense — let the strict
+        // parse produce the canonical, well-formed error.
+        return serde_yaml::from_str(raw).map_err(parse_err);
+    };
+    let mut clean = serde_yaml::Mapping::new();
+    let mut dropped: Vec<String> = Vec::new();
+    for (key, val) in mapping {
+        if key
+            .as_str()
+            .is_some_and(|name| KNOWN_CONFIG_KEYS.contains(&name))
+        {
+            clean.insert(key, val);
+        } else {
+            dropped.push(
+                key.as_str()
+                    .map_or_else(|| format!("{key:?}"), str::to_owned),
+            );
+        }
+    }
+    if !dropped.is_empty() {
+        tracing::warn!(
+            target: "anvil_intercept::confinement",
+            path = %path.display(),
+            version = declared_version,
+            current = CURRENT_CONFIG_VERSION,
+            dropped = ?dropped,
+            "confinement config is a newer format version than this daemon \
+             understands — ignoring unknown keys (forward-compat); confinement \
+             trust floor preserved",
+        );
+    }
+    serde_yaml::from_value(serde_yaml::Value::Mapping(clean)).map_err(parse_err)
 }
 
 /// Load the confinement config from the resolved [`config_path`].
@@ -649,15 +829,28 @@ pub fn read_config_file_from(path: &Path) -> Result<ConfinementConfigFile, Confi
     let Some(raw) = read_trusted(path)? else {
         return Ok(ConfinementConfigFile::default());
     };
-    serde_yaml::from_str(&raw).map_err(|source| ConfinementError::Parse {
-        path: path.to_path_buf(),
-        source,
-    })
+    parse_config_file(&raw, path)
 }
 
 /// Read the on-disk config file at the resolved [`config_path`].
 pub fn read_config_file() -> Result<ConfinementConfigFile, ConfinementError> {
     read_config_file_from(&config_path()?)
+}
+
+/// ACTMO-019: load the operator's `register_on_start` worktree list from the
+/// confinement config at `path`. The daemon calls this at startup to durably
+/// register the configured worktrees (atop the persisted ACTMO-014 set). A
+/// missing config or an empty key yields an empty list; a malformed/untrusted
+/// config surfaces a loud `Err` the caller logs (the daemon proceeds with the
+/// persisted set rather than failing startup — per-connection admission
+/// independently fails closed on a bad config).
+pub fn load_register_on_start_from(path: &Path) -> Result<Vec<PathBuf>, ConfinementError> {
+    Ok(read_config_file_from(path)?.register_on_start)
+}
+
+/// Load `register_on_start` from the resolved [`config_path`].
+pub fn load_register_on_start() -> Result<Vec<PathBuf>, ConfinementError> {
+    load_register_on_start_from(&config_path()?)
 }
 
 /// Reject an allow entry that is a filesystem root (its parent is `None`): as a
@@ -679,12 +872,32 @@ pub fn write_config_file_to(
     path: &Path,
     file: &ConfinementConfigFile,
 ) -> Result<(), ConfinementError> {
+    // Refuse to clobber a config newer than this binary understands: the lenient
+    // read dropped its unknown keys, so writing would silently lose them.
+    if file.version > CURRENT_CONFIG_VERSION {
+        return Err(ConfinementError::FutureConfigVersion {
+            version: file.version,
+            current: CURRENT_CONFIG_VERSION,
+        });
+    }
     reject_root_allow_entries(file)?;
+    reject_relative_register_on_start(file)?;
     if let Some(parent) = path.parent() {
         create_owner_only_dir(parent)?;
     }
     let body = serde_yaml::to_string(file).map_err(ConfinementError::Serialize)?;
     write_atomic_owner_only(path, body.as_bytes())
+}
+
+/// Reject a `register_on_start` entry that is not absolute. The daemon resolves
+/// these against its own cwd at startup, so a relative entry would register a
+/// surprising directory; the CLI only ever stores canonical absolute roots, so a
+/// relative entry can only be a hand-edit mistake.
+fn reject_relative_register_on_start(file: &ConfinementConfigFile) -> Result<(), ConfinementError> {
+    if let Some(entry) = file.register_on_start.iter().find(|p| !p.is_absolute()) {
+        return Err(ConfinementError::RelativeRegisterOnStart(entry.clone()));
+    }
+    Ok(())
 }
 
 /// Atomically write `body` to `path` with `0600` permissions from creation: a
@@ -829,6 +1042,7 @@ mod tests {
                 path: allowed.path().to_path_buf(),
                 kind: MatchKind::Exact,
             }],
+            ..Default::default()
         });
         let mut roots = confinement.to_admitted_roots(primary.path());
 
@@ -851,6 +1065,7 @@ mod tests {
         let confinement = Confinement::from_file(ConfinementConfigFile {
             admission: AdmissionModeFile::Allowlist,
             allow: Vec::new(),
+            ..Default::default()
         });
         let mut roots = confinement.to_admitted_roots(primary.path());
         assert!(
@@ -874,6 +1089,7 @@ mod tests {
                 path: parent.path().to_path_buf(),
                 kind: MatchKind::Prefix,
             }],
+            ..Default::default()
         });
         let mut roots = confinement.to_admitted_roots(primary.path());
 
@@ -983,6 +1199,7 @@ mod tests {
         let mut file = ConfinementConfigFile {
             admission: AdmissionModeFile::Allowlist,
             allow: Vec::new(),
+            ..Default::default()
         };
         file.upsert_allow(PathBuf::from("/srv/a"), MatchKind::Exact);
         file.upsert_allow(PathBuf::from("/srv/tree"), MatchKind::Prefix);
@@ -1120,6 +1337,7 @@ mod tests {
                 path: PathBuf::from("/"),
                 kind: MatchKind::Prefix,
             }],
+            ..Default::default()
         };
         let err = write_config_file_to(&path, &file).expect_err("root prefix must be rejected");
         assert!(
@@ -1144,6 +1362,7 @@ mod tests {
                 path: PathBuf::from("/srv/x"),
                 kind: MatchKind::Exact,
             }],
+            ..Default::default()
         };
         write_config_file_to(&path, &file).expect("write");
 
@@ -1160,5 +1379,175 @@ mod tests {
             leftovers.is_empty(),
             "no temp file left behind: {leftovers:?}"
         );
+    }
+
+    // ----------------------------------------------------------------
+    // ACTMO-019: `register_on_start` key + format-version forward-compat.
+    // ----------------------------------------------------------------
+
+    #[test]
+    fn register_on_start_roundtrips_and_bumps_version() {
+        // Adding a `register_on_start` entry bumps the config version to 2 and
+        // round-trips through write/read; the runtime `Confinement` is
+        // unaffected (registration membership is a distinct set from admission).
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("workspace.yaml");
+        let mut file = ConfinementConfigFile::default();
+        assert_eq!(file.version, DEFAULT_CONFIG_VERSION);
+        assert!(file.add_register_on_start(PathBuf::from("/srv/wt-a")));
+        assert!(file.add_register_on_start(PathBuf::from("/srv/wt-b")));
+        // Idempotent — re-adding the same path is a no-op.
+        assert!(!file.add_register_on_start(PathBuf::from("/srv/wt-a")));
+        assert_eq!(file.version, CURRENT_CONFIG_VERSION);
+
+        write_config_file_to(&path, &file).expect("write");
+        let raw = std::fs::read_to_string(&path).expect("read raw");
+        assert!(raw.contains("version: 2"), "version is serialised: {raw}");
+        assert!(
+            raw.contains("register_on_start:"),
+            "the key is serialised: {raw}"
+        );
+
+        let back = read_config_file_from(&path).expect("read");
+        assert_eq!(back, file);
+        assert_eq!(
+            load_register_on_start_from(&path).expect("load list"),
+            vec![PathBuf::from("/srv/wt-a"), PathBuf::from("/srv/wt-b")]
+        );
+
+        // Admission is untouched by registration membership.
+        assert_eq!(load_from(&path).expect("load"), Confinement::open_default());
+    }
+
+    #[test]
+    fn pure_confinement_config_stays_version_1_and_byte_compatible() {
+        // A config with no `register_on_start` must NOT gain a `version:` key,
+        // so it stays byte-compatible with a pre-ACTMO-019 daemon.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("workspace.yaml");
+        let mut file = ConfinementConfigFile::default();
+        file.upsert_allow(PathBuf::from("/srv/x"), MatchKind::Exact);
+        write_config_file_to(&path, &file).expect("write");
+
+        let raw = std::fs::read_to_string(&path).expect("read raw");
+        assert!(
+            !raw.contains("version:"),
+            "version omitted at the default: {raw}"
+        );
+        assert!(
+            !raw.contains("register_on_start:"),
+            "empty key omitted: {raw}"
+        );
+
+        // Removing the last entry drops the version back to the default.
+        let mut bumped = ConfinementConfigFile::default();
+        bumped.add_register_on_start(PathBuf::from("/srv/wt"));
+        assert_eq!(bumped.version, CURRENT_CONFIG_VERSION);
+        assert!(bumped.remove_register_on_start(Path::new("/srv/wt")));
+        assert_eq!(
+            bumped.version, DEFAULT_CONFIG_VERSION,
+            "version drops back when the set empties"
+        );
+    }
+
+    #[test]
+    fn typo_still_fails_closed_at_known_version() {
+        // The format-version scheme must NOT weaken typo protection at the known
+        // version: a misspelt key is still a loud parse error (deny_unknown_fields),
+        // even alongside a valid `register_on_start` key.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("workspace.yaml");
+        write_owner_only(
+            &path,
+            "version: 2\nadmissoin: allowlist\nregister_on_start:\n  - /srv/wt\n",
+        );
+        let err = load_from(&path).expect_err("a typo at the known version must still error");
+        assert!(
+            matches!(err, ConfinementError::Parse { .. }),
+            "expected Parse (deny_unknown_fields preserved), got {err:?}"
+        );
+    }
+
+    #[test]
+    fn newer_format_version_does_not_fail_closed() {
+        // ADR-094 decision 5 forward-compat: a config written by a NEWER Anvil
+        // (a higher format version carrying a key this daemon does not know) must
+        // be read leniently — the unknown key is dropped, the known fields load,
+        // and confinement is NOT collapsed to fail-closed. This is the mechanism
+        // that stops a `register_on_start`-bearing config from breaking an older
+        // daemon's trust floor on a version skew.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("workspace.yaml");
+        write_owner_only(
+            &path,
+            "version: 99\nadmission: allowlist\nallow:\n  - path: /srv/x\n\
+             register_on_start:\n  - /srv/wt\nsome_future_key:\n  nested: value\n",
+        );
+
+        // The known fields parse; the unknown future key is ignored, not fatal.
+        let file = read_config_file_from(&path).expect("a newer-version config loads leniently");
+        assert_eq!(file.admission, AdmissionModeFile::Allowlist);
+        assert_eq!(
+            file.allow.len(),
+            1,
+            "the allow entry survives the lenient parse"
+        );
+        assert_eq!(file.register_on_start, vec![PathBuf::from("/srv/wt")]);
+
+        // Crucially, the runtime admission policy is the file's `allowlist` with
+        // its allow entry, NOT the fail-closed posture (allowlist + EMPTY allow)
+        // — an older daemon keeps serving its configured roots.
+        let confinement = load_from(&path).expect("lenient load");
+        assert_eq!(confinement.mode(), AdmissionModeFile::Allowlist);
+        assert_eq!(confinement.allow_count(), 1);
+        assert_ne!(
+            confinement,
+            Confinement::fail_closed(),
+            "a forward-version config must not collapse to fail-closed"
+        );
+    }
+
+    #[test]
+    fn write_refuses_a_future_version_config() {
+        // Council M-2: a config read at a higher (future) format version had its
+        // unknown keys dropped on the lenient read, so writing it back would lose
+        // them. Refuse loudly rather than silently downgrade + drop.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("workspace.yaml");
+        let mut file = ConfinementConfigFile {
+            version: 99,
+            ..Default::default()
+        };
+        // Mutating register_on_start must NOT downgrade the version below 99...
+        assert!(file.add_register_on_start(PathBuf::from("/srv/wt")));
+        assert_eq!(file.version, 99, "add never downgrades a future version");
+        // ...and the write refuses it rather than dropping the future keys.
+        let err =
+            write_config_file_to(&path, &file).expect_err("future-version write must be refused");
+        assert!(
+            matches!(
+                err,
+                ConfinementError::FutureConfigVersion { version: 99, .. }
+            ),
+            "expected FutureConfigVersion, got {err:?}"
+        );
+        assert!(!path.exists(), "nothing is written when refused");
+    }
+
+    #[test]
+    fn write_rejects_relative_register_on_start_entry() {
+        // Council m-2: a hand-edited relative entry would resolve against the
+        // daemon's cwd at startup — refuse it on write.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let path = dir.path().join("workspace.yaml");
+        let mut file = ConfinementConfigFile::default();
+        file.add_register_on_start(PathBuf::from("../etc"));
+        let err = write_config_file_to(&path, &file)
+            .expect_err("relative register_on_start must be refused");
+        assert!(
+            matches!(err, ConfinementError::RelativeRegisterOnStart(_)),
+            "expected RelativeRegisterOnStart, got {err:?}"
+        );
+        assert!(!path.exists(), "nothing is written when refused");
     }
 }

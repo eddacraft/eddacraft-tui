@@ -17,8 +17,9 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use anvil_intercept_proto::SessionId;
-use anvil_intercept_proto::session::AgentTag;
+use anvil_intercept_proto::session::{ACTIVATION_SPINE_CLAIMED_AGENT_ID, AgentTag};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 use crate::store_io::{
@@ -32,6 +33,55 @@ use crate::store_io::recover_windows_backup;
 use crate::store_io::{sync_parent, validate_store_parent};
 
 const REGISTRATION_FILE_VERSION: u8 = 1;
+
+/// The activation `driver_id` stamped on durable registrations. Mirrors the CLI
+/// client (`anvil-cli` `registration::DRIVER_ID`).
+pub const ACTIVATION_DRIVER_ID: &str = "anvil-start";
+
+/// Derive the deterministic activation [`SessionId`] for a *canonical* worktree
+/// path — `sess_activation_{sha256(path)[..8]}`.
+///
+/// This MUST stay byte-identical to the CLI client's derivation
+/// (`anvil-cli` `registration::activation_session_id`), which is enforced by the
+/// client delegating to this function. A worktree registered from the operator's
+/// `register_on_start` list (daemon-side, this module) and one registered by
+/// `anvil workspace register` (client-side) therefore share an id, so the second
+/// heartbeats the first instead of duplicating the membership. Callers
+/// canonicalise with [`canonicalise_for_registration`] first so the input string
+/// is stable across path spellings (and free of the Windows `\\?\` prefix).
+#[must_use]
+pub fn activation_session_id(canonical_worktree: &Path) -> SessionId {
+    let mut hasher = Sha256::new();
+    hasher.update(canonical_worktree.to_string_lossy().as_bytes());
+    let digest = hasher.finalize();
+    let mut hex = String::with_capacity(16);
+    for byte in &digest[..8] {
+        use std::fmt::Write as _;
+        // `{:02x}` matches `hex::encode` (lowercase, zero-padded) byte for byte.
+        let _ = write!(hex, "{byte:02x}");
+    }
+    SessionId::new(format!("sess_activation_{hex}"))
+}
+
+/// The activation [`AgentTag`] (`anvil-start` / `activation-spine`, pid `0`) that
+/// marks a registration as **durable membership** — TTL-exempt and persisted
+/// ([`AgentTag::is_durable_membership`]). Shared by the CLI client and the
+/// daemon's `register_on_start` startup path so both produce the same tag.
+#[must_use]
+pub fn activation_agent_tag() -> AgentTag {
+    AgentTag::new(ACTIVATION_DRIVER_ID, ACTIVATION_SPINE_CLAIMED_AGENT_ID, 0)
+}
+
+/// Canonicalise a worktree path for registration the way both surfaces must, so
+/// the derived [`activation_session_id`] is stable across path spellings. Uses
+/// `dunce::canonicalize` (identical to `std::fs::canonicalize` on Unix; strips
+/// the Windows `\\?\` UNC prefix), and falls back to the input path on error
+/// (e.g. a `register_on_start` entry whose directory is gone — the caller reaps
+/// non-directory entries separately). Mirrors the CLI client.
+#[must_use]
+pub fn canonicalise_for_registration(worktree: &Path) -> PathBuf {
+    dunce::canonicalize(worktree).unwrap_or_else(|_| worktree.to_path_buf())
+}
 
 /// Errors from the durable registration store. Mirrors
 /// [`crate::fence::FenceStoreError`]'s shape; the shared IO failures map in

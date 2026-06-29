@@ -641,11 +641,28 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 
 ### ACTMO-019: Persistent `register_on_start` config + daemon startup registration
 
-- **Status:** Ready — owner-authorised 2026-06-30. The Council Critical-2 schema
-  commitment is signed off: take the **additive top-level `register_on_start`
-  key** (never a field on the `deny_unknown_fields` `AllowEntry`) plus a config
-  format-version forward/back-compat scheme, so an older daemon does not fail
-  closed. Dependency ACTMO-014 is Merged; scope and validation are fixed below.
+- **Status:** In Progress — owner-authorised 2026-06-30. The Council Critical-2
+  schema commitment is signed off: take the **additive top-level
+  `register_on_start` key** (never a field on the `deny_unknown_fields`
+  `AllowEntry`) plus a config format-version forward/back-compat scheme, so an
+  older daemon does not fail closed. Dependency ACTMO-014 is Merged; scope and
+  validation are fixed below.
+- **Implementation (as built, 2026-06-30):** `register_on_start: [paths]` is a
+  separate top-level key on `ConfinementConfigFile` (NOT on `AllowEntry`). The
+  config now carries a `version` field (default `1`, omitted on write at the
+  default so pure-confinement files stay byte-compatible); writing a
+  `register_on_start` entry bumps it to `CURRENT_CONFIG_VERSION = 2`. A
+  version-gated parser keeps `deny_unknown_fields` (typo protection) **at or
+  below** the known version, and drops unknown top-level keys with a `warn`
+  **above** it — so a newer-format config never collapses an older daemon to
+  fail-closed (ADR-094 decision 5 forward-compat). The daemon registers the
+  configured worktrees on startup *atop* the ACTMO-014 reloaded set, keyed by the
+  same deterministic activation session id the CLI client derives (the derivation
+  moved to `anvil-intercept::registration_store` so client and daemon cannot
+  drift); a gone directory is skipped + reported; no filesystem scan. CLI surface:
+  `anvil workspace register [PATH|--all] --persist` / `unregister --persist`, and
+  `list` shows the `register_on_start` set. Docs: `operations/config.md` §"Register
+  a worktree on every startup".
 - **Source:** ACTMO-013 design D5 (persistent layer). Council Critical-2: adding a
   field to the `deny_unknown_fields` `AllowEntry` makes an older daemon fail
   **closed** and collapse the confinement trust floor. Schema commitment needs

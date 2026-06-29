@@ -496,6 +496,47 @@ check-in root, so confinement never locks you out of the repository you are
 working in. `anvil status` shows `· confined: <N>` next to the save-time line
 when the daemon is in allowlist mode.
 
+### Register a worktree on every startup
+
+Confinement (`allow`) is the set of roots the daemon **may** serve; registration
+is the set of worktrees it **actively** protects. These are deliberately
+distinct. `anvil workspace register <path>` registers a worktree for durable
+protection now, but a worktree only re-registers automatically across daemon
+restarts if it is in the `register_on_start` list:
+
+```bash
+anvil workspace register /path/to/repo --persist   # register now AND on every startup
+anvil workspace register --all --persist           # persist every exact allow-list entry
+anvil workspace unregister /path/to/repo --persist  # stop re-registering it on startup
+anvil workspace list                                # shows allow entries, live registry,
+                                                    # and the register_on_start set
+```
+
+`--persist` records the worktree under a `register_on_start:` key in
+`workspace.yaml`; the daemon registers those worktrees as durable members when
+it starts, before accepting connections. Entries whose directory is gone are
+skipped and reported. There is **no filesystem scan** — only the exact paths you
+list are touched.
+
+> **Format version & downgrade safety.** Writing a `register_on_start` entry
+> bumps the config to format `version: 2`. A daemon **newer than or equal to**
+> the one that wrote the file reads it; a daemon that encounters a config at a
+> higher format version than it understands ignores keys it does not know rather
+> than failing closed, so a later schema addition can never collapse the
+> confinement trust floor on a version skew. A pure-confinement config (no
+> `register_on_start`) stays at the implicit version 1 and is byte-compatible
+> with pre-`register_on_start` daemons. Because `register_on_start` is opt-in,
+> only a worktree you explicitly persist is ever affected.
+>
+> The one direction that is **not** safe is downgrading the Anvil **binary**
+> below the version that wrote a `version: 2` file: a pre-`register_on_start`
+> daemon does not understand `version: 2` and fails the whole config closed — in
+> `allowlist` mode it then admits only each connection's primary root until you
+> either upgrade Anvil again or remove the `register_on_start` key by hand. This
+> only affects machines where you both used `--persist` and rolled the binary
+> back; new schema additions from here on are handled by the forward-compat rule
+> above and never trigger it.
+
 ## CI Mode
 
 Use gate profiles for CI environments:

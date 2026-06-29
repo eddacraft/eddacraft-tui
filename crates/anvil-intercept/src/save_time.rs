@@ -3430,6 +3430,7 @@ mod tests {
                 path: allowed.path().to_path_buf(),
                 kind: crate::confinement::MatchKind::Exact,
             }],
+            ..Default::default()
         });
         let state = SaveTimeState::new(
             WorkScheduler::new().expect("scheduler"),
@@ -3561,6 +3562,7 @@ mod tests {
         let confinement = Confinement::from_file(crate::confinement::ConfinementConfigFile {
             admission: crate::confinement::AdmissionModeFile::Allowlist,
             allow: Vec::new(),
+            ..Default::default()
         });
         let state = SaveTimeState::new(
             WorkScheduler::new().expect("scheduler"),
@@ -3995,6 +3997,7 @@ mod tests {
         let confinement = Confinement::from_file(crate::confinement::ConfinementConfigFile {
             admission: crate::confinement::AdmissionModeFile::Allowlist,
             allow: Vec::new(),
+            ..Default::default()
         });
         let state = SaveTimeState::new(
             WorkScheduler::new().expect("scheduler"),
@@ -4209,6 +4212,7 @@ mod tests {
         let confinement = Confinement::from_file(crate::confinement::ConfinementConfigFile {
             admission: crate::confinement::AdmissionModeFile::Allowlist,
             allow: Vec::new(),
+            ..Default::default()
         });
         let state = SaveTimeState::new(
             WorkScheduler::new().expect("scheduler"),
@@ -4362,6 +4366,7 @@ mod tests {
         let confinement = Confinement::from_file(crate::confinement::ConfinementConfigFile {
             admission: crate::confinement::AdmissionModeFile::Allowlist,
             allow: Vec::new(),
+            ..Default::default()
         });
         let state = SaveTimeState::new(
             WorkScheduler::new().expect("scheduler"),

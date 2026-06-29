@@ -15,9 +15,8 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use anvil_intercept_proto::SessionId;
-use anvil_intercept_proto::session::{ACTIVATION_SPINE_CLAIMED_AGENT_ID, AgentTag};
+use anvil_intercept_proto::session::AgentTag;
 use serde_json::Value;
-use sha2::{Digest, Sha256};
 
 use crate::activation::daemon_evidence::ACTIVATION_DAEMON_QUERY_TIMEOUT;
 
@@ -25,8 +24,6 @@ const REGISTER_METHOD: &str = "session.register";
 const UNREGISTER_METHOD: &str = "session.unregister";
 const HEARTBEAT_METHOD: &str = "heartbeat";
 const RESPONSE_LINE_BYTES: u64 = 1 << 20;
-const DRIVER_ID: &str = "anvil-start";
-const CLAIMED_AGENT_ID: &str = ACTIVATION_SPINE_CLAIMED_AGENT_ID;
 
 /// Outcome of a worktree registration attempt against the intercept daemon.
 /// ACTMO-014 enriches the original four-variant enum with the daemon's
@@ -163,15 +160,17 @@ fn canonicalise_for_registration(worktree: &Path) -> PathBuf {
     })
 }
 
+// ACTMO-019: the activation session-id and agent-tag derivations live in
+// `anvil-intercept` (`registration_store`) so the daemon's `register_on_start`
+// startup path and this client derive an identical id and tag — a worktree
+// registered either way shares membership instead of duplicating. This thin
+// delegation is the single source of truth.
 fn activation_session_id(worktree: &Path) -> SessionId {
-    let mut hasher = Sha256::new();
-    hasher.update(worktree.to_string_lossy().as_bytes());
-    let digest = hasher.finalize();
-    SessionId::new(format!("sess_activation_{}", hex::encode(&digest[..8])))
+    anvil_intercept::registration_store::activation_session_id(worktree)
 }
 
 fn activation_agent_tag() -> AgentTag {
-    AgentTag::new(DRIVER_ID, CLAIMED_AGENT_ID, 0)
+    anvil_intercept::registration_store::activation_agent_tag()
 }
 
 fn session_register_params(session_id: &SessionId, worktree: &Path) -> Value {

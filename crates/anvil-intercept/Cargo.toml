@@ -55,6 +55,12 @@ anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvi
 anvil-observability = { path = "../anvil-observability", package = "eddacraft-anvil-observability" }
 anvil-rules = { path = "../anvil-rules", package = "eddacraft-anvil-rules" }
 anyhow = { workspace = true }
+# ACTMO-019: canonicalise `register_on_start` worktree paths the same way the
+# CLI client does (`anvil-cli` `registration`), so a worktree the daemon
+# registers on startup derives the identical activation session id and a later
+# `anvil workspace register` heartbeats it rather than duplicating. `dunce` is
+# already in the shipped tree via `anvil-cli`, so this adds no new licences.
+dunce = "1"
 chrono = { workspace = true, features = ["serde"] }
 clap = { workspace = true }
 # DSV-045 (ADR-085 Decision 5): the full-scan executor pre-filters the walk

@@ -1487,6 +1487,74 @@ fn prune_registrations(
     store.replace_all(&survivors)
 }
 
+/// ACTMO-019: outcome of registering the operator's `register_on_start`
+/// worktrees on startup — how many are now durably registered (newly or already)
+/// and how many were skipped (directory gone, or the daemon refused).
+struct ConfiguredRegistrationOutcome {
+    registered: usize,
+    skipped: usize,
+}
+
+/// ACTMO-019: durably register the operator's `register_on_start` worktrees into
+/// `registry` on startup, **atop** the reloaded ACTMO-014 persisted set.
+///
+/// Each path is canonicalised exactly as the CLI client does
+/// ([`registration_store::canonicalise_for_registration`]) and keyed by the same
+/// deterministic activation session id, so a configured worktree and a later
+/// `anvil workspace register` of the same path share one membership (the second
+/// heartbeats the first). A path whose directory is gone is skipped + reported
+/// (reaper parity); a duplicate of an already-reloaded entry is idempotent; a
+/// fenced/cap-exceeded/otherwise-refused entry is skipped, never fatal — a bad
+/// operator config must not stop the daemon (per-connection admission fails
+/// closed independently). There is **no filesystem scan**: only the exact listed
+/// paths are touched (ADR-094 decision 5).
+fn register_configured_worktrees(
+    registry: &SessionRegistry,
+    paths: &[PathBuf],
+) -> ConfiguredRegistrationOutcome {
+    let tag = registration_store::activation_agent_tag();
+    let mut registered = 0usize;
+    let mut skipped = 0usize;
+    for path in paths {
+        let canonical = registration_store::canonicalise_for_registration(path);
+        // `is_dir` (not `exists`): a worktree is a directory. A `register_on_start`
+        // entry whose directory is gone is skipped and logged (not registered);
+        // the operator's config is left untouched — this mirrors the
+        // persisted-store reaper's directory-gone check but does not mutate config.
+        if !canonical.is_dir() {
+            tracing::warn!(
+                target: "anvil_intercept::registration",
+                worktree = %canonical.display(),
+                "skipping register_on_start entry — not a directory",
+            );
+            skipped += 1;
+            continue;
+        }
+        let session_id = registration_store::activation_session_id(&canonical);
+        match registry.register(&session_id, &canonical, Some(&tag), Instant::now()) {
+            // Already a durable member (its id was reloaded from the persisted
+            // set, or the path is listed twice). Idempotent — it is registered.
+            Ok(_)
+            | Err(
+                RegistryError::SessionAlreadyExists(_) | RegistryError::WorktreeAlreadyOwned { .. },
+            ) => registered += 1,
+            Err(err) => {
+                tracing::warn!(
+                    target: "anvil_intercept::registration",
+                    error = %err,
+                    worktree = %canonical.display(),
+                    "skipping register_on_start entry — daemon refused registration",
+                );
+                skipped += 1;
+            }
+        }
+    }
+    ConfiguredRegistrationOutcome {
+        registered,
+        skipped,
+    }
+}
+
 #[allow(clippy::too_many_lines)]
 pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> Result<()> {
     let pid_file_path = opts.pid_file_path()?;
@@ -1537,6 +1605,40 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
             count = reload.reloaded,
             "registered worktrees on startup",
         );
+    }
+
+    // ACTMO-019: durably register the operator's `register_on_start` worktrees
+    // (atop the reloaded set) so a curated in-scope set survives a daemon
+    // restart without an `anvil start` in each. A malformed/untrusted config is
+    // logged and skipped — per-connection admission independently fails closed,
+    // so the daemon still starts. Only the exact listed paths are touched; no
+    // filesystem scan (ADR-094 decision 5).
+    match confinement::load_register_on_start() {
+        Ok(paths) if !paths.is_empty() => {
+            let outcome = register_configured_worktrees(&daemon_state.registry, &paths);
+            if outcome.registered > 0 {
+                tracing::info!(
+                    target: "anvil_intercept::registration",
+                    count = outcome.registered,
+                    "registered worktrees from register_on_start config on startup",
+                );
+            }
+            if outcome.skipped > 0 {
+                tracing::warn!(
+                    target: "anvil_intercept::registration",
+                    count = outcome.skipped,
+                    "skipped register_on_start entries on startup (missing directory or refused)",
+                );
+            }
+        }
+        Ok(_) => {}
+        Err(err) => {
+            tracing::warn!(
+                target: "anvil_intercept::confinement",
+                error = %err,
+                "could not load register_on_start config — skipping startup auto-registration",
+            );
+        }
     }
 
     #[cfg(any(unix, windows))]
@@ -2020,6 +2122,67 @@ mod tests {
         assert_eq!(
             remaining[0].session_id,
             SessionId::new("sess_activation_live")
+        );
+    }
+
+    /// ACTMO-019: the daemon durably registers the operator's `register_on_start`
+    /// worktrees on startup. A live worktree is registered as durable membership
+    /// (using the same activation session id the CLI client derives, so a later
+    /// `anvil workspace register` heartbeats it); a missing path is skipped +
+    /// counted, never fatal; and re-running is idempotent (no duplicate).
+    #[test]
+    fn register_configured_worktrees_registers_live_and_skips_missing() {
+        let wt_a = tempfile::tempdir().expect("worktree a");
+        let wt_b = tempfile::tempdir().expect("worktree b");
+        let a_canonical = registration_store::canonicalise_for_registration(wt_a.path());
+        let b_canonical = registration_store::canonicalise_for_registration(wt_b.path());
+        let paths = vec![
+            wt_a.path().to_path_buf(),
+            PathBuf::from("/nonexistent/anvil/register-on-start-gone"),
+            wt_b.path().to_path_buf(),
+        ];
+
+        let registry = SessionRegistry::new();
+        let outcome = register_configured_worktrees(&registry, &paths);
+
+        assert_eq!(outcome.registered, 2, "both live worktrees registered");
+        assert_eq!(outcome.skipped, 1, "the missing path is skipped + counted");
+        let mut registered = registry.registered_worktrees();
+        registered.sort();
+        let mut expected = vec![a_canonical.clone(), b_canonical];
+        expected.sort();
+        assert_eq!(
+            registered, expected,
+            "both live worktrees are durable members"
+        );
+
+        // The id is the deterministic activation id, so a CLI re-register of the
+        // same path collides on the session id (heartbeat, not a fresh session).
+        let id_a = registration_store::activation_session_id(&a_canonical);
+        assert!(
+            matches!(
+                registry.register(
+                    &id_a,
+                    &a_canonical,
+                    Some(&registration_store::activation_agent_tag()),
+                    Instant::now(),
+                ),
+                Err(RegistryError::SessionAlreadyExists(_))
+            ),
+            "the configured worktree owns the deterministic activation session id"
+        );
+
+        // Idempotent: a second startup pass does not duplicate membership.
+        let again = register_configured_worktrees(&registry, &paths);
+        assert_eq!(
+            again.registered, 2,
+            "already-registered worktrees stay registered"
+        );
+        assert_eq!(again.skipped, 1);
+        assert_eq!(
+            registry.registered_worktrees().len(),
+            2,
+            "no duplicate membership on re-run"
         );
     }
 

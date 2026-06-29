@@ -15,10 +15,18 @@
 //! - `allow <PATH> [--prefix]` — add an allow entry (exact, or a `--prefix`
 //!   subtree). Only meaningful in `allowlist` mode.
 //! - `deny <PATH>` — remove an allow entry.
-//! - `list` — show the current mode and allow entries.
+//! - `register [PATH] [--all] [--persist]` — register a worktree for durable
+//!   daemon protection (ACTMO-015/018); `--persist` also records it under the
+//!   `register_on_start` key so the daemon re-registers it on every startup
+//!   (ACTMO-019).
+//! - `unregister [PATH] [--persist]` — drop a worktree's durable protection
+//!   (idempotent); `--persist` also removes it from `register_on_start`.
+//! - `list` — show the admission mode, allow entries, the live registry, and the
+//!   `register_on_start` set.
 //!
-//! Changes take effect for **new** daemon connections (the daemon reads the
-//! confinement config per connection); no restart is required.
+//! Confinement (`mode`/`allow`/`deny`) changes take effect for **new** daemon
+//! connections (the daemon reads the config per connection); no restart is
+//! required. Registration (`register`/`unregister`) is a live daemon RPC.
 
 use std::collections::BTreeSet;
 
@@ -103,6 +111,11 @@ struct RegisterArgs {
     /// (ACTMO-018). Mutually exclusive with PATH.
     #[arg(long, conflicts_with = "path")]
     all: bool,
+    /// Also record the worktree in `register_on_start` so the daemon
+    /// re-registers it automatically on every startup (ACTMO-019). Persisted to
+    /// `workspace.yaml`; survives daemon restarts without re-running this.
+    #[arg(long)]
+    persist: bool,
 }
 
 #[derive(Debug, Args)]
@@ -110,6 +123,10 @@ struct UnregisterArgs {
     /// The worktree to unregister. Defaults to the current directory.
     #[arg(value_name = "PATH")]
     path: Option<std::path::PathBuf>,
+    /// Also remove the worktree from `register_on_start` so the daemon no longer
+    /// re-registers it on startup (ACTMO-019).
+    #[arg(long)]
+    persist: bool,
 }
 
 pub fn run(args: &WorkspaceArgs, _global: &GlobalArgs) -> Result<()> {
@@ -135,7 +152,7 @@ fn resolve_target(path: Option<&std::path::PathBuf>) -> Result<std::path::PathBu
 
 fn run_register(args: &RegisterArgs) -> Result<()> {
     if args.all {
-        return run_register_all();
+        return run_register_all(args.persist);
     }
     let target = resolve_target(args.path.as_ref())?;
     // Resolve to the worktree ROOT (like `anvil start`) so registering from a
@@ -144,10 +161,81 @@ fn run_register(args: &RegisterArgs) -> Result<()> {
     match registration::registerable_worktree(&target) {
         Ok(root) => {
             report_registration(&root, registration::register_worktree_with_daemon(&root));
+            // ACTMO-019: `--persist` records the worktree in `register_on_start`
+            // independent of the live outcome — it captures the *intent* to
+            // protect this worktree on every startup (e.g. the daemon may be
+            // down right now). The startup path skips a fenced/gone entry.
+            if args.persist {
+                persist_register_on_start(&root)?;
+            }
         }
         Err(reason) => {
             println!("Cannot register {}: {reason}.", target.display());
         }
+    }
+    Ok(())
+}
+
+/// ACTMO-019: record `root` in the `register_on_start` config so the daemon
+/// re-registers it on every startup. Idempotent. `root` is the canonicalised
+/// worktree root the daemon will re-derive the same activation id from.
+fn persist_register_on_start(root: &std::path::Path) -> Result<()> {
+    let mut file = confinement::read_config_file().context("read workspace confinement config")?;
+    if file.add_register_on_start(root.to_path_buf()) {
+        let written = confinement::write_config_file(&file).context("write confinement config")?;
+        println!(
+            "Recorded {} in register_on_start ({}); the daemon re-registers it on startup.",
+            root.display(),
+            written.display()
+        );
+        warn_if_unadmitted(&file, root);
+    } else {
+        println!(
+            "{} is already in register_on_start; nothing to add.",
+            root.display()
+        );
+    }
+    Ok(())
+}
+
+/// ACTMO-019 (Council m-5): in `allowlist` mode, a `register_on_start` worktree
+/// that the allowlist does not admit becomes a phantom registration — the daemon
+/// registers it but every connection to it is refused by admission. Warn so the
+/// operator knows to `anvil workspace allow` it. Best-effort, advisory only;
+/// `open` mode admits everything so there is nothing to warn about.
+fn warn_if_unadmitted(file: &confinement::ConfinementConfigFile, root: &std::path::Path) {
+    if file.admission != AdmissionModeFile::Allowlist {
+        return;
+    }
+    let canonical = dunce_canonical(root);
+    let admitted = file.allow.iter().any(|entry| {
+        let allowed = dunce_canonical(&entry.path);
+        match entry.kind {
+            MatchKind::Exact => canonical == allowed,
+            MatchKind::Prefix => canonical.starts_with(&allowed),
+        }
+    });
+    if !admitted {
+        println!(
+            "Note: admission mode is `allowlist` and {} is not admitted, so it will not be \
+             served until you `anvil workspace allow {}`.",
+            root.display(),
+            root.display()
+        );
+    }
+}
+
+/// ACTMO-019: remove `root` from the `register_on_start` config.
+fn unpersist_register_on_start(root: &std::path::Path) -> Result<()> {
+    let mut file = confinement::read_config_file().context("read workspace confinement config")?;
+    if file.remove_register_on_start(root) {
+        confinement::write_config_file(&file).context("write confinement config")?;
+        println!("Removed {} from register_on_start.", root.display());
+    } else {
+        println!(
+            "{} was not in register_on_start; nothing to remove.",
+            root.display()
+        );
     }
     Ok(())
 }
@@ -177,18 +265,25 @@ fn run_unregister(args: &UnregisterArgs) -> Result<()> {
     // resolves, so fall back to the raw path (best-effort — the reaper already
     // drops gone worktrees).
     let target = registration::registerable_worktree(&target).unwrap_or(target);
-    let shown = target.display();
-    match registration::unregister_worktree_with_daemon(&target) {
-        WorktreeUnregistration::Unregistered => println!("Unregistered {shown}."),
-        WorktreeUnregistration::NotRegistered => {
-            println!("{shown} was not registered — nothing to do.");
+    {
+        let shown = target.display();
+        match registration::unregister_worktree_with_daemon(&target) {
+            WorktreeUnregistration::Unregistered => println!("Unregistered {shown}."),
+            WorktreeUnregistration::NotRegistered => {
+                println!("{shown} was not registered — nothing to do.");
+            }
+            WorktreeUnregistration::DaemonUnavailable => {
+                println!("Daemon unavailable — nothing to unregister.");
+            }
+            WorktreeUnregistration::Rejected(message) => {
+                println!("Could not unregister {shown}: {message}");
+            }
         }
-        WorktreeUnregistration::DaemonUnavailable => {
-            println!("Daemon unavailable — nothing to unregister.");
-        }
-        WorktreeUnregistration::Rejected(message) => {
-            println!("Could not unregister {shown}: {message}");
-        }
+    }
+    // ACTMO-019: `--persist` also drops it from `register_on_start`, so the
+    // daemon stops re-registering it on startup.
+    if args.persist {
+        unpersist_register_on_start(&target)?;
     }
     Ok(())
 }
@@ -313,6 +408,23 @@ fn run_list() -> Result<()> {
             }
         }
     }
+
+    // ACTMO-019: the persistent auto-registration set. Distinct from the live
+    // registry above (which may differ if the daemon is down or a worktree was
+    // unregistered this session) — these re-register on every daemon startup.
+    if file.register_on_start.is_empty() {
+        println!("Register on start: (none)");
+    } else {
+        println!("Register on start:");
+        for worktree in &file.register_on_start {
+            let mark = match &registered {
+                RegisteredSet::Known(set) if is_registered(worktree, set) => "",
+                RegisteredSet::Known(_) => " [not currently registered]",
+                RegisteredSet::Unavailable => "",
+            };
+            println!("  {}{mark}", worktree.display());
+        }
+    }
     Ok(())
 }
 
@@ -360,7 +472,7 @@ fn daemon_bypassed() -> bool {
 /// worktree. Prefix entries are skipped with a warning (walking them would be
 /// the forbidden filesystem scan); all skips are reported. Bounded strictly by
 /// the operator's curated allowlist — never a scan.
-fn run_register_all() -> Result<()> {
+fn run_register_all(persist: bool) -> Result<()> {
     if daemon_bypassed() {
         println!("Registration skipped (ANVIL_NO_DAEMON set).");
         return Ok(());
@@ -378,6 +490,10 @@ fn run_register_all() -> Result<()> {
     let mut registered = 0usize;
     let mut prefix_skipped = 0usize;
     let mut skips: Vec<String> = Vec::new();
+    // ACTMO-019: roots to add to `register_on_start` when `--persist` is set —
+    // the exact entries that resolved to a live worktree (the same set `--all`
+    // registered this run).
+    let mut persist_roots: Vec<std::path::PathBuf> = Vec::new();
     for entry in &file.allow {
         if matches!(entry.kind, MatchKind::Prefix) {
             prefix_skipped += 1;
@@ -395,9 +511,18 @@ fn run_register_all() -> Result<()> {
             }
         };
         match registration::register_worktree_with_daemon(&root) {
-            WorktreeRegistration::Registered | WorktreeRegistration::Refreshed => registered += 1,
+            WorktreeRegistration::Registered | WorktreeRegistration::Refreshed => {
+                registered += 1;
+                persist_roots.push(root);
+            }
             WorktreeRegistration::DaemonUnavailable => {
                 println!("Daemon unavailable — stopping. Start it with `anvil start` and retry.");
+                // Council m-1: still persist the intent captured before the
+                // daemon went away, so `--persist` does not silently drop the
+                // worktrees that DID register this run.
+                if persist && !persist_roots.is_empty() {
+                    persist_register_on_start_all(&persist_roots)?;
+                }
                 return Ok(());
             }
             WorktreeRegistration::Fenced(message)
@@ -423,6 +548,32 @@ fn run_register_all() -> Result<()> {
         for skip in &skips {
             println!("  {skip}");
         }
+    }
+    if persist && !persist_roots.is_empty() {
+        persist_register_on_start_all(&persist_roots)?;
+    }
+    Ok(())
+}
+
+/// ACTMO-019: add several worktree roots to `register_on_start` in one
+/// read/modify/write, reporting how many were newly recorded.
+fn persist_register_on_start_all(roots: &[std::path::PathBuf]) -> Result<()> {
+    let mut file = confinement::read_config_file().context("read workspace confinement config")?;
+    let mut added = 0usize;
+    for root in roots {
+        if file.add_register_on_start(root.clone()) {
+            added += 1;
+        }
+    }
+    if added > 0 {
+        let written = confinement::write_config_file(&file).context("write confinement config")?;
+        println!(
+            "Recorded {added} worktree{} in register_on_start ({}); the daemon re-registers them on startup.",
+            if added == 1 { "" } else { "s" },
+            written.display()
+        );
+    } else {
+        println!("All registered worktrees were already in register_on_start.");
     }
     Ok(())
 }
@@ -533,7 +684,45 @@ mod tests {
         match parsed.command {
             WorkspaceCommand::Unregister(args) => {
                 assert_eq!(args.path.as_deref(), Some(std::path::Path::new("/srv/p")));
+                assert!(!args.persist, "--persist defaults off");
             }
+            other => panic!("expected Unregister, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn workspace_register_persist_parses_with_path_and_all() {
+        // ACTMO-019: `--persist` records the worktree in `register_on_start`.
+        let with_path =
+            Harness::try_parse_from(["anvil-workspace", "register", "/srv/p", "--persist"])
+                .expect("parse register --persist");
+        match with_path.command {
+            WorkspaceCommand::Register(args) => {
+                assert_eq!(args.path.as_deref(), Some(std::path::Path::new("/srv/p")));
+                assert!(args.persist);
+                assert!(!args.all);
+            }
+            other => panic!("expected Register, got {other:?}"),
+        }
+
+        // `--persist` composes with `--all` (populate register_on_start from the
+        // allowlist in one shot).
+        let with_all =
+            Harness::try_parse_from(["anvil-workspace", "register", "--all", "--persist"])
+                .expect("parse register --all --persist");
+        match with_all.command {
+            WorkspaceCommand::Register(args) => {
+                assert!(args.all);
+                assert!(args.persist);
+            }
+            other => panic!("expected Register, got {other:?}"),
+        }
+
+        let unregister =
+            Harness::try_parse_from(["anvil-workspace", "unregister", "/srv/p", "--persist"])
+                .expect("parse unregister --persist");
+        match unregister.command {
+            WorkspaceCommand::Unregister(args) => assert!(args.persist),
             other => panic!("expected Unregister, got {other:?}"),
         }
     }
