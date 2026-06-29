@@ -170,6 +170,7 @@ target/
 **/*.rs.bk
 bench-results/
 benchmark-results/
+.bench-logs/
 
 # Local machine state and secrets
 settings.local.json

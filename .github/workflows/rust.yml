@@ -300,7 +300,7 @@ jobs:
         with:
           tool: cargo-deny@${{ env.CARGO_DENY_VERSION }}
       - name: Run cargo deny check
-        run: cargo deny check
+        run: cargo deny check --config attribution/deny.toml
 
   acknowledgements-diff:
     name: Acknowledgements freshness
@@ -356,8 +356,8 @@ jobs:
       - name: Regenerate ACKNOWLEDGEMENTS.md and fail on drift
         run: |
           export PATH="$GITHUB_WORKSPACE/tools/dev/node_modules/.bin:$PATH"
-          if ! tools/starters/acknowledgements/generate-acknowledgements.sh --check; then
-            echo "::error::ACKNOWLEDGEMENTS.md is stale. Run 'tools/starters/acknowledgements/generate-acknowledgements.sh' locally and commit."
+          if ! tools/starters/acknowledgements/generate-acknowledgements.sh --config attribution/attribution.toml --check; then
+            echo "::error::ACKNOWLEDGEMENTS.md is stale. Run 'tools/starters/acknowledgements/generate-acknowledgements.sh --config attribution/attribution.toml' locally and commit."
             exit 1
           fi
       # ATTRIB-007 regression guard: a missing-`license`-field crate
@@ -371,7 +371,9 @@ jobs:
       # consumer file (about.toml.accepted, deny.toml.[licenses].allow,
       # ATTRIB-012 licences.node-allow.txt when present).
       - name: Licences single-source drift check
-        run: tools/starters/acknowledgements/expand-licences.sh --check
+        run:
+          tools/starters/acknowledgements/expand-licences.sh --config attribution/licences.toml
+          --check
       # ATTRIB-006/-012 regression guard: the drift detector itself
       # must actually detect drift. Four-scenario fixture test pins
       # the contract so a regression that loosens the matcher is

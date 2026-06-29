@@ -4,9 +4,9 @@
 | ----- | ------------- | ----- | ------ | ------------------------------------------------- |
 | Guide | Authoritative | SEC   | Live   | First filed 2026-06-16 against `main` for SEC-001 |
 
-| Upstream                                                                                                                                                           | Downstream                                                                               |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
-| [`.github/workflows/security.yml`](../../.github/workflows/security.yml), [`deny.toml`](../../deny.toml), [`.github/dependabot.yml`](../../.github/dependabot.yml) | [`supply-chain-policy.md`](./supply-chain-policy.md), [`SECURITY.md`](../../SECURITY.md) |
+| Upstream                                                                                                                                                                       | Downstream                                                                               |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| [`.github/workflows/security.yml`](../../.github/workflows/security.yml), [`deny.toml`](../../attribution/deny.toml), [`.github/dependabot.yml`](../../.github/dependabot.yml) | [`supply-chain-policy.md`](./supply-chain-policy.md), [`SECURITY.md`](../../SECURITY.md) |
 
 ## Overview
 
@@ -34,10 +34,11 @@ dependency-relevant path changes) and also run on a weekly schedule.
   `exit-code: 1`, so a high/critical advisory fails the gate.
 - **Rust advisories + bans — `cargo-deny`.** The `deny` job in
   [`.github/workflows/rust.yml`](../../.github/workflows/rust.yml) runs
-  `cargo-deny`, whose `[advisories]` section in [`deny.toml`](../../deny.toml)
-  consumes the RUSTSEC advisory database. This is the "cargo audit" intent. The
-  job is gated on `detect-rust-changes` (manifests, lockfile, toolchain, or the
-  workflow itself).
+  `cargo-deny`, whose `[advisories]` section in
+  [`deny.toml`](../../attribution/deny.toml) consumes the RUSTSEC advisory
+  database. This is the "cargo audit" intent. The job is gated on
+  `detect-rust-changes` (manifests, lockfile, toolchain, or the workflow
+  itself).
 - **Secret scan — `Secret Scan`.** The `secret-scan` job runs TruffleHog with
   `--only-verified`, so only credentials it can actively verify trip the gate
   (textbook/example keys do not).

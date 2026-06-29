@@ -27,7 +27,7 @@ pnpm-lock.yaml
 archive/
 # cargo-about Handlebars template — oxfmt parses .hbs as Glimmer and rejects
 # handlebars parent-scope access like {{../name}}. Template is authoritative.
-about.hbs
+attribution/about.hbs
 # ACKNOWLEDGEMENTS.md has a hand-curated top + auto-generated attribution
 # block; tools/generate-acknowledgements.sh is the source of truth.
 ACKNOWLEDGEMENTS.md

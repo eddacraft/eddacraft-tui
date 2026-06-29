@@ -12,18 +12,18 @@ on:
     branches: [main]
     paths:
       - 'tools/starters/acknowledgements/**'
-      - 'licences.toml'
-      - 'licences.node-allow.txt'
-      - 'licences.go-allow.txt'
-      - 'licences.python-allow.txt'
+      - 'attribution/licences.toml'
+      - 'attribution/licences.node-allow.txt'
+      - 'attribution/licences.go-allow.txt'
+      - 'attribution/licences.python-allow.txt'
       - '.github/workflows/acknowledgements-kit.yml'
   pull_request:
     paths:
       - 'tools/starters/acknowledgements/**'
-      - 'licences.toml'
-      - 'licences.node-allow.txt'
-      - 'licences.go-allow.txt'
-      - 'licences.python-allow.txt'
+      - 'attribution/licences.toml'
+      - 'attribution/licences.node-allow.txt'
+      - 'attribution/licences.go-allow.txt'
+      - 'attribution/licences.python-allow.txt'
       - '.github/workflows/acknowledgements-kit.yml'
 
 permissions:
@@ -149,4 +149,6 @@ jobs:
       # licences.node-allow.txt, licences.go-allow.txt,
       # licences.python-allow.txt).
       - name: Licences single-source drift check
-        run: bash tools/starters/acknowledgements/expand-licences.sh --check
+        run:
+          bash tools/starters/acknowledgements/expand-licences.sh --config attribution/licences.toml
+          --check

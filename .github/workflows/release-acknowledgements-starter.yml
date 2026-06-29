@@ -158,7 +158,9 @@ jobs:
       # produced this commit; re-assert the single-source licence drift
       # gate so the tagged tree is internally consistent.
       - name: Re-assert kit health (licences drift)
-        run: bash tools/starters/acknowledgements/expand-licences.sh --check
+        run:
+          bash tools/starters/acknowledgements/expand-licences.sh --config attribution/licences.toml
+          --check
 
       - name: Configure git identity
         run: |

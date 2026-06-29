@@ -35,7 +35,7 @@
     "format": "pnpm exec oxfmt --write .",
     "format:check": "pnpm exec oxfmt --check .",
     "typecheck:rust": "RUST_PROJECTS=$(pnpm -s run projects:rust) && nx run-many -t check --projects=\"$RUST_PROJECTS\"",
-    "licenses:verify": "tools/starters/acknowledgements/generate-acknowledgements.sh --check",
+    "licenses:verify": "tools/starters/acknowledgements/generate-acknowledgements.sh --config attribution/attribution.toml --check",
     "typecheck": "nx run-many -t typecheck --exclude=anvil-vscode && pnpm run typecheck:rust",
     "lint:md": "markdownlint --ignore-path .markdownlintignore .",
     "lint:md:fix": "markdownlint --ignore-path .markdownlintignore . --fix",

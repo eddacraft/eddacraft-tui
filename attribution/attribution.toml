@@ -2,11 +2,16 @@
 # tools/starters/acknowledgements/generate-acknowledgements.sh.
 #
 # Schema reference: tools/starters/acknowledgements/README.md
-# Module: plans/modules/attribution-pipeline-v3.aps.md
+# Module: plans/archive/modules/attribution-pipeline-v3.aps.md
+#
+# This config and its consumer files (about.toml, about.hbs, deny.toml,
+# licences.toml, licences.*-allow.txt) live in `attribution/`. Paths
+# below resolve relative to this file's directory, so root-level targets
+# (ACKNOWLEDGEMENTS.md, crate/package manifests) are reached via `../`.
 
 [project]
-target_path = "ACKNOWLEDGEMENTS.md"
-fixit_command = "tools/starters/acknowledgements/generate-acknowledgements.sh"
+target_path = "../ACKNOWLEDGEMENTS.md"
+fixit_command = "tools/starters/acknowledgements/generate-acknowledgements.sh --config attribution/attribution.toml"
 
 # ATTRIB-008 dispatcher schema. ATTRIB-015 migrated from the flat
 # `[rust]` back-compat shim to the canonical `[[blocks]]` form when
@@ -19,7 +24,7 @@ ecosystem = "rust"
 # `anvil` binary's runtime dependency graph. Dev-deps (insta, criterion,
 # wiremock, ...) are not linked into the shipped binary and are excluded
 # from attribution.
-manifest_path = "crates/anvil-cli/Cargo.toml"
+manifest_path = "../crates/anvil-cli/Cargo.toml"
 template_path = "about.hbs"
 config_path = "about.toml"
 
@@ -35,6 +40,6 @@ ecosystem = "node"
 # 231 packages with no proprietary noise. Key dev deps and tools
 # beyond this curated minimum live in the hand-curated `## Thanks`
 # section of ACKNOWLEDGEMENTS.md.
-manifest_path = "tools/dev/package.json"
+manifest_path = "../tools/dev/package.json"
 node_allow_path = "licences.node-allow.txt"
 prod_only = false

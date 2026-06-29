@@ -379,6 +379,6 @@ attribution surface.
   [`tools/starters/acknowledgements/generate-acknowledgements.sh`](../../tools/starters/acknowledgements/generate-acknowledgements.sh)
 - Allow-list expander (ATTRIB-006):
   [`tools/starters/acknowledgements/expand-licences.sh`](../../tools/starters/acknowledgements/expand-licences.sh)
-- Canonical allow-list: [`licences.toml`](../../licences.toml)
+- Canonical allow-list: [`licences.toml`](../../attribution/licences.toml)
 - Public mirror destination:
   <https://github.com/eddacraft/acknowledgements-starter>

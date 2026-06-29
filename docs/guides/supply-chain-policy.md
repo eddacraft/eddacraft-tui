@@ -4,19 +4,20 @@
 | ----- | ------------- | ----- | ------ | ------------------------------------------------- |
 | Guide | Authoritative | SEC   | Live   | First filed 2026-06-16 against `main` for SEC-004 |
 
-| Upstream                                                                                                                                 | Downstream                                                                                            |
-| ---------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| [`deny.toml`](../../deny.toml), [`licences.toml`](../../licences.toml), [`.github/workflows/rust.yml`](../../.github/workflows/rust.yml) | [`dependency-audit-posture.md`](./dependency-audit-posture.md), supply-chain-attestation (SCA) module |
+| Upstream                                                                                                                                                         | Downstream                                                                                            |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| [`deny.toml`](../../attribution/deny.toml), [`licences.toml`](../../attribution/licences.toml), [`.github/workflows/rust.yml`](../../.github/workflows/rust.yml) | [`dependency-audit-posture.md`](./dependency-audit-posture.md), supply-chain-attestation (SCA) module |
 
 ## Overview
 
 This guide documents the supply-chain rules Anvil already enforces, so a change
 to the enforcement config has a referenced rationale rather than an unexplained
-edit. The runtime enforcement lives in [`deny.toml`](../../deny.toml) (Rust, via
-the `cargo-deny` CI job) and in the lockfile discipline both package managers
-apply in CI. This guide is the **policy** half of supply-chain security; the
-**attestation/SBOM** half (build provenance) is owned by the
-supply-chain-attestation (SCA) track — the boundary is called out below.
+edit. The runtime enforcement lives in
+[`deny.toml`](../../attribution/deny.toml) (Rust, via the `cargo-deny` CI job)
+and in the lockfile discipline both package managers apply in CI. This guide is
+the **policy** half of supply-chain security; the **attestation/SBOM** half
+(build provenance) is owned by the supply-chain-attestation (SCA) track — the
+boundary is called out below.
 
 ## Lockfile policy
 
@@ -32,8 +33,8 @@ supply-chain-attestation (SCA) track — the boundary is called out below.
 
 ## `deny.toml` rules
 
-[`deny.toml`](../../deny.toml) is the Rust supply-chain gate (enforced by the
-`cargo-deny` job in
+[`deny.toml`](../../attribution/deny.toml) is the Rust supply-chain gate
+(enforced by the `cargo-deny` job in
 [`.github/workflows/rust.yml`](../../.github/workflows/rust.yml)). It carries
 four policy axes:
 
@@ -42,9 +43,9 @@ four policy axes:
   expected-fix date; prefer bumping the dependency. This is an escape hatch, not
   a permanent bypass.
 - **`[licenses]`** — the allowlist of permitted SPDX licences. The `allow` array
-  is **generated** from [`licences.toml`](../../licences.toml) (kept in sync
-  with `about.toml`); edit `licences.toml`, never `deny.toml` directly, when
-  adding or removing a licence. `[[licenses.clarify]]` records per-crate
+  is **generated** from [`licences.toml`](../../attribution/licences.toml) (kept
+  in sync with `about.toml`); edit `licences.toml`, never `deny.toml` directly,
+  when adding or removing a licence. `[[licenses.clarify]]` records per-crate
   clarifications.
 - **`[bans]`** — explicitly disallowed crates and duplicate-version policy.
 - **`[sources]`** — which registries/git sources are permitted, so a dependency
