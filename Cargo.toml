@@ -59,6 +59,9 @@ tree-sitter-kotlin-ng = "1.1"
 tree-sitter-c-sharp = "0.23"
 tree-sitter-c = "0.24"
 tree-sitter-cpp = "0.23"
+# Tail-language wave 2 (LTW2, ADR-093) — audited against the tree-sitter 0.26
+# runtime in LTW2-001 (binds + parses cleanly).
+tree-sitter-zig = "1.1.2"
 
 # File watching
 notify = "8"

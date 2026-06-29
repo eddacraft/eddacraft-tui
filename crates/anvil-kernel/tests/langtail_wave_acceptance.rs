@@ -56,6 +56,11 @@ const EXPECTATIONS: &[(&str, &[&str])] = &[
             "globalSeed",
         ],
     ),
+    // LTW2-003 (tail wave 2): Zig joins the shared tail acceptance corpus.
+    (
+        "greeter.zig",
+        &["Greeter", "Greeter.greet", "Mood", "topLevelGreeting"],
+    ),
 ];
 
 #[test]

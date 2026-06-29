@@ -22,6 +22,8 @@ pub enum Language {
     /// header kept in a `.h` is a documented T1 limitation, not a parse error.
     C,
     Cpp,
+    /// Zig (`.zig`/`.zon`) — tail-language wave 2 (LTW2, ADR-093), T1 (Parsed).
+    Zig,
 }
 
 impl Language {
@@ -41,6 +43,7 @@ impl Language {
             "cs" => Some(Self::CSharp),
             "c" | "h" => Some(Self::C),
             "cpp" | "cc" | "cxx" | "c++" | "hpp" | "hh" | "hxx" | "h++" => Some(Self::Cpp),
+            "zig" | "zon" => Some(Self::Zig),
             _ => None,
         }
     }
@@ -60,6 +63,7 @@ impl Language {
             Self::CSharp => tree_sitter_c_sharp::LANGUAGE.into(),
             Self::C => tree_sitter_c::LANGUAGE.into(),
             Self::Cpp => tree_sitter_cpp::LANGUAGE.into(),
+            Self::Zig => tree_sitter_zig::LANGUAGE.into(),
         }
     }
 
@@ -126,6 +130,7 @@ mod tests {
             Language::CSharp.grammar_version(),
             Language::C.grammar_version(),
             Language::Cpp.grammar_version(),
+            Language::Zig.grammar_version(),
         ];
         for (i, a) in versions.iter().enumerate() {
             for b in &versions[i + 1..] {
@@ -227,9 +232,51 @@ mod tests {
     }
 
     #[test]
+    fn detects_zig() {
+        // LTW2-003: `.zig` and `.zon` map to Zig.
+        assert_eq!(
+            Language::from_path(Path::new("src/main.zig")),
+            Some(Language::Zig)
+        );
+        assert_eq!(
+            Language::from_path(Path::new("build.zig.zon")),
+            Some(Language::Zig)
+        );
+    }
+
+    #[test]
     fn returns_none_for_unknown() {
         assert_eq!(Language::from_path(Path::new("README.md")), None);
         assert_eq!(Language::from_path(Path::new("Cargo.toml")), None);
+        // LTW2-002 boundary: binary WebAssembly is not a source format and must
+        // not be detected (the text format `.wat`/`.wast` is a separate wave-2
+        // item; `.wasm` never maps).
+        assert_eq!(Language::from_path(Path::new("module.wasm")), None);
+    }
+
+    #[test]
+    fn ltw2_grammars_bind_and_parse() {
+        // LTW2-001 acceptance, pinned as a permanent regression guard for the
+        // wave-2 tail grammars (mirrors `tail_wave_grammars_bind_and_parse`):
+        // each must bind the tree-sitter runtime (ABI compatible) and parse a
+        // representative multi-line snippet without an error tree.
+        let cases: [(Language, &str); 1] = [(
+            Language::Zig,
+            "const std = @import(\"std\");\n\npub const Point = struct {\n    x: i32,\n\n    pub fn init(x: i32) Point {\n        return Point{ .x = x };\n    }\n};\n\npub fn add(a: i32, b: i32) i32 {\n    return a + b;\n}\n",
+        )];
+        for (lang, source) in cases {
+            let mut parser = tree_sitter::Parser::new();
+            parser
+                .set_language(&lang.ts_language())
+                .unwrap_or_else(|e| panic!("{lang:?} grammar must bind (ABI compatible): {e}"));
+            let tree = parser
+                .parse(source, None)
+                .unwrap_or_else(|| panic!("{lang:?} parse must yield a tree"));
+            assert!(
+                !tree.root_node().has_error(),
+                "{lang:?}: representative snippet must parse without errors"
+            );
+        }
     }
 
     #[test]

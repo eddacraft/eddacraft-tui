@@ -23,6 +23,7 @@ pub mod python;
 pub mod rust;
 pub mod tail_common;
 pub mod typescript;
+pub mod zig;
 
 use std::path::Path;
 
@@ -119,6 +120,8 @@ fn extract_symbols_uncapped(
         Some(Language::CSharp) => csharp::CSharpExtractor.extract(tree, source, &file, id_offset),
         Some(Language::C) => clike::CExtractor.extract(tree, source, &file, id_offset),
         Some(Language::Cpp) => clike::CppExtractor.extract(tree, source, &file, id_offset),
+        // Tail-language wave 2 (LTW2) — T1 extractor.
+        Some(Language::Zig) => zig::ZigExtractor.extract(tree, source, &file, id_offset),
         None => {
             // Reaching here means a caller passed a tree whose path has no
             // known grammar — `parse_bytes` rejects those up front, so every
