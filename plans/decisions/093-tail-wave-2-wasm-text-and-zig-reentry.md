@@ -16,6 +16,15 @@ Both land as a single batched wave following the
 [LANGTAIL precedent](../modules/lang-tail-wave.aps.md) (PR #2757), gated on a
 grammar maturity audit per council finding C-005.
 
+**Audit outcome (LTW2-001, 2026-06-29):** the gate passed for **both** —
+each grammar binds tree-sitter 0.26 and parses a real fixture with no error tree
+(spike-verified). Wave membership is both languages. Zig ships from the
+published `tree-sitter-zig` 1.1.2 crate. **WAT has no published crate**, so the
+owner accepted **including it via a vendored grammar** (`wasm-lsp/tree-sitter-wasm`
+`wat/parser.c`, ABI 13, no external scanner; upstream dormant since 2022) —
+capability is clean, the cost is an in-tree maintenance liability. See the
+[LTW2 module](../modules/lang-tail-wave-2.aps.md) audit table for evidence.
+
 ## Date
 
 2026-06-29

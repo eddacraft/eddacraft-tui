@@ -15,31 +15,42 @@
 > at **T1 (Parsed)**. Zig **re-enters** from the design §13 cut list; WebAssembly
 > text was never previously a candidate.
 >
-> **Ready promoted 2026-06-29** (owner). Ready authorises two items: **LTW2-001
-> (the grammar maturity audit)** — the gate — and **LTW2-005** (doc
-> reconciliation), which is independent of the grammar work. The wiring items
-> **LTW2-002/-003/-004 stay Proposed** until LTW2-001 confirms each candidate
-> grammar binds tree-sitter 0.26; if a grammar fails, that language is dropped
-> from the wave (drop-not-stall, ADR-093 §Decision point 3).
+> **Audit complete 2026-06-29 (LTW2-001 Done).** Both grammars bind + parse
+> tree-sitter 0.26 — **wave membership is both languages**. Owner accepted
+> including **WAT via a vendored, dormant-since-2022 ABI-13 grammar**
+> ("better than nothing"); Zig ships from the published `tree-sitter-zig` crate.
+> The wiring items **LTW2-002 (WAT) and LTW2-003 (Zig) are now Ready**;
+> **LTW2-004** (wave acceptance) stays Proposed until both land. See the audit
+> table above for evidence.
 
-## Grammar Maturity Audit (LTW2-001) — PENDING
+## Grammar Maturity Audit (LTW2-001) — COMPLETE 2026-06-29
 
 Per the LANGTAIL precedent (council finding C-005), no grammar ships until it
 binds the workspace `tree-sitter` 0.26 runtime and parses a representative
-multi-line fixture without an error tree. **ABI compatibility with tree-sitter
-0.26 is UNVERIFIED for both candidates** — this audit is the gate. If a grammar
-fails to bind, that language is **dropped from the wave** rather than allowed to
-stall it.
+multi-line fixture without an error tree. **Verdict: both bind and parse cleanly
+— wave membership is both languages.** Verified by an isolated bind+parse spike
+against tree-sitter 0.26 (`set_language` + parse a real fixture, assert no error
+tree).
 
-| Language | Candidate grammar crate | Version | ABI bind | Verdict |
-|----------|-------------------------|---------|----------|---------|
-| WebAssembly text (`.wat`/`.wast`) | [`wasm-lsp/tree-sitter-wasm`](https://github.com/wasm-lsp/tree-sitter-wasm) (WAT + WAST) | TBD | ⏳ pending | TBD |
-| Zig (`.zig`/`.zon`) | maintained `tree-sitter-zig` | TBD | ⏳ pending | TBD |
+| Language | Grammar source | Version | ABI bind | Parse | Verdict |
+|----------|----------------|---------|----------|-------|---------|
+| WebAssembly text (`.wat`/`.wast`) | [`wasm-lsp/tree-sitter-wasm`](https://github.com/wasm-lsp/tree-sitter-wasm) `wat/parser.c` — **vendored** (no published crate) | repo @ last commit 2022-05-17, ABI 13 | ✓ `bind=OK` | ✓ `has_error=false` (`ROOT → module → module_field_func → …`) | **Include (vendored)** |
+| Zig (`.zig`/`.zon`) | [`tree-sitter-zig`](https://crates.io/crates/tree-sitter-zig) (crates.io, `tree-sitter-grammars` org) | 1.1.2 (2024-12-22), `tree-sitter-language ^0.1` | ✓ `bind=OK` | ✓ `has_error=false` (`source_file → function_declaration → …`) | **Include** |
 
-Resolve to a pinned crate version + verdict per language as the first executable
-step (LTW2-001), and pin the bind+parse check as a permanent regression guard
-alongside `parser::languages::tests::tail_wave_grammars_bind_and_parse`. The
-wiring items unlock per-language on the verdict here.
+**Findings driving the wiring:**
+
+- **WAT** is **capability-clean but a supply liability.** No published crate, so
+  it is **vendored in-tree** (`parser.c` + `tree_sitter/parser.h`, ~40k lines,
+  **no external scanner** — simple `cc` build). ABI 13 sits at tree-sitter
+  0.26's supported floor (13–15), so it loads today; a future runtime that drops
+  ABI 13 would force a regenerate. Upstream is **dormant since 2022**. Owner
+  accepted the vendoring + maintenance liability (2026-06-29, "better than
+  nothing"). Binding code confirmed by the spike:
+  `tree_sitter_language::LanguageFn::from_raw(tree_sitter_wat)`.
+- **Zig** is clean all round — published, maintained, modern binding
+  (`tree_sitter_zig::LANGUAGE.into()`); standard LANGTAIL wiring shape.
+- Pin the bind+parse check as a permanent regression guard alongside
+  `parser::languages::tests::tail_wave_grammars_bind_and_parse` (LTW2-002/-003).
 
 ## Purpose
 
@@ -105,16 +116,16 @@ across both languages instead of paying it twice.
 
 ## Ready Checklist
 
-Promoted Proposed → **Ready** 2026-06-29 (owner). Ready scope is **LTW2-001 +
-LTW2-005**:
+Module **Ready** since 2026-06-29 (owner). After the LTW2-001 audit closed,
+Ready scope is now **LTW2-002 (WAT), LTW2-003 (Zig), LTW2-005 (doc)**:
 
 - [x] ADR-093 Accepted by owner (2026-06-29).
 - [x] Owner named.
-- [x] LTW2-001 (grammar maturity audit) is the first executable item — it
-      determines final wave membership (both, one, or shelved).
-- [ ] LTW2-002/-003/-004 (per-language wiring) promote to Ready only on a
-      passing LTW2-001 verdict for that language; at least one fixture
-      identified per included language at that point.
+- [x] LTW2-001 (grammar maturity audit) **Done** — both grammars bind + parse
+      tree-sitter 0.26; wave membership is both languages.
+- [x] LTW2-002 (WAT) and LTW2-003 (Zig) promoted to **Ready**; fixtures land
+      with their wiring (`tests/fixtures/langtail2/`).
+- [ ] LTW2-004 (wave acceptance) stays Proposed until LTW2-002 + LTW2-003 land.
 
 ## Work Items
 
@@ -124,7 +135,7 @@ than per-language PRs.
 
 ### LTW2-001 — Grammar maturity audit; finalise wave membership
 
-- **Status:** Ready
+- **Status:** Done (2026-06-29 — both Include; see audit table)
 - **Intent:** Confirm each candidate grammar binds tree-sitter 0.26 and parses a
   representative fixture, pinning version + verdict per language.
 - **Expected Outcome:** The audit table above is resolved (pinned crate version +
@@ -137,7 +148,7 @@ than per-language PRs.
 
 ### LTW2-002 — Wire WebAssembly text (`.wat`/`.wast`)
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Intent:** WebAssembly text files are detected, parsed, and their symbols
   appear in the graph.
 - **Expected Outcome:** `Language::Wat` arm + `from_path` mapping for
@@ -147,13 +158,19 @@ than per-language PRs.
 - **Files:** `crates/anvil-kernel/src/parser/languages.rs`,
   `crates/anvil-kernel/src/parser/extract/wat.rs`,
   `crates/anvil-kernel/src/parser/extract/mod.rs`,
+  vendored grammar under `crates/anvil-kernel/` (`parser.c` + `tree_sitter/parser.h`)
+  + `build.rs` `cc` compile + `extern "C" fn tree_sitter_wat`,
   `crates/anvil-kernel/tests/fixtures/langtail2/`
-- **Dependencies:** LTW2-001
+- **Dependencies:** LTW2-001 (Done)
 - **Confidence:** medium
+- **Note:** WAT has **no published crate** — vendor `wat/parser.c` (ABI 13, no
+  external scanner) from `wasm-lsp/tree-sitter-wasm`; bind via
+  `tree_sitter_language::LanguageFn::from_raw(tree_sitter_wat)` (spike-confirmed).
+  Carries an accepted maintenance liability (upstream dormant since 2022).
 
 ### LTW2-003 — Wire Zig (`.zig`/`.zon`)
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Intent:** Zig files are detected, parsed, and their symbols appear in the
   graph.
 - **Expected Outcome:** `Language::Zig` arm + `from_path` mapping for
@@ -162,10 +179,11 @@ than per-language PRs.
 - **Validation:** `cargo test -p anvil-kernel`
 - **Files:** `crates/anvil-kernel/src/parser/languages.rs`,
   `crates/anvil-kernel/src/parser/extract/zig.rs`,
-  `crates/anvil-kernel/src/parser/extract/mod.rs`,
+  `crates/anvil-kernel/src/parser/extract/mod.rs`, `Cargo.toml` +
+  `crates/anvil-kernel/Cargo.toml` (`tree-sitter-zig = "1.1.2"`), `ACKNOWLEDGEMENTS`,
   `crates/anvil-kernel/tests/fixtures/langtail2/`
-- **Dependencies:** LTW2-001
-- **Confidence:** medium
+- **Dependencies:** LTW2-001 (Done)
+- **Confidence:** high — published crate, spike-confirmed (`tree_sitter_zig::LANGUAGE.into()`)
 
 ### LTW2-004 — Wave acceptance
 
@@ -205,7 +223,9 @@ than per-language PRs.
 
 ## Open Questions
 
-- [ ] Does an ABI-0.26-compatible Zig grammar exist as a published crate, or does
-      it need vendoring? — resolved by LTW2-001.
-- [ ] Are `.wast` (script/test) files in scope, or `.wat` only? Design leans
-      both (same grammar); confirm during LTW2-001.
+- [x] Does an ABI-0.26-compatible Zig grammar exist as a published crate, or does
+      it need vendoring? — **published**: `tree-sitter-zig` 1.1.2 (LTW2-001).
+- [x] Are `.wast` (script/test) files in scope, or `.wat` only? — the
+      `wasm-lsp/tree-sitter-wasm` repo ships **both** `wat/` and `wast/`
+      grammars; LTW2-002 vendors `wat/` first (`.wat`/`.wast` → `Language::Wat`),
+      `wast/` reserved if script-format demand appears.
