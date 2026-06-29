@@ -7,6 +7,7 @@ members = [
   "crates/anvil-gctx-types",
   "crates/anvil-gctx-egress",
   "crates/anvil-kernel",
+  "crates/anvil-grammar-wat",
   "crates/anvil-rayon-init",
   "crates/anvil-tui",
   "crates/anvil-checks",
@@ -62,6 +63,11 @@ tree-sitter-cpp = "0.23"
 # Tail-language wave 2 (LTW2, ADR-093) — audited against the tree-sitter 0.26
 # runtime in LTW2-001 (binds + parses cleanly).
 tree-sitter-zig = "1.1.2"
+# Version-stable grammar binding shim (`LanguageFn`), used to bind the vendored
+# WebAssembly-text grammar (LTW2-002) which ships no published crate.
+tree-sitter-language = "0.1"
+# Compiles the vendored `tree-sitter-wat` `parser.c` (LTW2-002).
+cc = "1"
 
 # File watching
 notify = "8"

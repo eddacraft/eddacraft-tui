@@ -61,6 +61,9 @@ const EXPECTATIONS: &[(&str, &[&str])] = &[
         "greeter.zig",
         &["Greeter", "Greeter.greet", "Mood", "topLevelGreeting"],
     ),
+    // LTW2-002 (tail wave 2): WebAssembly text. Module, funcs, and type land in
+    // the graph (exports share names with their funcs).
+    ("calc.wat", &["calc", "add", "sub", "binop"]),
 ];
 
 #[test]

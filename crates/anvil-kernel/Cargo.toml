@@ -26,6 +26,9 @@ tree-sitter-c-sharp = { workspace = true }
 tree-sitter-c = { workspace = true }
 tree-sitter-cpp = { workspace = true }
 tree-sitter-zig = { workspace = true }
+# Vendored WebAssembly-text grammar (LTW2-002); isolates the grammar FFI from
+# this crate's `forbid(unsafe_code)`.
+anvil-grammar-wat = { path = "../anvil-grammar-wat", package = "eddacraft-anvil-grammar-wat" }
 notify = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

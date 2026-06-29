@@ -125,6 +125,20 @@ each project's licence at the linked source for the canonical text.
 
 [pitchfork]: https://github.com/endevco/pitchfork/tree/cea18d7
 
+### Vendored grammars
+
+Anvil vendors the following third-party tree-sitter grammar **verbatim** because
+it is not published as a crate. The generated parser source lives in-tree and is
+compiled at build time; it retains its original licence.
+
+- [tree-sitter-wasm][tree-sitter-wasm] — MIT. The WebAssembly **text** format
+  (`.wat`/`.wast`) grammar's generated `parser.c` is vendored at
+  `crates/anvil-grammar-wat/vendor/tree-sitter-wat/` (from the upstream `wat/`
+  grammar) and bound by the first-party `eddacraft-anvil-grammar-wat` crate
+  (LTW2-002, ADR-093). No external scanner; ABI 13.
+
+[tree-sitter-wasm]: https://github.com/wasm-lsp/tree-sitter-wasm
+
 ---
 
 <!-- THIRD-PARTY ATTRIBUTION -->

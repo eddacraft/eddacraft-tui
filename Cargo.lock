@@ -1475,6 +1475,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "eddacraft-anvil-grammar-wat"
+version = "0.8.1-beta"
+dependencies = [
+ "cc",
+ "tree-sitter",
+ "tree-sitter-language",
+ "workspace-hack",
+]
+
+[[package]]
 name = "eddacraft-anvil-graph-cache"
 version = "0.8.1-beta"
 dependencies = [
@@ -1588,6 +1598,7 @@ name = "eddacraft-anvil-kernel"
 version = "0.8.1-beta"
 dependencies = [
  "criterion",
+ "eddacraft-anvil-grammar-wat",
  "eddacraft-anvil-graph-cache",
  "eddacraft-anvil-kernel-types",
  "eddacraft-anvil-rayon-init",

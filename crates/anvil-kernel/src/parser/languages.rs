@@ -24,6 +24,11 @@ pub enum Language {
     Cpp,
     /// Zig (`.zig`/`.zon`) — tail-language wave 2 (LTW2, ADR-093), T1 (Parsed).
     Zig,
+    /// WebAssembly **text** format (`.wat`/`.wast`) — tail-language wave 2
+    /// (LTW2, ADR-093), T1 (Parsed). The binary `.wasm` format is deliberately
+    /// excluded: it is not source and never maps here. Backed by a vendored
+    /// grammar (no published crate), compiled by `build.rs`.
+    Wat,
 }
 
 impl Language {
@@ -44,6 +49,9 @@ impl Language {
             "c" | "h" => Some(Self::C),
             "cpp" | "cc" | "cxx" | "c++" | "hpp" | "hh" | "hxx" | "h++" => Some(Self::Cpp),
             "zig" | "zon" => Some(Self::Zig),
+            // WebAssembly text format only — the binary `.wasm` is not source
+            // and is intentionally absent (ADR-093 §Decision point 2).
+            "wat" | "wast" => Some(Self::Wat),
             _ => None,
         }
     }
@@ -64,6 +72,10 @@ impl Language {
             Self::C => tree_sitter_c::LANGUAGE.into(),
             Self::Cpp => tree_sitter_cpp::LANGUAGE.into(),
             Self::Zig => tree_sitter_zig::LANGUAGE.into(),
+            // Vendored grammar (no published crate); the unsafe FFI is isolated
+            // in `anvil-grammar-wat`, which exposes this safe binding so the
+            // kernel keeps `forbid(unsafe_code)`.
+            Self::Wat => anvil_grammar_wat::language(),
         }
     }
 
@@ -131,6 +143,7 @@ mod tests {
             Language::C.grammar_version(),
             Language::Cpp.grammar_version(),
             Language::Zig.grammar_version(),
+            Language::Wat.grammar_version(),
         ];
         for (i, a) in versions.iter().enumerate() {
             for b in &versions[i + 1..] {
@@ -245,12 +258,25 @@ mod tests {
     }
 
     #[test]
+    fn detects_wat() {
+        // LTW2-002: the WebAssembly *text* format maps to Wat.
+        assert_eq!(
+            Language::from_path(Path::new("build/out.wat")),
+            Some(Language::Wat)
+        );
+        assert_eq!(
+            Language::from_path(Path::new("tests/spec.wast")),
+            Some(Language::Wat)
+        );
+    }
+
+    #[test]
     fn returns_none_for_unknown() {
         assert_eq!(Language::from_path(Path::new("README.md")), None);
         assert_eq!(Language::from_path(Path::new("Cargo.toml")), None);
-        // LTW2-002 boundary: binary WebAssembly is not a source format and must
-        // not be detected (the text format `.wat`/`.wast` is a separate wave-2
-        // item; `.wasm` never maps).
+        // LTW2-002 boundary: the text format `.wat`/`.wast` maps to Wat, but the
+        // *binary* `.wasm` format is not source and must never be detected
+        // (ADR-093 §Decision point 2).
         assert_eq!(Language::from_path(Path::new("module.wasm")), None);
     }
 
@@ -260,10 +286,16 @@ mod tests {
         // wave-2 tail grammars (mirrors `tail_wave_grammars_bind_and_parse`):
         // each must bind the tree-sitter runtime (ABI compatible) and parse a
         // representative multi-line snippet without an error tree.
-        let cases: [(Language, &str); 1] = [(
-            Language::Zig,
-            "const std = @import(\"std\");\n\npub const Point = struct {\n    x: i32,\n\n    pub fn init(x: i32) Point {\n        return Point{ .x = x };\n    }\n};\n\npub fn add(a: i32, b: i32) i32 {\n    return a + b;\n}\n",
-        )];
+        let cases: [(Language, &str); 2] = [
+            (
+                Language::Zig,
+                "const std = @import(\"std\");\n\npub const Point = struct {\n    x: i32,\n\n    pub fn init(x: i32) Point {\n        return Point{ .x = x };\n    }\n};\n\npub fn add(a: i32, b: i32) i32 {\n    return a + b;\n}\n",
+            ),
+            (
+                Language::Wat,
+                "(module $m\n  (func $add (param $a i32) (param $b i32) (result i32)\n    local.get $a\n    local.get $b\n    i32.add)\n  (export \"add\" (func $add)))\n",
+            ),
+        ];
         for (lang, source) in cases {
             let mut parser = tree_sitter::Parser::new();
             parser
