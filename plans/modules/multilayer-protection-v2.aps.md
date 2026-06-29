@@ -489,30 +489,124 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-005: Witness append — daemon RPC + embedded fallback
 
-- **Status:** Draft
-- **Intent:** `anvil hook pre-commit` currently invokes the
-  witness library directly. Route through the daemon's IPC when
-  reachable (so multiple worktrees share rate limits + chain
-  state) and fall back to embedded library calls when the daemon
-  is unreachable.
+- **Status:** Ready — fleshed 2026-06-30 (design crux resolved; RPC contract,
+  fallback classification, and telemetry vocabulary fixed against the live code).
+  Dependencies MLP-002/MLP-003 are Done; the daemon witness leg is greenfield —
+  `anvil-intercept` does not yet depend on `anvil-witness`.
+- **Intent:** Route `anvil hook {pre-commit,post-commit,post-merge,post-rewrite}`
+  witness appends through the daemon over IPC when reachable (a single writer for
+  the chain across worktrees, shared lock/rate state) and fall back to an embedded
+  `anvil-witness::WitnessWriter` append when the daemon is unreachable — with **no
+  chain divergence** between the two paths.
+- **Source:** MLP-003 deferred outcome ("Daemon RPC + embedded fallback").
+- **Design decision — single-writer with an atomic chain-head (the load-bearing
+  fix).** Today `append_witness` (`crates/anvil-cli/src/commands/hook.rs`
+  ~1368-1440) derives `(seq, prev_line_hash)` via `chain_head` →
+  `verify_chain_dag` **outside** the `anvil/witness/.lock` flock, then calls
+  `WitnessWriter::append`. The flock (`crates/anvil-witness/src/writer.rs`, around
+  the append closure + manifest update) makes the byte-writes cross-process safe,
+  but two writers — a daemon and a CLI fallback during a daemon-death window, or
+  concurrent worktree hooks — can read the same tip and compute the same
+  `(seq, prev)`, forking the chain **without corrupting the file**. Resolution:
+  (1) when the daemon is reachable, **all** appends route through it (one writer on
+  the hot path); (2) both the embedded fallback and the daemon handler append via a
+  new **`WitnessWriter::append_chained(validation_at, |ChainHead| -> WitnessLine)`**
+  that reads+verifies the chain head, builds the line, computes the hash, and
+  appends **inside one flock hold** — closing the read-head→append TOCTOU for both
+  legs regardless of who writes.
 - **Expected Outcome:**
-  - Hook attempts daemon RPC first; on timeout / unreachable
-    falls back to embedded `anvil-witness::WitnessWriter` call.
-  - Fallback path emits `degraded:embedded-witness` to Kindling
-    via the surface-claim vocabulary
-    (`SurfaceClaimState::EmbeddedFallback`).
-  - Daemon-side IPC writes through the same `WitnessWriter`; no
-    divergence between fallback and daemon-routed appends.
-- **Files:** `crates/anvil-cli/src/commands/hook.rs`,
-  `crates/anvil-intercept/src/ipc.rs` (new witness-append RPC).
-- **Validation:** Two-process race test — daemon-routed and
-  fallback appends interleave correctly under flock; integration
-  test with daemon killed mid-append.
-- **Confidence:** medium
+  - **`append_chained` (witness crate):** new API performing head-read + `(seq,
+    prev)` derivation + `append` atomically under the existing `.lock`;
+    `append_witness` in `hook.rs` is refactored onto it (embedded behaviour
+    unchanged, now race-safe). `ChainBroken`/`Gated` semantics preserved.
+  - **`anvil/witness/append` RPC:** `ANVIL_WITNESS_APPEND` constant +
+    `WitnessAppendRequest { workspace_root, entry }` /
+    `WitnessAppendResponse { outcome }` in `anvil-intercept-proto` (added to
+    `ALL_ANVIL_METHODS`; in-band outcome enum carries a `#[serde(other)]`
+    fallback). The daemon authorises `workspace_root` against the connection's
+    admitted-root set (as `validate_paths`/gctx do) and writes through
+    `append_chained` on the same `<root>/anvil/witness/` chain; `anvil-intercept`
+    gains the `eddacraft-anvil-witness` dependency.
+  - **Daemon-first / embedded-fallback classification** (mirroring
+    `crates/anvil-cli/src/mcp/validation.rs` ~555-578 and
+    `mcp/gctx_client.rs` ~161-168): **absent socket / JSON-RPC `-32601`
+    Method-not-found → `Unavailable` ⇒ embedded `append_chained`**; **mid-exchange
+    IO/parse/peer-reject or any non-`-32601` daemon error → propagate, never
+    embedded-promote** (the `embedded.rs` invariant). Windows routes via
+    `resolve_pipe_name` + `connect_owner_only_pipe_client` on a `recv_timeout`-
+    bounded worker thread, degrading to embedded as the gctx client does.
+  - **Observability:** the chosen path is surfaced (a `DaemonStatus`-style
+    Available/NotWired on the hook result).
+  - **Telemetry — two vocabularies, kept distinct (corrects the prior draft):**
+    (a) emit a **new** notification marker
+    `DEGRADED_EMBEDDED_WITNESS = "degraded:embedded-witness"` added to
+    `crates/anvil-intercept/src/telemetry.rs` (mirroring `DEGRADED_FENCE_CASCADE`)
+    on the notification envelope + `tracing::warn!` when the embedded leg runs —
+    **not** via the Kindling sink (which carries only `gate_evaluated` /
+    `command.invoked`). (b) `SurfaceClaimState::EmbeddedFallback`
+    (`crates/anvil-kernel-types/src/protection_claim.rs`, wire `"embedded-fallback"`)
+    **already exists** and is the *status-surface* state — reuse it where the
+    witness surface reports protection-claim state, but it is not a Kindling marker
+    and its string is not `degraded:embedded-witness`.
+- **Acceptance criteria:**
+  - **No divergence:** a two-process race (daemon-routed append interleaved with an
+    embedded append on the same root) yields one linear `verify_chain_dag`-Healthy
+    chain — no forked `seq`/`prev`. Killing the daemon mid-append leaves the chain
+    Healthy and the next (embedded) append continues it.
+  - **Atomicity:** a concurrent test proves `append_chained` never reuses a
+    `(seq, prev)` across two writers — the regression the current out-of-lock
+    `chain_head` allows.
+  - **Classification split:** daemon-absent and `-32601` both take the embedded leg;
+    a non-`-32601` daemon error or a mid-exchange drop propagates as a hard failure
+    and does **not** silently embed.
+  - **Parity:** the line appended via the daemon RPC is byte-for-byte identical to
+    the line the embedded leg writes for the same input (same `append_chained`, same
+    canonicalisation/hash).
+  - **Gating preserved:** `project_writes_gated()` short-circuits before any append
+    on both legs; `ChainBroken` refuses (never reseeds) on both legs.
+  - **Telemetry:** the fallback leg emits `degraded:embedded-witness` exactly once
+    per fallback append; the daemon path does not; no `SurfaceClaimState` string is
+    emitted to Kindling.
+  - **Daemon boundary:** the handler's witness write is the RPC's primary result
+    (errors map to `WitnessAppendResponse`/`SaveTimeError`, no panic); any
+    side-channel emission is bounded, non-blocking, and failure-swallowed (mirroring
+    the `gate_evaluated` emission in `handle_save_time_jsonrpc`).
+- **Validation:**
+  - `cargo test -p eddacraft-anvil-witness append_chained` (atomicity + chain-head
+    derivation).
+  - `cargo test -p eddacraft-anvil-intercept witness_append` (RPC dispatch,
+    admitted-root authorisation, daemon-side `append_chained`).
+  - `cargo test -p eddacraft-anvil -- hook::witness` (branching, classification
+    split, gating, telemetry marker) + a two-process race integration test with the
+    daemon killed mid-append.
+  - `cargo clippy --workspace --all-targets -- -D warnings`; `cargo fmt --all --check`.
+- **Files:**
+  - `crates/anvil-witness/src/writer.rs` (+ `lib.rs`): `append_chained` + `ChainHead`.
+  - `crates/anvil-cli/src/commands/hook.rs` (~1368-1440): refactor `append_witness`
+    onto `append_chained`; add the daemon-first branch + fallback classification.
+  - `crates/anvil-intercept-proto/src/protocol.rs`: `ANVIL_WITNESS_APPEND` +
+    request/response DTOs + `ALL_ANVIL_METHODS`.
+  - `crates/anvil-intercept/src/ipc.rs`: dispatch arm + `handle_witness_append_jsonrpc`
+    + `witness_append` on the `SaveTimeDispatch` trait.
+  - `crates/anvil-intercept/src/save_time.rs`: `witness_append` impl on `SaveTimeConn`.
+  - `crates/anvil-intercept/Cargo.toml`: add `eddacraft-anvil-witness`.
+  - `crates/anvil-intercept/src/telemetry.rs`: `DEGRADED_EMBEDDED_WITNESS` const.
+  - witness-append client helper: reuse/extend the `gctx_client` transport shape
+    rather than a new transport.
+- **Confidence:** medium — every surface is precedented (the `validate_paths` RPC,
+  the `validation.rs` fallback, the `gctx_client` transport, the `gate_evaluated`
+  daemon-emit boundary); the one new design is `append_chained` atomicity, which is
+  well-bounded. The item is sizeable (witness API + proto + daemon dep + dispatch +
+  hook refactor + telemetry): landing `append_chained` (the correctness fix) as a
+  first PR ahead of the RPC is a reasonable split.
 - **Priority:** High
-- **Dependencies:** MLP-002, MLP-003
-- **Source:** MLP-003 deferred outcome ("Daemon RPC + embedded
-  fallback").
+- **Dependencies:** MLP-002 (witness chain, Done), MLP-003 (pre-commit hook, Done).
+  Independent of the daemon-witness siblings MLP2-004 (post-commit chain-head cache,
+  which follows this) and MLP2-017 (L4 `refs/notes`).
+- **Non-scope:** does not add a Kindling *observation kind* for degraded markers
+  (the sink carries only `gate_evaluated`/`command.invoked` — a separate item if
+  witness fallback must reach Kindling-as-observation); does not change ADR-037
+  witness semantics; does not touch the L4 `refs/notes` write (MLP2-017).
 
 #### MLP2-006: Daemon notification layer emits `GateEvaluatedObservation` to Kindling
 
