@@ -2,7 +2,7 @@
 
 | ID    | Owner | Status | Progress |
 | ----- | ----- | ------ | -------- |
-| ACTMO | Josh  | In Progress | 18/21 |
+| ACTMO | Josh  | In Progress | 18/22 |
 
 **Last reviewed:** 2026-06-26 — ACTMO-001 through ACTMO-010 completed on
 `feat/actmo-spine`: ADR-092 accepted; `anvil start` now performs MCP-independent
@@ -706,6 +706,52 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 - **Files:** new app crate (TBD if accepted), reusing `crates/anvil-intercept-proto`
 - **Dependencies:** ACTMO-014, ACTMO-017
 - **Confidence:** low — deferred; needs an explicit owner decision to build.
+- **changeType:** feature
+- **releaseIntent:** deferred
+- **releaseScope:** minor
+
+### ACTMO-022: Server-trusted durable-membership kind
+
+- **Status:** Proposed
+- **Source:** Copilot review on [PR #2993](https://github.com/eddacraft/anvil-001/pull/2993)
+  (the ACTMO-014 F4 cap-exemption follow-up). Durable membership — and all three
+  of its consequences (persistence, 30 s TTL-exemption, and the per-worktree
+  live-session cap exemption) — is classified solely from the **client-supplied**
+  `AgentTag::claimed_agent_id == "activation-spine"`
+  (`crates/anvil-intercept-proto/src/session.rs`), which
+  `SessionDispatcher::register` trusts at register time. Under the `SO_PEERCRED`
+  same-UID trust floor (ADR-037) a hostile local peer is out of scope, so this is
+  **consistent-by-design, not a live exposure** — but the determinant is
+  client-controlled, so a buggy or misconfigured client could claim durable
+  semantics unintentionally, and the cap exemption widens the blast radius of an
+  accidental claim.
+- **Intent:** Make durable-membership classification a **server-trusted**
+  decision (defence in depth) rather than one derived from a client wire field.
+- **Expected Outcome:** The daemon decides durable membership from a
+  server-trusted signal instead of (or in addition to) the client's
+  `claimed_agent_id`, with **one** determinant gating all three durable
+  consequences. Options to evaluate (owner decision):
+  (a) require the activation `driver_id` (`anvil-start`) **and** the deterministic
+  `sess_activation_*` session-id shape the activation client derives;
+  (b) a daemon-minted membership token returned from an explicit
+  `workspace.register`-kind verb and echoed on subsequent calls;
+  (c) a server-side `RegistrationKind` set by the dispatcher (never read from the
+  wire tag). Back-compat: existing activation clients keep working without a CLI
+  change where the chosen mechanism allows; the persisted `registered-worktrees`
+  store reloads unchanged.
+- **Validation:** a same-UID client that forges
+  `claimed_agent_id:"activation-spine"` **without** the server-trusted signal does
+  NOT obtain durable persistence / TTL-exemption / cap-exemption; the real
+  activation client still does; a pre-existing `registered-worktrees.json` store
+  reloads on startup without loss.
+- **Files:** `crates/anvil-intercept/src/registry.rs`,
+  `crates/anvil-intercept/src/lib.rs` (dispatcher),
+  `crates/anvil-intercept-proto/src/session.rs`,
+  `crates/anvil-cli/src/registration.rs`
+- **Dependencies:** ACTMO-014
+- **Confidence:** medium — the mechanism is a design choice needing owner
+  sign-off; the current behaviour is consistent with the trust model, so this is
+  hardening rather than a fix.
 - **changeType:** feature
 - **releaseIntent:** deferred
 - **releaseScope:** minor
