@@ -1129,10 +1129,9 @@ requirement). Architecture decided by
   after `anvil start`, while the current implementation still describes
   `anvil watch` as the filesystem watcher/client that feeds changed paths to the
   daemon's `validate_paths` verb.
-- **Intent:** Decide and implement the non-MCP, non-visible save-time driver model
-  so `anvil start` can honestly mean background daemon-backed validation is
-  active, without requiring a foreground watch terminal for every protected
-  surface.
+- **Intent:** Decide the non-MCP, non-visible save-time driver model so
+  `anvil start` can honestly mean background daemon-backed validation is active,
+  without requiring a foreground watch terminal for every protected surface.
 - **Expected Outcome:** A design note or ADR defines whether the intercept daemon
   owns a background filesystem watcher, whether `anvil start` launches a managed
   watch-driver sidecar, or whether the product copy must downgrade to "daemon
