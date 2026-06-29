@@ -15,12 +15,12 @@
 > at **T1 (Parsed)**. Zig **re-enters** from the design §13 cut list; WebAssembly
 > text was never previously a candidate.
 >
-> **Ready promoted 2026-06-29** (owner). Ready authorises **LTW2-001 (the grammar
-> maturity audit) only** — that item is the gate. The wiring items
+> **Ready promoted 2026-06-29** (owner). Ready authorises two items: **LTW2-001
+> (the grammar maturity audit)** — the gate — and **LTW2-005** (doc
+> reconciliation), which is independent of the grammar work. The wiring items
 > **LTW2-002/-003/-004 stay Proposed** until LTW2-001 confirms each candidate
 > grammar binds tree-sitter 0.26; if a grammar fails, that language is dropped
-> from the wave (drop-not-stall, ADR-093 §Decision point 3). LTW2-005 (doc
-> reconciliation) is independent and Ready.
+> from the wave (drop-not-stall, ADR-093 §Decision point 3).
 
 ## Grammar Maturity Audit (LTW2-001) — PENDING
 
