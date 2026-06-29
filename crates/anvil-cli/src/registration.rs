@@ -415,7 +415,10 @@ fn read_one_line<R: Read>(stream: R) -> Result<String, DaemonRegistrationError> 
             "daemon closed the connection before responding".to_owned(),
         ));
     }
-    if (buf.len() as u64) > RESPONSE_LINE_BYTES {
+    // `read_until` appends the `\n` delimiter to `buf`; exclude it from the cap
+    // so a response of exactly RESPONSE_LINE_BYTES content bytes is accepted
+    // (review F4 — the delimiter must not count against the content ceiling).
+    if (buf.len() as u64).saturating_sub(1) > RESPONSE_LINE_BYTES {
         return Err(DaemonRegistrationError::Protocol(format!(
             "daemon response exceeded {RESPONSE_LINE_BYTES} byte cap"
         )));

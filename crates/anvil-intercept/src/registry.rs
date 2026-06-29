@@ -765,11 +765,15 @@ impl SessionRegistry {
             // always admitted, so the cap bounds the persisted set without
             // making re-registration flaky near the ceiling.
             let already_member = durable && inner.is_durable_member(&canonical);
-            if durable && !already_member && inner.distinct_durable_worktrees() >= registered_cap {
-                return Err(RegistryError::RegisteredWorktreeCapExceeded {
-                    cap: registered_cap,
-                    live: inner.distinct_durable_worktrees(),
-                });
+            if durable && !already_member {
+                // Compute the distinct-worktree count once (it scans sessions).
+                let live_durable = inner.distinct_durable_worktrees();
+                if live_durable >= registered_cap {
+                    return Err(RegistryError::RegisteredWorktreeCapExceeded {
+                        cap: registered_cap,
+                        live: live_durable,
+                    });
+                }
             }
 
             let now_unix = unix_seconds_now();

@@ -14,6 +14,7 @@
 //! empty set, so a first run and a clean uninstall are both benign.
 
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 use anvil_intercept_proto::SessionId;
 use anvil_intercept_proto::session::AgentTag;
@@ -118,26 +119,29 @@ struct RegistrationFile {
 /// across clones — the registry is the live source of truth, this is its
 /// persistent shadow.
 ///
-/// **Concurrency (adversarial review F1).** `upsert` / `remove` are
+/// **Concurrency (review F1).** `upsert` / `remove` / `replace_all` are
 /// read-modify-write (`load` → mutate → `save`). `save` is itself atomic
 /// (temp-then-rename), so the file is never observed half-written, but two
-/// *concurrent* read-modify-write cycles could lose an update. This is safe in
-/// production because the daemon runs on a **single-thread** Tokio runtime
-/// (`crates/anvil-intercept/src/main.rs` builds `new_current_thread`) and these
-/// methods are synchronous (no `.await`), so a persist call runs to completion
-/// without yielding to another IPC handler. The startup reload runs before the
-/// listener binds, so it has no concurrent writers either. A future switch to a
-/// multi-thread runtime, or making persistence `async`, would require wrapping
-/// the `load`→`save` cycle in a mutex / advisory file lock.
+/// *concurrent* read-modify-write cycles could lose an update. A process-local
+/// `write_lock` serialises the whole `load`→`save` cycle so the store is
+/// correct even if a future change moves the daemon to a multi-thread runtime
+/// or pushes persistence onto `spawn_blocking`. The lock is `Arc`-shared so
+/// `Clone`s of the store (and the `Arc<RegistrationStore>` the daemon shares
+/// across IPC tasks) contend on one lock. It guards only this process; the
+/// on-disk atomic rename is what protects against a torn file.
 #[derive(Clone)]
 pub struct RegistrationStore {
     path: PathBuf,
+    write_lock: Arc<Mutex<()>>,
 }
 
 impl RegistrationStore {
     #[must_use]
     pub fn at_path(path: impl Into<PathBuf>) -> Self {
-        Self { path: path.into() }
+        Self {
+            path: path.into(),
+            write_lock: Arc::new(Mutex::new(())),
+        }
     }
 
     /// The file path the store reads and writes.
@@ -186,6 +190,7 @@ impl RegistrationStore {
     /// Add or replace the durable registration for a worktree, keyed on the
     /// canonical worktree path (idempotent re-register refreshes in place).
     pub fn upsert(&self, record: RegistrationRecord) -> Result<(), RegistrationStoreError> {
+        let _guard = self.lock();
         let mut records = self.load()?;
         if let Some(existing) = records
             .iter_mut()
@@ -201,6 +206,7 @@ impl RegistrationStore {
     /// Remove the durable registration for a canonical worktree path.
     /// Returns `true` when a record existed and was removed (idempotent).
     pub fn remove(&self, worktree: &Path) -> Result<bool, RegistrationStoreError> {
+        let _guard = self.lock();
         let mut records = self.load()?;
         let before = records.len();
         records.retain(|record| record.worktree != worktree);
@@ -211,12 +217,21 @@ impl RegistrationStore {
         Ok(removed)
     }
 
+    /// Serialise the read-modify-write cycle (review F1). Held across `load`→
+    /// `save` so two writers cannot lose an update.
+    fn lock(&self) -> std::sync::MutexGuard<'_, ()> {
+        self.write_lock
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
     /// Overwrite the persisted set wholesale. Used by the startup reaper to
     /// prune entries whose directory is gone in a single atomic write.
     pub fn replace_all(
         &self,
         records: &[RegistrationRecord],
     ) -> Result<(), RegistrationStoreError> {
+        let _guard = self.lock();
         self.save(records)
     }
 

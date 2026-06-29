@@ -170,9 +170,15 @@ impl RegistryDispatcher {
         if !agent_tag.is_some_and(anvil_intercept_proto::session::AgentTag::is_durable_membership) {
             return;
         }
-        // Mirror the registry's canonicalisation so the persisted key matches
-        // the in-memory key the reaper and status surfacing use.
-        let canonical = std::fs::canonicalize(worktree).unwrap_or_else(|_| worktree.to_path_buf());
+        // Read the canonical path the registry actually stored (review F2),
+        // rather than re-canonicalising the raw wire path — the latter could
+        // diverge if the directory is removed in the window after the registry
+        // accepted the session. `durable_worktree_for` returns `None` only if
+        // the session was already evicted/unregistered, in which case there is
+        // nothing to persist.
+        let Some(canonical) = self.registry.durable_worktree_for(id) else {
+            return;
+        };
         let record =
             registration_store::RegistrationRecord::new(id.clone(), canonical, agent_tag.cloned());
         if let Err(err) = store.upsert(record) {
@@ -1467,6 +1473,20 @@ fn reload_durable_registrations(
     })
 }
 
+/// ACTMO-014 (review F3): drop `reaped` worktrees from the persisted store in
+/// one atomic write, instead of one load-modify-save per worktree.
+fn prune_registrations(
+    store: &registration_store::RegistrationStore,
+    reaped: &[PathBuf],
+) -> Result<(), registration_store::RegistrationStoreError> {
+    let survivors: Vec<_> = store
+        .load()?
+        .into_iter()
+        .filter(|record| !reaped.contains(&record.worktree))
+        .collect();
+    store.replace_all(&survivors)
+}
+
 #[allow(clippy::too_many_lines)]
 pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> Result<()> {
     let pid_file_path = opts.pid_file_path()?;
@@ -1858,15 +1878,14 @@ pub async fn run_foreground(opts: ForegroundOpts, mut token: ShutdownToken) -> R
                             count = reaped.len(),
                             "reaped durable worktree registrations whose directory is gone",
                         );
-                        for worktree in &reaped {
-                            if let Err(err) = registration_store.remove(worktree) {
-                                tracing::error!(
-                                    target: "anvil_intercept::registration",
-                                    error = %err,
-                                    worktree = %worktree.display(),
-                                    "failed to prune a reaped registration from the store",
-                                );
-                            }
+                        // Prune the persisted shadow in a single atomic write
+                        // (review F3) rather than N load-modify-save cycles.
+                        if let Err(err) = prune_registrations(&registration_store, &reaped) {
+                            tracing::error!(
+                                target: "anvil_intercept::registration",
+                                error = %err,
+                                "failed to prune reaped registrations from the store",
+                            );
                         }
                     }
                 }
