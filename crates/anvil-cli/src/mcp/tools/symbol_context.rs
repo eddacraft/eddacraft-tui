@@ -5,13 +5,16 @@
 //! validates the workspace root (CE-8 client-side), forwards a sealed query to
 //! the running `anvil-intercept` daemon over `anvil/gctx/symbol_context`, and
 //! returns the daemon-projected sealed DTO verbatim. Source text rides only when
-//! the operator has opted in (`ANVIL_GCTX_EGRESS=1`) **and** the request asserts
+//! the operator has opted in for the workspace (`anvil gctx egress enable`, or
+//! `ANVIL_GCTX_EGRESS=1` as a process override) **and** the request asserts
 //! `includeSource` (CE-1); otherwise span-as-location only.
 
 use std::path::Path;
 
 use serde_json::{Value, json};
 
+use anvil_gctx_types::{EgressSource, GCTX_EGRESS_ENV, SnippetEgress, resolve_snippet_egress};
+use anvil_intercept::egress_consent::read_snippet_consent;
 use anvil_intercept_proto::protocol::{
     AssuranceState, GctxSymbolContextRequest, GctxSymbolContextResponse, StaleReason,
     WorkspaceAssurance,
@@ -24,7 +27,7 @@ pub const TOOL_NAME: &str = "anvil_symbol_context";
 pub fn descriptor() -> Value {
     json!({
         "name": TOOL_NAME,
-        "description": "Build bounded symbol context around a seed symbol or file: neighbourhood symbols, one-hop importers, and (for symbol seeds) direct callers, each with span-as-location and optional source snippets under a token budget. Source text is returned only when the operator has enabled snippet egress (`ANVIL_GCTX_EGRESS=1`) AND the request sets `includeSource: true`; otherwise identity-only locations. Requires the anvil daemon; returns a structured `unavailable`/`not_ready`/`disabled`/`bounded` outcome while the graph is absent, warming, budget-limited, or switched off (`ANVIL_GCTX_EGRESS=0`).",
+        "description": "Build bounded symbol context around a seed symbol or file: neighbourhood symbols, one-hop importers, and (for symbol seeds) direct callers, each with span-as-location and optional source snippets under a token budget. Source text is returned only when an operator has enabled snippet egress for the workspace (run `anvil gctx egress enable`; or set `ANVIL_GCTX_EGRESS=1` as a process override) AND the request sets `includeSource: true`; otherwise identity-only locations. When source is requested while egress is off, the response carries a `snippetEgressHint` string describing how to enable it. Requires the anvil daemon; returns a structured `unavailable`/`not_ready`/`disabled`/`bounded` outcome while the graph is absent, warming, budget-limited, or switched off (`ANVIL_GCTX_EGRESS=0`).",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -57,7 +60,7 @@ pub fn descriptor() -> Value {
                 },
                 "includeSource": {
                     "type": "boolean",
-                    "description": "CE-1 capability assertion — request source text. Requires `ANVIL_GCTX_EGRESS=1`."
+                    "description": "Capability assertion — request source text. Honoured only when an operator has enabled snippet egress for the workspace (`anvil gctx egress enable`, or `ANVIL_GCTX_EGRESS=1`); otherwise the response is identity-only with a `snippetEgressHint`."
                 }
             },
             "required": ["workspaceRoot"],
@@ -108,7 +111,57 @@ fn symbol_context_payload(arguments: &Value) -> Result<Value, String> {
         let _ = crate::commands::watch_save_time::warm_up_root(&workspace_path);
     }
 
-    Ok(render_response(&response, &redacted_workspace_root))
+    let mut payload = render_response(&response, &redacted_workspace_root);
+    // GCTX-024 discoverable degradation: if the assistant asked for source text
+    // but egress is off, tell it (and the operator) exactly how to enable it —
+    // rather than silently returning identity-only locations.
+    if let Some(hint) = egress_hint_for_request(arguments, &workspace_path)
+        && let Some(object) = payload.as_object_mut()
+    {
+        object.insert("snippetEgressHint".to_string(), Value::String(hint));
+    }
+
+    Ok(payload)
+}
+
+/// Build the discoverable-degradation hint for a `symbol_context` call, if one is
+/// warranted: only when `includeSource` was requested AND snippet egress resolves
+/// off for this workspace. Reuses the same env+consent resolver the daemon uses,
+/// so the hint never contradicts the actual decision (and a kill-switched `0`
+/// gets a different, accurate message from a never-enabled default).
+fn egress_hint_for_request(arguments: &Value, workspace_path: &Path) -> Option<String> {
+    let include_source = arguments
+        .get("includeSource")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let env_raw = std::env::var(GCTX_EGRESS_ENV).ok();
+    // A consent-read error fails safe to "no persisted consent" for the hint —
+    // the daemon already logged it; here we only choose advisory wording.
+    let persisted = read_snippet_consent(workspace_path).unwrap_or(None);
+    let (decision, source) = resolve_snippet_egress(env_raw.as_deref(), persisted);
+    snippet_egress_hint(include_source, decision, source)
+}
+
+/// Pure hint selector. `None` when no hint is warranted (egress enabled, or the
+/// caller did not ask for source).
+fn snippet_egress_hint(
+    include_source: bool,
+    decision: SnippetEgress,
+    source: EgressSource,
+) -> Option<String> {
+    if !include_source || matches!(decision, SnippetEgress::Enabled) {
+        return None;
+    }
+    Some(match source {
+        EgressSource::Env => "Source-text snippets are disabled by ANVIL_GCTX_EGRESS=0 \
+            (kill-switch); returning identity-only locations. Unset that variable, then an \
+            operator can enable snippets with `anvil gctx egress enable`."
+            .to_string(),
+        EgressSource::Config | EgressSource::Default => "Source-text snippets are off for this \
+            workspace (identity-only). An operator can enable them with \
+            `anvil gctx egress enable`."
+            .to_string(),
+    })
 }
 
 fn should_rewarm(outcome: &anvil_gctx_types::SymbolContextOutcome) -> bool {
@@ -437,5 +490,61 @@ mod tests {
         }));
         assert_eq!(result["isError"], false);
         assert_eq!(payload_of(&result)["outcome"]["status"], "unavailable");
+    }
+
+    #[test]
+    fn call_injects_snippet_egress_hint_when_source_requested_and_off() {
+        // includeSource requested, no env, no consent → the payload must carry a
+        // discoverable hint naming the enable command (end-to-end through `call`,
+        // independent of daemon availability).
+        temp_env::with_var_unset("ANVIL_GCTX_EGRESS", || {
+            let cwd = std::env::current_dir().expect("cwd");
+            let workspace = tempfile::tempdir_in(&cwd).expect("workspace");
+            let result = call(&json!({
+                "workspaceRoot": workspace.path(),
+                "file": "src/a.ts",
+                "includeSource": true
+            }));
+            let payload = payload_of(&result);
+            let hint = payload
+                .get("snippetEgressHint")
+                .and_then(Value::as_str)
+                .expect("snippetEgressHint present when source requested but egress off");
+            assert!(hint.contains("anvil gctx egress enable"), "hint: {hint}");
+        });
+    }
+
+    #[test]
+    fn call_omits_hint_when_source_not_requested() {
+        temp_env::with_var_unset("ANVIL_GCTX_EGRESS", || {
+            let cwd = std::env::current_dir().expect("cwd");
+            let workspace = tempfile::tempdir_in(&cwd).expect("workspace");
+            let result = call(&json!({
+                "workspaceRoot": workspace.path(),
+                "file": "src/a.ts"
+            }));
+            assert!(payload_of(&result).get("snippetEgressHint").is_none());
+        });
+    }
+
+    #[test]
+    fn egress_hint_only_when_source_requested_and_off() {
+        // No hint when the caller did not ask for source.
+        assert!(
+            snippet_egress_hint(false, SnippetEgress::IdentityOnly, EgressSource::Default)
+                .is_none()
+        );
+        // No hint when egress is enabled.
+        assert!(snippet_egress_hint(true, SnippetEgress::Enabled, EgressSource::Config).is_none());
+        // Default/config off → enable hint.
+        let hint =
+            snippet_egress_hint(true, SnippetEgress::IdentityOnly, EgressSource::Default).unwrap();
+        assert!(hint.contains("anvil gctx egress enable"));
+        assert!(!hint.contains("kill-switch"));
+        // Kill-switch off → distinct message that names the env var.
+        let killed =
+            snippet_egress_hint(true, SnippetEgress::IdentityOnly, EgressSource::Env).unwrap();
+        assert!(killed.contains("ANVIL_GCTX_EGRESS=0"));
+        assert!(killed.contains("anvil gctx egress enable"));
     }
 }

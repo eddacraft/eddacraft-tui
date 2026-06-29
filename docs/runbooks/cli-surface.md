@@ -1365,6 +1365,41 @@ $ anvil policy test
 
 ---
 
+## anvil gctx
+
+**Class:** Config **Purpose:** Graph-context operator settings. **When to use:**
+To view or change whether source-text snippets are shared with AI assistants for
+this workspace. Identity-only graph context is always available; source-text
+snippets are off by default and require an explicit, per-workspace opt-in.
+
+**Synopsis:** `anvil gctx egress <enable|disable|status>`
+
+**Subcommands:**
+
+| Subcommand       | Description                                                      |
+| ---------------- | ---------------------------------------------------------------- |
+| `egress enable`  | Consent to sending source-text snippets for this workspace.      |
+| `egress disable` | Revoke consent and revert to identity-only.                      |
+| `egress status`  | Show the effective snippet-egress state and where it comes from. |
+
+`egress enable` prints the consequence of sharing source text and asks for
+confirmation; pass `--yes` (alias `--consent`) to acknowledge non-interactively.
+Consent is recorded per workspace. The `ANVIL_GCTX_EGRESS` environment variable
+overrides the persisted state per process (`1` forces snippets on, `0` is the
+kill-switch).
+
+**Exit codes:** 0 (success), 1 (error)
+
+**Examples:**
+
+```
+$ anvil gctx egress status
+$ anvil gctx egress enable
+$ anvil gctx egress disable
+```
+
+---
+
 ## anvil update
 
 **Class:** User-explicit **Purpose:** Update Anvil to the latest version. **When

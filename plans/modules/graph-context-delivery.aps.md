@@ -832,6 +832,125 @@ blockers — they are resolved during execution, not before promotion:
 
 ---
 
+#### GCTX-024: Frictionless, consented snippet-egress opt-in
+
+- **Status:** In Progress — created + started 2026-06-29 via planning-workflow.
+  **Scope correction (2026-06-29):** the snippet line (GCTX-021/022/023) is
+  **already on `main`** via **PR #2908 (Merged 2026-06-24, rebase-merge)** —
+  `anvil_symbol_context` with `include_source` egress gating, the `SnippetResult`
+  carrier, the budget slicer, CE-2 multi-line PEM redaction, CE-3 gitignore
+  omission, CE-5 `SymbolContextOutcome` no-leak test, and the `gctx.egress`
+  manifest flag **with** its TS catalogue reader (`GCTX_EGRESS_FLAG_KEY`, CE-9).
+  The earlier "Done on branch (pending merge)" status was stale tracker-lag. So
+  GCTX-024 carries **only** the genuinely-missing half: turning the bare
+  `ANVIL_GCTX_EGRESS=1` env toggle into a discoverable, consented, per-workspace
+  **persisted** opt-in. **Default posture is unchanged: identity-only (CE-1).**
+  Persisting an explicit operator consent is still an explicit operator action
+  under **CE-12** ("no GCTX tool auto-enables snippets on first use"), so this
+  item needs **no ADR and no PV-9 re-review** — owner decision 2026-06-29 (Josh):
+  keep default-off, make opt-in one frictionless, visible step.
+- **Intent:** Replace the process-scoped `ANVIL_GCTX_EGRESS` env toggle with a
+  consented, per-workspace-persisted, discoverable snippet-egress opt-in — without
+  changing the identity-only default.
+- **Expected Outcome:**
+  - **Precedence resolver (pure).** A pure `anvil-gctx-types` function resolves the
+    effective snippet-egress decision from `(env_raw, persisted_workspace_flag)`:
+    env `0` → **off** (kill-switch, overrides all, CE-11); env `1` → **on**
+    (overrides config); env unset/other → the persisted workspace flag, defaulting
+    **off → identity-only** (CE-1). Fully unit-tested; the existing
+    `gctx_egress_disabled_from` / `gctx_snippet_egress_enabled_from` semantics are
+    preserved as the env arm.
+  - **Per-workspace persisted consent.** The opt-in is stored as operator **state**
+    under the workspace `anvil/` state dir (not the hand-edited `.anvil.<ext>`
+    config), written only after the CE-12 consent gate.
+  - **Daemon read.** At the `get_snippet` / `symbol_context` seam
+    (`crates/anvil-intercept/src/save_time.rs` ~1808/1860 — the canonical root is
+    already in scope), the daemon consults the resolver (env over persisted over
+    default) instead of the env var alone, per request.
+  - **CLI surface.** `anvil gctx egress enable | disable | status`. `enable` prints
+    the CE-12 one-line consequence statement (*"source text from matched symbols,
+    secret-scanned and path-filtered, will be sent to the connected assistant/LLM
+    provider"*) and requires explicit confirmation (`--yes`/`--consent` for
+    non-interactive) before writing the persisted flag; it never auto-enables.
+    `status` reports the **effective** state and its source (`env` / `config` /
+    `default`).
+  - **Discoverable degradation.** When `symbol_context`/`get_snippet` is called
+    with `include_source` while egress is off, the identity-only response's
+    recovery hint names the exact enable command + the consent consequence — so an
+    assistant prompts the operator rather than silently accepting locations. Hint
+    text only; the outcome enum and counts-only telemetry (CE-10) are unchanged.
+  - **Never invisible.** `anvil gctx egress status` reports the **effective**
+    state and its source (`env` / `config` / `default`), so a persisted opt-in is
+    always observable on a dedicated, scriptable surface. (Folding `gctxEgress`
+    into the pinned `anvil status --json` schema + `anvil doctor` is a scoped
+    **follow-up** — deferred from this PR to avoid a status-contract change; the
+    dedicated command already satisfies the visibility requirement.)
+- **Acceptance criteria:**
+  - **CE-1 (hard, unchanged)** — with no persisted consent and no env override,
+    every snippet-capable surface is identity-only; a resolver unit test pins the
+    default-off path.
+  - **CE-11 precedence** — env `0` forces off even when the workspace flag is on;
+    env `1` forces on even when the flag is off/unset; a table-driven unit test
+    covers all `(env, persisted)` combinations.
+  - **CE-12 (consent)** — `enable` emits the consequence statement and persists the
+    flag **only** after explicit confirmation; non-interactive `enable` requires
+    `--yes`/`--consent` (never a silent default-yes). No code path enables snippets
+    without a recorded operator action.
+  - **Persistence round-trip** — `enable` → a fresh daemon read for that workspace
+    resolves on; `disable` → off; a different workspace is unaffected (per-workspace
+    isolation).
+  - **Discoverable degradation** — a flag-off integration test asserts the
+    `symbol_context` identity-only recovery hint contains the enable command; a
+    flag-on (persisted) test asserts text + `redaction_summary` are present.
+  - **Visibility** — `anvil gctx egress status` reports the effective state + its
+    source for all `(env, persisted)` combinations. (Global `anvil status --json` /
+    `anvil doctor` integration is a scoped follow-up.)
+- **Validation:** `cargo test -p eddacraft-anvil-gctx-types -- egress_resolve`
+  (the precedence table); `cargo test -p eddacraft-anvil-intercept -- gctx`
+  (daemon per-workspace read + persisted-flag integration); `cargo test -p
+  eddacraft-anvil -- gctx_egress` (CLI enable/disable/status round-trip, consent
+  gate, env precedence, status `gctxEgress` field); `cargo clippy --workspace
+  --all-targets -- -D warnings`; `cargo fmt --all --check`.
+- **Files:** `crates/anvil-gctx-types/src/lib.rs` (the pure resolver +
+  `EgressSource`); the workspace `anvil/` egress-state read/write helper
+  (`crates/anvil-intercept/` or a small shared module); `crates/anvil-intercept/
+  src/save_time.rs` (consult the resolver at the snippet seams) + the
+  identity-only recovery-hint enrichment; new `crates/anvil-cli/src/commands/
+  gctx.rs` (the `egress enable/disable/status` subcommand) wired into
+  `commands/mod.rs` + the clap surface; `crates/anvil-cli/src/commands/status.rs`
+  + `doctor.rs` (`gctxEgress` field); `docs/guides/ai-context-delivery.md` (the
+  command, the consent statement, env precedence)
+- **Confidence:** medium — the snippet engineering is landed; the new surface is a
+  pure resolver + persisted-state read/write + a thin CLI over the existing
+  CE-1/CE-11/CE-12 gates. Full Council ran 2026-06-29 (5 reviewers); all blockers
+  addressed: canonical `workspace_root()` for the consent path, refreshed
+  `anvil_symbol_context` tool descriptions + the `ai-context-delivery.md` guide,
+  a 4 KiB cap + env-decisive short-circuit on the daemon consent read, and a
+  kill-switch-aware `status` hint. **Deferred follow-up:** when the env var is
+  unset the daemon still does a small bounded (≤4 KiB) consent read per snippet
+  request; caching it per-`WorktreeKey` with invalidation on enable/disable is a
+  later optimisation, not built here (the short-circuit already keeps the env
+  `0`/`1` paths `O(1)`).
+- **Priority:** Critical
+- **Non-scope:** No change to the identity-only default (CE-1) and no new egress
+  review (that is the deliberately-untaken "global default-on" path). No new graph
+  reads, snippet languages, redaction logic, or token-budget logic (owned by the
+  already-merged GCTX-021/022/023). Tail-language span population stays with
+  GV2-032.
+- **Risks:** persisting consent is the one posture-adjacent surface — keep it
+  per-workspace, consent-gated, and visible in `status`/`doctor`; if review finds
+  persistence crosses CE-12, the fallback is session-only (env-only) opt-in with the
+  same discoverable hint, still shipping the UX.
+- **Dependencies:** GCTX-021/022/023 (**Merged via #2908**), GCTX-032 (Merged
+  #2952 — the guide this documents into). No code dependency on the stale local
+  `feat/gctx-021-snippet-extractor` branch.
+- **Source:** planning-workflow 2026-06-29; follows the GCTX "ship the snippet
+  line" assessment. Default-posture owner decision recorded inline (keep
+  default-off, frictionless opt-in). Scope corrected after verifying #2908 landed
+  the snippet surface on `main`.
+
+---
+
 ### Phase 3 — Resources, Benchmarks, Docs
 
 #### GCTX-030: `graph://` MCP resources

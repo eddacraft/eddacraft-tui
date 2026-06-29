@@ -14,6 +14,7 @@ use anvil_checks::antipattern::types::AntipatternCheckConfig;
 use anvil_gctx_types::GCTX_EGRESS_ENV;
 use anvil_intercept::Shutdown;
 use anvil_intercept::confinement::Confinement;
+use anvil_intercept::egress_consent::enable_snippet_consent;
 use anvil_intercept::ipc::{IpcListener, NoopDispatcher};
 use anvil_intercept::save_time::{SaveTimeState, SymbolParser};
 use anvil_intercept::workspace_pool::WorkScheduler;
@@ -382,6 +383,80 @@ fn symbol_context_emits_text_with_egress_and_capability() {
     });
 }
 
+/// GCTX-024: with `ANVIL_GCTX_EGRESS` **unset** but per-workspace consent
+/// persisted (`anvil gctx egress enable`), `include_source` egresses text — the
+/// daemon resolves env → persisted → default and honours the persisted opt-in.
+#[test]
+fn symbol_context_emits_text_with_persisted_consent() {
+    temp_env::with_var_unset(GCTX_EGRESS_ENV, || {
+        tokio::runtime::Runtime::new()
+            .expect("runtime")
+            .block_on(async {
+                let tmp = TempDir::new().expect("tempdir");
+                let root = workspace(&tmp);
+                // Operator opts this workspace in — no env var in play.
+                enable_snippet_consent(std::path::Path::new(&root)).expect("persist consent");
+
+                let state = Arc::new(save_time_state());
+                let listener = GctxListener::start(Arc::clone(&state)).await;
+                warm_graph_over_socket(&listener.socket, &root).await;
+
+                let response = request(
+                    &listener.socket,
+                    ANVIL_GCTX_SYMBOL_CONTEXT,
+                    symbol_context_params(&root, true),
+                )
+                .await;
+
+                assert!(
+                    response.get("error").is_none(),
+                    "symbol_context must succeed in-band: {response}",
+                );
+                let outcome = &response["result"]["outcome"];
+                let texts: Vec<String> = snippet_texts(outcome).into_iter().flatten().collect();
+                assert!(
+                    texts.iter().any(|t| t.contains("greet")),
+                    "persisted consent must egress snippet text without the env var: {outcome}",
+                );
+                listener.shutdown().await;
+            });
+    });
+}
+
+/// GCTX-024 / CE-11: the env kill-switch (`ANVIL_GCTX_EGRESS=0`) overrides a
+/// persisted workspace opt-in — text must NOT egress.
+#[test]
+fn symbol_context_kill_switch_overrides_persisted_consent() {
+    temp_env::with_var(GCTX_EGRESS_ENV, Some("0"), || {
+        tokio::runtime::Runtime::new()
+            .expect("runtime")
+            .block_on(async {
+                let tmp = TempDir::new().expect("tempdir");
+                let root = workspace(&tmp);
+                enable_snippet_consent(std::path::Path::new(&root)).expect("persist consent");
+
+                let state = Arc::new(save_time_state());
+                let listener = GctxListener::start(Arc::clone(&state)).await;
+                warm_graph_over_socket(&listener.socket, &root).await;
+
+                let response = request(
+                    &listener.socket,
+                    ANVIL_GCTX_SYMBOL_CONTEXT,
+                    symbol_context_params(&root, true),
+                )
+                .await;
+
+                let outcome = &response["result"]["outcome"];
+                let leaked: Vec<String> = snippet_texts(outcome).into_iter().flatten().collect();
+                assert!(
+                    leaked.is_empty(),
+                    "CE-11: env=0 must override persisted consent — no text, got: {leaked:?}",
+                );
+                listener.shutdown().await;
+            });
+    });
+}
+
 /// `get_snippet` mirrors the same CE-1 gate on the dedicated RPC.
 #[test]
 fn get_snippet_emits_text_with_egress_and_capability() {
@@ -412,6 +487,40 @@ fn get_snippet_emits_text_with_egress_and_capability() {
                     .as_str()
                     .expect("gated get_snippet must carry text");
                 assert!(text.contains("greet"));
+                listener.shutdown().await;
+            });
+    });
+}
+
+/// GCTX-024: the `get_snippet` seam also honours per-workspace persisted consent
+/// with no env var (mirrors the `symbol_context` case so the two seams cannot
+/// diverge unnoticed).
+#[test]
+fn get_snippet_emits_text_with_persisted_consent() {
+    temp_env::with_var_unset(GCTX_EGRESS_ENV, || {
+        tokio::runtime::Runtime::new()
+            .expect("runtime")
+            .block_on(async {
+                let tmp = TempDir::new().expect("tempdir");
+                let root = workspace(&tmp);
+                enable_snippet_consent(std::path::Path::new(&root)).expect("persist consent");
+
+                let state = Arc::new(save_time_state());
+                let listener = GctxListener::start(Arc::clone(&state)).await;
+                warm_graph_over_socket(&listener.socket, &root).await;
+
+                let response = request(
+                    &listener.socket,
+                    ANVIL_GCTX_GET_SNIPPET,
+                    get_snippet_params(&root, true),
+                )
+                .await;
+
+                let snippet = &response["result"]["outcome"];
+                let text = snippet["text"]
+                    .as_str()
+                    .expect("persisted consent must let get_snippet carry text");
+                assert!(text.contains("greet"), "snippet text: {snippet}");
                 listener.shutdown().await;
             });
     });

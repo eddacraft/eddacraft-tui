@@ -49,6 +49,7 @@ pub mod change_class;
 pub mod config;
 pub mod confinement;
 pub mod dos;
+pub mod egress_consent;
 pub mod embedded;
 pub mod enforcement;
 pub mod ensure;

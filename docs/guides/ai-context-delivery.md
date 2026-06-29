@@ -162,11 +162,39 @@ trust levels. What you get is the shape of the code — names, kinds,
 workspace-relative paths, and edges — not its contents.
 
 Source **snippets** are an explicit opt-in, and only `anvil_symbol_context` can
-return them. They are double-gated: the operator must enable egress
-(`ANVIL_GCTX_EGRESS=1`, the `gctx.egress` flag, **disabled by default**) **and**
-the request must set `includeSource: true`. With either missing, the tool
-returns identity-only locations. The kill-switch is re-read on every call, so an
-operator can turn egress off without restarting anything.
+return them. They are double-gated: the operator must enable egress for the
+workspace **and** the request must set `includeSource: true`. With either
+missing, the tool returns identity-only locations — and, when source was
+requested but egress is off, a `snippetEgressHint` telling the assistant how to
+ask the operator to enable it.
+
+The recommended way to opt in is per-workspace and persisted:
+
+```bash
+anvil gctx egress enable     # prints the consequence, asks for confirmation
+anvil gctx egress status     # shows the effective state and where it comes from
+anvil gctx egress disable    # revert to identity-only
+```
+
+`enable` records consent under the workspace's `anvil/gctx-egress.json` (after
+an explicit confirmation — pass `--yes` to acknowledge non-interactively). The
+consent is per-workspace, so enabling it in one repo does not affect another.
+
+`ANVIL_GCTX_EGRESS` remains a **process-scoped override** that takes precedence
+over the persisted consent, and it is re-read on every call:
+
+- **unset** (the default) — the persisted workspace consent decides; with no
+  consent recorded, the surface is identity-only.
+- **`1`** — snippets are permitted for this process regardless of persisted
+  consent (still per-request via `includeSource`).
+- **`0`** — a hard kill-switch: the entire graph-context surface is off and
+  every tool and resource returns a `disabled` outcome, overriding any persisted
+  consent.
+
+So "off by default" refers to _snippets_, not the surface. Do not set
+`ANVIL_GCTX_EGRESS=0` expecting "the safe default" — that takes the whole
+surface offline; leaving it unset (with no consent recorded) is the safe,
+identity-only default.
 
 When snippets are enabled, they still pass a deny-by-default pipeline before any
 text is emitted: sensitive paths (`.env*`, `*.pem`/`*.key`, `.git/`, `secrets/`,
@@ -174,23 +202,10 @@ text is emitted: sensitive paths (`.env*`, `*.pem`/`*.key`, `.git/`, `secrets/`,
 scan redacts matches in the emitted text. Counts of what was dropped or redacted
 are reported; the dropped content is not.
 
-`ANVIL_GCTX_EGRESS` is a **three-state** control, and the three states are not
-interchangeable:
-
-- **unset** (the default) — the surface is available, identity-only; no
-  snippets.
-- **`1`** — snippets are permitted (still per-request via `includeSource`).
-- **`0`** — a hard kill-switch: the entire graph-context surface is off and
-  every tool and resource returns a `disabled` outcome.
-
-So "disabled by default" refers to _snippets_, not the surface. Do not set
-`ANVIL_GCTX_EGRESS=0` expecting "the safe default" — that takes the whole
-surface offline; leaving it unset is the safe, identity-only default. To
-deliberately switch the surface off for a session or environment, set `0`; the
-kill-switch is re-read on every call, so it takes effect without a restart.
-
-For how to set the flag and operate it, see the
-[Feature flag reference](feature-flag-reference.md) (`gctx.egress`).
+For the command reference see the
+[CLI surface reference](../runbooks/cli-surface.md) (`anvil gctx`); for the
+underlying flag see the [Feature flag reference](feature-flag-reference.md)
+(`gctx.egress`).
 
 ## Graph states an assistant will see
 

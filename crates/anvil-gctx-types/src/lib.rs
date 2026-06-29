@@ -1223,12 +1223,71 @@ pub fn gctx_egress_disabled_from(raw: Option<&str>) -> bool {
     raw.map(str::trim) == Some("0")
 }
 
-/// Whether source-text snippet egress is enabled (`ANVIL_GCTX_EGRESS=1`, CE-1).
-/// Unset or any other value keeps snippets off while leaving the identity surface
-/// on (when not explicitly disabled with `0`).
+// The env-only `=1` snippet check was folded into `resolve_snippet_egress` (the
+// `Env` arm) by GCTX-024, so consumers also honour the per-workspace persisted
+// consent. There is intentionally no standalone env-only enable reader: it would
+// be a foot-gun that bypasses persisted consent.
+
+/// The effective snippet-egress decision for a workspace (GCTX-024). Concerns
+/// **source-text** egress only — the identity surface and the full CE-11
+/// kill-switch are governed separately by [`gctx_egress_disabled_from`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SnippetEgress {
+    /// Source-text snippets may egress (still subject to the per-request
+    /// `include_source` flag and per-snippet CE-2/CE-3 redaction).
+    Enabled,
+    /// Identity-only — the CE-1 default and the CE-11 kill-switch both land here.
+    IdentityOnly,
+}
+
+/// Where an effective [`SnippetEgress`] decision came from, so
+/// `anvil gctx egress status` can explain *why* egress is on or off (and tell a
+/// kill-switched `Env` off apart from a never-enabled `Default` off).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EgressSource {
+    /// The `ANVIL_GCTX_EGRESS` environment variable (the process-scoped override).
+    Env,
+    /// The per-workspace persisted consent flag (the GCTX-024 opt-in).
+    Config,
+    /// No env override and no persisted consent — the CE-1 identity-only default.
+    Default,
+}
+
+/// Resolve the effective snippet-egress decision from the process environment
+/// value and the per-workspace persisted consent flag (GCTX-024). Precedence,
+/// highest first:
+///
+/// 1. env `0` → [`SnippetEgress::IdentityOnly`] (the CE-11 kill-switch; overrides
+///    the persisted flag),
+/// 2. env `1` → [`SnippetEgress::Enabled`] (the operator override; ignores the
+///    persisted flag),
+/// 3. otherwise the persisted workspace consent: `Some(true)` →
+///    [`SnippetEgress::Enabled`], `Some(false)` → [`SnippetEgress::IdentityOnly`]
+///    (both source `Config` — a record is present),
+/// 4. `None` → [`SnippetEgress::IdentityOnly`] — the CE-1 default (source
+///    `Default`).
+///
+/// Several `(decision, source)` pairs resolve to `IdentityOnly` but carry
+/// distinct [`EgressSource`]s so a caller can distinguish "switched off by the
+/// kill-switch" (`Env`), "explicitly opted out" (`Config`), and "never enabled"
+/// (`Default`). In normal use `disable` removes the record, so `Some(false)` only
+/// arises from a hand-edited file; it is handled for honest `status` reporting.
+/// The env value is whitespace-trimmed, matching the sibling `gctx_*_from`
+/// readers, so `" 1 "` / `"0\n"` do not silently fail-open or fail-closed.
 #[must_use]
-pub fn gctx_snippet_egress_enabled_from(raw: Option<&str>) -> bool {
-    raw.map(str::trim) == Some("1")
+pub fn resolve_snippet_egress(
+    env_raw: Option<&str>,
+    persisted: Option<bool>,
+) -> (SnippetEgress, EgressSource) {
+    match env_raw.map(str::trim) {
+        Some("0") => (SnippetEgress::IdentityOnly, EgressSource::Env),
+        Some("1") => (SnippetEgress::Enabled, EgressSource::Env),
+        _ => match persisted {
+            Some(true) => (SnippetEgress::Enabled, EgressSource::Config),
+            Some(false) => (SnippetEgress::IdentityOnly, EgressSource::Config),
+            None => (SnippetEgress::IdentityOnly, EgressSource::Default),
+        },
+    }
 }
 
 #[cfg(test)]
@@ -2365,6 +2424,60 @@ mod tests {
         assert!(
             calls < imports,
             "equal endpoints: edge_type breaks the tie (Calls < Imports)"
+        );
+    }
+
+    // GCTX-024: the snippet-egress precedence resolver. Env wins over the
+    // per-workspace persisted consent flag, which wins over the CE-1 default.
+    #[test]
+    fn egress_resolve_precedence_table() {
+        use EgressSource::*;
+        use SnippetEgress::*;
+
+        // (env_raw, persisted) -> (decision, source)
+        let cases: &[(Option<&str>, Option<bool>, SnippetEgress, EgressSource)] = &[
+            // env `0` is the CE-11 kill-switch: snippets off regardless of config.
+            (Some("0"), Some(true), IdentityOnly, Env),
+            (Some("0"), None, IdentityOnly, Env),
+            // env `1` is the operator override: snippets on, ignoring config.
+            (Some("1"), Some(false), Enabled, Env),
+            (Some("1"), None, Enabled, Env),
+            // env unset/other: the persisted workspace consent decides. A present
+            // record (even an explicit `false`) is sourced `Config`; only an
+            // absent record is the `Default`.
+            (None, Some(true), Enabled, Config),
+            (None, Some(false), IdentityOnly, Config),
+            (None, None, IdentityOnly, Default),
+            // a stray env value is not `1`, so it falls through to config/default.
+            (Some("yes"), Some(true), Enabled, Config),
+            (Some("  "), None, IdentityOnly, Default),
+            // whitespace around the env value is trimmed (no silent fail-open/closed).
+            (Some(" 1 "), None, Enabled, Env),
+            (Some("0\n"), Some(true), IdentityOnly, Env),
+        ];
+
+        for (env_raw, persisted, want_decision, want_source) in cases {
+            let (decision, source) = resolve_snippet_egress(*env_raw, *persisted);
+            assert_eq!(
+                (decision, source),
+                (*want_decision, *want_source),
+                "env={env_raw:?} persisted={persisted:?}",
+            );
+        }
+    }
+
+    // CE-1 default is identity-only; the kill-switch and the default are distinct
+    // sources so `status` can tell "switched off" from "never enabled".
+    #[test]
+    fn egress_resolve_default_is_identity_only() {
+        assert_eq!(
+            resolve_snippet_egress(None, None),
+            (SnippetEgress::IdentityOnly, EgressSource::Default),
+        );
+        assert_ne!(
+            resolve_snippet_egress(Some("0"), None).1,
+            resolve_snippet_egress(None, None).1,
+            "kill-switch (Env) and default (Default) must be distinguishable",
         );
     }
 }

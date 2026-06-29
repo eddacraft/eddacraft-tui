@@ -57,9 +57,9 @@ use anvil_gctx_types::{
     AffectedTestsOutcome, AffectedTestsQuery, ContextSelector, FindCallersOutcome,
     FindCallersQuery, FindDependentsOutcome, FindDependentsQuery, GCTX_EGRESS_ENV,
     GraphEdgesOutcome, GraphEdgesQuery, GraphStatsOutcome, ImpactOutcome, ImpactQuery, OmitReason,
-    SearchSymbolsOutcome, SearchSymbolsQuery, SnippetOutcome, SnippetQuery, SymbolContextOutcome,
-    SymbolContextProjection, SymbolContextQuery, gctx_egress_disabled_from,
-    gctx_snippet_egress_enabled_from,
+    SearchSymbolsOutcome, SearchSymbolsQuery, SnippetEgress, SnippetOutcome, SnippetQuery,
+    SymbolContextOutcome, SymbolContextProjection, SymbolContextQuery, gctx_egress_disabled_from,
+    resolve_snippet_egress,
 };
 use anvil_graph_cache::clamp_reverse_impact_depth;
 use anvil_intercept_proto::protocol::{
@@ -1806,8 +1806,8 @@ impl GctxDispatch for SaveTimeConn<'_> {
             state.with_machine(&key, correlation, |machine| machine.snapshot());
 
         let egress_env = std::env::var(GCTX_EGRESS_ENV).ok();
-        let include_source =
-            request.query.include_source && gctx_snippet_egress_enabled_from(egress_env.as_deref());
+        let include_source = request.query.include_source
+            && snippet_egress_enabled_for(key.as_path(), egress_env.as_deref());
 
         let outcome = gctx_get_snippet_outcome(
             state,
@@ -1856,8 +1856,8 @@ impl GctxDispatch for SaveTimeConn<'_> {
             state.with_machine(&key, correlation, |machine| machine.snapshot());
 
         let egress_env = std::env::var(GCTX_EGRESS_ENV).ok();
-        let include_source =
-            request.query.include_source && gctx_snippet_egress_enabled_from(egress_env.as_deref());
+        let include_source = request.query.include_source
+            && snippet_egress_enabled_for(key.as_path(), egress_env.as_deref());
 
         let outcome = gctx_symbol_context_outcome(
             state,
@@ -1902,6 +1902,38 @@ impl GctxDispatch for SaveTimeConn<'_> {
 
 fn gctx_egress_disabled() -> bool {
     gctx_egress_disabled_from(std::env::var(GCTX_EGRESS_ENV).ok().as_deref())
+}
+
+/// GCTX-024: resolve whether source-text snippet egress is enabled for the
+/// admitted workspace `root`, combining the process env override
+/// (`ANVIL_GCTX_EGRESS`, passed in already-read) with the per-workspace persisted
+/// consent. Precedence is owned by [`resolve_snippet_egress`]: env over config
+/// over the CE-1 identity-only default. A consent-read error fails **safe**
+/// (identity-only) but is logged — never silently folded to the default.
+fn snippet_egress_enabled_for(root: &Path, env_raw: Option<&str>) -> bool {
+    // Fast path: when the env var is already decisive (`0` kill-switch or `1`
+    // override) the persisted flag is irrelevant, so skip the per-request file
+    // read entirely — the kill-switch must not be weakened by a consent-file
+    // read, and the common CI/override paths stay O(1) like the bare env read.
+    match env_raw.map(str::trim) {
+        Some("0") => return false,
+        Some("1") => return true,
+        _ => {}
+    }
+    let persisted = match crate::egress_consent::read_snippet_consent(root) {
+        Ok(persisted) => persisted,
+        Err(err) => {
+            tracing::warn!(
+                target: "anvil_intercept::gctx",
+                workspace = %root.display(),
+                error = %err,
+                "gctx snippet-egress consent unreadable; failing safe to identity-only",
+            );
+            None
+        }
+    };
+    let (decision, _source) = resolve_snippet_egress(env_raw, persisted);
+    matches!(decision, SnippetEgress::Enabled)
 }
 
 /// CIB-095c: pure resolution of the [`WATCH_DAEMON_SCAN_ENV`] scoped opt-out.

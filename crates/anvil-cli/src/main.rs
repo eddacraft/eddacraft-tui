@@ -310,6 +310,8 @@ enum Commands {
     Auth(commands::auth::AuthArgs),
     /// Manage and evaluate policies.
     Policy(commands::policy::PolicyArgs),
+    /// Graph-context operator settings (snippet-egress opt-in).
+    Gctx(commands::gctx::GctxArgs),
     /// Update anvil to the latest version.
     Update(commands::update::UpdateArgs),
     /// Remove project anvil state; use `--global` for user state and daemon.
@@ -377,6 +379,7 @@ fn command_canonical_name(cmd: &Commands) -> &'static str {
         Commands::Capsule(_) => "capsule",
         Commands::Architecture(_) => "architecture",
         Commands::Policy(_) => "policy",
+        Commands::Gctx(_) => "gctx",
         Commands::Update(_) => "update",
         Commands::Uninstall(_) => "uninstall",
         Commands::Validate(_) => "validate",
@@ -1285,6 +1288,7 @@ fn main() -> ExitCode {
         Commands::Capsule(args) => commands::capsule::run(args, &cli.global),
         Commands::Architecture(args) => commands::architecture::run(args, &cli.global),
         Commands::Policy(args) => commands::policy::run(args, &cli.global),
+        Commands::Gctx(args) => commands::gctx::run(args, &cli.global),
         Commands::Validate(args) => commands::validate::run(args, &cli.global),
         Commands::Version(args) => commands::version::run(args, &cli.global),
         Commands::Login(args) => commands::auth::run_login(args, &cli.global),
@@ -1544,6 +1548,7 @@ mod tests {
             "architecture" => vec!["architecture", "validate"],
             "auth" => vec!["auth", "login"],
             "policy" => vec!["policy", "eval", "policy.yaml"],
+            "gctx" => vec!["gctx", "egress", "status"],
             "update" => vec!["update"],
             "uninstall" => vec!["uninstall"],
             "validate" => vec!["validate", "plan.aps.md"],
