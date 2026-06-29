@@ -604,7 +604,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-007: MCP shim mirror of mid-edit Kindling observations
 
-- **Status:** Blocked
+- **Status:** Superseded 2026-06-30 — **closed: blocked-by-design, not implementable as written.** The item is premised on the MCP shim emitting **mid-edit** observations, but the shim has no mid-edit surface (every MCP tool is `preWrite`/`planless`/`full`), and emitting `gate_evaluated` on the pre-write path would contradict ADR-031 (pre-write is a distinct budget class). Inventing a mid-edit MCP surface is new intake, not this item — reopen as a fresh item only if that surface is ever added.
 - **Blocked rationale (2026-06-14):** Premised on the MCP shim making
   **mid-edit** `scan_buffer` calls — but it has no mid-edit surface.
   Every MCP tool (`validate_write`, `gate`, `check`, …) sends
@@ -2750,7 +2750,7 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-050: TypeScript e2e mirror of protection-claim states
 
-- **Status:** Draft
+- **Status:** Superseded 2026-06-30 — **closed: render surfaces archived, parity already pinned.** The TS-side protection-claim render consumers are archived under ADR-033 (the VSCode extension + TS MCP server), so this e2e mirror has no live shipping target; and canonical cross-surface parity is already guaranteed by the shipped **MLP2-051e** (Rust cross-surface, Released/Shipped v0.7.0-beta) plus the TS Zod mirror **MLP2-051c** (`packages/anvil-driver-client/src/protection_claim/`). Refile only if an IDE driver render surface returns (DRVR-003 per ADR-033).
 - **Intent:** End-to-end conformance test at
   `apps/e2e/src/protection_claim_states.spec.ts`
   exercising the rendered surface against the closed-set
@@ -3973,7 +3973,7 @@ to redesign once GV2-001..-023 land.
 
 #### MLP2-067: Daemon-hosted graph cache with narrow evaluator RPC
 
-- **Status:** Ready (folded into ADR-061 sub-phase A 2026-06-01 as the interim per-`WorktreeKey` `SymbolGraph` backing under the `validate_paths` wire; council `plan-5768ae0c`. See `plans/specs/2026-06-01-daemon-save-time-validation-contract.md` §9 and `plans/execution/2026-06-01-daemon-save-time-subphase-a.md` Task 7. The narrow verdict-shaped `kernel.evaluate` is generalised to `validate_paths`; the GV2 hot-read slice swaps under the same wire in sub-phase A′.)
+- **Status:** Superseded 2026-06-30 — **delivered by DSV-004** and closed here as a now-completed origin pointer. The interim per-`WorktreeKey` graph cache shipped as the daemon `KernelGraphCache` (`crates/anvil-intercept/src/kernel_cache.rs`) and the narrow `kernel.evaluate` RPC was generalised into the shipped `validate_paths` wire — **DSV-004 Released/Shipped via v0.8.0-beta, Merged 2026-06-03 via #2273**. The delivery lives and counts under the DSV module; this record is retained as a frozen pointer (no MLP2 done-count change — the work was never delivered *in* MLP2). Originally folded into ADR-061 sub-phase A 2026-06-01 (council `plan-5768ae0c`; `plans/specs/2026-06-01-daemon-save-time-validation-contract.md` §9, `plans/execution/2026-06-01-daemon-save-time-subphase-a.md` Task 7).
 - **Delivery home (2026-06-03):** the daemon save-time effort is now a tracked module — [`daemon-save-time-validation`](daemon-save-time-validation.aps.md) (DSV). MLP2-067 is the *originating interim-backing record*; the delivery is DSV Sub-phase A (DSV-001–009; DSV-004 carries the interim `(SymbolGraph, DependencyGraph)` cache specifically). This item stays in MLP2 as the origin pointer — no status/count change.
 - **Intent:** `anvil check` and `anvil watch` currently rebuild the
   `anvil_kernel::graph::SymbolGraph` fresh per CLI invocation. The
@@ -4399,7 +4399,7 @@ to redesign once GV2-001..-023 land.
 | K. Kindling activation orchestrator | 4 (MLP2-053..-056) | 4/4 (Complete) |
 | L. Production hardening (Council follow-ons) | 4 (MLP2-057..-060) | 4/4 (Complete) |
 | M. Full-codebase Council corrective follow-ons | 6 (MLP2-061..-066) | 6/6 (Complete) |
-| N. Daemon evaluator host (GV2 groundwork) | 1 (MLP2-067) | 0/1 |
+| N. Daemon evaluator host (GV2 groundwork) | 1 (MLP2-067 — Superseded; delivered by DSV-004) | 0/1 |
 | O. MLP2-016 audit follow-ons | 2 (MLP2-068..-069) | 1/2 |
 | P. v0.7.0-beta release-council follow-ups | 2 (MLP2-070..-071) | 2/2 (MLP2-070 Released/Shipped via `v0.7.0-beta` — PR [#1805](https://github.com/eddacraft/anvil-001/pull/1805); MLP2-071 Merged 2026-06-08 via PR [#2414](https://github.com/eddacraft/anvil-001/pull/2414) — Phase 2 subscriber surface + broadcaster) |
 | Q. New-user journey audit follow-ups | 2 (MLP2-072..-073) | 2/2 (Merged — PRs [#1819](https://github.com/eddacraft/anvil-001/pull/1819), [#1821](https://github.com/eddacraft/anvil-001/pull/1821)) |

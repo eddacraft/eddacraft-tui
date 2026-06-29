@@ -641,7 +641,11 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 
 ### ACTMO-019: Persistent `register_on_start` config + daemon startup registration
 
-- **Status:** Proposed
+- **Status:** Ready — owner-authorised 2026-06-30. The Council Critical-2 schema
+  commitment is signed off: take the **additive top-level `register_on_start`
+  key** (never a field on the `deny_unknown_fields` `AllowEntry`) plus a config
+  format-version forward/back-compat scheme, so an older daemon does not fail
+  closed. Dependency ACTMO-014 is Merged; scope and validation are fixed below.
 - **Source:** ACTMO-013 design D5 (persistent layer). Council Critical-2: adding a
   field to the `deny_unknown_fields` `AllowEntry` makes an older daemon fail
   **closed** and collapse the confinement trust floor. Schema commitment needs
@@ -667,7 +671,11 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 
 ### ACTMO-020: Guided new-worktree auto-registration
 
-- **Status:** Proposed
+- **Status:** Ready (scope-trimmed) — owner-authorised 2026-06-30 for the
+  `anvil workspace install-hook` git-alias core only. The optional Worktrunk
+  post-create template is **descoped** from this item (no such hook surface is
+  confirmed to exist); it is deferred to a future item to be filed only if
+  Worktrunk exposes a post-create hook. Dependency ACTMO-015 is Merged.
 - **Source:** ACTMO-013 design D7. Git has no native post-`worktree add` hook;
   no Worktrunk integration exists today.
 - **Intent:** Give a guided, portable opt-in so newly-created worktrees register
@@ -675,9 +683,9 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
 - **Expected Outcome:** `anvil workspace install-hook` (its own subcommand, not a
   flag on `register`) installs a documented Git config alias pinned to a portable
   `sh` form (works under Git-for-Windows MinGW) and prints a PowerShell
-  equivalent when Windows lacks `sh`; it never silently shims `git`. A Worktrunk
-  post-create hook template is shipped only if Worktrunk exposes such a hook —
-  design-gated pending confirmation of that surface.
+  equivalent when Windows lacks `sh`; it never silently shims `git`. (Out of
+  scope for this item: the Worktrunk post-create hook template — descoped above,
+  deferred pending confirmation of that surface.)
 - **Validation:** `install-hook` then `git wt-add` auto-registers the new worktree
   (Unix `sh` + Windows PowerShell forms); no silent `git` interception.
 - **Files:** `crates/anvil-cli/src/commands/workspace.rs`, activation/Worktrunk docs
