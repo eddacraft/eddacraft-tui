@@ -1139,7 +1139,8 @@ requirement). Architecture decided by
   ready, validation starts when a client feeds changes". The decision must cover
   lifecycle, status visibility, stop/restart behaviour, resource limits,
   multi-worktree registration, Windows parity, and how findings are surfaced when
-  no terminal is attached.
+  no terminal is attached. If the design is accepted, split implementation into
+  separate Ready work items before treating this as `v0.9.0-beta` cut-line scope.
 - **Validation:** Planning council review plus a proposed test matrix covering:
   `anvil start --no-mcp` with no visible watch terminal, background detection of a
   planted save-time finding, status/reporting of the background driver, daemon

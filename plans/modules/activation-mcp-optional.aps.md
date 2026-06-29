@@ -442,7 +442,9 @@ recurrence of [#1831](https://github.com/eddacraft/anvil-001/issues/1831) /
   registration/heartbeat behaves, and how status surfaces list registered versus
   unregistered worktrees. The app option must be scoped as a daemon control
   surface only: start/stop, registered worktrees, protection state, recent
-  fences, and registration prompts, not a separate product UI.
+  fences, and registration prompts, not a separate product UI. If the design is
+  accepted, split implementation into separate Ready work items before treating
+  this as `v0.9.0-beta` cut-line scope.
 - **Validation:** Planning council review plus a proposed test matrix covering:
   start outside a worktree, register current worktree, register an explicit path,
   guided setup of automatic `anvil start --no-mcp` for newly-created worktrees,
