@@ -858,8 +858,9 @@ blockers — they are resolved during execution, not before promotion:
     env `0` → **off** (kill-switch, overrides all, CE-11); env `1` → **on**
     (overrides config); env unset/other → the persisted workspace flag, defaulting
     **off → identity-only** (CE-1). Fully unit-tested; the existing
-    `gctx_egress_disabled_from` / `gctx_snippet_egress_enabled_from` semantics are
-    preserved as the env arm.
+    `gctx_egress_disabled_from` semantics are preserved as the env
+    kill-switch arm while source-egress enablement now flows through
+    `resolve_snippet_egress`.
   - **Per-workspace persisted consent.** The opt-in is stored as operator **state**
     under the workspace `anvil/` state dir (not the hand-edited `.anvil.<ext>`
     config), written only after the CE-12 consent gate.
@@ -909,16 +910,15 @@ blockers — they are resolved during execution, not before promotion:
   (the precedence table); `cargo test -p eddacraft-anvil-intercept -- gctx`
   (daemon per-workspace read + persisted-flag integration); `cargo test -p
   eddacraft-anvil -- gctx_egress` (CLI enable/disable/status round-trip, consent
-  gate, env precedence, status `gctxEgress` field); `cargo clippy --workspace
+  gate, env precedence, dedicated `anvil gctx egress status` surface); `cargo clippy --workspace
   --all-targets -- -D warnings`; `cargo fmt --all --check`.
 - **Files:** `crates/anvil-gctx-types/src/lib.rs` (the pure resolver +
-  `EgressSource`); the workspace `anvil/` egress-state read/write helper
+  `EgressSource`); the workspace `anvil/witness/` egress-state read/write helper
   (`crates/anvil-intercept/` or a small shared module); `crates/anvil-intercept/
   src/save_time.rs` (consult the resolver at the snippet seams) + the
   identity-only recovery-hint enrichment; new `crates/anvil-cli/src/commands/
   gctx.rs` (the `egress enable/disable/status` subcommand) wired into
-  `commands/mod.rs` + the clap surface; `crates/anvil-cli/src/commands/status.rs`
-  + `doctor.rs` (`gctxEgress` field); `docs/guides/ai-context-delivery.md` (the
+  `commands/mod.rs` + the clap surface; `docs/guides/ai-context-delivery.md` (the
   command, the consent statement, env precedence)
 - **Confidence:** medium — the snippet engineering is landed; the new surface is a
   pure resolver + persisted-state read/write + a thin CLI over the existing

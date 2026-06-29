@@ -3,7 +3,7 @@
 //! Source-text snippet egress is identity-only by default (PV-9 CE-1). An
 //! operator opts a *single workspace* in with `anvil gctx egress enable`, which
 //! records consent here as operator **state** (like the baseline) under the
-//! repo-relative `anvil/` directory — never the hand-edited `.anvil.<ext>`
+//! repo-relative, ignored `anvil/witness/` directory — never the hand-edited `.anvil.<ext>`
 //! config. The daemon reads this record on the snippet path and feeds it to
 //! [`anvil_gctx_types::resolve_snippet_egress`] (the env var overrides it; the
 //! CE-1 default applies when neither is set).
@@ -15,14 +15,14 @@
 //! and fails safe to identity-only, the CLI surfaces the error to the operator.
 
 use std::fs;
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 /// Repo-relative path of the persisted snippet-egress consent record.
-pub const EGRESS_CONSENT_PATH: &str = "anvil/gctx-egress.json";
+pub const EGRESS_CONSENT_PATH: &str = "anvil/witness/gctx-egress.json";
 
 /// Current consent-record schema version (CE-12 audit).
 const CONSENT_VERSION: u32 = 1;
@@ -70,21 +70,25 @@ fn default_version() -> u32 {
 /// - symlinked path / IO error / malformed content → `Err` (never silently
 ///   folded to the default).
 pub fn read_snippet_consent(repo_root: &Path) -> Result<Option<bool>, EgressConsentError> {
-    let parent = repo_root.join("anvil");
+    refuse_if_symlink(&state_dir(repo_root))?;
+    let parent = consent_parent(repo_root);
     refuse_if_symlink(&parent)?;
     let path = repo_root.join(EGRESS_CONSENT_PATH);
     refuse_if_symlink(&path)?;
     if !path.exists() {
         return Ok(None);
     }
-    let size = fs::metadata(&path)?.len();
-    if size > MAX_CONSENT_BYTES {
+    let mut file = fs::File::open(&path)?;
+    let mut bytes = Vec::with_capacity(usize::try_from(MAX_CONSENT_BYTES).unwrap_or(4096) + 1);
+    let size = Read::by_ref(&mut file)
+        .take(MAX_CONSENT_BYTES + 1)
+        .read_to_end(&mut bytes)?;
+    if u64::try_from(size).unwrap_or(u64::MAX) > MAX_CONSENT_BYTES {
         return Err(EgressConsentError::TooLarge {
             path: path.clone(),
-            size,
+            size: u64::try_from(size).unwrap_or(u64::MAX),
         });
     }
-    let bytes = fs::read(&path)?;
     let record: EgressConsentRecord =
         serde_json::from_slice(&bytes).map_err(|source| EgressConsentError::Malformed {
             path: path.clone(),
@@ -97,11 +101,13 @@ pub fn read_snippet_consent(repo_root: &Path) -> Result<Option<bool>, EgressCons
 /// temp+rename, symlink-refusing). Idempotent — re-enabling overwrites the same
 /// record.
 pub fn enable_snippet_consent(repo_root: &Path) -> Result<(), EgressConsentError> {
-    let parent = repo_root.join("anvil");
+    refuse_if_symlink(&state_dir(repo_root))?;
+    let parent = consent_parent(repo_root);
     refuse_if_symlink(&parent)?;
     fs::create_dir_all(&parent)?;
     // TOCTOU: re-check after create so a racing process cannot swap `anvil/`
-    // for a symlink between the pre-check and the write.
+    // or `anvil/witness/` for a symlink between the pre-check and the write.
+    refuse_if_symlink(&state_dir(repo_root))?;
     refuse_if_symlink(&parent)?;
 
     let final_path = repo_root.join(EGRESS_CONSENT_PATH);
@@ -134,7 +140,8 @@ pub fn enable_snippet_consent(repo_root: &Path) -> Result<(), EgressConsentError
 /// Revoke consent for `repo_root` by removing the record — a clean revert to the
 /// CE-1 identity-only default. Idempotent: a no-op when no record exists.
 pub fn disable_snippet_consent(repo_root: &Path) -> Result<(), EgressConsentError> {
-    let parent = repo_root.join("anvil");
+    refuse_if_symlink(&state_dir(repo_root))?;
+    let parent = consent_parent(repo_root);
     refuse_if_symlink(&parent)?;
     let path = repo_root.join(EGRESS_CONSENT_PATH);
     refuse_if_symlink(&path)?;
@@ -146,6 +153,14 @@ pub fn disable_snippet_consent(repo_root: &Path) -> Result<(), EgressConsentErro
 }
 
 /// Refuse a symlink at `path` (TOCTOU defence), treating absence as fine.
+fn state_dir(repo_root: &Path) -> PathBuf {
+    repo_root.join("anvil")
+}
+
+fn consent_parent(repo_root: &Path) -> PathBuf {
+    state_dir(repo_root).join("witness")
+}
+
 fn refuse_if_symlink(path: &Path) -> Result<(), EgressConsentError> {
     match fs::symlink_metadata(path) {
         Ok(meta) if meta.file_type().is_symlink() => Err(EgressConsentError::SymlinkRefusal {
@@ -202,7 +217,7 @@ mod tests {
     #[test]
     fn malformed_record_is_err_not_default() {
         let dir = tempfile::tempdir().unwrap();
-        fs::create_dir_all(dir.path().join("anvil")).unwrap();
+        fs::create_dir_all(dir.path().join("anvil/witness")).unwrap();
         fs::write(dir.path().join(EGRESS_CONSENT_PATH), b"{ not json").unwrap();
         let err = read_snippet_consent(dir.path()).unwrap_err();
         assert!(matches!(err, EgressConsentError::Malformed { .. }));
@@ -211,7 +226,7 @@ mod tests {
     #[test]
     fn oversized_record_is_rejected_not_read() {
         let dir = tempfile::tempdir().unwrap();
-        fs::create_dir_all(dir.path().join("anvil")).unwrap();
+        fs::create_dir_all(dir.path().join("anvil/witness")).unwrap();
         let blob = vec![b' '; usize::try_from(MAX_CONSENT_BYTES).unwrap() + 1];
         fs::write(dir.path().join(EGRESS_CONSENT_PATH), &blob).unwrap();
         let err = read_snippet_consent(dir.path()).unwrap_err();
@@ -223,7 +238,7 @@ mod tests {
     fn read_refuses_symlinked_consent_file() {
         use std::os::unix::fs::symlink;
         let dir = tempfile::tempdir().unwrap();
-        fs::create_dir_all(dir.path().join("anvil")).unwrap();
+        fs::create_dir_all(dir.path().join("anvil/witness")).unwrap();
         let other = tempfile::tempdir().unwrap();
         fs::write(
             other.path().join("legit.json"),

@@ -3,7 +3,7 @@
 //! Today this is the snippet-egress opt-in (GCTX-024). Identity-only graph
 //! context is always available; **source-text** snippets ride only when the
 //! operator consents (PV-9 CE-1 keeps the default identity-only). Consent is
-//! recorded per-workspace as operator state under `anvil/gctx-egress.json` and
+//! recorded per-workspace as operator state under `anvil/witness/gctx-egress.json` and
 //! read by the daemon on the snippet path. The `ANVIL_GCTX_EGRESS` env var still
 //! overrides this per process (`1` forces on, `0` is the kill-switch).
 
@@ -84,8 +84,14 @@ pub fn run(args: &GctxArgs, global: &GlobalArgs) -> Result<()> {
 /// scripting (e.g. multi-workspace consent audits).
 fn status(root: &Path, global: &GlobalArgs) -> Result<()> {
     let env_raw = std::env::var(GCTX_EGRESS_ENV).ok();
-    let persisted = read_snippet_consent(root).context("read persisted snippet-egress consent")?;
-    let (decision, source) = resolve_snippet_egress(env_raw.as_deref(), persisted);
+    let (env_decision, env_source) = resolve_snippet_egress(env_raw.as_deref(), None);
+    let (decision, source) = if matches!(env_source, EgressSource::Env) {
+        (env_decision, env_source)
+    } else {
+        let persisted =
+            read_snippet_consent(root).context("read persisted snippet-egress consent")?;
+        resolve_snippet_egress(env_raw.as_deref(), persisted)
+    };
 
     let enabled = matches!(decision, SnippetEgress::Enabled);
     let source_key = match source {
@@ -110,7 +116,7 @@ fn status(root: &Path, global: &GlobalArgs) -> Result<()> {
     };
     let source_label = match source {
         EgressSource::Env => "environment (ANVIL_GCTX_EGRESS)",
-        EgressSource::Config => "workspace consent (anvil/gctx-egress.json)",
+        EgressSource::Config => "workspace consent (anvil/witness/gctx-egress.json)",
         EgressSource::Default => "default (no opt-in)",
     };
     println!("Snippet egress: {state}");

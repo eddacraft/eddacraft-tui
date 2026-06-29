@@ -153,9 +153,9 @@ fn snippet_egress_hint(
         return None;
     }
     Some(match source {
-        EgressSource::Env => "Source-text snippets are disabled by ANVIL_GCTX_EGRESS=0 \
-            (kill-switch); returning identity-only locations. Unset that variable, then an \
-            operator can enable snippets with `anvil gctx egress enable`."
+        EgressSource::Env => "Graph context is disabled by ANVIL_GCTX_EGRESS=0 \
+            (kill-switch). Unset that variable, then an operator can enable source-text snippets \
+            with `anvil gctx egress enable`."
             .to_string(),
         EgressSource::Config | EgressSource::Default => "Source-text snippets are off for this \
             workspace (identity-only). An operator can enable them with \

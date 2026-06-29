@@ -58,7 +58,7 @@ fn enable_then_status_then_disable_round_trip() {
         "enable --yes must succeed: {}",
         String::from_utf8_lossy(&enabled.stderr),
     );
-    assert!(dir.path().join("anvil/gctx-egress.json").is_file());
+    assert!(dir.path().join("anvil/witness/gctx-egress.json").is_file());
 
     let status = run_egress(dir.path(), None, &["status"]);
     let stdout = String::from_utf8_lossy(&status.stdout);
@@ -69,7 +69,7 @@ fn enable_then_status_then_disable_round_trip() {
 
     let disabled = run_egress(dir.path(), None, &["disable"]);
     assert!(disabled.status.success());
-    assert!(!dir.path().join("anvil/gctx-egress.json").exists());
+    assert!(!dir.path().join("anvil/witness/gctx-egress.json").exists());
 
     let after = run_egress(dir.path(), None, &["status"]);
     assert!(
@@ -88,7 +88,7 @@ fn enable_without_consent_fails_closed_non_interactive() {
         "non-interactive enable without --yes must fail closed",
     );
     assert!(
-        !dir.path().join("anvil/gctx-egress.json").exists(),
+        !dir.path().join("anvil/witness/gctx-egress.json").exists(),
         "no consent record may be written without acknowledgement",
     );
     let stderr = String::from_utf8_lossy(&out.stderr);
@@ -133,12 +133,53 @@ fn enable_from_subdirectory_writes_consent_at_repo_root() {
 
     let canonical_root = std::fs::canonicalize(root).unwrap();
     assert!(
-        canonical_root.join("anvil/gctx-egress.json").is_file(),
+        canonical_root
+            .join("anvil/witness/gctx-egress.json")
+            .is_file(),
         "consent must be written at the repo root",
     );
     assert!(
-        !sub.join("anvil/gctx-egress.json").exists(),
+        !sub.join("anvil/witness/gctx-egress.json").exists(),
         "consent must NOT be written in the invocation subdirectory",
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn env_sourced_status_skips_unreadable_persisted_state() {
+    use std::os::unix::fs::symlink;
+
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(dir.path().join("anvil/witness")).unwrap();
+    let other = tempfile::tempdir().unwrap();
+    symlink(
+        other.path().join("missing-consent.json"),
+        dir.path().join("anvil/witness/gctx-egress.json"),
+    )
+    .unwrap();
+
+    let killed = run_egress(dir.path(), Some("0"), &["status"]);
+    assert!(
+        killed.status.success(),
+        "env kill-switch status should not read persisted state: {}",
+        String::from_utf8_lossy(&killed.stderr),
+    );
+    let stdout = String::from_utf8_lossy(&killed.stdout);
+    assert!(
+        stdout.contains("identity-only") && stdout.contains("environment"),
+        "env=0 must remain decisive: {stdout}",
+    );
+
+    let forced = run_egress(dir.path(), Some("1"), &["status"]);
+    assert!(
+        forced.status.success(),
+        "env force-on status should not read persisted state: {}",
+        String::from_utf8_lossy(&forced.stderr),
+    );
+    let stdout = String::from_utf8_lossy(&forced.stdout);
+    assert!(
+        stdout.contains("enabled") && stdout.contains("environment"),
+        "env=1 must remain decisive: {stdout}",
     );
 }
 
