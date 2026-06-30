@@ -111,6 +111,7 @@ impl EvalResultStore {
 
         let file = OpenOptions::new()
             .create(true)
+            .read(true)
             .append(true)
             .open(self.history_path())?;
         file.lock_exclusive()?;
