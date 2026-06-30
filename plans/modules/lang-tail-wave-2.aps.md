@@ -23,8 +23,9 @@
 > **Wiring merged:** **LTW2-003 (Zig) via #2996** and **LTW2-002 (WAT) via #3000**
 > — both T1-parsed and graph-included on `main`. WAT's grammar FFI is isolated in
 > the new `anvil-grammar-wat` crate so the kernel keeps `forbid(unsafe_code)`.
-> **Remaining:** LTW2-004 external-corpus smoke (LTW2-005 doc reconciliation
-> Merged via #3006).
+> **All work items merged** (LTW2-001..005); the external-corpus smoke
+> (LTW2-004, #3013) ran ~2,527 real OSS files with **0 panics**. Module stays
+> In Progress only pending a release tag → Complete.
 > Module stays **In Progress** pending those + a release tag. See the audit table
 > below for evidence.
 
@@ -121,9 +122,8 @@ across both languages instead of paying it twice.
 
 ## Ready Checklist
 
-Module **In Progress** — the wiring (LTW2-001/-002/-003) and the doc
-reconciliation (LTW2-005) have merged; the remaining open scope is **LTW2-004
-(external-corpus smoke)**, plus a release tag before Complete:
+Module **In Progress** — **all work items (LTW2-001..005) have merged**; the
+only remaining step is a release tag before Complete:
 
 - [x] ADR-093 Accepted by owner (2026-06-29).
 - [x] Owner named.
@@ -134,7 +134,8 @@ reconciliation (LTW2-005) have merged; the remaining open scope is **LTW2-004
       `tests/fixtures/langtail/`.
 - [x] LTW2-005 (doc reconciliation) **Merged via #3006** — `overview.md`
       language-profile copy reconciled.
-- [ ] LTW2-004 (external-corpus smoke) remains.
+- [x] LTW2-004 (external-corpus smoke) **Merged via #3013** — ~2,527 real OSS
+      files, 0 panics; evidence under `plans/reviews/`.
 
 ## Work Items
 
@@ -198,16 +199,25 @@ than per-language PRs.
 
 ### LTW2-004 — Wave acceptance
 
-- **Status:** Ready
+- **Status:** Merged 2026-06-30 via PR #3013
 - **Intent:** Every included language parses a real-world fixture without
   panicking and appears in the graph via `architecture-validate`.
 - **Expected Outcome:** All included-language fixtures green; an external-corpus
   smoke run (the LANGTAIL-008 equivalent) shows 0 panics; evidence recorded
   under `plans/reviews/`.
+- **Met 2026-06-30:** the in-harness half landed with the wiring; the external
+  smoke ran the production kernel path over ~2,527 real OSS files (zls +
+  zig-stdlib; wasm-tools `.wat` + the WebAssembly testsuite `.wast`) — **0
+  panics**; ~26k symbols extracted; Zig 6.7% error-trees, WAT/WAST higher
+  (script syntax + newer proposals + invalid-by-design fixtures, like LANGTAIL-008
+  C/C++). Evidence:
+  `plans/reviews/2026-06-30-ltw2-004-external-validation.md`.
 - **Validation:** `cargo test -p anvil-kernel` (wave-2 acceptance test) + smoke
   evidence file present
 - **Dependencies:** LTW2-002 (Merged), LTW2-003 (Merged)
-- **Confidence:** medium
+- **Confidence:** high — 0 panics across the corpus
+- **Finding:** `.zon` (build.zig.zon, a data manifest) 100%-error-trees with 0
+  symbols under the Zig source grammar — see Open Questions.
 - **Note:** the in-harness half landed with the wiring — `calc.wat` + `greeter.zig`
   join the shared `langtail_wave_acceptance` corpus (parse-clean + graph
   inclusion via the production embedded scan), and the `ltw2_grammars_bind_and_parse`
@@ -264,3 +274,10 @@ than per-language PRs.
       Supported (PYLAN shipped the catalogue, same bar as Rust); the tail stays
       Unsupported but is now *listed* (a tier = shipped language-specific
       governance, not parser capability); no new tier added.
+- [ ] **`.zon` mapping adds no value (surfaced by LTW2-004).** `.zon`
+      (`build.zig.zon`) is a Zig data-manifest format, not a source file, so it
+      100%-error-trees with 0 symbols under the `source_file` grammar. LTW2-003
+      mapped `.zon → Language::Zig`; recommend dropping it from
+      `Language::from_path` (1-line + the `detects_zig` test) or filing a small
+      CIB. No panic risk — purely a no-value mapping. Owner call: fix inline or
+      file CIB.
