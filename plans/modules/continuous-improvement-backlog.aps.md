@@ -2976,7 +2976,7 @@ archive.
 ### CIB-124: Witness `acquire_lock` timeout + `Drop`-guard
 
 - **Status:** Ready
-- **Intent:** Stop a stalled witness writer from wedging concurrent `git commit`s,
+- **Intent:** Stop a stalled witness writer from wedging concurrent committers,
   and make the flock release explicit on panic.
 - **Expected Outcome:** `WitnessWriter::acquire_lock`
   (`crates/anvil-witness/src/writer.rs`) replaces the unbounded
@@ -3003,7 +3003,7 @@ archive.
   processes** (a daemon vs a CLI fallback), not just threads.
 - **Expected Outcome:** an integration test in `crates/anvil-witness/tests/`
   spawns N separate processes (e.g. re-exec via `std::process::Command` /
-  `current_exe()` with a worker mode) that each `append_chained` against one shared
+  `std::env::current_exe()` with a worker mode) that each `append_chained` against one shared
   root, then asserts `verify_chain_dag` yields a single linear chain — exercising
   the real cross-process flock path the phase-1 thread test only approximates.
 - **Validation:** the new test passes; deliberately reverting to an out-of-lock
