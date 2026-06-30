@@ -514,6 +514,37 @@ task's `Source:` line cites the Council finding IDs.
   chain-initialised marker to detect (adversarial residual). (d) **`Drop`-guard for
   the flock** — release is via an explicit `unlock`, relying on fd-drop on panic;
   a guard struct would make it explicit (adversarial LOW).
+- **Phase 2 (the daemon `anvil/witness/append` RPC) implemented 2026-06-30.**
+  `anvil-intercept-proto` carries `ANVIL_WITNESS_APPEND` + `WitnessEntry` /
+  `WitnessAppendRequest` / `WitnessAppendResponse { outcome, line_hash, error }`
+  with a `#[serde(other)]` outcome fallback (wire contract, merged). The daemon
+  `SaveTimeConn::witness_append` authorises the root (same gate as
+  `validate_paths`), validates the scope, and writes through `append_chained`;
+  `anvil-intercept` gains the `eddacraft-anvil-witness` dependency. The hook
+  daemon-first / embedded-fallback wiring is **phase 3** (the handler has no
+  production caller yet).
+- **Phase-2 Council follow-ons (2026-06-30, full 5-reviewer Council on the
+  handler PR; blockers fixed in-PR — scope path-traversal validation, daemon
+  wall-clock `ts` assertion over the client value, tracing on outcomes, generic
+  client errors, dispatch trailing-arm hardening, component + wired tests).**
+  Deferred to **phase 3** (the hook-wiring PR), not blocking phase 2 because the
+  handler has no production caller until then:
+  - **DISTRIB-006 gate (adversarial F2):** the daemon handler does not itself
+    gate writes. The existing **"Gating preserved"** acceptance criterion already
+    requires `project_writes_gated()` to short-circuit on both legs — phase 3's
+    hook wiring is where the candidate-build gate lives (the hook must not route
+    to the daemon when gated). Accepted residual: a raw same-uid socket client
+    can bypass the CLI gate, but a same-uid process can already write the chain
+    file directly, so this is within the existing trust boundary, not a new hole.
+  - **Genesis `project_uuid` from disk (adversarial F3):** on genesis the daemon
+    currently trusts the wire `project_uuid`. Phase 3 should derive it from
+    `<root>/anvil/project-id` (as the hook does) so a client cannot forge identity
+    on a fresh chain. The trusted hook already sends the on-disk value.
+  - **Client-asserted merge metadata (adversarial F4/F5):** `commit_sha`,
+    `parent_commits`, `prev_line_hashes`, `agent_tag`, `validation_at` remain
+    client-asserted (the hook is the trusted populator under the same-uid
+    boundary); `ts` and the derived `(seq, prev_line_hash)` are daemon-asserted.
+    Documented as the trust split; no code change required for phase 2.
 - **Intent:** Route `anvil hook {pre-commit,post-commit,post-merge,post-rewrite}`
   witness appends through the daemon over IPC when reachable (a single writer for
   the chain across worktrees, shared lock/rate state) and fall back to an embedded
