@@ -1071,11 +1071,13 @@ mod tests {
         // synthetic test would pass vacuously if a future bug let
         // the offer fire when `all_languages_unsupported` is set.
         //
-        // The repo is seeded with config valid + only Python files.
-        // Python is registered as `Unsupported` (PYLAN anchor not
-        // shipped); if a future registry change promotes Python to
-        // `Supported`, the explicit `assert!(d.all_languages_unsupported)`
-        // below will fail loudly so the test cannot pass vacuously.
+        // The repo is seeded with config valid + only Go files. Go is a
+        // tail T1 language — parsed but registered `Unsupported` (no
+        // language-specific catalogue, CIB-123); if a future registry
+        // change promotes Go to `Supported`, the explicit
+        // `assert!(d.all_languages_unsupported)` below will fail loudly so
+        // the test cannot pass vacuously. (Python was the seed here until
+        // CIB-123 lifted it to `Supported`.)
         let dir = TempDir::new().unwrap();
         let home = TempDir::new().unwrap();
         fs::write(
@@ -1083,12 +1085,12 @@ mod tests {
             "profile: default\nchecks: []\n",
         )
         .unwrap();
-        fs::write(dir.path().join("main.py"), "print('hello')\n").unwrap();
+        fs::write(dir.path().join("main.go"), "package main\n").unwrap();
         let d = verify_with_home(dir.path(), Some(home.path()));
         assert_eq!(d.config, ConfigStatus::Valid);
         assert!(
             d.all_languages_unsupported,
-            "test invariant: seeded `.py` must classify as unsupported \
+            "test invariant: seeded `.go` must classify as unsupported \
              — if this fires, the language registry has changed and the \
              test needs a different unsupported extension"
         );

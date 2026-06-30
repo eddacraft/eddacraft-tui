@@ -96,7 +96,13 @@ fn ts_only_repo_shows_supported_tier() {
 
 #[cfg(not(target_os = "windows"))]
 #[test]
-fn python_only_repo_state_is_unsupported() {
+fn python_only_repo_is_supported_not_unsupported() {
+    // CIB-123 reconciliation: PYLAN shipped the python-reliability
+    // antipattern catalogue, default `.py` scanning, and boundary
+    // analysis (T3) — the same bar that lifted Rust. A Python-only repo
+    // must now report the `supported` tier and must NOT collapse to the
+    // `unsupported` protection state. Without MCP wiring the state is
+    // `needs_action` (the user can still get coverage), like TS/Rust.
     let dir = tempfile::tempdir().unwrap();
     write(&dir.path().join("app.py"), "x = 1\n");
     write(&dir.path().join("lib/util.py"), "def f(): pass\n");
@@ -111,13 +117,36 @@ fn python_only_repo_state_is_unsupported() {
         .iter()
         .find(|e| e["name"] == "Python")
         .expect("Python entry");
-    assert_eq!(py["coverage_tier"], "unsupported");
+    assert_eq!(py["coverage_tier"], "supported");
     assert_eq!(py["files_seen"], 2);
+    assert_eq!(parsed["all_languages_unsupported"], false);
+    assert_eq!(parsed["state"], "needs_action");
+}
+
+#[cfg(not(target_os = "windows"))]
+#[test]
+fn tail_t1_language_is_unsupported_but_recognized() {
+    // CIB-123: a tail T1 language (Zig) is parsed by the kernel but ships
+    // no language-specific anti-pattern catalogue, so it stays the
+    // `unsupported` tier — yet it must be *recognised* in the registry
+    // (named "Zig"), not silently dropped into `unclassified_files_seen`.
+    // A Zig-only repo therefore still maps to the `unsupported` state.
+    let dir = tempfile::tempdir().unwrap();
+    write(&dir.path().join("main.zig"), "pub fn main() void {}\n");
+    write(
+        &dir.path().join(".anvilrc"),
+        "profile: default\nchecks: []\n",
+    );
+
+    let parsed = run_verify_json(dir.path());
+    let langs = parsed["repo_languages"].as_array().unwrap();
+    let zig = langs
+        .iter()
+        .find(|e| e["name"] == "Zig")
+        .expect("Zig entry — must be recognised, not unclassified");
+    assert_eq!(zig["coverage_tier"], "unsupported");
+    assert_eq!(zig["files_seen"], 1);
     assert_eq!(parsed["all_languages_unsupported"], true);
-    // LAUNCH-008 + LAUNCH-015 + LAUNCH-016: a Python-only repo
-    // without MCP gets the literal `unsupported` state, not
-    // `needs_action`. Telling them to run `anvil start` would not
-    // produce coverage.
     assert_eq!(parsed["state"], "unsupported");
 }
 
@@ -184,6 +213,7 @@ fn human_render_shows_per_language_breakdown() {
     let dir = tempfile::tempdir().unwrap();
     write(&dir.path().join("src/a.ts"), "export const x = 1;\n");
     write(&dir.path().join("scripts/util.py"), "x = 1\n");
+    write(&dir.path().join("cmd/main.go"), "package main\n");
     write(
         &dir.path().join(".anvilrc"),
         "profile: default\nchecks: []\n",
@@ -209,13 +239,24 @@ fn human_render_shows_per_language_breakdown() {
         ts_row.contains("supported") && !ts_row.contains("unsupported"),
         "TypeScript row must show the `supported` tier (not unsupported): {ts_row:?}\nfull:\n{stdout}"
     );
+    // CIB-123: Python is now a supported tier (PYLAN), like TypeScript.
     let py_row = stdout
         .lines()
         .find(|l| l.contains("Python"))
         .unwrap_or_else(|| panic!("Python not surfaced: {stdout}"));
     assert!(
-        py_row.contains("unsupported"),
-        "Python row must show the `unsupported` tier: {py_row:?}\nfull:\n{stdout}"
+        py_row.contains("supported") && !py_row.contains("unsupported"),
+        "Python row must show the `supported` tier (not unsupported): {py_row:?}\nfull:\n{stdout}"
+    );
+    // Go is a tail T1 language — parsed but `unsupported` tier — the
+    // unsupported contrast that catches a tier swap.
+    let go_row = stdout
+        .lines()
+        .find(|l| l.contains("Go ("))
+        .unwrap_or_else(|| panic!("Go not surfaced: {stdout}"));
+    assert!(
+        go_row.contains("unsupported"),
+        "Go row must show the `unsupported` tier: {go_row:?}\nfull:\n{stdout}"
     );
 }
 

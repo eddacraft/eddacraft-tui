@@ -73,8 +73,7 @@ pub struct LanguageEntry {
 ///
 /// **Anchoring (2026-05-04):** TS/JS supported via the antipattern
 /// check defaults; SQL partial pending SURFSQL Phase 1 (RELEASE-PLAN
-/// A5); Markdown partial pending MDGOV; Python unsupported (PYLAN
-/// parked).
+/// A5); Markdown partial pending MDGOV.
 ///
 /// **Rust → supported (2026-06, RSTLAN-003/-004/-005/-006):** Rust
 /// ships the AST-aware antipattern catalogue, default `.rs` scan-set
@@ -82,6 +81,20 @@ pub struct LanguageEntry {
 /// analysis. The tier was lifted from `Unsupported` so `anvil start` /
 /// `anvil status` stop reporting a Rust-only repo as `unsupported`
 /// while the engine fully analyses it.
+///
+/// **Python → supported (2026-06-30, CIB-123):** PYLAN shipped the
+/// `python-reliability` antipattern catalogue, default `.py` scan-set
+/// inclusion, and symbol/import + boundary analysis (T3) — the same bar
+/// that lifted Rust. The tier was lifted from `Unsupported`; the stale
+/// "PYLAN parked" basis is retired.
+///
+/// **Tier ≠ parser capability (CIB-123):** the kernel parses the LANGTAIL
+/// /LTW2 tail (Go, Java, Kotlin, C#, C/C++, Dart, Zig, WebAssembly-text)
+/// at T1 — symbol/import extraction + symbol-graph inclusion — but ships
+/// no per-language anti-pattern catalogue for them, so they stay
+/// `Unsupported` here (a tier reflects shipped language-specific
+/// governance, not whether the parser can read the file). They are listed
+/// explicitly so they are recognised, not counted as unclassified.
 pub const LANGUAGE_REGISTRY: &[LanguageEntry] = &[
     LanguageEntry {
         name: "TypeScript",
@@ -122,32 +135,63 @@ pub const LANGUAGE_REGISTRY: &[LanguageEntry] = &[
     LanguageEntry {
         name: "Python",
         extensions: &[".py", ".pyw"],
-        coverage_tier: CoverageTier::Unsupported,
-        basis: "language pack not yet shipped",
+        coverage_tier: CoverageTier::Supported,
+        basis: "antipattern + secret checks ship",
     },
+    // Tail languages (LANGTAIL + LTW2) are parsed at T1 — symbol/import
+    // extraction + symbol-graph inclusion — but ship no language-specific
+    // anti-pattern catalogue yet, so they stay Unsupported per the tier
+    // semantics (cross-language secret checks still apply). Listed explicitly so
+    // they are recognised rather than falling into `unclassified_files_seen`.
     LanguageEntry {
         name: "Go",
         extensions: &[".go"],
         coverage_tier: CoverageTier::Unsupported,
-        basis: "no language pack scheduled in v0.5.x",
+        basis: "parsed; no language-specific anti-pattern catalogue yet",
     },
     LanguageEntry {
         name: "Java/Kotlin",
         extensions: &[".java", ".kt", ".kts"],
         coverage_tier: CoverageTier::Unsupported,
-        basis: "no language pack scheduled in v0.5.x",
+        basis: "parsed; no language-specific anti-pattern catalogue yet",
+    },
+    LanguageEntry {
+        name: "C#",
+        extensions: &[".cs"],
+        coverage_tier: CoverageTier::Unsupported,
+        basis: "parsed; no language-specific anti-pattern catalogue yet",
     },
     LanguageEntry {
         name: "C/C++",
-        extensions: &[".c", ".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp"],
+        extensions: &[
+            ".c", ".cc", ".cpp", ".cxx", ".c++", ".h", ".hh", ".hpp", ".hxx", ".h++",
+        ],
         coverage_tier: CoverageTier::Unsupported,
-        basis: "no language pack scheduled in v0.5.x",
+        basis: "parsed; no language-specific anti-pattern catalogue yet",
+    },
+    LanguageEntry {
+        name: "Dart",
+        extensions: &[".dart"],
+        coverage_tier: CoverageTier::Unsupported,
+        basis: "parsed; no language-specific anti-pattern catalogue yet",
+    },
+    LanguageEntry {
+        name: "Zig",
+        extensions: &[".zig", ".zon"],
+        coverage_tier: CoverageTier::Unsupported,
+        basis: "parsed; no language-specific anti-pattern catalogue yet",
+    },
+    LanguageEntry {
+        name: "WebAssembly text",
+        extensions: &[".wat", ".wast"],
+        coverage_tier: CoverageTier::Unsupported,
+        basis: "parsed; no language-specific anti-pattern catalogue yet",
     },
     LanguageEntry {
         name: "Ruby",
         extensions: &[".rb"],
         coverage_tier: CoverageTier::Unsupported,
-        basis: "no language pack scheduled in v0.5.x",
+        basis: "not parsed; no language pack",
     },
 ];
 
@@ -571,16 +615,34 @@ mod tests {
     }
 
     #[test]
-    fn python_only_repo_profile_is_unsupported() {
+    fn tail_only_repo_profile_is_unsupported() {
+        // A tail T1 language (Go) is parsed but ships no language-specific
+        // catalogue, so it is the `Unsupported` tier (CIB-123). Python is no
+        // longer the example here — it became `Supported` once PYLAN shipped.
+        let dir = TempDir::new().unwrap();
+        touch(dir.path(), "app.go");
+        touch(dir.path(), "lib/util.go");
+        let profile = profile_repo(dir.path());
+        assert_eq!(profile.entries.len(), 1);
+        assert_eq!(profile.entries[0].name, "Go");
+        assert_eq!(profile.entries[0].coverage_tier, CoverageTier::Unsupported);
+        assert!(profile.all_unsupported());
+        assert!(!profile.has_covered_language());
+    }
+
+    #[test]
+    fn python_only_repo_profile_is_supported() {
+        // CIB-123: PYLAN lifted Python to the `Supported` tier (same bar as
+        // Rust), so a Python-only repo is covered, not all-unsupported.
         let dir = TempDir::new().unwrap();
         touch(dir.path(), "app.py");
         touch(dir.path(), "lib/util.py");
         let profile = profile_repo(dir.path());
         assert_eq!(profile.entries.len(), 1);
         assert_eq!(profile.entries[0].name, "Python");
-        assert_eq!(profile.entries[0].coverage_tier, CoverageTier::Unsupported);
-        assert!(profile.all_unsupported());
-        assert!(!profile.has_covered_language());
+        assert_eq!(profile.entries[0].coverage_tier, CoverageTier::Supported);
+        assert!(!profile.all_unsupported());
+        assert!(profile.has_covered_language());
     }
 
     #[test]
@@ -673,15 +735,15 @@ mod tests {
     #[test]
     fn unsupported_extensions_returns_dotted_extensions() {
         let dir = TempDir::new().unwrap();
-        touch(dir.path(), "app.py");
+        touch(dir.path(), "app.go");
         touch(dir.path(), "main.rs");
         let profile = profile_repo(dir.path());
         let unsupported = profile.unsupported_extensions();
-        assert!(unsupported.contains(&".py".to_string()));
-        assert!(unsupported.contains(&".pyw".to_string()));
-        // Rust is a supported tier (RSTLAN) — its extension must NOT be
-        // listed as unsupported.
+        assert!(unsupported.contains(&".go".to_string()));
+        // Rust and Python are supported tiers — their extensions must NOT be
+        // listed as unsupported (CIB-123 lifted Python).
         assert!(!unsupported.contains(&".rs".to_string()));
+        assert!(!unsupported.contains(&".py".to_string()));
         // Supported / partial extensions must NOT be included.
         assert!(!unsupported.contains(&".ts".to_string()));
         assert!(!unsupported.contains(&".sql".to_string()));
@@ -690,22 +752,23 @@ mod tests {
     #[test]
     fn partition_drops_unsupported_files_and_tallies_ledger() {
         // LAUNCH-016 acceptance: Supported-tier files (TS, Rust) keep
-        // going to language-specific antipattern checks; PY files are
-        // dropped and the ledger records the skip with language and count.
+        // going to language-specific antipattern checks; Unsupported-tier
+        // files (Go) are dropped and the ledger records the skip with
+        // language and count.
         let dir = TempDir::new().unwrap();
         touch(dir.path(), "src/a.ts");
-        touch(dir.path(), "lib/util.py");
-        touch(dir.path(), "scripts/cleanup.py");
+        touch(dir.path(), "lib/util.go");
+        touch(dir.path(), "scripts/cleanup.go");
         touch(dir.path(), "main.rs");
         let profile = profile_repo(dir.path());
 
-        let files = vec!["src/a.ts", "lib/util.py", "scripts/cleanup.py", "main.rs"];
+        let files = vec!["src/a.ts", "lib/util.go", "scripts/cleanup.go", "main.rs"];
         let (scannable, ledger) = partition_for_language_specific_checks(&files, &profile);
 
         // TS and Rust are supported — both stay scannable (input order
-        // preserved); only the two Python files are skipped.
+        // preserved); only the two Go files are skipped.
         assert_eq!(scannable, vec!["src/a.ts", "main.rs"]);
-        assert_eq!(ledger.by_language.get("Python"), Some(&2));
+        assert_eq!(ledger.by_language.get("Go"), Some(&2));
         assert!(!ledger.by_language.contains_key("Rust"));
         assert_eq!(ledger.total(), 2);
         assert_eq!(ledger.reason, SkipReason::Unsupported);
@@ -736,45 +799,45 @@ mod tests {
         // logic decides what to do with them.
         let dir = TempDir::new().unwrap();
         touch(dir.path(), "src/a.ts");
-        touch(dir.path(), "lib/util.py");
+        touch(dir.path(), "lib/util.go");
         touch(dir.path(), "Makefile");
         touch(dir.path(), "README.txt");
         let profile = profile_repo(dir.path());
 
-        let files = vec!["src/a.ts", "lib/util.py", "Makefile", "README.txt"];
+        let files = vec!["src/a.ts", "lib/util.go", "Makefile", "README.txt"];
         let (scannable, ledger) = partition_for_language_specific_checks(&files, &profile);
 
         assert!(scannable.contains(&"src/a.ts"));
         assert!(scannable.contains(&"Makefile"));
         assert!(scannable.contains(&"README.txt"));
-        assert!(!scannable.contains(&"lib/util.py"));
-        assert_eq!(ledger.by_language.get("Python"), Some(&1));
+        assert!(!scannable.contains(&"lib/util.go"));
+        assert_eq!(ledger.by_language.get("Go"), Some(&1));
     }
 
     #[test]
     fn partition_is_case_insensitive_on_extensions() {
         let dir = TempDir::new().unwrap();
         touch(dir.path(), "src/a.ts");
-        touch(dir.path(), "lib/Util.PY");
+        touch(dir.path(), "lib/Util.GO");
         let profile = profile_repo(dir.path());
 
-        let files = vec!["src/a.ts", "lib/Util.PY"];
+        let files = vec!["src/a.ts", "lib/Util.GO"];
         let (scannable, ledger) = partition_for_language_specific_checks(&files, &profile);
         assert_eq!(scannable, vec!["src/a.ts"]);
-        assert_eq!(ledger.by_language.get("Python"), Some(&1));
+        assert_eq!(ledger.by_language.get("Go"), Some(&1));
     }
 
     #[test]
     fn skip_ledger_serialisation_is_stable() {
-        // Use two still-`Unsupported` languages — Rust is now a
-        // supported tier and can no longer appear in a skip ledger
-        // produced by the normal code path.
+        // Use two still-`Unsupported` languages — Rust and Python are now
+        // supported tiers and can no longer appear in a skip ledger produced
+        // by the normal code path.
         let mut ledger = LanguageSkipLedger::default();
-        ledger.by_language.insert("Python".to_string(), 3);
+        ledger.by_language.insert("Dart".to_string(), 3);
         ledger.by_language.insert("Go".to_string(), 1);
         let json = serde_json::to_value(&ledger).unwrap();
         assert_eq!(json["reason"], "unsupported");
-        assert_eq!(json["by_language"]["Python"], 3);
+        assert_eq!(json["by_language"]["Dart"], 3);
         assert_eq!(json["by_language"]["Go"], 1);
     }
 
