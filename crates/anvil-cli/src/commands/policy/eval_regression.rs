@@ -52,8 +52,8 @@ pub struct EvalRegressionArgs {
     #[arg(long)]
     update_baseline: bool,
 
-    /// Block (exit non-zero) when any suite regressed. Off by default per
-    /// ADR-002 (warnings over blocks).
+    /// Block (exit non-zero) when any suite regressed. Off by default, so the
+    /// command reports without failing the build (warnings over blocks).
     #[arg(long)]
     fail_on_regression: bool,
 }

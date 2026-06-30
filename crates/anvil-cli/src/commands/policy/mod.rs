@@ -18,7 +18,7 @@ enum PolicyCommand {
     /// Evaluate a Rego policy against an input document.
     Eval(eval::EvalArgs),
     /// Run trust-regression eval suites and report regressions against the
-    /// persisted baseline (EVAL-003).
+    /// persisted baseline.
     EvalRegression(eval_regression::EvalRegressionArgs),
     /// List available policies
     List {
