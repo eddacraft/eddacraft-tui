@@ -23,7 +23,8 @@
 > **Wiring merged:** **LTW2-003 (Zig) via #2996** and **LTW2-002 (WAT) via #3000**
 > — both T1-parsed and graph-included on `main`. WAT's grammar FFI is isolated in
 > the new `anvil-grammar-wat` crate so the kernel keeps `forbid(unsafe_code)`.
-> **Remaining:** LTW2-004 external-corpus smoke + LTW2-005 doc reconciliation.
+> **Remaining:** LTW2-004 external-corpus smoke (LTW2-005 doc reconciliation
+> Merged via #3006).
 > Module stays **In Progress** pending those + a release tag. See the audit table
 > below for evidence.
 
@@ -120,9 +121,9 @@ across both languages instead of paying it twice.
 
 ## Ready Checklist
 
-Module **In Progress** — the wiring (LTW2-001/-002/-003) has merged; the
-remaining open scope is **LTW2-004 (external-corpus smoke)** and **LTW2-005
-(doc reconciliation)**, plus a release tag before Complete:
+Module **In Progress** — the wiring (LTW2-001/-002/-003) and the doc
+reconciliation (LTW2-005) have merged; the remaining open scope is **LTW2-004
+(external-corpus smoke)**, plus a release tag before Complete:
 
 - [x] ADR-093 Accepted by owner (2026-06-29).
 - [x] Owner named.
@@ -131,7 +132,9 @@ remaining open scope is **LTW2-004 (external-corpus smoke)** and **LTW2-005
 - [x] LTW2-003 (Zig) **Merged via #2996** and LTW2-002 (WAT) **Merged via #3000**;
       both T1-parsed + graph-included on `main`, fixtures in
       `tests/fixtures/langtail/`.
-- [ ] LTW2-004 (external-corpus smoke) + LTW2-005 (doc reconciliation) remain.
+- [x] LTW2-005 (doc reconciliation) **Merged via #3006** — `overview.md`
+      language-profile copy reconciled.
+- [ ] LTW2-004 (external-corpus smoke) remains.
 
 ## Work Items
 
@@ -213,12 +216,13 @@ than per-language PRs.
 
 ### LTW2-005 — Reconcile public language-profile copy
 
-- **Status:** Ready
+- **Status:** Merged 2026-06-30 via PR #3006
 - **Intent:** The public "Repo language profile" copy reflects current coverage.
-- **Expected Outcome:** `docs/public/anvil/overview.md:117` no longer claims only
-  "TS / JS / Rust supported" — it accounts for Python (T3) and the tail T1
-  languages (wave 1, plus any wave-2 additions), honestly. `pnpm docs:index`
-  regenerated.
+- **Expected Outcome:** `docs/public/anvil/overview.md` no longer claims only
+  "TS / JS / Rust supported" — it now lists Python (T3) and the tail T1 languages
+  (LANGTAIL + LTW2: Go, Java, Kotlin, C#, C/C++, Dart, Zig, WebAssembly-text),
+  honestly. Also **dropped the "Markdown partial" claim** (markdown-governance is
+  still Draft, so it overclaimed). No `docs:index` drift (cell-only edit).
 - **Validation:** `pnpm docs:check`
 - **Files:** `docs/public/anvil/overview.md`
 - **Confidence:** high
