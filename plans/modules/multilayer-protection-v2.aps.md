@@ -499,6 +499,21 @@ task's `Source:` line cites the Council finding IDs.
   telemetry const, and the `anvil-intercept` → `anvil-witness` dependency) are the
   follow-on PRs. Fleshed 2026-06-30 (design crux + RPC contract + telemetry
   vocabulary fixed against the live code); deps MLP-002/MLP-003 Done.
+- **Phase-1 Council follow-ons (2026-06-30, full 5-reviewer Council on the
+  `append_chained` PR; blockers fixed in-PR — genesis re-read misclassified as
+  tampering, `read_chain_head` → `pub(crate)`, non-empty-unparseable active → `ChainBroken`,
+  `tracing::warn!` on chain-break, scope fail-fast).** Tracked for later phases,
+  not blocking phase 1: (a) **lock-acquire timeout** — `acquire_lock` uses a
+  blocking `flock` with no timeout, so a stalled holder (or NFS hang) can wedge a
+  concurrent `git commit`; move to `try_lock_exclusive` + bounded retry before the
+  daemon-concurrency phase ships (operations HIGH). (b) **cross-process append
+  test** — the linearisation test uses threads; add a `std::process::Command`-based
+  test exercising the actual daemon-vs-CLI cross-process race (adversarial). (c)
+  **zero-byte-active init marker** — a truncated-to-zero `active.ndjson` with no
+  archives is indistinguishable from a fresh repo (silent reseed); needs a
+  chain-initialised marker to detect (adversarial residual). (d) **`Drop`-guard for
+  the flock** — release is via an explicit `unlock`, relying on fd-drop on panic;
+  a guard struct would make it explicit (adversarial LOW).
 - **Intent:** Route `anvil hook {pre-commit,post-commit,post-merge,post-rewrite}`
   witness appends through the daemon over IPC when reachable (a single writer for
   the chain across worktrees, shared lock/rate state) and fall back to an embedded

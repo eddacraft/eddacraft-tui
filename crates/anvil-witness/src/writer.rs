@@ -133,6 +133,15 @@ impl WitnessWriter {
     /// fallback, or concurrent worktree hooks), use [`WitnessWriter::append_chained`]
     /// instead — it reads the head and appends under a single flock hold.
     pub fn append(&self, line: &WitnessLine) -> Result<AppendOutcome, WriterError> {
+        // Fail fast on a misrouted line BEFORE acquiring the shared flock — a
+        // scope mismatch is a caller bug, not something to take the lock for.
+        // (`append_locked` re-checks as defence-in-depth.)
+        if line.scope != self.scope {
+            return Err(WriterError::ScopeMismatch {
+                writer_scope: self.scope.clone(),
+                line_scope: line.scope.clone(),
+            });
+        }
         let lock_file = self.acquire_lock()?;
         let result = self.append_locked(line);
         // Always release the lock; ignore unlock errors — the OS
@@ -187,7 +196,19 @@ impl WitnessWriter {
                 // Fresh chain — seed genesis under the held lock, then chain off
                 // the just-written tip (re-read, still under the same lock).
                 self.append_locked(&seed_genesis())?;
-                match self.read_chain_head()? {
+                // We just wrote genesis. If it does not read back as a healthy
+                // 1-line chain, that is a write-pipeline failure (disk /
+                // serialisation), NOT tampering — surface it as `Corruption` so the
+                // caller maps it to a generic write failure, never as `ChainBroken`
+                // (which would block the commit with a "do not reseed" tamper
+                // message for a chain we just authored).
+                let reread = self.read_chain_head().map_err(|err| match err {
+                    WriterError::ChainBroken => WriterError::Corruption(
+                        "genesis failed to re-verify immediately after seeding".to_string(),
+                    ),
+                    other => other,
+                })?;
+                match reread {
                     ChainHead::Healthy {
                         seq,
                         prev_line_hash,
@@ -209,35 +230,54 @@ impl WitnessWriter {
         Ok(line_hash)
     }
 
-    /// Read and verify the chain head from disk. **Must be called with the flock
-    /// held** ([`append_chained`](Self::append_chained) does this). Walks
-    /// `witness_paths` so archive segments participate across rollover boundaries.
+    /// Read and verify the chain head from disk. Walks `witness_paths` so archive
+    /// segments participate across rollover boundaries.
     ///
-    /// `Empty` → no verifiable segments (seed genesis); `Healthy` → the tip to
-    /// chain off; [`WriterError::ChainBroken`] → segments exist but fail
-    /// verification (ADR-038: refuse, do not reseed).
-    pub fn read_chain_head(&self) -> Result<ChainHead, WriterError> {
+    /// `Empty` → no chain yet (the caller seeds genesis); `Healthy` → the tip to
+    /// chain off; [`WriterError::ChainBroken`] → a chain exists but fails
+    /// verification (ADR-038: refuse, do **not** reseed).
+    ///
+    /// **`pub(crate)` by design.** For an atomic head-then-append the flock must
+    /// be held across *both* — [`append_chained`](Self::append_chained) does that.
+    /// Exposing a standalone public read would let an out-of-crate caller rebuild
+    /// the read-head-then-`append` pattern outside the lock — the very TOCTOU this
+    /// module closes. The daemon witness leg must route through `append_chained`.
+    pub(crate) fn read_chain_head(&self) -> Result<ChainHead, WriterError> {
         let paths = crate::paths::witness_paths(&self.root);
         if paths.is_empty() {
             return Ok(ChainHead::Empty);
         }
         let path_refs: Vec<&Path> = paths.iter().map(PathBuf::as_path).collect();
         match crate::verify::verify_chain_dag(&path_refs) {
-            Ok(dag) => {
-                if dag.line_count == 0 {
-                    Ok(ChainHead::Empty)
+            Ok(dag) if dag.line_count == 0 => {
+                // Zero parseable lines. A genuinely fresh start has only absent or
+                // zero-byte segment files. But if a segment exists and is
+                // non-empty, its bytes are unrecognisable to the verifier — treat
+                // that as a broken chain, NOT Empty, so a corrupt/garbled active
+                // file can never trigger a silent genesis reseed over real history
+                // (ADR-038). (A zero-byte active with no archives remains Empty and
+                // indistinguishable from a fresh repo — closing that fully needs a
+                // chain-init marker, tracked as MLP2-005 follow-on.)
+                let any_nonempty = paths
+                    .iter()
+                    .any(|p| fs::metadata(p).is_ok_and(|m| m.len() > 0));
+                if any_nonempty {
+                    Err(WriterError::ChainBroken)
                 } else {
-                    let seq = dag.line_count.saturating_add(1);
-                    let prev_line_hash = dag.tip_hash.unwrap_or_else(|| {
-                        crate::genesis::GenesisAnchor::Fresh
-                            .anchor_string()
-                            .to_string()
-                    });
-                    Ok(ChainHead::Healthy {
-                        seq,
-                        prev_line_hash,
-                    })
+                    Ok(ChainHead::Empty)
                 }
+            }
+            Ok(dag) => {
+                let seq = dag.line_count.saturating_add(1);
+                let prev_line_hash = dag.tip_hash.unwrap_or_else(|| {
+                    crate::genesis::GenesisAnchor::Fresh
+                        .anchor_string()
+                        .to_string()
+                });
+                Ok(ChainHead::Healthy {
+                    seq,
+                    prev_line_hash,
+                })
             }
             Err(_) => Err(WriterError::ChainBroken),
         }
@@ -796,5 +836,70 @@ mod tests {
         let dag = crate::verify::verify_chain_dag(&refs)
             .expect("concurrent appends must form one verifiable chain, not a fork");
         assert_eq!(dag.line_count, 1 + threads * per_thread);
+    }
+
+    #[test]
+    fn append_chained_recovers_the_tip_across_a_real_rollover() {
+        // `tight(1, …)` rolls the active file to an archive after every single
+        // line, so after the first call the chain lives entirely in archive
+        // segments and `active.ndjson` is gone. `read_chain_head` must walk
+        // `witness_paths` and recover the archived tip; a second `append_chained`
+        // must chain off it, NOT reseed a fresh genesis.
+        let dir = TempDir::new().unwrap();
+        let writer =
+            WitnessWriter::open(dir.path(), "active", RolloverPolicy::tight(1, 1_000_000)).unwrap();
+
+        writer
+            .append_chained(genesis_seed, |seq, prev| fresh_line(seq, &prev))
+            .unwrap();
+        // Genesis(1) + first record(2) each rolled to the archive.
+        match writer.read_chain_head().unwrap() {
+            ChainHead::Healthy { seq, .. } => assert_eq!(seq, 3),
+            ChainHead::Empty => panic!("must recover the archived tip after rollover"),
+        }
+
+        writer
+            .append_chained(
+                || panic!("must not reseed genesis onto an archived chain"),
+                |seq, prev| fresh_line(seq, &prev),
+            )
+            .unwrap();
+
+        let paths = crate::paths::witness_paths(dir.path());
+        let refs: Vec<&Path> = paths.iter().map(PathBuf::as_path).collect();
+        let dag = crate::verify::verify_chain_dag(&refs)
+            .expect("one continuous chain across archive + active after rollover");
+        assert_eq!(
+            dag.line_count, 3,
+            "genesis + 2 records, exactly one genesis"
+        );
+    }
+
+    #[test]
+    fn append_refuses_scope_mismatch_before_locking() {
+        let dir = TempDir::new().unwrap();
+        let writer = WitnessWriter::open(dir.path(), "active", RolloverPolicy::default()).unwrap();
+        let mut line = fresh_line(1, GenesisAnchor::Fresh.anchor_string());
+        line.scope = "other".to_string();
+        let err = writer.append(&line).unwrap_err();
+        assert!(matches!(err, WriterError::ScopeMismatch { .. }));
+    }
+
+    #[test]
+    fn read_chain_head_treats_nonempty_unparseable_active_as_broken() {
+        // A non-empty active.ndjson that the verifier cannot parse into any line
+        // must be ChainBroken, never Empty — otherwise a garbled/truncated-with-
+        // junk active would trigger a silent genesis reseed over real history.
+        let dir = TempDir::new().unwrap();
+        let writer = WitnessWriter::open(dir.path(), "active", RolloverPolicy::default()).unwrap();
+        fs::write(
+            writer.active_path(),
+            b"this is not ndjson witness content\n",
+        )
+        .unwrap();
+        assert!(matches!(
+            writer.read_chain_head(),
+            Err(WriterError::ChainBroken)
+        ));
     }
 }

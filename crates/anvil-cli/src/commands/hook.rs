@@ -1394,8 +1394,28 @@ where
             build,
         )
         .map_err(|err| match err {
-            WriterError::ChainBroken => AppendError::ChainBroken,
-            _ => AppendError::WriteFailed,
+            WriterError::ChainBroken => {
+                // ADR-038 tamper-detection fired. Emit a structured record so the
+                // event is not merely a line in the developer's terminal scroll —
+                // the richer `degraded:*` witness telemetry is a later MLP2-005
+                // phase; this is the minimum interim instrumentation.
+                tracing::warn!(
+                    target: "anvil::witness",
+                    project_uuid = %project_uuid,
+                    "witness chain integrity check failed; refusing to append (ADR-038)",
+                );
+                AppendError::ChainBroken
+            }
+            // Corruption (incl. a genesis that failed to re-verify), IO, scope, or
+            // symlink refusal — "we couldn't witness this write" (ADR-038).
+            other => {
+                tracing::warn!(
+                    target: "anvil::witness",
+                    error = %other,
+                    "witness append failed",
+                );
+                AppendError::WriteFailed
+            }
         })
 }
 
@@ -2136,46 +2156,10 @@ mod tests {
         assert!(rendered.stderr_line.contains("chain integrity broken"));
     }
 
-    /// MLP2-061 (now owned by `WitnessWriter::read_chain_head`): after
-    /// `active.ndjson` is moved to an archive segment (rollover boundary), the
-    /// chain-head read MUST surface the archived tip — pre-fix it read only
-    /// `active.ndjson` and returned `Empty`, which let the seeder write a fresh
-    /// genesis on top of archived history.
-    #[test]
-    fn read_chain_head_recovers_after_rollover_when_only_archive_holds_chain() {
-        let (_tmp, root) = make_test_repo();
-        let project_uuid = "01997e4a-1b2c-7345-8901-abcdef123456";
-        write_witness_line_for(&root, project_uuid, "deadbeef-1");
-        write_witness_line_for(&root, project_uuid, "deadbeef-2");
-        // Move the active file into the archive directory to
-        // simulate a rollover that just fired. The active file is
-        // gone; the archive holds the entire chain.
-        let active = root.join("anvil").join("witness").join("active.ndjson");
-        let archive_dir = root.join("anvil").join("witness").join("archive");
-        fs::create_dir_all(&archive_dir).unwrap();
-        let archived = archive_dir.join("active-00000000000000000003-rollover-test.ndjson");
-        fs::rename(&active, &archived).unwrap();
-        assert!(!active.exists(), "active should be moved away");
-
-        let writer = WitnessWriter::open(&root, "active", RolloverPolicy::default()).unwrap();
-        match writer.read_chain_head().unwrap() {
-            anvil_witness::ChainHead::Healthy {
-                seq,
-                prev_line_hash,
-            } => {
-                // 3 lines on disk (1 genesis + 2 records) → next
-                // append continues at seq=4 with the archive tip.
-                assert_eq!(seq, 4, "next append must continue the archived chain");
-                assert!(
-                    !prev_line_hash.is_empty(),
-                    "tip hash must come from the archive"
-                );
-            }
-            anvil_witness::ChainHead::Empty => {
-                panic!("expected Healthy after rollover with archive-only chain, got Empty")
-            }
-        }
-    }
+    // The MLP2-061 rollover-recovery test moved into `anvil-witness`
+    // (`append_chained_recovers_the_tip_across_a_real_rollover`) when
+    // `read_chain_head` became `pub(crate)`. End-to-end rollover coverage stays in
+    // `append_witness_after_rollover_chains_off_archive_tip` below.
 
     /// MLP2-061 regression: the tight-rollover loop. Append, force
     /// a rollover, append again, then verify that the chain across
