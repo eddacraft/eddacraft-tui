@@ -217,12 +217,22 @@ than per-language PRs.
 ### LTW2-005 — Reconcile public language-profile copy
 
 - **Status:** Merged 2026-06-30 via PR #3006
-- **Intent:** The public "Repo language profile" copy reflects current coverage.
-- **Expected Outcome:** `docs/public/anvil/overview.md` no longer claims only
-  "TS / JS / Rust supported" — it now lists Python (T3) and the tail T1 languages
-  (LANGTAIL + LTW2: Go, Java, Kotlin, C#, C/C++, Dart, Zig, WebAssembly-text),
-  honestly. Also **dropped the "Markdown partial" claim** (markdown-governance is
-  still Draft, so it overclaimed). No `docs:index` drift (cell-only edit).
+- **Intent:** The public "Repo language profile" copy reflects what the feature
+  actually reports.
+- **Expected Outcome:** `docs/public/anvil/overview.md` matches the CLI
+  **language-profile registry** (`activation/language_profile.rs`) — the feature's
+  actual output — adding the missing **Web (HTML/CSS) → supported** and naming the
+  unsupported set concretely (Python, Go, C/C++, …). SQL & Markdown stay
+  **partial** (both are in the registry).
+- **Note (course-correction):** the registry's tiers track **shipped governance
+  checks, not parser capability**, so it is **independent of** the kernel parser.
+  An initial edit wrongly claimed "Python fully supported" + the tail "parsed"
+  (parser capability); a reviewer caught the divergence and it was corrected to
+  match the registry. **Finding → follow-up:** the parser now parses Python +
+  the LANGTAIL/LTW2 tail, but the registry still reports them `unsupported`
+  (Python's entry looks stale post-PYLAN). Reconciling the registry to shipped
+  parser/check coverage is a **separate code work item** (`language_profile.rs`),
+  not a doc edit — see Open Questions.
 - **Validation:** `pnpm docs:check`
 - **Files:** `docs/public/anvil/overview.md`
 - **Confidence:** high
@@ -246,3 +256,12 @@ than per-language PRs.
       `wasm-lsp/tree-sitter-wasm` repo ships **both** `wat/` and `wast/`
       grammars; LTW2-002 vendors `wat/` first (`.wat`/`.wast` → `Language::Wat`),
       `wast/` reserved if script-format demand appears.
+- [ ] **Registry vs parser divergence (surfaced by LTW2-005).** The CLI
+      language-profile registry (`crates/anvil-cli/src/activation/language_profile.rs`)
+      reports Python + the LANGTAIL/LTW2 tail as `unsupported`, even though the
+      kernel parser now parses them — its tiers gate on shipped governance checks,
+      not parsing, and it is hand-maintained independently. Python's `unsupported`
+      entry in particular looks stale (PYLAN shipped a T3 catalogue). Should the
+      registry be reconciled to current parser/check coverage? This is a separate
+      code work item with `ProtectionState` implications (a repo flips from
+      `Unsupported`), **out of LTW2 scope** — flag for owner triage.
