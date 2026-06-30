@@ -2972,3 +2972,62 @@ archive.
   silent change.
 - **Confidence:** medium — the Python re-tier is clear-cut; the "how to report
   parser-only languages" question is a design decision.
+
+### CIB-124: Witness `acquire_lock` timeout + `Drop`-guard
+
+- **Status:** Ready
+- **Intent:** Stop a stalled witness writer from wedging concurrent `git commit`s,
+  and make the flock release explicit on panic.
+- **Expected Outcome:** `WitnessWriter::acquire_lock`
+  (`crates/anvil-witness/src/writer.rs`) replaces the unbounded
+  `fs2::FileExt::lock_exclusive` (which blocks indefinitely — a stalled holder or
+  an NFS hang blocks every concurrent committer) with `try_lock_exclusive` + a
+  bounded retry/backoff, returning a timeout error (mapped to `WriteFailed` at the
+  hook) rather than hanging. The held lock is wrapped in a small RAII guard so the
+  `flock` releases on the `Drop` path (including panics), not only via the explicit
+  `unlock`.
+- **Validation:** a test holding the lock from one handle proves a second
+  `acquire_lock` times out (not hangs) and maps to `WriteFailed`; a
+  panic-in-closure test proves the lock is released.
+- **Files:** `crates/anvil-witness/src/writer.rs`,
+  `crates/anvil-cli/src/commands/hook.rs` (error mapping).
+- **Identified From:** MLP2-005 phase-1 Council (2026-06-30) — operations HIGH
+  (lock blast radius) + adversarial LOW (Drop-guard). **Do before the MLP2-005
+  hook-fallback phase wires daemon + CLI cross-process writes.**
+- **Confidence:** medium.
+
+### CIB-125: Cross-process `append_chained` linearisation test
+
+- **Status:** Ready
+- **Intent:** Prove the witness-append atomicity holds across **separate
+  processes** (a daemon vs a CLI fallback), not just threads.
+- **Expected Outcome:** an integration test in `crates/anvil-witness/tests/`
+  spawns N separate processes (e.g. re-exec via `std::process::Command` /
+  `current_exe()` with a worker mode) that each `append_chained` against one shared
+  root, then asserts `verify_chain_dag` yields a single linear chain — exercising
+  the real cross-process flock path the phase-1 thread test only approximates.
+- **Validation:** the new test passes; deliberately reverting to an out-of-lock
+  head read makes it fail (fork detected).
+- **Files:** `crates/anvil-witness/tests/`.
+- **Identified From:** MLP2-005 phase-1 Council (2026-06-30) — adversarial MEDIUM
+  (cross-process correctness asserted but only thread-tested).
+- **Confidence:** high.
+
+### CIB-126: Witness chain-init marker (zero-byte-active reseed detection)
+
+- **Status:** Proposed
+- **Intent:** Detect a truncated-to-zero `active.ndjson` with no archives, which is
+  currently indistinguishable from a fresh repo and silently reseeds genesis over
+  erased history.
+- **Expected Outcome:** a durable "chain initialised" marker (design TBD — e.g. a
+  witness-root sentinel or a manifest entry written at genesis) so
+  `WitnessWriter::read_chain_head` can return `ChainBroken` for a zero-byte active
+  when the chain is known to have existed, closing the residual the phase-1
+  non-empty-unparseable hardening does not cover. Must not regress the legitimate
+  fresh-repo path. Needs a short design note (ADR-038 alignment).
+- **Validation:** a zero-byte `active.ndjson` after a prior genesis → `ChainBroken`;
+  a genuinely fresh repo → `Empty`.
+- **Files:** `crates/anvil-witness/src/{writer,paths,manifest}.rs` (TBD by design).
+- **Identified From:** MLP2-005 phase-1 Council (2026-06-30) — adversarial residual
+  (the proposed `any_nonempty` fix does not close the zero-byte case).
+- **Confidence:** low — needs a design decision before execution.

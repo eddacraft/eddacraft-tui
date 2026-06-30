@@ -502,18 +502,12 @@ task's `Source:` line cites the Council finding IDs.
 - **Phase-1 Council follow-ons (2026-06-30, full 5-reviewer Council on the
   `append_chained` PR; blockers fixed in-PR — genesis re-read misclassified as
   tampering, `read_chain_head` → `pub(crate)`, non-empty-unparseable active → `ChainBroken`,
-  `tracing::warn!` on chain-break, scope fail-fast).** Tracked for later phases,
-  not blocking phase 1: (a) **lock-acquire timeout** — `acquire_lock` uses a
-  blocking `flock` with no timeout, so a stalled holder (or NFS hang) can wedge a
-  concurrent `git commit`; move to `try_lock_exclusive` + bounded retry before the
-  daemon-concurrency phase ships (operations HIGH). (b) **cross-process append
-  test** — the linearisation test uses threads; add a `std::process::Command`-based
-  test exercising the actual daemon-vs-CLI cross-process race (adversarial). (c)
-  **zero-byte-active init marker** — a truncated-to-zero `active.ndjson` with no
-  archives is indistinguishable from a fresh repo (silent reseed); needs a
-  chain-initialised marker to detect (adversarial residual). (d) **`Drop`-guard for
-  the flock** — release is via an explicit `unlock`, relying on fd-drop on panic;
-  a guard struct would make it explicit (adversarial LOW).
+  `tracing::warn!` on chain-break, scope fail-fast).** The deferred hardening is
+  filed as discrete CIB items (not blocking phase 1): **CIB-124** witness
+  `acquire_lock` timeout + `Drop`-guard (do before the hook-fallback phase wires
+  cross-process writes), **CIB-125** cross-process `append_chained` linearisation
+  test, **CIB-126** witness chain-init marker for the zero-byte-active reseed
+  residual.
 - **Phase 2 (the daemon `anvil/witness/append` RPC) implemented 2026-06-30.**
   `anvil-intercept-proto` carries `ANVIL_WITNESS_APPEND` + `WitnessEntry` /
   `WitnessAppendRequest` / `WitnessAppendResponse { outcome, line_hash, error }`
