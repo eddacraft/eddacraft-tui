@@ -424,7 +424,10 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn eval_harness_adapter_subprocess_times_out_on_hanging_child() {
-        let (_dir, path) = script("sleep 30");
+        // `exec` so the shell replaces itself with `sleep` — otherwise `sleep`
+        // is a grandchild that survives killing the shell and keeps the stdout
+        // pipe open, blocking the reader thread until it exits.
+        let (_dir, path) = script("exec sleep 30");
         let runner = SubprocessRunner::new(path).with_timeout(Duration::from_millis(200));
         let err = runner.eval_json(&suite()).expect_err("should time out");
         assert!(matches!(err, EvalHarnessError::Execution { .. }));
