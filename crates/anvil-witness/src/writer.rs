@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use fs2::FileExt;
 use sha2::{Digest, Sha256};
 
-use crate::line::WitnessLine;
+use crate::line::{LineHash, WitnessLine, compute_line_hash};
 
 #[derive(Debug, thiserror::Error)]
 pub enum WriterError {
@@ -15,6 +15,8 @@ pub enum WriterError {
     Serde(#[from] serde_json::Error),
     #[error("witness chain is corrupted: {0}")]
     Corruption(String),
+    #[error("witness chain integrity check failed (broken chain); refusing to append")]
+    ChainBroken,
     #[error("witness root is a symlink; refusing to write: {path}")]
     SymlinkRoot { path: PathBuf },
     #[error(
@@ -59,6 +61,22 @@ impl RolloverPolicy {
             max_bytes,
         }
     }
+}
+
+/// The verifiable head of the chain, as read under the writer's flock by
+/// [`WitnessWriter::read_chain_head`] / [`WitnessWriter::append_chained`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ChainHead {
+    /// No verifiable segment exists yet — the caller's genesis seed runs before
+    /// the first real line.
+    Empty,
+    /// A verifiable tip: a new line uses `seq` and chains off `prev_line_hash`.
+    Healthy {
+        /// Sequence number the next appended line must carry (`line_count + 1`).
+        seq: u64,
+        /// Hash of the current tip line — the next line's `prev_line_hash`.
+        prev_line_hash: String,
+    },
 }
 
 /// Flock-serialised append-only writer for the witness chain.
@@ -108,11 +126,147 @@ impl WitnessWriter {
     ///
     /// Returns the new active file's line count after the append, and
     /// the archive path if a rollover happened.
+    ///
+    /// This is the low-level primitive: the caller has already derived
+    /// `(seq, prev_line_hash)` from the chain head. When that derivation and the
+    /// append must be atomic against concurrent writers (a daemon and an embedded
+    /// fallback, or concurrent worktree hooks), use [`WitnessWriter::append_chained`]
+    /// instead — it reads the head and appends under a single flock hold.
     pub fn append(&self, line: &WitnessLine) -> Result<AppendOutcome, WriterError> {
-        // Reject a line that targets a different scope before any
-        // file IO. Without this guard a misrouted hook could push
-        // entries into the wrong archive scope and silently break
-        // verification (which keys archive selection on scope).
+        let lock_file = self.acquire_lock()?;
+        let result = self.append_locked(line);
+        // Always release the lock; ignore unlock errors — the OS
+        // releases on fd close anyway.
+        let _ = FileExt::unlock(&lock_file);
+        result
+    }
+
+    /// Atomically read the verifiable chain head and append the line that
+    /// extends it, under a **single** flock hold (MLP2-005).
+    ///
+    /// This closes the read-head→append TOCTOU that [`append`](Self::append)
+    /// leaves open: with `append`, a caller derives `(seq, prev)` from the chain
+    /// *before* taking the lock, so two writers can read the same tip and fork the
+    /// chain (same `seq`/`prev`) without corrupting the file. `append_chained`
+    /// holds the flock across the whole read-head → derive → append sequence, so
+    /// any second writer blocks until the first has extended the chain.
+    ///
+    /// - On a verifiable tip, `build(seq, prev_line_hash)` produces the line.
+    /// - On an empty chain, `seed_genesis()` runs first (under the same lock); the
+    ///   head is re-read, then `build` chains off the seeded genesis.
+    /// - A chain that exists but fails verification yields
+    ///   [`WriterError::ChainBroken`] — it is **never** reseeded (ADR-038).
+    ///
+    /// Returns the appended (non-genesis) line's hash.
+    pub fn append_chained<G, F>(&self, seed_genesis: G, build: F) -> Result<LineHash, WriterError>
+    where
+        G: FnOnce() -> WitnessLine,
+        F: FnOnce(u64, String) -> WitnessLine,
+    {
+        let lock_file = self.acquire_lock()?;
+        let result = self.append_chained_locked(seed_genesis, build);
+        let _ = FileExt::unlock(&lock_file);
+        result
+    }
+
+    fn append_chained_locked<G, F>(
+        &self,
+        seed_genesis: G,
+        build: F,
+    ) -> Result<LineHash, WriterError>
+    where
+        G: FnOnce() -> WitnessLine,
+        F: FnOnce(u64, String) -> WitnessLine,
+    {
+        let (seq, prev) = match self.read_chain_head()? {
+            ChainHead::Healthy {
+                seq,
+                prev_line_hash,
+            } => (seq, prev_line_hash),
+            ChainHead::Empty => {
+                // Fresh chain — seed genesis under the held lock, then chain off
+                // the just-written tip (re-read, still under the same lock).
+                self.append_locked(&seed_genesis())?;
+                match self.read_chain_head()? {
+                    ChainHead::Healthy {
+                        seq,
+                        prev_line_hash,
+                    } => (seq, prev_line_hash),
+                    ChainHead::Empty => {
+                        return Err(WriterError::Corruption(
+                            "genesis append left the chain empty".to_string(),
+                        ));
+                    }
+                }
+            }
+        };
+        let line = build(seq, prev);
+        // Hash the canonical bytes before the write so a serialise failure
+        // surfaces here; the writer serialises the same bytes on disk.
+        let canonical = line.to_canonical_bytes()?;
+        let line_hash = compute_line_hash(&canonical);
+        self.append_locked(&line)?;
+        Ok(line_hash)
+    }
+
+    /// Read and verify the chain head from disk. **Must be called with the flock
+    /// held** ([`append_chained`](Self::append_chained) does this). Walks
+    /// `witness_paths` so archive segments participate across rollover boundaries.
+    ///
+    /// `Empty` → no verifiable segments (seed genesis); `Healthy` → the tip to
+    /// chain off; [`WriterError::ChainBroken`] → segments exist but fail
+    /// verification (ADR-038: refuse, do not reseed).
+    pub fn read_chain_head(&self) -> Result<ChainHead, WriterError> {
+        let paths = crate::paths::witness_paths(&self.root);
+        if paths.is_empty() {
+            return Ok(ChainHead::Empty);
+        }
+        let path_refs: Vec<&Path> = paths.iter().map(PathBuf::as_path).collect();
+        match crate::verify::verify_chain_dag(&path_refs) {
+            Ok(dag) => {
+                if dag.line_count == 0 {
+                    Ok(ChainHead::Empty)
+                } else {
+                    let seq = dag.line_count.saturating_add(1);
+                    let prev_line_hash = dag.tip_hash.unwrap_or_else(|| {
+                        crate::genesis::GenesisAnchor::Fresh
+                            .anchor_string()
+                            .to_string()
+                    });
+                    Ok(ChainHead::Healthy {
+                        seq,
+                        prev_line_hash,
+                    })
+                }
+            }
+            Err(_) => Err(WriterError::ChainBroken),
+        }
+    }
+
+    /// Acquire the exclusive flock, refusing symlinks at every path we are about
+    /// to write through (the witness root, the lock file, and the active file).
+    /// The lock is held via `fs2::FileExt::lock_exclusive` on the returned fd;
+    /// the caller unlocks it.
+    fn acquire_lock(&self) -> Result<File, WriterError> {
+        refuse_if_symlink(&self.witness_root())?;
+        let lock_path = self.lock_path();
+        refuse_if_symlink(&lock_path)?;
+        refuse_if_symlink(&self.active_path())?;
+
+        let lock_file = OpenOptions::new()
+            .create(true)
+            .read(true)
+            .write(true)
+            .truncate(false)
+            .open(&lock_path)?;
+        lock_file.lock_exclusive()?;
+        Ok(lock_file)
+    }
+
+    /// Append one line; **the flock must already be held**. Scope-checks the line
+    /// (a misrouted hook must not push into the wrong archive scope), writes +
+    /// `sync_all`s, then applies the rollover policy.
+    fn append_locked(&self, line: &WitnessLine) -> Result<AppendOutcome, WriterError> {
         if line.scope != self.scope {
             return Err(WriterError::ScopeMismatch {
                 writer_scope: self.scope.clone(),
@@ -121,66 +275,34 @@ impl WitnessWriter {
         }
 
         let active_path = self.active_path();
-        let lock_path = self.lock_path();
-
-        // Refuse symlinks at every path we're about to write through.
-        // The witness root protects against `anvil/witness/` being
-        // re-pointed; the lock and active checks protect against
-        // someone replacing those specific files with a symlink
-        // pointing outside the repo. Without these the symlink
-        // refusal on the dir alone is bypassable by replacing the
-        // child file.
-        refuse_if_symlink(&self.witness_root())?;
-        refuse_if_symlink(&lock_path)?;
-        refuse_if_symlink(&active_path)?;
-
-        // Open (or create) the lock file. The lock is held via
-        // fs2::FileExt::lock_exclusive on this fd. We unlock manually
-        // before returning so the success path doesn't depend on Drop
-        // order with the active-file handle.
-        let lock_file = OpenOptions::new()
+        let bytes = line.to_ndjson_line()?;
+        let mut active = OpenOptions::new()
             .create(true)
+            .append(true)
             .read(true)
-            .write(true)
-            .truncate(false)
-            .open(&lock_path)?;
-        lock_file.lock_exclusive()?;
+            .open(&active_path)?;
+        active.write_all(&bytes)?;
+        active.sync_all()?;
 
-        let result = (|| -> Result<AppendOutcome, WriterError> {
-            let bytes = line.to_ndjson_line()?;
-            let mut active = OpenOptions::new()
-                .create(true)
-                .append(true)
-                .read(true)
-                .open(&active_path)?;
-            active.write_all(&bytes)?;
-            active.sync_all()?;
-
-            // Decide on rollover. Cheap line count + byte count.
-            let size_after = active.metadata()?.len();
-            let lines_after = count_lines(&mut active)?;
-            let outcome =
-                if lines_after >= self.policy.max_lines || size_after >= self.policy.max_bytes {
-                    let archive_path = self.rollover(&active_path, line.seq)?;
-                    AppendOutcome {
-                        active_lines: 0,
-                        active_bytes: 0,
-                        rolled_over_to: Some(archive_path),
-                    }
-                } else {
-                    AppendOutcome {
-                        active_lines: lines_after,
-                        active_bytes: size_after,
-                        rolled_over_to: None,
-                    }
-                };
-            Ok(outcome)
-        })();
-
-        // Always release the lock; ignore unlock errors — the OS
-        // releases on fd close anyway.
-        let _ = FileExt::unlock(&lock_file);
-        result
+        // Decide on rollover. Cheap line count + byte count.
+        let size_after = active.metadata()?.len();
+        let lines_after = count_lines(&mut active)?;
+        let outcome = if lines_after >= self.policy.max_lines || size_after >= self.policy.max_bytes
+        {
+            let archive_path = self.rollover(&active_path, line.seq)?;
+            AppendOutcome {
+                active_lines: 0,
+                active_bytes: 0,
+                rolled_over_to: Some(archive_path),
+            }
+        } else {
+            AppendOutcome {
+                active_lines: lines_after,
+                active_bytes: size_after,
+                rolled_over_to: None,
+            }
+        };
+        Ok(outcome)
     }
 
     fn rollover(&self, active_path: &Path, seq_at_rollover: u64) -> Result<PathBuf, WriterError> {
@@ -517,5 +639,162 @@ mod tests {
             .unwrap();
         let err = WitnessWriter::open(dir.path(), "active", RolloverPolicy::default()).unwrap_err();
         assert!(matches!(err, WriterError::SymlinkRoot { .. }));
+    }
+
+    // ── MLP2-005: atomic read-head + append ──────────────────────────────────
+
+    fn genesis_seed() -> WitnessLine {
+        fresh_line(1, GenesisAnchor::Fresh.anchor_string())
+    }
+
+    #[test]
+    fn append_chained_seeds_genesis_then_chains_off_it() {
+        let dir = TempDir::new().unwrap();
+        let writer = WitnessWriter::open(dir.path(), "active", RolloverPolicy::default()).unwrap();
+
+        // Empty chain: genesis is seeded, then `build` chains off it at seq 2.
+        let mut seen = None;
+        let hash = writer
+            .append_chained(genesis_seed, |seq, prev| {
+                seen = Some((seq, prev.clone()));
+                fresh_line(seq, &prev)
+            })
+            .unwrap();
+
+        let (seq, prev) = seen.expect("build ran");
+        assert_eq!(seq, 2, "genesis is line 1, so the first real line is seq 2");
+        let genesis_hash = compute_line_hash(&genesis_seed().to_canonical_bytes().unwrap());
+        assert_eq!(
+            prev, genesis_hash,
+            "real line must chain off the genesis tip"
+        );
+
+        // Two lines on disk, and the returned hash is the real line's hash.
+        let on_disk = fs::read_to_string(writer.active_path()).unwrap();
+        assert_eq!(on_disk.lines().count(), 2);
+        let expected =
+            compute_line_hash(&fresh_line(2, &genesis_hash).to_canonical_bytes().unwrap());
+        assert_eq!(hash, expected);
+
+        // The whole chain verifies Healthy.
+        let paths = crate::paths::witness_paths(dir.path());
+        let refs: Vec<&Path> = paths.iter().map(PathBuf::as_path).collect();
+        assert_eq!(
+            crate::verify::verify_chain_dag(&refs).unwrap().line_count,
+            2
+        );
+    }
+
+    #[test]
+    fn append_chained_extends_an_existing_healthy_tip() {
+        let dir = TempDir::new().unwrap();
+        let writer = WitnessWriter::open(dir.path(), "active", RolloverPolicy::default()).unwrap();
+        writer
+            .append_chained(genesis_seed, |seq, prev| fresh_line(seq, &prev))
+            .unwrap();
+
+        // Second call must find a Healthy tip — genesis seed must NOT run again.
+        let mut seeded = false;
+        writer
+            .append_chained(
+                || {
+                    seeded = true;
+                    genesis_seed()
+                },
+                |seq, prev| {
+                    assert_eq!(seq, 3, "third line after genesis(1) + first real(2)");
+                    fresh_line(seq, &prev)
+                },
+            )
+            .unwrap();
+        assert!(!seeded, "genesis must not be reseeded onto a healthy chain");
+
+        let paths = crate::paths::witness_paths(dir.path());
+        let refs: Vec<&Path> = paths.iter().map(PathBuf::as_path).collect();
+        assert_eq!(
+            crate::verify::verify_chain_dag(&refs).unwrap().line_count,
+            3
+        );
+    }
+
+    #[test]
+    fn append_chained_refuses_a_broken_chain_without_writing() {
+        let dir = TempDir::new().unwrap();
+        let writer = WitnessWriter::open(dir.path(), "active", RolloverPolicy::default()).unwrap();
+        writer
+            .append_chained(genesis_seed, |seq, prev| fresh_line(seq, &prev))
+            .unwrap();
+
+        // Tamper: append a line with a bogus prev-hash link, breaking verification.
+        let mut tampered = fresh_line(3, "deadbeef-not-a-real-prev-hash");
+        tampered.commit_sha = Some("tampered".into());
+        let raw = tampered.to_ndjson_line().unwrap();
+        let mut f = OpenOptions::new()
+            .append(true)
+            .open(writer.active_path())
+            .unwrap();
+        f.write_all(&raw).unwrap();
+        let before = fs::read_to_string(writer.active_path()).unwrap();
+
+        let mut built = false;
+        let err = writer
+            .append_chained(genesis_seed, |seq, prev| {
+                built = true;
+                fresh_line(seq, &prev)
+            })
+            .unwrap_err();
+
+        assert!(matches!(err, WriterError::ChainBroken));
+        assert!(
+            !built,
+            "build must not run on a broken chain (ADR-038: never reseed)"
+        );
+        assert_eq!(
+            fs::read_to_string(writer.active_path()).unwrap(),
+            before,
+            "a broken-chain refusal must not append anything",
+        );
+    }
+
+    #[test]
+    fn append_chained_concurrent_writers_linearize_one_chain() {
+        // The MLP2-005 regression: with the old read-head-then-append (head read
+        // OUTSIDE the flock), two writers could read the same tip and fork the
+        // chain (duplicate seq/prev). `append_chained` holds the flock across the
+        // whole read→append, so N concurrent writers produce ONE linear chain.
+        let dir = TempDir::new().unwrap();
+        let root = dir.path().to_path_buf();
+        let threads = 4;
+        let per_thread = 5;
+
+        let handles: Vec<_> = (0..threads)
+            .map(|t| {
+                let root = root.clone();
+                std::thread::spawn(move || {
+                    for i in 0..per_thread {
+                        let writer =
+                            WitnessWriter::open(&root, "active", RolloverPolicy::default())
+                                .unwrap();
+                        writer
+                            .append_chained(genesis_seed, |seq, prev| {
+                                let mut l = fresh_line(seq, &prev);
+                                l.commit_sha = Some(format!("t{t}-i{i}"));
+                                l
+                            })
+                            .unwrap();
+                    }
+                })
+            })
+            .collect();
+        for h in handles {
+            h.join().unwrap();
+        }
+
+        // One genesis + every appended line, as a single verifiable chain.
+        let paths = crate::paths::witness_paths(&root);
+        let refs: Vec<&Path> = paths.iter().map(PathBuf::as_path).collect();
+        let dag = crate::verify::verify_chain_dag(&refs)
+            .expect("concurrent appends must form one verifiable chain, not a fork");
+        assert_eq!(dag.line_count, 1 + threads * per_thread);
     }
 }

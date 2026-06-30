@@ -489,10 +489,16 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-005: Witness append — daemon RPC + embedded fallback
 
-- **Status:** Ready — fleshed 2026-06-30 (design crux resolved; RPC contract,
-  fallback classification, and telemetry vocabulary fixed against the live code).
-  Dependencies MLP-002/MLP-003 are Done; the daemon witness leg is greenfield —
-  `anvil-intercept` does not yet depend on `anvil-witness`.
+- **Status:** In Progress — **Phase 1 (the `append_chained` atomicity foundation)
+  implemented 2026-06-30.** `WitnessWriter::append_chained` now reads the chain
+  head and appends under a single flock hold (the read-head→append TOCTOU is
+  closed), and `hook.rs::append_witness` is refactored onto it; the hook-level
+  `chain_head`/`ChainState` are removed in favour of `WitnessWriter::read_chain_head`.
+  Remaining phases (the daemon `anvil/witness/append` RPC, the daemon-first /
+  embedded-fallback classification in the hook, the `DEGRADED_EMBEDDED_WITNESS`
+  telemetry const, and the `anvil-intercept` → `anvil-witness` dependency) are the
+  follow-on PRs. Fleshed 2026-06-30 (design crux + RPC contract + telemetry
+  vocabulary fixed against the live code); deps MLP-002/MLP-003 Done.
 - **Intent:** Route `anvil hook {pre-commit,post-commit,post-merge,post-rewrite}`
   witness appends through the daemon over IPC when reachable (a single writer for
   the chain across worktrees, shared lock/rate state) and fall back to an embedded

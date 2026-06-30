@@ -68,4 +68,4 @@ pub use paths::witness_paths;
 #[allow(deprecated)]
 // Re-export the linear-only wrapper for out-of-tree callers; in-tree callers should use `verify_chain_dag`.
 pub use verify::{ChainReport, DagVerification, VerifyError, verify_chain, verify_chain_dag};
-pub use writer::{AppendOutcome, RolloverPolicy, WitnessWriter, WriterError};
+pub use writer::{AppendOutcome, ChainHead, RolloverPolicy, WitnessWriter, WriterError};

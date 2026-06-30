@@ -76,7 +76,7 @@ use anvil_l4::{
 };
 use anvil_rules::{RequiredAnvilVersion, config_sha_from_canonical, rules_sha};
 use anvil_witness::{
-    GenesisAnchor, LineHash, RolloverPolicy, WitnessLine, WitnessWriter, compute_line_hash,
+    GenesisAnchor, LineHash, RolloverPolicy, WitnessLine, WitnessWriter, WriterError,
     verify_chain_dag, witness_paths,
 };
 use anyhow::{Context, Result};
@@ -1331,22 +1331,6 @@ fn execute_bootstrap_plan(repo_root: &Path, plan: &BootstrapPlan) -> Result<usiz
     }
 }
 
-/// Result of [`chain_head`] — either a usable `(next_seq, prev)`
-/// pair or a typed failure that the caller turns into the matching
-/// [`Verdict`].
-#[cfg_attr(test, derive(Debug))]
-enum ChainState {
-    /// The chain is empty: no active file. Caller should seed a
-    /// genesis line before its first record.
-    Empty,
-    /// The chain is healthy. Append at this seq with this prev hash.
-    Healthy { seq: u64, prev: String },
-    /// The active file exists but verification failed. Per ADR-038
-    /// the next commit is refused; we MUST NOT reseed (that would
-    /// erase evidence of tampering).
-    Broken,
-}
-
 /// Errors returned by [`append_witness`]. Mapped to [`Verdict`]
 /// variants by the caller.
 #[derive(Debug)]
@@ -1383,102 +1367,43 @@ where
 
     let writer = WitnessWriter::open(repo_root, "active", RolloverPolicy::default())
         .map_err(|_| AppendError::WriteFailed)?;
-    // MLP2-061: derive `(seq, prev)` from the full archive + active
-    // chain. After a rollover the new `active.ndjson` is empty (or
-    // absent) and reading only it would yield `ChainState::Empty`,
-    // letting the seeder write a fresh genesis on top of the archived
-    // history. `chain_head` now walks `witness_paths(repo_root)` so
-    // the chain stays continuous across rollover boundaries.
-    match chain_head(repo_root) {
-        ChainState::Broken => Err(AppendError::ChainBroken),
-        ChainState::Empty => {
-            // Fresh chain — seed genesis then chain off it.
-            let genesis = WitnessLine::genesis(
-                &GenesisAnchor::Fresh,
-                project_uuid,
-                "active",
-                chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
-                "pre-commit",
-                None,
-            );
-            writer
-                .append(&genesis)
-                .map_err(|_| AppendError::WriteFailed)?;
-            let (seq, prev) = match chain_head(repo_root) {
-                ChainState::Healthy { seq, prev } => (seq, prev),
-                // If the chain we just wrote can't be re-verified,
-                // something is badly wrong with the on-disk state.
-                _ => return Err(AppendError::WriteFailed),
-            };
-            let line = build(seq, prev);
-            // MLP2-010: hash the canonical bytes BEFORE the writer
-            // call so a serialise failure surfaces as `WriteFailed`
-            // alongside the IO failure path. The writer also
-            // serialises the same bytes internally, so this is the
-            // same on-disk shape the chain stores.
-            let canonical = line
-                .to_canonical_bytes()
-                .map_err(|_| AppendError::WriteFailed)?;
-            let line_hash = compute_line_hash(&canonical);
-            writer
-                .append(&line)
-                .map(|_| line_hash)
-                .map_err(|_| AppendError::WriteFailed)
-        }
-        ChainState::Healthy { seq, prev } => {
-            let line = build(seq, prev);
-            let canonical = line
-                .to_canonical_bytes()
-                .map_err(|_| AppendError::WriteFailed)?;
-            let line_hash = compute_line_hash(&canonical);
-            writer
-                .append(&line)
-                .map(|_| line_hash)
-                .map_err(|_| AppendError::WriteFailed)
-        }
-    }
+
+    // MLP2-005: derive `(seq, prev)` from the full archive + active chain and
+    // append, **atomically under one flock hold**, via `append_chained`. The
+    // earlier code read the chain head (`chain_head`) outside the writer's lock
+    // and only then appended, so a daemon and an embedded fallback (or concurrent
+    // worktree hooks) could read the same tip and fork the chain. `append_chained`
+    // holds the lock across read-head → derive → append; it seeds genesis on an
+    // empty chain (walking `witness_paths` so the chain stays continuous across
+    // rollover boundaries — MLP2-061) and refuses a broken chain without reseeding
+    // (ADR-038). It also hashes the canonical bytes before the write (MLP2-010), so
+    // a serialise failure still surfaces on the `WriteFailed` path.
+    let project_uuid = project_uuid.to_string();
+    writer
+        .append_chained(
+            || {
+                WitnessLine::genesis(
+                    &GenesisAnchor::Fresh,
+                    &project_uuid,
+                    "active",
+                    chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string(),
+                    "pre-commit",
+                    None,
+                )
+            },
+            build,
+        )
+        .map_err(|err| match err {
+            WriterError::ChainBroken => AppendError::ChainBroken,
+            _ => AppendError::WriteFailed,
+        })
 }
 
-/// Classify the on-disk chain state for the next append.
-///
-/// Distinguishes the three cases the writer cares about:
-/// `Empty` (no segments → seed genesis), `Healthy` (verifiable tip →
-/// chain off it), and `Broken` (segments exist but fail verification
-/// → refuse, do NOT reseed). The earlier version collapsed `Broken`
-/// into `Empty` and would obliterate evidence by appending a fresh
-/// genesis on top of a tampered chain; the distinction here is the
-/// ADR-038 contract.
-///
-/// MLP2-061: walks `witness_paths(repo_root)` so archive segments
-/// participate in the head calculation. Pre-fix the function read
-/// only `active.ndjson`; after a rollover the active file is empty
-/// while the archive holds the tail, and the seeder would write a
-/// fresh genesis on top of the archived history — silently breaking
-/// chain continuity.
-fn chain_head(repo_root: &Path) -> ChainState {
-    let paths = witness_paths(repo_root);
-    if paths.is_empty() {
-        return ChainState::Empty;
-    }
-    let path_refs: Vec<&Path> = paths.iter().map(PathBuf::as_path).collect();
-    // MLP2-011 — DAG-aware verifier accepts merge witnesses; the
-    // `DagVerification` struct exposes the same `line_count` + `tip_hash`
-    // the legacy `ChainReport` did.
-    match verify_chain_dag(&path_refs) {
-        Ok(dag) => {
-            if dag.line_count == 0 {
-                ChainState::Empty
-            } else {
-                let seq = dag.line_count.saturating_add(1);
-                let prev = dag
-                    .tip_hash
-                    .unwrap_or_else(|| GenesisAnchor::Fresh.anchor_string().to_string());
-                ChainState::Healthy { seq, prev }
-            }
-        }
-        Err(_) => ChainState::Broken,
-    }
-}
+// MLP2-005: `chain_head` + `ChainState` were removed — the chain-head read now
+// lives in `WitnessWriter::read_chain_head` (returning `ChainHead`), run under
+// the flock by `WitnessWriter::append_chained` so the read and the append are
+// atomic. The MLP2-061 rollover-recovery behaviour (walking `witness_paths` so
+// archive segments participate) moved with it.
 
 fn install_panic_catcher() {
     // Resolve the state dir lazily so a failure during dir resolution
@@ -2211,13 +2136,13 @@ mod tests {
         assert!(rendered.stderr_line.contains("chain integrity broken"));
     }
 
-    /// MLP2-061: after `active.ndjson` is moved to an archive
-    /// segment (rollover boundary), `chain_head(repo_root)` MUST
-    /// surface the archived tip — pre-fix the function read only
-    /// `active.ndjson` and returned `ChainState::Empty`, which let
-    /// the seeder write a fresh genesis on top of archived history.
+    /// MLP2-061 (now owned by `WitnessWriter::read_chain_head`): after
+    /// `active.ndjson` is moved to an archive segment (rollover boundary), the
+    /// chain-head read MUST surface the archived tip — pre-fix it read only
+    /// `active.ndjson` and returned `Empty`, which let the seeder write a fresh
+    /// genesis on top of archived history.
     #[test]
-    fn chain_head_recovers_after_rollover_when_only_archive_holds_chain() {
+    fn read_chain_head_recovers_after_rollover_when_only_archive_holds_chain() {
         let (_tmp, root) = make_test_repo();
         let project_uuid = "01997e4a-1b2c-7345-8901-abcdef123456";
         write_witness_line_for(&root, project_uuid, "deadbeef-1");
@@ -2232,15 +2157,22 @@ mod tests {
         fs::rename(&active, &archived).unwrap();
         assert!(!active.exists(), "active should be moved away");
 
-        match chain_head(&root) {
-            ChainState::Healthy { seq, prev } => {
+        let writer = WitnessWriter::open(&root, "active", RolloverPolicy::default()).unwrap();
+        match writer.read_chain_head().unwrap() {
+            anvil_witness::ChainHead::Healthy {
+                seq,
+                prev_line_hash,
+            } => {
                 // 3 lines on disk (1 genesis + 2 records) → next
                 // append continues at seq=4 with the archive tip.
                 assert_eq!(seq, 4, "next append must continue the archived chain");
-                assert!(!prev.is_empty(), "tip hash must come from the archive");
+                assert!(
+                    !prev_line_hash.is_empty(),
+                    "tip hash must come from the archive"
+                );
             }
-            other => {
-                panic!("expected Healthy after rollover with archive-only chain, got {other:?}")
+            anvil_witness::ChainHead::Empty => {
+                panic!("expected Healthy after rollover with archive-only chain, got Empty")
             }
         }
     }
