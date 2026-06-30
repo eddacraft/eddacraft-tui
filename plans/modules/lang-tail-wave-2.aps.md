@@ -40,7 +40,7 @@ tree).
 | Language | Grammar source | Version | ABI bind | Parse | Verdict |
 |----------|----------------|---------|----------|-------|---------|
 | WebAssembly text (`.wat`/`.wast`) | [`wasm-lsp/tree-sitter-wasm`](https://github.com/wasm-lsp/tree-sitter-wasm) `wat/parser.c` — **vendored** (no published crate) | repo @ last commit 2022-05-17, ABI 13 | ✓ `bind=OK` | ✓ `has_error=false` (`ROOT → module → module_field_func → …`) | **Include (vendored)** |
-| Zig (`.zig`/`.zon`) | [`tree-sitter-zig`](https://crates.io/crates/tree-sitter-zig) (crates.io, `tree-sitter-grammars` org) | 1.1.2 (2024-12-22), `tree-sitter-language ^0.1` | ✓ `bind=OK` | ✓ `has_error=false` (`source_file → function_declaration → …`) | **Include** |
+| Zig (`.zig`) | [`tree-sitter-zig`](https://crates.io/crates/tree-sitter-zig) (crates.io, `tree-sitter-grammars` org) | 1.1.2 (2024-12-22), `tree-sitter-language ^0.1` | ✓ `bind=OK` | ✓ `has_error=false` (`source_file → function_declaration → …`) | **Include** |
 
 **Findings driving the wiring:**
 
@@ -181,14 +181,15 @@ than per-language PRs.
   liability (upstream dormant since 2022; `parser.c` SHA-256 pinned in the vendor
   README).
 
-### LTW2-003 — Wire Zig (`.zig`/`.zon`)
+### LTW2-003 — Wire Zig (`.zig`)
 
 - **Status:** Merged 2026-06-29 via PR #2996
 - **Intent:** Zig files are detected, parsed, and their symbols appear in the
   graph.
-- **Expected Outcome:** `Language::Zig` arm + `from_path` mapping for
-  `.zig`/`.zon` + `ts_language()` binding + extractor (`@import` edges, `pub`
-  declarations) + fixture; symbols appear in the kernel symbol graph.
+- **Expected Outcome:** `Language::Zig` arm + `from_path` mapping for `.zig`
+  (`.zon` was initially mapped too, dropped post-LTW2-004 — see Open Questions) +
+  `ts_language()` binding + extractor (`@import` edges, `pub` declarations) +
+  fixture; symbols appear in the kernel symbol graph.
 - **Validation:** `cargo test -p anvil-kernel`
 - **Files (as merged):** `crates/anvil-kernel/src/parser/{languages.rs,extract/zig.rs,extract/mod.rs}`,
   `Cargo.toml` + `crates/anvil-kernel/Cargo.toml` (`tree-sitter-zig = "1.1.2"`),
