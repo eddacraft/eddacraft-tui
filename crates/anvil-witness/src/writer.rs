@@ -808,19 +808,17 @@ mod tests {
         let per_thread = 5;
 
         let handles: Vec<_> = (0..threads)
-            .map(|t| {
+            .map(|_| {
                 let root = root.clone();
                 std::thread::spawn(move || {
-                    for i in 0..per_thread {
+                    // Each line is already distinguished by its unique `seq` (derived
+                    // under the lock), so the worker needs no per-thread tag.
+                    for _ in 0..per_thread {
                         let writer =
                             WitnessWriter::open(&root, "active", RolloverPolicy::default())
                                 .unwrap();
                         writer
-                            .append_chained(genesis_seed, |seq, prev| {
-                                let mut l = fresh_line(seq, &prev);
-                                l.commit_sha = Some(format!("t{t}-i{i}"));
-                                l
-                            })
+                            .append_chained(genesis_seed, |seq, prev| fresh_line(seq, &prev))
                             .unwrap();
                     }
                 })
