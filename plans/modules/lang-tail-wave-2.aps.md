@@ -19,9 +19,13 @@
 > tree-sitter 0.26 — **wave membership is both languages**. Owner accepted
 > including **WAT via a vendored, dormant-since-2022 ABI-13 grammar**
 > ("better than nothing"); Zig ships from the published `tree-sitter-zig` crate.
-> The wiring items **LTW2-002 (WAT) and LTW2-003 (Zig) are now Ready**;
-> **LTW2-004** (wave acceptance) stays Proposed until both land. See the audit
-> table below for evidence.
+>
+> **Wiring merged:** **LTW2-003 (Zig) via #2996** and **LTW2-002 (WAT) via #3000**
+> — both T1-parsed and graph-included on `main`. WAT's grammar FFI is isolated in
+> the new `anvil-grammar-wat` crate so the kernel keeps `forbid(unsafe_code)`.
+> **Remaining:** LTW2-004 external-corpus smoke + LTW2-005 doc reconciliation.
+> Module stays **In Progress** pending those + a release tag. See the audit table
+> below for evidence.
 
 ## Grammar Maturity Audit (LTW2-001) — COMPLETE 2026-06-29
 
@@ -123,9 +127,10 @@ Ready scope is now **LTW2-002 (WAT), LTW2-003 (Zig), LTW2-005 (doc)**:
 - [x] Owner named.
 - [x] LTW2-001 (grammar maturity audit) **Done** — both grammars bind + parse
       tree-sitter 0.26; wave membership is both languages.
-- [x] LTW2-002 (WAT) and LTW2-003 (Zig) promoted to **Ready**; fixtures land
-      with their wiring (`tests/fixtures/langtail2/`).
-- [ ] LTW2-004 (wave acceptance) stays Proposed until LTW2-002 + LTW2-003 land.
+- [x] LTW2-003 (Zig) **Merged via #2996** and LTW2-002 (WAT) **Merged via #3000**;
+      both T1-parsed + graph-included on `main`, fixtures in
+      `tests/fixtures/langtail/`.
+- [ ] LTW2-004 (external-corpus smoke) + LTW2-005 (doc reconciliation) remain.
 
 ## Work Items
 
@@ -150,46 +155,46 @@ than per-language PRs.
 
 ### LTW2-002 — Wire WebAssembly text (`.wat`/`.wast`)
 
-- **Status:** Ready
+- **Status:** Merged 2026-06-30 via PR #3000
 - **Intent:** WebAssembly text files are detected, parsed, and their symbols
   appear in the graph.
 - **Expected Outcome:** `Language::Wat` arm + `from_path` mapping for
   `.wat`/`.wast` (**not** `.wasm`) + `ts_language()` binding + extractor +
   fixture; a `.wat` fixture's symbols appear in the kernel symbol graph.
 - **Validation:** `cargo test -p anvil-kernel`
-- **Files:** `crates/anvil-kernel/src/parser/languages.rs`,
-  `crates/anvil-kernel/src/parser/extract/wat.rs`,
-  `crates/anvil-kernel/src/parser/extract/mod.rs`,
-  vendored grammar under `crates/anvil-kernel/` (`parser.c` + `tree_sitter/parser.h`)
-  + `build.rs` `cc` compile + `extern "C" fn tree_sitter_wat`,
-  `crates/anvil-kernel/tests/fixtures/langtail2/`
+- **Files (as merged):** new crate `crates/anvil-grammar-wat/` (vendored
+  `parser.c` + `tree_sitter/parser.h` + `LICENSE`, `build.rs` `cc` compile, safe
+  `language()`); `crates/anvil-kernel/src/parser/{languages.rs,extract/wat.rs,extract/mod.rs}`;
+  fixture `crates/anvil-kernel/tests/fixtures/langtail/calc.wat`; `ACKNOWLEDGEMENTS`.
 - **Dependencies:** LTW2-001 (Done)
-- **Confidence:** medium
-- **Note:** WAT has **no published crate** — vendor `wat/parser.c` (ABI 13, no
-  external scanner) from `wasm-lsp/tree-sitter-wasm`; bind via
-  `tree_sitter_language::LanguageFn::from_raw(tree_sitter_wat)` (spike-confirmed).
-  Carries an accepted maintenance liability (upstream dormant since 2022).
+- **Confidence:** high — Council-reviewed (kernel-maintainer/adversarial/operations)
+- **Note:** WAT has **no published crate**, so `wat/parser.c` (ABI 13, no external
+  scanner) is vendored from `wasm-lsp/tree-sitter-wasm` (**Apache-2.0 WITH
+  LLVM-exception**, corrected from the audit's MIT) in a dedicated crate that
+  isolates the grammar FFI so the kernel keeps `forbid(unsafe_code)`. Extractor
+  covers standalone **and** inline import/export forms. Accepted maintenance
+  liability (upstream dormant since 2022; `parser.c` SHA-256 pinned in the vendor
+  README).
 
 ### LTW2-003 — Wire Zig (`.zig`/`.zon`)
 
-- **Status:** Ready
+- **Status:** Merged 2026-06-29 via PR #2996
 - **Intent:** Zig files are detected, parsed, and their symbols appear in the
   graph.
 - **Expected Outcome:** `Language::Zig` arm + `from_path` mapping for
   `.zig`/`.zon` + `ts_language()` binding + extractor (`@import` edges, `pub`
   declarations) + fixture; symbols appear in the kernel symbol graph.
 - **Validation:** `cargo test -p anvil-kernel`
-- **Files:** `crates/anvil-kernel/src/parser/languages.rs`,
-  `crates/anvil-kernel/src/parser/extract/zig.rs`,
-  `crates/anvil-kernel/src/parser/extract/mod.rs`, `Cargo.toml` +
-  `crates/anvil-kernel/Cargo.toml` (`tree-sitter-zig = "1.1.2"`), `ACKNOWLEDGEMENTS`,
-  `crates/anvil-kernel/tests/fixtures/langtail2/`
+- **Files (as merged):** `crates/anvil-kernel/src/parser/{languages.rs,extract/zig.rs,extract/mod.rs}`,
+  `Cargo.toml` + `crates/anvil-kernel/Cargo.toml` (`tree-sitter-zig = "1.1.2"`),
+  `ACKNOWLEDGEMENTS`, fixture `crates/anvil-kernel/tests/fixtures/langtail/greeter.zig`
 - **Dependencies:** LTW2-001 (Done)
-- **Confidence:** high — published crate, spike-confirmed (`tree_sitter_zig::LANGUAGE.into()`)
+- **Confidence:** high — published crate; reviewed (fixed the type-annotation vs
+  value bug + chained-import capture before merge)
 
 ### LTW2-004 — Wave acceptance
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Intent:** Every included language parses a real-world fixture without
   panicking and appears in the graph via `architecture-validate`.
 - **Expected Outcome:** All included-language fixtures green; an external-corpus
@@ -197,8 +202,13 @@ than per-language PRs.
   under `plans/reviews/`.
 - **Validation:** `cargo test -p anvil-kernel` (wave-2 acceptance test) + smoke
   evidence file present
-- **Dependencies:** LTW2-002, LTW2-003
+- **Dependencies:** LTW2-002 (Merged), LTW2-003 (Merged)
 - **Confidence:** medium
+- **Note:** the in-harness half landed with the wiring — `calc.wat` + `greeter.zig`
+  join the shared `langtail_wave_acceptance` corpus (parse-clean + graph
+  inclusion via the production embedded scan), and the `ltw2_grammars_bind_and_parse`
+  guard is pinned. **Remaining:** the external real-OSS-corpus smoke (0 panics)
+  with evidence under `plans/reviews/`.
 
 ### LTW2-005 — Reconcile public language-profile copy
 
