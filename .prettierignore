@@ -43,6 +43,10 @@ tools/test-harness/editor-coexistence/fixtures/
 # upstream (no schema fork), so it is not reformatted. Lives in anvil-sarif
 # since GITGOV-008 (relocated from anvil-cli/src/output/).
 crates/anvil-sarif/src/sarif-schema-2.1.0.json
+# Vendored upstream tree-sitter-wat grammar (LTW2-002, ADR-093). The generated
+# parser.c, its header, the upstream LICENSE, and the provenance README are
+# bundled verbatim from wasm-lsp/tree-sitter-wasm and must not be reformatted.
+crates/anvil-grammar-wat/vendor/
 # Token-cost experiment artifacts must stay byte-exact: source.md is a
 # frozen snapshot of plans/modules/tui-dashboard-render.aps.md and the two
 # HTML files are the comparison output of convert.mjs. Formatting them
