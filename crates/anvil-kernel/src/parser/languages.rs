@@ -22,7 +22,10 @@ pub enum Language {
     /// header kept in a `.h` is a documented T1 limitation, not a parse error.
     C,
     Cpp,
-    /// Zig (`.zig`/`.zon`) — tail-language wave 2 (LTW2, ADR-093), T1 (Parsed).
+    /// Zig (`.zig`) — tail-language wave 2 (LTW2, ADR-093), T1 (Parsed). `.zon`
+    /// (`build.zig.zon`) is **not** mapped here: it is a data-manifest format, not
+    /// Zig source, so the `source_file` grammar only produces error trees + zero
+    /// symbols for it (LTW2-004 finding).
     Zig,
     /// WebAssembly **text** format (`.wat`/`.wast`) — tail-language wave 2
     /// (LTW2, ADR-093), T1 (Parsed). The binary `.wasm` format is deliberately
@@ -48,7 +51,10 @@ impl Language {
             "cs" => Some(Self::CSharp),
             "c" | "h" => Some(Self::C),
             "cpp" | "cc" | "cxx" | "c++" | "hpp" | "hh" | "hxx" | "h++" => Some(Self::Cpp),
-            "zig" | "zon" => Some(Self::Zig),
+            // `.zon` (build.zig.zon) is a Zig data manifest, not source — the
+            // source grammar can't parse it, so it is deliberately not mapped
+            // (LTW2-004 finding).
+            "zig" => Some(Self::Zig),
             // WebAssembly text format only — the binary `.wasm` is not source
             // and is intentionally absent (ADR-093 §Decision point 2).
             "wat" | "wast" => Some(Self::Wat),
@@ -246,15 +252,14 @@ mod tests {
 
     #[test]
     fn detects_zig() {
-        // LTW2-003: `.zig` and `.zon` map to Zig.
+        // LTW2-003: `.zig` maps to Zig.
         assert_eq!(
             Language::from_path(Path::new("src/main.zig")),
             Some(Language::Zig)
         );
-        assert_eq!(
-            Language::from_path(Path::new("build.zig.zon")),
-            Some(Language::Zig)
-        );
+        // LTW2-004 finding: `.zon` (build.zig.zon) is a data manifest, not Zig
+        // source — it must NOT map to the Zig grammar (it only error-trees).
+        assert_eq!(Language::from_path(Path::new("build.zig.zon")), None);
     }
 
     #[test]

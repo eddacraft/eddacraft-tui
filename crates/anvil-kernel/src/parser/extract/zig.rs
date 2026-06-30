@@ -25,7 +25,7 @@ use super::tail_common::{
 };
 use super::{FileSymbols, ImportEdge, LanguageExtractor};
 
-/// Extractor for Zig (`.zig`/`.zon`).
+/// Extractor for Zig (`.zig`).
 pub struct ZigExtractor;
 
 impl LanguageExtractor for ZigExtractor {

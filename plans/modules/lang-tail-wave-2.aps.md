@@ -76,8 +76,9 @@ across both languages instead of paying it twice.
   format `.wasm` is **explicitly excluded** (not source; would feed binary bytes
   to a text grammar — ADR-093 §Decision point 2). `Language::from_path` must not
   map `.wasm`.
-- **Zig** — extensions `.zig`, `.zon`. Import shape `@import(...)` /
-  `@cImport(...)`; `pub` declarations.
+- **Zig** — extension `.zig`. Import shape `@import(...)` / `@cImport(...)`;
+  `pub` declarations. (`.zon` was initially mapped too but dropped post-LTW2-004
+  — it is a data manifest, not source; see Open Questions.)
 - One `Language` arm per language + `from_path` mapping + `ts_language()`
   binding.
 - Basic symbol/import extraction per language (`parser/extract/wat.rs`,
@@ -273,10 +274,11 @@ than per-language PRs.
       Supported (PYLAN shipped the catalogue, same bar as Rust); the tail stays
       Unsupported but is now *listed* (a tier = shipped language-specific
       governance, not parser capability); no new tier added.
-- [ ] **`.zon` mapping adds no value (surfaced by LTW2-004).** `.zon`
+- [x] **`.zon` mapping adds no value (surfaced by LTW2-004).** `.zon`
       (`build.zig.zon`) is a Zig data-manifest format, not a source file, so it
       100%-error-trees with 0 symbols under the `source_file` grammar. LTW2-003
-      mapped `.zon → Language::Zig`; recommend dropping it from
-      `Language::from_path` (1-line + the `detects_zig` test) or filing a small
-      CIB. No panic risk — purely a no-value mapping. Owner call: fix inline or
-      file CIB.
+      mapped `.zon → Language::Zig`. **Fixed via PR #3017:** `.zon` dropped from
+      `Language::from_path` + the `detects_zig` test now asserts `build.zig.zon →
+      None`. (The CLI language-profile registry still recognises `.zon` as a Zig
+      file for *reporting*, which is a classification, not a parse claim — left
+      as-is.)
