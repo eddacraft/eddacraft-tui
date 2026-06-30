@@ -2134,11 +2134,15 @@ mod tests {
     fn register_configured_worktrees_registers_live_and_skips_missing() {
         let wt_a = tempfile::tempdir().expect("worktree a");
         let wt_b = tempfile::tempdir().expect("worktree b");
-        let a_canonical = registration_store::canonicalise_for_registration(wt_a.path());
-        let b_canonical = registration_store::canonicalise_for_registration(wt_b.path());
+        let a_canonical = fs::canonicalize(wt_a.path()).expect("canonicalise a");
+        let b_canonical = fs::canonicalize(wt_b.path()).expect("canonicalise b");
+        let a_activation_canonical = registration_store::canonicalise_for_registration(wt_a.path());
         let paths = vec![
             wt_a.path().to_path_buf(),
-            PathBuf::from("/nonexistent/anvil/register-on-start-gone"),
+            wt_a.path()
+                .parent()
+                .expect("parent")
+                .join("register-on-start-gone"),
             wt_b.path().to_path_buf(),
         ];
 
@@ -2158,7 +2162,7 @@ mod tests {
 
         // The id is the deterministic activation id, so a CLI re-register of the
         // same path collides on the session id (heartbeat, not a fresh session).
-        let id_a = registration_store::activation_session_id(&a_canonical);
+        let id_a = registration_store::activation_session_id(&a_activation_canonical);
         assert!(
             matches!(
                 registry.register(
