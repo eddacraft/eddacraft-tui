@@ -1337,6 +1337,14 @@ mod tests {
         assert!(resp.line_hash.is_none() && resp.error.is_none());
     }
 
+    #[test]
+    fn witness_append_method_wire_string_is_pinned() {
+        // The daemon↔client wire string is a compatibility surface: an accidental
+        // rename must trip here (forcing a deliberate version bump), not slip
+        // through silently.
+        assert_eq!(ANVIL_WITNESS_APPEND, "anvil/witness/append");
+    }
+
     /// Correction item 9: `ALL_ANVIL_METHODS` is two-directionally pinned.
     /// Forward — every named method constant is in the slice. Backward —
     /// the slice carries no entry that is not a known, named constant, and
