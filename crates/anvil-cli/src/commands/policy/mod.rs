@@ -5,6 +5,7 @@ use serde::Serialize;
 use crate::GlobalArgs;
 
 mod eval;
+mod eval_regression;
 
 #[derive(Debug, Args)]
 pub struct PolicyArgs {
@@ -16,6 +17,9 @@ pub struct PolicyArgs {
 enum PolicyCommand {
     /// Evaluate a Rego policy against an input document.
     Eval(eval::EvalArgs),
+    /// Run trust-regression eval suites and report regressions against the
+    /// persisted baseline (EVAL-003).
+    EvalRegression(eval_regression::EvalRegressionArgs),
     /// List available policies
     List {
         /// Filter by category
@@ -167,6 +171,9 @@ fn policy_catalogue() -> Vec<PolicyEntry> {
 pub fn run(args: &PolicyArgs, global: &GlobalArgs) -> Result<()> {
     match &args.command {
         PolicyCommand::Eval(eval_args) => return eval::run(eval_args, global),
+        PolicyCommand::EvalRegression(reg_args) => {
+            return eval_regression::run(reg_args, global);
+        }
         PolicyCommand::List { category, enabled } => {
             let mut policies = policy_catalogue();
             if let Some(cat) = category {
