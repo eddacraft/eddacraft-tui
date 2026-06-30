@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 76/107  |
+| CIB | —     | In Progress | 76/108  |
 
 ## Purpose
 
@@ -2926,3 +2926,41 @@ archive.
   parity work.
 - **Confidence:** medium — behaviour is clear, but the safe Windows API shape
   likely needs a helper to keep `anvil-cli` under `unsafe_code = "forbid"`.
+
+### CIB-123: Reconcile the language-profile registry with shipped parser/check coverage
+
+- **Status:** Proposed
+- **Intent:** The CLI's user-facing language profile
+  (`supported`/`partial`/`unsupported`) reflects current coverage instead of a
+  hand-maintained list that has drifted from the kernel parser.
+- **Expected Outcome:** The hardcoded `LANGUAGE_REGISTRY` in
+  `crates/anvil-cli/src/activation/language_profile.rs` is reconciled with
+  reality. At minimum **Python is re-tiered** — PYLAN shipped a T3 reliability
+  catalogue, but the registry still reports Python `unsupported` ("PYLAN parked").
+  A decision is recorded on how **parser-only** languages — parsed by the kernel
+  (T1) but carrying no governance checks yet — should be reported: a distinct
+  "parsed"/preview signal versus plain `unsupported`. The LANGTAIL/LTW2 tail (Go,
+  Java, Kotlin, C#, C/C++, Dart, Zig, WebAssembly-text) is classified per that
+  decision, and the currently-**unlisted** extensions (`.cs`, `.dart`, `.zig`,
+  `.wat`/`.wast`) are added to the registry instead of falling into
+  `unclassified_files_seen`.
+- **Files:** `crates/anvil-cli/src/activation/language_profile.rs`,
+  `crates/anvil-cli/src/activation/render.rs`,
+  `crates/anvil-cli/src/activation/diagnostic.rs`,
+  `crates/anvil-cli/tests/status_verify_languages.rs`.
+- **Validation:** `status_verify_languages` tests updated to the reconciled
+  tiers; `anvil status` reports them; `ProtectionState` transitions reviewed (a
+  repo with only Python/tail files no longer necessarily resolves to
+  `Unsupported`).
+- **Identified From:** LTW2-005 (PR #3006) — a doc edit claimed parser
+  capability; a reviewer caught that the user-facing registry diverges (the
+  parser parses Python + the tail, the registry reports them unsupported). See
+  `lang-tail-wave-2.aps.md` Open Questions.
+- **Coordinates with:** `lang-tail-wave-2` (LTW2), `lang-python` (PYLAN), and the
+  [2026-04-08 Language and Coverage Design](../specs/2026-04-08-language-and-coverage-design.md)
+  tier definitions (T1/T2/T3 vs the registry's three tiers).
+- **Risk:** re-tiering changes `ProtectionState` for affected repos (a flip from
+  `Unsupported`), so it needs **owner sign-off** on the tier mapping — not a
+  silent change.
+- **Confidence:** medium — the Python re-tier is clear-cut; the "how to report
+  parser-only languages" question is a design decision.
