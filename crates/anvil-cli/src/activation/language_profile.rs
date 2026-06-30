@@ -89,7 +89,7 @@ pub struct LanguageEntry {
 /// "PYLAN parked" basis is retired.
 ///
 /// **Tier ≠ parser capability (CIB-123):** the kernel parses the LANGTAIL
-/// /LTW2 tail (Go, Java, Kotlin, C#, C/C++, Dart, Zig, WebAssembly-text)
+/// /LTW2 tail (Go, Java, Kotlin, C#, C/C++, Dart, Zig, WebAssembly text)
 /// at T1 — symbol/import extraction + symbol-graph inclusion — but ships
 /// no per-language anti-pattern catalogue for them, so they stay
 /// `Unsupported` here (a tier reflects shipped language-specific
