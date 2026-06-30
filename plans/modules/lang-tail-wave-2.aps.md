@@ -24,7 +24,7 @@
 > — both T1-parsed and graph-included on `main`. WAT's grammar FFI is isolated in
 > the new `anvil-grammar-wat` crate so the kernel keeps `forbid(unsafe_code)`.
 > **All work items merged** (LTW2-001..005); the external-corpus smoke
-> (LTW2-004, #3013) ran ~2,527 real OSS files with **0 panics**. Module stays
+> (LTW2-004, #3014) ran ~2,527 real OSS files with **0 panics**. Module stays
 > In Progress only pending a release tag → Complete.
 > Module stays **In Progress** pending those + a release tag. See the audit table
 > below for evidence.
@@ -134,7 +134,7 @@ only remaining step is a release tag before Complete:
       `tests/fixtures/langtail/`.
 - [x] LTW2-005 (doc reconciliation) **Merged via #3006** — `overview.md`
       language-profile copy reconciled.
-- [x] LTW2-004 (external-corpus smoke) **Merged via #3013** — ~2,527 real OSS
+- [x] LTW2-004 (external-corpus smoke) **Merged via #3014** — ~2,527 real OSS
       files, 0 panics; evidence under `plans/reviews/`.
 
 ## Work Items
@@ -199,7 +199,7 @@ than per-language PRs.
 
 ### LTW2-004 — Wave acceptance
 
-- **Status:** Merged 2026-06-30 via PR #3013
+- **Status:** Merged 2026-06-30 via PR #3014
 - **Intent:** Every included language parses a real-world fixture without
   panicking and appears in the graph via `architecture-validate`.
 - **Expected Outcome:** All included-language fixtures green; an external-corpus
