@@ -3,9 +3,9 @@
 
 # Tail Language T1 Wave 2 — WebAssembly text + Zig (Track 2)
 
-| ID    | Owner      | Status |
-| ----- | ---------- | ------ |
-| LTW2  | joshuaboys | Ready  |
+| ID    | Owner      | Status      |
+| ----- | ---------- | ----------- |
+| LTW2  | joshuaboys | In Progress |
 
 **Last reviewed:** 2026-06-29
 
@@ -120,8 +120,9 @@ across both languages instead of paying it twice.
 
 ## Ready Checklist
 
-Module **Ready** since 2026-06-29 (owner). After the LTW2-001 audit closed,
-Ready scope is now **LTW2-002 (WAT), LTW2-003 (Zig), LTW2-005 (doc)**:
+Module **In Progress** — the wiring (LTW2-001/-002/-003) has merged; the
+remaining open scope is **LTW2-004 (external-corpus smoke)** and **LTW2-005
+(doc reconciliation)**, plus a release tag before Complete:
 
 - [x] ADR-093 Accepted by owner (2026-06-29).
 - [x] Owner named.
