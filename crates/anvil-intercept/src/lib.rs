@@ -2139,10 +2139,10 @@ mod tests {
         let a_activation_canonical = registration_store::canonicalise_for_registration(wt_a.path());
         let paths = vec![
             wt_a.path().to_path_buf(),
-            wt_a.path()
-                .parent()
-                .expect("parent")
-                .join("register-on-start-gone"),
+            // A child of the per-test tempdir we never create: guaranteed
+            // missing, so the skipped count can't be perturbed by a pre-existing
+            // path in the shared OS temp directory.
+            wt_a.path().join("register-on-start-gone"),
             wt_b.path().to_path_buf(),
         ];
 
