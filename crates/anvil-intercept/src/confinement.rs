@@ -1392,12 +1392,14 @@ mod tests {
         // unaffected (registration membership is a distinct set from admission).
         let dir = tempfile::tempdir().expect("tempdir");
         let path = dir.path().join("workspace.yaml");
+        let wt_a = dir.path().join("wt-a");
+        let wt_b = dir.path().join("wt-b");
         let mut file = ConfinementConfigFile::default();
         assert_eq!(file.version, DEFAULT_CONFIG_VERSION);
-        assert!(file.add_register_on_start(PathBuf::from("/srv/wt-a")));
-        assert!(file.add_register_on_start(PathBuf::from("/srv/wt-b")));
+        assert!(file.add_register_on_start(wt_a.clone()));
+        assert!(file.add_register_on_start(wt_b.clone()));
         // Idempotent — re-adding the same path is a no-op.
-        assert!(!file.add_register_on_start(PathBuf::from("/srv/wt-a")));
+        assert!(!file.add_register_on_start(wt_a.clone()));
         assert_eq!(file.version, CURRENT_CONFIG_VERSION);
 
         write_config_file_to(&path, &file).expect("write");
@@ -1412,7 +1414,7 @@ mod tests {
         assert_eq!(back, file);
         assert_eq!(
             load_register_on_start_from(&path).expect("load list"),
-            vec![PathBuf::from("/srv/wt-a"), PathBuf::from("/srv/wt-b")]
+            vec![wt_a, wt_b]
         );
 
         // Admission is untouched by registration membership.
