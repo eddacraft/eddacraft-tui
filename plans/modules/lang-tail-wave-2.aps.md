@@ -25,9 +25,8 @@
 > the new `anvil-grammar-wat` crate so the kernel keeps `forbid(unsafe_code)`.
 > **All work items merged** (LTW2-001..005); the external-corpus smoke
 > (LTW2-004, #3014) ran ~2,527 real OSS files with **0 panics**. Module stays
-> In Progress only pending a release tag → Complete.
-> Module stays **In Progress** pending those + a release tag. See the audit table
-> below for evidence.
+> In Progress only pending a release tag → Complete. See the audit table below
+> for evidence.
 
 ## Grammar Maturity Audit (LTW2-001) — COMPLETE 2026-06-29
 
