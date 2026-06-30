@@ -46,6 +46,16 @@ pub const DEGRADED_FENCE_CASCADE: &str = "degraded:fence-cascade";
 /// (`Critical` on engage, `Normal` on clear).
 pub const DEGRADED_FENCE_CASCADE_CLEAR: &str = "degraded:fence-cascade-clear";
 
+/// MLP2-005 phase 3: reason string emitted when the `anvil hook` witness
+/// append cannot reach the daemon (absent socket / `Method not found`) and
+/// takes the embedded `WitnessWriter` leg instead. Emitted via `tracing::warn!`
+/// on the hook's embedded fallback — **not** via the Kindling sink (which carries
+/// only `gate_evaluated` / `command.invoked`) and distinct from the
+/// status-surface `SurfaceClaimState::EmbeddedFallback` (`"embedded-fallback"`).
+/// Defined as a `pub const` so a future migration to a typed degraded-mode enum
+/// has a single find-target, mirroring the sibling `DEGRADED_*` reasons.
+pub const DEGRADED_EMBEDDED_WITNESS: &str = "degraded:embedded-witness";
+
 static PRODUCER_INSTANCE_COUNTER: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -1157,10 +1167,10 @@ mod tests {
     use anvil_intercept_proto::protocol::{AssuranceState, StaleReason};
 
     use crate::telemetry::{
-        ControlDecision, DEGRADED_FENCE_CASCADE, DEGRADED_FENCE_CASCADE_CLEAR,
-        DEGRADED_SPOOFED_ATTRIBUTION, FenceTransition, TelemetryContext, TelemetryCorrelation,
-        TelemetryEmitter, delivered_envelope_for_decision, envelope_for_assurance_transition,
-        envelope_for_fence_transition, notification_mapping,
+        ControlDecision, DEGRADED_EMBEDDED_WITNESS, DEGRADED_FENCE_CASCADE,
+        DEGRADED_FENCE_CASCADE_CLEAR, DEGRADED_SPOOFED_ATTRIBUTION, FenceTransition,
+        TelemetryContext, TelemetryCorrelation, TelemetryEmitter, delivered_envelope_for_decision,
+        envelope_for_assurance_transition, envelope_for_fence_transition, notification_mapping,
     };
 
     /// MLP2-025b: pin the reason-string value. A future enum migration
@@ -1176,6 +1186,13 @@ mod tests {
     fn degraded_fence_cascade_constants_match_spec() {
         assert_eq!(DEGRADED_FENCE_CASCADE, "degraded:fence-cascade");
         assert_eq!(DEGRADED_FENCE_CASCADE_CLEAR, "degraded:fence-cascade-clear");
+    }
+
+    /// MLP2-005 phase 3: pin the embedded-witness fallback reason string.
+    /// Same enum-migration-target rationale as the sibling consts.
+    #[test]
+    fn degraded_embedded_witness_constant_matches_spec() {
+        assert_eq!(DEGRADED_EMBEDDED_WITNESS, "degraded:embedded-witness");
     }
 
     fn context() -> TelemetryContext {

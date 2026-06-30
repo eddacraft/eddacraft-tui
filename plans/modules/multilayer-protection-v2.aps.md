@@ -489,16 +489,28 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-005: Witness append — daemon RPC + embedded fallback
 
-- **Status:** In Progress — **Phase 1 (the `append_chained` atomicity foundation)
-  implemented 2026-06-30.** `WitnessWriter::append_chained` now reads the chain
-  head and appends under a single flock hold (the read-head→append TOCTOU is
-  closed), and `hook.rs::append_witness` is refactored onto it; the hook-level
-  `chain_head`/`ChainState` are removed in favour of `WitnessWriter::read_chain_head`.
-  Remaining phases (the daemon `anvil/witness/append` RPC, the daemon-first /
-  embedded-fallback classification in the hook, the `DEGRADED_EMBEDDED_WITNESS`
-  telemetry const, and the `anvil-intercept` → `anvil-witness` dependency) are the
-  follow-on PRs. Fleshed 2026-06-30 (design crux + RPC contract + telemetry
-  vocabulary fixed against the live code); deps MLP-002/MLP-003 Done.
+- **Status:** In Progress — **Phases 1–3 implemented 2026-06-30.** Phase 1
+  (`WitnessWriter::append_chained` atomicity), phase 2 (the daemon
+  `anvil/witness/append` RPC + handler), and phase 3 (the hook daemon-first /
+  embedded-fallback wiring) are all landed. The single remaining acceptance item
+  — a **live two-process race integration test** (daemon-routed append interleaved
+  with an embedded append, daemon killed mid-append) — is tracked as **CIB-125**
+  (cross-process `append_chained` linearisation); the atomicity it guards is
+  unit-proven and the classification split is unit-tested. Deps MLP-002/MLP-003 Done.
+- **Phase 3 (hook daemon-first / embedded-fallback wiring) implemented 2026-06-30.**
+  `hook.rs::append_witness_routed` routes the five production hook appends
+  daemon-first: `project_writes_gated()` (DISTRIB-006) short-circuits **before**
+  any routing (satisfying the phase-2 council's deferred F2 — the only production
+  caller never opens the socket when gated); a reachable daemon takes the
+  `anvil/witness/append` RPC (reusing the shared `daemon_rpc_call` transport,
+  renamed from `gctx_call`); an `Unavailable` classification (absent socket /
+  `-32601`) falls back to the embedded `WitnessWriter` and emits
+  `DEGRADED_EMBEDDED_WITNESS` via `tracing::warn!`; a mid-exchange `Failure`
+  propagates as `WriteFailed` (never silently embeds). Both legs share the `build`
+  closure (Parity); the daemon derives `(seq, prev_line_hash)` and asserts `ts`.
+  The routing decision is a pure `route_daemon_witness_result` for unit-testing the
+  classification split without a live daemon. Fleshed 2026-06-30 (design crux + RPC
+  contract + telemetry vocabulary fixed against the live code).
 - **Phase-1 Council follow-ons (2026-06-30, full 5-reviewer Council on the
   `append_chained` PR; blockers fixed in-PR — genesis re-read misclassified as
   tampering, `read_chain_head` → `pub(crate)`, non-empty-unparseable active → `ChainBroken`,

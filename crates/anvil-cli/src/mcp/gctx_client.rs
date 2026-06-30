@@ -1,16 +1,18 @@
-//! Shared daemon client for GCTX MCP tools and resources.
+//! Shared daemon JSON-RPC client for the line-framed `anvil/*` socket surface.
 //!
-//! This module keeps the graph-context MCP surfaces graph-free: callers pass a
-//! sealed request DTO and receive a sealed daemon response DTO over the
-//! read-only `anvil/gctx/*` JSON-RPC methods. Transport failures that mean “no
-//! usable daemon surface” classify as [`GctxDaemonError::Unavailable`]; malformed
-//! replies and security-relevant failures classify as [`GctxDaemonError::Failure`].
+//! Callers pass a sealed request DTO and receive a sealed daemon response DTO
+//! over a single line-framed JSON-RPC exchange. The GCTX MCP tools/resources use
+//! it for the read-only `anvil/gctx/*` methods; the `anvil hook` witness path
+//! (MLP2-005 phase 3) reuses the same transport for `anvil/witness/append`.
+//! Transport failures that mean “no usable daemon surface” (absent socket /
+//! `Method not found`) classify as [`DaemonRpcError::Unavailable`]; malformed
+//! replies and security-relevant failures classify as [`DaemonRpcError::Failure`].
 
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::json;
 
-/// Why a daemon GCTX request could not complete.
+/// Why a daemon JSON-RPC request could not complete.
 ///
 /// `Unavailable` (socket absent / `Method not found`) degrades to a structured
 /// `unavailable` outcome; `Failure` (a malformed reply, an IO error mid-exchange,
@@ -21,6 +23,11 @@ pub(crate) enum GctxDaemonError {
     Unavailable,
     Failure,
 }
+
+/// Neutral name for the shared daemon RPC error, used by non-GCTX callers (the
+/// witness append path). Same type — the `Gctx`-prefixed name predates the
+/// transport being shared.
+pub(crate) type DaemonRpcError = GctxDaemonError;
 
 #[cfg(unix)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -65,10 +72,11 @@ struct GctxRpcError {
     code: i64,
 }
 
-/// Forward a sealed GCTX request to the daemon over the read-only
-/// `anvil/gctx/*` surface and deserialise the sealed response.
+/// Forward a sealed request to the daemon over a line-framed JSON-RPC exchange
+/// on the Unix socket and deserialise the sealed response. Method-agnostic: the
+/// `anvil/gctx/*` reads and `anvil/witness/append` share this transport.
 #[cfg(unix)]
-pub(crate) fn gctx_call<Req, Resp>(
+pub(crate) fn daemon_rpc_call<Req, Resp>(
     method: &str,
     request: &Req,
     request_id: &str,
@@ -95,25 +103,25 @@ where
                 Err(GctxDaemonError::Unavailable)
             }
             _ => {
-                eprintln!("anvil-mcp: gctx {method} socket unavailable: {err}");
+                eprintln!("anvil-daemon: {method} socket unavailable: {err}");
                 Err(GctxDaemonError::Failure)
             }
         };
     }
     let mut stream = UnixStream::connect(&socket_path).map_err(|err| {
-        eprintln!("anvil-mcp: gctx {method} connect failed: {err}");
+        eprintln!("anvil-daemon: {method} connect failed: {err}");
         GctxDaemonError::Unavailable
     })?;
     ipc::validate_connected_peer_for_client(&stream).map_err(|err| {
-        eprintln!("anvil-mcp: gctx {method} peer rejected: {err}");
+        eprintln!("anvil-daemon: {method} peer rejected: {err}");
         classify_peer_validation_failure(PEER_CREDENTIAL_PLATFORM)
     })?;
     stream.set_read_timeout(Some(TIMEOUT)).map_err(|err| {
-        eprintln!("anvil-mcp: gctx {method} read-timeout setup failed: {err}");
+        eprintln!("anvil-daemon: {method} read-timeout setup failed: {err}");
         GctxDaemonError::Failure
     })?;
     stream.set_write_timeout(Some(TIMEOUT)).map_err(|err| {
-        eprintln!("anvil-mcp: gctx {method} write-timeout setup failed: {err}");
+        eprintln!("anvil-daemon: {method} write-timeout setup failed: {err}");
         GctxDaemonError::Failure
     })?;
 
@@ -127,7 +135,7 @@ where
     // an attributable `command.invoked` row.
     crate::usage::attach_principal(&mut frame);
     if let Err(err) = writeln!(stream, "{frame}").and_then(|()| stream.flush()) {
-        eprintln!("anvil-mcp: gctx {method} request write failed: {err}");
+        eprintln!("anvil-daemon: {method} request write failed: {err}");
         return Err(GctxDaemonError::Failure);
     }
 
@@ -138,46 +146,46 @@ where
         .take(RESPONSE_LINE_CAP + 1)
         .read_until(b'\n', &mut line)
         .map_err(|err| {
-            eprintln!("anvil-mcp: gctx {method} response read failed: {err}");
+            eprintln!("anvil-daemon: {method} response read failed: {err}");
             GctxDaemonError::Failure
         })?;
     if read == 0 || line.len() as u64 > RESPONSE_LINE_CAP || !line.ends_with(b"\n") {
-        eprintln!("anvil-mcp: gctx {method} response was empty, oversized, or unframed");
+        eprintln!("anvil-daemon: {method} response was empty, oversized, or unframed");
         return Err(GctxDaemonError::Failure);
     }
     let line = String::from_utf8(line).map_err(|_| {
-        eprintln!("anvil-mcp: gctx {method} response was not UTF-8");
+        eprintln!("anvil-daemon: {method} response was not UTF-8");
         GctxDaemonError::Failure
     })?;
 
     let envelope: GctxRpcEnvelope<Resp> = serde_json::from_str(&line).map_err(|err| {
-        eprintln!("anvil-mcp: gctx {method} response parse failed: {err}");
+        eprintln!("anvil-daemon: {method} response parse failed: {err}");
         GctxDaemonError::Failure
     })?;
     if envelope.id.as_deref() != Some(request_id) {
-        eprintln!("anvil-mcp: gctx {method} response id mismatch");
+        eprintln!("anvil-daemon: {method} response id mismatch");
         return Err(GctxDaemonError::Failure);
     }
     if let Some(error) = envelope.error {
         return if error.code == -32601 {
             Err(GctxDaemonError::Unavailable)
         } else {
-            eprintln!("anvil-mcp: gctx {method} daemon error {}", error.code);
+            eprintln!("anvil-daemon: {method} daemon error {}", error.code);
             Err(GctxDaemonError::Failure)
         };
     }
     envelope.result.ok_or_else(|| {
-        eprintln!("anvil-mcp: gctx {method} response carried neither result nor error");
+        eprintln!("anvil-daemon: {method} response carried neither result nor error");
         GctxDaemonError::Failure
     })
 }
 
-/// Forward a sealed GCTX request to the daemon over the Windows owner-only named
+/// Forward a sealed request to the daemon over the Windows owner-only named
 /// pipe. This mirrors the Unix socket JSON-RPC contract while bounding the whole
 /// synchronous pipe exchange on a worker thread because Win32 pipe reads/writes
 /// do not expose the same per-stream timeout setters.
 #[cfg(windows)]
-pub(crate) fn gctx_call<Req, Resp>(
+pub(crate) fn daemon_rpc_call<Req, Resp>(
     method: &str,
     request: &Req,
     request_id: &str,
@@ -195,11 +203,11 @@ where
     const TIMEOUT: Duration = Duration::from_secs(2);
 
     let pipe_name = anvil_intercept::ipc::resolve_pipe_name().map_err(|err| {
-        eprintln!("anvil-mcp: gctx {method} pipe unavailable: {err}");
+        eprintln!("anvil-daemon: {method} pipe unavailable: {err}");
         GctxDaemonError::Unavailable
     })?;
     let params = serde_json::to_value(request).map_err(|err| {
-        eprintln!("anvil-mcp: gctx {method} request serialise failed: {err}");
+        eprintln!("anvil-daemon: {method} request serialise failed: {err}");
         GctxDaemonError::Failure
     })?;
     let method = method.to_owned();
@@ -210,7 +218,7 @@ where
         let outcome: Result<serde_json::Value, GctxDaemonError> = (|| {
             let mut client = anvil_intercept_win32::connect_owner_only_pipe_client(&pipe_name)
                 .map_err(|err| {
-                    eprintln!("anvil-mcp: gctx {method} pipe connect failed: {err}");
+                    eprintln!("anvil-daemon: {method} pipe connect failed: {err}");
                     GctxDaemonError::Unavailable
                 })?;
             let mut frame = json!({
@@ -221,7 +229,7 @@ where
             });
             crate::usage::attach_principal(&mut frame);
             if let Err(err) = writeln!(client, "{frame}").and_then(|()| client.flush()) {
-                eprintln!("anvil-mcp: gctx {method} pipe request write failed: {err}");
+                eprintln!("anvil-daemon: {method} pipe request write failed: {err}");
                 return Err(GctxDaemonError::Failure);
             }
 
@@ -232,40 +240,36 @@ where
                 .take(RESPONSE_LINE_CAP + 1)
                 .read_until(b'\n', &mut line)
                 .map_err(|err| {
-                    eprintln!("anvil-mcp: gctx {method} pipe response read failed: {err}");
+                    eprintln!("anvil-daemon: {method} pipe response read failed: {err}");
                     GctxDaemonError::Failure
                 })?;
             if read == 0 || line.len() as u64 > RESPONSE_LINE_CAP || !line.ends_with(b"\n") {
-                eprintln!(
-                    "anvil-mcp: gctx {method} pipe response was empty, oversized, or unframed"
-                );
+                eprintln!("anvil-daemon: {method} pipe response was empty, oversized, or unframed");
                 return Err(GctxDaemonError::Failure);
             }
             let line = String::from_utf8(line).map_err(|_| {
-                eprintln!("anvil-mcp: gctx {method} pipe response was not UTF-8");
+                eprintln!("anvil-daemon: {method} pipe response was not UTF-8");
                 GctxDaemonError::Failure
             })?;
             let envelope: GctxRpcEnvelope<serde_json::Value> = serde_json::from_str(&line)
                 .map_err(|err| {
-                    eprintln!("anvil-mcp: gctx {method} pipe response parse failed: {err}");
+                    eprintln!("anvil-daemon: {method} pipe response parse failed: {err}");
                     GctxDaemonError::Failure
                 })?;
             if envelope.id.as_deref() != Some(request_id.as_str()) {
-                eprintln!("anvil-mcp: gctx {method} pipe response id mismatch");
+                eprintln!("anvil-daemon: {method} pipe response id mismatch");
                 return Err(GctxDaemonError::Failure);
             }
             if let Some(error) = envelope.error {
                 return if error.code == -32601 {
                     Err(GctxDaemonError::Unavailable)
                 } else {
-                    eprintln!("anvil-mcp: gctx {method} pipe daemon error {}", error.code);
+                    eprintln!("anvil-daemon: {method} pipe daemon error {}", error.code);
                     Err(GctxDaemonError::Failure)
                 };
             }
             envelope.result.ok_or_else(|| {
-                eprintln!(
-                    "anvil-mcp: gctx {method} pipe response carried neither result nor error"
-                );
+                eprintln!("anvil-daemon: {method} pipe response carried neither result nor error");
                 GctxDaemonError::Failure
             })
         })();
@@ -275,20 +279,20 @@ where
     let value = match rx.recv_timeout(TIMEOUT) {
         Ok(outcome) => outcome?,
         Err(mpsc::RecvTimeoutError::Timeout) => {
-            eprintln!("anvil-mcp: gctx {method_label} pipe request timed out");
+            eprintln!("anvil-daemon: {method_label} pipe request timed out");
             return Err(GctxDaemonError::Unavailable);
         }
         Err(mpsc::RecvTimeoutError::Disconnected) => return Err(GctxDaemonError::Unavailable),
     };
     serde_json::from_value(value).map_err(|err| {
-        eprintln!("anvil-mcp: gctx {method_label} pipe response decode failed: {err}");
+        eprintln!("anvil-daemon: {method_label} pipe response decode failed: {err}");
         GctxDaemonError::Failure
     })
 }
 
 /// Non-Unix, non-Windows targets have no daemon transport.
 #[cfg(all(not(unix), not(windows)))]
-pub(crate) fn gctx_call<Req, Resp>(
+pub(crate) fn daemon_rpc_call<Req, Resp>(
     method: &str,
     _request: &Req,
     _request_id: &str,

@@ -24,7 +24,7 @@ use anvil_intercept_proto::protocol::{
     StaleReason, WorkspaceAssurance,
 };
 
-use crate::mcp::gctx_client::{GctxDaemonError, gctx_call};
+use crate::mcp::gctx_client::{GctxDaemonError, daemon_rpc_call};
 use crate::mcp::tools::shared::{redact_workspace_root, validate_workspace_root};
 
 pub const TOOL_NAME: &str = "anvil_affected_tests";
@@ -97,7 +97,7 @@ fn affected_tests_payload(arguments: &Value) -> Result<Value, String> {
         },
     };
 
-    let response = match gctx_call(
+    let response = match daemon_rpc_call(
         ANVIL_GCTX_AFFECTED_TESTS,
         &request,
         "mcp-gctx-affected-tests",

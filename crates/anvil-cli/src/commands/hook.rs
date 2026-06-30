@@ -35,8 +35,19 @@
 //!   `anvil-checks` into this command, filters findings against
 //!   `anvil_baseline::Baseline`, and converts the partition into
 //!   `Verdict::Warn` / `Verdict::Block`.
-//! - **Daemon RPC + embedded fallback.** Currently embedded-only.
 //! - **Kindling `action_executed` emission on post-commit.**
+//!
+//! ## Witness routing (MLP2-005 phase 3)
+//!
+//! Witness appends route **daemon-first**: when the `anvil-intercept`
+//! daemon is reachable, the append goes over `anvil/witness/append`
+//! (one writer across worktrees, shared lock state). An absent socket
+//! or a `Method not found` reply degrades to the embedded
+//! [`anvil_witness::WitnessWriter`] leg (emitting
+//! [`DEGRADED_EMBEDDED_WITNESS`]); a mid-exchange daemon error
+//! propagates as a hard failure rather than silently embedding. The
+//! `project_writes_gated()` (DISTRIB-006) check short-circuits **before**
+//! either leg, so a gated candidate never routes to the daemon.
 
 // The `unnecessary_wraps` warning fires on `fn -> Result<()>` that
 // always returns `Ok(())` today — but every helper here will gain
@@ -70,6 +81,11 @@ use anvil_hook::{
 use anvil_intercept::kindling_observation::{
     PostHookAction, PostHookEmissionRequest, PostHookEmitter,
 };
+use anvil_intercept::telemetry::DEGRADED_EMBEDDED_WITNESS;
+use anvil_intercept_proto::protocol::{
+    ANVIL_WITNESS_APPEND, WitnessAppendRequest, WitnessAppendResponse, WitnessEntry,
+    WitnessOutcomeKind,
+};
 use anvil_l4::{
     BlockKind, CommitDecision, OnWarn, Policy, Severity, ValidationDiagnostic, ValidationEngine,
     ValidationVerdict, request_for,
@@ -85,6 +101,7 @@ use clap::{Args, Subcommand};
 use crate::GlobalArgs;
 use crate::activation::identity::read_project_id;
 use crate::l4_engine::CommitAntipatternEngine;
+use crate::mcp::gctx_client::{DaemonRpcError, daemon_rpc_call};
 
 /// MLP2-022: wall-clock budget for the pre-push hook.
 ///
@@ -234,7 +251,7 @@ fn run_pre_commit(repo_root: &Path, sup: &mut SuppressionLog) -> Result<()> {
     // does not have IPC access to it.
     let pre_commit_rules_sha = compute_pre_commit_rules_sha(repo_root);
 
-    let result = append_witness(repo_root, &identity.project_uuid, |seq, prev| {
+    let result = append_witness_routed(repo_root, &identity.project_uuid, |seq, prev| {
         let mut line = build_witness_line(&identity.project_uuid, None, "pre-commit", seq, prev);
         line.rules_sha.clone_from(&pre_commit_rules_sha);
         line
@@ -286,7 +303,7 @@ fn run_post_commit(repo_root: &Path, emitter: &PostHookEmitter) -> Result<()> {
     };
     let started = Instant::now();
     let commit_sha = resolve_head_sha(repo_root);
-    let appended = append_witness(repo_root, &identity.project_uuid, |seq, prev| {
+    let appended = append_witness_routed(repo_root, &identity.project_uuid, |seq, prev| {
         let mut line = build_witness_line(&identity.project_uuid, None, "post-commit", seq, prev);
         line.kind = "post-commit".to_string();
         line
@@ -1011,7 +1028,7 @@ fn run_post_merge(repo_root: &Path, args: &PostMergeArgs, emitter: &PostHookEmit
     let parent_pairs: Vec<(String, Option<String>)> =
         parents.into_iter().map(|p| (p, None)).collect();
     let plan = merge_witness_plan(merge_sha.clone(), parent_pairs);
-    let appended = append_witness(repo_root, &identity.project_uuid, |seq, prev| {
+    let appended = append_witness_routed(repo_root, &identity.project_uuid, |seq, prev| {
         build_merge_witness_line(&identity.project_uuid, plan.clone(), seq, prev)
     });
     if let Ok(line_hash) = &appended {
@@ -1085,7 +1102,7 @@ fn run_post_rewrite(
         // MLP2-010: stamp the new SHA on the row so an external
         // rewrite-tracker can join on `details.command`.
         let new_sha = pair.new_sha.clone();
-        let appended = append_witness(repo_root, &identity.project_uuid, |seq, prev| {
+        let appended = append_witness_routed(repo_root, &identity.project_uuid, |seq, prev| {
             build_rewrite_witness_line(&identity.project_uuid, &pair, seq, prev)
         });
         if let Ok(line_hash) = &appended {
@@ -1175,7 +1192,7 @@ fn run_witness_recent_walk(repo_root: &Path) -> usize {
         if commit_is_witnessed(repo_root, &sha) {
             continue;
         }
-        let result = append_witness(repo_root, &identity.project_uuid, |seq, prev| {
+        let result = append_witness_routed(repo_root, &identity.project_uuid, |seq, prev| {
             build_bootstrap_recovery_witness_line(&identity.project_uuid, &sha, seq, prev)
         });
         if result.is_ok() {
@@ -1347,6 +1364,161 @@ enum AppendError {
     /// is a benign skip, not a failure — upstream reads/validation still ran, and
     /// the commit must not be blocked.
     Gated,
+}
+
+/// Project the wire [`WitnessEntry`] from a fully-built [`WitnessLine`]: the
+/// entry is the caller-controlled subset of a line (the writer derives
+/// `seq`/`prev_line_hash` under its lock, and the daemon asserts `ts`). This lets
+/// the daemon and embedded legs share one `build` closure — the embedded leg
+/// writes the line directly; the daemon leg sends this projection and the daemon
+/// rebuilds an identical line via the same `append_chained` (Parity criterion).
+fn witness_entry_from_line(line: &WitnessLine) -> WitnessEntry {
+    WitnessEntry {
+        project_uuid: line.project_uuid.clone(),
+        kind: line.kind.clone(),
+        scope: line.scope.clone(),
+        commit_sha: line.commit_sha.clone(),
+        parent_commits: line.parent_commits.clone(),
+        prev_line_hashes: line.prev_line_hashes.clone(),
+        agent_tag: line.agent_tag.clone(),
+        rules_sha: line.rules_sha.clone(),
+        cutoff_commit: line.cutoff_commit.clone(),
+        ts: line.ts.clone(),
+        validation_at: line.validation_at.clone(),
+    }
+}
+
+/// Translate a daemon `anvil/witness/append` in-band outcome onto the hook's
+/// [`AppendError`] vocabulary. The daemon already performed the append; this only
+/// maps the result (ADR-038 `ChainBroken` is preserved, never reseeded).
+fn map_daemon_witness_outcome(resp: WitnessAppendResponse) -> Result<LineHash, AppendError> {
+    match resp.outcome {
+        WitnessOutcomeKind::Appended => resp.line_hash.ok_or(AppendError::WriteFailed),
+        WitnessOutcomeKind::ChainBroken => Err(AppendError::ChainBroken),
+        // `WriteFailed` or an unknown future variant: "we couldn't witness this".
+        WitnessOutcomeKind::WriteFailed | WitnessOutcomeKind::Unknown => {
+            Err(AppendError::WriteFailed)
+        }
+    }
+}
+
+/// The routing decision for a daemon witness-append attempt. Kept as a pure
+/// function over the transport result so the **classification split** — the
+/// load-bearing invariant — is unit-testable without a live daemon.
+#[derive(Debug)]
+enum WitnessRoute {
+    /// The daemon handled the append; carry its translated result.
+    Daemon(Result<LineHash, AppendError>),
+    /// No usable daemon surface (absent socket / `Method not found`): take the
+    /// embedded leg.
+    Embedded,
+    /// A mid-exchange daemon error (IO/parse/peer-reject / non-`-32601`):
+    /// propagate as a hard failure, never silently embed (the `embedded.rs`
+    /// invariant).
+    Propagate,
+}
+
+fn route_daemon_witness_result(
+    result: std::result::Result<WitnessAppendResponse, DaemonRpcError>,
+) -> WitnessRoute {
+    match result {
+        Ok(resp) => WitnessRoute::Daemon(map_daemon_witness_outcome(resp)),
+        Err(DaemonRpcError::Unavailable) => WitnessRoute::Embedded,
+        Err(DaemonRpcError::Failure) => WitnessRoute::Propagate,
+    }
+}
+
+/// Attempt the append over the daemon's `anvil/witness/append` RPC, reusing the
+/// shared daemon JSON-RPC client. Returns the in-band response, or the transport
+/// classification ([`DaemonRpcError`]) on failure.
+fn daemon_witness_append(
+    repo_root: &Path,
+    entry: &WitnessEntry,
+) -> std::result::Result<WitnessAppendResponse, DaemonRpcError> {
+    let request = WitnessAppendRequest {
+        workspace_root: repo_root.to_string_lossy().into_owned(),
+        entry: entry.clone(),
+    };
+    daemon_rpc_call(ANVIL_WITNESS_APPEND, &request, "anvil-hook-witness")
+}
+
+/// Append a witness line **daemon-first** with an embedded fallback (MLP2-005
+/// phase 3). DISTRIB-006 gating short-circuits before either leg. When the daemon
+/// is reachable the append routes through it (one writer across worktrees, shared
+/// lock state); an unavailable daemon falls back to the embedded [`WitnessWriter`]
+/// (emitting [`DEGRADED_EMBEDDED_WITNESS`]); a mid-exchange daemon error
+/// propagates. Both legs share `build`, so the recorded line is identical.
+fn append_witness_routed<F>(
+    repo_root: &Path,
+    project_uuid: &str,
+    build: F,
+) -> std::result::Result<LineHash, AppendError>
+where
+    F: Fn(u64, String) -> WitnessLine,
+{
+    // DISTRIB-006 (ADR-060): a gated candidate must not append to the real chain,
+    // and must not reach the daemon to do so. Read the ambient gate here and route
+    // on it — this is where the phase-2 council's deferred F2 (daemon-side gate) is
+    // satisfied: the only production caller never opens the socket when gated.
+    append_witness_routed_gated(
+        crate::install_root::project_writes_gated(),
+        repo_root,
+        project_uuid,
+        build,
+    )
+}
+
+/// Routing core with the DISTRIB-006 gate decision injected, so the
+/// gate-before-routing ordering is unit-testable without mutating the process
+/// environment (which would race concurrent witness tests).
+fn append_witness_routed_gated<F>(
+    gated: bool,
+    repo_root: &Path,
+    project_uuid: &str,
+    build: F,
+) -> std::result::Result<LineHash, AppendError>
+where
+    F: Fn(u64, String) -> WitnessLine,
+{
+    if gated {
+        return Err(AppendError::Gated);
+    }
+
+    // Project the caller-controlled entry from a template line. The `(seq, prev)`
+    // placeholders are overwritten by whichever writer performs the append; the
+    // daemon also asserts `ts`. `build` is `Fn` so the embedded leg can rebuild
+    // the line with the real `(seq, prev)` under the writer's lock.
+    let entry = witness_entry_from_line(&build(0, String::new()));
+
+    match route_daemon_witness_result(daemon_witness_append(repo_root, &entry)) {
+        WitnessRoute::Daemon(result) => {
+            // Surface the chosen leg (Observability). The daemon leg is the quiet
+            // happy path — debug, not warn — so a normal commit prints nothing.
+            tracing::debug!(
+                target: "anvil::witness",
+                project_uuid = %project_uuid,
+                "witness appended via the daemon",
+            );
+            result
+        }
+        WitnessRoute::Embedded => {
+            tracing::warn!(
+                target: "anvil::witness",
+                reason = DEGRADED_EMBEDDED_WITNESS,
+                project_uuid = %project_uuid,
+                "witness daemon unavailable; appending via the embedded writer",
+            );
+            append_witness(repo_root, project_uuid, build)
+        }
+        WitnessRoute::Propagate => {
+            tracing::warn!(
+                target: "anvil::witness",
+                project_uuid = %project_uuid,
+                "witness daemon errored mid-exchange; refusing to silently fall back",
+            );
+            Err(AppendError::WriteFailed)
+        }
+    }
 }
 
 fn append_witness<F>(
@@ -1660,6 +1832,153 @@ mod tests {
         assert!(lines[0].contains("\"seq\":1"));
         assert!(lines[1].contains("\"seq\":2"));
         assert!(lines[1].contains("\"commit_sha\":\"commit-sha-1\""));
+    }
+
+    // ---- MLP2-005 phase 3: daemon-first routing + embedded fallback ----
+
+    fn witness_response(outcome: WitnessOutcomeKind, hash: Option<&str>) -> WitnessAppendResponse {
+        WitnessAppendResponse {
+            outcome,
+            line_hash: hash.map(str::to_string),
+            error: None,
+        }
+    }
+
+    #[test]
+    fn witness_entry_from_line_carries_caller_fields() {
+        let line = build_merge_witness_line(
+            "01997e4a-1b2c-7345-8901-abcdef123456",
+            merge_witness_plan(
+                "merge-sha".to_string(),
+                vec![("parent-a".to_string(), Some("tip-a".to_string()))],
+            ),
+            7,
+            "single-tip".to_string(),
+        );
+        let entry = witness_entry_from_line(&line);
+        // Caller-controlled fields are carried verbatim; `seq`/`prev_line_hash`
+        // are absent from the entry by construction (the daemon derives them).
+        assert_eq!(entry.project_uuid, line.project_uuid);
+        assert_eq!(entry.kind, line.kind);
+        assert_eq!(entry.scope, line.scope);
+        assert_eq!(entry.commit_sha, line.commit_sha);
+        assert_eq!(entry.parent_commits, line.parent_commits);
+        assert_eq!(entry.prev_line_hashes, line.prev_line_hashes);
+        assert_eq!(entry.validation_at, line.validation_at);
+    }
+
+    #[test]
+    fn map_daemon_outcome_translates_each_variant() {
+        assert_eq!(
+            map_daemon_witness_outcome(witness_response(WitnessOutcomeKind::Appended, Some("h")))
+                .unwrap(),
+            "h",
+        );
+        // Appended with no hash is a malformed success ⇒ WriteFailed.
+        assert!(matches!(
+            map_daemon_witness_outcome(witness_response(WitnessOutcomeKind::Appended, None)),
+            Err(AppendError::WriteFailed),
+        ));
+        assert!(matches!(
+            map_daemon_witness_outcome(witness_response(WitnessOutcomeKind::ChainBroken, None)),
+            Err(AppendError::ChainBroken),
+        ));
+        assert!(matches!(
+            map_daemon_witness_outcome(witness_response(WitnessOutcomeKind::WriteFailed, None)),
+            Err(AppendError::WriteFailed),
+        ));
+        assert!(matches!(
+            map_daemon_witness_outcome(witness_response(WitnessOutcomeKind::Unknown, None)),
+            Err(AppendError::WriteFailed),
+        ));
+    }
+
+    #[test]
+    fn route_classifies_unavailable_as_embedded_and_failure_as_propagate() {
+        // Classification split: absent socket / -32601 ⇒ embedded leg; a
+        // mid-exchange / non--32601 error ⇒ propagate, never silently embed.
+        assert!(matches!(
+            route_daemon_witness_result(Err(DaemonRpcError::Unavailable)),
+            WitnessRoute::Embedded,
+        ));
+        assert!(matches!(
+            route_daemon_witness_result(Err(DaemonRpcError::Failure)),
+            WitnessRoute::Propagate,
+        ));
+    }
+
+    #[test]
+    fn route_carries_daemon_success_through() {
+        match route_daemon_witness_result(Ok(witness_response(
+            WitnessOutcomeKind::Appended,
+            Some("hash"),
+        ))) {
+            WitnessRoute::Daemon(Ok(h)) => assert_eq!(h, "hash"),
+            other => panic!("expected Daemon(Ok), got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn routed_append_falls_back_to_embedded_when_daemon_absent() {
+        let (_tmp, root) = make_test_repo();
+        // Point the socket at an empty runtime dir (no daemon). `XDG_RUNTIME_DIR`
+        // is mutated under temp_env's lock; ANVIL_HOME is left untouched and the
+        // gate is passed as `false`, so this does not race the embedded-path tests.
+        let runtime = TempDir::new().unwrap();
+        temp_env::with_var(
+            "XDG_RUNTIME_DIR",
+            Some(runtime.path().to_str().unwrap()),
+            || {
+                let hash = append_witness_routed_gated(
+                    false,
+                    &root,
+                    "01997e4a-1b2c-7345-8901-abcdef123456",
+                    |seq, prev| {
+                        build_witness_line(
+                            "01997e4a-1b2c-7345-8901-abcdef123456",
+                            Some("c1".to_string()),
+                            "pre-commit",
+                            seq,
+                            prev,
+                        )
+                    },
+                )
+                .expect("embedded fallback writes the line");
+                assert!(!hash.is_empty());
+
+                let paths = witness_paths(&root);
+                let refs: Vec<&Path> = paths.iter().map(PathBuf::as_path).collect();
+                let dag = verify_chain_dag(&refs).expect("chain verifies");
+                assert_eq!(dag.line_count, 2, "genesis + 1 record");
+            },
+        );
+    }
+
+    #[test]
+    fn routed_append_is_gated_before_touching_the_daemon() {
+        let (_tmp, root) = make_test_repo();
+        // The gate is the first thing checked: a gated append returns `Gated`
+        // without writing or opening the socket. No env mutation — the gate
+        // decision is injected (its env detection is covered in `install_root`).
+        let result = append_witness_routed_gated(
+            true,
+            &root,
+            "01997e4a-1b2c-7345-8901-abcdef123456",
+            |seq, prev| {
+                build_witness_line(
+                    "01997e4a-1b2c-7345-8901-abcdef123456",
+                    Some("c1".to_string()),
+                    "pre-commit",
+                    seq,
+                    prev,
+                )
+            },
+        );
+        assert!(matches!(result, Err(AppendError::Gated)));
+        assert!(
+            !root.join("anvil").join("witness").exists(),
+            "a gated append must not create the witness tree",
+        );
     }
 
     #[test]

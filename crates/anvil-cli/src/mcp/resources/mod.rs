@@ -18,7 +18,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use serde_json::{Value, json};
 
-use crate::mcp::gctx_client::{GctxDaemonError, gctx_call};
+use crate::mcp::gctx_client::{GctxDaemonError, daemon_rpc_call};
 
 use anvil_intercept_proto::protocol::{
     ANVIL_GCTX_GRAPH_EDGES, ANVIL_GCTX_GRAPH_STATS, ANVIL_GCTX_SEARCH_SYMBOLS,
@@ -260,7 +260,7 @@ fn read_stats(query: &[(String, String)]) -> Result<Value, ReadError> {
         workspace_root: root.clone(),
     };
     let response: GctxGraphStatsResponse =
-        match gctx_call(ANVIL_GCTX_GRAPH_STATS, &request, "mcp-gctx-graph-stats") {
+        match daemon_rpc_call(ANVIL_GCTX_GRAPH_STATS, &request, "mcp-gctx-graph-stats") {
             Ok(response) => response,
             Err(GctxDaemonError::Unavailable) => GctxGraphStatsResponse {
                 workspace_assurance: unavailable_assurance(),
@@ -300,7 +300,7 @@ fn read_symbols(query: &[(String, String)]) -> Result<Value, ReadError> {
         workspace_root: root.clone(),
         query: search,
     };
-    let response: GctxSearchSymbolsResponse = match gctx_call(
+    let response: GctxSearchSymbolsResponse = match daemon_rpc_call(
         ANVIL_GCTX_SEARCH_SYMBOLS,
         &request,
         "mcp-gctx-graph-symbols",
@@ -343,7 +343,7 @@ fn read_edges(query: &[(String, String)]) -> Result<Value, ReadError> {
         query: edges,
     };
     let response: GctxGraphEdgesResponse =
-        match gctx_call(ANVIL_GCTX_GRAPH_EDGES, &request, "mcp-gctx-graph-edges") {
+        match daemon_rpc_call(ANVIL_GCTX_GRAPH_EDGES, &request, "mcp-gctx-graph-edges") {
             Ok(response) => response,
             Err(GctxDaemonError::Unavailable) => GctxGraphEdgesResponse {
                 workspace_assurance: unavailable_assurance(),
