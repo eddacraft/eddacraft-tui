@@ -5283,6 +5283,8 @@ mod tests {
             ANVIL_VALIDATE_PATHS,
             ANVIL_WORKSPACE_STATUS,
             ANVIL_REQUEST_FULL_SCAN,
+            // Commit-time machinery (hook → daemon), not a user-typed command.
+            ANVIL_WITNESS_APPEND,
         ];
         for method in ALL_ANVIL_METHODS {
             let allowed = is_command_invoked_method(method);

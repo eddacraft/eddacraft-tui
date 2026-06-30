@@ -169,6 +169,15 @@ pub const ANVIL_WORKSPACE_STATUS: &str = "anvil/workspace_status";
 /// [`WorkspaceAssurance`] (typically `running`/`pending`).
 pub const ANVIL_REQUEST_FULL_SCAN: &str = "anvil/request_full_scan";
 
+/// Client → server: append a witness line to a worktree's chain through the
+/// daemon, so a single writer owns the chain across worktrees/sessions (MLP2-005).
+/// The daemon derives `(seq, prev_line_hash)` and appends atomically via
+/// `WitnessWriter::append_chained`; the request carries only the caller-controlled
+/// fields ([`WitnessEntry`]). `workspace_root` must be an admitted root (same auth
+/// as [`ANVIL_VALIDATE_PATHS`]). The hook routes here when the daemon is reachable
+/// and falls back to an embedded append when it is not.
+pub const ANVIL_WITNESS_APPEND: &str = "anvil/witness/append";
+
 /// Client → server: a read-only, identity-only GCTX symbol search (GCTX-010,
 /// ADR-084). The daemon performs the egress projection and returns sealed DTOs
 /// ([`GctxSearchSymbolsResponse`]); the MCP server never holds a graph. This is
@@ -295,6 +304,7 @@ pub const ALL_ANVIL_METHODS: &[&str] = &[
     ANVIL_VALIDATE_PATHS,
     ANVIL_WORKSPACE_STATUS,
     ANVIL_REQUEST_FULL_SCAN,
+    ANVIL_WITNESS_APPEND,
     ANVIL_GCTX_SEARCH_SYMBOLS,
     ANVIL_GCTX_FIND_DEPENDENTS,
     ANVIL_GCTX_FIND_CALLERS,
@@ -383,6 +393,76 @@ pub struct ValidatePathsRequest {
     pub workspace_root: String,
     /// The change set to certify.
     pub paths: Vec<ChangeDescriptor>,
+}
+
+/// The caller-controlled fields of a witness record, for [`ANVIL_WITNESS_APPEND`].
+///
+/// Mirrors the `anvil-witness` `WitnessLine` **minus `seq` and `prev_line_hash`**:
+/// those are derived by the daemon from the verified chain head inside the
+/// `append_chained` flock, never sent by the client (so a stale-tip client cannot
+/// pin a forked position). The daemon seeds genesis itself on an empty chain.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WitnessEntry {
+    pub project_uuid: String,
+    /// Witness-line kind (e.g. `"witness"`).
+    pub kind: String,
+    /// Chain scope (e.g. `"active"`).
+    pub scope: String,
+    pub commit_sha: Option<String>,
+    #[serde(default)]
+    pub parent_commits: Vec<String>,
+    /// Multi-parent prev links for merge witnesses (`prev_line_hash` is still the
+    /// single tip the daemon derives).
+    #[serde(default)]
+    pub prev_line_hashes: Vec<Option<String>>,
+    pub agent_tag: Option<String>,
+    pub rules_sha: Option<String>,
+    pub cutoff_commit: Option<String>,
+    /// RFC3339 timestamp the caller stamps (the commit moment).
+    pub ts: String,
+    /// The triggering verb: `"pre-commit"`, `"post-commit"`, `"post-merge"`, …
+    pub validation_at: String,
+}
+
+/// Request body for [`ANVIL_WITNESS_APPEND`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WitnessAppendRequest {
+    /// Canonical, admitted workspace root whose chain is being extended.
+    pub workspace_root: String,
+    /// The witness record to append.
+    pub entry: WitnessEntry,
+}
+
+/// Terminal outcome kind for a witness append. String-tagged with a
+/// `#[serde(other)]` fallback so an older client tolerates a newer daemon's
+/// outcome string instead of failing the whole parse.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum WitnessOutcomeKind {
+    /// The record line was appended; its hash is in
+    /// [`WitnessAppendResponse::line_hash`].
+    Appended,
+    /// ADR-038: the existing chain failed verification — refused, not reseeded.
+    ChainBroken,
+    /// The append could not be completed (IO / serialise / scope / gated); see
+    /// [`WitnessAppendResponse::error`].
+    WriteFailed,
+    /// An outcome string this build does not recognise.
+    #[serde(other)]
+    Unknown,
+}
+
+/// Response to [`ANVIL_WITNESS_APPEND`]. The payload fields are populated by
+/// outcome: `line_hash` on `Appended`, `error` on `WriteFailed`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WitnessAppendResponse {
+    pub outcome: WitnessOutcomeKind,
+    /// Hex SHA-256 of the appended record line (present iff `outcome == Appended`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub line_hash: Option<String>,
+    /// Diagnostic reason (present iff `outcome == WriteFailed`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
 }
 
 /// What the verdict actually attests. `Certified` is a sound clean claim
@@ -1216,6 +1296,47 @@ mod tests {
         assert_eq!(resp, back);
     }
 
+    #[test]
+    fn witness_append_request_response_round_trip() {
+        let req = WitnessAppendRequest {
+            workspace_root: "/home/me/proj".to_string(),
+            entry: WitnessEntry {
+                project_uuid: "01997e4a-1b2c-7345-8901-abcdef123456".to_string(),
+                kind: "witness".to_string(),
+                scope: "active".to_string(),
+                commit_sha: Some("abc123".to_string()),
+                parent_commits: vec!["p1".to_string()],
+                prev_line_hashes: vec![Some("h1".to_string()), None],
+                agent_tag: Some("agent".to_string()),
+                rules_sha: None,
+                cutoff_commit: None,
+                ts: "2026-06-30T00:00:00Z".to_string(),
+                validation_at: "pre-commit".to_string(),
+            },
+        };
+        let back: WitnessAppendRequest =
+            serde_json::from_str(&serde_json::to_string(&req).unwrap()).unwrap();
+        assert_eq!(req, back);
+
+        let appended = WitnessAppendResponse {
+            outcome: WitnessOutcomeKind::Appended,
+            line_hash: Some("deadbeef".to_string()),
+            error: None,
+        };
+        let back: WitnessAppendResponse =
+            serde_json::from_str(&serde_json::to_string(&appended).unwrap()).unwrap();
+        assert_eq!(appended, back);
+    }
+
+    #[test]
+    fn witness_outcome_kind_unknown_is_serde_other_forward_compat() {
+        // A newer daemon's outcome string must deserialise to `Unknown`, not error.
+        let resp: WitnessAppendResponse =
+            serde_json::from_str(r#"{"outcome":"some_future_state"}"#).unwrap();
+        assert_eq!(resp.outcome, WitnessOutcomeKind::Unknown);
+        assert!(resp.line_hash.is_none() && resp.error.is_none());
+    }
+
     /// Correction item 9: `ALL_ANVIL_METHODS` is two-directionally pinned.
     /// Forward — every named method constant is in the slice. Backward —
     /// the slice carries no entry that is not a known, named constant, and
@@ -1244,6 +1365,7 @@ mod tests {
             ANVIL_GCTX_GRAPH_EDGES,
             ANVIL_GCTX_GET_SNIPPET,
             ANVIL_GCTX_SYMBOL_CONTEXT,
+            ANVIL_WITNESS_APPEND,
         ]
         .into_iter()
         .collect();
@@ -1252,7 +1374,7 @@ mod tests {
         // Count pin: no silent additions, no silent drops.
         assert_eq!(
             ALL_ANVIL_METHODS.len(),
-            18,
+            19,
             "ALL_ANVIL_METHODS count changed — pin and the named set must move together"
         );
         // Forward: every named const is listed.
