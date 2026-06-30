@@ -52,6 +52,7 @@ anvil-gctx-types = { path = "../anvil-gctx-types", package = "eddacraft-anvil-gc
 anvil-intercept-proto = { path = "../anvil-intercept-proto", package = "eddacraft-anvil-intercept-proto" }
 anvil-intercept-rules = { path = "../anvil-intercept-rules", package = "eddacraft-anvil-intercept-rules" }
 anvil-kernel-types = { path = "../anvil-kernel-types", package = "eddacraft-anvil-kernel-types" }
+anvil-witness = { path = "../anvil-witness", package = "eddacraft-anvil-witness" }
 anvil-observability = { path = "../anvil-observability", package = "eddacraft-anvil-observability" }
 anvil-rules = { path = "../anvil-rules", package = "eddacraft-anvil-rules" }
 anyhow = { workspace = true }

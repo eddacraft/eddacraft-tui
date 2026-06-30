@@ -44,8 +44,8 @@ use anvil_intercept_proto::protocol::{
     GctxGraphStatsRequest, GctxGraphStatsResponse, GctxImpactOfChangeRequest,
     GctxImpactOfChangeResponse, GctxSearchSymbolsRequest, GctxSearchSymbolsResponse,
     GctxSymbolContextRequest, GctxSymbolContextResponse, RequestFullScanRequest,
-    RequestFullScanResponse, ValidatePathsRequest, ValidatePathsResponse, WorkspaceStatusRequest,
-    WorkspaceStatusResponse,
+    RequestFullScanResponse, ValidatePathsRequest, ValidatePathsResponse, WitnessAppendRequest,
+    WitnessAppendResponse, WorkspaceStatusRequest, WorkspaceStatusResponse,
 };
 use anvil_intercept_proto::{IpcCommand, IpcEnvelope};
 use anvil_observability::{TraceContext, bind_traceparent_to_span};
@@ -270,6 +270,19 @@ pub trait SaveTimeDispatch: GctxDispatch + Send {
         &mut self,
         request: &RequestFullScanRequest,
     ) -> Result<RequestFullScanResponse, SaveTimeError>;
+
+    /// Append a witness line to the admitted root's chain (MLP2-005). The daemon
+    /// derives `(seq, prev_line_hash)` and appends atomically via
+    /// `WitnessWriter::append_chained`; the append outcome (appended / chain
+    /// broken / write failed) rides in the response, not as an `Err`.
+    ///
+    /// # Errors
+    /// [`SaveTimeError::NotAdmitted`] when the root is refused;
+    /// [`SaveTimeError::Io`] when the admitted root cannot be canonicalised.
+    fn witness_append(
+        &mut self,
+        request: &WitnessAppendRequest,
+    ) -> Result<WitnessAppendResponse, SaveTimeError>;
 
     /// DPO-001: the save-time `gate_evaluated` emitter wired on the shared
     /// state, if any. Defaulted to `None` so test / embedded dispatch impls
@@ -2963,6 +2976,7 @@ async fn handle_jsonrpc_request<D: SessionDispatcher>(
     if method == anvil_intercept_proto::protocol::ANVIL_VALIDATE_PATHS
         || method == anvil_intercept_proto::protocol::ANVIL_WORKSPACE_STATUS
         || method == anvil_intercept_proto::protocol::ANVIL_REQUEST_FULL_SCAN
+        || method == anvil_intercept_proto::protocol::ANVIL_WITNESS_APPEND
     {
         return dispatch_span.in_scope(|| {
             handle_save_time_jsonrpc(
@@ -3255,6 +3269,13 @@ fn handle_save_time_jsonrpc(
                 response_id,
                 traceparent,
             ),
+            Err(err) => save_time_invalid_params(response_id, traceparent, &err),
+        }
+    } else if method == anvil_intercept_proto::protocol::ANVIL_WITNESS_APPEND {
+        match serde_json::from_value::<WitnessAppendRequest>(params.clone()) {
+            Ok(request) => {
+                save_time_result(dispatch.witness_append(&request), response_id, traceparent)
+            }
             Err(err) => save_time_invalid_params(response_id, traceparent, &err),
         }
     } else {

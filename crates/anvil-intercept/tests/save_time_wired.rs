@@ -170,3 +170,70 @@ async fn run_foreground_serves_status_and_full_scan() {
     shutdown.trigger();
     let _ = tokio::time::timeout(Duration::from_secs(5), handle).await;
 }
+
+/// MLP2-005 phase 2: `anvil/witness/append` over the real socket. The daemon
+/// seeds genesis and appends the record atomically (deriving `(seq, prev)`
+/// itself), returns `appended` + the line hash, and the on-disk chain verifies.
+/// A second append chains off the tip — no reseed.
+#[tokio::test(flavor = "current_thread")]
+async fn run_foreground_serves_witness_append() {
+    let tmp = TempDir::new().expect("tempdir");
+    let (shutdown, handle, socket) = spawn_daemon(&tmp).await;
+    let root = workspace(&tmp);
+
+    let entry = |commit: &str| {
+        json!({
+            "project_uuid": "01997e4a-1b2c-7345-8901-abcdef123456",
+            "kind": "witness",
+            "scope": "active",
+            "commit_sha": commit,
+            "parent_commits": [],
+            "prev_line_hashes": [],
+            "agent_tag": null,
+            "rules_sha": null,
+            "cutoff_commit": null,
+            "ts": "2026-06-30T00:00:00Z",
+            "validation_at": "pre-commit",
+        })
+    };
+
+    let resp = request(
+        &socket,
+        "anvil/witness/append",
+        json!({ "workspace_root": root, "entry": entry("c1") }),
+    )
+    .await;
+    assert!(
+        resp.get("error").is_none(),
+        "witness_append must route to the save-time arm: {resp}",
+    );
+    assert_eq!(
+        resp["result"]["outcome"], "appended",
+        "first append: {resp}"
+    );
+    assert!(
+        resp["result"]["line_hash"].is_string(),
+        "an appended record carries its line hash: {resp}",
+    );
+
+    let resp2 = request(
+        &socket,
+        "anvil/witness/append",
+        json!({ "workspace_root": root, "entry": entry("c2") }),
+    )
+    .await;
+    assert_eq!(
+        resp2["result"]["outcome"], "appended",
+        "second append chains off the tip (no reseed): {resp2}",
+    );
+
+    // The daemon-written chain is one verifiable sequence: genesis + 2 records.
+    let root_path = PathBuf::from(&root);
+    let paths = anvil_witness::witness_paths(&root_path);
+    let refs: Vec<&std::path::Path> = paths.iter().map(PathBuf::as_path).collect();
+    let dag = anvil_witness::verify_chain_dag(&refs).expect("daemon-written chain verifies");
+    assert_eq!(dag.line_count, 3, "genesis + 2 records, exactly one chain");
+
+    shutdown.trigger();
+    let _ = tokio::time::timeout(Duration::from_secs(5), handle).await;
+}

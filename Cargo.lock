@@ -1530,6 +1530,7 @@ dependencies = [
  "eddacraft-anvil-kernel-types",
  "eddacraft-anvil-observability",
  "eddacraft-anvil-rules",
+ "eddacraft-anvil-witness",
  "getrandom 0.4.3",
  "ignore",
  "nix 0.31.3",

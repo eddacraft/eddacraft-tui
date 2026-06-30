@@ -70,6 +70,7 @@ use anvil_intercept_proto::protocol::{
     GctxImpactOfChangeResponse, GctxSearchSymbolsRequest, GctxSearchSymbolsResponse,
     GctxSymbolContextRequest, GctxSymbolContextResponse, RequestFullScanRequest,
     RequestFullScanResponse, StaleReason, ValidatePathsRequest, ValidatePathsResponse,
+    WitnessAppendRequest, WitnessAppendResponse, WitnessEntry, WitnessOutcomeKind,
     WorkspaceAssurance, WorkspaceStatusRequest, WorkspaceStatusResponse,
 };
 use anvil_kernel_types::FileSymbols;
@@ -1337,6 +1338,69 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
             workspace_assurance,
         })
     }
+
+    fn witness_append(
+        &mut self,
+        request: &WitnessAppendRequest,
+    ) -> Result<WitnessAppendResponse, SaveTimeError> {
+        // Root hygiene before any FS work.
+        if let Some(reason) = invalid_workspace_root_reason(&request.workspace_root) {
+            return Ok(witness_write_failed(reason));
+        }
+        let root = PathBuf::from(&request.workspace_root);
+        let state = self.state;
+        // Security: only an admitted root may have its chain extended (the same
+        // gate as `validate_paths`). An auth/canonical failure is a transport-level
+        // `Err`; the witness outcome itself rides in-band in the response.
+        authorise_root(&mut self.admitted, &state.confinement, &root)?;
+        let canonical = canonical_root(&root)?;
+
+        let entry = &request.entry;
+        let writer = match anvil_witness::WitnessWriter::open(
+            &canonical,
+            &entry.scope,
+            anvil_witness::RolloverPolicy::default(),
+        ) {
+            Ok(writer) => writer,
+            Err(err) => return Ok(witness_write_failed(err.to_string())),
+        };
+
+        // The daemon seeds genesis exactly as the embedded hook does (Fresh,
+        // `pre-commit`) and derives `(seq, prev)` atomically inside
+        // `append_chained` — the client never sends them, so a stale-tip client
+        // cannot pin a forked position.
+        let genesis_uuid = entry.project_uuid.clone();
+        let genesis_scope = entry.scope.clone();
+        let genesis_ts = entry.ts.clone();
+        let outcome = writer.append_chained(
+            || {
+                anvil_witness::WitnessLine::genesis(
+                    &anvil_witness::GenesisAnchor::Fresh,
+                    &genesis_uuid,
+                    &genesis_scope,
+                    genesis_ts,
+                    "pre-commit",
+                    None,
+                )
+            },
+            |seq, prev_line_hash| witness_line_from_entry(entry, seq, prev_line_hash),
+        );
+
+        Ok(match outcome {
+            Ok(line_hash) => WitnessAppendResponse {
+                outcome: WitnessOutcomeKind::Appended,
+                line_hash: Some(line_hash),
+                error: None,
+            },
+            // ADR-038: a pre-existing broken chain is refused, never reseeded.
+            Err(anvil_witness::WriterError::ChainBroken) => WitnessAppendResponse {
+                outcome: WitnessOutcomeKind::ChainBroken,
+                line_hash: None,
+                error: None,
+            },
+            Err(err) => witness_write_failed(err.to_string()),
+        })
+    }
 }
 
 impl GctxDispatch for SaveTimeConn<'_> {
@@ -2321,6 +2385,39 @@ fn invalid_find_callers_query_reason(query: &FindCallersQuery) -> Option<String>
 /// query/filter params (`invalid_relative_path_reason`, `invalid_query_reason`);
 /// only this root check uses the larger `PATH_MAX`-appropriate bound so a
 /// legitimately deep root is not wrongly rejected.
+/// A `WriteFailed` witness-append response with a diagnostic reason.
+fn witness_write_failed(reason: String) -> WitnessAppendResponse {
+    WitnessAppendResponse {
+        outcome: WitnessOutcomeKind::WriteFailed,
+        line_hash: None,
+        error: Some(reason),
+    }
+}
+
+/// Build the record `WitnessLine` from the wire [`WitnessEntry`] plus the
+/// `(seq, prev_line_hash)` the daemon derived under `append_chained`'s lock.
+fn witness_line_from_entry(
+    entry: &WitnessEntry,
+    seq: u64,
+    prev_line_hash: String,
+) -> anvil_witness::WitnessLine {
+    anvil_witness::WitnessLine {
+        seq,
+        scope: entry.scope.clone(),
+        kind: entry.kind.clone(),
+        prev_line_hash,
+        project_uuid: entry.project_uuid.clone(),
+        commit_sha: entry.commit_sha.clone(),
+        parent_commits: entry.parent_commits.clone(),
+        prev_line_hashes: entry.prev_line_hashes.clone(),
+        agent_tag: entry.agent_tag.clone(),
+        rules_sha: entry.rules_sha.clone(),
+        cutoff_commit: entry.cutoff_commit.clone(),
+        ts: entry.ts.clone(),
+        validation_at: entry.validation_at.clone(),
+    }
+}
+
 fn invalid_workspace_root_reason(workspace_root: &str) -> Option<String> {
     if workspace_root.is_empty() {
         return Some("workspace_root must not be empty".to_string());
