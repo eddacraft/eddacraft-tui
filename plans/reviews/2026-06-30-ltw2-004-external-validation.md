@@ -33,12 +33,12 @@ file wrapped in `catch_unwind`.
 
 | ext     | files | panics | parse_err | error-trees   | symbols |
 | ------- | ----- | ------ | --------- | ------------- | ------- |
-| `.zig`  | 1082  | **0**  | 0         | 73 (6.7%)     | 15 995  |
-| `.wat`  | 554   | **0**  | 0         | 298 (53.8%)   | 1 323   |
-| `.wast` | 888   | **0**  | 0         | 562 (63.3%)   | 8 923   |
+| `.zig`  | 1082  | **0**  | 0         | 73 (6.7%)     | 15,995  |
+| `.wat`  | 554   | **0**  | 0         | 298 (53.8%)   | 1,323   |
+| `.wast` | 888   | **0**  | 0         | 562 (63.3%)   | 8,923   |
 | `.zon`  | 3     | **0**  | 0         | 3 (100%)      | 0       |
 
-**TOTAL PANICS: 0** over ~2 527 files. ✅ The acceptance invariant holds.
+**TOTAL PANICS: 0** over ~2,527 files. ✅ The acceptance invariant holds.
 
 ## Interpretation
 
