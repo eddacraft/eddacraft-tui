@@ -101,7 +101,9 @@ impl EvalResultStore {
 
     /// Append one record. Creates the store directory on first write and takes
     /// an exclusive advisory lock so concurrent CI writers do not interleave a
-    /// line.
+    /// line. The append is atomic: a partial write (disk full, I/O error) is
+    /// rolled back by truncating to the pre-write length, so a failed append
+    /// never leaves a torn line that would make the whole history unreadable.
     pub fn append(&self, record: &EvalRecord) -> Result<(), StoreError> {
         fs::create_dir_all(&self.root)?;
         let mut line = serde_json::to_string(record)?;
@@ -112,7 +114,15 @@ impl EvalResultStore {
             .append(true)
             .open(self.history_path())?;
         file.lock_exclusive()?;
+        // Under the exclusive lock no other writer can interleave, so the
+        // pre-write length is a stable rollback point.
+        let original_len = file.metadata().map(|m| m.len()).ok();
         let result = (&file).write_all(line.as_bytes());
+        if result.is_err()
+            && let Some(len) = original_len
+        {
+            let _ = file.set_len(len);
+        }
         // Always unlock, even if the write failed.
         let _ = FileExt::unlock(&file);
         result?;
@@ -120,13 +130,26 @@ impl EvalResultStore {
     }
 
     /// All records in chronological (append) order. An absent history file is
-    /// an empty history, not an error.
+    /// an empty history, not an error. Takes a shared advisory lock so a read
+    /// that races a writer's exclusive lock waits for the line to land rather
+    /// than observing a half-written record.
     pub fn all(&self) -> Result<Vec<EvalRecord>, StoreError> {
         let path = self.history_path();
         if !path.exists() {
             return Ok(Vec::new());
         }
         let file = fs::File::open(&path)?;
+        file.lock_shared()?;
+        let result = Self::read_records(&path, &file);
+        let _ = FileExt::unlock(&file);
+        result
+    }
+
+    /// Parse every record from an already-opened, lock-held history file.
+    fn read_records(
+        path: &std::path::Path,
+        file: &fs::File,
+    ) -> Result<Vec<EvalRecord>, StoreError> {
         let mut records = Vec::new();
         for (idx, line) in BufReader::new(file).lines().enumerate() {
             let line = line?;
@@ -134,7 +157,7 @@ impl EvalResultStore {
                 continue;
             }
             let record = serde_json::from_str(&line).map_err(|e| StoreError::Corrupt {
-                path: path.clone(),
+                path: path.to_path_buf(),
                 line: idx + 1,
                 detail: e.to_string(),
             })?;

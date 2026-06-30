@@ -116,6 +116,19 @@ fn build_outcome(runs: &[(EvalRunSummary, Option<EvalRunSummary>)]) -> Regressio
     }
 }
 
+/// Index the latest persisted run per suite, reading the history exactly once.
+/// Later records overwrite earlier ones, so the map holds the most recent run
+/// per suite (history is chronological).
+fn latest_per_suite(
+    store: &EvalResultStore,
+) -> Result<std::collections::HashMap<String, EvalRunSummary>> {
+    let mut latest = std::collections::HashMap::new();
+    for record in store.all().context("reading eval history")? {
+        latest.insert(record.suite.clone(), record.to_summary());
+    }
+    Ok(latest)
+}
+
 /// Resolve the eval history directory: explicit `--store`, else
 /// `<ANVIL_HOME>/eval`, else `.anvil/eval`.
 fn resolve_store_dir(explicit: Option<&PathBuf>) -> PathBuf {
@@ -130,23 +143,29 @@ fn resolve_store_dir(explicit: Option<&PathBuf>) -> PathBuf {
 pub fn run(args: &EvalRegressionArgs, global: &GlobalArgs) -> Result<()> {
     let suites = load_suites(&args.suites)?;
 
-    let program = args
-        .anvil_bin
-        .clone()
-        .unwrap_or_else(|| std::env::current_exe().unwrap_or_else(|_| "anvil".into()));
+    let program = match &args.anvil_bin {
+        Some(path) => path.clone(),
+        // Per the operator-config rule, do not silently fall back to a
+        // PATH-resolved `anvil` (which could be a different version) — surface
+        // the failure so the operator passes `--anvil-bin` explicitly.
+        None => std::env::current_exe()
+            .context("resolving the current `anvil` executable; pass --anvil-bin to override")?,
+    };
     let adapter = PolicyEvalAdapter::new(SubprocessRunner::new(program));
 
     let store = EvalResultStore::new(resolve_store_dir(args.store.as_ref()));
+
+    // Read the history once and index the latest run per suite, rather than
+    // re-reading and re-parsing the whole file once per suite (O(N+H) not
+    // O(N*H)).
+    let baselines = latest_per_suite(&store)?;
 
     let mut runs: Vec<(EvalRunSummary, Option<EvalRunSummary>)> = Vec::with_capacity(suites.len());
     for suite in &suites {
         let current = adapter
             .run_suite(suite)
             .with_context(|| format!("running eval suite `{}`", suite.name))?;
-        let baseline = store
-            .latest(&suite.name)
-            .with_context(|| format!("reading baseline for suite `{}`", suite.name))?
-            .map(|record| record.to_summary());
+        let baseline = baselines.get(&suite.name).cloned();
         runs.push((current, baseline));
     }
 

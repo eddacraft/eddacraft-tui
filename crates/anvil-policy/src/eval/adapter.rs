@@ -12,6 +12,7 @@
 //! default [`SubprocessRunner`] shells out to the `anvil` binary; tests inject a
 //! fake runner so normalisation is verified without a process.
 
+use std::io::Read;
 use std::path::PathBuf;
 use std::process::Command;
 use std::time::Duration;
@@ -168,23 +169,76 @@ impl PolicyEvalRunner for SubprocessRunner {
             .spawn()
             .map_err(|e| exec_err(Box::new(e)))?;
 
-        // `anvil policy eval` exits non-zero on a *blocking* finding — that is a
-        // valid result, not a runner failure — so the exit status is ignored
-        // here; the verdict comes from the parsed `exit_code` field.
-        let status = child
+        // Drain stdout/stderr on dedicated threads so a full OS pipe buffer
+        // cannot wedge the child (a findings-heavy policy easily exceeds the
+        // 64 KiB pipe buffer), and so we use a *single* wait path. Calling
+        // `wait_timeout` then `wait_with_output` on the same `Child` is
+        // undefined — on Linux the second wait can return a bogus exit status,
+        // on macOS it surfaces ECHILD — exactly the trap `opa.rs` documents and
+        // avoids.
+        let mut stdout_handle = child
+            .stdout
+            .take()
+            .expect("stdout is piped above; taken once");
+        let mut stderr_handle = child
+            .stderr
+            .take()
+            .expect("stderr is piped above; taken once");
+        let stdout_reader = std::thread::spawn(move || -> std::io::Result<Vec<u8>> {
+            let mut buf = Vec::new();
+            stdout_handle.read_to_end(&mut buf)?;
+            Ok(buf)
+        });
+        let stderr_reader = std::thread::spawn(move || -> std::io::Result<Vec<u8>> {
+            let mut buf = Vec::new();
+            stderr_handle.read_to_end(&mut buf)?;
+            Ok(buf)
+        });
+
+        // `anvil policy eval` exits non-zero on a *blocking* finding — a valid
+        // result, not a runner failure — and still prints the JSON document, so
+        // the exit status is not treated as failure; the verdict comes from the
+        // parsed `exit_code` field.
+        let timed_out = child
             .wait_timeout(self.timeout)
-            .map_err(|e| exec_err(Box::new(e)))?;
-        if status.is_none() {
+            .map_err(|e| exec_err(Box::new(e)))?
+            .is_none();
+        if timed_out {
             let _ = child.kill();
+            let _ = child.wait();
+            // `kill` closes the child's pipe write ends, unblocking the readers;
+            // join to avoid dangling threads but discard the payloads.
+            let _ = stdout_reader.join();
+            let _ = stderr_reader.join();
             return Err(exec_err(
                 format!("suite timed out after {:?}", self.timeout).into(),
             ));
         }
 
-        let output = child
-            .wait_with_output()
+        let stdout_bytes = stdout_reader
+            .join()
+            .map_err(|e| exec_err(format!("stdout reader thread panicked: {e:?}").into()))?
             .map_err(|e| exec_err(Box::new(e)))?;
-        String::from_utf8(output.stdout).map_err(|e| exec_err(Box::new(e)))
+        let stderr_bytes = stderr_reader
+            .join()
+            .map_err(|e| exec_err(format!("stderr reader thread panicked: {e:?}").into()))?
+            .map_err(|e| exec_err(Box::new(e)))?;
+
+        // Empty stdout means the process produced no document (a crash/panic):
+        // surface that with the captured stderr rather than letting it decay
+        // into an opaque "EOF while parsing" contract error downstream.
+        if stdout_bytes.is_empty() {
+            let stderr = String::from_utf8_lossy(&stderr_bytes);
+            let stderr = stderr.trim();
+            let detail = if stderr.is_empty() {
+                "produced no output".to_string()
+            } else {
+                format!("produced no output; stderr: {stderr}")
+            };
+            return Err(exec_err(detail.into()));
+        }
+
+        String::from_utf8(stdout_bytes).map_err(|e| exec_err(Box::new(e)))
     }
 }
 
@@ -335,5 +389,56 @@ mod tests {
         let no_input = suite();
         let args = SubprocessRunner::args(&no_input);
         assert!(!args.iter().any(|a| a == "--input"));
+    }
+
+    /// Write an executable shell script that ignores its args and runs `body`,
+    /// returning its path (kept alive by the returned `TempDir`).
+    #[cfg(unix)]
+    fn script(body: &str) -> (tempfile::TempDir, std::path::PathBuf) {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::TempDir::new().expect("tmp");
+        let path = dir.path().join("fake-anvil.sh");
+        std::fs::write(&path, format!("#!/bin/sh\n{body}\n")).expect("write");
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).expect("chmod");
+        (dir, path)
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn eval_harness_adapter_subprocess_drains_large_output_without_deadlock() {
+        // A document far larger than the 64 KiB pipe buffer must not wedge the
+        // child — the regression guard for the wait/drain rewrite.
+        let big_message = "x".repeat(200_000);
+        let json = format!(
+            r#"{{"schema_version":"1.0.0","policy":"p","query":"q","findings":[{{"severity":"warning","message":"{big_message}"}}],"exit_code":0}}"#
+        );
+        // `printf %s` avoids the shell mangling the JSON; single-quote-escape.
+        let (_dir, path) = script(&format!("cat <<'EOF'\n{json}\nEOF"));
+        let runner = SubprocessRunner::new(path).with_timeout(Duration::from_secs(10));
+        let out = runner.eval_json(&suite()).expect("eval_json");
+        assert!(out.len() > 64 * 1024, "got {} bytes", out.len());
+        let summary = normalise("arch", &out).expect("normalise large output");
+        assert_eq!(summary.findings.len(), 1);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn eval_harness_adapter_subprocess_times_out_on_hanging_child() {
+        let (_dir, path) = script("sleep 30");
+        let runner = SubprocessRunner::new(path).with_timeout(Duration::from_millis(200));
+        let err = runner.eval_json(&suite()).expect_err("should time out");
+        assert!(matches!(err, EvalHarnessError::Execution { .. }));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn eval_harness_adapter_subprocess_empty_stdout_surfaces_stderr() {
+        // A crashing child (empty stdout, message on stderr) yields a
+        // diagnosable execution error, not an opaque contract error.
+        let (_dir, path) = script("echo 'boom: engine panicked' 1>&2\nexit 101");
+        let runner = SubprocessRunner::new(path);
+        let err = runner.eval_json(&suite()).expect_err("crash");
+        let msg = err.to_string();
+        assert!(msg.contains("boom: engine panicked"), "stderr lost: {msg}");
     }
 }

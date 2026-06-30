@@ -59,19 +59,22 @@ pub struct EvalFinding {
 
 impl EvalFinding {
     /// Stable identity used to diff two runs. Prefers the baseline fingerprint
-    /// (the engine's own identity for a finding); falls back to the
+    /// (the engine's own identity for a finding); falls back to a
     /// severity + edge + message tuple when a finding carries no fingerprint.
+    ///
+    /// The fallback is JSON-encoded rather than delimiter-joined: `from`/`to`
+    /// are arbitrary engine-supplied strings (file paths, synthesised labels)
+    /// that can contain any separator character, so a naive `a|b|c` join would
+    /// let two genuinely different findings collide and hide a regression.
     pub fn identity(&self) -> String {
         if let Some(fp) = &self.fingerprint {
             return format!("fp:{fp}");
         }
-        format!(
-            "msg:{}|{}|{}|{}",
-            self.severity,
-            self.from.as_deref().unwrap_or(""),
-            self.to.as_deref().unwrap_or(""),
-            self.message,
-        )
+        // Serialising a tuple of the discriminating fields is collision-free for
+        // any field contents; serialisation of a fixed-shape tuple cannot fail.
+        let tuple = (self.severity, &self.from, &self.to, &self.message);
+        let body = serde_json::to_string(&tuple).unwrap_or_else(|_| String::new());
+        format!("msg:{body}")
     }
 }
 
@@ -185,17 +188,26 @@ impl EvalRegressionReport {
         }
     }
 
-    /// A regression is a *worsening*: the gate now blocks where it did not
-    /// before, or a new blocking finding appeared. A first run with a failing
-    /// gate is a regression against the implicit clean baseline.
+    /// A regression is a *worsening of the gate*, read from `exit_code` — the
+    /// authoritative verdict — not from finding severity.
+    ///
+    /// Severity in the `findings` array is deliberately **not** used: under
+    /// ADR-003 an `error`-severity finding can be baselined or non-new-edge and
+    /// so not block (`exit_code` stays 0), and the frozen v1 contract this binds
+    /// to drops the `baselined`/`is_new_edge` flags — so a severity-based check
+    /// would both miss suppressed errors and false-positive on them. `exit_code`
+    /// already encodes ADR-002/003, so it is the single source of truth.
+    ///
+    /// Worsened means the current run blocks (`exit_code != 0`) **and** either
+    /// there was no clean baseline to compare against, or the gate's verdict
+    /// changed — a clean baseline now failing, or a different non-zero code
+    /// (an escalation). A failing gate that is unchanged is not a *new*
+    /// regression; a gate that improved (now passing) never is.
     pub fn regressed(&self) -> bool {
-        let gate_worsened =
-            self.current_exit_code != 0 && self.baseline_exit_code.is_none_or(|b| b == 0);
-        let new_blocking = self
-            .new_findings
-            .iter()
-            .any(|f| f.severity == EvalSeverity::Error);
-        gate_worsened || new_blocking
+        self.current_exit_code != 0
+            && self
+                .baseline_exit_code
+                .is_none_or(|baseline| baseline != self.current_exit_code)
     }
 }
 
@@ -372,5 +384,71 @@ mod tests {
         assert!(report.regressed());
         assert_eq!(report.baseline_exit_code, None);
         assert_eq!(report.new_findings.len(), 1);
+    }
+
+    #[test]
+    fn eval_harness_port_exit_code_escalation_is_a_regression() {
+        // Already failing (exit 1), now exits with a different non-zero code
+        // (e.g. an evaluation error): the gate's verdict changed — a regression
+        // even though the finding set is unchanged.
+        let base = summary("s", 1, vec![finding(EvalSeverity::Error, "x", Some("a"))]);
+        let cur = summary("s", 2, vec![finding(EvalSeverity::Error, "x", Some("a"))]);
+        let report = EvalRegressionReport::compare(Some(&base), &cur);
+        assert!(report.regressed());
+    }
+
+    #[test]
+    fn eval_harness_port_unchanged_failing_gate_is_not_a_new_regression() {
+        let base = summary("s", 1, vec![finding(EvalSeverity::Error, "x", Some("a"))]);
+        let cur = summary("s", 1, vec![finding(EvalSeverity::Error, "x", Some("a"))]);
+        let report = EvalRegressionReport::compare(Some(&base), &cur);
+        assert!(!report.regressed());
+    }
+
+    #[test]
+    fn eval_harness_port_clean_gate_with_suppressed_error_finding_is_not_a_regression() {
+        // ADR-003: an error-severity finding can be present yet baselined /
+        // non-new-edge, so `exit_code` stays 0. The frozen contract drops the
+        // suppression flags, so the verdict must come from exit_code — a clean
+        // gate is never a regression regardless of finding severity.
+        let base = summary("s", 0, vec![]);
+        let cur = summary(
+            "s",
+            0,
+            vec![finding(EvalSeverity::Error, "suppressed", Some("b"))],
+        );
+        let report = EvalRegressionReport::compare(Some(&base), &cur);
+        assert!(
+            !report.regressed(),
+            "clean gate (exit 0) is not a regression"
+        );
+    }
+
+    #[test]
+    fn eval_harness_port_identity_does_not_collide_on_separator_in_edge() {
+        // Two genuinely different edges that a naive `|`-join would collapse:
+        // (from=a|b, to=c) vs (from=a, to=b|c).
+        let a = EvalFinding {
+            severity: EvalSeverity::Error,
+            message: "d".into(),
+            from: Some("a|b".into()),
+            to: Some("c".into()),
+            fingerprint: None,
+        };
+        let b = EvalFinding {
+            severity: EvalSeverity::Error,
+            message: "d".into(),
+            from: Some("a".into()),
+            to: Some("b|c".into()),
+            fingerprint: None,
+        };
+        assert_ne!(a.identity(), b.identity());
+
+        // And the regression diff sees `b` as new when the baseline only had `a`.
+        let base = summary("s", 1, vec![a]);
+        let cur = summary("s", 1, vec![b]);
+        let report = EvalRegressionReport::compare(Some(&base), &cur);
+        assert_eq!(report.new_findings.len(), 1);
+        assert_eq!(report.resolved_findings.len(), 1);
     }
 }
