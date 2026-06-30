@@ -256,12 +256,11 @@ than per-language PRs.
       `wasm-lsp/tree-sitter-wasm` repo ships **both** `wat/` and `wast/`
       grammars; LTW2-002 vendors `wat/` first (`.wat`/`.wast` → `Language::Wat`),
       `wast/` reserved if script-format demand appears.
-- [ ] **Registry vs parser divergence (surfaced by LTW2-005).** The CLI
+- [x] **Registry vs parser divergence (surfaced by LTW2-005).** The CLI
       language-profile registry (`crates/anvil-cli/src/activation/language_profile.rs`)
-      reports Python + the LANGTAIL/LTW2 tail as `unsupported`, even though the
-      kernel parser now parses them — its tiers gate on shipped governance checks,
-      not parsing, and it is hand-maintained independently. Python's `unsupported`
-      entry in particular looks stale (PYLAN shipped a T3 catalogue). Should the
-      registry be reconciled to current parser/check coverage? This is a separate
-      code work item with `ProtectionState` implications (a repo flips from
-      `Unsupported`), **out of LTW2 scope** — flag for owner triage.
+      reported Python + the LANGTAIL/LTW2 tail as `unsupported` even though the
+      parser handles them (tiers gate on shipped governance, not parsing).
+      **Resolved via CIB-123 (owner tier call, Merged via PR #3011):** Python →
+      Supported (PYLAN shipped the catalogue, same bar as Rust); the tail stays
+      Unsupported but is now *listed* (a tier = shipped language-specific
+      governance, not parser capability); no new tier added.

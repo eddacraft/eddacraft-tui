@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 76/108  |
+| CIB | —     | In Progress | 77/108  |
 
 ## Purpose
 
@@ -2929,7 +2929,15 @@ archive.
 
 ### CIB-123: Reconcile the language-profile registry with shipped parser/check coverage
 
-- **Status:** Proposed
+- **Status:** Merged 2026-06-30 via PR #3011
+- **Decision (owner tier call, 2026-06-30):** **Python → Supported** (PYLAN
+  shipped the catalogue + scanning + boundary, same bar as Rust; the
+  "PYLAN parked" entry was stale — a Python-only repo no longer maps to
+  `Unsupported`). **Tail T1 languages stay Unsupported but are now listed**
+  (added C#/`.cs`, Dart/`.dart`, Zig/`.zig`, WebAssembly-text/`.wat`,`.wast` +
+  full C/C++ extensions) — parsed but no language-specific catalogue. **No new
+  tier**: a tier reflects shipped language-specific governance, not parser
+  capability.
 - **Intent:** The CLI's user-facing language profile
   (`supported`/`partial`/`unsupported`) reflects current coverage instead of a
   hand-maintained list that has drifted from the kernel parser.
