@@ -236,12 +236,14 @@ fn render_plain(outcome: &RegressionOutput) {
             resolved = suite.resolved_findings,
             exit = suite.current_exit_code,
         );
-        if suite.regressed {
-            for guided in &suite.guidance {
-                plain::warn(&format!("    {}", guided.guidance.summary));
-                for action in &guided.guidance.next_actions {
-                    plain::info(&format!("      - {action}"));
-                }
+        // Show remediation guidance for any failing suite — a persistently
+        // failing (○) suite is as actionable as a newly regressed (✗) one. The
+        // `guidance` list is non-empty exactly when the current run failed
+        // (matches the JSON output).
+        for guided in &suite.guidance {
+            plain::warn(&format!("    {}", guided.guidance.summary));
+            for action in &guided.guidance.next_actions {
+                plain::info(&format!("      - {action}"));
             }
         }
     }

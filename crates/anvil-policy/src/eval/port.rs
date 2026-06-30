@@ -71,9 +71,11 @@ impl EvalFinding {
             return format!("fp:{fp}");
         }
         // Serialising a tuple of the discriminating fields is collision-free for
-        // any field contents; serialisation of a fixed-shape tuple cannot fail.
+        // any field contents. JSON of a fixed-shape tuple of strings cannot
+        // fail; the fallback is a `Debug` rendering (also collision-free), never
+        // an empty string that would collapse distinct findings together.
         let tuple = (self.severity, &self.from, &self.to, &self.message);
-        let body = serde_json::to_string(&tuple).unwrap_or_else(|_| String::new());
+        let body = serde_json::to_string(&tuple).unwrap_or_else(|_| format!("{tuple:?}"));
         format!("msg:{body}")
     }
 }
@@ -156,17 +158,19 @@ impl EvalRegressionReport {
     /// Compute the regression report for `current` against an optional
     /// `baseline`. With no baseline (first run), everything in `current` is new.
     pub fn compare(baseline: Option<&EvalRunSummary>, current: &EvalRunSummary) -> Self {
-        let baseline_ids: Vec<String> = baseline
+        // Use sets for membership so the diff is O(n) in the finding count, not
+        // O(n²) — a findings-heavy suite can emit many entries.
+        let baseline_ids: std::collections::HashSet<String> = baseline
             .map(|b| b.findings.iter().map(EvalFinding::identity).collect())
             .unwrap_or_default();
-        let current_ids: Vec<String> = current.findings.iter().map(EvalFinding::identity).collect();
+        let current_ids: std::collections::HashSet<String> =
+            current.findings.iter().map(EvalFinding::identity).collect();
 
         let new_findings = current
             .findings
             .iter()
-            .zip(&current_ids)
-            .filter(|(_, id)| !baseline_ids.contains(id))
-            .map(|(f, _)| f.clone())
+            .filter(|f| !baseline_ids.contains(&f.identity()))
+            .cloned()
             .collect();
 
         let resolved_findings = baseline
