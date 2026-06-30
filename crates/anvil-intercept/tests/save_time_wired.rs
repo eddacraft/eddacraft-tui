@@ -226,6 +226,10 @@ async fn run_foreground_serves_witness_append() {
         resp2["result"]["outcome"], "appended",
         "second append chains off the tip (no reseed): {resp2}",
     );
+    assert!(
+        resp2["result"]["line_hash"].is_string(),
+        "the second appended record also carries its line hash: {resp2}",
+    );
 
     // The daemon-written chain is one verifiable sequence: genesis + 2 records.
     let root_path = PathBuf::from(&root);
@@ -233,6 +237,31 @@ async fn run_foreground_serves_witness_append() {
     let refs: Vec<&std::path::Path> = paths.iter().map(PathBuf::as_path).collect();
     let dag = anvil_witness::verify_chain_dag(&refs).expect("daemon-written chain verifies");
     assert_eq!(dag.line_count, 3, "genesis + 2 records, exactly one chain");
+
+    shutdown.trigger();
+    let _ = tokio::time::timeout(Duration::from_secs(5), handle).await;
+}
+
+/// MLP2-005 phase 2: a malformed `anvil/witness/append` body (entry missing a
+/// required field) is rejected by the dispatch arm as JSON-RPC `Invalid params`
+/// (-32602) — never a panic or a silent partial write.
+#[tokio::test(flavor = "current_thread")]
+async fn run_foreground_witness_append_rejects_invalid_params() {
+    let tmp = TempDir::new().expect("tempdir");
+    let (shutdown, handle, socket) = spawn_daemon(&tmp).await;
+    let root = workspace(&tmp);
+
+    // `entry` is present but missing required fields (`project_uuid`, `kind`, …).
+    let resp = request(
+        &socket,
+        "anvil/witness/append",
+        json!({ "workspace_root": root, "entry": { "scope": "active" } }),
+    )
+    .await;
+    assert_eq!(
+        resp["error"]["code"], -32602,
+        "a malformed entry must be Invalid params, not a 500 or a write: {resp}",
+    );
 
     shutdown.trigger();
     let _ = tokio::time::timeout(Duration::from_secs(5), handle).await;

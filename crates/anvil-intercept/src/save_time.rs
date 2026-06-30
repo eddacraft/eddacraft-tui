@@ -1343,8 +1343,17 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
         &mut self,
         request: &WitnessAppendRequest,
     ) -> Result<WitnessAppendResponse, SaveTimeError> {
+        let entry = &request.entry;
         // Root hygiene before any FS work.
         if let Some(reason) = invalid_workspace_root_reason(&request.workspace_root) {
+            return Ok(witness_write_failed(reason));
+        }
+        // `scope` is interpolated into the archive FILENAME on rollover
+        // (`{scope}-{seq}-{merkle}.ndjson`, joined to the archive dir), so a
+        // hostile/buggy scope like `../../evil` would traverse outside the witness
+        // tree. Constrain it to a safe identifier before it reaches the writer
+        // (the embedded hook only ever uses `"active"`).
+        if let Some(reason) = invalid_witness_scope_reason(&entry.scope) {
             return Ok(witness_write_failed(reason));
         }
         let root = PathBuf::from(&request.workspace_root);
@@ -1355,23 +1364,39 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
         authorise_root(&mut self.admitted, &state.confinement, &root)?;
         let canonical = canonical_root(&root)?;
 
-        let entry = &request.entry;
         let writer = match anvil_witness::WitnessWriter::open(
             &canonical,
             &entry.scope,
             anvil_witness::RolloverPolicy::default(),
         ) {
             Ok(writer) => writer,
-            Err(err) => return Ok(witness_write_failed(err.to_string())),
+            Err(err) => {
+                // Keep internal paths/diagnostics out of the client-facing reply;
+                // the daemon log is the operator's record.
+                tracing::warn!(
+                    target: "anvil_intercept::witness",
+                    workspace = %canonical.display(),
+                    error = %err,
+                    "witness writer open failed",
+                );
+                return Ok(witness_write_failed("witness write failed".to_string()));
+            }
         };
 
-        // The daemon seeds genesis exactly as the embedded hook does (Fresh,
-        // `pre-commit`) and derives `(seq, prev)` atomically inside
-        // `append_chained` — the client never sends them, so a stale-tip client
-        // cannot pin a forked position.
+        // The daemon **asserts** the timestamp (it ignores the client's `entry.ts`):
+        // the on-disk record reflects when the daemon wrote it, so a client cannot
+        // backdate the chain. Genesis is seeded the same way the embedded hook does
+        // (Fresh, `pre-commit`, daemon wall-clock); `(seq, prev)` are derived
+        // atomically inside `append_chained` — never sent by the client, so a
+        // stale-tip client cannot pin a forked position. The remaining entry fields
+        // (commit_sha, parent_commits, prev_line_hashes, agent_tag, validation_at)
+        // stay client-asserted: the hook is the trusted populator under the same-uid
+        // boundary. (MLP2-005 phase-3 follow-ups: derive project_uuid from
+        // `anvil/project-id`, and the DISTRIB-006 caller gate.)
+        let now_ts = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ").to_string();
         let genesis_uuid = entry.project_uuid.clone();
         let genesis_scope = entry.scope.clone();
-        let genesis_ts = entry.ts.clone();
+        let genesis_ts = now_ts.clone();
         let outcome = writer.append_chained(
             || {
                 anvil_witness::WitnessLine::genesis(
@@ -1383,22 +1408,48 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
                     None,
                 )
             },
-            |seq, prev_line_hash| witness_line_from_entry(entry, seq, prev_line_hash),
+            |seq, prev_line_hash| witness_line_from_entry(entry, seq, prev_line_hash, &now_ts),
         );
 
         Ok(match outcome {
-            Ok(line_hash) => WitnessAppendResponse {
-                outcome: WitnessOutcomeKind::Appended,
-                line_hash: Some(line_hash),
-                error: None,
-            },
+            Ok(line_hash) => {
+                tracing::debug!(
+                    target: "anvil_intercept::witness",
+                    workspace = %canonical.display(),
+                    scope = %entry.scope,
+                    "witness appended",
+                );
+                WitnessAppendResponse {
+                    outcome: WitnessOutcomeKind::Appended,
+                    line_hash: Some(line_hash),
+                    error: None,
+                }
+            }
             // ADR-038: a pre-existing broken chain is refused, never reseeded.
-            Err(anvil_witness::WriterError::ChainBroken) => WitnessAppendResponse {
-                outcome: WitnessOutcomeKind::ChainBroken,
-                line_hash: None,
-                error: None,
-            },
-            Err(err) => witness_write_failed(err.to_string()),
+            // This is a tamper-evidence event — log it (the richer `degraded:*`
+            // witness telemetry is a later MLP2-005 phase).
+            Err(anvil_witness::WriterError::ChainBroken) => {
+                tracing::warn!(
+                    target: "anvil_intercept::witness",
+                    workspace = %canonical.display(),
+                    scope = %entry.scope,
+                    "witness chain integrity check failed; refusing to append (ADR-038)",
+                );
+                WitnessAppendResponse {
+                    outcome: WitnessOutcomeKind::ChainBroken,
+                    line_hash: None,
+                    error: None,
+                }
+            }
+            Err(err) => {
+                tracing::warn!(
+                    target: "anvil_intercept::witness",
+                    workspace = %canonical.display(),
+                    error = %err,
+                    "witness append failed",
+                );
+                witness_write_failed("witness write failed".to_string())
+            }
         })
     }
 }
@@ -2371,6 +2422,65 @@ fn invalid_find_callers_query_reason(query: &FindCallersQuery) -> Option<String>
     invalid_relative_path_reason("target.file", &target.file)
 }
 
+/// A `WriteFailed` witness-append response with a diagnostic reason. The reason
+/// is the *client-facing* string, so callers pass a generic message here and log
+/// the underlying detail (paths, IO errors) to the daemon's tracing sink rather
+/// than leaking it over the wire.
+fn witness_write_failed(reason: String) -> WitnessAppendResponse {
+    WitnessAppendResponse {
+        outcome: WitnessOutcomeKind::WriteFailed,
+        line_hash: None,
+        error: Some(reason),
+    }
+}
+
+/// Reject a witness `scope` that is unsafe to interpolate into the archive
+/// filename (`{scope}-{seq}-{merkle}.ndjson`, joined to the archive dir on
+/// rollover). Without this, a scope such as `../../evil` would let a rollover
+/// write escape the witness tree. Constrain it to a conservative identifier —
+/// ASCII alphanumerics plus `-`/`_`, non-empty — which the only real producer
+/// (the embedded hook, `scope = "active"`) already satisfies. Returns the
+/// rejection reason, or `None` when acceptable.
+fn invalid_witness_scope_reason(scope: &str) -> Option<String> {
+    if scope.is_empty() {
+        return Some("scope must not be empty".to_string());
+    }
+    if !scope
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
+        return Some("scope must contain only ASCII alphanumerics, '-' or '_'".to_string());
+    }
+    None
+}
+
+/// Build the record `WitnessLine` from the wire [`WitnessEntry`] plus the
+/// `(seq, prev_line_hash)` the daemon derived under `append_chained`'s lock.
+/// `ts` is the daemon-asserted wall-clock stamp (the client's `entry.ts` is
+/// ignored), so the on-disk record reflects when the daemon wrote it.
+fn witness_line_from_entry(
+    entry: &WitnessEntry,
+    seq: u64,
+    prev_line_hash: String,
+    ts: &str,
+) -> anvil_witness::WitnessLine {
+    anvil_witness::WitnessLine {
+        seq,
+        scope: entry.scope.clone(),
+        kind: entry.kind.clone(),
+        prev_line_hash,
+        project_uuid: entry.project_uuid.clone(),
+        commit_sha: entry.commit_sha.clone(),
+        parent_commits: entry.parent_commits.clone(),
+        prev_line_hashes: entry.prev_line_hashes.clone(),
+        agent_tag: entry.agent_tag.clone(),
+        rules_sha: entry.rules_sha.clone(),
+        cutoff_commit: entry.cutoff_commit.clone(),
+        ts: ts.to_string(),
+        validation_at: entry.validation_at.clone(),
+    }
+}
+
 /// CIB-091b (CE-6 gap): validate a client-supplied `workspace_root` *before* it
 /// reaches `PathBuf::from`/`canonicalize`. Rejects a NUL byte (which would make
 /// `canonicalize` fail with an opaque IO error → `-32603 Internal`) and a value
@@ -2385,39 +2495,6 @@ fn invalid_find_callers_query_reason(query: &FindCallersQuery) -> Option<String>
 /// query/filter params (`invalid_relative_path_reason`, `invalid_query_reason`);
 /// only this root check uses the larger `PATH_MAX`-appropriate bound so a
 /// legitimately deep root is not wrongly rejected.
-/// A `WriteFailed` witness-append response with a diagnostic reason.
-fn witness_write_failed(reason: String) -> WitnessAppendResponse {
-    WitnessAppendResponse {
-        outcome: WitnessOutcomeKind::WriteFailed,
-        line_hash: None,
-        error: Some(reason),
-    }
-}
-
-/// Build the record `WitnessLine` from the wire [`WitnessEntry`] plus the
-/// `(seq, prev_line_hash)` the daemon derived under `append_chained`'s lock.
-fn witness_line_from_entry(
-    entry: &WitnessEntry,
-    seq: u64,
-    prev_line_hash: String,
-) -> anvil_witness::WitnessLine {
-    anvil_witness::WitnessLine {
-        seq,
-        scope: entry.scope.clone(),
-        kind: entry.kind.clone(),
-        prev_line_hash,
-        project_uuid: entry.project_uuid.clone(),
-        commit_sha: entry.commit_sha.clone(),
-        parent_commits: entry.parent_commits.clone(),
-        prev_line_hashes: entry.prev_line_hashes.clone(),
-        agent_tag: entry.agent_tag.clone(),
-        rules_sha: entry.rules_sha.clone(),
-        cutoff_commit: entry.cutoff_commit.clone(),
-        ts: entry.ts.clone(),
-        validation_at: entry.validation_at.clone(),
-    }
-}
-
 fn invalid_workspace_root_reason(workspace_root: &str) -> Option<String> {
     if workspace_root.is_empty() {
         return Some("workspace_root must not be empty".to_string());
@@ -3553,6 +3630,188 @@ mod tests {
         assert!(
             matches!(refused, Err(SaveTimeError::NotAdmitted)),
             "an unlisted, non-primary root must be refused: {refused:?}",
+        );
+    }
+
+    // ---- MLP2-005 phase 2: witness append over the daemon RPC ----
+
+    /// A wire `WitnessEntry` carrying a deliberately back-dated `ts` so a test can
+    /// prove the daemon asserts its own wall-clock stamp instead.
+    fn sample_witness_entry(commit: &str) -> WitnessEntry {
+        WitnessEntry {
+            project_uuid: "01997e4a-1b2c-7345-8901-abcdef123456".to_string(),
+            kind: "witness".to_string(),
+            scope: "active".to_string(),
+            commit_sha: Some(commit.to_string()),
+            parent_commits: Vec::new(),
+            prev_line_hashes: Vec::new(),
+            agent_tag: None,
+            rules_sha: None,
+            cutoff_commit: None,
+            ts: "2000-01-01T00:00:00Z".to_string(),
+            validation_at: "pre-commit".to_string(),
+        }
+    }
+
+    fn witness_request(root: &Path, commit: &str) -> WitnessAppendRequest {
+        WitnessAppendRequest {
+            workspace_root: root.to_string_lossy().into_owned(),
+            entry: sample_witness_entry(commit),
+        }
+    }
+
+    /// Happy path: the daemon seeds genesis and appends two records as one
+    /// verifiable chain (genesis + 2), and **asserts** the timestamp — the
+    /// client's back-dated `ts` never reaches disk.
+    #[test]
+    fn witness_append_seeds_and_chains_with_asserted_ts() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = state();
+        let mut conn = SaveTimeConn::new(&state);
+
+        let first = conn
+            .witness_append(&witness_request(tmp.path(), "c1"))
+            .expect("admitted");
+        assert!(matches!(first.outcome, WitnessOutcomeKind::Appended));
+        assert!(
+            first.line_hash.is_some(),
+            "an appended record carries its hash"
+        );
+
+        let second = conn
+            .witness_append(&witness_request(tmp.path(), "c2"))
+            .expect("admitted");
+        assert!(
+            matches!(second.outcome, WitnessOutcomeKind::Appended),
+            "second append chains off the tip (no reseed): {second:?}",
+        );
+
+        let canonical = std::fs::canonicalize(tmp.path()).expect("canonical");
+        let paths = anvil_witness::witness_paths(&canonical);
+        let refs: Vec<&Path> = paths.iter().map(PathBuf::as_path).collect();
+        let dag = anvil_witness::verify_chain_dag(&refs).expect("chain verifies");
+        assert_eq!(dag.line_count, 3, "genesis + 2 records, exactly one chain");
+
+        let active = canonical
+            .join("anvil")
+            .join("witness")
+            .join("active.ndjson");
+        let body = fs::read_to_string(&active).expect("read active chain");
+        assert!(
+            !body.contains("2000-01-01T00:00:00Z"),
+            "the daemon must assert `ts`, not echo the client's back-dated value: {body}",
+        );
+    }
+
+    /// F1 (path traversal): a `scope` that would escape the witness tree via the
+    /// rollover archive filename is rejected before the writer opens — no chain
+    /// directory is created.
+    #[test]
+    fn witness_append_rejects_traversal_scope() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = state();
+        let mut conn = SaveTimeConn::new(&state);
+
+        let mut request = witness_request(tmp.path(), "c1");
+        request.entry.scope = "../../evil".to_string();
+        let resp = conn
+            .witness_append(&request)
+            .expect("admitted root, in-band reject");
+
+        assert!(
+            matches!(resp.outcome, WitnessOutcomeKind::WriteFailed),
+            "a traversal scope must be refused in-band: {resp:?}",
+        );
+        assert!(
+            resp.error.as_deref().unwrap_or_default().contains("scope"),
+            "the reason names the offending field: {resp:?}",
+        );
+        assert!(
+            !tmp.path().join("anvil").join("witness").exists(),
+            "a rejected scope must not create any witness directory",
+        );
+    }
+
+    /// An empty `workspace_root` is rejected in-band as `WriteFailed` (the root
+    /// hygiene gate), never an opaque IO panic.
+    #[test]
+    fn witness_append_empty_root_is_write_failed() {
+        let state = state();
+        let mut conn = SaveTimeConn::new(&state);
+        let resp = conn
+            .witness_append(&WitnessAppendRequest {
+                workspace_root: String::new(),
+                entry: sample_witness_entry("c1"),
+            })
+            .expect("empty root rides in-band, not a transport error");
+        assert!(matches!(resp.outcome, WitnessOutcomeKind::WriteFailed));
+    }
+
+    /// C2: only an admitted root may have its chain extended. An unlisted root
+    /// under an allowlist confinement is refused at the transport layer (the same
+    /// gate as `validate_paths`), before any witness byte is written.
+    #[test]
+    fn witness_append_unadmitted_root_is_refused() {
+        let primary = tempfile::tempdir().expect("tempdir");
+        let unlisted = tempfile::tempdir().expect("tempdir");
+        let confinement = Confinement::from_file(crate::confinement::ConfinementConfigFile {
+            admission: crate::confinement::AdmissionModeFile::Allowlist,
+            allow: vec![crate::confinement::AllowEntry {
+                path: primary.path().to_path_buf(),
+                kind: crate::confinement::MatchKind::Exact,
+            }],
+            ..Default::default()
+        });
+        let state = SaveTimeState::new(
+            WorkScheduler::new().expect("scheduler"),
+            AntipatternCheckConfig::default(),
+            confinement,
+        );
+        let mut conn = SaveTimeConn::new(&state);
+        // Admit the primary so the unlisted root is the only thing refused.
+        conn.witness_append(&witness_request(primary.path(), "c1"))
+            .expect("primary is admitted");
+
+        let refused = conn.witness_append(&witness_request(unlisted.path(), "c1"));
+        assert!(
+            matches!(refused, Err(SaveTimeError::NotAdmitted)),
+            "an unadmitted root must be refused: {refused:?}",
+        );
+    }
+
+    /// ADR-038: a pre-existing broken chain is refused (`ChainBroken`), never
+    /// reseeded — the daemon honours the same tamper-evidence contract as the
+    /// embedded hook.
+    #[test]
+    fn witness_append_on_broken_chain_is_refused() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let state = state();
+        let mut conn = SaveTimeConn::new(&state);
+
+        // Seed a healthy genesis + record.
+        conn.witness_append(&witness_request(tmp.path(), "c1"))
+            .expect("admitted");
+
+        // Corrupt the tip: an unparseable trailing line breaks the chain.
+        let canonical = std::fs::canonicalize(tmp.path()).expect("canonical");
+        let active = canonical
+            .join("anvil")
+            .join("witness")
+            .join("active.ndjson");
+        let mut body = fs::read_to_string(&active).expect("read active chain");
+        body.push_str("{not a valid witness line}\n");
+        fs::write(&active, body).expect("rewrite corrupted chain");
+
+        let resp = conn
+            .witness_append(&witness_request(tmp.path(), "c2"))
+            .expect("admitted");
+        assert!(
+            matches!(resp.outcome, WitnessOutcomeKind::ChainBroken),
+            "a broken chain must be refused, never reseeded: {resp:?}",
+        );
+        assert!(
+            resp.line_hash.is_none(),
+            "a refused append has no line hash"
         );
     }
 

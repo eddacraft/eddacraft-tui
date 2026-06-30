@@ -3278,7 +3278,7 @@ fn handle_save_time_jsonrpc(
             }
             Err(err) => save_time_invalid_params(response_id, traceparent, &err),
         }
-    } else {
+    } else if method == anvil_intercept_proto::protocol::ANVIL_REQUEST_FULL_SCAN {
         match serde_json::from_value::<RequestFullScanRequest>(params.clone()) {
             Ok(request) => save_time_result(
                 dispatch.request_full_scan(&request),
@@ -3287,6 +3287,19 @@ fn handle_save_time_jsonrpc(
             ),
             Err(err) => save_time_invalid_params(response_id, traceparent, &err),
         }
+    } else {
+        // Defence in depth: the caller's guard (the save-time method set) is the
+        // only path here, so every known verb is handled above. A method that
+        // reaches this arm means the guard and this dispatch drifted out of sync —
+        // reply `Method not found` rather than panicking the daemon thread.
+        jsonrpc_request_error(
+            response_id,
+            traceparent,
+            false,
+            -32601,
+            "Method not found",
+            json!({"reason": "unrouted save-time verb", "method": method}),
+        )
     }
 }
 
