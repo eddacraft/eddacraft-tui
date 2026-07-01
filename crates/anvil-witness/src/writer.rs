@@ -1,11 +1,24 @@
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 use fs2::FileExt;
 use sha2::{Digest, Sha256};
 
 use crate::line::{LineHash, WitnessLine, compute_line_hash};
+
+/// Bounded wait for the witness `.lock` flock (CIB-124). A normal append holds
+/// the lock for milliseconds; this ceiling exists so a stalled holder (a hung
+/// writer, an NFS lock-server pause, a wedged daemon mid-append) cannot block a
+/// concurrent `git commit` forever — the acquire times out to
+/// [`WriterError::LockTimeout`] instead. It is generous enough that legitimate
+/// contention between concurrent worktree hooks never trips it.
+const LOCK_ACQUIRE_TIMEOUT: Duration = Duration::from_secs(10);
+/// Initial poll interval for the bounded lock acquire; doubles up to
+/// [`LOCK_RETRY_BACKOFF_MAX`] so contention resolves fast without a busy-spin.
+const LOCK_RETRY_BACKOFF_START: Duration = Duration::from_millis(5);
+const LOCK_RETRY_BACKOFF_MAX: Duration = Duration::from_millis(100);
 
 #[derive(Debug, thiserror::Error)]
 pub enum WriterError {
@@ -17,6 +30,10 @@ pub enum WriterError {
     Corruption(String),
     #[error("witness chain integrity check failed (broken chain); refusing to append")]
     ChainBroken,
+    #[error(
+        "timed out after {0:?} waiting for the witness lock (a concurrent writer is holding it)"
+    )]
+    LockTimeout(Duration),
     #[error("witness root is a symlink; refusing to write: {path}")]
     SymlinkRoot { path: PathBuf },
     #[error(
@@ -26,6 +43,24 @@ pub enum WriterError {
         writer_scope: String,
         line_scope: String,
     },
+}
+
+/// RAII guard for the witness `.lock` flock (CIB-124). Releasing on `Drop` — which
+/// runs on a normal return **and** on an unwinding panic in the critical section —
+/// makes the release explicit rather than relying on the fd being dropped, so a
+/// future refactor cannot leave the lock held past its scope.
+#[derive(Debug)]
+struct LockGuard {
+    file: File,
+}
+
+impl Drop for LockGuard {
+    fn drop(&mut self) {
+        // Best-effort explicit unlock. The OS also releases the flock when the fd
+        // closes (on this `File`'s own drop, immediately after), so an error here
+        // is harmless — the lock is released either way.
+        let _ = FileExt::unlock(&self.file);
+    }
 }
 
 /// Threshold policy for active-file rollover.
@@ -142,12 +177,10 @@ impl WitnessWriter {
                 line_scope: line.scope.clone(),
             });
         }
-        let lock_file = self.acquire_lock()?;
-        let result = self.append_locked(line);
-        // Always release the lock; ignore unlock errors — the OS
-        // releases on fd close anyway.
-        let _ = FileExt::unlock(&lock_file);
-        result
+        // The guard releases the flock on drop (end of scope), including on a
+        // panic inside `append_locked` (CIB-124).
+        let _guard = self.acquire_lock()?;
+        self.append_locked(line)
     }
 
     /// Atomically read the verifiable chain head and append the line that
@@ -172,10 +205,10 @@ impl WitnessWriter {
         G: FnOnce() -> WitnessLine,
         F: FnOnce(u64, String) -> WitnessLine,
     {
-        let lock_file = self.acquire_lock()?;
-        let result = self.append_chained_locked(seed_genesis, build);
-        let _ = FileExt::unlock(&lock_file);
-        result
+        // The guard releases the flock on drop (end of scope), including on a
+        // panic inside the closures / `append_chained_locked` (CIB-124).
+        let _guard = self.acquire_lock()?;
+        self.append_chained_locked(seed_genesis, build)
     }
 
     fn append_chained_locked<G, F>(
@@ -283,11 +316,21 @@ impl WitnessWriter {
         }
     }
 
+    /// Acquire the exclusive flock with the default [`LOCK_ACQUIRE_TIMEOUT`].
+    fn acquire_lock(&self) -> Result<LockGuard, WriterError> {
+        self.acquire_lock_with_timeout(LOCK_ACQUIRE_TIMEOUT)
+    }
+
     /// Acquire the exclusive flock, refusing symlinks at every path we are about
     /// to write through (the witness root, the lock file, and the active file).
-    /// The lock is held via `fs2::FileExt::lock_exclusive` on the returned fd;
-    /// the caller unlocks it.
-    fn acquire_lock(&self) -> Result<File, WriterError> {
+    ///
+    /// CIB-124: retries `try_lock_exclusive` with capped backoff until it wins the
+    /// lock or `timeout` elapses, returning [`WriterError::LockTimeout`] rather
+    /// than blocking indefinitely — a stalled holder (or an NFS lock-server hang)
+    /// no longer wedges a concurrent `git commit`. The lock is released by the
+    /// returned [`LockGuard`] on drop (including on panic). `timeout` is a
+    /// parameter so the timeout path is testable without a multi-second wait.
+    fn acquire_lock_with_timeout(&self, timeout: Duration) -> Result<LockGuard, WriterError> {
         refuse_if_symlink(&self.witness_root())?;
         let lock_path = self.lock_path();
         refuse_if_symlink(&lock_path)?;
@@ -299,8 +342,25 @@ impl WitnessWriter {
             .write(true)
             .truncate(false)
             .open(&lock_path)?;
-        lock_file.lock_exclusive()?;
-        Ok(lock_file)
+
+        let deadline = Instant::now() + timeout;
+        let mut backoff = LOCK_RETRY_BACKOFF_START;
+        loop {
+            match lock_file.try_lock_exclusive() {
+                Ok(()) => return Ok(LockGuard { file: lock_file }),
+                // Contended — another writer holds it. Wait (bounded) and retry.
+                Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
+                    let now = Instant::now();
+                    if now >= deadline {
+                        return Err(WriterError::LockTimeout(timeout));
+                    }
+                    // Never oversleep the deadline.
+                    std::thread::sleep(backoff.min(deadline - now));
+                    backoff = (backoff * 2).min(LOCK_RETRY_BACKOFF_MAX);
+                }
+                Err(err) => return Err(WriterError::Io(err)),
+            }
+        }
     }
 
     /// Append one line; **the flock must already be held**. Scope-checks the line
@@ -794,6 +854,56 @@ mod tests {
             before,
             "a broken-chain refusal must not append anything",
         );
+    }
+
+    // ── CIB-124: bounded lock acquire + RAII release ────────────────────────
+
+    #[test]
+    fn acquire_lock_times_out_when_another_writer_holds_it() {
+        let dir = TempDir::new().unwrap();
+        let writer = WitnessWriter::open(dir.path(), "active", RolloverPolicy::default()).unwrap();
+
+        // Hold the lock. A second acquire cannot win — it must TIME OUT (bounded),
+        // not block indefinitely (the operations-HIGH the old `lock_exclusive` left).
+        let held = writer.acquire_lock().expect("first acquire wins");
+        let start = Instant::now();
+        let err = writer
+            .acquire_lock_with_timeout(Duration::from_millis(150))
+            .unwrap_err();
+        let waited = start.elapsed();
+        assert!(matches!(err, WriterError::LockTimeout(_)), "got {err:?}");
+        assert!(
+            waited >= Duration::from_millis(150) && waited < Duration::from_secs(3),
+            "must wait ~the timeout then give up, not hang: waited {waited:?}",
+        );
+
+        // Releasing the holder lets a fresh acquire win again.
+        drop(held);
+        writer
+            .acquire_lock()
+            .expect("acquire wins once the holder releases");
+    }
+
+    #[test]
+    fn panic_in_build_closure_releases_the_lock() {
+        let dir = TempDir::new().unwrap();
+        let writer = WitnessWriter::open(dir.path(), "active", RolloverPolicy::default()).unwrap();
+        // Seed a healthy chain so the next append reaches the `build` closure.
+        writer
+            .append_chained(genesis_seed, |seq, prev| fresh_line(seq, &prev))
+            .unwrap();
+
+        // A panic inside `build` must unwind through the `LockGuard`'s `Drop`,
+        // releasing the flock — not leave it wedged for the next writer.
+        let panicked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            writer.append_chained(genesis_seed, |_seq, _prev| panic!("boom in build"))
+        }));
+        assert!(panicked.is_err(), "the closure panic must propagate");
+
+        // If the lock were still held this would time out; it must win promptly.
+        writer
+            .acquire_lock_with_timeout(Duration::from_millis(500))
+            .expect("the lock was released on panic-unwind, so a fresh acquire wins");
     }
 
     #[test]

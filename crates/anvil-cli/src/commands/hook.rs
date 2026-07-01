@@ -1617,6 +1617,18 @@ where
                 );
                 AppendError::ChainBroken
             }
+            // CIB-124: the bounded lock acquire gave up — a concurrent writer held
+            // the `.lock` past the timeout (a wedged holder rather than a bug in
+            // this write). Distinct log so an operator can tell contention from a
+            // genuine write failure; still maps to `WriteFailed`.
+            timeout @ WriterError::LockTimeout(_) => {
+                tracing::warn!(
+                    target: "anvil::witness",
+                    error = %timeout,
+                    "witness lock acquire timed out; a concurrent writer is wedged",
+                );
+                AppendError::WriteFailed
+            }
             // Corruption (incl. a genesis that failed to re-verify), IO, scope, or
             // symlink refusal — "we couldn't witness this write" (ADR-038).
             other => {

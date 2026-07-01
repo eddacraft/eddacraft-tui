@@ -3355,7 +3355,18 @@ archive.
 
 ### CIB-124: Witness `acquire_lock` timeout + `Drop`-guard
 
-- **Status:** Ready
+- **Status:** In Progress — implemented 2026-07-01. `WitnessWriter::acquire_lock`
+  now polls `try_lock_exclusive` with capped backoff (5ms→100ms) up to a 10s
+  `LOCK_ACQUIRE_TIMEOUT`, returning the new `WriterError::LockTimeout(Duration)`
+  instead of blocking indefinitely; the held lock is a `LockGuard` RAII wrapper
+  that releases on `Drop` (including on panic). `acquire_lock_with_timeout(dur)`
+  is split out so the timeout path is testable without a 10s wait. Both the
+  embedded hook and the daemon (`save_time.rs::witness_append`) route through
+  `append_chained` → `acquire_lock`, so both are now bounded; the hook maps
+  `LockTimeout` → `WriteFailed` with a distinct log. Note: MLP2-005 phase 3
+  landed first (the ordering the phase-1 council flagged was inverted), so this
+  bounds the lock **before beta** rather than before the hook-fallback wiring —
+  the net protection is the same.
 - **Intent:** Stop a stalled witness writer from wedging concurrent committers,
   and make the flock release explicit on panic.
 - **Expected Outcome:** `WitnessWriter::acquire_lock`
