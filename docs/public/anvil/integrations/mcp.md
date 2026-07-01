@@ -24,9 +24,10 @@ validation path by default when the daemon is live (`ANVIL_WATCH_DAEMON=0` opts
 out; see the [save-time validation guide](../guides/save-time-validation.md) for
 the full routing story), so editor/agent MCP writes and terminal watch converge
 on one warm verdict path instead of two separate scanners. As of `v0.8.2-beta`,
-an interactive `anvil start` can auto-start that daemon and `anvil watch` can
-offer to start one, so the daemon-backed path is the normal one rather than
-something you launch by hand — see the
+on Linux and macOS an interactive `anvil start` can auto-start that daemon and
+`anvil watch` can offer to start one, so the daemon-backed path is the normal
+one rather than something you launch by hand. Windows still uses foreground
+daemon launch for now — see the
 [daemon lifecycle](../guides/save-time-validation.md#daemon-lifecycle).
 
 The legacy Node.js MCP server (`@eddacraft/anvil-mcp-server`, last published at
