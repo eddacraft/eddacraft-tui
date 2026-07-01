@@ -15,17 +15,18 @@ product-blocking was checked against `main` source before recording a verdict,
 rather than trusting the scanner's evidence line refs (which lag the tree).
 
 Three findings were dispositioned this session; open count **126 → 123**. The
-clawpatch state directory is gitignored (`.clawpatch/.gitignore` = `*` except
-`config.json`), so the verdicts live in local state and the durable record is
+clawpatch state directory is gitignored (`.clawpatch/.gitignore` ignores `*` and
+re-includes only `config.json` and `.gitignore` itself), so the verdicts live in
+local state and the durable record is
 this doc plus the exported audit JSON.
 
 ## Verdicts recorded (this session)
 
 | Finding | Verdict | Basis |
 | ------- | ------- | ----- |
-| `` `start --verify` `` not in local-probe auth bypass (medium, `anvil-cli/src/main.rs`) | **fixed** | Stale — CIB-049 already on `main` |
-| Adapter persists raw observations unredacted (high, `kindling-integration/adapter.ts`) | **wont-fix** | Distinct real defect on an unreachable (dead-code) path |
-| Sensitive keywords persisted unredacted (high, `kindling-integration/observation-contract.ts`) | **wont-fix** | Likely false-positive — local service redacts; detector is non-persisting by design |
+| `start --verify` not in local-probe auth bypass (medium, `crates/anvil-cli/src/main.rs`) | **fixed** | Stale — CIB-049 already on `main` |
+| Adapter persists raw observations unredacted (high, `packages/kindling-integration/src/adapter.ts`) | **wont-fix** | Distinct real defect on an unreachable (dead-code) path |
+| Sensitive keywords persisted unredacted (high, `packages/kindling-integration/src/observation-contract.ts`) | **wont-fix** | Likely false-positive — local service redacts; detector is non-persisting by design |
 
 ### 1. `start --verify` auth bypass — stale, marked `fixed`
 
