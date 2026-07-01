@@ -52,8 +52,7 @@ so the `status` below reflects the borrow, not the upstream project.
     vs creation-time policy enforcement). Note PIC invariants in the MLP2-071
     cross-session attribution spec. No APS module filed.
 
-- **source repo + link:** `DrakoLabs/drako` —
-  https://github.com/DrakoLabs/drako
+- **source repo + link:** `DrakoLabs/drako` — https://github.com/DrakoLabs/drako
   - **what to borrow/adopt:** SARIF export (concrete work item), `anvil bom` as
     a first-class surface (framing, needs its own scope-guard pass), and
     "current posture vs new regression" phrasing (docs only)
@@ -110,12 +109,12 @@ so the `status` below reflects the borrow, not the upstream project.
   - **status:** validating
   - **deep-dive:**
     [`plans/brainstorms/2026-06-03-meho-borrow-assessment.md`](../../plans/brainstorms/2026-06-03-meho-borrow-assessment.md)
-  - **assessment:** Decline the codebase, its runtime authorization seam, and its
-    Keycloak/Vault/Postgres topology (scope guard: Out). Validate the borrow only
-    after un-bundling it. No dependency; clean-room; cite as parallel evolution.
+  - **assessment:** Decline the codebase, its runtime authorization seam, and
+    its Keycloak/Vault/Postgres topology (scope guard: Out). Validate the borrow
+    only after un-bundling it. No dependency; clean-room; cite as parallel
+    evolution.
 
-- **source repo + link:** `rulehub/rulehub` —
-  https://github.com/rulehub/rulehub
+- **source repo + link:** `rulehub/rulehub` — https://github.com/rulehub/rulehub
   - **what to borrow/adopt:** evidence-bound control-mapping seam (pack →
     decision → evidence → export, recorded once and rendered many); ISO 42001 as
     a candidate framework (track); mapping advisory in CLI, structured-optional
