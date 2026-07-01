@@ -31,6 +31,19 @@ pub trait Surface<T: Theme = EddaCraftTheme> {
     fn should_back(&self) -> bool {
         false
     }
+    /// Whether the surface's current step captures free-text input.
+    ///
+    /// When `true`, the event loop maps key events with
+    /// [`crate::keyboard::KeyHandler::map_text_entry`] instead of
+    /// [`crate::keyboard::KeyHandler::map`], so printable characters
+    /// (including `h`/`j`/`k`/`l`/`q`/space) insert literally rather than being
+    /// interpreted as vim navigation. Defaults to `false` for the common
+    /// list-navigation surface; a surface with a path/name field overrides it
+    /// for that step. Adding this defaulted method is backward-compatible with
+    /// existing `impl Surface` blocks.
+    fn text_entry_active(&self) -> bool {
+        false
+    }
     /// Reset the surface for re-entry (e.g. after returning from a sub-surface).
     fn reset(&mut self) {}
     /// Render the surface content into the given area.
