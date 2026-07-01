@@ -18,9 +18,10 @@ sidebar_position: 5
 | `anvil insights`, the witness chain, and `anvil drift` snapshots under `.anvil/` | Operators tracking value signal; `--json` consumers (CI, dashboards, scripts) |
 
 `anvil insights` summarises the signal anvil has already collected for your
-project. It has three views: a default weekly activity summary, a suppression
-health view, and a drift trend. Every view supports `--json` for scripting and
-dashboards.
+project. It has three project-health views: a default weekly activity summary, a
+suppression health view, and a drift trend. Every view supports `--json` for
+scripting and dashboards. The current release window also adds local
+command-usage views under `anvil kindling usage`.
 
 ## Weekly activity (default)
 
@@ -105,6 +106,26 @@ per-week buckets, the `weeks_with_data` count, and a `sufficient_data` flag.
 
 `--suppressions` and `--drift` are mutually exclusive — pick one view per
 invocation.
+
+## Local command usage (`anvil kindling usage`)
+
+```bash
+anvil kindling usage
+```
+
+`anvil kindling usage` reads local command-invocation observations from the
+Kindling store. It is on-device only: command names and active feature-flag names
+are recorded, but argument values are not, and no telemetry is sent. Use it to
+answer questions like which anvil commands are being exercised and which feature
+flags were active during those runs.
+
+Operator controls:
+
+- `ANVIL_USAGE_DISABLE=1` or `DO_NOT_TRACK=1` disables the CLI
+  `command.invoked` producer.
+- `ANVIL_INTERCEPT_DISABLE_OBSERVATION=1` disables both CLI and daemon usage
+  producers.
+- `ANVIL_USAGE_SIDECAR_NO_TRIM=1` disables the lazy 7-day / 64 MiB sidecar trim.
 
 ## The first-week nudge
 

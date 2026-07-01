@@ -59,8 +59,8 @@ allowed vocabulary.
 - A current anvil install (see [Install](../quickstart.md#1-install)).
 - **Cursor** or **Claude Code** installed — one is enough. v1 ships MCP install
   for Cursor and Claude Code only; nothing else is wired.
-- A real TypeScript, JavaScript, or Rust project. SQL and Markdown get partial
-  coverage; Python is unsupported in this release and will land you on
+- A real TypeScript, JavaScript, Python, or Rust project. SQL and Markdown get
+  partial coverage; languages outside the supported or partial tiers land on
   `unsupported` honestly.
 - A clean working tree. `anvil start` is idempotent, but a clean tree makes the
   diff between "what was there before" and "what activation just wrote" obvious.
@@ -327,7 +327,7 @@ The six allowed literals, what each means, and the next user action:
 | `ready_restart_required` | MCP config written, but editor restart or daemon-state repair is still required.               | Follow the printed repair hint; re-run `anvil start --verify`.                      |
 | `watching`               | Pre-write MCP attachment not in evidence; daemon-backed or save-time fallback active (weaker). | Install Cursor or Claude Code if you want pre-write; or accept the fallback.        |
 | `needs_action`           | No literal protection claim possible; concrete next step exists.                               | Read the `next:` line below the diagnostic.                                         |
-| `unsupported`            | Repo languages are out of scope for this release (e.g. Python).                                | Scope anvil to a TS / JS / Rust subdirectory, or wait for further language support. |
+| `unsupported`            | Repo languages are out of scope for this release.                                              | Scope anvil to a supported subdirectory, or wait for further language support.      |
 | `error`                  | Activation hit a hard error.                                                                   | Read `last_error:` and the `next:` repair hint.                                     |
 
 This is the same vocabulary used by `anvil status --verify`, `anvil doctor`, and

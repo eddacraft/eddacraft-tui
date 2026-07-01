@@ -162,9 +162,9 @@ The diagnostic includes a per-language breakdown of your repo:
 
 `supported` is a claim with a stated basis, not a badge: for Rust it means the
 antipattern catalogue above plus secret detection run over your `.rs` files.
-Languages anvil cannot yet cover honestly say so (Python repos report
-`unsupported` in this release) — the profile never claims coverage it does not
-have.
+Languages anvil cannot yet cover honestly say so — the profile never claims
+coverage it does not have. Python now has its own supported analysis tier; this
+Rust tutorial focuses on `.rs` coverage only.
 
 Architecture and boundary checks for Rust — like every language — run when an
 `.anvil/architecture.yaml` is present; see
