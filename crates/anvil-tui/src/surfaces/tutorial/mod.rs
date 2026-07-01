@@ -968,6 +968,49 @@ mod tests {
     }
 
     #[test]
+    fn no_path_claims_pre_write_protection() {
+        // G-05: the LAUNCH-014 honesty pins only covered ProtectionLoop,
+        // so the four legacy paths (Policy / Architecture / Drift / CI)
+        // could re-introduce a present-tense "you are now protected"
+        // claim without any test noticing. Extend the forbidden-phrase
+        // guard across every path so copy drift on any of them fails CI.
+        // Only `anvil start --verify` may produce that claim.
+        for path in [
+            TutorialPath::ProtectionLoop,
+            TutorialPath::DeveloperAcceleration,
+            TutorialPath::Policy,
+            TutorialPath::Architecture,
+            TutorialPath::Drift,
+            TutorialPath::CI,
+        ] {
+            let mut state = TutorialState::new();
+            state.load_steps(path);
+            let body: String = state
+                .steps
+                .iter()
+                .map(|s| format!("{}\n{}\n{}", s.title, s.description, s.instruction))
+                .collect::<Vec<_>>()
+                .join("\n")
+                .to_lowercase();
+
+            for forbidden in [
+                "you are now protected",
+                "you're now protected",
+                "your repo is protected",
+                "pre-write validation enabled",
+                "pre-write validation active",
+                "anvil is now intercepting",
+            ] {
+                assert!(
+                    !body.contains(forbidden),
+                    "{path:?} copy must not include `{forbidden}` — only \
+                     `anvil start --verify` is allowed to produce that claim. body:\n{body}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn protection_loop_round_trips_through_label() {
         // The progress-file label round-trip must work for the new
         // path so completed-state checkmarks survive a process

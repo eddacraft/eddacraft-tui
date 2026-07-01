@@ -54,8 +54,9 @@ anvil start
 ```
 
 `anvil start` is the activation entrypoint: it runs `anvil init` if needed,
-baselines the repo, wires MCP entries for Cursor and Claude Code, and ends in
-one literal protection state:
+baselines the repo, wires MCP entries for the MCP-capable editors it supports
+today (currently Cursor and Claude Code), and ends in one literal protection
+state:
 
 - `protecting` — MCP pre-write validation is live
 - `ready_restart_required` — config is wired; restart your editor to pick it up

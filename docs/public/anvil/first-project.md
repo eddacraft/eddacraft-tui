@@ -13,10 +13,11 @@ intentional architecture boundaries.
 :::tip Activate first with `anvil start`
 
 If you just want the install-to-protection flow, run `anvil start` from the
-project root — it handles `anvil init`, MCP wiring for Cursor and Claude Code,
-and ends in one literal protection state. See the
-[Quickstart](/anvil/quickstart) for that path. This guide goes deeper into
-defining and enforcing architecture boundaries on top of that foundation.
+project root — it handles `anvil init`, MCP wiring for the MCP-capable editors
+it supports today (currently Cursor and Claude Code), and ends in one literal
+protection state. See the [Quickstart](/anvil/quickstart) for that path. This
+guide goes deeper into defining and enforcing architecture boundaries on top of
+that foundation.
 
 :::
 

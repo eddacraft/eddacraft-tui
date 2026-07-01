@@ -810,7 +810,7 @@ fn repair_hint(state: ProtectionState, d: &ActivationDiagnostic) -> Option<&'sta
                 )
             } else {
                 Some(
-                    "watch is the save-time fallback — to upgrade to pre-write validation, run `anvil mcp install` for Cursor or Claude Code.",
+                    "watch is the save-time fallback — to upgrade to pre-write validation, run `anvil mcp install` to wire up your MCP-capable editor (for example Cursor or Claude Code).",
                 )
             }
         }
@@ -822,7 +822,7 @@ fn repair_hint(state: ProtectionState, d: &ActivationDiagnostic) -> Option<&'sta
                 // composition (`anvil start --watch`) so the user does
                 // not have to discover the two surfaces independently.
                 Some(
-                    "run `anvil start` to wire Cursor and Claude Code MCP paths, or `anvil start --watch` for save-time fallback protection.",
+                    "run `anvil start` to wire your MCP-capable editor's MCP paths (for example Cursor or Claude Code), or `anvil start --watch` for save-time fallback protection.",
                 )
             } else {
                 Some("run `anvil start --verify` to re-check activation.")

@@ -1,8 +1,8 @@
 # Tutorial Subsystem — As-Built
 
-| Type     | Authority | Owner  | Status | Freshness                                                                                                                                                                |
-| -------- | --------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| As-built | Derived   | LAUNCH | Live   | Last reviewed 2026-06-10 (targeted delta review: showcase wiring, SCAN-004 provenance, pin sweep) against main `45dd1047a`; full review 2026-05-07 against `v0.6.0-beta` |
+| Type     | Authority | Owner  | Status | Freshness                                                                                                                                                                                                                                                                                          |
+| -------- | --------- | ------ | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | LAUNCH | Live   | Last reviewed 2026-07-02 (targeted delta review: all-paths honesty pin closing G-05, Policy-path Rego refresh correcting G-01, editor-name de-hardcode); prior 2026-06-10 (showcase wiring, SCAN-004 provenance, pin sweep) against main `45dd1047a`; full review 2026-05-07 against `v0.6.0-beta` |
 
 | Upstream                               | Downstream                                                                              |
 | -------------------------------------- | --------------------------------------------------------------------------------------- |
@@ -491,6 +491,10 @@ protection claims about the user's repo.
   property at the Action level.
 - `protection_loop_round_trips_through_label` (`mod.rs:958-965`) — pins the
   resumption seam for the new label.
+- `no_path_claims_pre_write_protection` — extends the forbidden-phrase honesty
+  guard across **all five** paths (not just ProtectionLoop), so copy drift on
+  any legacy path that re-introduces a present-tense protection claim now fails
+  CI. Closes G-05.
 
 ## Snapshot pinning (`snapshots/`)
 
@@ -591,12 +595,12 @@ The four legacy paths (Policy / Architecture / Drift / CI) were written before
 the LAUNCH series reframed activation. Concrete drift visible in the source
 today (`paths.rs:138-306`):
 
-- **Policy** still says "Policies are the rules that Anvil enforces on your
-  codebase. Each policy is a declarative YAML file" (`paths.rs:141-143`). The
-  `.anvil/policies/no-todos.yaml` walk is the original v0.4-era framing, not the
-  current scan/checks/findings framing the ProtectionLoop path uses. Step 4
-  ("Test the Policy") runs `anvil doctor` to verify the setup, which is
-  unrelated to policy testing.
+- **Policy** — since refreshed (2026-07-02 review): the intro now frames
+  policies as Rego (`.rego`) files run through the Open Policy Agent (OPA)
+  engine, and the walk creates `.anvil/policies/no-todos.rego`. Step 4 ("Test
+  the Policy") now runs `anvil policy test` (with an honest note that Rego test
+  execution is not yet wired in the Rust CLI, so `opa test .anvil/policies` is
+  the interim). The earlier "declarative YAML" / `anvil doctor` drift is gone.
 - **Architecture** asks the user to create `.anvil/architecture.yaml` with layer
   definitions (`paths.rs:194-197`). The "Choose a Template" language ("layered,
   hexagonal, modular") describes a template catalog the v0.6.0-beta CLI does not
@@ -637,19 +641,19 @@ activation crate; tutorial copy auto-corrects when the verifier output changes.
 
 Resolved (welcome.rs wiring, 2026-06-10 review) — see §Showcase.
 
-### G-05: Legacy-path copy is NOT under the LAUNCH-014 test-pin set
+### G-05: Legacy-path copy honesty pin (resolved — forbidden-phrase half)
 
-The two LAUNCH-014 pins
+Previously the two LAUNCH-014 pins
 (`protection_loop_copy_uses_activation_state_vocabulary`,
-`protection_loop_copy_does_not_claim_pre_write_protection`) only cover the
-ProtectionLoop body. Policy / Architecture / Drift / CI bodies have no
-equivalent pins — the pre-LAUNCH-014 tests (`policy_path_steps`, etc.,
-`paths.rs:330-396`) only assert step counts and titles. Future copy drift on the
-legacy paths will not break a test. **Risk:** Medium. The legacy paths could
-re-introduce "you are now protected"-style claims without CI noticing. **Fix:**
-Extend the pin set to forbid the same phrases across all five paths (cheap), and
-require each path's body to direct users at a verifier-equivalent (per-path
-target).
+`protection_loop_copy_does_not_claim_pre_write_protection`) only covered the
+ProtectionLoop body, so Policy / Architecture / Drift / CI could re-introduce a
+"you are now protected"-style claim without CI noticing.
+
+**Resolved (2026-07-02):** `no_path_claims_pre_write_protection` now runs the
+forbidden-phrase guard across all five paths. The remaining, optional half —
+requiring each legacy path's body to direct users at a per-path
+verifier-equivalent — is deferred; it is a copy-quality nicety, not a honesty
+risk, now that the false-claim guard covers every path.
 
 ### G-06: No `z` zoom in the tutorial surface
 
