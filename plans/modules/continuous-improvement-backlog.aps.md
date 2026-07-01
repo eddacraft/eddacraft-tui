@@ -3355,8 +3355,8 @@ archive.
 
 ### CIB-124: Witness `acquire_lock` timeout + `Drop`-guard
 
-- **Status:** In Progress — implemented 2026-07-01 (full 5-reviewer council;
-  blockers fixed in-PR). `WitnessWriter::acquire_lock` polls `try_lock_exclusive`
+- **Status:** Merged 2026-07-01 via PR #3021 (full 5-reviewer council; blockers
+  fixed in-PR). `WitnessWriter::acquire_lock` polls `try_lock_exclusive`
   with capped backoff (5ms→100ms) up to a `LOCK_ACQUIRE_TIMEOUT` (**5s** per
   acquire), returning the new `WriterError::LockTimeout(Duration)` instead of
   blocking indefinitely; the held lock is a `LockGuard` RAII wrapper that releases
