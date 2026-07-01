@@ -3,6 +3,7 @@ use ratatui::layout::Rect;
 use ratatui::style::Modifier;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, StatefulWidget, Widget};
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::theme::Theme;
 
@@ -136,19 +137,10 @@ impl<T: Theme> StatefulWidget for TextInput<'_, T> {
         let width = inner.width as usize;
         let cursor = state.cursor.min(state.value.len());
 
-        // Horizontal scrolling: find a visible_start so the cursor is in view.
-        let visible_start = {
-            let mut start = 0;
-            // Advance start until cursor fits within `width` columns.
-            while cursor.saturating_sub(start) >= width && start < state.value.len() {
-                // Move forward one char boundary.
-                start = state.value[start..]
-                    .char_indices()
-                    .nth(1)
-                    .map_or(state.value.len(), |(i, _)| start + i);
-            }
-            start
-        };
+        // Horizontal scrolling: find a byte offset `visible_start` so the
+        // cursor stays on screen. Measured in display columns, not bytes —
+        // see [`visible_window_start`].
+        let visible_start = visible_window_start(&state.value, cursor, width);
 
         let visible = &state.value[visible_start..];
 
@@ -173,6 +165,43 @@ impl<T: Theme> StatefulWidget for TextInput<'_, T> {
         ])
         .render(inner, buf);
     }
+}
+
+/// Byte offset into `value` at which the visible window should start so the
+/// cursor stays on screen in a field `width` **columns** wide.
+///
+/// The window is advanced one character at a time until the text preceding the
+/// cursor, plus the cursor cell itself, fits within `width` display columns.
+/// Distances are measured with [`unicode_width`] rather than byte offsets, so
+/// multi-byte characters (e.g. `é`, 2 bytes / 1 column) and wide characters
+/// (e.g. `世`, 3 bytes / 2 columns) scroll at the correct point instead of too
+/// early or too late (#1877).
+///
+/// The cursor cell occupies the display width of the character under it, so a
+/// wide glyph reserves two columns; otherwise a cursor sitting on a wide char
+/// in a narrow field could be left a single spare column, and ratatui skips a
+/// two-cell glyph that cannot fit — the cursor would vanish entirely.
+fn visible_window_start(value: &str, cursor: usize, width: usize) -> usize {
+    let cursor = cursor.min(value.len());
+    // Columns the cursor cell needs: the width of the char under it, or one
+    // for the end-of-input reversed space. `max(1)` guards a zero-width char.
+    let cursor_cols = value[cursor..]
+        .chars()
+        .next()
+        .and_then(UnicodeWidthChar::width)
+        .unwrap_or(1)
+        .max(1);
+    let budget = width.saturating_sub(cursor_cols);
+    let mut start = 0;
+    // `start < cursor` bounds the loop even when `budget == 0`, so it always
+    // terminates without a separate zero-width guard.
+    while start < cursor && UnicodeWidthStr::width(&value[start..cursor]) > budget {
+        start = value[start..]
+            .char_indices()
+            .nth(1)
+            .map_or(cursor, |(i, _)| start + i);
+    }
+    start
 }
 
 #[cfg(test)]
@@ -287,5 +316,110 @@ mod tests {
         assert_eq!(state.cursor(), 2);
         state.set_cursor(999); // past end, clamp
         assert_eq!(state.cursor(), 2);
+    }
+
+    #[test]
+    fn visible_window_start_scrolls_by_columns_for_ascii() {
+        // 10 ASCII columns, 5-wide field, cursor at end: keep the last 4
+        // columns plus the cursor cell (unchanged from the byte-based logic,
+        // since 1 byte == 1 column for ASCII).
+        assert_eq!(visible_window_start("abcdefghij", 10, 5), 6);
+    }
+
+    #[test]
+    fn visible_window_start_fits_without_scrolling() {
+        assert_eq!(visible_window_start("abc", 3, 10), 0);
+    }
+
+    #[test]
+    fn visible_window_start_measures_display_columns_not_bytes() {
+        // #1877: 5×'é' is 10 bytes but only 5 columns. In a 5-wide field with
+        // the cursor at the end, the correct window hides one 'é' (start=2) so
+        // 4 columns + the cursor fit. The old byte-based logic compared the
+        // 10-byte distance against 5 columns and scrolled to byte 6 — hiding
+        // three characters and wasting two columns.
+        let value = "ééééé";
+        assert_eq!(value.len(), 10, "each 'é' is two bytes");
+        assert_eq!(visible_window_start(value, value.len(), 5), 2);
+    }
+
+    #[test]
+    fn visible_window_start_accounts_for_wide_chars() {
+        // '世' is 3 bytes / 2 columns. 3×'世' = 9 bytes, 6 columns. A 5-wide
+        // field with the cursor at the end shows two '世' (4 columns) plus the
+        // cursor, starting at byte 3.
+        let value = "世世世";
+        assert_eq!(value.len(), 9);
+        assert_eq!(visible_window_start(value, value.len(), 5), 3);
+    }
+
+    #[test]
+    fn visible_window_start_terminates_at_zero_width() {
+        // Degenerate 0-column field: the `start < cursor` bound still
+        // terminates the loop (no infinite spin) and returns the cursor offset.
+        assert_eq!(visible_window_start("abc", 3, 0), 3);
+    }
+
+    #[test]
+    fn render_with_wide_chars_keeps_cursor_visible_without_panicking() {
+        use crate::theme::EddaCraftTheme;
+        use ratatui::buffer::Buffer;
+        use ratatui::layout::Rect;
+
+        let theme = EddaCraftTheme;
+        let mut state = TextInputState::default();
+        for _ in 0..8 {
+            state.insert('世'); // 8 wide chars, cursor at the end
+        }
+
+        let area = Rect::new(0, 0, 5, 1);
+        let mut buf = Buffer::empty(area);
+        TextInput::new(&theme).render(area, &mut buf, &mut state);
+
+        // The reversed cursor cell must land inside the 5-column field.
+        let cursor_visible =
+            (0..area.width).any(|x| buf[(x, 0)].modifier.contains(Modifier::REVERSED));
+        assert!(
+            cursor_visible,
+            "cursor cell must be visible within the field"
+        );
+    }
+
+    #[test]
+    fn visible_window_start_reserves_columns_for_a_wide_cursor_glyph() {
+        // #1877: with the cursor sitting on a wide (2-column) glyph in a narrow
+        // field, the window must reserve two columns for the cursor cell.
+        // "世世世世" is 4 wide chars (12 bytes / 8 columns); with the cursor
+        // before the 2nd glyph (byte 3) in a 3-column field, budgeting only one
+        // column would leave the 2-cell cursor glyph unrenderable.
+        assert_eq!(visible_window_start("世世世世", 3, 3), 3);
+    }
+
+    #[test]
+    fn render_wide_char_under_cursor_stays_visible_in_narrow_field() {
+        use crate::theme::EddaCraftTheme;
+        use ratatui::buffer::Buffer;
+        use ratatui::layout::Rect;
+
+        // Regression for the wide-cursor-glyph case: cursor ON a 2-column char
+        // in a 3-column field. Before the fix, ratatui skipped the 2-cell glyph
+        // that had only one spare column and the reversed cursor disappeared.
+        let theme = EddaCraftTheme;
+        let mut state = TextInputState::default();
+        for _ in 0..4 {
+            state.insert('世');
+        }
+        state.set_cursor(3); // on the 2nd wide glyph
+
+        let area = Rect::new(0, 0, 3, 1);
+        let mut buf = Buffer::empty(area);
+        TextInput::new(&theme).render(area, &mut buf, &mut state);
+
+        let cursor_visible =
+            (0..area.width).any(|x| buf[(x, 0)].modifier.contains(Modifier::REVERSED));
+        assert!(
+            cursor_visible,
+            "a wide glyph under the cursor must still be drawn in a narrow field"
+        );
     }
 }
