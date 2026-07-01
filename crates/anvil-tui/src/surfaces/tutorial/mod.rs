@@ -37,6 +37,10 @@ pub enum TutorialPath {
     /// LAUNCH-014: the value-first default. Demonstrates the loop in
     /// 60 seconds without claiming pre-write protection.
     ProtectionLoop,
+    /// The AI-assisted development loop: wiring an MCP-capable editor,
+    /// pre-write validation for the agent, the fast save-time loop, and the
+    /// graph context anvil exposes to the agent.
+    DeveloperAcceleration,
     Policy,
     Architecture,
     Drift,
@@ -47,6 +51,7 @@ impl TutorialPath {
     pub fn label(self) -> &'static str {
         match self {
             Self::ProtectionLoop => "anvil's protection loop",
+            Self::DeveloperAcceleration => "Developer acceleration",
             Self::Policy => "Policy checks",
             Self::Architecture => "Boundary findings",
             Self::Drift => "Configuration drift",
@@ -62,6 +67,7 @@ impl TutorialPath {
         // alias is required.
         match s {
             "anvil's protection loop" => Some(Self::ProtectionLoop),
+            "Developer acceleration" => Some(Self::DeveloperAcceleration),
             "Policy checks" | "Policy" => Some(Self::Policy),
             "Boundary findings" | "Architecture" => Some(Self::Architecture),
             "Configuration drift" | "Drift" => Some(Self::Drift),
@@ -74,6 +80,9 @@ impl TutorialPath {
         match self {
             Self::ProtectionLoop => {
                 "60-second walk: see what anvil checks, then activate in this repo"
+            }
+            Self::DeveloperAcceleration => {
+                "Wire your AI coding agent, validate its edits, and feed it graph context"
             }
             Self::Policy => "Define checks that produce findings and influence the gate",
             Self::Architecture => "See how boundary checks turn imports into actionable findings",
@@ -171,6 +180,7 @@ impl TutorialState {
             // rather than the deeper-learning taxonomy paths.
             paths: vec![
                 TutorialPath::ProtectionLoop,
+                TutorialPath::DeveloperAcceleration,
                 TutorialPath::Policy,
                 TutorialPath::Architecture,
                 TutorialPath::Drift,
@@ -262,6 +272,7 @@ impl TutorialState {
     pub fn load_steps(&mut self, path: TutorialPath) {
         self.steps = match path {
             TutorialPath::ProtectionLoop => paths::protection_loop_steps(),
+            TutorialPath::DeveloperAcceleration => paths::developer_acceleration_steps(),
             TutorialPath::Policy => paths::policy_steps(),
             TutorialPath::Architecture => paths::architecture_steps(),
             TutorialPath::Drift => paths::drift_steps(),
@@ -727,11 +738,12 @@ mod tests {
     fn starts_at_path_select() {
         let state = TutorialState::new();
         assert_eq!(state.phase, TutorialPhase::PathSelect);
-        // LAUNCH-014: paths now include the value-first
-        // ProtectionLoop default plus the four deeper-learning
-        // tracks. ProtectionLoop is index 0 / pre-selected.
-        assert_eq!(state.paths.len(), 5);
+        // LAUNCH-014: paths include the value-first ProtectionLoop default
+        // (index 0 / pre-selected), the developer-acceleration path, and the
+        // four deeper-learning tracks.
+        assert_eq!(state.paths.len(), 6);
         assert_eq!(state.paths[0], TutorialPath::ProtectionLoop);
+        assert_eq!(state.paths[1], TutorialPath::DeveloperAcceleration);
         assert_eq!(state.path_selected, 0);
         assert!(state.chosen_path.is_none());
     }
@@ -827,10 +839,11 @@ mod tests {
     fn back_from_running_sets_wants_back() {
         let mut state = TutorialState::new();
 
-        // LAUNCH-014 reordering: ProtectionLoop is index 0, Policy
-        // index 1, Architecture index 2. Press Down twice to land
-        // on Architecture so the original assertion still pins the
-        // running-phase exit semantics rather than path selection.
+        // Path order: ProtectionLoop(0), DeveloperAcceleration(1), Policy(2),
+        // Architecture(3), .... Press Down three times to land on Architecture
+        // so the assertion still pins running-phase exit semantics rather than
+        // path selection.
+        state.handle_key(Action::Down);
         state.handle_key(Action::Down);
         state.handle_key(Action::Down);
         state.handle_key(Action::Select);
@@ -962,6 +975,26 @@ mod tests {
         // existing four paths.)
         let path = TutorialPath::ProtectionLoop;
         assert_eq!(TutorialPath::from_label(path.label()), Some(path));
+    }
+
+    #[test]
+    fn all_paths_round_trip_through_label() {
+        // Every path's label must round-trip so progress-file checkmarks
+        // survive a restart — including the developer-acceleration path.
+        for path in [
+            TutorialPath::ProtectionLoop,
+            TutorialPath::DeveloperAcceleration,
+            TutorialPath::Policy,
+            TutorialPath::Architecture,
+            TutorialPath::Drift,
+            TutorialPath::CI,
+        ] {
+            assert_eq!(
+                TutorialPath::from_label(path.label()),
+                Some(path),
+                "label round-trip failed for {path:?}"
+            );
+        }
     }
 
     // --- Command execution tests ---

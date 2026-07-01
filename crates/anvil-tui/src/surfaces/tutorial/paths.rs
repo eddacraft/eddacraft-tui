@@ -151,6 +151,58 @@ pub fn protection_loop_steps() -> Vec<TutorialStep> {
     ]
 }
 
+/// The developer-acceleration path: anvil in the AI-assisted development loop.
+/// Teaches how anvil wires into an MCP-capable editor/agent, validates the
+/// agent's edits before they land, drives a fast save-time loop, and exposes
+/// graph context to the agent.
+///
+/// Terminology is deliberately generic: anvil supports specific editors today
+/// (Cursor, Claude Code) but the copy frames them as examples of MCP-capable
+/// editors, never as the only options.
+///
+/// Honesty: like the `ProtectionLoop` path, this walk never claims the user's
+/// repo is "protected" — the read-only `anvil start --verify` step is the only
+/// place a real `ProtectionState` appears.
+pub fn developer_acceleration_steps() -> Vec<TutorialStep> {
+    vec![
+        step(
+            "anvil in your AI dev loop",
+            "When an AI coding agent writes code, anvil sits in the loop three ways: it gives the agent graph context so it writes code that fits your project, it validates the agent's edits before they land, and it runs a fast save-time check so you catch issues in seconds instead of at CI. This walk wires those three up. It works with any MCP-capable editor or agent — Cursor and Claude Code today, others via `anvil mcp-config`.",
+            "Press enter to wire your agent.",
+        ),
+        step(
+            "Wire your agent over MCP",
+            "anvil talks to your editor/agent over MCP (the Model Context Protocol). `anvil start` writes the MCP entry for the MCP-capable editors it detects; for any other MCP client, `anvil mcp-config --target <editor>` prints (or writes, with --write) the config to drop in. Once wired, the agent can call anvil's tools — and anvil can validate what the agent is about to write. This step just explains the wiring; the next one inspects it read-only.",
+            "Press enter to check activation.",
+        ),
+        step_with_command(
+            "Pre-write validation for your agent",
+            "Run the read-only verifier. `anvil start --verify` probes your config, the MCP client entries of any MCP-capable editor it detects, the activation baseline, and the repo language profile, then prints one literal `ProtectionState` line. `protecting` means pre-write validation is live for your agent's edits; anything else names the next concrete step. It changes nothing — mutating activation is `anvil start` (no `--verify`).",
+            "Run: anvil start --verify",
+            "anvil start --verify",
+        ),
+        TutorialStep {
+            watch_demo: true,
+            ..step(
+                "The fast save-time loop",
+                "Pre-write validation catches the agent before a write; `anvil watch --source` closes the loop on everything else. It re-checks files as you (or the agent) save them and surfaces findings in seconds — your inner loop, not a CI round-trip. Here is the live watch dashboard: edit a file and watch it react.",
+                "Press enter to launch the watch demo.",
+            )
+        },
+        step_with_command(
+            "Graph context for your agent",
+            "anvil exposes your codebase's identity and graph context to the agent over MCP, so it writes code that respects your symbols and boundaries from the start. Source text stays local by default — only identity-level context is shared unless you opt in. `anvil gctx egress status` shows the effective snippet-egress state for this workspace and where it comes from. It is read-only.",
+            "Run: anvil gctx egress status",
+            "anvil gctx egress status",
+        ),
+        step(
+            "Wire it up for real",
+            "That is the loop: graph context in, pre-write validation on the agent's edits, and a fast save-time check for everything else. To make it live in this repo, run `anvil start` to wire your MCP-capable editor, then `anvil watch --source` for the save-time loop. Re-running `anvil start --verify` any time reports the honest state.",
+            "You have completed the developer-acceleration walk. Press enter to finish.",
+        ),
+    ]
+}
+
 pub fn policy_steps() -> Vec<TutorialStep> {
     vec![
         step(
@@ -341,6 +393,65 @@ mod tests {
         }
         let titles: Vec<&str> = steps.iter().map(|s| s.title.as_str()).collect();
         assert_eq!(titles, expected_titles);
+    }
+
+    #[test]
+    fn developer_acceleration_path_steps() {
+        let steps = developer_acceleration_steps();
+        assert_steps_valid(
+            &steps,
+            6,
+            &[
+                "anvil in your AI dev loop",
+                "Wire your agent over MCP",
+                "Pre-write validation for your agent",
+                "The fast save-time loop",
+                "Graph context for your agent",
+                "Wire it up for real",
+            ],
+        );
+    }
+
+    #[test]
+    fn developer_acceleration_uses_real_readonly_commands() {
+        let steps = developer_acceleration_steps();
+        // The two command steps run verified, read-only anvil subcommands.
+        assert_eq!(steps[2].command.as_deref(), Some("anvil start --verify"));
+        assert_eq!(
+            steps[4].command.as_deref(),
+            Some("anvil gctx egress status")
+        );
+        // The fast-loop step reuses the live watch demo.
+        assert!(
+            steps[3].watch_demo,
+            "fast-loop step launches the watch demo"
+        );
+    }
+
+    #[test]
+    fn developer_acceleration_copy_is_honest_and_generic() {
+        let body = developer_acceleration_steps()
+            .iter()
+            .map(|s| format!("{}\n{}\n{}", s.title, s.description, s.instruction))
+            .collect::<Vec<_>>()
+            .join("\n")
+            .to_lowercase();
+        // Honesty: never claims the user's repo is already protected.
+        for forbidden in [
+            "you are now protected",
+            "your repo is protected",
+            "pre-write validation enabled",
+        ] {
+            assert!(!body.contains(forbidden), "must not claim `{forbidden}`");
+        }
+        // The verifier is the only place a real state comes from.
+        assert!(body.contains("anvil start --verify"));
+        // Generic terminology: editor names appear only as examples, and the
+        // generic "mcp-capable" framing must be present.
+        assert!(
+            body.contains("mcp-capable"),
+            "copy should frame editors generically as MCP-capable"
+        );
     }
 
     #[test]

@@ -120,7 +120,7 @@ impl ScanResults {
     ///   is the honest v1 default).
     /// - Policy -> `AntiPattern` + Secret findings (policy rules catch these)
     /// - Architecture -> Architecture findings
-    /// - Drift / CI -> all findings (these are cross-cutting)
+    /// - Drift / CI / `DeveloperAcceleration` -> all findings (cross-cutting)
     #[must_use]
     pub fn filter_by_domain(&self, path: TutorialPath) -> ScanResults {
         let filtered_findings: Vec<Finding> = match path {
@@ -136,9 +136,10 @@ impl ScanResults {
                 .filter(|f| matches!(f.source, FindingSource::Architecture))
                 .cloned()
                 .collect(),
-            TutorialPath::ProtectionLoop | TutorialPath::Drift | TutorialPath::CI => {
-                self.findings.clone()
-            }
+            TutorialPath::ProtectionLoop
+            | TutorialPath::DeveloperAcceleration
+            | TutorialPath::Drift
+            | TutorialPath::CI => self.findings.clone(),
         };
         ScanResults {
             findings: filtered_findings,
@@ -892,6 +893,13 @@ mod tests {
     fn filter_by_domain_ci_gets_all() {
         let results = make_mixed_findings();
         let filtered = results.filter_by_domain(TutorialPath::CI);
+        assert_eq!(filtered.findings.len(), 3);
+    }
+
+    #[test]
+    fn filter_by_domain_developer_acceleration_gets_all() {
+        let results = make_mixed_findings();
+        let filtered = results.filter_by_domain(TutorialPath::DeveloperAcceleration);
         assert_eq!(filtered.findings.len(), 3);
     }
 
