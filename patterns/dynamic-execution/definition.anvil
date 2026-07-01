@@ -6,7 +6,7 @@ category: dynamic-execution
 targets: [source]
 related: [guardrail-suppression]
 tensions: []
-rules: [AP-008, AP-009]
+rules: [AP-008, AP-009, AP-017]
 ---
 
 ## What It Is
@@ -57,6 +57,14 @@ an `any` flows in, an attacker-controlled string can flow in.
   `eval(<dynamic>)`, `new Function(<anything>)`. The string being
   executed is either trivially attacker-controlled or
   indistinguishable-at-analysis-time from one that is.
+- **Hard fail — server-side template injection (severity error, on by
+  default):** compiling a template from a dynamic string
+  (`render_template_string(<dynamic>)`, `env.from_string(<dynamic>)`,
+  `nunjucks.renderString(<dynamic>)`) (AP-017). Template engines expose
+  object attributes and callables to the template, so a caller-controlled
+  *template source* is an eval-equivalent RCE vector (CWE-1336). The same
+  static-literal exemption as `eval` applies — a quoted literal first
+  argument does not fire.
 - **Subtle, off by default:**
   `Function.prototype.constructor` invocation via an inherited
   reference, dynamic `setTimeout`/`setInterval` string handlers,

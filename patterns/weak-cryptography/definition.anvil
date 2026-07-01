@@ -1,0 +1,132 @@
+---
+id: weak-cryptography
+type: definition
+name: Weak Cryptography
+category: insecure-construction
+targets: [source]
+related: [unsafe-rendering]
+tensions: []
+rules: [WC-001, WC-002, WC-003]
+---
+
+## What It Is
+
+Constructing code around a cryptographic primitive that is broken,
+deprecated, or misconfigured for the job it is doing. The mechanism
+varies — a hash function chosen for a security purpose it can no
+longer serve (`md5`, `sha1`), a cipher or mode with known structural
+weaknesses (`DES`, `RC4`, ECB), or a token library configured to skip
+verification entirely (JWT `alg: none`) — but the shape is the same: a
+primitive whose security guarantee has already been withdrawn is wired
+in as if it still held.
+
+This is a *construction* smell, not a taint finding (ADR-087). The
+detector reads the primitive off the call site — the algorithm name in
+a `createHash`/`getInstance` argument, the mode string on a cipher, the
+`alg` field on a token. It does not trace whether the value being
+hashed or encrypted is actually sensitive; it flags that the wrong tool
+was reached for.
+
+## Why It's Harmful
+
+- **Collision and preimage breaks are public.** MD5 and SHA-1 have
+  practical collision attacks (CWE-327/328). Using them for signatures,
+  integrity of security-relevant data, password hashing, or CSRF/session
+  tokens means an attacker can forge or substitute values the code
+  treats as authentic.
+- **Broken ciphers leak plaintext structure.** DES has a 56-bit key
+  brute-forceable in hours; RC4 has biased keystream output; ECB mode
+  encrypts identical blocks to identical ciphertext, so patterns in the
+  plaintext survive encryption (CWE-327). None of these provide the
+  confidentiality the caller assumes.
+- **`alg: none` disables the signature check.** A JWT verified with the
+  `none` algorithm accepts any token whose signature segment is empty —
+  authentication collapses to "trust the claims verbatim" (CWE-287). An
+  attacker mints an admin token by editing the payload.
+- **Agents reach for the first primitive they remember.** "Hash this"
+  becomes `md5`, "encrypt this" becomes a bare `DES`/ECB call, "sign a
+  token" copies an `alg: none` snippet from a debugging example. The
+  rule's job is to catch the deprecated choice at write-time and route
+  to the modern primitive before it ships.
+
+## The Spectrum
+
+- **Warn (severity warning, on by default):** all three rules —
+  deprecated hash primitives (WC-001), broken cipher/mode construction
+  (WC-002), and JWT `alg: none` (WC-003). Consistent with ADR-087 §6's
+  warnings-over-blocks posture (exit 0 by default, new-edges-only baseline),
+  every `insecure-construction` rule nudges rather than hard-blocks. WC-003
+  is the most clear-cut of the three (there is no legitimate production use
+  of `alg: none`), but it stays a warning both for posture consistency and
+  because the `alg`/`algorithm` key name is not unique to JWT — a warning is
+  suppressible when the match is an unrelated `algorithm: 'none'` config.
+  WC-001/WC-002 also have rare legitimate uses (MD5/SHA-1 as a *non-security*
+  checksum; DES/ECB inside a compatibility shim for a legacy peer).
+- **Benign (intentionally not flagged):** SHA-256/384/512, SHA-3,
+  BLAKE2/3, bcrypt/scrypt/argon2 for passwords, AES-GCM / ChaCha20-Poly1305
+  for encryption. The rules only name the deprecated primitives.
+- **Known false-positive surface:** the scanner is line-regex based and
+  does not strip comments or string bodies, so `md5` named inside a
+  comment, a variable literally called `md5sum`, or an MD5 checksum used
+  purely for cache-key/dedup (not security) will trip WC-001. Suppress
+  those with the standard directive or the per-file allowlist.
+
+## The Right Response
+
+Replace the deprecated primitive with a modern one that still holds its
+guarantee:
+
+1. **Integrity / signatures / general hashing** — SHA-256 or better
+   (`createHash('sha256')`, `hashlib.sha256`, `MessageDigest.getInstance("SHA-256")`).
+2. **Password storage** — a slow, salted KDF: argon2id, scrypt, or
+   bcrypt. Never a bare hash, however modern.
+3. **Symmetric encryption** — an authenticated mode: AES-256-GCM or
+   ChaCha20-Poly1305 with a unique nonce per message. Never ECB.
+4. **JWTs** — pin an explicit algorithm allowlist on *verify*
+   (`algorithms: ['RS256']` / `['HS256']`) and never include `none`. Reject
+   tokens whose header algorithm is not on the list.
+
+If a deprecated primitive must stay for a genuinely non-security reason
+(a checksum against accidental corruption, interop with a frozen legacy
+peer), document why adjacent to the call and suppress the specific rule
+with a reason.
+
+## Detection Signals
+
+- **Lexical:** the deprecated algorithm name inside a hash/cipher
+  construction call — `createHash('md5')`, `hashlib.sha1(`,
+  `MessageDigest.getInstance("SHA1")` (WC-001); a broken cipher/mode in a
+  `createCipheriv`/`Cipher.getInstance` argument or `MODE_ECB` /
+  `DES.new(` (WC-002); an `alg`/`algorithm(s)` field set to `none`
+  (WC-003).
+- **Allowlisted contexts:** test files (`*.test.ts`, `*.spec.ts`,
+  `__tests__/`, `test_*.py`, `*_test.py`, `tests/`) and `explain/`
+  fixtures opt out — they often demonstrate the weak primitive
+  intentionally.
+- **Negative signals (do not fire):** strong primitives (SHA-256+,
+  AES-GCM, argon2/bcrypt/scrypt); an explicit non-`none` JWT algorithm.
+- **NOT a negative signal:** comments and string-literal bodies are not
+  filtered (line-regex scanner) — an `md5` in a comment or a non-security
+  checksum will trip WC-001; suppress or rewrite.
+
+## Example
+
+```ts
+// WC-001 trips (deprecated hash in a security context):
+import { createHash } from 'node:crypto';
+const token = createHash('md5').update(secret).digest('hex');
+const sig = createHash('sha1').update(payload).digest('hex');
+
+// WC-002 trips (broken cipher / ECB mode):
+const cipher = crypto.createCipheriv('des-ecb', key, null);
+const legacy = crypto.createCipheriv('aes-256-ecb', key, null);
+
+// WC-003 trips (signature verification disabled):
+const decoded = jwt.verify(raw, key, { algorithms: ['none'] });
+const header = { alg: 'none', typ: 'JWT' };
+
+// Does NOT trip (modern primitives):
+const digest = createHash('sha256').update(payload).digest('hex');
+const aead = crypto.createCipheriv('aes-256-gcm', key, iv);
+const ok = jwt.verify(raw, key, { algorithms: ['RS256'] });
+```

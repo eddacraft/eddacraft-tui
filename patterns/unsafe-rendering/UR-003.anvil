@@ -1,0 +1,51 @@
+---
+id: UR-003
+type: rule
+family: unsafe-rendering
+title: React dangerouslySetInnerHTML
+version: 1
+
+severity: warning
+confidence: medium
+spectrum_position: 3
+
+targets: [source]
+file_extensions: [.ts, .tsx, .js, .jsx, .mjs, .cjs]
+allowlist:
+  [
+    '**/*.test.ts',
+    '**/*.test.tsx',
+    '**/*.test.js',
+    '**/*.test.jsx',
+    '**/*.spec.ts',
+    '**/*.spec.tsx',
+    '**/*.spec.js',
+    '**/*.spec.jsx',
+    '**/__tests__/**',
+    '**/tests/**',
+    '**/explain/**',
+  ]
+
+detection:
+  type: regex
+  pattern: 'dangerouslySetInnerHTML'
+
+related: [UR-001, UR-002]
+enabled: true
+opt_in: false
+---
+
+You're using `dangerouslySetInnerHTML`, which opts the value out of
+React's automatic escaping and injects it as raw HTML. React escapes
+normal children by default; this prop is the deliberate bypass, and it is
+the most common way XSS re-enters an otherwise-safe React app (CWE-79).
+
+If you're rendering text or structure, pass the value as a normal child
+(`<div>{value}</div>`) and let React escape it. If you genuinely need
+rich HTML from dynamic input, run it through DOMPurify (or an equivalent
+allowlist sanitiser) and pass only the sanitiser's output to
+`dangerouslySetInnerHTML` — keep the sanitise call adjacent so review can
+see it.
+
+If the `__html` value is a static, developer-authored constant, suppress
+UR-003 with a reason noting the input is not dynamic.

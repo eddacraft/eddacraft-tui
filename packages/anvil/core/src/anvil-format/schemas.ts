@@ -35,7 +35,8 @@ export type KnownCategory =
   | 'type-evasion'
   | 'error-handling'
   | 'accountability'
-  | 'deferred-debt';
+  | 'deferred-debt'
+  | 'insecure-construction';
 
 export const KNOWN_CATEGORIES: readonly KnownCategory[] = [
   'escape-hatch',
@@ -43,6 +44,10 @@ export const KNOWN_CATEGORIES: readonly KnownCategory[] = [
   'error-handling',
   'accountability',
   'deferred-debt',
+  // ADR-087 / INSEC-001: security-class families (weak-cryptography,
+  // unsafe-rendering). Kept as a *known* category so the Rust scanner maps
+  // it to a first-class variant instead of the `code-quality` fallback.
+  'insecure-construction',
 ];
 
 const CategorySchema = z

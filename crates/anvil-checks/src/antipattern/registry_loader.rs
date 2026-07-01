@@ -398,6 +398,7 @@ fn map_category(anvil_category: &str) -> AntiPatternCategory {
         "type-evasion" => AntiPatternCategory::TypeEvasion,
         "accountability" => AntiPatternCategory::Accountability,
         "deferred-debt" => AntiPatternCategory::DeferredDebt,
+        "insecure-construction" => AntiPatternCategory::InsecureConstruction,
         _ => AntiPatternCategory::CodeQuality,
     }
 }
@@ -714,6 +715,14 @@ mod tests {
         assert_eq!(
             compiled_to_antipattern(&cp).unwrap().category,
             AntiPatternCategory::ErrorHandling
+        );
+
+        // INSEC-001: the new security category resolves to its own variant
+        // rather than falling through to the `code-quality` default.
+        cp.category = "insecure-construction".to_string();
+        assert_eq!(
+            compiled_to_antipattern(&cp).unwrap().category,
+            AntiPatternCategory::InsecureConstruction
         );
 
         cp.category = "made-up".to_string();

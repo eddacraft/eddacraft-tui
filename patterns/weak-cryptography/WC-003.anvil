@@ -1,0 +1,50 @@
+---
+id: WC-003
+type: rule
+family: weak-cryptography
+title: JWT configured with the `none` algorithm
+version: 1
+
+severity: warning
+confidence: high
+spectrum_position: 3
+
+targets: [source]
+file_extensions: [.ts, .tsx, .js, .jsx, .mjs, .cjs, .py, .java]
+allowlist:
+  [
+    '**/*.test.ts',
+    '**/*.test.tsx',
+    '**/*.spec.ts',
+    '**/*.spec.tsx',
+    '**/__tests__/**',
+    '**/test_*.py',
+    '**/*_test.py',
+    '**/tests/**',
+    '**/explain/**',
+  ]
+
+detection:
+  type: regex
+  pattern: "\\balg(?:orithm)?s?[\"']?\\s*[:=]\\s*\\[?\\s*[\"']none[\"']"
+  flags: i
+
+related: [WC-001]
+enabled: true
+opt_in: false
+---
+
+You're wiring a JSON Web Token to the `none` algorithm. A token verified
+with `none` has no signature to check — verification accepts any token
+whose signature segment is empty, so anyone can mint one by editing the
+claims. This is authentication turned off, not weakened.
+
+On *verify*, pin an explicit algorithm allowlist and never include
+`none`: `jwt.verify(raw, key, { algorithms: ['RS256'] })` /
+`jwt.decode(raw, key, algorithms=['HS256'])`. Reject any token whose
+header algorithm is not on your list — an attacker controls the header,
+so trusting it is the vulnerability.
+
+The only legitimate `none` use is an unsigned token you never treat as
+authenticated (rare). If that is genuinely the case, keep it isolated
+from any trust decision and suppress WC-003 with a reason.

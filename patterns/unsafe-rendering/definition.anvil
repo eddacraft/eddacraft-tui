@@ -1,0 +1,130 @@
+---
+id: unsafe-rendering
+type: definition
+name: Unsafe Rendering
+category: insecure-construction
+targets: [source]
+related: [weak-cryptography]
+tensions: []
+rules: [UR-001, UR-002, UR-003]
+---
+
+## What It Is
+
+Writing a value into a markup or execution sink that parses it as HTML.
+The sink varies — assigning a string to `.innerHTML`/`.outerHTML`,
+calling `document.write(...)`, passing `dangerouslySetInnerHTML` in JSX —
+but the behaviour is the same: a string becomes live DOM. If any part of
+that string is attacker-influenced and unsanitised, the browser will run
+injected `<script>`, event handlers, or `javascript:` URLs in the page's
+origin. This is the DOM-XSS sink class (CWE-79).
+
+This is a *construction* smell, not a taint finding (ADR-087). The
+detector flags that a value is being written to a raw-HTML sink; it does
+**not** trace whether that value is actually attacker-controlled or
+whether it was sanitised first. A sink fed only by a trusted constant is
+safe — the rule surfaces the sink so a human confirms the input contract,
+and routes toward `textContent` / a framework-escaped binding / a
+sanitiser when the input is dynamic.
+
+## Why It's Harmful
+
+- **Raw-HTML sinks execute markup.** `el.innerHTML = userInput` parses
+  the string as HTML. `<img src=x onerror=steal()>` and friends run in
+  the page origin — session cookies, DOM, tokens, and any authenticated
+  API the page can reach are exposed (CWE-79).
+- **`document.write` is doubly dangerous.** Beyond XSS, it can rewrite
+  the whole document after load and blocks the parser; the string is
+  parsed as HTML with the same injection surface.
+- **`dangerouslySetInnerHTML` opts out of React's escaping.** React
+  escapes interpolated children by default; this prop is the deliberate
+  bypass. It is the single most common way XSS re-enters a React app that
+  was otherwise safe by construction.
+- **Agents reach for `innerHTML` to "render some HTML".** Asked to
+  insert markup, an agent writes `.innerHTML =` because it is the
+  shortest path, not because the input is trusted. Catching the sink at
+  write-time is the point.
+
+## The Spectrum
+
+- **Warn (severity warning, on by default):** all three sinks — an
+  `.innerHTML`/`.outerHTML` assignment (UR-001), `document.write(`
+  (UR-002), `dangerouslySetInnerHTML` (UR-003). They warn rather than
+  block because a sink fed by a trusted constant or a value already run
+  through a sanitiser (DOMPurify) is legitimate; the assumption is that
+  most uses are not.
+- **Benign (intentionally not flagged):** `textContent` /
+  `innerText` assignment (these escape by construction), React's default
+  `{value}` child interpolation, a framework template binding, and any
+  sink whose value is passed through a sanitiser — the rules name the raw
+  sinks only.
+- **Known false-positive surface:** the scanner is line-regex based and
+  does not strip comments, string bodies, or resolve the value's origin.
+  `// el.innerHTML = ...` in a comment, an `.innerHTML =` fed by a static
+  literal, or a `dangerouslySetInnerHTML` wrapping a DOMPurify call will
+  all trip. Suppress those with the standard directive or the per-file
+  allowlist.
+
+## The Right Response
+
+Prefer a sink that does not parse HTML, or escape/sanitise before the
+raw sink:
+
+1. **Inserting text** — assign `el.textContent = value` (or
+   `el.innerText`). These never parse markup; injected tags render as
+   literal text.
+2. **Building structure** — create elements
+   (`document.createElement` + `append`) and set text/attributes
+   individually, so no string is ever parsed as HTML.
+3. **You genuinely need rich HTML from dynamic input** — run it through a
+   vetted sanitiser (DOMPurify) with an allowlist, immediately before the
+   sink, and keep the sanitise-then-assign together so review can see it.
+4. **React** — pass the value as a normal escaped child (`{value}`).
+   Reserve `dangerouslySetInnerHTML` for sanitiser output only.
+
+If the value is a compile-time constant you control end to end, keep the
+sink and suppress the specific rule with a reason noting the input is
+static.
+
+## Detection Signals
+
+- **Lexical:** an assignment to `.innerHTML`/`.outerHTML` (`=` or `+=`,
+  not `==`/`===`) whose right-hand side is not a quoted string literal
+  (UR-001 — like `eval`, it skips `= '...'`/`= "..."`, including the
+  `= ''` clearing idiom, but still fires on template literals and
+  expressions); a `document.write(`/`document.writeln(` call (UR-002); the
+  literal `dangerouslySetInnerHTML` (UR-003).
+- **Allowlisted contexts:** test files (`*.test.ts`, `*.spec.ts`,
+  `__tests__/`) and `explain/` fixtures opt out — they demonstrate the
+  sink intentionally.
+- **Scope:** JavaScript/TypeScript extensions only (`.ts`, `.tsx`, `.js`,
+  `.jsx`, `.mjs`, `.cjs`) — these sinks are meaningless outside a DOM, and
+  `.html`/`.css` are retired from the scan set, so the sinks are caught in
+  the script code that assigns them, not in markup files.
+- **Negative signals (do not fire):** `.textContent`/`.innerText`
+  assignment; equality comparison (`.innerHTML === ...`); React's default
+  child interpolation.
+- **NOT a negative signal:** comments and string bodies are not filtered
+  (line-regex scanner); a sink in a comment or fed by a static literal
+  will trip — suppress or rewrite.
+
+## Example
+
+```tsx
+// UR-001 trips (raw-HTML sink assignment, dynamic RHS):
+el.innerHTML = userProvidedMarkup;        // identifier RHS
+row.innerHTML = `<td>${cell}</td>`;       // template literal RHS
+
+// UR-002 trips (document.write):
+document.write(location.hash);
+
+// UR-003 trips (React escape bypass):
+<div dangerouslySetInnerHTML={{ __html: comment.body }} />;
+
+// Does NOT trip (safe sinks / comparisons / quoted literals):
+el.textContent = userProvidedMarkup;      // escapes by construction
+if (el.innerHTML === '') resetView();     // comparison, not assignment
+container.innerHTML = '';                 // quoted literal (clearing) — skipped like eval
+el.innerHTML = '<hr>';                    // static quoted literal — skipped
+<div>{comment.body}</div>;                // React escapes by default
+```

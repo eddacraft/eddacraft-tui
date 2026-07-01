@@ -1,0 +1,57 @@
+---
+id: UR-001
+type: rule
+family: unsafe-rendering
+title: Assignment to innerHTML / outerHTML
+version: 1
+
+severity: warning
+confidence: medium
+spectrum_position: 1
+
+targets: [source]
+file_extensions: [.ts, .tsx, .js, .jsx, .mjs, .cjs]
+allowlist:
+  [
+    '**/*.test.ts',
+    '**/*.test.tsx',
+    '**/*.test.js',
+    '**/*.test.jsx',
+    '**/*.spec.ts',
+    '**/*.spec.tsx',
+    '**/*.spec.js',
+    '**/*.spec.jsx',
+    '**/__tests__/**',
+    '**/tests/**',
+    '**/explain/**',
+  ]
+
+detection:
+  type: regex
+  pattern: '\.(?:inner|outer)HTML\s*\+?=\s*(?:[^\s''"=]|[''"][^''"]*[''"]\s*\+)'
+
+related: [UR-002, UR-003]
+enabled: true
+opt_in: false
+---
+
+You're assigning a string to `.innerHTML`/`.outerHTML`, which parses it
+as live HTML. If any part of that string is attacker-influenced and
+unsanitised, injected markup — `<img src=x onerror=...>`, inline
+handlers, `javascript:` URLs — runs in the page's origin (DOM-XSS,
+CWE-79).
+
+If you're inserting text, assign `el.textContent = value` instead — it
+never parses markup. If you need structure, build it with
+`document.createElement` + `append` and set text/attributes individually.
+If you genuinely need rich HTML from dynamic input, sanitise it with
+DOMPurify immediately before the assignment and keep the two together.
+
+This rule fires on assignment, not on `.innerHTML === ...` comparisons. It
+skips a right-hand side that is a *pure* single- or double-quoted string
+literal (`el.innerHTML = ''` to clear a node, or a static `'<b>…</b>'`
+snippet you control), but it **does** fire on a literal that is then
+concatenated with something else (`el.innerHTML = '<b>' + name`) — the
+classic literal-prefixed DOM-XSS shape — as well as on template-literal and
+identifier/expression right-hand sides. If a flagged value is in fact a
+constant you control end to end, suppress UR-001 with a reason.

@@ -280,6 +280,11 @@ pub enum AntiPatternCategory {
     TypeEvasion,
     Accountability,
     DeferredDebt,
+    /// Security-class anti-patterns that construct code insecurely (weak
+    /// crypto primitives, DOM-XSS sinks, JWT misuse). Populated by the
+    /// `insecure-construction` families per ADR-087. Distinct from the SEC
+    /// CI-pipeline module and deliberately *not* a taint-based SAST category.
+    InsecureConstruction,
     Html,
     Css,
 }

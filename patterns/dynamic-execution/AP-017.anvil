@@ -1,0 +1,56 @@
+---
+id: AP-017
+type: rule
+family: dynamic-execution
+title: Server-side template injection (dynamic template string)
+version: 1
+
+severity: error
+confidence: medium
+spectrum_position: 3
+
+targets: [source]
+file_extensions: [.py, .js, .ts, .jsx, .tsx, .mjs, .cjs]
+allowlist:
+  [
+    '**/*.test.ts',
+    '**/*.test.tsx',
+    '**/*.spec.ts',
+    '**/*.spec.tsx',
+    '**/__tests__/**',
+    '**/test_*.py',
+    '**/*_test.py',
+    '**/tests/**',
+    '**/explain/**',
+  ]
+
+detection:
+  type: regex
+  pattern: '(?:render_template_string|\.from_string|nunjucks\.renderString)\s*\(\s*(?:[A-Za-z_$`]|[''"][^''"]*[''"]\s*\+)'
+
+related: [AP-008, AP-009]
+enabled: true
+opt_in: false
+---
+
+You're compiling a template from a dynamic string. Server-side template
+injection (SSTI, CWE-1336) is the template-engine cousin of `eval`: Jinja,
+Nunjucks, and friends expose object attributes and callables from inside
+the template, so an attacker who controls the *template source* — not just
+the data — can reach `__globals__` / `constructor` and pivot to arbitrary
+code execution.
+
+The first character inside the call is an identifier (a variable, call, or
+f-string), which means the template body is not a static literal you
+control. Render a **fixed** template and pass untrusted values as *data*
+instead: `render_template('page.html', name=user_name)` /
+`nunjucks.render('page.njk', { name })`. The engine escapes data by
+contract; it does not escape a template you hand it.
+
+If you genuinely need user-authored templates, run them in a sandboxed
+environment (Jinja's `SandboxedEnvironment`, a locked-down Nunjucks
+sandbox) and treat that surface as a security boundary. A *pure* static
+literal argument (`render_template_string('<h1>Static</h1>')`) is skipped —
+the leading character inside the parens is a quote — but a literal that is
+then concatenated (`render_template_string('Hi ' + name)`) still fires,
+since that is the literal-prefixed SSTI shape.

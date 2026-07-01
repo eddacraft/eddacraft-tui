@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "compiled_at": "2026-06-26T16:23:30.387Z",
+  "compiled_at": "2026-07-01T12:00:59.172Z",
   "source_root": "patterns",
   "patterns": [
     {
@@ -321,6 +321,43 @@
       "explanation": "- Type checking is disabled for the value and everything derived from\n  it. `any` propagates — assign an `any` to a variable, and that\n  variable is now `any` too. One `any` at the top of a data flow can\n  gut type safety for an entire module.\n- Refactoring becomes unsafe. The type system can't tell you what\n  breaks when you change a type, because the `any` values won't\n  generate errors. You find out at runtime, in production.\n- IDE features degrade. Autocomplete, go-to-definition, and inline\n  errors all depend on type information. `any` gives them nothing to\n  work with.\n- It hides design decisions. When a function parameter is `any`, the\n  contract is \"I accept anything\" — but that's almost never true. The\n  actual contract is implicit and undocumented.\n- AI agents reach for `any` as the path of least resistance. When an\n  agent encounters a complex generic signature or a type mismatch, `any`\n  is the fastest way to make the error disappear. The code compiles,\n  the tests pass (if they exist), and the type safety hole goes\n  unnoticed until something breaks.",
       "suggestion": "Think about what the value actually is. Don't use `any` as a shortcut\nfor \"I don't want to deal with types right now.\"\n\n1. **For API responses:** Define an interface for the response shape.\n   Use a runtime validator (Zod, io-ts, ArkType) at the boundary to\n   narrow `unknown` to your interface.\n\n2. **For `JSON.parse()`:** The return type is `unknown` (or `any` in\n   older TS). Parse into `unknown`, then validate with a schema.\n\n3. **For complex generics:** Consider whether the type design is too\n   complex. Can you simplify with a type alias? Can you break the\n   generic chain with an intermediate type?\n\n4. **For JS migration:** Use `any` temporarily but track it. Add a\n   `// TODO(types): ...` comment with a ticket reference. Set a team\n   goal for eliminating `any` in migrated modules.\n\n5. **If the type is genuinely unknown:** Use `unknown` over `any` in\n   the type annotation (this is what AP-003 nudges toward). `unknown`\n   forces you to narrow before use, which is exactly the right behaviour\n   for a value whose shape you don't know.\n\n   At the *schema boundary*, `z.unknown()` carries the same trade-off:\n   it is the safest Zod escape hatch (consumers must still narrow), but\n   it accepts any value at runtime and gives the schema no contract to\n   validate. AP-015 leaves `z.unknown()` alone by default for exactly\n   that reason; the opt-in rule AP-016 flags it for codebases that want\n   every schema field to carry a contract. Treat `z.unknown()` as\n   debt-with-a-narrowing-discipline, not a destination.",
       "definition_ref": "patterns/type-system-evasion/definition.anvil",
+      "tensions": [],
+      "related_families": ["guardrail-suppression"]
+    },
+    {
+      "id": "AP-017",
+      "family": "dynamic-execution",
+      "title": "Server-side template injection (dynamic template string)",
+      "version": 1,
+      "severity": "error",
+      "confidence": "medium",
+      "spectrum_position": 3,
+      "targets": ["source"],
+      "detection": {
+        "type": "regex",
+        "pattern": "(?:render_template_string|\\.from_string|nunjucks\\.renderString)\\s*\\(\\s*(?:[A-Za-z_$`]|['\"][^'\"]*['\"]\\s*\\+)"
+      },
+      "file_extensions": [".py", ".js", ".ts", ".jsx", ".tsx", ".mjs", ".cjs"],
+      "allowlist": [
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*.spec.ts",
+        "**/*.spec.tsx",
+        "**/__tests__/**",
+        "**/test_*.py",
+        "**/*_test.py",
+        "**/tests/**",
+        "**/explain/**"
+      ],
+      "nudge": "You're compiling a template from a dynamic string. Server-side template\ninjection (SSTI, CWE-1336) is the template-engine cousin of `eval`: Jinja,\nNunjucks, and friends expose object attributes and callables from inside\nthe template, so an attacker who controls the *template source* — not just\nthe data — can reach `__globals__` / `constructor` and pivot to arbitrary\ncode execution.\n\nThe first character inside the call is an identifier (a variable, call, or\nf-string), which means the template body is not a static literal you\ncontrol. Render a **fixed** template and pass untrusted values as *data*\ninstead: `render_template('page.html', name=user_name)` /\n`nunjucks.render('page.njk', { name })`. The engine escapes data by\ncontract; it does not escape a template you hand it.\n\nIf you genuinely need user-authored templates, run them in a sandboxed\nenvironment (Jinja's `SandboxedEnvironment`, a locked-down Nunjucks\nsandbox) and treat that surface as a security boundary. A *pure* static\nliteral argument (`render_template_string('<h1>Static</h1>')`) is skipped —\nthe leading character inside the parens is a quote — but a literal that is\nthen concatenated (`render_template_string('Hi ' + name)`) still fires,\nsince that is the literal-prefixed SSTI shape.",
+      "related": ["AP-008", "AP-009"],
+      "enabled": true,
+      "opt_in": false,
+      "family_name": "Dynamic Execution",
+      "category": "dynamic-execution",
+      "explanation": "- Runtime code execution from a dynamic string is the textbook\n  arbitrary-code-execution antipattern. Any path that lets an\n  attacker influence the input — query params, request bodies,\n  localStorage, hostnames — becomes a remote-code-execution vector.\n  Static analysis cannot prove the input is benign.\n- The dynamically-compiled code runs in the surrounding scope's\n  privileges. In a browser, that includes the user's session\n  cookies, DOM, and IndexedDB; in Node, the filesystem, network,\n  and child-process surface. There is no sandbox.\n- Bundlers, minifiers, and tree-shakers cannot reason about\n  dynamically-evaluated code. References inside the string look\n  unused to the static graph, so production builds can silently\n  strip the only callers and crash at runtime — or worse, leave\n  the eval'd code paths un-minified and traceable.\n- Performance: most JavaScript engines deoptimise enclosing\n  functions when `eval` appears in scope, because the engine can\n  no longer prove that local variable accesses won't be intercepted\n  by the eval'd code. The cost falls on the surrounding hot path,\n  not just the eval call.\n- AI agents reach for `eval(input)` when asked to \"make this\n  string of code execute\" — the answer to a metaprogramming\n  question almost always has a safer constructor (a function map,\n  a JSON parser, a template engine with an escape contract). The\n  rule's job is to surface the catch and route the agent to those\n  alternatives.",
+      "suggestion": "Replace the dynamic-execution call with a structured alternative\nthat does not compile arbitrary strings:\n\n1. **Dispatching to one of N known operations**: a `Record<string,\n   () => Result>` map keyed on the input. Each value is a function\n   the type system can see and verify.\n2. **Parsing data**: `JSON.parse` for JSON, a Zod / ArkType / Yup\n   schema for validation, a dedicated parser (PEG.js, Chevrotain)\n   for grammars. The output is data, not code.\n3. **Template expansion**: a template-string literal in source, or\n   a sandboxed template engine that escapes by contract\n   (Handlebars, Mustache). Never concatenate user input into a\n   code string.\n4. **Genuine plug-in / scripting surface**: use a real isolate\n   (Node `vm` with an empty context plus an execution timeout,\n   QuickJS-emscripten, a Web Worker behind `postMessage`). Audit\n   the surface as a security boundary, not a code shortcut.\n\nIf the call must stay, document why in a comment adjacent to it\nand pin a maximum allowed `eval`-bearing surface in the team's\nreview checklist. The rule itself stops at flagging; the\nremediation is design work.",
+      "definition_ref": "patterns/dynamic-execution/definition.anvil",
       "tensions": [],
       "related_families": ["guardrail-suppression"]
     },
@@ -1068,6 +1105,237 @@
       "definition_ref": "patterns/rust-reliability/definition.anvil",
       "tensions": [],
       "related_families": ["deferred-debt"]
+    },
+    {
+      "id": "UR-001",
+      "family": "unsafe-rendering",
+      "title": "Assignment to innerHTML / outerHTML",
+      "version": 1,
+      "severity": "warning",
+      "confidence": "medium",
+      "spectrum_position": 1,
+      "targets": ["source"],
+      "detection": {
+        "type": "regex",
+        "pattern": "\\.(?:inner|outer)HTML\\s*\\+?=\\s*(?:[^\\s'\"=]|['\"][^'\"]*['\"]\\s*\\+)"
+      },
+      "file_extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
+      "allowlist": [
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*.test.js",
+        "**/*.test.jsx",
+        "**/*.spec.ts",
+        "**/*.spec.tsx",
+        "**/*.spec.js",
+        "**/*.spec.jsx",
+        "**/__tests__/**",
+        "**/tests/**",
+        "**/explain/**"
+      ],
+      "nudge": "You're assigning a string to `.innerHTML`/`.outerHTML`, which parses it\nas live HTML. If any part of that string is attacker-influenced and\nunsanitised, injected markup — `<img src=x onerror=...>`, inline\nhandlers, `javascript:` URLs — runs in the page's origin (DOM-XSS,\nCWE-79).\n\nIf you're inserting text, assign `el.textContent = value` instead — it\nnever parses markup. If you need structure, build it with\n`document.createElement` + `append` and set text/attributes individually.\nIf you genuinely need rich HTML from dynamic input, sanitise it with\nDOMPurify immediately before the assignment and keep the two together.\n\nThis rule fires on assignment, not on `.innerHTML === ...` comparisons. It\nskips a right-hand side that is a *pure* single- or double-quoted string\nliteral (`el.innerHTML = ''` to clear a node, or a static `'<b>…</b>'`\nsnippet you control), but it **does** fire on a literal that is then\nconcatenated with something else (`el.innerHTML = '<b>' + name`) — the\nclassic literal-prefixed DOM-XSS shape — as well as on template-literal and\nidentifier/expression right-hand sides. If a flagged value is in fact a\nconstant you control end to end, suppress UR-001 with a reason.",
+      "related": ["UR-002", "UR-003"],
+      "enabled": true,
+      "opt_in": false,
+      "family_name": "Unsafe Rendering",
+      "category": "insecure-construction",
+      "explanation": "- **Raw-HTML sinks execute markup.** `el.innerHTML = userInput` parses\n  the string as HTML. `<img src=x onerror=steal()>` and friends run in\n  the page origin — session cookies, DOM, tokens, and any authenticated\n  API the page can reach are exposed (CWE-79).\n- **`document.write` is doubly dangerous.** Beyond XSS, it can rewrite\n  the whole document after load and blocks the parser; the string is\n  parsed as HTML with the same injection surface.\n- **`dangerouslySetInnerHTML` opts out of React's escaping.** React\n  escapes interpolated children by default; this prop is the deliberate\n  bypass. It is the single most common way XSS re-enters a React app that\n  was otherwise safe by construction.\n- **Agents reach for `innerHTML` to \"render some HTML\".** Asked to\n  insert markup, an agent writes `.innerHTML =` because it is the\n  shortest path, not because the input is trusted. Catching the sink at\n  write-time is the point.",
+      "suggestion": "Prefer a sink that does not parse HTML, or escape/sanitise before the\nraw sink:\n\n1. **Inserting text** — assign `el.textContent = value` (or\n   `el.innerText`). These never parse markup; injected tags render as\n   literal text.\n2. **Building structure** — create elements\n   (`document.createElement` + `append`) and set text/attributes\n   individually, so no string is ever parsed as HTML.\n3. **You genuinely need rich HTML from dynamic input** — run it through a\n   vetted sanitiser (DOMPurify) with an allowlist, immediately before the\n   sink, and keep the sanitise-then-assign together so review can see it.\n4. **React** — pass the value as a normal escaped child (`{value}`).\n   Reserve `dangerouslySetInnerHTML` for sanitiser output only.\n\nIf the value is a compile-time constant you control end to end, keep the\nsink and suppress the specific rule with a reason noting the input is\nstatic.",
+      "definition_ref": "patterns/unsafe-rendering/definition.anvil",
+      "tensions": [],
+      "related_families": ["weak-cryptography"]
+    },
+    {
+      "id": "UR-002",
+      "family": "unsafe-rendering",
+      "title": "document.write() / document.writeln() call",
+      "version": 1,
+      "severity": "warning",
+      "confidence": "medium",
+      "spectrum_position": 2,
+      "targets": ["source"],
+      "detection": {
+        "type": "regex",
+        "pattern": "document\\.write(?:ln)?\\s*\\("
+      },
+      "file_extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
+      "allowlist": [
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*.test.js",
+        "**/*.test.jsx",
+        "**/*.spec.ts",
+        "**/*.spec.tsx",
+        "**/*.spec.js",
+        "**/*.spec.jsx",
+        "**/__tests__/**",
+        "**/tests/**",
+        "**/explain/**"
+      ],
+      "nudge": "You're calling `document.write()`. The argument is parsed as HTML, so a\ndynamic value carries the same DOM-XSS surface as `innerHTML` (CWE-79) —\nand `document.write` after page load rewrites the whole document and\nblocks the parser besides.\n\nBuild the DOM directly instead: `document.createElement` + `append`, or\nassign `el.textContent` for text. If you must insert HTML from dynamic\ninput, sanitise it with DOMPurify first and write it into a container's\nsanitised `innerHTML` rather than through `document.write`.\n\nIf the argument is a static constant (e.g. a build-time bootstrap\nsnippet), suppress UR-002 with a reason noting the input is not dynamic.",
+      "related": ["UR-001", "UR-003"],
+      "enabled": true,
+      "opt_in": false,
+      "family_name": "Unsafe Rendering",
+      "category": "insecure-construction",
+      "explanation": "- **Raw-HTML sinks execute markup.** `el.innerHTML = userInput` parses\n  the string as HTML. `<img src=x onerror=steal()>` and friends run in\n  the page origin — session cookies, DOM, tokens, and any authenticated\n  API the page can reach are exposed (CWE-79).\n- **`document.write` is doubly dangerous.** Beyond XSS, it can rewrite\n  the whole document after load and blocks the parser; the string is\n  parsed as HTML with the same injection surface.\n- **`dangerouslySetInnerHTML` opts out of React's escaping.** React\n  escapes interpolated children by default; this prop is the deliberate\n  bypass. It is the single most common way XSS re-enters a React app that\n  was otherwise safe by construction.\n- **Agents reach for `innerHTML` to \"render some HTML\".** Asked to\n  insert markup, an agent writes `.innerHTML =` because it is the\n  shortest path, not because the input is trusted. Catching the sink at\n  write-time is the point.",
+      "suggestion": "Prefer a sink that does not parse HTML, or escape/sanitise before the\nraw sink:\n\n1. **Inserting text** — assign `el.textContent = value` (or\n   `el.innerText`). These never parse markup; injected tags render as\n   literal text.\n2. **Building structure** — create elements\n   (`document.createElement` + `append`) and set text/attributes\n   individually, so no string is ever parsed as HTML.\n3. **You genuinely need rich HTML from dynamic input** — run it through a\n   vetted sanitiser (DOMPurify) with an allowlist, immediately before the\n   sink, and keep the sanitise-then-assign together so review can see it.\n4. **React** — pass the value as a normal escaped child (`{value}`).\n   Reserve `dangerouslySetInnerHTML` for sanitiser output only.\n\nIf the value is a compile-time constant you control end to end, keep the\nsink and suppress the specific rule with a reason noting the input is\nstatic.",
+      "definition_ref": "patterns/unsafe-rendering/definition.anvil",
+      "tensions": [],
+      "related_families": ["weak-cryptography"]
+    },
+    {
+      "id": "UR-003",
+      "family": "unsafe-rendering",
+      "title": "React dangerouslySetInnerHTML",
+      "version": 1,
+      "severity": "warning",
+      "confidence": "medium",
+      "spectrum_position": 3,
+      "targets": ["source"],
+      "detection": {
+        "type": "regex",
+        "pattern": "dangerouslySetInnerHTML"
+      },
+      "file_extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"],
+      "allowlist": [
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*.test.js",
+        "**/*.test.jsx",
+        "**/*.spec.ts",
+        "**/*.spec.tsx",
+        "**/*.spec.js",
+        "**/*.spec.jsx",
+        "**/__tests__/**",
+        "**/tests/**",
+        "**/explain/**"
+      ],
+      "nudge": "You're using `dangerouslySetInnerHTML`, which opts the value out of\nReact's automatic escaping and injects it as raw HTML. React escapes\nnormal children by default; this prop is the deliberate bypass, and it is\nthe most common way XSS re-enters an otherwise-safe React app (CWE-79).\n\nIf you're rendering text or structure, pass the value as a normal child\n(`<div>{value}</div>`) and let React escape it. If you genuinely need\nrich HTML from dynamic input, run it through DOMPurify (or an equivalent\nallowlist sanitiser) and pass only the sanitiser's output to\n`dangerouslySetInnerHTML` — keep the sanitise call adjacent so review can\nsee it.\n\nIf the `__html` value is a static, developer-authored constant, suppress\nUR-003 with a reason noting the input is not dynamic.",
+      "related": ["UR-001", "UR-002"],
+      "enabled": true,
+      "opt_in": false,
+      "family_name": "Unsafe Rendering",
+      "category": "insecure-construction",
+      "explanation": "- **Raw-HTML sinks execute markup.** `el.innerHTML = userInput` parses\n  the string as HTML. `<img src=x onerror=steal()>` and friends run in\n  the page origin — session cookies, DOM, tokens, and any authenticated\n  API the page can reach are exposed (CWE-79).\n- **`document.write` is doubly dangerous.** Beyond XSS, it can rewrite\n  the whole document after load and blocks the parser; the string is\n  parsed as HTML with the same injection surface.\n- **`dangerouslySetInnerHTML` opts out of React's escaping.** React\n  escapes interpolated children by default; this prop is the deliberate\n  bypass. It is the single most common way XSS re-enters a React app that\n  was otherwise safe by construction.\n- **Agents reach for `innerHTML` to \"render some HTML\".** Asked to\n  insert markup, an agent writes `.innerHTML =` because it is the\n  shortest path, not because the input is trusted. Catching the sink at\n  write-time is the point.",
+      "suggestion": "Prefer a sink that does not parse HTML, or escape/sanitise before the\nraw sink:\n\n1. **Inserting text** — assign `el.textContent = value` (or\n   `el.innerText`). These never parse markup; injected tags render as\n   literal text.\n2. **Building structure** — create elements\n   (`document.createElement` + `append`) and set text/attributes\n   individually, so no string is ever parsed as HTML.\n3. **You genuinely need rich HTML from dynamic input** — run it through a\n   vetted sanitiser (DOMPurify) with an allowlist, immediately before the\n   sink, and keep the sanitise-then-assign together so review can see it.\n4. **React** — pass the value as a normal escaped child (`{value}`).\n   Reserve `dangerouslySetInnerHTML` for sanitiser output only.\n\nIf the value is a compile-time constant you control end to end, keep the\nsink and suppress the specific rule with a reason noting the input is\nstatic.",
+      "definition_ref": "patterns/unsafe-rendering/definition.anvil",
+      "tensions": [],
+      "related_families": ["weak-cryptography"]
+    },
+    {
+      "id": "WC-001",
+      "family": "weak-cryptography",
+      "title": "Deprecated hash primitive (MD5 / SHA-1) in a construction call",
+      "version": 1,
+      "severity": "warning",
+      "confidence": "high",
+      "spectrum_position": 1,
+      "targets": ["source"],
+      "detection": {
+        "type": "regex",
+        "pattern": "createHash\\(\\s*['\"](?:md5|sha-?1)['\"]|hashlib\\.(?:md5|sha1)\\s*\\(|hashlib\\.new\\(\\s*['\"](?:md5|sha-?1)['\"]|MessageDigest\\.getInstance\\(\\s*['\"](?:md5|sha-?1)['\"]|subtle\\.digest\\(\\s*['\"](?:md5|sha-?1)['\"]|CryptoJS\\.(?:md5|sha1)\\b",
+        "flags": "i"
+      },
+      "file_extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py", ".java"],
+      "allowlist": [
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*.spec.ts",
+        "**/*.spec.tsx",
+        "**/__tests__/**",
+        "**/test_*.py",
+        "**/*_test.py",
+        "**/tests/**",
+        "**/explain/**"
+      ],
+      "nudge": "You're constructing a hash with a primitive that is broken for security\nuse. MD5 and SHA-1 have practical collision attacks — anything relying\non them for integrity, signatures, tokens, or password hashing can be\nforged or substituted.\n\nSwitch to SHA-256 or better for integrity and signatures\n(`createHash('sha256')`, `hashlib.sha256`,\n`MessageDigest.getInstance(\"SHA-256\")`, `subtle.digest('SHA-256', …)`). For\npassword storage use a slow salted KDF — argon2id, scrypt, or bcrypt — never\na bare hash. This rule matches the literal-algorithm construction forms\n(`createHash('md5')`, `hashlib.md5(`, `hashlib.new('md5')`,\n`MessageDigest.getInstance(\"SHA1\")`, `subtle.digest('SHA-1', …)`); a hash\nbuilt from a *variable* algorithm name (`createHash(algo)`) is not visible to\na single-line regex and is not caught.\n\nIf this hash is a genuine *non-security* checksum (guarding against\naccidental corruption, a cache key, dedup) and collision resistance does\nnot matter, keep it but say so: suppress WC-001 with a reason\n(`# @anvil-ignore WC-001 -- non-security checksum for cache key`).",
+      "related": ["WC-002"],
+      "enabled": true,
+      "opt_in": false,
+      "family_name": "Weak Cryptography",
+      "category": "insecure-construction",
+      "explanation": "- **Collision and preimage breaks are public.** MD5 and SHA-1 have\n  practical collision attacks (CWE-327/328). Using them for signatures,\n  integrity of security-relevant data, password hashing, or CSRF/session\n  tokens means an attacker can forge or substitute values the code\n  treats as authentic.\n- **Broken ciphers leak plaintext structure.** DES has a 56-bit key\n  brute-forceable in hours; RC4 has biased keystream output; ECB mode\n  encrypts identical blocks to identical ciphertext, so patterns in the\n  plaintext survive encryption (CWE-327). None of these provide the\n  confidentiality the caller assumes.\n- **`alg: none` disables the signature check.** A JWT verified with the\n  `none` algorithm accepts any token whose signature segment is empty —\n  authentication collapses to \"trust the claims verbatim\" (CWE-287). An\n  attacker mints an admin token by editing the payload.\n- **Agents reach for the first primitive they remember.** \"Hash this\"\n  becomes `md5`, \"encrypt this\" becomes a bare `DES`/ECB call, \"sign a\n  token\" copies an `alg: none` snippet from a debugging example. The\n  rule's job is to catch the deprecated choice at write-time and route\n  to the modern primitive before it ships.",
+      "suggestion": "Replace the deprecated primitive with a modern one that still holds its\nguarantee:\n\n1. **Integrity / signatures / general hashing** — SHA-256 or better\n   (`createHash('sha256')`, `hashlib.sha256`, `MessageDigest.getInstance(\"SHA-256\")`).\n2. **Password storage** — a slow, salted KDF: argon2id, scrypt, or\n   bcrypt. Never a bare hash, however modern.\n3. **Symmetric encryption** — an authenticated mode: AES-256-GCM or\n   ChaCha20-Poly1305 with a unique nonce per message. Never ECB.\n4. **JWTs** — pin an explicit algorithm allowlist on *verify*\n   (`algorithms: ['RS256']` / `['HS256']`) and never include `none`. Reject\n   tokens whose header algorithm is not on the list.\n\nIf a deprecated primitive must stay for a genuinely non-security reason\n(a checksum against accidental corruption, interop with a frozen legacy\npeer), document why adjacent to the call and suppress the specific rule\nwith a reason.",
+      "definition_ref": "patterns/weak-cryptography/definition.anvil",
+      "tensions": [],
+      "related_families": ["unsafe-rendering"]
+    },
+    {
+      "id": "WC-002",
+      "family": "weak-cryptography",
+      "title": "Broken cipher or ECB mode in a construction call",
+      "version": 1,
+      "severity": "warning",
+      "confidence": "high",
+      "spectrum_position": 2,
+      "targets": ["source"],
+      "detection": {
+        "type": "regex",
+        "pattern": "create(?:de)?cipher(?:iv)?\\(\\s*['\"](?:des|desede|rc4|[a-z0-9-]*ecb)[^'\"]*['\"]|Cipher\\.getInstance\\(\\s*['\"](?:des|rc4|[^'\"]*ecb)[^'\"]*['\"]|\\bMODE_ECB\\b|\\b(?:DES|ARC4)\\.new\\s*\\(",
+        "flags": "i"
+      },
+      "file_extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py", ".java"],
+      "allowlist": [
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*.spec.ts",
+        "**/*.spec.tsx",
+        "**/__tests__/**",
+        "**/test_*.py",
+        "**/*_test.py",
+        "**/tests/**",
+        "**/explain/**"
+      ],
+      "nudge": "You're constructing a cipher with a broken primitive or an insecure\nmode. DES has a brute-forceable 56-bit key, RC4 has biased keystream\noutput, and ECB mode encrypts identical plaintext blocks to identical\nciphertext — so structure in the plaintext survives encryption. None of\nthese give you the confidentiality the call implies.\n\nUse an authenticated mode with a modern cipher: AES-256-GCM or\nChaCha20-Poly1305, with a unique nonce per message\n(`createCipheriv('aes-256-gcm', key, iv)`, `AES.new(key, AES.MODE_GCM)`,\n`Cipher.getInstance(\"AES/GCM/NoPadding\")`). Authentication (the GCM/Poly1305\ntag) is not optional — it's what stops an attacker tampering with\nciphertext.\n\nIf this is a compatibility shim talking to a frozen legacy peer that\nonly speaks the old primitive, isolate it and suppress WC-002 with a\nreason explaining the interop constraint.",
+      "related": ["WC-001"],
+      "enabled": true,
+      "opt_in": false,
+      "family_name": "Weak Cryptography",
+      "category": "insecure-construction",
+      "explanation": "- **Collision and preimage breaks are public.** MD5 and SHA-1 have\n  practical collision attacks (CWE-327/328). Using them for signatures,\n  integrity of security-relevant data, password hashing, or CSRF/session\n  tokens means an attacker can forge or substitute values the code\n  treats as authentic.\n- **Broken ciphers leak plaintext structure.** DES has a 56-bit key\n  brute-forceable in hours; RC4 has biased keystream output; ECB mode\n  encrypts identical blocks to identical ciphertext, so patterns in the\n  plaintext survive encryption (CWE-327). None of these provide the\n  confidentiality the caller assumes.\n- **`alg: none` disables the signature check.** A JWT verified with the\n  `none` algorithm accepts any token whose signature segment is empty —\n  authentication collapses to \"trust the claims verbatim\" (CWE-287). An\n  attacker mints an admin token by editing the payload.\n- **Agents reach for the first primitive they remember.** \"Hash this\"\n  becomes `md5`, \"encrypt this\" becomes a bare `DES`/ECB call, \"sign a\n  token\" copies an `alg: none` snippet from a debugging example. The\n  rule's job is to catch the deprecated choice at write-time and route\n  to the modern primitive before it ships.",
+      "suggestion": "Replace the deprecated primitive with a modern one that still holds its\nguarantee:\n\n1. **Integrity / signatures / general hashing** — SHA-256 or better\n   (`createHash('sha256')`, `hashlib.sha256`, `MessageDigest.getInstance(\"SHA-256\")`).\n2. **Password storage** — a slow, salted KDF: argon2id, scrypt, or\n   bcrypt. Never a bare hash, however modern.\n3. **Symmetric encryption** — an authenticated mode: AES-256-GCM or\n   ChaCha20-Poly1305 with a unique nonce per message. Never ECB.\n4. **JWTs** — pin an explicit algorithm allowlist on *verify*\n   (`algorithms: ['RS256']` / `['HS256']`) and never include `none`. Reject\n   tokens whose header algorithm is not on the list.\n\nIf a deprecated primitive must stay for a genuinely non-security reason\n(a checksum against accidental corruption, interop with a frozen legacy\npeer), document why adjacent to the call and suppress the specific rule\nwith a reason.",
+      "definition_ref": "patterns/weak-cryptography/definition.anvil",
+      "tensions": [],
+      "related_families": ["unsafe-rendering"]
+    },
+    {
+      "id": "WC-003",
+      "family": "weak-cryptography",
+      "title": "JWT configured with the `none` algorithm",
+      "version": 1,
+      "severity": "warning",
+      "confidence": "high",
+      "spectrum_position": 3,
+      "targets": ["source"],
+      "detection": {
+        "type": "regex",
+        "pattern": "\\balg(?:orithm)?s?[\"']?\\s*[:=]\\s*\\[?\\s*[\"']none[\"']",
+        "flags": "i"
+      },
+      "file_extensions": [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py", ".java"],
+      "allowlist": [
+        "**/*.test.ts",
+        "**/*.test.tsx",
+        "**/*.spec.ts",
+        "**/*.spec.tsx",
+        "**/__tests__/**",
+        "**/test_*.py",
+        "**/*_test.py",
+        "**/tests/**",
+        "**/explain/**"
+      ],
+      "nudge": "You're wiring a JSON Web Token to the `none` algorithm. A token verified\nwith `none` has no signature to check — verification accepts any token\nwhose signature segment is empty, so anyone can mint one by editing the\nclaims. This is authentication turned off, not weakened.\n\nOn *verify*, pin an explicit algorithm allowlist and never include\n`none`: `jwt.verify(raw, key, { algorithms: ['RS256'] })` /\n`jwt.decode(raw, key, algorithms=['HS256'])`. Reject any token whose\nheader algorithm is not on your list — an attacker controls the header,\nso trusting it is the vulnerability.\n\nThe only legitimate `none` use is an unsigned token you never treat as\nauthenticated (rare). If that is genuinely the case, keep it isolated\nfrom any trust decision and suppress WC-003 with a reason.",
+      "related": ["WC-001"],
+      "enabled": true,
+      "opt_in": false,
+      "family_name": "Weak Cryptography",
+      "category": "insecure-construction",
+      "explanation": "- **Collision and preimage breaks are public.** MD5 and SHA-1 have\n  practical collision attacks (CWE-327/328). Using them for signatures,\n  integrity of security-relevant data, password hashing, or CSRF/session\n  tokens means an attacker can forge or substitute values the code\n  treats as authentic.\n- **Broken ciphers leak plaintext structure.** DES has a 56-bit key\n  brute-forceable in hours; RC4 has biased keystream output; ECB mode\n  encrypts identical blocks to identical ciphertext, so patterns in the\n  plaintext survive encryption (CWE-327). None of these provide the\n  confidentiality the caller assumes.\n- **`alg: none` disables the signature check.** A JWT verified with the\n  `none` algorithm accepts any token whose signature segment is empty —\n  authentication collapses to \"trust the claims verbatim\" (CWE-287). An\n  attacker mints an admin token by editing the payload.\n- **Agents reach for the first primitive they remember.** \"Hash this\"\n  becomes `md5`, \"encrypt this\" becomes a bare `DES`/ECB call, \"sign a\n  token\" copies an `alg: none` snippet from a debugging example. The\n  rule's job is to catch the deprecated choice at write-time and route\n  to the modern primitive before it ships.",
+      "suggestion": "Replace the deprecated primitive with a modern one that still holds its\nguarantee:\n\n1. **Integrity / signatures / general hashing** — SHA-256 or better\n   (`createHash('sha256')`, `hashlib.sha256`, `MessageDigest.getInstance(\"SHA-256\")`).\n2. **Password storage** — a slow, salted KDF: argon2id, scrypt, or\n   bcrypt. Never a bare hash, however modern.\n3. **Symmetric encryption** — an authenticated mode: AES-256-GCM or\n   ChaCha20-Poly1305 with a unique nonce per message. Never ECB.\n4. **JWTs** — pin an explicit algorithm allowlist on *verify*\n   (`algorithms: ['RS256']` / `['HS256']`) and never include `none`. Reject\n   tokens whose header algorithm is not on the list.\n\nIf a deprecated primitive must stay for a genuinely non-security reason\n(a checksum against accidental corruption, interop with a frozen legacy\npeer), document why adjacent to the call and suppress the specific rule\nwith a reason.",
+      "definition_ref": "patterns/weak-cryptography/definition.anvil",
+      "tensions": [],
+      "related_families": ["unsafe-rendering"]
     }
   ],
   "prefixes": {
@@ -1075,7 +1343,9 @@
     "GS": "guardrail-suppression",
     "PY": "python-reliability",
     "RL": "responsibility-laundering",
-    "RS": "rust-reliability"
+    "RS": "rust-reliability",
+    "UR": "unsafe-rendering",
+    "WC": "weak-cryptography"
   },
   "families": [
     {
@@ -1092,7 +1362,7 @@
       "name": "Dynamic Execution",
       "category": "dynamic-execution",
       "definition_ref": "patterns/dynamic-execution/definition.anvil",
-      "rules": ["AP-008", "AP-009"],
+      "rules": ["AP-008", "AP-009", "AP-017"],
       "related": ["guardrail-suppression"],
       "tensions": []
     },
@@ -1148,6 +1418,24 @@
       "definition_ref": "patterns/type-system-evasion/definition.anvil",
       "rules": ["AP-003", "AP-015", "AP-016"],
       "related": ["guardrail-suppression"],
+      "tensions": []
+    },
+    {
+      "id": "unsafe-rendering",
+      "name": "Unsafe Rendering",
+      "category": "insecure-construction",
+      "definition_ref": "patterns/unsafe-rendering/definition.anvil",
+      "rules": ["UR-001", "UR-002", "UR-003"],
+      "related": ["weak-cryptography"],
+      "tensions": []
+    },
+    {
+      "id": "weak-cryptography",
+      "name": "Weak Cryptography",
+      "category": "insecure-construction",
+      "definition_ref": "patterns/weak-cryptography/definition.anvil",
+      "rules": ["WC-001", "WC-002", "WC-003"],
+      "related": ["unsafe-rendering"],
       "tensions": []
     }
   ]

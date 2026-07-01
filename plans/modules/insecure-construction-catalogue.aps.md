@@ -3,9 +3,9 @@
 
 # Insecure-Construction Anti-Pattern Catalogue (First Wave)
 
-| ID    | Owner | Status | Progress |
-| ----- | ----- | ------ | -------- |
-| INSEC | —     | Ready  | 0/8      |
+| ID    | Owner | Status      | Progress |
+| ----- | ----- | ----------- | -------- |
+| INSEC | —     | In Progress | 0/8      |
 
 **Last reviewed:** 2026-06-18 (created on operator direction after ADR-087 was
 accepted. Realises the syntactic-smell subset of the sec-context triage
@@ -81,7 +81,7 @@ New registry `prefixes` entries (one per family), mirroring `GS`/`DD`/`PY`:
 
 ### INSEC-001: `insecure-construction` category variant
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Make `insecure-construction` a first-class category so its families
   carry meaningful provenance instead of falling back to `code-quality`.
 - **Expected Outcome:** A registry pattern tagged `category:
@@ -100,7 +100,7 @@ New registry `prefixes` entries (one per family), mirroring `GS`/`DD`/`PY`:
 
 ### INSEC-002: `weak-cryptography` family (regex, enabled)
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Flag construction with broken/inappropriate crypto primitives.
 - **Expected Outcome:** New `patterns/weak-cryptography/` family with rules for
   deprecated hash/cipher algos (MD5, SHA1-for-security, DES), ECB mode, and JWT
@@ -120,7 +120,7 @@ New registry `prefixes` entries (one per family), mirroring `GS`/`DD`/`PY`:
 
 ### INSEC-003: `unsafe-rendering` family (regex, enabled)
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Flag writing untrusted data into a markup/exec sink.
 - **Expected Outcome:** New `patterns/unsafe-rendering/` family for DOM-XSS sinks
   (`innerHTML =`, `document.write(`, `dangerouslySetInnerHTML`); enabled by
@@ -137,7 +137,7 @@ New registry `prefixes` entries (one per family), mirroring `GS`/`DD`/`PY`:
 
 ### INSEC-004: SSTI coverage via the existing `dynamic-execution` family
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Cover server-side template injection without a new family, since
   `dynamic-execution` already owns the eval-class concept (AP-008).
 - **Expected Outcome:** SSTI detection added as a rule in the existing
@@ -153,7 +153,7 @@ New registry `prefixes` entries (one per family), mirroring `GS`/`DD`/`PY`:
 
 ### INSEC-005: ADR-087 scope-guard note
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Record the out-of-model boundary where the scope guard lives, so a
   future "just add reflected XSS" request hits the documented line (ADR-087 §5
   follow-up).
@@ -169,7 +169,7 @@ New registry `prefixes` entries (one per family), mirroring `GS`/`DD`/`PY`:
 
 ### INSEC-006: Dogfood + §16.5 #9 false-positive acceptance
 
-- **Status:** Ready
+- **Status:** In Progress
 - **Intent:** Prove the enabled families clear the false-positive bar on real
   code before they ship default-on (the gate every language anchor passes —
   cf. PYLAN-009).

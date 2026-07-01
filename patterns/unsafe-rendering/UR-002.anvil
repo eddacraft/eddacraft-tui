@@ -1,0 +1,49 @@
+---
+id: UR-002
+type: rule
+family: unsafe-rendering
+title: document.write() / document.writeln() call
+version: 1
+
+severity: warning
+confidence: medium
+spectrum_position: 2
+
+targets: [source]
+file_extensions: [.ts, .tsx, .js, .jsx, .mjs, .cjs]
+allowlist:
+  [
+    '**/*.test.ts',
+    '**/*.test.tsx',
+    '**/*.test.js',
+    '**/*.test.jsx',
+    '**/*.spec.ts',
+    '**/*.spec.tsx',
+    '**/*.spec.js',
+    '**/*.spec.jsx',
+    '**/__tests__/**',
+    '**/tests/**',
+    '**/explain/**',
+  ]
+
+detection:
+  type: regex
+  pattern: 'document\.write(?:ln)?\s*\('
+
+related: [UR-001, UR-003]
+enabled: true
+opt_in: false
+---
+
+You're calling `document.write()`. The argument is parsed as HTML, so a
+dynamic value carries the same DOM-XSS surface as `innerHTML` (CWE-79) —
+and `document.write` after page load rewrites the whole document and
+blocks the parser besides.
+
+Build the DOM directly instead: `document.createElement` + `append`, or
+assign `el.textContent` for text. If you must insert HTML from dynamic
+input, sanitise it with DOMPurify first and write it into a container's
+sanitised `innerHTML` rather than through `document.write`.
+
+If the argument is a static constant (e.g. a build-time bootstrap
+snippet), suppress UR-002 with a reason noting the input is not dynamic.

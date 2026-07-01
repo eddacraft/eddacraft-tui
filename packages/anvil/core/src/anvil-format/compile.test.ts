@@ -51,6 +51,8 @@ describe('compilePatterns — real patterns/ tree (golden)', () => {
       'responsibility-laundering',
       'rust-reliability',
       'type-system-evasion',
+      'unsafe-rendering',
+      'weak-cryptography',
     ]);
 
     const ruleIds = registry.patterns.map((p) => p.id);
@@ -65,6 +67,11 @@ describe('compilePatterns — real patterns/ tree (golden)', () => {
     expect(ruleIds).toContain('RL-001');
     expect(ruleIds).toContain('RS-001'); // rust-reliability: AST unwrap/expect — RSTLAN-003
     expect(ruleIds).toContain('RS-005'); // rust-reliability: regex todo!/unimplemented! — RSTLAN-003
+    expect(ruleIds).toContain('AP-017'); // dynamic-execution: SSTI (render_template_string) — INSEC-004
+    expect(ruleIds).toContain('WC-001'); // weak-cryptography: deprecated hash — INSEC-002
+    expect(ruleIds).toContain('WC-003'); // weak-cryptography: JWT alg:none — INSEC-002
+    expect(ruleIds).toContain('UR-001'); // unsafe-rendering: innerHTML sink — INSEC-003
+    expect(ruleIds).toContain('UR-003'); // unsafe-rendering: dangerouslySetInnerHTML — INSEC-003
 
     // Rules must be alphabetically sorted for stable registry diffs.
     const sorted = [...ruleIds].sort();
@@ -87,6 +94,14 @@ describe('compilePatterns — real patterns/ tree (golden)', () => {
     expect(ap001!.suggestion.length).toBeGreaterThan(0);
     expect(ap001!.nudge.length).toBeGreaterThan(0);
     expect(ap001!.definition_ref).toBe('patterns/guardrail-suppression/definition.anvil');
+
+    // INSEC-001/002: the security families carry the new category through to
+    // the compiled pattern so the Rust scanner maps them to a first-class
+    // variant instead of the `code-quality` fallback.
+    const wc001 = registry.patterns.find((p) => p.id === 'WC-001');
+    expect(wc001).toBeDefined();
+    expect(wc001!.category).toBe('insecure-construction');
+    expect(wc001!.family_name).toBe('Weak Cryptography');
   });
 
   it('records per-family prefixes and drops the ambiguous legacy AP prefix', async () => {
@@ -100,6 +115,8 @@ describe('compilePatterns — real patterns/ tree (golden)', () => {
     expect(registry.prefixes.GS).toBe('guardrail-suppression');
     expect(registry.prefixes.DD).toBe('deferred-debt');
     expect(registry.prefixes.RL).toBe('responsibility-laundering');
+    expect(registry.prefixes.WC).toBe('weak-cryptography'); // INSEC-002
+    expect(registry.prefixes.UR).toBe('unsafe-rendering'); // INSEC-003
 
     // AP is legacy and spans multiple families. Rather than binding it to
     // whichever family happened to be visited first, the compiler drops the

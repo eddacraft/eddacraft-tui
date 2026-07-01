@@ -48,6 +48,13 @@ The following are core to Anvil:
 - Identifying architectural drift
 - Preventing known bad practices
 - Enforcing system design constraints
+- Security anti-patterns are **in scope only as syntactic-construction smells**
+  — weak crypto primitives, DOM-XSS sinks, JWT misuse (the
+  `insecure-construction` category, ADR-087). Taint-class findings
+  (reflected/stored XSS, output encoding) and absence-class findings (missing
+  rate limiting, MFA, CSP, server-side validation) are **out of model**: Anvil
+  is a deterministic single-file regex/AST scanner, not a taint-based SAST, and
+  crossing that boundary requires a new ADR.
 
 ### 3. Deterministic Validation
 

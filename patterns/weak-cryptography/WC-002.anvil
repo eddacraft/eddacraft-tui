@@ -1,0 +1,52 @@
+---
+id: WC-002
+type: rule
+family: weak-cryptography
+title: Broken cipher or ECB mode in a construction call
+version: 1
+
+severity: warning
+confidence: high
+spectrum_position: 2
+
+targets: [source]
+file_extensions: [.ts, .tsx, .js, .jsx, .mjs, .cjs, .py, .java]
+allowlist:
+  [
+    '**/*.test.ts',
+    '**/*.test.tsx',
+    '**/*.spec.ts',
+    '**/*.spec.tsx',
+    '**/__tests__/**',
+    '**/test_*.py',
+    '**/*_test.py',
+    '**/tests/**',
+    '**/explain/**',
+  ]
+
+detection:
+  type: regex
+  pattern: "create(?:de)?cipher(?:iv)?\\(\\s*['\"](?:des|desede|rc4|[a-z0-9-]*ecb)[^'\"]*['\"]|Cipher\\.getInstance\\(\\s*['\"](?:des|rc4|[^'\"]*ecb)[^'\"]*['\"]|\\bMODE_ECB\\b|\\b(?:DES|ARC4)\\.new\\s*\\("
+  flags: i
+
+related: [WC-001]
+enabled: true
+opt_in: false
+---
+
+You're constructing a cipher with a broken primitive or an insecure
+mode. DES has a brute-forceable 56-bit key, RC4 has biased keystream
+output, and ECB mode encrypts identical plaintext blocks to identical
+ciphertext — so structure in the plaintext survives encryption. None of
+these give you the confidentiality the call implies.
+
+Use an authenticated mode with a modern cipher: AES-256-GCM or
+ChaCha20-Poly1305, with a unique nonce per message
+(`createCipheriv('aes-256-gcm', key, iv)`, `AES.new(key, AES.MODE_GCM)`,
+`Cipher.getInstance("AES/GCM/NoPadding")`). Authentication (the GCM/Poly1305
+tag) is not optional — it's what stops an attacker tampering with
+ciphertext.
+
+If this is a compatibility shim talking to a frozen legacy peer that
+only speaks the old primitive, isolate it and suppress WC-002 with a
+reason explaining the interop constraint.

@@ -1,0 +1,55 @@
+---
+id: WC-001
+type: rule
+family: weak-cryptography
+title: Deprecated hash primitive (MD5 / SHA-1) in a construction call
+version: 1
+
+severity: warning
+confidence: high
+spectrum_position: 1
+
+targets: [source]
+file_extensions: [.ts, .tsx, .js, .jsx, .mjs, .cjs, .py, .java]
+allowlist:
+  [
+    '**/*.test.ts',
+    '**/*.test.tsx',
+    '**/*.spec.ts',
+    '**/*.spec.tsx',
+    '**/__tests__/**',
+    '**/test_*.py',
+    '**/*_test.py',
+    '**/tests/**',
+    '**/explain/**',
+  ]
+
+detection:
+  type: regex
+  pattern: "createHash\\(\\s*['\"](?:md5|sha-?1)['\"]|hashlib\\.(?:md5|sha1)\\s*\\(|hashlib\\.new\\(\\s*['\"](?:md5|sha-?1)['\"]|MessageDigest\\.getInstance\\(\\s*['\"](?:md5|sha-?1)['\"]|subtle\\.digest\\(\\s*['\"](?:md5|sha-?1)['\"]|CryptoJS\\.(?:md5|sha1)\\b"
+  flags: i
+
+related: [WC-002]
+enabled: true
+opt_in: false
+---
+
+You're constructing a hash with a primitive that is broken for security
+use. MD5 and SHA-1 have practical collision attacks — anything relying
+on them for integrity, signatures, tokens, or password hashing can be
+forged or substituted.
+
+Switch to SHA-256 or better for integrity and signatures
+(`createHash('sha256')`, `hashlib.sha256`,
+`MessageDigest.getInstance("SHA-256")`, `subtle.digest('SHA-256', …)`). For
+password storage use a slow salted KDF — argon2id, scrypt, or bcrypt — never
+a bare hash. This rule matches the literal-algorithm construction forms
+(`createHash('md5')`, `hashlib.md5(`, `hashlib.new('md5')`,
+`MessageDigest.getInstance("SHA1")`, `subtle.digest('SHA-1', …)`); a hash
+built from a *variable* algorithm name (`createHash(algo)`) is not visible to
+a single-line regex and is not caught.
+
+If this hash is a genuine *non-security* checksum (guarding against
+accidental corruption, a cache key, dedup) and collision resistance does
+not matter, keep it but say so: suppress WC-001 with a reason
+(`# @anvil-ignore WC-001 -- non-security checksum for cache key`).
