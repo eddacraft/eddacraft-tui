@@ -1619,17 +1619,17 @@ where
                         "witness chain integrity check failed; refusing to append (ADR-038)",
                     );
                 }
-                // CIB-124: the bounded lock acquire gave up — a concurrent writer
-                // held the `.lock` past the timeout (a wedged holder, not a bug in
-                // this write). Distinct log so an operator can tell contention from
-                // a genuine write failure.
+                // CIB-124: the bounded lock acquire gave up — the `.lock` was held
+                // past the timeout (another writer, slow I/O, or a stuck holder).
+                // Distinct log so an operator can tell lock contention from a
+                // genuine write failure.
                 WriterError::LockTimeout(_) => {
                     tracing::warn!(
                         target: "anvil::witness",
                         error = %err,
                         project_uuid = %project_uuid,
                         witness_root = %repo_root.display(),
-                        "witness lock acquire timed out; a concurrent writer is wedged",
+                        "witness lock acquire timed out; the lock was held past the timeout",
                     );
                 }
                 // Corruption (incl. a genesis that failed to re-verify), IO, scope,

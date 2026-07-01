@@ -44,9 +44,7 @@ pub enum WriterError {
     Corruption(String),
     #[error("witness chain integrity check failed (broken chain); refusing to append")]
     ChainBroken,
-    #[error(
-        "timed out after {0:?} waiting for the witness lock (a concurrent writer is holding it)"
-    )]
+    #[error("timed out after {0:?} waiting for the witness lock (it was held past the timeout)")]
     LockTimeout(Duration),
     #[error("witness root is a symlink; refusing to write: {path}")]
     SymlinkRoot { path: PathBuf },
