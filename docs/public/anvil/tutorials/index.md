@@ -49,13 +49,14 @@ See what anvil finds in your own repo before wiring protection.
 
 Use these when you are ready for a specific capability:
 
-| Tutorial                                       | Description                                                           | Prerequisites             |
-| ---------------------------------------------- | --------------------------------------------------------------------- | ------------------------- |
-| [Your First Save Caught](first-save-caught.md) | Activate save-time protection and catch a deliberate mistake yourself | Install + auth            |
-| [Analyse a Rust Project](rust-project.md)      | Discovery scan, the advisory Rust rules, and the language profile     | A Rust repo               |
-| [Architecture Boundaries](architecture.md)     | Define layers and enforce module boundaries                           | `anvil init`              |
-| [Drift Detection](drift.md)                    | Capture snapshots and track architectural drift over time             | Architecture set up       |
-| [Custom Policies](policies.md)                 | Write OPA/Rego rules to enforce your team's standards                 | `anvil init` + OPA binary |
+| Tutorial                                            | Description                                                              | Prerequisites             |
+| --------------------------------------------------- | ------------------------------------------------------------------------ | ------------------------- |
+| [Developer Acceleration](developer-acceleration.md) | Wire your AI coding agent, validate its edits, and feed it graph context | Install + auth            |
+| [Your First Save Caught](first-save-caught.md)      | Activate save-time protection and catch a deliberate mistake yourself    | Install + auth            |
+| [Analyse a Rust Project](rust-project.md)           | Discovery scan, the advisory Rust rules, and the language profile        | A Rust repo               |
+| [Architecture Boundaries](architecture.md)          | Define layers and enforce module boundaries                              | `anvil init`              |
+| [Drift Detection](drift.md)                         | Capture snapshots and track architectural drift over time                | Architecture set up       |
+| [Custom Policies](policies.md)                      | Write OPA/Rego rules to enforce your team's standards                    | `anvil init` + OPA binary |
 
 Looking for CI setup or suppressions? Those live with the surfaces that own
 them: the [GitHub integration guide](../integrations/github.md) covers
