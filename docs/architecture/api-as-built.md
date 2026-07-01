@@ -157,19 +157,23 @@ per-actor 60/min rate limit (§5.4).
 
 ### 4.1 Notes on individual surfaces
 
-- **`/admin/invite`** has two modes. Default mode runs the full approve flow
-  (`upsert beta_users` → `device_codes` row → `audit_log` → invite email) inside
-  one `sql.transaction([...])` batch (`src/routes/admin.ts:196-207`);
-  `tokenOnly: true` skips the email and returns a raw `anvil_beta_*` token
-  (3-statement batch, `src/routes/admin.ts:160-177`). Both stamp `auth_method`
-  (`shared` / `per_operator`) into `audit_log`.
+- **`/admin/invite`** has two modes. Default mode marks the user active and
+  records the invite in a two-statement `sql.transaction([...])` batch
+  (`upsert beta_users` → `audit_log` `user.invited`,
+  `src/routes/admin.ts:196-207`); device activation is deferred to first login
+  (ADR-066 decision 7), so no `device_codes` row is written here, and the invite
+  email is sent outside the transaction as a non-fatal step. `tokenOnly: true`
+  skips the email and returns a raw `anvil_beta_*` token (3-statement batch —
+  `beta_users` → `access_tokens` → `audit_log` `token.created`,
+  `src/routes/admin.ts:160-177`). Both stamp `auth_method` (`shared` /
+  `per_operator`) into `audit_log`.
 - **`/admin/approve`** preserves graded scopes by reading
   `findActiveScopesForUser` and unioning with `DEFAULT_APPROVAL_SCOPES`
   (`src/routes/admin.ts:356-364`). Each requested scope is then flag-resolved
   via `resolveApiScope` (`src/routes/admin.ts:368-375`); a fully empty set
   returns `409 no_scopes` and writes a `user.approve.scopes_dropped` audit row.
-  Batch mode classifies skip reasons (`not_found`, `collision`, `no_scopes`,
-  `error`) and records `user.approve.collision` audits on user-code retries
+  Batch mode classifies skip reasons (`not_found`, `no_scopes`, `error`) via
+  `classifySkip` and returns them per-email in the `skipped[]` array
   (`src/routes/admin.ts:437-479`).
 - **`/admin/broadcast`** dispatches any registered broadcast template
   (`release-announcement`, `waitlist-migration` —
@@ -633,8 +637,7 @@ Actions written by non-auth admin paths (cross-link auth-as-built for the
 auth-side actions):
 
 - `token.created`, `tokens.revoked`, `token.revoked` (invite, revoke).
-- `user.invited`, `user.approved`, `user.approve.collision`,
-  `user.approve.scopes_dropped` (approve flow).
+- `user.invited`, `user.approved`, `user.approve.scopes_dropped` (approve flow).
 - `user.email.updated` (email-update).
 - `broadcast.email.dispatch_started`, `broadcast.email.blocked`,
   `broadcast.email.sent` (broadcast real-send — dispatch is audited _before_ the
