@@ -2,7 +2,7 @@
 
 | ID    | Owner | Status | Progress |
 | ----- | ----- | ------ | -------- |
-| ACTMO | Josh  | In Progress | 18/22 |
+| ACTMO | Josh  | In Progress | 20/22 |
 
 **Last reviewed:** 2026-06-26 — ACTMO-001 through ACTMO-010 completed on
 `feat/actmo-spine`: ADR-092 accepted; `anvil start` now performs MCP-independent

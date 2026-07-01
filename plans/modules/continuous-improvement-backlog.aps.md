@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 77/108  |
+| CIB | —     | In Progress | 77/126  |
 
 ## Purpose
 
@@ -2926,6 +2926,386 @@ archive.
   parity work.
 - **Confidence:** medium — behaviour is clear, but the safe Windows API shape
   likely needs a helper to keep `anvil-cli` under `unsafe_code = "forbid"`.
+
+### CIB-108: Restrict network-capable OPA built-ins during policy evaluation
+
+- **Status:** Ready
+- **Intent:** Prevent untrusted workspace policies from using OPA network-capable
+  built-ins during `anvil policy eval` execution.
+- **Expected Outcome:** `OPAExecutor` evaluates loaded workspace policies with a
+  restricted OPA capabilities profile, or an equivalent fail-closed guard, that
+  removes `http.send` and other runtime/network-sensitive built-ins. The eval path
+  rejects or safely fails policies that require those built-ins instead of making
+  outbound requests from developer or CI environments.
+- **Files:** `packages/anvil/policy/src/opa-executor.ts`, policy eval fixtures and
+  tests under `packages/anvil/policy/src/`.
+- **Validation:** Targeted policy-package tests prove a policy using `http.send`
+  cannot make an outbound request and receives a deterministic denied/unsupported
+  result; existing `anvil policy eval --json` contract tests still pass.
+- **Identified From:** Deepsec P0 true-positive triage, run
+  `20260629190245-caf2a4b60b2715fe`; finding `ssrf` in
+  `packages/anvil/policy/src/opa-executor.ts` (`Untrusted Rego policies run with
+  unrestricted OPA built-ins`), revalidated true-positive.
+- **Coordinates with:** EVAL-001..005 (`anvil policy eval --json` v1 consumers),
+  CIB-078 (frozen eval output contract).
+- **Confidence:** high — the vulnerable trust boundary is confirmed; the remaining
+  choice is the exact OPA capabilities/sandbox mechanism.
+
+### CIB-109: Bind bundle-auth environment credentials to trusted configuration
+
+- **Status:** Ready
+- **Intent:** Stop workspace-controlled bundle configuration from selecting and
+  exfiltrating arbitrary process environment variables as bundle credentials.
+- **Expected Outcome:** Bundle auth no longer accepts arbitrary `password_env` or
+  `token_env` names from untrusted bundle config. Credential references are
+  restricted to operator-owned names, an allowlisted prefix, or a trusted
+  credential registry, and credentials are bound to the intended bundle host so an
+  attacker-controlled HTTPS URL cannot receive unrelated CI secrets.
+- **Files:** `packages/anvil/policy/src/bundle-manager.ts`, bundle manager auth
+  tests under `packages/anvil/policy/src/`.
+- **Validation:** Targeted bundle-manager tests prove a malicious bundle config
+  cannot read sensitive env vars such as `GITHUB_TOKEN` by name, cannot send an
+  allowed credential to an unbound host, and preserves the documented trusted
+  credential path.
+- **Identified From:** Deepsec P0 true-positive triage, run
+  `20260629190245-caf2a4b60b2715fe`; finding `secret-env-var` in
+  `packages/anvil/policy/src/bundle-manager.ts` (`Bundle auth can exfiltrate
+  arbitrary environment variables`), revalidated true-positive.
+- **Coordinates with:** CIB-108 (same policy package trust-boundary hardening),
+  EVAL-001..005 if eval harness fixtures consume remote bundles.
+- **Confidence:** high — arbitrary env-var selection is confirmed; host-binding
+  details need implementation review to avoid breaking trusted operator config.
+
+### CIB-110: Harden GitHub Actions trust boundaries before running PR-controlled code
+
+- **Status:** Ready
+- **Intent:** Close the deepsec P1 CI findings where PR-controlled checkout,
+  local actions, branch selectors, or manual dispatch inputs can influence checks
+  that hold secrets, required-check authority, release authority, or self-hosted
+  runner execution.
+- **Expected Outcome:** Pull-request jobs do not authenticate to Azure or expose
+  deployment secrets before executing PR-controlled code; local actions that
+  receive secrets are loaded from trusted refs or replaced with trusted reusable
+  workflows; change detection cannot be controlled by PR code; self-hosted runner
+  workflows refuse untrusted refs; release/signing workflows enforce trusted tag
+  ancestry, quoted inputs, and least-privilege target repositories.
+- **Files:** `.github/actions/setup-workspace/action.yml`,
+  `.github/actions/anvil-check/action.yml`, `.github/actions/detect-changes/action.yml`,
+  `.github/workflows/{ci.yml,ci-nightly.yml,infra.yml,bench-nightly.yml,resource-budget.yml,rust.yml,security.yml,homebrew-bump.yml,release.yml,release-sign-artefacts.yml,napi.yml}`.
+- **Validation:** GitHub Actions static review plus targeted workflow tests or
+  dry-run checks proving PR jobs skip cloud login, required checks cannot be
+  skipped by changed-file spoofing, and release/signing jobs reject untrusted tags
+  or manual-dispatch targets.
+- **Identified From:** Deepsec P1 true-positive clusters, run
+  `20260629190245-caf2a4b60b2715fe`, across CI bypass, secrets exposure,
+  self-hosted runner, release-signing, and command-injection findings.
+- **Coordinates with:** release workflow governance, branch-protection required
+  checks, CIB-031 dependency-audit scoping.
+- **Confidence:** high — many findings share one trust-boundary shape: secrets or
+  required-check decisions cross into PR-controlled code too early.
+
+### CIB-111: Close API auth, token-rotation, and rate-limit race gaps
+
+- **Status:** Ready
+- **Intent:** Remediate the active deepsec P1 findings in the Anvil API and docs
+  shell around fail-open access, token rotation races, spoofable client identity,
+  and unauthenticated expensive endpoints.
+- **Expected Outcome:** Missing entitlement rows fail closed; refresh-token family
+  revocation and replacement insertion are atomic; OTP active-code and attempt
+  limits cannot be bypassed by concurrent requests; rate limits key on trusted
+  client identity rather than spoofable `X-Forwarded-For`; public waitlist and
+  OAuth callback endpoints have abuse throttles; private docs require the intended
+  docs entitlement, not merely any valid licence JWT.
+- **Files:** `apps/anvil-api/src/db/queries.ts`, `apps/anvil-api/src/index.ts`,
+  `apps/anvil-api/src/middleware/rate-limit.ts`,
+  `apps/anvil-api/src/routes/{auth-otp.ts,waitlist.ts}`,
+  `apps/anvil-api/src/lib/licence.ts`,
+  `apps/docs-shell/app/auth/callback/route.ts`, `apps/docs-shell/proxy.ts`.
+- **Validation:** API tests covering fail-closed entitlement lookup, concurrent OTP
+  request/verify races, refresh-token reuse under parallel rotation, trusted rate
+  limit keys, waitlist/email throttling, callback replay throttling, and docs
+  entitlement enforcement.
+- **Identified From:** Deepsec P1 true-positive clusters, run
+  `20260629190245-caf2a4b60b2715fe`, across auth-bypass, JWT handling,
+  rate-limit-bypass, race-condition, and expensive-API-abuse findings.
+- **Coordinates with:** auth-wall and docs-shell access policy; fixed device-flow
+  P0 closure evidence should remain regression coverage, not active scope.
+- **Confidence:** high — each finding has concrete affected files and observable
+  concurrency or fail-closed tests.
+
+### CIB-112: Gate mutating and script-executing MCP/CLI tools at the daemon boundary
+
+- **Status:** Ready
+- **Intent:** Ensure mutating MCP tools, fence-unblock authority, and gate/fix
+  execution paths cannot be invoked without the intended authentication and
+  containment checks.
+- **Expected Outcome:** Mutating MCP tools are registered behind the auth gate;
+  `anvil_fix` write paths cannot escape via symlink races; read-only `gate` either
+  cannot execute project-controlled scripts or requires explicit authenticated
+  consent; CLI-gated commands fail closed when auth is missing; fence-unblock
+  authority is enforced by the daemon protocol, not only by the CLI wrapper; path
+  query tools normalise source/target paths before policy evaluation.
+- **Files:** `crates/anvil-cli/src/main.rs`,
+  `crates/anvil-cli/src/commands/intercept.rs`,
+  `crates/anvil-cli/src/mcp/tools/{fix.rs,gate.rs,registry.rs,suppress.rs,query_boundary.rs}`.
+- **Validation:** Rust tests proving unauthenticated MCP sessions cannot call
+  mutating tools, symlink-swap write attempts are refused, gate execution posture
+  matches the chosen consent policy, missing auth fails closed, and daemon
+  fence-unblock rejects unauthorised clients.
+- **Identified From:** Deepsec P1 true-positive clusters, run
+  `20260629190245-caf2a4b60b2715fe`, across missing-auth, auth-bypass, RCE,
+  path-boundary, and source-code-injection findings.
+- **Coordinates with:** MCP auth model, intercept daemon protocol, suppression
+  comment safety rules.
+- **Confidence:** high — localised CLI/MCP boundary work, but gate execution
+  posture may need an explicit product/security decision.
+
+### CIB-113: Harden intercept daemon workspace admission, lineage, and session state
+
+- **Status:** Ready
+- **Intent:** Close active deepsec P1/P2 daemon findings where the first IPC client
+  or wire-declared metadata can influence trusted roots, lineage, guarded reads,
+  or persisted fence state.
+- **Expected Outcome:** Allowlist confinement never treats an attacker-chosen first
+  save-time root as trusted authority; IPC clients cannot mint trusted lineage
+  tags; wire change kind cannot suppress guarded reads or content scanning; fence
+  updates are atomic and cannot lose security state; session lifecycle operations
+  are bound to the owning peer; workspace admission budgets are enforced by live
+  callers and cannot be loosened by project-controlled config.
+- **Files:** `crates/anvil-intercept/src/{confinement.rs,save_time.rs,workspace_admission.rs,registry.rs,validate_paths.rs,fence.rs,dos.rs,workspace_pool.rs,lib.rs,fanout.rs,path_safety.rs}`.
+- **Validation:** Daemon tests covering first-root rejection under allowlist
+  confinement, forged lineage rejection, guarded-read enforcement independent of
+  wire change kind, concurrent fence update preservation, session-owner checks,
+  enforced workspace budgets, and FIFO/special-file read refusal or timeout.
+- **Identified From:** Deepsec P1/P2 true-positive clusters, run
+  `20260629190245-caf2a4b60b2715fe`, across ACL, trust-boundary,
+  enforcement-bypass, race-condition, local-DoS, and false-attestation findings.
+- **Coordinates with:** DSV daemon save-time guarantees, ACTMO durable worktree
+  registration, CIB-090/CIB-097 filesystem hardening patterns.
+- **Confidence:** high for the trust-boundary fixes; medium for concurrency tests
+  that may require deterministic daemon harness support.
+
+### CIB-114: Authenticate Windows named-pipe peers across Anvil clients
+
+- **Status:** Ready
+- **Intent:** Close active Windows IPC findings where CLI, driver-client, or
+  intercept clients can connect without proving the server is the Anvil daemon and
+  where trusted config files can be writable by other principals.
+- **Expected Outcome:** Windows named-pipe clients authenticate the daemon peer and
+  preserve local-only/SQOS expectations; driver-client validation no longer
+  accepts an attacker-controlled pipe as the daemon; trusted config reads reject
+  files writable by non-owner principals; Windows lineage/registration semantics
+  match daemon expectations.
+- **Files:** `crates/anvil-intercept-win32/src/lib.rs`,
+  `packages/anvil-driver-client/src/transport/windows.ts`,
+  `packages/anvil-driver-client/src/midedit/validate-mid-edit.ts`,
+  `crates/anvil-run/src/ipc.rs`.
+- **Validation:** Windows matrix tests or platform-specific unit tests proving pipe
+  peer authentication, rejected writable config ACLs, spoof-block propagation, and
+  valid registration lineage on Windows.
+- **Identified From:** Deepsec P1/P2/skip clusters, run
+  `20260629190245-caf2a4b60b2715fe`, across IPC impersonation, ACL, spoof-block
+  suppression, and Windows registration findings.
+- **Coordinates with:** CIB-100 and CIB-106 Windows named-pipe work.
+- **Confidence:** medium — behaviour is clear, but reliable Windows validation is
+  the gating risk.
+
+### CIB-115: Centralise workspace path containment for TS adapters and APS loaders
+
+- **Status:** Ready
+- **Intent:** Close the deepsec P1 path-traversal cluster caused by copied,
+  inconsistent path validation across APS, SpecKit, BMAD, architecture, policy,
+  and cache code.
+- **Expected Outcome:** A single containment helper rejects dot segments,
+  backslash traversal, absolute paths, symlink escapes, and untrusted task/scenario
+  identifiers before they become filesystem paths. APS adapters/importers,
+  architecture scanners, policy discovery, runtime cache, and APS state helpers use
+  the shared helper or prove equivalent behaviour.
+- **Files:** `packages/anvil/core/src/utils/path-safety.ts`,
+  `packages/adapters/src/**`, `packages/aps/src/{loader,state,validator}/**`,
+  `packages/anvil/core/src/architecture/**`,
+  `packages/anvil/policy/src/policy-loader.ts`,
+  `packages/anvil/runtime/src/cache/providers/file-cache.ts`.
+- **Validation:** Cross-package tests covering POSIX and Windows separators,
+  symlinked directories, generated scenario/task IDs, duplicate basename handling,
+  and cache-entry names; existing adapter and APS validator tests still pass.
+- **Identified From:** Deepsec P1/P2 true-positive clusters, run
+  `20260629190245-caf2a4b60b2715fe`, dominated by path-traversal findings in
+  adapters, APS state/loader, architecture analysis, policy loading, and cache
+  providers.
+- **Coordinates with:** CIB-108 (policy eval trust boundary), APS parser/validator
+  governance.
+- **Confidence:** high — root cause is duplicated validation; broad file touch
+  warrants careful staged tests.
+
+### CIB-116: Redact provenance and debug secrets before persistence or logs
+
+- **Status:** Ready
+- **Intent:** Prevent Copilot tokens, credential-bearing Git remotes, raw debug
+  payloads, and admin secrets from being persisted to notes, provenance records,
+  logs, or command histories.
+- **Expected Outcome:** Git remote URLs and AI session identifiers are redacted or
+  rejected before persistence; Copilot tokens are never treated as session IDs;
+  structured debug payloads pass through the same redaction path as string logs;
+  admin and revoke tokens are not accepted through command-line arguments where
+  process listings can expose them.
+- **Files:** `packages/anvil/core/src/provenance/**`,
+  `apps/anvil-api/src/lib/debug.ts`, `apps/admin-cli/src/index.ts`,
+  `apps/admin-cli/src/commands/revoke.ts`.
+- **Validation:** Tests proving credential-bearing remotes, Copilot-like tokens,
+  structured debug payloads, and CLI argument secrets are redacted, rejected, or
+  moved to safer input channels; existing provenance output remains stable for
+  non-secret values.
+- **Identified From:** Deepsec P1/P2 true-positive clusters, run
+  `20260629190245-caf2a4b60b2715fe`, across secret-in-log, secrets-exposure,
+  info-disclosure, and secret CLI argument findings.
+- **Coordinates with:** provenance/Git AI standard outputs, admin CLI operator
+  runbook.
+- **Confidence:** high — secret shapes are concrete; compatibility risk is limited
+  to documented input channels and provenance schema expectations.
+
+### CIB-117: Fence TS runtime and APS state transitions against lost updates
+
+- **Status:** Ready
+- **Intent:** Close deepsec P1 race findings in TypeScript lock/state helpers that
+  can lose task records, lock records, or mutual-exclusion guarantees.
+- **Expected Outcome:** Expired/stale lock takeover is fenced and atomic; APS state
+  updates cannot overwrite concurrent task or lock records; file-backed state
+  helpers use atomic write/compare or a process-level lock appropriate to the
+  runtime; segment targeting logic is reconciled across TypeScript and any other
+  feature-flag runtimes.
+- **Files:** `packages/anvil/runtime/src/concurrency/lock-manager.ts`,
+  `packages/aps/src/state/index.ts`,
+  `packages/anvil/runtime/src/feature-flags/resolver.ts`.
+- **Validation:** Concurrency tests proving stale lock takeover is single-winner,
+  simultaneous APS state writes preserve both records, and TypeScript segment
+  targeting matches the intended flag contract.
+- **Identified From:** Deepsec P1 true-positive clusters, run
+  `20260629190245-caf2a4b60b2715fe`, across race-condition and
+  cross-runtime-logic-drift findings.
+- **Coordinates with:** feature flag governance, APS state tooling.
+- **Confidence:** high for lock/state tests; medium for feature-flag parity if
+  external consumers depend on current behaviour.
+
+### CIB-118: Make Edda and Kindling state transitions atomic and payload-consistent
+
+- **Status:** Ready
+- **Intent:** Close deepsec P1/P2 findings where Edda memory/proposal transitions
+  and Kindling observation writes can be duplicated, overwritten, or validated
+  against a different payload than the one stored.
+- **Expected Outcome:** Edda promotion, supersede, memory index updates, and
+  proposal resolution are idempotent and atomic; terminal proposal states cannot
+  be re-resolved or promoted twice; Kindling writes exactly the payload that was
+  validated; human-input observation IDs returned by emitters are persisted or the
+  API is corrected.
+- **Files:** `packages/edda-stack/src/edda/{memory-store.ts,promotion-service.ts,evolution-service.ts}`,
+  `packages/edda-stack/src/ember/proposal-store.ts`,
+  `packages/kindling-integration/src/{kindling-service.ts,emitters/human-input-emitter.ts}`.
+- **Validation:** Concurrency/idempotency tests for duplicate promotions,
+  supersede/update races, terminal proposal resolution, validated-payload equality,
+  and persisted human-input observation linkage.
+- **Identified From:** Deepsec P1/P2/skip clusters, run
+  `20260629190245-caf2a4b60b2715fe`, across race-condition,
+  non-atomic-state-transition, validation-bypass, and observation-linkage findings.
+- **Coordinates with:** Edda/Kindling storage semantics and any existing proposal
+  lifecycle tests.
+- **Confidence:** medium — fixes are localised but concurrency semantics may need
+  explicit product decisions around conflict resolution.
+
+### CIB-119: Gate infrastructure secrets and production resources by trusted stack context
+
+- **Status:** Ready
+- **Intent:** Stop non-production or PR-controlled infrastructure paths from
+  reading production secrets or defining/mutating production resources.
+- **Expected Outcome:** Pulumi preview/apply paths do not fetch production Key
+  Vault secrets for untrusted previews; non-prod stacks cannot create production
+  Vercel, signing, or admin-key resources; concurrent admin-key creation preserves
+  the active-key invariant.
+- **Files:** `infra/src/{keyvault.ts,vercel.ts,signing.ts,admin-keys.ts}`,
+  `infra/scripts/admin-key-manage.mjs`, `.github/workflows/infra.yml`.
+- **Validation:** Infrastructure unit tests or Pulumi preview tests proving stack
+  gating for production-only resources, no production secret reads in untrusted
+  previews, and atomic active-key creation under concurrent attempts.
+- **Identified From:** Deepsec P1/P2/skip clusters, run
+  `20260629190245-caf2a4b60b2715fe`, across secrets-exposure,
+  cross-stack-resource-ownership, admin-key-provisioning, and race-condition
+  findings.
+- **Coordinates with:** CIB-110 for workflow-side secret exposure; infrastructure
+  release/deployment runbooks.
+- **Confidence:** high for stack guards; medium for concurrency depending on the
+  backing admin-key store.
+
+### CIB-120: Pin release-time installers and signing-job supply-chain inputs
+
+- **Status:** Ready
+- **Intent:** Close active deepsec P2 supply-chain findings where release or
+  signing jobs execute unpinned installer scripts before using release authority or
+  private signing keys.
+- **Expected Outcome:** Release workflows pin and verify `rsign2`, `rustup`, and
+  any mutable installer inputs before execution; signing jobs install tools from
+  trusted, integrity-checked artefacts; release/signing jobs document the
+  verification mechanism and fail closed on mismatch.
+- **Files:** `.github/workflows/{release.yml,release-sign-artefacts.yml}`.
+- **Validation:** Workflow review plus a dry-run or shellcheck-style validation
+  proving pinned URLs/checksums are used and checksum mismatch fails before any
+  private key or publish token is available.
+- **Identified From:** Deepsec P2 true-positive clusters, run
+  `20260629190245-caf2a4b60b2715fe`, across unpinned `rsign2` and `rustup`
+  installer findings.
+- **Coordinates with:** CIB-110 release workflow hardening; release skill/runbook.
+- **Confidence:** high — small workflow hardening with clear fail-closed evidence.
+
+### CIB-121: Sweep P2 product-surface correctness and information-disclosure findings
+
+- **Status:** Proposed
+- **Intent:** Disposition lower-priority deepsec findings in public/admin surfaces
+  that are not covered by the P1 hardening clusters but still have observable user
+  or operator impact.
+- **Expected Outcome:** Each remaining P2 public/admin finding is either fixed,
+  accepted with rationale, or promoted to a more specific Ready item. Initial
+  candidates include waitlist membership enumeration, OTP timing differences,
+  early-access throttling, placeholder PGP disclosure instructions, non-ASCII
+  secret-header comparison crashes, admin dry-run copy drift, and invite/approval
+  polling-secret loss.
+- **Files:** `apps/anvil-api/src/routes/{admin.ts,auth-otp.ts,waitlist.ts}`,
+  `apps/website/app/api/early-access/install/route.ts`,
+  `apps/website/app/security/page.tsx`,
+  `apps/{anvil-docs-private,docs-public}/middleware.ts`,
+  `apps/admin-cli/src/commands/send-migration.ts`,
+  `apps/docs-shell/app/auth/error/page.tsx`.
+- **Validation:** Targeted tests or documented accepted-risk decisions for each
+  disposition; no unresolved P2 finding in these surfaces remains without a
+  tracking reference.
+- **Identified From:** Deepsec P2/untriaged/skip clusters, run
+  `20260629190245-caf2a4b60b2715fe`.
+- **Coordinates with:** CIB-111 and CIB-116 where fixes share API or secret-handling
+  primitives.
+- **Confidence:** medium — this is a disposition sweep; some findings may collapse
+  into existing items after closer review.
+
+### CIB-122: Disposition remaining deepsec P2/skip/untriaged quality findings
+
+- **Status:** Proposed
+- **Intent:** Ensure the residual deepsec triage output does not become a parallel
+  backlog outside APS.
+- **Expected Outcome:** The remaining non-P1 findings in adapters, generic parser,
+  docs metadata, eslint rules, render validation, codemods, CLI process handling,
+  and security-scan reporting are reviewed and either fixed, accepted, closed as
+  duplicate of CIB-110..121, or split into one Ready item per executable root
+  cause.
+- **Files:** `packages/adapters/src/**`, `packages/docs-meta/src/**`,
+  `packages/eslint-plugin-anvil/src/**`, `packages/libs/render/src/**`,
+  `tools/{codemods,nx-rust,generators}/**`, `.github/workflows/security.yml`,
+  `crates/anvil-cli/src/{commands/intercept.rs,mcp/enforcement.rs,mcp/tools/gate.rs,mcp/tools/validate_write.rs}`.
+- **Validation:** A reconciliation note in this item or split child items lists the
+  disposition for each residual P2/skip/untriaged finding; deepsec export no
+  longer contains untracked residuals for those clusters.
+- **Identified From:** Deepsec P2/skip/untriaged residual clusters, run
+  `20260629190245-caf2a4b60b2715fe`.
+- **Coordinates with:** CIB-110..121; split any finding that proves larger or more
+  urgent than a sweep.
+- **Confidence:** medium — this deliberately starts as triage/disposition work to
+  avoid over-filing low-priority duplicates.
 
 ### CIB-123: Reconcile the language-profile registry with shipped parser/check coverage
 
