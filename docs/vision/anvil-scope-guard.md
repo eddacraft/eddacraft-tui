@@ -1,8 +1,8 @@
 # Anvil Scope Guard
 
-| Type  | Authority     | Owner  | Status | Freshness                                        |
-| ----- | ------------- | ------ | ------ | ------------------------------------------------ |
-| Guide | Authoritative | VISION | Live   | Metadata backfilled 2026-05-27 during DOCGOV-011 |
+| Type  | Authority     | Owner  | Status | Freshness                                              |
+| ----- | ------------- | ------ | ------ | ------------------------------------------------------ |
+| Guide | Authoritative | VISION | Live   | Decision-framework reconciled to ADR-002 on 2026-07-02 |
 
 | Upstream     | Downstream                                     |
 | ------------ | ---------------------------------------------- |
@@ -118,10 +118,15 @@ When evaluating a feature, apply:
 
 2. **Does it operate before or at execution time?** If only after → Reject
 
-3. **Does it strengthen deterministic control?** If probabilistic or advisory →
-   Reject
+3. **Does it strengthen deterministic control?** If probabilistic → Reject
 
-4. **Does it enforce or just inform?** If it only informs → Reject
+4. **Does it serve enforcement, or only inform for its own sake?** Anvil's
+   shipped default is _deterministic advisory_ — warn on new violations, exit 0,
+   with enforcement opt-in (ADR-002). So a deterministic finding that an
+   operator can promote to a hard failure (`--fail-on-warnings`, intercept
+   enforcement) is **in scope**; what is rejected is _probabilistic_ or
+   _decorative_ advice that never becomes enforceable — suggestions, nudges,
+   quality scores with no path to a deterministic gate.
 
 ## Allowed vs Not Allowed Examples
 

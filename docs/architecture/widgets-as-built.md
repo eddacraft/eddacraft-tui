@@ -1,21 +1,21 @@
 # Widget Catalogue — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                 |
-| -------- | --------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | RATS  | Live   | Last reviewed 2026-06-10 (targeted delta review: path-crate consumption, catalogue growth, theme contract, consumption inversions) against main `45dd1047a`; full review 2026-05-07 against `v0.6.0-beta` |
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                    |
+| -------- | --------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | RATS  | Live   | Last reviewed 2026-07-02 (targeted delta review: keyboard `Action` non-exhaustive + variant count) against main `d1fded280`; prior delta review 2026-06-10 against `45dd1047a`; full review 2026-05-07 against `v0.6.0-beta` |
 
 | Upstream                                   | Downstream                                                                                                                           |
 | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
 | `crates/anvil-tui`, `crates/eddacraft-tui` | all surfaces in anvil-tui (audit, browser, doctor, gate, init, onboarding, status, tutorial, watch, welcome, wizard), CLI TUI runner |
 
-> **Status:** Live (beta) **Last reviewed:** 2026-06-10 (targeted delta review)
-> against main `45dd1047a`; full review 2026-05-07 against `v0.6.0-beta` slate
-> (HEAD `cf7ca040`) **Crates / locations:** `crates/anvil-tui/src/widgets/`
-> (anvil-specific) + `crates/eddacraft-tui` v0.3.0 (in-monorepo path crate,
-> ADR-047; crates.io publication is a mirror — see "Crate resolution") **Module
-> owner (APS):** RATS (Ratatui surfaces — Complete 7/7,
-> `plans/archive/modules/ratatui-tui.aps.md`); the upstream extraction was
-> tracked under TUIEXTRACT (Complete 7/7,
+> **Status:** Live (beta) **Last reviewed:** 2026-07-02 (targeted delta review)
+> against main `d1fded280`; prior delta review 2026-06-10 against `45dd1047a`;
+> full review 2026-05-07 against `v0.6.0-beta` slate (HEAD `cf7ca040`) **Crates
+> / locations:** `crates/anvil-tui/src/widgets/` (anvil-specific) +
+> `crates/eddacraft-tui` v0.3.0 (in-monorepo path crate, ADR-047; crates.io
+> publication is a mirror — see "Crate resolution") **Module owner (APS):** RATS
+> (Ratatui surfaces — Complete 7/7, `plans/archive/modules/ratatui-tui.aps.md`);
+> the upstream extraction was tracked under TUIEXTRACT (Complete 7/7,
 > `plans/archive/modules/eddacraft-tui-shared.aps.md`). The widget catalogue is
 > infrastructure under those modules rather than its own module. **Used by:**
 > every surface in `crates/anvil-tui/src/surfaces/` (audit / browser / doctor /
@@ -235,8 +235,11 @@ function that translates a single `crossterm::event::KeyEvent` into one
 
 ### `Action` enum
 
-`crates/eddacraft-tui/src/keyboard/handler.rs:3-21` — 15 variants:
+`crates/eddacraft-tui/src/keyboard/handler.rs:4-22` — 16 variants:
 `Up / Down / Left / Right / Select / Toggle / Back / Quit / Character(char) / Backspace / Delete / Home / End / PageUp / PageDown / None`.
+The enum is `#[non_exhaustive]` (`handler.rs:4`), so downstream `match` arms
+must carry a wildcard and new navigation actions can be added without a breaking
+change.
 
 `None` is the explicit "key event the handler does not recognise" sentinel —
 surfaces match against it as `_ => {}` (or ignore it implicitly). The enum is
@@ -244,7 +247,7 @@ surfaces match against it as `_ => {}` (or ignore it implicitly). The enum is
 
 ### `KeyHandler::map` contract
 
-`crates/eddacraft-tui/src/keyboard/handler.rs:23-52`. The mapping is fully
+`crates/eddacraft-tui/src/keyboard/handler.rs:93-119`. The mapping is fully
 static — there is no chord support, no rebinding, no stateful machine. The
 module now also exports a `Binding` descriptor alongside `Action` / `KeyHandler`
 (`crates/eddacraft-tui/src/keyboard/mod.rs:3`, prelude `lib.rs:64`): a
@@ -829,7 +832,7 @@ release-history pin.
 
 The `KeyHandler::map` accepts only `crossterm::event::KeyEvent` — mouse events
 are not part of the action vocabulary. The CLI runner only polls `Event::Key`
-(`crates/anvil-cli/src/tui.rs:97-156` — `tui-as-built.md` deep dive). Mouse
+(`crates/anvil-cli/src/tui.rs:185-244` — `tui-as-built.md` deep dive). Mouse
 support is **not implemented** at the widget or surface layer.
 
 Unicode: most widgets emit unicode glyphs freely (`spinner` braille,
@@ -986,7 +989,7 @@ review.
 | `crates/eddacraft-tui/src/lib.rs`                                                            | Module root; `prelude` re-exports                                          |
 | `crates/eddacraft-tui/src/compat.rs`                                                         | `TerminalInfo`, `detect_terminal`, `validate_minimum_size` (80x24 minimum) |
 | `crates/eddacraft-tui/src/keyboard/mod.rs`                                                   | Re-exports `Action`, `Binding`, `KeyHandler`                               |
-| `crates/eddacraft-tui/src/keyboard/handler.rs`                                               | `Action` enum (15 variants), `KeyHandler::map`                             |
+| `crates/eddacraft-tui/src/keyboard/handler.rs`                                               | `Action` enum (16 variants, `#[non_exhaustive]`), `KeyHandler::map`        |
 | `crates/eddacraft-tui/src/shell.rs`                                                          | `render_shell` chrome (header + footer + watermark)                        |
 | `crates/eddacraft-tui/src/surface.rs`                                                        | `Surface` trait                                                            |
 | `crates/eddacraft-tui/src/test_utils.rs`                                                     | `snapshot::buffer_to_string`, `style_annotation`                           |

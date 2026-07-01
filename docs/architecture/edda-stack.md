@@ -10,6 +10,13 @@
 
 > A three-layer architecture that governs how activity becomes memory.
 
+> **Implementation status:** This describes the design contract. The
+> `packages/edda-stack` TypeScript surface is a **partial implementation**
+> (Edda + Ember present; Kindling capture via `packages/kindling-integration`)
+> and is **retiring** as operational memory moves to the Rust Kindling path.
+> `overview.md` and `anvil-full-architecture.md` state the same partial/retiring
+> status.
+
 ## Overview
 
 The Edda Stack separates concerns that most systems collapse:
@@ -301,7 +308,9 @@ interface IEddaPort {
 
 ## Configuration
 
-Stack configuration in `.anvilrc`:
+Stack configuration lives in the Anvil project config file — `.anvilrc`
+(migrating to the `.anvil.<ext>` form), the same config surface the rest of
+Anvil reads under the project's `.anvil/` configuration area:
 
 ```json
 {

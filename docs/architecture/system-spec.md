@@ -1,12 +1,24 @@
 # System Specification
 
-| Type | Authority | Owner | Status | Freshness                                        |
-| ---- | --------- | ----- | ------ | ------------------------------------------------ |
-| Spec | Derived   | EDDA  | Live   | Metadata backfilled 2026-05-27 during DOCGOV-011 |
+| Type | Authority | Owner | Status   | Freshness                                                               |
+| ---- | --------- | ----- | -------- | ----------------------------------------------------------------------- |
+| Spec | Derived   | EDDA  | Proposed | Aspirational target-state (PocketFlow unbuilt); banner added 2026-07-02 |
 
 | Upstream                                     | Downstream                                 |
 | -------------------------------------------- | ------------------------------------------ |
 | PocketFlow, Kindling, Ember, Edda, and Anvil | Edda Stack architecture and component docs |
+
+> **Status note (2026-07-02):** This document specifies the _target_ Edda Stack
+> ecosystem — read it as direction, not as-built. **PocketFlow is unbuilt:** the
+> `pocketflow-gateway` module (PFGW) is `Draft` in
+> [`plans/index.aps.md`](../../plans/index.aps.md) and no PocketFlow crate ships
+> today. Where this spec says "Anvil defines policy" and "Anvil cannot
+> remember", it means the narrow _policy-engine role_ Anvil plays **within this
+> Edda Stack conception** — not the shipped `anvil` product, which observes
+> files continuously and maintains a semantic graph (see
+> [`overview.md`](overview.md) and [`kernel-as-built.md`](kernel-as-built.md)).
+> The "single gateway" topology below is likewise aspirational; today Anvil runs
+> standalone.
 
 ## System Summary
 

@@ -1,8 +1,8 @@
 # Anvil Rust Architecture — End State Specification
 
-| Type | Authority | Owner | Status | Freshness                                                                  |
-| ---- | --------- | ----- | ------ | -------------------------------------------------------------------------- |
-| Spec | Derived   | KERN  | Live   | Last reviewed 2026-05-22 against `crates/anvil-checks/src/` and DOCGOV-006 |
+| Type | Authority | Owner | Status | Freshness                                                                                                                                                                                                         |
+| ---- | --------- | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Spec | Derived   | KERN  | Live   | Drift banner added to the illustrative kernel file-tree + eddacraft-tui/tokio claims corrected 2026-07-02 against main `d1fded280`. Last full review 2026-05-22 against `crates/anvil-checks/src/` and DOCGOV-006 |
 
 | Upstream                                | Downstream                                  |
 | --------------------------------------- | ------------------------------------------- |
@@ -61,6 +61,23 @@ pedantic = { level = "warn", priority = -1 }
 
 ### Crate Map
 
+> **Illustrative / aspirational — not the shipped layout.** This tree is the
+> end-state design sketch and its **internal** file paths do **not** match the
+> current source. Notably, in the shipped code the kernel's `embedded.rs` and
+> `watch.rs` are top-level (there is no `src/modes/`), the semantic graph has
+> moved out of `anvil-kernel` into the `anvil-graph-cache` crate, symbol
+> extraction lives under `parser/extract/` (not `parser/adapters/`), the policy
+> evaluator is `policy/engine.rs` (not `framework.rs`), the event surface is
+> `protocol/emitter.rs` over a **std** `mpsc` channel (not a `transport.rs` /
+> Tokio), and `daemon.rs` was never built (KERN-050..052 superseded by INTD per
+> ADR-030). For the authoritative current layout, read
+> [`kernel-as-built.md`](./kernel-as-built.md) §16 (kernel internals) and
+> [`rust-architecture-overview.md`](./rust-architecture-overview.md) "Crate
+> Layout" (the full 35-crate workspace roster). This sketch is neither complete
+> nor current at the file level — e.g. `eddacraft-kindling` below was never
+> created, and crates such as `anvil-graph-cache`, `anvil-intercept`,
+> `anvil-gctx-*`, `anvil-run`, and `anvil-sarif` are omitted here.
+
 ```
 crates/
 │
@@ -78,7 +95,7 @@ crates/
 │   └── src/lib.rs                  EngineId (Rust | Legacy)
 │
 ├── eddacraft-tui/                  [DONE] RATS-001, PORT-001, PORT-002
-│   │                               # External git dep — not in workspace
+│   │                               # Workspace member at crates/eddacraft-tui, consumed by path (ADR-047)
 │   ├── src/keyboard/               KeyHandler, Action types
 │   ├── src/theme/                  eddacraft dark theme
 │   └── src/widgets/                15+ shared widgets
@@ -644,21 +661,21 @@ These can proceed independently of the kernel critical path:
 
 ## 10. Key Dependencies (Cargo)
 
-| Category      | Crate                    | Version  | Used By                  |
-| ------------- | ------------------------ | -------- | ------------------------ |
-| Parsing       | `tree-sitter`            | 0.26     | anvil-kernel             |
-| Parsing       | `tree-sitter-typescript` | 0.23     | anvil-kernel             |
-| Parsing       | `tree-sitter-javascript` | 0.25     | anvil-kernel             |
-| File watching | `notify`                 | 8        | anvil-kernel             |
-| Graph         | `petgraph`               | 0.8      | anvil-kernel             |
-| Serialisation | `serde`                  | 1        | all crates               |
-| Serialisation | `serde_json`             | 1        | all crates               |
-| TUI           | `ratatui`                | 0.30     | eddacraft-tui, anvil-tui |
-| TUI           | `crossterm`              | 0.29     | eddacraft-tui, anvil-tui |
-| Async         | `tokio`                  | 1 (full) | anvil-kernel             |
-| Testing       | `insta`                  | 1 (yaml) | all crates               |
-| Benchmarks    | `criterion`              | 0.5      | anvil-checks, bench      |
-| Regex         | `regex`                  | 1        | anvil-checks             |
+| Category      | Crate                    | Version  | Used By                                                                                 |
+| ------------- | ------------------------ | -------- | --------------------------------------------------------------------------------------- |
+| Parsing       | `tree-sitter`            | 0.26     | anvil-kernel                                                                            |
+| Parsing       | `tree-sitter-typescript` | 0.23     | anvil-kernel                                                                            |
+| Parsing       | `tree-sitter-javascript` | 0.25     | anvil-kernel                                                                            |
+| File watching | `notify`                 | 8        | anvil-kernel                                                                            |
+| Graph         | `petgraph`               | 0.8      | anvil-kernel                                                                            |
+| Serialisation | `serde`                  | 1        | all crates                                                                              |
+| Serialisation | `serde_json`             | 1        | all crates                                                                              |
+| TUI           | `ratatui`                | 0.30     | eddacraft-tui, anvil-tui                                                                |
+| TUI           | `crossterm`              | 0.29     | eddacraft-tui, anvil-tui                                                                |
+| Async         | `tokio`                  | 1 (full) | anvil-cli, anvil-intercept (**not** anvil-kernel — the kernel is sync-only, std `mpsc`) |
+| Testing       | `insta`                  | 1 (yaml) | all crates                                                                              |
+| Benchmarks    | `criterion`              | 0.5      | anvil-checks, bench                                                                     |
+| Regex         | `regex`                  | 1        | anvil-checks                                                                            |
 
 ---
 

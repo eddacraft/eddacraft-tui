@@ -1,21 +1,23 @@
 # anvil MCP Shim — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                    |
-| -------- | --------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | RMCP  | Live   | Last reviewed 2026-06-10 (targeted delta review: RMCPF-010..-012 tool registry, validate_write schema additions, gap register) against main `45dd1047a`; full review 2026-05-07 against `v0.6.0-beta` and `crates/anvil-cli` |
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                         |
+| -------- | --------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | RMCP  | Live   | Last reviewed 2026-07-02 (as-built drift sweep: tool registry now 14 tools incl. 6 GCTX graph-context tools, repinned registry.rs line refs) against main `d1fded280`; prior delta review 2026-06-10 (RMCPF-010..-012 tool registry, validate_write schema additions, gap register) against main `45dd1047a`; full review 2026-05-07 against `v0.6.0-beta` and `crates/anvil-cli` |
 
 | Upstream                                                                              | Downstream                                                                  |
 | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | `crates/anvil-cli`, `crates/anvil-intercept`, `crates/anvil-intercept-proto`, ADR-033 | Cursor MCP client, Claude Code MCP client, activation orchestrator (LAUNCH) |
 
-> **Status:** Live (beta) **Last reviewed:** 2026-06-10 (targeted delta review:
-> RMCPF-010..-012 tool registry, validate_write schema additions, gap register)
+> **Status:** Live (beta) **Last reviewed:** 2026-07-02 (as-built drift sweep:
+> tool registry now 14 tools incl. 6 GCTX graph-context tools, repinned
+> registry.rs line refs) against main `d1fded280`; prior delta review 2026-06-10
+> (RMCPF-010..-012 tool registry, validate_write schema additions, gap register)
 > against main `45dd1047a`; full review 2026-05-07 against `v0.6.0-beta` slate
 > (HEAD `97b61fd0`) **Crate / location:** `crates/anvil-cli/src/mcp/` (+
 > `commands/mcp*.rs`) **Module owner (APS):** RMCP
 > (`plans/archive/modules/rust-mcp-launch-shim.aps.md`, 8/8 complete) **Used
-> by:** Cursor + Claude Code MCP clients (call the shim's eight registry tools
-> over stdio; `anvil_validate_write` is the load-bearing pre-write gate); the
+> by:** Cursor + Claude Code MCP clients (call the shim's 14 registry tools over
+> stdio; `anvil_validate_write` is the load-bearing pre-write gate); the
 > activation orchestrator
 > (`crates/anvil-cli/src/activation/orchestrator/mod.rs:112`) writes the MCP
 > entries during `anvil start`
@@ -30,18 +32,28 @@ validation-write surface that AI editors call **before** AI-generated writes hit
 disk; honouring a `block` decision is what turns the editor's write tool from
 "AI guesses" into "AI guesses that the daemon already vetted".
 
-The shim's registry ships **eight tools**
-(`crates/anvil-cli/src/mcp/tools/registry.rs:22-76`; the count is pinned by
-`assert_eq!(tools.len(), 8)` at `registry.rs:94`): `anvil_validate_write`,
-`anvil_apply_patch`, `anvil_status`, `anvil_check`, `anvil_gate`,
-`anvil_query_boundary`, `anvil_suppress`, and `anvil_fix` — the RMCPF-010 / -011
-/ -012 port of the catalogue whose prior home was the legacy Node MCP server
-(`@eddacraft/anvil-mcp-server`), now superseded in-shim. Auth is data-driven via
-`ToolDefinition.requires_auth` (`registry.rs:7`), gated at
+The shim's registry ships **14 tools**
+(`crates/anvil-cli/src/mcp/tools/registry.rs:30-148`; the count is pinned by
+`assert_eq!(tools.len(), 14)` at `registry.rs:166`). The original eight are
+`anvil_validate_write`, `anvil_apply_patch`, `anvil_status`, `anvil_check`,
+`anvil_gate`, `anvil_query_boundary`, `anvil_suppress`, and `anvil_fix` — the
+RMCPF-010 / -011 / -012 port of the catalogue whose prior home was the legacy
+Node MCP server (`@eddacraft/anvil-mcp-server`), now superseded in-shim. Six
+read-only **GCTX graph-context tools** were added under GCTX-010..023 / ADR-084:
+`anvil_search_symbols`, `anvil_find_dependents`, `anvil_find_callers`,
+`anvil_impact_of_change`, `anvil_affected_tests`, and `anvil_symbol_context`
+(registry rows at `registry.rs:96-147`). The six GCTX tools set
+`charges_graph_egress: true` (`ToolDefinition` field at `registry.rs:15`) — a
+successful payload is charged against the per-session `graph://` egress byte
+ceiling, the same credit `resources/read` spends (CIB-091d). Auth is data-driven
+via `ToolDefinition.requires_auth` (`registry.rs:10`), gated at
 `commands/mcp.rs:365-367`; `anvil_suppress` and `anvil_fix` keep
 `requires_auth: false` for parity with the archived TS server pending the
-RMCPF-011 authority review (`registry.rs:59-63`). See
-`docs/public/anvil/integrations/mcp.md` for the public-side comparison.
+RMCPF-011 authority review (`registry.rs:73-91`), and the six GCTX tools keep
+`requires_auth: false` because their real authority gate is the daemon-side
+workspace-root admission (ADR-084 C3 / CE-8), not the MCP auth cache
+(`registry.rs:92-95`). See `docs/public/anvil/integrations/mcp.md` for the
+public-side comparison.
 
 The shim sits at the trust boundary between the editor and the daemon:
 
@@ -145,21 +157,30 @@ envelope. Oversize lines are discarded with the rest of the line
 ## 4. Tool surface
 
 The shim exposes MCP tools through the registry at
-`crates/anvil-cli/src/mcp/tools/registry.rs` (`registry.rs:22-76`). Each tool
+`crates/anvil-cli/src/mcp/tools/registry.rs` (`registry.rs:30-148`). Each tool
 supplies its descriptor, dispatch function, and auth policy
-(`ToolDefinition.requires_auth`, `registry.rs:7`). Pins below are relative to
-`crates/anvil-cli/src/mcp/tools/`:
+(`ToolDefinition.requires_auth`, `registry.rs:10`) plus a graph-egress flag
+(`ToolDefinition.charges_graph_egress`, `registry.rs:15`). Pins below are
+relative to `crates/anvil-cli/src/mcp/tools/`. The six GCTX rows (from
+`anvil_search_symbols` down) set `charges_graph_egress: true`; the original
+eight set it `false`:
 
-| Tool                   | Pin                    | Auth | Purpose                                                                    |
-| ---------------------- | ---------------------- | ---- | -------------------------------------------------------------------------- |
-| `anvil_validate_write` | `validate_write.rs:19` | yes  | Pre-write validation gate over proposed content (deep-dive below)          |
-| `anvil_apply_patch`    | `apply_patch.rs:16`    | yes  | Validate a unified diff before applying it                                 |
-| `anvil_status`         | `status.rs:9`          | no   | Read-only workspace-health summary                                         |
-| `anvil_check`          | `check.rs:14`          | no   | Antipattern validation; architecture-check parity deferred (`check.rs:21`) |
-| `anvil_gate`           | `gate.rs:15`           | no   | Quality gate / planless antipattern scan                                   |
-| `anvil_query_boundary` | `query_boundary.rs:38` | no   | Can-file-import-file boundary query                                        |
-| `anvil_suppress`       | `suppress.rs:37`       | no   | Time-boxed suppression comment (default 30 days, max 365)                  |
-| `anvil_fix`            | `fix.rs:33`            | no   | Deterministic auto-fixes for AP-001 / AP-003 / AP-004                      |
+| Tool                     | Pin                      | Auth | Purpose                                                                    |
+| ------------------------ | ------------------------ | ---- | -------------------------------------------------------------------------- |
+| `anvil_validate_write`   | `validate_write.rs:19`   | yes  | Pre-write validation gate over proposed content (deep-dive below)          |
+| `anvil_apply_patch`      | `apply_patch.rs:16`      | yes  | Validate a unified diff before applying it                                 |
+| `anvil_status`           | `status.rs:9`            | no   | Read-only workspace-health summary                                         |
+| `anvil_check`            | `check.rs:14`            | no   | Antipattern validation; architecture-check parity deferred (`check.rs:21`) |
+| `anvil_gate`             | `gate.rs:15`             | no   | Quality gate / planless antipattern scan                                   |
+| `anvil_query_boundary`   | `query_boundary.rs:38`   | no   | Can-file-import-file boundary query                                        |
+| `anvil_suppress`         | `suppress.rs:37`         | no   | Time-boxed suppression comment (default 30 days, max 365)                  |
+| `anvil_fix`              | `fix.rs:33`              | no   | Deterministic auto-fixes for AP-001 / AP-003 / AP-004                      |
+| `anvil_search_symbols`   | `search_symbols.rs:26`   | no   | GCTX identity-only symbol search (charges `graph://` egress; GCTX-010)     |
+| `anvil_find_dependents`  | `find_dependents.rs:29`  | no   | GCTX file-keyed dependents traversal (charges `graph://` egress; GCTX-011) |
+| `anvil_find_callers`     | `find_callers.rs:30`     | no   | GCTX symbol-keyed caller traversal (charges `graph://` egress; GCTX-014)   |
+| `anvil_impact_of_change` | `impact_of_change.rs:29` | no   | GCTX change-impact report over changed paths (charges egress; GCTX-012)    |
+| `anvil_affected_tests`   | `affected_tests.rs:30`   | no   | GCTX affected-tests + coverage-gap report (charges egress; GCTX-013)       |
+| `anvil_symbol_context`   | `symbol_context.rs:25`   | no   | GCTX bounded symbol-context slice (charges `graph://` egress; GCTX-023)    |
 
 `anvil_validate_write` remains the load-bearing tool of this surface and is the
 deep-dive for the rest of this section. It is defined at
@@ -280,7 +301,7 @@ The shim sends `scan_buffer` (bare, not `anvil/scan_buffer`) to the daemon
 ```
 
 The daemon dual-routes the bare and the namespaced form
-(`anvil-intercept-proto/src/protocol.rs:83`, `ANVIL_SCAN_BUFFER`);
+(`anvil-intercept-proto/src/protocol.rs:125`, `ANVIL_SCAN_BUFFER`);
 intercept-as-built §4.3 captures the daemon-side view. The shim hard-pins the
 response correlation `id` to the request id (`validation.rs:300-313`); a
 mismatched id is treated as `OperationalFailure`, not silently demoted.
@@ -678,7 +699,7 @@ See `docs/archive/runbooks/v0.6.0-beta-security-note.md` §H2 (108-139).
 ### G-04: Tool surface limited to `anvil_validate_write` (resolved)
 
 **Resolved (RMCPF-010/011/012):** the six former Node-only tools were ported to
-the Rust shim (`registry.rs:22-76`; §4 registry table). **Residual:**
+the Rust shim (`registry.rs:30-148`; §4 registry table). **Residual:**
 `anvil_check` architecture-check parity is deferred (`check.rs:21`); the INTR
 MCP-path content cap remains deferred (not shipped).
 
@@ -729,8 +750,9 @@ HTTP in `v0.6.0-beta` — `anvil mcp serve --stdio` is the only shape
 
 ### Cross-crate
 
-- `crates/anvil-intercept-proto/src/protocol.rs:83` — `ANVIL_SCAN_BUFFER` method
-  constant; the daemon dual-routes the bare `scan_buffer` form the shim sends.
+- `crates/anvil-intercept-proto/src/protocol.rs:125` — `ANVIL_SCAN_BUFFER`
+  method constant; the daemon dual-routes the bare `scan_buffer` form the shim
+  sends.
 - `anvil-intercept::enforcement::EnforcementPipeline` — the embedded evaluator
   the shim falls back to; same pipeline the daemon uses.
 - `anvil-kernel-types::Diagnostic` /

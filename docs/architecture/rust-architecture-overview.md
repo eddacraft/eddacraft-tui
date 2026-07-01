@@ -1,8 +1,8 @@
 # Rust Architecture — Full Overview
 
-| Type  | Authority | Owner | Status | Freshness                                        |
-| ----- | --------- | ----- | ------ | ------------------------------------------------ |
-| Guide | Derived   | KERN  | Live   | Metadata backfilled 2026-05-27 during DOCGOV-011 |
+| Type  | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                               |
+| ----- | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guide | Derived   | KERN  | Live   | Crate-layout + dependency tables regenerated 2026-07-02 against main `d1fded280` (35 workspace crates, 15-language registry, eddacraft-tui corrected to workspace member, spurious tokio row removed). Metadata backfilled 2026-05-27 during DOCGOV-011 |
 
 | Upstream                                        | Downstream                                 |
 | ----------------------------------------------- | ------------------------------------------ |
@@ -44,80 +44,98 @@ TUI (superseded)            — Original OpenTUI/Ink approach, replaced by RATS.
 
 ### Workspace Crates
 
+The workspace root `Cargo.toml` uses an explicit `members` list (35 crates as of
+2026-07-02, edition 2024, `unsafe_code = "forbid"`). Grouped by role:
+
 ```
-Cargo.toml                          # Workspace root (edition 2024, unsafe_code = "forbid")
 crates/
-  anvil-cli/                        # CLI binary — primary entry point (clap + Ratatui)
-  anvil-kernel/                     # KERN — watcher, parser, semantic graph, policy engine
+  # ── Kernel substrate (KERN) ──────────────────────────────
+  anvil-kernel/                     # KERN — watcher, parser, policy engine, event protocol
     src/
       watcher/                      # notify-rs integration (KERN-010, KERN-013)
-      parser/                       # tree-sitter integration (KERN-011, KERN-012)
-      graph/                        # Semantic graph (KERN-020..023)
-        symbol_graph.rs
-        dependency.rs
-        trust.rs
-        incremental.rs
-      policy/                       # Policy engine (KERN-030..032)
-        config.rs
-        engine.rs
-        invariants/
-      protocol/                     # Event emission (KERN-033)
-        emitter.rs
+      parser/                       # tree-sitter integration, 15-language registry (KERN-011/012)
+        languages.rs                #   Language enum: TS/TSX/JS/JSX/Rust/Python/Dart/Go/Java/
+                                    #   Kotlin/C#/C/C++/Zig/Wat + grammar_version cache key
+        extract/                    #   LanguageExtractor dispatch + per-language extractors
+      policy/                       # Policy engine + 4 H1 invariants (KERN-030..032)
+      protocol/emitter.rs           # Event emission (KERN-033)
       embedded.rs                   # One-shot library API (KERN-040)
       watch.rs                      # Foreground watch mode (KERN-041)
-    tests/
-      dual_run.rs                   # Parity harness vs TS engine (KERN-042)
-    benches/
-      kernel.rs                     # criterion.rs benchmarks (KERN-043)
-  anvil-kernel-types/               # Shared types: events, graph nodes, trust levels
-  anvil-tui/                        # RATS + PORT — all TUI surfaces (complete)
-    src/
-      surfaces/
-        welcome/                    # PORT-010
-        doctor/                     # PORT-011
-        status/                     # PORT-012
-        init/                       # PORT-020
-        audit/                      # PORT-021
-        browser/                    # PORT-022
-        gate/                       # PORT-023 + RATS-003
-        watch/                      # PORT-030 + RATS-002
-        wizard/                     # RATS-004
-        tutorial/                   # PORT-040–044
-  anvil-checks/                     # RENG — ported gate checks (secret, antipattern, AI-001, SURFENV-001, command safety)
+    benches/kernel.rs               # criterion benchmarks (KERN-043)
+  anvil-kernel-types/               # Shared wire types: events, graph nodes, trust, diagnostics
+  anvil-graph-cache/                # Parser-free semantic graph + save-time cache (ADR-064):
+                                    #   SymbolGraph/DependencyGraph, incremental, trust, certify,
+                                    #   hot_index, call_graph, registry, snapshot, tokens
+  anvil-grammar-wat/                # Vendored WebAssembly-text tree-sitter grammar (LTW2-002, ADR-093)
+  anvil-rayon-init/                 # Shared rayon global-pool cap (half cores, VS Code coexistence)
+
+  # ── CLI + surfaces ───────────────────────────────────────
+  anvil-cli/                        # CLI binary — primary entry point (clap + Ratatui)
+  anvil-tui/                        # RATS + PORT — all TUI surfaces (welcome/doctor/status/init/
+                                    #   audit/browser/gate/watch/wizard/tutorial)
+  eddacraft-tui/                    # Shared Ratatui component library (theme, keyboard, widgets; ADR-047)
+
+  # ── Checks + policy ──────────────────────────────────────
+  anvil-checks/                     # RENG — ported gate checks (secret, antipattern, AI-001, command safety)
+  anvil-checks-ast/                 # AST-aware anti-pattern detection, gate-time only (ADR-071)
   anvil-checks-napi/                # Node bindings build canary for anvil-checks (ADR-033)
-  anvil-intercept/                  # INTD — mid-edit intercept daemon (RTAI launch path)
-  anvil-intercept-proto/            # Wire-protocol types shared with the intercept daemon
-  anvil-intercept-rules/            # Rule set evaluated by the intercept daemon
+  anvil-policy/                     # Policy engine — evaluation, library loading, lifecycle
+  anvil-policy-engine/              # Policy engine facade over regorus (ADR-040)
+  anvil-l4/                         # L4 policy framework — anvil/policy.yml, per-branch matching (MLP-006)
+  anvil-rules/                      # Rule-set hashing + version-floor primitives (MLP-012)
+  anvil-architecture/               # Architecture enforcement (boundaries, import rules, drift)
+
+  # ── Intercept daemon (INTD / RTAI) ───────────────────────
+  anvil-intercept/                  # INTD — mid-edit / save-time intercept daemon
+  anvil-intercept-proto/            # Wire-protocol types shared with the daemon
+  anvil-intercept-rules/            # Rule set evaluated by the daemon
+  anvil-intercept-macos/            # macOS-only intercept helpers
   anvil-intercept-win32/            # Windows-specific intercept transport bits
+  anvil-run/                        # Wrapped-launch ingress for the Anvil Intercept Loop (INTL)
+
+  # ── GCTX egress ──────────────────────────────────────────
+  anvil-gctx-types/                 # Sealed graph-free GCTX egress value types (ADR-084)
+  anvil-gctx-egress/                # Daemon-side GCTX projector — single CE-5 choke point (ADR-084)
+
+  # ── Governance + supporting primitives ───────────────────
+  anvil-baseline/                   # Baseline store — anvil/baseline.json + move-resistant fingerprint (MLP-007)
+  anvil-witness/                    # Hash-chained ndjson witness chain, flock-serialised (MLP-002)
+  anvil-capsule/                    # Review Capsule v0 — anvil.capsule.v1 manifest + schema (ADR-074)
+  anvil-sarif/                      # Shared SARIF 2.1.0 emitter (ADR-058)
+  anvil-config/                     # Multi-format config loader: yaml/json/toml (MLP-011)
+  anvil-hook/                       # Hook surface primitives — framework detection, templates (MLP-003)
+  anvil-attribution/                # Agent-attribution: env propagation + process-tree walk (MLP-014)
   anvil-observability/              # TRACE — tracing baseline, traceparent envelope, redaction
-  anvil-policy/                     # OPA policy evaluation engine
-  anvil-architecture/               # Architecture enforcement (boundaries, drift)
   anvil-bench/                      # Stress-test harness and benchmarks
   spike/                            # Phase 0 validation spikes (done)
   workspace-hack/                   # Hakari-managed feature unifier (build-time only)
 ```
 
-### External Dependencies
+### Workspace membership
 
-`eddacraft-tui` (shared Ratatui component library — theme, keyboard, widgets) is
-an external git dependency, not part of the workspace.
+`eddacraft-tui` is a **workspace member** at `crates/eddacraft-tui`
+(`Cargo.toml` `members` + `eddacraft-tui = { path = "crates/eddacraft-tui" }`),
+consumed by path per ADR-047 — not an external git dependency. It ships from
+this repo alongside `anvil-tui`.
 
 ### Workspace Dependencies
 
-| Dependency             | Purpose                        | Used By                          |
-| ---------------------- | ------------------------------ | -------------------------------- |
-| tree-sitter            | Incremental parsing            | anvil-kernel                     |
-| tree-sitter-typescript | TS/JS grammar                  | anvil-kernel                     |
-| tree-sitter-javascript | JS grammar                     | anvil-kernel                     |
-| notify                 | File system watching           | anvil-kernel                     |
-| petgraph               | In-memory semantic graph       | anvil-kernel                     |
-| rayon                  | Parallel parse (cold start)    | anvil-kernel                     |
-| num_cpus               | Core count for thread pool cap | anvil-kernel                     |
-| serde, serde_json      | Serialisation                  | anvil-kernel-types, anvil-kernel |
-| ratatui                | Terminal UI framework          | eddacraft-tui, anvil-tui         |
-| crossterm              | Terminal backend               | eddacraft-tui, anvil-tui         |
-| tokio                  | Async runtime                  | anvil-kernel                     |
-| insta                  | Snapshot testing               | all crates                       |
+| Dependency                                                         | Purpose                           | Used By                          |
+| ------------------------------------------------------------------ | --------------------------------- | -------------------------------- |
+| tree-sitter                                                        | Incremental parsing               | anvil-kernel                     |
+| tree-sitter-typescript                                             | TS / TSX grammar                  | anvil-kernel                     |
+| tree-sitter-javascript                                             | JS / JSX grammar                  | anvil-kernel                     |
+| tree-sitter-{rust,python,dart,go,java,kotlin-ng,c-sharp,c,cpp,zig} | 11 tail-language grammars         | anvil-kernel                     |
+| anvil-grammar-wat                                                  | Vendored WebAssembly-text grammar | anvil-kernel                     |
+| notify                                                             | File system watching              | anvil-kernel                     |
+| petgraph                                                           | In-memory semantic graph          | anvil-graph-cache                |
+| rayon                                                              | Parallel parse (cold start)       | anvil-kernel, anvil-checks       |
+| anvil-rayon-init                                                   | Shared half-cores pool cap        | anvil-kernel, anvil-checks       |
+| serde, serde_json                                                  | Serialisation                     | anvil-kernel-types, anvil-kernel |
+| ratatui                                                            | Terminal UI framework             | eddacraft-tui, anvil-tui         |
+| crossterm                                                          | Terminal backend                  | eddacraft-tui, anvil-tui         |
+| regorus                                                            | Rego policy evaluation            | anvil-policy-engine (ADR-040)    |
+| insta                                                              | Snapshot testing                  | all crates                       |
 
 ### Workspace Policies
 
@@ -470,11 +488,11 @@ the shipped Rust architecture:
 
 ## Total Work Item Count
 
-| Module                         | Items   | Done   | Status       |
-| ------------------------------ | ------- | ------ | ------------ |
-| KERN (Rust Kernel)             | 25      | 22     | In Progress  |
-| RENG (Engine Ports)            | 6       | 6      | **Complete** |
-| RATS (Ratatui TUI)             | 7       | 7      | **Complete** |
-| PORT (Ink-to-Ratatui Port)     | 15      | 15     | **Complete** |
-| RSTLAN (Rust Language Support) | ~5      | 0      | Placeholder  |
-| **Total**                      | **~58** | **50** | —            |
+| Module                         | Items   | Done   | Status                                                                |
+| ------------------------------ | ------- | ------ | --------------------------------------------------------------------- |
+| KERN (Rust Kernel)             | 25      | 22     | **Complete** (archived; KERN-050..052 superseded by INTD per ADR-030) |
+| RENG (Engine Ports)            | 6       | 6      | **Complete**                                                          |
+| RATS (Ratatui TUI)             | 7       | 7      | **Complete**                                                          |
+| PORT (Ink-to-Ratatui Port)     | 15      | 15     | **Complete**                                                          |
+| RSTLAN (Rust Language Support) | ~5      | 0      | Placeholder                                                           |
+| **Total**                      | **~58** | **50** | —                                                                     |

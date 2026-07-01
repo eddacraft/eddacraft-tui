@@ -138,7 +138,6 @@
 | [Side-by-Side Candidate Install (ANVIL_HOME) — Operator Runbook](../../docs/runbooks/anvil-home-side-by-side.md)      | `docs/runbooks/anvil-home-side-by-side.md`                | Runbook     | Authoritative | @aneki                                                                      | Live   |
 | [Stack Migration Guide](../../docs/guides/stack-migration.md)                                                         | `docs/guides/stack-migration.md`                          | Guide       | Authoritative | @aneki                                                                      | Live   |
 | [Supply-Chain Policy](../../docs/guides/supply-chain-policy.md)                                                       | `docs/guides/supply-chain-policy.md`                      | Guide       | Authoritative | SEC                                                                         | Live   |
-| [System Specification](../../docs/architecture/system-spec.md)                                                        | `docs/architecture/system-spec.md`                        | Spec        | Derived       | EDDA                                                                        | Live   |
 | [Testing Best Practices](../../docs/guides/testing.md)                                                                | `docs/guides/testing.md`                                  | Guide       | Authoritative | TEST                                                                        | Live   |
 | [Tutorial Subsystem — As-Built](../../docs/architecture/tutorial-as-built.md)                                         | `docs/architecture/tutorial-as-built.md`                  | As-built    | Derived       | LAUNCH                                                                      | Live   |
 | [Usage Analytics Privacy Contract](../../docs/observability/usage-analytics.md)                                       | `docs/observability/usage-analytics.md`                   | Guide       | Authoritative | USAGE                                                                       | Live   |
@@ -171,6 +170,7 @@
 | ---------------------------------------------------------------------------------------- | ----------------------------------------------- | ---- | --------- | ----- | -------- |
 | [Kernel Benchmarking Specification](../../docs/architecture/kernel-benchmarking-spec.md) | `docs/architecture/kernel-benchmarking-spec.md` | Spec | Derived   | KERN  | Proposed |
 | [Rust Kernel Specification (H1)](../../docs/architecture/rust-kernel-spec.md)            | `docs/architecture/rust-kernel-spec.md`         | Spec | Derived   | KERN  | Proposed |
+| [System Specification](../../docs/architecture/system-spec.md)                           | `docs/architecture/system-spec.md`              | Spec | Derived   | EDDA  | Proposed |
 
 ## Ready
 

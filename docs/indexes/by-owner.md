@@ -163,10 +163,10 @@
 
 ## EDDA
 
-| Document                                                         | Path                               | Type | Authority | Owner | Status |
-| ---------------------------------------------------------------- | ---------------------------------- | ---- | --------- | ----- | ------ |
-| [Edda Stack Architecture](../../docs/architecture/edda-stack.md) | `docs/architecture/edda-stack.md`  | Spec | Derived   | EDDA  | Live   |
-| [System Specification](../../docs/architecture/system-spec.md)   | `docs/architecture/system-spec.md` | Spec | Derived   | EDDA  | Live   |
+| Document                                                         | Path                               | Type | Authority | Owner | Status   |
+| ---------------------------------------------------------------- | ---------------------------------- | ---- | --------- | ----- | -------- |
+| [Edda Stack Architecture](../../docs/architecture/edda-stack.md) | `docs/architecture/edda-stack.md`  | Spec | Derived   | EDDA  | Live     |
+| [System Specification](../../docs/architecture/system-spec.md)   | `docs/architecture/system-spec.md` | Spec | Derived   | EDDA  | Proposed |
 
 ## FLAGCAT
 

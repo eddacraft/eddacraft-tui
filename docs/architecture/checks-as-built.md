@@ -1,18 +1,24 @@
 # anvil-checks Pipeline — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                                                                                              |
-| -------- | --------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | SCAN  | Live   | Last reviewed 2026-06-10 (targeted delta) against main `45dd1047a`; full review 2026-05-07 against `v0.6.0-beta` and `crates/anvil-checks`, `crates/anvil-checks-napi` |
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                  |
+| -------- | --------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | SCAN  | Live   | Last reviewed 2026-07-02 (targeted delta) against main `d1fded280` — re-verified rule catalogue (44 rules / 10 families), ADR-087 `insecure-construction` security families (UR/WC), and the shipped `python-reliability` family; prior delta 2026-06-10 against `45dd1047a`; full review 2026-05-07 against `v0.6.0-beta` |
 
 | Upstream                                                                                                     | Downstream                                                                                                                                        |
 | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `crates/anvil-checks`, `crates/anvil-checks-ast`, `crates/anvil-checks-napi`, `crates/anvil-intercept-rules` | anvil check / gate / audit / watch CLI, intercept daemon scan_buffer, MCP shim anvil_validate_write, activation baseline, welcome screen analyser |
 
-> **Status:** Live (beta) **Last reviewed:** 2026-06-10 (targeted delta review:
-> registry growth, AST tier, secret patterns, `.rs` default set, INTR consumers)
-> against main `45dd1047a`; full review 2026-05-07 against `v0.6.0-beta` slate
-> (HEAD `97b61fd0`) **Crate / location:** `crates/anvil-checks` (+
-> `crates/anvil-checks-ast`, `crates/anvil-checks-napi`, callers in
+> **Status:** Live (beta) **Last reviewed:** 2026-07-02 (targeted delta review:
+> rule catalogue re-count — 44 rules / 10 families — the ADR-087
+> `insecure-construction` security families `unsafe-rendering` +
+> `weak-cryptography` realised by the INSEC catalogue, the shipped
+> `python-reliability` family and its default `.py` scan-set, and the RS AST
+> tier extended to `RS-001..008`) against main `d1fded280`; prior delta
+> 2026-06-10 (registry growth, AST tier, secret patterns, `.rs` default set,
+> INTR consumers) against `45dd1047a`; full review 2026-05-07 against
+> `v0.6.0-beta` slate (HEAD `97b61fd0`) **Crate / location:**
+> `crates/anvil-checks` (+ `crates/anvil-checks-ast`,
+> `crates/anvil-checks-napi`, callers in
 > `crates/anvil-cli/src/commands/check.rs`,
 > `crates/anvil-cli/src/commands/gate.rs`,
 > `crates/anvil-cli/src/commands/audit.rs`, `crates/anvil-intercept-rules/`)
@@ -42,10 +48,10 @@ single-source.
 The crate ships four check families plus a shared filter / suppression
 substrate:
 
-- **Antipattern (`AP-*`, `DD-*`, `GS-*`, `RL-*`, `RS-*`)** — registry-backed
-  rules from `patterns/compiled/registry.json`
-  (`crates/anvil-checks/src/antipattern/`); `RS-001..004` evaluate in the
-  separate gate-time AST-tier crate (§4.7).
+- **Antipattern (`AP-*`, `DD-*`, `GS-*`, `RL-*`, `RS-*`, `PY-*`, `UR-*`,
+  `WC-*`)** — registry-backed rules from `patterns/compiled/registry.json`
+  (`crates/anvil-checks/src/antipattern/`); the `RS-001..008` rust-reliability
+  family evaluates in the separate gate-time AST-tier crate (§4.7).
 - **Secret detection** — pattern + entropy + `.env` parsing
   (`crates/anvil-checks/src/secret/`).
 - **Reasoning (`AI-001`)** — comment-prose appeals to authority
@@ -156,8 +162,9 @@ what's actually implemented in `v0.6.0-beta`. Cross-link notes:
 ### 4.1 Antipattern registry
 
 The compiled `.anvil` registry at `patterns/compiled/registry.json` is the
-single source of truth. Twenty-seven rules ship as of main `45dd1047a` across
-seven families (counts confirmed at `patterns/compiled/registry.json`, loaded by
+single source of truth. Forty-four rules ship as of main `d1fded280` across ten
+families (counts confirmed at `patterns/compiled/registry.json` —
+`registry.json` carries a `families` block and a `prefixes` map — loaded by
 `crates/anvil-checks/src/antipattern/registry_loader.rs`):
 
 | Family                    | IDs                                              | Default severity (sample) |
@@ -165,20 +172,43 @@ seven families (counts confirmed at `patterns/compiled/registry.json`, loaded by
 | guardrail-suppression     | `AP-001`, `AP-002`, `AP-004`, `AP-005`, `GS-001` | warning / info / warning  |
 | type-system-evasion       | `AP-003`, `AP-015`, `AP-016`                     | warning                   |
 | error-visibility          | `AP-006`, `AP-007`                               | warning / info            |
+| dynamic-execution         | `AP-008`, `AP-009`, `AP-017`                     | error                     |
 | deferred-debt             | `DD-001`..`DD-004`                               | warning / info            |
 | responsibility-laundering | `RL-001`..`RL-006`                               | warning / error / info    |
-| dynamic-execution         | `AP-008`, `AP-009`                               | error                     |
-| rust-reliability          | `RS-001`..`RS-005`                               | info / warning            |
+| python-reliability        | `PY-001`..`PY-007`                               | warning / info            |
+| rust-reliability          | `RS-001`..`RS-008`                               | info / warning            |
+| unsafe-rendering          | `UR-001`..`UR-003`                               | warning                   |
+| weak-cryptography         | `WC-001`..`WC-003`                               | warning                   |
 
-Post-`v0.6.0-beta` growth: the dynamic-execution family is new (`AP-008`
-`eval()` with a dynamic argument, `AP-009` `new Function()` — both severity
-error); the rust-reliability family is new (`RS-001`/`RS-002`/`RS-003` info,
-`RS-004` info + opt-in, `RS-005` warning — the first `RS`-prefixed family);
-type-system-evasion gained `AP-015` and `AP-016` (TS Zod-creep, LANGTS-004;
-`AP-016` opt-in). Tier note: `RS-001..004` are AST-tier rules (`detection: ast`
-in the registry) evaluated by the separate `anvil-checks-ast` crate at gate-time
-only (§4.7); `RS-005` (`todo!()` / `unimplemented!()` shipped) is regex-tier
-like every other family.
+Post-`v0.6.0-beta` growth (through `d1fded280`):
+
+- **dynamic-execution** now carries three rules — `AP-008` (`eval()` with a
+  dynamic argument), `AP-009` (`new Function()`), and `AP-017` (server-side
+  template injection via a dynamic template string) — all severity error. Per
+  ADR-087, SSTI extends this family rather than opening a new one.
+- **deferred-debt** gained `DD-004` (a completion claim — "done / implemented /
+  all requirements met" — while un-ticketed TODOs remain), which runs on
+  `agent-output` / `pr-description` artifacts via the registry's `targets:`
+  field.
+- **python-reliability** is a new family (`PY-001..007`): blanket
+  `# type: ignore` / bare `# noqa` / `# pylint: disable` suppressions, bare
+  `except`(`: pass`), wildcard `from x import *`, and the opt-in `print()`
+  (`PY-006`) / `Any` annotation (`PY-007`) — see §7 for the `.py` scan-set
+  change.
+- **rust-reliability** grew to eight rules (`RS-001..008`); `RS-006` (catch-all
+  `#[serde(flatten)]` without a validation boundary), `RS-007` (plaintext-secret
+  field on a `Deserialize` type), and `RS-008` (`.clone()` inside a syntactic
+  loop) join the original five — all opt-in info-tier.
+- **unsafe-rendering** (`UR-001..003`) and **weak-cryptography** (`WC-001..003`)
+  are the ADR-087 `insecure-construction` security families — see §4.8.
+- type-system-evasion still carries `AP-015` and `AP-016` (TS Zod-creep,
+  LANGTS-004; `AP-016` opt-in).
+
+Tier note: the whole `RS-001..008` rust-reliability family is AST-tier
+(`detection: ast` in the registry, including `RS-005` `todo!()` /
+`unimplemented!()` which moved from regex- to AST-detection), evaluated by the
+separate `anvil-checks-ast` crate at gate-time only (§4.7). Every other family
+is regex-tier.
 
 Notable rules (one-line summaries; full body in the registry):
 
@@ -338,7 +368,7 @@ Two further check categories surface through `anvil gate` but are NOT owned by
   is treated as a host-tooling problem and does NOT elevate to a strict-mode
   block (`gate.rs:1180-1184`).
 
-### 4.7 AST tier (`anvil-checks-ast`, RS-001..004)
+### 4.7 AST tier (`anvil-checks-ast`, RS-001..008)
 
 The regex scanner is parser-free by design so the resident daemon can link
 `anvil-checks` without tree-sitter (ADR-064). The AST tier therefore lives in a
@@ -346,12 +376,17 @@ separate terminal command-path crate, `crates/anvil-checks-ast` (ADR-071), that
 only `anvil-cli` and test crates may depend on — a `daemon_dep_boundary` guard
 verifies the daemon never reaches it. It runs at gate-time only.
 
-The crate consumes the registry's `Detection::Ast` rules — `RS-001` (`.unwrap()`
-/ `.expect()` outside tests), `RS-002` (`panic!` reached from non-test code),
-`RS-003` (`unsafe {}` without a `// SAFETY:` comment), `RS-004` (`Deserialize`
-struct missing `#[serde(deny_unknown_fields)]`) — each a tree-sitter `ast_query`
-paired with a Rust predicate keyed by rule id
-(`crates/anvil-checks-ast/src/predicates.rs:35-52`). Findings emit the same
+The crate consumes the registry's `Detection::Ast` rules — the full
+`RS-001..008` rust-reliability family: `RS-001` (`.unwrap()` / `.expect()`
+outside tests), `RS-002` (`panic!` reached from non-test code), `RS-003`
+(`unsafe {}` without a `// SAFETY:` comment), `RS-004` (`Deserialize` struct
+missing `#[serde(deny_unknown_fields)]`), `RS-005` (`todo!()` /
+`unimplemented!()` shipped from non-test code), `RS-006` (catch-all
+`#[serde(flatten)]` without a validation boundary), `RS-007` (plaintext-secret
+field on a `Deserialize` type), `RS-008` (`.clone()` inside a syntactic loop) —
+each a tree-sitter `ast_query` paired with a Rust predicate keyed by rule id
+(`crates/anvil-checks-ast/src/predicates.rs`; the supported-id set is pinned in
+`known_rule_ids()`, `predicates.rs:75-78`). Findings emit the same
 `anvil_checks::Warning` shape the regex scanner produces — identical `family` /
 `fingerprint` / `severity` / `definition_ref` provenance — so downstream output
 treats both tiers uniformly (`crates/anvil-checks-ast/src/lib.rs:11-16`).
@@ -363,6 +398,38 @@ rather than blocking. Registry load failures and warnings fold into
 instead of reporting a default clean scan with AST rules silently disabled
 (CIB-050, fixed via PR #2475 — `lib.rs:85-152`, the `init_errors` folds at
 `lib.rs:97` and `lib.rs:107`).
+
+### 4.8 Insecure-construction security families (ADR-087)
+
+[ADR-087](../../plans/decisions/087-security-antipattern-category.md) (Accepted
+2026-06-18) adds a new `insecure-construction` `AntiPatternCategory` — named to
+avoid the SEC CI-pipeline module collision — populated **only** by the
+syntactic-construction-smell subset of the sec-context catalogue. It reuses the
+existing ADR-071 regex + AST scanners: **no new engine check and no taint
+analysis**. The first wave is realised by the INSEC catalogue (INSEC-001..006,
+merged via #3028) as two registry families, both regex-tier and enabled by
+default:
+
+- **unsafe-rendering (`UR-001..003`)** — DOM-XSS construction sinks: `UR-001`
+  assignment to `innerHTML` / `outerHTML`, `UR-002` `document.write()` /
+  `document.writeln()`, `UR-003` React `dangerouslySetInnerHTML` (all warning).
+- **weak-cryptography (`WC-001..003`)** — `WC-001` deprecated hash primitive
+  (MD5 / SHA-1) in a construction call, `WC-002` broken cipher or ECB mode in a
+  construction call, `WC-003` a JWT configured with the `none` algorithm (all
+  warning). The detection regexes span the JS/TS, Python, and Java construction
+  idioms (`createHash`, `hashlib`, `MessageDigest.getInstance`, `Cipher`, …).
+
+Scope boundary (ADR-087, explicit): these are **syntactic-construction smells
+only**. Taint-class findings (reflected / stored XSS, output encoding) and
+absence-class findings (rate limiting, MFA, CSP, server-side validation) are
+**out of model** — crossing that line needs a new ADR. Credentials stay with the
+`secret` check (§4.2). Server-side template injection is filed under
+`dynamic-execution` as `AP-017` (ADR-087: "SSTI extends `dynamic-execution`"),
+not under `insecure-construction`. The deferred opt-in `injection-smell` (SQLi /
+command / LDAP / XPath / NoSQL, AST gate-time) and insecure-RNG families are
+second-wave and not yet shipped. Because both families reuse the standard
+registry loader and the regex scanner, they inherit the same suppression,
+baseline, provenance, and warnings-over-blocks posture as every other family.
 
 ## 5. Finding model
 
@@ -456,25 +523,26 @@ scannable list and tallied in the ledger keyed by language name with
 
 The fallback for repos without a profile is the hardcoded extension allowlist on
 `AntipatternCheckConfig::default()`
-(`crates/anvil-checks/src/antipattern/types.rs:197-225`):
-`.ts .tsx .js .jsx .mjs .cjs .rs .html .htm .css .scss .less`. `.rs` joined the
-default set in RSTLAN-006 (`types.rs:209-215`): the language-agnostic
-deferred-debt rules (`DD-001..003`) fire on Rust the same as TS, while
-JS/TS-specific rules stay extension-restricted via per-pattern target gating.
-The CLI's `commands/check.rs::resolve_extensions` honours `--extensions` first
-and falls back to that default
-(`crates/anvil-cli/src/commands/check.rs:629-645`).
+(`crates/anvil-checks/src/antipattern/types.rs:353-388`):
+`.ts .tsx .js .jsx .mjs .cjs .rs .py .html .htm .css .scss .less`. `.rs` joined
+the default set in RSTLAN-006 (`types.rs:365-371`) and `.py` in PYLAN-007
+(`types.rs:372-379`): the language-agnostic deferred-debt rules (`DD-001..003`)
+fire on Rust and Python the same as TS, and each language's own family (`RS-*` /
+`PY-*`) fires on its extension, while JS/TS-specific rules stay
+extension-restricted via each pattern's `file_extensions` target gating. The
+CLI's `commands/check.rs::resolve_extensions` honours `--extensions` first and
+falls back to that default (`crates/anvil-cli/src/commands/check.rs:629-645`).
 
 LAUNCH-016 hand-off status (per
 `crates/anvil-cli/src/activation/language_profile.rs:280-282` and
 `docs/architecture/activation-as-built.md` G-01):
 
-| Acceptance criterion                                                                                                              | Status                                                                                                                                                                                                         |
-| --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| (a) Default scans `.ts`, skips `.py` for language-specific checks                                                                 | **landed** — `AntipatternCheckConfig::default().extensions` carries the contract; activation orchestrator's `services::sample_analyser` walks through the partition helper before scanning                     |
-| (b) Secret scanner runs on both supported + unsupported languages (cross-language)                                                | **landed** — secret-scan call sites do NOT route through the partition helper; gate's `run_check_secret` walks all `.env*`, `.ts`, `.js`, `.rs`, `.json`, `.yaml`, `.yml`, `.toml`, `.env` (`gate.rs:438-454`) |
-| (c) Run summary records the skip with language and count                                                                          | **landed** — surfaced via `AnalysisOutcome.skipped_unsupported_languages` and the `repo_languages` array in `anvil status --verify --json`                                                                     |
-| (d) Explicit `extensions:` opt-in to scan unsupported languages through `commands::check` / `commands::watch` / `commands::audit` | **hand-off** — see §12 G-01                                                                                                                                                                                    |
+| Acceptance criterion                                                                                                                                  | Status                                                                                                                                                                                                                                                                                                         |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| (a) Default scans supported languages (`.ts` / `.rs` / `.py`), skips genuinely-unsupported languages (`.go`, `.java`, …) for language-specific checks | **landed** — `AntipatternCheckConfig::default().extensions` carries the contract (now including `.rs` and `.py`); activation orchestrator's `services::sample_analyser` walks through the partition helper before scanning. Python is `Supported` as of CIB-123 (2026-06-30), so `.py` is scanned, not skipped |
+| (b) Secret scanner runs on both supported + unsupported languages (cross-language)                                                                    | **landed** — secret-scan call sites do NOT route through the partition helper; gate's `run_check_secret` walks all `.env*`, `.ts`, `.js`, `.rs`, `.json`, `.yaml`, `.yml`, `.toml`, `.env` (`gate.rs:438-454`)                                                                                                 |
+| (c) Run summary records the skip with language and count                                                                                              | **landed** — surfaced via `AnalysisOutcome.skipped_unsupported_languages` and the `repo_languages` array in `anvil status --verify --json`                                                                                                                                                                     |
+| (d) Explicit `extensions:` opt-in to scan unsupported languages through `commands::check` / `commands::watch` / `commands::audit`                     | **hand-off** — see §12 G-01                                                                                                                                                                                                                                                                                    |
 
 Cross-language checks (secrets, env-template) MUST NOT use the partition helper;
 the doc-comment at `language_profile.rs:280-282` makes this explicit. The seam
@@ -733,7 +801,7 @@ Registry-sourced patterns carry `family` / `definition_ref` /
 Legacy patterns without provenance keep the fields `None` rather than
 synthesising fake ones.
 
-## 12. Known gaps (dated 2026-05-07; G-04 updated 2026-06-10)
+## 12. Known gaps (dated 2026-05-07; G-04 updated 2026-07-02)
 
 ### G-01: LAUNCH-016 hand-off — `extensions:` user-config opt-in deferred
 
@@ -758,15 +826,28 @@ shipped. SQL files (`.sql`) are classified `partial` in `LANGUAGE_REGISTRY`
 Markdown (`.md .mdx`) is classified `partial` — secret checks ship; structural
 governance pending.
 
-### G-04: Python unsupported; Rust partial (deferred-debt + AST tier)
+### G-04: Python and Rust now supported (gap closed)
 
-`PYLAN` (`plans/modules/lang-python.aps.md`) anchors not yet shipped: `.py`
-files are filtered out by `AntipatternCheckConfig::default().extensions` and the
-language profile classifies Python `unsupported`. Rust is now partial: `.rs` is
-in the default extension set (RSTLAN-006, §7), the deferred-debt rules
-(`DD-001..003`) and the reasoning rule (`AI-001`) fire on Rust, and the AST tier
-(`RS-001..004`) runs at gate-time (§4.7). JS/TS-specific rules do not fire on
-`.rs` — per-pattern target gating keeps them extension-restricted.
+This gap is closed as of `d1fded280`. Both languages classify `Supported` in
+`LANGUAGE_REGISTRY`
+(`crates/anvil-cli/src/activation/language_profile.rs:98-142`):
+
+- **Python → supported (CIB-123 / PYLAN, 2026-06-30):** the `python-reliability`
+  family (`PY-001..007`) ships, `.py` joined the default extension set
+  (PYLAN-007, `types.rs:372-379`), and Python gets symbol/import + boundary
+  analysis. `.py` files are scanned, not filtered out. The language-agnostic
+  deferred-debt rules (`DD-001..003`) and `AI-001` also fire on Python.
+- **Rust → supported (RSTLAN-003..006, 2026-06):** `.rs` is in the default
+  extension set (§7), the deferred-debt rules (`DD-001..003`) and `AI-001` fire
+  on Rust, and the full `RS-001..008` AST tier runs at gate-time (§4.7).
+
+For both languages, JS/TS-specific rules do NOT fire — each pattern's
+`file_extensions` target gating keeps them extension-restricted. The remaining
+`Unsupported` languages (Go, Java, Kotlin, C#, C/C++, Dart, Zig, WebAssembly
+text) are parsed by the kernel at T1 for symbol/import extraction but ship no
+per-language anti-pattern catalogue yet — a tier reflects shipped
+language-specific governance, not parser capability
+(`language_profile.rs:91-97`).
 
 ### G-05: Kernel-import incremental quirks fixed in `0.5.1-beta` — known-historically-fragile
 
@@ -814,36 +895,36 @@ daemon-down on Windows in v1. Cross-link
 
 `crates/anvil-checks/src/`:
 
-| File                                             | Role                                                                                                                                    |
-| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `lib.rs`                                         | Module surface — re-exports `antipattern`, `command_safety`, `filter`, `reasoning`, `secret`, `surface`.                                |
-| `filter.rs`                                      | `ScanFilter`, `DEFAULT_DIR_EXCLUDES`, `BUILD_ARTEFACT_DIRS`, `ALWAYS_SCAN_FILENAMES`, `is_binary_path`. The shared discovery substrate. |
-| `antipattern/mod.rs`                             | Family surface — `run_antipattern_check`, `scan_artifact`, `scan_files`, `parse_suppression`, `registry_compile_diagnostics`.           |
-| `antipattern/types.rs`                           | `Warning`, `WarningResult`, `WarningSummary`, `AntipatternCheckConfig`, `Suppression`, `create_warning_fingerprint`.                    |
-| `antipattern/registry_loader.rs`                 | Compiled-registry decoder + path resolution + cache. The single source of truth for the AP / DD / GS / RL catalogue.                    |
-| `antipattern/patterns.rs`                        | `LazyLock<Vec<AntiPattern>>` over the loaded registry.                                                                                  |
-| `antipattern/scanner.rs`                         | `scan_artifact`, PCRE-rewrite shims, `@anvil-ignore` parser, eslint-disable mapping, GS-001 guarded-Map.get carve-out.                  |
-| `antipattern/check.rs`                           | `run_antipattern_check` (rayon-parallelised file walk, severity scoring).                                                               |
-| `secret/mod.rs`                                  | Family surface — `run_secret_check`, `scan_content`, `scan_git_history`, pattern matchers.                                              |
-| `secret/types.rs`                                | `SecretFinding`, `SecretCheckConfig` (`max_line_bytes` SCAN-002 guard, skip extensions).                                                |
-| `secret/patterns.rs`                             | 21 built-in patterns + default allowlist + `compile_custom_patterns`.                                                                   |
-| `secret/scanner.rs`                              | Per-rule false-positive carve-outs (UUID-credit-card, generic-secret-code-shape).                                                       |
-| `secret/entropy.rs`                              | Shannon entropy + quoted/assignment shape filter.                                                                                       |
-| `secret/check.rs`                                | `run_secret_check` (rayon walk, 1 MiB skip, dedupe, scoring).                                                                           |
-| `secret/git_scanner.rs`                          | Optional git-history scan (`config.scan_git_history`).                                                                                  |
-| `reasoning/mod.rs`                               | Family surface — `run_reasoning_check`, `run_reasoning_check_with_limit`.                                                               |
-| `reasoning/types.rs`                             | `ReasoningCheckConfig`, `ReasoningCheckResult`.                                                                                         |
-| `reasoning/appeal_to_authority.rs`               | AI-001 — appeal-to-authority phrase patterns + comment-region scanner.                                                                  |
-| `surface/env/mod.rs`                             | SURFENV family surface.                                                                                                                 |
-| `surface/env/check.rs`                           | `run_surfenv_check` aggregator + template/concrete pairing.                                                                             |
-| `surface/env/parser.rs`                          | `parse_env` — dotenv subset (single + double-quoted, `export`, comments).                                                               |
-| `surface/env/scanner.rs`                         | SURFENV-001 — secret scan over parsed `.env` values.                                                                                    |
-| `surface/env/gitignore.rs`                       | SURFENV-002 — `.gitignore` hygiene.                                                                                                     |
-| `surface/env/prod_value.rs`                      | SURFENV-003 — production-shaped values in non-prod files.                                                                               |
-| `surface/env/drift.rs`                           | SURFENV-004 — template ↔ concrete drift.                                                                                                |
-| `surface/env/suppression.rs`                     | SURFENV suppression resolver (reuses `parse_suppression`).                                                                              |
-| `command_safety/{check,matcher,parser}.rs`       | Script-plan extraction, rule matcher, parsed-command analysis.                                                                          |
-| `command_safety/rules/{filesystem,git}_rules.rs` | Default rule sets shipped with the binary.                                                                                              |
+| File                                             | Role                                                                                                                                     |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib.rs`                                         | Module surface — re-exports `antipattern`, `command_safety`, `filter`, `reasoning`, `secret`, `surface`.                                 |
+| `filter.rs`                                      | `ScanFilter`, `DEFAULT_DIR_EXCLUDES`, `BUILD_ARTEFACT_DIRS`, `ALWAYS_SCAN_FILENAMES`, `is_binary_path`. The shared discovery substrate.  |
+| `antipattern/mod.rs`                             | Family surface — `run_antipattern_check`, `scan_artifact`, `scan_files`, `parse_suppression`, `registry_compile_diagnostics`.            |
+| `antipattern/types.rs`                           | `Warning`, `WarningResult`, `WarningSummary`, `AntipatternCheckConfig`, `Suppression`, `create_warning_fingerprint`.                     |
+| `antipattern/registry_loader.rs`                 | Compiled-registry decoder + path resolution + cache. The single source of truth for the AP / DD / GS / RL / PY / RS / UR / WC catalogue. |
+| `antipattern/patterns.rs`                        | `LazyLock<Vec<AntiPattern>>` over the loaded registry.                                                                                   |
+| `antipattern/scanner.rs`                         | `scan_artifact`, PCRE-rewrite shims, `@anvil-ignore` parser, eslint-disable mapping, GS-001 guarded-Map.get carve-out.                   |
+| `antipattern/check.rs`                           | `run_antipattern_check` (rayon-parallelised file walk, severity scoring).                                                                |
+| `secret/mod.rs`                                  | Family surface — `run_secret_check`, `scan_content`, `scan_git_history`, pattern matchers.                                               |
+| `secret/types.rs`                                | `SecretFinding`, `SecretCheckConfig` (`max_line_bytes` SCAN-002 guard, skip extensions).                                                 |
+| `secret/patterns.rs`                             | 21 built-in patterns + default allowlist + `compile_custom_patterns`.                                                                    |
+| `secret/scanner.rs`                              | Per-rule false-positive carve-outs (UUID-credit-card, generic-secret-code-shape).                                                        |
+| `secret/entropy.rs`                              | Shannon entropy + quoted/assignment shape filter.                                                                                        |
+| `secret/check.rs`                                | `run_secret_check` (rayon walk, 1 MiB skip, dedupe, scoring).                                                                            |
+| `secret/git_scanner.rs`                          | Optional git-history scan (`config.scan_git_history`).                                                                                   |
+| `reasoning/mod.rs`                               | Family surface — `run_reasoning_check`, `run_reasoning_check_with_limit`.                                                                |
+| `reasoning/types.rs`                             | `ReasoningCheckConfig`, `ReasoningCheckResult`.                                                                                          |
+| `reasoning/appeal_to_authority.rs`               | AI-001 — appeal-to-authority phrase patterns + comment-region scanner.                                                                   |
+| `surface/env/mod.rs`                             | SURFENV family surface.                                                                                                                  |
+| `surface/env/check.rs`                           | `run_surfenv_check` aggregator + template/concrete pairing.                                                                              |
+| `surface/env/parser.rs`                          | `parse_env` — dotenv subset (single + double-quoted, `export`, comments).                                                                |
+| `surface/env/scanner.rs`                         | SURFENV-001 — secret scan over parsed `.env` values.                                                                                     |
+| `surface/env/gitignore.rs`                       | SURFENV-002 — `.gitignore` hygiene.                                                                                                      |
+| `surface/env/prod_value.rs`                      | SURFENV-003 — production-shaped values in non-prod files.                                                                                |
+| `surface/env/drift.rs`                           | SURFENV-004 — template ↔ concrete drift.                                                                                                 |
+| `surface/env/suppression.rs`                     | SURFENV suppression resolver (reuses `parse_suppression`).                                                                               |
+| `command_safety/{check,matcher,parser}.rs`       | Script-plan extraction, rule matcher, parsed-command analysis.                                                                           |
+| `command_safety/rules/{filesystem,git}_rules.rs` | Default rule sets shipped with the binary.                                                                                               |
 
 Adjacent crates:
 

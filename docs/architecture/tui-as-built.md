@@ -1,18 +1,19 @@
 # anvil-tui — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                |
-| -------- | --------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | RATS  | Live   | Last reviewed 2026-06-10 (targeted delta review: TUIDASH/TDASH dashboard family, plan_dashboard, snapshot counts) against main `a1c41e284`; full review 2026-05-07 against `v0.6.0-beta` |
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                                                    |
+| -------- | --------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | RATS  | Live   | Last reviewed 2026-07-02 (targeted delta review: CLI-runner cross-ref re-anchor, snapshot count) against main `d1fded280`; prior delta review 2026-06-10 (TUIDASH/TDASH dashboard family, plan_dashboard, snapshot counts) against `a1c41e284`; full review 2026-05-07 against `v0.6.0-beta` |
 
 | Upstream                                   | Downstream                                                                                                       |
 | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
 | `crates/anvil-tui`, `crates/eddacraft-tui` | CLI commands (watch, status, audit, doctor, tutorial, welcome, init, gate), widget catalogue (RATS / TUIEXTRACT) |
 
-> **Status:** Live (beta) **Last reviewed:** 2026-06-10 (targeted delta review:
-> TUIDASH/TDASH dashboard family, plan_dashboard, snapshot counts) against main
-> `a1c41e284`; full review 2026-05-07 against `v0.6.0-beta` slate (HEAD
-> `d223b8d9`) **Crate / location:** `crates/anvil-tui` **Module owner (APS):**
-> RATS (Ratatui surfaces — complete, archived to
+> **Status:** Live (beta) **Last reviewed:** 2026-07-02 (targeted delta review:
+> CLI-runner cross-ref re-anchor, snapshot count) against main `d1fded280`;
+> prior delta review 2026-06-10 (TUIDASH/TDASH dashboard family, plan_dashboard,
+> snapshot counts) against `a1c41e284`; full review 2026-05-07 against
+> `v0.6.0-beta` slate (HEAD `d223b8d9`) **Crate / location:** `crates/anvil-tui`
+> **Module owner (APS):** RATS (Ratatui surfaces — complete, archived to
 > `plans/archive/modules/ratatui-tui.aps.md`), PORT (Ink-to-Ratatui port —
 > complete, archived to `plans/archive/modules/ink-to-ratatui-port.aps.md`),
 > TUIDASH (`plans/archive/modules/tui-dashboard-render.aps.md`, Complete 13/13 —
@@ -39,11 +40,11 @@ crate (`crates/anvil-tui/src/lib.rs:1-18`).
 The crate is intentionally narrow: rendering and state, no I/O. The terminal
 session, event poll loop, raw-mode setup, and shell chrome are owned by
 `crates/anvil-cli/src/tui.rs` (the CLI side `run_surface` / `run_watch` /
-`run_tutorial` runners — see `crates/anvil-cli/src/tui.rs:33-156`). Each surface
-implements `Surface::render`, `Surface::handle_key`, and `Surface::should_quit`
-/ `should_back`; the runner spins the loop, polls crossterm events, and
-dispatches keys via `eddacraft_tui::keyboard::KeyHandler`. Inside `anvil-tui`
-itself, the only top-level "app" type is `TuiApp`
+`run_tutorial` runners — see `crates/anvil-cli/src/tui.rs:111-453`). Each
+surface implements `Surface::render`, `Surface::handle_key`, and
+`Surface::should_quit` / `should_back`; the runner spins the loop, polls
+crossterm events, and dispatches keys via `eddacraft_tui::keyboard::KeyHandler`.
+Inside `anvil-tui` itself, the only top-level "app" type is `TuiApp`
 (`crates/anvil-tui/src/app.rs:34-77`), which is a thin lifecycle wrapper around
 the watch surface for the `anvil watch --tui=ratatui` migration path.
 
@@ -165,9 +166,11 @@ Inside the crate the only "app" type is `TuiApp`
   events into the watch state (`app.rs:80-84`).
 
 The actual event-poll / draw loop is on the CLI side
-(`crates/anvil-cli/src/tui.rs:97-156`):
+(`crates/anvil-cli/src/tui.rs:185-244`; the caller acquires the terminal via
+`TerminalGuard::enter()` first):
 
-1. `terminal::enable_raw_mode()`, `EnterAlternateScreen`.
+1. `TerminalGuard::enter()` — `terminal::enable_raw_mode()`,
+   `EnterAlternateScreen`, and the panic-restore hook.
 2. Call `render_shell(frame, area, surface_name, help_text, theme)` which
    reserves the top header (`Anvil > <surface>`) and the footer (help text +
    `eddacraft v<VERSION>` watermark) and returns the inner content `Rect`
@@ -443,7 +446,7 @@ a further press spills to the panel above or below in the row
 Animation is driven by `animate::Once<f64, ...>` on `pass_rate` and
 `avg_duration_ms` for smooth interpolation when Snapshot updates land
 (`watch/mod.rs:12-23`, `200-225`). The render loop on the CLI side
-(`crates/anvil-cli/src/tui.rs:415-470`) uses a `take_dirty()` gate so the
+(`crates/anvil-cli/src/tui.rs:455-553`) uses a `take_dirty()` gate so the
 surface only paints when state has actually changed, with a 16 ms cap while
 animating to avoid busy-spin.
 
@@ -510,7 +513,7 @@ optional commands and verifiers.
 The tutorial surface is the only non-watch surface that consumes a live event
 channel — file-change events from the kernel watcher trigger automatic
 re-verification on steps that declare a `watch_path`
-(`crates/anvil-cli/src/tui.rs:180-214`). Static-mode kicks in when the kernel
+(`crates/anvil-cli/src/tui.rs:265-299`). Static-mode kicks in when the kernel
 watcher is unavailable; the surface flips `static_mode = true`, attaches the
 `STATIC_MODE_WATCHER_UNAVAILABLE` notice, and disables command execution so all
 steps become press-enter-to-continue (`tutorial/mod.rs:24-25, 199-202`).
@@ -518,7 +521,7 @@ steps become press-enter-to-continue (`tutorial/mod.rs:24-25, 199-202`).
 The `watch_demo` sub-surface (LAUNCH-014 / WELCOME-014) is launched when a
 tutorial step's `watch_demo: true` flag fires Enter — the tutorial loop exits,
 the CLI command transitions to `run_watch_demo`
-(`anvil-cli/src/tui.rs:219-322`), and the `WatchDemoState` consumes engine
+(`anvil-cli/src/tui.rs:304-404`), and the `WatchDemoState` consumes engine
 events with progressive overlay hints.
 
 ## Welcome / wizard / onboarding

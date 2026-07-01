@@ -12,52 +12,61 @@ Component-level, dated, source-pinned descriptions of what is actually shipping.
 The shape is set by the [as-built template](_as-built-template.md) — copy it
 when adding a new one.
 
+> Freshness note: entries dated `2026-07-02` against main `d1fded280` were
+> re-verified line-by-line in the source-pin drift sweep on that date. Entries
+> still carrying earlier pins (tutorial, adapter packages, review capsules) were
+> not part of that sweep and keep their prior review pins. These per-entry pins
+> are hand-maintained — treat a doc's own metadata header as authoritative if it
+> disagrees with this index.
+
 - [Auth System](auth-as-built.md) — beta auth API, token lifecycle, GitHub
   OAuth + OTP/device-code flows, JWT licence, local admin key lifecycle, trusted
   identity claim handling, gaps register (current, targeted delta-reviewed
-  2026-06-10 against main `45dd1047a`)
+  2026-07-02 against main `d1fded280`)
 - [Intercept daemon](intercept-as-built.md) — IPC surface (UDS + named pipe),
   peer-cred trust boundary, AD-7 fence-on-failure, fence persistence, interrupt
   ladder, registry, win32 listener, save-time `validate_paths` pipeline +
-  `ANVIL_WATCH_DAEMON` routing (current, delta-reviewed 2026-06-10 against main
-  `a1c41e284`)
+  `ANVIL_WATCH_DAEMON` routing (current, delta-reviewed 2026-07-02 against main
+  `d1fded280`)
 - [Activation orchestrator](activation-as-built.md) — `anvil start` flow,
   six-state protection vocabulary, language profile (LAUNCH-015/-016), MCP
   install (LAUNCH-009), watch-fallback decision (LAUNCH-011), DSV-021 save-time
   daemon routing, UJ-001/-005/-006 threading, ADR-080 gate posture (current,
-  delta-reviewed 2026-06-10 against main `a1c41e284`)
-- [MCP shim](mcp-shim-as-built.md) — Rust MCP server, eight-tool registry,
-  `anvil_validate_write` + driver/client tools, daemon-backed vs
-  embedded-fallback validation, correlation envelope, §4.4 redaction filter
-  (current, targeted delta-reviewed 2026-06-10 against main `45dd1047a`)
+  delta-reviewed 2026-07-02 against main `d1fded280`)
+- [MCP shim](mcp-shim-as-built.md) — Rust MCP server, fourteen-tool registry
+  (incl. six `charges_graph_egress` GCTX tools), `anvil_validate_write` +
+  driver/client tools, daemon-backed vs embedded-fallback validation,
+  correlation envelope, §4.4 redaction filter (current, targeted delta-reviewed
+  2026-07-02 against main `d1fded280`)
 - [Checks pipeline](checks-as-built.md) — `anvil-checks` registry, AP / AI / GS
   / DD / RL / SC / SG families, `anvil-checks-ast` tier, suppressions,
-  language-profile gating, baseline, 27-rule catalogue, four CLI surfaces
-  (current, targeted delta-reviewed 2026-06-10 against main `45dd1047a`)
+  language-profile gating, baseline, 44-rule / ten-family catalogue (incl.
+  ADR-087 insecure-construction: UR/WC + python-reliability), four CLI surfaces
+  (current, targeted delta-reviewed 2026-07-02 against main `d1fded280`)
 - [Kernel](kernel-as-built.md) — watcher (notify + glob filter), tree-sitter
   parser, semantic graph (KERN-020..023), policy engine, embedded API, watch
   loop, GV2 hot-read surface (sealed, ADR-077 depth-capped). Supersedes
-  `rust-kernel-spec.md` for "what shipped" (current, delta-reviewed 2026-06-10
-  against main `a1c41e284`)
+  `rust-kernel-spec.md` for "what shipped" (current, delta-reviewed 2026-07-02
+  against main `d1fded280`)
 - [TUI surfaces](tui-as-built.md) — Ratatui surfaces (audit / browser / doctor /
   gate / init / onboarding / status / tutorial / watch / welcome / wizard),
   shared widget vocabulary, snapshot infrastructure, watch dashboard event
   adapter, dashboard surface family (TUIDASH/TDASH) + plan_dashboard (current,
-  delta-reviewed 2026-06-10 against main `a1c41e284`)
+  delta-reviewed 2026-07-02 against main `d1fded280`)
 - [Driver framework + intercept-proto](driver-framework-as-built.md) — JSON-RPC
   wire protocol, driver registration + capability negotiation, TS / Rust driver
   clients, Win32 named-pipe primitives, intercept-rules hot-path library (full
-  INTR rule set + config) (current, delta-reviewed 2026-06-10 against main
-  `a1c41e284`; spec→code drift documented in §12)
+  INTR rule set + config) (current, delta-reviewed 2026-07-02 against main
+  `d1fded280`; spec→code drift documented in §12)
 - [anvil-api service](api-as-built.md) — Hono on Vercel, non-auth admin surfaces
   including `/admin/broadcast`, licence / migration runner, trace-context +
   admin-rate-limit middleware, Neon DB layer, apps/admin-cli retirement path
-  (current, targeted delta-reviewed 2026-06-10 against main `45dd1047a`; auth
+  (current, targeted delta-reviewed 2026-07-02 against main `d1fded280`; auth
   flows live in `auth-as-built.md`)
 - [anvil-observability](observability-as-built.md) — namespace registry, tracing
   subscriber, live redacting formatter, traceparent helper, namespace bridges,
-  sensitive-fields catalogue (current, targeted delta-reviewed 2026-06-10
-  against main `45dd1047a`)
+  sensitive-fields catalogue (current, targeted delta-reviewed 2026-07-02
+  against main `d1fded280`)
 - [Tutorial subsystem](tutorial-as-built.md) —
   `anvil-tui/src/surfaces/tutorial/*` multi-file engine (mod.rs 1846 + discovery
   933 + discovery_render 781 + executor + fix + render + showcase + verify +
@@ -67,12 +76,13 @@ when adding a new one.
 - [Widget catalogue](widgets-as-built.md) — `anvil-tui/widgets/` (anvil-specific
   composites) + in-monorepo path `eddacraft-tui` v0.3.0 with 22 widgets,
   feature-gated image/big-text widgets, theme contract, keyboard binding
-  metadata, snapshot pinning (current, targeted delta-reviewed 2026-06-10
-  against main `45dd1047a`)
+  metadata, snapshot pinning (current, targeted delta-reviewed 2026-07-02
+  against main `d1fded280`)
 - [CLI TUI runner](cli-tui-runner-as-built.md) — `crates/anvil-cli/src/tui.rs`
-  (495 lines) — terminal session lifecycle, `run_surface_in` shared-terminal
-  pattern, animation tick, watch_loop dirty-paint gate, panic-safety gap
-  documented (current, against `v0.6.0-beta`)
+  (622 lines) — terminal session lifecycle, `run_surface_in` shared-terminal
+  pattern, animation tick, watch_loop dirty-paint gate, panic-safe
+  `TerminalGuard` RAII restoration (current, delta-reviewed 2026-07-02 against
+  main `d1fded280`)
 - [Adapter packages](adapter-packages-as-built.md) — `packages/adapters/`
   (SpecKit + BMAD + Generic + APS-Markdown shipping; OpenSpec + BMAD-v4 in
   progress), `packages/aps/` (15-rule validator + templates + examples +
@@ -102,7 +112,7 @@ but trust the source first.
 
 - [overview.md](overview.md) — top-level architecture overview, package
   layering, quality model, surface architecture, and live Rust-first component
-  diagrams (current, last reviewed 2026-05-23)
+  diagrams (current, last reviewed 2026-07-02)
 - [anvil-full-architecture.md](anvil-full-architecture.md) — current vs proposed
   end-state synthesis with `[CURRENT]` / `[PROPOSED]` / `[PARTIAL]` markers
   (stale, last reviewed 2026-03-13 — pre-cutover; the current-vs-proposed
@@ -117,7 +127,9 @@ but trust the source first.
   end-state spec; tracks aspirational shape, not strictly what's shipping (last
   reviewed 2026-04-03 — flag as aspiration; trust as direction, not as-built)
 - [system-spec.md](system-spec.md) — Edda Stack components (PocketFlow /
-  Kindling / Ember / Edda / Anvil), component topology and hard limits (current)
+  Kindling / Ember / Edda / Anvil), component topology and hard limits
+  (aspirational — PocketFlow is unbuilt (PFGW Draft); see the doc's status
+  banner. Trust as target-state direction, not as-built)
 - [edda-stack.md](edda-stack.md) — three-layer memory architecture (Kindling /
   Ember / Edda), separation of observation / interpretation / memory (current)
 - [quality-model.md](quality-model.md) — conceptual model for `check`, `gate`,

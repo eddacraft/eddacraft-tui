@@ -1,8 +1,8 @@
 # Driver Framework + intercept-proto — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                                                      |
-| -------- | --------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | DRVR  | Live   | Last reviewed 2026-06-10 (targeted delta review: INTR-003/-005/-007 rule set + config, §8.4 panic-policy correction) against main `a1c41e284`; full review 2026-05-07 against `v0.6.0-beta` and `crates/anvil-intercept-proto`, `crates/anvil-intercept-rules`, `packages/anvil-driver-client` |
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| -------- | --------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | DRVR  | Live   | Last reviewed 2026-07-02 (as-built drift sweep: `ALL_ANVIL_METHODS` reconciled to 19 constants incl. DSV + witness + GCTX, repinned protocol.rs line refs to agree with intercept-as-built) against main `d1fded280`; prior delta review 2026-06-10 (INTR-003/-005/-007 rule set + config, §8.4 panic-policy correction) against main `a1c41e284`; full review 2026-05-07 against `v0.6.0-beta` and `crates/anvil-intercept-proto`, `crates/anvil-intercept-rules`, `packages/anvil-driver-client` |
 
 | Upstream                                                                                                                                         | Downstream                                                                                              |
 | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
@@ -13,9 +13,10 @@
 > per ADR-033). **Last reviewed:** 2026-06-10 (targeted delta review:
 > INTR-003/-005/-007 rule set + config, §8.4 panic-policy correction) against
 > main `a1c41e284`; full review 2026-05-07 against `v0.6.0-beta` slate (HEAD
-> `d223b8d9`). **Crates / locations:** `crates/anvil-intercept-proto`,
-> `crates/anvil-intercept-rules`, `packages/anvil-driver-client` (+ Win32
-> primitives in `crates/anvil-intercept-win32`). **Module owner (APS):** DRVR
+> `d223b8d9`; 2026-07-02 drift sweep against `d1fded280`). **Crates /
+> locations:** `crates/anvil-intercept-proto`, `crates/anvil-intercept-rules`,
+> `packages/anvil-driver-client` (+ Win32 primitives in
+> `crates/anvil-intercept-win32`). **Module owner (APS):** DRVR
 > (`plans/archive/modules/surface-drivers.aps.md`, 5/5 active — 2 superseded, 1
 > deferred under ADR-033), with downstream spec at
 > `plans/specs/anvil-driver-framework/`. Adjacent modules: INTR
@@ -162,16 +163,21 @@ worst-case JSON-string encoding for a 1 MiB `scan_buffer` payload
 
 Pinned in `crates/anvil-intercept-proto/src/protocol.rs` and re-exported
 (byte-for-byte) in `packages/anvil-driver-client/src/protocol/types.ts:44-83`.
-All six methods carry the `anvil/` namespace prefix:
+The **driver-facing** surface is the six `anvil/`-namespaced methods below; the
+full `ALL_ANVIL_METHODS` slice has since grown to **19 constants** (the six here
+plus the three DSV save-time verbs, the witness-append verb, and the nine GCTX
+read-only verbs — see `intercept-as-built.md` §4.3). The TS driver client
+mirrors only these six driver-facing methods; the DSV / witness / GCTX verbs are
+daemon-internal surfaces the driver client does not consume:
 
-| Constant                    | Wire string                | Direction                      | Purpose                                                                          |
-| --------------------------- | -------------------------- | ------------------------------ | -------------------------------------------------------------------------------- |
-| `ANVIL_PUBLISH_DIAGNOSTICS` | `anvil/publishDiagnostics` | server → client (notification) | Diagnostic stream carrying `anvil.diagnostic.v1` (`protocol.rs:75`).             |
-| `ANVIL_SCAN_BUFFER`         | `anvil/scan_buffer`        | client → server                | Mid-edit buffer scan (`protocol.rs:83`).                                         |
-| `ANVIL_ENFORCEMENT_ACK`     | `anvil/enforcement/ack`    | client → server                | Confirm enforcement decision (`protocol.rs:90`); DRVR-008's load-bearing method. |
-| `ANVIL_GATE_REQUEST`        | `anvil/gate/request`       | client → server                | Stream / one-shot gate-result snapshot (`protocol.rs:96`).                       |
-| `ANVIL_SUPPRESSION_APPLY`   | `anvil/suppression/apply`  | client → server                | Validate and normalise an `@anvil-ignore` comment (`protocol.rs:103`).           |
-| `ANVIL_STATUS_QUERY`        | `anvil/status/query`       | client → server                | Snapshot of session / fence / driver state (`protocol.rs:108`).                  |
+| Constant                    | Wire string                | Direction                      | Purpose                                                                           |
+| --------------------------- | -------------------------- | ------------------------------ | --------------------------------------------------------------------------------- |
+| `ANVIL_PUBLISH_DIAGNOSTICS` | `anvil/publishDiagnostics` | server → client (notification) | Diagnostic stream carrying `anvil.diagnostic.v1` (`protocol.rs:117`).             |
+| `ANVIL_SCAN_BUFFER`         | `anvil/scan_buffer`        | client → server                | Mid-edit buffer scan (`protocol.rs:125`).                                         |
+| `ANVIL_ENFORCEMENT_ACK`     | `anvil/enforcement/ack`    | client → server                | Confirm enforcement decision (`protocol.rs:132`); DRVR-008's load-bearing method. |
+| `ANVIL_GATE_REQUEST`        | `anvil/gate/request`       | client → server                | Stream / one-shot gate-result snapshot (`protocol.rs:138`).                       |
+| `ANVIL_SUPPRESSION_APPLY`   | `anvil/suppression/apply`  | client → server                | Validate and normalise an `@anvil-ignore` comment (`protocol.rs:145`).            |
+| `ANVIL_STATUS_QUERY`        | `anvil/status/query`       | client → server                | Snapshot of session / fence / driver state (`protocol.rs:150`).                   |
 
 The daemon also declares two **legacy** bare-name aliases for continuity with
 the launcher and the pre-namespacing CLI:
@@ -202,8 +208,12 @@ pinned by the LSP spec and are **not** re-declared in the proto crate; drivers
 speak both languages over the same transport, and the daemon routes by method
 name at the JSON-RPC layer.
 
-`ALL_ANVIL_METHODS` (`protocol.rs:156-163`) is the canonical list and is
-mirrored in TS (`protocol/types.ts:73-80`).
+`ALL_ANVIL_METHODS` (`protocol.rs:297-317`) is the canonical list — **19 method
+constants** (the six driver-facing methods above, the three DSV save-time verbs,
+`anvil/witness/append`, and the nine GCTX read-only verbs). The TS mirror
+(`protocol/types.ts:73-80`) tracks only the driver-facing subset; the
+daemon-internal DSV / witness / GCTX verbs are not re-exported to driver
+clients.
 
 ### 3.4 `DaemonStatusV1` shape
 
@@ -701,12 +711,12 @@ Capabilities a driver can request:
 
 - `Capability::Attached` — the read-only floor. Subscribes to telemetry, renders
   diagnostics, applies suppression edits. Always granted on a successful
-  handshake. Wire form: `attached`. (`protocol.rs:124-138`,
+  handshake. Wire form: `attached`. (`protocol.rs:265-292`,
   `protocol/types.ts:99-105`.)
 - `Capability::Participating` — enforcement-candidate. Receives
   `enforcement.decision` events; ack-or-refuse contract per the editor design
   §2.5; subject to the reliability budget. Wire form: `participating`.
-  (`protocol.rs:131-138`.)
+  (`protocol.rs:265-292`.)
 
 What the daemon refuses:
 
@@ -722,7 +732,7 @@ What the daemon refuses:
 The lattice derives `PartialOrd` / `Ord` so callers can compare "is requested
 capability higher than what the manifest allows" without re-implementing the
 order; v1 only has two states but the comparison is the property the type
-checker guarantees (`protocol.rs:117-123, 226-235`).
+checker guarantees (`protocol.rs:265-292`).
 
 ## 11. Cross-cutting concerns
 
@@ -735,9 +745,10 @@ checker guarantees (`protocol.rs:117-123, 226-235`).
 - `LatencyMidEditMapV1` is designed for additive growth: a future `save` /
   `pre_write` / `watch` rollup adds a sibling field without breaking V1
   consumers (`status.rs:70-81`).
-- `ALL_ANVIL_METHODS` is the canonical list (`protocol.rs:156-163`). Adding a
-  method is additive; renaming or removing one bumps a protocol version and
-  requires the daemon to dual-route during the transition.
+- `ALL_ANVIL_METHODS` is the canonical list (`protocol.rs:297-317`; 19 method
+  constants as of the DSV + witness + GCTX additions). Adding a method is
+  additive; renaming or removing one bumps a protocol version and requires the
+  daemon to dual-route during the transition.
 - The TS protocol mirror is byte-pinned via tests
   (`packages/anvil-driver-client/src/protocol/types.test.ts`) so a Rust-side
   rename without TS update fails CI before shipping.
@@ -785,27 +796,27 @@ Where the driver design spec at `plans/specs/anvil-driver-framework/`
 (specifically `editor-and-mcp-driver-design.md`) and the shipping code agree,
 and where they don't:
 
-| Spec promise                                                       | Shipping in `v0.6.0-beta`                                                                                                                                        | Code reference                                                                                                        |
-| ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| §2.3a allowlist gate, default `~/.config/anvil/drivers.allow`      | Shipped                                                                                                                                                          | `crates/anvil-intercept/src/auth.rs:227-267`                                                                          |
-| §2.3a workspace-root validation against live sessions              | Shipped                                                                                                                                                          | `auth.rs:412-453`                                                                                                     |
-| §3.2 `anvil/` method name table                                    | Shipped: 6 of 14 spec methods                                                                                                                                    | `crates/anvil-intercept-proto/src/protocol.rs:62-163`                                                                 |
-| §3.2 `anvil/driver/capabilities/update` (Attached → Participating) | **Spec-only.** No method constant, no daemon route.                                                                                                              | n/a                                                                                                                   |
-| §3.2 `anvil/capability/downgrade` notification                     | **Spec-only as a method.** Downgrades emit a structured `tracing::warn` log; no JSON-RPC notification ships.                                                     | `auth.rs:587-596`                                                                                                     |
-| §3.2 `anvil/enforcement/decision` notification                     | **Spec-only.** No method constant.                                                                                                                               | n/a                                                                                                                   |
-| §3.2 `anvil/enforcement/refuse`                                    | **Spec-only as a daemon constant.** TS client treats it as enforcement-ack-class for timeout purposes only.                                                      | `packages/anvil-driver-client/src/client/types.ts:60-63`                                                              |
-| §3.2 `anvil/suppression/state` notification                        | **Spec-only.** No method constant.                                                                                                                               | n/a                                                                                                                   |
-| §3.2 `anvil/gate/result` snapshot notification                     | **Spec-only.** No method constant.                                                                                                                               | n/a                                                                                                                   |
-| §3.2 `anvil/nudge/metadata`                                        | **Spec-only.** No method constant.                                                                                                                               | n/a                                                                                                                   |
-| §3.2 `anvil/correlation` (per-diagnostic embedded)                 | **Spec-only.** Diagnostic envelopes carry correlation via `anvil-kernel-types`; no `anvil/correlation` method.                                                   | n/a                                                                                                                   |
-| §3.3 Capability state machine (`Attached` ↔ `Participating`)       | Shipped: lattice + negotiation; transitions emitted via downgrade event                                                                                          | `protocol.rs:124-138`, `auth.rs:558-580`                                                                              |
-| §3.3 reconnect-survival (negotiation re-runs from manifest)        | Shipped                                                                                                                                                          | `auth.rs:550-556` and the `negotiate_capability_is_pure_recompute` test                                               |
-| §4.4 redaction contract (secret excerpts, absolute paths)          | **Wired only for `validate_write`.** Other MCP tool surfaces (`scan.files`, `fix.apply`, `status.query`) are spec-only. RMCPF-010 wires the rest in a later tag. | `crates/anvil-cli/src/mcp/tools/validate_write.rs:374-424`; cross-link `intercept-as-built.md` §13 + security note H3 |
-| §4.5 degraded-behaviour structured error                           | Shipped (TS client + MCP shim use the same code names)                                                                                                           | `packages/anvil-driver-client/src/errors.ts:21-51`                                                                    |
-| DRVR Wave 1-3 (DRVR-001/-002/-006/-007/-008)                       | Shipped (PRs #1304, #1307, #1310; remediation #1322)                                                                                                             | `plans/archive/modules/surface-drivers.aps.md:11-13`                                                                  |
-| DRVR Wave 4 (RTAI-005, RTAI-007, RTAI-009, DRVR-003)               | **Deferred under ADR-033.** VSCode extension archived; Wave 4 sits behind an extension un-pause decision.                                                        | `RELEASE-PLAN.md:77, 263-264`; `plans/decisions/033-park-ide-mcp-retire-ts-scanner.md`                                |
-| Reliability-budget quarantine survives daemon restart              | **Client-side only (in-process).** TS ledger persists across reconnect within a process; cross-process / on-disk ledger is documented but not implemented.       | `packages/anvil-driver-client/src/reliability/budget.ts:78-92`                                                        |
-| Driver-version negotiation that survives daemon restart            | **Not addressed.** v1 is single-version daemon — no rolling-upgrade story, no peer compatibility matrix.                                                         | `intercept-as-built.md` §16 gap 10                                                                                    |
+| Spec promise                                                       | Shipping in `v0.6.0-beta`                                                                                                                                                                                                                                                                               | Code reference                                                                                                          |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| §2.3a allowlist gate, default `~/.config/anvil/drivers.allow`      | Shipped                                                                                                                                                                                                                                                                                                 | `crates/anvil-intercept/src/auth.rs:227-267`                                                                            |
+| §2.3a workspace-root validation against live sessions              | Shipped                                                                                                                                                                                                                                                                                                 | `auth.rs:412-453`                                                                                                       |
+| §3.2 `anvil/` method name table                                    | Shipped: 6 of the 14 editor-driver spec methods. `ALL_ANVIL_METHODS` now carries **19** constants total — the other 13 are the three DSV save-time verbs, `anvil/witness/append`, and the nine GCTX read-only verbs, which sit outside the editor-driver §3.2 table (see `intercept-as-built.md` §4.3). | `crates/anvil-intercept-proto/src/protocol.rs:117-150` (driver-facing six); `protocol.rs:297-317` (`ALL_ANVIL_METHODS`) |
+| §3.2 `anvil/driver/capabilities/update` (Attached → Participating) | **Spec-only.** No method constant, no daemon route.                                                                                                                                                                                                                                                     | n/a                                                                                                                     |
+| §3.2 `anvil/capability/downgrade` notification                     | **Spec-only as a method.** Downgrades emit a structured `tracing::warn` log; no JSON-RPC notification ships.                                                                                                                                                                                            | `auth.rs:587-596`                                                                                                       |
+| §3.2 `anvil/enforcement/decision` notification                     | **Spec-only.** No method constant.                                                                                                                                                                                                                                                                      | n/a                                                                                                                     |
+| §3.2 `anvil/enforcement/refuse`                                    | **Spec-only as a daemon constant.** TS client treats it as enforcement-ack-class for timeout purposes only.                                                                                                                                                                                             | `packages/anvil-driver-client/src/client/types.ts:60-63`                                                                |
+| §3.2 `anvil/suppression/state` notification                        | **Spec-only.** No method constant.                                                                                                                                                                                                                                                                      | n/a                                                                                                                     |
+| §3.2 `anvil/gate/result` snapshot notification                     | **Spec-only.** No method constant.                                                                                                                                                                                                                                                                      | n/a                                                                                                                     |
+| §3.2 `anvil/nudge/metadata`                                        | **Spec-only.** No method constant.                                                                                                                                                                                                                                                                      | n/a                                                                                                                     |
+| §3.2 `anvil/correlation` (per-diagnostic embedded)                 | **Spec-only.** Diagnostic envelopes carry correlation via `anvil-kernel-types`; no `anvil/correlation` method.                                                                                                                                                                                          | n/a                                                                                                                     |
+| §3.3 Capability state machine (`Attached` ↔ `Participating`)       | Shipped: lattice + negotiation; transitions emitted via downgrade event                                                                                                                                                                                                                                 | `protocol.rs:265-292`, `auth.rs:558-580`                                                                                |
+| §3.3 reconnect-survival (negotiation re-runs from manifest)        | Shipped                                                                                                                                                                                                                                                                                                 | `auth.rs:550-556` and the `negotiate_capability_is_pure_recompute` test                                                 |
+| §4.4 redaction contract (secret excerpts, absolute paths)          | **Wired only for `validate_write`.** Other MCP tool surfaces (`scan.files`, `fix.apply`, `status.query`) are spec-only. RMCPF-010 wires the rest in a later tag.                                                                                                                                        | `crates/anvil-cli/src/mcp/tools/validate_write.rs:374-424`; cross-link `intercept-as-built.md` §13 + security note H3   |
+| §4.5 degraded-behaviour structured error                           | Shipped (TS client + MCP shim use the same code names)                                                                                                                                                                                                                                                  | `packages/anvil-driver-client/src/errors.ts:21-51`                                                                      |
+| DRVR Wave 1-3 (DRVR-001/-002/-006/-007/-008)                       | Shipped (PRs #1304, #1307, #1310; remediation #1322)                                                                                                                                                                                                                                                    | `plans/archive/modules/surface-drivers.aps.md:11-13`                                                                    |
+| DRVR Wave 4 (RTAI-005, RTAI-007, RTAI-009, DRVR-003)               | **Deferred under ADR-033.** VSCode extension archived; Wave 4 sits behind an extension un-pause decision.                                                                                                                                                                                               | `RELEASE-PLAN.md:77, 263-264`; `plans/decisions/033-park-ide-mcp-retire-ts-scanner.md`                                  |
+| Reliability-budget quarantine survives daemon restart              | **Client-side only (in-process).** TS ledger persists across reconnect within a process; cross-process / on-disk ledger is documented but not implemented.                                                                                                                                              | `packages/anvil-driver-client/src/reliability/budget.ts:78-92`                                                          |
+| Driver-version negotiation that survives daemon restart            | **Not addressed.** v1 is single-version daemon — no rolling-upgrade story, no peer compatibility matrix.                                                                                                                                                                                                | `intercept-as-built.md` §16 gap 10                                                                                      |
 
 ## 13. Known gaps (dated 2026-05-07)
 
@@ -836,7 +847,10 @@ and where they don't:
    `anvil/suppression/state`, `anvil/gate/result`, `anvil/nudge/metadata`,
    `anvil/correlation`). They land with the consumer that needs them — DRVR's
    "no new method without a concrete editor feature" rule prevents speculative
-   additions (`protocol.rs:28-32, 372-374`).
+   additions (`protocol.rs:28-75`, the method-namespace-policy module doc). The
+   DSV save-time verbs, `anvil/witness/append`, and the nine GCTX read-only
+   verbs that have since landed each cleared that rule by shipping with a
+   concrete daemon consumer; these eight editor methods have not.
 5. **`drivers.allow` file mode not verified before read.** Same gap as
    `intercept-as-built.md` §16 gap 4 / security note H1: the allowlist read path
    uses `fs::read_to_string` without `lstat` for owner / mode (`auth.rs:228`).

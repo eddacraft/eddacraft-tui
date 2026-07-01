@@ -133,10 +133,10 @@
 
 ### Edda Stack (Observation → Memory Pipeline)
 
-| Package                         | Purpose                                     | Status        |
-| ------------------------------- | ------------------------------------------- | ------------- |
-| `packages/edda-stack`           | Three-layer memory: Kindling → Ember → Edda | **[CURRENT]** |
-| `packages/kindling-integration` | Kindling observation capture integration    | **[CURRENT]** |
+| Package                         | Purpose                                                                                                                                | Status        |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| `packages/edda-stack`           | Three-layer memory: Kindling → Ember → Edda (partial TS surface — Edda + Ember present, Kindling via `kindling-integration`; retiring) | **[PARTIAL]** |
+| `packages/kindling-integration` | Kindling observation capture integration                                                                                               | **[CURRENT]** |
 
 ### Shared and Support Packages
 
@@ -149,37 +149,39 @@
 
 ### Tooling & Integration
 
-| Package                          | Purpose                                        | Status        |
-| -------------------------------- | ---------------------------------------------- | ------------- |
-| `packages/aps`                   | APS (Anvil Plan Spec) loader and state machine | **[CURRENT]** |
-| `packages/mcp-server`            | Model Context Protocol server for AI agents    | **[CURRENT]** |
-| `packages/eslint-plugin-anvil`   | ESLint plugin with Anvil-specific rules        | **[CURRENT]** |
-| `packages/vscode-extension`      | VS Code extension for Anvil                    | **[CURRENT]** |
-| `packages/adapters`              | External tool adapters                         | **[CURRENT]** |
-| `packages/tooling/eslint-config` | Shared ESLint config                           | **[CURRENT]** |
-| `packages/tooling/tsconfig`      | Shared TypeScript config                       | **[CURRENT]** |
+| Package                          | Purpose                                                                                 | Status         |
+| -------------------------------- | --------------------------------------------------------------------------------------- | -------------- |
+| `packages/aps`                   | APS (Anvil Plan Spec) loader and state machine                                          | **[CURRENT]**  |
+| ~~`packages/mcp-server`~~        | Removed — MCP is now the Rust `anvil mcp serve --stdio` shim (no TS server package)     | **[REMOVED]**  |
+| `packages/eslint-plugin-anvil`   | ESLint plugin with Anvil-specific rules                                                 | **[CURRENT]**  |
+| ~~`packages/vscode-extension`~~  | Archived per ADR-033 (moved to sibling `eddacraft/anvil-archive`; returns via DRVR-003) | **[ARCHIVED]** |
+| `packages/adapters`              | External tool adapters                                                                  | **[CURRENT]**  |
+| `packages/tooling/eslint-config` | Shared ESLint config                                                                    | **[CURRENT]**  |
+| `packages/tooling/tsconfig`      | Shared TypeScript config                                                                | **[CURRENT]**  |
 
 ### Rust Crates
 
-| Crate                       | Purpose                                                   | Status         |
-| --------------------------- | --------------------------------------------------------- | -------------- |
-| `crates/anvil-cli`          | CLI binary (clap + Ratatui) — primary entry point         | **[CURRENT]**  |
-| `crates/anvil-kernel`       | Core kernel: watcher, parser, graph, policy engine        | **[CURRENT]**  |
-| `crates/anvil-kernel-types` | Shared event/graph/trust type contracts                   | **[CURRENT]**  |
-| `crates/anvil-tui`          | Anvil-specific TUI surfaces (all ported)                  | **[CURRENT]**  |
-| `crates/anvil-checks`       | Ported checks: secret, antipattern, command safety        | **[CURRENT]**  |
-| `crates/anvil-policy`       | OPA policy evaluation engine                              | **[CURRENT]**  |
-| `crates/anvil-architecture` | Architecture enforcement (boundaries, drift)              | **[CURRENT]**  |
-| `crates/anvil-bench`        | Stress-test harness and benchmarks                        | **[CURRENT]**  |
-| `crates/spike`              | Phase 0 validation spikes (tree-sitter, notify, petgraph) | **[CURRENT]**  |
-| `eddacraft-tui` (external)  | Shared Ratatui component library (git dependency)         | **[EXTERNAL]** |
-| `crates/eddacraft-kindling` | Kindling Rust integration                                 | **[PROPOSED]** |
+| Crate                       | Purpose                                                          | Status         |
+| --------------------------- | ---------------------------------------------------------------- | -------------- |
+| `crates/anvil-cli`          | CLI binary (clap + Ratatui) — primary entry point                | **[CURRENT]**  |
+| `crates/anvil-kernel`       | Core kernel: watcher, parser, graph, policy engine               | **[CURRENT]**  |
+| `crates/anvil-kernel-types` | Shared event/graph/trust type contracts                          | **[CURRENT]**  |
+| `crates/anvil-tui`          | Anvil-specific TUI surfaces (all ported)                         | **[CURRENT]**  |
+| `crates/anvil-checks`       | Ported checks: secret, antipattern, command safety               | **[CURRENT]**  |
+| `crates/anvil-policy`       | OPA policy evaluation engine                                     | **[CURRENT]**  |
+| `crates/anvil-architecture` | Architecture enforcement (boundaries, drift)                     | **[CURRENT]**  |
+| `crates/anvil-bench`        | Stress-test harness and benchmarks                               | **[CURRENT]**  |
+| `crates/spike`              | Phase 0 validation spikes (tree-sitter, notify, petgraph)        | **[CURRENT]**  |
+| `crates/eddacraft-tui`      | Shared Ratatui component library (workspace path crate, ADR-047) | **[CURRENT]**  |
+| `crates/eddacraft-kindling` | Kindling Rust integration                                        | **[PROPOSED]** |
 
-> **Note:** `eddacraft-tui` is an external git dependency, not part of the Cargo
-> workspace. `anvil-napi` (N-API bridge) was superseded by the standalone Rust
-> binary approach — the CLI is distributed directly via cargo-dist. Watcher,
-> gate, and engine responsibilities are consolidated into `anvil-kernel` as
-> internal modules.
+> **Note:** `eddacraft-tui` is a workspace member — a path crate at
+> `crates/eddacraft-tui` (root `Cargo.toml` `members` +
+> `path = "crates/eddacraft-tui"`), consumed by path per ADR-047, not an
+> external git dependency. `anvil-napi` (N-API bridge) was superseded by the
+> standalone Rust binary approach — the CLI is distributed directly via
+> cargo-dist. Watcher, gate, and engine responsibilities are consolidated into
+> `anvil-kernel` as internal modules.
 
 ---
 
@@ -354,7 +356,10 @@ and
 
 ## 5. Edda Stack (Memory Architecture)
 
-**Status: [CURRENT]** — all three layers implemented in `packages/edda-stack`
+**Status: [PARTIAL]** — partial TS implementation in `packages/edda-stack` (Edda
+and Ember present; Kindling capture via `packages/kindling-integration`). This
+TypeScript surface is retiring; operational memory now runs through the Rust
+Kindling path. Overview treats this stack as partial/retiring.
 
 ```
 ┌──────────────────────────────────────────────────────────┐
@@ -390,7 +395,8 @@ and
 
 ### Ratatui TUI (Rust) [CURRENT]
 
-The shared Ratatui component library (`eddacraft-tui`) is an external git
+The shared Ratatui component library (`eddacraft-tui`) is a workspace path crate
+at `crates/eddacraft-tui` (consumed by path per ADR-047), not an external git
 dependency. Anvil-specific TUI surfaces live in `crates/anvil-tui/`:
 
 **Shared Components:** Header, Container, Divider, Spinner, StatusBadge,
@@ -517,6 +523,11 @@ Beyond the H1 invariants, the end-state vision includes:
 ## 12. Deployment & Distribution
 
 ### Current
+
+> **Cutover complete:** Anvil now ships as a standalone Rust binary via
+> cargo-dist (the "Proposed End State" below is the shipped reality). The
+> npm/Node.js distribution described here is the pre-cutover path, retained for
+> historical context.
 
 - **npm package** — `@eddacraft/anvil-cli` via npm
 - **Node.js required** — runtime dependency

@@ -51,16 +51,21 @@ persistence/derivability invariants.
 Graph v2 is **not** green-field. The semantic + dependency layer shipped as the
 Sub-phase A backing and lives in `crates/anvil-graph-cache/` (ADR-064). This
 spec describes the target end-state; the table below marks how far each piece is
-from it so a reader knows what is design vs reality.
+from it so a reader knows what is design vs reality. As of 2026-07-02 the GV2
+module is **21/21 Done** ([`plans/index.aps.md`](../../plans/index.aps.md)): the
+registry + query traits landed in `crates/anvil-graph-cache/src/registry.rs`
+(GV2-020, #2622), so every substrate row below has now shipped — only the
+`eddacraft-kindling` Rust provenance read surface (an _implementation_ of the
+GV2-014 resolution step, not a contract gap) remains proposed.
 
-| Layer                                   | Where it lives today                                                                                                                                 | State                                                                           |
-| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| Semantic code graph                     | `crates/anvil-graph-cache/src/symbol_graph.rs`, `crates/anvil-kernel-types/src/graph.rs`                                                             | Shipped (Sub-phase A); schema additions pending (GV2-010)                       |
-| Dependency/impact graph + reverse index | `crates/anvil-graph-cache/src/dependency.rs`                                                                                                         | Shipped; incremental maintenance + hot-read API pending (GV2-011/022)           |
-| Trust/policy graph                      | `PolicyProfile`/`TrustGraph` keyed on `SymbolIdentity` (`crates/anvil-kernel-types/src/trust.rs`, `crates/anvil-graph-cache/src/trust.rs`)           | Contract defined (GV2-012); daemon wiring pending (GV2-029)                     |
-| Control/session graph                   | shipped **in INTD** as `SessionRecord`/`Attribution` ([`intercept-as-built.md`](./intercept-as-built.md) §10); join contract defined below (GV2-013) | Contract defined (GV2-013); bridge type + registry wiring pending (GV2-020)     |
-| Plan/provenance graph                   | provenance shipped **in TS** ([`edda-stack.md`](./edda-stack.md)); join contract defined below (GV2-014)                                             | Contract defined (GV2-014); Rust read surface (`eddacraft-kindling`) proposed   |
-| Registry + query traits                 | none yet — consumers call `certify()`/`with_graphs()` directly                                                                                       | Consumer contract defined (GV2-023, see below); registry impl pending (GV2-020) |
+| Layer                                   | Where it lives today                                                                                                                                 | State                                                                                    |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Semantic code graph                     | `crates/anvil-graph-cache/src/symbol_graph.rs`, `crates/anvil-kernel-types/src/graph.rs`                                                             | Shipped (Sub-phase A); schema additions **Merged (GV2-010)**                             |
+| Dependency/impact graph + reverse index | `crates/anvil-graph-cache/src/dependency.rs`                                                                                                         | Shipped; incremental maintenance + hot-read API **Merged (GV2-011/022)**                 |
+| Trust/policy graph                      | `PolicyProfile`/`TrustGraph` keyed on `SymbolIdentity` (`crates/anvil-kernel-types/src/trust.rs`, `crates/anvil-graph-cache/src/trust.rs`)           | Contract **Merged (GV2-012)**; daemon trust wiring **Merged (GV2-029)**                  |
+| Control/session graph                   | shipped **in INTD** as `SessionRecord`/`Attribution` ([`intercept-as-built.md`](./intercept-as-built.md) §10); join contract defined below (GV2-013) | Contract **Merged (GV2-013)**; bridge type + registry wiring **Merged (GV2-020, #2622)** |
+| Plan/provenance graph                   | provenance shipped **in TS** ([`edda-stack.md`](./edda-stack.md)); join contract defined below (GV2-014)                                             | Contract **Merged (GV2-014)**; Rust read surface (`eddacraft-kindling`) still proposed   |
+| Registry + query traits                 | `crates/anvil-graph-cache/src/registry.rs` (GV2-020)                                                                                                 | Consumer contract **Merged (GV2-023, #2621)**; registry impl **Merged (GV2-020, #2622)** |
 
 ## Principles
 

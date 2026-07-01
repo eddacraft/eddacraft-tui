@@ -1,23 +1,26 @@
 # anvil-kernel — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                      |
-| -------- | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| As-built | Derived   | KERN  | Live   | Last reviewed 2026-06-10 (targeted delta review: GV2-024 hot-read split/seal, ADR-077 depth cap) against main `a1c41e284`; full review 2026-05-07 against `v0.6.0-beta` and `crates/anvil-kernel`, `crates/anvil-kernel-types` |
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                      |
+| -------- | --------- | ----- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | KERN  | Live   | Last reviewed 2026-07-02 (drift sweep against main `d1fded280`: language registry now 15 grammars, `anvil-graph-cache` module count, snapshot persistence, KERN archived-Complete). Prior: targeted delta 2026-06-10 (GV2-024 hot-read split/seal, ADR-077 depth cap) against `a1c41e284`; full review 2026-05-07 against `v0.6.0-beta` and `crates/anvil-kernel`, `crates/anvil-kernel-types` |
 
 | Upstream                                                    | Downstream                                                                               |
 | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | `crates/anvil-kernel`, `crates/anvil-kernel-types`, ADR-030 | engine ports (RENG), TUI / RATS surfaces, watch CLI (LAUNCH), MCP shim embedded fallback |
 
-> **Status:** Live (beta) **Last reviewed:** 2026-06-10 (targeted delta review:
-> GV2-024 hot-read split/seal, ADR-077 depth cap) against main `a1c41e284`; full
-> review 2026-05-07 against `v0.6.0-beta` slate (HEAD `97b61fd0`) **Crate /
-> location:** `crates/anvil-kernel` (+ `crates/anvil-kernel-types`) **Module
-> owner (APS):** KERN (kernel substrate, 22/25 — 3 daemon-mode items superseded
-> by INTD per ADR-030); downstream callers in RENG (engine ports), surfaces in
-> RATS / TUI, watch CLI in LAUNCH **Used by:** `anvil watch`, `anvil check` /
-> `gate` / `audit` (via embedded API), `anvil-checks` registry consumers, MCP
-> shim's `LocalDaemonValidationClient` embedded fallback (validation routes
-> through the kernel for parse + graph)
+> **Status:** Live (beta) **Last reviewed:** 2026-07-02 (drift sweep against
+> main `d1fded280`: language registry, `anvil-graph-cache` modules, snapshot
+> persistence, KERN archived-Complete); prior targeted delta 2026-06-10 (GV2-024
+> hot-read split/seal, ADR-077 depth cap) against `a1c41e284`; full review
+> 2026-05-07 against `v0.6.0-beta` slate (HEAD `97b61fd0`) **Crate / location:**
+> `crates/anvil-kernel` (+ `crates/anvil-kernel-types`) **Module owner (APS):**
+> KERN (kernel substrate, **Complete** — archived at
+> `plans/archive/modules/rust-kernel.aps.md`; 22/25 items Done, 3 daemon-mode
+> items KERN-050..052 superseded by INTD per ADR-030); downstream callers in
+> RENG (engine ports), surfaces in RATS / TUI, watch CLI in LAUNCH **Used by:**
+> `anvil watch`, `anvil check` / `gate` / `audit` (via embedded API),
+> `anvil-checks` registry consumers, MCP shim's `LocalDaemonValidationClient`
+> embedded fallback (validation routes through the kernel for parse + graph)
 
 ## 1. Overview
 
@@ -48,8 +51,9 @@ The kernel is workspace-`#![forbid(unsafe_code)]` (`Cargo.toml:90-91`) — every
 "Proposed — H1 Implementation Target". The kernel has shipped through
 `v0.4.0-beta` (the original native scanner cut), `v0.5.0-beta` / `v0.5.1-beta`
 (incremental import correctness fixes), and is current in `v0.6.0-beta`. The
-KERN APS module is **Complete** (22/25; KERN-050..052 daemon-mode tasks
-superseded by INTD per ADR-030 — `plans/index.aps.md:238`).
+KERN APS module is **Complete** and archived at
+`plans/archive/modules/rust-kernel.aps.md` (22/25 items Done; KERN-050..052
+daemon-mode tasks superseded by INTD per ADR-030).
 
 This as-built supersedes the spec for "what shipped". The spec stays as the
 intent record. Where the two disagree:
@@ -58,9 +62,15 @@ intent record. Where the two disagree:
   daemon-mode IPC surface through `anvil-intercept`, which hosts the kernel
   in-process; the kernel-owned daemon (KERN-050..052) was retired rather than
   shipped.
-- **Language coverage (spec §5.2) shipped TS/JS only.** The spec named Rust as a
-  dogfooding target; no Rust grammar is registered in
-  `crates/anvil-kernel/src/parser/languages.rs`. RSTLAN is a draft module.
+- **Language coverage (spec §5.2) shipped far past the TS/JS anchor.** The spec
+  named Rust as a dogfooding target; the registry now binds **15 grammars** in
+  `crates/anvil-kernel/src/parser/languages.rs` — TypeScript, TSX, JavaScript,
+  JSX, Rust, Python, Dart, Go, Java, Kotlin, C#, C, C++, Zig, and WebAssembly
+  text (`.wat`/`.wast`). TS/JS remain the full-support anchors; the tail
+  languages (Dart..C++ under LANGTAIL, Zig/Wat under LTW2 / ADR-093) ship at
+  **T1 (Parsed)** — grammar wired, files detected, basic symbol extraction, but
+  no per-language anti-pattern catalogues, suppression syntax, or policy hooks
+  yet (that is T2/T3). See §6.1.
 - **AST graph snapshot to disk (spec §6.4 fast-follow) is not built.** Cold
   rebuild on every start is the only path; the embedded mode does not attempt to
   persist or restore graph state.
@@ -178,10 +188,16 @@ crate.
 | `notifications.rs` | `Notification` envelope used by JSON CLI surfaces                                        |
 | `hooks.rs`         | `ANVIL_CONFIG_HOOK_PATTERN` + `is_anvil_managed_command` — hook wiring contract          |
 
-`crates/anvil-kernel/Cargo.toml:12-28` declares the dependency surface:
-`tree-sitter`, `tree-sitter-typescript`, `tree-sitter-javascript`, `notify`,
-`petgraph`, `rayon`, `globset`, `ignore`, `walkdir`, `serde` / `serde_yaml`,
-`num_cpus`, `thiserror`. There is no async runtime — the crate is sync-only.
+`crates/anvil-kernel/Cargo.toml:12-41` declares the dependency surface:
+`anvil-kernel-types`, `anvil-graph-cache` (the graph now lives there, §7),
+`anvil-rayon-init` (the shared pool-cap helper — `num_cpus` no longer sits
+directly on the kernel), `tree-sitter` plus the 13 grammar crates
+(`tree-sitter-typescript` / `-javascript` / `-rust` / `-python` / `-dart` /
+`-go` / `-java` / `-kotlin-ng` / `-c-sharp` / `-c` / `-cpp` / `-zig` and the
+vendored `anvil-grammar-wat`), `notify`, `rayon`, `globset`, `ignore`,
+`walkdir`, `serde` / `serde_json` / `serde_yaml`, `thiserror`. `petgraph` is now
+a transitive dep via `anvil-graph-cache`, not a direct kernel dep. There is no
+async runtime — the crate is sync-only.
 
 ## 5. Watcher
 
@@ -231,19 +247,21 @@ backpressure (`debounce.rs:30-38`).
 `watcher::filter::FileFilter`
 (`crates/anvil-kernel/src/watcher/filter.rs:11-94`) carries a fixed
 component-name denylist (`node_modules`, `.git`, `target`, `dist`, `build`,
-`.next`, `.turbo`, `.nx`, `coverage`, `.anvil` — `filter.rs:36-49`) plus a
-parseable-extension allowlist (`ts`, `tsx`, `js`, `jsx`, `mjs`, `cjs` —
-`filter.rs:62-68`). Two checks compose:
+`.next`, `.turbo`, `.nx`, `coverage`, `.anvil` — see `IGNORE_DIRS`) plus a
+parseable-extension gate. The gate is **not** a hardcoded JS/TS list:
+`is_parseable` delegates to `Language::from_path` (`filter.rs:95-104`), so it
+admits every extension the parser registers — all 15 languages of §6.1 — and
+stays in lockstep with the registry automatically. Two checks compose:
 
 - `should_ignore` matches any path component against the denylist — catches
-  absolute, relative, and trailing-slash forms (`filter.rs:51-60`); test pinned
-  at `filter.rs:148-173`.
+  absolute, relative, and trailing-slash forms (`filter.rs:83-91`); tests pinned
+  at `filter.rs:135-169`.
 - `should_process` combines the denylist with the parseable-extension gate. When
   the caller wires user-supplied globs at the outer layer (the `--patterns` /
   `--source` / `--plans` cases), it builds the filter via
-  `FileFilter::default().with_respect_extensions(false)` — the JS/TS extension
-  gate is bypassed but a "must look like a file" floor (extension is `Some(_)`)
-  still rejects directories (`filter.rs:78-87`,
+  `with_respect_extensions(false)` — the registry-extension gate is bypassed but
+  a "must look like a file" floor (extension is `Some(_)`) still rejects
+  directories (`filter.rs:105-121`,
   `crates/anvil-cli/src/commands/watch.rs:738-749`).
 
 ### 5.4 User-facing glob filter (`WatchPatternFilter`, LAUNCH-001)
@@ -295,19 +313,38 @@ through `parse_bytes(path, content)`:
 
 ### 6.1 Language coverage in `v0.6.0-beta`
 
-Four language entries register in `parser::languages::Language`
-(`parser/languages.rs:5-32`):
+Fifteen language entries register in `parser::languages::Language`
+(`parser/languages.rs:5-35`), dispatched to a tree-sitter grammar in
+`ts_language` (`parser/languages.rs:66-86`):
 
-| Variant      | Extensions              | tree-sitter grammar            |
-| ------------ | ----------------------- | ------------------------------ |
-| `TypeScript` | `.ts`                   | `tree-sitter-typescript` (TS)  |
-| `Tsx`        | `.tsx`                  | `tree-sitter-typescript` (TSX) |
-| `JavaScript` | `.js` / `.mjs` / `.cjs` | `tree-sitter-javascript`       |
-| `Jsx`        | `.jsx`                  | `tree-sitter-javascript`       |
+| Variant      | Extensions                                                          | tree-sitter grammar            | Tier          |
+| ------------ | ------------------------------------------------------------------- | ------------------------------ | ------------- |
+| `TypeScript` | `.ts`                                                               | `tree-sitter-typescript` (TS)  | Anchor        |
+| `Tsx`        | `.tsx`                                                              | `tree-sitter-typescript` (TSX) | Anchor        |
+| `JavaScript` | `.js` / `.mjs` / `.cjs`                                             | `tree-sitter-javascript`       | Anchor        |
+| `Jsx`        | `.jsx`                                                              | `tree-sitter-javascript`       | Anchor        |
+| `Rust`       | `.rs`                                                               | `tree-sitter-rust`             | RSTLAN        |
+| `Python`     | `.py` / `.pyi`                                                      | `tree-sitter-python`           | Parsed        |
+| `Dart`       | `.dart`                                                             | `tree-sitter-dart`             | T1 (LANGTAIL) |
+| `Go`         | `.go`                                                               | `tree-sitter-go`               | T1 (LANGTAIL) |
+| `Java`       | `.java`                                                             | `tree-sitter-java`             | T1 (LANGTAIL) |
+| `Kotlin`     | `.kt` / `.kts`                                                      | `tree-sitter-kotlin-ng`        | T1 (LANGTAIL) |
+| `CSharp`     | `.cs`                                                               | `tree-sitter-c-sharp`          | T1 (LANGTAIL) |
+| `C`          | `.c` / `.h`                                                         | `tree-sitter-c`                | T1 (LANGTAIL) |
+| `Cpp`        | `.cpp` / `.cc` / `.cxx` / `.c++` / `.hpp` / `.hh` / `.hxx` / `.h++` | `tree-sitter-cpp`              | T1 (LANGTAIL) |
+| `Zig`        | `.zig`                                                              | `tree-sitter-zig`              | T1 (LTW2)     |
+| `Wat`        | `.wat` / `.wast`                                                    | `anvil-grammar-wat` (vendored) | T1 (LTW2)     |
 
-No Rust, Python, or other grammars are registered — the parser registry is the
-bottleneck for language support. RSTLAN (Rust) and language-pack work for Python
-sit outside this crate.
+TS/JS are the full-support anchors. Rust and Python have dedicated extractors
+(`parser/extract/rust.rs`, `parser/extract/python.rs`); Rust symbol extraction
+is owned by RSTLAN. The remaining tail languages ship at **T1 (Parsed)**: the
+grammar binds, files are detected via `Language::from_path`
+(`parser/languages.rs:39-63`), and basic symbol extraction runs, but no
+per-language anti-pattern catalogues, suppression syntax, or policy hooks exist
+yet (T2/T3). Two deliberate non-mappings: `.zon` (`build.zig.zon`) is a Zig data
+manifest, not source, and the binary `.wasm` format is not source (ADR-093) — a
+grammar-version fingerprint (`grammar_version`, `languages.rs:102-123`) folds
+into the AST-cache key so a grammar bump can never serve a stale tree.
 
 ### 6.2 AST cache
 
@@ -349,18 +386,41 @@ microsecond-scale tail. See §14 and
 
 The semantic graph is its own crate, `anvil-graph-cache`, re-exported by the
 kernel as `crate::graph` (`crates/anvil-kernel/src/lib.rs:8`). The crate ships
-six modules — `symbol_graph`, `dependency`, `incremental`, `trust`, `certify`
-(bounded reverse-impact certifiability for the save-time daemon, ADR-061 /
-ADR-064, depth-capped under ADR-077 — §7.6), and `hot_index` (the sealed
-save-time hot-read surface, GV2-022 / ADR-063 — §7.5)
-(`crates/anvil-graph-cache/src/lib.rs:10-15`). Its `lib.rs` re-exports the graph
-core (`SymbolGraph`, `DependencyGraph`, `GraphDelta`, `update_file`,
-`re_resolve_imports`, `remove_file`, `annotate_trust`), the certifiability
+**ten modules** (`crates/anvil-graph-cache/src/lib.rs:10-19`):
+
+- `symbol_graph` — the petgraph-backed `SymbolGraph` (§7.1).
+- `dependency` — derived file-level `DependencyGraph` with cycle detection
+  (§7.2).
+- `trust` — the whole-graph trust-annotation pass (§7.3).
+- `incremental` — the `update_file` hot path plus import/call/re-export
+  resolution (§7.4).
+- `certify` — bounded reverse-impact certifiability for the save-time daemon
+  (ADR-061 / ADR-064, depth-capped under ADR-077 — §7.6).
+- `hot_index` — the sealed save-time hot-read surface (GV2-022 / ADR-063 —
+  §7.5).
+- `call_graph` — reverse caller lookup (`callers_of`, `CallersReport`,
+  `MAX_CALLERS_WALK`), the call-edge analogue of the dependency graph.
+- `registry` — `GraphRegistry`, the multi-graph registry the daemon uses to hold
+  several workspaces' warm graphs.
+- `snapshot` — sealed allowlist-only snapshot DTO + `postcard` codec for warm
+  graph persistence / warm-restart (GV2-030 / ADR-069 — §7.7).
+- `tokens` — the GCTX token estimator (`estimate_gctx_tokens`,
+  `GCTX_TOKEN_ESTIMATOR_VERSION`) used by the GCTX egress surface.
+
+Its `lib.rs` re-exports the graph core (`SymbolGraph`, `DependencyGraph`,
+`GraphDelta`, `update_file`, `re_resolve_imports`, `re_resolve_calls`,
+`re_resolve_reexports`, `remove_file`, `annotate_trust`), the certifiability
 surface (`certify`, `CertifyStale`, `Certifiability`, `export_surface_diff`),
-the trust contract (`TrustGraph`, `TrustPostureChange`, `policy_profiles`), and
-the hot-read surface (`HotReadApi`, `BackgroundReadApi`, `HotPathSurface`,
-`HotRead`, `HotReadMiss`, `MAX_REVERSE_IMPACT_DEPTH`)
-(`crates/anvil-graph-cache/src/lib.rs:10-29`).
+the trust contract (`TrustGraph`, `TrustPostureChange`, `policy_profiles`), the
+hot-read surface (`HotReadApi`, `BackgroundReadApi`, `HotPathSurface`,
+`HotRead`, `HotReadMiss`, `MAX_REVERSE_IMPACT_DEPTH`), the call graph
+(`callers_of`, `CallersReport`), the registry (`GraphRegistry`), the snapshot
+codec (`SnapshotPayload`, `snapshot_filename`, `persist_graph_enabled`), and the
+token estimator (`estimate_gctx_tokens`, `TokenEstimate`)
+(`crates/anvil-graph-cache/src/lib.rs:21-45`). The kernel's own watch / embedded
+paths use only the graph core, trust, and incremental surfaces; `certify`,
+`hot_index`, `call_graph`, `registry`, `snapshot`, and `tokens` are the
+daemon-facing (INTD / GV2 / GCTX) surfaces.
 
 ### 7.1 `symbol_graph.rs` — the symbol graph
 
@@ -522,6 +582,27 @@ some >2-hop over-budget graphs report `ExportSurfaceChange` (wire
 pre-ADR-077 unbounded walk survives only as `impact_closure_unbounded`
 (`certify.rs:503`), reachable solely through `BackgroundReadApi` — background
 pool only (ADR-077, `plans/decisions/077-cert-closure-depth-cap.md`).
+
+### 7.7 `snapshot.rs` — warm-graph persistence (GV2-030 / ADR-069)
+
+`snapshot::SnapshotPayload` (`crates/anvil-graph-cache/src/snapshot.rs`) is a
+sealed, allowlist-only DTO plus a `postcard` codec that persists the warm
+`(SymbolGraph, DependencyGraph)` state so the **daemon** can warm-restart
+instead of cold-rebuilding. The on-disk artefact carries _structural identity
+only, never source text_ (ADR-069 §8): graph rows are projected field-by-field
+from the live types, so adding a `String`/`Vec<u8>` field to `SymbolNode` /
+`SymbolEdge` fails to compile here until someone decides whether it belongs in a
+snapshot — there is no `serde(flatten)`, no `serde(other)` catch-all, and no
+`GraphDelta` field. `to_bytes` frames the postcard body behind a fixed header
+(magic, `format_version`, `backing_schema_version`, node/edge counts, CRC-32);
+`from_bytes` validates magic → versions → checksum → decode → counts and returns
+a typed `SnapshotLoadError` on any mismatch (the daemon discards and
+cold-rebuilds — never accepts a partially-validated index). CRC-32 is a
+corruption check, not an authenticity guarantee (CIB-092 / N6); the control is
+the machine-local, owner-only, same-uid persistence boundary — snapshots are
+**default-off**, `0600`, under a `0700` state dir (`persist_graph_enabled`,
+`MAX_SNAPSHOT_BYTES`). This surface is daemon-only; the kernel's own watch /
+embedded paths do not read or write it (see §2, G-05).
 
 ## 8. Policy engine (KERN-030..032)
 
@@ -867,11 +948,11 @@ Key seam points:
   calls out the `v0.4.0-beta` breaking change (bare names like `vendor` no
   longer match files inside the directory; users must pass `vendor/**`).
 - `crates/anvil-cli/src/commands/watch.rs:748-749` — the dispatcher decides
-  whether the kernel's `FileFilter` should keep or drop the hardcoded ts/js
-  extension gate. `--patterns` / `--source` / `--plans` drop it (the user has
-  their own scoping criterion); `--all` keeps it (the kernel's parser still
-  handles only TS/JS, so forwarding non-JS files would just generate
-  `UnsupportedLanguage` errors).
+  whether the kernel's `FileFilter` should keep or drop the registry-extension
+  gate. `--patterns` / `--source` / `--plans` drop it (the user has their own
+  scoping criterion); `--all` keeps it (the gate mirrors the parser registry via
+  `Language::from_path`, so forwarding files the registry does not recognise
+  would just generate `UnsupportedLanguage` errors).
 - `crates/anvil-cli/src/commands/watch.rs:760-773` — `WatcherConfig`
   - `WatchConfig` construction. `architecture_config` is filled when
     `.anvil/architecture.yaml` exists; otherwise `None` and the cross-layer
@@ -977,24 +1058,24 @@ ADR-031 latency budgets cover the real-time validation paths (save-time,
 mid-edit, gate); the kernel's policy evaluation budget sits comfortably inside
 them.
 
-## 15. Known gaps (dated 2026-05-07)
+## 15. Known gaps (refreshed 2026-07-02; originally dated 2026-05-07)
 
-### G-01: Languages without parsers in the kernel registry
+### G-01: Tail languages parse but have no per-language policy depth (T2/T3)
 
-`crates/anvil-kernel/src/parser/languages.rs:5-22` registers TS / TSX / JS / JSX
-only. Python, Rust, Go, Java, C/C++, Ruby — none ship a grammar in the kernel
-parser registry. The activation language profile
-(`docs/architecture/activation-as-built.md` "Language profile") is the
-user-visible side of this: the repo language profile classifies files but the
-kernel cannot parse them, so structural-graph and policy invariants are
-effectively no-ops on those files. Rust ships under RSTLAN (Draft); Python under
-PYLAN (not yet scoped). This is a language-pack-level limitation, not a kernel
-bug.
+**Superseded — the "TS/JS only" gap has largely closed.** As of the 2026-07-02
+sweep, `crates/anvil-kernel/src/parser/languages.rs:5-63` registers **15
+grammars** (§6.1): TS/TSX/JS/JSX anchors, plus Rust, Python, Dart, Go, Java,
+Kotlin, C#, C, C++, Zig, and WebAssembly text. A user pointing `anvil watch` at
+a Rust, Python, or Go repo now gets a real parse, symbol extraction, and the
+structural graph — not a no-op. The residual gap is **depth, not coverage**: the
+tail languages (Dart..C++ under LANGTAIL, Zig/Wat under LTW2 / ADR-093) ship at
+**T1 (Parsed)** — no per-language anti-pattern catalogues, suppression syntax,
+or policy hooks yet (T2/T3). Rust owns its extractor under RSTLAN.
 
-**Risk:** Medium. A user pointing `anvil watch` at a Python or Rust repo today
-gets a working watch loop, no parse, and no invariants — the secret/antipattern
-checks in `anvil-checks` fire on textual content but the kernel adds no signal.
-**Fix:** RSTLAN / language-pack track.
+**Risk:** Low. The structural signal (symbol graph, trust, the four H1
+invariants) is language-agnostic and fires on every registered language; only
+per-language rule packs are outstanding. **Fix:** LANGTAIL/LTW2 T2/T3 tiers and
+per-language rule catalogues.
 
 ### G-02: OPA / Rego policy is not reachable from kernel evaluation
 
@@ -1030,17 +1111,25 @@ design.
 **Risk:** None — design intent. Cross-link:
 `docs/architecture/intercept-as-built.md`.
 
-### G-05: AST snapshot to disk not built (spec §6.4 fast-follow)
+### G-05: The kernel's own watch/embedded paths cold-rebuild (snapshotting lives in the daemon)
 
-Cold rebuild on every kernel start is the only path. There is no graph snapshot,
-no warm-restart, and no git-diff optimisation. For the medium-repo target (~100k
-LOC, ~2k files) cold start is sub-second on rayon, so the cost is acceptable;
-for very large repos, a fresh `anvil watch` re-parses everything.
+Qualified since the 2026-07-02 sweep. The kernel's own `anvil watch` and
+embedded (`anvil check` / `gate` / `audit`) paths still **cold-rebuild** on
+every start — they neither read nor write a graph snapshot, and there is no
+git-diff optimisation. For the medium-repo target (~100k LOC, ~2k files) cold
+start is sub-second on rayon, so the cost is acceptable; for very large repos, a
+fresh `anvil watch` re-parses everything.
 
-**Risk:** Low at H1 scale, growing with repo size. **Fix:** spec §6.4
-fast-follow; not on the current slate.
+Graph **snapshotting does exist**, but in `anvil-graph-cache::snapshot` (GV2-030
+/ ADR-069 — §7.7) for the resident intercept **daemon**, which can persist and
+warm-restart the warm `(SymbolGraph, DependencyGraph)` state. It is default-off,
+machine-local, `0600`. The kernel's own entry points are not wired to it.
 
-### G-06: `rust-kernel-spec.md` framing is "Proposed"
+**Risk:** Low at H1 scale for the kernel paths, growing with repo size. **Fix:**
+warm-restart for the kernel's own paths remains a spec §6.4 fast-follow; the
+daemon side is shipped.
+
+### G-06: `rust-kernel-spec.md` framing is "Proposed" (cross-link now resolved)
 
 The spec doc carries `**Status:** Proposed — H1 Implementation Target` even
 though the kernel has shipped through several beta tags. The intent has always
@@ -1048,8 +1137,11 @@ been that the spec is the design record and an as-built supersedes it for "what
 shipped". This as-built closes that loop. The spec stays as the H1 design intent
 reference; readers chasing the current state should land here first.
 
-**Risk:** Documentation hygiene only. **Fix:** the cross-link from the spec to
-this as-built will be added in the next sweep that touches both docs.
+**Resolved (2026-07-02):** the spec→as-built cross-link is now in place —
+`docs/architecture/rust-kernel-spec.md` names this doc as "the authoritative
+record of current shipping state" and states it supersedes the spec wherever
+they differ, and `docs/architecture/README.md` links here from the Kernel entry.
+**Risk:** Documentation hygiene only, and now closed.
 
 ## 16. Source references
 
@@ -1079,13 +1171,15 @@ this as-built will be added in the next sweep that touches both docs.
 - `parser/mod.rs` — KERN-011 / KERN-012 `Parser` + `ParseResult` + AST-cache
   integration.
 - `parser/cache.rs` — `AstCache`, `hash_content` (FNV-1a).
-- `parser/languages.rs` — `Language` enum (TS / TSX / JS / JSX) + tree-sitter
-  language bridge.
-- `parser/extract/` — `extract_symbols` + `FileSymbols` + `ImportEdge`; the AST
-  → graph adapter (`mod.rs`, plus `rust.rs` / `typescript.rs` per-language
-  extractors).
-- `parser/queries/typescript.scm`, `javascript.scm` — tree-sitter query files
-  for symbol extraction.
+- `parser/languages.rs` — `Language` enum (15 grammars: TS / TSX / JS / JSX /
+  Rust / Python / Dart / Go / Java / Kotlin / C# / C / C++ / Zig / Wat) +
+  tree-sitter language bridge + `grammar_version` cache discriminator.
+- `parser/extract/` — `extract_symbols` + `FileSymbols` + `ImportEdge`; the
+  language-agnostic dispatch orchestrator (`mod.rs`, `LanguageExtractor` trait)
+  plus per-language extractors: `typescript.rs`, `rust.rs`, `python.rs`,
+  `dart.rs`, `go.rs`, `java.rs`, `kotlin.rs`, `csharp.rs`, `clike.rs` (C/C++),
+  `zig.rs`, `wat.rs`, and the shared `tail_common.rs` helpers.
+- `parser/queries/` — tree-sitter query (`.scm`) files for symbol extraction.
 - The semantic graph subsystem now lives in the sibling `anvil-graph-cache`
   crate (re-exported as `crate::graph`; `lib.rs` re-exports). See §7. Modules:
   - `symbol_graph.rs` — KERN-020 `SymbolGraph` (petgraph `DiGraph` + indexes +
@@ -1104,6 +1198,15 @@ this as-built will be added in the next sweep that touches both docs.
     four-read allowlist, `BackgroundReadApi` denylist, sealed `HotPathSurface`
     marker, `HotRead` / `HotReadMiss`, `MAX_REVERSE_IMPACT_DEPTH` (the ADR-077
     cap).
+  - `call_graph.rs` — reverse caller lookup (`callers_of`, `CallersReport`,
+    `MAX_CALLERS_WALK`).
+  - `registry.rs` — `GraphRegistry`, the daemon's multi-workspace warm-graph
+    registry.
+  - `snapshot.rs` — GV2-030 / ADR-069 sealed snapshot DTO + `postcard` codec for
+    warm-graph persistence (`SnapshotPayload`, `persist_graph_enabled`,
+    `MAX_SNAPSHOT_BYTES`); daemon-only (§7.7).
+  - `tokens.rs` — GCTX token estimator (`estimate_gctx_tokens`,
+    `GCTX_TOKEN_ESTIMATOR_VERSION`).
 - `policy/mod.rs` — re-exports.
 - `policy/config.rs` — KERN-030 `ArchitectureConfig` YAML loader,
   `layer_for_file`, `is_import_allowed`.

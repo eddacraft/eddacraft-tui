@@ -8,6 +8,21 @@
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | [`graph-v2-foundation-spec.md`](./graph-v2-foundation-spec.md) (GV2-023 consumer query contract), [context-egress privacy review (PV-9)](../../plans/reviews/2026-06-15-gctx-context-egress-privacy-review-verdict.md), [ADR-083](../../plans/decisions/083-gctx-mcp-delivery-target.md), [ADR-075](../../plans/decisions/075-v080-graph-product-scope.md), `crates/anvil-intercept-rules` | GCTX-010/011/012/013 (query tools), GCTX-021/022/023 (snippet + slicing), GCTX-030 (`graph://` resources), GCTX-031 (benchmarks), GCTX-032 (user guide), `flags/manifest.json` |
 
+> **Status (2026-07-02): Phase 1–3 all Merged.** The GCTX module is **15/15
+> Merged** — GCTX-010 (#2657) through GCTX-024 (#2980), the full tool/resource
+> surface plus the consented snippet-egress opt-in — see the GCTX row in
+> [`plans/index.aps.md`](../../plans/index.aps.md). The graph-handle and
+> executor decisions this contract sits on are settled:
+> [ADR-084](../../plans/decisions/084-gctx-graph-handle-access.md),
+> [ADR-085](../../plans/decisions/085-daemon-full-scan-executor.md), and
+> [ADR-086](../../plans/decisions/086-symbol-call-graph-substrate.md) are all
+> **Accepted**. This document remains the **frozen delivery contract** the
+> implementation tracks, not a forward-looking proposal. Forward pointer:
+> [ADR-095](../../plans/decisions/095-gctx-cli-secondary-surface.md) (Proposed)
+> adds a co-equal **CLI secondary** read surface over the same `anvil/gctx/*`
+> RPC spine — MCP-first, the CLI a thin client for out-of-session consumers, not
+> a runtime fallback.
+
 ## Purpose and scope
 
 This is the **delivery contract** for the assistant-facing graph-context surface
@@ -405,5 +420,8 @@ rest fold into item text and are verified at implementation.
   delivery target (`anvil mcp serve`, Rust RMCPF surface)
 - [ADR-075](../../plans/decisions/075-v080-graph-product-scope.md) — v0.9 GCTX
   scope and the two entry gates
+- [ADR-095](../../plans/decisions/095-gctx-cli-secondary-surface.md) (Proposed)
+  — CLI secondary read surface over the same `anvil/gctx/*` daemon spine
+  (MCP-first; CLI a co-equal thin client, not a runtime fallback)
 - [`plans/modules/graph-context-delivery.aps.md`](../../plans/modules/graph-context-delivery.aps.md)
   — the GCTX module and work items

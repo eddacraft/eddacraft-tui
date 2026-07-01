@@ -1,18 +1,19 @@
 # Auth System — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                       |
-| -------- | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | BAUTH | Live   | Last reviewed 2026-06-11 against `apps/anvil-api/src/routes/auth-github-device.ts`, `apps/anvil-api/src/routes/auth-device.ts`, `apps/anvil-api/src/db/queries.ts`, `apps/website/app/auth/activate/page.tsx` (GHCLIAUTH-010 device-flow cutover); GHCLIAUTH-003 GitHub OAuth delta against main `45dd1047a`; full review 2026-04-23 against `v0.6.0-beta` and `apps/anvil-api` |
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| -------- | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | BAUTH | Live   | As-built drift sweep 2026-07-02 against main `d1fded280` (G-08 admin-actor attribution corrected to key-derived, matching api-as-built §5.3; `index.ts` line anchors re-pinned after 145→179 growth). Last reviewed 2026-06-11 against `apps/anvil-api/src/routes/auth-github-device.ts`, `apps/anvil-api/src/routes/auth-device.ts`, `apps/anvil-api/src/db/queries.ts`, `apps/website/app/auth/activate/page.tsx` (GHCLIAUTH-010 device-flow cutover); GHCLIAUTH-003 GitHub OAuth delta against main `45dd1047a`; full review 2026-04-23 against `v0.6.0-beta` and `apps/anvil-api` |
 
 | Upstream                  | Downstream                                                                                          |
 | ------------------------- | --------------------------------------------------------------------------------------------------- |
 | `apps/anvil-api`, ADR-018 | anvil CLI (token verify, license refresh, GitHub device flow, OTP, docs-site GitHub OAuth callback) |
 
-> **Status:** Live (beta) **Last reviewed:** 2026-06-11 against the device-flow
-> cutover (GHCLIAUTH-010); GitHub OAuth delta (GHCLIAUTH-003) against main
-> `45dd1047a`; full review 2026-04-23 against `v0.6.0-beta` **Service:**
-> `apps/anvil-api` (Hono on Vercel) **Database:** Neon Postgres (`beta_users`,
-> `access_tokens`, `audit_log`)
+> **Status:** Live (beta) **Last reviewed:** 2026-07-02 as-built drift sweep
+> against main `d1fded280` (G-08 admin-actor attribution + `index.ts`
+> re-anchor); 2026-06-11 against the device-flow cutover (GHCLIAUTH-010); GitHub
+> OAuth delta (GHCLIAUTH-003) against main `45dd1047a`; full review 2026-04-23
+> against `v0.6.0-beta` **Service:** `apps/anvil-api` (Hono on Vercel)
+> **Database:** Neon Postgres (`beta_users`, `access_tokens`, `audit_log`)
 
 ## Overview
 
@@ -117,7 +118,7 @@ The CLI's default login is a brokered GitHub Device Authorisation Grant (RFC
 8628). The CLI never holds a GitHub client secret — the API brokers the
 credentialed upstream calls (ADR-066). Route
 `apps/anvil-api/src/routes/auth-github-device.ts`, mounted at
-`apps/anvil-api/src/index.ts`; CLI client
+`apps/anvil-api/src/index.ts:174`; CLI client
 `crates/anvil-cli/src/auth/device_flow.rs`.
 
 1. CLI calls `POST /api/v1/auth/github-device/start` with an empty JSON object
@@ -181,7 +182,7 @@ Audit events: `github_oauth_signup`, `github_oauth_link`,
 `github_oauth_blocked`, `github_oauth_login`, `github_oauth_link_conflict`
 (`auth-github.ts:127-175`). The same audit events are written by the CLI device
 flow with `method: "device_flow"`. The route is mounted at
-`apps/anvil-api/src/index.ts:144`.
+`apps/anvil-api/src/index.ts:173`.
 
 ### Legacy Device Code Flow (shipped-CLI compatibility)
 
@@ -312,7 +313,7 @@ device-flow OAuth app (kept separate so CLI login and docs auth do not share
 rate limits, consent branding, or audit trails); it is consumed in
 `apps/anvil-api/src/lib/github-cli-credentials.ts:21-22`, wired in
 `infra/src/vercel.ts:96-97`, and validated by the `verifyGitHubCliCredentials`
-boot probe (imported at `apps/anvil-api/src/index.ts:16`). Since the device flow
+boot probe (imported at `apps/anvil-api/src/index.ts:17`). Since the device flow
 became the CLI's default login (GHCLIAUTH-006), missing CLI credentials degrade
 `/health` to 503 — boot still completes, and a fresh environment can be deployed
 first and provisioned after (the env vars are read per-request).
@@ -339,8 +340,11 @@ All `/admin/*` routes use `adminAuth` middleware:
 ### Audit trail
 
 Admin actions (`token.created`, `tokens.revoked`, `token.revoked`) are logged to
-`audit_log` with actor identity (from `X-Admin-Actor` header, defaults to
-`"admin"`). Verify/refresh calls are not audit-logged.
+`audit_log` with key-derived actor identity — the per-operator key's
+`actor_email` or the `shared-key@anvil` sentinel for shared-`ADMIN_KEY` callers
+(`apps/anvil-api/src/middleware/admin-auth.ts:166`, `admin-auth.ts:177`). The
+client-supplied `X-Admin-Actor` header is ignored (`admin-auth.ts:88-108`), so
+attribution cannot be forged. Verify/refresh calls are not audit-logged.
 
 ### CORS
 
@@ -436,14 +440,24 @@ means there's no record of when or how often a token is used.
 **Fix:** Log successful verifications to `audit_log` (with rate-limiting to
 avoid log bloat).
 
-### G-08: Admin actor identity is self-reported
+### G-08: Shared-key admin actions share one attribution identity
 
-The `X-Admin-Actor` header is trusted at face value. Any admin key holder can
-claim to be any actor.
+Admin attribution is derived from the authenticating key, not from client input.
+The `X-Admin-Actor` header is intentionally ignored on both paths
+(`apps/anvil-api/src/middleware/admin-auth.ts:88-108`), closing the
+attribution-forgery vector. Per-operator keys attribute to the key's
+`actor_email` (`admin-auth.ts:166`); shared-`ADMIN_KEY` callers all collapse
+into the sentinel `shared-key@anvil` (`SHARED_KEY_ACTOR`, `admin-auth.ts:13`,
+`admin-auth.ts:177`). The residual limitation is that when several admins share
+the single `ADMIN_KEY`, their actions are indistinguishable in `audit_log`. This
+matches the sister doc's description in [`api-as-built.md`](api-as-built.md)
+§5.3.
 
-**Risk:** Low — the admin key is the trust boundary, and there's currently one
-admin. Becomes a problem with multiple admins sharing a key. **Fix:** Per-admin
-keys or integrate with an identity provider.
+**Risk:** Low — the admin key is still the trust boundary, and a forged
+`X-Admin-Actor` no longer changes attribution. Individual accountability is
+absent only while operators share the one key. **Fix:** Provision per-operator
+keys (`ADMIN_PER_OPERATOR_KEYS` + `admin_keys`) so each admin authenticates
+under their own `actor_email`.
 
 ### G-09: Token pepper is optional
 

@@ -1,8 +1,8 @@
 # Anvil Vision
 
-| Type  | Authority     | Owner  | Status | Freshness                                        |
-| ----- | ------------- | ------ | ------ | ------------------------------------------------ |
-| Guide | Authoritative | VISION | Live   | Metadata backfilled 2026-05-27 during DOCGOV-011 |
+| Type  | Authority     | Owner  | Status | Freshness                                                             |
+| ----- | ------------- | ------ | ------ | --------------------------------------------------------------------- |
+| Guide | Authoritative | VISION | Live   | "Posture today" note added 2026-07-02 (aspiration vs shipped default) |
 
 | Upstream             | Downstream                             |
 | -------------------- | -------------------------------------- |
@@ -54,6 +54,17 @@ Anvil:
 - Prevents unsafe or non-compliant outcomes from executing
 - Enforces architectural, security, and organisational constraints
 - Captures provenance for every decision and action
+
+### Posture today
+
+This is the north star. The **shipped default is advisory**: Anvil surfaces
+findings as warnings and exits 0 (ADR-002, "warnings over blocks"), warning only
+on _new_ violations against a baseline. Hard prevention — failing a change
+before it lands — is real but **opt-in**: `--fail-on-warnings` on the
+check/policy path, and the intercept daemon's enforcement mode on the save-time
+path. Read "prevents ... from executing" below as the capability Anvil is built
+to provide and operators can switch on, not as the zero-config behaviour every
+user gets on day one.
 
 ## Core Principles
 

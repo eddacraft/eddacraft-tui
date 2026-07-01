@@ -1,23 +1,25 @@
 # anvil-intercept — As-Built
 
-| Type     | Authority | Owner     | Status | Freshness                                                                                                                                                                                                 |
-| -------- | --------- | --------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | INTD, DSV | Live   | Last reviewed 2026-06-10 (targeted delta review: DSV save-time validation arc, ADR-070 peer-SID gate, MLP2-071 subscriber surface) against main `a1c41e284`; full review 2026-05-07 against `v0.6.0-beta` |
+| Type     | Authority | Owner     | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                |
+| -------- | --------- | --------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| As-built | Derived   | INTD, DSV | Live   | Last reviewed 2026-07-02 (as-built drift sweep: `ALL_ANVIL_METHODS` now 19 methods incl. witness + GCTX, `stop`/`unblock` CLI subcommands shipped, repinned lib.rs/intercept.rs/protocol.rs line refs) against main `d1fded280`; prior delta review 2026-06-10 (DSV save-time validation arc, ADR-070 peer-SID gate, MLP2-071 subscriber surface) against main `a1c41e284`; full review 2026-05-07 against `v0.6.0-beta` |
 
 | Upstream                                                                                                                                                                             | Downstream                                                                                                        |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
 | `crates/anvil-intercept`, `crates/anvil-intercept-proto`, `crates/anvil-intercept-rules`, `crates/anvil-intercept-win32`, `crates/anvil-graph-cache`, `crates/anvil-checks`, ADR-015 | MCP shim validation client (RMCP), driver framework clients (DRVR), CLI intercept surface, embedded fallback path |
 
-> **Status:** Live (beta) **Last reviewed:** 2026-06-10 (targeted delta review:
-> DSV save-time validation arc, ADR-070 peer-SID gate, MLP2-071 subscriber
-> surface) against main `a1c41e284`; full review 2026-05-07 against
-> `v0.6.0-beta` slate (HEAD `8bbe65b9`) **Crate:** `crates/anvil-intercept` (+
-> `anvil-intercept-proto`, `anvil-intercept-rules`, `anvil-intercept-win32`)
-> **Module owner (APS):** INTD (`plans/archive/modules/intercept-daemon.aps.md`,
-> 16/16 complete), DSV (`plans/modules/daemon-save-time-validation.aps.md`),
-> INTL (`plans/archive/modules/intercept-launcher.aps.md`, Complete 9/9) **Used
-> by:** `anvil intercept` CLI surface
-> (`crates/anvil-cli/src/commands/intercept.rs`),
+> **Status:** Live (beta) **Last reviewed:** 2026-07-02 (as-built drift sweep:
+> `ALL_ANVIL_METHODS` now 19 methods incl. witness + GCTX, `stop`/`unblock` CLI
+> subcommands shipped, repinned lib.rs/intercept.rs/protocol.rs line refs)
+> against main `d1fded280`; prior delta review 2026-06-10 (DSV save-time
+> validation arc, ADR-070 peer-SID gate, MLP2-071 subscriber surface) against
+> main `a1c41e284`; full review 2026-05-07 against `v0.6.0-beta` slate (HEAD
+> `8bbe65b9`) **Crate:** `crates/anvil-intercept` (+ `anvil-intercept-proto`,
+> `anvil-intercept-rules`, `anvil-intercept-win32`) **Module owner (APS):** INTD
+> (`plans/archive/modules/intercept-daemon.aps.md`, 16/16 complete), DSV
+> (`plans/modules/daemon-save-time-validation.aps.md`), INTL
+> (`plans/archive/modules/intercept-launcher.aps.md`, Complete 9/9) **Used by:**
+> `anvil intercept` CLI surface (`crates/anvil-cli/src/commands/intercept.rs`),
 > `anvil-cli/src/mcp/validation.rs` (daemon-backed validation client), driver
 > framework (proto + auth surface)
 
@@ -34,7 +36,7 @@ Concretely the daemon:
 
 - Owns the in-memory session registry (`crates/anvil-intercept/src/registry.rs`)
   — single session per worktree, 30 s heartbeat TTL, evicted from a 250 ms tick
-  (`lib.rs:806-826`).
+  (`lib.rs:1955-1970`).
 - Speaks NDJSON-framed JSON-RPC over a Unix domain socket (Linux/macOS) or a
   Windows named pipe (`crates/anvil-intercept/src/ipc.rs`,
   `crates/anvil-intercept-win32/src/lib.rs`).
@@ -119,7 +121,8 @@ The daemon is a **per-user singleton** enforced by an exclusive PID file. There
 is one supported launch shape in v1 — foreground.
 
 **PID file location** (resolved by `default_pid_file_path` at
-`crates/anvil-intercept/src/lib.rs:278-303`):
+`crates/anvil-intercept/src/lib.rs:699-742`; `ANVIL_HOME` re-roots the file
+under its prefix per DISTRIB-006 / ADR-060, else the ordering below):
 
 1. `$XDG_RUNTIME_DIR/anvil/intercept.pid` if `XDG_RUNTIME_DIR` is set.
 2. `%LOCALAPPDATA%\anvil\intercept.pid` on Windows.
@@ -128,34 +131,43 @@ is one supported launch shape in v1 — foreground.
 The same path is used by both foreground and (future) backgrounded launch, so a
 second instance refuses to start while the first is alive. The PID guard records
 `process::id()` plus a `start_time=` line so a stale PID file from a crashed
-daemon can be proven stale before being recovered (`lib.rs:441-514`). Linux
-reads `/proc/PID/stat` field 22; Windows reads `GetProcessTimes` via
-`anvil-intercept-win32::process_creation_time`; other Unix platforms return
-`None` and the recovery path falls through to a liveness probe
-(`lib.rs:535-552`). PID-file directory is checked at mode `0700` owned by the
-current UID and refuses symlink parents (`lib.rs:377-439`).
+daemon can be proven stale before being recovered (`lib.rs:925-1000`). Linux
+reads `/proc/PID/stat` field 22; macOS reads process creation time via
+`anvil-intercept-macos::process_start_time`; Windows reads `GetProcessTimes` via
+`anvil-intercept-win32::process_creation_time`; other platforms return `None`
+and the recovery path falls through to a liveness probe (`lib.rs:1174-1195`).
+PID-file directory is checked at mode `0700` owned by the current UID and
+refuses symlink parents (`lib.rs:869-930`).
 
 **Foreground only.** `anvil intercept start` requires `--foreground` and bails
 otherwise:
 
 ```
-crates/anvil-cli/src/commands/intercept.rs:438-444
+crates/anvil-cli/src/commands/intercept.rs:1191-1196
+    if !args.foreground {
         anyhow::bail!(
-            "`anvil intercept start` currently requires --foreground; \
-             backgrounded launch lands with INTD-002"
+            "`anvil intercept start` requires --foreground; this is the \
+             low-level operator/debugging daemon surface. Backgrounded daemon \
+             launch is provided to `anvil start` / `anvil watch` via the \
+             daemon-lifecycle ensure primitive (DLIFE, ADR-082)."
         );
+    }
 ```
 
-The runbook (`docs/archive/runbooks/v0.6.0-beta-release-runbook.md` §1) records
-this as the only launch mode the release council validated for `v0.6.0-beta`.
-Operators running under systemd / launchd run the binary in foreground mode
-under the manager's supervision rather than double-backgrounding.
+`anvil intercept start` remains the low-level operator/debugging surface;
+backgrounded launch is now delivered through `anvil start` / `anvil watch` (the
+DLIFE daemon-lifecycle ensure primitive, ADR-082), not by daemonising this
+command. The runbook (`docs/archive/runbooks/v0.6.0-beta-release-runbook.md` §1)
+records this as the only launch mode the release council validated for
+`v0.6.0-beta`. Operators running under systemd / launchd run the binary in
+foreground mode under the manager's supervision rather than
+double-backgrounding.
 
-**Shutdown.** `wait_for_shutdown_signal` (`lib.rs:711-735`) races SIGINT and (on
-Unix) SIGTERM. Windows hooks Ctrl+C only; Job Object termination is the
+**Shutdown.** `wait_for_shutdown_signal` (`lib.rs:1374-1400`) races SIGINT and
+(on Unix) SIGTERM. Windows hooks Ctrl+C only; Job Object termination is the
 process-manager analogue and is INTD-006's territory. Shutdown is cooperative
 via a `tokio::sync::watch` channel (`Shutdown` / `ShutdownToken`,
-`lib.rs:618-689`); in-flight IPC handlers drain with a 250 ms deadline
+`lib.rs:1282-1360`); in-flight IPC handlers drain with a 250 ms deadline
 (`ipc.rs:72`, `SHUTDOWN_DRAIN_DEADLINE`).
 
 ## 4. IPC surface
@@ -198,27 +210,29 @@ Owned by `anvil-intercept-proto`. Each line on the wire is one `IpcEnvelope`
 JSON-RPC-style `id` for request/response correlation.
 
 JSON-RPC method names and the capability lattice live in
-`anvil-intercept-proto/src/protocol.rs`. Nine `anvil/`-namespaced methods are
-defined (`ALL_ANVIL_METHODS`, `protocol.rs:212-222`):
+`anvil-intercept-proto/src/protocol.rs`. **Nineteen** `anvil/`-namespaced
+methods are defined (`ALL_ANVIL_METHODS`, `protocol.rs:297-317`): the original
+six driver methods, the three DSV save-time verbs, the witness-append verb, and
+the nine GCTX read-only graph-context verbs.
 
-- `anvil/publishDiagnostics` (`ANVIL_PUBLISH_DIAGNOSTICS`, `protocol.rs:75`) —
+- `anvil/publishDiagnostics` (`ANVIL_PUBLISH_DIAGNOSTICS`, `protocol.rs:117`) —
   server → client diagnostic notification.
-- `anvil/scan_buffer` (`ANVIL_SCAN_BUFFER`, `protocol.rs:83`) — client → server
+- `anvil/scan_buffer` (`ANVIL_SCAN_BUFFER`, `protocol.rs:125`) — client → server
   mid-edit buffer scan. The legacy bare `scan_buffer` method is dual-routed.
-- `anvil/enforcement/ack` (`ANVIL_ENFORCEMENT_ACK`, `protocol.rs:90`) — client →
-  server enforcement ack. DRVR-008's load-bearing method: drivers that omit it
+- `anvil/enforcement/ack` (`ANVIL_ENFORCEMENT_ACK`, `protocol.rs:132`) — client
+  → server enforcement ack. DRVR-008's load-bearing method: drivers that omit it
   from their manifest are capped at `Capability::Attached`.
-- `anvil/gate/request` (`ANVIL_GATE_REQUEST`, `protocol.rs:96`).
-- `anvil/suppression/apply` (`ANVIL_SUPPRESSION_APPLY`, `protocol.rs:103`).
-- `anvil/status/query` (`ANVIL_STATUS_QUERY`, `protocol.rs:108`).
-- `anvil/validate_paths` (`ANVIL_VALIDATE_PATHS`, `protocol.rs:154`) — client →
+- `anvil/gate/request` (`ANVIL_GATE_REQUEST`, `protocol.rs:138`).
+- `anvil/suppression/apply` (`ANVIL_SUPPRESSION_APPLY`, `protocol.rs:145`).
+- `anvil/status/query` (`ANVIL_STATUS_QUERY`, `protocol.rs:150`).
+- `anvil/validate_paths` (`ANVIL_VALIDATE_PATHS`, `protocol.rs:159`) — client →
   server, the save-time verdict verb (ADR-061 / DSV-002); certifies a change set
   against the warm graph cache. The wire is frozen across DSV sub-phases — only
   the cache backing swaps. See §4a.
-- `anvil/workspace_status` (`ANVIL_WORKSPACE_STATUS`, `protocol.rs:159`) —
+- `anvil/workspace_status` (`ANVIL_WORKSPACE_STATUS`, `protocol.rs:164`) —
   client → server, read-only `WorkspaceAssurance` snapshot without submitting a
   change set.
-- `anvil/request_full_scan` (`ANVIL_REQUEST_FULL_SCAN`, `protocol.rs:165`) —
+- `anvil/request_full_scan` (`ANVIL_REQUEST_FULL_SCAN`, `protocol.rs:170`) —
   client → server, drive a full scan that warms the graph cache and rebuilds the
   baseline. Since DSV-045 (ADR-085) the daemon's full-scan executor dequeues
   this and drives `Pending → Running → Clean` (or `Bounded` when the worktree
@@ -226,8 +240,26 @@ defined (`ALL_ANVIL_METHODS`, `protocol.rs:212-222`):
   on first contact (`validate_paths` / `workspace_status` /
   `request_full_scan`), so a fresh session reaches a useful graph without a
   manual save. Repeated calls coalesce to one scan.
+- `anvil/witness/append` (`ANVIL_WITNESS_APPEND`, `protocol.rs:179`) — client →
+  server, append a witness line to a worktree's chain through the daemon so a
+  single writer owns the chain across worktrees/sessions (MLP2-005). The daemon
+  derives `(seq, prev_line_hash)` and appends atomically; the hook falls back to
+  an embedded append when the daemon is unreachable.
+- **GCTX read-only graph-context verbs (GCTX-010..030, ADR-084).** Nine
+  identity-only projections the daemon answers with sealed egress DTOs — it
+  performs the projection itself, so the MCP consumer never holds a graph. Each
+  dispatches on its own read-only `GctxDispatch` arm, never the save-time
+  `validate_paths` path: `anvil/gctx/search_symbols` (`protocol.rs:186`),
+  `anvil/gctx/find_dependents` (`protocol.rs:194`), `anvil/gctx/find_callers`
+  (`protocol.rs:201`), `anvil/gctx/get_snippet` (`protocol.rs:210`),
+  `anvil/gctx/symbol_context` (`protocol.rs:218`), `anvil/gctx/impact_of_change`
+  (`protocol.rs:226`), `anvil/gctx/affected_tests` (`protocol.rs:235`),
+  `anvil/gctx/graph_stats` (`protocol.rs:242`), and `anvil/gctx/graph_edges`
+  (`protocol.rs:249`). Six of these back the MCP shim's GCTX tools (see
+  `mcp-shim-as-built.md` §4); `get_snippet` and the two `graph_*` verbs back the
+  `graph://` MCP resources.
 
-The capability lattice is `Attached < Participating` (`protocol.rs:124-139`); v1
+The capability lattice is `Attached < Participating` (`protocol.rs:265-292`); v1
 only ever downgrades, never promotes implicitly.
 
 ### 4.4 NDJSON framing and DoS budgets
@@ -439,7 +471,7 @@ The daemon's enforcement pipeline (`crate::enforcement`) reads the
 Fence state is owned by `crates/anvil-intercept/src/fence.rs` (INTD-005 +
 INTD-007). Once the daemon decides to fence a worktree, the decision is written
 to disk before any IPC response goes back to the caller; the daemon re-reads the
-fence file on startup before binding the IPC listener (`lib.rs:744-758`).
+fence file on startup before binding the IPC listener (`lib.rs:1560-1575`).
 
 **Default path** (`fence.rs:398-423`):
 
@@ -468,7 +500,7 @@ The fence is meant to outlive ungraceful daemon shutdown so an interrupted
 enforcement decision is not silently undone.
 
 Fences are checked on `RegisterSession` via the wrapping `RegistryDispatcher`
-(`lib.rs:93-124`): a session attempting to register against a fenced worktree
+(`lib.rs:125-260`): a session attempting to register against a fenced worktree
 fails with `RegistryError::WorktreeFenced` and the registry never holds a record
 for it.
 
@@ -479,22 +511,34 @@ it canonicalises (or accepts the absolute path verbatim for deleted worktrees),
 removes the record, persists the result, and returns the `FenceRecord` that was
 removed (or `None` if no fence existed).
 
-A **CLI front-end for `unblock` is not shipping in v1.**
-`crates/anvil-cli/src/commands/intercept.rs:22-30` declares only `Start` and
-`Status` subcommands; the `anvil intercept unblock --worktree <path>` /
-`anvil intercept unblock --all` operator surface is planned for a follow-up INTD
-task that wires the existing `FenceStore::unblock_worktree` helper to a clap
-subcommand. The intent and operator-facing shape are recorded in
-`plans/specs/2026-04-26-rtai-demo-runbook.md` §3.1; the current operator-runbook
-(`docs/archive/runbooks/v0.6.0-beta-release-runbook.md` §3) names the v1
-recovery path explicitly. See §16 gap 1.
+The **CLI front-end for `unblock` is shipped** (RCLI3-017b / MLP2-026).
+`crates/anvil-cli/src/commands/intercept.rs:41-66` declares the `Unblock`
+subcommand (alongside `Start`, `Status`, and `Stop`), which wires
+`FenceStore::unblock_worktree` to clap in three modes:
 
-The supported v1 recovery is the **hard reset** path documented in
-`plans/specs/2026-04-26-rtai-demo-runbook.md` §3.2: stop the foreground daemon
-(Ctrl-C in its terminal, or SIGTERM by PID), then
+- `anvil intercept unblock --worktree <PATH>` — per-fence clear of a single
+  worktree (`intercept.rs:276-316`). Idempotent — re-running on an unfenced
+  worktree exits zero with an informational note.
+- `anvil intercept unblock --all` — clear every fenced worktree, implemented
+  client-side as one `unblock-worktree` dispatch per fence
+  (`intercept.rs:318-348`).
+- `anvil intercept unblock <WORKTREE> --acknowledge-cascade` — the legacy
+  positional cascade-clear for a `degraded:fence-cascade` engaged state
+  (`intercept.rs:253-274`). On Windows the per-fence and cascade dispatches are
+  not yet supported (MLP2-028 peer-credential work) and bail with a clear
+  message.
+
+Both non-cascade modes honour `--dry-run` (preview without mutating daemon
+state). The operator-facing shape is recorded in
+`plans/specs/2026-04-26-rtai-demo-runbook.md` §3.1. See §16 gap 1 (resolved).
+
+The **hard reset** path documented in
+`plans/specs/2026-04-26-rtai-demo-runbook.md` §3.2 remains available as the
+blunt fallback: stop the foreground daemon (Ctrl-C in its terminal,
+`anvil intercept stop`, or SIGTERM by PID), then
 `rm -rf ${XDG_DATA_HOME:-$HOME/.local/share}/anvil` (or `%LOCALAPPDATA%\anvil`
-on Windows), then re-launch. That destroys **all** fence state for the user —
-there is no worktree-scoped CLI recovery in v1.
+on Windows), then re-launch. That destroys **all** fence state for the user;
+prefer the worktree-scoped `unblock` above for targeted recovery.
 
 ## 9. Interrupt ladder
 
@@ -536,7 +580,7 @@ and `anvil-intercept-win32` (Windows); the `anvil-intercept` crate keeps
 authority on which sessions are active and which worktree each owns. The
 registry is **deliberately synchronous** — the daemon's `run_foreground` loop
 owns scheduling and ticks `evict_stale` from the 250 ms interval
-(`lib.rs:806-826`). Spawning a background eviction task here would couple the
+(`lib.rs:1955-1970`). Spawning a background eviction task here would couple the
 registry to a runtime; the council pinned this layer as a synchronous data
 structure (`registry.rs:1-13`).
 
@@ -687,25 +731,32 @@ SHA-256; per-startup HMAC is tracked for the next tag (security note H2).
 
 ## 14. CLI surface (operator view)
 
-`crates/anvil-cli/src/commands/intercept.rs:22-30` declares two subcommands:
+`crates/anvil-cli/src/commands/intercept.rs:41-66` declares four subcommands
+(`Start`, `Status`, `Unblock`, `Stop`):
 
 - `anvil intercept start --foreground` — starts the daemon in foreground mode.
   Without `--foreground` the command bails with the actionable message at
-  `intercept.rs:438-444`. Ctrl+C and Unix SIGTERM stop it cleanly via
+  `intercept.rs:1191-1196`. Ctrl+C and Unix SIGTERM stop it cleanly via
   `wait_for_shutdown_signal`.
 - `anvil intercept status [--json]` — issues a JSON-RPC `query_status` request
   and prints the rendered snapshot. On Unix it speaks the legacy `query_status`
   method; on Windows it speaks the canonical `anvil/status/query` form. The
-  daemon dual-routes both names so the rendered output is identical
-  (`intercept.rs:121-132`, `intercept.rs:170+`).
+  daemon dual-routes both names so the rendered output is identical.
+- `anvil intercept unblock` — clears fence state: `--worktree <PATH>` for a
+  single worktree, `--all` for every fence (both honour `--dry-run`), or the
+  positional `<WORKTREE> --acknowledge-cascade` cascade-clear (§8). Non-dry-run
+  unblocks dispatch a daemon `unblock-*` verb that records the authoritative
+  usage row (USAGE-004); the CLI-side row is suppressed to avoid a double-count.
+- `anvil intercept stop` — stops the per-user daemon recorded in the PID file
+  (V060F-002 / ACTMO-008, `intercept.rs:128-175`). Unix sends SIGTERM so the
+  daemon flushes fence state and unbinds its IPC listener; Windows terminates
+  the headless process and clears the PID file. Idempotent — a missing or stale
+  PID file exits zero with an informational line, and it warns how many
+  registered worktrees will lose protection (ACTMO-017).
 
-**`stop` and `unblock` are not shipped CLI commands in HEAD `8bbe65b9`.** The
-underlying daemon surfaces (shutdown signals, `FenceStore::unblock_worktree`)
-are wired, but the CLI front-ends ride a follow-up INTD task. The
-operator-runbook (`docs/archive/runbooks/v0.6.0-beta-release-runbook.md` §1, §3)
-names the v1 substitutes: Ctrl-C / SIGTERM by PID for shutdown, daemon-stop +
-`rm -rf "${XDG_DATA_HOME:-$HOME/.local/share}/anvil"` for fence recovery. See
-§16 gap 1.
+Both `stop` and `unblock` are shipped CLI commands; the operator-runbook
+substitutes they once replaced (Ctrl-C / SIGTERM by PID; `rm -rf` of the anvil
+state dir) remain available as blunt fallbacks. See §16 gap 1 (resolved).
 
 ## 15. Win32 listener
 
@@ -740,13 +791,15 @@ documented in §16 gap 5.
 
 ## 16. Known gaps (dated 2026-05-07)
 
-1. **`anvil intercept stop` and `anvil intercept unblock` CLI front-ends not yet
-   shipped.** HEAD `8bbe65b9` has only `Start` and `Status`
-   (`crates/anvil-cli/src/commands/intercept.rs:22-30`). The runbook documents
-   both surfaces as supported recovery paths
-   (`v0.6.0-beta-release-runbook.md:43-56, 151-157`); the daemon-side data path
-   (`FenceStore::unblock_worktree`) and shutdown signals are wired, but the CLI
-   surfaces ride a follow-up. **Code is truth; runbook is aspirational here.**
+1. **(Resolved 2026-07-02.)** Originally tracked the missing
+   `anvil intercept stop` / `anvil intercept unblock` CLI front-ends. Both are
+   now shipped: `crates/anvil-cli/src/commands/intercept.rs:41-66` declares four
+   subcommands (`Start`, `Status`, `Unblock`, `Stop`). `unblock` (RCLI3-017b /
+   MLP2-026) wires `FenceStore::unblock_worktree` to clap in per-fence / `--all`
+   / cascade modes (§8); `stop` (V060F-002 / ACTMO-008) stops the daemon
+   recorded in the PID file (§14). The runbook's recovery paths now match the
+   code. Residual: on Windows the per-fence and cascade `unblock` dispatches
+   bail pending MLP2-028 peer-credential support.
 2. **(Resolved 2026-05-07.)** Originally tracked the runbook's stale "Windows
    hard-fails" framing for `anvil intercept status`. The runbook was corrected
    to match HEAD: the Windows status client ships at
@@ -786,9 +839,13 @@ documented in §16 gap 5.
    `kill()` is intrinsic to the syscall shape; AD-7's fence-on-failure invariant
    is the documented mitigation. macOS gap is item 3 above.
 8. **Windows CI cross-compile is `main`-only**
-   (`docs/runbooks/intd-012-windows-evidence.md`). PRs targeting `dev` and
-   pushes to `dev` skip the Windows matrix; drift is only caught at the dev →
-   main release-sync. Deliberate cost/coverage trade-off.
+   (`docs/runbooks/intd-012-windows-evidence.md`). Since the `dev` branch was
+   retired (OPMODEL-012, 2026-05-11) the repo is trunk-only: the Windows matrix
+   runs on pushes to `main` (and PRs into it), while feature-branch PRs skip it
+   to save cost. Windows-affecting drift on a feature branch is therefore only
+   caught once the PR reaches `main` — run the cross-compile locally
+   (`cargo check --target x86_64-pc-windows-gnu`) before opening the PR.
+   Deliberate cost/coverage trade-off.
 9. **MCP `daemonStatus` always `not-wired` on Windows.**
    `crates/anvil-cli/src/mcp/validation.rs:142-148`'s `cfg(not(unix))` arm
    returns `DaemonValidationOutcome::Unavailable`; the caller maps that to

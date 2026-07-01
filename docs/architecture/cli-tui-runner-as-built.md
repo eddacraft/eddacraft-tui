@@ -1,19 +1,19 @@
 # CLI TUI Runner — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                 |
-| -------- | --------- | ----- | ------ | ----------------------------------------------------------------------------------------- |
-| As-built | Derived   | RATS  | Live   | Last reviewed 2026-05-07 against `v0.6.0-beta` and `crates/anvil-cli`, `crates/anvil-tui` |
+| Type     | Authority | Owner | Status | Freshness                                                                               |
+| -------- | --------- | ----- | ------ | --------------------------------------------------------------------------------------- |
+| As-built | Derived   | RATS  | Live   | Last reviewed 2026-07-02 against `d1fded280` and `crates/anvil-cli`, `crates/anvil-tui` |
 
 | Upstream                                                      | Downstream                                                                                          |
 | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
 | `crates/anvil-cli`, `crates/anvil-tui`, `crates/anvil-kernel` | all interactive anvil commands (watch, tutorial, welcome, status, doctor, audit, init, new, wizard) |
 
-> **Status:** Live (beta) **Last reviewed:** 2026-05-07 against `v0.6.0-beta`
-> slate (HEAD `cf7ca040`) **File / location:** `crates/anvil-cli/src/tui.rs`
-> (495 lines) **Module owner (APS):** RATS (Ratatui surfaces — Complete 7/7,
-> archived to `plans/archive/modules/ratatui-tui.aps.md`); the runner is the
-> CLI-side counterpart that those surfaces are mounted through. **Used by:**
-> every interactive `anvil` command that mounts a TUI surface — `anvil watch`,
+> **Status:** Live (beta) **Last reviewed:** 2026-07-02 against `main` (HEAD
+> `d1fded280`) **File / location:** `crates/anvil-cli/src/tui.rs` (622 lines)
+> **Module owner (APS):** RATS (Ratatui surfaces — Complete 7/7, archived to
+> `plans/archive/modules/ratatui-tui.aps.md`); the runner is the CLI-side
+> counterpart that those surfaces are mounted through. **Used by:** every
+> interactive `anvil` command that mounts a TUI surface — `anvil watch`,
 > `anvil tutorial`, `anvil welcome`, `anvil status`, `anvil doctor`,
 > `anvil audit`, `anvil init`, `anvil new` (template browser hand-off),
 > `anvil wizard`. Twelve call sites across nine command modules.
@@ -24,7 +24,8 @@
 interactive command and an `anvil-tui` `Surface` instance. It owns the terminal
 session lifecycle (raw mode, alternate screen), the per-surface event-poll /
 draw loop, the animation tick, and the watch-loop dirty-paint gate. The file is
-495 lines and exports nine public entry points plus one enum (`SurfaceExit`).
+622 lines and exports twelve public functions plus the `TerminalGuard` RAII
+terminal guard and one enum (`SurfaceExit`).
 
 This is the dispatcher pair to the in-crate `Surface` trait. `anvil-tui` defines
 what a surface is — render, handle_key, should_quit, should_back. The runner
@@ -95,7 +96,7 @@ driver, and the explicit `take_dirty()` paint gate. All four paths share
 ## `SurfaceExit` contract
 
 `SurfaceExit` is the two-variant enum returned by every loop variant that hosts
-a surface in a shared terminal session (`crates/anvil-cli/src/tui.rs:22-28`):
+a surface in a shared terminal session (`crates/anvil-cli/src/tui.rs:100-106`):
 
 ```rust
 pub enum SurfaceExit {
@@ -110,52 +111,58 @@ pub enum SurfaceExit {
 session — the alternate screen tears down and the process returns to the shell.
 `Back` returns to the previous surface in the call stack: e.g., the welcome hub
 catches `Back` from `Audit` and re-mounts `Welcome`
-(`crates/anvil-cli/src/commands/welcome.rs:958-1030`). The tutorial and
+(`crates/anvil-cli/src/commands/welcome.rs:1155-1229`). The tutorial and
 watch-demo loops do not return `SurfaceExit`; they return `()` because they are
 always entered from a known parent that handles its own re-entry.
 
 The mapping is direct: `Surface::should_quit()` true → `Quit`,
 `Surface::should_back()` true → `Back`. `surface_loop` checks both immediately
 after dispatching a key so quit/back is responsive without waiting for the next
-100 ms poll (`crates/anvil-cli/src/tui.rs:129-147`).
+100 ms poll (`crates/anvil-cli/src/tui.rs:217-235`).
 
 ## `surface_loop` (the standard render loop)
 
 `surface_loop` is the workhorse. Two entry points reach it:
 
-- `run_surface<S: Surface>(mut state: S) -> anyhow::Result<S>` — owns the
-  terminal session for a single surface (`crates/anvil-cli/src/tui.rs:33-47`).
+- `run_surface<S: Surface>(state: S) -> anyhow::Result<S>` — a thin wrapper
+  (`crates/anvil-cli/src/tui.rs:111-113`) that delegates to
+  `run_surface_with_exit<S>(...) -> anyhow::Result<(S, SurfaceExit)>`, which
+  owns the terminal session for a single surface via a `TerminalGuard`
+  (`crates/anvil-cli/src/tui.rs:119-130`).
 - `run_surface_in<S: Surface>(...) -> anyhow::Result<SurfaceExit>` — reuses an
   already-initialised terminal so a parent (the welcome hub) can swap
   sub-surfaces without tearing the alt-screen
-  (`crates/anvil-cli/src/tui.rs:51-57`).
+  (`crates/anvil-cli/src/tui.rs:134-140`).
 
-Both delegate to `fn surface_loop` (`crates/anvil-cli/src/tui.rs:97-156`).
+Both delegate to `fn surface_loop` (`crates/anvil-cli/src/tui.rs:185-244`).
 Lifecycle, line-pinned:
 
-1. Enable raw mode, swap to the alternate screen, build a
-   `Terminal<CrosstermBackend<Stdout>>` (`tui.rs:34-38` for `run_surface`;
-   `setup_terminal` for the shared-terminal path, `tui.rs:61-67`).
-2. Construct an `EddaCraftTheme` (zero-arg, `tui.rs:39`).
+1. Acquire a `TerminalGuard` via `TerminalGuard::enter()` (raw mode + alternate
+   screen + panic-restore hook), then build a
+   `Terminal<CrosstermBackend<Stdout>>` (`tui.rs:120-122` for
+   `run_surface_with_exit`; `setup_terminal` for the shared-terminal path,
+   `tui.rs:148-155`).
+2. Construct an `EddaCraftTheme` (zero-arg, `tui.rs:123`).
 3. Enter the loop with `dirty = true` so the first frame always renders
-   (`tui.rs:103-104`).
+   (`tui.rs:192`).
 4. If dirty, draw: call
    `render_shell(frame, area, surface_name, help_text, theme)` for the chrome,
    then `state.render(frame, content, theme)` for the surface body, then
-   `dirty = false` (`tui.rs:107-115`).
+   `dirty = false` (`tui.rs:195-203`).
 5. `event::poll(Duration::from_millis(100))` — block at most 100 ms waiting for
-   a terminal event (`tui.rs:117`).
+   a terminal event (`tui.rs:205`).
 6. On a `Press` key event: map via `KeyHandler::map(key)` and dispatch to
-   `state.handle_key(action)`. Set `dirty = true` (`tui.rs:119-122`).
+   `state.handle_key(action)`. Set `dirty = true` (`tui.rs:207-210`).
 7. Immediately check `should_quit` / `should_back` — if either fires, draw the
    post-key acknowledgement frame first (so any "Applying auto-fix..." text the
    surface added is actually seen) and then return `SurfaceExit::Quit` or
-   `SurfaceExit::Back` (`tui.rs:129-147`).
+   `SurfaceExit::Back` (`tui.rs:217-235`).
 8. On `Resize`, set `dirty = true` so the next iteration redraws
-   (`tui.rs:149-151`).
-9. On exit, `disable_raw_mode` and `LeaveAlternateScreen` — for `run_surface`,
-   this is in-line teardown; for `run_surface_in`, the parent calls
-   `teardown_terminal` itself (`tui.rs:43-45`, `tui.rs:89-95`).
+   (`tui.rs:237-239`).
+9. On exit, the `TerminalGuard` restores the terminal — for
+   `run_surface_with_exit`, `guard.leave()` runs the explicit teardown
+   (`tui.rs:127`); for `run_surface_in`, the parent owns the terminal and calls
+   `teardown_terminal` itself (`tui.rs:177-183`).
 
 Two invariants worth pinning:
 
@@ -166,13 +173,13 @@ Two invariants worth pinning:
 - **Acknowledgement frame** — pressing `f` on the doctor surface to apply a fix
   sets `should_quit = true` immediately, but the runner draws once more before
   tearing down so the user sees the "Applying..." line. This is documented in
-  the source as a deliberate ordering choice (`tui.rs:124-141`).
+  the source as a deliberate ordering choice (`tui.rs:212-235`).
 
 ## Animation tick
 
 Surfaces that animate (watch and watch-demo, currently) drive interpolation
 through the upstream `animate` crate. The runner integrates it via
-`tick_animations` (`crates/anvil-cli/src/tui.rs:475-495`):
+`tick_animations` (`crates/anvil-cli/src/tui.rs:555-575`):
 
 ```rust
 fn tick_animations<F>(last_tick: &mut Instant, already_dirty: bool, mut mark_dirty: F)
@@ -195,13 +202,13 @@ Three behaviours:
 1. **Whole-millisecond accounting** — `last_tick` advances only by the integer
    millisecond portion consumed; the sub-millisecond remainder accumulates into
    the next iteration so animations still progress when loop iterations run
-   faster than 1 ms (`tui.rs:485-490`).
+   faster than 1 ms (`tui.rs:564-570`).
 2. **Pull-based** — the runner doesn't know what's animating; it asks
    `animate::is_animating()` and only marks the surface dirty if something is in
-   flight and the surface isn't already dirty (`tui.rs:492-494`).
+   flight and the surface isn't already dirty (`tui.rs:572-574`).
 3. **Frame-budget cap** — the watch and watch-demo loops cap `event::poll` at 16
    ms (~60 fps) when dirty _and_ animating, so the loop doesn't busy-spin
-   between animation frames (`tui.rs:260-268`, `tui.rs:422-430`).
+   between animation frames (`tui.rs:342-350`, `tui.rs:502-510`).
 
 The `surface_loop` standard path does not call `tick_animations` — key-driven
 surfaces don't animate.
@@ -210,64 +217,64 @@ surfaces don't animate.
 
 `watch_loop` is the only loop where the event source is a kernel
 `mpsc::Receiver<EngineEvent>` rather than just terminal events
-(`crates/anvil-cli/src/tui.rs:376-473`). Two entry points:
+(`crates/anvil-cli/src/tui.rs:455-553`). Two entry points:
 
 - `run_watch(state, event_rx, action_link, shutdown)` — owns the terminal
-  session for `anvil watch --tui=ratatui` (`tui.rs:330-356`).
+  session for `anvil watch --tui=ratatui` (`tui.rs:412-435`).
 - `run_watch_in(terminal, state, event_rx)` — runs inside an already-initialised
   terminal for the welcome hub's "Watch" option; always passes `None` for
-  `action_link` and `shutdown` (`tui.rs:362-374`).
+  `action_link` and `shutdown` (`tui.rs:441-453`).
 
-Per loop iteration, in order (`crates/anvil-cli/src/tui.rs:391-470`):
+Per loop iteration, in order (`crates/anvil-cli/src/tui.rs:470-550`):
 
 1. **Drain engine events** — `event_rx.try_recv()` in a tight loop until the
    channel returns `Empty`. Every event flows through
    `WatchEventAdapter::handle_event(&engine_event, &mut state.data)`, which is
-   the canonical kernel-event-to-surface-state translator (`tui.rs:392-404`).
+   the canonical kernel-event-to-surface-state translator (`tui.rs:472-484`).
    Each drained event marks the surface dirty.
 2. **LAUNCH-002 snapshot dispatcher** — if there is an `action_link`, every
    event whose type is `Snapshot` increments `snapshot_count`. The first
    snapshot (the initial scan) is suppressed; from the second onwards,
    `link.dispatcher.on_snapshot()` fires the configured `--action` command. This
-   mirrors the gating in the non-TUI watch branch (`tui.rs:386-389`,
-   `tui.rs:395-403`).
+   mirrors the gating in the non-TUI watch branch (`tui.rs:468`,
+   `tui.rs:475-483`).
 3. **Drain pending action results** — if there is an `action_link`,
    `action_rx.try_recv()` is drained. Each result is folded into
    `state.data.last_action` via `WatchEventAdapter::handle_action_result`. The
    single-writer invariant (only the adapter writes `last_action`) is documented
-   in `tui-as-built.md` §"Action footer (LAUNCH-002)" (`tui.rs:407-413`).
+   in `tui-as-built.md` §"Action footer (LAUNCH-002)" (`tui.rs:488-493`).
 4. **Animation tick** — `tick_animations` advances `animate::tick` and marks the
    surface dirty if any animation is active. After that,
    `state.sync_animations()` reads the animated values back into the render-time
-   fields on `WatchData` (`tui.rs:415-418`).
+   fields on `WatchData` (`tui.rs:495-498`).
 5. **Compute poll timeout**:
    - Dirty + animating → 16 ms (≈60 fps frame budget)
    - Dirty + not animating → 0 ms (drain immediately, paint, loop)
-   - Not dirty → 50 ms (idle wait) (`tui.rs:421-430`).
+   - Not dirty → 50 ms (idle wait) (`tui.rs:502-510`).
 6. **Drain terminal events** — `event::poll` then a tight loop on `event::read`
    while `event::poll(ZERO)` keeps returning true. This is deliberate: a burst
    of key events should not push a `Resize` behind the next paint, so the loop
-   drains _all_ pending terminal events before redrawing (`tui.rs:434-450`).
+   drains _all_ pending terminal events before redrawing (`tui.rs:514-530`).
    This drain pattern is unique to `watch_loop` — `surface_loop` reads at most
    one event per iteration.
 7. **Dirty-gate paint** — `state.take_dirty()` (consume + reset). Only if it was
-   true does the loop call `terminal.draw` (`tui.rs:453-460`).
+   true does the loop call `terminal.draw` (`tui.rs:533-540`).
 8. **Exit checks** — `should_quit`, `should_back`, or the optional
-   `shutdown: &Arc<AtomicBool>` flag (`tui.rs:462-469`).
+   `shutdown: &Arc<AtomicBool>` flag (`tui.rs:542-549`).
 
 The `shutdown` parameter is a SIGINT bridge from the CLI command. Raw mode
 normally swallows Ctrl-C as a key event, but some terminal multiplexers forward
 the SIGINT signal anyway, so the watch command installs a handler that sets the
 flag, and the loop checks it once per iteration as belt-and-braces
-(`tui.rs:328-330`).
+(`tui.rs:545-549`).
 
-`watch_demo_loop` (`tui.rs:238-299`) follows the same shape minus the
+`watch_demo_loop` (`tui.rs:320-381`) follows the same shape minus the
 action-link arms and the resize-drain inner loop.
 
 ## `tutorial_loop` (file-change-driven path)
 
 The tutorial loop is a hybrid: key-driven like `surface_loop`, but with an
-optional file-change channel (`crates/anvil-cli/src/tui.rs:180-214`). Each
+optional file-change channel (`crates/anvil-cli/src/tui.rs:265-299`). Each
 iteration drains `Receiver<ChangeBatch>` (when present), passes the changed
 paths to `state.handle_file_change(&paths)`, then renders unconditionally and
 polls for a key event. There is no dirty gate — the tutorial paints every
@@ -281,7 +288,8 @@ user pressing a key.
 ## Shared-terminal pattern
 
 The welcome hub composes multiple sub-surfaces inside one terminal session
-(`crates/anvil-cli/src/commands/welcome.rs:118-1030`). The pattern is:
+(`crates/anvil-cli/src/commands/welcome.rs:129-164`, with the menu state machine
+in `run_welcome_hub` at `welcome.rs:1148-1329`). The pattern is:
 
 ```text
 setup_terminal ─────▶ run_surface_in (onboarding/welcome)
@@ -299,55 +307,61 @@ Lifecycle invariants for the shared-terminal path:
 
 - The alt-screen never tears between sub-surfaces. `run_*_in` variants take
   `&mut Terminal<...>` and `&EddaCraftTheme` rather than constructing their own.
-- `draw_loading(terminal, surface_name, message, theme)` (`tui.rs:70-86`) paints
-  a transient frame inside the shell chrome between sub-surfaces — this is what
-  produces the "Running quality checks..." flash before gate launches and the
-  "Starting file watcher..." flash before watch
-  (`crates/anvil-cli/src/commands/welcome.rs:966`, `welcome.rs:977`,
-  `welcome.rs:994`, `welcome.rs:1024`).
+- `draw_loading(terminal, surface_name, message, theme)` (`tui.rs:158-174`)
+  paints a transient frame inside the shell chrome between sub-surfaces — this
+  is what produces the "Running quality checks..." flash before gate launches
+  and the "Starting file watcher..." flash before watch
+  (`crates/anvil-cli/src/commands/welcome.rs:1164`, `welcome.rs:1175`,
+  `welcome.rs:1192`, `welcome.rs:1222`).
 - The teardown is idempotent and the welcome command captures the teardown
   result separately from any sub-surface error so a sub-surface failure doesn't
-  abort the alt-screen restoration (`welcome.rs:153`).
+  abort the alt-screen restoration (`welcome.rs:164`).
 
-The eight commands that own their own terminal session (`run_surface` /
-`run_watch` / `run_tutorial` / `run_watch_demo`) call `enable_raw_mode` /
-`EnterAlternateScreen` themselves (`tui.rs:33-47, 161-178, 219-236, 330-356`).
+The commands that own their own terminal session (`run_surface` /
+`run_surface_with_exit` / `run_watch` / `run_tutorial` / `run_watch_demo`)
+acquire a `TerminalGuard` via `TerminalGuard::enter()` — which enables raw mode
+and the alternate screen — themselves
+(`tui.rs:119-130, 249-263, 304-318, 412-435`).
 
 ## Error handling
 
 Terminal initialisation errors propagate through `?` in the public entry points
-(`tui.rs:34-38`, `tui.rs:165-169`, etc.): if `enable_raw_mode` fails (not a TTY,
-no ANSI support), the function returns `Err(io::Error)` before any state is
+(`TerminalGuard::enter`, `tui.rs:56-64`; called at `tui.rs:120`, `tui.rs:253`,
+etc.): if `enable_raw_mode` fails (not a TTY, no ANSI support), the guard rolls
+back any partial setup and the function returns `Err` before any state is
 constructed. The CLI `commands/<cmd>.rs` layer is responsible for reporting that
 error in human-readable form and choosing whether to fall back to a non-TUI path
 (e.g., `anvil watch` falls back to streaming JSON when stdout is not a TTY — see
 [`activation-as-built.md`](./activation-as-built.md) for the watch-fallback
 contract).
 
-There is **no panic safety**. Terminal teardown is a plain function call
-sequence in each `run_*` wrapper, not a `Drop` guard. If the surface, adapter,
-or render code panics inside the loop, `disable_raw_mode` and
-`LeaveAlternateScreen` are not run, and the user's terminal is left in raw mode
-with the alternate screen active. This is recorded in §"Known gaps" below as
-G-01.
+Terminal restoration is **panic-safe**. The `TerminalGuard` RAII type
+(`tui.rs:45-97`) restores raw mode and the alternate screen in `Drop`, so an
+unwinding panic inside any loop still returns the terminal to a usable state,
+and `install_panic_hook` (`tui.rs:34-43`) additionally restores the terminal
+before the default hook prints the backtrace against a normal screen. This
+closed the former G-01 gap (see §"Known gaps" below).
 
 The kernel-event channel is consumed via `try_recv` only — a disconnected
 channel (kernel watcher has died) returns `Err(Disconnected)` from `try_recv`,
-which is silently absorbed by the `while let Ok(...)` pattern (`tui.rs:248-249`,
-`tui.rs:392-394`). The watch dashboard then sits idle with no further state
+which is silently absorbed by the `while let Ok(...)` pattern (`tui.rs:330-332`,
+`tui.rs:472-473`). The watch dashboard then sits idle with no further state
 changes; the parent CLI command is responsible for detecting the dead watcher
 via its handle (`handle.stop()` returns the error,
-`crates/anvil-cli/src/commands/watch.rs:880`).
+`crates/anvil-cli/src/commands/watch.rs:1706`).
 
 ## Cross-cutting concerns
 
 ### Panic safety
 
-There is no `Drop` guard for the terminal in the runner. Every `run_*` wrapper
-is a flat sequence:
-`enable_raw_mode → EnterAlternateScreen → loop → disable_raw_mode → LeaveAlternateScreen`.
-The `disable_raw_mode` / `LeaveAlternateScreen` calls execute only on the happy
-path (`tui.rs:43-45, 174-175, 232-233, 352-354`). Tracked as G-01 below.
+Terminal restoration is `Drop`-guarded. Each owning `run_*` wrapper constructs a
+`TerminalGuard` via `TerminalGuard::enter()` (`tui.rs:45-97`) before entering
+the loop; the guard's `Drop` (`tui.rs:90-97`) runs a best-effort
+`restore_terminal` (`tui.rs:24-27`) even on an unwinding panic, and the happy
+path calls `guard.leave()` for an explicit, error-surfacing teardown
+(`tui.rs:127, 260, 315, 432`). `install_panic_hook` (`tui.rs:34-43`) wraps the
+process panic hook once (guarded by a `OnceLock`) so the terminal is restored
+before the backtrace prints. This resolves the former G-01 gap.
 
 ### Thread model
 
@@ -370,7 +384,7 @@ provides three load-bearing pieces of that determinism:
   the watch path — so the loop's wall-clock cadence is bounded above and below.
 - Animation tick is whole-millisecond accounted; the sub-ms residual is
   accumulated, not dropped, so animations advance reproducibly even on fast
-  machines (`tui.rs:485-490`).
+  machines (`tui.rs:564-570`).
 
 The render output itself — the buffer comparison — lives in the surface crate's
 snapshot tests (see [`tui-as-built.md`](./tui-as-built.md) §"Snapshot
@@ -390,25 +404,22 @@ reference.
 
 ## Known gaps
 
-### G-01: No panic-safe terminal restoration
+### G-01: Panic-safe terminal restoration (RESOLVED)
 
-The runner has no `Drop` guard for raw mode or the alternate screen. If a
-surface, adapter, or render panics inside any loop variant, the
-`disable_raw_mode` / `LeaveAlternateScreen` calls at the bottom of the `run_*`
-wrapper are skipped, and the user is left at a shell prompt with raw mode still
-enabled and the alt-screen still active.
+Previously the runner had no `Drop` guard for raw mode or the alternate screen:
+a panic inside any loop variant left the user at a shell prompt with raw mode
+still enabled and the alt-screen still active.
 
-This is straightforward to fix: introduce a `TerminalGuard` newtype that runs
-`disable_raw_mode` and `LeaveAlternateScreen` in `Drop`, and have each `run_*`
-wrapper construct one before entering the loop. The Rust ecosystem convention
-here is well-established (`ratatui` examples ship a `restore_terminal` helper
-plus a panic hook).
+This is now fixed exactly as the original fix note proposed. `TerminalGuard`
+(`tui.rs:45-97`) runs `disable_raw_mode` and `LeaveAlternateScreen` in `Drop`,
+and each owning `run_*` wrapper constructs one via `TerminalGuard::enter()`
+before entering the loop. `install_panic_hook` (`tui.rs:34-43`) additionally
+wraps the process panic hook (once, via a `OnceLock` — see
+`install_panic_hook_does_not_stack_on_repeat_installs`, `tui.rs:595-621`) so the
+terminal is restored before the backtrace prints.
 
-**Risk:** Medium. A panic inside the watch loop is improbable today but the cost
-when it happens is high (the user's terminal is unusable until they `reset(1)`
-or open a new shell), and the kernel-event-driven paths push more code through
-the loop than the standard surface path. **Fix:** introduce `TerminalGuard` +
-`panic::set_hook`. No tracked APS work item as of `v0.6.0-beta`.
+**Status:** Resolved. Retained here for traceability against earlier revisions
+of this doc.
 
 ### G-02: No `EnableMouseCapture`
 
@@ -417,7 +428,7 @@ scroll-wheel scrolling (audit issue list, watch history panel) are
 keyboard-only. `crossterm::event::EnableMouseCapture` is not invoked in `tui.rs`
 and there are no `MouseEvent` arms in any of the loop matches
 (`grep -rn "EnableMouseCapture\|MouseEvent" crates/anvil-cli crates/anvil-tui`
-returns no hits as of HEAD `cf7ca040`).
+returns no hits as of HEAD `d1fded280`).
 
 This is deliberate at the moment — mouse capture interferes with terminal
 text-selection, which users rely on for copying error output to issues — but the
@@ -432,10 +443,10 @@ preserve text-selection by default.
 ### G-03: Animation tick busy-spin when dirty + not animating
 
 The watch and watch-demo loops set `poll_timeout = Duration::ZERO` when the
-surface is dirty but no animation is active (`tui.rs:264, 426-427`). This is
-correct behaviour — drain whatever caused the dirty flag and paint immediately —
-but in pathological cases (a high-rate engine event source that keeps marking
-dirty without ever draining) the loop can busy-spin. There is no upper bound on
+surface is dirty but no animation is active (`tui.rs:346, 506`). This is correct
+behaviour — drain whatever caused the dirty flag and paint immediately — but in
+pathological cases (a high-rate engine event source that keeps marking dirty
+without ever draining) the loop can busy-spin. There is no upper bound on
 iteration rate, only on poll wait.
 
 In practice the kernel watcher's emit rate is bounded by file-system event
@@ -447,7 +458,7 @@ ms) when dirty but not animating. Not tracked.
 
 ### G-04: Tutorial loop has no dirty gate
 
-`tutorial_loop` paints unconditionally every iteration (`tui.rs:196-200`). The
+`tutorial_loop` paints unconditionally every iteration (`tui.rs:281-285`). The
 tutorial surface is fast to render (mostly text) and the 100 ms poll keeps the
 iteration rate bounded, so this isn't a performance issue. But it's an
 inconsistency with `surface_loop` and `watch_loop` — same project, three
@@ -458,7 +469,7 @@ tracked.
 
 ### G-05: `WatchEventAdapter` channel-disconnect is silent
 
-`while let Ok(engine_event) = event_rx.try_recv()` (`tui.rs:248`, `tui.rs:393`)
+`while let Ok(engine_event) = event_rx.try_recv()` (`tui.rs:330`, `tui.rs:472`)
 absorbs both `Empty` and `Disconnected`. If the kernel watcher's event-emission
 thread dies, the receiver returns `Disconnected` forever and the watch dashboard
 sits with stale state, no notification. The parent CLI command detects the dead
@@ -486,54 +497,60 @@ requested. Tracked tangentially in [`tui-as-built.md`](./tui-as-built.md) G-06.
 
 ## Source references
 
-`tui.rs` exports nine functions plus `SurfaceExit`:
+`tui.rs` exports twelve functions plus the `TerminalGuard` type and
+`SurfaceExit`:
 
-| Export              | Purpose                                                                | Lines            |
-| ------------------- | ---------------------------------------------------------------------- | ---------------- |
-| `SurfaceExit` enum  | `Quit` / `Back` exit contract                                          | `tui.rs:22-28`   |
-| `run_surface<S>`    | Standard surface, owns terminal session                                | `tui.rs:33-47`   |
-| `run_surface_in<S>` | Standard surface, shared terminal                                      | `tui.rs:51-57`   |
-| `setup_terminal`    | Build a `Terminal` for the shared-terminal pattern                     | `tui.rs:61-67`   |
-| `draw_loading`      | Transient loading frame inside shell chrome                            | `tui.rs:70-86`   |
-| `teardown_terminal` | Restore terminal mode                                                  | `tui.rs:89-95`   |
-| `run_tutorial`      | Tutorial surface, owns terminal, optional file channel                 | `tui.rs:161-178` |
-| `run_tutorial_in`   | Tutorial surface, shared terminal                                      | `tui.rs:305-312` |
-| `run_watch_demo`    | Watch demo, owns terminal, kernel events                               | `tui.rs:219-236` |
-| `run_watch_demo_in` | Watch demo, shared terminal                                            | `tui.rs:315-322` |
-| `run_watch`         | Watch dashboard, owns terminal, kernel events + action link + shutdown | `tui.rs:330-356` |
-| `run_watch_in`      | Watch dashboard, shared terminal (no action / no shutdown)             | `tui.rs:362-374` |
+| Export                     | Purpose                                                                | Lines            |
+| -------------------------- | ---------------------------------------------------------------------- | ---------------- |
+| `TerminalGuard`            | RAII terminal guard (`enter` / `leave` / `Drop` restore)               | `tui.rs:45-97`   |
+| `SurfaceExit` enum         | `Quit` / `Back` exit contract                                          | `tui.rs:100-106` |
+| `run_surface<S>`           | Standard surface, owns terminal session (thin wrapper)                 | `tui.rs:111-113` |
+| `run_surface_with_exit<S>` | Standard surface, owns terminal session, reports exit reason           | `tui.rs:119-130` |
+| `run_surface_in<S>`        | Standard surface, shared terminal                                      | `tui.rs:134-140` |
+| `setup_terminal`           | Build a `Terminal` for the shared-terminal pattern                     | `tui.rs:148-155` |
+| `draw_loading`             | Transient loading frame inside shell chrome                            | `tui.rs:158-174` |
+| `teardown_terminal`        | Restore terminal mode                                                  | `tui.rs:177-183` |
+| `run_tutorial`             | Tutorial surface, owns terminal, optional file channel                 | `tui.rs:249-263` |
+| `run_tutorial_in`          | Tutorial surface, shared terminal                                      | `tui.rs:387-394` |
+| `run_watch_demo`           | Watch demo, owns terminal, kernel events                               | `tui.rs:304-318` |
+| `run_watch_demo_in`        | Watch demo, shared terminal                                            | `tui.rs:397-404` |
+| `run_watch`                | Watch dashboard, owns terminal, kernel events + action link + shutdown | `tui.rs:412-435` |
+| `run_watch_in`             | Watch dashboard, shared terminal (no action / no shutdown)             | `tui.rs:441-453` |
 
 Internal:
 
-- `surface_loop` (`tui.rs:97-156`) — standard render loop
-- `tutorial_loop` (`tui.rs:180-214`) — tutorial render loop
-- `watch_demo_loop` (`tui.rs:238-299`) — watch-demo render loop
-- `watch_loop` (`tui.rs:376-473`) — watch render loop with adapter, action link,
+- `restore_terminal` / `install_panic_hook` (`tui.rs:24-43`) — panic-safe
+  terminal restoration
+- `surface_loop` (`tui.rs:185-244`) — standard render loop
+- `tutorial_loop` (`tui.rs:265-299`) — tutorial render loop
+- `watch_demo_loop` (`tui.rs:320-381`) — watch-demo render loop
+- `watch_loop` (`tui.rs:455-553`) — watch render loop with adapter, action link,
   shutdown
-- `tick_animations` (`tui.rs:475-495`) — animation-tick driver
+- `tick_animations` (`tui.rs:555-575`) — animation-tick driver
 
 Call sites (twelve direct invocations across nine command modules):
 
 | Caller                           | Function called                                                                                                                 | Notes                                                             |
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| `commands/audit.rs:29`           | `tui::run_surface(state)`                                                                                                       | `anvil audit` interactive                                         |
-| `commands/doctor.rs:45`          | `tui::run_surface(state)`                                                                                                       | `anvil doctor` interactive (re-entered after `apply_fix_request`) |
-| `commands/init.rs:98`            | `tui::run_surface(state)`                                                                                                       | `anvil init` wizard                                               |
+| `commands/audit.rs:49`           | `tui::run_surface(state)`                                                                                                       | `anvil audit` interactive                                         |
+| `commands/doctor.rs:60`          | `tui::run_surface(state)`                                                                                                       | `anvil doctor` interactive (re-entered after `apply_fix_request`) |
+| `commands/init.rs:105`           | `tui::run_surface(state)`                                                                                                       | `anvil init` wizard                                               |
 | `commands/new.rs:62`             | `tui::run_surface(state)`                                                                                                       | `anvil new` template browser                                      |
-| `commands/status.rs:40`          | `tui::run_surface(state)`                                                                                                       | `anvil status` interactive                                        |
+| `commands/status.rs:141`         | `tui::run_surface(state)`                                                                                                       | `anvil status` interactive                                        |
 | `commands/wizard.rs:56`          | `tui::run_surface(state)`                                                                                                       | `anvil wizard`                                                    |
 | `commands/tutorial.rs:78`        | `tui::run_tutorial(state, file_rx.as_ref())`                                                                                    | `anvil tutorial`                                                  |
 | `commands/tutorial.rs:87`        | `tui::run_tutorial(state, file_rx.as_ref())`                                                                                    | tutorial re-entry after fix                                       |
-| `commands/tutorial.rs:133`       | `tui::run_watch_demo(state, &event_rx)`                                                                                         | watch-demo from tutorial                                          |
-| `commands/watch.rs:867`          | `tui::run_watch(state, &event_rx, link.as_ref(), Some(&shutdown))`                                                              | `anvil watch --tui=ratatui`                                       |
+| `commands/tutorial.rs:138`       | `tui::run_watch_demo(state, &event_rx)`                                                                                         | watch-demo from tutorial                                          |
+| `commands/watch.rs:1694`         | `tui::run_watch(state, &event_rx, link.as_ref(), Some(&shutdown))`                                                              | `anvil watch --tui=ratatui`                                       |
 | `commands/welcome.rs` (multiple) | `setup_terminal`, `draw_loading`, `teardown_terminal`, `run_surface_in`, `run_tutorial_in`, `run_watch_demo_in`, `run_watch_in` | welcome hub composes everything                                   |
 
 The welcome command (`crates/anvil-cli/src/commands/welcome.rs`) is the heaviest
 consumer — it owns the shared-terminal pattern across onboarding, init,
 discovery, tutorial, watch demo, the welcome menu, and every menu-launched
-sub-surface (gate, audit, doctor, watch, tutorial, restart-onboarding). Lines
-118-1030 of that file are essentially a state machine driven by `SurfaceExit`
-returns.
+sub-surface (gate, audit, doctor, watch, tutorial, restart-onboarding). The
+`run` orchestrator (`welcome.rs:73-195`) sets up and tears down the shared
+terminal, and `run_welcome_hub` (`welcome.rs:1148-1329`) is essentially a state
+machine driven by `SurfaceExit` returns.
 
 ## Related docs
 

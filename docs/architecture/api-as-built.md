@@ -1,14 +1,16 @@
 # anvil-api Service — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                         |
-| -------- | --------- | ----- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | APGOV | Live   | Last reviewed 2026-06-10 (targeted delta review: broadcast generalisation, middleware, migrations 012-015) against main `45dd1047a`; full review 2026-05-07 against `v0.6.0-beta` |
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| -------- | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | APGOV | Live   | As-built drift sweep 2026-07-02 against main `d1fded280` (`index.ts` §3/§5/§9 anchors re-pinned after 145→179 growth; migration 016 added to §8; `queries.ts`/`admin.ts`/`schema.sql`/migration-count line figures refreshed; `anvil-archive/admin-cli-node/` sibling-repo note). Last reviewed 2026-06-10 (targeted delta review: broadcast generalisation, middleware, migrations 012-015) against main `45dd1047a`; full review 2026-05-07 against `v0.6.0-beta` |
 
 | Upstream                                                  | Downstream                                                                                                                                 |
 | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | `apps/anvil-api`, `anvil-archive/admin-cli-node`, ADR-018 | anvil CLI (auth flows, license refresh, update-check), operator admin CLI, anvil admin Rust command (RCLI2-009), eddacraft.ai install site |
 
-> **Status:** Live (beta) **Last reviewed:** 2026-06-10 (targeted delta review:
+> **Status:** Live (beta) **Last reviewed:** 2026-07-02 as-built drift sweep
+> against main `d1fded280` (`index.ts` re-anchor, migration 016, line-count
+> refresh, archive sibling-repo note); 2026-06-10 (targeted delta review:
 > broadcast generalisation, middleware, migrations 012-015) against main
 > `45dd1047a`; full review 2026-05-07 against `v0.6.0-beta` slate (HEAD
 > `d223b8d9`) **Service / location:** `apps/anvil-api` (Hono on Vercel; Neon
@@ -36,7 +38,7 @@
 `anvil-api` is the only first-party HTTP service in the Anvil monorepo. It is
 the trust boundary for token minting, the operator surface for waitlist / beta
 cohort management, and the deploy-time owner of the Postgres schema. It runs as
-a single Hono app (`apps/anvil-api/src/index.ts:45`) mounted under `/api/v1`,
+a single Hono app (`apps/anvil-api/src/index.ts:61`) mounted under `/api/v1`,
 deployed as a Vercel Function with a Neon Postgres backing DB and Resend for
 transactional email.
 
@@ -107,18 +109,19 @@ single deploy-time path for schema changes.
 
 ## 3. Lifecycle / cold-start
 
-1. Module load — `apps/anvil-api/src/index.ts:1-43` imports routes and runs
+1. Module load — `apps/anvil-api/src/index.ts:1-59` imports routes and runs
    `verifySigningKey()` / `verifyVerifyingKey()` as fire-and-forget cold-start
-   probes (plus an informational GitHub CLI credential presence check —
-   auth-owned, see [`auth-as-built.md`](auth-as-built.md)); failure logs
-   `[boot] … unavailable: <error>` and is reflected in `/health`.
-2. Hono app constructed with `basePath('/api/v1')` (`src/index.ts:45`).
+   probes (plus a `verifyGitHubCliCredentials` presence check — auth-owned, see
+   [`auth-as-built.md`](auth-as-built.md) — and a `verifyResendKey` probe);
+   failure logs `[boot] … unavailable: <error>` and is reflected in `/health`.
+2. Hono app constructed with `basePath('/api/v1')` (`src/index.ts:61`).
 3. Middleware mounted in order: `logger`, `cors`, `traceContext`, `rateLimiter`
-   (`src/index.ts:47-87`). See §5.
-4. Inline `GET /health` registered (`src/index.ts:89-129`). See §9.1.
-5. Global error handler logs and returns `500` (`src/index.ts:131-134`).
+   (`src/index.ts:63-103`). See §5.
+4. Inline `GET /health` registered (`src/index.ts:105-162`). See §9.1.
+5. Global error handler logs and returns `500` (`src/index.ts:164-167`).
 6. Sub-apps mounted: `/auth`, `/auth/device`, `/auth/otp`, `/auth/session`,
-   `/auth/github`, `/admin`, `/waitlist`, `/cron` (`src/index.ts:136-143`).
+   `/auth/github`, `/auth/github-device`, `/admin`, `/waitlist`, `/cron`
+   (`src/index.ts:169-177`).
 7. The Neon client and the licence signing key are lazy module-level singletons
    (`src/db/client.ts:8-20`, `src/lib/licence.ts:18-28`) — first request in a
    cold instance pays the connect / PEM-parse cost, all subsequent requests on
@@ -133,7 +136,7 @@ line.
 
 | Method | Path                       | Auth                                                                              | Purpose                                                                                                                                                                                                                                       | Source                           |
 | ------ | -------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
-| GET    | `/health`                  | None                                                                              | DB ping + licence-key parse probes; `status: 'degraded'` + `503` on any probe failure                                                                                                                                                         | `src/index.ts:89-129`            |
+| GET    | `/health`                  | None                                                                              | DB ping + licence-key parse probes; `status: 'degraded'` + `503` on any probe failure                                                                                                                                                         | `src/index.ts:105-162`           |
 | POST   | `/waitlist`                | None                                                                              | Public waitlist signup (gated by `WAITLIST_PAUSED`)                                                                                                                                                                                           | `src/routes/waitlist.ts:13-100`  |
 | POST   | `/waitlist/resend`         | `WAITLIST_RESEND_ADMIN_TOKEN` (Bearer or `X-Waitlist-Admin-Token`), constant-time | Force resend of confirmation email                                                                                                                                                                                                            | `src/routes/waitlist.ts:102-165` |
 | POST   | `/admin/invite`            | `adminAuth`                                                                       | Invite a user; default = waitlist + approve + email; `tokenOnly=true` returns a raw token once for CI/service accounts                                                                                                                        | `src/routes/admin.ts:120`        |
@@ -212,8 +215,8 @@ Order is load-bearing. All middleware runs before any route handler.
 
 | Order          | Middleware         | Source                                      | Notes                                                                                                                                                                                                           |
 | -------------- | ------------------ | ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1              | `hono/logger`      | `src/index.ts:47`                           | Request log line per request                                                                                                                                                                                    |
-| 2              | `hono/cors`        | `src/index.ts:73-84`                        | Allowlist via `ANVIL_CORS_ORIGINS`; supports exact match and `*.example.com` wildcards (`src/index.ts:50-71`); `maxAge: 300` (5 min preflight cache); `allowHeaders` includes `traceparent` (`src/index.ts:78`) |
+| 1              | `hono/logger`      | `src/index.ts:63`                           | Request log line per request                                                                                                                                                                                    |
+| 2              | `hono/cors`        | `src/index.ts:89-100`                       | Allowlist via `ANVIL_CORS_ORIGINS`; supports exact match and `*.example.com` wildcards (`src/index.ts:66-87`); `maxAge: 300` (5 min preflight cache); `allowHeaders` includes `traceparent` (`src/index.ts:94`) |
 | 3              | `traceContext`     | `src/middleware/trace-context.ts:15`        | Parses an inbound W3C `traceparent`, threads it on context, and echoes it as `X-Anvil-Traceparent` on the response; `400` on a malformed header; pass-through when the header is absent (no trace originated)   |
 | 4              | `rateLimiter()`    | `src/middleware/rate-limit.ts:15-54`        | In-memory sliding window, 60 req / 60s / IP keyed off `x-forwarded-for[0]`; emits `X-RateLimit-{Limit,Remaining,Reset}`; per-instance only                                                                      |
 | 5 (admin only) | `adminAuth`        | `src/middleware/admin-auth.ts:109-191`      | Mounted on the `admin` sub-app via `admin.use('*', adminAuth)` (`src/routes/admin.ts:55`). See `auth-as-built.md` for the canonical description; non-auth context below                                         |
@@ -221,12 +224,12 @@ Order is load-bearing. All middleware runs before any route handler.
 
 ### 5.1 CORS preflight cache (`0.5.0-beta` fix)
 
-`maxAge: 300` is set deliberately in `src/index.ts:82` — a longer TTL would mean
+`maxAge: 300` is set deliberately in `src/index.ts:98` — a longer TTL would mean
 an API outage poisons browsers for the full TTL after recovery, because a failed
 preflight gets cached as "no preflight allowed". The 5-minute value balances
 cost against blast-radius. The `Allow-Headers` set was also extended to include
 `X-Waitlist-Admin-Token` for the resend endpoint, and later `traceparent` for
-trace propagation (`src/index.ts:78`).
+trace propagation (`src/index.ts:94`).
 
 ### 5.2 Rate limiter scope
 
@@ -297,7 +300,7 @@ is to make a compromised key visibly noisy, not to enforce a cluster-wide quota
 
 ### 6.2 Queries
 
-`src/db/queries.ts` (1415 lines) is the single SQL boundary. All queries are
+`src/db/queries.ts` (1459 lines) is the single SQL boundary. All queries are
 defined here, validated against Zod schemas at the parse boundary, and returned
 as typed shapes. Notable groupings:
 
@@ -322,7 +325,7 @@ as typed shapes. Notable groupings:
 
 ### 6.3 Schema
 
-The full schema is `src/db/schema.sql` (`171 lines`). The auth-relevant tables
+The full schema is `src/db/schema.sql` (`188 lines`). The auth-relevant tables
 (`beta_users`, `access_tokens`, `audit_log`, `device_codes`, `otp_codes`,
 `refresh_tokens`, `admin_keys`) are documented in
 [`auth-as-built.md`](auth-as-built.md). The non-auth tables are:
@@ -423,33 +426,34 @@ order. Idempotent (`IF NOT EXISTS` / `CREATE OR REPLACE` /
 `ALTER … ADD COLUMN IF NOT EXISTS`) so re-running is safe. Migrations
 `013`-`015` additionally guard structural renames behind `information_schema`
 lookups (so a fresh install whose `schema.sql` is already at the post-migration
-shape is a no-op) and bound DDL lock acquisition with
+shape is a no-op); `013`-`016` bound DDL lock acquisition with
 `SET LOCAL lock_timeout = '30s'` so a deploy fails fast rather than queuing
 behind in-flight traffic.
 
-| File                                     | Shape                                                                                                                                                                                               | Rationale                                                                                                                                                |
-| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `001-waitlist-add-columns.sql`           | ALTER waitlist (add `name`, `company`, `role`, `use_case`) via `DO $$ … information_schema` guard                                                                                                   | Backfill `waitlist` columns on prod DBs that were stood up before `schema.sql` carried them                                                              |
-| `002-beta-users-add-pending-status.sql`  | DROP/CREATE constraint adding `'pending'` to `beta_users.status`                                                                                                                                    | DOCSAUTH GitHub OAuth needed a `pending` state pre-confirm                                                                                               |
-| `003-auth-tables.sql`                    | CREATE `device_codes`, `otp_codes`, `refresh_tokens` + indexes                                                                                                                                      | BAUTH-001 baseline                                                                                                                                       |
-| `004-waitlist-on-beta-db.sql`            | CREATE `waitlist` on the beta DB (with `citext` extension)                                                                                                                                          | DBCON-003 — colocate waitlist on the same DB the admin routes hit, ahead of full Neon consolidation                                                      |
-| `005-audit-log-indexes.sql`              | CREATE INDEX on `audit_log(actor)`, `audit_log(created_at)`, expression index `LOWER(metadata->>'email')`                                                                                           | Removes seq scans behind `/admin/audit` and `/admin/user/:email` recent-audit join                                                                       |
-| `006-admin-send-migration-snapshots.sql` | CREATE `send_migration_snapshots`                                                                                                                                                                   | Backs the send-migration dry-run → real-send contract                                                                                                    |
-| `007-admin-keys.sql`                     | CREATE `admin_keys` (hashed bearer + actor_email + revoked_at)                                                                                                                                      | Per-operator admin auth (ADMINCLIH-002)                                                                                                                  |
-| `008-admin-keys-audit.sql`               | CREATE `admin_keys_audit` (append-only with Pulumi commit SHA)                                                                                                                                      | Two-person-rule evidence for key provisioning                                                                                                            |
-| `009-audit-log-auth-method.sql`          | ADD COLUMN `audit_log.auth_method` (`shared`/`per_operator`) backfilled `'shared'`                                                                                                                  | Differentiates dual-auth rollout window                                                                                                                  |
-| `010-access-tokens-scope-index.sql`      | CREATE INDEX `idx_access_tokens_user_id` + partial composite supporting `findActiveScopesForUser`                                                                                                   | Fixes seq scan on `/session/refresh`, `/auth/device/poll`, `/auth/github/callback`, `/auth/otp/verify` for prod DBs that pre-date the `schema.sql` index |
-| `011-access-tokens-edict-flag.sql`       | ADD COLUMN `access_tokens.is_edict boolean DEFAULT false`                                                                                                                                           | Mark long-lived early-access edicts as token metadata without splitting the entitlement model                                                            |
-| `012-device-codes-attempts.sql`          | ADD COLUMN `device_codes.attempts int NOT NULL DEFAULT 0`                                                                                                                                           | Per-code brute-force counter for `/device/confirm` lockout (#922) — see [`auth-as-built.md`](auth-as-built.md)                                           |
-| `013-broadcast-snapshots.sql`            | RENAME `send_migration_snapshots` → `send_broadcast_snapshots`; ADD `template` / `template_props` / `audience_key` / `audience_params`; backfill `source` into `audience_params` then DROP `source` | Generalise the snapshot table so `/admin/broadcast` and the send-migration shim share one two-phase contract (EMAIL-002/-006)                            |
-| `014-broadcast-snapshot-token-hash.sql`  | RENAME COLUMN `token` → `token_hash`; SHA-256(token) stored at rest                                                                                                                                 | Align preview tokens with the `access_tokens` / `refresh_tokens` at-rest hashing convention; a read-only DB leak no longer yields usable tokens          |
-| `015-beta-users-add-github-id.sql`       | ADD COLUMN `beta_users.github_id bigint UNIQUE` (nullable)                                                                                                                                          | GitHub device-flow account linking by stable numeric id (GHCLIAUTH-003, ADR-066) — see [`auth-as-built.md`](auth-as-built.md)                            |
+| File                                     | Shape                                                                                                                                                                                               | Rationale                                                                                                                                                                                                                       |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `001-waitlist-add-columns.sql`           | ALTER waitlist (add `name`, `company`, `role`, `use_case`) via `DO $$ … information_schema` guard                                                                                                   | Backfill `waitlist` columns on prod DBs that were stood up before `schema.sql` carried them                                                                                                                                     |
+| `002-beta-users-add-pending-status.sql`  | DROP/CREATE constraint adding `'pending'` to `beta_users.status`                                                                                                                                    | DOCSAUTH GitHub OAuth needed a `pending` state pre-confirm                                                                                                                                                                      |
+| `003-auth-tables.sql`                    | CREATE `device_codes`, `otp_codes`, `refresh_tokens` + indexes                                                                                                                                      | BAUTH-001 baseline                                                                                                                                                                                                              |
+| `004-waitlist-on-beta-db.sql`            | CREATE `waitlist` on the beta DB (with `citext` extension)                                                                                                                                          | DBCON-003 — colocate waitlist on the same DB the admin routes hit, ahead of full Neon consolidation                                                                                                                             |
+| `005-audit-log-indexes.sql`              | CREATE INDEX on `audit_log(actor)`, `audit_log(created_at)`, expression index `LOWER(metadata->>'email')`                                                                                           | Removes seq scans behind `/admin/audit` and `/admin/user/:email` recent-audit join                                                                                                                                              |
+| `006-admin-send-migration-snapshots.sql` | CREATE `send_migration_snapshots`                                                                                                                                                                   | Backs the send-migration dry-run → real-send contract                                                                                                                                                                           |
+| `007-admin-keys.sql`                     | CREATE `admin_keys` (hashed bearer + actor_email + revoked_at)                                                                                                                                      | Per-operator admin auth (ADMINCLIH-002)                                                                                                                                                                                         |
+| `008-admin-keys-audit.sql`               | CREATE `admin_keys_audit` (append-only with Pulumi commit SHA)                                                                                                                                      | Two-person-rule evidence for key provisioning                                                                                                                                                                                   |
+| `009-audit-log-auth-method.sql`          | ADD COLUMN `audit_log.auth_method` (`shared`/`per_operator`) backfilled `'shared'`                                                                                                                  | Differentiates dual-auth rollout window                                                                                                                                                                                         |
+| `010-access-tokens-scope-index.sql`      | CREATE INDEX `idx_access_tokens_user_id` + partial composite supporting `findActiveScopesForUser`                                                                                                   | Fixes seq scan on `/session/refresh`, `/auth/device/poll`, `/auth/github/callback`, `/auth/otp/verify` for prod DBs that pre-date the `schema.sql` index                                                                        |
+| `011-access-tokens-edict-flag.sql`       | ADD COLUMN `access_tokens.is_edict boolean DEFAULT false`                                                                                                                                           | Mark long-lived early-access edicts as token metadata without splitting the entitlement model                                                                                                                                   |
+| `012-device-codes-attempts.sql`          | ADD COLUMN `device_codes.attempts int NOT NULL DEFAULT 0`                                                                                                                                           | Per-code brute-force counter for `/device/confirm` lockout (#922) — see [`auth-as-built.md`](auth-as-built.md)                                                                                                                  |
+| `013-broadcast-snapshots.sql`            | RENAME `send_migration_snapshots` → `send_broadcast_snapshots`; ADD `template` / `template_props` / `audience_key` / `audience_params`; backfill `source` into `audience_params` then DROP `source` | Generalise the snapshot table so `/admin/broadcast` and the send-migration shim share one two-phase contract (EMAIL-002/-006)                                                                                                   |
+| `014-broadcast-snapshot-token-hash.sql`  | RENAME COLUMN `token` → `token_hash`; SHA-256(token) stored at rest                                                                                                                                 | Align preview tokens with the `access_tokens` / `refresh_tokens` at-rest hashing convention; a read-only DB leak no longer yields usable tokens                                                                                 |
+| `015-beta-users-add-github-id.sql`       | ADD COLUMN `beta_users.github_id bigint UNIQUE` (nullable)                                                                                                                                          | GitHub device-flow account linking by stable numeric id (GHCLIAUTH-003, ADR-066) — see [`auth-as-built.md`](auth-as-built.md)                                                                                                   |
+| `016-github-device-sessions.sql`         | CREATE `github_device_sessions` (`poll_token_hash` UNIQUE, `github_device_code_enc`, `interval_s`, `expires_at`, `minted_at`, `minted_session_enc`) + `expires_at` index; no user column            | DB-backed session state for the brokered GitHub Device Grant — poll token hashed, GitHub `device_code` encrypted, bound user derived only at poll-confirm (GHCLIAUTH-004, ADR-066) — see [`auth-as-built.md`](auth-as-built.md) |
 
 ## 9. Health / observability
 
 ### 9.1 `/health`
 
-`src/index.ts:89-129`. Multi-probe health check, run in parallel:
+`src/index.ts:105-162`. Multi-probe health check, run in parallel:
 
 - DB probe — `SELECT 1` against the Neon client; failure marks
   `db: unreachable`.
@@ -462,18 +466,18 @@ behind in-flight traffic.
 
 If every gating probe passes, returns `200 { status: ok, … }`. On any probe
 failure the response is `status: 'degraded'` with a `503` and the granular
-per-probe field set (`src/index.ts:109-128`), so the operator can tell which
+per-probe field set (`src/index.ts:151-161`), so the operator can tell which
 probe failed without needing logs (auth-as-built G-01).
 
 ### 9.2 Cold-start probe
 
-The same key probes are fired at module load (`src/index.ts:25-34`) so a missing
+The same key probes are fired at module load (`src/index.ts:28-59`) so a missing
 / malformed key surfaces as a deploy-time stderr line and a `503 /health` rather
 than only on the first device-flow mint.
 
 ### 9.3 Logging
 
-- Request logs come from `hono/logger` (`src/index.ts:47`).
+- Request logs come from `hono/logger` (`src/index.ts:63`).
 - Internal debug logs use the in-house `createDebugger`
   (`src/lib/debug.ts:61-65`) keyed by `'api'`, `'auth-device'`, `'auth-session'`
   namespaces; gated by `ANVIL_DEBUG=1` or `DEBUG` containing `anvil:*` /
@@ -481,7 +485,7 @@ than only on the first device-flow mint.
   tokens, `sk-` / `ghp_` / `ghu_` secrets, long hex / base64 strings before
   writing (`src/lib/debug.ts:26-32`).
 - Unhandled errors are logged with stack and surfaced as
-  `500 Internal Server Error` (`src/index.ts:131-134`).
+  `500 Internal Server Error` (`src/index.ts:164-167`).
 - Trace correlation relies on the client supplying a W3C `traceparent`, which
   `traceContext` threads through the request and echoes as `X-Anvil-Traceparent`
   (`src/middleware/trace-context.ts:15`, §5). No trace ID is originated
@@ -505,7 +509,7 @@ The limiter sets `X-RateLimit-Limit` / `X-RateLimit-Remaining` /
   (`apps/anvil-api/scripts/check-runtime-cjs.cjs`) defend the cold-start path
   against re-regression.
 - Function entry: `apps/anvil-api/src/index.ts` exports the Hono app default
-  (`src/index.ts:112`), which Vercel invokes via the standard Hono adapter.
+  (`src/index.ts:179`), which Vercel invokes via the standard Hono adapter.
 - Build:
   `cd ../.. && pnpm --filter '@eddacraft/anvil-api^...' build && cd apps/anvil-api && tsc`
   (`apps/anvil-api/vercel.json:3`).
@@ -531,6 +535,12 @@ the README env table (`apps/anvil-api/README.md:31-46`) is the canonical
 operator-facing list.
 
 ## 11. `anvil-archive/admin-cli-node/` — historical Node operator CLI
+
+> **Note:** the `anvil-archive/admin-cli-node/` paths cited in this section (and
+> in the §14 line table below) live in the sibling `eddacraft/anvil-archive`
+> repository — moved out of this monorepo on 2026-06-19 (V060F-019, see G-04) —
+> so they are not present in this checkout; the line counts are frozen against
+> the archived tree.
 
 `anvil-archive/admin-cli-node` is a thin Commander-based Node CLI
 (`@eddacraft/admin-cli`, binary `anvil-admin`) that pre-dates the Rust CLI admin
@@ -735,8 +745,8 @@ one-shot data-cleanup migration once the dual-auth window closes.
 
 | File                                           | Lines | Role                                                                                                                                              |
 | ---------------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/index.ts`                                 | 145   | Hono app + middleware mount + `/health` + cold-start probes                                                                                       |
-| `src/routes/admin.ts`                          | 1306  | All `/admin/*` handlers (invite, approve, revoke, waitlist list, audit list, user lookup, send-migration shim, broadcast two-phase, email-update) |
+| `src/index.ts`                                 | 179   | Hono app + middleware mount + `/health` + cold-start probes                                                                                       |
+| `src/routes/admin.ts`                          | 1263  | All `/admin/*` handlers (invite, approve, revoke, waitlist list, audit list, user lookup, send-migration shim, broadcast two-phase, email-update) |
 | `src/routes/admin-schemas.ts`                  | 170   | Zod schemas + types for the admin surface                                                                                                         |
 | `src/routes/auth.ts`                           | 143   | `/auth/verify`, `/auth/license/refresh` (canonical doc: auth-as-built)                                                                            |
 | `src/routes/auth-device.ts`                    | 235   | Device-code flow (canonical doc: auth-as-built)                                                                                                   |
@@ -760,10 +770,10 @@ one-shot data-cleanup migration once the dual-auth window closes.
 | `src/lib/device-code.ts`                       | 40    | `user_code` generation + collision retry helper                                                                                                   |
 | `src/lib/feature-flags.ts`                     | 129   | `api.scope.*` flag manifest + `resolveApiScope` resolver                                                                                          |
 | `src/db/client.ts`                             | 28    | Neon-serverless singleton                                                                                                                         |
-| `src/db/queries.ts`                            | 1415  | All SQL queries + Zod row schemas                                                                                                                 |
+| `src/db/queries.ts`                            | 1459  | All SQL queries + Zod row schemas                                                                                                                 |
 | `src/db/migrate.ts`                            | 194   | Migration runner library (advisory lock, drift detection, dry-run)                                                                                |
-| `src/db/schema.sql`                            | 171   | Authoritative schema for fresh installs                                                                                                           |
-| `src/db/migrations/*.sql`                      | —     | 15 forward-only migrations (see §8)                                                                                                               |
+| `src/db/schema.sql`                            | 188   | Authoritative schema for fresh installs                                                                                                           |
+| `src/db/migrations/*.sql`                      | —     | 16 forward-only migrations (see §8)                                                                                                               |
 | `apps/anvil-api/scripts/migrate.mjs`           | 70    | CLI wrapper around `runMigrations`                                                                                                                |
 | `apps/anvil-api/scripts/check-runtime-cjs.cjs` | 43    | `postbuild` guard for `svix>uuid` ESM regression                                                                                                  |
 | `vercel.json`                                  | 10    | Build / ignore / cron config                                                                                                                      |
@@ -771,6 +781,10 @@ one-shot data-cleanup migration once the dual-auth window closes.
 | `README.md`                                    | 109   | Operator-facing endpoint + env var reference                                                                                                      |
 
 ### `anvil-archive/admin-cli-node/`
+
+These files live in the sibling `eddacraft/anvil-archive` repository (moved
+2026-06-19, V060F-019), not in this checkout; line counts are frozen against the
+archived tree (see §11).
 
 | File                             | Lines | Role                                                   |
 | -------------------------------- | ----- | ------------------------------------------------------ |

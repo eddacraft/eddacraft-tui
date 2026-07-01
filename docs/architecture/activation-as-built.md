@@ -1,26 +1,28 @@
 # Activation Orchestrator — As-Built
 
-| Type     | Authority | Owner  | Status | Freshness                                                                                                                                                                                                                |
-| -------- | --------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| As-built | Derived   | LAUNCH | Live   | Last reviewed 2026-06-10 (targeted delta review: DSV-021 daemon routing, UJ-001/-005/-006 threading, ADR-080 gate posture) against main `a1c41e284`; full review 2026-05-07 against `v0.6.0-beta` and `crates/anvil-cli` |
+| Type     | Authority | Owner  | Status | Freshness                                                                                                                                                                                                                                                                                                                   |
+| -------- | --------- | ------ | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | LAUNCH | Live   | Last reviewed 2026-07-02 (targeted delta review: ACTMO-002/-004/-005/-007 activation-spine steps, ACTMO-016 / ADR-094 worktree-registration gating, DSV-021 daemon routing, UJ-001/-005/-006 threading, ADR-080 gate posture) against main `d1fded280`; full review 2026-05-07 against `v0.6.0-beta` and `crates/anvil-cli` |
 
 | Upstream                                                                           | Downstream                                                                                   |
 | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
 | `crates/anvil-cli`, `crates/anvil-kernel`, `crates/anvil-checks`, ADR-001, ADR-092 | anvil start / status / doctor / tutorial CLI surfaces, MCP install step, activation TUI path |
 
-> **Status:** Live (beta) **Last reviewed:** 2026-06-10 (targeted delta review:
-> DSV-021 daemon routing, UJ-001/-005/-006 threading, ADR-080 gate posture)
-> against main `a1c41e284`; full review 2026-05-07 against `v0.6.0-beta` slate
-> (HEAD `8bbe65b9`) **Module:** `crates/anvil-cli/src/activation/` **Module
-> owner (APS):** LAUNCH (`launch-flow-readiness.aps.md`, 18/18 complete) **Used
-> by:** `anvil start`, `anvil status --verify`, `anvil tutorial` (ProtectionLoop
-> default), `anvil doctor` (state-vocabulary alignment)
+> **Status:** Live (beta) **Last reviewed:** 2026-07-02 (targeted delta review:
+> ACTMO-002/-004/-005/-007 activation-spine steps, ACTMO-016 / ADR-094
+> worktree-registration gating, DSV-021 daemon routing, UJ-001/-005/-006
+> threading, ADR-080 gate posture) against main `d1fded280`; full review
+> 2026-05-07 against `v0.6.0-beta` slate (HEAD `8bbe65b9`) **Module:**
+> `crates/anvil-cli/src/activation/` **Module owner (APS):** LAUNCH
+> (`launch-flow-readiness.aps.md`, 18/18 complete) **Used by:** `anvil start`,
+> `anvil status --verify`, `anvil tutorial` (ProtectionLoop default),
+> `anvil doctor` (state-vocabulary alignment)
 
 ## Overview
 
 `anvil start` is the canonical first-minute surface for `v0.6.0-beta`: install →
 `cd repo` → `anvil start`. The command is a thin wrapper over the activation
-orchestrator (`crates/anvil-cli/src/activation/orchestrator/mod.rs:55`); the
+orchestrator (`crates/anvil-cli/src/activation/orchestrator/mod.rs:70`); the
 orchestrator composes only read-safe / idempotent primitives, then renders one
 `ActivationDiagnostic` ending in a single literal `state:` word from a fixed
 six-element vocabulary.
@@ -121,8 +123,8 @@ The mutating path runs when neither `--verify` nor `--json` is set. The
 orchestrator executes seven main ordered steps:
 
 1. **Probe config (and run init if absent).** `verify_with_home` is called first
-   (`orchestrator/mod.rs:74`); if `ConfigStatus::Absent`, the orchestrator
-   invokes `commands::init::run_in` inline (`orchestrator/mod.rs:75-78`).
+   (`orchestrator/mod.rs:169`); if `ConfigStatus::Absent`, the orchestrator
+   invokes `commands::init::run_in` inline (`orchestrator/mod.rs:170-173`).
    `init::run_in` writes `.anvilrc` and runs the LAUNCH-004 post-init first-scan
    transparently (`commands/init.rs:57-93`). Structurally invalid config
    surfaces as `state: error` via `verify` — the orchestrator does not overwrite
@@ -140,19 +142,35 @@ orchestrator executes seven main ordered steps:
    `.anvil/baseline.json` is missing, the orchestrator calls
    `services::sample_analyser::run_baseline_scan` and writes the resulting
    fingerprint set via `baseline::write_baseline`
-   (`orchestrator/mod.rs:91-101`). Failure to write is logged and swallowed —
+   (`orchestrator/mod.rs:270-281`). Failure to write is logged and swallowed —
    the baseline is a future-change-tracking aid, not a blocker. The schema lives
    in `activation/baseline.rs`; idempotency is enforced by the
-   `!baseline::baseline_exists(root)` guard (`orchestrator/mod.rs:91`).
+   `!baseline::baseline_exists(root)` guard (`orchestrator/mod.rs:271`).
 
-4. **Register the worktree with the intercept daemon (ACTMO-002).** After the
-   local config and baseline are present, the orchestrator attempts
-   MCP-independent session registration through
-   `activation/daemon_registration.rs`. The registration uses a stable
-   activation-owned session id derived from the canonical worktree path and the
-   `activation-spine` agent tag, so a live daemon can attest the current
-   worktree without waiting for an MCP tool call. Registration failure is logged
-   and non-fatal; the rendered diagnostic remains the source of truth.
+4. **Register the worktree with the intercept daemon (ACTMO-002, gated by
+   ACTMO-016 / ADR-094).** After the local config and baseline are present, the
+   orchestrator attempts MCP-independent session registration through
+   `registration.rs` (`registration::register_worktree_with_daemon`,
+   `registration.rs:56-90`). The registration uses a stable activation-owned
+   session id derived from the canonical worktree path (canonicalised with
+   `dunce`) and the `activation-spine` agent tag, so a live daemon can attest
+   the current worktree without waiting for an MCP tool call.
+
+   **Registerable-worktree gate (ACTMO-016 / ADR-094 decision 4).** The
+   orchestrator only registers `cwd` when it is a real Git worktree
+   (`orchestrator/mod.rs:283-315`). `registration::registerable_worktree`
+   (`registration.rs:557-581`) classifies the directory via `git rev-parse`
+   (`--is-bare-repository` / `--is-inside-git-dir` / `--show-toplevel`) and
+   rejects bare repositories and the `.git` internal directory; ordinary,
+   linked, and submodule worktrees are accepted and their canonical top level is
+   what gets registered. Outside a registerable worktree — a bare repo, inside
+   `.git`, or not a repo at all — `anvil start` stays honest: it does **not**
+   seed a junk session keyed to e.g. `$HOME`, logs an info line, and leaves the
+   daemon ensured by the caller (exit 0) while `start.rs` surfaces the "no
+   worktree registered" guidance. Registration failure (daemon absent, fenced,
+   cap-exceeded, or rejected) is logged and non-fatal; a same-worktree
+   re-register heartbeats the existing owner (ADR-094 decision 3) rather than
+   erroring, and the rendered diagnostic remains the source of truth.
 
 5. **Install MCP entries for Cursor and Claude Code by default (LAUNCH-009 part
    2 / ACTMO-004).** Unless `anvil start --no-mcp` is passed or `ANVIL_NO_MCP`
@@ -165,14 +183,14 @@ orchestrator executes seven main ordered steps:
    explicit skipped-install line. See
    [MCP install (LAUNCH-009)](#mcp-install-launch-009) below.
 
-6. **Re-probe.** A second `verify_with_home` call (`orchestrator/mod.rs:130`)
+6. **Re-probe.** A second `verify_with_home` call (`orchestrator/mod.rs:346`)
    absorbs the install side-effects and daemon attestation so the rendered
    diagnostic carries the post-install MCP tier and the spine state. If the
    daemon attests the registered worktree but no MCP client can be promoted to
    `LiveValidation`, ACTMO-003 maps the diagnostic to `state: watching` rather
    than looping on `ready_restart_required`. Any aggregated install failure is
    folded into `diagnostic.last_error` so `protection_state()` collapses to
-   `Error` for JSON consumers (`orchestrator/mod.rs:135-137`).
+   `Error` for JSON consumers (`orchestrator/mod.rs:351-353`).
 
 7. **Render.** The CLI renders via
    `activation::render_human_with_install(&diagnostic, &install_report)`
@@ -192,7 +210,7 @@ advance (`commands/start.rs:172-179`).
 
 **First-run marker invariant.** `anvil start` does NOT touch `.anvil/first-run`;
 that marker is owned exclusively by `anvil welcome`
-(`orchestrator/mod.rs:28-30`). The two surfaces never fight for first-run state.
+(`orchestrator/mod.rs:31-33`). The two surfaces never fight for first-run state.
 
 ## Read-only path (`anvil start --verify`)
 
@@ -403,7 +421,7 @@ and the baseline write (`commands/start.rs:113-120`).
 
 The interactive picker (`demand::MultiSelect`,
 `activation/orchestrator/install.rs:500-531`) is gated behind a strict
-TTY-and-not-CI check (`orchestrator/mod.rs:162-168`): stdin and stderr must both
+TTY-and-not-CI check (`orchestrator/mod.rs:629-635`): stdin and stderr must both
 be terminals, `--no-tui` and `--json` must not be set, and
 `is_non_interactive_env` (the `CI=true` / `GIT_DIR` / `ANVIL_NO_PROMPT` gate)
 must be false.
@@ -429,7 +447,7 @@ Fields:
 - `baseline_present: bool` and `baseline_summary: Option<BaselineSummary>`
   (`diagnostic.rs:151-164`) — per-kind counts from `.anvil/baseline.json`.
 - `last_error: Option<String>` — propagates MCP-probe and baseline-load failures
-  plus any aggregated MCP install failure (`orchestrator/mod.rs:135-137`).
+  plus any aggregated MCP install failure (`orchestrator/mod.rs:351-353`).
 - `all_languages_unsupported: bool` and `language_profile: RepoLanguageProfile`
   (`language_profile.rs:158-211`) — drives the `Unsupported` state.
 
@@ -480,12 +498,12 @@ in JSON mode (`render.rs:251-289`).
 
 Re-running `anvil start` is safe.
 
-- `init` is gated by `ConfigStatus::Absent` (`orchestrator/mod.rs:74-78`);
-  `orchestrator_skips_init_when_config_valid` (`orchestrator/mod.rs:213-240`)
+- `init` is gated by `ConfigStatus::Absent` (`orchestrator/mod.rs:169-173`);
+  `orchestrator_skips_init_when_config_valid` (`orchestrator/mod.rs:1120-1146`)
   pins that the `.anvilrc` mtime does not change across re-runs.
 - The activation baseline is written only when absent
-  (`orchestrator/mod.rs:91`); pinned by
-  `orchestrator_baseline_write_is_idempotent` (`orchestrator/mod.rs:358-395`).
+  (`orchestrator/mod.rs:271`); pinned by
+  `orchestrator_baseline_write_is_idempotent` (`orchestrator/mod.rs:1295-1331`).
 - MCP install reports `skipped — already up to date` for `UpToDate` candidates
   (`render.rs:223-225`); pinned by `install_is_idempotent`
   (`activation/orchestrator/install.rs:773-800`).
@@ -603,9 +621,9 @@ item is specifically activation's `WatchTier`, not save-time liveness generally.
 
 `LocalDaemonValidationClient::validate_pre_write` is `#[cfg(unix)]`-gated. On
 Windows the MCP path still works but the `correlation.daemonStatus` field
-returned by `anvil_validate_write` is always `"not-wired"`. Cross-link to
-`docs/architecture/intercept-as-built.md` when written (planned, in flight).
-Currently surfaced in `docs/archive/runbooks/v0.6.0-beta-release-runbook.md`.
+returned by `anvil_validate_write` is always `"not-wired"`. See
+`docs/architecture/intercept-as-built.md` for the daemon-side detail. Also
+surfaced in `docs/archive/runbooks/v0.6.0-beta-release-runbook.md`.
 
 ### G-04: Tutorial `--json` mode constraints (2026-05-07)
 
@@ -678,8 +696,8 @@ consumers needing a side-effecting JSON flow must run `anvil init --json` and
   backs up.
 - `docs/public/anvil/quickstart.md` — beta quickstart (full 10-minute install +
   activate path).
-- `docs/architecture/intercept-as-built.md` — planned, in flight (will carry the
-  daemon-side detail referenced in G-03).
+- `docs/architecture/intercept-as-built.md` — daemon-side intercept detail
+  referenced in G-03.
 - `docs/archive/runbooks/v0.6.0-beta-release-runbook.md` — operator-facing
   caveats.
 - `RELEASE-PLAN.md` — Tier A1 framing.

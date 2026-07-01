@@ -1,15 +1,16 @@
 # anvil-observability — As-Built
 
-| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                          |
-| -------- | --------- | ----- | ------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| As-built | Derived   | TRACE | Live   | Last reviewed 2026-06-10 (targeted delta review: live redaction layer, trace sink, TS mirror, TRACE-004 namespaces) against main `45dd1047a`; full content review 2026-05-07 against `v0.6.0-beta` |
+| Type     | Authority | Owner | Status | Freshness                                                                                                                                                                                                                                                                                   |
+| -------- | --------- | ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| As-built | Derived   | TRACE | Live   | Line-count reconciliation 2026-07-02 against main `d1fded280` (`redaction.rs` 409→638; SENSITIVE_FIELDS/REDACTED/lib.rs/traceparent.rs counts re-verified unchanged); prior targeted delta review 2026-06-10 against main `45dd1047a`; full content review 2026-05-07 against `v0.6.0-beta` |
 
 | Upstream                               | Downstream                                      |
 | -------------------------------------- | ----------------------------------------------- |
 | `crates/anvil-observability/`, ADR-035 | CLI tracing, intercept tracing, MCP correlation |
 
-> **Status:** Live (beta) **Last reviewed:** 2026-06-10 (targeted delta review:
-> live redaction layer, trace sink, TS mirror, TRACE-004 namespaces) against
+> **Status:** Live (beta) **Last reviewed:** line-count reconciliation
+> 2026-07-02 against main `d1fded280`; prior targeted delta review 2026-06-10
+> (live redaction layer, trace sink, TS mirror, TRACE-004 namespaces) against
 > main `45dd1047a`; full content review 2026-05-07 against `v0.6.0-beta` (HEAD
 > `d223b8d9`) **Crate / location:** `crates/anvil-observability` (package
 > `eddacraft-anvil-observability`, lib name `anvil_observability`) **Module
@@ -38,7 +39,7 @@ The cross-cutting observability primitives shared across the Rust workspace: a
 W3C `traceparent` parser/generator, a per-binary `tracing-subscriber` JSON
 initialiser with a local trace-sink selector, and a live field-name redaction
 layer that replaces sensitive span/event values before JSON output. Modest
-surface (three files, ~1,270 lines), load-bearing footprint — every binary
+surface (three files, ~1,500 lines), load-bearing footprint — every binary
 entrypoint calls into it once, the JSON-RPC envelope validates traceparent on
 every request, and the namespace-registry contract documented at
 `docs/observability/namespace-registry.md` cites this crate as the Rust producer
@@ -103,7 +104,7 @@ dependency, no external observability SDK.
 | `crates/anvil-observability/Cargo.toml`         | 21    | Crate manifest. Description: "Cross-cutting tracing baseline: TraceContext, W3C traceparent propagation, subscriber init, redaction, and namespace registry hooks (TRACE-001, ADR-035)"                  |
 | `crates/anvil-observability/src/lib.rs`         | 531   | Module entry, `BinaryKind`, `init_tracing`, trace-sink selection (`ANVIL_TRACE_SINK`), `bind_traceparent_to_current_span` / `bind_traceparent_to_span`, re-exports (`TraceContext`, `TraceContextError`) |
 | `crates/anvil-observability/src/traceparent.rs` | 333   | W3C Trace Context v00 parser + `TraceContext` value type                                                                                                                                                 |
-| `crates/anvil-observability/src/redaction.rs`   | 409   | Live TRACE-003 redaction layer: `SENSITIVE_FIELDS` deny-list, `is_sensitive_field`, `RedactingJsonFields` / `RedactingJsonEventFormatter`, and the `REDACTED` marker constant                            |
+| `crates/anvil-observability/src/redaction.rs`   | 638   | Live TRACE-003 redaction layer: `SENSITIVE_FIELDS` deny-list, `is_sensitive_field`, `RedactingJsonFields` / `RedactingJsonEventFormatter`, and the `REDACTED` marker constant                            |
 
 `#![forbid(unsafe_code)]` is set at the crate root
 (`crates/anvil-observability/src/lib.rs:27`).

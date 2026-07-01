@@ -2,13 +2,13 @@
 
 | Type  | Authority | Owner  | Status | Freshness                                                                                                                            |
 | ----- | --------- | ------ | ------ | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Guide | Derived   | DOCGOV | Live   | Last reviewed 2026-05-23 against `crates/*/Cargo.toml`, `packages/**/package.json`, and `docs/architecture/*-as-built.md` references |
+| Guide | Derived   | DOCGOV | Live   | Last reviewed 2026-07-02 against `crates/*/Cargo.toml`, `packages/**/package.json`, and `docs/architecture/*-as-built.md` references |
 
 | Upstream                                                                                                                    | Downstream                                        |
 | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
 | `docs/architecture/kernel-as-built.md`, `docs/architecture/intercept-as-built.md`, `docs/architecture/mcp-shim-as-built.md` | `docs/guides/architecture-diagrams.md`, README.md |
 
-**Version**: 3.0.0 | **Last Updated**: 23 May 2026 | **Status**: Living Document
+**Version**: 3.0.0 | **Last Updated**: 2 July 2026 | **Status**: Living Document
 
 ---
 
@@ -75,22 +75,25 @@ shared contracts / config / kernel-types
 
 ### Packages
 
-| Package                                 | npm Name                      | Purpose                                                                                                                                          |
-| --------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `packages/anvil/contracts/`             | `@eddacraft/anvil-contracts`  | Zod schemas, types, events. Zero dependencies.                                                                                                   |
-| `packages/anvil/ports/`                 | `@eddacraft/anvil-ports`      | Interface definitions. Depends only on contracts.                                                                                                |
-| `packages/anvil/core/`                  | `@eddacraft/anvil-core`       | Pure domain logic: antipattern, architecture, drift, suppression, validation, explain, provenance.                                               |
-| `packages/anvil/runtime/`               | `@eddacraft/anvil-runtime`    | TypeScript runtime orchestration retained for API/archive surfaces and package consumers.                                                        |
-| `packages/anvil/policy/`                | `@eddacraft/anvil-policy`     | OPA/Rego wrappers and policy evaluation.                                                                                                         |
-| `packages/adapters/`                    | `@eddacraft/anvil-adapters`   | Format converters (SpecKit, BMAD, APS).                                                                                                          |
-| `packages/aps/`                         | `@eddacraft/anvil-aps`        | APS document parser and validator.                                                                                                               |
-| `anvil-archive/anvil-mcp-server/`       | `@eddacraft/anvil-mcp-server` | Legacy Node MCP tools/resources/prompts (archived per ADR-033 in sibling `eddacraft/anvil-archive`; live MCP path is `anvil mcp serve --stdio`). |
-| `anvil-archive/anvil-vscode-extension/` | --                            | Legacy VS Code extension (archived per ADR-033 in sibling `eddacraft/anvil-archive`; returns via DRVR-003).                                      |
-| `packages/eslint-plugin-anvil/`         | `eslint-plugin-anvil`         | Test quality ESLint rules.                                                                                                                       |
-| `packages/edda-stack/`                  | --                            | Kindling, Ember, Edda memory layers (planned).                                                                                                   |
-| `packages/kindling-integration/`        | --                            | Kindling memory contracts and emitters.                                                                                                          |
+| Package                                 | npm Name                      | Purpose                                                                                                                                           |
+| --------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/anvil/contracts/`             | `@eddacraft/anvil-contracts`  | Zod schemas, types, events. Zero dependencies.                                                                                                    |
+| `packages/anvil/ports/`                 | `@eddacraft/anvil-ports`      | Interface definitions. Depends only on contracts.                                                                                                 |
+| `packages/anvil/core/`                  | `@eddacraft/anvil-core`       | Pure domain logic: antipattern, architecture, drift, suppression, validation, explain, provenance.                                                |
+| `packages/anvil/runtime/`               | `@eddacraft/anvil-runtime`    | TypeScript runtime orchestration retained for API/archive surfaces and package consumers.                                                         |
+| `packages/anvil/policy/`                | `@eddacraft/anvil-policy`     | OPA/Rego wrappers and policy evaluation.                                                                                                          |
+| `packages/adapters/`                    | `@eddacraft/anvil-adapters`   | Format converters (SpecKit, BMAD, APS).                                                                                                           |
+| `packages/aps/`                         | `@eddacraft/anvil-aps`        | APS document parser and validator.                                                                                                                |
+| `anvil-archive/anvil-mcp-server/`       | `@eddacraft/anvil-mcp-server` | Legacy Node MCP tools/resources/prompts (archived per ADR-033 in sibling `eddacraft/anvil-archive`; live MCP path is `anvil mcp serve --stdio`).  |
+| `anvil-archive/anvil-vscode-extension/` | --                            | Legacy VS Code extension (archived per ADR-033 in sibling `eddacraft/anvil-archive`; returns via DRVR-003).                                       |
+| `packages/eslint-plugin-anvil/`         | `eslint-plugin-anvil`         | Test quality ESLint rules.                                                                                                                        |
+| `packages/edda-stack/`                  | `@eddacraft/anvil-edda-stack` | Kindling, Ember, Edda memory layers — partial TS implementation (Edda + Ember present, Kindling via `kindling-integration`); retiring TS surface. |
+| `packages/kindling-integration/`        | --                            | Kindling memory contracts and emitters.                                                                                                           |
 
 ### Crates
+
+Selected crates below — the Cargo workspace has ~35 members; the authoritative
+list is the `members` array in the root `Cargo.toml`.
 
 | Crate                         | Purpose                                                                                 |
 | ----------------------------- | --------------------------------------------------------------------------------------- |
@@ -99,8 +102,19 @@ shared contracts / config / kernel-types
 | `crates/anvil-kernel-types/`  | Shared Rust wire types for events, diagnostics, graph nodes, feature flags, hooks.      |
 | `crates/anvil-tui/`           | Ratatui surfaces for watch, gate, tutorial, welcome, doctor, audit, init, and wizard.   |
 | `crates/anvil-checks/`        | Check registry for secrets, anti-patterns, command safety, and related diagnostics.     |
+| `crates/anvil-checks-ast/`    | AST-backed check implementations over tree-sitter parses.                               |
+| `crates/anvil-policy/`        | Rust policy evaluation surface (`anvil policy` commands, eval, regression).             |
+| `crates/anvil-policy-engine/` | Core policy engine primitives backing `anvil-policy`.                                   |
+| `crates/anvil-architecture/`  | Architecture boundary and drift enforcement.                                            |
+| `crates/anvil-capsule/`       | Capsule packaging for portable check/policy bundles.                                    |
+| `crates/anvil-sarif/`         | SARIF output formatting for findings.                                                   |
+| `crates/anvil-run/`           | Run/context orchestration primitives.                                                   |
+| `crates/anvil-graph-cache/`   | Persistent graph cache for the semantic graph.                                          |
+| `crates/anvil-gctx-types/`    | Graph-context (GCTX) wire types, graph-free.                                            |
+| `crates/anvil-gctx-egress/`   | Daemon-side GCTX egress/projection surface.                                             |
+| `crates/anvil-attribution/`   | Code provenance and attribution tracking.                                               |
 | `crates/anvil-intercept/`     | Local pre-write validation daemon, session registry, IPC, enforcement, and fences.      |
-| `crates/anvil-intercept-*`    | Protocol, rule, and Windows named-pipe support for the intercept daemon.                |
+| `crates/anvil-intercept-*`    | Protocol, rule, macOS, and Windows named-pipe support for the intercept daemon.         |
 | `crates/anvil-config/`        | Shared configuration loading and enforcement-mode inputs.                               |
 | `crates/anvil-rules/`         | Rule distribution and evaluation support.                                               |
 | `crates/anvil-baseline/`      | Baseline persistence for known findings and drift.                                      |
@@ -108,6 +122,7 @@ shared contracts / config / kernel-types
 | `crates/anvil-l4/`            | L4 policy and protection claims.                                                        |
 | `crates/anvil-observability/` | Local tracing and correlation primitives.                                               |
 | `crates/anvil-witness/`       | Witness-chain support for protection evidence.                                          |
+| `crates/eddacraft-tui/`       | Shared Ratatui component library (workspace path crate, ADR-047).                       |
 
 ### Apps
 
@@ -133,7 +148,7 @@ graph TD
     config["anvil-config<br/><small>Rust config + modes</small>"]
     core["anvil-core<br/><small>TS domain utilities</small>"]
     tsruntime["anvil-runtime<br/><small>TS orchestration for API/archive consumers</small>"]
-    policy["anvil-policy<br/><small>OPA/Rego wrappers</small>"]
+    policy["anvil-policy (+ policy-engine)<br/><small>Rust policy eval; legacy TS OPA/Rego wrappers</small>"]
     kernel["anvil-kernel<br/><small>watch / parse / graph / embedded scan</small>"]
     checks["anvil-checks<br/><small>secret / anti-pattern / command safety</small>"]
     intercept["anvil-intercept<br/><small>pre-write daemon + fence store</small>"]
