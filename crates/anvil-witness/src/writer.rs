@@ -593,9 +593,18 @@ impl WitnessWriter {
         self.witness_root().join(CHAIN_MARKER_FILE)
     }
 
-    /// Whether the durable chain-init marker exists (CIB-126).
+    /// Whether the durable chain-init marker is present (CIB-126). Self-safe: uses
+    /// `symlink_metadata` (does NOT follow the link), so a **dangling** symlink
+    /// squatted at the path counts as present — never misread as "absent", which
+    /// would let the erased-chain path reseed. Only a definitive `NotFound` means
+    /// truly absent; any other IO error is treated conservatively as present, so
+    /// uncertainty never triggers a silent reseed. (`acquire_lock` also refuses a
+    /// symlinked marker up-front; this stays correct independently of that.)
     fn chain_marker_exists(&self) -> bool {
-        self.chain_marker_path().exists()
+        !matches!(
+            fs::symlink_metadata(self.chain_marker_path()),
+            Err(e) if e.kind() == io::ErrorKind::NotFound
+        )
     }
 
     /// Idempotently write the chain-init marker under the held flock (CIB-126).
@@ -603,10 +612,13 @@ impl WitnessWriter {
     /// the next `append_chained` for any chain created before this marker existed.
     /// The one-time `sync_all` makes the marker durable across a crash — the point
     /// of the marker is to survive the same event that truncates the active file.
-    /// The marker path is guarded against symlinks up-front by `acquire_lock`, which
-    /// runs before this on every append, so a symlinked path never reaches here.
     fn ensure_chain_marker(&self) -> Result<(), WriterError> {
         let path = self.chain_marker_path();
+        // Self-safe: refuse a squatted symlink (dangling included — `refuse_if_symlink`
+        // uses `symlink_metadata`) at the marker path, even though `acquire_lock`
+        // already guards it upstream. After this passes, `path` is not a symlink, so
+        // the `exists()` short-circuit below is reliable.
+        refuse_if_symlink(&path)?;
         if path.exists() {
             return Ok(());
         }
