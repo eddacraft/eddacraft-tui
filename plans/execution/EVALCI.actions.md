@@ -1,4 +1,4 @@
-# Actions: EVALCI
+# Steps: EVALCI
 
 | Field  | Value                                                                          |
 | ------ | ------------------------------------------------------------------------------ |
@@ -9,7 +9,7 @@
 ## Prerequisites
 
 - [ ] Module authorised (status flipped from Proposed to Ready)
-- [ ] eval-harness-integration available (EVAL Merged via PR #3013)
+- [ ] eval-harness-integration available (EVAL Done; items Merged via PR #3013)
 - [ ] rust-tests.yml Test job has pinned OPA + Regal + rust-ci cache
 
 ## Steps
