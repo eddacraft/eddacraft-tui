@@ -242,7 +242,7 @@ jobs:
 
       - name: Cache cargo-llvm-cov
         id: cache-llvm-cov
-        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v4
         with:
           path: ~/.cargo/bin/cargo-llvm-cov
           key: cargo-llvm-cov-${{ runner.os }}-${{ env.CARGO_LLVM_COV_VERSION }}
