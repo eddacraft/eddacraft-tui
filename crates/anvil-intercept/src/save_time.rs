@@ -1441,6 +1441,20 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
                     error: None,
                 }
             }
+            // CIB-124: the bounded lock acquire gave up — a concurrent writer held
+            // the `.lock` past the timeout. Distinct log (mirroring the hook) so an
+            // operator can tell contention from a genuine write failure; still an
+            // in-band WriteFailed (the client falls back to its embedded writer).
+            Err(err @ anvil_witness::WriterError::LockTimeout(_)) => {
+                tracing::warn!(
+                    target: "anvil_intercept::witness",
+                    workspace = %canonical.display(),
+                    scope = %entry.scope,
+                    error = %err,
+                    "witness lock acquire timed out; a concurrent writer is wedged",
+                );
+                witness_write_failed("witness write failed".to_string())
+            }
             Err(err) => {
                 tracing::warn!(
                     target: "anvil_intercept::witness",

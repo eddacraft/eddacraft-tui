@@ -3355,18 +3355,32 @@ archive.
 
 ### CIB-124: Witness `acquire_lock` timeout + `Drop`-guard
 
-- **Status:** In Progress — implemented 2026-07-01. `WitnessWriter::acquire_lock`
-  now polls `try_lock_exclusive` with capped backoff (5ms→100ms) up to a 10s
-  `LOCK_ACQUIRE_TIMEOUT`, returning the new `WriterError::LockTimeout(Duration)`
-  instead of blocking indefinitely; the held lock is a `LockGuard` RAII wrapper
-  that releases on `Drop` (including on panic). `acquire_lock_with_timeout(dur)`
-  is split out so the timeout path is testable without a 10s wait. Both the
-  embedded hook and the daemon (`save_time.rs::witness_append`) route through
-  `append_chained` → `acquire_lock`, so both are now bounded; the hook maps
-  `LockTimeout` → `WriteFailed` with a distinct log. Note: MLP2-005 phase 3
-  landed first (the ordering the phase-1 council flagged was inverted), so this
-  bounds the lock **before beta** rather than before the hook-fallback wiring —
-  the net protection is the same.
+- **Status:** In Progress — implemented 2026-07-01 (full 5-reviewer council;
+  blockers fixed in-PR). `WitnessWriter::acquire_lock` polls `try_lock_exclusive`
+  with capped backoff (5ms→100ms) up to a `LOCK_ACQUIRE_TIMEOUT` (**5s** per
+  acquire), returning the new `WriterError::LockTimeout(Duration)` instead of
+  blocking indefinitely; the held lock is a `LockGuard` RAII wrapper that releases
+  on `Drop` (including on panic). `acquire_lock_with_timeout(dur)` is split out so
+  the timeout path is testable without a multi-second wait. Contention is detected
+  via `fs2::lock_contended_error()` (raw-OS-error compare), not the Rust-version-
+  dependent `WouldBlock` `ErrorKind` — so the retry loop works on Windows on older
+  toolchains too. Both the embedded hook and the daemon
+  (`save_time.rs::witness_append`) route through `append_chained` → `acquire_lock`,
+  so both are bounded, each with a distinct `LockTimeout` log (the hook mapping is
+  the pure, unit-tested `classify_append_error`; `LockTimeout` → `WriteFailed`).
+  Note: MLP2-005 phase 3 landed first (the ordering the phase-1 council flagged was
+  inverted), so this bounds the lock **before beta** rather than before the
+  hook-fallback wiring — the net protection is the same.
+- **Council follow-ons (2026-07-01, tracked as GA hardening, not blocking this
+  PR):** (a) **`ANVIL_WITNESS_LOCK_TIMEOUT` env override** — the timeout is a const
+  today; operators on unusual filesystems / very high parallel-worktree volume
+  cannot tune it without a rebuild (operations). (b) **Non-blocking daemon leg** —
+  the daemon's `acquire_lock` still `thread::sleep`s on a tokio worker thread up to
+  the timeout, and on a wedged lock the commit path compounds (~2s daemon RPC + the
+  embedded 5s ≈ 7s); a short daemon-side lock timeout (defer to embedded on
+  contention) would cut both (adversarial F1). (c) **Runbook entry** for "witness
+  lock wedged" — how to find the holder (`lsof`/`fuser anvil/witness/.lock`),
+  whether killing it is safe, where the tracing log lives (operations).
 - **Intent:** Stop a stalled witness writer from wedging concurrent committers,
   and make the flock release explicit on panic.
 - **Expected Outcome:** `WitnessWriter::acquire_lock`

@@ -8,16 +8,30 @@ use sha2::{Digest, Sha256};
 
 use crate::line::{LineHash, WitnessLine, compute_line_hash};
 
-/// Bounded wait for the witness `.lock` flock (CIB-124). A normal append holds
-/// the lock for milliseconds; this ceiling exists so a stalled holder (a hung
-/// writer, an NFS lock-server pause, a wedged daemon mid-append) cannot block a
-/// concurrent `git commit` forever — the acquire times out to
+/// Per-acquire ceiling for the witness `.lock` flock (CIB-124). A normal append
+/// holds the lock for milliseconds; this bound exists so a stalled holder (a hung
+/// writer, or a wedged daemon holding the lock mid-append) cannot block a
+/// concurrent `git commit` *forever* — the acquire times out to
 /// [`WriterError::LockTimeout`] instead. It is generous enough that legitimate
-/// contention between concurrent worktree hooks never trips it.
-const LOCK_ACQUIRE_TIMEOUT: Duration = Duration::from_secs(10);
+/// contention between concurrent worktree hooks never trips it (each hold is
+/// sub-millisecond, so this only fires against a genuine wedge).
+///
+/// This is the ceiling for **one** acquire. On the `git commit` hot path under
+/// MLP2-005 phase 3 the effective wait can compound: the hook's daemon RPC has
+/// its own ~2s socket timeout, and on a wedged lock the hook then falls back to
+/// the embedded writer, which waits this bound against the *same* lock — so the
+/// worst-case commit hang is roughly `2s + LOCK_ACQUIRE_TIMEOUT`. (Note: `flock`
+/// is resolved locally by the kernel even on NFS mounts — it does not route
+/// through the NFS lock server — so a network pause manifests as a hung syscall,
+/// not repeated `WouldBlock` retries; the wedge case this bounds is a live local
+/// holder.) A future GA hardening makes this overridable via
+/// `ANVIL_WITNESS_LOCK_TIMEOUT` and the daemon leg non-blocking (tracked on
+/// CIB-124).
+const LOCK_ACQUIRE_TIMEOUT: Duration = Duration::from_secs(5);
 /// Initial poll interval for the bounded lock acquire; doubles up to
 /// [`LOCK_RETRY_BACKOFF_MAX`] so contention resolves fast without a busy-spin.
 const LOCK_RETRY_BACKOFF_START: Duration = Duration::from_millis(5);
+/// Cap for the exponential backoff poll interval; see [`LOCK_RETRY_BACKOFF_START`].
 const LOCK_RETRY_BACKOFF_MAX: Duration = Duration::from_millis(100);
 
 #[derive(Debug, thiserror::Error)]
@@ -61,6 +75,15 @@ impl Drop for LockGuard {
         // is harmless — the lock is released either way.
         let _ = FileExt::unlock(&self.file);
     }
+}
+
+/// Whether `err` is the "lock is contended" error a `try_lock_*` returns while
+/// another writer holds the flock. Compares the raw OS error against `fs2`'s own
+/// contention error — the portable, Rust-version-agnostic signal fs2 exposes for
+/// exactly this — rather than the `io::ErrorKind::WouldBlock` mapping, which is
+/// only wired for Windows `ERROR_LOCK_VIOLATION` on newer toolchains (CIB-124).
+fn is_lock_contended(err: &io::Error) -> bool {
+    err.raw_os_error() == fs2::lock_contended_error().raw_os_error()
 }
 
 /// Threshold policy for active-file rollover.
@@ -349,12 +372,22 @@ impl WitnessWriter {
             match lock_file.try_lock_exclusive() {
                 Ok(()) => return Ok(LockGuard { file: lock_file }),
                 // Contended — another writer holds it. Wait (bounded) and retry.
-                Err(err) if err.kind() == io::ErrorKind::WouldBlock => {
+                // Compare the raw OS error against `fs2`'s own contention error
+                // rather than `err.kind()`: on Windows the `ERROR_LOCK_VIOLATION`
+                // → `WouldBlock` `ErrorKind` mapping only exists on newer Rust, so
+                // a `kind()` check would silently fall through to a hard `Io` error
+                // (making the retry loop dead) on an older toolchain.
+                Err(err) if is_lock_contended(&err) => {
                     let now = Instant::now();
                     if now >= deadline {
                         return Err(WriterError::LockTimeout(timeout));
                     }
-                    // Never oversleep the deadline.
+                    // Bound the sleep by the remaining budget. This does not make
+                    // the *acquire* exact — after the sleep the loop makes one more
+                    // `try_lock_exclusive` attempt (which may land just past the
+                    // deadline) before the next iteration returns `LockTimeout`;
+                    // that extra attempt is harmless and grabs the lock if it just
+                    // freed.
                     std::thread::sleep(backoff.min(deadline - now));
                     backoff = (backoff * 2).min(LOCK_RETRY_BACKOFF_MAX);
                 }
@@ -893,8 +926,10 @@ mod tests {
             .append_chained(genesis_seed, |seq, prev| fresh_line(seq, &prev))
             .unwrap();
 
-        // A panic inside `build` must unwind through the `LockGuard`'s `Drop`,
-        // releasing the flock — not leave it wedged for the next writer.
+        // A panic inside `build` must not leave the flock wedged. This asserts the
+        // invariant (lock released on panic-unwind) — held by the `LockGuard`'s
+        // `Drop` and, redundantly, by the fd closing as the guard's `File` drops;
+        // the test cannot distinguish the two, and does not need to.
         let panicked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             writer.append_chained(genesis_seed, |_seq, _prev| panic!("boom in build"))
         }));

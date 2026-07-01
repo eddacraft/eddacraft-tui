@@ -1604,42 +1604,60 @@ where
             },
             build,
         )
-        .map_err(|err| match err {
-            WriterError::ChainBroken => {
-                // ADR-038 tamper-detection fired. Emit a structured record so the
-                // event is not merely a line in the developer's terminal scroll —
-                // the richer `degraded:*` witness telemetry is a later MLP2-005
-                // phase; this is the minimum interim instrumentation.
-                tracing::warn!(
-                    target: "anvil::witness",
-                    project_uuid = %project_uuid,
-                    "witness chain integrity check failed; refusing to append (ADR-038)",
-                );
-                AppendError::ChainBroken
+        .map_err(|err| {
+            // Distinct operator log per failure class (the `witness_root` field lets
+            // a machine running many parallel worktree hooks correlate the line to a
+            // specific chain). The AppendError mapping itself is the pure
+            // `classify_append_error` below.
+            match &err {
+                WriterError::ChainBroken => {
+                    // ADR-038 tamper-detection fired.
+                    tracing::warn!(
+                        target: "anvil::witness",
+                        project_uuid = %project_uuid,
+                        witness_root = %repo_root.display(),
+                        "witness chain integrity check failed; refusing to append (ADR-038)",
+                    );
+                }
+                // CIB-124: the bounded lock acquire gave up — a concurrent writer
+                // held the `.lock` past the timeout (a wedged holder, not a bug in
+                // this write). Distinct log so an operator can tell contention from
+                // a genuine write failure.
+                WriterError::LockTimeout(_) => {
+                    tracing::warn!(
+                        target: "anvil::witness",
+                        error = %err,
+                        project_uuid = %project_uuid,
+                        witness_root = %repo_root.display(),
+                        "witness lock acquire timed out; a concurrent writer is wedged",
+                    );
+                }
+                // Corruption (incl. a genesis that failed to re-verify), IO, scope,
+                // or symlink refusal — "we couldn't witness this write" (ADR-038).
+                other => {
+                    tracing::warn!(
+                        target: "anvil::witness",
+                        error = %other,
+                        project_uuid = %project_uuid,
+                        witness_root = %repo_root.display(),
+                        "witness append failed",
+                    );
+                }
             }
-            // CIB-124: the bounded lock acquire gave up — a concurrent writer held
-            // the `.lock` past the timeout (a wedged holder rather than a bug in
-            // this write). Distinct log so an operator can tell contention from a
-            // genuine write failure; still maps to `WriteFailed`.
-            timeout @ WriterError::LockTimeout(_) => {
-                tracing::warn!(
-                    target: "anvil::witness",
-                    error = %timeout,
-                    "witness lock acquire timed out; a concurrent writer is wedged",
-                );
-                AppendError::WriteFailed
-            }
-            // Corruption (incl. a genesis that failed to re-verify), IO, scope, or
-            // symlink refusal — "we couldn't witness this write" (ADR-038).
-            other => {
-                tracing::warn!(
-                    target: "anvil::witness",
-                    error = %other,
-                    "witness append failed",
-                );
-                AppendError::WriteFailed
-            }
+            classify_append_error(&err)
         })
+}
+
+/// Map a witness [`WriterError`] onto the hook's [`AppendError`]. Only
+/// `ChainBroken` (ADR-038 tamper) is distinct; every other failure — a CIB-124
+/// `LockTimeout`, IO, corruption, scope, or symlink refusal — is a `WriteFailed`
+/// ("we couldn't witness this write"). Pure, so the mapping (in particular
+/// `LockTimeout` → `WriteFailed`) is unit-testable without provoking the error.
+fn classify_append_error(err: &WriterError) -> AppendError {
+    match err {
+        WriterError::ChainBroken => AppendError::ChainBroken,
+        _ => AppendError::WriteFailed,
+    }
 }
 
 // MLP2-005: `chain_head` + `ChainState` were removed — the chain-head read now
@@ -2076,6 +2094,25 @@ mod tests {
             !root.join("anvil").join("witness").exists(),
             "a gated append must not create the witness tree",
         );
+    }
+
+    #[test]
+    fn classify_append_error_maps_lock_timeout_and_others_to_write_failed() {
+        // CIB-124: a bounded-lock timeout is a write failure, not a tamper event.
+        assert!(matches!(
+            classify_append_error(&WriterError::LockTimeout(std::time::Duration::from_secs(5))),
+            AppendError::WriteFailed,
+        ));
+        // Only ChainBroken stays distinct (ADR-038).
+        assert!(matches!(
+            classify_append_error(&WriterError::ChainBroken),
+            AppendError::ChainBroken,
+        ));
+        // A generic IO error is also WriteFailed.
+        assert!(matches!(
+            classify_append_error(&WriterError::Io(std::io::Error::other("disk full"))),
+            AppendError::WriteFailed,
+        ));
     }
 
     #[test]
