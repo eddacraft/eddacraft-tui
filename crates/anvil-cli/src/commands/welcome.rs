@@ -1394,11 +1394,29 @@ fn welcome_next_step(prompts_sign_in: bool) -> &'static str {
 /// reader right now.
 ///
 /// Local-only — never makes a network call, because `anvil welcome` is the
-/// deliberately ungated demo surface (ADR-080). The predicate mirrors the
-/// pre-dispatch gate in `main::check_auth`: the wall applies only when the
-/// licence gate is *enforcing* (not dev-bypassed / disabled) AND no valid local
-/// credential is present. A resolution/read error is treated as "would prompt"
-/// so the free surface never over-promises activation it cannot deliver.
+/// deliberately ungated demo surface (ADR-080): its whole value is instant
+/// local findings with zero auth interaction, and a live auth exchange is the
+/// exact friction (`Refresh token is invalid or revoked`) that ADR-080 pulled
+/// out of the first interaction. This predicate only picks honest next-step
+/// *copy*, so it must not itself perform the auth round-trip welcome defers.
+///
+/// It therefore *approximates* the pre-dispatch gate in `main::check_auth`
+/// within that no-network constraint: the wall applies only when the licence
+/// gate is *enforcing* (not dev-bypassed / disabled) AND no valid local
+/// credential is present.
+///
+/// One deliberate divergence: `check_auth` can *silently refresh* an expired
+/// credential that still carries a refresh token (a network exchange), so such
+/// a reader is not actually prompted. Welcome cannot replicate that refresh
+/// without the forbidden network call, and the refresh can still fail
+/// permanently — so it conservatively treats *any* expired credential (and any
+/// resolution/read error) as "would prompt". That errs toward the sign-in
+/// bridge rather than over-promising activation it cannot verify it can
+/// deliver; a signed-in-but-refreshable reader may see a bridge they did not
+/// strictly need, which is the safe direction (the bridge still names
+/// `anvil start` and the free `--verify` probe). Revisit this heuristic when
+/// `cli.licence-gate` / `CLI_GATED_COMMANDS` are reworked for the free/paid
+/// tier split — the gated set it reads is expected to change there.
 fn start_prompts_sign_in() -> bool {
     let gate = crate::feature_flags::resolve_cli_licence_gate();
     if !matches!(
@@ -1410,9 +1428,11 @@ fn start_prompts_sign_in() -> bool {
         return false;
     }
     match crate::auth::credentials::load() {
-        // A present, unexpired credential clears the wall; an expired one still
-        // prompts (main::check_auth reports "Session expired. Run `anvil auth
-        // login`").
+        // A present, unexpired credential clears the wall. An expired one is
+        // conservatively treated as "would prompt" even with a refresh token:
+        // `check_auth` would attempt a silent network refresh we cannot perform
+        // here, and that refresh can fail permanently — so we err toward the
+        // sign-in bridge rather than assuming a refresh that may not land.
         Ok(Some(creds)) => crate::auth::credentials::is_expired(&creds),
         // No credential on disk, or the store could not be read.
         _ => true,
