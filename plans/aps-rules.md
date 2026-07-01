@@ -48,6 +48,14 @@ column in the metadata table:
 Full guidance and a worked example: `docs/conductor-modules.md`. Template:
 `templates/conductor.template.md`.
 
+### Cross-Cutting Modules
+
+"Cross-cutting" and **conductor** are the same primitive (ADR-034): a conductor
+module _is_ the cross-cutting module. This subsection preserves the stable
+`#cross-cutting-modules` anchor that other plans and runbooks link to as a
+forwarding target — see **Module Types: Vertical and Conductor** above for the
+definition.
+
 ## Actions: The Lean Rule
 
 Actions translate work item intent into **observable checkpoints**. They are NOT implementation guides.
