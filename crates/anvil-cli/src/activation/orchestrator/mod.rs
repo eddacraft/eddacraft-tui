@@ -208,7 +208,7 @@ fn run_with_home_and_registration(
     // (council C-7 / Pragmatic Finding 6 / spec §5.1).
     //
     // MLP-002 (witness chain) hard-depends on `merge=union -text` for
-    // `anvil/witnessed.ndjson` and the manifest. Adding the attribute
+    // `anvil/witness/active.ndjson` and the manifest. Adding the attribute
     // line at adoption time means MLP-002 can ship without forcing a
     // separate `.gitattributes` migration. Idempotent — only appends
     // if the line is missing. Failures non-propagating, same pattern
@@ -358,7 +358,7 @@ fn run_with_home_and_registration(
 /// Pre-position `.gitattributes` lines for the v1 witness chain
 /// (council C-7 / spec §5.1).
 ///
-/// Adds `merge=union -text` for `anvil/witnessed.ndjson` and the
+/// Adds `merge=union -text` for `anvil/witness/active.ndjson` and the
 /// manifest if not already present. Idempotent — searches for the
 /// exact line before appending so re-running `anvil start` doesn't
 /// duplicate. Creates `.gitattributes` if it doesn't exist.
