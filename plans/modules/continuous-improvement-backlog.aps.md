@@ -3436,6 +3436,14 @@ archive.
   exists — an erased chain — while a marker-less zero-byte active stays `Empty`
   (fresh repo). The manifest was not usable as the marker: it is only written at
   rollover, so a young un-rolled chain has none.
+- **Intent:** Detect a truncated-to-zero `active.ndjson` with no archives, which is
+  currently indistinguishable from a fresh repo and silently reseeds genesis over
+  erased history.
+- **Expected Outcome:** a durable "chain initialised" marker (a witness-root
+  sentinel written at genesis) so `WitnessWriter::read_chain_head` returns
+  `ChainBroken` for a zero-byte active when the chain is known to have existed,
+  closing the residual the phase-1 non-empty-unparseable hardening does not cover,
+  without regressing the legitimate fresh-repo path.
 - **Design note (ADR-038 alignment):** the marker's PRESENCE is the only
   load-bearing bit (body is a versioned sentinel). It lives on a separate inode
   from `active.ndjson`, so it survives the accidental event — a crash mid-write, a
