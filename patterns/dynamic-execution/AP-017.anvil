@@ -15,8 +15,12 @@ allowlist:
   [
     '**/*.test.ts',
     '**/*.test.tsx',
+    '**/*.test.js',
+    '**/*.test.jsx',
     '**/*.spec.ts',
     '**/*.spec.tsx',
+    '**/*.spec.js',
+    '**/*.spec.jsx',
     '**/__tests__/**',
     '**/test_*.py',
     '**/*_test.py',

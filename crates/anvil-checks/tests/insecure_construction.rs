@@ -349,6 +349,23 @@ fn wc002_covers_decipher_construction() {
 }
 
 #[test]
+fn wc_and_ap_allowlist_js_and_jsx_test_files() {
+    // Copilot review: WC-*/AP-017 scan .js/.jsx but the allowlist originally
+    // only covered .ts/.tsx/.py test globs, so a weak primitive in a JS test
+    // fixture leaked through. JS/JSX test files must be allowlisted too.
+    assert!(!fires(
+        "src/crypto.test.js",
+        "const h = createHash('md5').update(x).digest('hex');\n",
+        "WC-001"
+    ));
+    assert!(!fires(
+        "src/render.spec.jsx",
+        "return render_template_string(tpl);\n",
+        "AP-017"
+    ));
+}
+
+#[test]
 fn wc001_covers_hashlib_new_and_web_crypto() {
     // Adversarial MINOR: Python's generic `hashlib.new('md5')` dispatcher and
     // Web Crypto's `subtle.digest('SHA-1', …)` are common real forms.

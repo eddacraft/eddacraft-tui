@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "compiled_at": "2026-07-01T12:00:59.172Z",
+  "compiled_at": "2026-07-01T12:28:42.111Z",
   "source_root": "patterns",
   "patterns": [
     {
@@ -341,8 +341,12 @@
       "allowlist": [
         "**/*.test.ts",
         "**/*.test.tsx",
+        "**/*.test.js",
+        "**/*.test.jsx",
         "**/*.spec.ts",
         "**/*.spec.tsx",
+        "**/*.spec.js",
+        "**/*.spec.jsx",
         "**/__tests__/**",
         "**/test_*.py",
         "**/*_test.py",
@@ -1241,8 +1245,12 @@
       "allowlist": [
         "**/*.test.ts",
         "**/*.test.tsx",
+        "**/*.test.js",
+        "**/*.test.jsx",
         "**/*.spec.ts",
         "**/*.spec.tsx",
+        "**/*.spec.js",
+        "**/*.spec.jsx",
         "**/__tests__/**",
         "**/test_*.py",
         "**/*_test.py",
@@ -1279,8 +1287,12 @@
       "allowlist": [
         "**/*.test.ts",
         "**/*.test.tsx",
+        "**/*.test.js",
+        "**/*.test.jsx",
         "**/*.spec.ts",
         "**/*.spec.tsx",
+        "**/*.spec.js",
+        "**/*.spec.jsx",
         "**/__tests__/**",
         "**/test_*.py",
         "**/*_test.py",
@@ -1317,8 +1329,12 @@
       "allowlist": [
         "**/*.test.ts",
         "**/*.test.tsx",
+        "**/*.test.js",
+        "**/*.test.jsx",
         "**/*.spec.ts",
         "**/*.spec.tsx",
+        "**/*.spec.js",
+        "**/*.spec.jsx",
         "**/__tests__/**",
         "**/test_*.py",
         "**/*_test.py",

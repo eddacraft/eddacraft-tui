@@ -169,9 +169,13 @@ The measured application-corpus rates support a **bar of `N` = 10% per family**:
   non-toy corpus. WC-002/WC-003 produced zero application-corpus FPs.
 
 **This numeric bar (`N`) is a product decision and is flagged for operator
-confirmation** — the code ships regardless (warnings, exit 0, new-edges-only
-baseline), so the bar governs only whether a future MD5-opt-in downgrade is
-warranted.
+confirmation.** The `weak-cryptography` and `unsafe-rendering` families ship at
+`warning` severity (exit 0 by default, new-edges-only baseline), so for those the
+bar governs only whether a future MD5-opt-in downgrade is warranted. Note the one
+exception: **AP-017 (SSTI) is `severity: error`**, inheriting the eval-class
+`dynamic-execution` family's posture (AP-008/AP-009), so a *new* SSTI match will
+fail `anvil check` at the default `error` threshold — deliberate for an
+RCE-class smell, and it recorded **zero** app-corpus findings above.
 
 ## Open questions resolved by this work
 
