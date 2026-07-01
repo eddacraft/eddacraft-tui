@@ -196,7 +196,8 @@ There is no back-merge step. `main` is the single integration target.
 - Create or reuse an APS work item for the hotfix in the appropriate module
   (security fixes typically belong in the owning surface module). The item
   carries `changeType: fix`, `releaseIntent: candidate`, and any release-note
-  metadata per [`aps-rules.md`](../../plans/aps-rules.md).
+  metadata per
+  [`project-context.md`](../../plans/project-context.md#release-metadata-extensions).
 - Mark the item `In Progress` before opening the hotfix PR; mark it `Merged` on
   PR merge; mark it `Released/Shipped` only when the hotfix release record is
   `published` and reconciliation per the

@@ -41,7 +41,7 @@ sweeps flow back into `aps-rules.md` (in particular, the still-provisional
 `Blocks on:` clause hardens once exercised through a real close).
 
 > **Anti-drift hook (per ADR-034):** changes to the
-> `## Cross-Cutting Modules` section of `aps-rules.md` update this module's
+> `## Module Types: Vertical and Conductor` section of `aps-rules.md` update this module's
 > header reference and `launch-flow-readiness.aps.md`'s header reference in
 > the same PR.
 

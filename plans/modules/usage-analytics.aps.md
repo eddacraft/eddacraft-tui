@@ -36,7 +36,7 @@ cited by anchor link wherever a callout is used in a task body.
 [rules]: ../aps-rules.md#module-types-vertical-and-conductor
 
 > **Anti-drift hook (per ADR-034):** changes to the
-> `## Cross-Cutting Modules` section of `aps-rules.md` update this
+> `## Module Types: Vertical and Conductor` section of `aps-rules.md` update this
 > module's header reference, `launch-flow-readiness.aps.md`, and
 > `tracing-foundation.aps.md` in the same PR.
 
