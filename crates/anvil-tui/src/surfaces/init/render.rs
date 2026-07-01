@@ -153,16 +153,16 @@ fn directory_input_line<'a>(state: &'a InitState, theme: &EddaCraftTheme) -> Lin
     let value = &state.text_input.value;
     let cursor = state.text_input.cursor().min(value.len());
     let (before, rest) = value.split_at(cursor);
-    let mut rest_chars = rest.chars();
-    // The character under the cursor is reversed; at end-of-input the cursor is
-    // a reversed space so it stays visible.
-    let (under_cursor, after) = match rest_chars.next() {
-        Some(c) => (c.to_string(), rest_chars.as_str().to_string()),
-        None => (" ".to_string(), String::new()),
+    // Borrow the character under the cursor (reversed) and the rest as slices of
+    // `value` — no per-frame allocation. At end-of-input the cursor is a
+    // reversed space so it stays visible.
+    let (under_cursor, after): (&str, &str) = match rest.chars().next() {
+        Some(c) => rest.split_at(c.len_utf8()),
+        None => (" ", ""),
     };
     Line::from(vec![
         Span::styled(">> ", accent),
-        Span::styled(before.to_string(), accent),
+        Span::styled(before, accent),
         Span::styled(under_cursor, accent.add_modifier(Modifier::REVERSED)),
         Span::styled(after, accent),
     ])
