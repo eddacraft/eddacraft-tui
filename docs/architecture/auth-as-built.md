@@ -271,6 +271,7 @@ access_tokens   (id uuid PK, user_id FK, token_hash UNIQUE, scopes text[], expir
 audit_log       (id uuid PK, action, actor, auth_method, metadata jsonb, created_at)
 waitlist        (id serial PK, email citext UNIQUE, source, created_at, updated_at)
 device_codes    (id uuid PK, user_id FK, user_code UNIQUE, poll_token UNIQUE, confirmed_at, expires_at, last_polled_at, created_at)
+github_device_sessions (id uuid PK, poll_token_hash UNIQUE, github_device_code_enc, interval_s, expires_at, last_polled_at, minted_at, minted_session_enc, created_at)
 otp_codes       (id uuid PK, user_id FK, code_hash, attempts, expires_at, consumed_at, created_at)
 refresh_tokens  (id uuid PK, user_id FK, token_hash UNIQUE, family_id uuid, consumed_at, revoked_at, expires_at, created_at)
 admin_keys      (id uuid PK, hashed_key UNIQUE, actor_email, note, created_at, revoked_at)
@@ -281,10 +282,26 @@ via a CHECK (`apps/anvil-api/src/db/schema.sql:12-13`). `github_id` is sparse
 and nullable, linked on first GitHub login; once set it is the authoritative
 match key for returning users (`schema.sql:18`).
 
+`github_device_sessions` is the DB-backed state for the brokered GitHub Device
+Authorisation Grant (GHCLIAUTH-004, ADR-066;
+`apps/anvil-api/src/db/migrations/016-github-device-sessions.sql`). It is a
+dedicated table — not `device_codes` — because the GitHub flow structurally
+breaks that table's `user_code UNIQUE NOT NULL` + start-time `user_id`
+invariants. At-rest model: `poll_token_hash` stores only a hash of the
+client-held poll token (`lib/token.ts` `hashToken`); `github_device_code_enc`
+holds the GitHub `device_code` **encrypted, not hashed**, because the poll
+broker must recover the plaintext for the token exchange (RFC 8628 §3.4) — the
+key is derived from the client-held poll token (`lib/github-device-crypto.ts`),
+so a DB dump alone recovers neither. There is **no user column by design**: the
+bound user is derived solely from the GitHub token at poll-confirmation time.
+`minted_at` / `minted_session_enc` back the GHCLIAUTH-005 "mint exactly once,
+re-returnable within TTL" semantics.
+
 Extensions: `citext`, `pgcrypto`.
 
 Indexes on: `access_tokens(user_id)`, `access_tokens(token_hash)`,
-`audit_log(action)`, `audit_log(created_at)`.
+`audit_log(action)`, `audit_log(created_at)`,
+`github_device_sessions(expires_at)`.
 
 ## Environment Variables
 

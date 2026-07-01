@@ -223,10 +223,10 @@ three-pipe matrix (`docs/observability/namespace-registry.md:79-90`).
 
 ### Known drift (registry vs. code)
 
-The deny-list at `crates/anvil-observability/src/redaction.rs:35-55` is now
+The deny-list at `crates/anvil-observability/src/redaction.rs:36-56` is now
 consulted **at runtime**: the formatters `init_tracing` installs call
 `is_sensitive_field` on every span/event field and substitute `REDACTED` for
-matches (`crates/anvil-observability/src/redaction.rs:209-217`). The registry's
+matches (`crates/anvil-observability/src/redaction.rs:349-357`). The registry's
 "Validation hooks" bullet still describes the deny-list as **advisory-only / NOT
 enforced** (`docs/observability/namespace-registry.md:102-109`) — that wording
 lags the code. Whether a new attribute name conflicts with the deny-list
@@ -240,9 +240,9 @@ installs `RedactingJsonFields` / `RedactingJsonEventFormatter`
 (`crates/anvil-observability/src/lib.rs:146-147`), which replace any span/event
 value whose field name matches `SENSITIVE_FIELDS` with the `REDACTED` marker
 before the JSON formatter writes it (consumption at
-`crates/anvil-observability/src/redaction.rs:209-217`; module doc at
+`crates/anvil-observability/src/redaction.rs:349-357`; module doc at
 `redaction.rs:1-13`; behaviour pinned by the formatter tests at
-`redaction.rs:321-394`). It still does **not** ship the SHA-256 hashing
+`redaction.rs:550-623`). It still does **not** ship the SHA-256 hashing
 primitive that fan-out cross-session redaction relies on — `hash_of_path`
 remains in `crates/anvil-intercept/src/fanout.rs` (below).
 
@@ -250,11 +250,11 @@ remains in `crates/anvil-intercept/src/fanout.rs` (below).
 
 | Symbol                                    | Kind         | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | ----------------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `REDACTED: &str` (`= "<redacted>"`)       | `pub const`  | Canonical replacement marker the live TRACE-003 layer emits. Pinned by test (`crates/anvil-observability/src/redaction.rs:314-319`); changing the value is a contract break across binary boundaries.                                                                                                                                                                                                                                                                                                        |
-| `SENSITIVE_FIELDS: &[&str]`               | `pub const`  | 19-entry lower-case deny-list of sensitive field names (`api_key`, `apikey`, `access_key`, `auth`, `authorization`, `bearer`, `client_secret`, `context`, `credential`, `credentials`, `notification.context`, `notification_context`, `password`, `passwd`, `pwd`, `private_key`, `secret`, `session_token`, `token`; `redaction.rs:35-55`). Sourced from the OWASP secret-name patterns plus the deny-list the INTD-013 reviewers flagged on `notification.context` (source comment `redaction.rs:33-34`). |
-| `is_sensitive_field(field: &str) -> bool` | `pub fn`     | Case-insensitive **exact-match** lookup. Substrings deliberately do not match (`token_type` is allowed). Consulted at runtime by both formatters via the shared visitor (`redaction.rs:209-217`).                                                                                                                                                                                                                                                                                                            |
-| `RedactingJsonFields`                     | `pub struct` | JSON `FormatFields` implementation that redacts sensitive span field values before subscriber output is formatted (`redaction.rs:75-76`).                                                                                                                                                                                                                                                                                                                                                                    |
-| `RedactingJsonEventFormatter`             | `pub struct` | JSON event formatter paired with `RedactingJsonFields` — the stock JSON event formatter bypasses the configured `FormatFields`, so this routes event fields through the same redaction visitor (`redaction.rs:84-87`).                                                                                                                                                                                                                                                                                       |
+| `REDACTED: &str` (`= "<redacted>"`)       | `pub const`  | Canonical replacement marker the live TRACE-003 layer emits. Pinned by test (`crates/anvil-observability/src/redaction.rs:543-548`); changing the value is a contract break across binary boundaries.                                                                                                                                                                                                                                                                                                        |
+| `SENSITIVE_FIELDS: &[&str]`               | `pub const`  | 19-entry lower-case deny-list of sensitive field names (`api_key`, `apikey`, `access_key`, `auth`, `authorization`, `bearer`, `client_secret`, `context`, `credential`, `credentials`, `notification.context`, `notification_context`, `password`, `passwd`, `pwd`, `private_key`, `secret`, `session_token`, `token`; `redaction.rs:36-56`). Sourced from the OWASP secret-name patterns plus the deny-list the INTD-013 reviewers flagged on `notification.context` (source comment `redaction.rs:33-35`). |
+| `is_sensitive_field(field: &str) -> bool` | `pub fn`     | Case-insensitive **exact-match** lookup. Substrings deliberately do not match (`token_type` is allowed). Consulted at runtime by both formatters via the shared visitor (`redaction.rs:349-357`).                                                                                                                                                                                                                                                                                                            |
+| `RedactingJsonFields`                     | `pub struct` | JSON `FormatFields` implementation that redacts sensitive span field values before subscriber output is formatted (`redaction.rs:215-216`).                                                                                                                                                                                                                                                                                                                                                                  |
+| `RedactingJsonEventFormatter`             | `pub struct` | JSON event formatter paired with `RedactingJsonFields` — the stock JSON event formatter bypasses the configured `FormatFields`, so this routes event fields through the same redaction visitor (`redaction.rs:224-227`).                                                                                                                                                                                                                                                                                     |
 
 ### What the SHA-256 redaction primitive actually is — and where it lives
 
@@ -359,7 +359,7 @@ contract is reviewed by founder PR, not enforced by code.
 every valid input — pinned by
 `crates/anvil-observability/src/traceparent.rs:222-225`. The live TRACE-003
 redaction marker `REDACTED = "<redacted>"` is a constant string with a
-contract-pinning unit test at `redaction.rs:314-319`. (Note again that the
+contract-pinning unit test at `redaction.rs:543-548`. (Note again that the
 unsalted-SHA-256 cross-session hash is **not** in this crate — it lives in
 `anvil-intercept/src/fanout.rs:436-441`.)
 
@@ -415,8 +415,8 @@ The local-output half of TRACE-003 is **done**: `init_tracing` installs
 (`crates/anvil-observability/src/lib.rs:146-147`), so span attributes named
 `password` / `token` / `api_key` are replaced with `REDACTED` before JSON output
 on every supported sink (consumption at
-`crates/anvil-observability/src/redaction.rs:209-217`; pinned by the formatter
-tests at `redaction.rs:321-394`). What remains is the cross-binary /
+`crates/anvil-observability/src/redaction.rs:349-357`; pinned by the formatter
+tests at `redaction.rs:550-623`). What remains is the cross-binary /
 EXPORT-policy-parity slice — redaction hardening across binary boundaries so the
 same deny-list semantics hold for exported spans and the notification pipe. That
 slice is **Blocked** on INTD-015 (`plans/modules/tracing-foundation.aps.md`,

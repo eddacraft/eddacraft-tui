@@ -139,15 +139,15 @@ line.
 | GET    | `/health`                  | None                                                                              | DB ping + licence-key parse probes; `status: 'degraded'` + `503` on any probe failure                                                                                                                                                         | `src/index.ts:105-162`           |
 | POST   | `/waitlist`                | None                                                                              | Public waitlist signup (gated by `WAITLIST_PAUSED`)                                                                                                                                                                                           | `src/routes/waitlist.ts:13-100`  |
 | POST   | `/waitlist/resend`         | `WAITLIST_RESEND_ADMIN_TOKEN` (Bearer or `X-Waitlist-Admin-Token`), constant-time | Force resend of confirmation email                                                                                                                                                                                                            | `src/routes/waitlist.ts:102-165` |
-| POST   | `/admin/invite`            | `adminAuth`                                                                       | Invite a user; default = waitlist + approve + email; `tokenOnly=true` returns a raw token once for CI/service accounts                                                                                                                        | `src/routes/admin.ts:120`        |
-| POST   | `/admin/approve`           | `adminAuth`                                                                       | Approve a single waitlisted email or the oldest N pending; preserves graded scopes; flag-gates each scope                                                                                                                                     | `src/routes/admin.ts:345`        |
-| POST   | `/admin/revoke`            | `adminAuth`                                                                       | Revoke all tokens for an email, or a specific raw token                                                                                                                                                                                       | `src/routes/admin.ts:263`        |
-| GET    | `/admin/waitlist`          | `adminAuth`                                                                       | Paginated waitlist listing filtered by status × source                                                                                                                                                                                        | `src/routes/admin.ts:535`        |
-| GET    | `/admin/audit`             | `adminAuth`                                                                       | Paginated audit log (most-recent first) with `action`/`actor` filters                                                                                                                                                                         | `src/routes/admin.ts:552`        |
-| GET    | `/admin/user/:email`       | `adminAuth`                                                                       | User + tokens (no hashes) + up to 10 recent audit entries; `auditError: true` on enrichment failure                                                                                                                                           | `src/routes/admin.ts:571`        |
-| POST   | `/admin/send-migration`    | `adminAuth` + 5/hr per actor                                                      | Back-compat shim over the broadcast flow (EMAIL-006): maps `{source}` to (template `waitlist-migration`, audience `waitlist:source`) and reuses the shared two-phase snapshot contract                                                        | `src/routes/admin.ts:754`        |
-| POST   | `/admin/broadcast`         | `adminAuth` + 5/hr per actor                                                      | Generalised two-phase send: dry-run snapshots template + audience + recipients behind an actor-bound `previewToken` (TTL 10 min); real-send atomically consumes the snapshot, refetches the cohort, and rejects on drift (`409 cohort_drift`) | `src/routes/admin.ts:1050`       |
-| POST   | `/admin/user/email-update` | `adminAuth`                                                                       | Rewrite `beta_users.email` (only) when GitHub-account self-service isn't viable; existing licence JWTs continue working (sub-bound to user.id, not email)                                                                                     | `src/routes/admin.ts:960`        |
+| POST   | `/admin/invite`            | `adminAuth`                                                                       | Invite a user; default = waitlist + approve + email; `tokenOnly=true` returns a raw token once for CI/service accounts                                                                                                                        | `src/routes/admin.ts:122`        |
+| POST   | `/admin/approve`           | `adminAuth`                                                                       | Approve a single waitlisted email or the oldest N pending; preserves graded scopes; flag-gates each scope                                                                                                                                     | `src/routes/admin.ts:333`        |
+| POST   | `/admin/revoke`            | `adminAuth`                                                                       | Revoke all tokens for an email, or a specific raw token                                                                                                                                                                                       | `src/routes/admin.ts:249`        |
+| GET    | `/admin/waitlist`          | `adminAuth`                                                                       | Paginated waitlist listing filtered by status × source                                                                                                                                                                                        | `src/routes/admin.ts:492`        |
+| GET    | `/admin/audit`             | `adminAuth`                                                                       | Paginated audit log (most-recent first) with `action`/`actor` filters                                                                                                                                                                         | `src/routes/admin.ts:509`        |
+| GET    | `/admin/user/:email`       | `adminAuth`                                                                       | User + tokens (no hashes) + up to 10 recent audit entries; `auditError: true` on enrichment failure                                                                                                                                           | `src/routes/admin.ts:528`        |
+| POST   | `/admin/send-migration`    | `adminAuth` + 5/hr per actor                                                      | Back-compat shim over the broadcast flow (EMAIL-006): maps `{source}` to (template `waitlist-migration`, audience `waitlist:source`) and reuses the shared two-phase snapshot contract                                                        | `src/routes/admin.ts:711`        |
+| POST   | `/admin/broadcast`         | `adminAuth` + 5/hr per actor                                                      | Generalised two-phase send: dry-run snapshots template + audience + recipients behind an actor-bound `previewToken` (TTL 10 min); real-send atomically consumes the snapshot, refetches the cohort, and rejects on drift (`409 cohort_drift`) | `src/routes/admin.ts:1007`       |
+| POST   | `/admin/user/email-update` | `adminAuth`                                                                       | Rewrite `beta_users.email` (only) when GitHub-account self-service isn't viable; existing licence JWTs continue working (sub-bound to user.id, not email)                                                                                     | `src/routes/admin.ts:917`        |
 | GET    | `/cron/cleanup`            | `Bearer ${CRON_SECRET}` (constant-time)                                           | Purge expired device codes, OTP codes, and refresh tokens; runs hourly via Vercel Cron                                                                                                                                                        | `src/routes/cron.ts:27-61`       |
 
 Request shapes for the admin surface are defined in
@@ -159,18 +159,18 @@ per-actor 60/min rate limit (§5.4).
 
 - **`/admin/invite`** has two modes. Default mode runs the full approve flow
   (`upsert beta_users` → `device_codes` row → `audit_log` → invite email) inside
-  one `sql.transaction([...])` batch (`src/routes/admin.ts:173-193`);
+  one `sql.transaction([...])` batch (`src/routes/admin.ts:196-207`);
   `tokenOnly: true` skips the email and returns a raw `anvil_beta_*` token
-  (3-statement batch, `src/routes/admin.ts:131-148`). Both stamp `auth_method`
+  (3-statement batch, `src/routes/admin.ts:160-177`). Both stamp `auth_method`
   (`shared` / `per_operator`) into `audit_log`.
 - **`/admin/approve`** preserves graded scopes by reading
   `findActiveScopesForUser` and unioning with `DEFAULT_APPROVAL_SCOPES`
-  (`src/routes/admin.ts:296-304`). Each requested scope is then flag-resolved
-  via `resolveApiScope` (`src/routes/admin.ts:308-315`); a fully empty set
+  (`src/routes/admin.ts:356-364`). Each requested scope is then flag-resolved
+  via `resolveApiScope` (`src/routes/admin.ts:368-375`); a fully empty set
   returns `409 no_scopes` and writes a `user.approve.scopes_dropped` audit row.
   Batch mode classifies skip reasons (`not_found`, `collision`, `no_scopes`,
   `error`) and records `user.approve.collision` audits on user-code retries
-  (`src/routes/admin.ts:390-449`).
+  (`src/routes/admin.ts:437-479`).
 - **`/admin/broadcast`** dispatches any registered broadcast template
   (`release-announcement`, `waitlist-migration` —
   `src/lib/email-registry.ts:118-147`) to any named audience
@@ -179,17 +179,17 @@ per-actor 60/min rate limit (§5.4).
   `driftDiffSchema`, `src/routes/admin-schemas.ts:61-66`). On a real-send the
   consumed snapshot is the source of truth — the body's template / audience
   fields are ignored, the bait-and-switch defence
-  (`src/routes/admin.ts:1032-1035, 1057-1063`). Registry lookup uses
+  (`src/routes/admin.ts:989-992, 1014-1020`). Registry lookup uses
   `Object.hasOwn` rather than `in` so prototype keys like `toString` can't pass
-  the guard (`src/routes/admin.ts:1081-1083`). Error codes are enumerated at
-  `src/routes/admin.ts:1037-1048`. Snapshot rows live in
-  `send_broadcast_snapshots` (§6.3); TTL 10 min (`src/routes/admin.ts:614`).
+  the guard (`src/routes/admin.ts:1035-1040`). Error codes are enumerated at
+  `src/routes/admin.ts:994-1005`. Snapshot rows live in
+  `send_broadcast_snapshots` (§6.3); TTL 10 min (`src/routes/admin.ts:571`).
   Find / consume scoping is `(token, actor)` so a non-owner caller falls into
   `preview_token_missing` rather than learning the token exists
-  (`src/routes/admin.ts:1167-1178`).
+  (`src/routes/admin.ts:1124-1135`).
 - **`/admin/send-migration`** is now a back-compat shim over the generalised
-  broadcast flow (EMAIL-006 — `src/routes/admin.ts:754`, rationale comment
-  `:760-770`): it maps `{source}` to (template `waitlist-migration`, audience
+  broadcast flow (EMAIL-006 — `src/routes/admin.ts:711`, rationale comment
+  `:717-727`): it maps `{source}` to (template `waitlist-migration`, audience
   `waitlist:source`), reuses the shared snapshot insert / find / consume path,
   then translates the result back to the legacy response shape and the
   `migration.email.*` audit names. It is no longer the only `cohort_drift`
@@ -198,9 +198,9 @@ per-actor 60/min rate limit (§5.4).
   `findWaitlistBySource` behaviour.
 - **`/admin/user/email-update`** updates `beta_users.email` only — the
   `waitlist` row is intentionally left at the original address as the signup
-  record (`src/routes/admin.ts:728-734`). Collisions are detected pre-write
+  record (`src/routes/admin.ts:912-915`). Collisions are detected pre-write
   _and_ via Postgres unique-violation 23505
-  (`src/routes/admin.ts:755-758, 780-784`).
+  (`src/routes/admin.ts:936-939, 961-966`).
 - **`/waitlist`** honours `WAITLIST_PAUSED=true`
   (`src/routes/waitlist.ts:19-21`) for the DBCON-003 Neon consolidation cutover;
   flipping the env requires a redeploy. It is the only route that intentionally
@@ -255,7 +255,7 @@ process alive (`src/middleware/rate-limit.ts:22-29`).
 (`src/middleware/admin-auth.ts:88-108`) — the admin actor is set by the
 middleware on context (`adminActor`, `adminAuthMethod`, `adminKeyId` —
 `src/middleware/admin-auth.ts:19-25`) and admin handlers pull from there
-(`src/routes/admin.ts:57-80`). A DB hiccup during per-operator lookup falls
+(`src/routes/admin.ts:84-107`). A DB hiccup during per-operator lookup falls
 through to shared-key rather than failing the admin surface
 (`src/middleware/admin-auth.ts:148-154`). Misconfiguration
 (`ADMIN_PER_OPERATOR_KEYS=1` without a pepper) is logged on every request
@@ -295,7 +295,7 @@ is to make a compromised key visibly noisy, not to enforce a cluster-wide quota
 - `setClient()` is gated behind `NODE_ENV === 'test'` (`src/db/client.ts:23-28`)
   so production code cannot rebind it.
 - Multi-statement atomicity uses `sql.transaction([...])` (e.g.
-  `src/routes/admin.ts:131-148, 173-193, 230-238`); single statements use the
+  `src/routes/admin.ts:160-177, 196-207, 260-276`); single statements use the
   tagged-template form.
 
 ### 6.2 Queries
@@ -639,7 +639,7 @@ auth-side actions):
 - `broadcast.email.dispatch_started`, `broadcast.email.blocked`,
   `broadcast.email.sent` (broadcast real-send — dispatch is audited _before_ the
   send loop so a mid-loop crash still leaves a forensic record; dry-run does not
-  write — `src/routes/admin.ts:1210, 1231/1252, 1278`). Metadata carries the
+  write — `src/routes/admin.ts:1165, 1186/1207, 1233`). Metadata carries the
   SHA-256 hash of the preview token, matching the `token_hash` column.
 - `migration.email.dispatch_started`, `migration.email.blocked`,
   `migration.email.sent` (send-migration real-send only — legacy event names
