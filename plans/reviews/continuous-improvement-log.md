@@ -1709,3 +1709,17 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** Release plans should distinguish implementation completeness
   from beta-usefulness cut-line readiness.
 - **Follow-up:** Promote or reject ACTMO-013/DSV-046 before cutting `v0.9.0-beta`.
+
+### 2026-06-30 — opencode
+
+- **Task:** Fix failed `anvil-api` Vercel production builds.
+- **Outcome:** Added DOM fetch typings to the API TypeScript build so clean Vercel
+  builds recognise `Response.ok`, `Response.status`, and `Response.json`.
+- **Worked:** Isolating the hotfix in a clean Worktrunk branch avoided mixing it
+  with unrelated local APS edits.
+- **Failed:** none
+- **Friction:** The Vercel failure only reproduced in a clean platform install;
+  warm local TypeScript build-info initially masked the missing fetch lib.
+- **Improvement:** Keep platform build commands covered by a clean local smoke or
+  CI check when changing package-manager/runtime typing.
+- **Follow-up:** none
