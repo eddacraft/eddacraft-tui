@@ -164,6 +164,11 @@ impl PolicyEvalRunner for SubprocessRunner {
 
         let mut child = Command::new(&self.program)
             .args(Self::args(suite))
+            // EVALCI-002: null the child's stdin so a future upstream prompt (an
+            // auth or licence gate on `anvil policy eval`) reads EOF and fails
+            // fast, rather than blocking on an unanswerable prompt until the
+            // per-suite timeout burns the whole 60s budget.
+            .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
             .spawn()
@@ -195,25 +200,27 @@ impl PolicyEvalRunner for SubprocessRunner {
             Ok(buf)
         });
 
-        // `anvil policy eval` exits non-zero on a *blocking* finding — a valid
-        // result, not a runner failure — and still prints the JSON document, so
-        // the exit status is not treated as failure; the verdict comes from the
-        // parsed `exit_code` field.
-        let timed_out = child
+        // `anvil policy eval` exits `0` (clean) or `1` (a *blocking* finding —
+        // a valid gate verdict, not a runner failure) and prints the JSON
+        // document in both cases; the verdict comes from the parsed `exit_code`
+        // field. Any *other* code is classified as an execution error below
+        // (EVALCI-003).
+        let Some(status) = child
             .wait_timeout(self.timeout)
             .map_err(|e| exec_err(Box::new(e)))?
-            .is_none();
-        if timed_out {
+        else {
             let _ = child.kill();
             let _ = child.wait();
-            // `kill` closes the child's pipe write ends, unblocking the readers;
-            // join to avoid dangling threads but discard the payloads.
+            // The child's death (from `kill`) closes its pipe write ends,
+            // unblocking the readers; join to avoid dangling threads but discard
+            // the payloads. A grandchild (e.g. OPA) that inherited the write end
+            // and survives the kill can delay the join until it too exits.
             let _ = stdout_reader.join();
             let _ = stderr_reader.join();
             return Err(exec_err(
                 format!("suite timed out after {:?}", self.timeout).into(),
             ));
-        }
+        };
 
         let stdout_bytes = stdout_reader
             .join()
@@ -223,6 +230,34 @@ impl PolicyEvalRunner for SubprocessRunner {
             .join()
             .map_err(|e| exec_err(format!("stderr reader thread panicked: {e:?}").into()))?
             .map_err(|e| exec_err(Box::new(e)))?;
+
+        // EVALCI-003: the frozen v1 contract defines exactly two *process* exit
+        // verdicts — `0` (clean) and `1` (blocking finding). Any other code — or
+        // a signal death (`code()` is `None`) — is an OPA/infra failure: an
+        // execution error, not a trust regression. Classifying it as such stops
+        // a broken toolchain (for example an `opa` invocation exiting 2) from
+        // masquerading as a passing or failing gate and false-blocking main.
+        //
+        // NB this is the *process* status, not the JSON `exit_code` field.
+        // `EvalRegressionReport::regressed` treats a `1 -> 2` change in the
+        // parsed `exit_code` field as an escalation regression, but under this
+        // contract a producer that exits 2 never yields a parsed summary — the
+        // council settled process exit >=2 as infra, not a trust escalation. If
+        // a future contract major assigns meaning to exit 2, revisit this.
+        match status.code() {
+            Some(0 | 1) => {}
+            other => {
+                let stderr = String::from_utf8_lossy(&stderr_bytes);
+                let stderr = stderr.trim();
+                let code = other.map_or_else(|| "signal".to_string(), |c| c.to_string());
+                let detail = if stderr.is_empty() {
+                    format!("suite exited with status {code} (expected 0 or 1)")
+                } else {
+                    format!("suite exited with status {code} (expected 0 or 1); stderr: {stderr}")
+                };
+                return Err(exec_err(detail.into()));
+            }
+        }
 
         // Empty stdout means the process produced no document (a crash/panic):
         // surface that with the captured stderr rather than letting it decay
@@ -443,5 +478,61 @@ mod tests {
         let err = runner.eval_json(&suite()).expect_err("crash");
         let msg = err.to_string();
         assert!(msg.contains("boom: engine panicked"), "stderr lost: {msg}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn eval_harness_adapter_subprocess_null_stdin() {
+        // EVALCI-002: `cat` copies stdin to stdout; with stdin nulled it reads
+        // immediate EOF and exits producing no output — proving a child that
+        // waits on stdin (a future auth/licence prompt) cannot hang the suite.
+        // `exec` so the shell is replaced by `cat` (no surviving grandchild).
+        // Without the null redirect an inherited terminal stdin would instead
+        // block `cat` until the timeout, surfacing as "timed out".
+        let (_dir, path) = script("exec cat");
+        let runner = SubprocessRunner::new(path).with_timeout(Duration::from_secs(2));
+        let err = runner
+            .eval_json(&suite())
+            .expect_err("cat with null stdin yields empty output");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("produced no output"),
+            "expected clean EOF: {msg}"
+        );
+        assert!(
+            !msg.contains("timed out"),
+            "stdin not nulled — child hung: {msg}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn eval_harness_exit_code_classification() {
+        // EVALCI-003: a valid JSON document paired with a non-{0,1} process exit
+        // (an OPA/infra failure) is an execution error, not a trust regression.
+        let clean =
+            r#"{"schema_version":"1.0.0","policy":"p","query":"q","findings":[],"exit_code":0}"#;
+        let (_dir, path) = script(&format!("printf '%s' '{clean}'\nexit 2"));
+        let err = SubprocessRunner::new(path)
+            .eval_json(&suite())
+            .expect_err("exit 2 is an execution error");
+        assert!(matches!(err, EvalHarnessError::Execution { .. }));
+        assert!(
+            err.to_string().contains("status 2"),
+            "status surfaced: {err}"
+        );
+
+        // The two gate verdicts still parse cleanly.
+        let (_d0, p0) = script(&format!("printf '%s' '{clean}'\nexit 0"));
+        assert!(
+            SubprocessRunner::new(p0).eval_json(&suite()).is_ok(),
+            "exit 0"
+        );
+        let blocking = r#"{"schema_version":"1.0.0","policy":"p","query":"q","findings":[{"severity":"error","message":"x"}],"exit_code":1}"#;
+        let (_d1, p1) = script(&format!("printf '%s' '{blocking}'\nexit 1"));
+        assert!(
+            SubprocessRunner::new(p1).eval_json(&suite()).is_ok(),
+            "exit 1"
+        );
     }
 }

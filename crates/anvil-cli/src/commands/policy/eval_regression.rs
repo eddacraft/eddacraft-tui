@@ -75,37 +75,92 @@ struct SuiteOutcome {
     guidance: Vec<GuidedFinding>,
 }
 
+/// A suite that could not be executed (EVALCI-004). Surfaced in the report so a
+/// broken suite is visible, but kept separate from `suites` so a runner error is
+/// never conflated with a trust-regression verdict.
+#[derive(Debug, Clone, Serialize)]
+struct RunnerError {
+    suite: String,
+    error: String,
+}
+
 /// The aggregate regression report for the whole run.
 #[derive(Debug, Clone, Serialize)]
 struct RegressionOutput {
     suites: Vec<SuiteOutcome>,
+    /// Suites that failed to run at all (EVALCI-004 fail-open). Omitted from the
+    /// JSON when empty so the common case is unchanged.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    runner_errors: Vec<RunnerError>,
+    /// Count of suites that actually produced a verdict (excludes runner errors).
     suites_run: usize,
     regressions: usize,
     /// True when any suite regressed — the headline pass/fail.
     regressed: bool,
 }
 
-/// Build the aggregate outcome from each suite's current run paired with its
-/// optional baseline run. Pure — no IO — so the regression semantics are
-/// directly testable.
-fn build_outcome(runs: &[(EvalRunSummary, Option<EvalRunSummary>)]) -> RegressionOutput {
-    let suites: Vec<SuiteOutcome> = runs
+/// A suite that produced a verdict, paired with its optional baseline. Boxed
+/// inside [`SuiteRun::Ran`] so the enum's variants stay a similar size.
+struct RanSuite {
+    current: EvalRunSummary,
+    baseline: Option<EvalRunSummary>,
+}
+
+/// One suite's execution result. EVALCI-004 fail-open: a suite that errors is
+/// recorded as [`SuiteRun::Errored`] and the run continues, rather than a single
+/// broken suite aborting the whole command and suppressing regression detection
+/// for every other suite.
+enum SuiteRun {
+    Ran(Box<RanSuite>),
+    Errored(RunnerError),
+}
+
+/// Run every suite, capturing per-suite runner errors instead of aborting on the
+/// first one (EVALCI-004). Each suite yields a [`SuiteRun`]; the returned order
+/// mirrors `suites`.
+fn collect_runs(
+    adapter: &impl EvalHarnessPort,
+    suites: &[EvalSuite],
+    baselines: &std::collections::HashMap<String, EvalRunSummary>,
+) -> Vec<SuiteRun> {
+    suites
         .iter()
-        .map(|(current, baseline)| {
-            let report = EvalRegressionReport::compare(baseline.as_ref(), current);
-            let guidance = guidance_for(current);
-            SuiteOutcome {
-                suite: current.suite.clone(),
-                passed: current.passed(),
-                regressed: report.regressed(),
-                current_exit_code: report.current_exit_code,
-                baseline_exit_code: report.baseline_exit_code,
-                new_findings: report.new_findings.len(),
-                resolved_findings: report.resolved_findings.len(),
-                guidance,
-            }
+        .map(|suite| match adapter.run_suite(suite) {
+            Ok(current) => SuiteRun::Ran(Box::new(RanSuite {
+                baseline: baselines.get(&suite.name).cloned(),
+                current,
+            })),
+            Err(error) => SuiteRun::Errored(RunnerError {
+                suite: suite.name.clone(),
+                error: error.to_string(),
+            }),
         })
-        .collect();
+        .collect()
+}
+
+/// Build the aggregate outcome from each suite's execution result. Pure — no IO —
+/// so the regression semantics are directly testable.
+fn build_outcome(runs: &[SuiteRun]) -> RegressionOutput {
+    let mut suites = Vec::new();
+    let mut runner_errors = Vec::new();
+    for run in runs {
+        match run {
+            SuiteRun::Ran(ran) => {
+                let report = EvalRegressionReport::compare(ran.baseline.as_ref(), &ran.current);
+                suites.push(SuiteOutcome {
+                    suite: ran.current.suite.clone(),
+                    passed: ran.current.passed(),
+                    regressed: report.regressed(),
+                    current_exit_code: report.current_exit_code,
+                    baseline_exit_code: report.baseline_exit_code,
+                    new_findings: report.new_findings.len(),
+                    resolved_findings: report.resolved_findings.len(),
+                    guidance: guidance_for(&ran.current),
+                });
+            }
+            SuiteRun::Errored(error) => runner_errors.push(error.clone()),
+        }
+    }
 
     let regressions = suites.iter().filter(|s| s.regressed).count();
     RegressionOutput {
@@ -113,6 +168,7 @@ fn build_outcome(runs: &[(EvalRunSummary, Option<EvalRunSummary>)]) -> Regressio
         regressions,
         regressed: regressions > 0,
         suites,
+        runner_errors,
     }
 }
 
@@ -160,14 +216,9 @@ pub fn run(args: &EvalRegressionArgs, global: &GlobalArgs) -> Result<()> {
     // O(N*H)).
     let baselines = latest_per_suite(&store)?;
 
-    let mut runs: Vec<(EvalRunSummary, Option<EvalRunSummary>)> = Vec::with_capacity(suites.len());
-    for suite in &suites {
-        let current = adapter
-            .run_suite(suite)
-            .with_context(|| format!("running eval suite `{}`", suite.name))?;
-        let baseline = baselines.get(&suite.name).cloned();
-        runs.push((current, baseline));
-    }
+    // EVALCI-004: a suite that fails to run is recorded and the run continues,
+    // so one broken suite cannot suppress regression detection for the rest.
+    let runs = collect_runs(&adapter, &suites, &baselines);
 
     if args.update_baseline {
         persist_runs(&store, &runs)?;
@@ -181,26 +232,45 @@ pub fn run(args: &EvalRegressionArgs, global: &GlobalArgs) -> Result<()> {
         render_plain(&outcome);
     }
 
-    if outcome.regressed && args.fail_on_regression {
+    if should_block(&outcome, args.fail_on_regression) {
         return Err(output::AlreadyReported.into());
     }
     Ok(())
 }
 
-/// Append every current run to the history. The `run_id`/timestamp come from
-/// the wall clock here; the store itself stays time-agnostic.
-fn persist_runs(
-    store: &EvalResultStore,
-    runs: &[(EvalRunSummary, Option<EvalRunSummary>)],
-) -> Result<()> {
+/// Whether the command should exit non-zero. Report-only by default (ADR-002);
+/// under `--fail-on-regression` the gate blocks on a trust regression **or** a
+/// runner error. A suite that could not be evaluated is not a passing gate:
+/// without this, an all-suites-errored run (missing binary, broken suites file)
+/// would exit 0 under `--fail-on-regression` — a green gate that checked
+/// nothing, exactly the false-negative EVALCI-004's fail-open must not open.
+fn should_block(outcome: &RegressionOutput, fail_on_regression: bool) -> bool {
+    fail_on_regression && (outcome.regressed || !outcome.runner_errors.is_empty())
+}
+
+/// Append eligible runs to the history. The `run_id`/timestamp come from the
+/// wall clock here; the store itself stays time-agnostic.
+///
+/// EVALCI-001 ratchet: a run is persisted only when its gate did **not** regress
+/// against its baseline, so a failing/regressed run can never become the
+/// accepted baseline that future runs compare against (baseline poisoning). A
+/// suite that errored (EVALCI-004) has no verdict and is skipped.
+fn persist_runs(store: &EvalResultStore, runs: &[SuiteRun]) -> Result<()> {
     let now = chrono::Utc::now();
     let recorded_at = now.to_rfc3339();
-    for (current, _) in runs {
-        let run_id = format!("{}-{}", current.suite, now.timestamp_millis());
-        let record = anvil_policy::eval::EvalRecord::from_summary(current, run_id, &recorded_at);
+    for run in runs {
+        let SuiteRun::Ran(ran) = run else {
+            continue;
+        };
+        if EvalRegressionReport::compare(ran.baseline.as_ref(), &ran.current).regressed() {
+            continue;
+        }
+        let run_id = format!("{}-{}", ran.current.suite, now.timestamp_millis());
+        let record =
+            anvil_policy::eval::EvalRecord::from_summary(&ran.current, run_id, &recorded_at);
         store
             .append(&record)
-            .with_context(|| format!("persisting eval run for suite `{}`", current.suite))?;
+            .with_context(|| format!("persisting eval run for suite `{}`", ran.current.suite))?;
     }
     Ok(())
 }
@@ -247,6 +317,16 @@ fn render_plain(outcome: &RegressionOutput) {
             }
         }
     }
+    // EVALCI-004: surface suites that failed to run — visible but non-fatal, and
+    // deliberately not counted as regressions.
+    for runner_error in &outcome.runner_errors {
+        // \u{26a0} is ⚠ — a runner error, surfaced but non-fatal.
+        println!(
+            "  \u{26a0} {name:<24} runner error",
+            name = runner_error.suite
+        );
+        plain::warn(&format!("    {}", runner_error.error));
+    }
     plain::blank();
     if outcome.regressed {
         plain::error(&format!(
@@ -257,6 +337,12 @@ fn render_plain(outcome: &RegressionOutput) {
         plain::success(&format!(
             "no regressions across {} suite(s)",
             outcome.suites_run
+        ));
+    }
+    if !outcome.runner_errors.is_empty() {
+        plain::warn(&format!(
+            "{} suite(s) failed to run",
+            outcome.runner_errors.len()
         ));
     }
 }
@@ -294,6 +380,20 @@ mod tests {
         }
     }
 
+    /// A successfully-executed suite run for `build_outcome`/`persist_runs`.
+    fn ran(current: EvalRunSummary, baseline: Option<EvalRunSummary>) -> SuiteRun {
+        SuiteRun::Ran(Box::new(RanSuite { current, baseline }))
+    }
+
+    fn suite_def(name: &str) -> EvalSuite {
+        EvalSuite {
+            name: name.into(),
+            policy: "p.rego".into(),
+            input: None,
+            query: "data.anvil.findings".into(),
+        }
+    }
+
     #[test]
     fn eval_regression_command_parses_args() {
         let w = Wrapper::try_parse_from([
@@ -327,7 +427,7 @@ mod tests {
             0,
             vec![finding(EvalSeverity::Warning, "advisory", Some("a"))],
         );
-        let outcome = build_outcome(&[(cur, Some(base))]);
+        let outcome = build_outcome(&[ran(cur, Some(base))]);
         assert!(!outcome.regressed);
         assert_eq!(outcome.regressions, 0);
         assert_eq!(outcome.suites_run, 1);
@@ -343,7 +443,7 @@ mod tests {
             1,
             vec![finding(EvalSeverity::Error, "ui->db", Some("b"))],
         );
-        let outcome = build_outcome(&[(cur, Some(base))]);
+        let outcome = build_outcome(&[ran(cur, Some(base))]);
 
         assert!(outcome.regressed);
         assert_eq!(outcome.regressions, 1);
@@ -365,7 +465,7 @@ mod tests {
             1,
             vec![finding(EvalSeverity::Error, "leak", Some("c"))],
         );
-        let outcome = build_outcome(&[(cur, None)]);
+        let outcome = build_outcome(&[ran(cur, None)]);
         assert!(outcome.regressed);
         assert_eq!(outcome.suites[0].baseline_exit_code, None);
     }
@@ -380,7 +480,7 @@ mod tests {
             vec![finding(EvalSeverity::Error, "old", Some("a"))],
         );
         let cur = summary("arch", 0, vec![]);
-        let outcome = build_outcome(&[(cur, Some(base))]);
+        let outcome = build_outcome(&[ran(cur, Some(base))]);
         assert!(!outcome.regressed);
         assert_eq!(outcome.suites[0].resolved_findings, 1);
         assert!(outcome.suites[0].passed);
@@ -388,8 +488,8 @@ mod tests {
 
     #[test]
     fn eval_regression_command_aggregates_multiple_suites() {
-        let clean = (summary("a", 0, vec![]), Some(summary("a", 0, vec![])));
-        let regressed = (
+        let clean = ran(summary("a", 0, vec![]), Some(summary("a", 0, vec![])));
+        let regressed = ran(
             summary("b", 1, vec![finding(EvalSeverity::Error, "x", Some("z"))]),
             Some(summary("b", 0, vec![])),
         );
@@ -406,7 +506,7 @@ mod tests {
             1,
             vec![finding(EvalSeverity::Error, "x", Some("z"))],
         );
-        let outcome = build_outcome(&[(cur, Some(summary("arch", 0, vec![])))]);
+        let outcome = build_outcome(&[ran(cur, Some(summary("arch", 0, vec![])))]);
         let json: serde_json::Value = serde_json::to_value(&outcome).expect("ser");
         assert_eq!(json["regressed"], true);
         assert_eq!(json["regressions"], 1);
@@ -423,5 +523,111 @@ mod tests {
     fn eval_regression_command_store_dir_prefers_explicit() {
         let explicit = PathBuf::from("/tmp/custom-eval");
         assert_eq!(resolve_store_dir(Some(&explicit)), explicit);
+    }
+
+    #[test]
+    fn eval_regression_ratchet_baseline() {
+        // EVALCI-001: `--update-baseline` must not persist a regressed run, so a
+        // failing run can never become the accepted baseline (baseline poisoning).
+        let dir = tempfile::TempDir::new().expect("tmp");
+        let store = EvalResultStore::new(dir.path().join("eval"));
+
+        // A first-ever failing run regresses — it must not be persisted.
+        let failing = ran(
+            summary(
+                "arch",
+                1,
+                vec![finding(EvalSeverity::Error, "boom", Some("a"))],
+            ),
+            None,
+        );
+        persist_runs(&store, std::slice::from_ref(&failing)).expect("persist failing");
+        assert!(
+            store.all().expect("all").is_empty(),
+            "a regressed run must not poison the baseline"
+        );
+
+        // A clean run is persisted and becomes the baseline.
+        let clean = ran(summary("arch", 0, vec![]), None);
+        persist_runs(&store, std::slice::from_ref(&clean)).expect("persist clean");
+        let all = store.all().expect("all");
+        assert_eq!(all.len(), 1);
+        assert_eq!(all[0].suite, "arch");
+
+        // An errored suite has no verdict and is skipped entirely.
+        let errored = SuiteRun::Errored(RunnerError {
+            suite: "arch".into(),
+            error: "missing policy".into(),
+        });
+        persist_runs(&store, std::slice::from_ref(&errored)).expect("persist errored");
+        assert_eq!(
+            store.all().expect("all").len(),
+            1,
+            "errored run not persisted"
+        );
+    }
+
+    #[test]
+    fn eval_regression_command_fail_open() {
+        use std::collections::HashMap;
+
+        // A port that fails only the `broken` suite, proving one broken suite
+        // does not abort the run or suppress the others (EVALCI-004).
+        struct PartlyBroken;
+        impl EvalHarnessPort for PartlyBroken {
+            fn run_suite(
+                &self,
+                suite: &EvalSuite,
+            ) -> Result<EvalRunSummary, anvil_policy::eval::EvalHarnessError> {
+                if suite.name == "broken" {
+                    Err(anvil_policy::eval::EvalHarnessError::Execution {
+                        suite: suite.name.clone(),
+                        source: "missing policy".into(),
+                    })
+                } else {
+                    Ok(summary(&suite.name, 0, vec![]))
+                }
+            }
+        }
+
+        let suites = vec![suite_def("broken"), suite_def("healthy")];
+        let runs = collect_runs(&PartlyBroken, &suites, &HashMap::new());
+        let outcome = build_outcome(&runs);
+
+        // The healthy suite still reported a verdict.
+        assert_eq!(outcome.suites_run, 1);
+        assert_eq!(outcome.suites[0].suite, "healthy");
+        assert!(outcome.suites[0].passed);
+        // The broken suite is surfaced as a runner error, not a regression.
+        assert_eq!(outcome.runner_errors.len(), 1);
+        assert_eq!(outcome.runner_errors[0].suite, "broken");
+        assert!(!outcome.regressed);
+        assert_eq!(outcome.regressions, 0);
+
+        // Report-only (no `--fail-on-regression`): a runner error is surfaced but
+        // does not block. Under `--fail-on-regression` it must block — a suite
+        // that could not run is not a passing gate.
+        assert!(!should_block(&outcome, false));
+        assert!(should_block(&outcome, true));
+    }
+
+    #[test]
+    fn eval_regression_fail_on_regression_blocks_on_runner_error_only() {
+        // An all-suites-errored run has no regression yet must not report a green
+        // gate under `--fail-on-regression` (the false-negative guard).
+        let errored = SuiteRun::Errored(RunnerError {
+            suite: "arch".into(),
+            error: "missing policy".into(),
+        });
+        let outcome = build_outcome(std::slice::from_ref(&errored));
+        assert_eq!(outcome.suites_run, 0);
+        assert!(!outcome.regressed);
+        assert!(should_block(&outcome, true), "errored gate must block");
+        assert!(!should_block(&outcome, false), "report-only never blocks");
+
+        // A wholly clean run never blocks, either posture.
+        let clean = build_outcome(&[ran(summary("arch", 0, vec![]), None)]);
+        assert!(!should_block(&clean, true));
+        assert!(!should_block(&clean, false));
     }
 }

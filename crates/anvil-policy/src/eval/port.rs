@@ -392,9 +392,13 @@ mod tests {
 
     #[test]
     fn eval_harness_port_exit_code_escalation_is_a_regression() {
-        // Already failing (exit 1), now exits with a different non-zero code
-        // (e.g. an evaluation error): the gate's verdict changed — a regression
-        // even though the finding set is unchanged.
+        // Already failing (exit 1), now exits with a different non-zero code:
+        // the gate's verdict changed — a regression even though the finding set
+        // is unchanged. This guards the pure `regressed()` predicate defensively;
+        // note the production `SubprocessRunner` classifies a *process* exit >=2
+        // as an infra error (EVALCI-003) before it ever becomes a summary, so
+        // this `exit_code`-field escalation path is only reachable from a
+        // producer that reports 2 in JSON while exiting 0 or 1.
         let base = summary("s", 1, vec![finding(EvalSeverity::Error, "x", Some("a"))]);
         let cur = summary("s", 2, vec![finding(EvalSeverity::Error, "x", Some("a"))]);
         let report = EvalRegressionReport::compare(Some(&base), &cur);

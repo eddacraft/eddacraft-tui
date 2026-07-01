@@ -2,7 +2,7 @@
 
 | ID     | Owner  | Status   |
 | ------ | ------ | -------- |
-| EVALCI | @aneki | Ready |
+| EVALCI | @aneki | In Progress |
 
 **Last reviewed:** 2026-07-01 (planning council: architect + pragmatic-lead + adversarial-reviewer)
 
@@ -67,7 +67,7 @@ for the deferred wiring step this module picks up.
 
 ### EVALCI-001: Ratchet `--update-baseline` to clean runs only
 
-- **Status:** Ready
+- **Status:** Merged 2026-07-01 via PR #3023
 - **Intent:** Persist a run to history only when its gate is non-regressed or
   clean, so a failing run cannot become the accepted baseline.
 - **Expected Outcome:** `--update-baseline` cannot poison the baseline with a
@@ -77,7 +77,7 @@ for the deferred wiring step this module picks up.
 
 ### EVALCI-002: Null the eval subprocess stdin
 
-- **Status:** Ready
+- **Status:** Merged 2026-07-01 via PR #3023
 - **Intent:** `SubprocessRunner` sets child stdin to null so a future
   auth or license prompt cannot hang a suite until the timeout.
 - **Expected Outcome:** A prompting upstream command fails fast, not after the
@@ -87,7 +87,7 @@ for the deferred wiring step this module picks up.
 
 ### EVALCI-003: Classify non-{0,1} suite exit as execution-error
 
-- **Status:** Ready
+- **Status:** Merged 2026-07-01 via PR #3023
 - **Intent:** An inner `anvil policy eval` exit code outside {0,1} (an OPA or
   infra failure, for example 2) is an execution error, not a trust regression.
 - **Expected Outcome:** Infra failures do not false-block main as regressions.
@@ -96,7 +96,7 @@ for the deferred wiring step this module picks up.
 
 ### EVALCI-004: Per-suite fail-open
 
-- **Status:** Ready
+- **Status:** Merged 2026-07-01 via PR #3023
 - **Intent:** A suite that errors (missing policy, empty stdout) reports a
   `runner-error` status and the run continues and still emits the aggregate
   report, instead of aborting all suites.
