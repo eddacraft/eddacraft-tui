@@ -37,7 +37,7 @@ pub enum CoverageTier {
     /// current release.
     Supported,
     /// anvil ships some checks for this language; full coverage is
-    /// in flight (e.g. SQL pending SURFSQL Phase 1).
+    /// in flight (e.g. Markdown pending MDGOV).
     Partial,
     /// anvil does not yet ship language-specific checks for this
     /// language. Cross-language checks (secrets) still apply.
@@ -72,8 +72,9 @@ pub struct LanguageEntry {
 /// Order is "most-supported first" so iteration is stable.
 ///
 /// **Anchoring (2026-05-04):** TS/JS supported via the antipattern
-/// check defaults; SQL partial pending SURFSQL Phase 1 (RELEASE-PLAN
-/// A5); Markdown partial pending MDGOV.
+/// check defaults; SQL partial — SURFSQL migration-safety governance
+/// shipped, broader structural coverage in flight; Markdown partial
+/// pending MDGOV.
 ///
 /// **Rust → supported (2026-06, RSTLAN-003/-004/-005/-006):** Rust
 /// ships the AST-aware antipattern catalogue, default `.rs` scan-set
@@ -124,7 +125,7 @@ pub const LANGUAGE_REGISTRY: &[LanguageEntry] = &[
         name: "SQL",
         extensions: &[".sql"],
         coverage_tier: CoverageTier::Partial,
-        basis: "secret checks ship; structural governance not yet shipped",
+        basis: "secret checks + SQL migration-safety governance ship",
     },
     LanguageEntry {
         name: "Markdown",

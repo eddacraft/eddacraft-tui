@@ -363,17 +363,19 @@ fn run_with_home_and_registration(
 /// exact line before appending so re-running `anvil start` doesn't
 /// duplicate. Creates `.gitattributes` if it doesn't exist.
 ///
-/// This is foundation for MLP-002. The orchestrator writes the
-/// attribute at adoption time so when MLP-002 lands, parallel
-/// branches' witness writes naturally union-merge instead of
-/// producing conflicts.
+/// The orchestrator writes the attribute at adoption time so the
+/// shipped witness chain (MLP-002 / MLP2-005 — commits emit
+/// `active.ndjson` and the manifest via the git hooks and the intercept
+/// daemon) union-merges across parallel branches instead of producing
+/// conflicts.
 fn ensure_witness_gitattributes(root: &Path) -> std::io::Result<()> {
     // Per spec §5.1 + ADR-037 §D-3, the active witness file lives at
     // `anvil/witness/active.ndjson` (not the deprecated top-level
     // `anvil/witnessed.ndjson` shorthand that appeared in early drafts).
-    // Pre-position both the active file and the manifest with
-    // `merge=union -text` so MLP-002 lands without requiring a separate
-    // `.gitattributes` migration.
+    // Set `merge=union -text` on both the active file and the manifest
+    // so the shipped witness chain (MLP-002 / MLP2-005) union-merges
+    // across parallel branches without a separate `.gitattributes`
+    // migration.
     const WITNESS_LINES: &[&str] = &[
         "anvil/witness/active.ndjson merge=union -text",
         "anvil/witness/manifest/chain.ndjson merge=union -text",
