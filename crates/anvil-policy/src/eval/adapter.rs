@@ -154,6 +154,29 @@ impl SubprocessRunner {
     }
 }
 
+/// Render a non-`{0,1}` process exit for the EVALCI-003 error detail. On Unix a
+/// signal death (`code()` is `None`) surfaces the signal number so an infra/OPA
+/// crash is actionable from the logs, rather than an opaque `signal`.
+#[cfg(unix)]
+fn describe_exit(status: std::process::ExitStatus) -> String {
+    use std::os::unix::process::ExitStatusExt;
+    status.code().map_or_else(
+        || {
+            status
+                .signal()
+                .map_or_else(|| "signal".to_string(), |s| format!("signal {s}"))
+        },
+        |c| c.to_string(),
+    )
+}
+
+#[cfg(not(unix))]
+fn describe_exit(status: std::process::ExitStatus) -> String {
+    status
+        .code()
+        .map_or_else(|| "signal".to_string(), |c| c.to_string())
+}
+
 impl PolicyEvalRunner for SubprocessRunner {
     fn eval_json(&self, suite: &EvalSuite) -> Result<String, EvalHarnessError> {
         let exec_err =
@@ -244,19 +267,16 @@ impl PolicyEvalRunner for SubprocessRunner {
         // contract a producer that exits 2 never yields a parsed summary — the
         // council settled process exit >=2 as infra, not a trust escalation. If
         // a future contract major assigns meaning to exit 2, revisit this.
-        match status.code() {
-            Some(0 | 1) => {}
-            other => {
-                let stderr = String::from_utf8_lossy(&stderr_bytes);
-                let stderr = stderr.trim();
-                let code = other.map_or_else(|| "signal".to_string(), |c| c.to_string());
-                let detail = if stderr.is_empty() {
-                    format!("suite exited with status {code} (expected 0 or 1)")
-                } else {
-                    format!("suite exited with status {code} (expected 0 or 1); stderr: {stderr}")
-                };
-                return Err(exec_err(detail.into()));
-            }
+        if !matches!(status.code(), Some(0 | 1)) {
+            let stderr = String::from_utf8_lossy(&stderr_bytes);
+            let stderr = stderr.trim();
+            let code = describe_exit(status);
+            let detail = if stderr.is_empty() {
+                format!("suite exited with status {code} (expected 0 or 1)")
+            } else {
+                format!("suite exited with status {code} (expected 0 or 1); stderr: {stderr}")
+            };
+            return Err(exec_err(detail.into()));
         }
 
         // Empty stdout means the process produced no document (a crash/panic):
@@ -533,6 +553,17 @@ mod tests {
         assert!(
             SubprocessRunner::new(p1).eval_json(&suite()).is_ok(),
             "exit 1"
+        );
+
+        // A signal death surfaces the signal number so an infra crash is
+        // debuggable (SIGTERM = 15).
+        let (_ds, ps) = script("kill -TERM $$");
+        let err = SubprocessRunner::new(ps)
+            .eval_json(&suite())
+            .expect_err("signal death is an execution error");
+        assert!(
+            err.to_string().contains("signal 15"),
+            "signal surfaced: {err}"
         );
     }
 }
