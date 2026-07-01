@@ -89,9 +89,10 @@ fn step_with_watch(
 ///
 /// This string is run through [`executor::execute_command`], which hands it to
 /// `cmd /C` on Windows and `sh -c` elsewhere. It must therefore be a command
-/// the platform shell can actually execute. `mkdir` is a builtin of both
-/// `cmd.exe` and `sh` (and creates intermediate directories on each), so it
-/// works under the executor on every platform. An earlier revision emitted the
+/// the platform shell can actually execute. `mkdir` runs under both — as a
+/// `cmd.exe` builtin on Windows and as a standard utility on `PATH` under `sh`
+/// on Unix — and creates intermediate directories in each case, so it works
+/// under the executor on every platform. An earlier revision emitted the
 /// PowerShell cmdlet `New-Item` on Windows, which `cmd /C` cannot resolve
 /// (`'New-Item' is not recognized`), silently breaking this step on Windows.
 fn create_policy_directory_command() -> &'static str {
@@ -552,8 +553,8 @@ mod tests {
         let command = create_policy_directory_command();
         assert!(
             command.starts_with("mkdir"),
-            "policy-directory command must be a cmd.exe/sh builtin runnable under the \
-             executor shell, got: {command:?}"
+            "policy-directory command must be runnable under the executor shell \
+             (`cmd /C` or `sh -c`), got: {command:?}"
         );
         assert!(
             !command.contains("New-Item"),
