@@ -3403,7 +3403,14 @@ archive.
 
 ### CIB-125: Cross-process `append_chained` linearisation test
 
-- **Status:** Ready
+- **Status:** Merged 2026-07-01 via PR #3024 — `crates/anvil-witness/tests/
+  cross_process_linearisation.rs` (custom `harness = false`) re-execs itself via
+  `current_exe()` as 6 worker processes, released together on a go-signal, each
+  doing 5 `append_chained` calls against one shared chain; the parent asserts
+  `verify_chain_dag` yields one Healthy, strictly-linear chain (genesis + 30
+  records, each present exactly once). Validated by temporarily reverting
+  `append_chained` to an out-of-lock head read → the test fails with a `ChainBreak`
+  (fork detected). Closes the last MLP2-005 "No divergence" validation bullet.
 - **Intent:** Prove the witness-append atomicity holds across **separate
   processes** (a daemon vs a CLI fallback), not just threads.
 - **Expected Outcome:** an integration test in `crates/anvil-witness/tests/`

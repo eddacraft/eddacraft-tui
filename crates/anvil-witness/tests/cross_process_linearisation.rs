@@ -19,9 +19,11 @@
 //! `verify_chain_dag` below would fail with a `ChainBreak`, failing this test.
 
 use std::collections::HashSet;
+use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
-use std::{env, fs, process::Command, thread};
+use std::{env, fs, thread};
 
 use anvil_witness::{
     GenesisAnchor, RolloverPolicy, WitnessLine, WitnessWriter, verify_chain_dag, witness_paths,
@@ -76,11 +78,17 @@ fn record(seq: u64, prev: String, commit: &str) -> WitnessLine {
     }
 }
 
-/// One worker process: wait for the parent's go-signal (so all workers contend at
-/// once), then append `APPENDS_PER_WORKER` records via `append_chained`.
+/// One worker process: announce readiness, wait for the parent's go-signal (so all
+/// workers contend at once — the parent only releases once every worker is here),
+/// then append `APPENDS_PER_WORKER` records via `append_chained`.
 fn worker(root: &Path, tag: &str) {
+    // Announce we've reached the barrier so the parent can release all workers
+    // together (a symmetric barrier — otherwise a slow-to-spawn worker could start
+    // after the go-signal and never overlap, weakening the contention this proves).
+    fs::write(root.join(format!(".xproc-ready-{tag}")), b"1").expect("write ready-signal");
+
     let go = root.join(".xproc-go");
-    let deadline = Instant::now() + Duration::from_secs(15);
+    let deadline = Instant::now() + Duration::from_secs(30);
     while !go.exists() {
         if Instant::now() >= deadline {
             eprintln!("worker {tag}: go-signal never appeared");
@@ -111,24 +119,91 @@ fn parent() {
             Command::new(&exe)
                 .env(ROOT_ENV, &root)
                 .env(TAG_ENV, format!("w{w}"))
+                // Capture stderr so a worker's panic is legible (prefixed by tag on
+                // failure) rather than interleaved across six processes' shared fd.
+                .stderr(Stdio::piped())
                 .spawn()
                 .expect("spawn worker")
         })
         .collect();
 
-    // Release all workers simultaneously to force real lock contention.
+    // Wait until every worker has reached the barrier, THEN release them together —
+    // this guarantees real simultaneous contention even on a slow/loaded runner (F2).
+    let ready_deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        let ready = (0..WORKERS)
+            .filter(|w| root.join(format!(".xproc-ready-w{w}")).exists())
+            .count();
+        if ready == WORKERS {
+            break;
+        }
+        assert!(
+            Instant::now() < ready_deadline,
+            "only {ready}/{WORKERS} workers reached the barrier before the deadline",
+        );
+        thread::sleep(Duration::from_millis(2));
+    }
     fs::write(root.join(".xproc-go"), b"go").expect("write go-signal");
 
-    for (w, child) in children.iter_mut().enumerate() {
-        let status = child.wait().expect("wait worker");
-        assert!(status.success(), "worker w{w} exited with {status}");
+    reap_workers(&mut children);
+    verify_linear_chain(&root);
+}
+
+/// Reap every worker with a BOUNDED wait: a flock deadlock — the failure mode this
+/// very test probes — would otherwise hang the parent on a blocking `wait()` until
+/// the CI job's 45-60min limit, with no diagnostic. Poll with `try_wait`; on the
+/// deadline, kill all stragglers (so none writes into the `TempDir` the caller then
+/// drops) and fail fast. On a worker failure, surface its captured stderr, prefixed.
+fn reap_workers(children: &mut [std::process::Child]) {
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let mut statuses: Vec<(usize, std::process::ExitStatus)> = Vec::new();
+    loop {
+        for (w, child) in children.iter_mut().enumerate() {
+            if statuses.iter().any(|(sw, _)| *sw == w) {
+                continue;
+            }
+            if let Some(status) = child.try_wait().expect("try_wait worker") {
+                statuses.push((w, status));
+            }
+        }
+        if statuses.len() == children.len() {
+            break;
+        }
+        if Instant::now() >= deadline {
+            for child in children.iter_mut() {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
+            let mut finished: Vec<usize> = statuses.iter().map(|(w, _)| *w).collect();
+            finished.sort_unstable();
+            panic!(
+                "workers did not all finish within the deadline (possible flock deadlock); \
+                 finished={finished:?}, killed the rest",
+            );
+        }
+        thread::sleep(Duration::from_millis(5));
     }
 
-    // The N processes, each appending K times via `append_chained`, must yield ONE
-    // linear, verifiable chain: genesis + N*K records. A fork (two records sharing
-    // a `(seq, prev)`) would surface here as a `ChainBreak` from `verify_chain_dag`.
+    for (w, status) in &statuses {
+        if !status.success() {
+            if let Some(mut err) = children[*w].stderr.take() {
+                let mut buf = String::new();
+                let _ = err.read_to_string(&mut buf);
+                for line in buf.lines() {
+                    eprintln!("[worker w{w}] {line}");
+                }
+            }
+            panic!("worker w{w} exited with {status}");
+        }
+    }
+}
+
+/// Assert the merged chain is ONE linear, Healthy sequence: genesis + N*K records,
+/// each worker's record present exactly once. A fork (two records sharing a
+/// `(seq, prev)`) surfaces as a `ChainBreak` from `verify_chain_dag`.
+fn verify_linear_chain(root: &Path) {
     let expected_records = WORKERS * APPENDS_PER_WORKER;
-    let paths = witness_paths(&root);
+    let paths = witness_paths(root);
     let refs: Vec<&Path> = paths.iter().map(PathBuf::as_path).collect();
     let dag = verify_chain_dag(&refs)
         .expect("cross-process chain must verify Healthy (a fork would ChainBreak here)");
@@ -140,8 +215,8 @@ fn parent() {
     );
     assert_eq!(dag.merge_count, 0, "the chain must be strictly linear");
 
-    // Stronger than the count: every worker's record survived exactly once (no
-    // lost or duplicated append), and no unexpected record appeared.
+    // Stronger than the count: every worker's record survived exactly once (no lost
+    // or duplicated append), and no unexpected record appeared.
     let mut seen: HashSet<String> = HashSet::new();
     for p in &paths {
         for raw in fs::read_to_string(p).unwrap_or_default().lines() {
@@ -162,7 +237,7 @@ fn parent() {
         .collect();
     assert_eq!(
         seen, expected,
-        "every worker's records must survive exactly once",
+        "every worker's records must survive exactly once"
     );
 
     println!(

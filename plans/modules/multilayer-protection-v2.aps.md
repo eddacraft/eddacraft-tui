@@ -489,14 +489,14 @@ task's `Source:` line cites the Council finding IDs.
 
 #### MLP2-005: Witness append — daemon RPC + embedded fallback
 
-- **Status:** In Progress — **Phases 1–3 implemented 2026-06-30.** Phase 1
-  (`WitnessWriter::append_chained` atomicity), phase 2 (the daemon
-  `anvil/witness/append` RPC + handler), and phase 3 (the hook daemon-first /
-  embedded-fallback wiring) are all landed. The single remaining acceptance item
-  — a **live two-process race integration test** (daemon-routed append interleaved
-  with an embedded append, daemon killed mid-append) — is tracked as **CIB-125**
-  (cross-process `append_chained` linearisation); the atomicity it guards is
-  unit-proven and the classification split is unit-tested. Deps MLP-002/MLP-003 Done.
+- **Status:** Done — **Phases 1–3 implemented 2026-06-30; validation completed
+  2026-07-01.** Phase 1 (`WitnessWriter::append_chained` atomicity), phase 2 (the
+  daemon `anvil/witness/append` RPC + handler), and phase 3 (the hook daemon-first
+  / embedded-fallback wiring) all landed, plus the CIB-124 bounded-lock hardening.
+  The last acceptance item — the **cross-process linearisation test** (the
+  "No divergence" bullet) — landed as **CIB-125** (PR #3024); the classification
+  split, gating, parity and telemetry are unit-tested. Deps MLP-002/MLP-003 Done.
+  (Module-level "Complete" awaits a release tag per the goal/APS lifecycle.)
 - **Phase 3 (hook daemon-first / embedded-fallback wiring) implemented 2026-06-30.**
   `hook.rs::append_witness_routed` routes the five production hook appends
   daemon-first: `project_writes_gated()` (DISTRIB-006) short-circuits **before**
