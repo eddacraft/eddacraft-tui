@@ -3,7 +3,7 @@ use ratatui::layout::Rect;
 use ratatui::style::Modifier;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, StatefulWidget, Widget};
-use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
+use unicode_width::UnicodeWidthChar;
 
 use crate::theme::Theme;
 
@@ -192,14 +192,19 @@ fn visible_window_start(value: &str, cursor: usize, width: usize) -> usize {
         .unwrap_or(1)
         .max(1);
     let budget = width.saturating_sub(cursor_cols);
-    let mut start = 0;
-    // `start < cursor` bounds the loop even when `budget == 0`, so it always
-    // terminates without a separate zero-width guard.
-    while start < cursor && UnicodeWidthStr::width(&value[start..cursor]) > budget {
-        start = value[start..]
-            .char_indices()
-            .nth(1)
-            .map_or(cursor, |(i, _)| start + i);
+    // Walk backwards from the cursor, accumulating the display columns of each
+    // preceding character, and stop before the running total would exceed the
+    // budget. O(n) in the characters scanned — the forward form re-measured the
+    // whole `value[start..cursor]` prefix on every step, making it O(n²).
+    let mut used = 0usize;
+    let mut start = cursor;
+    for (idx, ch) in value[..cursor].char_indices().rev() {
+        let col = UnicodeWidthChar::width(ch).unwrap_or(0);
+        if used + col > budget {
+            break;
+        }
+        used += col;
+        start = idx;
     }
     start
 }
