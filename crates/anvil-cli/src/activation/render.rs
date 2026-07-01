@@ -112,12 +112,13 @@ pub fn render_human(d: &ActivationDiagnostic) -> String {
     // them as the headline security signal.
     //
     // PR #1293 review fix (Copilot): the original copy said "future
-    // changes are checked", which over-claimed — this PR ships the
-    // baseline contract but does not yet wire watch / check / audit
-    // to filter on it. The wording is now future-tense and uses the
-    // CIB-016 "current posture — N findings, baselined as-is" / "new
-    // regressions" framing (subsequent scans will report new regressions
-    // once diff wiring lands).
+    // changes are checked", which over-claimed — LAUNCH-010 ships the
+    // baseline contract but no command consumes it. `Baseline::contains_*`
+    // is dead-code-until-wired, and that consumer was never filed while the
+    // LAUNCH module was open; it is now tracked as CIB-127 (wire the
+    // finding-baseline into `anvil check` / `audit`). Until it lands the
+    // copy states plainly that the baseline is recorded but not yet used to
+    // filter scans, rather than implying a diff that nothing performs.
     match (&d.baseline_summary, d.baseline_present) {
         (Some(s), _) if s.secret > 0 => {
             let _ = writeln!(
@@ -133,7 +134,7 @@ pub fn render_human(d: &ActivationDiagnostic) -> String {
         (Some(s), _) => {
             let _ = writeln!(
                 out,
-                "  baseline: present (current posture — {} findings, baselined as-is; future scans will report new regressions)",
+                "  baseline: present (current posture — {} findings, baselined as-is; recorded for reference — not yet used to filter later scans)",
                 s.total,
             );
         }
@@ -905,6 +906,35 @@ mod tests {
     fn human_render_includes_state_label() {
         let h = render_human(&protecting());
         assert!(h.contains("state: protecting"), "rendered: {h}");
+    }
+
+    #[test]
+    fn baseline_copy_does_not_promise_an_unwired_diff() {
+        // CIB-127: activation writes the finding-baseline but no command
+        // consumes it yet. The copy must not imply a diff that nothing
+        // performs (the old wording promised "future scans will report new
+        // regressions").
+        let mut d = protecting();
+        d.baseline_present = true;
+        d.baseline_summary = Some(super::super::diagnostic::BaselineSummary {
+            total: 3,
+            antipattern: 3,
+            secret: 0,
+            created_at: "2026-07-01T00:00:00Z".to_string(),
+        });
+        let h = render_human(&d);
+        assert!(
+            h.contains("baseline: present"),
+            "baseline line must still render the count: {h}"
+        );
+        assert!(
+            !h.contains("will report new regressions"),
+            "copy must not promise an unwired diff: {h}"
+        );
+        assert!(
+            h.contains("not yet used to filter"),
+            "copy must state the baseline is recorded but not yet consumed: {h}"
+        );
     }
 
     #[test]
