@@ -84,9 +84,19 @@ fn step_with_watch(
     }
 }
 
+/// The directory-creation command for the policy path's "Create Policy
+/// Directory" step.
+///
+/// This string is run through [`executor::execute_command`], which hands it to
+/// `cmd /C` on Windows and `sh -c` elsewhere. It must therefore be a command
+/// the platform shell can actually execute. `mkdir` is a builtin of both
+/// `cmd.exe` and `sh` (and creates intermediate directories on each), so it
+/// works under the executor on every platform. An earlier revision emitted the
+/// PowerShell cmdlet `New-Item` on Windows, which `cmd /C` cannot resolve
+/// (`'New-Item' is not recognized`), silently breaking this step on Windows.
 fn create_policy_directory_command() -> &'static str {
     if cfg!(windows) {
-        r"New-Item -ItemType Directory -Force -Path .anvil\policies"
+        r"mkdir .anvil\policies"
     } else {
         "mkdir -p .anvil/policies"
     }
@@ -94,7 +104,7 @@ fn create_policy_directory_command() -> &'static str {
 
 fn create_policy_directory_instruction() -> &'static str {
     if cfg!(windows) {
-        r"Run: New-Item -ItemType Directory -Force -Path .anvil\policies"
+        r"Run: mkdir .anvil\policies"
     } else {
         "Run: mkdir -p .anvil/policies"
     }
@@ -217,7 +227,7 @@ pub fn policy_steps() -> Vec<TutorialStep> {
             watch_path: Some(".anvil/policies".to_string()),
             ..step(
                 "Create Policy Directory",
-                "anvil looks for policies in the .anvil/policies/ directory. Create this directory in your project root so anvil can discover your custom Rego rules. The tutorial uses the native directory-creation command for your shell: `mkdir -p` on macOS/Linux and PowerShell `New-Item -ItemType Directory -Force -Path .anvil\\policies` on Windows.",
+                "anvil looks for policies in the .anvil/policies/ directory. Create this directory in your project root so anvil can discover your custom Rego rules. The tutorial uses the native directory-creation command for your shell: `mkdir -p .anvil/policies` on macOS/Linux and `mkdir .anvil\\policies` on Windows.",
                 create_policy_directory_instruction(),
             )
         },
@@ -526,13 +536,30 @@ mod tests {
     fn create_policy_directory_command_is_platform_native() {
         let command = create_policy_directory_command();
         if cfg!(windows) {
-            assert_eq!(
-                command,
-                r"New-Item -ItemType Directory -Force -Path .anvil\policies"
-            );
+            assert_eq!(command, r"mkdir .anvil\policies");
         } else {
             assert_eq!(command, "mkdir -p .anvil/policies");
         }
+    }
+
+    /// The command is executed through `executor::execute_command`, which uses
+    /// `cmd /C` on Windows — not PowerShell. Guard against re-introducing a
+    /// PowerShell-only cmdlet (`New-Item`) that `cmd.exe` cannot resolve, which
+    /// silently broke this step on Windows before. `mkdir` is a `cmd.exe`
+    /// builtin, so the executor's shell can run it.
+    #[test]
+    fn create_policy_directory_command_runs_under_executor_shell() {
+        let command = create_policy_directory_command();
+        assert!(
+            command.starts_with("mkdir"),
+            "policy-directory command must be a cmd.exe/sh builtin runnable under the \
+             executor shell, got: {command:?}"
+        );
+        assert!(
+            !command.contains("New-Item"),
+            "New-Item is a PowerShell cmdlet; the executor runs `cmd /C`, which cannot \
+             resolve it"
+        );
     }
 
     #[test]
