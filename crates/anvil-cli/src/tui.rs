@@ -205,7 +205,14 @@ fn surface_loop<S: Surface>(
         if event::poll(Duration::from_millis(100))? {
             match event::read()? {
                 Event::Key(key) if key.kind == KeyEventKind::Press => {
-                    let action = KeyHandler::map(key);
+                    // #2881: text-entry steps (a path/name field) map printable
+                    // keys literally so h/j/k/l/q aren't hijacked as vim
+                    // navigation; list steps keep the vim-style mapping.
+                    let action = if state.text_entry_active() {
+                        KeyHandler::map_text_entry(key)
+                    } else {
+                        KeyHandler::map(key)
+                    };
                     state.handle_key(action);
                     dirty = true;
 

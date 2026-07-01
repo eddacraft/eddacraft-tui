@@ -91,7 +91,7 @@ impl WizardState {
     pub fn help_text(&self) -> &'static str {
         match self.step {
             WizardStep::TemplateSelect => "j/k navigate  enter select  esc back  q quit",
-            WizardStep::ProjectName => "type name  enter next  esc back  q quit",
+            WizardStep::ProjectName => "type name  enter next  esc back  ctrl+c quit",
             WizardStep::Configure => "j/k navigate  space toggle  enter next  esc back  q quit",
             WizardStep::Summary => "enter confirm  esc back  q quit",
         }
@@ -215,10 +215,17 @@ impl crate::surface::Surface for WizardState {
     fn help_text(&self) -> &'static str {
         match self.step {
             WizardStep::TemplateSelect => "j/k navigate  enter select  esc back  q quit",
-            WizardStep::ProjectName => "type name  enter confirm  esc back  q quit",
+            // #2881: this is a free-text field — 'q' is a literal character, so
+            // quit is Ctrl+C, not 'q'.
+            WizardStep::ProjectName => "type name  enter confirm  esc back  ctrl+c quit",
             WizardStep::Configure => "j/k navigate  space toggle  l/enter next  esc back  q quit",
             WizardStep::Summary => "enter confirm  esc back  q quit",
         }
+    }
+
+    fn text_entry_active(&self) -> bool {
+        // #2881: only the project-name field captures free text.
+        matches!(self.step, WizardStep::ProjectName)
     }
 
     fn handle_key(&mut self, action: Action) {

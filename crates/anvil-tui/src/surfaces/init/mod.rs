@@ -155,7 +155,7 @@ impl InitState {
     pub fn help_text(&self) -> &'static str {
         match self.step {
             InitStep::Mode | InitStep::Format => "j/k navigate  enter select  esc back  q quit",
-            InitStep::Directory => "type directory  enter next  esc back  q quit",
+            InitStep::Directory => "type directory  enter next  esc back  ctrl+c quit",
             InitStep::Checks => "j/k navigate  space toggle  enter next  esc back  q quit",
             InitStep::Summary => "enter confirm  esc back  q quit",
         }
@@ -315,10 +315,18 @@ impl crate::surface::Surface for InitState {
     fn help_text(&self) -> &'static str {
         match self.step {
             InitStep::Mode | InitStep::Format => "j/k navigate  enter select  esc back  q quit",
-            InitStep::Directory => "type path  enter confirm  esc back  q quit",
+            // #2881: this is a free-text field — 'q' is a literal character, so
+            // quit is Ctrl+C, not 'q'.
+            InitStep::Directory => "type path  enter confirm  esc back  ctrl+c quit",
             InitStep::Checks => "j/k navigate  space toggle  enter confirm  esc back  q quit",
             InitStep::Summary => "enter confirm  esc back  q quit",
         }
+    }
+
+    fn text_entry_active(&self) -> bool {
+        // #2881: only the directory field captures free text; every other
+        // step is list navigation.
+        matches!(self.step, InitStep::Directory)
     }
 
     fn handle_key(&mut self, action: Action) {
@@ -379,6 +387,60 @@ mod tests {
         assert_eq!(state.step, InitStep::Mode);
         assert!(!state.should_quit);
         assert!(!state.confirmed);
+    }
+
+    #[test]
+    fn directory_step_is_the_only_text_entry_step() {
+        use crate::surface::Surface;
+        let mut state = InitState::new(sample_checks());
+        // List-navigation steps: vim mapping stays.
+        for step in [
+            InitStep::Mode,
+            InitStep::Format,
+            InitStep::Checks,
+            InitStep::Summary,
+        ] {
+            state.step = step;
+            assert!(
+                !state.text_entry_active(),
+                "{step:?} must not be text-entry"
+            );
+        }
+        state.step = InitStep::Directory;
+        assert!(state.text_entry_active());
+    }
+
+    #[test]
+    fn typing_a_windows_path_with_vim_letters_inserts_literally() {
+        use crate::surface::Surface;
+        use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+        use eddacraft_tui::keyboard::KeyHandler;
+
+        // #2881 regression: Dave typed `c:\Chap` on Windows and got `c:\hC`
+        // because h/j/k/l were bound to vim navigation during path entry.
+        // Drive the *real* key path: raw key -> map_text_entry -> handle_key.
+        let mut state = InitState::new(sample_checks());
+        state.step = InitStep::Directory;
+        assert!(
+            state.text_entry_active(),
+            "directory step must select map_text_entry"
+        );
+
+        let path = r"c:\Chap";
+        for ch in path.chars() {
+            let event = KeyEvent::new(KeyCode::Char(ch), KeyModifiers::empty());
+            state.handle_key(KeyHandler::map_text_entry(event));
+        }
+
+        assert_eq!(
+            state.text_input.value, path,
+            "every character must insert in order"
+        );
+        assert_eq!(
+            state.text_input.cursor(),
+            path.len(),
+            "cursor stays at the end after sequential typing",
+        );
     }
 
     #[test]

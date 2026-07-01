@@ -133,10 +133,7 @@ fn render_directory_step(frame: &mut Frame, area: Rect, state: &InitState, theme
             "Enter the project root directory:",
             Style::default().fg(theme.fg()),
         )),
-        Line::from(Span::styled(
-            format!(">> {}_", state.text_input.value),
-            Style::default().fg(theme.accent()),
-        )),
+        directory_input_line(state, theme),
         Line::default(),
         Line::from(Span::styled(
             "Leave empty for current directory (.)",
@@ -144,6 +141,31 @@ fn render_directory_step(frame: &mut Frame, area: Rect, state: &InitState, theme
         )),
     ]));
     frame.render_widget(prompt, inner);
+}
+
+/// Render the directory input with the cursor drawn at its actual position
+/// (`text_input.cursor()`) as a reversed cell, rather than a fixed trailing
+/// `_`. #2881: the old trailing-underscore hid the real cursor, so after an
+/// arrow-key move the caret looked like it was at the end while insertions
+/// landed elsewhere.
+fn directory_input_line<'a>(state: &'a InitState, theme: &EddaCraftTheme) -> Line<'a> {
+    let accent = Style::default().fg(theme.accent());
+    let value = &state.text_input.value;
+    let cursor = state.text_input.cursor().min(value.len());
+    let (before, rest) = value.split_at(cursor);
+    let mut rest_chars = rest.chars();
+    // The character under the cursor is reversed; at end-of-input the cursor is
+    // a reversed space so it stays visible.
+    let (under_cursor, after) = match rest_chars.next() {
+        Some(c) => (c.to_string(), rest_chars.as_str().to_string()),
+        None => (" ".to_string(), String::new()),
+    };
+    Line::from(vec![
+        Span::styled(">> ", accent),
+        Span::styled(before.to_string(), accent),
+        Span::styled(under_cursor, accent.add_modifier(Modifier::REVERSED)),
+        Span::styled(after, accent),
+    ])
 }
 
 fn render_checks_step(frame: &mut Frame, area: Rect, state: &InitState, theme: &EddaCraftTheme) {
@@ -341,6 +363,7 @@ mod tests {
         let mut state = sample_state();
         state.step = InitStep::Directory;
         state.text_input.value = "src/app".to_string();
+        state.text_input.set_cursor(state.text_input.value.len()); // caret at end, as after typing
         let theme = EddaCraftTheme;
 
         terminal
@@ -358,6 +381,34 @@ mod tests {
 
         let buf = terminal.backend().buffer().clone();
         insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    #[test]
+    fn directory_cursor_renders_at_its_actual_position() {
+        // #2881 (problem 2): the caret must sit where the cursor is, not be a
+        // fixed trailing marker. With the cursor between "src" and "/app", the
+        // reversed cell is on "/", and the visible text is unchanged.
+        let mut state = sample_state();
+        state.step = InitStep::Directory;
+        state.text_input.value = "src/app".to_string();
+        state.text_input.set_cursor(3);
+        let theme = EddaCraftTheme;
+
+        let line = directory_input_line(&state, &theme);
+        let reversed: Vec<&str> = line
+            .spans
+            .iter()
+            .filter(|s| s.style.add_modifier.contains(Modifier::REVERSED))
+            .map(|s| s.content.as_ref())
+            .collect();
+        assert_eq!(
+            reversed,
+            ["/"],
+            "reversed cursor cell sits on the char at the cursor"
+        );
+
+        let text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
+        assert_eq!(text, ">> src/app", "the full input text is preserved");
     }
 
     #[test]
