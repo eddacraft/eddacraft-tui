@@ -101,9 +101,22 @@ The flock acquire is **bounded** (CIB-124): a stalled holder times out to
 default ceiling is 5 seconds — generous, since a normal hold is sub-millisecond,
 so it only fires against a genuine wedge. Operators on slow storage or with very
 high parallel-worktree commit volume can override it by exporting
-`ANVIL_WITNESS_LOCK_TIMEOUT=<seconds>` (a positive integer) in the environment the
-git hooks and the daemon run under; a malformed value is ignored with a warning
-and the 5-second default is used.
+`ANVIL_WITNESS_LOCK_TIMEOUT=<seconds>` (a positive integer) in the environment
+the git hooks and the daemon run under; a malformed value is ignored with a
+warning and the 5-second default is used.
+
+Two caveats:
+
+- **Compound worst-case.** Under the phase-3 daemon-first routing, a wedged lock
+  is waited on by _both_ legs: the hook's daemon RPC has its own ~2 s socket
+  timeout, then the hook falls back to the embedded writer, which waits the
+  override against the _same_ lock. So the real worst-case commit hang is
+  roughly `2s + ANVIL_WITNESS_LOCK_TIMEOUT`, not the override alone — set 30 and
+  a wedge can hang for ~32 s.
+- **Daemon restart.** Git hooks are fresh subprocesses and pick up the var
+  immediately, but the daemon reads it **once at start**. After changing the
+  var, restart the daemon (`anvil stop && anvil start`) so its leg uses the new
+  value; otherwise the daemon path keeps the old value until the next restart.
 
 ## Verifying the chain
 

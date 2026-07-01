@@ -368,6 +368,10 @@ pub struct SaveTimeState {
     /// persistence is off. The §7b soak's "zero `Corrupt`" graduation check reads
     /// `load_corrupt` here.
     snapshot_metrics: Arc<SnapshotMetrics>,
+    /// CIB-124 GA: the witness flock-acquire timeout, resolved **once** from
+    /// `ANVIL_WITNESS_LOCK_TIMEOUT` at daemon start (a malformed value is warned
+    /// about here, once, not on every append). A change requires a daemon restart.
+    witness_lock_timeout: std::time::Duration,
 }
 
 impl SaveTimeState {
@@ -402,6 +406,7 @@ impl SaveTimeState {
             snapshot_dir: None,
             observation_emitter: None,
             snapshot_metrics: Arc::new(SnapshotMetrics::default()),
+            witness_lock_timeout: resolve_witness_lock_timeout(),
         }
     }
 
@@ -1409,7 +1414,9 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
                 )
             },
             |seq, prev_line_hash| witness_line_from_entry(entry, seq, prev_line_hash, &now_ts),
-            resolve_witness_lock_timeout(),
+            // Resolved once at daemon start (CIB-124 GA), so a malformed env value
+            // is not re-warned on every append.
+            state.witness_lock_timeout,
         );
 
         Ok(match outcome {

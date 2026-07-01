@@ -232,6 +232,11 @@ impl WitnessWriter {
     /// append must be atomic against concurrent writers (a daemon and an embedded
     /// fallback, or concurrent worktree hooks), use [`WitnessWriter::append_chained`]
     /// instead — it reads the head and appends under a single flock hold.
+    ///
+    /// The flock acquire uses [`DEFAULT_LOCK_ACQUIRE_TIMEOUT`] and does **not**
+    /// consult the [`LOCK_TIMEOUT_ENV`] operator override — that override is a
+    /// property of the atomic append path; route production writes through
+    /// [`WitnessWriter::append_chained_with_lock_timeout`] to honour it.
     pub fn append(&self, line: &WitnessLine) -> Result<AppendOutcome, WriterError> {
         // Fail fast on a misrouted line BEFORE acquiring the shared flock — a
         // scope mismatch is a caller bug, not something to take the lock for.
@@ -1055,6 +1060,9 @@ mod tests {
         assert_eq!(lock_timeout_from_env(Some("abc")), Err("abc".to_string()));
         assert_eq!(lock_timeout_from_env(Some("-5")), Err("-5".to_string()));
         assert_eq!(lock_timeout_from_env(Some("1.5")), Err("1.5".to_string()));
+        // Overflow (> u64::MAX) is a parse error, not a silent wrap.
+        let huge = "99999999999999999999";
+        assert_eq!(lock_timeout_from_env(Some(huge)), Err(huge.to_string()));
     }
 
     #[test]
