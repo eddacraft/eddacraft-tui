@@ -269,10 +269,13 @@ fn run_pre_commit(repo_root: &Path, sup: &mut SuppressionLog) -> Result<()> {
             Ok(())
         }
         Err(AppendError::ChainBroken) => {
-            // ADR-038: chain integrity break refuses the commit. We
-            // do NOT reseed (which would obliterate evidence). The
-            // operator runs `anvil hook bootstrap --witness-recent`
-            // (future follow-up) to repair.
+            // ADR-038: chain integrity break refuses the commit. We do NOT reseed
+            // (which would obliterate evidence). Recovery depends on the cause: a
+            // hash-chain break is inspected with `anvil show <id>`; a CIB-126
+            // emptied/deleted `active.ndjson` (marker survives) is restored with
+            // `git checkout -- anvil/witness/active.ndjson` (or, if the chain was
+            // never committed, acknowledged by removing the chain-init marker to
+            // permit a reseed). See docs/runbooks/anvil-witness-chain.md.
             let rendered = render_verdict(&Verdict::Block {
                 count: 0,
                 witness_id: identity.project_uuid.clone(),

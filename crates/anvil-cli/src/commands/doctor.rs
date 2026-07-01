@@ -689,8 +689,9 @@ fn git_at(root: &Path) -> Command {
 /// GITGOV-014 (ADR-073): the durable-vs-runtime state boundary check.
 /// Warns when paths under `.anvil/` (local runtime state) are git-tracked,
 /// or paths under `anvil/` (durable governance evidence) are gitignored.
-/// `anvil/exceptions/.lock` is exempt — it is the one sanctioned runtime
-/// artefact inside the tracked governance tree (EXCEPT-007). Warn, never
+/// `anvil/exceptions/.lock` (EXCEPT-007) and `anvil/witness/.chain-initialised`
+/// (CIB-126) are exempt — sanctioned runtime artefacts inside the tracked
+/// governance tree. Warn, never
 /// Fail: the boundary is a posture, and a repo may carry a recorded,
 /// justified deviation (ADR-073's dogfood note). Like every other doctor
 /// check, this is rooted at the process cwd — doctor's contract is "run at
@@ -841,7 +842,8 @@ fn state_boundary_warn(
                       runtime state first) and keep `.anvil/` gitignored; remove \
                       `.gitignore` rules that swallow durable `anvil/` evidence (or record \
                       the deviation as a justified exception per ADR-073). \
-                      `anvil/exceptions/.lock` is exempt (EXCEPT-007)."
+                      `anvil/exceptions/.lock` (EXCEPT-007) and \
+                      `anvil/witness/.chain-initialised` (CIB-126) are exempt."
                 .to_string(),
             command,
             doc_url: None,
@@ -902,9 +904,12 @@ fn ignored_durable_paths(root: &Path) -> Option<DurableSweep> {
         .filter_map(|e| {
             let rel = e.path().strip_prefix(root).ok()?;
             let rel = rel.to_string_lossy().replace('\\', "/");
-            // EXCEPT-007: the exception-store write lock is sanctioned
-            // runtime state inside the tracked governance tree.
-            (rel != "anvil/exceptions/.lock").then_some(rel)
+            // Sanctioned runtime artefacts inside the tracked governance tree —
+            // ignored by design, so the sweep must not flag them: the exception-store
+            // write lock (EXCEPT-007) and the witness chain-init marker (CIB-126).
+            let sanctioned =
+                rel == "anvil/exceptions/.lock" || rel == "anvil/witness/.chain-initialised";
+            (!sanctioned).then_some(rel)
         })
         .take(SWEEP_CAP + 1)
         .collect();
