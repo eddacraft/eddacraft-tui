@@ -29,7 +29,7 @@ CLI to drop down to. This means a CLI "fallback" can only rescue failures
 crashed) and rescues **nothing** below it: when the daemon is down, both surfaces
 return `Unavailable` over the same socket; when the graph is cold, both return
 `NotReady`. There is no embedded graph fallback for GCTX (unlike `anvil hook`,
-which has a local witness writer at `hook.rs:1440`) — the daemon-warmed graph is
+which has a local witness writer at `crates/anvil-cli/src/commands/hook.rs:1440`) — the daemon-warmed graph is
 the only implementation. Daemon-down and cold-graph are exactly the *most likely*
 failures in the non-agent contexts (fresh CI runner, cold hook) where one would
 reach for a "fallback", so framing the CLI as a fallback promises rescue
@@ -85,7 +85,7 @@ into the Decision and Consequences below.
    on what that does and does not prevent.** An agent detecting an MCP failure and
    shelling out to the CLI in a loop is explicitly out of scope: it is the
    resource-worst path (per-call spawn), and the `Unavailable` outcome is a
-   *structured success*, not an error (`search_symbols.rs:110`), so it is not even
+   *structured success*, not an error (`crates/anvil-cli/src/mcp/tools/search_symbols.rs:110`), so it is not even
    a clean fallback trigger. Two caveats keep this honest: (i) this is a
    **non-goal we decline to build *for*, not something the CLI can technically
    prevent** — nothing distinguishes an agent's `Bash` invocation of `anvil gctx …`
@@ -122,7 +122,7 @@ into the Decision and Consequences below.
    experimental gate** — concretely a `hide = true` clap subcommand plus a required
    opt-in (`--experimental` acknowledgement or `ANVIL_GCTX_CLI_EXPERIMENTAL=1`),
    mirroring the existing `gctx egress enable --yes` consent pattern
-   (`commands/gctx.rs`) — so the cold-graph false-negative below cannot be wired
+   (`crates/anvil-cli/src/commands/gctx.rs`) — so the cold-graph false-negative below cannot be wired
    into a CI gate before the contract lands. `symbol_context` (the sixth verb) is
    **excluded from the CLI at v1**: it can carry source snippets, so it falls under
    §6's snippet-egress revisit trigger and, if ever exposed, must be
@@ -130,18 +130,18 @@ into the Decision and Consequences below.
    egress-counter prerequisite. Promotion past experimental requires all of:
    - **Distinct exit codes** for `NotReady` / `Unavailable` / `Disabled` /
      `InvalidQuery` vs a genuine `Ready`-with-empty result, with the code mirrored
-     into the `--json` body (precedent: `gate.rs`). Concrete mapping: reuse
+     into the `--json` body (precedent: `crates/anvil-cli/src/commands/gate.rs`). Concrete mapping: reuse
      `EXIT_DAEMON_DOWN=6` for `Unavailable`; claim `8` for `NotReady` (cold/warming,
      recoverable) and `9` for `Disabled` (operator opt-out, not an error) — both are
-     currently *reserved* in `main.rs` pending an ADR amendment, and **this ADR is
+     currently *reserved* in `crates/anvil-cli/src/main.rs` pending an ADR amendment, and **this ADR is
      that amendment**; map `InvalidQuery` to the existing `EXIT_ERROR=1` (caller
      bug). This closes the correctness defect where a cold-graph `NotReady` payload
      (which has *no* `tests` field) is read by a naive `jq '.outcome.tests | length'`
      as "0 affected" and exits 0 — a false negative that defeats the exact gate the
      verb is for.
    - **A CI-safe daemon warm path.** The `ensure_daemon` / `StartCapability`
-     primitive is *already implemented* and wired into `anvil start` (`ensure.rs`,
-     `start.rs`); the gap is not the primitive but a **caller** —
+     primitive is *already implemented* and wired into `anvil start` (`crates/anvil-intercept/src/ensure.rs`,
+     `crates/anvil-cli/src/commands/start.rs`); the gap is not the primitive but a **caller** —
      `daemon_capability_for_start` resolves any non-interactive caller to
      `NoSpawn(NonInteractive)` ("never spawns or prompts") by ADR-082 design. The
      prerequisite is therefore a *new, explicit non-interactive opt-in* entrypoint
@@ -160,7 +160,7 @@ into the Decision and Consequences below.
    operator's own terminal"). For v1's scope (human/CI callers of the two
    bounded-report verbs) that purpose doesn't apply: a same-uid CLI caller
    already has full filesystem read of the repo, so the query grants no new
-   confidentiality capability. `dos.rs`'s `RpsBucket` is also the wrong
+   confidentiality capability. `crates/anvil-intercept/src/dos.rs`'s `RpsBucket` is also the wrong
    mechanism to extend regardless of scope — its own module doc states it is
    "not a global rate limiter," a per-connection DoS-exhaustion budget, not a
    cumulative confidentiality-volume budget; generalising it would defend the
@@ -176,11 +176,11 @@ into the Decision and Consequences below.
    §7, same gate), add a daemon-side, peer-uid-keyed, time-windowed egress
    counter — a generalisation of `GRAPH_EGRESS_SPENT` itself (persisted across
    connections, not process-local, and charged identically regardless of
-   transport), not an extension of `dos.rs`.
+   transport), not an extension of `crates/anvil-intercept/src/dos.rs`.
 
    **Confidentiality, not DoS.** This decision concerns reconstruct/confidentiality
    only; volume/abuse of a running daemon stays bounded independently by the 4 MiB
-   per-response cap and the per-connection rate bucket (`dos.rs`), which remain in
+   per-response cap and the per-connection rate bucket (`crates/anvil-intercept/src/dos.rs`), which remain in
    force for CLI callers regardless.
 
    **Binding revisit trigger** (beyond the enumerable-verb gate above): re-open
