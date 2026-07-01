@@ -144,11 +144,11 @@ baselines the repo, wires detected Cursor and Claude Code MCP entries (writing
 the matching `~/.cursor/mcp.json` or `~/.claude.json` config), and ends in one
 literal protection state. Pass `--all-mcp-clients` or set
 `ANVIL_ALL_MCP_CLIENTS=1` to configure every supported client even if it was not
-detected. In the current release window, an interactive terminal also auto-starts
-the per-user save-time daemon (Linux and macOS) and reports the result on
-a `daemon:` line; pass `--no-daemon` (or set `ANVIL_NO_DAEMON=1`) to suppress
-that auto-start — a daemon already running is still reused — and note `--verify`
-never starts a daemon. The protection state is one of:
+detected. In the current release window, an interactive terminal also
+auto-starts the per-user save-time daemon (Linux and macOS) and reports the
+result on a `daemon:` line; pass `--no-daemon` (or set `ANVIL_NO_DAEMON=1`) to
+suppress that auto-start — a daemon already running is still reused — and note
+`--verify` never starts a daemon. The protection state is one of:
 
 - `protecting` — MCP pre-write validation is live
 - `ready_restart_required` — config is wired, restart Cursor/Claude Code to pick

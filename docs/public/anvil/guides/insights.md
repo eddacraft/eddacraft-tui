@@ -114,15 +114,15 @@ anvil kindling usage
 ```
 
 `anvil kindling usage` reads local command-invocation observations from the
-Kindling store. It is on-device only: command names and active feature-flag names
-are recorded, but argument values are not, and no telemetry is sent. Use it to
-answer questions like which anvil commands are being exercised and which feature
-flags were active during those runs.
+Kindling store. It is on-device only: command names and active feature-flag
+names are recorded, but argument values are not, and no telemetry is sent. Use
+it to answer questions like which anvil commands are being exercised and which
+feature flags were active during those runs.
 
 Operator controls:
 
-- `ANVIL_USAGE_DISABLE=1` or `DO_NOT_TRACK=1` disables the CLI
-  `command.invoked` producer.
+- `ANVIL_USAGE_DISABLE=1` or `DO_NOT_TRACK=1` disables the CLI `command.invoked`
+  producer.
 - `ANVIL_INTERCEPT_DISABLE_OBSERVATION=1` disables both CLI and daemon usage
   producers.
 - `ANVIL_USAGE_SIDECAR_NO_TRIM=1` disables the lazy 7-day / 64 MiB sidecar trim.

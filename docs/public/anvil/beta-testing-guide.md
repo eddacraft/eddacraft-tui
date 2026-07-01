@@ -34,16 +34,17 @@ places to spend it.
   `anvil_impact_of_change`, and `anvil_symbol_context`, plus the `graph://stats`
   resource. Results should be identity-only unless snippet egress has been
   explicitly enabled.
-- **Python project support.** Point anvil at a real Python project and check that
-  Python files are analysed rather than reported as unsupported. Judge whether
-  antipattern, entry-point, boundary, and graph/call-edge findings are useful.
+- **Python project support.** Point anvil at a real Python project and check
+  that Python files are analysed rather than reported as unsupported. Judge
+  whether antipattern, entry-point, boundary, and graph/call-edge findings are
+  useful.
 - **Infrastructure hygiene.** Run `anvil gate` on repositories with Dockerfiles,
   GitHub Actions workflows, shell scripts, or SQL migrations. The corresponding
   default-on surfaces should produce actionable warnings and respect their
   `ANVIL_TRACK_SURFACE_*` opt-outs.
-- **Usage and operations helpers.** Try `anvil kindling usage`, `anvil report-fp`,
-  `anvil drift migrate`, and typo suggestions for unknown `--skip`/`--disable`
-  check IDs.
+- **Usage and operations helpers.** Try `anvil kindling usage`,
+  `anvil report-fp`, `anvil drift migrate`, and typo suggestions for unknown
+  `--skip`/`--disable` check IDs.
 
 ### New in `v0.8.1-beta` — daemon lifecycle
 
@@ -139,9 +140,8 @@ a testing session.
   architecture/dependency-only watch.
 - **Repo language profile honesty.** Activation names detected languages and
   their coverage tier (TypeScript, JavaScript, Python, and Rust supported; SQL
-  and Markdown partial). Language-specific antipattern checks
-  honour the profile; cross-language checks (e.g. secrets) still run on every
-  file.
+  and Markdown partial). Language-specific antipattern checks honour the
+  profile; cross-language checks (e.g. secrets) still run on every file.
 
 ## What We Need From You
 
@@ -649,9 +649,9 @@ One sentence describing what happened.
   not mean the Windows target was tested for that change.
 - **Primary language coverage is TypeScript, JavaScript, Python, and Rust.** SQL
   and Markdown are partial; out-of-scope languages are named honestly. Rust
-  antipattern rules currently emit at advisory
-  (`info`/`warning`) severity, and Rust architecture/boundary checks — like
-  every language — only run when an `.anvil/architecture.yaml` is present.
+  antipattern rules currently emit at advisory (`info`/`warning`) severity, and
+  Rust architecture/boundary checks — like every language — only run when an
+  `.anvil/architecture.yaml` is present.
 - **Gate checks may call your existing tools.** If lint, test, OPA, or other
   project tools are missing locally, `anvil gate` may skip or fail those checks.
 - **Architecture checks need an architecture definition.** Use

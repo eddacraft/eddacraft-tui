@@ -321,14 +321,14 @@ unconditional path is `anvil watch --source` (covered in
 
 The six allowed literals, what each means, and the next user action:
 
-| `state:`                 | Meaning                                                                                        | Next action                                                                         |
-| ------------------------ | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `protecting`             | Pre-write validation has been observed live. AI writes hit `anvil_validate_write` before disk. | None — try the [AI Guardrail Demo](./ai-guardrail-demo).                            |
-| `ready_restart_required` | MCP config written, but editor restart or daemon-state repair is still required.               | Follow the printed repair hint; re-run `anvil start --verify`.                      |
-| `watching`               | Pre-write MCP attachment not in evidence; daemon-backed or save-time fallback active (weaker). | Install Cursor or Claude Code if you want pre-write; or accept the fallback.        |
-| `needs_action`           | No literal protection claim possible; concrete next step exists.                               | Read the `next:` line below the diagnostic.                                         |
-| `unsupported`            | Repo languages are out of scope for this release.                                              | Scope anvil to a supported subdirectory, or wait for further language support.      |
-| `error`                  | Activation hit a hard error.                                                                   | Read `last_error:` and the `next:` repair hint.                                     |
+| `state:`                 | Meaning                                                                                        | Next action                                                                    |
+| ------------------------ | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `protecting`             | Pre-write validation has been observed live. AI writes hit `anvil_validate_write` before disk. | None — try the [AI Guardrail Demo](./ai-guardrail-demo).                       |
+| `ready_restart_required` | MCP config written, but editor restart or daemon-state repair is still required.               | Follow the printed repair hint; re-run `anvil start --verify`.                 |
+| `watching`               | Pre-write MCP attachment not in evidence; daemon-backed or save-time fallback active (weaker). | Install Cursor or Claude Code if you want pre-write; or accept the fallback.   |
+| `needs_action`           | No literal protection claim possible; concrete next step exists.                               | Read the `next:` line below the diagnostic.                                    |
+| `unsupported`            | Repo languages are out of scope for this release.                                              | Scope anvil to a supported subdirectory, or wait for further language support. |
+| `error`                  | Activation hit a hard error.                                                                   | Read `last_error:` and the `next:` repair hint.                                |
 
 This is the same vocabulary used by `anvil status --verify`, `anvil doctor`, and
 the protection-loop tutorial path. There is one renderer; surfaces cannot drift.

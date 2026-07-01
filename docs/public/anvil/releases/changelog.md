@@ -16,26 +16,26 @@ All notable changes to anvil are documented here.
 
 ### Added
 
-- **Assistant graph context over MCP.** The Rust MCP server now exposes read-only
-  graph-context tools and resources for AI assistants: `anvil_search_symbols`,
-  `anvil_find_dependents`, `anvil_find_callers`, `anvil_impact_of_change`,
-  `anvil_affected_tests`, `anvil_symbol_context`, plus `graph://stats`,
-  `graph://symbols`, and `graph://edges`. The default response is identity-only;
-  source snippets require explicit workspace/operator egress consent and a
-  per-request opt-in.
-- **Python project support.** Python joins JavaScript, TypeScript, and Rust in the
-  analysed language set, including antipattern coverage, entry-point detection,
-  layer/boundary enforcement, and save-time graph call edges.
+- **Assistant graph context over MCP.** The Rust MCP server now exposes
+  read-only graph-context tools and resources for AI assistants:
+  `anvil_search_symbols`, `anvil_find_dependents`, `anvil_find_callers`,
+  `anvil_impact_of_change`, `anvil_affected_tests`, `anvil_symbol_context`, plus
+  `graph://stats`, `graph://symbols`, and `graph://edges`. The default response
+  is identity-only; source snippets require explicit workspace/operator egress
+  consent and a per-request opt-in.
+- **Python project support.** Python joins JavaScript, TypeScript, and Rust in
+  the analysed language set, including antipattern coverage, entry-point
+  detection, layer/boundary enforcement, and save-time graph call edges.
 - **Infrastructure-hygiene scan surfaces.** `anvil gate` now includes
   default-on, flag-governed checks for Dockerfiles, GitHub Actions workflows,
   shell scripts, and SQL migrations.
 - **Local usage views.** `anvil kindling usage` exposes on-device command and
-  feature-flag usage views. It records command names and flag names, not argument
-  values, and does not send telemetry.
-- **Operational helper commands.** `anvil drift migrate` upgrades an old baseline
-  in place, `anvil report-fp` records false-positive reports locally, unknown
-  check IDs suggest the closest valid name, and `anvil ember list` is now served
-  by the Rust CLI.
+  feature-flag usage views. It records command names and flag names, not
+  argument values, and does not send telemetry.
+- **Operational helper commands.** `anvil drift migrate` upgrades an old
+  baseline in place, `anvil report-fp` records false-positive reports locally,
+  unknown check IDs suggest the closest valid name, and `anvil ember list` is
+  now served by the Rust CLI.
 
 ### Changed
 
@@ -55,20 +55,20 @@ All notable changes to anvil are documented here.
   debugging surface, and is the only launch mode on Windows until background
   launch lands there. See the
   [daemon lifecycle](../guides/save-time-validation.md#daemon-lifecycle).
-- **Warning diagnostics include source spans.** Finding-emitting CLI surfaces now
-  render richer diagnostics with source excerpts while preserving JSON/SARIF
+- **Warning diagnostics include source spans.** Finding-emitting CLI surfaces
+  now render richer diagnostics with source excerpts while preserving JSON/SARIF
   contracts and exit semantics.
 
 ### Fixed
 
 - **Secret-scan noise is lower.** Local `.env` files and dependency lockfiles no
-  longer trigger the previous low-value keyword credential findings; lockfiles are
-  scanned narrowly for URL-shaped credentials.
+  longer trigger the previous low-value keyword credential findings; lockfiles
+  are scanned narrowly for URL-shaped credentials.
 - **Dashboard picker navigation is consistent.** Pressing `esc` in a live
   dashboard returns to the dashboard picker rather than exiting the shell.
-- **Auth and `whoami` output are clearer.** Auth-required output stream handling,
-  `whoami` state, and credential-source reporting are aligned for human and JSON
-  consumers.
+- **Auth and `whoami` output are clearer.** Auth-required output stream
+  handling, `whoami` state, and credential-source reporting are aligned for
+  human and JSON consumers.
 
 ## [0.8.2-beta] — 2026-06-22 — Daemon Lifecycle Polish
 
@@ -89,8 +89,8 @@ daemon ensure handling.
 
 - **Daemon ensure and Windows process handling are more robust.** The daemon
   ensure primitive is idempotent, Unix-only state-machine paths are gated
-  correctly, Windows daemon ensure is buildable, and the Windows join-handle path
-  uses drop semantics instead of a detached handle.
+  correctly, Windows daemon ensure is buildable, and the Windows join-handle
+  path uses drop semantics instead of a detached handle.
 
 ## [0.8.1-beta] — 2026-06-11 — Headless GitHub Login
 
