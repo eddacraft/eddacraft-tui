@@ -357,11 +357,18 @@ fn seed_example_dashboard(root: &Path, force: bool) -> anyhow::Result<()> {
 fn append_gitignore_entry(root: &Path) -> anyhow::Result<bool> {
     // ADR-073: the whole `.anvil/` tree is local runtime state and is ignored
     // wholesale (no tracked sub-path is justified today; use a `!` re-include
-    // if one ever is). `anvil/exceptions/.lock` (EXCEPT-007) is the one runtime
-    // artefact inside the otherwise-tracked anvil/ governance tree. Repos
-    // initialised before ADR-073 may also carry the narrow `.anvil/cache/` /
-    // `.anvil/gates.json` entries — harmless duplicates we no longer seed.
-    const ENTRIES: [&str; 2] = [".anvil/", "anvil/exceptions/.lock"];
+    // if one ever is). `anvil/exceptions/.lock` (EXCEPT-007) and
+    // `anvil/witness/.chain-initialised` (CIB-126) are the runtime artefacts inside
+    // the otherwise-tracked anvil/ governance tree — the witness chain-init marker
+    // is durable *local* state (its presence, not its history, is load-bearing; it
+    // self-heals via backfill on the first append), so it is ignored rather than
+    // committed. Repos initialised before ADR-073 may also carry the narrow
+    // `.anvil/cache/` / `.anvil/gates.json` entries — harmless duplicates.
+    const ENTRIES: [&str; 3] = [
+        ".anvil/",
+        "anvil/exceptions/.lock",
+        "anvil/witness/.chain-initialised",
+    ];
 
     let gitignore = root.join(".gitignore");
 
@@ -666,7 +673,7 @@ mod tests {
         // Seed every managed entry so there is nothing left to append.
         fs::write(
             dir.path().join(".gitignore"),
-            ".anvil/\nanvil/exceptions/.lock\n",
+            ".anvil/\nanvil/exceptions/.lock\nanvil/witness/.chain-initialised\n",
         )
         .unwrap();
 

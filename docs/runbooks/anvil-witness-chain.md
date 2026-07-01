@@ -285,6 +285,43 @@ When a broken chain reaches `main`:
 4. Run `anvil audit-chain --threshold 1 --branch main` and confirm zero drift
    before re-opening merges.
 
+### 5b. `ChainBroken` from an emptied or deleted `active.ndjson` (CIB-126)
+
+- **Symptom:** a commit is blocked with `chain integrity broken`, but the chain
+  is not tampered — `active.ndjson` is zero bytes or missing, with no archive
+  segments. A crash mid-write, a disk glitch, or a stray `> active.ndjson` /
+  `rm` can cause this. The durable chain-init marker
+  (`anvil/witness/.chain-initialised`) survives the event, so the writer refuses
+  to reseed genesis over the erased history (ADR-038) rather than silently
+  starting a new chain — this is the CIB-126 protection working, not a false
+  positive.
+- **Diagnose:** confirm the active file is empty/absent and the marker is
+  present:
+  ```
+  wc -c anvil/witness/active.ndjson   # 0, or "No such file"
+  ls anvil/witness/.chain-initialised # present
+  ls anvil/witness/archive/           # empty / absent
+  ```
+- **Recover (chain is committed — the normal case):** restore the last committed
+  chain from git, then re-commit:
+  ```
+  git checkout -- anvil/witness/active.ndjson
+  ```
+  `anvil hook bootstrap --witness-recent` does **not** repair this — it appends
+  through the same guarded path and no-ops on a `ChainBroken` chain.
+- **Recover (chain was never committed — nothing to restore):** the history is
+  genuinely gone. Acknowledge the loss and permit a fresh reseed by removing the
+  marker (this is the only sanctioned reason to delete it):
+  ```
+  rm anvil/witness/.chain-initialised
+  ```
+  The next commit seeds a new genesis and re-writes the marker.
+- **Fresh-clone caveat:** the marker is local runtime state (gitignored,
+  self-healing via backfill on the first `append_chained`). On a fresh clone
+  that has not yet committed, the marker is absent, so an active file zeroed
+  _before_ the first commit still reseeds. The protection is active from the
+  first commit onward.
+
 ### 6. `WriterError::ScopeMismatch` on append
 
 ```
