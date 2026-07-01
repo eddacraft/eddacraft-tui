@@ -190,6 +190,10 @@ pub struct TutorialState {
     /// permissions). The editor stays open so the user does not lose work; the
     /// renderer surfaces this message.
     pub edit_error: Option<String>,
+    /// Editor viewport height (inner rows) recorded by the renderer each frame,
+    /// so the key handler can keep the cursor visible after a move. `Cell`
+    /// because rendering takes `&self` but needs to report the height it used.
+    pub editor_viewport: std::cell::Cell<u16>,
 }
 
 impl TutorialState {
@@ -225,6 +229,7 @@ impl TutorialState {
             editor: None,
             edit_path: None,
             edit_error: None,
+            editor_viewport: std::cell::Cell::new(0),
         }
     }
 
@@ -545,6 +550,12 @@ impl TutorialState {
             Action::Back => self.cancel_step_editor(),
             Action::Quit => self.should_quit = true,
             other => {
+                // Viewport rows the renderer last drew into (falls back to a
+                // sane default before the first frame). Used both to page and
+                // to keep the cursor visible: the renderer clones the editor to
+                // draw it, so any scroll adjustment it makes is discarded —
+                // scrolling has to happen on the authoritative state here.
+                let viewport = usize::from(self.editor_viewport.get()).max(1);
                 if let Some(ed) = self.editor.as_mut() {
                     match other {
                         Action::Character(c) => ed.insert(c),
@@ -556,10 +567,11 @@ impl TutorialState {
                         Action::Right => ed.move_right(),
                         Action::Home => ed.home(),
                         Action::End => ed.end(),
-                        Action::PageUp => ed.page_up(20),
-                        Action::PageDown => ed.page_down(20),
+                        Action::PageUp => ed.page_up(viewport),
+                        Action::PageDown => ed.page_down(viewport),
                         _ => {}
                     }
+                    ed.ensure_cursor_visible(viewport);
                 }
             }
         }
@@ -2229,6 +2241,34 @@ mod tests {
         assert!(state.is_editing(), "q must not quit while editing");
         let editor = state.editor.as_ref().unwrap();
         assert!(editor.content().contains("jkq "));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn paging_uses_the_recorded_editor_viewport() {
+        // The renderer records the viewport height; the handler must page by
+        // that height (not a hardcoded constant) and keep the cursor visible.
+        let dir = unique_tmp("viewport");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let target = dir.join("tall.txt");
+
+        let seed = (0..30)
+            .map(|i| format!("line {i}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let mut state = editable_state(&target, &seed);
+        state.open_step_editor();
+        // Simulate a render that measured a 5-row editor viewport.
+        state.editor_viewport.set(5);
+
+        state.handle_key(Action::PageDown);
+        let editor = state.editor.as_ref().unwrap();
+        assert_eq!(
+            editor.cursor_line(),
+            5,
+            "PageDown should advance by the recorded viewport height (5), not a constant"
+        );
         let _ = std::fs::remove_dir_all(&dir);
     }
 

@@ -324,8 +324,11 @@ fn map_key_text(event: crossterm::event::KeyEvent) -> eddacraft_tui::keyboard::A
 
     if event.modifiers.contains(KeyModifiers::CONTROL) {
         return match event.code {
-            KeyCode::Char('s') => Action::Character('\x13'), // Ctrl-S → save
-            KeyCode::Char('c') => Action::Quit,
+            // Accept the shifted forms too: some terminals deliver Ctrl+Shift+S
+            // as Char('S'), which would otherwise fall through to None and make
+            // save/quit unreachable in that configuration.
+            KeyCode::Char('s' | 'S') => Action::Character('\x13'), // Ctrl-S → save
+            KeyCode::Char('c' | 'C') => Action::Quit,
             _ => Action::None,
         };
     }
@@ -661,6 +664,16 @@ mod tests {
                 map_key_text(ctrl(KeyCode::Char('s'))),
                 Action::Character('\x13')
             );
+        }
+
+        #[test]
+        fn ctrl_shift_forms_still_save_and_quit() {
+            // Some terminals deliver Ctrl+Shift+S/C as the uppercase char.
+            assert_eq!(
+                map_key_text(ctrl(KeyCode::Char('S'))),
+                Action::Character('\x13')
+            );
+            assert_eq!(map_key_text(ctrl(KeyCode::Char('C'))), Action::Quit);
         }
 
         #[test]

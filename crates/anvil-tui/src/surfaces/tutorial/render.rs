@@ -169,8 +169,11 @@ pub fn render(frame: &mut Frame, area: Rect, state: &TutorialState, theme: &Edda
 
 /// Render the inline editor for a create/edit step. The `Editor` widget is a
 /// `StatefulWidget`; we clone the authoritative `EditorState` for rendering
-/// (the widget only mutates scroll offset). A footer shows the write target,
-/// any write error, and the key hints.
+/// because rendering only has `&self`. The clone means any scroll adjustment
+/// the widget makes is discarded, so we record the viewport height into
+/// `state.editor_viewport` and let the key handler keep the cursor visible on
+/// the real state after each move. A footer shows the write target, any write
+/// error, and the key hints.
 fn render_editor(frame: &mut Frame, area: Rect, state: &TutorialState, theme: &EddaCraftTheme) {
     use eddacraft_tui::widgets::editor::Editor;
 
@@ -190,6 +193,12 @@ fn render_editor(frame: &mut Frame, area: Rect, state: &TutorialState, theme: &E
         Constraint::Length(1), // footer (error or hint)
     ])
     .split(area);
+
+    // Record the inner text height (area minus top/bottom border) so the key
+    // handler can scroll to keep the cursor visible.
+    state
+        .editor_viewport
+        .set(chunks[0].height.saturating_sub(2));
 
     let mut editor_clone = editor_state.clone();
     let editor_widget = Editor::new(theme).block(block);
