@@ -5295,6 +5295,97 @@ mod tests {
         );
     }
 
+    /// USAGE-004 (#2752): the *live listener* end-to-end. Every other
+    /// USAGE-004 test drives the `emit_command_invocations` helper directly,
+    /// so none of them cover the one-line call site inside
+    /// `handle_connection` — reached only via `IpcListener::with_usage_emitter`
+    /// — where emission is actually wired. A regression that unwired the
+    /// emitter, or moved the emit after `value` is consumed by dispatch, would
+    /// pass every direct-helper test yet silently stop recording usage. This
+    /// runs a real `handle_connection` over a `tokio::io::duplex()` pair with a
+    /// recording emitter and asserts the wiring: one allowlisted frame
+    /// (`anvil/gctx/search_symbols`) records exactly one `command.invoked` row;
+    /// one excluded frame (`scan_buffer`) records none. Emission is pre-dispatch
+    /// and allowlist-gated, so the row lands regardless of the dispatch outcome
+    /// (here `NoopDispatcher` + no save-time state replies method-not-found).
+    #[cfg(any(unix, windows))]
+    #[tokio::test]
+    async fn handle_connection_records_usage_for_allowlisted_frame_only() {
+        use crate::Shutdown;
+        use crate::kindling_observation::CommandInvokedEmitter;
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        let (emitter, recorder) = CommandInvokedEmitter::with_recorder("daemon-live");
+        let (_shutdown, token) = Shutdown::new();
+        let (mut client, server) = tokio::io::duplex(64 * 1024);
+
+        // One allowlisted frame (records) + one excluded frame (does not),
+        // then EOF so the handler's read loop returns cleanly.
+        let mut frames = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "anvil/gctx/search_symbols",
+            "principal": "deadbeef",
+            "traceparent": "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+            "params": {"query": "Foo"}
+        })
+        .to_string();
+        frames.push('\n');
+        frames.push_str(
+            &json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "scan_buffer",
+                "params": {}
+            })
+            .to_string(),
+        );
+        frames.push('\n');
+        client
+            .write_all(frames.as_bytes())
+            .await
+            .expect("write frames");
+        client.shutdown().await.expect("shutdown write half");
+
+        // Drive the real per-connection handler with the emitter wired exactly
+        // as `IpcListener::with_usage_emitter` + the serve loop would wire it.
+        let handler = tokio::spawn(handle_connection(
+            server,
+            Arc::new(NoopDispatcher),
+            ScanBufferService::default(),
+            Arc::new(NoopStatusProvider) as Arc<dyn StatusProvider>,
+            token,
+            crate::dos::IpcLimits::default(),
+            None,                    // peer_pid
+            None,                    // cross_check
+            None,                    // save_time
+            None,                    // broadcaster
+            Some(Arc::new(emitter)), // usage_emitter
+        ));
+
+        // Drain the handler's responses so its writes never back-pressure; the
+        // read completes when the handler returns and drops its stream half.
+        let mut discard = Vec::new();
+        let _ = client.read_to_end(&mut discard).await;
+        handler
+            .await
+            .expect("handler task joins")
+            .expect("handle_connection returns Ok");
+
+        let rows = recorder.recorded_command_invocations();
+        assert_eq!(
+            rows.len(),
+            1,
+            "exactly one command.invoked row: the allowlisted frame emits, scan_buffer is excluded",
+        );
+        assert_eq!(rows[0].command, "anvil/gctx/search_symbols");
+        assert_eq!(rows[0].principal, "deadbeef");
+        assert_eq!(
+            rows[0].traceparent.as_deref(),
+            Some("00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"),
+        );
+    }
+
     /// USAGE-004 (R2 mitigation, daemon side): every namespaced method
     /// the protocol defines must be classified as *exactly one* of
     /// user-initiated (allowlisted → emits a usage row) or internal
