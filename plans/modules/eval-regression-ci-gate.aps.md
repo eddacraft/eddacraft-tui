@@ -22,9 +22,10 @@ pragmatic-lead, adversarial-reviewer) reviewed the direction on 2026-07-01,
 settled four decisions, and surfaced four code prerequisites that must land
 before a *blocking* gate is safe — otherwise the gate can produce false
 negatives (baseline poisoning, absorbed violations, suppressed runner errors)
-and quietly stop catching regressions. Direction is reviewed but execution is
-not yet authorised: this module and every work item below are `Proposed`. See
-the post-merge note
+and quietly stop catching regressions. The four code prerequisites
+(EVALCI-001..004) are authorised `Ready` (2026-07-01); the first-wave suite,
+CI wiring, and phased promotion (EVALCI-005..008) remain `Proposed` pending
+their dependencies and a CI-blocking-posture ADR. See the post-merge note
 [`../reviews/post-merge/feat-eval-harness-integration.md`](../reviews/post-merge/feat-eval-harness-integration.md)
 for the deferred wiring step this module picks up.
 
