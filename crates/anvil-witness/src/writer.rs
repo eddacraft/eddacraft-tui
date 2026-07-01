@@ -42,8 +42,9 @@ const LOCK_RETRY_BACKOFF_MAX: Duration = Duration::from_millis(100);
 
 /// Resolve a lock-acquire timeout from a raw [`LOCK_TIMEOUT_ENV`] value (whole
 /// seconds). `None`/blank → [`DEFAULT_LOCK_ACQUIRE_TIMEOUT`]; a valid positive
-/// integer → that many seconds; anything else → `Err(raw)` so the caller can warn
-/// and fall back (never a silent default on a malformed value).
+/// integer → that many seconds; anything else → `Err` carrying the trimmed value
+/// so the caller can warn and fall back (never a silent default on a malformed
+/// value).
 ///
 /// Kept pure — it does **not** read the environment — so it is unit-testable and
 /// so this low-level crate stays free of env/logging concerns; the CLI and daemon

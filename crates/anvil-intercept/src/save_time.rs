@@ -2449,7 +2449,19 @@ fn invalid_find_callers_query_reason(query: &FindCallersQuery) -> Option<String>
 /// (CIB-124 override), warning and falling back to the default on a malformed
 /// value rather than silently defaulting.
 fn resolve_witness_lock_timeout() -> std::time::Duration {
-    let raw = std::env::var(anvil_witness::LOCK_TIMEOUT_ENV).ok();
+    let raw = match std::env::var(anvil_witness::LOCK_TIMEOUT_ENV) {
+        Ok(v) => Some(v),
+        Err(std::env::VarError::NotPresent) => None,
+        // A set-but-non-UTF-8 value is malformed too — warn, don't silently default.
+        Err(std::env::VarError::NotUnicode(_)) => {
+            tracing::warn!(
+                target: "anvil_intercept::witness",
+                "{} is set but not valid UTF-8; using the default",
+                anvil_witness::LOCK_TIMEOUT_ENV,
+            );
+            return anvil_witness::DEFAULT_LOCK_ACQUIRE_TIMEOUT;
+        }
+    };
     anvil_witness::lock_timeout_from_env(raw.as_deref()).unwrap_or_else(|bad| {
         tracing::warn!(
             target: "anvil_intercept::witness",
