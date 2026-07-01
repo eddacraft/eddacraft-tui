@@ -117,7 +117,7 @@ pub fn run(args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     }
 
     if global.no_tui || !std::io::stdout().is_terminal() {
-        print_plain_welcome();
+        print_plain_welcome(start_prompts_sign_in());
         // INSIGHTS-005: the nudge rides the plain closing output too.
         print_welcome_insights_hint(project_writes_gated);
         if !project_writes_gated {
@@ -180,7 +180,7 @@ pub fn run(args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 
     // UJ-001: printed after terminal teardown so the next step lands in
     // scrollback once the TUI session ends.
-    println!("{WELCOME_NEXT_STEP}");
+    println!("{}", welcome_next_step(start_prompts_sign_in()));
     // INSIGHTS-005: the first-week nudge rides the closing output too.
     print_welcome_insights_hint(project_writes_gated);
 
@@ -1365,15 +1365,65 @@ fn open_docs_message() -> String {
     }
 }
 
-/// UJ-001: the single next-step line every welcome exit prints — the
-/// discovery path hands the user to the daily-value path.
-const WELCOME_NEXT_STEP: &str = "  Next: run `anvil start` for daily save-time protection.";
+/// UJ-001: the next-step line a welcome exit prints when the reader can
+/// already activate — a plain `anvil start` will run for them.
+const WELCOME_NEXT_STEP_ACTIVATE: &str =
+    "  Next: run `anvil start` for daily save-time protection.";
 
-fn print_plain_welcome() {
-    print!("{}", plain_welcome_message());
+/// The next-step line for a signed-out reader. `anvil welcome` is the ungated
+/// demo surface (ADR-080), but `anvil start` is licence-gated — so pointing an
+/// unauthenticated reader straight at `anvil start` dead-ends at the auth wall.
+/// Name the sign-in bridge, and offer the free, no-sign-in `anvil start
+/// --verify` probe so the closing copy always leaves the reader something that
+/// actually runs. The `anvil start` mention is preserved so the golden-path
+/// handoff (UJ-001) still reads as a single continuous journey.
+const WELCOME_NEXT_STEP_SIGN_IN: &str = "  Next: sign in with `anvil auth login` (early access: https://eddacraft.ai), then run `anvil start` for daily save-time protection.\n  No sign-in yet? `anvil start --verify` shows your current protection state for free.";
+
+/// Pick the honest next-step copy. `prompts_sign_in` is `true` when a plain
+/// `anvil start` would stop at the auth wall for this reader right now (see
+/// [`start_prompts_sign_in`]).
+fn welcome_next_step(prompts_sign_in: bool) -> &'static str {
+    if prompts_sign_in {
+        WELCOME_NEXT_STEP_SIGN_IN
+    } else {
+        WELCOME_NEXT_STEP_ACTIVATE
+    }
 }
 
-fn plain_welcome_message() -> String {
+/// Whether a plain `anvil start` would stop at the licence/auth wall for this
+/// reader right now.
+///
+/// Local-only — never makes a network call, because `anvil welcome` is the
+/// deliberately ungated demo surface (ADR-080). The predicate mirrors the
+/// pre-dispatch gate in `main::check_auth`: the wall applies only when the
+/// licence gate is *enforcing* (not dev-bypassed / disabled) AND no valid local
+/// credential is present. A resolution/read error is treated as "would prompt"
+/// so the free surface never over-promises activation it cannot deliver.
+fn start_prompts_sign_in() -> bool {
+    let gate = crate::feature_flags::resolve_cli_licence_gate();
+    if !matches!(
+        crate::feature_flags::local_auth_precheck(&gate),
+        crate::feature_flags::LocalAuthPrecheck::Enforce
+    ) {
+        // Dev bypass or a disabled gate → `anvil start` runs without a local
+        // credential check, so no sign-in bridge is needed.
+        return false;
+    }
+    match crate::auth::credentials::load() {
+        // A present, unexpired credential clears the wall; an expired one still
+        // prompts (main::check_auth reports "Session expired. Run `anvil auth
+        // login`").
+        Ok(Some(creds)) => crate::auth::credentials::is_expired(&creds),
+        // No credential on disk, or the store could not be read.
+        _ => true,
+    }
+}
+
+fn print_plain_welcome(prompts_sign_in: bool) {
+    print!("{}", plain_welcome_message(prompts_sign_in));
+}
+
+fn plain_welcome_message(prompts_sign_in: bool) -> String {
     use std::fmt::Write as _;
     let mut out = String::new();
     let _ = writeln!(out);
@@ -1381,14 +1431,39 @@ fn plain_welcome_message() -> String {
     let _ = writeln!(out, "  Structural governance for AI-assisted development");
     let _ = writeln!(out);
     let _ = writeln!(out, "  Available commands:");
-    let _ = writeln!(out, "    anvil tutorial   Interactive tutorial");
-    let _ = writeln!(out, "    anvil audit      Run project audit");
-    let _ = writeln!(out, "    anvil doctor     Diagnose your environment");
-    let _ = writeln!(out, "    anvil status     Show project status");
+    if prompts_sign_in {
+        // Signed out: lead with what runs without sign-in, and mark the
+        // licence-gated commands so the reader is never sent into the wall.
+        let _ = writeln!(
+            out,
+            "    anvil tutorial        Interactive tutorial (no sign-in)"
+        );
+        let _ = writeln!(
+            out,
+            "    anvil doctor          Diagnose your environment (no sign-in)"
+        );
+        let _ = writeln!(
+            out,
+            "    anvil start --verify  Show your protection state (no sign-in)"
+        );
+        let _ = writeln!(
+            out,
+            "    anvil audit           Run project audit (needs sign-in)"
+        );
+        let _ = writeln!(
+            out,
+            "    anvil status          Show project status (needs sign-in)"
+        );
+    } else {
+        let _ = writeln!(out, "    anvil tutorial   Interactive tutorial");
+        let _ = writeln!(out, "    anvil audit      Run project audit");
+        let _ = writeln!(out, "    anvil doctor     Diagnose your environment");
+        let _ = writeln!(out, "    anvil status     Show project status");
+    }
     let _ = writeln!(out);
     let _ = writeln!(out, "  Visit: https://docs.eddacraft.ai");
     let _ = writeln!(out);
-    let _ = writeln!(out, "{WELCOME_NEXT_STEP}");
+    let _ = writeln!(out, "{}", welcome_next_step(prompts_sign_in));
     out
 }
 
@@ -1396,22 +1471,119 @@ fn plain_welcome_message() -> String {
 mod tests {
     use super::*;
 
-    // UJ-001: every welcome exit carries the user to the daily-value path.
+    // UJ-001: every welcome exit — in either variant — carries the user
+    // toward the daily-value `anvil start` path.
     #[test]
-    fn welcome_next_step_names_anvil_start() {
+    fn welcome_next_step_always_names_anvil_start() {
+        for prompts_sign_in in [false, true] {
+            let line = welcome_next_step(prompts_sign_in);
+            assert!(
+                line.contains("anvil start"),
+                "the welcome next step must name `anvil start` (prompts_sign_in={prompts_sign_in}), got: {line}",
+            );
+        }
+    }
+
+    // Signed-in reader: the copy points straight at activation and does not
+    // nag about sign-in.
+    #[test]
+    fn welcome_next_step_activate_variant_is_direct() {
+        let line = welcome_next_step(false);
+        assert!(line.contains("anvil start"), "got: {line}");
         assert!(
-            WELCOME_NEXT_STEP.contains("anvil start"),
-            "the welcome next step is `anvil start`, got: {WELCOME_NEXT_STEP}",
+            !line.contains("auth login"),
+            "an activatable reader must not be told to sign in: {line}",
+        );
+        assert!(
+            !line.contains("--verify"),
+            "the direct variant does not need the free-probe fallback: {line}",
+        );
+    }
+
+    // Signed-out reader: the copy bridges to sign-in AND offers the free,
+    // no-sign-in `anvil start --verify` probe so the closing line always
+    // leaves the reader a command that actually runs.
+    #[test]
+    fn welcome_next_step_sign_in_variant_bridges_auth_and_offers_verify() {
+        let line = welcome_next_step(true);
+        assert!(
+            line.contains("anvil auth login"),
+            "the sign-in variant must name the login bridge: {line}",
+        );
+        assert!(
+            line.contains("early access"),
+            "the sign-in variant must name early access: {line}",
+        );
+        assert!(
+            line.contains("anvil start --verify"),
+            "the sign-in variant must offer the free read-only probe: {line}",
         );
     }
 
     #[test]
-    fn plain_welcome_carries_the_next_step_line() {
-        let msg = plain_welcome_message();
+    fn plain_welcome_carries_the_matching_next_step_line() {
+        for prompts_sign_in in [false, true] {
+            let msg = plain_welcome_message(prompts_sign_in);
+            assert!(
+                msg.contains(welcome_next_step(prompts_sign_in)),
+                "the plain welcome surface must end with its next-step line (prompts_sign_in={prompts_sign_in}):\n{msg}",
+            );
+        }
+    }
+
+    // Signed-out plain welcome must not advertise a licence-gated command
+    // without flagging it, and must surface the free `--verify` probe.
+    #[test]
+    fn plain_welcome_sign_in_variant_flags_gated_commands_and_offers_verify() {
+        let msg = plain_welcome_message(true);
         assert!(
-            msg.contains(WELCOME_NEXT_STEP),
-            "the plain welcome surface must end with the next-step line:\n{msg}",
+            msg.contains("anvil start --verify"),
+            "signed-out plain welcome must list the free probe:\n{msg}",
         );
+        assert!(
+            msg.contains("needs sign-in"),
+            "signed-out plain welcome must flag the licence-gated commands:\n{msg}",
+        );
+        // The gated commands (`audit`, `status`) must be flagged, not offered
+        // bare as if they were free.
+        for gated in ["anvil audit", "anvil status"] {
+            let line = msg
+                .lines()
+                .find(|l| l.contains(gated))
+                .unwrap_or_else(|| panic!("{gated} must appear in the list:\n{msg}"));
+            assert!(
+                line.contains("needs sign-in"),
+                "`{gated}` must be flagged as gated in the signed-out list: {line}",
+            );
+        }
+    }
+
+    // Signed-in plain welcome keeps the compact, unannotated list.
+    #[test]
+    fn plain_welcome_activate_variant_lists_commands_unannotated() {
+        let msg = plain_welcome_message(false);
+        assert!(msg.contains("anvil audit"), "got:\n{msg}");
+        assert!(
+            !msg.contains("needs sign-in"),
+            "the activatable list must not carry sign-in annotations:\n{msg}",
+        );
+        assert!(
+            !msg.contains("--verify"),
+            "the activatable list does not need the free-probe fallback:\n{msg}",
+        );
+    }
+
+    // The gate mirror: a dev-bypassed session (`ANVIL_DEV=1`) resolves the
+    // licence gate to a Skip, so a plain `anvil start` would NOT wall — the
+    // predicate must report no sign-in prompt regardless of credential state.
+    #[test]
+    fn start_prompts_sign_in_is_false_under_dev_bypass() {
+        temp_env::with_var("ANVIL_DEV", Some("1"), || {
+            assert!(
+                !start_prompts_sign_in(),
+                "a dev-bypassed session clears the wall, so no sign-in bridge is shown",
+            );
+        });
     }
 
     #[test]
