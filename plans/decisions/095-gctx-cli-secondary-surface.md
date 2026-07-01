@@ -38,7 +38,9 @@ precisely where it cannot deliver.
 **2. The resource delta is client-lifecycle only.** Because the graph lives in
 the daemon and projection runs daemon-side in both paths, the dominant RAM cost
 (the graph) and the query CPU are **identical** regardless of caller. Measured on
-the release binary (no daemon required for the client-side numbers):
+the release binary (no daemon required for the client-side numbers; **directional
+figures, not a benchmarked SLO** — the direction, amortised-persistent vs
+per-invocation cold-start, is the load-bearing claim, not the exact values):
 
 | | CLI (`anvil <verb>`) | MCP (`anvil mcp serve --stdio`) |
 | --- | --- | --- |
@@ -59,8 +61,10 @@ optional L0 upgrade; corporate `--no-mcp` opt-out). This ADR applies the same
 logic one layer over, at the GCTX read-surface *consumption* layer.
 
 This decision was interrogated by a four-persona planning council
-(kernel-maintainer, adversarial-reviewer, operations-reviewer, pragmatic-lead);
-their findings are folded into the Decision and Consequences below.
+(kernel-maintainer, adversarial-reviewer, operations-reviewer, pragmatic-lead) and
+subsequently reviewed by a five-persona ratification council (the same four plus a
+council-reviewer, with a judge synthesis) on 2026-07-01; their findings are folded
+into the Decision and Consequences below.
 
 ## Decision
 
@@ -77,14 +81,23 @@ their findings are folded into the Decision and Consequences below.
      server not being wired into a given host (a developer whose editor lacks the
      MCP registration can still run `anvil gctx …`).
 
-3. **No agent-triggered MCP→CLI runtime fallback (non-goal).** An agent detecting
-   an MCP failure and shelling out to the CLI in a loop is explicitly out of
-   scope: it is the resource-worst path (per-call spawn) and the governance-worst
-   path (an agent looping `Bash → anvil gctx …` is functionally the `tools/call`
-   back-door that CIB-091d closed, and the per-session egress ceiling is
-   process-local so it does not exist for that path — see §6). The `Unavailable`
-   outcome is also a *structured success*, not an error (`search_symbols.rs:108`),
-   so it is not even a clean fallback trigger.
+3. **No agent-triggered MCP→CLI runtime fallback (non-goal) — and an honest note
+   on what that does and does not prevent.** An agent detecting an MCP failure and
+   shelling out to the CLI in a loop is explicitly out of scope: it is the
+   resource-worst path (per-call spawn), and the `Unavailable` outcome is a
+   *structured success*, not an error (`search_symbols.rs:110`), so it is not even
+   a clean fallback trigger. Two caveats keep this honest: (i) this is a
+   **non-goal we decline to build *for*, not something the CLI can technically
+   prevent** — nothing distinguishes an agent's `Bash` invocation of `anvil gctx …`
+   from a human's, so the reconstruct-via-CLI concern is an **owner-accepted
+   residual**, not a closed hole; and (ii) that residual applies only to the
+   **enumerable** verbs — an agent looping
+   `Bash → anvil gctx {search_symbols,find_callers,find_dependents}` is functionally
+   the `tools/call` back-door CIB-091d closed (the per-session egress ceiling is
+   process-local, so it does not exist for that path), which is exactly why §6/§7
+   gate those three behind a daemon-side egress counter. The two bounded-report v1
+   verbs (`affected_tests`, `impact_of_change`) do **not** carry this reconstruct
+   risk.
 
 4. **Implementation shape.** Build the CLI command directly on the proto DTOs
    (`anvil_intercept_proto::protocol::Gctx*{Request,Response}`) + the existing
@@ -95,23 +108,46 @@ their findings are folded into the Decision and Consequences below.
    wrap it in the MCP `content`/`isError` envelope, and skip `redact_workspace_root`
    (it hides the operator's path from a remote LLM provider — irrelevant when
    output goes to the operator's own terminal). No new crate, no new dependency;
-   this is a thin command in the shape of the `anvil hook` precedent.
+   this is a thin command in the shape of the `anvil hook` precedent. To hold the
+   two surfaces at outcome parity, the request-building and outcome-classification
+   logic (including the exhaustive `should_rewarm` match over outcome variants) is
+   extracted into a presentation-agnostic module (e.g.
+   `crates/anvil-cli/src/gctx/query.rs`) that **both** `mcp/tools/*.rs` and the CLI
+   call; the CLI must not reimplement per-verb logic, which is where the surfaces
+   would otherwise drift (see the parity risk in Consequences).
 
 5. **v1 scope + CI-contract prerequisites.** Ship read-only, `--json`-first,
    identity-only by default (snippets stay consent-gated daemon-side), starting
    with the CI-shaped verbs (`affected_tests`, `impact_of_change`) **behind an
-   experimental gate** until the CI contract lands. Promotion past experimental
-   requires all of:
+   experimental gate** — concretely a `hide = true` clap subcommand plus a required
+   opt-in (`--experimental` acknowledgement or `ANVIL_GCTX_CLI_EXPERIMENTAL=1`),
+   mirroring the existing `gctx egress enable --yes` consent pattern
+   (`commands/gctx.rs`) — so the cold-graph false-negative below cannot be wired
+   into a CI gate before the contract lands. `symbol_context` (the sixth verb) is
+   **excluded from the CLI at v1**: it can carry source snippets, so it falls under
+   §6's snippet-egress revisit trigger and, if ever exposed, must be
+   identity-only-by-default with snippets consent-gated and sit behind the §6/§7
+   egress-counter prerequisite. Promotion past experimental requires all of:
    - **Distinct exit codes** for `NotReady` / `Unavailable` / `Disabled` /
      `InvalidQuery` vs a genuine `Ready`-with-empty result, with the code mirrored
-     into the `--json` body (precedent: `gate.rs`). Reuse `EXIT_DAEMON_DOWN=6` for
-     `Unavailable`; add a new code for `NotReady`. This closes the correctness
-     defect where a cold-graph `NotReady` payload (which has *no* `tests` field)
-     is read by a naive `jq '.outcome.tests | length'` as "0 affected" and exits
-     0 — a false negative that defeats the exact gate the verb is for.
-   - **A CI-safe daemon warm path** — surface the `ensure_daemon` /
-     `StartCapability` primitive (referenced but unimplemented) as a documented
-     CI entrypoint, since ADR-082 deliberately forbids non-interactive auto-spawn.
+     into the `--json` body (precedent: `gate.rs`). Concrete mapping: reuse
+     `EXIT_DAEMON_DOWN=6` for `Unavailable`; claim `8` for `NotReady` (cold/warming,
+     recoverable) and `9` for `Disabled` (operator opt-out, not an error) — both are
+     currently *reserved* in `main.rs` pending an ADR amendment, and **this ADR is
+     that amendment**; map `InvalidQuery` to the existing `EXIT_ERROR=1` (caller
+     bug). This closes the correctness defect where a cold-graph `NotReady` payload
+     (which has *no* `tests` field) is read by a naive `jq '.outcome.tests | length'`
+     as "0 affected" and exits 0 — a false negative that defeats the exact gate the
+     verb is for.
+   - **A CI-safe daemon warm path.** The `ensure_daemon` / `StartCapability`
+     primitive is *already implemented* and wired into `anvil start` (`ensure.rs`,
+     `start.rs`); the gap is not the primitive but a **caller** —
+     `daemon_capability_for_start` resolves any non-interactive caller to
+     `NoSpawn(NonInteractive)` ("never spawns or prompts") by ADR-082 design. The
+     prerequisite is therefore a *new, explicit non-interactive opt-in* entrypoint
+     (e.g. `anvil intercept ensure --yes` / an `ANVIL_*` acknowledgement) that
+     passes `StartCapability::MaySpawn` from CI **without** weakening the ADR-082
+     default for everyone else — an added opt-in branch, not a rebuild.
    - **A bounded `--wait[=timeout]`** for cold-graph warm-up (the DSV-045
      executor, ADR-085, makes `NotReady` recoverable-by-retry but publishes no
      bound to the caller), so a flapping cold graph can never flip a gate's
@@ -140,8 +176,21 @@ their findings are folded into the Decision and Consequences below.
    §7, same gate), add a daemon-side, peer-uid-keyed, time-windowed egress
    counter — a generalisation of `GRAPH_EGRESS_SPENT` itself (persisted across
    connections, not process-local, and charged identically regardless of
-   transport), not an extension of `dos.rs`. *(Resolved 2026-07-01 by Claude
-   during concurrent review; Morgan/owner should confirm before Accept.)*
+   transport), not an extension of `dos.rs`.
+
+   **Confidentiality, not DoS.** This decision concerns reconstruct/confidentiality
+   only; volume/abuse of a running daemon stays bounded independently by the 4 MiB
+   per-response cap and the per-connection rate bucket (`dos.rs`), which remain in
+   force for CLI callers regardless.
+
+   **Binding revisit trigger** (beyond the enumerable-verb gate above): re-open
+   this decision and require the daemon-side counter for *any* verb the moment
+   either (i) the CLI surface begins serving **snippets/source text** (Phase-2
+   CE-1 — the reason `symbol_context` is excluded at v1, §5), or (ii) the daemon
+   becomes **multi-principal / remotely shared** (no longer same-uid-local — e.g. a
+   shared CI or remote-host daemon), at which point the "caller already has `cat`
+   access" premise no longer holds. *(Resolved 2026-07-01 by Claude during
+   concurrent review; Morgan/owner should confirm before Accept.)*
 
 7. **Pagination for the enumerable verbs — resolved, pending owner sign-off.**
    `anvil kindling` already establishes the house pattern for exactly this
