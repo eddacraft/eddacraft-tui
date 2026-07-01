@@ -29,6 +29,133 @@ Entry format:
 
 ---
 
+## Deep-dived assessments (index)
+
+Full opportunity assessments (Morgan nominations that reached a dedicated
+deep-dive brainstorm under `plans/brainstorms/`). Listed here so this catalogue
+does not understate what has already been assessed. In every case the verdict is
+the same shape — **decline the codebase/dependency, clean-room the primitive** —
+so the `status` below reflects the borrow, not the upstream project.
+
+- **source repo + link:** `clay-good/proxilion` + `clay-good/provenance` —
+  https://github.com/clay-good/proxilion ·
+  https://github.com/clay-good/provenance
+  - **what to borrow/adopt:** nothing at code level — PIC's cross-session
+    attribution invariants noted as framing only
+  - **adopt type:** borrow-pattern
+  - **integration effort:** S
+  - **expected impact:** Low
+  - **status:** rejected
+  - **deep-dive:**
+    [`plans/brainstorms/2026-05-22-proxilion-pic-borrow-assessment.md`](../../plans/brainstorms/2026-05-22-proxilion-pic-borrow-assessment.md)
+  - **assessment:** Decline adopt for both — wrong layer (runtime SaaS mediation
+    vs creation-time policy enforcement). Note PIC invariants in the MLP2-071
+    cross-session attribution spec. No APS module filed.
+
+- **source repo + link:** `DrakoLabs/drako` —
+  https://github.com/DrakoLabs/drako
+  - **what to borrow/adopt:** SARIF export (concrete work item), `anvil bom` as
+    a first-class surface (framing, needs its own scope-guard pass), and
+    "current posture vs new regression" phrasing (docs only)
+  - **adopt type:** borrow-pattern
+  - **integration effort:** M
+  - **expected impact:** Med
+  - **status:** validating
+  - **deep-dive:**
+    [`plans/brainstorms/2026-05-24-drako-borrow-assessment.md`](../../plans/brainstorms/2026-05-24-drako-borrow-assessment.md)
+  - **assessment:** Decline the codebase (rung 6 fails the decision framework;
+    runtime enforcement stays out for the Proxilion reasons). Take SARIF as a
+    concrete deliverable, `anvil bom` and the regression framing as borrows.
+
+- **source repo + link:** `aeoess/agent-governance-vocabulary` —
+  https://github.com/aeoess/agent-governance-vocabulary
+  - **what to borrow/adopt:** importer-not-publisher posture + fidelity ×
+    admissibility two-axis model for external evidence import (warn-only below
+    `structural`); reuse the 5 match types + warn/error contract
+  - **adopt type:** borrow-pattern
+  - **integration effort:** M
+  - **expected impact:** Med
+  - **status:** validating
+  - **deep-dive:**
+    [`plans/brainstorms/2026-05-30-agent-governance-vocabulary-eval.md`](../../plans/brainstorms/2026-05-30-agent-governance-vocabulary-eval.md)
+  - **assessment:** Reframe as importer, not publisher. Proposed next steps:
+    confirm provenance → ADR ("External evidence import & admissibility") → APS
+    import-adapter work item → pilot one round-trip. Do not depend on the repo;
+    reimplement in Rust + TS adapters.
+
+- **source repo + link:** `Detective-XH/DocGraph` —
+  https://github.com/Detective-XH/DocGraph
+  - **what to borrow/adopt:** policy/research drift as advisory evidence that
+    downgrades `evidence_strength`; source-quality fields on `EvidenceRecord`;
+    claim-hygiene checks; untrusted-data MCP instruction wording
+  - **adopt type:** borrow-pattern
+  - **integration effort:** M
+  - **expected impact:** Med
+  - **status:** validating
+  - **aps link (optional):** MDGOV M2 · CEWS · LAC · ADR-062
+  - **deep-dive:**
+    [`plans/brainstorms/2026-05-31-docgraph-borrow-assessment.md`](../../plans/brainstorms/2026-05-31-docgraph-borrow-assessment.md)
+  - **assessment:** Decline the codebase and doc-search lane (scope guard: Out).
+    Drift computed in MDGOV M2, recorded on the CEWS `EvidenceRecord`, with
+    authored-wins provenance in LAC. No dependency; clean-room; boundaries in
+    ADR-062.
+
+- **source repo + link:** `evoila/meho` — https://github.com/evoila/meho
+  - **what to borrow/adopt:** provenance field set onto CEWS/AGOV evidence
+    models; Helm/k8s hardening as enforceable policy (candidate new surface);
+    own-the-artifact / record-the-runtime-by-reference posture
+  - **adopt type:** borrow-pattern
+  - **integration effort:** M
+  - **expected impact:** Med
+  - **status:** validating
+  - **deep-dive:**
+    [`plans/brainstorms/2026-06-03-meho-borrow-assessment.md`](../../plans/brainstorms/2026-06-03-meho-borrow-assessment.md)
+  - **assessment:** Decline the codebase, its runtime authorization seam, and its
+    Keycloak/Vault/Postgres topology (scope guard: Out). Validate the borrow only
+    after un-bundling it. No dependency; clean-room; cite as parallel evolution.
+
+- **source repo + link:** `rulehub/rulehub` —
+  https://github.com/rulehub/rulehub
+  - **what to borrow/adopt:** evidence-bound control-mapping seam (pack →
+    decision → evidence → export, recorded once and rendered many); ISO 42001 as
+    a candidate framework (track); mapping advisory in CLI, structured-optional
+    in exports, never a compliance gate
+  - **adopt type:** borrow-pattern
+  - **integration effort:** M
+  - **expected impact:** Med
+  - **status:** validating
+  - **aps link (optional):** CPACKS · COMPLY · CEWS (candidate source-of-truth
+    ADR)
+  - **deep-dive:**
+    [`plans/brainstorms/2026-06-03-rulehub-borrow-assessment.md`](../../plans/brainstorms/2026-06-03-rulehub-borrow-assessment.md)
+  - **assessment:** Decline the codebase, its Kyverno/Helm/Backstage surfaces,
+    and a dependency (wrong stack, no release, single-org). Primitive already
+    owned across CPACKS/COMPLY/CEWS (fourth sighting since `verifywise`); only
+    net-new content is ISO 42001. No dependency; clean-room.
+
+- **source repo + link:** `node9-ai/node9-proxy` —
+  https://github.com/node9-ai/node9-proxy
+  - **what to borrow/adopt:** first-run exposure report as report-only "what
+    would have been blocked" evidence (on CIB-015/-016); MCP tool-pin + drift as
+    a deterministic save-time check; "evidence over fear" adoption framing; keep
+    routing `RiskScore`, refuse the aggregate exposure score
+  - **adopt type:** borrow-pattern
+  - **integration effort:** M
+  - **expected impact:** Med
+  - **status:** validating
+  - **aps link (optional):** CIB-015 · CIB-016
+  - **deep-dive:**
+    [`plans/brainstorms/2026-06-06-node9-borrow-assessment.md`](../../plans/brainstorms/2026-06-06-node9-borrow-assessment.md)
+  - **assessment:** Decline the codebase, its runtime stdio MCP gateway, live
+    `tools/call` interception, session-quarantine, and second audit store (scope
+    guard: Out). Validate the borrow after un-bundling. No dependency;
+    clean-room; cite as parallel evolution and competitive validation.
+
+> The `langfuse/langfuse` deep-dive (2026-06-06) is already back-linked from its
+> radar entry in the [2026-05-13](#2026-05-13) section below.
+
+---
+
 ## 2026-05-07
 
 - **source repo + link:** `entireio/cli` — https://github.com/entireio/cli
