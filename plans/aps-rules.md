@@ -1,86 +1,56 @@
 # APS Rules for AI Agents
 
 > This file guides AI agents working with APS specs in this repository.
-> Keep it in `plans/` so agents discover it when exploring the planning
-> directory.
->
-> **APS-managed intent:** this file stays close to the canonical
-> [`anvil-plan-spec`](https://github.com/eddacraft/anvil-plan-spec) scaffold so
-> it is easy to refresh. Anvil-specific Worktrunk, Council, release, validation,
-> and documentation-governance rules live in
-> [`plans/project-context.md`](project-context.md).
+> Keep it in `plans/` so agents discover it when exploring the planning directory.
 
 ## Core Principle
 
-**Specs describe intent. Work items authorise execution. Actions are checkpoints,
-not tutorials.**
+**Specs describe intent. Work items authorise execution. Actions are checkpoints, not tutorials.**
 
 ## Hierarchy
 
-| Layer | Purpose | You Write | You DON'T Write |
-| ----- | ------- | --------- | ---------------- |
-| Index | Plan overview | Modules, milestones, risks | Implementation details |
-| Module | Bounded work area | Interfaces, work items, boundaries | Code snippets |
-| Work Item | Execution authority | Outcome, validation command | How to implement |
-| Action | Checkpoint | Observable state | Implementation steps |
+| Layer     | Purpose             | You Write                          | You DON'T Write        |
+| --------- | ------------------- | ---------------------------------- | ---------------------- |
+| Index     | Plan overview       | Modules, milestones, risks         | Implementation details |
+| Module    | Bounded work area   | Interfaces, work items, boundaries | Code snippets          |
+| Work Item | Execution authority | Outcome, validation command        | How to implement       |
+| Action    | Checkpoint          | Observable state                   | Implementation steps   |
 
-## Lifecycle Statuses
+## Module Types: Vertical and Conductor
 
-Canonical APS treats schema status and project lifecycle prose as separate
-vocabularies.
+Most modules are **vertical** — they own a single domain (auth, billing, ui)
+and all its work items end-to-end. This is the default; omit any type marker.
 
-### Module Schema Status Values
+A **conductor** (crosscutting) module coordinates work _across_ vertical
+modules — release cuts, security audits, perf budgets, migration waves. It
+references work items other modules own, and "done" means the concern is
+addressed for this slice, not that a feature is built. Mark it with a `Type`
+column in the metadata table:
 
-The parser and validator accept these module status values:
+```markdown
+| ID  | Type      | Owner     | Priority | Status   |
+| --- | --------- | --------- | -------- | -------- |
+| REL | Conductor | @username | medium   | Complete |
+```
 
-| Status | Meaning | Work Items Executable? |
-| ------ | ------- | ---------------------- |
-| Proposed | Reviewed direction exists, but execution is not yet authorised | No |
-| Ready | Scope clear, dependencies identified, validation known, execution authorised | Yes |
-| In Progress | Actively being worked on | Yes |
-| Done | Substantive work is finished | No new execution |
-| Blocked | Cannot proceed; document the reason | No |
+- Keep `ID` as the first column; `Type` goes after it. Vertical modules leave
+  the column out.
+- A module is **not** a conductor just because it is _about_ a crosscutting
+  topic — only if coordinating other modules' work _is_ the work. When in
+  doubt, prefer vertical.
+- Conductors may use `Recurring` as a status when the concern never naturally
+  completes (perf budget, ongoing security posture).
+- `aps lint` validates cross-module references in a conductor's `## Coordinated
+  Modules` / `## Cross-Module Work Items` sections (W002) and checks that
+  modules listed under a `### Conductor / Crosscutting` index subsection carry
+  `Type: Conductor` (W006).
 
-The local parser currently normalises legacy `Draft` to `Proposed` and legacy
-`Complete` to `Done`. New APS text should write canonical status values.
-
-### Work Item Status
-
-Work item status describes execution authority and progress. The canonical
-planning vocabulary is the portable contract that APS parsers, validators, and
-external tooling rely on:
-
-- `Proposed`
-- `Ready`
-- `In Progress`
-- `Done`
-- `Blocked`
-
-Projects MAY accept additional **status extensions** as local lifecycle prose
-labels, but any such extensions must be documented in the project's own context
-file and treated as project-owned, not portable APS schema vocabulary. Anvil
-extends the canonical set with `Merged`, `Released/Shipped`, and `Complete` as
-work-item `Status:` values; `Archived` is module-level prose (a module moved
-to `plans/archive/modules/`) and is NOT used in work-item `Status:` fields.
-See
-[`plans/project-context.md#project-status-extensions`](project-context.md#project-status-extensions)
-for the full mapping and how local tooling reconciles extension labels back to
-canonical `Done` for portability.
-
-### Status Rules
-
-1. Do not execute `Proposed` work unless the operator explicitly approves the
-   item as urgent authorised work; record that authorisation inline.
-2. Mark work `In Progress` before making substantive changes for that item.
-3. Mark work `Done` only when the expected outcome is satisfied and validation
-   evidence exists.
-4. Archive completed modules by moving them to `plans/archive/modules/` and
-   updating `plans/index.aps.md` in the same change.
+Full guidance and a worked example: `docs/conductor-modules.md`. Template:
+`templates/conductor.template.md`.
 
 ## Actions: The Lean Rule
 
-Actions translate work item intent into **observable checkpoints**. They are NOT
-implementation guides.
+Actions translate work item intent into **observable checkpoints**. They are NOT implementation guides.
 
 ### Format
 
@@ -91,19 +61,19 @@ implementation guides.
 - **Validate:** `[command]` (optional)
 ```
 
-### What Goes Where
+### What Goes WHERE
 
-| Write in Action | Write NOWHERE (emerges from patterns) |
-| --------------- | ------------------------------------- |
-| "Auth middleware exists" | Which library to use |
-| "Tests pass" | Test implementation details |
-| "Migration applied" | SQL schema definition |
-| "Function handles errors" | Try/catch structure |
+| Write in Action           | Write NOWHERE (emerges from patterns) |
+| ------------------------- | ------------------------------------- |
+| "Auth middleware exists"  | Which library to use                  |
+| "Tests pass"              | Test implementation details           |
+| "Migration applied"       | SQL schema definition                 |
+| "Function handles errors" | Try/catch structure                   |
 
-### Anti-Patterns
+### Anti-Patterns (NEVER do this)
 
 ```markdown
-# BAD: Implementation tutorial disguised as action
+# ❌ BAD: Implementation tutorial disguised as action
 
 ### 1. Create authentication middleware
 
@@ -117,7 +87,7 @@ implementation guides.
 ```
 
 ```markdown
-# GOOD: Observable checkpoint only
+# ✅ GOOD: Observable checkpoint only
 
 ### 1. Create authentication middleware
 
@@ -127,234 +97,280 @@ implementation guides.
 
 ### Why Lean Actions?
 
-1. **Implementation emerges** from existing patterns and agent judgement.
-2. **Specs don't rot** because checkpoints stay valid when code changes.
-3. **Agents stay autonomous** because they figure out how; humans verify what.
-4. **Review stays fast** because readers scan checkpoints, not tutorials.
+1. **Implementation emerges** from existing patterns + agent judgment
+2. **Specs don't rot** — checkpoints stay valid even when code changes
+3. **Agents stay autonomous** — they figure out HOW, you verify WHAT
+4. **Review stays fast** — humans scan checkpoints, not implementation plans
 
 ## Work Item Rules
 
-Work items are **execution authority**: permission to make changes.
+Work items are **execution authority** — permission to make changes.
 
 ### Required Fields
 
-- **Status:** Canonical planning status for the item.
-- **Intent:** One sentence describing what outcome this achieves.
-- **Expected Outcome:** Testable or observable result.
-- **Validation:** Command or review procedure that verifies completion.
+- **Intent:** One sentence — what outcome this achieves
+- **Expected Outcome:** Testable/observable result
+- **Validation:** Command to verify completion
 
-### Recommended Fields
+### Status Vocabulary
 
-- **Files:** Best-effort list of files or directories.
-- **Dependencies:** Other work item IDs that must complete first.
-- **Confidence:** `low`, `medium`, or `high`.
+Canonical values: `Draft`, `Ready`, `In Progress`, `Complete`, `Blocked`.
+
+Accepted aliases (tools normalize these internally; do not rewrite your files):
+
+- `Proposed` → `Draft` (not yet actionable)
+- `Done` → `Complete` (terminal / compacted items)
+
+Terminal compaction may also use `Merged`, `Released`, or `Shipped`; lint treats
+them like `Complete`/`Done` for required-field exemptions.
+
+Flow: `Draft` → `Ready` → `In Progress` → `Complete`. Only `aps start` and
+`aps complete` change status; edit manually to reset or block.
 
 ### Optional Fields
 
-- **Scopes:** What can be changed.
-- **Non-scope:** What will not change.
-- **Inputs:** Required inputs or context.
-- **Risks:** Potential risks associated with the item.
-- **Packages:** Affected packages in monorepos.
-- **Tags:** Labels for filtering and search.
-- **Link:** External reference.
+- **Scope/Non-scope:** What will and won't change
+- **Dependencies:** Other work item IDs that must complete first
+- **Confidence:** low/medium/high
+- **Files:** Best-effort list (not exhaustive)
 
 ### Work Item Anti-Patterns
 
-| Don't | Do |
-| ----- | -- |
-| "Implement JWT auth using jsonwebtoken" | "Add token-based authentication" |
-| "Create UserService class with methods..." | "User operations are encapsulated" |
-| "Add try/catch blocks to all handlers" | "API errors return consistent format" |
+| ❌ Don't                                   | ✅ Do                                 |
+| ------------------------------------------ | ------------------------------------- |
+| "Implement JWT auth using jsonwebtoken"    | "Add token-based authentication"      |
+| "Create UserService class with methods..." | "User operations are encapsulated"    |
+| "Add try/catch blocks to all handlers"     | "API errors return consistent format" |
 
 ## Action Plans: Waves and Parallel Execution
 
 Action plans can optionally group actions into **waves** for parallel execution.
-Actions in the same wave are independent; each wave completes before the next
-begins.
+Actions in the same wave are independent — they can run concurrently. Each wave
+completes before the next begins.
 
 ### Wave Table Format
 
 ```markdown
 ## Waves
 
-| Wave | Actions | Gate |
-| ---- | ------- | ---- |
-| 1 | 1, 2 | Both checkpoints pass |
-| 2 | 3 | Checkpoint passes |
+| Wave | Actions | Gate                  |
+| ---- | ------- | --------------------- |
+| 1    | 1, 2    | Both checkpoints pass |
+| 2    | 3       | Checkpoint passes     |
 ```
 
 ### Action-Level Fields
 
 Actions support optional execution metadata:
 
-- **Wave** N — which wave this action belongs to.
-- **Depends on** 1, 2 — action numbers that must complete first.
-- **Agent** type — agent type for dispatch, such as `general` or `tdd-coach`.
+- **Wave** N — which wave this action belongs to
+- **Depends on** 1, 2 — action numbers that must complete first
+- **Agent** type — agent type for dispatch (e.g., general-purpose, tdd-coach)
 
 ### When to Use Waves
 
-| Use Waves | Stay Sequential |
-| --------- | --------------- |
-| Three or more actions with independent work | Each action depends on the previous |
-| Multi-agent dispatch needed | Single-agent linear execution |
-| Work item has natural parallel boundaries | Actions share mutable state |
+| Use Waves                                 | Stay Sequential                     |
+| ----------------------------------------- | ----------------------------------- |
+| 3+ actions with independent work          | Each action depends on the previous |
+| Multi-agent dispatch needed               | Single-agent linear execution       |
+| Work item has natural parallel boundaries | Actions share mutable state         |
 
-### When Not to Use Waves
+### When NOT to Use Waves
 
-- Simple work items with fewer than four actions.
-- All actions modify the same files.
-- Actions are inherently sequential.
+- Simple work items (< 4 actions)
+- All actions modify the same files
+- Actions are inherently sequential (schema → migration → seed)
+
+### Anti-Pattern
+
+```markdown
+# ❌ BAD: Everything in one wave to look fast
+
+## Waves
+
+| Wave | Actions | Gate |
+| 1 | 1, 2, 3, 4, 5 | All pass |
+```
+
+If all actions are truly independent, they probably belong in separate work items.
 
 ## Naming Conventions
 
 ### Module Files
 
-Canonical APS module files are short kebab-case slugs with an `.aps.md` suffix.
-Numeric prefixes are also allowed when dependency order benefits from them.
+Name module files with a numeric prefix based on dependency order:
 
 ```text
 modules/
-├── core.aps.md
-├── auth.aps.md
-├── 01-foundation.aps.md
-└── 02-api.aps.md
+├── 01-core.aps.md      # Foundation, no dependencies
+├── 02-auth.aps.md      # Depends on core
+├── 03-payments.aps.md  # Depends on auth
+└── 04-ui.aps.md        # Depends on all above
 ```
 
-- Use kebab-case and the `.aps.md` suffix.
-- Keep filenames stable; dependency order lives in `plans/index.aps.md`.
-- If numeric prefixes are used, use zero-padded numbers such as `01-`.
+- Use zero-padded numbers (`01-`, `02-`, not `1-`, `2-`)
+- Order matches dependency flow (foundational → dependent)
+- Order should reflect the Modules table in `index.aps.md`
 
 ### Work Item IDs
 
-Work items use the module's ID prefix and a zero-padded sequence:
-`AUTH-001`, `AUTH-002`, `CORE-001`.
+Work items use the module's ID prefix: `AUTH-001`, `AUTH-002`, `CORE-001`, etc.
 
 ## Creating APS Documents
 
 ### When Asked to Plan
 
-1. Read existing `plans/index.aps.md` if present.
-2. Check completed work context if the project has a completed index.
-3. Identify which template fits: index, module, action plan, or design.
-4. Fill sections with **intent**, not implementation detail.
-5. Mark assumptions explicitly.
-6. Leave work items unready until execution authority is clear.
+1. Read existing `plans/index.aps.md` if present
+2. Identify which template fits (index, module, simple)
+3. Fill sections with **intent**, not implementation
+4. Mark assumptions explicitly
+5. Leave work items empty until module is Ready
 
 ### When Asked to Execute
 
-1. Find the relevant work item in a module file.
-2. Confirm the work item is `Ready` or `In Progress`.
-3. Create an action plan file in `plans/execution/` if the work is complex.
-   New action plans use the canonical `.actions.md` suffix
-   (`plans/execution/<WORK-ITEM-ID>.actions.md`). Legacy `.steps.md`
-   plans remain readable but are excluded from active APS lint; rename
-   them to `.actions.md` when the surrounding work is touched again.
-4. Execute one action at a time and validate checkpoints.
-5. Mark work complete only after validation passes.
+1. Find the work item in the relevant `.aps.md` file
+2. Check work item has **Ready** status
+3. Create an action plan in `plans/execution/` if complex
+4. Execute one action at a time, validate checkpoint
+5. Mark work item complete when validation passes
 
 ## File Locations
 
 ```text
+designs/                       # Technical designs (optional, project root)
+└── YYYY-MM-DD-slug.design.md  # Architecture/approach documents
+
 plans/
-├── aps-rules.md                  # APS-managed agent guidance
-├── project-context.md            # Anvil-owned project context
-├── index.aps.md                  # Root plan
-├── issues.md                     # Development-time discoveries, optional
-├── modules/                      # Active module specs
-│   ├── core.aps.md
-│   └── auth.aps.md
-├── archive/modules/              # Historical completed modules
-├── execution/                    # Action plans
-│   ├── [WORK-ITEM-ID].actions.md # Per-work-item action plan
-│   └── [MODULE].actions.md       # Per-module action plan
-├── decisions/                    # ADRs, optional
-│   └── [NNN]-[title].md
-└── designs/                      # Technical designs, optional
-    └── YYYY-MM-DD-slug.design.md
+├── aps-rules.md           # This file (agent guidance)
+├── index.aps.md           # Root plan
+├── issues.md              # Development-time discoveries (issues & questions, create manually)
+├── modules/               # Module specs (numbered by dependency order)
+│   ├── 01-core.aps.md
+│   └── 02-auth.aps.md
+├── execution/                 # Action plans
+│   ├── [WORK-ITEM-ID].actions.md  # Per-work-item (complex projects)
+│   └── [MODULE].actions.md        # Per-module (simple projects)
+└── decisions/             # ADRs (optional)
+    └── [NNN]-[title].md
 ```
 
 ## Design Documents
 
-Design docs live in `plans/designs/` when a project uses them. They capture
-architectural thinking **before** committing to modules and work items.
+Design docs live in `designs/` at the project root. They capture architectural
+thinking **before** committing to modules and work items.
 
 ### When to Create
 
-- Multi-module work with non-obvious architecture.
-- Multiple viable approaches that need comparison.
-- Work that needs review before defining work items.
-- Cross-cutting concerns that span several modules.
+- Multi-module work with non-obvious architecture
+- Multiple viable approaches that need comparison
+- Work that needs review before defining work items
+- Cross-cutting concerns that span several modules
 
 ### When to Skip
 
-- Straightforward single-module features.
-- Bug fixes or small enhancements.
-- Work where the approach is already established.
+- Straightforward single-module features
+- Bug fixes or small enhancements
+- Work where the approach is already well established
 
 ### Naming
 
-`plans/designs/YYYY-MM-DD-slug.design.md` — date-prefixed descriptive slug.
+`designs/YYYY-MM-DD-slug.design.md` — date-prefixed, descriptive slug.
 
 ### Linking
 
-Reference designs from the index or module metadata:
+Reference designs from the Index or Module metadata:
 
 ```markdown
 ## Designs
 
-- [Auth Architecture](designs/2025-01-05-auth-architecture.design.md)
+- [Auth Architecture](../designs/2025-01-05-auth-architecture.design.md)
 ```
+
+A design can cover one module or span multiple — the `Modules` field in the
+design's metadata table links to the relevant module files.
 
 ### Accept-Then-Normalise
 
-If a design doc already exists in free form, accept it. Do not reject it for
-missing sections. Instead:
+If a design doc already exists in free-form (created by another agent or human),
+**accept it**. Don't reject it for missing sections. Instead:
 
-1. Add the minimum fields: `## Problem`, `## Design`, and status metadata.
-2. Do not rewrite the author's content.
-3. Append missing sections or infer them from existing content.
+1. Add the minimum fields: `## Problem`, `## Design`, and the Status metadata table
+2. Don't rewrite the author's content — append missing sections or infer from
+   existing content
+3. This normalisation can happen in the background, after the main work
 
-## Issues and Questions Tracker
+## Monorepo Conventions
 
-Projects may use `plans/issues.md` to log development-time discoveries:
+For repositories with multiple packages/apps. See `docs/monorepo.md` for full guidance.
 
-- **Issues (`ISS-NNN`)** — bugs, limitations, or edge cases noticed during
-  development.
-- **Questions (`Q-NNN`)** — unknowns that need answers or deferred decisions.
+### Package Tagging
 
-This tracker is for planning visibility, not routine bug reports or production
-incidents.
+Every module declares `Packages: pkg1, pkg2` in metadata. Work items inherit or narrow the package scope.
 
-## Project-Specific Context
+### Session Start Ritual
 
-Before applying these rules in Anvil, read
-[`plans/project-context.md`](project-context.md). It defines local lifecycle,
-branching, review, release, feature flag, and documentation-governance rules
-that deliberately sit outside portable APS guidance.
+Before touching code:
 
-## Release Metadata
+1. **Orient** — Read `plans/index.aps.md` "What's Next" section, then relevant module(s)
+2. **Confirm authority** — Work item exists, status = Ready, packages are clear
+3. **Declare intent** — State: "Executing AUTH-002 (core, api): [description]"
 
-Release metadata is an Anvil project extension, not portable APS schema. The
-anchor remains here so existing docs can link to the concept without pulling the
-full local workflow into this APS-managed file. See
-[`plans/project-context.md#release-metadata-extensions`](project-context.md#release-metadata-extensions).
+If no Ready work item exists:
 
-## Cross-Cutting Modules
+- Create Draft work item first
+- Ask human to mark Ready before proceeding
+- OR if trivial fix, note in session end summary
 
-Cross-cutting module closeout rules are an Anvil project extension. The anchor
-remains here so active and archived plans keep stable links while the detailed
-local convention lives in
-[`plans/project-context.md#cross-cutting-modules`](project-context.md#cross-cutting-modules).
+### Session End Ritual
+
+After completing work:
+
+1. **Update status** — Mark work items: `In Progress`, `Complete: YYYY-MM-DD`, or `Blocked: [reason]`
+2. **Capture discovered work** — Add as Draft items with package tags
+3. **Log discoveries** — Add issues (ISS-NNN) or questions (Q-NNN) to `plans/issues.md`
+4. **Update "What's Next"** — Remove completed, add new Ready items, re-sequence if needed
+5. **Session summary** — Brief note: what completed, what discovered, what's next
+
+**Key principle:** The next agent should pick up exactly where you left off without archaeology.
+
+## Issues & Questions Tracker
+
+Use `plans/issues.md` to log development-time discoveries:
+
+- **Issues (ISS-NNN)** — Bugs, limitations, edge cases noticed during development
+- **Questions (Q-NNN)** — Unknowns that need answers, deferred decisions
+
+### When to Log
+
+| Log as Issue                           | Log as Question                                   |
+| -------------------------------------- | ------------------------------------------------- |
+| "API rate-limits at 100 req/min"       | "Should retry logic live in client or transport?" |
+| "Login fails intermittently on Safari" | "What's the session expiry policy?"               |
+| "Edge case: empty array not handled"   | "Do we need to support IE11?"                     |
+
+### Referencing
+
+From work items, notes, or commits:
+
+- `See ISS-001` or `Related: ISS-001, Q-002`
+- In commits: `Addresses ISS-001`
+
+### Not a Bug Tracker
+
+This is for **planning-level visibility**, not routine bugs. Use your project's bug tracker for:
+
+- User-reported bugs
+- Production incidents
+- Detailed reproduction steps
 
 ## Quick Reference
 
-| If agent is... | Check for... |
-| -------------- | ------------ |
-| Writing a design | Problem and design sections present? No implementation prescriptions? |
-| Writing actions | Max 12 words per checkpoint? No implementation detail? |
-| Writing work items | Outcome-focused? Has validation command? |
-| Planning module | Boundaries clear? No premature execution authority? |
-| Executing | Work item status is Ready/In Progress? Prerequisites met? |
-| Found issue/question | Logged in issues.md if project uses the tracker? |
-| In Anvil | Project context read before branch/review/release work? |
+| If agent is...       | Check for...                                                        |
+| -------------------- | ------------------------------------------------------------------- |
+| Writing a design     | Problem + Design sections present? No implementation prescriptions? |
+| Writing steps        | Max 12 words per checkpoint? No implementation detail?              |
+| Writing tasks        | Outcome-focused? Has validation command?                            |
+| Planning module      | Boundaries clear? No premature tasks?                               |
+| Executing            | Work item status is Ready? Prerequisites met?                       |
+| In monorepo          | Packages tagged? "What's Next" updated?                             |
+| Found issue/question | Logged in issues.md with proper ID?                                 |
