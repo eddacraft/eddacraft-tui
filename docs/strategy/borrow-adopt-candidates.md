@@ -71,7 +71,7 @@ Entry format:
   - **integration effort:** M
   - **expected impact:** High
   - **status:** candidate
-  - **aps link (optional):** OPAE-006..010
+  - **aps link (optional):** POLRESET / OPAE / CPACKS
 
 - **source repo + link:** `open-policy-agent/opa` —
   https://github.com/open-policy-agent/opa

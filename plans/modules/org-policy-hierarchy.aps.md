@@ -47,7 +47,9 @@ controlled override and exemption semantics at each level.
 - `crates/anvil-policy` — Policy loading, hierarchy resolution, and
   regorus-backed evaluation orchestration
 - `policy-pack-validation` — Validation of policy packs at each tier
-- `opa-enhancements` — Remote bundle infrastructure (OPAE-034–036)
+- `policy-value-enforcement-reset` — first policy-value slice must land before
+  hierarchy becomes release-relevant
+- `policy-federation` — remote bundle/federation infrastructure, when promoted
 
 **Exposes:**
 

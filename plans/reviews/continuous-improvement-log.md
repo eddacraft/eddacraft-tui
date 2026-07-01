@@ -1723,3 +1723,19 @@ a backlog. Promote repeated friction or executable follow-up work to
 - **Improvement:** Keep platform build commands covered by a clean local smoke or
   CI check when changing package-manager/runtime typing.
 - **Follow-up:** none
+
+### 2026-07-02 — opencode
+
+- **Task:** Reset policy planning around real policy value and save-time
+  enforcement.
+- **Outcome:** Added a POLRESET conductor, narrowed OPAE to regorus-backed
+  authoring/runtime UX, and reset CPACKS to starter-pack-first.
+- **Worked:** A conductor module let the plan coordinate POLVAL/OPAE/CPOL/EXCEPT
+  without making OPAE the umbrella for every enterprise policy idea.
+- **Failed:** Initial POLRESET wording used ADR-style hyphenated references that
+  active APS lint and index-count parsing misread as work-item references.
+- **Friction:** Stale module IDs in downstream plans made the OPAE reset cascade
+  farther than the main policy files.
+- **Improvement:** When renumbering or resetting an APS module, immediately grep
+  for old work-item IDs across all active modules before validation.
+- **Follow-up:** none

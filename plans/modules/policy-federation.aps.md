@@ -19,11 +19,12 @@
 > Multi-repo / fleet federation is an enterprise feature, not RTAI-blocking.
 >
 > Council C recommended dissolving POLFED into OPAE on the grounds that
-> "POLFED-001..006 are 1:1 duplicates of OPAE-034..036." That was
+> "POLFED-001..006 are duplicates of remote-bundle work that used to sit in
+> OPAE." That was
 > overstated. The actual overlap is narrow:
-> - **POLFED-002** (central repo conventions) ↔ **OPAE-034** (org bundles)
+> - **POLFED-002** (central repo conventions) ↔ the old OPAE org-bundles item
 >   — partial overlap on *where bundles live*. Coordinate schema.
-> - **POLFED-006** (subscription version pinning) ↔ **OPAE-035** (bundle
+> - **POLFED-006** (subscription version pinning) ↔ the old OPAE bundle-versioning
 >   versioning) — different angle (consume vs publish). Coordinate
 >   version-resolution semantics.
 >
@@ -44,9 +45,9 @@
 > 1. Author ADR codifying the OPAE/POLFED boundary so future refactors
 >    don't re-litigate ownership of bundle primitives vs federation
 >    workflow.
-> 2. Coordinate POLFED-002 ↔ OPAE-034 schema (where bundles live in a
+> 2. Coordinate POLFED-002 with the post-POLRESET bundle schema (where bundles live in a
 >    central repo: directory layout, manifest format).
-> 3. Coordinate POLFED-006 ↔ OPAE-035 version-resolution semantics
+> 3. Coordinate POLFED-006 with the post-POLRESET version-resolution semantics
 >    (subscriber pin vs publisher version).
 > 4. Retarget validations to `cargo test -p eddacraft-anvil-policy` once OPAE
 >    bundle primitives land in `crates/anvil-policy`.
@@ -83,7 +84,9 @@ fleet-wide compliance visibility.
 
 **Depends on:**
 
-- `opa-enhancements` — Remote bundle infrastructure (OPAE-034–036)
+- `policy-value-enforcement-reset` — first policy-value slice and OPAE reset
+- `opa-enhancements` — first-wave local authoring/runtime UX; remote bundle
+  infrastructure is no longer owned by OPAE after the 2026-07-02 reset
 - `org-policy-hierarchy` — Hierarchy resolution for federated policies
 - `policy-lifecycle` — Lifecycle state gates publishing
 - `policy-pack-validation` — Validate before publish
@@ -114,7 +117,7 @@ fleet-wide compliance visibility.
 | Stale subscriptions miss critical updates | Warn on outdated subscriptions in gate output |
 | Publishing untested policies             | Validation and lifecycle gates block publish  |
 | Fleet data privacy across teams          | Aggregate scores only; no raw violation data  |
-| Git-based registry scalability           | Shallow clones; bundle caching per OPAE-034   |
+| Git-based registry scalability           | Shallow clones; bundle caching in this module |
 
 ## Work Items
 

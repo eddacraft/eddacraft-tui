@@ -6,14 +6,14 @@
 
 **Last reviewed:** 2026-06-24 (policy-solution validation)
 
-> **Status correction (2026-06-24):** demoted Ready → Proposed. OPAG depends
-> on OPAE product contracts (`OPAE-001`, `OPAE-012`, exception workflow items)
-> that are still Draft and TS-era. The correct substrate is
-> ADR-040/POLENG (`anvil-policy-engine` over regorus) plus the frozen
+> **Status correction (2026-06-24; reset 2026-07-02):** demoted Ready →
+> Proposed. OPAG depends on the policy product contracts now reset under
+> OPAE-001..009 and the cross-module POLRESET design gate. The correct substrate
+> is ADR-040/POLENG (`anvil-policy-engine` over regorus) plus the frozen
 > `anvil policy eval --json` v1 output; OPAG should orchestrate that substrate
 > and EXCEPT-managed exceptions, not introduce a separate Go OPA runtime.
-> Promote OPAG only after the OPAE contract slice is rewritten against
-> Rust/regorus and the MCP/agent-facing surface is explicitly re-approved.
+> Promote OPAG only after the OPAE first slice and save-time/pre-write boundary
+> are accepted, and the MCP/agent-facing surface is explicitly re-approved.
 
 > NOTE(post-rust): Validation commands have been retargeted to the Rust
 > workspace (`cargo test -p eddacraft-anvil-policy`,
@@ -50,8 +50,9 @@ Define and deliver an orchestration layer that turns Anvil policy evaluation int
 
 - POLENG / `crates/anvil-policy-engine` — regorus evaluation,
   `PolicyInput` v1, result post-processing, coverage/trace
-- `opa-enhancements` — policy product contracts (must be Rust/regorus-retargeted
-  before OPAG executes)
+- `opa-enhancements` — policy product contracts (OPAE-001..009 after the
+  2026-07-02 reset)
+- `policy-value-enforcement-reset` — design gate and first-slice sequencing
 - `git-native-exceptions` — durable exception records and verification
 - `crates/anvil-kernel` / `crates/anvil-architecture` — architecture and repo
   signal inputs
@@ -71,7 +72,7 @@ Change status to **Ready** when:
 - [x] Purpose and scope are clear
 - [x] Dependencies identified
 - [x] At least one task defined
-- [ ] OPAE contract slice is retargeted to Rust/regorus and promoted
+- [ ] POLRESET design gate accepted and OPAE first slice promoted
 - [ ] MCP/agent-facing surface dependency is re-approved or explicitly removed
 
 ## Work Items
@@ -80,7 +81,7 @@ Change status to **Ready** when:
 - **Intent:** Establish the canonical contract for agent-driven policy orchestration.
 - **Expected Outcome:** A stable schema exists for checkpoints, inputs, outcomes, and event IDs.
 - **Validation:** `cargo test -p eddacraft-anvil-policy -- orchestration_contract`
-- **Dependencies:** OPAE-001, OPAE-012
+- **Dependencies:** POLRESET-001, OPAE-005, OPAE-007
 - **Confidence:** high
 
 ### OPAG-002: Implement checkpoint policy runner
@@ -94,14 +95,14 @@ Change status to **Ready** when:
 - **Intent:** Standardize policy failure outputs into actionable fix guidance.
 - **Expected Outcome:** Violations include clear rationale, suggested next actions, and confidence metadata.
 - **Validation:** `cargo test -p eddacraft-anvil-policy -- policy_guidance`
-- **Dependencies:** OPAG-001, OPAE-012
+- **Dependencies:** OPAG-001, OPAE-005
 - **Confidence:** high
 
 ### OPAG-004: Introduce exception workflow lifecycle
 - **Intent:** Add explicit request/review/approve/reject/expire states for policy exceptions.
 - **Expected Outcome:** Exception state transitions are enforced and auditable.
 - **Validation:** `cargo test -p eddacraft-anvil-policy -- exception_workflow`
-- **Dependencies:** OPAE-024, OPAE-025, OPAE-026
+- **Dependencies:** EXCEPT-004, EXCEPT-005, EXCEPT-006
 - **Confidence:** medium
 
 ### OPAG-005: Add audit event stream

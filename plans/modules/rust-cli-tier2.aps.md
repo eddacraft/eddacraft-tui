@@ -235,11 +235,11 @@ Change status to **Ready** when:
   with variable bindings at each step
 - **Validation:** Debug trace matches OPA's native `--explain` output format
 - **Files:** `crates/anvil-cli/src/commands/policy_debug.rs`
-- **Confidence:** low (no historical Node.js implementation; depends on OPAE-013)
+- **Confidence:** low (deferred after the OPAE reset; no first-slice debugger)
 - **Priority:** Medium
-- **Dependencies:** RCLI-017 (anvil-policy crate), OPAE-013
-- **Notes:** ‡ Blocked on OPAE implementation. Can proceed if OPAE-013 lands
-  in TypeScript and a clean interface exists, or if ported directly from spec
+- **Dependencies:** RCLI-017 (anvil-policy crate), future policy-debugger module
+- **Notes:** ‡ Blocked by the 2026-07-02 OPAE reset. The first policy slice does
+  not include an interactive debugger.
 
 ---
 
@@ -254,9 +254,10 @@ Change status to **Ready** when:
 - **Validation:** File change triggers re-evaluation within 500ms; errors
   reported correctly
 - **Files:** `crates/anvil-cli/src/commands/policy_watch.rs`
-- **Confidence:** low (no historical Node.js implementation; depends on OPAE-015)
+- **Confidence:** low (deferred after the OPAE reset; first slice uses existing
+  save-time/pre-write surfaces)
 - **Priority:** Low
-- **Dependencies:** RCLI-017, KERN (watcher), OPAE-015
+- **Dependencies:** RCLI-017, KERN (watcher), future policy-watch module
 
 ---
 
@@ -273,10 +274,10 @@ Change status to **Ready** when:
 - **Validation:** Annotations appear on correct lines in PR; summary table
   counts match gate results
 - **Files:** `crates/anvil-cli/src/commands/pr_comment.rs`
-- **Confidence:** low (no historical Node.js implementation; depends on OPAE-028,
-  OPAE-029)
+- **Confidence:** low (deferred after the OPAE reset; first slice does not include
+  broad PR auto-comments)
 - **Priority:** Medium
-- **Dependencies:** RCLI (foundation), OPAE-028, OPAE-029
+- **Dependencies:** RCLI (foundation), future PR-comment policy surface
 
 ---
 
@@ -292,9 +293,9 @@ Change status to **Ready** when:
 - **Validation:** Exception storage format matches the historical Node.js CLI
   contract; expired exceptions are correctly filtered
 - **Files:** `crates/anvil-cli/src/commands/exception.rs`
-- **Confidence:** low (no historical Node.js implementation; depends on OPAE-027)
+- **Confidence:** medium (now depends on EXCEPT CLI work, not OPAE)
 - **Priority:** Low
-- **Dependencies:** RCLI (foundation), OPAE-027
+- **Dependencies:** RCLI (foundation), EXCEPT-004, EXCEPT-005
 
 ---
 

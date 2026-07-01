@@ -113,8 +113,8 @@ Explicit non-decisions, to keep this ADR reviewable:
 - **Tier model (OOB / YAML / Rego).** A separate ADR will pin
   configurative-vs-additive YAML scope. POLENG-Y blocks on it.
 - **OOB rule catalogue v1.** Owned by POLENG-O work items.
-- **Bundle distribution and signing.** Lives in OPAE-034..036 and POLFED;
-  unaffected by engine choice.
+- **Bundle distribution and signing.** Lives in POLFED; the former OPAE bundle
+  references are historical and unaffected by engine choice.
 - **Watch-mode performance budget.** Validated against the substrate by
   POLENG-008 bench harness, not pre-committed here.
 

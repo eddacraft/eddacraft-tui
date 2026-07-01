@@ -112,13 +112,13 @@ identical external primitive **three** prior times.
 
 | RuleHub capability | Anvil equivalent (status) |
 | ------------------ | ------------------------- |
-| `controls: [...]` mapping metadata authored **on the policy** | **CPACKS** (compliance-policy-packs) · **Draft (high)** — CPACKS-002 already specs a `controlMappings` array linking policy IDs → framework control IDs/titles/categories, and ships packs for OWASP, SOC 2, ISO 27001, GDPR, **NIST AI RMF, and EU AI Act** (the exact AI frameworks Morgan names). |
+| `controls: [...]` mapping metadata authored **on the policy** | **CPACKS** (compliance-policy-packs) · **Proposed** — reset to starter-pack-first delivery; CPACKS-003 owns pack manifest metadata and CPACKS-008 owns the expansion gate for additional framework packs such as NIST AI RMF and EU AI Act. |
 | Policy-to-control **resolution + coverage** | **COMPLY** (compliance-reporting) · **Draft (medium)** — already exposes `ComplianceFrameworkRegistry`, `ComplianceMapper`, `EvidenceCollector`, built-in SOC 2 + ISO 27001, custom-framework YAML, and **`anvil compliance map` / `status` / `report`** CLI verbs. This *is* the crosswalk module. |
 | Control-to-**evidence** linkage + audit export | **CEWS** (compliance-evidence-workspace) · **Draft** (demoted Ready→Draft 2026-04-26, blocked behind COMPLY-004) — `ControlEvidenceMap`, `EvidenceRecord`, `ComplianceWorkspaceReport`; CEWS-002 links policy/eval outcomes → evidence + controls; CEWS-004 export packs. |
 | Buyer-facing trust/evidence publishing | **TRUST** (trust-center-automation) · **Ready** — assembles publishable artifacts from "policy, eval, and compliance sources" with freshness/ownership. |
 | Signed policy-bundle provenance feeding a verdict | **MLP2** witness `rules_sha` (MLP2-014) + **SCA** (Proposed) SBOM/SLSA + MEHO Borrow-A `policy_bundle_digest`. |
 | Findings → standard machine-readable export | **SARIFOUT** · **Complete (6/6)** — `--format sarif` shipped on `anvil check`/`gate`/`audit` (promoted from Drako CIB-014). A SARIF `result.properties` bag is the obvious, already-shipped carrier for `controls: [...]`. |
-| AI-pack signals (trust score, capability, audit chain) the AI crosswalks depend on | **AGOV** (agent-governance-patterns) · **Draft** — CPACKS-051/061/062/063 already declare AGOV-001/006/007 dependencies. |
+| AI-pack signals (trust score, capability, audit chain) the AI crosswalks depend on | **AGOV** (agent-governance-patterns) · **Draft** — the former AI-pack CPACKS items are superseded by CPACKS-008 and future AGOV-dependent expansion work. |
 
 Anvil's lane: **deterministic, evidence-producing governance of change at
 save/commit/push time, exported as audit evidence.** RuleHub's compliance slice
@@ -315,12 +315,12 @@ plan / prototype / depend):
 
 | Module | ID · Status | Update |
 | ------ | ----------- | ------ |
-| compliance-policy-packs | **CPACKS** · Draft (high) | Note RuleHub's `controls: [...]` shape as reference input to the CPACKS-002 `controlMappings` schema; cite as parallel evolution. No status change. |
+| compliance-policy-packs | **CPACKS** · Proposed | Note RuleHub's `controls: [...]` shape as reference input to CPACKS-003 pack manifest metadata and CPACKS-008 expansion-gate criteria; cite as parallel evolution. |
 | compliance-reporting | **COMPLY** · Draft | Confirm `ComplianceMapper` + `ComplianceFrameworkRegistry` + `anvil compliance map` are the canonical resolver/registry/CLI for the crosswalk; record the source-of-truth seam (CPACKS authors → COMPLY resolves → CEWS records). Carry the never-a-gate / suggested-mapping discipline (already in COMPLY risks). |
 | compliance-evidence-workspace | **CEWS** · Draft (blocked behind COMPLY-004) | `ControlEvidenceMap`/`EvidenceRecord` is the canonical *record* of the resolved mapping (Borrow A); CEWS-004 export packs serialize it. Note it is downstream of COMPLY — same staging caveat as the DocGraph borrow. |
 | trust-center-automation | **TRUST** · Ready | TRUST artifacts already assemble from "policy, eval, and compliance sources" — confirm the control-mapping field flows through to buyer-facing trust output as evidence, not as a compliance score. |
 | sarif-output | **SARIFOUT** · Complete | Record that `result.properties.controls` is the shipped export carrier for the mapping field (no new surface needed); future additive-only. |
-| agent-governance-patterns | **AGOV** · Draft | Note that the AI-framework crosswalks (CPACKS-051/061/062/063) depend on AGOV-001/006/007 signals — so the *first* crosswalk should not be an AI framework (§8). |
+| agent-governance-patterns | **AGOV** · Draft | Note that AI-framework crosswalks depend on AGOV-001/006/007 signals; keep the first CPACKS slice on currently evidenced frameworks and defer AI packs through CPACKS-008 (§8). |
 | supply-chain-attestation | **SCA** · Proposed | Cross-ref: RuleHub's cosign/SBOM/AIBOM is parallel evolution; signed-bundle-digest-as-evidence already covered by SCA + witness `rules_sha` (MLP2-014) + MEHO Borrow-A. No promotion. |
 
 ### 7.2 Gaps identified
@@ -368,8 +368,8 @@ hard-coded here to avoid a numbering race — allocate when filed under
 - **Which framework first?** Challenge the marketing instinct to lead with EU AI
   Act. The first crosswalk should ride controls Anvil **already deterministically
   enforces** so the evidence is real, not aspirational: **SOC 2 CC8**
-  (change-management — PR review, coverage gates; CPACKS-022) and **OWASP A02/A03**
-  (crypto/injection; CPACKS-011/013) are backed by signals Anvil produces today.
+  (change-management — PR review, coverage gates) and **OWASP A02/A03**
+  (crypto/injection) are backed by signals Anvil produces today.
   The AI frameworks (NIST AI RMF / EU AI Act) depend on unbuilt AGOV signals
   (§7.1) and should follow, not lead.
 - Does COMPLY's `ComplianceMapper`/`ComplianceFrameworkRegistry` or CEWS's
