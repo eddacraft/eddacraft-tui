@@ -13764,7 +13764,7 @@
       "category": "security",
       "confidence": "high",
       "triage": "confirmed-bug",
-      "status": "wont-fix",
+      "status": "false-positive",
       "feature": {
         "id": "feat_library_9f8d3feba6",
         "title": "Node source packages/kindling-integration/src"
