@@ -1,19 +1,48 @@
 use super::TutorialStep;
 use super::verify::Verify;
 
+/// Starting content for the Policy path's inline editor — a minimal Rego rule
+/// the user can edit in place. Illustrative: the step only verifies the file
+/// exists, so this is a readable skeleton, not a runnable OPA bundle.
+const NO_TODOS_REGO_SEED: &str = "\
+# .anvil/policies/no-todos.rego
+# Flag TODO comments left in production code.
+package anvil.no_todos
+
+import rego.v1
+
+# Edit the marker or message, then press ctrl-s to save.
+deny contains msg if {
+\tsome line in input.lines
+\tcontains(line.text, \"TODO\")
+\tmsg := sprintf(\"TODO left in %s:%d\", [input.path, line.number])
+}
+";
+
+/// Starting content for the Architecture path's inline editor — a small,
+/// valid `.anvil/architecture.yaml` matching the layer schema. The user edits
+/// the patterns/dependencies to fit their own project.
+const ARCHITECTURE_YAML_SEED: &str = "\
+schema_version: '0.1.0'
+template: custom
+layers:
+  api:
+    patterns:
+      - 'src/api/**'
+    depends_on:
+      - services
+  services:
+    patterns:
+      - 'src/services/**'
+    depends_on: []
+";
+
 fn step(title: &str, description: &str, instruction: &str) -> TutorialStep {
     TutorialStep {
         title: title.to_string(),
         description: description.to_string(),
         instruction: instruction.to_string(),
-        command: None,
-        completed: false,
-        output: None,
-        verify: None,
-        verify_result: None,
-        verify_hint: None,
-        watch_path: None,
-        watch_demo: false,
+        ..TutorialStep::default()
     }
 }
 
@@ -24,17 +53,8 @@ fn step_with_command(
     command: &str,
 ) -> TutorialStep {
     TutorialStep {
-        title: title.to_string(),
-        description: description.to_string(),
-        instruction: instruction.to_string(),
         command: Some(command.to_string()),
-        completed: false,
-        output: None,
-        verify: None,
-        verify_result: None,
-        verify_hint: None,
-        watch_path: None,
-        watch_demo: false,
+        ..step(title, description, instruction)
     }
 }
 
@@ -47,40 +67,35 @@ fn step_with_verify(
     hint: &str,
 ) -> TutorialStep {
     TutorialStep {
-        title: title.to_string(),
-        description: description.to_string(),
-        instruction: instruction.to_string(),
         command: Some(command.to_string()),
-        completed: false,
-        output: None,
         verify: Some(verify),
-        verify_result: None,
         verify_hint: Some(hint.to_string()),
-        watch_path: None,
-        watch_demo: false,
+        ..step(title, description, instruction)
     }
 }
 
-fn step_with_watch(
+/// Build an inline-editable step: pressing `e` opens the in-TUI editor seeded
+/// with `seed_template` (when the file does not exist yet), and saving writes
+/// `edit_target` then runs `verify`. `watch_path` keeps the external-editor
+/// path working too, so the user can edit in-TUI *or* in their own editor.
+#[allow(clippy::too_many_arguments)]
+fn step_with_editor(
     title: &str,
     description: &str,
     instruction: &str,
+    edit_target: &str,
+    seed_template: &str,
     verify: Verify,
     hint: &str,
     watch_path: &str,
 ) -> TutorialStep {
     TutorialStep {
-        title: title.to_string(),
-        description: description.to_string(),
-        instruction: instruction.to_string(),
-        command: None,
-        completed: false,
-        output: None,
         verify: Some(verify),
-        verify_result: None,
         verify_hint: Some(hint.to_string()),
         watch_path: Some(watch_path.to_string()),
-        watch_demo: false,
+        edit_target: Some(edit_target.to_string()),
+        seed_template: Some(seed_template.to_string()),
+        ..step(title, description, instruction)
     }
 }
 
@@ -232,10 +247,12 @@ pub fn policy_steps() -> Vec<TutorialStep> {
                 create_policy_directory_instruction(),
             )
         },
-        step_with_watch(
+        step_with_editor(
             "Write Your First Policy",
-            "A policy defines a check ID, severity level, and logic to match against. Start with a simple Rego rule that flags TODO comments left in production code. anvil provides helper libraries to simplify common pattern matching.",
-            "Create .anvil/policies/no-todos.rego with a Rego rule.",
+            "A policy defines a check ID, severity level, and logic to match against. Press `e` to open the inline editor, already seeded with a Rego rule that flags TODO comments left in production code — edit it in place and press ctrl-s to save. (You can also create .anvil/policies/no-todos.rego in your own editor; the tutorial notices either way.)",
+            "Press e to edit .anvil/policies/no-todos.rego inline, or create it yourself.",
+            ".anvil/policies/no-todos.rego",
+            NO_TODOS_REGO_SEED,
             Verify::FileExists(".anvil/policies/no-todos.rego".to_string()),
             "Create the file .anvil/policies/no-todos.rego to continue.",
             ".anvil/policies",
@@ -268,10 +285,12 @@ pub fn architecture_steps() -> Vec<TutorialStep> {
             "Architecture enforcement validates that your code respects the layer boundaries you define. anvil prevents imports that violate your declared dependency rules, catching architectural drift early.",
             "Press enter to continue to the next step.",
         ),
-        step_with_watch(
+        step_with_editor(
             "Define Your Layers",
-            "Layers define how your code is structured. You can map directories to layers and set rules on which layers can talk to each other in .anvil/architecture.yaml.",
-            "Create .anvil/architecture.yaml with your layer definitions.",
+            "Layers map directories to names and declare which layers may depend on which. Press `e` to open the inline editor, seeded with a small .anvil/architecture.yaml — edit the patterns and depends_on lists to match your project, then press ctrl-s to save. (You can also create the file in your own editor.)",
+            "Press e to edit .anvil/architecture.yaml inline, or create it yourself.",
+            ".anvil/architecture.yaml",
+            ARCHITECTURE_YAML_SEED,
             Verify::FileExists(".anvil/architecture.yaml".to_string()),
             "Create .anvil/architecture.yaml to continue.",
             ".anvil",

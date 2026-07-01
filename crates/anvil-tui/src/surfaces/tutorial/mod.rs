@@ -110,7 +110,7 @@ pub struct CommandOutput {
 }
 
 /// A single step in a tutorial path.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct TutorialStep {
     pub title: String,
     pub description: String,
@@ -134,6 +134,17 @@ pub struct TutorialStep {
     /// demo instead of normal advancement. The TUI loop exits and the
     /// CLI command launches the demo surface.
     pub watch_demo: bool,
+    /// Optional file the step's inline editor creates or edits. When set,
+    /// pressing `e` opens an in-TUI editor seeded with the file's current
+    /// contents (or [`seed_template`](Self::seed_template) when it does not
+    /// exist yet); saving writes the file and runs the step's `verify`. This
+    /// keeps the user inside the tutorial instead of dropping to an external
+    /// editor in a second terminal.
+    pub edit_target: Option<String>,
+    /// Starting content for the inline editor when `edit_target` does not yet
+    /// exist on disk. Ignored once the file exists (existing content wins so a
+    /// re-entered step never clobbers the user's work).
+    pub seed_template: Option<String>,
 }
 
 /// State for the tutorial orchestrator surface.
@@ -168,6 +179,17 @@ pub struct TutorialState {
     pub wants_watch_demo: bool,
     /// Pending fix request emitted when the user presses `f`.
     pub pending_fix: Option<FixRequest>,
+    /// Active inline editor, opened with `e` on a step that has an
+    /// [`edit_target`](TutorialStep::edit_target). `None` when not editing.
+    pub editor: Option<eddacraft_tui::widgets::editor::EditorState>,
+    /// The relative file path the active editor writes to on save. Mirrors the
+    /// current step's `edit_target`; kept separately so the write target is
+    /// stable even if the step list is mutated mid-edit.
+    pub edit_path: Option<String>,
+    /// Set when the last inline-editor save failed to write to disk (e.g.
+    /// permissions). The editor stays open so the user does not lose work; the
+    /// renderer surfaces this message.
+    pub edit_error: Option<String>,
 }
 
 impl TutorialState {
@@ -200,7 +222,87 @@ impl TutorialState {
             resuming_notice: None,
             wants_watch_demo: false,
             pending_fix: None,
+            editor: None,
+            edit_path: None,
+            edit_error: None,
         }
+    }
+
+    /// Whether an inline editor is currently open. The CLI loop reads this to
+    /// switch to a text-input key mapping (so ordinary letters — including
+    /// `j`/`k`/`h`/`l`/`q`/space — are typed into the editor rather than
+    /// consumed as navigation/quit commands).
+    pub fn is_editing(&self) -> bool {
+        self.editor.is_some()
+    }
+
+    /// Open the inline editor for the current step, if it declares an
+    /// `edit_target`. Seeds from the file's current contents when it exists,
+    /// otherwise from the step's `seed_template`. No-op if already editing, in
+    /// static mode is still allowed (the save path writes + verifies directly
+    /// and needs no watcher).
+    pub fn open_step_editor(&mut self) {
+        if self.editor.is_some() {
+            return;
+        }
+        let Some(step) = self.steps.get(self.current_step) else {
+            return;
+        };
+        let Some(target) = step.edit_target.clone() else {
+            return;
+        };
+        let seed = step.seed_template.clone().unwrap_or_default();
+        let existing = std::fs::read_to_string(&target).ok();
+        let content = existing.unwrap_or(seed);
+        self.editor = Some(eddacraft_tui::widgets::editor::EditorState::from_string(
+            &content,
+        ));
+        self.edit_path = Some(target);
+        self.edit_error = None;
+    }
+
+    /// Cancel the inline editor without writing anything.
+    pub fn cancel_step_editor(&mut self) {
+        self.editor = None;
+        self.edit_path = None;
+        self.edit_error = None;
+    }
+
+    /// Save the inline editor's content to `edit_path`, then run the step's
+    /// verify. Advances the step when verification passes. Returns the write
+    /// error (if any) so the caller/renderer can surface it; the editor stays
+    /// open on write failure so the user does not lose their work.
+    pub fn save_step_editor(&mut self) -> std::io::Result<()> {
+        let (Some(editor), Some(path)) = (self.editor.as_ref(), self.edit_path.clone()) else {
+            return Ok(());
+        };
+        let content = editor.content();
+        if let Some(parent) = std::path::Path::new(&path).parent()
+            && !parent.as_os_str().is_empty()
+        {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(&path, content)?;
+        // Editor content is committed — close it and run verification.
+        self.editor = None;
+        self.edit_path = None;
+        // Record a synthetic successful output so command-less verify steps
+        // (the common case for edit steps) evaluate against a Pass baseline.
+        let placeholder = CommandOutput {
+            stdout: String::new(),
+            stderr: String::new(),
+            success: true,
+            exit_code: Some(0),
+        };
+        if let Some(step) = self.steps.get_mut(self.current_step)
+            && step.command.is_none()
+        {
+            step.output = Some(placeholder);
+        }
+        if self.run_verify_current() {
+            self.advance_step();
+        }
+        Ok(())
     }
 
     /// Enable static mode, disabling command execution and showing a notice.
@@ -423,7 +525,57 @@ impl TutorialState {
         }
     }
 
+    /// Route a key to the active inline editor. Save (Ctrl-S) writes+verifies;
+    /// Esc cancels; everything else is text editing. Called only while
+    /// `self.editor.is_some()`.
+    fn handle_editor_key(&mut self, action: Action) {
+        if let Action::Character('\x13') = action {
+            match self.save_step_editor() {
+                Ok(()) => self.edit_error = None,
+                Err(e) => {
+                    self.edit_error = Some(format!(
+                        "Could not write {}: {e}",
+                        self.edit_path.as_deref().unwrap_or("file")
+                    ));
+                }
+            }
+            return;
+        }
+        match action {
+            Action::Back => self.cancel_step_editor(),
+            Action::Quit => self.should_quit = true,
+            other => {
+                if let Some(ed) = self.editor.as_mut() {
+                    match other {
+                        Action::Character(c) => ed.insert(c),
+                        Action::Backspace => ed.backspace(),
+                        Action::Delete => ed.delete(),
+                        Action::Up => ed.move_up(),
+                        Action::Down => ed.move_down(),
+                        Action::Left => ed.move_left(),
+                        Action::Right => ed.move_right(),
+                        Action::Home => ed.home(),
+                        Action::End => ed.end(),
+                        Action::PageUp => ed.page_up(20),
+                        Action::PageDown => ed.page_down(20),
+                        _ => {}
+                    }
+                }
+            }
+        }
+    }
+
     fn handle_running(&mut self, action: Action) {
+        // Inline editor active: route keys to the editor. The CLI loop
+        // switches to a text-input key map while `is_editing()`, so ordinary
+        // letters (including j/k/h/l/q and space) arrive as Action::Character
+        // and Enter arrives as Character('\n'). Ctrl-S (Character('\x13'))
+        // saves; Esc cancels.
+        if self.editor.is_some() {
+            self.handle_editor_key(action);
+            return;
+        }
+
         // When a command has failed or verification has failed, only retry
         // (r) and skip (s) are active; everything else is ignored except
         // Back and Quit.
@@ -500,10 +652,21 @@ impl TutorialState {
                     self.pending_fix = Some(request);
                 }
             }
+            // 'e' — open the inline editor for a create/edit step, keeping the
+            // user inside the tutorial instead of a second terminal. No-op
+            // unless the current step declares an `edit_target`.
+            Action::Character('e') => self.open_step_editor(),
             Action::Back => self.wants_back = true,
             Action::Quit => self.should_quit = true,
             _ => {}
         }
+    }
+
+    /// Whether the current step offers inline editing (`e`).
+    pub fn current_step_is_editable(&self) -> bool {
+        self.steps
+            .get(self.current_step)
+            .is_some_and(|s| s.edit_target.is_some())
     }
 
     fn handle_complete(&mut self, action: Action) {
@@ -531,10 +694,14 @@ impl crate::surface::Surface for TutorialState {
         match self.phase {
             TutorialPhase::PathSelect => "j/k navigate  enter select  esc back  q quit",
             TutorialPhase::Running => {
-                if self.static_mode {
-                    "enter next  esc back  q quit"
+                if self.is_editing() {
+                    "type to edit  enter newline  ctrl-s save  esc cancel"
                 } else if self.current_step_failed() {
                     "r retry  s skip  esc back  q quit"
+                } else if self.current_step_is_editable() {
+                    "e edit inline  space next  esc back  q quit"
+                } else if self.static_mode {
+                    "enter next  esc back  q quit"
                 } else if self.next_fix_request().is_some() {
                     "enter run/next  space next  f fix  esc back  q quit"
                 } else {
@@ -561,6 +728,9 @@ impl crate::surface::Surface for TutorialState {
         self.should_quit = false;
         self.wants_back = false;
         self.pending_fix = None;
+        self.editor = None;
+        self.edit_path = None;
+        self.edit_error = None;
         self.phase = TutorialPhase::PathSelect;
         self.path_selected = 0;
         self.steps.clear();
@@ -685,6 +855,8 @@ mod tests {
                 verify_hint: None,
                 watch_path: None,
                 watch_demo: false,
+                edit_target: None,
+                seed_template: None,
             })
             .collect();
         state.phase = TutorialPhase::Running;
@@ -707,6 +879,8 @@ mod tests {
             verify_hint: None,
             watch_path: None,
             watch_demo: false,
+            edit_target: None,
+            seed_template: None,
         }];
         state.phase = TutorialPhase::Running;
         state.chosen_path = Some(TutorialPath::Policy);
@@ -728,6 +902,8 @@ mod tests {
             verify_hint: Some(hint.to_string()),
             watch_path: None,
             watch_demo: false,
+            edit_target: None,
+            seed_template: None,
         }];
         state.phase = TutorialPhase::Running;
         state.chosen_path = Some(TutorialPath::Policy);
@@ -1618,6 +1794,8 @@ mod tests {
             verify_hint: Some("File not found.".to_string()),
             watch_path: Some(watch_path.to_string()),
             watch_demo: false,
+            edit_target: None,
+            seed_template: None,
         }];
         state.phase = TutorialPhase::Running;
         state.chosen_path = Some(TutorialPath::Policy);
@@ -1670,6 +1848,8 @@ mod tests {
             verify_hint: None,
             watch_path: Some(dir.to_string_lossy().to_string()),
             watch_demo: false,
+            edit_target: None,
+            seed_template: None,
         }];
         state.phase = TutorialPhase::Running;
         state.chosen_path = Some(TutorialPath::Policy);
@@ -1702,6 +1882,8 @@ mod tests {
             verify_hint: None,
             watch_path: Some(dir.to_string_lossy().to_string()),
             watch_demo: false,
+            edit_target: None,
+            seed_template: None,
         }];
         state.phase = TutorialPhase::Running;
         state.chosen_path = Some(TutorialPath::Policy);
@@ -1918,5 +2100,226 @@ mod tests {
                 .any(|n| n.class == NotificationClass::Failure),
             "completed tutorial must not emit Failure notifications: {notifications:?}",
         );
+    }
+
+    // ── Inline editor (edit steps) ──────────────────────────────────────
+
+    /// Build a Running state with a single inline-editable step whose
+    /// `edit_target`/`verify` point at `target` (an absolute path so the test
+    /// never depends on the process working directory).
+    fn editable_state(target: &std::path::Path, seed: &str) -> TutorialState {
+        let target_str = target.to_string_lossy().to_string();
+        let mut state = TutorialState::new();
+        state.steps = vec![TutorialStep {
+            title: "Edit step".to_string(),
+            description: "desc".to_string(),
+            instruction: "press e".to_string(),
+            verify: Some(Verify::FileExists(target_str.clone())),
+            edit_target: Some(target_str),
+            seed_template: Some(seed.to_string()),
+            ..TutorialStep::default()
+        }];
+        state.phase = TutorialPhase::Running;
+        state.chosen_path = Some(TutorialPath::Policy);
+        state
+    }
+
+    fn unique_tmp(name: &str) -> std::path::PathBuf {
+        // Distinct per test name to avoid collisions under the parallel runner.
+        std::env::temp_dir().join(format!("anvil_tut_inline_{name}"))
+    }
+
+    #[test]
+    fn pressing_e_opens_seeded_editor_when_file_absent() {
+        let dir = unique_tmp("seeded");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let target = dir.join("seed.rego");
+
+        let mut state = editable_state(&target, "package seed\n");
+        assert!(!state.is_editing());
+        state.handle_key(Action::Character('e'));
+
+        assert!(state.is_editing());
+        let editor = state.editor.as_ref().unwrap();
+        assert!(editor.content().contains("package seed"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn open_editor_prefers_existing_file_over_seed() {
+        let dir = unique_tmp("existing");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let target = dir.join("keep.rego");
+        std::fs::write(&target, "existing content\n").unwrap();
+
+        let mut state = editable_state(&target, "SEED SHOULD NOT APPEAR");
+        state.open_step_editor();
+
+        let editor = state.editor.as_ref().unwrap();
+        assert!(editor.content().contains("existing content"));
+        assert!(!editor.content().contains("SEED"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn e_is_noop_on_non_editable_step() {
+        let mut state = state_with_plain_steps(1);
+        state.handle_key(Action::Character('e'));
+        assert!(!state.is_editing());
+    }
+
+    #[test]
+    fn save_writes_file_and_advances_when_verify_passes() {
+        let dir = unique_tmp("save");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let target = dir.join("out.rego");
+
+        let mut state = editable_state(&target, "package seed\n");
+        state.open_step_editor();
+        // Save the (seeded) content with Ctrl-S.
+        state.handle_key(Action::Character('\x13'));
+
+        assert!(target.exists(), "file should be written on save");
+        assert!(!state.is_editing(), "editor closes after successful save");
+        // Single step → tutorial completes.
+        assert_eq!(state.phase, TutorialPhase::Complete);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn save_persists_typed_content() {
+        let dir = unique_tmp("typed");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let target = dir.join("typed.txt");
+
+        let mut state = editable_state(&target, "");
+        state.open_step_editor();
+        for c in "hi jkq".chars() {
+            state.handle_key(Action::Character(c));
+        }
+        state.handle_key(Action::Character('\x13'));
+
+        let written = std::fs::read_to_string(&target).unwrap();
+        assert!(
+            written.contains("hi jkq"),
+            "typed text (including j/k/q/space) must be saved, got: {written:?}"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn letters_that_are_normally_navigation_insert_while_editing() {
+        // At the state-machine level, every Action::Character is inserted while
+        // editing — the CLI's text keymap is what turns raw j/k/q into
+        // Character; here we assert the surface does not treat them specially.
+        let dir = unique_tmp("navletters");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let target = dir.join("nav.txt");
+
+        let mut state = editable_state(&target, "");
+        state.open_step_editor();
+        for c in ['j', 'k', 'q', ' '] {
+            state.handle_key(Action::Character(c));
+        }
+        assert!(state.is_editing(), "q must not quit while editing");
+        let editor = state.editor.as_ref().unwrap();
+        assert!(editor.content().contains("jkq "));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn newline_action_splits_lines_in_editor() {
+        let dir = unique_tmp("newline");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let target = dir.join("nl.txt");
+
+        let mut state = editable_state(&target, "");
+        state.open_step_editor();
+        state.handle_key(Action::Character('a'));
+        state.handle_key(Action::Character('\n'));
+        state.handle_key(Action::Character('b'));
+        let editor = state.editor.as_ref().unwrap();
+        assert_eq!(editor.line_count(), 2);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn esc_cancels_editor_without_writing() {
+        let dir = unique_tmp("cancel");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let target = dir.join("cancel.txt");
+
+        let mut state = editable_state(&target, "seed\n");
+        state.open_step_editor();
+        state.handle_key(Action::Character('x'));
+        state.handle_key(Action::Back); // Esc
+
+        assert!(!state.is_editing());
+        assert!(!target.exists(), "cancel must not write the file");
+        assert_eq!(state.phase, TutorialPhase::Running, "step not advanced");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn save_creates_missing_parent_directories() {
+        let dir = unique_tmp("mkparents");
+        let _ = std::fs::remove_dir_all(&dir);
+        // Note: parent (.anvil/policies) does not exist yet.
+        let target = dir.join("nested").join("deep").join("file.rego");
+
+        let mut state = editable_state(&target, "seed\n");
+        state.open_step_editor();
+        state.handle_key(Action::Character('\x13'));
+
+        assert!(target.exists(), "save must create parent directories");
+        assert!(state.edit_error.is_none());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn editing_help_text_shows_save_and_cancel() {
+        let dir = unique_tmp("help");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut state = editable_state(&dir.join("h.txt"), "");
+        // Editable-but-not-editing shows the inline-edit affordance.
+        assert!(crate::surface::Surface::help_text(&state).contains("e edit"));
+        state.open_step_editor();
+        let help = crate::surface::Surface::help_text(&state);
+        assert!(
+            help.contains("save"),
+            "editing help must mention save: {help}"
+        );
+        assert!(help.contains("cancel"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn policy_and_architecture_edit_steps_are_inline_editable() {
+        // The two converted legacy steps expose an edit_target + seed.
+        let policy = paths::policy_steps();
+        let write_step = &policy[2];
+        assert_eq!(
+            write_step.edit_target.as_deref(),
+            Some(".anvil/policies/no-todos.rego")
+        );
+        assert!(write_step.seed_template.is_some());
+        // Still verifiable via the external-editor path.
+        assert!(write_step.watch_path.is_some());
+
+        let arch = paths::architecture_steps();
+        let layers_step = &arch[1];
+        assert_eq!(
+            layers_step.edit_target.as_deref(),
+            Some(".anvil/architecture.yaml")
+        );
+        assert!(layers_step.seed_template.is_some());
     }
 }

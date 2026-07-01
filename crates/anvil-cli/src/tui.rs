@@ -295,13 +295,56 @@ fn tutorial_loop(
             && let Event::Key(key) = event::read()?
             && key.kind == KeyEventKind::Press
         {
-            let action = KeyHandler::map(key);
+            // While the inline editor is open, letters must be typed as text
+            // rather than consumed as navigation/quit commands. The default
+            // KeyHandler maps j/k/h/l→arrows, q→quit and space→toggle, so it
+            // cannot enter those characters — switch to a text-input map.
+            let action = if state.is_editing() {
+                map_key_text(key)
+            } else {
+                KeyHandler::map(key)
+            };
             state.handle_key(action);
         }
 
         if state.should_quit() || state.should_back() || state.wants_watch_demo {
             return Ok(());
         }
+    }
+}
+
+/// Text-input key map for the tutorial's inline editor. Unlike
+/// [`KeyHandler::map`], every printable character (including `j`/`k`/`h`/`l`/
+/// `q` and space) is forwarded as [`Action::Character`] so it is typed into the
+/// editor. Enter inserts a newline; Ctrl-S saves (as `Character('\x13')`, the
+/// same save signal the fix surface uses); Esc cancels. Only Ctrl-C quits.
+fn map_key_text(event: crossterm::event::KeyEvent) -> eddacraft_tui::keyboard::Action {
+    use crossterm::event::{KeyCode, KeyModifiers};
+    use eddacraft_tui::keyboard::Action;
+
+    if event.modifiers.contains(KeyModifiers::CONTROL) {
+        return match event.code {
+            KeyCode::Char('s') => Action::Character('\x13'), // Ctrl-S → save
+            KeyCode::Char('c') => Action::Quit,
+            _ => Action::None,
+        };
+    }
+
+    match event.code {
+        KeyCode::Enter => Action::Character('\n'),
+        KeyCode::Esc => Action::Back,
+        KeyCode::Backspace => Action::Backspace,
+        KeyCode::Delete => Action::Delete,
+        KeyCode::Up => Action::Up,
+        KeyCode::Down => Action::Down,
+        KeyCode::Left => Action::Left,
+        KeyCode::Right => Action::Right,
+        KeyCode::Home => Action::Home,
+        KeyCode::End => Action::End,
+        KeyCode::PageUp => Action::PageUp,
+        KeyCode::PageDown => Action::PageDown,
+        KeyCode::Char(c) => Action::Character(c),
+        _ => Action::None,
     }
 }
 
@@ -585,6 +628,54 @@ where
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
+
+    mod map_key_text {
+        use super::super::map_key_text;
+        use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+        use eddacraft_tui::keyboard::Action;
+
+        fn key(code: KeyCode) -> KeyEvent {
+            KeyEvent::new(code, KeyModifiers::empty())
+        }
+        fn ctrl(code: KeyCode) -> KeyEvent {
+            KeyEvent::new(code, KeyModifiers::CONTROL)
+        }
+
+        #[test]
+        fn navigation_letters_become_text_not_movement() {
+            // The whole point: j/k/h/l/q and space are typed, not consumed as
+            // navigation/quit/toggle (which is what KeyHandler::map does).
+            for c in ['j', 'k', 'h', 'l', 'q', ' ', 'x'] {
+                assert_eq!(map_key_text(key(KeyCode::Char(c))), Action::Character(c));
+            }
+        }
+
+        #[test]
+        fn enter_inserts_newline() {
+            assert_eq!(map_key_text(key(KeyCode::Enter)), Action::Character('\n'));
+        }
+
+        #[test]
+        fn ctrl_s_is_the_save_signal() {
+            assert_eq!(
+                map_key_text(ctrl(KeyCode::Char('s'))),
+                Action::Character('\x13')
+            );
+        }
+
+        #[test]
+        fn esc_cancels_and_ctrl_c_quits() {
+            assert_eq!(map_key_text(key(KeyCode::Esc)), Action::Back);
+            assert_eq!(map_key_text(ctrl(KeyCode::Char('c'))), Action::Quit);
+        }
+
+        #[test]
+        fn editing_keys_map_through() {
+            assert_eq!(map_key_text(key(KeyCode::Backspace)), Action::Backspace);
+            assert_eq!(map_key_text(key(KeyCode::Left)), Action::Left);
+            assert_eq!(map_key_text(key(KeyCode::Up)), Action::Up);
+        }
+    }
 
     /// The panic hook MUST be idempotent — multiple TUI sessions (or repeated
     /// `setup_terminal` calls) must not re-wrap the previous hook. Without

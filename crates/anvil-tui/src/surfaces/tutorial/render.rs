@@ -121,6 +121,9 @@ pub fn render(frame: &mut Frame, area: Rect, state: &TutorialState, theme: &Edda
         TutorialPhase::PathSelect => {
             render_path_select(frame, area, state, theme);
         }
+        TutorialPhase::Running if state.editor.is_some() => {
+            render_editor(frame, area, state, theme);
+        }
         TutorialPhase::Running => {
             let has_notice = state.static_mode || state.resuming_notice.is_some();
             if has_notice {
@@ -162,6 +165,50 @@ pub fn render(frame: &mut Frame, area: Rect, state: &TutorialState, theme: &Edda
             render_complete(frame, area, state, theme);
         }
     }
+}
+
+/// Render the inline editor for a create/edit step. The `Editor` widget is a
+/// `StatefulWidget`; we clone the authoritative `EditorState` for rendering
+/// (the widget only mutates scroll offset). A footer shows the write target,
+/// any write error, and the key hints.
+fn render_editor(frame: &mut Frame, area: Rect, state: &TutorialState, theme: &EddaCraftTheme) {
+    use eddacraft_tui::widgets::editor::Editor;
+
+    let Some(editor_state) = state.editor.as_ref() else {
+        return;
+    };
+
+    let target = state.edit_path.as_deref().unwrap_or("file");
+    let title = format!(" Editing {target} ");
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme.accent()))
+        .title(title);
+
+    let chunks = Layout::vertical([
+        Constraint::Min(3),    // editor
+        Constraint::Length(1), // footer (error or hint)
+    ])
+    .split(area);
+
+    let mut editor_clone = editor_state.clone();
+    let editor_widget = Editor::new(theme).block(block);
+    frame.render_stateful_widget(editor_widget, chunks[0], &mut editor_clone);
+
+    let footer = if let Some(err) = state.edit_error.as_deref() {
+        Line::from(Span::styled(
+            err.to_string(),
+            Style::default()
+                .fg(theme.error())
+                .add_modifier(Modifier::BOLD),
+        ))
+    } else {
+        Line::from(Span::styled(
+            "ctrl-s save · enter newline · esc cancel",
+            Style::default().fg(theme.muted()),
+        ))
+    };
+    frame.render_widget(Paragraph::new(footer), chunks[1]);
 }
 
 /// Conservative row estimate for the notice strip. Uses display width so
