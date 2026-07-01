@@ -117,6 +117,46 @@ impl KeyHandler {
             _ => Action::None,
         }
     }
+
+    /// Map a key event for a **free-text-entry** context (a path or name
+    /// field), where [`Self::map`]'s vim-style navigation is wrong.
+    ///
+    /// Unlike [`Self::map`], every printable character — including `h`, `j`,
+    /// `k`, `l`, `q`, and space — is returned as [`Action::Character`] so it
+    /// inserts literally. Only the dedicated navigation and editing keys keep
+    /// their control meaning: the arrow keys move the cursor, `Home`/`End` jump
+    /// to the ends, `Backspace`/`Delete` edit, `Enter` confirms
+    /// ([`Action::Select`]), and `Esc` goes back ([`Action::Back`]). `Ctrl+C`
+    /// still quits, so a text field is never a dead end.
+    ///
+    /// Surfaces opt into this mapping per step via
+    /// [`crate::surface::Surface::text_entry_active`]; list-navigation steps
+    /// keep [`Self::map`]. This is what prevents typing a Windows path like
+    /// `c:\Chap` from being hijacked by the `h` binding.
+    #[must_use]
+    pub fn map_text_entry(event: KeyEvent) -> Action {
+        if event.modifiers.contains(KeyModifiers::CONTROL) {
+            return match event.code {
+                KeyCode::Char('c') => Action::Quit,
+                _ => Action::None,
+            };
+        }
+
+        match event.code {
+            KeyCode::Up => Action::Up,
+            KeyCode::Down => Action::Down,
+            KeyCode::Left => Action::Left,
+            KeyCode::Right => Action::Right,
+            KeyCode::Home => Action::Home,
+            KeyCode::End => Action::End,
+            KeyCode::Backspace => Action::Backspace,
+            KeyCode::Delete => Action::Delete,
+            KeyCode::Enter => Action::Select,
+            KeyCode::Esc => Action::Back,
+            KeyCode::Char(c) => Action::Character(c),
+            _ => Action::None,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -158,6 +198,55 @@ mod tests {
         assert_eq!(KeyHandler::map(key(KeyCode::Char('q'))), Action::Quit);
         assert_eq!(KeyHandler::map(key(KeyCode::Esc)), Action::Back);
         assert_eq!(KeyHandler::map(ctrl(KeyCode::Char('c'))), Action::Quit);
+    }
+
+    #[test]
+    fn text_entry_treats_vim_letters_as_literal_characters() {
+        // The whole point of #2881: in a text field h/j/k/l/q/space must
+        // insert, not navigate/quit/toggle.
+        for c in ['h', 'j', 'k', 'l', 'q', ' '] {
+            assert_eq!(
+                KeyHandler::map_text_entry(key(KeyCode::Char(c))),
+                Action::Character(c),
+                "'{c}' must be a literal character in a text-entry field",
+            );
+        }
+    }
+
+    #[test]
+    fn text_entry_keeps_arrow_and_edit_keys_as_control() {
+        assert_eq!(KeyHandler::map_text_entry(key(KeyCode::Left)), Action::Left);
+        assert_eq!(
+            KeyHandler::map_text_entry(key(KeyCode::Right)),
+            Action::Right
+        );
+        assert_eq!(KeyHandler::map_text_entry(key(KeyCode::Up)), Action::Up);
+        assert_eq!(KeyHandler::map_text_entry(key(KeyCode::Down)), Action::Down);
+        assert_eq!(KeyHandler::map_text_entry(key(KeyCode::Home)), Action::Home);
+        assert_eq!(KeyHandler::map_text_entry(key(KeyCode::End)), Action::End);
+        assert_eq!(
+            KeyHandler::map_text_entry(key(KeyCode::Backspace)),
+            Action::Backspace
+        );
+        assert_eq!(
+            KeyHandler::map_text_entry(key(KeyCode::Delete)),
+            Action::Delete
+        );
+    }
+
+    #[test]
+    fn text_entry_confirm_back_and_quit() {
+        // Enter confirms, Esc goes back, and Ctrl+C is the only quit (typing
+        // 'q' inserts a literal 'q' — see the literal-characters test).
+        assert_eq!(
+            KeyHandler::map_text_entry(key(KeyCode::Enter)),
+            Action::Select
+        );
+        assert_eq!(KeyHandler::map_text_entry(key(KeyCode::Esc)), Action::Back);
+        assert_eq!(
+            KeyHandler::map_text_entry(ctrl(KeyCode::Char('c'))),
+            Action::Quit
+        );
     }
 
     #[test]
