@@ -219,7 +219,11 @@ fn verify_linear_chain(root: &Path) {
     // or duplicated append), and no unexpected record appeared.
     let mut seen: HashSet<String> = HashSet::new();
     for p in &paths {
-        for raw in fs::read_to_string(p).unwrap_or_default().lines() {
+        // Fail loudly on a read error rather than defaulting to "" — a swallowed IO
+        // error would surface later as a confusing missing-record assertion.
+        let content = fs::read_to_string(p)
+            .unwrap_or_else(|e| panic!("failed to read witness file {}: {e}", p.display()));
+        for raw in content.lines() {
             if raw.is_empty() {
                 continue;
             }
@@ -232,8 +236,12 @@ fn verify_linear_chain(root: &Path) {
             }
         }
     }
+    // Explicit positional args (not inline captures) so CodeQL sees `w`/`i` used
+    // (it does not recognise inline-format-arg capture); the targeted allow keeps
+    // clippy's `uninlined_format_args` lint — which wants the opposite — from firing.
+    #[allow(clippy::uninlined_format_args)]
     let expected: HashSet<String> = (0..WORKERS)
-        .flat_map(|w| (0..APPENDS_PER_WORKER).map(move |i| format!("w{w}-{i}")))
+        .flat_map(|w| (0..APPENDS_PER_WORKER).map(move |i| format!("w{}-{}", w, i)))
         .collect();
     assert_eq!(
         seen, expected,
