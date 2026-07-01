@@ -124,10 +124,12 @@ impl KeyHandler {
     /// Unlike [`Self::map`], every printable character — including `h`, `j`,
     /// `k`, `l`, `q`, and space — is returned as [`Action::Character`] so it
     /// inserts literally. Only the dedicated navigation and editing keys keep
-    /// their control meaning: the arrow keys move the cursor, `Home`/`End` jump
-    /// to the ends, `Backspace`/`Delete` edit, `Enter` confirms
-    /// ([`Action::Select`]), and `Esc` goes back ([`Action::Back`]). `Ctrl+C`
-    /// still quits, so a text field is never a dead end.
+    /// their control meaning: the arrow keys are returned as the corresponding
+    /// navigation actions (`Left`/`Right` move the cursor; `Up`/`Down` are
+    /// no-ops in today's single-line fields), `Home`/`End` jump to the ends,
+    /// `Backspace`/`Delete` edit, `Enter` confirms ([`Action::Select`]), and
+    /// `Esc` goes back ([`Action::Back`]). `Ctrl+C` still quits, so a text field
+    /// is never a dead end.
     ///
     /// Surfaces opt into this mapping per step via
     /// [`crate::surface::Surface::text_entry_active`]; list-navigation steps
