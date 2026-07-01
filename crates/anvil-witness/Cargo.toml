@@ -21,5 +21,12 @@ workspace-hack.workspace = true
 [dev-dependencies]
 tempfile.workspace = true
 
+# CIB-125: cross-process `append_chained` linearisation. Custom harness (no
+# libtest) because the test binary re-execs ITSELF as N worker processes — the
+# parent/worker split is decided from the environment in `fn main`.
+[[test]]
+name = "cross_process_linearisation"
+harness = false
+
 [lints]
 workspace = true
