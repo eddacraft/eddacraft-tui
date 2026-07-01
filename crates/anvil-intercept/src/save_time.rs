@@ -1397,7 +1397,7 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
         let genesis_uuid = entry.project_uuid.clone();
         let genesis_scope = entry.scope.clone();
         let genesis_ts = now_ts.clone();
-        let outcome = writer.append_chained(
+        let outcome = writer.append_chained_with_lock_timeout(
             || {
                 anvil_witness::WitnessLine::genesis(
                     &anvil_witness::GenesisAnchor::Fresh,
@@ -1409,6 +1409,7 @@ impl SaveTimeDispatch for SaveTimeConn<'_> {
                 )
             },
             |seq, prev_line_hash| witness_line_from_entry(entry, seq, prev_line_hash, &now_ts),
+            resolve_witness_lock_timeout(),
         );
 
         Ok(match outcome {
@@ -2435,6 +2436,22 @@ fn invalid_find_callers_query_reason(query: &FindCallersQuery) -> Option<String>
         return Some("target.file must not be empty".to_string());
     }
     invalid_relative_path_reason("target.file", &target.file)
+}
+
+/// Resolve the witness flock-acquire timeout from `ANVIL_WITNESS_LOCK_TIMEOUT`
+/// (CIB-124 override), warning and falling back to the default on a malformed
+/// value rather than silently defaulting.
+fn resolve_witness_lock_timeout() -> std::time::Duration {
+    let raw = std::env::var(anvil_witness::LOCK_TIMEOUT_ENV).ok();
+    anvil_witness::lock_timeout_from_env(raw.as_deref()).unwrap_or_else(|bad| {
+        tracing::warn!(
+            target: "anvil_intercept::witness",
+            value = %bad,
+            "ignoring invalid {} (want a positive integer of seconds); using the default",
+            anvil_witness::LOCK_TIMEOUT_ENV,
+        );
+        anvil_witness::DEFAULT_LOCK_ACQUIRE_TIMEOUT
+    })
 }
 
 /// A `WriteFailed` witness-append response with a diagnostic reason. The reason

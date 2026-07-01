@@ -96,6 +96,15 @@ Installed by `anvil hook bootstrap` (run automatically by `anvil start`):
 All hooks use the `anvil-witness` flock-serialised writer, so 80-way concurrent
 appends from parallel worktrees are safe.
 
+The flock acquire is **bounded** (CIB-124): a stalled holder times out to
+`ChainBroken`-adjacent `WriteFailed` rather than hanging the commit forever. The
+default ceiling is 5 seconds — generous, since a normal hold is sub-millisecond,
+so it only fires against a genuine wedge. Operators on slow storage or with very
+high parallel-worktree commit volume can override it by exporting
+`ANVIL_WITNESS_LOCK_TIMEOUT=<seconds>` (a positive integer) in the environment the
+git hooks and the daemon run under; a malformed value is ignored with a warning
+and the 5-second default is used.
+
 ## Verifying the chain
 
 ### `anvil doctor`

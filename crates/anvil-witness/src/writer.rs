@@ -20,19 +20,46 @@ use crate::line::{LineHash, WitnessLine, compute_line_hash};
 /// MLP2-005 phase 3 the effective wait can compound: the hook's daemon RPC has
 /// its own ~2s socket timeout, and on a wedged lock the hook then falls back to
 /// the embedded writer, which waits this bound against the *same* lock — so the
-/// worst-case commit hang is roughly `2s + LOCK_ACQUIRE_TIMEOUT`. (Note: `flock`
+/// worst-case commit hang is roughly `2s + DEFAULT_LOCK_ACQUIRE_TIMEOUT`. (Note: `flock`
 /// is resolved locally by the kernel even on NFS mounts — it does not route
 /// through the NFS lock server — so a network pause manifests as a hung syscall,
 /// not repeated `WouldBlock` retries; the wedge case this bounds is a live local
-/// holder.) A future GA hardening makes this overridable via
-/// `ANVIL_WITNESS_LOCK_TIMEOUT` and the daemon leg non-blocking (tracked on
-/// CIB-124).
-const LOCK_ACQUIRE_TIMEOUT: Duration = Duration::from_secs(5);
+/// holder.) Operators on unusual storage or very high parallel-worktree volume
+/// can override this via the [`LOCK_TIMEOUT_ENV`] environment variable — resolved
+/// by the caller with [`lock_timeout_from_env`] and passed to
+/// [`WitnessWriter::append_chained_with_lock_timeout`]. (A non-blocking daemon leg
+/// is still tracked separately on CIB-124.)
+pub const DEFAULT_LOCK_ACQUIRE_TIMEOUT: Duration = Duration::from_secs(5);
+/// Environment variable to override [`DEFAULT_LOCK_ACQUIRE_TIMEOUT`] (whole
+/// seconds). Read by the CLI/daemon callers, not this crate — see
+/// [`lock_timeout_from_env`].
+pub const LOCK_TIMEOUT_ENV: &str = "ANVIL_WITNESS_LOCK_TIMEOUT";
 /// Initial poll interval for the bounded lock acquire; doubles up to
 /// [`LOCK_RETRY_BACKOFF_MAX`] so contention resolves fast without a busy-spin.
 const LOCK_RETRY_BACKOFF_START: Duration = Duration::from_millis(5);
 /// Cap for the exponential backoff poll interval; see [`LOCK_RETRY_BACKOFF_START`].
 const LOCK_RETRY_BACKOFF_MAX: Duration = Duration::from_millis(100);
+
+/// Resolve a lock-acquire timeout from a raw [`LOCK_TIMEOUT_ENV`] value (whole
+/// seconds). `None`/blank → [`DEFAULT_LOCK_ACQUIRE_TIMEOUT`]; a valid positive
+/// integer → that many seconds; anything else → `Err(raw)` so the caller can warn
+/// and fall back (never a silent default on a malformed value).
+///
+/// Kept pure — it does **not** read the environment — so it is unit-testable and
+/// so this low-level crate stays free of env/logging concerns; the CLI and daemon
+/// read the env and log the warning on `Err`.
+///
+/// # Errors
+/// Returns the offending (trimmed) value when it is not a positive integer.
+pub fn lock_timeout_from_env(raw: Option<&str>) -> Result<Duration, String> {
+    match raw.map(str::trim) {
+        None | Some("") => Ok(DEFAULT_LOCK_ACQUIRE_TIMEOUT),
+        Some(v) => match v.parse::<u64>() {
+            Ok(secs) if secs > 0 => Ok(Duration::from_secs(secs)),
+            _ => Err(v.to_string()),
+        },
+    }
+}
 
 /// Filename of the durable "chain has been initialised" marker (CIB-126), a
 /// sibling of `.lock` in the witness root. Its **presence** distinguishes a chain
@@ -243,9 +270,26 @@ impl WitnessWriter {
         G: FnOnce() -> WitnessLine,
         F: FnOnce(u64, String) -> WitnessLine,
     {
+        self.append_chained_with_lock_timeout(seed_genesis, build, DEFAULT_LOCK_ACQUIRE_TIMEOUT)
+    }
+
+    /// As [`append_chained`](Self::append_chained), but with the flock-acquire
+    /// timeout supplied by the caller (CIB-124 env override). The CLI/daemon
+    /// resolve `lock_timeout` from [`LOCK_TIMEOUT_ENV`] via [`lock_timeout_from_env`]
+    /// so operators can tune the bound; everything else is identical.
+    pub fn append_chained_with_lock_timeout<G, F>(
+        &self,
+        seed_genesis: G,
+        build: F,
+        lock_timeout: Duration,
+    ) -> Result<LineHash, WriterError>
+    where
+        G: FnOnce() -> WitnessLine,
+        F: FnOnce(u64, String) -> WitnessLine,
+    {
         // The guard releases the flock on drop (end of scope), including on a
         // panic inside the closures / `append_chained_locked` (CIB-124).
-        let _guard = self.acquire_lock()?;
+        let _guard = self.acquire_lock_with_timeout(lock_timeout)?;
         self.append_chained_locked(seed_genesis, build)
     }
 
@@ -372,9 +416,9 @@ impl WitnessWriter {
         }
     }
 
-    /// Acquire the exclusive flock with the default [`LOCK_ACQUIRE_TIMEOUT`].
+    /// Acquire the exclusive flock with the [`DEFAULT_LOCK_ACQUIRE_TIMEOUT`].
     fn acquire_lock(&self) -> Result<LockGuard, WriterError> {
-        self.acquire_lock_with_timeout(LOCK_ACQUIRE_TIMEOUT)
+        self.acquire_lock_with_timeout(DEFAULT_LOCK_ACQUIRE_TIMEOUT)
     }
 
     /// Acquire the exclusive flock, refusing symlinks at every path we are about to
@@ -981,6 +1025,53 @@ mod tests {
     }
 
     // ── CIB-124: bounded lock acquire + RAII release ────────────────────────
+
+    #[test]
+    fn lock_timeout_from_env_resolves_or_defaults() {
+        // Unset / blank → default.
+        assert_eq!(
+            lock_timeout_from_env(None),
+            Ok(DEFAULT_LOCK_ACQUIRE_TIMEOUT)
+        );
+        assert_eq!(
+            lock_timeout_from_env(Some("")),
+            Ok(DEFAULT_LOCK_ACQUIRE_TIMEOUT)
+        );
+        assert_eq!(
+            lock_timeout_from_env(Some("   ")),
+            Ok(DEFAULT_LOCK_ACQUIRE_TIMEOUT)
+        );
+        // Valid positive seconds (whitespace tolerated).
+        assert_eq!(
+            lock_timeout_from_env(Some("10")),
+            Ok(Duration::from_secs(10))
+        );
+        assert_eq!(
+            lock_timeout_from_env(Some(" 30 ")),
+            Ok(Duration::from_secs(30))
+        );
+        // Malformed → Err(the offending value), never a silent default.
+        assert_eq!(lock_timeout_from_env(Some("0")), Err("0".to_string()));
+        assert_eq!(lock_timeout_from_env(Some("abc")), Err("abc".to_string()));
+        assert_eq!(lock_timeout_from_env(Some("-5")), Err("-5".to_string()));
+        assert_eq!(lock_timeout_from_env(Some("1.5")), Err("1.5".to_string()));
+    }
+
+    #[test]
+    fn append_chained_with_lock_timeout_honours_the_bound() {
+        // A held lock makes the injected short timeout fire, mapping to LockTimeout.
+        let dir = TempDir::new().unwrap();
+        let writer = WitnessWriter::open(dir.path(), "active", RolloverPolicy::default()).unwrap();
+        let _held = writer.acquire_lock().expect("hold the lock");
+        let err = writer
+            .append_chained_with_lock_timeout(
+                genesis_seed,
+                |seq, prev| fresh_line(seq, &prev),
+                Duration::from_millis(150),
+            )
+            .unwrap_err();
+        assert!(matches!(err, WriterError::LockTimeout(_)), "got {err:?}");
+    }
 
     #[test]
     fn acquire_lock_times_out_when_another_writer_holds_it() {

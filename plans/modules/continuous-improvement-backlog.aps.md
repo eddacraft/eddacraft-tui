@@ -3372,9 +3372,12 @@ archive.
   inverted), so this bounds the lock **before beta** rather than before the
   hook-fallback wiring — the net protection is the same.
 - **Council follow-ons (2026-07-01, tracked as GA hardening, not blocking this
-  PR):** (a) **`ANVIL_WITNESS_LOCK_TIMEOUT` env override** — the timeout is a const
-  today; operators on unusual filesystems / very high parallel-worktree volume
-  cannot tune it without a rebuild (operations). (b) **Non-blocking daemon leg** —
+  PR):** (a) **`ANVIL_WITNESS_LOCK_TIMEOUT` env override — DONE 2026-07-01 via PR
+  #3028.** The default is now `DEFAULT_LOCK_ACQUIRE_TIMEOUT` (5s), overridable by
+  the env var (whole seconds); the pure `anvil_witness::lock_timeout_from_env` is
+  resolved by both callers (hook embedded leg + daemon `witness_append`) via
+  `append_chained_with_lock_timeout`, warning-and-defaulting on a malformed value
+  (the crate stays env/log-free). Documented in the witness runbook. (b) **Non-blocking daemon leg** —
   the daemon's `acquire_lock` still `thread::sleep`s on a tokio worker thread up to
   the timeout, and on a wedged lock the commit path compounds (~2s daemon RPC + the
   embedded 5s ≈ 7s); a short daemon-side lock timeout (defer to embedded on

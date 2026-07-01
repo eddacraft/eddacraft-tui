@@ -1563,6 +1563,22 @@ where
     }
 }
 
+/// Resolve the witness flock-acquire timeout from `ANVIL_WITNESS_LOCK_TIMEOUT`
+/// (CIB-124 override), warning and falling back to the default on a malformed
+/// value rather than silently defaulting.
+fn resolve_witness_lock_timeout() -> Duration {
+    let raw = std::env::var(anvil_witness::LOCK_TIMEOUT_ENV).ok();
+    anvil_witness::lock_timeout_from_env(raw.as_deref()).unwrap_or_else(|bad| {
+        tracing::warn!(
+            target: "anvil::witness",
+            value = %bad,
+            "ignoring invalid {} (want a positive integer of seconds); using the default",
+            anvil_witness::LOCK_TIMEOUT_ENV,
+        );
+        anvil_witness::DEFAULT_LOCK_ACQUIRE_TIMEOUT
+    })
+}
+
 fn append_witness<F>(
     repo_root: &Path,
     project_uuid: &str,
@@ -1594,7 +1610,7 @@ where
     // a serialise failure still surfaces on the `WriteFailed` path.
     let project_uuid = project_uuid.to_string();
     writer
-        .append_chained(
+        .append_chained_with_lock_timeout(
             || {
                 WitnessLine::genesis(
                     &GenesisAnchor::Fresh,
@@ -1606,6 +1622,7 @@ where
                 )
             },
             build,
+            resolve_witness_lock_timeout(),
         )
         .map_err(|err| {
             // Distinct operator log per failure class (the `witness_root` field lets
