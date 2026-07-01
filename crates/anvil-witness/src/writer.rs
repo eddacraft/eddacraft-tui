@@ -34,6 +34,22 @@ const LOCK_RETRY_BACKOFF_START: Duration = Duration::from_millis(5);
 /// Cap for the exponential backoff poll interval; see [`LOCK_RETRY_BACKOFF_START`].
 const LOCK_RETRY_BACKOFF_MAX: Duration = Duration::from_millis(100);
 
+/// Filename of the durable "chain has been initialised" marker (CIB-126), a
+/// sibling of `.lock` in the witness root. Its **presence** distinguishes a chain
+/// that was already seeded from a genuinely fresh repo: a zero-byte `active.ndjson`
+/// with no archives is otherwise indistinguishable from a new repo, so without this
+/// marker a truncated-to-zero active file would silently reseed genesis over erased
+/// history. With the marker present, that state is refused as `ChainBroken`
+/// (ADR-038: never reseed). It is not `.ndjson`, so `witness_paths` skips it — it
+/// never participates in the chain walk. (Deleting the marker AND truncating the
+/// active file is a stronger, deliberate attack; this closes the accidental /
+/// simple-truncation silent-reseed, complementing the non-empty-unparseable
+/// hardening.)
+const CHAIN_MARKER_FILE: &str = ".chain-initialised";
+/// Body written into [`CHAIN_MARKER_FILE`] — a small identifiable sentinel with a
+/// version for forward-compatibility. Only the file's presence is load-bearing.
+const CHAIN_MARKER_BODY: &[u8] = b"anvil-witness-chain v1\n";
+
 #[derive(Debug, thiserror::Error)]
 pub enum WriterError {
     #[error("io: {0}")]
@@ -275,6 +291,11 @@ impl WitnessWriter {
                 }
             }
         };
+        // CIB-126: the chain is now known-initialised (freshly seeded above, or an
+        // existing Healthy tip). Persist the marker (idempotent; backfills chains
+        // created before the marker existed) so a later zero-byte active is refused,
+        // not reseeded. Under the flock, so it is atomic with the head read/append.
+        self.ensure_chain_marker()?;
         let line = build(seq, prev);
         // Hash the canonical bytes before the write so a serialise failure
         // surfaces here; the writer serialises the same bytes on disk.
@@ -309,15 +330,20 @@ impl WitnessWriter {
                 // non-empty, its bytes are unrecognisable to the verifier — treat
                 // that as a broken chain, NOT Empty, so a corrupt/garbled active
                 // file can never trigger a silent genesis reseed over real history
-                // (ADR-038). (A zero-byte active with no archives remains Empty and
-                // indistinguishable from a fresh repo — closing that fully needs a
-                // chain-init marker, tracked as MLP2-005 follow-on.)
+                // (ADR-038).
                 let any_nonempty = paths
                     .iter()
                     .any(|p| fs::metadata(p).is_ok_and(|m| m.len() > 0));
                 if any_nonempty {
                     Err(WriterError::ChainBroken)
+                } else if self.chain_marker_exists() {
+                    // CIB-126: all segments are empty/absent, but the chain-init
+                    // marker says this chain was seeded before — the active file was
+                    // truncated to zero with no archives to fall back on. Refuse
+                    // rather than reseed genesis over the erased history (ADR-038).
+                    Err(WriterError::ChainBroken)
                 } else {
+                    // No marker ⇒ genuinely fresh repo. Seed genesis.
                     Ok(ChainHead::Empty)
                 }
             }
@@ -541,6 +567,39 @@ impl WitnessWriter {
 
     fn lock_path(&self) -> PathBuf {
         self.witness_root().join(".lock")
+    }
+
+    fn chain_marker_path(&self) -> PathBuf {
+        self.witness_root().join(CHAIN_MARKER_FILE)
+    }
+
+    /// Whether the durable chain-init marker exists (CIB-126).
+    fn chain_marker_exists(&self) -> bool {
+        self.chain_marker_path().exists()
+    }
+
+    /// Idempotently write the chain-init marker under the held flock (CIB-126).
+    /// A no-op once present, so it is written once at genesis and **backfilled** on
+    /// the next `append_chained` for any chain created before this marker existed.
+    /// The one-time `sync_all` makes the marker durable across a crash — the point
+    /// of the marker is to survive the same event that truncates the active file.
+    fn ensure_chain_marker(&self) -> Result<(), WriterError> {
+        let path = self.chain_marker_path();
+        if path.exists() {
+            return Ok(());
+        }
+        refuse_if_symlink(&path)?;
+        match OpenOptions::new().write(true).create_new(true).open(&path) {
+            Ok(mut f) => {
+                f.write_all(CHAIN_MARKER_BODY)?;
+                f.sync_all()?;
+                Ok(())
+            }
+            // Already created (e.g. a racing writer, though the flock serialises us)
+            // — benign.
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => Ok(()),
+            Err(e) => Err(WriterError::Io(e)),
+        }
     }
 }
 
@@ -937,6 +996,99 @@ mod tests {
         writer
             .acquire_lock_with_timeout(Duration::from_millis(500))
             .expect("the lock was released on panic-unwind, so a fresh acquire wins");
+    }
+
+    // ── CIB-126: chain-init marker (zero-byte-active reseed detection) ───────
+
+    /// Seed a chain via `append_chained` and return its writer + root.
+    fn seed_chain(dir: &TempDir) -> WitnessWriter {
+        let writer = WitnessWriter::open(dir.path(), "active", RolloverPolicy::default()).unwrap();
+        writer
+            .append_chained(genesis_seed, |seq, prev| fresh_line(seq, &prev))
+            .unwrap();
+        writer
+    }
+
+    #[test]
+    fn append_chained_writes_the_chain_init_marker() {
+        let dir = TempDir::new().unwrap();
+        let writer = seed_chain(&dir);
+        assert!(
+            writer.chain_marker_exists(),
+            "seeding a chain must persist the chain-init marker",
+        );
+        // The marker is NOT part of the chain walk (not `.ndjson`).
+        let paths = crate::paths::witness_paths(dir.path());
+        assert!(paths.iter().all(|p| !p.ends_with(CHAIN_MARKER_FILE)));
+    }
+
+    #[test]
+    fn zero_byte_active_after_genesis_is_refused_not_reseeded() {
+        let dir = TempDir::new().unwrap();
+        let writer = seed_chain(&dir);
+        let active = writer.active_path();
+
+        // Simulate the residual: the active file is truncated to zero and there are
+        // no archives to fall back on. Before CIB-126 this looked like a fresh repo.
+        fs::write(&active, b"").unwrap();
+        assert_eq!(fs::metadata(&active).unwrap().len(), 0);
+
+        // The marker (durable, separate inode) survives the truncation, so the next
+        // append must REFUSE (ChainBroken), never silently reseed genesis.
+        let mut built = false;
+        let err = writer
+            .append_chained(genesis_seed, |seq, prev| {
+                built = true;
+                fresh_line(seq, &prev)
+            })
+            .unwrap_err();
+        assert!(matches!(err, WriterError::ChainBroken), "got {err:?}");
+        assert!(!built, "build must not run over an erased chain (ADR-038)");
+        assert_eq!(
+            fs::metadata(&active).unwrap().len(),
+            0,
+            "a refusal must not write a new genesis",
+        );
+    }
+
+    #[test]
+    fn zero_byte_active_without_marker_is_a_fresh_repo() {
+        // A zero-byte active with NO marker is a genuinely fresh repo (e.g. someone
+        // `touch`ed the file) — it must seed, not refuse. Guards the fresh path.
+        let dir = TempDir::new().unwrap();
+        let root = dir.path();
+        fs::create_dir_all(root.join("anvil").join("witness")).unwrap();
+        fs::write(
+            root.join("anvil").join("witness").join("active.ndjson"),
+            b"",
+        )
+        .unwrap();
+
+        let writer = WitnessWriter::open(root, "active", RolloverPolicy::default()).unwrap();
+        assert!(!writer.chain_marker_exists(), "precondition: no marker");
+        writer
+            .append_chained(genesis_seed, |seq, prev| fresh_line(seq, &prev))
+            .expect("a marker-less zero-byte active is a fresh repo, must seed");
+        assert!(writer.chain_marker_exists(), "seeding writes the marker");
+    }
+
+    #[test]
+    fn marker_is_backfilled_for_a_pre_marker_healthy_chain() {
+        let dir = TempDir::new().unwrap();
+        let writer = seed_chain(&dir);
+        // Simulate a chain created before the marker existed by deleting it.
+        fs::remove_file(writer.chain_marker_path()).unwrap();
+        assert!(!writer.chain_marker_exists());
+
+        // A normal append to the still-Healthy chain must succeed AND backfill the
+        // marker, so the chain is protected from the next append onward.
+        writer
+            .append_chained(genesis_seed, |seq, prev| fresh_line(seq, &prev))
+            .expect("append to a Healthy chain must succeed");
+        assert!(
+            writer.chain_marker_exists(),
+            "the marker must be backfilled for a legacy chain",
+        );
     }
 
     #[test]

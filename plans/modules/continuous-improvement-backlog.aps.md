@@ -3427,19 +3427,32 @@ archive.
 
 ### CIB-126: Witness chain-init marker (zero-byte-active reseed detection)
 
-- **Status:** Proposed
-- **Intent:** Detect a truncated-to-zero `active.ndjson` with no archives, which is
-  currently indistinguishable from a fresh repo and silently reseeds genesis over
-  erased history.
-- **Expected Outcome:** a durable "chain initialised" marker (design TBD — e.g. a
-  witness-root sentinel or a manifest entry written at genesis) so
-  `WitnessWriter::read_chain_head` can return `ChainBroken` for a zero-byte active
-  when the chain is known to have existed, closing the residual the phase-1
-  non-empty-unparseable hardening does not cover. Must not regress the legitimate
-  fresh-repo path. Needs a short design note (ADR-038 alignment).
-- **Validation:** a zero-byte `active.ndjson` after a prior genesis → `ChainBroken`;
-  a genuinely fresh repo → `Empty`.
-- **Files:** `crates/anvil-witness/src/{writer,paths,manifest}.rs` (TBD by design).
+- **Status:** In Progress — implemented 2026-07-01. A durable witness-root
+  sentinel `anvil/witness/.chain-initialised` (sibling of `.lock`, non-`.ndjson` so
+  `witness_paths` skips it) is written under the flock by `append_chained` the
+  first time a chain is seeded, and **backfilled** on the next `append_chained` for
+  any pre-existing chain. `read_chain_head`'s zero-line branch now returns
+  `ChainBroken` (not `Empty`) when all segments are empty/absent **but** the marker
+  exists — an erased chain — while a marker-less zero-byte active stays `Empty`
+  (fresh repo). The manifest was not usable as the marker: it is only written at
+  rollover, so a young un-rolled chain has none.
+- **Design note (ADR-038 alignment):** the marker's PRESENCE is the only
+  load-bearing bit (body is a versioned sentinel). It lives on a separate inode
+  from `active.ndjson`, so it survives the accidental event — a crash mid-write, a
+  disk glitch, a stray truncation — that zeroes the active file, letting the writer
+  distinguish "erased established chain" (refuse, ADR-038) from "fresh repo" (seed).
+  It deliberately does **not** defend against a determined actor who deletes the
+  marker AND truncates the active file (that actor can rewrite the whole chain, and
+  the hash-chain verifier already catches a substituted chain); it closes the
+  simple/accidental silent-reseed the non-empty-unparseable hardening left open.
+  The chain-broken refusal blocks the commit exactly as any other `ChainBroken`
+  does; recovery is the existing operator path (`anvil hook bootstrap
+  --witness-recent`).
+- **Validation:** a zero-byte `active.ndjson` after a prior genesis → `ChainBroken`
+  (build not run, no reseed); a marker-less zero-byte active → `Empty` (seeds); the
+  marker is backfilled for a legacy Healthy chain; the marker is not part of the
+  chain walk. All four covered by `writer.rs` unit tests.
+- **Files:** `crates/anvil-witness/src/writer.rs`.
 - **Identified From:** MLP2-005 phase-1 Council (2026-06-30) — adversarial residual
   (the proposed `any_nonempty` fix does not close the zero-byte case).
 - **Confidence:** low — needs a design decision before execution.
