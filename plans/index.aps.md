@@ -773,7 +773,7 @@ target set. Treat the five tracks as a cross-cutting module family under
 [ADR-034](./decisions/034-cross-cutting-modules-as-aps-primitive.md) and
 [`plans/project-context.md#cross-cutting-modules`](./project-context.md#cross-cutting-modules)
 (with the legacy forwarding anchor at
-[`plans/aps-rules.md#cross-cutting-modules`](./aps-rules.md#cross-cutting-modules)):
+[`plans/aps-rules.md#module-types-vertical-and-conductor`](./aps-rules.md#module-types-vertical-and-conductor)):
 each track module owns and counts its own work items, while cross-track
 coordination uses prose callouts (`Coordinates with:`, `Blocks on:`,
 `Supersedes:`, `Superseded by:`) that must be swept when tasks close. OPSUP owns

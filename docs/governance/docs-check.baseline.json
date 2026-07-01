@@ -513,7 +513,6 @@
     ],
     "plans/archive/modules/operating-model-migration.aps.md": [
       "broken link \"../../docs/runbooks/main-first-cutover.md\" — target file does not exist",
-      "broken link \"../aps-rules.md#cross-cutting-modules\" — target file does not exist",
       "broken link \"../audits/2026-05-11-opmodel-012-workflow-audit.md\" — target file does not exist",
       "broken link \"../specs/2026-05-09-agentic-execution-ecosystem-architecture.md\" — target file does not exist",
       "broken link \"../specs/2026-05-09-council-agent-skill-change-proposal.md\" — target file does not exist",

@@ -33,7 +33,7 @@ engineering without turning documentation into compliance theatre.
 ## Cross-Cutting Convention
 
 This is a cross-cutting APS module and follows the rules in
-[`plans/aps-rules.md#cross-cutting-modules`](../../aps-rules.md#cross-cutting-modules).
+[`plans/aps-rules.md#module-types-vertical-and-conductor`](../../aps-rules.md#module-types-vertical-and-conductor).
 Task closeout must sweep `Coordinates with:`, `Blocks on:`, `Supersedes:`, and
 `Superseded by:` callouts rather than carrying unresolved references into
 archive.

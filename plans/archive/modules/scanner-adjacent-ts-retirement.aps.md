@@ -3,7 +3,7 @@ APS Module: Scanner-Adjacent TS Surface Remediation
 ===================================================
 Close the active capability gaps left after TSRET-005 archived scanner-adjacent
 surfaces. This is a cross-cutting module per
-plans/aps-rules.md#cross-cutting-modules: it coordinates core, runtime, CLI,
+plans/aps-rules.md#module-types-vertical-and-conductor: it coordinates core, runtime, CLI,
 export, drift, explain, and MCP return-path ownership without replacing the
 owning modules for those surfaces.
 -->

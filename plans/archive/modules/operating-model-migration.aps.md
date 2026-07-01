@@ -44,7 +44,7 @@ the target operating model where:
 ## Cross-Cutting Convention
 
 This is a cross-cutting APS module and follows the rules in
-[`plans/aps-rules.md#cross-cutting-modules`](../aps-rules.md#cross-cutting-modules).
+[`plans/aps-rules.md#module-types-vertical-and-conductor`](../../aps-rules.md#module-types-vertical-and-conductor).
 Task closeout must sweep `Coordinates with:`, `Blocks on:`, `Supersedes:`, and
 `Superseded by:` callouts rather than carrying unresolved references into
 archive.
@@ -516,7 +516,7 @@ This module is Complete when:
 
 ## Cross-cutting callout closure summary
 
-Per [`plans/aps-rules.md#cross-cutting-modules`](../aps-rules.md#cross-cutting-modules)
+Per [`plans/aps-rules.md#module-types-vertical-and-conductor`](../../aps-rules.md#module-types-vertical-and-conductor)
 rule 4, all open callouts in this module body are swept and resolved before
 archive:
 

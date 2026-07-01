@@ -126,7 +126,7 @@ Outputs:
    commit, the protection-rule change, and the docs flip PR.
 5. Update `plans/index.aps.md` OPMODEL row to 12/12 and mark module
    In Progress → Complete; queue the module for archive per APS rules.
-6. Sweep cross-cutting callouts per `aps-rules.md#cross-cutting-modules`
+6. Sweep cross-cutting callouts per `aps-rules.md#module-types-vertical-and-conductor`
    (resolve / downgrade / document-and-close) before archive.
 
 Validation: `pnpm format:check && pnpm lint:md && pnpm aps:drift`. Plus

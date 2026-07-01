@@ -5,7 +5,7 @@ Cross-cutting infrastructure for the Language & Coverage tracks. Owns shared
 operational work items but coordinates with Track 3 governance surfaces and
 Track 4 semantic packs.
 
-Cross-cutting convention: see plans/aps-rules.md#cross-cutting-modules.
+Cross-cutting convention: see plans/aps-rules.md#module-types-vertical-and-conductor.
 -->
 
 # Operational Supplement (Cross-Track Infrastructure)
@@ -19,11 +19,11 @@ Cross-cutting convention: see plans/aps-rules.md#cross-cutting-modules.
 ## Cross-cutting convention
 
 This module follows the cross-cutting convention. The normative spec lives in
-[`plans/aps-rules.md#cross-cutting-modules`][rules]; OPSUP owns only the shared
+[`plans/aps-rules.md#module-types-vertical-and-conductor`][rules]; OPSUP owns only the shared
 operational prerequisites it lists below. Surface and pack modules own their own
 rule catalogues, validation runs, and task counts.
 
-[rules]: ../aps-rules.md#cross-cutting-modules
+[rules]: ../aps-rules.md#module-types-vertical-and-conductor
 
 Task bodies that depend on OPSUP slices should use `Blocks on:` or
 `Coordinates with:` callouts and close those callouts when the dependent task is

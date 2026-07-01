@@ -7,7 +7,7 @@ Touches every command surface (CLI / JSON-RPC) and records the
 invocation's resolved flag context inline per ADR-041. Third trial of
 the cross-cutting module convention promoted under ADR-034.
 
-Cross-cutting convention: see plans/aps-rules.md#cross-cutting-modules.
+Cross-cutting convention: see plans/aps-rules.md#module-types-vertical-and-conductor.
 -->
 
 # Usage Analytics
@@ -30,10 +30,10 @@ Cross-cutting convention: see plans/aps-rules.md#cross-cutting-modules.
 ## Cross-cutting convention
 
 This module follows the cross-cutting convention. The normative spec
-lives in [`plans/aps-rules.md#cross-cutting-modules`][rules] and is
+lives in [`plans/aps-rules.md#module-types-vertical-and-conductor`][rules] and is
 cited by anchor link wherever a callout is used in a task body.
 
-[rules]: ../aps-rules.md#cross-cutting-modules
+[rules]: ../aps-rules.md#module-types-vertical-and-conductor
 
 > **Anti-drift hook (per ADR-034):** changes to the
 > `## Cross-Cutting Modules` section of `aps-rules.md` update this

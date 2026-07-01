@@ -48,7 +48,7 @@ APS Draft -> APS Proposed -> APS Ready -> In Progress -> Merged -> Released/Ship
 ### Project Status Extensions
 
 The canonical APS work item status vocabulary
-([`plans/aps-rules.md#work-item-status`](aps-rules.md#work-item-status)) is the
+([`plans/aps-rules.md#status-vocabulary`](aps-rules.md#status-vocabulary)) is the
 portable contract. Anvil locally extends that vocabulary with the lifecycle
 labels above so a work item's `Status:` field can carry release evidence inline
 rather than tracking it in a separate field. The accepted extensions are:

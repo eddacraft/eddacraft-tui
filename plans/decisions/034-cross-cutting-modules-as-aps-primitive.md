@@ -152,7 +152,7 @@ closed, and they survive directly into the spec.
 ## Consequences
 
 - **Positive:** Cross-cutting modules now have a single normative reference;
-  TRACE cites `plans/aps-rules.md#cross-cutting-modules` rather than
+  TRACE cites `plans/aps-rules.md#module-types-vertical-and-conductor` rather than
   re-declaring the convention; future cross-cutting modules do the same.
   LAUNCH's "do not copy" gate is honoured by promotion rather than copy.
 - **Positive:** The closer sweep obligation is now part of the rules every

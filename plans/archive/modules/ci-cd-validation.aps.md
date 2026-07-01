@@ -35,7 +35,7 @@ APS intent -> local deterministic validation -> targeted review -> fast PR CI
 ## Cross-Cutting Convention
 
 This is a cross-cutting module and follows
-[`plans/aps-rules.md#cross-cutting-modules`](../../aps-rules.md#cross-cutting-modules).
+[`plans/aps-rules.md#module-types-vertical-and-conductor`](../../aps-rules.md#module-types-vertical-and-conductor).
 CICD owns CI/CD cost, validation layering, shared classification, local-first
 validation commands, and workflow decomposition. It coordinates with specialist
 modules rather than absorbing their authority.

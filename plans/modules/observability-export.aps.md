@@ -6,7 +6,7 @@ the tracing pipe. Stays Draft until a paying customer or production
 incident motivates the sink choice. Owns OQ1 from Planning Council session
 plan-b00c16c7.
 
-See plans/aps-rules.md#cross-cutting-modules and
+See plans/aps-rules.md#module-types-vertical-and-conductor and
 plans/decisions/035-three-pipe-observability-rule.md.
 -->
 

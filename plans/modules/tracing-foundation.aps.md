@@ -6,7 +6,7 @@ anvil-cli (Rust), anvil-api (TS), and the dashboard ops surface. Owns its
 own work items but coordinates with INTD, RTAI, and (post-launch) the
 dashboard live feed.
 
-Cross-cutting convention: see plans/aps-rules.md#cross-cutting-modules.
+Cross-cutting convention: see plans/aps-rules.md#module-types-vertical-and-conductor.
 -->
 
 # Tracing Foundation
@@ -28,10 +28,10 @@ Cross-cutting convention: see plans/aps-rules.md#cross-cutting-modules.
 
 This module is the **second trial** of the cross-cutting module convention.
 It does **not** restate the convention inline — the normative spec lives in
-[`plans/aps-rules.md#cross-cutting-modules`][rules] and is cited by anchor
+[`plans/aps-rules.md#module-types-vertical-and-conductor`][rules] and is cited by anchor
 link wherever a callout is used in a task body.
 
-[rules]: ../aps-rules.md#cross-cutting-modules
+[rules]: ../aps-rules.md#module-types-vertical-and-conductor
 
 The first trial (`launch-flow-readiness`, LAUNCH) ring-fenced its convention
 to itself until a second author was tempted to copy. TRACE is that second

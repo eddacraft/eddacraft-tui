@@ -483,7 +483,7 @@ That PR carries the APS state changes:
 - Bump OPMODEL header to `12/12` and module status to `Complete`.
 - Bump `plans/index.aps.md` OPMODEL row.
 - Sweep cross-cutting callouts per
-  [`aps-rules.md#cross-cutting-modules`](../../plans/aps-rules.md#cross-cutting-modules)
+  [`aps-rules.md#module-types-vertical-and-conductor`](../../plans/aps-rules.md#module-types-vertical-and-conductor)
   (resolve / downgrade / document-and-close).
 - Archive the module to `plans/archive/modules/operating-model-migration.aps.md`
   via `git mv` once the module is Complete and all callouts are resolved.
