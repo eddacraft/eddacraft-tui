@@ -24,8 +24,8 @@ this doc plus the exported audit JSON.
 | Finding | Verdict | Basis |
 | ------- | ------- | ----- |
 | `` `start --verify` `` not in local-probe auth bypass (medium, `anvil-cli/src/main.rs`) | **fixed** | Stale — CIB-049 already on `main` |
-| Adapter persists raw observations unredacted (high, `kindling-integration/adapter.ts`) | **wont-fix** | Real bug in provably dead code |
-| Sensitive keywords persisted unredacted (high, `kindling-integration/observation-contract.ts`) | **wont-fix** | Real bug in provably dead code |
+| Adapter persists raw observations unredacted (high, `kindling-integration/adapter.ts`) | **wont-fix** | Distinct real defect on an unreachable (dead-code) path |
+| Sensitive keywords persisted unredacted (high, `kindling-integration/observation-contract.ts`) | **wont-fix** | Likely false-positive — local service redacts; detector is non-persisting by design |
 
 ### 1. `start --verify` auth bypass — stale, marked `fixed`
 
@@ -42,18 +42,37 @@ evidence line refs predate the current tree:
 
 No further action; the finding will not resurface.
 
-### 2 & 3. Kindling redaction highs — real bugs, dead code, `wont-fix`
+### 2 & 3. Kindling redaction highs — `wont-fix` (one dead-code defect, one likely false-positive)
 
-Both are genuine data-privacy defects (raw command / error strings persisted
-with `redacted: false` and no effective redaction pass). Both are in the
-**retiring JS/TS** `packages/kindling-integration` surface, and were verified to
-be **unreachable at runtime** before recording `wont-fix`:
+Both live in the **retiring JS/TS** `packages/kindling-integration` surface and
+were recorded `wont-fix`, but they are **not the same class of finding** — and a
+follow-up review reconciled them against the closed #1826 disposition:
+
+**Finding 3 (`observation-contract.ts:598`, `containsSensitiveData`) is a likely
+false-positive.** That function is a **pure detector with no persistence path**;
+redaction actually happens in the local service — `KindlingService.emit`
+(`kindling-integration/src/kindling-service.ts:183-189`) runs
+`validateNoSensitiveData` and, on a hit, `redactSensitiveFields(observation)`
+before the store write. This matches #1826's own disposition ("code already
+correct; enforcement test added in PR #2140; the `observation-contract.ts` site
+is a pure detector — no persistence path"). So the scanner's "persisted
+unredacted" claim does not hold for this path.
+
+**Finding 2 (`adapter.ts:99`, `AnvilKindlingAdapter.emit`) is a distinct real
+defect, but on a dead path.** The adapter serialises the raw observation into
+`content: JSON.stringify(observation)` with `redacted: false` and hands it to
+`this.service.appendObservation(...)`, where `service` is the **external**
+`@eddacraft/kindling-core` `KindlingService` — *not* the local redacting
+service above. No field-level redaction runs on that opaque `content` blob. This
+write path was **not** covered by the #1826 pass (which addressed
+`KindlingService.emit`), so it is a genuinely separate finding. It is `wont-fix`
+because it is **unreachable at runtime**, not because it is harmless:
 
 - No `package.json` depends on `@eddacraft/anvil-kindling-integration`.
 - The package exposes a library `main` only — **no `bin`**; nothing executes it.
 - `AnvilKindlingAdapter` is constructed **only in `adapter.test.ts`**; no app or
-  package calls `emit()`. The redaction branch in `observation-contract.ts` is
-  reached only from the package's own tests/benchmarks.
+  package calls its `emit()`. (`service.appendObservation` targets external
+  kindling-core, so the path is arguably non-functional in-tree as well.)
 - Rust crates reference the package **only in doc-comments**, never spawn it.
   `crates/anvil-intercept/src/kindling_observation.rs` explicitly lists the
   TS-side emit path as a **deferred, not-yet-wired follow-up** ("when the daemon
@@ -61,10 +80,11 @@ be **unreachable at runtime** before recording `wont-fix`:
 - The live kindling path is the Rust `KindlingDaemonSink` (default since
   KDS-005), which supersedes the TS writer.
 
-These are the [#1826](https://github.com/eddacraft/anvil-001/issues/1826)
-umbrella class (kindling secret persistence). Per the 2026-05-29 rule they
-**must not be re-filed**; the retire decision stands. If the TS surface is ever
-revived, both defects re-open with it.
+Both were the [#1826](https://github.com/eddacraft/anvil-001/issues/1826)
+kindling-persistence class. **#1826 is CLOSED (2026-05-30)** — the highs were
+adjudicated and dispositioned there (retire-under-doctrine + the #2140 test),
+not left open awaiting an owner decision. Do not re-file. If the TS surface is
+ever revived, only finding 2 re-opens as a real defect.
 
 ## Scan summary (post-triage)
 
@@ -93,9 +113,10 @@ revived, both defects re-open with it.
 
 **The shipping Rust product has zero actionable defects from this scan.** Of the
 79 open `crates/` findings, only **2 touch product source** — both low — and the
-one item that read as severe (`start --verify`) was stale. Both high-severity
-findings are real bugs in provably dead JS/TS code. Nothing here is tag-blocking
-for the pure-Rust CLI.
+one item that read as severe (`start --verify`) was stale. The two high-severity
+findings are on the retiring JS/TS surface: one is a distinct real defect on a
+dead (unreachable) path, the other a likely false-positive (the local service
+already redacts). Nothing here is tag-blocking for the pure-Rust CLI.
 
 ## Triage — Rust product source (`crates/**/src/`, 2 open)
 
@@ -127,9 +148,11 @@ Route as a future test-hardening batch (same pattern as CLAWP #1740 → PRs
 ## Triage — JS/TS workspace + apps (`packages/`, `apps/`, 29 open)
 
 **Owner decision carried from 2026-06-20:** JS/TS is being retired. All 29 open
-findings remain `wont-fix` under the `#1826` retirement verdict — including the
-two kindling redaction highs dispositioned above. Do not re-file or fix-forward
-unless retirement scope is explicitly reversed.
+findings remain `wont-fix` under the retirement doctrine — including the two
+kindling redaction highs dispositioned above (whose class was adjudicated and
+closed under [#1826](https://github.com/eddacraft/anvil-001/issues/1826) on
+2026-05-30). Do not re-file or fix-forward unless retirement scope is explicitly
+reversed.
 
 ## Triage — tooling (`scripts/`, `infra/`, `tools/`, 15 open)
 
@@ -144,9 +167,15 @@ none block the Rust product.
 2. **Optional CIB tidy** — the two low product-src items
    (`anvil-intercept` tracing-before-clap, `anvil-rayon-init` pool-cap test) are
    small, safe, and self-contained.
-3. **Do not re-file the kindling highs** — they are the `#1826` umbrella class
-   and are wont-fix under retirement; they re-open only if the TS surface is
-   revived.
-4. **Re-run after the next `main` advance** — evidence line refs lag the tree
+3. **Do not re-file the kindling highs** — their class was adjudicated and
+   closed under #1826; they are wont-fix under retirement. Only the adapter
+   defect (finding 2) re-opens if the TS surface is revived.
+4. **Re-verify 06-20's remaining "product-actionable" items against `main`** —
+   the `start --verify` entry in that list was already fixed 10 days before the
+   doc was written, so the other five (gctx-egress affected-symbol cap,
+   `find_dependents` node-cap, `ImpactQuery` empty-query, Rego multi-expr, SARIF
+   zero line/col) must each be checked against current source before filing, not
+   trusted from the stale scan.
+5. **Re-run after the next `main` advance** — evidence line refs lag the tree
    (as `start --verify` showed); always verify a "product-actionable" finding
    against current source before filing.
