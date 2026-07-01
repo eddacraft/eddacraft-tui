@@ -2,9 +2,14 @@
 
 | ID     | Owner  | Status   |
 | ------ | ------ | -------- |
-| EVALCI | @aneki | Proposed |
+| EVALCI | @aneki | Ready |
 
 **Last reviewed:** 2026-07-01 (planning council: architect + pragmatic-lead + adversarial-reviewer)
+
+> First-wave hardening EVALCI-001..004 authorised **Ready** 2026-07-01 (owner).
+> EVALCI-005..008 remain **Proposed** — 005 depends on 002/003; 006 wires CI;
+> 007/008 are phased and gated on an ADR for the CI-blocking posture and on
+> ATC-003.
 
 ## Purpose
 
@@ -61,7 +66,7 @@ for the deferred wiring step this module picks up.
 
 ### EVALCI-001: Ratchet `--update-baseline` to clean runs only
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Intent:** Persist a run to history only when its gate is non-regressed or
   clean, so a failing run cannot become the accepted baseline.
 - **Expected Outcome:** `--update-baseline` cannot poison the baseline with a
@@ -71,7 +76,7 @@ for the deferred wiring step this module picks up.
 
 ### EVALCI-002: Null the eval subprocess stdin
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Intent:** `SubprocessRunner` sets child stdin to null so a future
   auth or license prompt cannot hang a suite until the timeout.
 - **Expected Outcome:** A prompting upstream command fails fast, not after the
@@ -81,7 +86,7 @@ for the deferred wiring step this module picks up.
 
 ### EVALCI-003: Classify non-{0,1} suite exit as execution-error
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Intent:** An inner `anvil policy eval` exit code outside {0,1} (an OPA or
   infra failure, for example 2) is an execution error, not a trust regression.
 - **Expected Outcome:** Infra failures do not false-block main as regressions.
@@ -90,7 +95,7 @@ for the deferred wiring step this module picks up.
 
 ### EVALCI-004: Per-suite fail-open
 
-- **Status:** Proposed
+- **Status:** Ready
 - **Intent:** A suite that errors (missing policy, empty stdout) reports a
   `runner-error` status and the run continues and still emits the aggregate
   report, instead of aborting all suites.
