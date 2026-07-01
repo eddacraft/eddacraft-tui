@@ -49,6 +49,18 @@ fn main() {
     }
 }
 
+/// The `commit_sha` tag for worker `w`'s `i`-th record — matches the worker's
+/// `format!("{tag}-{i}")` where `tag == "w{w}"`. Built with `push_str` rather than
+/// `format!` so `w`/`i` are used via plain method calls: `CodeQL`'s unused-variable
+/// query does not recognise a variable used only inside a format-macro capture.
+fn commit_tag(w: usize, i: usize) -> String {
+    let mut s = String::from("w");
+    s.push_str(&w.to_string());
+    s.push('-');
+    s.push_str(&i.to_string());
+    s
+}
+
 fn genesis_seed() -> WitnessLine {
     WitnessLine::genesis(
         &GenesisAnchor::Fresh,
@@ -236,12 +248,8 @@ fn verify_linear_chain(root: &Path) {
             }
         }
     }
-    // Explicit positional args (not inline captures) so CodeQL sees `w`/`i` used
-    // (it does not recognise inline-format-arg capture); the targeted allow keeps
-    // clippy's `uninlined_format_args` lint — which wants the opposite — from firing.
-    #[allow(clippy::uninlined_format_args)]
     let expected: HashSet<String> = (0..WORKERS)
-        .flat_map(|w| (0..APPENDS_PER_WORKER).map(move |i| format!("w{}-{}", w, i)))
+        .flat_map(|w| (0..APPENDS_PER_WORKER).map(move |i| commit_tag(w, i)))
         .collect();
     assert_eq!(
         seen, expected,
