@@ -39,15 +39,19 @@
 //!
 //! ## Witness routing (MLP2-005 phase 3)
 //!
-//! Witness appends route **daemon-first**: when the `anvil-intercept`
-//! daemon is reachable, the append goes over `anvil/witness/append`
-//! (one writer across worktrees, shared lock state). An absent socket
-//! or a `Method not found` reply degrades to the embedded
-//! [`anvil_witness::WitnessWriter`] leg (emitting
-//! [`DEGRADED_EMBEDDED_WITNESS`]); a mid-exchange daemon error
-//! propagates as a hard failure rather than silently embedding. The
-//! `project_writes_gated()` (DISTRIB-006) check short-circuits **before**
-//! either leg, so a gated candidate never routes to the daemon.
+//! Witness appends route **daemon-first**, with the daemon as a **pure
+//! optimisation**: when the `anvil-intercept` daemon returns an
+//! authoritative result the append goes over `anvil/witness/append`
+//! (one writer across worktrees, shared lock state) — `Appended`
+//! succeeds, `ChainBroken` refuses (ADR-038). **Anything else** — an
+//! absent socket, `Method not found`, a refused/timed-out/malformed
+//! exchange, or a non-authoritative outcome — falls back to the
+//! embedded [`anvil_witness::WitnessWriter`] leg (emitting
+//! [`DEGRADED_EMBEDDED_WITNESS`]). This guarantees the daemon never
+//! blocks a commit the embedded path would not have (Serena rule,
+//! ADR-038 §D-6). The `project_writes_gated()` (DISTRIB-006) check
+//! short-circuits **before** either leg, so a gated candidate never
+//! routes to the daemon.
 
 // The `unnecessary_wraps` warning fires on `fn -> Result<()>` that
 // always returns `Ok(())` today — but every helper here will gain
@@ -1371,7 +1375,8 @@ enum AppendError {
 /// `seq`/`prev_line_hash` under its lock, and the daemon asserts `ts`). This lets
 /// the daemon and embedded legs share one `build` closure — the embedded leg
 /// writes the line directly; the daemon leg sends this projection and the daemon
-/// rebuilds an identical line via the same `append_chained` (Parity criterion).
+/// rebuilds a line whose **caller-controlled fields are identical** (Parity
+/// criterion; `seq`/`prev_line_hash`/`ts` differ, being writer-derived).
 fn witness_entry_from_line(line: &WitnessLine) -> WitnessEntry {
     WitnessEntry {
         project_uuid: line.project_uuid.clone(),
@@ -1383,48 +1388,57 @@ fn witness_entry_from_line(line: &WitnessLine) -> WitnessEntry {
         agent_tag: line.agent_tag.clone(),
         rules_sha: line.rules_sha.clone(),
         cutoff_commit: line.cutoff_commit.clone(),
+        // Sent for completeness but NOT authoritative: the daemon asserts its own
+        // wall-clock `ts` at append time (see `save_time.rs::witness_append`), so
+        // the value carried here is only used by the embedded leg's own line.
         ts: line.ts.clone(),
         validation_at: line.validation_at.clone(),
     }
 }
 
-/// Translate a daemon `anvil/witness/append` in-band outcome onto the hook's
-/// [`AppendError`] vocabulary. The daemon already performed the append; this only
-/// maps the result (ADR-038 `ChainBroken` is preserved, never reseeded).
-fn map_daemon_witness_outcome(resp: WitnessAppendResponse) -> Result<LineHash, AppendError> {
-    match resp.outcome {
-        WitnessOutcomeKind::Appended => resp.line_hash.ok_or(AppendError::WriteFailed),
-        WitnessOutcomeKind::ChainBroken => Err(AppendError::ChainBroken),
-        // `WriteFailed` or an unknown future variant: "we couldn't witness this".
-        WitnessOutcomeKind::WriteFailed | WitnessOutcomeKind::Unknown => {
-            Err(AppendError::WriteFailed)
-        }
-    }
-}
-
 /// The routing decision for a daemon witness-append attempt. Kept as a pure
-/// function over the transport result so the **classification split** — the
-/// load-bearing invariant — is unit-testable without a live daemon.
+/// function over the transport result so the classification — the load-bearing
+/// invariant — is unit-testable without a live daemon.
+///
+/// **The daemon is a pure optimisation** (owner decision, MLP2-005 phase-3
+/// council): only an *authoritative* daemon result is terminal — `Appended`
+/// (success) or `ChainBroken` (tamper, refused on either leg per ADR-038).
+/// **Everything else falls back to the embedded writer**: any transport failure
+/// (absent socket, `-32601`, `NotAdmitted`, timeout, IO, parse, peer-reject) and
+/// any non-authoritative in-band outcome. This guarantees the daemon never blocks
+/// a commit the embedded path would not have (Serena, ADR-038 §D-6). The one cost
+/// is a benign duplicate line in the narrow window where the daemon appended but
+/// its reply was lost — the chain stays linear and verifies (`append_chained` is
+/// atomic under flock; the embedded leg simply chains off the new tip).
 #[derive(Debug)]
 enum WitnessRoute {
-    /// The daemon handled the append; carry its translated result.
+    /// The daemon returned an authoritative result; carry its translated outcome.
     Daemon(Result<LineHash, AppendError>),
-    /// No usable daemon surface (absent socket / `Method not found`): take the
-    /// embedded leg.
+    /// No authoritative daemon result — take the embedded leg.
     Embedded,
-    /// A mid-exchange daemon error (IO/parse/peer-reject / non-`-32601`):
-    /// propagate as a hard failure, never silently embed (the `embedded.rs`
-    /// invariant).
-    Propagate,
 }
 
 fn route_daemon_witness_result(
     result: std::result::Result<WitnessAppendResponse, DaemonRpcError>,
 ) -> WitnessRoute {
     match result {
-        Ok(resp) => WitnessRoute::Daemon(map_daemon_witness_outcome(resp)),
-        Err(DaemonRpcError::Unavailable) => WitnessRoute::Embedded,
-        Err(DaemonRpcError::Failure) => WitnessRoute::Propagate,
+        Ok(resp) => match resp.outcome {
+            // Authoritative success — the daemon durably wrote the line.
+            WitnessOutcomeKind::Appended => match resp.line_hash {
+                Some(hash) => WitnessRoute::Daemon(Ok(hash)),
+                // Success without a hash is a malformed reply — fall back rather
+                // than fabricate one (never worse than embedded).
+                None => WitnessRoute::Embedded,
+            },
+            // Authoritative tamper detection — refuse on either leg, never reseed.
+            WitnessOutcomeKind::ChainBroken => WitnessRoute::Daemon(Err(AppendError::ChainBroken)),
+            // The daemon did not durably witness (its write failed, or a future
+            // variant we do not understand) — retry locally; the embedded write
+            // can only make things better, never worse.
+            WitnessOutcomeKind::WriteFailed | WitnessOutcomeKind::Unknown => WitnessRoute::Embedded,
+        },
+        // No authoritative result at all (Unavailable OR Failure) — fall back.
+        Err(_) => WitnessRoute::Embedded,
     }
 }
 
@@ -1444,10 +1458,10 @@ fn daemon_witness_append(
 
 /// Append a witness line **daemon-first** with an embedded fallback (MLP2-005
 /// phase 3). DISTRIB-006 gating short-circuits before either leg. When the daemon
-/// is reachable the append routes through it (one writer across worktrees, shared
-/// lock state); an unavailable daemon falls back to the embedded [`WitnessWriter`]
-/// (emitting [`DEGRADED_EMBEDDED_WITNESS`]); a mid-exchange daemon error
-/// propagates. Both legs share `build`, so the recorded line is identical.
+/// returns an authoritative result the append routes through it (one writer across
+/// worktrees, shared lock state); otherwise it falls back to the embedded
+/// [`WitnessWriter`] (emitting [`DEGRADED_EMBEDDED_WITNESS`]). Both legs share
+/// `build`, so the recorded caller-controlled fields are identical.
 fn append_witness_routed<F>(
     repo_root: &Path,
     project_uuid: &str,
@@ -1490,7 +1504,28 @@ where
     // the line with the real `(seq, prev)` under the writer's lock.
     let entry = witness_entry_from_line(&build(0, String::new()));
 
-    match route_daemon_witness_result(daemon_witness_append(repo_root, &entry)) {
+    finish_witness_route(
+        daemon_witness_append(repo_root, &entry),
+        repo_root,
+        project_uuid,
+        build,
+    )
+}
+
+/// Execute the [`WitnessRoute`] for a daemon attempt: return the authoritative
+/// daemon outcome, or run the embedded leg. Split out with the daemon result
+/// injected so **both** legs (daemon-authoritative and embedded fallback) are
+/// exercisable end-to-end in tests without a live daemon.
+fn finish_witness_route<F>(
+    daemon_result: std::result::Result<WitnessAppendResponse, DaemonRpcError>,
+    repo_root: &Path,
+    project_uuid: &str,
+    build: F,
+) -> std::result::Result<LineHash, AppendError>
+where
+    F: Fn(u64, String) -> WitnessLine,
+{
+    match route_daemon_witness_result(daemon_result) {
         WitnessRoute::Daemon(result) => {
             // Surface the chosen leg (Observability). The daemon leg is the quiet
             // happy path — debug, not warn — so a normal commit prints nothing.
@@ -1502,21 +1537,17 @@ where
             result
         }
         WitnessRoute::Embedded => {
-            tracing::warn!(
+            // Degrading to the embedded writer is the *expected* graceful path
+            // (the daemon is a pure optimisation), so this is `info`, not `warn`:
+            // it stays silent under the default `warn` filter and does not spew a
+            // JSON blob to the developer's terminal on every daemon-absent commit.
+            tracing::info!(
                 target: "anvil::witness",
                 reason = DEGRADED_EMBEDDED_WITNESS,
                 project_uuid = %project_uuid,
                 "witness daemon unavailable; appending via the embedded writer",
             );
             append_witness(repo_root, project_uuid, build)
-        }
-        WitnessRoute::Propagate => {
-            tracing::warn!(
-                target: "anvil::witness",
-                project_uuid = %project_uuid,
-                "witness daemon errored mid-exchange; refusing to silently fall back",
-            );
-            Err(AppendError::WriteFailed)
         }
     }
 }
@@ -1867,81 +1898,127 @@ mod tests {
         assert_eq!(entry.validation_at, line.validation_at);
     }
 
-    #[test]
-    fn map_daemon_outcome_translates_each_variant() {
-        assert_eq!(
-            map_daemon_witness_outcome(witness_response(WitnessOutcomeKind::Appended, Some("h")))
-                .unwrap(),
-            "h",
-        );
-        // Appended with no hash is a malformed success ⇒ WriteFailed.
-        assert!(matches!(
-            map_daemon_witness_outcome(witness_response(WitnessOutcomeKind::Appended, None)),
-            Err(AppendError::WriteFailed),
-        ));
-        assert!(matches!(
-            map_daemon_witness_outcome(witness_response(WitnessOutcomeKind::ChainBroken, None)),
-            Err(AppendError::ChainBroken),
-        ));
-        assert!(matches!(
-            map_daemon_witness_outcome(witness_response(WitnessOutcomeKind::WriteFailed, None)),
-            Err(AppendError::WriteFailed),
-        ));
-        assert!(matches!(
-            map_daemon_witness_outcome(witness_response(WitnessOutcomeKind::Unknown, None)),
-            Err(AppendError::WriteFailed),
-        ));
+    /// Reusable `build` closure for the routing tests (a fn is `Fn`).
+    fn sample_witness_build(seq: u64, prev: String) -> WitnessLine {
+        build_witness_line(
+            "01997e4a-1b2c-7345-8901-abcdef123456",
+            Some("c1".to_string()),
+            "pre-commit",
+            seq,
+            prev,
+        )
     }
 
     #[test]
-    fn route_classifies_unavailable_as_embedded_and_failure_as_propagate() {
-        // Classification split: absent socket / -32601 ⇒ embedded leg; a
-        // mid-exchange / non--32601 error ⇒ propagate, never silently embed.
-        assert!(matches!(
-            route_daemon_witness_result(Err(DaemonRpcError::Unavailable)),
-            WitnessRoute::Embedded,
-        ));
-        assert!(matches!(
-            route_daemon_witness_result(Err(DaemonRpcError::Failure)),
-            WitnessRoute::Propagate,
-        ));
-    }
-
-    #[test]
-    fn route_carries_daemon_success_through() {
+    fn route_treats_only_appended_and_chainbroken_as_authoritative() {
         match route_daemon_witness_result(Ok(witness_response(
             WitnessOutcomeKind::Appended,
             Some("hash"),
         ))) {
             WitnessRoute::Daemon(Ok(h)) => assert_eq!(h, "hash"),
-            other => panic!("expected Daemon(Ok), got {other:?}"),
+            other => panic!("Appended ⇒ Daemon(Ok): {other:?}"),
         }
+        assert!(matches!(
+            route_daemon_witness_result(Ok(witness_response(
+                WitnessOutcomeKind::ChainBroken,
+                None
+            ))),
+            WitnessRoute::Daemon(Err(AppendError::ChainBroken)),
+        ));
+    }
+
+    #[test]
+    fn route_falls_back_to_embedded_for_everything_non_authoritative() {
+        // The daemon is a pure optimisation: any transport failure AND any
+        // non-authoritative in-band outcome ⇒ embedded leg, never a hard block.
+        for result in [
+            Err(DaemonRpcError::Unavailable),
+            Err(DaemonRpcError::Failure),
+            Ok(witness_response(WitnessOutcomeKind::WriteFailed, None)),
+            Ok(witness_response(WitnessOutcomeKind::Unknown, None)),
+            // Malformed success (no hash) also falls back rather than fabricating.
+            Ok(witness_response(WitnessOutcomeKind::Appended, None)),
+        ] {
+            assert!(
+                matches!(route_daemon_witness_result(result), WitnessRoute::Embedded),
+                "expected Embedded",
+            );
+        }
+    }
+
+    #[test]
+    fn finish_route_returns_daemon_hash_without_writing_locally() {
+        let (_tmp, root) = make_test_repo();
+        // An authoritative daemon success is returned as-is; the embedded writer
+        // is NOT invoked (no local witness tree is created).
+        let out = finish_witness_route(
+            Ok(witness_response(
+                WitnessOutcomeKind::Appended,
+                Some("daemon-hash"),
+            )),
+            &root,
+            "01997e4a-1b2c-7345-8901-abcdef123456",
+            sample_witness_build,
+        );
+        assert_eq!(out.unwrap(), "daemon-hash");
+        assert!(
+            !root.join("anvil").join("witness").exists(),
+            "the daemon handled the append; the embedded leg must not run",
+        );
+    }
+
+    #[test]
+    fn finish_route_refuses_on_authoritative_chainbroken_without_writing() {
+        let (_tmp, root) = make_test_repo();
+        let out = finish_witness_route(
+            Ok(witness_response(WitnessOutcomeKind::ChainBroken, None)),
+            &root,
+            "01997e4a-1b2c-7345-8901-abcdef123456",
+            sample_witness_build,
+        );
+        assert!(matches!(out, Err(AppendError::ChainBroken)));
+        assert!(!root.join("anvil").join("witness").exists());
+    }
+
+    #[test]
+    fn finish_route_embeds_on_daemon_failure() {
+        let (_tmp, root) = make_test_repo();
+        // A mid-exchange daemon Failure now falls back to the embedded writer
+        // (owner decision) rather than blocking the commit — the chain is written.
+        // Pin ANVIL_HOME so the embedded leg's own gate re-read is ungated.
+        temp_env::with_var("ANVIL_HOME", None::<&str>, || {
+            let out = finish_witness_route(
+                Err(DaemonRpcError::Failure),
+                &root,
+                "01997e4a-1b2c-7345-8901-abcdef123456",
+                sample_witness_build,
+            );
+            assert!(!out.unwrap().is_empty(), "embedded leg wrote the line");
+            let paths = witness_paths(&root);
+            let refs: Vec<&Path> = paths.iter().map(PathBuf::as_path).collect();
+            let dag = verify_chain_dag(&refs).expect("chain verifies");
+            assert_eq!(dag.line_count, 2, "genesis + 1 record");
+        });
     }
 
     #[test]
     fn routed_append_falls_back_to_embedded_when_daemon_absent() {
         let (_tmp, root) = make_test_repo();
-        // Point the socket at an empty runtime dir (no daemon). `XDG_RUNTIME_DIR`
-        // is mutated under temp_env's lock; ANVIL_HOME is left untouched and the
-        // gate is passed as `false`, so this does not race the embedded-path tests.
+        // Point the socket at an empty runtime dir (no daemon) and pin ANVIL_HOME
+        // to default so the embedded leg's own gate re-read (inside append_witness)
+        // is ungated regardless of the runner's ambient env.
         let runtime = TempDir::new().unwrap();
-        temp_env::with_var(
-            "XDG_RUNTIME_DIR",
-            Some(runtime.path().to_str().unwrap()),
+        temp_env::with_vars(
+            [
+                ("ANVIL_HOME", None::<&str>),
+                ("XDG_RUNTIME_DIR", Some(runtime.path().to_str().unwrap())),
+            ],
             || {
                 let hash = append_witness_routed_gated(
                     false,
                     &root,
                     "01997e4a-1b2c-7345-8901-abcdef123456",
-                    |seq, prev| {
-                        build_witness_line(
-                            "01997e4a-1b2c-7345-8901-abcdef123456",
-                            Some("c1".to_string()),
-                            "pre-commit",
-                            seq,
-                            prev,
-                        )
-                    },
+                    sample_witness_build,
                 )
                 .expect("embedded fallback writes the line");
                 assert!(!hash.is_empty());

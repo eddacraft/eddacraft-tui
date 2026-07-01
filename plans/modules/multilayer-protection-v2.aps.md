@@ -503,14 +503,28 @@ task's `Source:` line cites the Council finding IDs.
   any routing (satisfying the phase-2 council's deferred F2 — the only production
   caller never opens the socket when gated); a reachable daemon takes the
   `anvil/witness/append` RPC (reusing the shared `daemon_rpc_call` transport,
-  renamed from `gctx_call`); an `Unavailable` classification (absent socket /
-  `-32601`) falls back to the embedded `WitnessWriter` and emits
-  `DEGRADED_EMBEDDED_WITNESS` via `tracing::warn!`; a mid-exchange `Failure`
-  propagates as `WriteFailed` (never silently embeds). Both legs share the `build`
-  closure (Parity); the daemon derives `(seq, prev_line_hash)` and asserts `ts`.
-  The routing decision is a pure `route_daemon_witness_result` for unit-testing the
-  classification split without a live daemon. Fleshed 2026-06-30 (design crux + RPC
-  contract + telemetry vocabulary fixed against the live code).
+  renamed from `gctx_call`). Both legs share the `build` closure (Parity, caller
+  fields); the daemon derives `(seq, prev_line_hash)` and asserts `ts`. Pure
+  `route_daemon_witness_result` + injected `finish_witness_route` make both legs
+  unit-testable without a live daemon.
+- **Phase-3 owner decision (2026-07-01): the daemon is a PURE OPTIMISATION**,
+  reversing the earlier spec's "non-`-32601` → propagate" classification. The
+  full 5-reviewer phase-3 council (kernel + adversarial **BLOCK**) found four
+  independent commit-blocking regressions in the propagate model: a daemon that
+  is merely slow (>2s → timeout → `Failure`), refuses the root (`NotAdmitted`
+  `-32010`, e.g. a per-user daemon whose primary is another repo), hits a
+  stale-socket path error, or a peer-credential mismatch would each block a
+  `git commit` that embedded-only always completed — plus a Windows-vs-Unix
+  timeout asymmetry. Resolution (Josh): **only an authoritative daemon result is
+  terminal — `Appended` (success) or `ChainBroken` (tamper, ADR-038); everything
+  else falls back to the embedded writer.** This honours the Serena rule
+  (ADR-038 §D-6: internal failures must not block the user) and guarantees the
+  daemon never makes a commit worse than embedded-only. The one cost is a benign
+  duplicate line in the narrow window where the daemon appended but its reply was
+  lost — the chain stays linear and `verify_chain_dag`-healthy (`append_chained`
+  is atomic under flock; the embedded leg chains off the new tip, not a fork).
+  Embedded fallback logs at `info` (not `warn`) so daemon-absent commits stay
+  quiet under the default filter.
 - **Phase-1 Council follow-ons (2026-06-30, full 5-reviewer Council on the
   `append_chained` PR; blockers fixed in-PR — genesis re-read misclassified as
   tampering, `read_chain_head` → `pub(crate)`, non-empty-unparseable active → `ChainBroken`,
@@ -614,12 +628,15 @@ task's `Source:` line cites the Council finding IDs.
   - **Atomicity:** a concurrent test proves `append_chained` never reuses a
     `(seq, prev)` across two writers — the regression the current out-of-lock
     `chain_head` allows.
-  - **Classification split:** daemon-absent and `-32601` both take the embedded leg;
-    a non-`-32601` daemon error or a mid-exchange drop propagates as a hard failure
-    and does **not** silently embed.
-  - **Parity:** the line appended via the daemon RPC is byte-for-byte identical to
-    the line the embedded leg writes for the same input (same `append_chained`, same
-    canonicalisation/hash).
+  - **Classification (pure-optimisation, superseding the earlier propagate rule —
+    see the phase-3 owner decision above):** only an authoritative daemon result is
+    terminal — `Appended` (success) or `ChainBroken` (tamper). **Every** other case
+    — absent socket, `-32601`, `NotAdmitted` (`-32010`), timeout, IO, parse,
+    peer-reject, or a non-authoritative in-band outcome — falls back to the embedded
+    leg. The daemon never blocks a commit the embedded path would not have.
+  - **Parity:** the line appended via the daemon RPC has caller-controlled fields
+    identical to the line the embedded leg writes for the same input (same
+    `append_chained`; `seq`/`prev_line_hash`/`ts` are writer-derived on each leg).
   - **Gating preserved:** `project_writes_gated()` short-circuits before any append
     on both legs; `ChainBroken` refuses (never reseeds) on both legs.
   - **Telemetry:** the fallback leg emits `degraded:embedded-witness` exactly once

@@ -115,7 +115,8 @@ pub struct RenderedVerdict {
 /// - Block (findings): `anvil: N finding(s) (block) — anvil show <id>`, exit 1.
 /// - Block (chain): `anvil: chain integrity broken — anvil show <id>`, exit 1.
 /// - `InternalError`: `anvil: <component> errored (anvil doctor for details)`, exit 0.
-/// - `WitnessWriteFailed`: `anvil: witness write failed — refused`, exit 1.
+/// - `WitnessWriteFailed`: `anvil: witness write failed — refused (anvil doctor
+///   for details)`, exit 1.
 pub fn render_verdict(verdict: &Verdict) -> RenderedVerdict {
     match verdict {
         Verdict::Pass => RenderedVerdict {
@@ -195,7 +196,8 @@ pub fn render_verdict(verdict: &Verdict) -> RenderedVerdict {
             exit_code: 0,
         },
         Verdict::WitnessWriteFailed => RenderedVerdict {
-            stderr_line: "anvil: witness write failed — refused".to_string(),
+            stderr_line: "anvil: witness write failed — refused (anvil doctor for details)"
+                .to_string(),
             exit_code: 1,
         },
     }

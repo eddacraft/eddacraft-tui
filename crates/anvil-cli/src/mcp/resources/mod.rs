@@ -18,7 +18,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use serde_json::{Value, json};
 
-use crate::mcp::gctx_client::{GctxDaemonError, daemon_rpc_call};
+use crate::mcp::gctx_client::{DaemonRpcError, daemon_rpc_call};
 
 use anvil_intercept_proto::protocol::{
     ANVIL_GCTX_GRAPH_EDGES, ANVIL_GCTX_GRAPH_STATS, ANVIL_GCTX_SEARCH_SYMBOLS,
@@ -262,11 +262,11 @@ fn read_stats(query: &[(String, String)]) -> Result<Value, ReadError> {
     let response: GctxGraphStatsResponse =
         match daemon_rpc_call(ANVIL_GCTX_GRAPH_STATS, &request, "mcp-gctx-graph-stats") {
             Ok(response) => response,
-            Err(GctxDaemonError::Unavailable) => GctxGraphStatsResponse {
+            Err(DaemonRpcError::Unavailable) => GctxGraphStatsResponse {
                 workspace_assurance: unavailable_assurance(),
                 outcome: anvil_gctx_types::GraphStatsOutcome::Unavailable,
             },
-            Err(GctxDaemonError::Failure) => {
+            Err(DaemonRpcError::Failure) => {
                 return Err(ReadError::Internal(
                     "graph-context daemon request failed".to_string(),
                 ));
@@ -306,11 +306,11 @@ fn read_symbols(query: &[(String, String)]) -> Result<Value, ReadError> {
         "mcp-gctx-graph-symbols",
     ) {
         Ok(response) => response,
-        Err(GctxDaemonError::Unavailable) => GctxSearchSymbolsResponse {
+        Err(DaemonRpcError::Unavailable) => GctxSearchSymbolsResponse {
             workspace_assurance: unavailable_assurance(),
             outcome: anvil_gctx_types::SearchSymbolsOutcome::Unavailable,
         },
-        Err(GctxDaemonError::Failure) => {
+        Err(DaemonRpcError::Failure) => {
             return Err(ReadError::Internal(
                 "graph-context daemon request failed".to_string(),
             ));
@@ -345,11 +345,11 @@ fn read_edges(query: &[(String, String)]) -> Result<Value, ReadError> {
     let response: GctxGraphEdgesResponse =
         match daemon_rpc_call(ANVIL_GCTX_GRAPH_EDGES, &request, "mcp-gctx-graph-edges") {
             Ok(response) => response,
-            Err(GctxDaemonError::Unavailable) => GctxGraphEdgesResponse {
+            Err(DaemonRpcError::Unavailable) => GctxGraphEdgesResponse {
                 workspace_assurance: unavailable_assurance(),
                 outcome: anvil_gctx_types::GraphEdgesOutcome::Unavailable,
             },
-            Err(GctxDaemonError::Failure) => {
+            Err(DaemonRpcError::Failure) => {
                 return Err(ReadError::Internal(
                     "graph-context daemon request failed".to_string(),
                 ));

@@ -23,7 +23,7 @@ use anvil_intercept_proto::protocol::{
     GctxImpactOfChangeResponse, StaleReason, WorkspaceAssurance,
 };
 
-use crate::mcp::gctx_client::{GctxDaemonError, daemon_rpc_call};
+use crate::mcp::gctx_client::{DaemonRpcError, daemon_rpc_call};
 use crate::mcp::tools::shared::{redact_workspace_root, validate_workspace_root};
 
 pub const TOOL_NAME: &str = "anvil_impact_of_change";
@@ -98,8 +98,8 @@ fn impact_payload(arguments: &Value) -> Result<Value, String> {
 
     let response = match daemon_rpc_call(ANVIL_GCTX_IMPACT_OF_CHANGE, &request, "mcp-gctx-impact") {
         Ok(response) => response,
-        Err(GctxDaemonError::Unavailable) => unavailable_response(),
-        Err(GctxDaemonError::Failure) => {
+        Err(DaemonRpcError::Unavailable) => unavailable_response(),
+        Err(DaemonRpcError::Failure) => {
             return Err("graph-context daemon request failed".to_string());
         }
     };

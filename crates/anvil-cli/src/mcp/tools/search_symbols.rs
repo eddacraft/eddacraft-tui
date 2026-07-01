@@ -20,7 +20,7 @@ use anvil_intercept_proto::protocol::{
     StaleReason, WorkspaceAssurance,
 };
 
-use crate::mcp::gctx_client::{GctxDaemonError, daemon_rpc_call};
+use crate::mcp::gctx_client::{DaemonRpcError, daemon_rpc_call};
 use crate::mcp::tools::shared::{redact_workspace_root, validate_workspace_root};
 
 pub const TOOL_NAME: &str = "anvil_search_symbols";
@@ -107,8 +107,8 @@ fn search_payload(arguments: &Value) -> Result<Value, String> {
 
     let response = match daemon_rpc_call(ANVIL_GCTX_SEARCH_SYMBOLS, &request, "mcp-gctx-search") {
         Ok(response) => response,
-        Err(GctxDaemonError::Unavailable) => unavailable_response(),
-        Err(GctxDaemonError::Failure) => {
+        Err(DaemonRpcError::Unavailable) => unavailable_response(),
+        Err(DaemonRpcError::Failure) => {
             return Err("graph-context daemon request failed".to_string());
         }
     };

@@ -16,18 +16,16 @@ use serde_json::json;
 ///
 /// `Unavailable` (socket absent / `Method not found`) degrades to a structured
 /// `unavailable` outcome; `Failure` (a malformed reply, an IO error mid-exchange,
-/// or a security-relevant validation failure) is a tool/resource error.
+/// or a security-relevant validation failure) is a tool/resource error. The
+/// witness-append hook path treats *both* as "no durable daemon result" and falls
+/// back to the embedded writer (the daemon is a pure optimisation there), so it
+/// does not distinguish the two variants.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(not(unix), allow(dead_code))]
-pub(crate) enum GctxDaemonError {
+pub(crate) enum DaemonRpcError {
     Unavailable,
     Failure,
 }
-
-/// Neutral name for the shared daemon RPC error, used by non-GCTX callers (the
-/// witness append path). Same type — the `Gctx`-prefixed name predates the
-/// transport being shared.
-pub(crate) type DaemonRpcError = GctxDaemonError;
 
 #[cfg(unix)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -44,14 +42,15 @@ const PEER_CREDENTIAL_PLATFORM: PeerCredentialPlatform = PeerCredentialPlatform:
 const PEER_CREDENTIAL_PLATFORM: PeerCredentialPlatform = PeerCredentialPlatform::OtherUnix;
 
 #[cfg(unix)]
-fn classify_peer_validation_failure(platform: PeerCredentialPlatform) -> GctxDaemonError {
+fn classify_peer_validation_failure(platform: PeerCredentialPlatform) -> DaemonRpcError {
     match platform {
-        PeerCredentialPlatform::LinuxOrMacos => GctxDaemonError::Failure,
+        PeerCredentialPlatform::LinuxOrMacos => DaemonRpcError::Failure,
         // CIB-099: non-Linux/macOS Unix builds do not have the same peer-credential
         // implementation. Treat that validation failure as an unavailable daemon
-        // transport for GCTX so the sibling tools degrade consistently instead of
-        // surfacing a hard tool failure.
-        PeerCredentialPlatform::OtherUnix => GctxDaemonError::Unavailable,
+        // transport so callers degrade consistently instead of surfacing a hard
+        // failure — the GCTX tools return `unavailable`; the witness hook falls
+        // back to the embedded writer.
+        PeerCredentialPlatform::OtherUnix => DaemonRpcError::Unavailable,
     }
 }
 
@@ -80,7 +79,7 @@ pub(crate) fn daemon_rpc_call<Req, Resp>(
     method: &str,
     request: &Req,
     request_id: &str,
-) -> Result<Resp, GctxDaemonError>
+) -> Result<Resp, DaemonRpcError>
 where
     Req: Serialize,
     Resp: DeserializeOwned,
@@ -96,21 +95,21 @@ where
     // response cap, sized above any honest reply.
     const RESPONSE_LINE_CAP: u64 = 4 << 20;
 
-    let socket_path = ipc::resolve_socket_path().map_err(|_| GctxDaemonError::Unavailable)?;
+    let socket_path = ipc::resolve_socket_path().map_err(|_| DaemonRpcError::Unavailable)?;
     if let Err(err) = ipc::validate_socket_path_for_client(&socket_path) {
         return match err {
             ipc::IpcError::Io(io) if io.kind() == std::io::ErrorKind::NotFound => {
-                Err(GctxDaemonError::Unavailable)
+                Err(DaemonRpcError::Unavailable)
             }
             _ => {
                 eprintln!("anvil-daemon: {method} socket unavailable: {err}");
-                Err(GctxDaemonError::Failure)
+                Err(DaemonRpcError::Failure)
             }
         };
     }
     let mut stream = UnixStream::connect(&socket_path).map_err(|err| {
         eprintln!("anvil-daemon: {method} connect failed: {err}");
-        GctxDaemonError::Unavailable
+        DaemonRpcError::Unavailable
     })?;
     ipc::validate_connected_peer_for_client(&stream).map_err(|err| {
         eprintln!("anvil-daemon: {method} peer rejected: {err}");
@@ -118,11 +117,11 @@ where
     })?;
     stream.set_read_timeout(Some(TIMEOUT)).map_err(|err| {
         eprintln!("anvil-daemon: {method} read-timeout setup failed: {err}");
-        GctxDaemonError::Failure
+        DaemonRpcError::Failure
     })?;
     stream.set_write_timeout(Some(TIMEOUT)).map_err(|err| {
         eprintln!("anvil-daemon: {method} write-timeout setup failed: {err}");
-        GctxDaemonError::Failure
+        DaemonRpcError::Failure
     })?;
 
     let mut frame = json!({
@@ -136,7 +135,7 @@ where
     crate::usage::attach_principal(&mut frame);
     if let Err(err) = writeln!(stream, "{frame}").and_then(|()| stream.flush()) {
         eprintln!("anvil-daemon: {method} request write failed: {err}");
-        return Err(GctxDaemonError::Failure);
+        return Err(DaemonRpcError::Failure);
     }
 
     let mut reader = BufReader::new(stream);
@@ -147,36 +146,36 @@ where
         .read_until(b'\n', &mut line)
         .map_err(|err| {
             eprintln!("anvil-daemon: {method} response read failed: {err}");
-            GctxDaemonError::Failure
+            DaemonRpcError::Failure
         })?;
     if read == 0 || line.len() as u64 > RESPONSE_LINE_CAP || !line.ends_with(b"\n") {
         eprintln!("anvil-daemon: {method} response was empty, oversized, or unframed");
-        return Err(GctxDaemonError::Failure);
+        return Err(DaemonRpcError::Failure);
     }
     let line = String::from_utf8(line).map_err(|_| {
         eprintln!("anvil-daemon: {method} response was not UTF-8");
-        GctxDaemonError::Failure
+        DaemonRpcError::Failure
     })?;
 
     let envelope: GctxRpcEnvelope<Resp> = serde_json::from_str(&line).map_err(|err| {
         eprintln!("anvil-daemon: {method} response parse failed: {err}");
-        GctxDaemonError::Failure
+        DaemonRpcError::Failure
     })?;
     if envelope.id.as_deref() != Some(request_id) {
         eprintln!("anvil-daemon: {method} response id mismatch");
-        return Err(GctxDaemonError::Failure);
+        return Err(DaemonRpcError::Failure);
     }
     if let Some(error) = envelope.error {
         return if error.code == -32601 {
-            Err(GctxDaemonError::Unavailable)
+            Err(DaemonRpcError::Unavailable)
         } else {
             eprintln!("anvil-daemon: {method} daemon error {}", error.code);
-            Err(GctxDaemonError::Failure)
+            Err(DaemonRpcError::Failure)
         };
     }
     envelope.result.ok_or_else(|| {
         eprintln!("anvil-daemon: {method} response carried neither result nor error");
-        GctxDaemonError::Failure
+        DaemonRpcError::Failure
     })
 }
 
@@ -189,7 +188,7 @@ pub(crate) fn daemon_rpc_call<Req, Resp>(
     method: &str,
     request: &Req,
     request_id: &str,
-) -> Result<Resp, GctxDaemonError>
+) -> Result<Resp, DaemonRpcError>
 where
     Req: Serialize,
     Resp: DeserializeOwned,
@@ -204,22 +203,22 @@ where
 
     let pipe_name = anvil_intercept::ipc::resolve_pipe_name().map_err(|err| {
         eprintln!("anvil-daemon: {method} pipe unavailable: {err}");
-        GctxDaemonError::Unavailable
+        DaemonRpcError::Unavailable
     })?;
     let params = serde_json::to_value(request).map_err(|err| {
         eprintln!("anvil-daemon: {method} request serialise failed: {err}");
-        GctxDaemonError::Failure
+        DaemonRpcError::Failure
     })?;
     let method = method.to_owned();
     let method_label = method.clone();
     let request_id = request_id.to_owned();
     let (tx, rx) = mpsc::sync_channel(1);
     thread::spawn(move || {
-        let outcome: Result<serde_json::Value, GctxDaemonError> = (|| {
+        let outcome: Result<serde_json::Value, DaemonRpcError> = (|| {
             let mut client = anvil_intercept_win32::connect_owner_only_pipe_client(&pipe_name)
                 .map_err(|err| {
                     eprintln!("anvil-daemon: {method} pipe connect failed: {err}");
-                    GctxDaemonError::Unavailable
+                    DaemonRpcError::Unavailable
                 })?;
             let mut frame = json!({
                 "jsonrpc": "2.0",
@@ -230,7 +229,7 @@ where
             crate::usage::attach_principal(&mut frame);
             if let Err(err) = writeln!(client, "{frame}").and_then(|()| client.flush()) {
                 eprintln!("anvil-daemon: {method} pipe request write failed: {err}");
-                return Err(GctxDaemonError::Failure);
+                return Err(DaemonRpcError::Failure);
             }
 
             let mut reader = BufReader::new(client);
@@ -241,36 +240,36 @@ where
                 .read_until(b'\n', &mut line)
                 .map_err(|err| {
                     eprintln!("anvil-daemon: {method} pipe response read failed: {err}");
-                    GctxDaemonError::Failure
+                    DaemonRpcError::Failure
                 })?;
             if read == 0 || line.len() as u64 > RESPONSE_LINE_CAP || !line.ends_with(b"\n") {
                 eprintln!("anvil-daemon: {method} pipe response was empty, oversized, or unframed");
-                return Err(GctxDaemonError::Failure);
+                return Err(DaemonRpcError::Failure);
             }
             let line = String::from_utf8(line).map_err(|_| {
                 eprintln!("anvil-daemon: {method} pipe response was not UTF-8");
-                GctxDaemonError::Failure
+                DaemonRpcError::Failure
             })?;
             let envelope: GctxRpcEnvelope<serde_json::Value> = serde_json::from_str(&line)
                 .map_err(|err| {
                     eprintln!("anvil-daemon: {method} pipe response parse failed: {err}");
-                    GctxDaemonError::Failure
+                    DaemonRpcError::Failure
                 })?;
             if envelope.id.as_deref() != Some(request_id.as_str()) {
                 eprintln!("anvil-daemon: {method} pipe response id mismatch");
-                return Err(GctxDaemonError::Failure);
+                return Err(DaemonRpcError::Failure);
             }
             if let Some(error) = envelope.error {
                 return if error.code == -32601 {
-                    Err(GctxDaemonError::Unavailable)
+                    Err(DaemonRpcError::Unavailable)
                 } else {
                     eprintln!("anvil-daemon: {method} pipe daemon error {}", error.code);
-                    Err(GctxDaemonError::Failure)
+                    Err(DaemonRpcError::Failure)
                 };
             }
             envelope.result.ok_or_else(|| {
                 eprintln!("anvil-daemon: {method} pipe response carried neither result nor error");
-                GctxDaemonError::Failure
+                DaemonRpcError::Failure
             })
         })();
         let _ = tx.send(outcome);
@@ -280,13 +279,13 @@ where
         Ok(outcome) => outcome?,
         Err(mpsc::RecvTimeoutError::Timeout) => {
             eprintln!("anvil-daemon: {method_label} pipe request timed out");
-            return Err(GctxDaemonError::Unavailable);
+            return Err(DaemonRpcError::Unavailable);
         }
-        Err(mpsc::RecvTimeoutError::Disconnected) => return Err(GctxDaemonError::Unavailable),
+        Err(mpsc::RecvTimeoutError::Disconnected) => return Err(DaemonRpcError::Unavailable),
     };
     serde_json::from_value(value).map_err(|err| {
         eprintln!("anvil-daemon: {method_label} pipe response decode failed: {err}");
-        GctxDaemonError::Failure
+        DaemonRpcError::Failure
     })
 }
 
@@ -296,17 +295,17 @@ pub(crate) fn daemon_rpc_call<Req, Resp>(
     method: &str,
     _request: &Req,
     _request_id: &str,
-) -> Result<Resp, GctxDaemonError>
+) -> Result<Resp, DaemonRpcError>
 where
     Req: Serialize,
     Resp: DeserializeOwned,
 {
     tracing::debug!(
-        target: "anvil_mcp::gctx",
+        target: "anvil::daemon",
         method,
-        "GCTX daemon client unavailable on this platform"
+        "daemon transport unavailable on this platform"
     );
-    Err(GctxDaemonError::Unavailable)
+    Err(DaemonRpcError::Unavailable)
 }
 
 #[cfg(all(test, unix))]
@@ -317,7 +316,7 @@ mod tests {
     fn linux_and_macos_peer_validation_failures_remain_hard_failures() {
         assert_eq!(
             classify_peer_validation_failure(PeerCredentialPlatform::LinuxOrMacos),
-            GctxDaemonError::Failure
+            DaemonRpcError::Failure
         );
     }
 
@@ -325,7 +324,7 @@ mod tests {
     fn other_unix_peer_validation_failures_degrade_to_unavailable() {
         assert_eq!(
             classify_peer_validation_failure(PeerCredentialPlatform::OtherUnix),
-            GctxDaemonError::Unavailable
+            DaemonRpcError::Unavailable
         );
     }
 }

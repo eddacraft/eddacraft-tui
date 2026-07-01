@@ -101,8 +101,8 @@ fn symbol_context_payload(arguments: &Value) -> Result<Value, String> {
 
     let response = match daemon_symbol_context(&request) {
         Ok(response) => response,
-        Err(GctxDaemonError::Unavailable) => unavailable_response(),
-        Err(GctxDaemonError::Failure) => {
+        Err(DaemonRpcError::Unavailable) => unavailable_response(),
+        Err(DaemonRpcError::Failure) => {
             return Err("graph-context daemon request failed".to_string());
         }
     };
@@ -255,7 +255,7 @@ fn tool_result(payload: &Value) -> Value {
 }
 
 #[cfg_attr(not(unix), allow(dead_code))]
-enum GctxDaemonError {
+enum DaemonRpcError {
     Unavailable,
     Failure,
 }
@@ -263,7 +263,7 @@ enum GctxDaemonError {
 #[cfg(unix)]
 fn daemon_symbol_context(
     request: &GctxSymbolContextRequest,
-) -> Result<GctxSymbolContextResponse, GctxDaemonError> {
+) -> Result<GctxSymbolContextResponse, DaemonRpcError> {
     use std::io::{BufRead, BufReader, Read, Write};
     use std::os::unix::net::UnixStream;
     use std::time::Duration;
@@ -274,31 +274,31 @@ fn daemon_symbol_context(
     const RESPONSE_LINE_CAP: u64 = 4 << 20;
     const REQUEST_ID: &str = "mcp-gctx-symbol-context";
 
-    let socket_path = ipc::resolve_socket_path().map_err(|_| GctxDaemonError::Unavailable)?;
+    let socket_path = ipc::resolve_socket_path().map_err(|_| DaemonRpcError::Unavailable)?;
     if let Err(err) = ipc::validate_socket_path_for_client(&socket_path) {
         eprintln!("anvil-mcp: gctx symbol_context socket unavailable: {err}");
         return match err {
             ipc::IpcError::Io(io) if io.kind() == std::io::ErrorKind::NotFound => {
-                Err(GctxDaemonError::Unavailable)
+                Err(DaemonRpcError::Unavailable)
             }
-            _ => Err(GctxDaemonError::Failure),
+            _ => Err(DaemonRpcError::Failure),
         };
     }
     let mut stream = UnixStream::connect(&socket_path).map_err(|err| {
         eprintln!("anvil-mcp: gctx symbol_context connect failed: {err}");
-        GctxDaemonError::Unavailable
+        DaemonRpcError::Unavailable
     })?;
     ipc::validate_connected_peer_for_client(&stream).map_err(|err| {
         eprintln!("anvil-mcp: gctx symbol_context peer rejected: {err}");
-        GctxDaemonError::Failure
+        DaemonRpcError::Failure
     })?;
     stream.set_read_timeout(Some(TIMEOUT)).map_err(|err| {
         eprintln!("anvil-mcp: gctx symbol_context read-timeout setup failed: {err}");
-        GctxDaemonError::Failure
+        DaemonRpcError::Failure
     })?;
     stream.set_write_timeout(Some(TIMEOUT)).map_err(|err| {
         eprintln!("anvil-mcp: gctx symbol_context write-timeout setup failed: {err}");
-        GctxDaemonError::Failure
+        DaemonRpcError::Failure
     })?;
 
     let mut frame = json!({
@@ -310,7 +310,7 @@ fn daemon_symbol_context(
     crate::usage::attach_principal(&mut frame);
     if let Err(err) = writeln!(stream, "{frame}").and_then(|()| stream.flush()) {
         eprintln!("anvil-mcp: gctx symbol_context request write failed: {err}");
-        return Err(GctxDaemonError::Failure);
+        return Err(DaemonRpcError::Failure);
     }
 
     let mut reader = BufReader::new(stream);
@@ -321,41 +321,41 @@ fn daemon_symbol_context(
         .read_until(b'\n', &mut line)
         .map_err(|err| {
             eprintln!("anvil-mcp: gctx symbol_context response read failed: {err}");
-            GctxDaemonError::Failure
+            DaemonRpcError::Failure
         })?;
     if read == 0 || line.len() as u64 > RESPONSE_LINE_CAP || !line.ends_with(b"\n") {
         eprintln!("anvil-mcp: gctx symbol_context response was empty, oversized, or unframed");
-        return Err(GctxDaemonError::Failure);
+        return Err(DaemonRpcError::Failure);
     }
     let line = String::from_utf8(line).map_err(|_| {
         eprintln!("anvil-mcp: gctx symbol_context response was not UTF-8");
-        GctxDaemonError::Failure
+        DaemonRpcError::Failure
     })?;
 
     let envelope: GctxRpcEnvelope = serde_json::from_str(&line).map_err(|err| {
         eprintln!("anvil-mcp: gctx symbol_context response parse failed: {err}");
-        GctxDaemonError::Failure
+        DaemonRpcError::Failure
     })?;
     if envelope.id.as_deref() != Some(REQUEST_ID) {
         eprintln!("anvil-mcp: gctx symbol_context response id mismatch");
-        return Err(GctxDaemonError::Failure);
+        return Err(DaemonRpcError::Failure);
     }
     if let Some(error) = envelope.error {
         return if error.code == -32601 {
-            Err(GctxDaemonError::Unavailable)
+            Err(DaemonRpcError::Unavailable)
         } else {
             eprintln!("anvil-mcp: gctx symbol_context daemon error {}", error.code);
-            Err(GctxDaemonError::Failure)
+            Err(DaemonRpcError::Failure)
         };
     }
-    envelope.result.ok_or(GctxDaemonError::Failure)
+    envelope.result.ok_or(DaemonRpcError::Failure)
 }
 
 #[cfg(not(unix))]
 fn daemon_symbol_context(
     _request: &GctxSymbolContextRequest,
-) -> Result<GctxSymbolContextResponse, GctxDaemonError> {
-    Err(GctxDaemonError::Unavailable)
+) -> Result<GctxSymbolContextResponse, DaemonRpcError> {
+    Err(DaemonRpcError::Unavailable)
 }
 
 #[cfg(unix)]
