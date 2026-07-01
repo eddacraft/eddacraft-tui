@@ -1498,17 +1498,25 @@ where
         return Err(AppendError::Gated);
     }
 
-    // Project the caller-controlled entry from a template line. The `(seq, prev)`
-    // placeholders are overwritten by whichever writer performs the append; the
-    // daemon also asserts `ts`. `build` is `Fn` so the embedded leg can rebuild
-    // the line with the real `(seq, prev)` under the writer's lock.
-    let entry = witness_entry_from_line(&build(0, String::new()));
+    // Build the line ONCE. `build` (and any non-determinism inside it, e.g.
+    // `Utc::now()`) runs exactly once regardless of which leg wins: the daemon leg
+    // sends the projected entry; the embedded leg reuses this exact template and
+    // only fills the writer-derived `(seq, prev_line_hash)` under the lock. This is
+    // what keeps the recorded caller-controlled fields identical across legs and
+    // avoids re-invoking `build` on the fallback path (no double side effects).
+    let template = build(0, String::new());
+    let entry = witness_entry_from_line(&template);
 
     finish_witness_route(
         daemon_witness_append(repo_root, &entry),
         repo_root,
         project_uuid,
-        build,
+        move |seq, prev_line_hash| {
+            let mut line = template.clone();
+            line.seq = seq;
+            line.prev_line_hash = prev_line_hash;
+            line
+        },
     )
 }
 
