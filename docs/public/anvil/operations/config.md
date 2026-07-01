@@ -108,6 +108,16 @@ JSON and YAML use **camelCase** keys. TOML uses **snake_case** keys.
 | `antipattern-scan`  | Detect common code anti-patterns      |
 | `policy`            | Evaluate OPA policy rules             |
 | `command-safety`    | Detect dangerous shell commands       |
+| `sql-migrations`    | Detect risky SQL migration patterns   |
+| `github-actions`    | Detect risky workflow patterns        |
+| `dockerfile`        | Detect Dockerfile build-hygiene risks |
+| `shell-scripts`     | Detect shell-script governance risks  |
+
+The four infrastructure-hygiene surfaces are default-on in the current release
+window and can be forced for a session with `ANVIL_TRACK_SURFACE_SQL=1`,
+`ANVIL_TRACK_SURFACE_GHA=1`, `ANVIL_TRACK_SURFACE_DOCK=1`, or
+`ANVIL_TRACK_SURFACE_SH=1`. Set the matching variable to `0` to opt that surface
+out for the session.
 
 ## Gate Configuration
 
@@ -430,7 +440,7 @@ intercept daemon is already live and serving the save-time verbs. The daemon
 validates the changed-path delta against one warm model rather than spawning a
 per-save subprocess, so `anvil watch` and the editor/agent MCP
 `anvil_validate_write` tool converge on the same verdict path. As of
-`v0.8.1-beta`, an interactive `anvil start` auto-starts the daemon and an
+`v0.8.2-beta`, an interactive `anvil start` auto-starts the daemon and an
 interactive `anvil watch` offers to start one when none is answering (Linux and
 macOS) — pass `--no-daemon`, or set `ANVIL_NO_DAEMON=1` for `start`, to suppress
 that auto-start/offer (a daemon already running is still reused). See the
@@ -659,6 +669,10 @@ configuration, including:
   fence observation rows record absolute validated paths instead of only a path
   count. **Changes the privacy posture; off by default.** See the
   `docs/observability/usage-analytics.md#operator-controls-environment-variables`
+- `ANVIL_TRACK_SURFACE_SQL`, `ANVIL_TRACK_SURFACE_GHA`,
+  `ANVIL_TRACK_SURFACE_DOCK`, `ANVIL_TRACK_SURFACE_SH` — set `0` to opt out of
+  the matching default-on infrastructure-hygiene surface for the session, or `1`
+  to force it on.
 
 Legacy Node.js environment variables (`ANVIL_CI`, `ANVIL_FAIL_ON_WARNINGS`) are
 not supported.

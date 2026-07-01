@@ -13,26 +13,27 @@ anvil provides an MCP (Model Context Protocol) server for AI agent integration.
 
 As of `v0.6.0-beta`, the Rust CLI's `anvil mcp serve --stdio` shim is the
 primary MCP surface, backed by the local Anvil daemon over owner-only IPC for
-validation. It exposes `anvil_validate_write` for pre-write validation and
-`anvil_status` for read-only workspace health — see
-[Available Tools](#available-tools) below. The daemon-backed validation path
-uses Unix sockets on Linux/macOS and owner-only named pipes on Windows as of
-`v0.7.1-beta`; the embedded scanner is the correctness-equivalent fallback when
-the daemon is not reachable. As of `v0.8.0-beta`, `anvil watch` routes its
-save-time checks through the same daemon validation path by default when the
-daemon is live (`ANVIL_WATCH_DAEMON=0` opts out; see the
-[save-time validation guide](../guides/save-time-validation.md) for the full
-routing story), so editor/agent MCP writes and terminal watch converge on one
-warm verdict path instead of two separate scanners. As of `v0.8.1-beta`, an
-interactive `anvil start` auto-starts that daemon (and `anvil watch` offers to),
-so the daemon-backed path is the normal one rather than something you launch by
-hand — see the
+validation. It exposes `anvil_validate_write` for pre-write validation,
+`anvil_status` for read-only workspace health, and read-only graph-context tools
+for assistant planning — see [Available Tools](#available-tools) below. The
+daemon-backed validation path uses Unix sockets on Linux/macOS and owner-only
+named pipes on Windows as of `v0.7.1-beta`; the embedded scanner is the
+correctness-equivalent fallback when the daemon is not reachable. As of
+`v0.8.0-beta`, `anvil watch` routes its save-time checks through the same daemon
+validation path by default when the daemon is live (`ANVIL_WATCH_DAEMON=0` opts
+out; see the [save-time validation guide](../guides/save-time-validation.md) for
+the full routing story), so editor/agent MCP writes and terminal watch converge
+on one warm verdict path instead of two separate scanners. As of `v0.8.2-beta`,
+on Linux and macOS an interactive `anvil start` can auto-start that daemon and
+`anvil watch` can offer to start one, so the daemon-backed path is the normal
+one rather than something you launch by hand. Windows still uses foreground
+daemon launch for now — see the
 [daemon lifecycle](../guides/save-time-validation.md#daemon-lifecycle).
 
 The legacy Node.js MCP server (`@eddacraft/anvil-mcp-server`, last published at
-`0.4.0-beta`) is no longer the recommended runtime path. Its broader tool,
-resource, and prompt catalogue is frozen historical compatibility material;
-RMCPF tracks which pieces return in Rust.
+`0.4.0-beta`) is no longer the recommended runtime path. Its mutation-oriented
+tool and prompt catalogue is frozen historical compatibility material; the
+active Rust surface now carries validation, status, and graph context.
 
 :::
 
@@ -45,20 +46,23 @@ exposes:
   every supported OS when the daemon is reachable; embedded fallback otherwise)
 - Workspace health summaries via `anvil_status` (Rust shim, local read-only
   status with explicit no-daemon provenance)
-- Broader tools, resources, and prompts after RMCPF ports or explicitly retires
-  each frozen legacy contract
+- Assistant graph context via identity-only tools and `graph://` resources for
+  symbols, dependency/caller traversal, impact reports, affected-test hints, and
+  bounded symbol context
 
 ## What `anvil start` Does to Your MCP Config
 
 For Cursor or Claude Code, the easiest path is `anvil start`. The activator
-calls into the same `mcp install` machinery internally for the supported
-clients, writing `~/.cursor/mcp.json` and `~/.claude.json` (Claude Code's
-canonical config location), then probes whether the editor's MCP transport can
-reach the shim. Pass `--verify` for a read-only probe that prints the diagnostic
-without writing anything:
+calls into the same `mcp install` machinery internally for supported clients it
+detects on the host, writing the matching editor config (`~/.cursor/mcp.json`
+for Cursor or `~/.claude.json` for Claude Code), then probes whether the
+editor's MCP transport can reach the shim. Pass `--all-mcp-clients` or set
+`ANVIL_ALL_MCP_CLIENTS=1` to opt into configuring every supported client even if
+it was not detected. Pass `--verify` for a read-only probe that prints the
+diagnostic without writing anything:
 
 ```bash
-anvil start            # activate Cursor + Claude Code if installed
+anvil start            # activate detected Cursor / Claude Code installs
 anvil start --verify   # probe state, no writes
 ```
 
@@ -159,6 +163,13 @@ Anvil setup path.
 
 ## Available Tools
 
+The Rust MCP server has two active halves:
+
+- **Validation** — `anvil_validate_write` is the launch gate for proposed
+  writes. It can allow or block a change before an assistant writes to disk.
+- **Graph context** — the graph tools and resources below are read-only planning
+  aids. They return context, never an enforcement decision.
+
 ### anvil_validate_write
 
 Served by the Rust `anvil mcp serve --stdio` shim. Validates a proposed file
@@ -195,15 +206,50 @@ the same checks; use `anvil intercept status` to inspect daemon health directly.
 
 :::
 
-The RMCPF port is adding the broader historical tool surface incrementally. The
-Rust shim now exposes `anvil_status` as a read-only local workspace-health
-summary. Its response keeps the legacy fields (`status`, `workspaceRoot`,
-`availableChecks`, `config`, `hasBaseline`, and `version`) but redacts path
-values to workspace-relative forms. It also adds `backend: "local"` plus
-`daemonStatus: "not-wired"` so clients do not mistake it for daemon-owned state.
-The remaining historical tools (`anvil_check`, `anvil_gate`, `anvil_fix`,
-`anvil_suppress`, `anvil_query_boundary`) are still owned by RMCPF's Rust
-port-or-retire decision.
+### anvil_status
+
+Read-only workspace health summary. Its response keeps the legacy fields
+(`status`, `workspaceRoot`, `availableChecks`, `config`, `hasBaseline`, and
+`version`) but redacts path values to workspace-relative forms and includes
+local backend/daemon provenance.
+
+### Assistant graph-context tools
+
+These tools query the daemon's resident graph so an assistant can understand the
+codebase before it edits. They are identity-only by default: names, kinds,
+workspace-relative paths, visibility, and edges can cross the boundary; source
+text, absolute paths, secrets, operator identity, and raw trust levels do not.
+
+| Tool                     | Use                                                                          |
+| ------------------------ | ---------------------------------------------------------------------------- |
+| `anvil_search_symbols`   | Find symbols by name, kind, file, language, or visibility.                   |
+| `anvil_find_dependents`  | List files that import a file, with bounded hop distance.                    |
+| `anvil_find_callers`     | List symbols that call a target symbol, marked heuristic when approximate.   |
+| `anvil_impact_of_change` | Report affected symbols, dependent files, and known tests for changed paths. |
+| `anvil_affected_tests`   | Suggest test files importing changed files and call out coverage gaps.       |
+| `anvil_symbol_context`   | Return bounded neighbourhood context around a symbol or file.                |
+
+`anvil_symbol_context` is the only graph tool that can return source snippets.
+Snippets require both workspace/operator consent and `includeSource: true` on
+the request. Use `anvil gctx egress enable`, `status`, and `disable` to manage
+persisted workspace consent; `ANVIL_GCTX_EGRESS=0` disables the whole graph
+context surface for the process, while leaving it unset keeps the safe
+identity-only default unless consent has been recorded.
+
+### Graph resources
+
+For MCP clients that prefer resources, the same graph is exposed as:
+
+| Resource          | Use                                                         |
+| ----------------- | ----------------------------------------------------------- |
+| `graph://stats`   | Symbol, edge, and file counts.                              |
+| `graph://symbols` | Paged symbol identity summaries; optionally scoped by file. |
+| `graph://edges`   | Paged graph edges with bounded-result signalling.           |
+
+Graph tools and resources can return named outcomes instead of data: `ready`,
+`not_ready`, `unavailable`, `disabled`, or `invalid_query`. A `not_ready` result
+means the daemon is warming the graph and a retry is usually enough;
+`unavailable` means the daemon is not reachable.
 
 ## Frozen legacy Node MCP catalogue
 
@@ -335,9 +381,8 @@ The legacy Node MCP server exposes read-only resources:
 | `anvil://patterns`             | Anti-pattern catalogue                        |
 | `anvil://suppressions`         | Active suppressions with expiry dates         |
 
-These resource names describe the legacy Node surface. The Rust MCP migration
-will either port or retire them explicitly. Where resources are ported, their
-data source is the active Rust surface: constraints from
+These resource names describe the legacy Node surface. Where old resources are
+ported, their data source is the active Rust surface: constraints from
 `anvil export --format mcp-resource`, drift from `anvil drift`, and suppressions
 from the Rust `.anvil/suppressions.json` readers. The archived TypeScript
 `runtime/export` pipeline is historical fixture material only.

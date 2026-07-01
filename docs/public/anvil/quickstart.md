@@ -21,14 +21,14 @@ protection, authenticate and run `anvil start`.
 
 ## Prerequisites
 
-- A TypeScript, JavaScript, or Rust project
+- A TypeScript, JavaScript, Python, or Rust project
 - A terminal (macOS, Linux, or Windows)
 
 ## 1. Install
 
 :::info Beta
 
-anvil is currently in beta — the latest tagged release is `v0.8.1-beta`. If your
+anvil is currently in beta — the latest tagged release is `v0.8.2-beta`. If your
 team has gated beta access, use the GitHub account tied to that access when
 prompted by anvil or the docs site. See the
 [beta testing guide](/anvil/beta-testing-guide) for the current scope and known
@@ -140,13 +140,15 @@ anvil start
 ```
 
 `anvil start` is the activation entrypoint. It runs `anvil init` if needed,
-baselines the repo, wires Cursor and Claude Code MCP entries (writing
-`~/.cursor/mcp.json` and `~/.claude.json`), and ends in one literal protection
-state. As of `v0.8.1-beta`, an interactive terminal also auto-starts the
-per-user save-time daemon (Linux, macOS, and Windows) and reports the result on
-a `daemon:` line; pass `--no-daemon` (or set `ANVIL_NO_DAEMON=1`) to suppress
-that auto-start — a daemon already running is still reused — and note `--verify`
-never starts a daemon. The protection state is one of:
+baselines the repo, wires detected Cursor and Claude Code MCP entries (writing
+the matching `~/.cursor/mcp.json` or `~/.claude.json` config), and ends in one
+literal protection state. Pass `--all-mcp-clients` or set
+`ANVIL_ALL_MCP_CLIENTS=1` to configure every supported client even if it was not
+detected. In the current release window, an interactive terminal also
+auto-starts the per-user save-time daemon (Linux and macOS) and reports the
+result on a `daemon:` line; pass `--no-daemon` (or set `ANVIL_NO_DAEMON=1`) to
+suppress that auto-start — a daemon already running is still reused — and note
+`--verify` never starts a daemon. The protection state is one of:
 
 - `protecting` — MCP pre-write validation is live
 - `ready_restart_required` — config is wired, restart Cursor/Claude Code to pick
@@ -154,8 +156,7 @@ never starts a daemon. The protection state is one of:
   unenforced, stale, or all-quarantined
 - `watching` — save-time watch fallback active (MCP could not attach)
 - `needs_action` — repair hint provided
-- `unsupported` — repo language profile is out of scope (e.g. Python in this
-  release)
+- `unsupported` — repo language profile is out of scope for this release
 - `error` — see the diagnostic output
 
 When the daemon is running and reachable over owner-only IPC, the
@@ -204,8 +205,8 @@ the finding anvil raises in your own repo — follow
 
 ## 5. Connect Your AI Editor (MCP)
 
-`anvil start` already wires MCP entries for Cursor and Claude Code (writing
-`~/.cursor/mcp.json` and `~/.claude.json`). To finish the connection:
+`anvil start` already wires MCP entries for detected Cursor and Claude Code
+installs. To finish the connection:
 
 1. Restart Cursor or Claude Code so it picks up the new MCP entry.
 2. Check that `anvil` appears in the editor's MCP server list.

@@ -3495,3 +3495,28 @@ archive.
   exemption + recovery comment); `docs/runbooks/anvil-witness-chain.md` (§5b).
 - **Identified From:** MLP2-005 phase-1 Council (2026-06-30) — adversarial residual
   (the proposed `any_nonempty` fix does not close the zero-byte case).
+- **Confidence:** low — needs a design decision before execution.
+
+### CIB-127: Sync public docs to current release delta
+
+- **Status:** Done
+- **Intent:** Align public user documentation with release-facing behaviour landed
+  since the last tagged baseline.
+- **Expected Outcome:** Public release notes, MCP docs, activation/language-support
+  copy, daemon troubleshooting, config reference, and insights docs no longer
+  contradict the current release delta.
+- **Validation:** `pnpm run docs:check`
+- **Files:** `docs/public/anvil/releases/changelog.md`,
+  `docs/public/anvil/integrations/mcp.md`,
+  `docs/public/anvil/quickstart.md`,
+  `docs/public/anvil/beta-testing-guide.md`,
+  `docs/public/anvil/guides/wow-start-demo.md`,
+  `docs/public/anvil/tutorials/rust-project.md`,
+  `docs/public/anvil/overview.md`,
+  `docs/public/anvil/operations/config.md`,
+  `docs/public/anvil/operations/troubleshooting.md`,
+  `docs/public/anvil/guides/insights.md`.
+- **Identified From:** Public-doc review after `v0.8.2-beta` showing stale release
+  baseline, missing GCTX MCP context docs, stale Python support copy, and
+  conflicting daemon-stop guidance.
+- **Confidence:** high.

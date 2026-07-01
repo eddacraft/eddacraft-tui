@@ -13,7 +13,7 @@ Welcome to the anvil beta. Thank you for putting real projects through the tool:
 the best feedback comes from normal development work, not from perfect demo
 repos.
 
-**Current version:** 0.8.1-beta
+**Latest tagged beta:** 0.8.2-beta
 
 anvil is a single native binary that analyses your codebase for architectural
 drift, AI-generated anti-patterns, and project convention violations. It is
@@ -23,8 +23,28 @@ pre-write attachment is not available.
 
 ## What's New to Focus Testing On
 
-The current tagged cut is `0.8.1-beta`. These are the highest-leverage flows. If
-you only have a short session, these are the right places to spend it.
+The current release-candidate window builds on `v0.8.2-beta`. These are the
+highest-leverage flows. If you only have a short session, these are the right
+places to spend it.
+
+### Current release-candidate focus
+
+- **Assistant graph context.** In Cursor or Claude Code, confirm the Rust MCP
+  server exposes graph tools such as `anvil_search_symbols`,
+  `anvil_impact_of_change`, and `anvil_symbol_context`, plus the `graph://stats`
+  resource. Results should be identity-only unless snippet egress has been
+  explicitly enabled.
+- **Python project support.** Point anvil at a real Python project and check
+  that Python files are analysed rather than reported as unsupported. Judge
+  whether antipattern, entry-point, boundary, and graph/call-edge findings are
+  useful.
+- **Infrastructure hygiene.** Run `anvil gate` on repositories with Dockerfiles,
+  GitHub Actions workflows, shell scripts, or SQL migrations. The corresponding
+  default-on surfaces should produce actionable warnings and respect their
+  `ANVIL_TRACK_SURFACE_*` opt-outs.
+- **Usage and operations helpers.** Try `anvil kindling usage`,
+  `anvil report-fp`, `anvil drift migrate`, and typo suggestions for unknown
+  `--skip`/`--disable` check IDs.
 
 ### New in `v0.8.1-beta` — daemon lifecycle
 
@@ -119,10 +139,9 @@ a testing session.
   actually surfaces a finding. Run `anvil watch --action none` to restore the
   architecture/dependency-only watch.
 - **Repo language profile honesty.** Activation names detected languages and
-  their coverage tier (TypeScript, JavaScript, and Rust supported; SQL and
-  Markdown partial; Python unsupported). Language-specific antipattern checks
-  honour the profile; cross-language checks (e.g. secrets) still run on every
-  file.
+  their coverage tier (TypeScript, JavaScript, Python, and Rust supported; SQL
+  and Markdown partial). Language-specific antipattern checks honour the
+  profile; cross-language checks (e.g. secrets) still run on every file.
 
 ## What We Need From You
 
@@ -135,9 +154,8 @@ The most useful feedback answers these questions:
   the printed state was `protecting`, was it actually catching writes?
 - Did Cursor or Claude Code show `anvil` in the MCP list after restart? Did an
   AI rewrite get refused before the write landed, or did it slip through?
-- Did the language profile in the activation summary match your repo? If your
-  repo is mostly Python, did the summary name the gap instead of pretending
-  coverage?
+- Did the language profile in the activation summary match your repo, especially
+  for Python and mixed-language projects?
 - Did install, sign-in (if you used it), and project setup work without help?
 - Were warnings accurate, actionable, and easy to triage?
 - When MCP couldn't attach, did the watch fallback (`anvil start --watch` /
@@ -156,7 +174,8 @@ are real.
 You will need:
 
 - A macOS, Linux, or Windows machine.
-- A TypeScript, JavaScript, or Rust project you are comfortable testing against.
+- A TypeScript, JavaScript, Python, or Rust project you are comfortable testing
+  against.
 - Git installed, ideally with a clean working tree or a disposable branch.
 - Beta access tied to the email or GitHub account we invited.
 - Node.js and your project package manager if you want gate checks to run your
@@ -628,11 +647,11 @@ One sentence describing what happened.
   reserve fence-directory removal for full reset or corrupt daemon state.
 - **Windows CI runs only on `main` syncs.** A dev-branch build's CI green does
   not mean the Windows target was tested for that change.
-- **Primary language coverage is TypeScript, JavaScript, and Rust.** SQL and
-  Markdown are partial; Python is unsupported in v1. The activation summary
-  names the gap. Rust antipattern rules currently emit at advisory
-  (`info`/`warning`) severity, and Rust architecture/boundary checks — like
-  every language — only run when an `.anvil/architecture.yaml` is present.
+- **Primary language coverage is TypeScript, JavaScript, Python, and Rust.** SQL
+  and Markdown are partial; out-of-scope languages are named honestly. Rust
+  antipattern rules currently emit at advisory (`info`/`warning`) severity, and
+  Rust architecture/boundary checks — like every language — only run when an
+  `.anvil/architecture.yaml` is present.
 - **Gate checks may call your existing tools.** If lint, test, OPA, or other
   project tools are missing locally, `anvil gate` may skip or fail those checks.
 - **Architecture checks need an architecture definition.** Use

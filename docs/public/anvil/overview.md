@@ -106,17 +106,17 @@ emitted, what passed, what failed, and when.
 
 ## Key Features
 
-| Feature                      | Description                                                                                                                                     |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`anvil start` Activation** | Wires Cursor / Claude Code MCP entries, baselines, and prints one literal protection state                                                      |
-| **Daemon-backed MCP**        | `anvil_validate_write` runs pre-write through the local daemon; embedded fallback                                                               |
-| **Architecture Safety**      | Detects dependency violations using import analysis                                                                                             |
-| **Anti-Pattern Library**     | 18 registry-driven rules (15 default, 3 opt-in)                                                                                                 |
-| **Parallel Scan Engine**     | Rust scanner runs tens of artifacts concurrently                                                                                                |
-| **Watch Mode (fallback)**    | Save-time fallback when MCP pre-write cannot attach                                                                                             |
-| **Repo language profile**    | TS / JS / Web / Rust supported; SQL & Markdown partial; other detected languages (Python, Go, C/C++, …) reported unsupported and named honestly |
-| **Suppression System**       | Allow exceptions with mandatory explanations                                                                                                    |
-| **GitHub Integration**       | PR checks and inline comments                                                                                                                   |
+| Feature                      | Description                                                                                                                                      |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **`anvil start` Activation** | Wires Cursor / Claude Code MCP entries, baselines, and prints one literal protection state                                                       |
+| **Daemon-backed MCP**        | `anvil_validate_write` runs pre-write through the local daemon; embedded fallback                                                                |
+| **Architecture Safety**      | Detects dependency violations using import analysis                                                                                              |
+| **Anti-Pattern Library**     | 18 registry-driven rules (15 default, 3 opt-in)                                                                                                  |
+| **Parallel Scan Engine**     | Rust scanner runs tens of artifacts concurrently                                                                                                 |
+| **Watch Mode (fallback)**    | Save-time fallback when MCP pre-write cannot attach                                                                                              |
+| **Repo language profile**    | TS / JS / Web / Python / Rust supported; SQL & Markdown partial; other detected languages (Go, C/C++, …) reported unsupported and named honestly |
+| **Suppression System**       | Allow exceptions with mandatory explanations                                                                                                     |
+| **GitHub Integration**       | PR checks and inline comments                                                                                                                    |
 
 ## Anti-Patterns Detected
 
@@ -183,7 +183,7 @@ For the full explanation of checks, findings, and gates, see
 
 **Ready to start?** [Go to the quickstart →](/anvil/quickstart)
 
-anvil is currently in beta — the latest tagged release is `v0.8.1-beta`. See the
+anvil is currently in beta — the latest tagged release is `v0.8.2-beta`. See the
 [beta testing guide](/anvil/beta-testing-guide) for what to expect. If you're
 upgrading from `0.6.x`, read the
 [0.7.0-beta upgrade notes](releases/upgrade-notes.md#upgrading-to-070-beta)
