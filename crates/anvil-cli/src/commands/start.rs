@@ -85,7 +85,8 @@ pub struct StartArgs {
     pub watch: bool,
     /// Pick a config file format for first-run activation. When set,
     /// the orchestrator writes `.anvil.<ext>` (yaml / yml / json /
-    /// toml) instead of the legacy `.anvilrc`.
+    /// toml) instead of the legacy `.anvilrc`. Incompatible with
+    /// `--verify` / `--json` (read-only).
     #[arg(long, value_enum)]
     pub format: Option<StartFormat>,
     /// Mint a fresh project UUID and record the previous one as
@@ -239,13 +240,24 @@ pub fn run(args: &StartArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     // MLP2-039 — when `--format` is set and no project config exists yet,
     // write `.anvil.<ext>` BEFORE the orchestrator runs so that its init
     // step (which currently writes `.anvilrc`) is suppressed by the
-    // already-present config. Read-only / `--verify` skips the pre-write
-    // (it would mutate state) and falls through to the diagnostic.
-    if !read_only
-        && !project_writes_gated
-        && let Some(format) = args.format
-    {
-        pre_write_anvil_config(root, format)?;
+    // already-present config.
+    if let Some(format) = args.format {
+        // CIB-051: the pre-write creates `.anvil.<ext>`, durable project
+        // state a read-only probe must never touch. Reject the
+        // combination explicitly — mirroring the `--watch` /
+        // `--new-identity` bails above — rather than silently dropping
+        // the flag.
+        if read_only {
+            bail!(
+                "`--format` is incompatible with `--verify` / `--json` (read-only) — it writes `.anvil.<ext>` on first run. Drop the read-only flag to adopt the config."
+            );
+        }
+        // DISTRIB-006 (ADR-060): a gated ANVIL_HOME suppresses the durable
+        // per-project write; the orchestrator emits the read-only-posture
+        // note.
+        if !project_writes_gated {
+            pre_write_anvil_config(root, format)?;
+        }
     }
 
     // DLIFE-003 (ADR-082): in an interactive session `anvil start` is the

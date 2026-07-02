@@ -673,6 +673,73 @@ fn start_watch_with_verify_is_rejected() {
 }
 
 #[test]
+fn start_verify_with_format_is_rejected() {
+    // CIB-051: `--format` pre-writes `.anvil.<ext>` — a durable project
+    // mutation — while `--verify` is read-only. The combination used to
+    // silently drop `--format`; reject it explicitly like the
+    // `--watch` / `--new-identity` siblings so the user gets a clear
+    // error instead.
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let out = run_start_with_home(dir.path(), home.path(), &["--verify", "--format", "yaml"]);
+    assert!(
+        !out.status.success(),
+        "`--verify --format` must fail, stdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr),
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("`--format` is incompatible with `--verify` / `--json` (read-only)"),
+        "error message must explain the conflict, got:\n{stderr}"
+    );
+    // Clean bail before side effects — no config file may be written.
+    assert!(
+        !dir.path().join(".anvil.yaml").exists(),
+        "`--verify --format` must not write .anvil.yaml"
+    );
+}
+
+#[test]
+fn start_json_with_format_is_rejected() {
+    // CIB-051: `--json` implies read-only exactly like `--verify`, so
+    // the `--format` pre-write is rejected for the same reason. Pin the
+    // second half of the read-only condition the way
+    // `start_watch_with_json_is_rejected` pins its sibling.
+    let dir = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    let mut cmd = Command::new(ANVIL_BIN);
+    cmd.arg("--no-tui")
+        .arg("--json")
+        .arg("start")
+        .arg("--format")
+        .arg("yaml")
+        .current_dir(dir.path())
+        .env("HOME", home.path())
+        .env("USERPROFILE", home.path())
+        .env_remove("XDG_CONFIG_HOME")
+        .env("ANVIL_DEV", "1")
+        .env("ANVIL_SKIP_WELCOME", "1");
+    let out = cmd.output().expect("failed to invoke anvil binary");
+    assert!(
+        !out.status.success(),
+        "`--json` + `--format` must fail, stdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr),
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("`--format` is incompatible with `--verify` / `--json` (read-only)"),
+        "error message must explain the conflict, got:\n{stderr}"
+    );
+    // Clean bail before side effects — no config file may be written.
+    assert!(
+        !dir.path().join(".anvil.yaml").exists(),
+        "`--json` + `--format` must not write .anvil.yaml"
+    );
+}
+
+#[test]
 fn start_watch_with_json_is_rejected() {
     // LAUNCH-011: the watcher streams event lines; `--json` expects a
     // single parseable document. Reject the combination explicitly.
