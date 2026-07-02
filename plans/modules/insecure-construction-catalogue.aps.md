@@ -229,7 +229,15 @@ New registry `prefixes` entries (one per family), mirroring `GS`/`DD`/`PY`:
 
 ## Open Questions
 
-- [ ] Which extension set should `unsafe-rendering` scan (web-only vs default)?
-- [ ] Should JWT `alg: none` live in `weak-cryptography` or its own `jwt-misuse`
-      family? (ADR-087 left this open.)
-- [ ] What N% FP bar does the operator accept for the enabled families?
+- [x] Which extension set should `unsafe-rendering` scan (web-only vs default)?
+      Resolved (#3028): JS/TS only (`.ts/.tsx/.js/.jsx/.mjs/.cjs`); `.html/.css`
+      retired from the scan set.
+- [x] Should JWT `alg: none` live in `weak-cryptography` or its own `jwt-misuse`
+      family? (ADR-087 left this open.) Resolved (#3028): stays in
+      `weak-cryptography` (WC-003); no separate `jwt-misuse` family.
+- [x] What N% FP bar does the operator accept for the enabled families?
+      Resolved (#3031, 2026-07-02): **`N` = 5% per family**. All enabled families
+      clear it; WC-001 stays default-on `warning` (MD5-as-checksum findings are
+      suppressible true positives via `@anvil-ignore`, hard-FP rate 0%), not
+      downgraded to opt-in. Evidence:
+      [`plans/reviews/2026-07-01-insec-external-validation.md`](../reviews/2026-07-01-insec-external-validation.md).

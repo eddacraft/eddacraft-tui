@@ -158,20 +158,30 @@ git-ignored and is not part of `anvil check --changed/--all` file discovery
 not a precision problem — the families are for *application* source, where the
 0% UR figure above applies.
 
-## Proposed acceptance bar `N` (Open Question #3 — operator sign-off)
+## Accepted acceptance bar `N` (Open Question #3 — operator-confirmed)
 
-The measured application-corpus rates support a **bar of `N` = 10% per family**:
+**Operator decision (2026-07-02, #3031): `N` = 5% per family** — stricter than
+the 10% this report first proposed. All enabled families clear it, and no rule
+change is warranted:
 
 - `unsafe-rendering` clears it outright (0%).
-- `weak-cryptography`'s only findings are the anticipated, warning-severity,
-  suppressible MD5-as-checksum class; keep MD5 at **`warning`** (not `error`) and
-  revisit an opt-in downgrade only if field FP pressure exceeds 10% on a
-  non-toy corpus. WC-002/WC-003 produced zero application-corpus FPs.
+- `weak-cryptography` clears it too. Its only residual findings are the two
+  MD5-as-non-security-checksum warnings, and under ADR-087's construction-smell
+  model those are **suppressible true positives, not hard false positives**: the
+  rule fired on a genuine MD5 construction, and the designed response is a
+  one-line `@anvil-ignore WC-001 -- <reason>` annotation (per the WC-001 nudge).
+  A suppressed finding does not affect the score and does not fail the gate
+  (ADR-029; `antipattern::check` test `suppressed_warnings_do_not_affect_score_
+  or_fail`), and WC-001 already ships at `warning` (exit 0), so it never blocks.
+  The family's *hard*-FP rate is therefore 0%, which clears 5%. **WC-001 stays
+  default-on at `warning`; MD5 is not downgraded to opt-in.** Revisit only if
+  field FP pressure exceeds 5% on a non-toy corpus. WC-002/WC-003 produced zero
+  application-corpus FPs.
 
-**This numeric bar (`N`) is a product decision and is flagged for operator
-confirmation.** The `weak-cryptography` and `unsafe-rendering` families ship at
+The `weak-cryptography` and `unsafe-rendering` families ship at
 `warning` severity (exit 0 by default, new-edges-only baseline), so for those the
-bar governs only whether a future MD5-opt-in downgrade is warranted. Note the one
+bar only ever governed whether a future MD5-opt-in downgrade was warranted — the
+decision above answers that with *no*. Note the one
 exception: **AP-017 (SSTI) is `severity: error`**, inheriting the eval-class
 `dynamic-execution` family's posture (AP-008/AP-009), so a *new* SSTI match will
 fail `anvil check` at the default `error` threshold — deliberate for an
@@ -184,4 +194,6 @@ RCE-class smell, and it recorded **zero** app-corpus findings above.
   `patterns.rs`), so the sinks are caught in the script code that assigns them.
 - **Q2 — JWT `alg:none` home:** stays in `weak-cryptography` (WC-003), per
   ADR-087; no separate `jwt-misuse` family.
-- **Q3 — FP bar `N`:** proposed 10%/family (above); operator to confirm.
+- **Q3 — FP bar `N`:** **operator-confirmed `N` = 5%/family** (2026-07-02, #3031;
+  above). All enabled families clear it; WC-001 stays default-on `warning`, MD5
+  not downgraded (its checksum findings are suppressible TPs, hard-FP rate 0%).
