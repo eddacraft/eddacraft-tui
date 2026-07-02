@@ -177,7 +177,21 @@ to record the no-op promotion and tag `main` immediately.
 If the command opens a PR, review and merge it through GitHub. Re-run the
 command after merge so it records the merged state.
 
-#### 5. Tag
+#### 5. Pre-tag review (required gate)
+
+Run the pre-tag review against the **frozen candidate** (the `release/*`
+stabilisation branch from step 4, or the selected `main` SHA for a direct
+strategy) before tagging: an adversarial `clawpatch` sweep, a `release`-tier
+council, and a **human sign-off**. This is where the release-window diff gets
+its last adversarial look; it has repeatedly caught real issues.
+
+The full doctrine — including the **delta-only re-pass** model that keeps a fix
+from forcing a full restart (freeze the candidate, re-review only the delta,
+carry verdicts forward, defer-don't-block) — lives in
+[`release-process.md`](release-process.md). Do not tag until its human gate is
+signed in `plans/reviews/release-council/<date>-<tag>-pre-tag.md`.
+
+#### 6. Tag
 
 ```bash
 bash scripts/release/tag.sh --version <version> --source-sha <promoted-source-sha>
@@ -191,7 +205,7 @@ The tag command must verify:
 - the remote is `eddacraft/anvil-001`
 - provenance state is recorded before tag push
 
-#### 6. Monitor Publishing
+#### 7. Monitor Publishing
 
 ```bash
 bash scripts/release/monitor.sh --version <version>
@@ -204,7 +218,7 @@ use deterministic recovery, or abort. Do not skip a failed publishing workflow
 except as explicitly approved emergency recovery with compensating evidence
 recorded in the release issue.
 
-#### 7. Verify The Release
+#### 8. Verify The Release
 
 ```bash
 bash scripts/release/verify.sh --version <version> --source-sha <promoted-source-sha>
@@ -227,7 +241,7 @@ Until live host and publisher checks are enabled, `verify.sh` blocks and
 requires explicit verification evidence rather than inferring release state from
 prose.
 
-### 8. Approve Comms
+### 9. Approve Comms
 
 If `verify.sh` produces a release announcement draft, approve or edit it before
 posting.
@@ -243,7 +257,7 @@ curl --proto '=https' --tlsv1.2 -LsSf \
   | sh
 ```
 
-#### 9. Close Out
+#### 10. Close Out
 
 ```bash
 bash scripts/release/closeout.sh \

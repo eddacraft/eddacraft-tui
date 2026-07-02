@@ -1,7 +1,9 @@
 # Pre-Tag Release Review Doctrine + Canonical Council Template — Design
 
 **Module:** RELORCH (Release Orchestration)
-**Status:** Draft — **for owner sign-off** (folds #1872 with the review-gate half of #1712)
+**Status:** Accepted (operator, 2026-07-02) — D3 = clawpatch (live tool); tax-fix
+approach green-lit. Implemented by `docs/runbooks/release-process.md` + the
+`plans/reviews/release-council/TEMPLATE*.md` templates in this change.
 **Date:** 2026-07-02
 
 ## Overview
@@ -47,7 +49,7 @@ design settles the whole shape first.
 1. Make the pre-tag review doctrine a **first-class, tag-agnostic** part of the
    authoritative release process (not stranded in a version-specific runbook).
 2. Bind the doctrine to the **current** review tooling, not the retired
-   clawpatch command block verbatim (see [D3](#d3--adversarial-sweep-mechanism)).
+   clawpatch command block verbatim (see [D3](#d3-adversarial-sweep-mechanism)).
 3. Give each tag a **canonical template** to fill (input brief + output
    artefact), so no artefact is ever copied from the prior tag again.
 4. Keep the **human gate**: the release owner signs the synthesised verdict
@@ -110,7 +112,7 @@ if a future tag's runbook collapses to "see release-process.md plus N additions"
   the release window, output committed as durable JSON under `plans/audits/`.
   Critical findings auto-block; highs are enumerated for the council to triage.
   This is the live tool, carried forward as-is from the v0.7.0 §1 doctrine (see
-  [D3](#d3--adversarial-sweep-mechanism)).
+  [D3](#d3-adversarial-sweep-mechanism)).
 - **Gate B — council review.** A multi-persona `release`-tier council over the
   union of (a) Gate A's findings and (b) the full release diff
   `<prior-tag>..<candidate-sha>`. Judge produces a ship / fix / defer verdict per

@@ -352,6 +352,7 @@
 | ----------------------------------------------------------------------------------------- | -------------------------------------------------- | ------- | ------------- | ------- | ------ |
 | [Anvil Release Runbook](../../docs/runbooks/release-runbook.md)                           | `docs/runbooks/release-runbook.md`                 | Runbook | Authoritative | RELORCH | Live   |
 | [Emergency Hotfix](../../docs/runbooks/emergency-hotfix.md)                               | `docs/runbooks/emergency-hotfix.md`                | Runbook | Authoritative | RELORCH | Live   |
+| [Pre-Tag Review Process](../../docs/runbooks/release-process.md)                          | `docs/runbooks/release-process.md`                 | Runbook | Authoritative | RELORCH | Live   |
 | [Release Token Scope Runbook](../../docs/runbooks/release-token-scope.md)                 | `docs/runbooks/release-token-scope.md`             | Runbook | Authoritative | RELORCH | Live   |
 | [Rollback Bad Candidate Artefact](../../docs/runbooks/rollback-bad-candidate-artefact.md) | `docs/runbooks/rollback-bad-candidate-artefact.md` | Runbook | Authoritative | RELORCH | Live   |
 | [Rollback Bad Published Release](../../docs/runbooks/rollback-bad-published-release.md)   | `docs/runbooks/rollback-bad-published-release.md`  | Runbook | Authoritative | RELORCH | Live   |
