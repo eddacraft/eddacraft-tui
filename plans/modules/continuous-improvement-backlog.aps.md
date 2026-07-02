@@ -3166,7 +3166,7 @@ archive.
 
 ### CIB-117: Fence TS runtime and APS state transitions against lost updates
 
-- **Status:** Ready
+- **Status:** Merged 2026-07-02 via PR #3087
 - **Intent:** Close deepsec P1 race findings in TypeScript lock/state helpers that
   can lose task records, lock records, or mutual-exclusion guarantees.
 - **Expected Outcome:** Expired/stale lock takeover is fenced and atomic; APS state
