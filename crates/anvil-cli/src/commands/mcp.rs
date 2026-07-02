@@ -1015,4 +1015,166 @@ mod tests {
             "the refusal carries the shared quota_exceeded vocabulary"
         );
     }
+
+    /// CIB-144: assert a `tools/call` response is the shared auth-required
+    /// envelope (the non-`validate_write` shape emitted by
+    /// `mcp_tool_auth_required_result`) for `tool`, proving the auth gate
+    /// short-circuited before the tool ran.
+    fn assert_auth_required_envelope(response: &serde_json::Value, tool: &str) {
+        let result = &response["result"];
+        assert_eq!(
+            result["isError"], false,
+            "auth-required is not a tool error (agents must not abort)"
+        );
+        let text = result["content"][0]["text"]
+            .as_str()
+            .expect("tool content text");
+        let payload: serde_json::Value = serde_json::from_str(text).unwrap();
+        assert_eq!(payload["schemaVersion"], "anvil.mcp.auth-required.v1");
+        assert_eq!(payload["decision"], "gateUnavailable");
+        assert_eq!(payload["safeDefault"], "allow-with-warning");
+        assert_eq!(payload["tool"], tool);
+        // The tool's own success payload keys must be absent — the auth gate
+        // returned INSTEAD of invoking the tool, so no gate/fix/suppress result.
+        assert!(
+            payload.get("fixed").is_none()
+                && payload.get("mode").is_none()
+                && payload.get("hasBlockingWarnings").is_none()
+                && payload.get("suppressed").is_none(),
+            "auth-required envelope must not carry a tool result payload for {tool}: {payload}"
+        );
+    }
+
+    #[test]
+    fn anvil_fix_tool_call_requires_auth_and_leaves_file_untouched() {
+        // CIB-144: an unauthenticated `anvil_fix` call must return the
+        // auth-required envelope and must NOT mutate the target file. The
+        // fixture carries a genuinely fixable AP-003 occurrence, so an
+        // authenticated (or dev-bypass) call WOULD rewrite it — proving the
+        // untouched assertion is load-bearing, not vacuous.
+        let cwd = std::env::current_dir().expect("cwd accessible");
+        let workspace = tempfile::tempdir_in(&cwd).expect("workspace exists");
+        let file = workspace.path().join("src/a.ts");
+        std::fs::create_dir_all(file.parent().unwrap()).expect("parent dirs");
+        let original = "const x: any = 1;\n";
+        std::fs::write(&file, original).expect("fixture written");
+
+        temp_env::with_vars(
+            [
+                ("ANVIL_DEV", None),
+                ("ANVIL_LICENSE", None),
+                ("XDG_CONFIG_HOME", Some("/nonexistent/path")),
+            ],
+            || {
+                let response = handle_message(&json!({
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "anvil_fix",
+                        "arguments": {
+                            "filePath": "src/a.ts",
+                            "warningId": "AP-003",
+                            "line": 1,
+                            "workspaceRoot": workspace.path()
+                        }
+                    }
+                }))
+                .expect("request should produce a response");
+
+                assert_auth_required_envelope(&response, "anvil_fix");
+            },
+        );
+
+        let on_disk = std::fs::read_to_string(&file).expect("file readable");
+        assert_eq!(
+            on_disk, original,
+            "CIB-144: unauthenticated anvil_fix must not rewrite the file"
+        );
+    }
+
+    #[test]
+    fn anvil_suppress_tool_call_requires_auth_and_leaves_file_untouched() {
+        // CIB-144: an unauthenticated `anvil_suppress` call must return the
+        // auth-required envelope and must NOT insert a suppression comment.
+        let cwd = std::env::current_dir().expect("cwd accessible");
+        let workspace = tempfile::tempdir_in(&cwd).expect("workspace exists");
+        let file = workspace.path().join("src/a.ts");
+        std::fs::create_dir_all(file.parent().unwrap()).expect("parent dirs");
+        let original = "const x: any = 1;\n";
+        std::fs::write(&file, original).expect("fixture written");
+
+        temp_env::with_vars(
+            [
+                ("ANVIL_DEV", None),
+                ("ANVIL_LICENSE", None),
+                ("XDG_CONFIG_HOME", Some("/nonexistent/path")),
+            ],
+            || {
+                let response = handle_message(&json!({
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "anvil_suppress",
+                        "arguments": {
+                            "filePath": "src/a.ts",
+                            "warningId": "AP-003",
+                            "line": 1,
+                            "reason": "triaging in follow-up",
+                            "workspaceRoot": workspace.path()
+                        }
+                    }
+                }))
+                .expect("request should produce a response");
+
+                assert_auth_required_envelope(&response, "anvil_suppress");
+            },
+        );
+
+        let on_disk = std::fs::read_to_string(&file).expect("file readable");
+        assert_eq!(
+            on_disk, original,
+            "CIB-144: unauthenticated anvil_suppress must not insert a suppression comment"
+        );
+    }
+
+    #[test]
+    fn anvil_gate_tool_call_requires_auth_and_does_not_run() {
+        // CIB-144: an unauthenticated `anvil_gate` call must return the
+        // auth-required envelope and must NOT run the gate. The planless
+        // fixture carries a blocking AP-003 warning, so an executed gate WOULD
+        // report `hasBlockingWarnings: true`; the envelope's absence of any
+        // gate-result keys proves the antipattern scan never ran.
+        let cwd = std::env::current_dir().expect("cwd accessible");
+        let workspace = tempfile::tempdir_in(&cwd).expect("workspace exists");
+        let file = workspace.path().join("src/a.ts");
+        std::fs::create_dir_all(file.parent().unwrap()).expect("parent dirs");
+        std::fs::write(&file, "const x: any = 1;\n").expect("fixture written");
+
+        temp_env::with_vars(
+            [
+                ("ANVIL_DEV", None),
+                ("ANVIL_LICENSE", None),
+                ("XDG_CONFIG_HOME", Some("/nonexistent/path")),
+            ],
+            || {
+                let response = handle_message(&json!({
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "tools/call",
+                    "params": {
+                        "name": "anvil_gate",
+                        "arguments": {
+                            "workspaceRoot": workspace.path(),
+                            "targetFiles": ["src/a.ts"]
+                        }
+                    }
+                }))
+                .expect("request should produce a response");
+
+                assert_auth_required_envelope(&response, "anvil_gate");
+            },
+        );
+    }
 }

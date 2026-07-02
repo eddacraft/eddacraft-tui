@@ -56,9 +56,13 @@ static TOOLS: &[ToolDefinition] = &[
         descriptor: check::descriptor,
         call: check::call,
     },
+    // CIB-144: `anvil_gate` triggers an antipattern scan (planless mode) or a
+    // full `anvil gate` subprocess (full mode), so it authenticates by default,
+    // matching the mutating write tools. An unauthenticated `tools/call` gets
+    // the shared auth-required envelope and the scan never runs.
     ToolDefinition {
         name: gate::TOOL_NAME,
-        requires_auth: false,
+        requires_auth: true,
         charges_graph_egress: false,
         descriptor: gate::descriptor,
         call: gate::call,
@@ -70,21 +74,23 @@ static TOOLS: &[ToolDefinition] = &[
         descriptor: query_boundary::descriptor,
         call: query_boundary::call,
     },
-    // `anvil_suppress` and `anvil_fix` mutate workspace files. They keep the
-    // same path-containment, redaction, and embedded-fallback contract as
-    // `anvil_check`. `requires_auth` stays `false` for parity with the
-    // archived TS server until RMCPF-011 reviewers ratify a stricter
-    // authority surface (e.g. forcing daemon-RPC `suppression.apply`).
+    // CIB-144: `anvil_suppress` and `anvil_fix` mutate workspace files, so they
+    // authenticate by default — the same contract as the pre-write tools
+    // (`anvil_validate_write` / `anvil_apply_patch`). An unauthenticated
+    // `tools/call` gets the shared auth-required envelope and no write happens;
+    // a local dev session (`ANVIL_DEV=1`) short-circuits the auth check and is
+    // unaffected. They keep the same path-containment, redaction, and
+    // embedded-fallback contract as `anvil_check`.
     ToolDefinition {
         name: suppress::TOOL_NAME,
-        requires_auth: false,
+        requires_auth: true,
         charges_graph_egress: false,
         descriptor: suppress::descriptor,
         call: suppress::call,
     },
     ToolDefinition {
         name: fix::TOOL_NAME,
-        requires_auth: false,
+        requires_auth: true,
         charges_graph_egress: false,
         descriptor: fix::descriptor,
         call: fix::call,
@@ -186,6 +192,39 @@ mod tests {
         );
         for tool in tools {
             assert_eq!(tool.descriptor()["name"], tool.name);
+        }
+    }
+
+    #[test]
+    fn mutating_and_execution_tools_require_auth() {
+        // CIB-144: the file-mutating tools (`anvil_fix`, `anvil_suppress`) and
+        // the execution-triggering tool (`anvil_gate`) authenticate by default,
+        // matching the pre-write tools (`anvil_validate_write` /
+        // `anvil_apply_patch`). An unauthenticated `tools/call` for any of them
+        // must hit the auth-required branch in `tools_call_response` instead of
+        // running the side effect. Read-only context tools stay open.
+        for name in [fix::TOOL_NAME, suppress::TOOL_NAME, gate::TOOL_NAME] {
+            let tool = find(name).unwrap_or_else(|| panic!("{name} is registered"));
+            assert!(
+                tool.requires_auth,
+                "{name} must require auth (CIB-144: mutating/execution tools are authenticated by default)"
+            );
+        }
+    }
+
+    #[test]
+    fn read_only_context_tools_stay_open() {
+        // Guard the other side of the CIB-144 contract: the read-only status /
+        // check / query tools stay unauthenticated so `requires_auth` was not
+        // flipped wholesale.
+        for name in [
+            status::TOOL_NAME,
+            check::TOOL_NAME,
+            query_boundary::TOOL_NAME,
+            search_symbols::TOOL_NAME,
+        ] {
+            let tool = find(name).unwrap_or_else(|| panic!("{name} is registered"));
+            assert!(!tool.requires_auth, "{name} stays read-only/open");
         }
     }
 
