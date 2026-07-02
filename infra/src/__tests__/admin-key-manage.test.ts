@@ -3,7 +3,6 @@ import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// @ts-expect-error — plain .mjs module without type declarations.
 import {
   createAdminKey,
   createOutputLine,
