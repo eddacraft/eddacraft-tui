@@ -2953,7 +2953,7 @@ archive.
 
 ### CIB-109: Bind bundle-auth environment credentials to trusted configuration
 
-- **Status:** Ready
+- **Status:** Merged 2026-07-02 via PR #3082
 - **Intent:** Stop workspace-controlled bundle configuration from selecting and
   exfiltrating arbitrary process environment variables as bundle credentials.
 - **Expected Outcome:** Bundle auth no longer accepts arbitrary `password_env` or
