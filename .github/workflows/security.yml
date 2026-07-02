@@ -12,6 +12,12 @@ on:
     branches:
       - main
   pull_request:
+    # CIB-137 SAFETY: the trusted-classifier checkout below trusts
+    # `github.event.pull_request.base.sha` ONLY because this filter restricts the
+    # base to the protected `main` branch. Do NOT broaden this list (or drop the
+    # filter) without re-reviewing that argument — a PR that could target an
+    # unprotected base branch could point the classifier at attacker-controlled
+    # code.
     branches:
       - main
   schedule:
@@ -42,14 +48,34 @@ jobs:
       rust-changed: ${{ steps.changes.outputs.rust-changed }}
       dependency-audit-required: ${{ steps.changes.outputs.dependency-audit-required }}
     steps:
+      # Primary checkout at the PR head (or pushed SHA): the tree whose diff the
+      # classifier inspects. Change inputs stay the PR's own actual changes.
       - name: Checkout repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
 
+      # CIB-137: this workflow shares the "Detect Changes" required-context name
+      # with ci.yml (the branch ruleset matches by name only), so its classifier
+      # must be trusted too — otherwise a PR could spoof it here to satisfy the
+      # required context. Resolve the classifier (this action + its
+      # classify-changes.sh) from the base SHA (tip of the target branch, which
+      # the PR cannot control — see SAFETY note on the `pull_request` trigger)
+      # into `trusted-classifier/` and invoke it from there. On push/schedule the
+      # checked-out head is already trusted, so `github.sha` is used. If this
+      # checkout fails, the job fails and the dependent scan jobs run the full
+      # set (see their `result != 'success'` guards) rather than skipping.
+      - name: Checkout trusted classifier
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref:
+            ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha ||
+            github.sha }}
+          path: trusted-classifier
+
       - name: Detect changes
         id: changes
-        uses: ./.github/actions/detect-changes
+        uses: ./trusted-classifier/.github/actions/detect-changes
 
   # ── SAST: Semgrep ─────────────────────────────────────────────
   # Path-gated on TS/JS or Rust source changes. Docs-only and
@@ -60,9 +86,12 @@ jobs:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
     needs: detect-changes
+    # CIB-137: `result != 'success'` (not `== 'skipped'`) so a FAILED classifier
+    # runs the full scan (fail closed) instead of skipping it; `skipped` still
+    # covers the schedule/dispatch full-sweep path.
     if: |
       always() &&
-      (needs.detect-changes.result == 'skipped' ||
+      (needs.detect-changes.result != 'success' ||
        needs.detect-changes.outputs.source-changed == 'true' ||
        needs.detect-changes.outputs.rust-changed == 'true')
     permissions:
@@ -97,9 +126,10 @@ jobs:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
     needs: detect-changes
+    # CIB-137: fail closed on a failed classifier (see semgrep note).
     if: |
       always() &&
-      (needs.detect-changes.result == 'skipped' ||
+      (needs.detect-changes.result != 'success' ||
        needs.detect-changes.outputs.dependency-audit-required == 'true')
     steps:
       - name: Checkout repository
@@ -126,9 +156,10 @@ jobs:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
     needs: detect-changes
+    # CIB-137: fail closed on a failed classifier (see semgrep note).
     if: |
       always() &&
-      (needs.detect-changes.result == 'skipped' ||
+      (needs.detect-changes.result != 'success' ||
        needs.detect-changes.outputs.code-changed == 'true')
     steps:
       - name: Checkout repository
@@ -151,9 +182,10 @@ jobs:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
     needs: detect-changes
+    # CIB-137: fail closed on a failed classifier (see semgrep note).
     if: |
       always() &&
-      (needs.detect-changes.result == 'skipped' ||
+      (needs.detect-changes.result != 'success' ||
        needs.detect-changes.outputs.dependency-audit-required == 'true')
     steps:
       - name: Checkout repository

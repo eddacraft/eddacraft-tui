@@ -179,7 +179,15 @@ runs:
           CLASSIFIER_CONTEXT=push
         fi
 
-        classification=$(bash scripts/ci/classify-changes.sh --context "${CLASSIFIER_CONTEXT}" --paths-file "${paths_file}")
+        # CIB-137: resolve the classifier script relative to THIS action's own
+        # directory ($GITHUB_ACTION_PATH), not the workspace CWD. CI checks this
+        # action out from a trusted ref (base SHA on pull_request), so
+        # $GITHUB_ACTION_PATH points at the trusted copy and the script beside it
+        # is the trusted `classify-changes.sh` — a PR-head edit to the script
+        # cannot influence its own required-check classification. The diff whose
+        # paths are classified is still computed above against the PR-head tree.
+        classifier_script="${GITHUB_ACTION_PATH}/../../../scripts/ci/classify-changes.sh"
+        classification=$(bash "${classifier_script}" --context "${CLASSIFIER_CONTEXT}" --paths-file "${paths_file}")
 
         has_check() {
           jq -e --arg check "$1" '.requiredChecks | index($check)' >/dev/null <<<"${classification}"

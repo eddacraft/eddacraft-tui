@@ -5,6 +5,13 @@ on:
     branches:
       - main
   pull_request:
+    # CIB-137 SAFETY: the "Checkout trusted classifier" step in the
+    # detect-changes job trusts `github.event.pull_request.base.sha` ONLY
+    # because this filter restricts the PR base to the protected `main` branch,
+    # so the base SHA is always a commit on a branch a PR author cannot rewrite.
+    # Do NOT broaden this list (or remove the filter) without re-reviewing that
+    # trust argument — allowing an unprotected base branch would let a PR point
+    # the classifier at attacker-controlled code.
     branches:
       - main
 
@@ -49,14 +56,48 @@ jobs:
       infra-static-check-required: ${{ steps.changes.outputs.infra-static-check-required }}
       platform-smoke-required: ${{ steps.changes.outputs.platform-smoke-required }}
     steps:
+      # Primary checkout at the PR head (or pushed SHA). This provides the
+      # working tree whose diff the classifier inspects — the changed-file
+      # inputs stay the PR's own actual changes.
       - name: Checkout repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
 
+      # CIB-137: resolve the required-check CLASSIFIER (this composite action
+      # AND its `scripts/ci/classify-changes.sh`) from a TRUSTED ref rather than
+      # the PR's own head. On `pull_request` the PR head is attacker-controlled:
+      # a PR could edit `.github/actions/detect-changes/action.yml` or
+      # `scripts/ci/classify-changes.sh` to always report `docs-only` / no
+      # required checks and thereby skip lint/typecheck/tests/dependency-audit
+      # on itself. We check the classifier out at the base SHA (the tip of the
+      # target branch, which the PR cannot control — trustworthy ONLY because the
+      # `pull_request` trigger is filtered to the protected `main` branch; see
+      # the SAFETY note there) into a dedicated directory and invoke the action
+      # FROM that checkout (see the `uses:` below). On `push` the checked-out
+      # head is already trusted, so `github.sha` is used. If this checkout fails
+      # the whole detect-changes job fails; the downstream required jobs guard on
+      # `needs.detect-changes.result != 'success'` and run their full work (fail
+      # closed). NOTE: this hardens the classifier LOGIC only — `ci.yml` itself
+      # is still taken from the PR merge ref, so full tamper-resistance of the
+      # wiring below requires a branch-protection/ruleset control (out of scope).
+      - name: Checkout trusted classifier
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref:
+            ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha ||
+            github.sha }}
+          path: trusted-classifier
+
+      # NB: the local-action path is a STATIC literal (`uses:` cannot take an
+      # expression), so it resolves to the trusted checkout for every trigger.
+      # The action's own steps run with the workspace root as CWD (so its
+      # `git diff` still sees the PR-head tree above), but it locates
+      # `classify-changes.sh` via `$GITHUB_ACTION_PATH`, i.e. the trusted copy
+      # co-located here — see action.yml.
       - name: Detect changes
         id: changes
-        uses: ./.github/actions/detect-changes
+        uses: ./trusted-classifier/.github/actions/detect-changes
 
   # Runs markdown lint (plus format, docs:check, APS index/lint checks) whenever
   # any `.md` change is present (or on any PR, for the required-check name).
@@ -199,16 +240,30 @@ jobs:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
     needs: detect-changes
+    # CIB-137: run on a FAILED classifier (result != 'success') so the fail-fast
+    # step below fails this job closed instead of the whole job being skipped
+    # (skipped satisfies a required context). On a successful classifier the
+    # `result != 'success'` clause is false, so normal path gating is unchanged.
     if: |
-      needs.detect-changes.outputs.workflow-lint-required == 'true' ||
-      needs.detect-changes.outputs.shell-syntax-required == 'true' ||
-      needs.detect-changes.outputs.script-fixtures-required == 'true' ||
-      needs.detect-changes.outputs.opa-required == 'true' ||
-      needs.detect-changes.outputs.regal-required == 'true' ||
-      needs.detect-changes.outputs.infra-static-check-required == 'true' ||
-      needs.detect-changes.outputs.release-dry-run-required == 'true'
+      always() && (
+        needs.detect-changes.result != 'success' ||
+        needs.detect-changes.outputs.workflow-lint-required == 'true' ||
+        needs.detect-changes.outputs.shell-syntax-required == 'true' ||
+        needs.detect-changes.outputs.script-fixtures-required == 'true' ||
+        needs.detect-changes.outputs.opa-required == 'true' ||
+        needs.detect-changes.outputs.regal-required == 'true' ||
+        needs.detect-changes.outputs.infra-static-check-required == 'true' ||
+        needs.detect-changes.outputs.release-dry-run-required == 'true'
+      )
 
     steps:
+      # CIB-137: fail closed when change detection failed. This short-circuits
+      # before the unguarded checkout/setup steps below, so on a normal run
+      # (classifier success) it is skipped and behaviour is unchanged.
+      - name: Fail when change detection failed
+        if: needs.detect-changes.result != 'success'
+        run: exit 1
+
       - name: Checkout repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
@@ -288,9 +343,21 @@ jobs:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
     needs: detect-changes
-    if: needs.detect-changes.outputs.platform-smoke-required == 'true'
+    # CIB-137: also run on a FAILED classifier so the fail-fast step fails this
+    # job closed rather than skipping a required context.
+    if: |
+      always() && (
+        needs.detect-changes.result != 'success' ||
+        needs.detect-changes.outputs.platform-smoke-required == 'true'
+      )
 
     steps:
+      # CIB-137: fail closed when change detection failed (short-circuits the
+      # unguarded checkout/setup below; skipped on a normal successful run).
+      - name: Fail when change detection failed
+        if: needs.detect-changes.result != 'success'
+        run: exit 1
+
       - name: Checkout repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
@@ -313,11 +380,22 @@ jobs:
     # CICD-005: PR-only. The integration push contract delegates dependency
     # audit to security.yml's `dependency-audit` job so push events do not
     # run Trivy twice on the same SHA.
+    # CIB-137: also run (and fail closed via the fail-fast step) on a FAILED
+    # classifier, while staying PR-only. On a successful classifier the
+    # `result != 'success'` clause is false, so path gating is unchanged.
     if: |
-      github.event_name == 'pull_request' &&
-      needs.detect-changes.outputs.dependency-audit-required == 'true'
+      always() && github.event_name == 'pull_request' && (
+        needs.detect-changes.result != 'success' ||
+        needs.detect-changes.outputs.dependency-audit-required == 'true'
+      )
 
     steps:
+      # CIB-137: fail closed when change detection failed (short-circuits the
+      # unguarded checkout below; skipped on a normal successful run).
+      - name: Fail when change detection failed
+        if: needs.detect-changes.result != 'success'
+        run: exit 1
+
       - name: Checkout repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
@@ -337,9 +415,23 @@ jobs:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
     needs: detect-changes
-    continue-on-error: true
+    # CIB-137: `if: always()` + the fail-fast step below fail this required
+    # context CLOSED when the classifier fails, instead of the job being
+    # skipped (skipped satisfies the required context). The job-level
+    # `continue-on-error` that previously made ALL failures non-blocking has
+    # moved onto the individual drift steps, so the drift findings stay advisory
+    # (CICD-011) while a classifier failure is still a hard failure here.
+    if: always()
     steps:
+      # CIB-137: fail closed when change detection failed.
+      - name: Fail when change detection failed
+        if: needs.detect-changes.result != 'success'
+        run: exit 1
+
+      # CIB-137: advisory (non-blocking) — preserves the prior job-level
+      # continue-on-error posture for the drift work itself.
       - name: Checkout repository
+        continue-on-error: true
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
@@ -355,6 +447,7 @@ jobs:
       # reference` warnings for an empty list, which is the right
       # behaviour: we have no diff to analyse, not "everything is fine").
       - name: Build changed-file fixture
+        continue-on-error: true
         run: |
           : > /tmp/aps-drift-files.txt
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
@@ -393,6 +486,7 @@ jobs:
       # UI/API; do NOT extend this pattern to genuinely sensitive
       # values, where the env-var path would itself be the leak.
       - name: Capture PR metadata
+        continue-on-error: true
         if: github.event_name == 'pull_request'
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
@@ -400,10 +494,12 @@ jobs:
           printf '%s' "${PR_BODY:-}" > /tmp/aps-drift-pr-body.txt
 
       - name: Run warning-mode drift checks (push)
+        continue-on-error: true
         if: github.event_name != 'pull_request'
         run: node scripts/aps/drift-check.mjs --changed-files /tmp/aps-drift-files.txt
 
       - name: Run warning-mode drift checks (PR)
+        continue-on-error: true
         if: github.event_name == 'pull_request'
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
@@ -835,11 +931,24 @@ jobs:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
     needs: detect-changes
+    # CIB-137: also run (and fail closed via the fail-fast step) on a FAILED
+    # classifier rather than skipping this required context. On a successful
+    # classifier the `result != 'success'` clause is false, so the normal
+    # PR/push path gating is unchanged.
     if: |
-      (github.event_name == 'pull_request' && needs.detect-changes.outputs.e2e-changed == 'true') ||
-      (github.event_name != 'pull_request' && (needs.detect-changes.outputs.source-changed == 'true' || needs.detect-changes.outputs.e2e-changed == 'true'))
+      always() && (
+        needs.detect-changes.result != 'success' ||
+        (github.event_name == 'pull_request' && needs.detect-changes.outputs.e2e-changed == 'true') ||
+        (github.event_name != 'pull_request' && (needs.detect-changes.outputs.source-changed == 'true' || needs.detect-changes.outputs.e2e-changed == 'true'))
+      )
 
     steps:
+      # CIB-137: fail closed when change detection failed (short-circuits the
+      # unguarded checkout/setup below; skipped on a normal successful run).
+      - name: Fail when change detection failed
+        if: needs.detect-changes.result != 'success'
+        run: exit 1
+
       - name: Checkout repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:

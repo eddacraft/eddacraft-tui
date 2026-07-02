@@ -1,5 +1,15 @@
 #!/usr/bin/env bash
 # Classify changed paths into deterministic CI validation requirements.
+#
+# CIB-137 security contract: this script decides which REQUIRED checks a PR must
+# run, so it must be executed from a TRUSTED ref, never the PR's own head. In CI
+# `.github/actions/detect-changes/action.yml` locates it via $GITHUB_ACTION_PATH
+# from an actions/checkout of the base SHA (see `.github/workflows/ci.yml`,
+# "Checkout trusted classifier"). This script is a PURE path classifier: it
+# reads only the `--paths-file` (an absolute path) / stdin and never inspects
+# the working tree, so it is CWD-independent and needs no repo-root argument.
+# Do NOT reintroduce a workspace-relative invocation of this script — that would
+# re-open the PR-controlled spoof path.
 
 set -euo pipefail
 
