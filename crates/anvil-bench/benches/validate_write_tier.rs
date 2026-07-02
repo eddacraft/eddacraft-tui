@@ -198,9 +198,11 @@ fn patch_request() -> serde_json::Value {
 }
 
 fn tools_call(arguments: &serde_json::Value) -> serde_json::Value {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static NEXT_ID: AtomicU64 = AtomicU64::new(1);
     serde_json::json!({
         "jsonrpc": "2.0",
-        "id": 1,
+        "id": NEXT_ID.fetch_add(1, Ordering::Relaxed),
         "method": "tools/call",
         "params": { "name": "anvil_validate_write", "arguments": arguments }
     })

@@ -52,18 +52,18 @@ covering TUI surfaces, governance gates, policy management, and authentication.
 ## Pre-write validator (`anvil_validate_write`)
 
 The MCP pre-write validation gate lives in
-[`src/mcp/tools/validate_write.rs`](src/mcp/tools/validate_write.rs). It
-accepts full content, a preview slice, or a unified-diff patch (CIB-005), and
-applies risk-tiered validation (CIB-006): a documented safelist of trivial
-change shapes — initially a single string-value rename inside a JSON file at a
-stable path — is matched against the parsed patch before the full pipeline
-runs. A hit skips the daemon round-trip, never coverage: the whole-file secret
-scan still runs over the complete post-image, while the remaining rules run
-scoped to the touched node (non-overlapping rules are skipped with a recorded
-reason). Out-of-safelist edits run the full pipeline unchanged, and every
-response surfaces the tier taken in its `tier` object. The safelist criteria,
-out-of-safelist behaviour, and growth policy are documented on the
-`RISK_TIER_SAFELIST` definition in that file.
+[`src/mcp/tools/validate_write.rs`](src/mcp/tools/validate_write.rs). It accepts
+full content, a preview slice, or a unified-diff patch (CIB-005), and applies
+risk-tiered validation (CIB-006): a documented safelist of trivial change shapes
+— initially a single string-value rename inside a JSON file at a stable path —
+is matched against the patch-materialised pre-/post-images (each parsed as JSON)
+before the full pipeline runs. A hit skips the daemon round-trip, never
+coverage: the whole-file secret scan still runs over the complete post-image,
+while the remaining rules run scoped to the touched node (non-overlapping rules
+are skipped with a recorded reason). Out-of-safelist edits run the full pipeline
+unchanged, and every response surfaces the tier taken in its `tier` object. The
+safelist criteria, out-of-safelist behaviour, and growth policy are documented
+on the `RISK_TIER_SAFELIST` definition in that file.
 
 ## Cross-Platform Notes
 
