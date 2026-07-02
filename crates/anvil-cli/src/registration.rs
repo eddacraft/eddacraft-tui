@@ -358,7 +358,7 @@ fn round_trip(body: &[u8], timeout: Duration) -> Result<String, DaemonRegistrati
     use std::sync::mpsc;
     use std::thread;
 
-    let pipe_name = anvil_intercept_win32::pipe_name_for_current_user()
+    let pipe_name = anvil_intercept::ipc::resolve_pipe_name()
         .map_err(|err| DaemonRegistrationError::Transport(err.to_string()))?;
     let pipe_name_clone = pipe_name.clone();
     let body = body.to_vec();

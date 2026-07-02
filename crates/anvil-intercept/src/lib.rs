@@ -754,7 +754,18 @@ fn non_empty_env(name: &str) -> Option<PathBuf> {
 /// var (`ANVIL_HOME` is expected absolute in practice; this only guards the
 /// relative case). Returns `None` for unset/empty (platform default applies).
 pub(crate) fn anvil_home_prefix() -> Option<PathBuf> {
-    let raw = env::var_os("ANVIL_HOME").filter(|v| !v.is_empty())?;
+    anvil_home_prefix_from(env::var_os("ANVIL_HOME"), env::current_dir().ok())
+}
+
+/// Pure core of [`anvil_home_prefix`] — takes the raw env value and the
+/// current directory explicitly so it unit-tests on any host without
+/// mutating the process environment (CIB-106 pipe-name resolver tests
+/// exercise the unset/blank/relative normalisation through this seam).
+pub(crate) fn anvil_home_prefix_from(
+    raw: Option<std::ffi::OsString>,
+    cwd: Option<PathBuf>,
+) -> Option<PathBuf> {
+    let raw = raw.filter(|v| !v.is_empty())?;
     // Mirror the CLI resolver (`install_root::resolve_install_root_from`): a UTF-8
     // whitespace-only value is treated as unset, so the daemon and CLI agree on
     // the socket/PID path when `ANVIL_HOME` is accidentally exported blank.
@@ -768,7 +779,7 @@ pub(crate) fn anvil_home_prefix() -> Option<PathBuf> {
     } else {
         // Best effort: if cwd is unavailable, fall back to the raw relative path
         // rather than dropping the override entirely.
-        Some(env::current_dir().map_or_else(|_| p.clone(), |cwd| cwd.join(&p)))
+        Some(cwd.map_or_else(|| p.clone(), |cwd| cwd.join(&p)))
     }
 }
 

@@ -237,17 +237,18 @@ impl DaemonValidationClient for LocalDaemonValidationClient {
             let socket_path = ipc::resolve_socket_path().ok()?;
             SocketDaemonValidationClient { socket_path }.query_protection_claim(workspace_root)
         }
-        // MLP2-075: resolve the canonical per-user pipe and delegate
-        // to the Windows pipe client. Mirrors the Unix branch's
-        // resolve-then-delegate shape. Pipe-resolution failure emits
-        // a warn line and returns `None` — preserves the no-over-claim
-        // posture (omit the field rather than synthesise a misleading
-        // "unprotected" state). Slightly more verbose than the Unix
-        // branch's silent `.ok()?` because pipe-resolution failures
-        // are rarer and warrant operator-visible context.
+        // MLP2-075: resolve the canonical per-user pipe (install-root
+        // aware since CIB-106) and delegate to the Windows pipe client.
+        // Mirrors the Unix branch's resolve-then-delegate shape.
+        // Pipe-resolution failure emits a warn line and returns `None` —
+        // preserves the no-over-claim posture (omit the field rather
+        // than synthesise a misleading "unprotected" state). Slightly
+        // more verbose than the Unix branch's silent `.ok()?` because
+        // pipe-resolution failures are rarer and warrant
+        // operator-visible context.
         #[cfg(windows)]
         {
-            let pipe_name = match anvil_intercept_win32::pipe_name_for_current_user() {
+            let pipe_name = match ipc::resolve_pipe_name() {
                 Ok(name) => name,
                 Err(err) => {
                     eprintln!(
@@ -989,7 +990,7 @@ mod tests {
     /// branch cannot regress to the pre-MLP2-075 `None` short-circuit.
     ///
     /// The pipe name is per-PID (rather than the canonical
-    /// `pipe_name_for_current_user()` value) so the test never
+    /// `ipc::resolve_pipe_name()` value) so the test never
     /// collides with a real daemon that might be bound on the same
     /// Windows runner.
     #[cfg(target_os = "windows")]
@@ -1101,10 +1102,10 @@ mod tests {
     /// synthesising a misleading "unprotected" claim.
     ///
     /// Coverage gap (intentional, MLP2-075 scope): the
-    /// `anvil_intercept_win32::pipe_name_for_current_user()` failure
+    /// `anvil_intercept::ipc::resolve_pipe_name()` failure
     /// branch inside `LocalDaemonValidationClient::query_protection_claim`'s
     /// `cfg(not(unix))` arm is not exercised here (would require
-    /// mocking the win32 helper). The branch follows the same
+    /// mocking the win32 SID helper). The branch follows the same
     /// no-over-claim posture: warn + return `None`.
     #[cfg(target_os = "windows")]
     #[test]

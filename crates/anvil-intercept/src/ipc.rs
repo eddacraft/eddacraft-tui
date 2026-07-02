@@ -5,8 +5,11 @@
 //! owns:
 //!
 //! - **Path resolution** — `$XDG_RUNTIME_DIR/anvil` (else
-//!   `$HOME/.local/state/anvil`) on Unix; `\\.\pipe\anvil-intercept-<user>`
-//!   on Windows. The launcher (DRVR-001) reads the same algorithm.
+//!   `$HOME/.local/state/anvil`) on Unix; `\\.\pipe\anvil-intercept-<sid>`
+//!   on Windows. A non-empty `ANVIL_HOME` re-roots both (DISTRIB-006 /
+//!   CIB-106): the Unix socket dir moves under the prefix, the Windows
+//!   pipe name gains a hashed install-root suffix. The launcher
+//!   (DRVR-001) reads the same algorithm.
 //! - **Permission pinning** — symlink refusal, owner-and-mode checks,
 //!   `0700` directories, `0600` socket files. None of this is left to
 //!   umask.
@@ -696,21 +699,82 @@ pub fn validate_connected_peer_for_client(
 
 /// Resolve the Windows named-pipe path used by the daemon.
 ///
-/// Format: `\\.\pipe\anvil-intercept-<current-user-sid>`. The launcher
-/// (`DriverClient` in DRVR-001) MUST resolve the path with the same
-/// algorithm — the helper here is `pub` so DRVR-001 can re-export
-/// rather than re-implement. The suffix is the token SID, not an env
-/// username, so account-name spoofing and local/domain username
-/// collisions do not change the rendezvous point.
+/// Format: `\\.\pipe\anvil-intercept-<current-user-sid>` by default;
+/// with a non-empty `ANVIL_HOME` a stable hashed install-root suffix is
+/// appended (see [`derive_pipe_name`]) so a candidate daemon and the
+/// production daemon get distinct pipes and coexist (CIB-106, the
+/// Windows half of DISTRIB-006 / ADR-060 — the Unix analogue is the
+/// `ANVIL_HOME` branch of [`resolve_socket_dir`]).
 ///
-/// The actual derivation lives in
-/// [`anvil_intercept_win32::pipe_name_for_current_user`] so the CLI
-/// status client (which speaks synchronous Win32 IO and does not link
-/// the daemon) can reuse the exact same string without depending on
-/// `anvil-intercept`.
+/// This is the **only** pipe-name resolver: every daemon and client
+/// surface (daemon bind, `ensure`, `intercept status`, the MCP
+/// protection claim, the watch save-time transport, GCTX, registration,
+/// `anvil-run`) MUST rendezvous through this function — the launcher
+/// (`DriverClient` in DRVR-001) included; the helper is `pub` so
+/// consumers re-export rather than re-implement. The SID — not an env
+/// username — anchors the name, so account-name spoofing and
+/// local/domain username collisions cannot move the rendezvous point.
 #[cfg(windows)]
 pub fn resolve_pipe_name() -> Result<String, IpcError> {
-    Ok(anvil_intercept_win32::pipe_name_for_current_user()?)
+    let sid = anvil_intercept_win32::current_user_sid_string()?;
+    Ok(derive_pipe_name(
+        &sid,
+        crate::anvil_home_prefix().as_deref(),
+    ))
+}
+
+/// CIB-106: pure derivation of the Windows named-pipe rendezvous name from
+/// the current-user SID and the active install root. Platform-independent so
+/// it unit-tests on any host (mirrors [`resolve_socket_dir_with_env`]).
+///
+/// - `anvil_home` unset (`None`) → the legacy `\\.\pipe\anvil-intercept-<sid>`
+///   name, byte-for-byte, so existing installs keep their rendezvous point.
+/// - `anvil_home` set → `\\.\pipe\anvil-intercept-<sid>-r<fnv1a64-hex>`, a
+///   stable bounded (16 hex chars) install-root namespace so two same-user
+///   candidate daemons coexist (DISTRIB-006 / ADR-060). The root is hashed,
+///   never embedded: pipe names are enumerable by other local users, so a raw
+///   path would leak directory layout.
+///
+/// `anvil_home` must be the normalised prefix from
+/// [`crate::anvil_home_prefix`] (blank treated as unset, relative values
+/// absolutised against the cwd) so a CLI client and the separately-spawned
+/// daemon agree on the name — the same guarantee the Unix socket resolver
+/// gives. The hash input is the path's lossy UTF-8 text: deterministic for
+/// any given env value, which is what the rendezvous needs (both ends
+/// inherit the same `ANVIL_HOME`). No case or separator canonicalisation is
+/// applied — mirroring the Unix side, which keys the socket path off the
+/// uncanonicalised prefix too.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn derive_pipe_name(sid: &str, anvil_home: Option<&Path>) -> String {
+    match anvil_home {
+        Some(root) => {
+            // The raw path text is hashed without case or separator
+            // canonicalisation (mirrors the Unix socket-dir resolver).
+            // Assumption made explicit: on Windows — a case-insensitive
+            // filesystem — the daemon and its clients must inherit the same
+            // literal `ANVIL_HOME` string (the normal case: one parent env
+            // spawns both). Two spellings of the same directory (`C:\Anvil`
+            // vs `c:\anvil`, or `/` vs `\` separators) hash to different
+            // names and will NOT rendezvous.
+            let hash = fnv1a_64(root.to_string_lossy().as_bytes());
+            format!(r"\\.\pipe\anvil-intercept-{sid}-r{hash:016x}")
+        }
+        None => format!(r"\\.\pipe\anvil-intercept-{sid}"),
+    }
+}
+
+/// FNV-1a 64-bit over `bytes`. Used by [`derive_pipe_name`] for the
+/// install-root namespace suffix: stability across builds is part of the
+/// daemon/client rendezvous contract (pinned by the golden test), so this is
+/// a fixed local implementation, not `DefaultHasher` (whose algorithm is
+/// explicitly unspecified across releases).
+#[cfg_attr(not(windows), allow(dead_code))]
+fn fnv1a_64(bytes: &[u8]) -> u64 {
+    const OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
+    const PRIME: u64 = 0x0000_0100_0000_01b3;
+    bytes.iter().fold(OFFSET_BASIS, |hash, byte| {
+        (hash ^ u64::from(*byte)).wrapping_mul(PRIME)
+    })
 }
 
 /// Lookup the current OS user's account name from environment vars.
@@ -7451,6 +7515,128 @@ mod tests {
     fn resolve_pipe_name_uses_user_suffix() {
         let name = resolve_pipe_name().expect("resolve");
         assert!(name.starts_with(r"\\.\pipe\anvil-intercept-"), "got {name}");
+    }
+
+    /// CIB-106: pure pipe-name derivation — platform-independent tests
+    /// mirroring the Unix `resolve_socket_dir_with_env` coverage. The
+    /// unset/blank/relative normalisation is exercised through the same
+    /// `anvil_home_prefix_from` seam production uses, so client and daemon
+    /// cannot disagree on the rendezvous name.
+    mod pipe_name_resolution {
+        use std::ffi::OsString;
+        use std::path::{Path, PathBuf};
+
+        use super::super::derive_pipe_name;
+
+        const SID: &str = "S-1-5-21-1-2-3-1000";
+        const LEGACY: &str = r"\\.\pipe\anvil-intercept-S-1-5-21-1-2-3-1000";
+
+        /// Compose the resolver exactly the way `resolve_pipe_name` does:
+        /// raw env value → normalised install-root prefix → pipe name.
+        fn name_for(raw: Option<&str>, cwd: Option<&Path>) -> String {
+            let prefix =
+                crate::anvil_home_prefix_from(raw.map(OsString::from), cwd.map(Path::to_path_buf));
+            derive_pipe_name(SID, prefix.as_deref())
+        }
+
+        /// An absolute directory that exists as a plain string on every
+        /// host this test compiles on (drive-rooted on Windows).
+        fn abs_root(leaf: &str) -> PathBuf {
+            if cfg!(windows) {
+                Path::new(r"C:\anvil-roots").join(leaf)
+            } else {
+                Path::new("/anvil-roots").join(leaf)
+            }
+        }
+
+        /// Backward compatibility is critical: with `ANVIL_HOME` unset the
+        /// pipe name is byte-for-byte the legacy `\\.\pipe\anvil-intercept-<sid>`
+        /// so existing installs keep the same rendezvous point.
+        #[test]
+        fn unset_anvil_home_keeps_the_legacy_pipe_name() {
+            assert_eq!(name_for(None, None), LEGACY);
+        }
+
+        /// Blank / whitespace-only `ANVIL_HOME` is treated as unset — same
+        /// posture as the Unix socket resolver and the CLI install-root
+        /// resolver.
+        #[test]
+        fn blank_and_whitespace_anvil_home_keep_the_legacy_pipe_name() {
+            assert_eq!(name_for(Some(""), None), LEGACY);
+            assert_eq!(name_for(Some("   "), None), LEGACY);
+            assert_eq!(name_for(Some(" \t "), None), LEGACY);
+        }
+
+        /// A relative `ANVIL_HOME` is absolutised against the current
+        /// directory, so a CLI client and a separately-spawned daemon that
+        /// share the env agree on the pipe name — mirroring the Unix socket
+        /// path guarantee.
+        #[test]
+        fn relative_anvil_home_absolutises_against_cwd() {
+            let cwd = abs_root("cwd");
+            let absolute = cwd.join("candidate-a");
+            assert_eq!(
+                name_for(Some("candidate-a"), Some(&cwd)),
+                name_for(absolute.to_str(), None),
+            );
+        }
+
+        /// Same install root → same name, every time (stable hash — the
+        /// daemon bind and every client resolve must rendezvous).
+        #[test]
+        fn same_root_derives_the_same_name() {
+            let root = abs_root("candidate-a");
+            let first = derive_pipe_name(SID, Some(&root));
+            let second = derive_pipe_name(SID, Some(&root));
+            assert_eq!(first, second);
+            assert_ne!(first, LEGACY, "re-rooted name must not collide with legacy");
+        }
+
+        /// Distinct install roots → distinct pipe names, so two same-user
+        /// candidate daemons coexist (the DISTRIB-006 side-by-side goal).
+        #[test]
+        fn distinct_roots_derive_distinct_names() {
+            let a = derive_pipe_name(SID, Some(&abs_root("candidate-a")));
+            let b = derive_pipe_name(SID, Some(&abs_root("candidate-b")));
+            assert_ne!(a, b);
+        }
+
+        /// The install-root path never appears in the pipe name (pipe names
+        /// are enumerable by other local users, so a raw path would leak
+        /// directory layout). The suffix is a bounded lowercase-hex hash.
+        #[test]
+        fn rerooted_name_does_not_leak_the_raw_path() {
+            let root = abs_root("secret-install-root");
+            let name = derive_pipe_name(SID, Some(&root));
+            assert!(
+                !name.contains("secret-install-root")
+                    && !name.contains("anvil-roots")
+                    && !name.contains('/')
+                    && !name.contains(':'),
+                "raw path text leaked into pipe name: {name}",
+            );
+            let suffix = name
+                .strip_prefix(LEGACY)
+                .expect("re-rooted name extends the legacy prefix");
+            let hash = suffix
+                .strip_prefix("-r")
+                .expect("suffix is `-r<hash>` namespace marker");
+            assert_eq!(hash.len(), 16, "bounded 64-bit hex hash: {hash}");
+            assert!(
+                hash.chars()
+                    .all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c)),
+                "hash must be lowercase hex: {hash}",
+            );
+        }
+
+        /// Golden pin: the derivation is part of the daemon/client
+        /// rendezvous contract — a refactor that changes the hash silently
+        /// strands existing candidate daemons on an unreachable name.
+        #[test]
+        fn rerooted_name_hash_is_pinned() {
+            let name = derive_pipe_name(SID, Some(Path::new("/opt/anvil-candidate")));
+            assert_eq!(name, format!("{LEGACY}-r1bee9a017cfa049e"));
+        }
     }
 
     #[cfg(windows)]

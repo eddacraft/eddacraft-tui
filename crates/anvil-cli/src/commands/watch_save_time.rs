@@ -765,10 +765,11 @@ mod pipe {
     }
 
     impl WindowsPipeSaveTimeTransport {
-        /// Resolve the canonical per-user pipe. `None` when the pipe name cannot
-        /// be resolved (treated as a permanently-absent daemon → fallback).
+        /// Resolve the canonical per-user pipe (install-root aware since
+        /// CIB-106). `None` when the pipe name cannot be resolved (treated
+        /// as a permanently-absent daemon → fallback).
         pub(crate) fn resolve() -> Option<Self> {
-            anvil_intercept_win32::pipe_name_for_current_user()
+            anvil_intercept::ipc::resolve_pipe_name()
                 .ok()
                 .map(|pipe_name| Self { pipe_name })
         }

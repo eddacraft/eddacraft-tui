@@ -170,24 +170,6 @@ fn process_user_sid(pid: u32) -> io::Result<String> {
     sid_string_from_token(token.0)
 }
 
-/// Compute the per-user named-pipe rendezvous path
-/// (`\\.\pipe\anvil-intercept-<sid>`).
-///
-/// This is the canonical pipe name shared by the daemon-side
-/// `IpcListener` and any owner-only client (the `anvil intercept`
-/// CLI today; the `DriverClient` from DRVR-001 once the Windows port
-/// of the launcher lands). The SID — not the env username — is the
-/// suffix so account-name spoofing and local/domain username
-/// collisions cannot move the rendezvous point.
-///
-/// `anvil_intercept::ipc::resolve_pipe_name` re-exports this helper
-/// so consumers that already depend on the daemon crate keep working
-/// without pulling in `anvil-intercept-win32` directly.
-pub fn pipe_name_for_current_user() -> io::Result<String> {
-    let sid = current_user_sid_string()?;
-    Ok(format!(r"\\.\pipe\anvil-intercept-{sid}"))
-}
-
 /// Synchronous, owner-only named-pipe client. Mirrors
 /// [`create_owner_only_pipe_server`] for callers running outside any
 /// tokio runtime — specifically the `anvil intercept status` CLI
@@ -686,7 +668,18 @@ impl Drop for LocalMem {
     }
 }
 
-fn current_user_sid_string() -> io::Result<String> {
+/// The current process token's user SID as a string
+/// (e.g. `S-1-5-21-…-1001`).
+///
+/// This is the identity anchor for the per-user named-pipe rendezvous:
+/// `anvil_intercept::ipc::resolve_pipe_name` combines it with the active
+/// install root (`ANVIL_HOME`, CIB-106) to derive the canonical pipe name.
+/// The SID — not an env username — is used so account-name spoofing and
+/// local/domain username collisions cannot move the rendezvous point.
+/// Consumers MUST NOT format a pipe name from this directly; resolve it
+/// through `anvil_intercept::ipc::resolve_pipe_name` so the daemon and
+/// every client agree on the install-root-aware name.
+pub fn current_user_sid_string() -> io::Result<String> {
     let token = Token::current_process()?;
     sid_string_from_token(token.0)
 }
@@ -1154,18 +1147,18 @@ mod tests {
         );
     }
 
-    /// Pin: `pipe_name_for_current_user` is deterministic across
-    /// calls within a process. The daemon and the CLI must compute
-    /// the same name — flaking here means a CLI/daemon mismatch
-    /// shipped silently.
+    /// Pin: `current_user_sid_string` is deterministic across calls
+    /// within a process. It anchors the pipe-name rendezvous
+    /// (`anvil_intercept::ipc::resolve_pipe_name`, CIB-106) — flaking
+    /// here means a CLI/daemon mismatch shipped silently.
     #[test]
-    fn pipe_name_for_current_user_is_stable() {
-        let first = pipe_name_for_current_user().expect("pipe name (first)");
-        let second = pipe_name_for_current_user().expect("pipe name (second)");
+    fn current_user_sid_string_is_stable() {
+        let first = current_user_sid_string().expect("user SID (first)");
+        let second = current_user_sid_string().expect("user SID (second)");
         assert_eq!(first, second);
         assert!(
-            first.starts_with(r"\\.\pipe\anvil-intercept-"),
-            "expected `\\.\\pipe\\anvil-intercept-<sid>`, got {first}",
+            first.starts_with("S-1-"),
+            "expected an `S-1-…` SID string, got {first}",
         );
     }
 

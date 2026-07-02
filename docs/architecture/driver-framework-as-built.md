@@ -530,8 +530,9 @@ client, etc.):
    `anvil_intercept::ipc::resolve_socket_path()` and
    `validate_socket_path_for_client()` to enforce the 0700 dir / 0600 socket
    ladder before connect (`intercept.rs:87-105`). Windows:
-   `anvil_intercept_win32::pipe_name_for_current_user()` then
-   `connect_owner_only_pipe_client()` (`intercept.rs:144-148`).
+   `anvil_intercept::ipc::resolve_pipe_name()` (the canonical resolver,
+   install-root aware since CIB-106) then `connect_owner_only_pipe_client()`
+   (`intercept.rs:399-404`).
 2. **Connect and validate the peer.** Unix:
    `validate_connected_peer_for_client(&stream)` runs `SO_PEERCRED`
    /`getpeereid` after `connect()` (`intercept.rs:112-113`). Windows: the kernel
@@ -661,13 +662,20 @@ depends on it for crash-safety.
 
 Driver-relevant primitives:
 
-- `pipe_name_for_current_user()` — `\\.\pipe\anvil-intercept-<sid>` derived from
-  `current_user_sid_string()` (`lib.rs:79-99`). The SID — not the env username —
-  is the rendezvous suffix so account-name spoofing cannot move the meeting
-  point. Stable across calls within a process
-  (`pipe_name_for_current_user_is_stable` at `lib.rs:646-660`). The CLI Windows
-  status path resolves the pipe name via this helper
-  (`crates/anvil-cli/src/commands/intercept.rs:144-148`).
+- `current_user_sid_string()` (`lib.rs:682-685`) — the identity anchor for the
+  pipe-name rendezvous. The SID — not the env username — anchors the name so
+  account-name spoofing cannot move the meeting point. Stable across calls
+  within a process (`current_user_sid_string_is_stable` at `lib.rs:1150-1163`).
+  The canonical pipe name is derived from it by
+  `anvil_intercept::ipc::resolve_pipe_name` / `derive_pipe_name`
+  (`anvil-intercept/src/ipc.rs:718-760`, CIB-106): the legacy
+  `\\.\pipe\anvil-intercept-<sid>` name, byte-for-byte, when `ANVIL_HOME` is
+  unset/blank; with a non-empty `ANVIL_HOME`, a stable bounded
+  `-r<16-hex FNV-1a-64>` suffix hashed from the absolutised install root, so
+  same-user candidate daemons coexist (DISTRIB-006 / ADR-060) without leaking
+  the raw path into the pipe namespace. The CLI Windows status path resolves the
+  pipe name via that resolver
+  (`crates/anvil-cli/src/commands/intercept.rs:399-404`).
 - `connect_owner_only_pipe_client(pipe_name)` — synchronous `CreateFileW` with
   `OPEN_EXISTING`, `GENERIC_READ | GENERIC_WRITE`,
   `FILE_SHARE_READ | FILE_SHARE_WRITE`, no `FILE_FLAG_OVERLAPPED`
@@ -930,9 +938,9 @@ and where they don't:
 
 ### `crates/anvil-intercept-win32/src/` (the parts the driver client uses)
 
-| File     | Role                                                                                                                                                                                                                                                                     |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `lib.rs` | `pipe_name_for_current_user`, `current_user_sid`, `connect_owner_only_pipe_client`, `OwnerOnlyPipeClient`, `create_owner_only_pipe_server` (daemon-side bind), `process_creation_time`, `JobObject`, `terminate_job_object`. The Windows boundary; all `unsafe` is here. |
+| File     | Role                                                                                                                                                                                                                                                                                                                                                          |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib.rs` | `current_user_sid_string` (identity anchor; the canonical pipe name is derived by `anvil_intercept::ipc::resolve_pipe_name`, CIB-106), `connect_owner_only_pipe_client`, `OwnerOnlyPipeClient`, `create_owner_only_pipe_server` (daemon-side bind), `process_creation_time`, `JobObject`, `terminate_job_object`. The Windows boundary; all `unsafe` is here. |
 
 ## 15. Related docs
 

@@ -398,7 +398,7 @@ pub(crate) fn query_daemon_status_with_timeout(
     }
     #[cfg(windows)]
     {
-        let pipe_name = anvil_intercept_win32::pipe_name_for_current_user()
+        let pipe_name = anvil_intercept::ipc::resolve_pipe_name()
             .context("failed to resolve intercept daemon pipe name")?;
         query_daemon_status_windows_at_with_timeout(&pipe_name, timeout)
     }
@@ -618,7 +618,7 @@ pub(crate) fn query_daemon_status_at_with_timeout(
 
 #[cfg(windows)]
 pub(crate) fn query_daemon_status() -> Result<DaemonStatusV1> {
-    let pipe_name = anvil_intercept_win32::pipe_name_for_current_user()
+    let pipe_name = anvil_intercept::ipc::resolve_pipe_name()
         .context("failed to resolve intercept daemon pipe name")?;
     query_daemon_status_windows_at(&pipe_name)
 }
@@ -640,7 +640,7 @@ pub(crate) fn query_daemon_status() -> Result<DaemonStatusV1> {
 /// dual-routes both names so the rendered output is identical.
 ///
 /// `pipe_name` is parameterised (rather than always reading
-/// `pipe_name_for_current_user()`) so the integration test can bind
+/// `ipc::resolve_pipe_name()`) so the integration test can bind
 /// a per-process pipe name and avoid colliding with the canonical
 /// per-user pipe a real daemon would own on the same Windows runner.
 #[cfg(windows)]
@@ -1667,7 +1667,7 @@ mod tests {
     /// the Windows status renderer from the Unix one fails closed.
     ///
     /// The pipe name is per-PID (rather than the canonical
-    /// `pipe_name_for_current_user()` value) so the test never
+    /// `ipc::resolve_pipe_name()` value) so the test never
     /// collides with a real daemon that might be bound on the same
     /// Windows runner, and so concurrent test crates do not race
     /// each other on the singleton-claiming first instance.

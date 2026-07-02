@@ -215,7 +215,7 @@ pub fn ensure_daemon(capability: StartCapability, launcher: &dyn DaemonLauncher)
 /// instead of the Unix socket (CIB-072 / GH #2609).
 #[cfg(windows)]
 pub fn ensure_daemon(capability: StartCapability, launcher: &dyn DaemonLauncher) -> EnsureOutcome {
-    let Ok(pipe_name) = anvil_intercept_win32::pipe_name_for_current_user() else {
+    let Ok(pipe_name) = crate::ipc::resolve_pipe_name() else {
         return EnsureOutcome::Failed {
             recovery: "could not resolve the per-user intercept daemon pipe name; \
                        check that the current user SID is readable"

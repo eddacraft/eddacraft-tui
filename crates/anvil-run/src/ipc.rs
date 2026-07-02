@@ -65,7 +65,7 @@ pub fn resolve_endpoint() -> Result<PathBuf, ClientError> {
 
 #[cfg(windows)]
 pub fn resolve_endpoint() -> Result<String, ClientError> {
-    anvil_intercept_win32::pipe_name_for_current_user()
+    anvil_intercept::ipc::resolve_pipe_name()
         .map_err(|err| ClientError::SocketPath(err.to_string()))
 }
 

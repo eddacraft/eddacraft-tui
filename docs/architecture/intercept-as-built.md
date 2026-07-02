@@ -300,9 +300,10 @@ retries to escalate against the connection cap.
 The CLI's `query_daemon_status` has Unix and Windows branches
 (`intercept.rs:77-148`). Both speak the same wire shape, and `--json` returns
 the same `DaemonStatusV1` on either OS. The Unix arm connects to the UDS path
-resolved by `validate_socket_path_for_client`. The Windows arm connects to
-`pipe_name_for_current_user` via `connect_owner_only_pipe_client` and runs
-through `query_daemon_status_windows_at` (`intercept.rs:143-148`, `:170+`). The
+resolved by `validate_socket_path_for_client`. The Windows arm connects to the
+pipe resolved by `anvil_intercept::ipc::resolve_pipe_name` (install-root aware
+since CIB-106; see §15) via `connect_owner_only_pipe_client` and runs through
+`query_daemon_status_windows_at` (`intercept.rs:143-148`, `:170+`). The
 hard-fail-on-Windows error message that earlier drafts of the runbook quoted is
 no longer in the code. The remaining Windows gap is **MCP-side only**
 (`correlation.daemonStatus` always `not-wired`); see §12 and §16 gap 9 for the
@@ -768,9 +769,18 @@ state dir) remain available as blunt fallbacks. See §16 gap 1 (resolved).
   preserve a same-user trust scope) and `reject_remote_clients(true)`
   (`lib.rs:39-63`). This is what the daemon-side `IpcListener` calls on Windows;
   the listener integration arrived in #1325.
-- `pipe_name_for_current_user()` — canonical pipe name
-  `\\.\pipe\anvil-intercept-<sid>` (`lib.rs:96-99`). The SID is the suffix, not
-  the env username, so account-name spoofing cannot move the rendezvous.
+- `current_user_sid_string()` — the current process token's user SID string
+  (`lib.rs:682-685`), the identity anchor for the pipe-name rendezvous. The SID
+  is used, not the env username, so account-name spoofing cannot move the
+  rendezvous. The canonical pipe name itself is derived by
+  `anvil_intercept::ipc::resolve_pipe_name` / `derive_pipe_name`
+  (`anvil-intercept/src/ipc.rs:718-760`, CIB-106): with `ANVIL_HOME` unset/blank
+  the legacy `\\.\pipe\anvil-intercept-<sid>` name, byte-for-byte; with a
+  non-empty `ANVIL_HOME` a stable bounded `-r<16-hex FNV-1a-64>` suffix hashed
+  from the absolutised install root, so a candidate daemon and the production
+  daemon get distinct pipes and coexist (the Windows half of DISTRIB-006 /
+  ADR-060) without leaking the raw path into the locally enumerable pipe
+  namespace.
 - `connect_owner_only_pipe_client(pipe_name)` — synchronous client used by the
   CLI's Windows status path (`lib.rs:121`). All `unsafe` for `CreateFileW`,
   `WriteFile`, `ReadFile`, `CloseHandle` is quarantined to this crate so
@@ -921,9 +931,9 @@ small to keep the daemon's evaluation cost predictable.
 
 ### `crates/anvil-intercept-win32/src/`
 
-| File     | Role                                                                                                                                                                                |
-| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lib.rs` | Owner-only named-pipe server + sync client, `JobObject`, `terminate_job_object`, `process_creation_time`, `pipe_name_for_current_user`. The Windows boundary; all `unsafe` is here. |
+| File     | Role                                                                                                                                                                                                                                                                                           |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lib.rs` | Owner-only named-pipe server + sync client, `JobObject`, `terminate_job_object`, `process_creation_time`, `current_user_sid_string` (pipe-name identity anchor; the name itself is derived by `anvil_intercept::ipc::resolve_pipe_name`, CIB-106). The Windows boundary; all `unsafe` is here. |
 
 ## 18. Related docs
 
