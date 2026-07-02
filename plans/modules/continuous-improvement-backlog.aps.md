@@ -3616,8 +3616,9 @@ archive.
 - **Status:** Proposed
 - **Re-filed:** 2026-07-02 — originally filed as CIB-105; that entry was
   removed by an accidental stale-base revert (`e57a65fdf`, 2026-06-26) and the
-  CIB-105 id was subsequently reused by the 2026-06-27 deepsec intake. Body
-  restored verbatim from the pre-revert state; the work was never implemented
+  CIB-105 id was subsequently reused by "Windows reparse-point hardening for
+  Kindling sidecar writes" (`97e00b0ed`, 2026-06-26). Body restored verbatim
+  from the pre-revert state; the work was never implemented
   (`first_week_insights_hint` still takes no gate parameter).
 - **Intent:** Stop `anvil status` and `anvil watch` from reading-and-recording
   the real project's first-week-nudge state under a gated `ANVIL_HOME`
