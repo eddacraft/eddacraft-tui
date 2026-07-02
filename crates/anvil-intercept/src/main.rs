@@ -37,6 +37,11 @@ enum Command {
 }
 
 fn main() -> ExitCode {
+    // CIB-128: parse the CLI before installing the tracing subscriber
+    // so clap's short-circuit exits (`--help`, `--version`, usage
+    // errors) never emit a trace record or create a trace sink file.
+    let cli = Cli::parse();
+
     // TRACE-001: install the daemon's tracing subscriber before any
     // request paths spin up. `Err` means a global subscriber is
     // already registered (test harness, parent context, or a
@@ -52,7 +57,6 @@ fn main() -> ExitCode {
         eprintln!("anvil-intercept: tracing subscriber init skipped: {err}");
     }
 
-    let cli = Cli::parse();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
