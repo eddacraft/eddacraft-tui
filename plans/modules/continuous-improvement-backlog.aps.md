@@ -3762,7 +3762,7 @@ archive.
 
 ### CIB-140: Key API rate limiting on a trusted client-identity signal
 
-- **Status:** Ready
+- **Status:** Merged 2026-07-03 via PR #3096
 - **Intent:** Stop the per-IP rate limiter from being keyed on a header a
   client can set directly, which lets an attacker evade or frame another
   client's limit.
