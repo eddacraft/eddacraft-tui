@@ -52,6 +52,24 @@ design settles the whole shape first.
    artefact), so no artefact is ever copied from the prior tag again.
 4. Keep the **human gate**: the release owner signs the synthesised verdict
    before `tag.sh` runs (the load-bearing property of the `release` tier).
+5. **Remove the re-cut restart tax** — the actual reason the process lapsed (see
+   below). The council found genuinely useful issues, but every fix moved
+   `main`'s SHA, invalidated the candidate, and forced a **full sweep + council
+   from scratch**. The doctrine is only worth reinstating if that tax is gone.
+
+## Why it lapsed (operator, 2026-07-02)
+
+> "The pre-tag council found some very useful issues in the past, but the
+> problem is that regardless of whether it finds anything it changes the main
+> SHA and we start again… so it became painful. But I believe it is missing."
+
+The value is not in question — the **re-cut-restart loop** is. The v0.7.0
+doctrine treated "fix → re-cut candidate → return to §1" as "normal and
+expected", which in practice meant: any council finding (even a trivial one)
+landed a fix on `main`, moved the SHA, and restarted the whole ~12-minute sweep
+plus the full council over the entire release window. That is the pain this
+design must eliminate — not by dropping the council, but by decoupling it from
+`main`'s motion and reviewing only the delta on a re-pass.
 
 ## Non-Goals
 
@@ -100,8 +118,51 @@ if a future tag's runbook collapses to "see release-process.md plus N additions"
   before the tag is cut. Output committed under
   `plans/reviews/release-council/<date>-<tag>-pre-tag.md` — **filled from the
   template** (§3), not copied.
-- **Multi-pass loop** (unchanged doctrine): a fix returns to Gate A on a re-cut
-  candidate SHA; multiple passes are normal and expected.
+- **Re-passes are delta-only, not restarts** — see the next section. A fix does
+  **not** trigger a full sweep + full council over the whole window.
+
+### 2.5 Removing the re-cut restart tax (the core of this design)
+
+The tax was: fix on `main` → SHA moves → candidate stale → full sweep + full
+council again. Four changes — all using mechanisms the repo **already has** —
+remove it:
+
+1. **Freeze the candidate on a stabilisation branch.** Use the runbook's existing
+   `--strategy stabilisation` path: cut `release/vX.Y.Z` at the candidate SHA and
+   run the council against the **frozen branch**. Must-fix fixes land on the
+   branch (PR into `release/*`), **not** on `main`. `main` keeps moving
+   independently — the candidate no longer fights trunk. The candidate SHA
+   changes *only* when a hardening commit is deliberately applied to the branch.
+   *(This is why the "direct vs stabilisation" strategy already exists in
+   `release-runbook.md` step 4 — this design makes stabilisation the path used
+   whenever the council has any must-fix.)*
+
+2. **Delta-only re-review.** When a hardening commit lands on the branch, review
+   only `<prior-candidate>..<new-candidate>` (the fix) **plus** re-verify the one
+   finding it closes. Prior verdicts **carry forward** — the artefact already has
+   a "Carry-forward verdicts" section; this design makes it *intra-tag* carry
+   forward, formalised via an `anvil capsule` (ADR-074) snapshot of the prior
+   pass so verdicts reattach instead of being re-derived. No full re-sweep, no
+   full-window council on a re-pass.
+
+3. **Defer-don't-block by default.** Only **critical / must-fix** findings force a
+   hardening commit + delta re-review. Major/minor findings are **filed as
+   issues and do not block the tag** (the warnings-over-blocks posture, ADR-002).
+   This is the biggest tax reducer: most findings become follow-up issues and
+   trigger **zero** re-cuts. The v0.7.1-beta pass already did this (its D1–D4
+   were "filed, not blocking") — the design makes it the default, not an
+   ad-hoc call.
+
+4. **Streaming Council upstream shrinks the batch.** The `council` skill's
+   **Streaming Council** runs during implementation; **Batch Council** at
+   milestones. With streaming review already applied across the window, the
+   pre-tag pass is a **confirmation** over largely-reviewed code, not a
+   discovery-from-scratch sweep — far fewer surprise must-fix findings at tag
+   time, so far fewer re-cuts.
+
+Net effect: a re-cut happens *only* for a genuine blocker, touches *only* the
+frozen branch (not trunk), and re-reviews *only* the fix. The "start again over
+the whole window every time" loop is gone.
 
 ### 3. Canonical templates (#1872)
 
@@ -162,39 +223,50 @@ additional sweep only if still run. This avoids resurrecting a possibly-retired
 command block.
 
 ### D4 — Which tags require the gate
-v0.7.2–v0.8.1 shipped without a council — possibly deliberate for patch tags.
-**Open question:** is the pre-tag council required for **every** tag, or only
-**minor/significant** tags (`vX.Y.0`), with patch tags (`vX.Y.Z`, Z>0) doing a
-lighter focused pass (as v0.7.1-beta itself did — a "focused, not full-tier"
-input brief)?
-**Recommendation:** required for minor/significant tags; a documented **focused**
-variant (smaller reviewer set, claim-scoped input brief) for patch tags — the
-template already supports this via a "tier / focus rationale" field.
+Once §2.5 removes the re-cut tax, "which tags" stops being a cost question —
+a confirmation pass over a Streaming-reviewed window with defer-don't-block is
+cheap enough to run everywhere. **Open question (softened):** run the pre-tag
+council for **every** tag (full for `vX.Y.0`, focused for patches), or only
+`vX.Y.0`?
+**Recommendation:** **every** tag — full-tier for minor/significant (`vX.Y.0`),
+a documented **focused** variant (smaller reviewer set, claim-scoped input
+brief, as v0.7.1-beta did) for patch tags. The template carries a "tier / focus
+rationale" field so the same artefact serves both. With the tax gone, the reason
+to skip patch tags (cost) no longer applies.
 
 ## Work breakdown (post-sign-off, the "separate piece of work")
 
 1. **RELORCH-A** — author `docs/runbooks/release-process.md` §"Pre-tag review"
-   (Gates A+B, pass criteria, multi-pass loop, human gate), bound to the D3
-   mechanism. Reference it as a required step from `release-runbook.md`.
-2. **RELORCH-B** — add `TEMPLATE.md` + `TEMPLATE-input.md` (#1872) with the
-   placeholder set; a one-paragraph "how to use" header; a fixture-free example
-   row so `docs:check`/oxfmt pass.
-3. **RELORCH-C** — retire the version-specific §1/§2 in
+   (Gates A+B, pass criteria, human gate), bound to the D3 mechanism. Reference
+   it as a required step from `release-runbook.md`.
+2. **RELORCH-B (the tax fix — highest value)** — document the §2.5 re-pass model
+   as the **default**: stabilisation-branch candidate freeze, delta-only
+   re-review with `anvil capsule` carry-forward of prior verdicts, and
+   defer-don't-block triage. This is what makes the reinstated council survivable;
+   without it, RELORCH-A just re-imports the old pain.
+3. **RELORCH-C** — add `TEMPLATE.md` + `TEMPLATE-input.md` (#1872) with the
+   placeholder set + a "tier / focus rationale" field (full vs focused, D4); a
+   "how to use" header; a fixture-free example row so `docs:check`/oxfmt pass.
+4. **RELORCH-D** — retire the version-specific §1/§2 in
    `v0.7.0-beta-release-runbook.md` down to a link-up to the canonical doc
    (keep it as historical evidence; don't delete).
-4. **RELORCH-D** (optional, deferred) — `scaffold-council.mjs` (#1872 Option 2).
-5. Close #1872 (delivered by RELORCH-B) and the review-gate half of #1712
-   (delivered by RELORCH-A/C); note the remaining #1712 doctrine (§13/§14/§15) as
-   its own follow-up.
+5. **RELORCH-E** (optional, deferred) — `scaffold-council.mjs` (#1872 Option 2).
+6. Close #1872 (delivered by RELORCH-C) and the review-gate half of #1712
+   (delivered by RELORCH-A/B/D); note the remaining #1712 doctrine (§13/§14/§15)
+   as its own follow-up.
 
 ## Risks & open questions
 
 - **D3/D4 are genuine forks** the owner must settle — the recommendations above
   are proposals, not settled facts.
-- **Orphan risk if the process stays dormant:** if the owner does *not* want a
-  pre-tag council reinstated at all, the correct outcome is to **close #1872 and
-  #1712 as won't-do** and drop this design — the template only earns its keep if
-  the gate is real.
+- ~~Orphan risk if the process stays dormant~~ **Resolved (operator,
+  2026-07-02): the council is wanted** — it found genuinely useful issues. The
+  question was never its value but the re-cut restart tax, which §2.5 removes.
+  Reinstating it (not closing #1872/#1712 as won't-do) is the agreed direction.
+- **The tax fix must actually hold:** if a re-pass ever silently degrades back
+  to a full-window re-sweep (e.g. an operator re-runs the whole council out of
+  caution), the pain returns. The delta-only re-review + carry-forward capsule
+  must be the *documented default*, and the runbook must state it explicitly.
 - **Tooling drift:** binding Gate A to `code-review` RELEASE tier assumes that
   skill is the maintained adversarial-review surface; confirm before RELORCH-A.
 - **plans/ formatting:** these artefacts live under `plans/` (excluded from
