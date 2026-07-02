@@ -1740,7 +1740,7 @@ a backlog. Promote repeated friction or executable follow-up work to
   for old work-item IDs across all active modules before validation.
 - **Follow-up:** none
 
-### 2026-06-24 — claude
+### 2026-07-02 — claude
 
 - **Task:** Spike — Astro 7 + Starlight rebuild of `apps/docs-public` (APS section only) to de-risk a Docusaurus → Astro migration; prove the docs-shell proxy contract.
 - **Outcome:** New `apps/docs-public-astro` builds green on Astro 7.0.2 / Starlight 0.41.0 (9 pages + Pagefind in ~2.4s); content symlinked from canonical `docs/public/aps` with zero edits; draft PR opened. Right-sized (no APS module / Council) as an explicit throwaway spike.
