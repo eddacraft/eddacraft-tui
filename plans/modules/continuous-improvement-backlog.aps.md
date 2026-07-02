@@ -1298,7 +1298,7 @@ archive.
 
 ### CIB-052: admin JSON auth errors still go to stderr
 
-- **Status:** Draft
+- **Status:** Merged 2026-07-02 via PR #3080
 - **Intent:** PR #2474 (CIB-049) routed the pre-dispatch auth-gate `--json`
   envelopes to stdout per the stream policy
   (`docs/guides/cli-output-streams.md`). `admin.rs::print_auth_required`
