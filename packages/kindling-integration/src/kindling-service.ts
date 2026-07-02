@@ -171,9 +171,11 @@ export class KindlingService {
       return;
     }
 
-    // Validate against the contract schema
+    // Validate against the contract schema. The parsed result — not the
+    // caller's original object — is what gets persisted, so the store only
+    // ever receives exactly the payload the schema validated (CIB-118).
     const validation = validateObservation(observation);
-    if (!validation.success) {
+    if (!validation.success || !validation.data) {
       debug('emit validation failed', validation.error);
       throw new ObservationValidationError(`Invalid observation: ${validation.error}`, [
         validation.error ?? 'Unknown validation error',
@@ -181,12 +183,25 @@ export class KindlingService {
     }
 
     // Check for sensitive data and redact if found
-    const sensitiveCheck = validateNoSensitiveData(observation);
-    let safeObservation = observation;
+    let safeObservation = validation.data;
+    const sensitiveCheck = validateNoSensitiveData(safeObservation);
 
     if (sensitiveCheck.hasSensitiveData) {
       debug('sensitive data detected, redacting', sensitiveCheck.issues);
-      safeObservation = redactSensitiveFields(observation);
+      const redacted = redactSensitiveFields(safeObservation);
+
+      // Re-validate the redacted payload against the same schema before it
+      // is persisted: redaction must never smuggle a contract-breaking
+      // payload past validation (CIB-118).
+      const revalidation = validateObservation(redacted);
+      if (!revalidation.success || !revalidation.data) {
+        debug('redacted observation failed re-validation', revalidation.error);
+        throw new ObservationValidationError(
+          `Redacted observation no longer matches the contract schema: ${revalidation.error}`,
+          [revalidation.error ?? 'Unknown validation error']
+        );
+      }
+      safeObservation = revalidation.data;
     }
 
     // Delegate to store (async, non-blocking from caller's perspective)

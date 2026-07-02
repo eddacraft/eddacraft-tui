@@ -226,6 +226,98 @@ describe('EvolutionService', () => {
 
     expect(latest?.id).toBe(idA);
   });
+
+  describe('terminal-state immutability and race safety (CIB-118)', () => {
+    it('retiring an already retired memory is a no-op that preserves the original retirement record', async () => {
+      const id = createMemoryId('550e8400-e29b-41d4-a716-446655440071');
+      const retired = createMemory(id, {
+        status: 'retired',
+        evolution: {
+          supersedes: [],
+          retired_at: '2026-03-01T10:00:00.000Z',
+          retired_reason: 'original reason',
+          retired_by: 'joshua',
+        },
+      });
+      const store = createInMemoryStore([retired]);
+      const service = new EvolutionService({ store });
+
+      const result = await service.retireMemory(id, {
+        reason: 'second reason',
+        retired_by: 'someone-else',
+      });
+
+      expect(result?.status).toBe('retired');
+      expect(result?.evolution.retired_reason).toBe('original reason');
+      expect(result?.evolution.retired_by).toBe('joshua');
+      expect(store.saveMemory).not.toHaveBeenCalled();
+    });
+
+    it('retiring a superseded memory preserves the superseded_by link', async () => {
+      const idA = createMemoryId('550e8400-e29b-41d4-a716-446655440072');
+      const idB = createMemoryId('550e8400-e29b-41d4-a716-446655440073');
+      const superseded = createMemory(idA, {
+        status: 'superseded',
+        evolution: { supersedes: [], superseded_by: idB },
+      });
+      const store = createInMemoryStore([superseded]);
+      const service = new EvolutionService({ store });
+
+      const result = await service.retireMemory(idA, {
+        reason: 'cleanup sweep',
+        retired_by: 'joshua',
+      });
+
+      expect(result?.status).toBe('superseded');
+      expect(result?.evolution.superseded_by).toBe(idB);
+      expect(store.saveMemory).not.toHaveBeenCalled();
+    });
+
+    it('retireMemoryById is a no-op for memories already in a terminal state', async () => {
+      const id = createMemoryId('550e8400-e29b-41d4-a716-446655440074');
+      const retired = createMemory(id, {
+        status: 'retired',
+        evolution: {
+          supersedes: [],
+          retired_at: '2026-03-01T10:00:00.000Z',
+          retired_reason: 'original reason',
+          retired_by: 'joshua',
+        },
+      });
+      const store = createInMemoryStore([retired]);
+      const service = new EvolutionService({ store });
+
+      await service.retireMemoryById(id, undefined, 'second reason', 'someone-else');
+
+      expect(store.saveMemory).not.toHaveBeenCalled();
+      const current = await store.getMemory(id);
+      expect(current?.evolution.retired_reason).toBe('original reason');
+    });
+
+    it('serialises concurrent supersedes of the same memory so only one replacement wins', async () => {
+      const id = createMemoryId('550e8400-e29b-41d4-a716-446655440075');
+      const store = createInMemoryStore([createMemory(id)]);
+      const service = new EvolutionService({ store });
+
+      // Deterministic interleaving: both calls are started before either
+      // completes, so without serialisation both read status 'active'.
+      const outcomes = await Promise.allSettled([
+        service.supersedeMemory(id, createCreateMemoryInput()),
+        service.supersedeMemory(id, createCreateMemoryInput()),
+      ]);
+
+      const fulfilled = outcomes.filter((outcome) => outcome.status === 'fulfilled');
+      const rejected = outcomes.filter((outcome) => outcome.status === 'rejected');
+      expect(fulfilled).toHaveLength(1);
+      expect(rejected).toHaveLength(1);
+      expect((rejected[0] as PromiseRejectedResult).reason.message).toContain("must be 'active'");
+
+      const replacements = (await store.getActiveMemories()).filter((memory) =>
+        memory.evolution.supersedes.includes(id)
+      );
+      expect(replacements).toHaveLength(1);
+    });
+  });
 });
 
 function createVersionTrackerMock(): IVersionTracker {

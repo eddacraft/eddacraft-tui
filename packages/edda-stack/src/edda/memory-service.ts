@@ -43,6 +43,11 @@ export class MemoryService implements IEddaPort {
     return this.deps.promotionService.createMemory(input);
   }
 
+  /**
+   * Internal/test-only escape hatch: bypasses the CAS claim and natural-key
+   * idempotency protections of promoteProposal (CIB-118). Must not be wired
+   * into a live proposal flow.
+   */
   async createMemoryFromProposal(
     input: PromoteProposalInput,
     proposal: CandidateProposal

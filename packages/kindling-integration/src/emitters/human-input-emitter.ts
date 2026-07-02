@@ -43,7 +43,7 @@ export interface HumanInputDetails {
  *
  * @param service - KindlingService instance
  * @param input - Human input details
- * @returns A generated ID for linking purposes
+ * @returns The generated input_id, persisted on the observation for linking (CIB-118)
  */
 export function emitHumanInput(service: KindlingService, input: HumanInputDetails): string {
   const inputId = randomUUID();
@@ -52,6 +52,7 @@ export function emitHumanInput(service: KindlingService, input: HumanInputDetail
     kind: 'human_input',
     session_id: input.session_id,
     timestamp: new Date().toISOString(),
+    input_id: inputId,
     input_type: input.input_type,
     context: {
       prompt: input.context.prompt,

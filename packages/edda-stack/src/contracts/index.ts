@@ -165,6 +165,8 @@ export {
   type CreateProposalInput,
   type ProposalQuery,
   type ProposalQueryResult,
+  // Errors
+  ProposalAlreadyResolvedError,
   // Constants
   proposalTypeDescriptions,
 } from './ember-proposal.js';

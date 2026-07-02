@@ -133,6 +133,10 @@ export interface IEmberPort {
 
   /**
    * Resolve a proposal (promote, dismiss, or mark expired)
+   *
+   * Only active proposals can be resolved. Returns null when the proposal
+   * does not exist; throws ProposalAlreadyResolvedError when the proposal is
+   * already in a terminal state (terminal states are immutable, CIB-118).
    */
   resolveProposal(id: ProposalId, input: ResolveProposalInput): Promise<CandidateProposal | null>;
 
@@ -175,6 +179,11 @@ export interface IEmberPort {
    * This updates the proposal status to 'promoted' and records
    * the memory ID it was promoted to.
    *
+   * The transition is atomic and idempotent: replaying the same promotion
+   * (same memory ID) is a no-op, while promoting with a different memory ID
+   * or from another terminal state throws ProposalAlreadyResolvedError
+   * (CIB-118).
+   *
    * @param id - The proposal ID to mark as promoted
    * @param memoryId - The Edda memory ID this was promoted to
    * @param resolvedBy - Who performed the promotion
@@ -186,6 +195,10 @@ export interface IEmberPort {
    *
    * This updates the proposal status to 'dismissed' and records
    * the reason for dismissal.
+   *
+   * Replaying a dismissal is a no-op (the first resolution record wins);
+   * dismissing from another terminal state throws
+   * ProposalAlreadyResolvedError (CIB-118).
    *
    * @param id - The proposal ID to dismiss
    * @param reason - Why the proposal was dismissed

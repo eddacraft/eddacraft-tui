@@ -68,6 +68,25 @@ export const ProposalStatusSchema = z.enum([
 
 export type ProposalStatus = z.infer<typeof ProposalStatusSchema>;
 
+/**
+ * Thrown when a state transition is attempted on a proposal that has already
+ * reached a terminal status (promoted, expired, or dismissed). Terminal
+ * proposal states are immutable: the first resolution wins and later
+ * transitions are refused rather than overwriting the recorded resolution
+ * (CIB-118).
+ */
+export class ProposalAlreadyResolvedError extends Error {
+  constructor(
+    public readonly proposalId: string,
+    public readonly status: ProposalStatus
+  ) {
+    super(
+      `Proposal ${proposalId} is already resolved (status: '${status}'); terminal proposal states are immutable`
+    );
+    this.name = 'ProposalAlreadyResolvedError';
+  }
+}
+
 // =============================================================================
 // Evaluation Signals
 // =============================================================================

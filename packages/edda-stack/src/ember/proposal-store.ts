@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import Database from 'better-sqlite3';
 import type { Database as DatabaseType } from 'better-sqlite3';
+import { ProposalAlreadyResolvedError } from '../contracts/ember-proposal.js';
 import {
   createProposalId,
   type MemoryId,
@@ -180,7 +181,10 @@ export class ProposalStore implements IEmberPort {
     return this.getProposal(id);
   }
 
-  resolveProposal(id: ProposalId, input: ResolveProposalInput): Promise<CandidateProposal | null> {
+  async resolveProposal(
+    id: ProposalId,
+    input: ResolveProposalInput
+  ): Promise<CandidateProposal | null> {
     const resolvedAt = now();
     const resolution = {
       resolved_at: resolvedAt,
@@ -189,13 +193,23 @@ export class ProposalStore implements IEmberPort {
       memory_id: input.memory_id,
     };
 
+    // Compare-and-set on 'active' so a terminal resolution can never be
+    // overwritten, even under concurrent resolvers (CIB-118).
+    //
+    // Allowed-transition matrix:
+    //   active  -> promoted | expired | dismissed  (the CAS below)
+    //   expired -> dismissed                       idempotent no-op success;
+    //                                              the recorded expiry
+    //                                              resolution is kept
+    //   any other terminal transition              refused with
+    //                                              ProposalAlreadyResolvedError
     const result = this.db
       .prepare(
         `UPDATE proposals
          SET status = @status,
              resolution = @resolution,
              updated_at = @updated_at
-         WHERE id = @id`
+         WHERE id = @id AND status = 'active'`
       )
       .run({
         id,
@@ -205,7 +219,16 @@ export class ProposalStore implements IEmberPort {
       });
 
     if (result.changes === 0) {
-      return Promise.resolve(null);
+      const current = await this.getProposal(id);
+      if (current === null) {
+        return null;
+      }
+      if (input.status === 'dismissed' && current.status === 'expired') {
+        // Dismissing an expired proposal is a no-op success: both are
+        // "closed without promotion" and the expiry record wins.
+        return current;
+      }
+      throw new ProposalAlreadyResolvedError(id, current.status);
     }
 
     return this.getProposal(id);
@@ -356,13 +379,16 @@ export class ProposalStore implements IEmberPort {
       memory_id: memoryId,
     };
 
+    // Compare-and-set on 'active': only one promotion can ever claim the
+    // proposal, so a double-fire cannot overwrite the recorded memory link
+    // (CIB-118).
     const result = this.db
       .prepare(
         `UPDATE proposals
          SET status = 'promoted',
              resolution = @resolution,
              updated_at = @updated_at
-         WHERE id = @id`
+         WHERE id = @id AND status = 'active'`
       )
       .run({
         id,
@@ -371,7 +397,15 @@ export class ProposalStore implements IEmberPort {
       });
 
     if (result.changes === 0) {
-      throw new Error(`Proposal not found: ${id}`);
+      const current = await this.getProposal(id);
+      if (current === null) {
+        throw new Error(`Proposal not found: ${id}`);
+      }
+      if (current.status === 'promoted' && current.resolution?.memory_id === memoryId) {
+        // Idempotent replay: the same promotion already succeeded.
+        return;
+      }
+      throw new ProposalAlreadyResolvedError(id, current.status);
     }
 
     return;
@@ -385,13 +419,15 @@ export class ProposalStore implements IEmberPort {
       resolution_reason: reason,
     };
 
+    // Compare-and-set on 'active' so a terminal resolution can never be
+    // overwritten (CIB-118).
     const result = this.db
       .prepare(
         `UPDATE proposals
          SET status = 'dismissed',
              resolution = @resolution,
              updated_at = @updated_at
-         WHERE id = @id`
+         WHERE id = @id AND status = 'active'`
       )
       .run({
         id,
@@ -400,7 +436,21 @@ export class ProposalStore implements IEmberPort {
       });
 
     if (result.changes === 0) {
-      throw new Error(`Proposal not found: ${id}`);
+      const current = await this.getProposal(id);
+      if (current === null) {
+        throw new Error(`Proposal not found: ${id}`);
+      }
+      if (current.status === 'dismissed') {
+        // Idempotent replay: the first dismissal record wins.
+        return;
+      }
+      if (current.status === 'expired') {
+        // Dismissing an expired proposal is a no-op success — the recorded
+        // expiry resolution is kept (see the allowed-transition matrix on
+        // resolveProposal).
+        return;
+      }
+      throw new ProposalAlreadyResolvedError(id, current.status);
     }
 
     return;

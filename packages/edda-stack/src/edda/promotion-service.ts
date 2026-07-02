@@ -1,9 +1,16 @@
 import { v4 as uuidv4 } from 'uuid';
-import type { CandidateProposal, MemoryObject, PromoteProposalInput } from '../contracts/index.js';
+import type {
+  CandidateProposal,
+  MemoryId,
+  MemoryObject,
+  PromoteProposalInput,
+  ProposalId,
+} from '../contracts/index.js';
 import {
   MemoryObjectSchema,
   MEMORY_SCHEMA_VERSION,
   PromoteProposalInputSchema,
+  ProposalAlreadyResolvedError,
   createMemoryId,
   createPromotionInput,
   expandProvenanceSummary,
@@ -36,12 +43,43 @@ export class PromotionService {
       throw new Error(`Invalid promotion input: ${validation.errors.join('; ')}`);
     }
 
+    // Idempotency by natural key (CIB-118): if this proposal already produced
+    // a memory, a re-fired promotion returns that memory instead of creating
+    // a duplicate. The first promotion wins; later inputs are ignored.
+    const existingMemory = await this.deps.store.getMemoryByProposalId(input.proposal_id);
+    if (existingMemory) {
+      if (this.deps.emberPort) {
+        try {
+          // Repair path: ensure the proposal is recorded as promoted. This is
+          // a no-op when the same promotion was already recorded.
+          await this.deps.emberPort.markPromoted(
+            input.proposal_id,
+            existingMemory.id,
+            input.promoted_by
+          );
+        } catch (error) {
+          if (!(error instanceof ProposalAlreadyResolvedError)) {
+            throw error;
+          }
+          // Already terminal — the memory exists, so the promotion effect is
+          // already in place.
+        }
+      }
+      return existingMemory;
+    }
+
     let proposal: CandidateProposal | null = null;
     if (this.deps.emberPort) {
       proposal = await this.deps.emberPort.getProposal(input.proposal_id);
 
       if (proposal === null) {
         throw new Error(`Proposal not found: ${input.proposal_id}`);
+      }
+
+      if (proposal.status === 'promoted') {
+        throw new Error(
+          `Proposal ${input.proposal_id} is already promoted but no memory exists for it (inconsistent state)`
+        );
       }
 
       if (proposal.status !== 'active') {
@@ -79,10 +117,35 @@ export class PromotionService {
       ttl_days: 30,
     };
 
-    const memory = await this.createMemoryFromProposal(input, resolvedProposal);
+    const memory = this.buildMemoryFromProposal(input, resolvedProposal);
 
+    // Save-then-claim (CIB-118). The memory row is written speculatively
+    // FIRST — a fresh-UUID row is harmless if the claim below fails or the
+    // process dies in between (the proposal stays active and the next attempt
+    // repairs the mark through the upfront getMemoryByProposalId branch).
+    // The reverse ordering would brick the proposal on a transient save
+    // failure: a promoted proposal whose memory_id does not exist, with no
+    // recovery path past the CAS.
+    await this.deps.store.saveMemory(memory);
+
+    // Claim the proposal via the store's compare-and-set on 'active' —
+    // exactly one concurrent promotion can win the claim.
     if (this.deps.emberPort) {
-      await this.deps.emberPort.markPromoted(input.proposal_id, memory.id, input.promoted_by);
+      try {
+        await this.deps.emberPort.markPromoted(input.proposal_id, memory.id, input.promoted_by);
+      } catch (error) {
+        if (error instanceof ProposalAlreadyResolvedError) {
+          // Lost the claim to a concurrent promotion. Our just-saved row is
+          // an orphaned-but-harmless speculative write; resolve the winner
+          // through the proposal's recorded resolution rather than the
+          // natural-key lookup, which could now find our own row.
+          const winner = await this.getRecordedWinnerMemory(input.proposal_id, memory.id);
+          if (winner) {
+            return winner;
+          }
+        }
+        throw error;
+      }
     }
 
     if (this.deps.versionTracker) {
@@ -96,10 +159,45 @@ export class PromotionService {
     return memory;
   }
 
+  /**
+   * Look up the memory recorded on the proposal's resolution after a lost
+   * promotion claim. Returns null when the resolution is missing or points at
+   * our own speculative row (which would mean the claim error was spurious).
+   */
+  private async getRecordedWinnerMemory(
+    proposalId: ProposalId,
+    ownMemoryId: MemoryId
+  ): Promise<MemoryObject | null> {
+    if (!this.deps.emberPort) {
+      return null;
+    }
+    const current = await this.deps.emberPort.getProposal(proposalId);
+    const winnerId = current?.resolution?.memory_id;
+    if (!winnerId || winnerId === ownMemoryId) {
+      return null;
+    }
+    return this.deps.store.getMemory(createMemoryId(winnerId));
+  }
+
+  /**
+   * Internal/test-only escape hatch: builds and saves a memory WITHOUT the
+   * CAS claim and natural-key idempotency protections that promoteProposal
+   * provides (CIB-118). Must not be wired into a live proposal flow — use
+   * promoteProposal for anything that touches a real proposal lifecycle.
+   */
   async createMemoryFromProposal(
     input: PromoteProposalInput,
     proposal: CandidateProposal
   ): Promise<MemoryObject> {
+    const memory = this.buildMemoryFromProposal(input, proposal);
+    await this.deps.store.saveMemory(memory);
+    return memory;
+  }
+
+  private buildMemoryFromProposal(
+    input: PromoteProposalInput,
+    proposal: CandidateProposal
+  ): MemoryObject {
     const promotionInput = createPromotionInput(proposal, input.promoted_by, input.reason, {
       memoryType: input.type,
       confidence: input.confidence,
@@ -141,7 +239,6 @@ export class PromotionService {
       created_at: createdAt,
     });
 
-    await this.deps.store.saveMemory(memory);
     return memory;
   }
 

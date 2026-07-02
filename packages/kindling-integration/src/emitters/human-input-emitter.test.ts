@@ -66,6 +66,16 @@ describe('emitHumanInput', () => {
     expect(inputId).toMatch(UUID_RE);
   });
 
+  it('persists the returned input_id on the emitted observation (CIB-118)', async () => {
+    const { store, emits } = makeSpyStore();
+    const svc = makeService(store);
+    const inputId = emitHumanInput(svc, makeHumanInputDetails());
+    await new Promise((r) => setImmediate(r));
+    expect(emits).toHaveLength(1);
+    const obs = emits[0] as Extract<(typeof emits)[0], { kind: 'human_input' }>;
+    expect(obs.input_id).toBe(inputId);
+  });
+
   it('returns a different input_id on each call', () => {
     const { store } = makeSpyStore();
     const svc = makeService(store);

@@ -39,6 +39,17 @@ const ALL_MEMORY_TYPES: MemoryType[] = [
 const ALL_MEMORY_STATUSES: MemoryStatus[] = ['active', 'superseded', 'retired'];
 const ALL_CONFIDENCE_LEVELS: EddaConfidenceLevel[] = ['low', 'medium', 'high'];
 
+/**
+ * YAML-file-backed memory store.
+ *
+ * Concurrency note (CIB-118): index.yaml and memory files are written with
+ * plain non-atomic writes and there is no cross-PROCESS locking. Service-level
+ * protections (EvolutionService's per-memory transition lock, the promotion
+ * CAS on the proposal store) assume a SINGLE process owns this storage path.
+ * Concurrent writers from multiple processes can interleave index writes and
+ * lose updates — supporting that deployment shape needs a store-level
+ * redesign (atomic rename + file locking), which is out of scope here.
+ */
 export class MemoryStore {
   private readonly storagePath: string;
   private readonly memoriesPath: string;

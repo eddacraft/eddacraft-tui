@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CandidateProposal, MemoryObject, PromoteProposalInput } from '../contracts/index.js';
-import { createObservationId, createProposalId, createSessionId } from '../contracts/index.js';
+import {
+  createMemoryId,
+  createObservationId,
+  createProposalId,
+  createSessionId,
+  ProposalAlreadyResolvedError,
+} from '../contracts/index.js';
 import type { CreateMemoryInput, IEmberPort } from '../contracts/ports/index.js';
 import type { IVersionTracker, IMemoryStoreOperations } from './store-interfaces.js';
 import { PromotionService } from './promotion-service.js';
@@ -223,6 +229,140 @@ describe('PromotionService', () => {
     expect(memory.provenance.ember_source?.created_at).toBeDefined();
     expect(store.saveMemory).toHaveBeenCalledTimes(1);
   });
+
+  describe('promotion idempotency and atomic claim (CIB-118)', () => {
+    it('returns the existing memory when the proposal already produced one (double-fire = single effect)', async () => {
+      const proposal = createProposal({ status: 'promoted' });
+      const existingMemory = createExistingMemory(proposal.id);
+      const store = createStoreMock();
+      vi.mocked(store.getMemoryByProposalId).mockResolvedValue(existingMemory);
+      const emberPort = createEmberPortMock(proposal);
+      const service = new PromotionService({ store, emberPort });
+
+      const memory = await service.promoteProposal(createPromotionInput(proposal.id));
+
+      expect(memory.id).toBe(existingMemory.id);
+      expect(store.saveMemory).not.toHaveBeenCalled();
+    });
+
+    it('re-marks the proposal promoted when a memory exists but the proposal is still active', async () => {
+      const proposal = createProposal({ status: 'active' });
+      const existingMemory = createExistingMemory(proposal.id);
+      const store = createStoreMock();
+      vi.mocked(store.getMemoryByProposalId).mockResolvedValue(existingMemory);
+      const emberPort = createEmberPortMock(proposal);
+      const service = new PromotionService({ store, emberPort });
+
+      const memory = await service.promoteProposal(createPromotionInput(proposal.id));
+
+      expect(memory.id).toBe(existingMemory.id);
+      expect(emberPort.markPromoted).toHaveBeenCalledWith(proposal.id, existingMemory.id, 'joshua');
+      expect(store.saveMemory).not.toHaveBeenCalled();
+    });
+
+    it('throws when the proposal is promoted but no memory exists for it', async () => {
+      const proposal = createProposal({ status: 'promoted' });
+      const service = new PromotionService({
+        store: createStoreMock(),
+        emberPort: createEmberPortMock(proposal),
+      });
+
+      await expect(service.promoteProposal(createPromotionInput(proposal.id))).rejects.toThrow(
+        'already promoted'
+      );
+    });
+
+    it('persists the memory before claiming the proposal (speculative save)', async () => {
+      const proposal = createProposal();
+      const store = createStoreMock();
+      const emberPort = createEmberPortMock(proposal);
+      const service = new PromotionService({ store, emberPort });
+
+      await service.promoteProposal(createPromotionInput(proposal.id));
+
+      // Save-then-claim: a failed save must leave the proposal unclaimed. The
+      // reverse ordering would brick the proposal on a transient save failure.
+      const saveOrder = vi.mocked(store.saveMemory).mock.invocationCallOrder[0];
+      const claimOrder = vi.mocked(emberPort.markPromoted).mock.invocationCallOrder[0];
+      expect(saveOrder).toBeLessThan(claimOrder);
+    });
+
+    it('leaves the proposal claimable when saving the memory fails, so a retry succeeds', async () => {
+      const proposal = createProposal();
+      const store = createStoreMock();
+      vi.mocked(store.saveMemory)
+        .mockRejectedValueOnce(new Error('disk full'))
+        .mockResolvedValue(undefined);
+      const emberPort = createEmberPortMock(proposal);
+      const service = new PromotionService({ store, emberPort });
+
+      await expect(service.promoteProposal(createPromotionInput(proposal.id))).rejects.toThrow(
+        'disk full'
+      );
+      // The claim happens after the save, so the failed attempt never marked
+      // the proposal — it is still active and the retry can promote it.
+      expect(emberPort.markPromoted).not.toHaveBeenCalled();
+
+      const memory = await service.promoteProposal(createPromotionInput(proposal.id));
+
+      expect(memory.status).toBe('active');
+      expect(emberPort.markPromoted).toHaveBeenCalledTimes(1);
+      expect(emberPort.markPromoted).toHaveBeenCalledWith(proposal.id, memory.id, 'joshua');
+    });
+
+    it('returns the winning memory when the claim is lost to a concurrent promotion', async () => {
+      const activeProposal = createProposal();
+      const saved: MemoryObject[] = [];
+      const store = createStoreMock();
+      // Both callers pass the upfront natural-key check before either saves —
+      // this injects the racing interleaving deterministically.
+      vi.mocked(store.getMemoryByProposalId).mockResolvedValue(null);
+      vi.mocked(store.saveMemory).mockImplementation(async (memory) => {
+        saved.push(memory);
+      });
+      vi.mocked(store.getMemory).mockImplementation(
+        async (id) => saved.find((memory) => memory.id === id) ?? null
+      );
+      const emberPort = createEmberPortMock(activeProposal);
+      let claimedMemoryId: MemoryObject['id'] | undefined;
+      vi.mocked(emberPort.markPromoted).mockImplementation(async (id, memoryId) => {
+        if (claimedMemoryId !== undefined) {
+          throw new ProposalAlreadyResolvedError(id, 'promoted');
+        }
+        claimedMemoryId = memoryId;
+      });
+      // Both pre-claim status checks see the stale 'active' proposal; only
+      // the loser's recovery lookup sees the recorded resolution.
+      let getProposalCalls = 0;
+      vi.mocked(emberPort.getProposal).mockImplementation(async () => {
+        getProposalCalls += 1;
+        if (getProposalCalls <= 2 || claimedMemoryId === undefined) {
+          return activeProposal;
+        }
+        return {
+          ...activeProposal,
+          status: 'promoted' as const,
+          resolution: {
+            resolved_at: activeProposal.created_at,
+            resolved_by: 'joshua',
+            resolution_reason: 'Promoted to Edda memory',
+            memory_id: claimedMemoryId,
+          },
+        };
+      });
+      const service = new PromotionService({ store, emberPort });
+
+      const first = await service.promoteProposal(createPromotionInput(activeProposal.id));
+      const second = await service.promoteProposal(createPromotionInput(activeProposal.id));
+
+      // Single effect: the loser resolves the winner's memory through the
+      // recorded resolution. Its own speculative row remains orphaned but
+      // harmless (never linked from the proposal).
+      expect(second.id).toBe(first.id);
+      expect(claimedMemoryId).toBe(first.id);
+      expect(saved).toHaveLength(2);
+    });
+  });
 });
 
 function createStoreMock(): IMemoryStoreOperations {
@@ -370,5 +510,47 @@ function createDirectMemoryInput(): CreateMemoryInput {
     },
     created_by: 'joshua',
     reason: 'Core implementation boundary should be explicit and durable',
+  };
+}
+
+function createExistingMemory(proposalId: CandidateProposal['id']): MemoryObject {
+  return {
+    id: createMemoryId('550e8400-e29b-41d4-a716-446655440200'),
+    type: 'decision',
+    status: 'active',
+    schema_version: 1,
+    statement: 'Use strict linting for Edda service implementations',
+    context: {
+      when: '2026-03-01T12:00:00.000Z',
+      why: 'Consistency and auditability are required',
+      conditions: ['Service layer changes'],
+      tags: ['quality', 'edda'],
+    },
+    confidence: 'high',
+    provenance: {
+      kindling_sources: [
+        {
+          observation_id: createObservationId('550e8400-e29b-41d4-a716-446655440010'),
+          session_id: createSessionId('550e8400-e29b-41d4-a716-446655440020'),
+          kind: 'action_executed',
+          timestamp: '2026-03-01T10:00:00.000Z',
+        },
+      ],
+      source_sessions: [createSessionId('550e8400-e29b-41d4-a716-446655440020')],
+      ember_source: {
+        proposal_id: proposalId,
+        proposal_type: 'decision',
+        confidence: 0.8,
+        created_at: '2026-03-01T12:00:00.000Z',
+      },
+    },
+    attribution: {
+      actor: 'joshua',
+      timestamp: '2026-03-01T12:00:00.000Z',
+      method: 'cli_command',
+      reason: 'Original promotion',
+    },
+    evolution: { supersedes: [] },
+    created_at: '2026-03-01T12:00:00.000Z',
   };
 }

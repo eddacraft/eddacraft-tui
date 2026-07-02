@@ -14,9 +14,25 @@ export interface EvolutionServiceDeps {
 }
 
 export class EvolutionService {
+  /**
+   * Per-memory in-process locks serialising state transitions (CIB-118).
+   * Without this, two interleaved supersedes of the same memory can both
+   * observe status 'active' and both create a replacement.
+   */
+  private readonly transitionLocks = new Map<MemoryId, Promise<void>>();
+
   constructor(private readonly deps: EvolutionServiceDeps) {}
 
   async supersedeMemory(
+    oldMemoryId: MemoryId,
+    newMemoryInput: CreateMemoryInput
+  ): Promise<{ old: MemoryObject; new: MemoryObject }> {
+    return this.withTransitionLock(oldMemoryId, () =>
+      this.supersedeMemoryLocked(oldMemoryId, newMemoryInput)
+    );
+  }
+
+  private async supersedeMemoryLocked(
     oldMemoryId: MemoryId,
     newMemoryInput: CreateMemoryInput
   ): Promise<{ old: MemoryObject; new: MemoryObject }> {
@@ -103,29 +119,38 @@ export class EvolutionService {
   }
 
   async retireMemory(id: MemoryId, input: RetireMemoryInput): Promise<MemoryObject | null> {
-    const memory = await this.deps.store.getMemory(id);
-    if (memory === null) {
-      return null;
-    }
+    return this.withTransitionLock(id, async () => {
+      const memory = await this.deps.store.getMemory(id);
+      if (memory === null) {
+        return null;
+      }
 
-    const retired = createRetiredMemory(memory, {
-      status: 'retired',
-      reason: input.reason,
-      retiredBy: input.retired_by,
-      supersededBy: input.superseded_by,
+      if (memory.status !== 'active') {
+        // Terminal states are immutable (CIB-118): retiring an already
+        // retired or superseded memory is a no-op so supersession links and
+        // the original retirement record are never overwritten.
+        return memory;
+      }
+
+      const retired = createRetiredMemory(memory, {
+        status: 'retired',
+        reason: input.reason,
+        retiredBy: input.retired_by,
+        supersededBy: input.superseded_by,
+      });
+
+      await this.deps.store.saveMemory(retired);
+
+      if (this.deps.versionTracker) {
+        await this.deps.versionTracker.trackChange(
+          [`memories/${memory.type}/${id}.yaml`],
+          `Retired memory ${id}`,
+          input.retired_by
+        );
+      }
+
+      return retired;
     });
-
-    await this.deps.store.saveMemory(retired);
-
-    if (this.deps.versionTracker) {
-      await this.deps.versionTracker.trackChange(
-        [`memories/${memory.type}/${id}.yaml`],
-        `Retired memory ${id}`,
-        input.retired_by
-      );
-    }
-
-    return retired;
   }
 
   async retireMemoryById(
@@ -134,26 +159,60 @@ export class EvolutionService {
     reason: string,
     retiredBy: string
   ): Promise<void> {
-    const memory = await this.deps.store.getMemory(id);
-    if (memory === null) {
-      return;
-    }
+    await this.withTransitionLock(id, async () => {
+      const memory = await this.deps.store.getMemory(id);
+      if (memory === null) {
+        return;
+      }
 
-    const retired = createRetiredMemory(memory, {
-      status: supersededBy ? 'superseded' : 'retired',
-      reason,
-      retiredBy,
-      supersededBy,
+      if (memory.status !== 'active') {
+        // Terminal states are immutable (CIB-118) — see retireMemory.
+        return;
+      }
+
+      const retired = createRetiredMemory(memory, {
+        status: supersededBy ? 'superseded' : 'retired',
+        reason,
+        retiredBy,
+        supersededBy,
+      });
+
+      await this.deps.store.saveMemory(retired);
+
+      if (this.deps.versionTracker) {
+        await this.deps.versionTracker.trackChange(
+          [`memories/${memory.type}/${id}.yaml`],
+          `Retired memory ${id}`,
+          retiredBy
+        );
+      }
     });
+  }
 
-    await this.deps.store.saveMemory(retired);
+  /**
+   * Serialise state transitions per memory id. Queued callers run in FIFO
+   * order; a failed transition does not block the next caller.
+   *
+   * NOT reentrant: calling withTransitionLock for the same id from inside a
+   * locked section deadlocks (the inner call waits on the outer gate).
+   */
+  private async withTransitionLock<T>(id: MemoryId, fn: () => Promise<T>): Promise<T> {
+    const previous = this.transitionLocks.get(id) ?? Promise.resolve();
 
-    if (this.deps.versionTracker) {
-      await this.deps.versionTracker.trackChange(
-        [`memories/${memory.type}/${id}.yaml`],
-        `Retired memory ${id}`,
-        retiredBy
-      );
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    this.transitionLocks.set(id, gate);
+
+    await previous;
+    try {
+      return await fn();
+    } finally {
+      release();
+      if (this.transitionLocks.get(id) === gate) {
+        this.transitionLocks.delete(id);
+      }
     }
   }
 

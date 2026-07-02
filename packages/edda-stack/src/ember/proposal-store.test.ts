@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMemoryId, createProposalId, createSessionId } from '../contracts/identifiers.js';
 import type { CreateProposalInput, ProposalType } from '../contracts/ember-proposal.js';
+import { ProposalAlreadyResolvedError } from '../contracts/ember-proposal.js';
 import { ProposalStore } from './proposal-store.js';
 
 function createInput(type: ProposalType = 'pattern', sessionId?: string): CreateProposalInput {
@@ -254,5 +255,148 @@ describe('ProposalStore', () => {
     expect(await store.isAvailable()).toBe(true);
     store.close();
     expect(await store.isAvailable()).toBe(false);
+  });
+
+  describe('terminal-state immutability (CIB-118)', () => {
+    it('refuses to re-resolve a proposal that is already terminal', async () => {
+      const proposal = await store.createProposal(createInput('pattern'));
+      const memoryId = createMemoryId(randomUUID());
+
+      const resolved = await store.resolveProposal(proposal.id, {
+        status: 'promoted',
+        resolved_by: 'agent/promoter',
+        memory_id: memoryId,
+      });
+      expect(resolved?.status).toBe('promoted');
+
+      await expect(
+        store.resolveProposal(proposal.id, {
+          status: 'dismissed',
+          resolved_by: 'agent/reviewer',
+          resolution_reason: 'changed my mind',
+        })
+      ).rejects.toThrow(ProposalAlreadyResolvedError);
+
+      const current = await store.getProposal(proposal.id);
+      expect(current?.status).toBe('promoted');
+      expect(current?.resolution?.memory_id).toBe(memoryId);
+    });
+
+    it('returns null when resolving a proposal that does not exist', async () => {
+      const missingId = createProposalId(randomUUID());
+      const result = await store.resolveProposal(missingId, {
+        status: 'dismissed',
+        resolved_by: 'agent/reviewer',
+      });
+      expect(result).toBeNull();
+    });
+
+    it('treats a markPromoted replay with the same memory id as a no-op', async () => {
+      const proposal = await store.createProposal(createInput('decision'));
+      const memoryId = createMemoryId(randomUUID());
+
+      vi.setSystemTime(new Date('2026-01-01T01:00:00.000Z'));
+      await store.markPromoted(proposal.id, memoryId, 'agent/promoter');
+
+      vi.setSystemTime(new Date('2026-01-01T02:00:00.000Z'));
+      await expect(
+        store.markPromoted(proposal.id, memoryId, 'agent/promoter')
+      ).resolves.toBeUndefined();
+
+      const current = await store.getProposal(proposal.id);
+      expect(current?.status).toBe('promoted');
+      expect(current?.resolution?.memory_id).toBe(memoryId);
+      // The first resolution record wins; the replay must not rewrite it.
+      expect(current?.resolution?.resolved_at).toBe('2026-01-01T01:00:00.000Z');
+    });
+
+    it('refuses markPromoted with a different memory id on an already promoted proposal', async () => {
+      const proposal = await store.createProposal(createInput('decision'));
+      const firstMemoryId = createMemoryId(randomUUID());
+      const secondMemoryId = createMemoryId(randomUUID());
+
+      await store.markPromoted(proposal.id, firstMemoryId, 'agent/promoter');
+
+      await expect(
+        store.markPromoted(proposal.id, secondMemoryId, 'agent/promoter')
+      ).rejects.toThrow(ProposalAlreadyResolvedError);
+
+      const current = await store.getProposal(proposal.id);
+      expect(current?.resolution?.memory_id).toBe(firstMemoryId);
+    });
+
+    it('treats a markDismissed replay as a no-op that preserves the first resolution', async () => {
+      const proposal = await store.createProposal(createInput('warning'));
+
+      vi.setSystemTime(new Date('2026-01-01T01:00:00.000Z'));
+      await store.markDismissed(proposal.id, 'first reason', 'agent/reviewer');
+
+      vi.setSystemTime(new Date('2026-01-01T02:00:00.000Z'));
+      await expect(
+        store.markDismissed(proposal.id, 'second reason', 'agent/other')
+      ).resolves.toBeUndefined();
+
+      const current = await store.getProposal(proposal.id);
+      expect(current?.status).toBe('dismissed');
+      expect(current?.resolution?.resolution_reason).toBe('first reason');
+      expect(current?.resolution?.resolved_by).toBe('agent/reviewer');
+      expect(current?.resolution?.resolved_at).toBe('2026-01-01T01:00:00.000Z');
+    });
+
+    it('refuses markDismissed on a promoted proposal', async () => {
+      const proposal = await store.createProposal(createInput('lesson'));
+      const memoryId = createMemoryId(randomUUID());
+
+      await store.markPromoted(proposal.id, memoryId, 'agent/promoter');
+
+      await expect(
+        store.markDismissed(proposal.id, 'no longer wanted', 'agent/reviewer')
+      ).rejects.toThrow(ProposalAlreadyResolvedError);
+
+      const current = await store.getProposal(proposal.id);
+      expect(current?.status).toBe('promoted');
+      expect(current?.resolution?.memory_id).toBe(memoryId);
+    });
+
+    it('dismissing an expired proposal is an idempotent no-op that keeps the expiry record', async () => {
+      const proposal = await store.createProposal(createInput('pattern'));
+      vi.setSystemTime(new Date('2026-02-05T00:00:00.000Z'));
+      expect(await store.processExpiredProposals()).toBe(1);
+
+      await expect(
+        store.markDismissed(proposal.id, 'sweeping old proposals', 'agent/reviewer')
+      ).resolves.toBeUndefined();
+
+      const current = await store.getProposal(proposal.id);
+      expect(current?.status).toBe('expired');
+      expect(current?.resolution?.resolution_reason).toBe('TTL expired');
+    });
+
+    it('resolveProposal(dismissed) on an expired proposal succeeds without overwriting the expiry record', async () => {
+      const proposal = await store.createProposal(createInput('warning'));
+      vi.setSystemTime(new Date('2026-02-05T00:00:00.000Z'));
+      expect(await store.processExpiredProposals()).toBe(1);
+
+      const result = await store.resolveProposal(proposal.id, {
+        status: 'dismissed',
+        resolved_by: 'agent/reviewer',
+        resolution_reason: 'sweeping old proposals',
+      });
+
+      expect(result?.status).toBe('expired');
+      expect(result?.resolution?.resolution_reason).toBe('TTL expired');
+    });
+
+    it('refuses markPromoted on a dismissed proposal', async () => {
+      const proposal = await store.createProposal(createInput('anomaly'));
+      await store.markDismissed(proposal.id, 'not useful', 'agent/reviewer');
+
+      await expect(
+        store.markPromoted(proposal.id, createMemoryId(randomUUID()), 'agent/promoter')
+      ).rejects.toThrow(ProposalAlreadyResolvedError);
+
+      const current = await store.getProposal(proposal.id);
+      expect(current?.status).toBe('dismissed');
+    });
   });
 });
