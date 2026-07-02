@@ -3189,7 +3189,7 @@ archive.
 
 ### CIB-118: Make Edda and Kindling state transitions atomic and payload-consistent
 
-- **Status:** Ready
+- **Status:** Merged 2026-07-02 via PR #3088
 - **Intent:** Close deepsec P1/P2 findings where Edda memory/proposal transitions
   and Kindling observation writes can be duplicated, overwritten, or validated
   against a different payload than the one stored.
