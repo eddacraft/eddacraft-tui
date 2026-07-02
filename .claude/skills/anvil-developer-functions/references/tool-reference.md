@@ -119,7 +119,7 @@ the operator enables egress for the workspace **and** the request sets
 locations — and, when source was requested but egress is off, a
 `snippetEgressHint` describing how to ask the operator to enable it.
 
-Operators opt in per-workspace and persisted:
+Operators opt in per-workspace and consent is persisted:
 
 ```bash
 anvil gctx egress enable     # prints the consequence, asks for confirmation
