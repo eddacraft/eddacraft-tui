@@ -64,6 +64,10 @@ const BUNDLE_AUTH_ENV_ALLOWLIST_VAR = 'ANVIL_BUNDLE_AUTH_ENV_ALLOWLIST';
  * `<CREDENTIAL_ENV>_HOST` is set, the credential is only ever attached to
  * requests whose host matches the binding (hostname, `host:port`, or an
  * origin URL), so a config-controlled URL cannot redirect it elsewhere.
+ * An origin-form binding (with a protocol) pins the whole origin — the
+ * protocol and the port it implies (explicit, or the protocol default);
+ * bare `host` / `host:port` forms match the hostname, plus the port only
+ * when one is declared.
  *
  * The suffix is reserved: credential env names may never end in `_HOST`
  * (the allowlist cannot lift this), otherwise a credential named
@@ -680,10 +684,11 @@ export class BundleManager {
       return;
     }
 
+    const isOriginForm = binding.includes('://');
     let bound: URL;
     try {
       // Accept a bare hostname, `host:port`, or a full origin URL.
-      bound = new URL(binding.includes('://') ? binding : `https://${binding}`);
+      bound = new URL(isOriginForm ? binding : `https://${binding}`);
     } catch {
       // Fail closed: an unparseable binding must not degrade into "send the
       // credential anywhere".
@@ -695,11 +700,24 @@ export class BundleManager {
 
     const hostnameMatches = bound.hostname.toLowerCase() === requestUrl.hostname.toLowerCase();
     const requestPort = requestUrl.port || (requestUrl.protocol === 'https:' ? '443' : '80');
-    const portMatches = !bound.port || bound.port === requestPort;
-    if (!hostnameMatches || !portMatches) {
+    let allowed = hostnameMatches;
+    if (isOriginForm) {
+      // An origin-form binding pins the whole origin: the protocol and the
+      // port it implies (explicit, or the protocol default). Otherwise
+      // "https://example.com" would let the credential go to
+      // http://example.com or to any port on the same host.
+      const boundPort = bound.port || (bound.protocol === 'https:' ? '443' : '80');
+      allowed = allowed && bound.protocol === requestUrl.protocol && boundPort === requestPort;
+    } else {
+      // Bare `host` / `host:port` binding: hostname always, port only when
+      // one is declared.
+      allowed = allowed && (!bound.port || bound.port === requestPort);
+    }
+    if (!allowed) {
+      const boundDescription = isOriginForm ? bound.origin : bound.host;
       throw new Error(
-        `Bundle auth credential ${envName} is bound to host "${bound.host}" via ${bindingVar} ` +
-          `and will not be sent to "${requestUrl.host}".`
+        `Bundle auth credential ${envName} is bound to "${boundDescription}" via ${bindingVar} ` +
+          `and will not be sent to "${requestUrl.protocol}//${requestUrl.host}".`
       );
     }
   }

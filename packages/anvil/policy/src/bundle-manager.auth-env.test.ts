@@ -18,7 +18,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { BundleManager } from './bundle-manager.js';
+import { BundleManager, type BundleConfig } from './bundle-manager.js';
 import { mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -43,7 +43,7 @@ function close(server: Server | null): Promise<void> {
   });
 }
 
-const SECRET = 'ghp_exfiltrated-secret-value';
+const SECRET = 'test-secret-value-1';
 
 describe('BundleManager — auth env credential binding (CIB-109)', () => {
   let cacheDir: string;
@@ -178,7 +178,7 @@ describe('BundleManager — auth env credential binding (CIB-109)', () => {
       expect(captured[0]?.authorization).toBe('Bearer legacy-token');
     });
 
-    it('refuses the allowlist variable itself as a credential, despite the prefix', async () => {
+    it('refuses the allowlist variable itself as a credential, despite the prefix', () => {
       // The allowlist value enumerates the operator's other trusted
       // credential names — reconnaissance data that must never be sent as a
       // Bearer token to a config-controlled URL. Self-allowlisting must not
@@ -192,10 +192,32 @@ describe('BundleManager — auth env credential binding (CIB-109)', () => {
           auth: { type: 'bearer', token_env: 'ANVIL_BUNDLE_AUTH_ENV_ALLOWLIST' },
         })
       ).toThrow(/not authorised/);
-      // Refusal happens at config time, before any request: nothing reaches
-      // the wire and the allowlist value never leaves the process.
-      const result = await manager.downloadBundle('recon');
+      // Config-time refusal: the config was never registered, and nothing
+      // reached the wire at any point in this test.
+      expect(manager.getBundleNames()).not.toContain('recon');
+      expect(captured.length).toBe(0);
+    });
+
+    it('defence in depth: a malicious config injected past addBundle is still refused before any request', async () => {
+      // Simulate a future config path that forgets to validate (or a
+      // tampered in-memory state) by writing directly into the private
+      // bundle map, bypassing addBundle/constructor validation. The
+      // buildAuthHeader layer must still refuse before a request is made.
+      process.env.ANVIL_BUNDLE_AUTH_ENV_ALLOWLIST = 'ANVIL_BUNDLE_RECON_NAMES';
+      const config: BundleConfig = {
+        name: 'recon-injected',
+        url: `http://127.0.0.1:${port}/bundle.tar.gz`,
+        auth: { type: 'bearer', token_env: 'ANVIL_BUNDLE_AUTH_ENV_ALLOWLIST' },
+      };
+      (manager as unknown as { bundles: Map<string, BundleConfig> }).bundles.set(
+        config.name,
+        config
+      );
+      const result = await manager.downloadBundle('recon-injected');
       expect(result.success).toBe(false);
+      expect(result.error ?? '').toMatch(/not authorised/);
+      // The allowlist value never leaves the process.
+      expect(result.error ?? '').not.toContain('ANVIL_BUNDLE_RECON_NAMES');
       expect(captured.length).toBe(0);
     });
 
@@ -287,7 +309,7 @@ describe('BundleManager — auth env credential binding (CIB-109)', () => {
       expect(captured.some((c) => c.authorization !== undefined)).toBe(false);
     });
 
-    it('accepts an origin-style binding value', async () => {
+    it('accepts an origin-style binding value with an explicit matching port', async () => {
       process.env.ANVIL_BUNDLE_TEST_TOKEN = 'bound-token';
       process.env.ANVIL_BUNDLE_TEST_TOKEN_HOST = `http://127.0.0.1:${port}`;
       manager.addBundle({
@@ -297,6 +319,39 @@ describe('BundleManager — auth env credential binding (CIB-109)', () => {
       });
       await manager.downloadBundle('origin-bound');
       expect(captured[0]?.authorization).toBe('Bearer bound-token');
+    });
+
+    it('an https origin binding refuses the credential on http to the same host', async () => {
+      // Same hostname and explicit matching port, but the binding pins the
+      // https origin: a downgrade to http must not receive the credential.
+      process.env.ANVIL_BUNDLE_TEST_TOKEN = SECRET;
+      process.env.ANVIL_BUNDLE_TEST_TOKEN_HOST = `https://127.0.0.1:${port}`;
+      manager.addBundle({
+        name: 'proto-downgrade',
+        url: `http://127.0.0.1:${port}/bundle.tar.gz`,
+        auth: { type: 'bearer', token_env: 'ANVIL_BUNDLE_TEST_TOKEN' },
+      });
+      const result = await manager.downloadBundle('proto-downgrade');
+      expect(result.success).toBe(false);
+      expect(result.error ?? '').toMatch(/bound/i);
+      expect(result.error ?? '').not.toContain(SECRET);
+      expect(captured.some((c) => c.authorization !== undefined)).toBe(false);
+    });
+
+    it('an origin binding without an explicit port enforces the protocol default port', async () => {
+      // `http://127.0.0.1` implies port 80; a request to the same host on a
+      // different port must not receive the credential.
+      process.env.ANVIL_BUNDLE_TEST_TOKEN = SECRET;
+      process.env.ANVIL_BUNDLE_TEST_TOKEN_HOST = 'http://127.0.0.1';
+      manager.addBundle({
+        name: 'implied-port',
+        url: `http://127.0.0.1:${port}/bundle.tar.gz`,
+        auth: { type: 'bearer', token_env: 'ANVIL_BUNDLE_TEST_TOKEN' },
+      });
+      const result = await manager.downloadBundle('implied-port');
+      expect(result.success).toBe(false);
+      expect(result.error ?? '').toMatch(/bound/i);
+      expect(captured.some((c) => c.authorization !== undefined)).toBe(false);
     });
 
     it('fails closed on an unparseable binding value', async () => {
