@@ -171,8 +171,7 @@ change is warranted:
   rule fired on a genuine MD5 construction, and the designed response is a
   one-line `@anvil-ignore WC-001 -- <reason>` annotation (per the WC-001 nudge).
   A suppressed finding does not affect the score and does not fail the gate
-  (ADR-029; `antipattern::check` test `suppressed_warnings_do_not_affect_score_
-  or_fail`), and WC-001 already ships at `warning` (exit 0), so it never blocks.
+  (ADR-029; `antipattern::check` test `suppressed_warnings_do_not_affect_score_or_fail`), and WC-001 already ships at `warning` (exit 0), so it never blocks.
   The family's *hard*-FP rate is therefore 0%, which clears 5%. **WC-001 stays
   default-on at `warning`; MD5 is not downgraded to opt-in.** Revisit only if
   field FP pressure exceeds 5% on a non-toy corpus. WC-002/WC-003 produced zero
