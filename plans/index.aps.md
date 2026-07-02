@@ -107,8 +107,18 @@ Selection rules:
 
 | Rank | NBI | Mode | Source | Why now | Next action |
 | ---- | --- | ---- | ------ | ------- | ----------- |
-| 1 | INSEC-001..006 — insecure-construction catalogue, first wave | Ready | [insecure-construction-catalogue](./modules/insecure-construction-catalogue.aps.md) | The highest-value Ready item against the core thesis (make AI-generated code safe to merge): new save-time security smells — the `insecure-construction` category variant + `weak-cryptography` and `unsafe-rendering` regex families (enabled by default) + SSTI folded into the existing `dynamic-execution` family — under [ADR-087](./decisions/087-security-antipattern-category.md) (Accepted) and the ADR-071 AST tier, with the spec §16.5 #9 false-positive bar as the dogfood gate. INSEC-007 (`injection-smell`, AST) + INSEC-008 (insecure-RNG) stay Proposed (deferred opt-in). | Implement INSEC-001 (category variant) → -002/-003 (families) → -004 (SSTI) → -005 (scope-guard note) → -006 (dogfood FP acceptance) in `patterns/` + `anvil-checks`. |
-| 2 | DASH-001..009 — dashboard foundation (Wave 1) | Ready | [dashboard-foundation](./modules/dashboard-foundation.aps.md) | Wave-1 foundation for the browser surface (team-lead / platform / compliance roles). It is the single gate that unblocks three further Ready modules — **DASHCORE**, **DASHARCH**, **DASHOPS** — so foundation work has the widest downstream unlock. Built in `apps/website/` (Next.js 16 + shadcn/ui + Recharts); 1/9 done. | Continue from DASH-001 (route group + layout shell) through the data layer (-005/-006); foundation gates the Wave-2 view modules. |
+| 1 | DASH-001..009 — dashboard foundation (Wave 1) | Ready | [dashboard-foundation](./modules/dashboard-foundation.aps.md) | Wave-1 foundation for the browser surface (team-lead / platform / compliance roles). It is the single gate that unblocks three further Ready modules — **DASHCORE**, **DASHARCH**, **DASHOPS** — so foundation work has the widest downstream unlock. Built in `apps/website/` (Next.js 16 + shadcn/ui + Recharts); 1/9 done. | Continue from DASH-001 (route group + layout shell) through the data layer (-005/-006); foundation gates the Wave-2 view modules. |
+
+NBI review note (2026-07-03, INSEC first wave delivered): **INSEC-001..006**
+removed from the NBI table — the insecure-construction first wave is Merged
+2026-07-01 via [#3028](https://github.com/eddacraft/anvil-001/pull/3028) (the
+`insecure-construction` category variant + `weak-cryptography` /
+`unsafe-rendering` regex families + SSTI fold into `dynamic-execution` + the
+§16.5 #9 dogfood FP acceptance). The module is **In Progress 6/8** with only the
+deferred AST tail — INSEC-007 (`injection-smell`) and INSEC-008 (insecure-RNG),
+both Proposed opt-in — remaining, so it is no longer NBI-eligible. **DASH**
+promoted to rank 1. Rank 2 is open: derive the next pick from the highest-value
+Ready item in the active module tables when DASH work starts.
 
 NBI review note (2026-06-30, EVAL merged): **EVAL-001..005** removed from the
 NBI table — the eval-harness-integration module is Done
