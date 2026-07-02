@@ -3902,7 +3902,7 @@ archive.
 
 ### CIB-144: Flip requires_auth for anvil_fix/anvil_suppress/anvil_gate MCP tools
 
-- **Status:** Ready
+- **Status:** Merged 2026-07-03 via PR #3095
 - **Intent:** Close the RMCPF-011-deferred auth gap — mutating (`anvil_fix`,
   `anvil_suppress`) and execution-triggering (`anvil_gate`) MCP tools currently
   register as `requires_auth: false`, unlike `anvil_validate_write` /
