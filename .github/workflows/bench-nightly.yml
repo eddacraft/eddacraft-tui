@@ -43,6 +43,21 @@ jobs:
     timeout-minutes: 60
 
     steps:
+      # workflow_dispatch runs on whatever ref the operator selects in the UI.
+      # This job runs on a self-hosted 'bench' runner and builds + executes
+      # `anvil-bench` directly on that box; reject any ref but main so a stray
+      # dispatch from a feature branch / tag can't run untrusted branch content
+      # on the self-hosted hardware. A restored `schedule:` trigger always runs
+      # on refs/heads/main, so this guard leaves nightly runs unaffected.
+      - name: Guard — only run stress tests from refs/heads/main
+        id: guard
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_REF}" != 'refs/heads/main' ]; then
+            echo "::error::bench-nightly refused: GITHUB_REF=${GITHUB_REF} (only refs/heads/main is allowed on the self-hosted runner)"
+            exit 1
+          fi
+
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Rust toolchain info
@@ -66,7 +81,11 @@ jobs:
           fi
 
       - name: Upload JSON reports
-        if: always()
+        # Upload partial results even when a bench scenario fails, but never
+        # after the ref guard rejects the run — otherwise this always()-style
+        # step would still execute on the self-hosted runner past a failed
+        # guard. Gate on the guard's success so nothing runs post-guard-failure.
+        if: ${{ !cancelled() && steps.guard.outcome == 'success' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: stress-results-${{ github.run_id }}
