@@ -3,7 +3,7 @@
 
 # Anvil — Save-time Trust
 
-> **Latest release tag: `v0.8.1-beta`** (shipped 2026-06-11) — "Headless
+> **Latest promoted release: `v0.8.1-beta`** (shipped 2026-06-11) — "Headless
 > GitHub Login" patch (brokered GitHub Device Authorisation Grant login,
 > GHCLIAUTH 11/11, ADR-066; record at
 > [`plans/releases/v0.8.1-beta.md`](./releases/v0.8.1-beta.md)) cut one tag
@@ -16,7 +16,13 @@
 > the final GHCLIAUTH merges by ~5 hours. Together they close the `v0.8.0`
 > window scoped by
 > [ADR-075](./decisions/075-v080-graph-product-scope.md) (Accepted via
-> council). The next window is **`v0.9.0-beta`** ("The Assistant-Facing
+> council). A later **`v0.8.2-beta`** tag (2026-06-22) exists but is **not**
+> the latest promoted release: it is a Windows daemon-ensure hotfix cut for
+> smoke testing (ACTMO's Windows daemon-ensure chain, [#2937](https://github.com/eddacraft/anvil-001/issues/2937)),
+> deliberately not promoted as a headline window — so "latest" above
+> intentionally points at the older tag. Confirmed 2026-07-02 via the GitHub
+> API: `v0.8.2-beta` is `prerelease: true` and `GET /releases/latest` resolves
+> to `v0.8.1-beta`. The next window is **`v0.9.0-beta`** ("The Assistant-Facing
 > Graph", scoping in [`RELEASE-PLAN.md`](../RELEASE-PLAN.md)): ADR-075 defers
 > the assistant graph product — GCTX + multi-graph registry — and persistence
 > (ADR-061 Sub-phase B warm-start) to it. See
@@ -114,11 +120,13 @@ removed from the NBI table — the insecure-construction first wave is Merged
 2026-07-01 via [#3028](https://github.com/eddacraft/anvil-001/pull/3028) (the
 `insecure-construction` category variant + `weak-cryptography` /
 `unsafe-rendering` regex families + SSTI fold into `dynamic-execution` + the
-§16.5 #9 dogfood FP acceptance). The module is **In Progress 6/8** with only the
-deferred AST tail — INSEC-007 (`injection-smell`) and INSEC-008 (insecure-RNG),
-both Proposed opt-in — remaining, so it is no longer NBI-eligible. **DASH**
-promoted to rank 1. Rank 2 is open: derive the next pick from the highest-value
-Ready item in the active module tables when DASH work starts.
+§16.5 #9 dogfood FP acceptance, tracked and closed via issue
+[#3031](https://github.com/eddacraft/anvil-001/issues/3031)). The module is
+**In Progress 6/8** with only the deferred AST tail — INSEC-007
+(`injection-smell`) and INSEC-008 (insecure-RNG), both Proposed opt-in —
+remaining, so it is no longer NBI-eligible. **DASH** promoted to rank 1. Rank
+2 is open: derive the next pick from the highest-value Ready item in the
+active module tables when DASH work starts.
 
 NBI review note (2026-06-30, EVAL merged): **EVAL-001..005** removed from the
 NBI table — the eval-harness-integration module is Done
@@ -382,7 +390,10 @@ Individual packages still use semantic versioning for npm/cargo publishes.
 have their per-window tables and slice records in
 [`completed-index.aps.md`](./completed-index.aps.md#release-plan); the
 `v0.8.0-beta` / `v0.8.1-beta` records live under
-[`plans/releases/`](./releases/). The next planning window is
+[`plans/releases/`](./releases/). A later `v0.8.2-beta` hotfix tag
+(2026-06-22, Windows daemon-ensure smoke, [#2937](https://github.com/eddacraft/anvil-001/issues/2937))
+was cut for testing and is **not** a promoted headline window. The next
+planning window is
 **`v0.9.0-beta`** (scoping — the ADR-075 deferrals), declared in
 [`RELEASE-PLAN.md`](../RELEASE-PLAN.md); see also the header above and the NBI
 table.
@@ -745,7 +756,7 @@ when specific work is identified.
 | [notification-framework](./archive/modules/notification-framework.aps.md)                             | NOTIFY     | 9/9        | CLAR, INTD, current CLI/TUI surfaces — **Complete** (doctor/audit alignment, shared TUI `NotificationSource`, telemetry contract, intercept integration spec)                                                                                                                                                                                                                                                                                                  |
 | [command-safety-surfaces](./archive/modules/command-safety-surfaces.aps.md)                           | CMDSH      | 4/4        | CLAR, NOTIFY, INTD, anvil-checks command_safety — **Complete**                                                                                                                                                                                                                                                                                                                                                                                                 |
 | [security](./modules/security.aps.md)                                                                 | SEC        | 2/9        | CI pipeline (`security.yml` Trivy/TruffleHog/Semgrep/license-check), cargo-deny advisories (`rust.yml`), dependabot — **In Progress** (SEC-007 token-revocation atomicity, GH #1672; SEC-008 named-pattern secret detection **Merged 2026-05-21 via PR #1815**, GH #1800; SEC-009 private docs entitlement gate, GH #1673, Done 2026-05-28; 2026-05-28 — SEC-001/-002/-003/-004 fleshed to Ready grounded in the as-built CI surface; SEC-005 security-headers stays **Proposed — needs APGOV↔SEC boundary call**; SEC-006 SBOM **deferred to SCA**, not duplicated) |
-| [insecure-construction-catalogue](./modules/insecure-construction-catalogue.aps.md)                   | INSEC      | 6/8        | ADR-087 (accepted), ADR-071 (AST tier), `patterns/` registry + `anvil-checks` scanner — **In Progress** (INSEC-001..006 implemented: `insecure-construction` category variant, first-wave `weak-cryptography` + `unsafe-rendering` families, SSTI into `dynamic-execution`, scope-guard note, FP-bar dogfood. INSEC-007 `injection-smell` (AST) + INSEC-008 insecure-RNG stay **Proposed — deferred opt-in** per ADR-087. Distinct from the SEC CI-pipeline module.) |
+| [insecure-construction-catalogue](./modules/insecure-construction-catalogue.aps.md)                   | INSEC      | 6/8        | ADR-087 (accepted), ADR-071 (AST tier), `patterns/` registry + `anvil-checks` scanner — **In Progress** (INSEC-001..006 Merged 2026-07-01 via [#3028](https://github.com/eddacraft/anvil-001/pull/3028): `insecure-construction` category variant, first-wave `weak-cryptography` + `unsafe-rendering` families, SSTI into `dynamic-execution`, scope-guard note, FP-bar dogfood. INSEC-007 `injection-smell` (AST) + INSEC-008 insecure-RNG stay **Proposed — deferred opt-in** per ADR-087. Distinct from the SEC CI-pipeline module.) |
 | [testing-strategy](./modules/testing-strategy.aps.md)                                                 | TEST       | 6          | eslint-plugin-anvil, e2e, Rust test suites                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | [release-management](./archive/modules/release-management.aps.md)                                     | RELMGMT    | 15/15      | CI pipeline, all packages and crates, DIST — **Complete**                                                                                                                                                                                                                                                                                                                                                                                                      |
 | [operating-model-migration](./archive/modules/operating-model-migration.aps.md) | OPMODEL    | 12/12 (archived 2026-05-11) | Cross-cutting migration to the target Plan / Build / Release operating model — **Complete**. OPMODEL-001..-011 landed sequentially (see archived module for per-item detail). OPMODEL-012 completed the main-first cutover on 2026-05-11: `main` is now the only permanent product branch; `dev` retired as a dated compatibility branch (tag `dev-retired-2026-05-11`; deletion follow-up issue #1419 for on/after 2026-07-10); cutover SHA `b6f236e90dbc03338f17767202acf93f1449f8d2`; `pr-base-guard.yml` retired in PR #1417 (`62d85777`); `main` ruleset id 16217152 enforces 7 required checks + PR + non-FF + deletion. Module archived per `plans/aps-rules.md`. |
