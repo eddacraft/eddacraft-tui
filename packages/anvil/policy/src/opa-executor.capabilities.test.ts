@@ -360,30 +360,30 @@ violation contains msg if {
 }
 `;
 
-describe.skipIf(!opaPath)('OPAExecutor capabilities restriction — real opa binary (CIB-108)', () => {
-  const deniedCases: Array<{ builtin: string; name: string; content: string }> = [
-    { builtin: 'http.send', name: 'exfil', content: HTTP_SEND_POLICY },
-    { builtin: 'net.lookup_ip_addr', name: 'dns_probe', content: NET_LOOKUP_POLICY },
-    { builtin: 'opa.runtime', name: 'env_leak', content: OPA_RUNTIME_POLICY },
-  ];
+describe.skipIf(!opaPath)(
+  'OPAExecutor capabilities restriction — real opa binary (CIB-108)',
+  () => {
+    const deniedCases: Array<{ builtin: string; name: string; content: string }> = [
+      { builtin: 'http.send', name: 'exfil', content: HTTP_SEND_POLICY },
+      { builtin: 'net.lookup_ip_addr', name: 'dns_probe', content: NET_LOOKUP_POLICY },
+      { builtin: 'opa.runtime', name: 'env_leak', content: OPA_RUNTIME_POLICY },
+    ];
 
-  it.each(deniedCases)(
-    'rejects a policy using $builtin instead of executing it',
-    async ({ builtin, name, content }) => {
-      const executor = new OPAExecutor(opaPath as string, { timeout: 15_000 });
-      const result = await executor.evaluate([policy(name, content)], baseInput('/tmp'));
+    it.each(deniedCases)(
+      'rejects a policy using $builtin instead of executing it',
+      async ({ builtin, name, content }) => {
+        const executor = new OPAExecutor(opaPath as string, { timeout: 15_000 });
+        const result = await executor.evaluate([policy(name, content)], baseInput('/tmp'));
 
-      expect(result.success).toBe(false);
-      expect(result.error).toContain(builtin);
-      expect(result.error).toMatch(/not permitted/);
-      expect(result.violations).toEqual([]);
-    },
-    30_000
-  );
+        expect(result.success).toBe(false);
+        expect(result.error).toContain(builtin);
+        expect(result.error).toMatch(/not permitted/);
+        expect(result.violations).toEqual([]);
+      },
+      30_000
+    );
 
-  it(
-    'still evaluates a policy that uses only permitted built-ins',
-    async () => {
+    it('still evaluates a policy that uses only permitted built-ins', async () => {
       const executor = new OPAExecutor(opaPath as string, { timeout: 15_000 });
       const result = await executor.evaluate(
         [policy('change_gate', BENIGN_POLICY)],
@@ -395,13 +395,9 @@ describe.skipIf(!opaPath)('OPAExecutor capabilities restriction — real opa bin
       expect(result.violations).toHaveLength(1);
       expect(result.violations[0].message).toBe('plan proposes changes');
       expect(result.violations[0].policy).toBe('change_gate');
-    },
-    30_000
-  );
+    }, 30_000);
 
-  it(
-    'refuses opa test runs that use a denied built-in',
-    async () => {
+    it('refuses opa test runs that use a denied built-in', async () => {
       const executor = new OPAExecutor(opaPath as string, { timeout: 15_000 });
       const testDir = mkdtempSync(join(tmpdir(), 'anvil-opa-caps-real-'));
       const testFile = join(testDir, 'exfil_test.rego');
@@ -419,17 +415,13 @@ test_exfil if {
       );
 
       try {
-        const result = await executor.runTests(
-          [policy('change_gate', BENIGN_POLICY)],
-          [testFile]
-        );
+        const result = await executor.runTests([policy('change_gate', BENIGN_POLICY)], [testFile]);
 
         expect(result.passed).toBe(0);
         expect(result.errors.length).toBeGreaterThan(0);
       } finally {
         await safeCleanup(testDir);
       }
-    },
-    30_000
-  );
-});
+    }, 30_000);
+  }
+);
