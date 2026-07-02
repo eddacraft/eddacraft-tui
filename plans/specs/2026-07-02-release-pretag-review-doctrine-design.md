@@ -98,7 +98,7 @@ design must eliminate — not by dropping the council, but by decoupling it from
 
 Promote the pre-tag review doctrine into a **single canonical document**,
 `docs/runbooks/release-process.md` (#1712 Option A), and have the authoritative
-`release-runbook.md` reference it as a required pre-Tag gate (a new step between
+`release-runbook.md` reference it as a required pre-tag gate (a new step between
 Preflight and Tag). Version-specific runbooks, if any, link up to it and add only
 the gates unique to that tag.
 
@@ -251,7 +251,8 @@ to skip patch tags (cost) no longer applies.
    without it, RELORCH-A just re-imports the old pain.
 3. **RELORCH-C** — add `TEMPLATE.md` + `TEMPLATE-input.md` (#1872) with the
    placeholder set + a "tier / focus rationale" field (full vs focused, D4); a
-   "how to use" header; a fixture-free example row so `docs:check`/oxfmt pass.
+   "how to use" header; a fixture-free example row so `docs:check` passes
+   (the templates live under `plans/`, which is excluded from oxfmt).
 4. **RELORCH-D** — retire the version-specific §1/§2 in
    `v0.7.0-beta-release-runbook.md` down to a link-up to the canonical doc
    (keep it as historical evidence; don't delete).
