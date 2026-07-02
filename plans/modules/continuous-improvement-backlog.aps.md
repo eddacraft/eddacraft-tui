@@ -3740,7 +3740,7 @@ archive.
 
 ### CIB-138: Restrict bench-nightly self-hosted runner to trusted refs
 
-- **Status:** Ready
+- **Status:** Merged 2026-07-03 via PR #3094
 - **Intent:** `bench-nightly.yml` runs on a dedicated self-hosted runner (`runs-on: [self-hosted, bench]`, line 42) and is triggered only by `workflow_dispatch` (lines 20-26) with no ref restriction — unlike `mirror-eddacraft-tui.yml` and `mirror-drift-check.yml`, which already carry a "Guard — only mirror/check from refs/heads/main" step rejecting any other `GITHUB_REF` before doing anything privileged (both confirmed present on `origin/main`, and both run on `ubuntu-latest`, not self-hosted, so they are already fine and out of scope here). A dispatch against any branch runs that branch's own `bench-nightly.yml` content (including `cargo build`/`cargo run -p anvil-bench --release`) directly on the self-hosted box with no equivalent guard.
 - **Expected Outcome:** `bench-nightly.yml` refuses to run unless dispatched against `refs/heads/main` (or another explicitly trusted ref), mirroring the guard pattern already proven in the two mirror workflows.
 - **Files:** `.github/workflows/bench-nightly.yml`.
