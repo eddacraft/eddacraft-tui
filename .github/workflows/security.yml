@@ -219,7 +219,12 @@ jobs:
     runs-on:
       ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER ||
       'ubuntu-latest' }}
-    needs: [semgrep, dependency-audit, secret-scan, license-check]
+    # CIB-155: `detect-changes` joins the scan jobs in `needs` so the gate below
+    # can read its result and apply the CIB-137 fail-closed pattern to a skip.
+    # Adding it does not change when the summary runs: the summary is gated on
+    # `pull_request`, and detect-changes always runs on a PR (it only skips on
+    # schedule/dispatch, where the summary is skipped too).
+    needs: [detect-changes, semgrep, dependency-audit, secret-scan, license-check]
     if: >
       always() && github.event_name == 'pull_request' &&
       github.event.pull_request.head.repo.full_name == github.repository
@@ -300,4 +305,69 @@ jobs:
                 issue_number: context.issue.number,
                 body,
               });
+            }
+
+            // ── CIB-155: gate the merge on the blocking scan results ─────────
+            // "Security Summary" is the one security context branch protection
+            // actually requires, so its own conclusion must reflect whether the
+            // blocking scans passed. The comment above is posted first (so it
+            // always lands), then this guard fails the job when a blocking scan
+            // did not pass. Without it the summary is `always()`-green and a red
+            // scan cannot block the merge through the required context.
+            //
+            // Blocking set = Dependency Audit, Secret Scan, License Compliance
+            // (the same three folded into `allPassed`). Semgrep is DELIBERATELY
+            // excluded: it is non-blocking while the SAST baseline is
+            // established, its findings are swallowed by `continue-on-error` on
+            // the scan step, and the comment copy above documents that posture.
+            // Do not add it here without flipping that documented policy.
+            //
+            // `needs.detect-changes.result` is consulted with the CIB-137
+            // fail-closed pattern so a `skipped` scan is only trusted as a legit
+            // path-gated skip when the classifier itself succeeded.
+            //
+            // Truth table — the summary runs ONLY on same-repo PRs, and
+            // detect-changes always runs on a PR, so `detect` is only ever
+            // 'success' or 'failure' here (never 'skipped'):
+            //
+            //   detect-changes | blocking scan | outcome
+            //   ---------------+---------------+--------------------------------
+            //   success        | success       | PASS
+            //   success        | skipped       | PASS  — legit path-gated skip
+            //   success        | failure       | FAIL  — real red scan
+            //   success        | cancelled     | FAIL  — never go green on a
+            //                  |               |         cancelled scan
+            //   failure        | success       | PASS  — CIB-137 ran the full
+            //                  |               |         sweep and it passed
+            //   failure        | failure       | FAIL
+            //   failure        | cancelled     | FAIL
+            //   failure        | skipped       | FAIL  — contract violation:
+            //                  |               |         CIB-137 makes scans run
+            //                  |               |         the full set when
+            //                  |               |         detect-changes fails, so
+            //                  |               |         a skip here is unexpected
+            //                  |               |         → fail closed
+            //
+            const detect = '${{ needs.detect-changes.result }}';
+            const blocking = {
+              'Dependency Audit': audit,
+              'Secret Scan': secrets,
+              'License Compliance': license,
+            };
+            const offenders = Object.entries(blocking)
+              .filter(([, result]) => {
+                if (result === 'failure' || result === 'cancelled') return true;
+                // A skip only counts as legitimate when the classifier
+                // succeeded; if detect-changes failed the scans should have run
+                // the full set, so a skip is an unexpected contract violation.
+                if (result === 'skipped' && detect !== 'success') return true;
+                return false;
+              })
+              .map(([name, result]) => `${name} (${result})`);
+
+            if (offenders.length > 0) {
+              core.setFailed(
+                `Blocking security scans did not pass: ${offenders.join(', ')}. ` +
+                  'See the Security Summary comment and the run logs for detail.',
+              );
             }

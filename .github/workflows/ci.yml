@@ -300,6 +300,7 @@ jobs:
           pnpm test:ci-workflow-contracts
           pnpm test:ci-mirror-hardening
           pnpm test:ci-infra-preview-strip
+          pnpm test:ci-security-summary-gate
           pnpm test:aps-index
           pnpm test:release-sign-artefacts
           pnpm test:wt-cleanup-sweep
