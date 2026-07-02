@@ -9,7 +9,7 @@ This module intentionally remains active while the project is active.
 
 | ID  | Owner | Status      | Progress |
 | --- | ----- | ----------- | -------- |
-| CIB | —     | In Progress | 102/134  |
+| CIB | —     | In Progress | 109/154  |
 
 ## Purpose
 
@@ -2978,7 +2978,7 @@ archive.
 
 ### CIB-110: Harden GitHub Actions trust boundaries before running PR-controlled code
 
-- **Status:** Ready
+- **Status:** Done 2026-07-02 — superseded by CIB-136..CIB-139 (decomposed; readiness verdict: oversized)
 - **Intent:** Close the deepsec P1 CI findings where PR-controlled checkout,
   local actions, branch selectors, or manual dispatch inputs can influence checks
   that hold secrets, required-check authority, release authority, or self-hosted
@@ -3006,7 +3006,7 @@ archive.
 
 ### CIB-111: Close API auth, token-rotation, and rate-limit race gaps
 
-- **Status:** Ready
+- **Status:** Done 2026-07-02 — superseded by CIB-140..CIB-143 (decomposed; readiness verdict: oversized)
 - **Intent:** Remediate the active deepsec P1 findings in the Anvil API and docs
   shell around fail-open access, token rotation races, spoofable client identity,
   and unauthenticated expensive endpoints.
@@ -3035,7 +3035,7 @@ archive.
 
 ### CIB-112: Gate mutating and script-executing MCP/CLI tools at the daemon boundary
 
-- **Status:** Ready
+- **Status:** Done 2026-07-02 — superseded by CIB-144..CIB-148 (decomposed; readiness verdict: oversized)
 - **Intent:** Ensure mutating MCP tools, fence-unblock authority, and gate/fix
   execution paths cannot be invoked without the intended authentication and
   containment checks.
@@ -3062,7 +3062,7 @@ archive.
 
 ### CIB-113: Harden intercept daemon workspace admission, lineage, and session state
 
-- **Status:** Ready
+- **Status:** Done 2026-07-02 — superseded by CIB-149..CIB-154 (decomposed; readiness verdict: oversized)
 - **Intent:** Close active deepsec P1/P2 daemon findings where the first IPC client
   or wire-declared metadata can influence trusted roots, lineage, guarded reads,
   or persisted fence state.
@@ -3113,6 +3113,14 @@ archive.
 ### CIB-115: Centralise workspace path containment for TS adapters and APS loaders
 
 - **Status:** Ready
+- **Decomposition note (2026-07-02):** held back from the
+  oversized-item split on purpose — every target directory sits in the
+  retiring JS/TS `packages/` tree, so filing per-consumer children before
+  the owner decides invest-vs-retire would allocate ids for work that may
+  never run. Decide the retirement posture first, then split (suggested
+  children: adapters, aps loader+validator, architecture scanner,
+  policy-loader, file-cache — each routing through the existing
+  `path-safety.ts` helper).
 - **Intent:** Close the deepsec P1 path-traversal cluster caused by copied,
   inconsistent path validation across APS, SpecKit, BMAD, architecture, policy,
   and cache code.
@@ -3707,3 +3715,534 @@ archive.
   its Files list; pre-existing, not introduced by that PR.
 - **Confidence:** high — the gating mechanism already exists
   (`infra/src/stack-trust.ts`); this applies it to one more module.
+
+### CIB-136: Stop PR preview jobs exposing production Azure/Key Vault secrets to PR-controlled Pulumi code
+
+- **Status:** Ready
+- **Intent:** `infra.yml`'s `preview` job (same-repo `pull_request`, `infra.yml:62-64`) checks out the PR branch, runs `pnpm install --frozen-lockfile` from PR-controlled `pnpm-lock.yaml`/`package.json` (`infra.yml:69-82`), authenticates to Azure with `secrets.ARM_CLIENT_ID`/`ARM_CLIENT_SECRET`/... (`infra.yml:84-90`), fetches the production `vercel-token` Key Vault secret via a raw `az keyvault secret show` call inside the workflow itself (`infra.yml:92-96` — this bypasses `infra/src/keyvault.ts` entirely), then runs `pulumi/actions@...` "Pulumi Preview" (`infra.yml:98-116`) with `ARM_*`, `VERCEL_API_TOKEN`, `PULUMI_CONFIG_PASSPHRASE`, and `AZURE_STORAGE_KEY` all exported as step env against the PR's own checked-out `infra/` Pulumi program. CIB-119 (PR #3086, merged) only edits `infra/src/*.ts` stack gating and `infra/scripts/admin-key-manage.mjs`; it never touches this workflow file (confirmed via `git show edb8895fb --stat` — no `infra.yml` in the diff), so this ordering gap is unaddressed on main.
+- **Expected Outcome:** The PR preview path no longer exposes Azure Key Vault or Pulumi secrets to PR-controlled `infra/` code; the Vercel token fetch is either removed from the raw workflow step or routed through the already-gated `infra/src/keyvault.ts` path so untrusted-stack previews get the `<untrusted-stack-secret:name>` marker instead of a live secret.
+- **Files:** `.github/workflows/infra.yml`.
+- **Validation:** A workflow dry-run (or targeted Pulumi preview test) showing the preview job's Pulumi Preview step no longer receives a live Vercel/Key-Vault token when run against the dev/preview stack, plus static review confirming no `az keyvault secret show` call reads the production vault outside the trusted path.
+- **Identified From:** Split from CIB-110 (deepsec sweep 20260629190245); decomposition readiness pass 2026-07-02.
+- **Coordinates with:** CIB-119 (infra/src stack-trust gating, PR #3086, merged — its own "Coordinates with" note already defers workflow-side secret exposure to CIB-110; this item is that deferred half); CIB-139 (release/signing tag trust, related but separate secrets path).
+- **Confidence:** high — the exposure is visible directly in the current workflow YAML, and no fork check protects internal (non-fork) PR branches from it.
+
+### CIB-137: Make required-check classification tamper-resistant to PR-controlled code
+
+- **Status:** Ready
+- **Intent:** `detect-changes`'s classification is computed entirely from code checked out at the PR's own head (`ci.yml:52-59` checks out the default `pull_request` ref, then `uses: ./.github/actions/detect-changes`, itself PR-controlled). The composite action shells out to `scripts/ci/classify-changes.sh` (`.github/actions/detect-changes/action.yml:182`) and derives every `*-required` gate (`lint-required`, `typecheck-required`, `unit-tests-required`, `dependency-audit-required`, etc., `action.yml:227-272`) purely from that PR-editable script's output. A PR that edits `.github/actions/detect-changes/action.yml` or `scripts/ci/classify-changes.sh` to always report `docs-only`/no required checks makes `ci.yml`'s per-job skip conditions (e.g. `ci.yml:449-457`, `ci.yml:529-536`) short-circuit to a passing filler conclusion for every required-check name, without lint/typecheck/tests/dependency-audit ever running on that same PR.
+- **Expected Outcome:** The composite action and script that decide which required checks run are resolved from a trusted ref (PR base SHA or `main`) rather than the PR's own head, so PR-controlled edits to the classifier cannot suppress required checks on that same PR.
+- **Files:** `.github/actions/detect-changes/action.yml`, `scripts/ci/classify-changes.sh`.
+- **Validation:** A test PR that edits the classifier to force `docs-only=true` while touching source files still runs the full required-check set (or the workflow fails closed), verified via a dry-run/fixture harness plus static review of the classifier's checkout ref.
+- **Identified From:** Split from CIB-110 (deepsec sweep 20260629190245); decomposition readiness pass 2026-07-02.
+- **Coordinates with:** CIB-038 (Lint & Format / Type Check filler-job consolidation, which consumes this classifier's outputs); CIB-136/CIB-138/CIB-139 siblings.
+- **Confidence:** high — the spoof path is a direct read of currently-committed workflow logic, not a hypothetical.
+
+### CIB-138: Restrict bench-nightly self-hosted runner to trusted refs
+
+- **Status:** Ready
+- **Intent:** `bench-nightly.yml` runs on a dedicated self-hosted runner (`runs-on: [self-hosted, bench]`, line 42) and is triggered only by `workflow_dispatch` (lines 20-26) with no ref restriction — unlike `mirror-eddacraft-tui.yml` and `mirror-drift-check.yml`, which already carry a "Guard — only mirror/check from refs/heads/main" step rejecting any other `GITHUB_REF` before doing anything privileged (both confirmed present on `origin/main`, and both run on `ubuntu-latest`, not self-hosted, so they are already fine and out of scope here). A dispatch against any branch runs that branch's own `bench-nightly.yml` content (including `cargo build`/`cargo run -p anvil-bench --release`) directly on the self-hosted box with no equivalent guard.
+- **Expected Outcome:** `bench-nightly.yml` refuses to run unless dispatched against `refs/heads/main` (or another explicitly trusted ref), mirroring the guard pattern already proven in the two mirror workflows.
+- **Files:** `.github/workflows/bench-nightly.yml`.
+- **Validation:** A `workflow_dispatch` dry-run against a non-main branch fails fast at the new guard step before the self-hosted runner executes any build/run step; static review confirming the guard matches the mirror-workflow pattern.
+- **Identified From:** Split from CIB-110 (deepsec sweep 20260629190245); decomposition readiness pass 2026-07-02.
+- **Coordinates with:** existing ref guards in `mirror-eddacraft-tui.yml` / `mirror-drift-check.yml` (precedent, already merged — no change needed there).
+- **Confidence:** high — small, mechanical, directly modelled on an existing merged pattern.
+
+### CIB-139: Verify release tag ancestry before exercising signing/publish authority
+
+- **Status:** Proposed — needs an owner decision on what counts as a "trusted" ancestor ref for hotfix/backport tags that may legitimately not descend from the current `main` tip (see the repo's hotfix-backport-risk precedent) before the ancestry check can be written without breaking a valid release path.
+- **Intent:** `release.yml` triggers on any pushed tag matching `**[0-9]+.[0-9]+.[0-9]+*` (`release.yml:49-50`) and its `plan` job runs `dist host --steps=create --tag=${{ github.ref_name }}` (`release.yml:122`) using `secrets.GITHUB_TOKEN`; `release-sign-artefacts.yml` triggers on `release: published` or an operator-supplied `workflow_dispatch` `tag` input (`release-sign-artefacts.yml:10-17`) and resolves the commit to sign purely from `github.event.release.target_commitish` / `gh release view $TAG --json targetCommitish` (`release-sign-artefacts.yml:98-100`) before materialising the private minisign key (`release-sign-artefacts.yml:78`). Neither workflow checks that the tagged commit is reachable from `main` before exercising release-creation or signing authority. CIB-120 (Merged, PR #3077) pinned the `rsign2`/`rustup` installer supply chain inside these same two files but added no ancestry check — confirmed present-and-unchanged on `origin/main` (`release-sign-artefacts.yml:69` now `cargo install rsign2 --version =0.6.6 --locked`; `release.yml` rustup step now pinned/checksummed) — so the tag-trust gap is a distinct, still-open concern in the same files.
+- **Expected Outcome:** Both workflows verify (e.g. `git merge-base --is-ancestor <tag-commit> origin/main`, or an equivalent trusted-ref check per the owner decision above) that the tag/release target commit is an ancestor of a trusted branch before running `dist host --steps=create` or materialising the signing key, and fail closed with a clear error if not.
+- **Files:** `.github/workflows/release.yml`, `.github/workflows/release-sign-artefacts.yml`.
+- **Validation:** A dry-run against a synthetic tag pointing at a commit not reachable from the trusted ref is rejected by both workflows before any publish/signing step runs; existing legitimate release tags continue to pass.
+- **Identified From:** Split from CIB-110 (deepsec sweep 20260629190245); decomposition readiness pass 2026-07-02.
+- **Coordinates with:** CIB-120 (rsign2/rustup pinning, Merged via PR #3077 — same two files, adjacent but distinct supply-chain vs. tag-trust concerns); ADR-045 signing key-custody runbook.
+- **Confidence:** medium — the exposure is real and evidenced, but the fix shape depends on the pending trusted-ref decision, not just mechanics.
+
+### CIB-140: Key API rate limiting on a trusted client-identity signal
+
+- **Status:** Ready
+- **Intent:** Stop the per-IP rate limiter from being keyed on a header a
+  client can set directly, which lets an attacker evade or frame another
+  client's limit.
+- **Expected Outcome:** `rateLimiter`/`globalRateLimiter` key on the client
+  identity the Vercel edge itself establishes (the edge-appended hop, or a
+  platform header Vercel overwrites rather than merely appends to) instead of
+  blindly trusting the leftmost, client-suppliable entry in
+  `X-Forwarded-For`. The trust boundary and expected hop count are documented
+  inline so a future change to the header source doesn't silently regress
+  back to trusting client input.
+- **Files:** `apps/anvil-api/src/middleware/rate-limit.ts`,
+  `apps/anvil-api/src/index.ts`.
+- **Validation:** A test proving a request that sets its own
+  `X-Forwarded-For` value (e.g. `evil, 203.0.113.7` to imitate a two-hop
+  chain) is keyed on the platform-trusted IP, not the attacker-chosen prefix;
+  existing rate-limit unit tests updated to cover multi-hop `X-Forwarded-For`
+  fixtures.
+- **Identified From:** Split from CIB-111 (deepsec sweep 20260629190245);
+  decomposition readiness pass 2026-07-02. Re-verified live at
+  `apps/anvil-api/src/middleware/rate-limit.ts:32` — still keys on
+  `.split(',')[0]` with no trusted-proxy configuration anywhere in the app.
+- **Coordinates with:** CIB-142 (waitlist throttle), which currently relies
+  on this same spoofable key for its baseline protection.
+- **Confidence:** high — localised middleware fix; Vercel's edge-proxy
+  header semantics are documented, no product decision needed.
+
+### CIB-141: Fail-closed entitlement default and atomic refresh-token rotation
+
+- **Status:** Proposed
+- **Intent:** Close two related gaps in `apps/anvil-api`'s licence/session
+  issuance: an entitlement lookup that fails open by design, and a
+  refresh-token rotation that isn't fully atomic.
+- **Expected Outcome:** `findActiveScopesForUser` (`queries.ts:174-204`) no
+  longer folds "user never issued a token" and "user's tokens were all
+  revoked/expired" into the same `['beta']` fallback — a decision is needed
+  on how to distinguish them (see Open Question). Separately, and
+  independent of that decision: `consumeRefreshToken` and the replacement
+  `insertRefreshToken` in `/session/refresh`
+  (`apps/anvil-api/src/routes/auth-session.ts:73-87`) are wrapped in one
+  transaction, matching the pattern already used by
+  `revokeRefreshFamilyAndAccessTokensForUser`, so a partial failure can't
+  leave a consumed token with no replacement.
+- **Open Question (product decision):** Is defaulting an active, zero-token
+  user to `['beta']` the intended self-signup entry point (as the existing
+  code comment states), and if so, what signal should distinguish that from
+  a user whose access was explicitly revoked and should get `[]`/deny
+  instead of being silently re-granted `beta`? Answering this determines
+  whether a schema change (e.g. an explicit `revoked`/lifecycle marker) is
+  needed, or whether the current behaviour is correct as documented and this
+  half of the item should be closed as a false positive.
+- **Files:** `apps/anvil-api/src/db/queries.ts`,
+  `apps/anvil-api/src/routes/auth-session.ts`,
+  `apps/anvil-api/src/lib/session.ts`.
+- **Validation:** Tests proving (1) an active user with zero access_token
+  rows resolves to the agreed default per the decision above, distinct from
+  a revoked user; (2) two concurrent `/session/refresh` calls against the
+  same valid refresh token — the loser gets 401 and the winner's consume +
+  new-token insert commit or roll back together, never partially.
+- **Identified From:** Split from CIB-111 (deepsec sweep 20260629190245);
+  decomposition readiness pass 2026-07-02. Re-verified: family-revocation
+  (`revokeRefreshFamilyAndAccessTokensForUser`, `queries.ts:566-584`) was
+  already transactional pre-dating the sweep — narrowed scope to the
+  consume+insert pairing and the entitlement default.
+- **Coordinates with:** CIB-143 (docs-shell also reads `scopes`/`tier` off
+  the same licence this item mints).
+- **Confidence:** medium — the atomicity fix is mechanical; the entitlement
+  half is gated on a product decision named above.
+
+### CIB-142: Atomic OTP attempt limiting and a dedicated waitlist abuse throttle
+
+- **Status:** Ready
+- **Intent:** Remove the check-then-increment race on OTP verification
+  attempts and add a dedicated throttle to the public waitlist signup
+  endpoint, which today relies only on the shared (and spoofable) global
+  rate limiter.
+- **Expected Outcome:** `POST /auth/otp/verify` enforces `MAX_ATTEMPTS` with
+  an atomic conditional update (e.g. `UPDATE ... WHERE attempts < $max
+  RETURNING attempts`, evaluated before the code comparison) so N concurrent
+  guesses against the same code cannot all read a stale attempts count and
+  proceed past the cap. `POST /waitlist` gets a per-email and/or per-key
+  throttle independent of the global limiter, closing the email-bombing /
+  signup-abuse gap.
+- **Files:** `apps/anvil-api/src/routes/auth-otp.ts`,
+  `apps/anvil-api/src/routes/waitlist.ts`, `apps/anvil-api/src/db/queries.ts`
+  (attempt-increment query).
+- **Validation:** A test firing concurrent `/auth/otp/verify` requests
+  against the same active code proves at most `MAX_ATTEMPTS` guesses are
+  ever evaluated; a test proving repeated `/waitlist` submissions for the
+  same email are throttled independent of source IP.
+- **Identified From:** Split from CIB-111 (deepsec sweep 20260629190245);
+  decomposition readiness pass 2026-07-02. Re-verified live at
+  `apps/anvil-api/src/routes/auth-otp.ts:111-128` (stale-snapshot check
+  before increment) and `apps/anvil-api/src/routes/waitlist.ts:13` (no
+  per-email throttle).
+- **Coordinates with:** CIB-140 (shares/depends on the rate-limit primitive
+  this item's waitlist throttle sits alongside).
+- **Confidence:** high — self-contained query/route fixes, no product
+  decision needed.
+
+### CIB-143: Scope-based docs entitlement and callback abuse throttling
+
+- **Status:** Proposed
+- **Intent:** Stop `apps/docs-shell` from granting private-docs access to
+  any authenticated licence regardless of actual entitlement, and add abuse
+  throttling to the OAuth callback route, which currently has none of its
+  own.
+- **Expected Outcome:** `apps/docs-shell/lib/jwt.ts`'s `verifyLicense` checks
+  an actual entitlement signal in `scopes` rather than `tier` (`tier` is
+  hardcoded to `'pro'` for every licence at mint time — see CIB-141's
+  `lib/session.ts:67` — so the current tier check is always true and
+  entitlement-blind). `apps/docs-shell/app/auth/callback/route.ts` gets a
+  throttle on repeated callback attempts, independent of `apps/anvil-api`'s
+  own limits, to bound abuse of the upstream GitHub exchange and DB writes
+  it triggers.
+- **Open Question (product decision):** What scope value (or set) denotes
+  "entitled to private docs"? Both `apps/docs-shell/lib/jwt.ts` (the check)
+  and `apps/anvil-api/src/lib/session.ts` (`tier` hardcoding — shared file
+  with CIB-141) need to agree on this before either can be safely fixed;
+  this JS/TS surface (`anvil-api`, `docs-shell`) is a **live product
+  surface**, not the retiring `packages/` tree, so the fix should land as a
+  real product decision, not a stopgap.
+- **Files:** `apps/docs-shell/lib/jwt.ts` (corrects the original split's file
+  list — this is where the vacuous check actually lives, not
+  `proxy.ts`/`route.ts` directly), `apps/docs-shell/app/auth/callback/route.ts`,
+  `apps/docs-shell/proxy.ts`.
+- **Validation:** A test proving a licence with `scopes: ['beta']` and no
+  docs entitlement is rejected by `proxy.ts`'s `/anvil/*` gate even though
+  `tier` is `'pro'`; a test proving repeated `/auth/callback` requests from
+  the same source are throttled.
+- **Identified From:** Split from CIB-111 (deepsec sweep 20260629190245);
+  decomposition readiness pass 2026-07-02. Re-verified live at
+  `apps/docs-shell/lib/jwt.ts:4,28` and `apps/anvil-api/src/lib/session.ts:67`.
+- **Coordinates with:** CIB-141 (shares the licence-minting file and the
+  `scopes` semantics this item's entitlement check depends on).
+- **Confidence:** medium — the throttling half is mechanical; the
+  entitlement half is gated on the product decision named above.
+
+### CIB-144: Flip requires_auth for anvil_fix/anvil_suppress/anvil_gate MCP tools
+
+- **Status:** Ready
+- **Intent:** Close the RMCPF-011-deferred auth gap — mutating (`anvil_fix`,
+  `anvil_suppress`) and execution-triggering (`anvil_gate`) MCP tools currently
+  register as `requires_auth: false`, unlike `anvil_validate_write` /
+  `anvil_apply_patch`.
+- **Expected Outcome:** `fix`, `suppress`, and `gate` flip to
+  `requires_auth: true` in the tool registry; an unauthenticated MCP session
+  calling any of the three receives the existing `gatewayUnavailable` /
+  `allow-with-warning` auth-required envelope instead of the tool executing.
+  **Blast radius (must be documented in the PR):** the enforcement path
+  already exists (`tools_call_response` in `commands/mcp.rs`) and fails open
+  with a structured warning, not a hard error, so no client crashes — but any
+  unauthenticated caller that relies on `anvil_fix`/`anvil_suppress` actually
+  mutating files, or `anvil_gate` actually running, will silently stop getting
+  that side effect until `anvil auth login` succeeds. `ANVIL_DEV=1` /
+  local dev-bypass sessions are unaffected (`mcp_tool_auth_ok` short-circuits
+  true under `cli_dev_bypass_active()`). No live documentation promises
+  unauthenticated use of these three tools — `docs/public/anvil/integrations/mcp.md`
+  only describes them under the "Frozen legacy Node MCP catalogue" section,
+  explicitly marked non-authoritative for the Rust shim.
+- **Files:** `crates/anvil-cli/src/mcp/tools/registry.rs` (flip the three
+  `requires_auth` fields, update/remove the stale RMCPF-011-deferral comment
+  at `registry.rs:73-77`), `crates/anvil-cli/src/commands/mcp.rs` (add
+  regression tests).
+- **Validation:** Unit test on `registry::all()` asserting `fix`/`suppress`/
+  `gate` are `requires_auth: true`; integration test in `mcp.rs` proving an
+  unauthenticated `tools/call` for each of the three returns the
+  `auth-required` envelope without invoking the underlying tool's side effect
+  (no file write, no subprocess spawn); existing dev-bypass and edict-cache
+  tests continue to pass unchanged.
+- **Identified From:** Split from CIB-112 (deepsec sweep 20260629190245);
+  decomposition readiness pass 2026-07-02.
+- **Coordinates with:** RMCPF-011 disposition (`plans/modules/rust-mcp-full-port.aps.md:311`),
+  MCP auth model.
+- **Confidence:** high — mechanical flag flip with an enforcement path
+  already proven in production; the only risk is under-communicating the
+  behavioural change to existing unauthenticated integrations.
+
+### CIB-145: Harden anvil_fix against symlink-swap TOCTOU races
+
+- **Status:** Ready
+- **Intent:** `anvil_fix`'s canonicalise-then-write sequence has a
+  check-then-use window an attacker with concurrent filesystem access could
+  exploit to redirect a write outside the workspace.
+- **Expected Outcome:** `anvil_fix` (and, for parity, `anvil_suppress`, which
+  shares the same pattern) no longer trusts a path resolved at check time for
+  a write that happens later — either by re-verifying containment against an
+  open file handle/inode rather than a path string, or by an equivalent
+  fail-closed mitigation; at minimum, `fix.rs` gains the symlink-escape test
+  `suppress.rs` already has, closing the current test-parity gap.
+- **Files:** `crates/anvil-cli/src/mcp/tools/fix.rs` (`canonicalise_inside_workspace`
+  at `fix.rs:147`, `apply_fix` write at `fix.rs:381`), `crates/anvil-cli/src/mcp/tools/suppress.rs`
+  (apply the same hardening for consistency).
+- **Validation:** New test proving a symlink swapped between the
+  canonicalize check and the write (or a symlink pointing outside the
+  workspace present at check time, matching `suppress.rs:635`) is rejected,
+  not silently followed; existing fix/suppress functional tests stay green.
+- **Identified From:** Split from CIB-112 (deepsec sweep 20260629190245);
+  decomposition readiness pass 2026-07-02.
+- **Coordinates with:** `anvil_suppress` path-containment contract (shares
+  the same design).
+- **Confidence:** medium — the fix-on-read/write pattern is well understood,
+  but a true fd-based re-check may need a small refactor of `apply_fix`'s
+  read/write split; a pure test-parity fix alone would only close the
+  check-time case, not the race.
+
+### CIB-146: Decide and implement anvil_gate script-execution consent policy
+
+- **Status:** Proposed
+- **Intent:** `anvil_gate`'s full-mode path executes project-controlled
+  `package.json` scripts (`pnpm lint:check` at `crates/anvil-cli/src/commands/gate.rs:540-541`,
+  `pnpm test` at `gate.rs:574-575`) with no consent gate, letting an
+  unauthenticated (pre-CIB-144) or even authenticated MCP session trigger
+  arbitrary workspace-defined code merely by calling `anvil_gate` without
+  `targetFiles`.
+- **Product question requiring an explicit decision before implementation:**
+  *Should `anvil_gate`'s full-mode (config-driven) run be allowed to execute
+  project-controlled lint/test/coverage scripts at all from an MCP session,
+  or should it require explicit authenticated consent (e.g. a
+  session-scoped opt-in flag, a confirmation round-trip, or restricting MCP
+  `anvil_gate` to the planless/antipattern-only mode and pushing full-mode
+  gate runs to the CLI-only surface)?* This cannot be resolved by engineering
+  judgement alone — it trades off "gate parity with the CLI" against
+  "MCP sessions should not have RCE-equivalent authority over an untrusted
+  workspace," and needs owner/security sign-off.
+- **Expected Outcome:** Once the policy is decided, `anvil_gate`'s full-mode
+  path enforces it (e.g. `requires_auth: true` is necessary but not
+  sufficient — CIB-144 alone does not close this, since an authenticated
+  session would still trigger the scripts unconditionally).
+- **Files:** `crates/anvil-cli/src/mcp/tools/gate.rs`, `crates/anvil-cli/src/commands/gate.rs`
+  (`run_check_lint`, `run_check_test`, `run_full_gate`).
+- **Validation:** TBD pending the design decision; must include a test
+  proving the chosen consent gate blocks full-mode gate execution absent the
+  required signal, and a test proving planless mode (antipattern-only, no
+  subprocess) is unaffected.
+- **Identified From:** Split from CIB-112 (deepsec sweep 20260629190245);
+  decomposition readiness pass 2026-07-02.
+- **Coordinates with:** CIB-144 (auth flip is a prerequisite, not a
+  substitute), gate-config subsystem.
+- **Confidence:** low until the product question above is answered —
+  correctly scoped as Proposed, not Ready.
+
+### CIB-147: Re-scope fence-unblock authority against the settled MLP2-026 trust model
+
+- **Status:** Proposed
+- **Intent:** CIB-112 assumed fence-unblock authority is "enforced only by
+  the CLI wrapper." Re-verification shows this is not quite accurate for
+  Unix: the daemon protocol's real authority gate is Unix socket file
+  permissions set at bind time (`crates/anvil-intercept/src/ipc.rs:1103,1108`
+  — 0600 socket / 0700 directory, owner-checked at `ipc.rs:771-847`), and
+  `--acknowledge-cascade` is explicitly documented as UX-only
+  (`crates/anvil-intercept-proto/src/lib.rs:148`) per a **settled v1 design
+  decision** (`plans/specs/2026-05-16-mlp2-026-fence-cascade-control-lane.md:513-515`:
+  "same-UID peers can issue any IPC command... intentionally permissive...
+  out of scope for v1").
+- **Product question requiring a decision:** *Does the existing same-UID
+  trust-zone model (any local peer owning the socket may clear any fence or
+  cascade) remain acceptable, or should `UnblockCascade`/`UnblockWorktree`
+  gain a stricter per-operator authorisation check (the ratchet path the
+  MLP2-026 spec already sketches — a `requires_ack` flag tied to
+  `OperatorContext.uid`)?* Re-opening this duplicates a decision already made
+  once; do not implement a "fix" without an explicit new sign-off overriding
+  MLP2-026 §5.5.
+- **Expected Outcome:** Either (a) the trust model is reaffirmed as-is and
+  this item closes as a documentation/regression-test task confirming socket
+  permission enforcement is regression-pinned, or (b) a new decision record
+  authorises the stricter per-operator gate and this item implements it.
+- **Files:** `crates/anvil-intercept/src/ipc.rs` (`dispatch_command` for
+  `unblock-cascade`/`unblock-worktree`, `ipc.rs:4053-4073`),
+  `crates/anvil-cli/src/commands/intercept.rs`.
+- **Validation:** At minimum, a regression test pinning that a
+  non-owner-permission socket connection cannot reach `dispatch_command` at
+  all (permission enforcement, not per-command); if the stricter model is
+  chosen, tests proving `UnblockCascade`/`UnblockWorktree` fail without a
+  valid operator/ack context.
+- **Identified From:** Split from CIB-112 (deepsec sweep 20260629190245);
+  decomposition readiness pass 2026-07-02.
+- **Coordinates with:** CIB-113 (session-owner-peer binding — check for
+  overlap before scoping work), CIB-114 (Windows named-pipe peer
+  authentication owns the equivalent gap on Windows), MLP2-026 spec.
+- **Confidence:** low — this child needs a decision-log entry before any
+  code changes; treat the parent's "wire-protocol change" framing as
+  provisional pending that decision.
+
+### CIB-148: Normalise source/target paths in anvil_query_boundary before policy evaluation
+
+- **Status:** Ready
+- **Intent:** `anvil_query_boundary` matches `sourceFile`/`targetFile`
+  directly against layer glob patterns with only an emptiness check
+  (`crates/anvil-cli/src/mcp/tools/query_boundary.rs:86-100`); unassigned
+  layers fail open to `"allowed": true` (`query_boundary.rs:167-179`), so a
+  path written as `./src/x.ts`, `src//x.ts`, or with backslash separators
+  silently fails to match and bypasses boundary policy instead of being
+  rejected or correctly evaluated.
+- **Expected Outcome:** `sourceFile`/`targetFile` are normalised (collapse
+  `./`, redundant separators, and reject `..`/absolute paths, matching the
+  containment checks `fix.rs`/`suppress.rs` already apply) before being
+  passed to `match_layer`, so representation tricks cannot cause a
+  false "unassigned-layer, allowed by default" verdict.
+- **Files:** `crates/anvil-cli/src/mcp/tools/query_boundary.rs`
+  (`query_payload:86-100`, `match_layer:247-250`).
+- **Validation:** Tests proving `./src/x.ts` and `src//x.ts` resolve to the
+  same layer as `src/x.ts`; a test proving `..`-escaping or absolute inputs
+  are rejected rather than silently unassigned; existing boundary-resolution
+  tests (same-layer, cross-layer violation, no-baseline) stay green.
+- **Identified From:** Split from CIB-112 (deepsec sweep 20260629190245);
+  decomposition readiness pass 2026-07-02.
+- **Coordinates with:** `anvil-architecture` validator (`assign_layers`/
+  `matches_layer`), shared path-validation helpers in
+  `crates/anvil-cli/src/mcp/tools/shared.rs`.
+- **Confidence:** high — read-only, no filesystem mutation, no daemon
+  coordination; a contained string-normalisation fix.
+
+### CIB-149: Stop treating an unverified first wire root as the confinement primary
+
+- **Status:** Ready
+- **Intent:** Close the Allowlist-confinement bypass where a same-uid client's
+  first self-declared `workspace_root` becomes the connection's implicitly
+  admitted primary root, regardless of the operator's allow list.
+- **Expected Outcome:** In `Allowlist` mode, a connection's implicitly admitted
+  primary root is derived from a daemon-verified source (e.g. the
+  `RegisterSession` worktree already bound to the authenticated peer), not from
+  the first arbitrary `workspace_root` a later wire request happens to name;
+  an unverified root is refused unless it independently matches an operator
+  allow entry.
+- **Files:** `crates/anvil-intercept/src/{confinement.rs,save_time.rs}`.
+- **Validation:** Daemon test proving that, in `Allowlist` mode, a connection
+  cannot get an unlisted root implicitly admitted merely by naming it first in
+  a `validate_paths` call; existing `primary_root_implicitly_admitted` and
+  `allowlist_refuses_unlisted` tests continue to pass with the tightened
+  source.
+- **Identified From:** Split from CIB-113 (deepsec sweep 20260629190245);
+  decomposition readiness pass 2026-07-02.
+- **Coordinates with:** DSV-008 confinement CLI (`anvil workspace`), ADR-061
+  §7 same-uid trust boundary, `save_time.rs::authorise_root`.
+- **Confidence:** high — root cause and fix are mechanically clear; the only
+  risk is over-tightening legitimate first-touch usage in `Open` mode (which
+  this item does not change).
+
+### CIB-150: Verify the wire `agent_tag` claim before honouring durable membership
+
+- **Status:** Ready
+- **Intent:** Close the trust-boundary gap where any same-uid IPC client can
+  mint an `AgentTag` claiming `claimed_agent_id: "activation-spine"` and be
+  treated as durable worktree membership, bypassing the live per-worktree cap
+  and consuming the separate registered-worktree budget.
+- **Expected Outcome:** A `RegisterSession` claiming durable
+  (activation-spine) membership is only honoured when the connection's
+  authenticated peer is independently authorised to register durable
+  membership (mirroring the `verify_lineage_claim` peer-derivation pattern
+  already applied to `lineage`); an unauthorised claim is downgraded to an
+  ordinary (non-durable, capped, TTL-bound) session rather than rejected
+  outright, so a benign mis-tagged client still registers.
+- **Files:** `crates/anvil-intercept/src/{registry.rs,ipc.rs}`.
+- **Validation:** Daemon tests proving an unauthorised same-uid peer's
+  `activation-spine` claim is downgraded to a live (capped) session, a
+  legitimately authorised caller's durable claim still succeeds, and the
+  `registered_worktree_cap` cannot be exhausted by forged durable claims.
+- **Identified From:** Split from CIB-113 (deepsec sweep 20260629190245);
+  decomposition readiness pass 2026-07-02.
+- **Coordinates with:** MLP2-070/MLP2-074 lineage-verification pattern
+  (`verify_lineage_claim`, `verify_report_process_starttime`), ACTMO-014/019
+  durable-registration state.
+- **Confidence:** high — the fix mirrors an existing, tested verification
+  pattern in the same file; the main design decision is the safe downgrade
+  behaviour rather than a hard reject.
+
+### CIB-151: Verify on-disk state before trusting a wire-declared delete/rename
+
+- **Status:** Ready
+- **Intent:** Close the bypass where a client's self-declared `ChangeKindWire`
+  (`Deleted`/`Renamed`) suppresses the guarded read and antipattern content
+  scan even when the path still holds live, unscanned bytes on disk.
+- **Expected Outcome:** `validate_paths` no longer gates the guarded read and
+  antipattern scan purely on the client's claimed change kind; a path that
+  still resolves to readable content is read and scanned regardless of the
+  claimed kind, and only an actually-vanished path is treated as
+  content-free.
+- **Files:** `crates/anvil-intercept/src/validate_paths.rs`.
+- **Validation:** Daemon test proving a path declared `Deleted`/`Renamed` but
+  still present with live bytes on disk is still guarded-read and
+  antipattern-scanned (and cannot silently evade a blocking finding);
+  existing `change_has_bytes`/`per_path_outcome` coverage-cap and taxonomy
+  tests continue to pass.
+- **Identified From:** Split from CIB-113 (deepsec sweep 20260629190245);
+  decomposition readiness pass 2026-07-02.
+- **Coordinates with:** DSV-005/006 save-time verdict assembly, the
+  antipattern check family, `CertifyStale` taxonomy.
+- **Confidence:** high — the bypass is a single conditional
+  (`change_has_bytes`); the main risk is the added read cost for legitimate
+  delete/rename traffic, which is bounded by the existing parse-size cap.
+
+### CIB-152: Serialise the fence store's load-mutate-save cycle
+
+- **Status:** Draft
+- **Intent:** Close the lost-update race where two concurrent fence engages
+  (or an engage racing an unblock/clear-cascade) can each `load()` the same
+  on-disk `FenceState`, mutate independently, and `save()` — silently
+  dropping one caller's security-relevant change.
+- **Expected Outcome:** `FenceStore::fence_worktree`, `unblock_worktree`, and
+  `clear_cascade` execute their load-mutate-save sequence under a single
+  serialising lock per store instance, so no concurrent pair of calls can
+  lose a persisted fence or cascade record; the existing atomic
+  temp-then-rename write (`store_io.rs`) is unchanged.
+- **Files:** `crates/anvil-intercept/src/fence.rs`.
+- **Validation:** A concurrency test proving two simultaneous
+  `fence_worktree`/`unblock_worktree`/`clear_cascade` calls against the same
+  store never lose either caller's record; existing single-threaded fence
+  tests continue to pass unmodified.
+- **Identified From:** Split from CIB-113 (deepsec sweep 20260629190245);
+  decomposition readiness pass 2026-07-02.
+- **Coordinates with:** MLP2-026 fence-cascade control lane, `store_io.rs`
+  atomic-write primitives. **Depends on deterministic concurrent-write test
+  support**: `tests/` has a live in-process daemon harness
+  (`daemon_config_wired.rs::spawn_daemon_with_config`) but no
+  interleave-control/race-injection scaffolding for this class of race; the
+  regression test needs either a barrier-based in-crate unit test seam or
+  new harness support before this can be verified deterministically rather
+  than by timing-dependent flakiness.
+- **Confidence:** medium — the fix (a mutex around the critical section) is
+  mechanically simple, but proving the fix deterministically (not by a
+  flaky sleep-based race) needs the harness support noted above.
+
+### CIB-153: Bind session lifecycle operations to the registering peer
+
+- **Status:** Draft
+- **Intent:** Close the gap where any same-uid IPC client that knows or
+  guesses another session's id can heartbeat-keep-alive or force-unregister
+  a session it never registered, since `Heartbeat`/`UnregisterSession` carry
+  no peer-credential check today.
+- **Expected Outcome:** A session records the authenticated peer identity
+  (uid/pid/starttime) that registered it; `Heartbeat` and `UnregisterSession`
+  are rejected when the calling peer does not match the recorded owner
+  (mirroring the existing `ReportProcess` peer-pid contract), independent of
+  the separate telemetry-subscriber binding.
+- **Files:** `crates/anvil-intercept/src/{registry.rs,ipc.rs}`.
+- **Validation:** Dispatch-level tests (mirroring the existing
+  `dispatch_command_register_lineage_*` injected-`peer_pid` pattern) proving
+  a session registered under peer A's credentials rejects `Heartbeat`/
+  `UnregisterSession` from a different injected peer B, and still accepts
+  them from peer A; legacy/no-peer-credential paths continue to fail closed.
+- **Identified From:** Split from CIB-113 (deepsec sweep 20260629190245);
+  decomposition readiness pass 2026-07-02.
+- **Coordinates with:** MLP2-070/MLP2-074 peer-credential verification
+  pattern (`verify_lineage_claim`, `mint_subscriber_id`); CIB-114
+  Windows-peer authentication (sibling, different platform layer).
+  **Depends on deterministic multi-peer test coverage**: the existing
+  `dispatch_command` unit tests already inject synthetic `peer_pid` values
+  without a live second process, which is sufficient for the dispatch-level
+  contract above but does not prove true cross-process denial end-to-end;
+  no multi-process (distinct real-PID) daemon harness exists in `tests/`
+  today for that stronger proof.
+- **Confidence:** medium — the dispatch-level fix and its test are
+  low-risk and reuse an existing pattern, but the end-to-end
+  (real-process, real `SO_PEERCRED`) proof is gated on harness work not yet
+  in place.
+
+### CIB-154: Cap the number of workspace roots a connection may admit
+
+- **Status:** Ready
+- **Intent:** Close the unbounded per-connection resource vector where
+  `Open`-mode admission holds one real file descriptor
+  (`WorkspaceAnchor`/`OwnedFd`) per distinct admitted root with no ceiling,
+  letting a same-uid peer exhaust the daemon's descriptor table by naming
+  many distinct roots.
+- **Expected Outcome:** `AdmittedRoots` enforces a per-connection budget on
+  the number of distinct admitted roots (a new `DoS`-family cap alongside
+  the existing connection/RPS/frame budgets); a connection past the budget
+  is refused further admission with a structured error rather than allowed
+  to keep opening anchors, in both `Open` and `Allowlist` modes.
+- **Files:** `crates/anvil-intercept/src/{workspace_admission.rs,dos.rs}`.
+- **Validation:** Test proving a connection that admits more than the
+  budgeted number of distinct roots is refused on the next admission (not
+  crashed or silently unbounded), while staying within budget continues to
+  admit normally; existing admission tests (`root_set_grows_on_first_touch`,
+  allowlist refusal) continue to pass.
+- **Identified From:** Split from CIB-113 (deepsec sweep 20260629190245);
+  decomposition readiness pass 2026-07-02.
+- **Coordinates with:** `dos.rs` `IpcLimits`/`DosCaps` budget model
+  (already stricter-wins project/user merge for the sibling caps),
+  `workspace_anchor.rs` held-fd resource.
+- **Confidence:** high — the fix is an additive counter/cap with no
+  behavioural change below the new budget; the only judgement call is
+  picking a default ceiling generous enough for real multi-root workflows.
