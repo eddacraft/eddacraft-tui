@@ -287,7 +287,7 @@ export const HumanInputObservationSchema = z.object({
 
   // Optional for backwards compatibility with observations stored before the
   // field existed; always populated by emitHumanInput (CIB-118).
-  input_id: z.string().optional().describe('Unique input identifier for linking'),
+  input_id: z.string().uuid().optional().describe('Unique input identifier for linking'),
 
   input_type: z
     .enum(['approval', 'override', 'rejection', 'manual_edit', 'confirmation', 'cancellation'])
