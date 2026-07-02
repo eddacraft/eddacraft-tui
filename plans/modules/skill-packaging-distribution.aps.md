@@ -3,9 +3,9 @@
 
 # Skill Packaging & Distribution
 
-| ID    | Owner | Priority | Status |
-| ----- | ----- | -------- | ------ |
-| SKPKG | —     | Medium   | Draft  |
+| ID    | Owner | Priority | Status      |
+| ----- | ----- | -------- | ----------- |
+| SKPKG | —     | Medium   | In Progress |
 
 ## Purpose
 
@@ -72,6 +72,8 @@ the design before any implementation work is scoped.
 
 ### SKPKG-001: Cross-agent skill packaging design
 
+- **Status:** In Progress — design doc drafted, pending owner review (see
+  `## Designs` below)
 - **Intent:** Produce a design document that answers how
   `anvil-developer-functions` (and future customer-facing skills) get
   packaged, versioned, and distributed so they work across multiple agent
@@ -97,6 +99,68 @@ the design before any implementation work is scoped.
   `## Designs` section links it and lists the resulting follow-on work items
 - **Confidence:** medium
 
+### SKPKG-002: Ratify the ADR-018 IP-boundary call for distributed skills
+
+- **Status:** Draft
+- **Intent:** Get an owner (or Council/ADR) decision on whether customer-
+  distributed skills as closed-product artefacts (embedded in the `anvil`
+  binary, installed via `anvil skill install`, never via direct
+  `eddacraft-skills` catalogue access) needs a formal ADR addendum to
+  ADR-018, or whether sign-off on the design spec is sufficient precedent.
+- **Expected Outcome:** A recorded decision (ADR addendum or an explicit
+  accepted note on the spec) that future customer-facing skill work can cite
+  without re-litigating the IP boundary each time.
+- **Files:** `plans/decisions/018-product-ip-architecture.md` (possible
+  addendum), `plans/specs/2026-07-02-skill-packaging-distribution.md`
+- **Dependencies:** SKPKG-001
+- **Validation:** Decision recorded and linked from both this module and
+  ADR-018
+- **Confidence:** low (owner call, not something to resolve unilaterally)
+
+### SKPKG-003: Decide the skill-update cadence trade-off
+
+- **Status:** Draft
+- **Intent:** Decide whether bundling skill content with `anvil` binary
+  releases (default per the design) is acceptable, or whether skill content
+  needs a faster-moving update channel independent of CLI release cadence.
+- **Expected Outcome:** An explicit decision, recorded in this module's
+  `## Decisions` section, with the trade-off (binary-release cadence vs a
+  second trust surface) named either way.
+- **Dependencies:** SKPKG-001
+- **Validation:** Decision recorded in `## Decisions`
+- **Confidence:** low
+
+### SKPKG-004: Reconcile target-harness sets between skill install and MCP install
+
+- **Status:** Draft
+- **Intent:** Decide which harness targets a first-cut `anvil skill install`
+  supports, given the catalogue declares 4 (`claude`, `opencode`, `openclaw`,
+  `codex`) but `anvil mcp install`'s `McpClient` enum only has 2 (`cursor`,
+  `claude-code`), and whether the two enums should be unified or stay
+  independent.
+- **Expected Outcome:** A decided initial target set for `anvil skill
+  install`, recorded here, with a call on `McpClient` unification.
+- **Files:** `crates/anvil-cli/src/commands/mcp.rs`
+- **Dependencies:** SKPKG-001
+- **Validation:** Decision recorded in `## Decisions`
+- **Confidence:** medium
+
+### SKPKG-005: Land `SourceInfo.type: "anvil-bundled"` in the SKOBS manifest schema
+
+- **Status:** Draft
+- **Intent:** Add a fourth `SourceInfo.type` value (naming TBD) to
+  `plans/specs/skill-manifest-schema.md` so `/skill-inventory` can
+  distinguish skills materialised by `anvil skill install` from
+  hand-authored/copied/symlinked ones, coordinated with the SKOBS module
+  owner before SKOBS-002 goes Ready.
+- **Expected Outcome:** `skill-manifest-schema.md` updated with the new
+  `SourceInfo.type` value and SKOBS-002 acknowledges the addition.
+- **Files:** `plans/specs/skill-manifest-schema.md`
+- **Dependencies:** SKPKG-001, coordinates with SKOBS-002
+- **Validation:** Schema doc updated; SKOBS module owner has acknowledged the
+  change (comment or commit co-sign)
+- **Confidence:** medium
+
 ## Risks & Mitigations
 
 | Risk | Mitigation |
@@ -107,11 +171,19 @@ the design before any implementation work is scoped.
 
 ## Decisions
 
-_(none yet — this module exists to produce the first one via SKPKG-001)_
+_(none ratified yet — SKPKG-002/003/004 above are the pending decisions the
+design spec surfaced; this section fills in as each is resolved)_
 
 ## Designs
 
-_(link the design doc here once SKPKG-001 completes)_
+- [Skill packaging & distribution across agent harnesses](../specs/2026-07-02-skill-packaging-distribution.md)
+  (Draft, 2026-07-02) — SKPKG-001. Finds that the packaging manifest
+  (`skill.meta.json`), the cross-agent catalogue, and the emission pipeline
+  (`code-env`) already exist; the actual gap is a customer-reachable
+  distribution channel. Proposes a new `anvil skill install --client <target>`
+  CLI subcommand, sibling to the existing `anvil mcp install`, that embeds
+  skill content in the closed `anvil` binary (ADR-018-aligned, no catalogue
+  access required). Surfaces four follow-on decisions as SKPKG-002..005.
 
 ## Notes
 
