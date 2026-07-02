@@ -49,7 +49,9 @@ describe('Vercel resources', () => {
         },
       },
       'test-project',
-      'test-stack',
+      // CIB-119: production Vercel resources are only defined on the trusted
+      // `prod` stack; these assertions describe the trusted-stack shape.
+      'prod',
       false
     );
 

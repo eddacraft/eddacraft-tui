@@ -2,6 +2,7 @@ import * as pulumi from '@pulumi/pulumi';
 import { execFileSync } from 'node:child_process';
 import { PerOperatorAdminKey } from './components/per-operator-admin-key.js';
 import { getSecret } from './keyvault.js';
+import { isTrustedStack, warnUntrustedSkip } from './stack-trust.js';
 
 // ADMINCLIH-004: each entry in `seed` below results in an `admin_keys` row
 // (and matching audit row) managed declaratively by Pulumi. Adding/removing
@@ -46,23 +47,36 @@ function resolveChangeActor(): string {
   );
 }
 
-const databaseUrl = getSecret('anvil-api-database-url');
-const pepper = getSecret('admin-key-pepper');
+// CIB-119: admin keys are rows in the PRODUCTION database, written via a
+// local command with the production connection string in its environment.
+// Only the trusted prod stack may define them; untrusted stacks (for example
+// the PR-preview `dev` stack) provision nothing and read no secrets here.
+function defineAdminKeys(): PerOperatorAdminKey[] {
+  const databaseUrl = getSecret('anvil-api-database-url');
+  const pepper = getSecret('admin-key-pepper');
 
-const commitSha = resolveCommitSha();
-const changeActor = resolveChangeActor();
+  const commitSha = resolveCommitSha();
+  const changeActor = resolveChangeActor();
 
-export const adminKeys = seed.map(
-  ({ name, actorEmail, note }) =>
-    new PerOperatorAdminKey(`admin-key-${name}`, {
-      actorEmail,
-      note,
-      changeActor,
-      commitSha,
-      databaseUrl,
-      pepper,
-    })
-);
+  return seed.map(
+    ({ name, actorEmail, note }) =>
+      new PerOperatorAdminKey(`admin-key-${name}`, {
+        actorEmail,
+        note,
+        changeActor,
+        commitSha,
+        databaseUrl,
+        pepper,
+      })
+  );
+}
+
+const trusted = isTrustedStack();
+if (!trusted) {
+  warnUntrustedSkip('production per-operator admin keys');
+}
+
+export const adminKeys: PerOperatorAdminKey[] = trusted ? defineAdminKeys() : [];
 
 // Bearer tokens, keyed by actor email. Secret Pulumi outputs — retrieve with:
 //   pulumi stack output adminKeyBearers --show-secrets

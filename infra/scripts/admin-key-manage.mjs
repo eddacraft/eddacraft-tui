@@ -46,6 +46,104 @@ export function createOutputLine(id, hashedKey) {
   return JSON.stringify({ id, hashed_key: hashedKey }) + '\n';
 }
 
+// CIB-119: create the admin_keys row for an actor, preserving the
+// active-key invariant (at most one active row per actor) under concurrent
+// attempts. A transaction-scoped per-actor advisory lock serialises
+// competing creates/revokes — without it, two concurrent creates could both
+// observe "no active row" and both insert. The lock is released
+// automatically at COMMIT/ROLLBACK.
+export async function createAdminKey(
+  client,
+  { hashedKey, actorEmail, note, changeActor, commitSha }
+) {
+  await client.query('BEGIN');
+  try {
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [actorEmail]);
+
+    // Idempotent: if a live row for this actor already exists with the same
+    // hash, no-op; if a different hash exists for the same actor, refuse —
+    // that means two concurrent provisions and needs operator review.
+    const existing = await client.query(
+      `SELECT id, hashed_key, revoked_at FROM admin_keys
+       WHERE actor_email = $1 AND revoked_at IS NULL
+       ORDER BY created_at DESC LIMIT 1`,
+      [actorEmail]
+    );
+    if (existing.rows.length > 0 && existing.rows[0].hashed_key !== hashedKey) {
+      throw new Error(
+        `active admin_keys row already exists for ${actorEmail} with a different hash; ` +
+          `revoke it first or re-use the same bearer`
+      );
+    }
+
+    let id;
+    if (existing.rows.length > 0 && existing.rows[0].hashed_key === hashedKey) {
+      id = existing.rows[0].id;
+    } else {
+      const inserted = await client.query(
+        `INSERT INTO admin_keys (hashed_key, actor_email, note)
+         VALUES ($1, $2, $3)
+         RETURNING id`,
+        [hashedKey, actorEmail, note]
+      );
+      id = inserted.rows[0].id;
+
+      await client.query(
+        `INSERT INTO admin_keys_audit
+           (admin_key_id, action, change_actor, pulumi_commit_sha, note)
+         VALUES ($1, 'created', $2, $3, $4)`,
+        [id, changeActor, commitSha, note || 'iac-provisioned']
+      );
+    }
+
+    await client.query('COMMIT');
+    return { id, hashedKey };
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      // swallow — the original error is what matters
+    }
+    throw err;
+  }
+}
+
+// CIB-119: revoke shares the per-actor advisory lock so a revoke racing a
+// create for the same actor cannot interleave between the create's
+// existence check and its insert.
+export async function revokeAdminKey(client, { hashedKey, actorEmail, changeActor, commitSha }) {
+  await client.query('BEGIN');
+  try {
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [actorEmail]);
+
+    const row = await client.query(
+      `UPDATE admin_keys SET revoked_at = now()
+       WHERE actor_email = $1 AND hashed_key = $2 AND revoked_at IS NULL
+       RETURNING id`,
+      [actorEmail, hashedKey]
+    );
+    if (row.rows.length > 0) {
+      await client.query(
+        `INSERT INTO admin_keys_audit
+           (admin_key_id, action, change_actor, pulumi_commit_sha, note)
+         VALUES ($1, 'revoked', $2, $3, $4)`,
+        [row.rows[0].id, changeActor, commitSha, 'iac-revoked']
+      );
+    }
+    // Missing row on revoke is not an error — the infra may have been
+    // rolled back before the key was ever inserted.
+    await client.query('COMMIT');
+    return { revoked: row.rows.length };
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      // swallow — the original error is what matters
+    }
+    throw err;
+  }
+}
+
 function req(name) {
   const v = process.env[name];
   if (!v) {
@@ -87,77 +185,30 @@ async function main() {
 
   try {
     await client.connect();
-    await client.query('BEGIN');
 
     if (action === 'create') {
-      // Idempotent: if a live row for this actor already exists with the same
-      // hash, no-op; if a different hash exists for the same actor, refuse —
-      // that means two concurrent provisions and needs operator review.
-      const existing = await client.query(
-        `SELECT id, hashed_key, revoked_at FROM admin_keys
-         WHERE actor_email = $1 AND revoked_at IS NULL
-         ORDER BY created_at DESC LIMIT 1`,
-        [actorEmail]
-      );
-      if (existing.rows.length > 0 && existing.rows[0].hashed_key !== hashedKey) {
-        throw new Error(
-          `active admin_keys row already exists for ${actorEmail} with a different hash; ` +
-            `revoke it first or re-use the same bearer`
-        );
-      }
-
-      let id;
-      if (existing.rows.length > 0 && existing.rows[0].hashed_key === hashedKey) {
-        id = existing.rows[0].id;
-      } else {
-        const inserted = await client.query(
-          `INSERT INTO admin_keys (hashed_key, actor_email, note)
-           VALUES ($1, $2, $3)
-           RETURNING id`,
-          [hashedKey, actorEmail, note]
-        );
-        id = inserted.rows[0].id;
-
-        await client.query(
-          `INSERT INTO admin_keys_audit
-             (admin_key_id, action, change_actor, pulumi_commit_sha, note)
-           VALUES ($1, 'created', $2, $3, $4)`,
-          [id, changeActor, commitSha, note || 'iac-provisioned']
-        );
-      }
-
-      await client.query('COMMIT');
+      const { id } = await createAdminKey(client, {
+        hashedKey,
+        actorEmail,
+        note,
+        changeActor,
+        commitSha,
+      });
       process.stdout.write(createOutputLine(id, hashedKey));
       process.exit(0);
     }
 
     if (action === 'revoke') {
-      const row = await client.query(
-        `UPDATE admin_keys SET revoked_at = now()
-         WHERE actor_email = $1 AND hashed_key = $2 AND revoked_at IS NULL
-         RETURNING id`,
-        [actorEmail, hashedKey]
-      );
-      if (row.rows.length > 0) {
-        await client.query(
-          `INSERT INTO admin_keys_audit
-             (admin_key_id, action, change_actor, pulumi_commit_sha, note)
-           VALUES ($1, 'revoked', $2, $3, $4)`,
-          [row.rows[0].id, changeActor, commitSha, 'iac-revoked']
-        );
-      }
-      // Missing row on revoke is not an error — the infra may have been
-      // rolled back before the key was ever inserted.
-      await client.query('COMMIT');
-      process.stdout.write(JSON.stringify({ revoked: row.rows.length }) + '\n');
+      const { revoked } = await revokeAdminKey(client, {
+        hashedKey,
+        actorEmail,
+        changeActor,
+        commitSha,
+      });
+      process.stdout.write(JSON.stringify({ revoked }) + '\n');
       process.exit(0);
     }
   } catch (err) {
-    try {
-      await client.query('ROLLBACK');
-    } catch {
-      // swallow — the original error is what matters
-    }
     console.error(err instanceof Error ? err.message : String(err));
     process.exit(2);
   } finally {

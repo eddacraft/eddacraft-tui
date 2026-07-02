@@ -26,45 +26,62 @@
 
 import * as azure from '@pulumi/azure-native';
 import * as pulumi from '@pulumi/pulumi';
+import { isTrustedStack, warnUntrustedSkip } from './stack-trust.js';
 
-const config = new pulumi.Config('signing');
-const location = config.get('location') ?? 'eastus';
+// CIB-119: the signing account and its resource group carry fixed production
+// physical names (`rg-prd-signing`, `eddacraft-signing`). Only the trusted
+// prod stack may define them; untrusted stacks export undefined.
+function defineSigning() {
+  const config = new pulumi.Config('signing');
+  const location = config.get('location') ?? 'eastus';
 
-// Phase 1: resource group + signing account (always created)
+  // Phase 1: resource group + signing account (always created on prod)
 
-export const signingResourceGroup = new azure.resources.ResourceGroup('rg-prd-signing', {
-  resourceGroupName: 'rg-prd-signing',
-  location,
-});
-
-export const signingAccount = new azure.codesigning.CodeSigningAccount(
-  'eddacraft-signing',
-  {
-    accountName: 'eddacraft-signing',
-    resourceGroupName: signingResourceGroup.name,
+  const resourceGroup = new azure.resources.ResourceGroup('rg-prd-signing', {
+    resourceGroupName: 'rg-prd-signing',
     location,
-    sku: { name: 'Basic' },
-  },
-  { parent: signingResourceGroup }
-);
+  });
 
-// Phase 4: certificate profile (gated on identity validation ID)
-//
-// Set after portal identity validation completes:
-//   pulumi config set signing:identityValidationId <GUID>
+  const account = new azure.codesigning.CodeSigningAccount(
+    'eddacraft-signing',
+    {
+      accountName: 'eddacraft-signing',
+      resourceGroupName: resourceGroup.name,
+      location,
+      sku: { name: 'Basic' },
+    },
+    { parent: resourceGroup }
+  );
 
-const identityValidationId = config.get('identityValidationId');
+  // Phase 4: certificate profile (gated on identity validation ID)
+  //
+  // Set after portal identity validation completes:
+  //   pulumi config set signing:identityValidationId <GUID>
 
-export const certificateProfile = identityValidationId
-  ? new azure.codesigning.CertificateProfile(
-      'eddacraft-anvil',
-      {
-        profileName: 'eddacraft-anvil',
-        accountName: signingAccount.name,
-        resourceGroupName: signingResourceGroup.name,
-        profileType: 'PublicTrust',
-        identityValidationId,
-      },
-      { parent: signingAccount }
-    )
-  : undefined;
+  const identityValidationId = config.get('identityValidationId');
+
+  const profile = identityValidationId
+    ? new azure.codesigning.CertificateProfile(
+        'eddacraft-anvil',
+        {
+          profileName: 'eddacraft-anvil',
+          accountName: account.name,
+          resourceGroupName: resourceGroup.name,
+          profileType: 'PublicTrust',
+          identityValidationId,
+        },
+        { parent: account }
+      )
+    : undefined;
+
+  return { resourceGroup, account, profile };
+}
+
+const signing = isTrustedStack() ? defineSigning() : undefined;
+if (!signing) {
+  warnUntrustedSkip('production Authenticode signing resources');
+}
+
+export const signingResourceGroup = signing?.resourceGroup;
+export const signingAccount = signing?.account;
+export const certificateProfile = signing?.profile;
