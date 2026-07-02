@@ -2929,7 +2929,7 @@ archive.
 
 ### CIB-108: Restrict network-capable OPA built-ins during policy evaluation
 
-- **Status:** Ready
+- **Status:** Merged 2026-07-02 via PR #3084
 - **Intent:** Prevent untrusted workspace policies from using OPA network-capable
   built-ins during `anvil policy eval` execution.
 - **Expected Outcome:** `OPAExecutor` evaluates loaded workspace policies with a
