@@ -3693,7 +3693,7 @@ archive.
 
 ### CIB-135: Gate live prod DNS records out of the untrusted dev stack
 
-- **Status:** Proposed
+- **Status:** Done 2026-07-03 — delivered by CIB-136 via PR #3097 (DNS stack-trust gating + untrusted-stack zero-resource test landed there)
 - **Intent:** `infra/src/dns/eddacraft-ai.ts` (imported unconditionally in
   `infra/index.ts`) creates real `RecordSet` resources for `eddacraft.ai`
   inside `rg-prd-ap-public-web`, and `azure-dns:resourceGroupName` is
@@ -3718,7 +3718,7 @@ archive.
 
 ### CIB-136: Stop PR preview jobs exposing production Azure/Key Vault secrets to PR-controlled Pulumi code
 
-- **Status:** Ready
+- **Status:** Merged 2026-07-03 via PR #3097
 - **Intent:** `infra.yml`'s `preview` job (same-repo `pull_request`, `infra.yml:62-64`) checks out the PR branch, runs `pnpm install --frozen-lockfile` from PR-controlled `pnpm-lock.yaml`/`package.json` (`infra.yml:69-82`), authenticates to Azure with `secrets.ARM_CLIENT_ID`/`ARM_CLIENT_SECRET`/... (`infra.yml:84-90`), fetches the production `vercel-token` Key Vault secret via a raw `az keyvault secret show` call inside the workflow itself (`infra.yml:92-96` — this bypasses `infra/src/keyvault.ts` entirely), then runs `pulumi/actions@...` "Pulumi Preview" (`infra.yml:98-116`) with `ARM_*`, `VERCEL_API_TOKEN`, `PULUMI_CONFIG_PASSPHRASE`, and `AZURE_STORAGE_KEY` all exported as step env against the PR's own checked-out `infra/` Pulumi program. CIB-119 (PR #3086, merged) only edits `infra/src/*.ts` stack gating and `infra/scripts/admin-key-manage.mjs`; it never touches this workflow file (confirmed via `git show edb8895fb --stat` — no `infra.yml` in the diff), so this ordering gap is unaddressed on main.
 - **Expected Outcome:** The PR preview path no longer exposes Azure Key Vault or Pulumi secrets to PR-controlled `infra/` code; the Vercel token fetch is either removed from the raw workflow step or routed through the already-gated `infra/src/keyvault.ts` path so untrusted-stack previews get the `<untrusted-stack-secret:name>` marker instead of a live secret.
 - **Files:** `.github/workflows/infra.yml`.
