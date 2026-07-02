@@ -3214,7 +3214,7 @@ archive.
 
 ### CIB-119: Gate infrastructure secrets and production resources by trusted stack context
 
-- **Status:** Ready
+- **Status:** Merged 2026-07-02 via PR #3086
 - **Intent:** Stop non-production or PR-controlled infrastructure paths from
   reading production secrets or defining/mutating production resources.
 - **Expected Outcome:** Pulumi preview/apply paths do not fetch production Key
@@ -3682,3 +3682,24 @@ archive.
 - **Coordinates with:** CIB-030 (the `eddacraft-tui`-scoped gate this widens).
 - **Confidence:** medium — the six known errors are small fixes, but the full
   all-features surface may surface more once those clear.
+
+### CIB-135: Gate live prod DNS records out of the untrusted dev stack
+
+- **Status:** Proposed
+- **Intent:** `infra/src/dns/eddacraft-ai.ts` (imported unconditionally in
+  `infra/index.ts`) creates real `RecordSet` resources for `eddacraft.ai`
+  inside `rg-prd-ap-public-web`, and `azure-dns:resourceGroupName` is
+  configured identically in BOTH `Pulumi.dev.yaml` and `Pulumi.prod.yaml` — so
+  the untrusted `dev` stack (the PR-preview stack) still manages live
+  production DNS records, ungated by CIB-119's `isTrustedStack()`.
+- **Expected Outcome:** the DNS record definitions are gated by the
+  `stack-trust.ts` mechanism (or moved behind a prod-only module boundary), so
+  an untrusted-stack preview/up defines zero live DNS resources; a test pins
+  the untrusted-stack resource count, mirroring `untrusted-stack.test.ts`.
+- **Files:** `infra/src/dns/eddacraft-ai.ts`, `infra/index.ts`,
+  `infra/Pulumi.dev.yaml` (resource-group config split, if taken).
+- **Identified From:** CIB-119 pre-merge review (PR #3086) — same
+  cross-stack-resource-ownership class as CIB-119's own findings, but outside
+  its Files list; pre-existing, not introduced by that PR.
+- **Confidence:** high — the gating mechanism already exists
+  (`infra/src/stack-trust.ts`); this applies it to one more module.
