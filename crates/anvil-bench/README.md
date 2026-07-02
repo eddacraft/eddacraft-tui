@@ -47,9 +47,9 @@ Active
   SCAN-005 spike measuring whether parallelising the walk itself clears the ≥20%
   bar. Corpus size via `ANVIL_BENCH_WALK_FILES` (default 20,000).
 - **validate_write_tier** -- `anvil_validate_write` full pipeline vs CIB-006
-  risk-tier safelist wall time on a representative JSON metadata fixture
-  (single string-value rename via `proposedContent` vs `patch`). Informational:
-  reports per-tier mean latency and the safelist speedup.
+  risk-tier safelist wall time on a representative JSON metadata fixture (single
+  string-value rename via `proposedContent` vs `patch`). Informational: reports
+  per-tier mean latency and the safelist speedup.
 - **watch_resource_budget** -- Release-binary `anvil watch` CPU/RSS budget
   check. Included in `pnpm bench`; skip with `-- --skip-resource-budget` when
   you only need Criterion micro-benchmarks.
