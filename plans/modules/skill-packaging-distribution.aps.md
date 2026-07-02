@@ -3,9 +3,9 @@
 
 # Skill Packaging & Distribution
 
-| ID    | Owner | Priority | Status      |
-| ----- | ----- | -------- | ----------- |
-| SKPKG | —     | Medium   | In Progress |
+| ID    | Owner | Priority | Status  |
+| ----- | ----- | -------- | ------- |
+| SKPKG | —     | Medium   | Blocked |
 
 ## Purpose
 
@@ -72,8 +72,12 @@ the design before any implementation work is scoped.
 
 ### SKPKG-001: Cross-agent skill packaging design
 
-- **Status:** In Progress — design doc drafted, pending owner review (see
-  `## Designs` below)
+- **Status:** Blocked — parked 2026-07-02 (owner: new work landing in the
+  `eddacraft-skills` catalogue repo changes the ground this design stands on;
+  see `## Notes`). Design doc drafted and self-reviewed but not yet sent for
+  owner sign-off; two review-found defects (broken OQ-3/OQ-4 cross-reference,
+  overstated `anvil mcp install` target-overlap claim) are noted but not
+  fixed while parked — fix on resume, before requesting review.
 - **Intent:** Produce a design document that answers how
   `anvil-developer-functions` (and future customer-facing skills) get
   packaged, versioned, and distributed so they work across multiple agent
@@ -192,3 +196,14 @@ design spec surfaced; this section fills in as each is resolved)_
 Spawned 2026-07-02 from the `anvil-developer-functions` skill upload (PR
 [#3064](https://github.com/eddacraft/anvil-001/pull/3064)) once the need to
 package it for customers, across agent harnesses, was raised.
+
+### Parked 2026-07-02
+
+Owner call: new work is landing in the `eddacraft-skills` catalogue repo
+that the design's "What already exists" section leans on (the manifest
+schema, the `code-env` emission pipeline, `install.sh`'s target detection).
+Continuing design work now risks grounding decisions in a snapshot of that
+repo that's about to change. Parked rather than continued or abandoned —
+resume by re-reading `eddacraft-skills` state fresh (don't trust this
+design's "What already exists" findings without re-verifying them) before
+picking SKPKG-001 back up.

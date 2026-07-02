@@ -4,7 +4,9 @@
 
 Date: 2026-07-02
 Module: `SKPKG` (SKPKG-001)
-Status: Draft
+Status: Draft — **Parked 2026-07-02**, see the module's `## Notes`. Two
+self-review defects below are flagged but intentionally left unfixed while
+parked; fix before requesting owner review on resume.
 Coordinates with:
 [`plans/modules/skill-packaging-distribution.aps.md`](../modules/skill-packaging-distribution.aps.md),
 [`plans/modules/skill-discovery-observability.aps.md`](../modules/skill-discovery-observability.aps.md),
